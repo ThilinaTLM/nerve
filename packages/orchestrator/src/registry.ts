@@ -1,6 +1,6 @@
 import { basename, join, resolve } from "node:path";
-import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
-import { listAvailableModels, streamAgentPrompt } from "@nerve/agent";
+import type { Message } from "@earendil-works/pi-ai";
+import { listAvailableModels } from "@nerve/agent";
 import {
   type AgentRecord,
   type CreateAgentRequest,
@@ -13,6 +13,7 @@ import {
   type SessionEntry,
   type SessionRecord,
 } from "@nerve/shared";
+import { AgentProcessError, launchAgentProcess } from "./agent-process.js";
 import type { EventBus } from "./events.js";
 import {
   appendJsonLine,
@@ -21,7 +22,8 @@ import {
 } from "./storage.js";
 
 interface AgentRunState {
-  abortController: AbortController;
+  runId: string;
+  abort: () => void;
   messages: Message[];
 }
 
@@ -180,18 +182,37 @@ export class RuntimeRegistry {
       entry: userEntry,
     });
 
-    const abortController = new AbortController();
     const previousMessages = this.conversations.get(agentId) ?? [];
     const messages: Message[] = [
       ...previousMessages,
       { role: "user", content: request.text, timestamp: Date.now() },
     ];
-    this.runs.set(agentId, { abortController, messages });
+    const runId = createId("run");
+    const run = launchAgentProcess(
+      {
+        runId,
+        systemPrompt: systemPromptFor(agent),
+        messages,
+        model: agent.model,
+      },
+      {
+        onStarted: async () => {
+          await this.events.publish("agent.started", { agentId, runId });
+        },
+        onTextDelta: async (delta) => {
+          await this.events.publish("agent.message_delta", {
+            agentId,
+            runId,
+            sessionId: agent.sessionId,
+            delta,
+          });
+        },
+      },
+    );
+    this.runs.set(agentId, { runId, abort: run.abort, messages });
     await this.setAgentStatus(agent, "running");
 
-    void this.runAgent(agent.id, messages, abortController).catch((error) => {
-      void this.failAgent(agent.id, error);
-    });
+    void this.finishAgentRun(agent.id, runId, messages, run.result);
   }
 
   async abortAgent(agentId: string): Promise<void> {
@@ -199,46 +220,30 @@ export class RuntimeRegistry {
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
     const run = this.runs.get(agentId);
     if (!run) return;
-    run.abortController.abort();
-    await this.events.publish("agent.abort_requested", { agentId });
+    run.abort();
+    await this.events.publish("agent.abort_requested", {
+      agentId,
+      runId: run.runId,
+    });
   }
 
-  private async runAgent(
+  private async finishAgentRun(
     agentId: string,
+    runId: string,
     messages: Message[],
-    abortController: AbortController,
+    result: Promise<{ text: string; message?: Message }>,
   ): Promise<void> {
     const agent = this.agents.get(agentId);
     if (!agent) return;
-    let assistantText = "";
-    let finalMessage: AssistantMessage | undefined;
-    await this.events.publish("agent.started", { agentId });
 
     try {
-      for await (const event of streamAgentPrompt({
-        systemPrompt: systemPromptFor(agent),
-        messages,
-        model: agent.model,
-        signal: abortController.signal,
-      })) {
-        if (event.type === "text_delta") {
-          assistantText += event.delta;
-          await this.events.publish("agent.message_delta", {
-            agentId,
-            sessionId: agent.sessionId,
-            delta: event.delta,
-          });
-        }
-        if (event.type === "done") finalMessage = event.message;
-        if (event.type === "error") throw new Error(event.error.errorMessage);
-      }
-
-      if (finalMessage) messages.push(finalMessage);
+      const completion = await result;
+      if (completion.message) messages.push(completion.message);
       const assistantEntry = await this.appendEntry({
         sessionId: agent.sessionId,
         agentId,
         role: "assistant",
-        text: assistantText || messageText(finalMessage),
+        text: completion.text,
       });
       const latest = this.agents.get(agentId);
       if (latest) await this.setAgentStatus(latest, "idle");
@@ -246,34 +251,23 @@ export class RuntimeRegistry {
       this.runs.delete(agentId);
       await this.events.publish("agent.message_complete", {
         agentId,
+        runId,
         sessionId: agent.sessionId,
         entry: assistantEntry,
       });
     } catch (error) {
       this.runs.delete(agentId);
+      const aborted = error instanceof AgentProcessError && error.aborted;
       const latest = this.agents.get(agentId);
-      if (latest) {
-        await this.setAgentStatus(
-          latest,
-          abortController.signal.aborted ? "aborted" : "error",
-        );
-      }
+      if (latest)
+        await this.setAgentStatus(latest, aborted ? "aborted" : "error");
       await this.events.publish("agent.error", {
         agentId,
+        runId,
         message: error instanceof Error ? error.message : String(error),
-        aborted: abortController.signal.aborted,
+        aborted,
       });
     }
-  }
-
-  private async failAgent(agentId: string, error: unknown): Promise<void> {
-    this.runs.delete(agentId);
-    const agent = this.agents.get(agentId);
-    if (agent) await this.setAgentStatus(agent, "error");
-    await this.events.publish("agent.error", {
-      agentId,
-      message: error instanceof Error ? error.message : String(error),
-    });
   }
 
   private async setAgentStatus(
@@ -376,12 +370,4 @@ function systemPromptFor(agent: AgentRecord): string {
     `Project directory: ${agent.projectDir}.`,
     "Keep responses concise and useful.",
   ].join("\n");
-}
-
-function messageText(message: AssistantMessage | undefined): string {
-  if (!message) return "";
-  return message.content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("\n");
 }

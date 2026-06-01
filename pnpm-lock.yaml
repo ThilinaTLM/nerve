@@ -24,6 +24,9 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 0.78.0
         version: 0.78.0(ws@8.18.3)(zod@4.1.12)
+      '@nerve/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       typescript:
         specifier: 5.9.3

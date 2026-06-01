@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "import": "./dist/worker.js"
     }
   },
   "scripts": {
@@ -14,7 +18,8 @@
     "check": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.78.0"
+    "@earendil-works/pi-ai": "0.78.0",
+    "@nerve/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "5.9.3"

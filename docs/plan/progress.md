@@ -42,7 +42,7 @@ Phase 2: Minimal agent run
 - [ ] Copy/adapt the full Pi `packages/agent` harness.
 - [x] Add npm dependency on `@earendil-works/pi-ai`.
 - [x] Create a minimal agent runtime path that streams through `@earendil-works/pi-ai`.
-- [ ] Move agent execution behind an isolated process launcher.
+- [x] Move agent execution behind an isolated process launcher.
 - [x] Implement initial project/session/agent endpoints:
   - `POST /api/projects`
   - `GET /api/projects`
@@ -68,6 +68,7 @@ Phase 2: Minimal agent run
 - Project, session, agent, and session-entry records are now written under `~/.nerve/projects`, `~/.nerve/sessions`, and `~/.nerve/agents` as readable files.
 - CLI supports `nerve daemon`, `nerve status`, `nerve ui [--open]`, and `nerve run [dir] [prompt...]`.
 - Web UI can create a minimal project/session/agent and stream a faux-model assistant response over `/ws`.
+- Agent prompts now run in an isolated `@nerve/agent/worker` child process over an NDJSON stdio protocol; the orchestrator supervises the run, streams deltas, and sends abort requests across the process boundary.
 
 ### Later phases
 

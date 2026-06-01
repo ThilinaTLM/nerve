@@ -6,6 +6,6 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "references": [{ "path": "../shared" }],
+  "references": [{ "path": "../shared" }, { "path": "../agent" }],
   "include": ["src/**/*.ts"]
 }
