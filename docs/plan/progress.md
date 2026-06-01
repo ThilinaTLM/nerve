@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 2: Minimal agent run — complete
+Phase 3: Durable file-first state and event replay — in progress
 ```
 
 ## Locked foundation decisions
@@ -60,6 +60,22 @@ Phase 2: Minimal agent run — complete
 - [x] Add initial CodeMirror composer.
 - [x] Render completed assistant messages through the sanitized markdown pipeline.
 
+### Phase 3: Durable file-first state and event replay
+
+- [x] Add storage service rooted at `~/.nerve` or `NERVE_HOME`.
+- [x] Add crash-safe write helpers for append JSONL and atomic JSON writes.
+- [ ] Add SQLite orchestrator index store.
+- [x] Persist canonical project, session, session-entry, and agent files.
+- [ ] Index canonical state in SQLite.
+- [x] Add startup hydration from file-first records.
+- [x] Add listing/opening endpoints for projects, sessions, and agents.
+- [x] Add event replay from persisted `logs/events.jsonl` through HTTP and WebSocket.
+- [x] Persist session-associated events to `sessions/<session-id>/events.jsonl`.
+- [x] Add initial session tree endpoint and branch navigation endpoint.
+- [ ] Add a rebuild path from files to SQLite indexes.
+- [ ] Enable JSONL session storage from the copied agent harness.
+- [ ] Surface previous sessions/branch navigation in the UI.
+
 ### Latest implementation notes
 
 - Added `pnpm-workspace.yaml`, root TypeScript references, Biome config, package scripts, and lockfile.
@@ -71,6 +87,10 @@ Phase 2: Minimal agent run — complete
 - Agent prompts now run in an isolated `@nerve/agent/worker` child process over an NDJSON stdio protocol; the orchestrator supervises the run, streams deltas, and sends abort requests across the process boundary.
 - Web UI prompt input now uses a CodeMirror Markdown composer with keyboard submit, and completed assistant messages render through a sanitized unified/remark/rehype markdown pipeline.
 - Copied/adapted Pi `packages/agent` harness core into `@nerve/agent`, including agent loop, harness, session repositories, compaction helpers, skills, proxy utilities, and Node execution environment. The existing Nerve worker runtime remains exported through `runtime.ts` for the current isolated prompt path.
+- Orchestrator startup now hydrates projects, sessions, agents, entries, reconstructed conversations, and the event sequence from file-first storage.
+- `GET /api/events` and `WS /ws?since=` now replay persisted events rather than only the current process buffer.
+- Added opening endpoints (`GET /api/projects/:projectId`, `GET /api/sessions/:sessionId`, `GET /api/agents/:agentId`) plus initial `GET /api/sessions/:sessionId/tree` and `POST /api/sessions/:sessionId/navigate` support.
+- Session entries now include parent links and sessions track `activeEntryId`, enabling append-only branch metadata for later UI branch navigation.
 
 ### Later phases
 

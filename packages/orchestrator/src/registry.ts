@@ -3,15 +3,21 @@ import type { Message } from "@earendil-works/pi-ai";
 import { listAvailableModels } from "@nerve/agent";
 import {
   type AgentRecord,
+  agentRecordSchema,
   type CreateAgentRequest,
   type CreateProjectRequest,
   type CreateSessionRequest,
   createId,
   type ModelInfo,
+  type NavigateSessionRequest,
   type ProjectRecord,
   type PromptRequest,
+  projectRecordSchema,
   type SessionEntry,
   type SessionRecord,
+  type SessionTree,
+  sessionEntrySchema,
+  sessionRecordSchema,
 } from "@nerve/shared";
 import { AgentProcessError, launchAgentProcess } from "./agent-process.js";
 import type { EventBus } from "./events.js";
@@ -19,6 +25,9 @@ import {
   appendJsonLine,
   atomicWriteJson,
   type InitializedStorage,
+  listChildDirs,
+  readJsonFile,
+  readJsonLines,
 } from "./storage.js";
 
 interface AgentRunState {
@@ -39,6 +48,13 @@ export class RuntimeRegistry {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
   ) {}
+
+  async hydrate(): Promise<void> {
+    await this.loadProjects();
+    await this.loadSessions();
+    await this.loadAgents();
+    await this.rebuildConversations();
+  }
 
   async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {
     const now = new Date().toISOString();
@@ -64,6 +80,13 @@ export class RuntimeRegistry {
     return [...this.projects.values()].sort((a, b) =>
       a.createdAt.localeCompare(b.createdAt),
     );
+  }
+
+  getProject(projectId: string): ProjectRecord {
+    const project = this.projects.get(projectId);
+    if (!project)
+      throw new HttpError(404, "PROJECT_NOT_FOUND", "Project not found.");
+    return project;
   }
 
   async createSession(request: CreateSessionRequest): Promise<SessionRecord> {
@@ -92,6 +115,13 @@ export class RuntimeRegistry {
     return [...this.sessions.values()].sort((a, b) =>
       a.createdAt.localeCompare(b.createdAt),
     );
+  }
+
+  getSession(sessionId: string): SessionRecord {
+    const session = this.sessions.get(sessionId);
+    if (!session)
+      throw new HttpError(404, "SESSION_NOT_FOUND", "Session not found.");
+    return session;
   }
 
   async createAgent(request: CreateAgentRequest): Promise<AgentRecord> {
@@ -146,10 +176,68 @@ export class RuntimeRegistry {
     );
   }
 
+  getAgent(agentId: string): AgentRecord {
+    const agent = this.agents.get(agentId);
+    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    return agent;
+  }
+
   getSessionEntries(sessionId: string): SessionEntry[] {
-    if (!this.sessions.has(sessionId))
-      throw new HttpError(404, "SESSION_NOT_FOUND", "Session not found.");
-    return this.entries.get(sessionId) ?? [];
+    const session = this.getSession(sessionId);
+    return this.activeBranchEntries(session);
+  }
+
+  getSessionTree(sessionId: string): SessionTree {
+    const session = this.getSession(sessionId);
+    const entries = this.entries.get(session.id) ?? [];
+    const children = new Map<string, string[]>();
+    const rootEntryIds: string[] = [];
+    for (const entry of entries) {
+      if (entry.parentEntryId) {
+        const childEntryIds = children.get(entry.parentEntryId) ?? [];
+        childEntryIds.push(entry.id);
+        children.set(entry.parentEntryId, childEntryIds);
+      } else {
+        rootEntryIds.push(entry.id);
+      }
+    }
+    return {
+      sessionId: session.id,
+      activeEntryId: session.activeEntryId,
+      rootEntryIds,
+      nodes: entries.map((entry) => ({
+        entry,
+        childEntryIds: children.get(entry.id) ?? [],
+      })),
+    };
+  }
+
+  async navigateSession(
+    sessionId: string,
+    request: NavigateSessionRequest,
+  ): Promise<SessionRecord> {
+    const session = this.getSession(sessionId);
+    const activeEntryId = request.activeEntryId ?? undefined;
+    if (
+      activeEntryId &&
+      !(this.entries.get(session.id) ?? []).some(
+        (entry) => entry.id === activeEntryId,
+      )
+    ) {
+      throw new HttpError(404, "ENTRY_NOT_FOUND", "Entry not found.");
+    }
+    const updated = {
+      ...session,
+      activeEntryId,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.updateSession(updated);
+    await this.rebuildConversations();
+    await this.events.publish("session.navigated", {
+      sessionId: session.id,
+      activeEntryId,
+    });
+    return updated;
   }
 
   listModels(): ModelInfo[] {
@@ -294,10 +382,12 @@ export class RuntimeRegistry {
     role: SessionEntry["role"];
     text: string;
   }): Promise<SessionEntry> {
+    const session = this.getSession(input.sessionId);
     const entry: SessionEntry = {
       id: createId("entry"),
       sessionId: input.sessionId,
       agentId: input.agentId,
+      parentEntryId: session.activeEntryId,
       role: input.role,
       text: input.text,
       createdAt: new Date().toISOString(),
@@ -315,7 +405,99 @@ export class RuntimeRegistry {
       entry,
       0o600,
     );
+    await this.updateSession({
+      ...session,
+      activeEntryId: entry.id,
+      updatedAt: entry.createdAt,
+    });
     return entry;
+  }
+
+  private activeBranchEntries(session: SessionRecord): SessionEntry[] {
+    const entries = this.entries.get(session.id) ?? [];
+    if (!session.activeEntryId) return entries;
+    const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    const branch: SessionEntry[] = [];
+    let cursor: string | undefined = session.activeEntryId;
+    while (cursor) {
+      const entry = byId.get(cursor);
+      if (!entry) break;
+      branch.push(entry);
+      cursor = entry.parentEntryId;
+    }
+    return branch.reverse();
+  }
+
+  private async loadProjects(): Promise<void> {
+    const root = join(this.storage.paths.home, "projects");
+    for (const projectId of await listChildDirs(root)) {
+      const path = join(root, projectId, "project.json");
+      const parsed = projectRecordSchema.safeParse(
+        await readJsonFile<unknown>(path).catch(() => undefined),
+      );
+      if (parsed.success) this.projects.set(parsed.data.id, parsed.data);
+    }
+  }
+
+  private async loadSessions(): Promise<void> {
+    const root = join(this.storage.paths.home, "sessions");
+    for (const sessionId of await listChildDirs(root)) {
+      const sessionPath = join(root, sessionId, "session.json");
+      const session = sessionRecordSchema.safeParse(
+        await readJsonFile<unknown>(sessionPath).catch(() => undefined),
+      );
+      if (!session.success) continue;
+      this.sessions.set(session.data.id, session.data);
+      const rawEntries = await readJsonLines<unknown>(
+        join(root, sessionId, "entries.jsonl"),
+      ).catch(() => []);
+      const entries = rawEntries
+        .map((entry) => sessionEntrySchema.safeParse(entry))
+        .filter((result) => result.success)
+        .map((result) => result.data);
+      this.entries.set(session.data.id, entries);
+    }
+  }
+
+  private async loadAgents(): Promise<void> {
+    const root = join(this.storage.paths.home, "agents");
+    for (const agentId of await listChildDirs(root)) {
+      const path = join(root, agentId, "agent.json");
+      const parsed = agentRecordSchema.safeParse(
+        await readJsonFile<unknown>(path).catch(() => undefined),
+      );
+      if (!parsed.success) continue;
+      const agent: AgentRecord =
+        parsed.data.status === "running"
+          ? {
+              ...parsed.data,
+              status: "error",
+              updatedAt: new Date().toISOString(),
+            }
+          : parsed.data;
+      this.agents.set(agent.id, agent);
+      if (agent !== parsed.data) await this.writeAgent(agent);
+    }
+  }
+
+  private async rebuildConversations(): Promise<void> {
+    this.conversations.clear();
+    for (const agent of this.agents.values()) {
+      const session = this.sessions.get(agent.sessionId);
+      if (!session) continue;
+      const messages = this.activeBranchEntries(session)
+        .filter(
+          (entry) =>
+            entry.agentId === agent.id &&
+            (entry.role === "user" || entry.role === "assistant"),
+        )
+        .map((entry) => ({
+          role: entry.role,
+          content: entry.text,
+          timestamp: new Date(entry.createdAt).getTime(),
+        })) as Message[];
+      this.conversations.set(agent.id, messages);
+    }
   }
 
   private async writeSession(session: SessionRecord): Promise<void> {

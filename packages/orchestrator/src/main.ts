@@ -26,6 +26,8 @@ async function main() {
     readArg("--port") ?? process.env.NERVE_PORT ?? storage.settings.server.port,
   );
   const state = createOrchestratorState(storage, host, port);
+  await state.events.hydrate();
+  await state.registry.hydrate();
   const app = createApp(state);
 
   const server = serve(
@@ -67,13 +69,15 @@ async function main() {
     }
     webSockets.handleUpgrade(request, socket, head, (ws) => {
       const since = Number(url.searchParams.get("since") ?? "0");
-      for (const event of state.events.replaySince(
-        Number.isFinite(since) ? since : 0,
-      )) {
-        ws.send(JSON.stringify(event));
-      }
+      const replayAfter = Number.isFinite(since) ? since : 0;
+      void state.events.replayPersistedSince(replayAfter).then((events) => {
+        for (const event of events) {
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
+        }
+      });
       const unsubscribe = state.events.subscribe((event) => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
+        if (event.seq > replayAfter && ws.readyState === WebSocket.OPEN)
+          ws.send(JSON.stringify(event));
       });
       ws.on("close", unsubscribe);
     });

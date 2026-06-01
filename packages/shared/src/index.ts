@@ -132,6 +132,7 @@ export const sessionRecordSchema = z.object({
   mode: modeSchema,
   permissionLevel: permissionLevelSchema,
   activeAgentId: z.string().startsWith("agent_").optional(),
+  activeEntryId: z.string().startsWith("entry_").optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -202,11 +203,33 @@ export const sessionEntrySchema = z.object({
   id: z.string().startsWith("entry_"),
   sessionId: z.string().startsWith("ses_"),
   agentId: z.string().startsWith("agent_").optional(),
+  parentEntryId: z.string().startsWith("entry_").optional(),
   role: z.enum(["user", "assistant", "system"]),
   text: z.string(),
   createdAt: z.string().datetime(),
 });
 export type SessionEntry = z.infer<typeof sessionEntrySchema>;
+
+export const sessionTreeNodeSchema = z.object({
+  entry: sessionEntrySchema,
+  childEntryIds: z.array(z.string().startsWith("entry_")),
+});
+export type SessionTreeNode = z.infer<typeof sessionTreeNodeSchema>;
+
+export const sessionTreeSchema = z.object({
+  sessionId: z.string().startsWith("ses_"),
+  activeEntryId: z.string().startsWith("entry_").optional(),
+  rootEntryIds: z.array(z.string().startsWith("entry_")),
+  nodes: z.array(sessionTreeNodeSchema),
+});
+export type SessionTree = z.infer<typeof sessionTreeSchema>;
+
+export const navigateSessionRequestSchema = z.object({
+  activeEntryId: z.string().startsWith("entry_").nullable(),
+});
+export type NavigateSessionRequest = z.infer<
+  typeof navigateSessionRequestSchema
+>;
 
 export const modelInfoSchema = z.object({
   provider: z.string(),

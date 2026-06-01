@@ -1,6 +1,11 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { createId, type EventEnvelope } from "@nerve/shared";
+import {
+  createId,
+  type EventEnvelope,
+  eventEnvelopeSchema,
+} from "@nerve/shared";
+import { readJsonLines } from "./storage.js";
 
 export class EventBus {
   #seq = 0;
@@ -9,8 +14,21 @@ export class EventBus {
 
   constructor(
     private readonly dataDir: string,
-    private readonly maxBufferedEvents = 1000,
+    private readonly maxBufferedEvents = 10_000,
   ) {}
+
+  async hydrate(): Promise<void> {
+    const events = await readJsonLines<unknown>(this.globalEventsPath()).catch(
+      () => [],
+    );
+    const parsed = events
+      .map((event) => eventEnvelopeSchema.safeParse(event))
+      .filter((result) => result.success)
+      .map((result) => result.data as EventEnvelope)
+      .sort((a, b) => a.seq - b.seq);
+    this.#events = parsed.slice(-this.maxBufferedEvents);
+    this.#seq = parsed.reduce((max, event) => Math.max(max, event.seq), 0);
+  }
 
   async publish<T>(type: string, data: T): Promise<EventEnvelope<T>> {
     this.#seq += 1;
@@ -32,6 +50,17 @@ export class EventBus {
     return this.#events.filter((event) => event.seq > seq);
   }
 
+  async replayPersistedSince(seq = 0): Promise<EventEnvelope[]> {
+    const events = await readJsonLines<unknown>(this.globalEventsPath()).catch(
+      () => [],
+    );
+    return events
+      .map((event) => eventEnvelopeSchema.safeParse(event))
+      .filter((result) => result.success && result.data.seq > seq)
+      .map((result) => result.data as EventEnvelope)
+      .sort((a, b) => a.seq - b.seq);
+  }
+
   subscribe(listener: (event: EventEnvelope) => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
@@ -40,10 +69,30 @@ export class EventBus {
   private async persist(event: EventEnvelope): Promise<void> {
     const dir = join(this.dataDir, "logs");
     await mkdir(dir, { recursive: true });
-    await appendFile(
-      join(dir, "events.jsonl"),
-      `${JSON.stringify(event)}\n`,
-      "utf8",
-    );
+    const line = `${JSON.stringify(event)}\n`;
+    await appendFile(this.globalEventsPath(), line, "utf8");
+    const sessionId = sessionIdForEvent(event);
+    if (sessionId) {
+      const sessionDir = join(this.dataDir, "sessions", sessionId);
+      await mkdir(sessionDir, { recursive: true });
+      await appendFile(join(sessionDir, "events.jsonl"), line, "utf8");
+    }
   }
+
+  private globalEventsPath(): string {
+    return join(this.dataDir, "logs", "events.jsonl");
+  }
+}
+
+function sessionIdForEvent(event: EventEnvelope): string | undefined {
+  const data = event.data as Record<string, unknown> | undefined;
+  if (!data) return undefined;
+  if (typeof data.sessionId === "string") return data.sessionId;
+  const session = data.session as Record<string, unknown> | undefined;
+  if (typeof session?.id === "string") return session.id;
+  const entry = data.entry as Record<string, unknown> | undefined;
+  if (typeof entry?.sessionId === "string") return entry.sessionId;
+  const agent = data.agent as Record<string, unknown> | undefined;
+  if (typeof agent?.sessionId === "string") return agent.sessionId;
+  return undefined;
 }

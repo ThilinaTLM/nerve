@@ -7,6 +7,7 @@ import {
   createProjectRequestSchema,
   createSessionRequestSchema,
   type DaemonFile,
+  navigateSessionRequestSchema,
   parseCookieHeader,
   promptRequestSchema,
   type StatusResponse,
@@ -192,10 +193,12 @@ export function createApp(state: OrchestratorState): Hono {
       configPath: state.storage.paths.configPath,
     }),
   );
-  app.get("/api/events", (c) => {
+  app.get("/api/events", async (c) => {
     const since = Number(c.req.query("since") ?? "0");
     return c.json({
-      events: state.events.replaySince(Number.isFinite(since) ? since : 0),
+      events: await state.events.replayPersistedSince(
+        Number.isFinite(since) ? since : 0,
+      ),
     });
   });
   app.get("/api/models", (c) =>
@@ -212,6 +215,15 @@ export function createApp(state: OrchestratorState): Hono {
   app.get("/api/projects", (c) =>
     c.json({ projects: state.registry.listProjects() }),
   );
+  app.get("/api/projects/:projectId", (c) => {
+    try {
+      return c.json({
+        project: state.registry.getProject(c.req.param("projectId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
   app.post("/api/sessions", async (c) => {
     try {
       const body = createSessionRequestSchema.parse(await c.req.json());
@@ -223,10 +235,41 @@ export function createApp(state: OrchestratorState): Hono {
   app.get("/api/sessions", (c) =>
     c.json({ sessions: state.registry.listSessions() }),
   );
+  app.get("/api/sessions/:sessionId", (c) => {
+    try {
+      return c.json({
+        session: state.registry.getSession(c.req.param("sessionId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
   app.get("/api/sessions/:sessionId/messages", (c) => {
     try {
       return c.json({
         entries: state.registry.getSessionEntries(c.req.param("sessionId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/sessions/:sessionId/tree", (c) => {
+    try {
+      return c.json({
+        tree: state.registry.getSessionTree(c.req.param("sessionId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/sessions/:sessionId/navigate", async (c) => {
+    try {
+      const body = navigateSessionRequestSchema.parse(await c.req.json());
+      return c.json({
+        session: await state.registry.navigateSession(
+          c.req.param("sessionId"),
+          body,
+        ),
       });
     } catch (error) {
       return errorResponse(error);
@@ -243,6 +286,13 @@ export function createApp(state: OrchestratorState): Hono {
   app.get("/api/agents", (c) =>
     c.json({ agents: state.registry.listAgents() }),
   );
+  app.get("/api/agents/:agentId", (c) => {
+    try {
+      return c.json({ agent: state.registry.getAgent(c.req.param("agentId")) });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
   app.post("/api/agents/:agentId/prompt", async (c) => {
     try {
       const body = promptRequestSchema.parse(await c.req.json());

@@ -4,6 +4,7 @@ import {
   appendFile,
   chmod,
   mkdir,
+  readdir,
   readFile,
   rename,
   stat,
@@ -73,6 +74,35 @@ export async function pathExists(path: string): Promise<boolean> {
 export async function readJsonFile<T>(path: string): Promise<T> {
   const raw = await readFile(path, "utf8");
   return JSON.parse(raw) as T;
+}
+
+export async function readJsonLines<T>(path: string): Promise<T[]> {
+  if (!(await pathExists(path))) return [];
+  const raw = await readFile(path, "utf8");
+  const values: T[] = [];
+  for (const [index, line] of raw.split(/\r?\n/).entries()) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      values.push(JSON.parse(trimmed) as T);
+    } catch (error) {
+      process.emitWarning(
+        `Skipping invalid JSONL line ${path}:${index + 1}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+  return values;
+}
+
+export async function listChildDirs(path: string): Promise<string[]> {
+  if (!(await pathExists(path))) return [];
+  const entries = await readdir(path, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
 }
 
 export async function atomicWriteJson(
