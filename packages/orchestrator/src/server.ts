@@ -7,15 +7,19 @@ import {
   createProjectRequestSchema,
   createSessionRequestSchema,
   type DaemonFile,
+  executeToolRequestSchema,
   navigateSessionRequestSchema,
   parseCookieHeader,
   promptRequestSchema,
+  resolveApprovalRequestSchema,
   type StatusResponse,
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { EventBus } from "./events.js";
 import { IndexStore } from "./index-store.js";
 import { errorResponse, RuntimeRegistry } from "./registry.js";
+import type { SecretProvider } from "./secrets.js";
+import { EncryptedFileSecretProvider } from "./secrets.js";
 import type { InitializedStorage } from "./storage.js";
 
 export const version = "0.0.0";
@@ -29,6 +33,7 @@ export interface OrchestratorState {
   events: EventBus;
   registry: RuntimeRegistry;
   index: IndexStore;
+  secrets: SecretProvider;
 }
 
 export function createOrchestratorState(
@@ -48,6 +53,7 @@ export function createOrchestratorState(
     events,
     registry: new RuntimeRegistry(storage, events, index),
     index,
+    secrets: new EncryptedFileSecretProvider(storage.paths.home),
   };
 }
 
@@ -304,6 +310,22 @@ export function createApp(state: OrchestratorState): Hono {
   app.get("/api/models", (c) =>
     c.json({ models: state.registry.listModels() }),
   );
+  app.get("/api/tools", (c) =>
+    c.json({ tools: state.registry.tools.listTools() }),
+  );
+  app.get("/api/tool-calls", (c) =>
+    c.json({ toolCalls: state.registry.tools.listToolCalls() }),
+  );
+  app.get("/api/approvals", (c) => {
+    const status = c.req.query("status");
+    return c.json({
+      approvals: state.registry.tools.listApprovals(
+        status === "pending" || status === "granted" || status === "denied"
+          ? status
+          : undefined,
+      ),
+    });
+  });
   app.get("/api/completions/slash", (c) =>
     c.json({ items: slashCompletionItems }),
   );
@@ -414,6 +436,49 @@ export function createApp(state: OrchestratorState): Hono {
       const body = promptRequestSchema.parse(await c.req.json());
       await state.registry.promptAgent(c.req.param("agentId"), body);
       return c.json({ ok: true }, 202);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/agents/:agentId/tools", async (c) => {
+    try {
+      const body = executeToolRequestSchema.parse(await c.req.json());
+      const result = await state.registry.requestTool(
+        c.req.param("agentId"),
+        body.toolName,
+        body.args,
+      );
+      return c.json(result, result.approval ? 202 : 200);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/approvals/:approvalId/grant", async (c) => {
+    try {
+      const body = resolveApprovalRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json({
+        toolCall: await state.registry.grantApproval(
+          c.req.param("approvalId"),
+          body.note,
+        ),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/approvals/:approvalId/deny", async (c) => {
+    try {
+      const body = resolveApprovalRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json({
+        toolCall: await state.registry.denyApproval(
+          c.req.param("approvalId"),
+          body.note,
+        ),
+      });
     } catch (error) {
       return errorResponse(error);
     }

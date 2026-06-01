@@ -18,11 +18,13 @@
     apiPost,
     getClientConfig,
     getFileCompletions,
+    getPendingApprovals,
     getSessionMessages,
     getSessionTree,
     getSlashCompletions,
     getWorkspaceSnapshot,
     type AgentRecord,
+    type ApprovalWithToolCall,
     type ClientConfig,
     type CompletionItem,
     type EventEnvelope,
@@ -56,6 +58,7 @@
   let sessions = $state<SessionRecord[]>([]);
   let agents = $state<AgentRecord[]>([]);
   let treeNodes = $state<SessionTreeNode[]>([]);
+  let approvals = $state<ApprovalWithToolCall[]>([]);
   let transcript = $state<TranscriptItem[]>([]);
   let streamingText = $state("");
   let slashCompletions = $state<CompletionItem[]>([]);
@@ -66,6 +69,7 @@
   const activeAgent = $derived(agents.find((agent) => agent.id === selection.agentId));
   const live = $derived(connection === "live");
   const branchDepth = $derived(treeNodes.length);
+  const pendingApprovalCount = $derived(approvals.length);
 
   function entriesToTranscript(entries: SessionEntry[]): TranscriptItem[] {
     return entries
@@ -81,6 +85,7 @@
     projects = snapshot.projects;
     sessions = snapshot.sessions;
     agents = snapshot.agents;
+    approvals = await getPendingApprovals();
   }
 
   async function loadSlashCommands() {
@@ -173,6 +178,18 @@
     return agent.id;
   }
 
+  async function grantApproval(approvalId: string) {
+    await apiPost(`/api/approvals/${approvalId}/grant`, {});
+    approvals = await getPendingApprovals();
+    layout.inspectorTab = "events";
+  }
+
+  async function denyApproval(approvalId: string) {
+    await apiPost(`/api/approvals/${approvalId}/deny`, { note: "Denied from UI." });
+    approvals = await getPendingApprovals();
+    layout.inspectorTab = "events";
+  }
+
   async function abortActiveRun() {
     if (!selection.agentId) return;
     await apiPost(`/api/agents/${selection.agentId}/abort`, {});
@@ -222,7 +239,13 @@
       error = String(event.data?.message ?? "Agent error");
       sending = false;
     }
-    if (event.type === "session.created" || event.type === "agent.created" || event.type === "project.created") {
+    if (
+      event.type === "session.created" ||
+      event.type === "agent.created" ||
+      event.type === "project.created" ||
+      event.type.startsWith("approval.") ||
+      event.type.startsWith("agent.tool_call")
+    ) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
       void loadWorkspaceState();
     }
@@ -290,6 +313,9 @@
     </div>
 
     <div class="topbar-actions">
+      {#if pendingApprovalCount > 0}
+        <Badge tone="warn">{pendingApprovalCount} approval{pendingApprovalCount === 1 ? "" : "s"}</Badge>
+      {/if}
       <Badge tone={live ? "good" : "warn"}>
         <span class="status-dot" class:live></span>{connection}
       </Badge>
@@ -423,6 +449,7 @@
           <Tabs.List class="tab-list">
             <Tabs.Trigger value="session" class="tab-trigger">Session</Tabs.Trigger>
             <Tabs.Trigger value="branch" class="tab-trigger">Branch</Tabs.Trigger>
+            <Tabs.Trigger value="approvals" class="tab-trigger">Approvals</Tabs.Trigger>
             <Tabs.Trigger value="events" class="tab-trigger">Events</Tabs.Trigger>
           </Tabs.List>
 
@@ -469,6 +496,34 @@
               </div>
             {:else}
               <p class="muted">No branch metadata loaded.</p>
+            {/if}
+          </Tabs.Content>
+
+          <Tabs.Content value="approvals" class="tab-content">
+            {#if approvals.length > 0}
+              <div class="approval-list">
+                {#each approvals as approval}
+                  <Card tone="muted" class="approval-card">
+                    <div class="approval-heading">
+                      <div>
+                        <p class="eyebrow">{approval.risk}</p>
+                        <h3>{approval.toolCall?.toolName ?? "tool call"}</h3>
+                      </div>
+                      <Badge tone="warn">pending</Badge>
+                    </div>
+                    <p>{approval.reason}</p>
+                    {#if approval.toolCall}
+                      <code>{JSON.stringify(approval.toolCall.args, null, 2)}</code>
+                    {/if}
+                    <div class="approval-actions">
+                      <Button size="sm" onclick={() => grantApproval(approval.id)}>Approve</Button>
+                      <Button size="sm" variant="secondary" onclick={() => denyApproval(approval.id)}>Deny</Button>
+                    </div>
+                  </Card>
+                {/each}
+              </div>
+            {:else}
+              <p class="muted">No pending approvals.</p>
             {/if}
           </Tabs.Content>
 
@@ -532,7 +587,9 @@
   .topbar-actions,
   .conversation-meta,
   .composer-actions,
-  .branch-header {
+  .branch-header,
+  .approval-heading,
+  .approval-actions {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -842,7 +899,7 @@
 
   :global(.tab-list) {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 0.25rem;
     margin-bottom: 1rem;
     border: 1px solid var(--color-border);
@@ -872,9 +929,25 @@
     overflow: auto;
   }
 
-  :global(.detail-card) {
+  :global(.detail-card),
+  :global(.approval-card) {
     margin-bottom: 0.75rem;
     padding: 1rem;
+  }
+
+  .approval-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .approval-heading {
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  .approval-actions {
+    justify-content: flex-end;
+    margin-top: 0.75rem;
   }
 
   dl {

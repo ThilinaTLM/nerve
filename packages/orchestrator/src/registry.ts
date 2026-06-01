@@ -22,6 +22,7 @@ import {
   type SessionTree,
   sessionEntrySchema,
   sessionRecordSchema,
+  type ToolName,
 } from "@nerve/shared";
 import { AgentProcessError, launchAgentProcess } from "./agent-process.js";
 import type { EventBus } from "./events.js";
@@ -35,6 +36,7 @@ import {
   readJsonFile,
   readJsonLines,
 } from "./storage.js";
+import { ToolService } from "./tool-service.js";
 
 interface AgentRunState {
   runId: string;
@@ -49,14 +51,18 @@ export class RuntimeRegistry {
   readonly entries = new Map<string, SessionEntry[]>();
   readonly conversations = new Map<string, Message[]>();
   readonly runs = new Map<string, AgentRunState>();
+  readonly tools: ToolService;
 
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
-  ) {}
+  ) {
+    this.tools = new ToolService(storage, events, index);
+  }
 
   async hydrate(): Promise<void> {
+    await this.tools.hydrate();
     await this.loadProjects();
     await this.loadSessions();
     await this.loadAgents();
@@ -259,6 +265,38 @@ export class RuntimeRegistry {
       activeEntryId,
     });
     return updated;
+  }
+
+  async requestTool(
+    agentId: string,
+    toolName: ToolName,
+    args: Record<string, unknown>,
+  ) {
+    return this.tools.requestTool(this.getAgent(agentId), toolName, args);
+  }
+
+  async grantApproval(approvalId: string, note?: string) {
+    try {
+      return await this.tools.grantApproval(approvalId, note);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "APPROVAL_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  async denyApproval(approvalId: string, note?: string) {
+    try {
+      return await this.tools.denyApproval(approvalId, note);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "APPROVAL_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   listModels(): ModelInfo[] {

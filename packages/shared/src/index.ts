@@ -208,6 +208,81 @@ export const promptRequestSchema = z.object({
 });
 export type PromptRequest = z.infer<typeof promptRequestSchema>;
 
+export const toolNameSchema = z.enum([
+  "read",
+  "write",
+  "edit",
+  "bash",
+  "list",
+  "search",
+]);
+export type ToolName = z.infer<typeof toolNameSchema>;
+
+export const toolDescriptorSchema = z.object({
+  name: toolNameSchema,
+  risk: toolRiskSchema,
+  description: z.string(),
+});
+export type ToolDescriptor = z.infer<typeof toolDescriptorSchema>;
+
+export const toolCallStatusSchema = z.enum([
+  "requested",
+  "pending_approval",
+  "running",
+  "completed",
+  "denied",
+  "error",
+]);
+export type ToolCallStatus = z.infer<typeof toolCallStatusSchema>;
+
+export const toolCallRecordSchema = z.object({
+  id: z.string().startsWith("tool_"),
+  agentId: z.string().startsWith("agent_"),
+  sessionId: z.string().startsWith("ses_"),
+  projectId: z.string().startsWith("proj_"),
+  toolName: toolNameSchema,
+  risk: toolRiskSchema,
+  args: z.unknown(),
+  cwd: z.string().min(1),
+  status: toolCallStatusSchema,
+  approvalId: z.string().startsWith("approval_").optional(),
+  result: z.unknown().optional(),
+  error: z.string().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ToolCallRecord = z.infer<typeof toolCallRecordSchema>;
+
+export const approvalStatusSchema = z.enum(["pending", "granted", "denied"]);
+export type ApprovalStatus = z.infer<typeof approvalStatusSchema>;
+
+export const approvalRecordSchema = z.object({
+  id: z.string().startsWith("approval_"),
+  toolCallId: z.string().startsWith("tool_"),
+  agentId: z.string().startsWith("agent_"),
+  sessionId: z.string().startsWith("ses_"),
+  projectId: z.string().startsWith("proj_"),
+  risk: toolRiskSchema,
+  reason: z.string(),
+  status: approvalStatusSchema,
+  requestedAt: z.string().datetime(),
+  resolvedAt: z.string().datetime().optional(),
+});
+export type ApprovalRecord = z.infer<typeof approvalRecordSchema>;
+
+export const executeToolRequestSchema = z.object({
+  toolName: toolNameSchema,
+  args: z.record(z.string(), z.unknown()).default({}),
+});
+export type ExecuteToolRequest = z.infer<typeof executeToolRequestSchema>;
+
+export const resolveApprovalRequestSchema = z.object({
+  note: z.string().optional(),
+});
+export type ResolveApprovalRequest = z.infer<
+  typeof resolveApprovalRequestSchema
+>;
+
 export const sessionEntrySchema = z.object({
   id: z.string().startsWith("entry_"),
   sessionId: z.string().startsWith("ses_"),
@@ -315,7 +390,9 @@ export type IdPrefix =
   | "agent"
   | "run"
   | "proc"
-  | "entry";
+  | "entry"
+  | "tool"
+  | "approval";
 
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

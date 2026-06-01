@@ -198,7 +198,7 @@ Success criteria:
 
 ## Phase 5: Tool layer + policy engine
 
-Status: next.
+Status: complete.
 
 Goal: useful coding tools with enforced modes and permission levels.
 

@@ -1,9 +1,11 @@
 import { DatabaseSync } from "node:sqlite";
 import type {
   AgentRecord,
+  ApprovalRecord,
   EventEnvelope,
   ProjectRecord,
   SessionRecord,
+  ToolCallRecord,
 } from "@nerve/shared";
 
 export interface IndexCounts {
@@ -196,6 +198,30 @@ export class IndexStore {
           agent.updatedAt,
           JSON.stringify(agent),
         );
+    });
+  }
+
+  upsertToolCall(toolCall: ToolCallRecord): void {
+    this.guard(() => {
+      this.db
+        .prepare(
+          `INSERT INTO tool_calls (id, json)
+           VALUES (?, ?)
+           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
+        )
+        .run(toolCall.id, JSON.stringify(toolCall));
+    });
+  }
+
+  upsertApproval(approval: ApprovalRecord): void {
+    this.guard(() => {
+      this.db
+        .prepare(
+          `INSERT INTO approvals (id, json)
+           VALUES (?, ?)
+           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
+        )
+        .run(approval.id, JSON.stringify(approval));
     });
   }
 

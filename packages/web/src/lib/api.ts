@@ -1,5 +1,6 @@
 import type {
   AgentRecord,
+  ApprovalRecord,
   EventEnvelope,
   ProjectRecord,
   SessionEntry,
@@ -7,6 +8,7 @@ import type {
   SessionTree,
   SessionTreeNode,
   StatusResponse,
+  ToolCallRecord,
 } from "@nerve/shared";
 
 export type ClientConfig = {
@@ -27,6 +29,10 @@ export type WorkspaceSnapshot = {
   projects: ProjectRecord[];
   sessions: SessionRecord[];
   agents: AgentRecord[];
+};
+
+export type ApprovalWithToolCall = ApprovalRecord & {
+  toolCall?: ToolCallRecord;
 };
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -89,6 +95,18 @@ export async function getSlashCompletions(): Promise<CompletionItem[]> {
     .items;
 }
 
+export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
+  const [{ approvals }, { toolCalls }] = await Promise.all([
+    apiGet<{ approvals: ApprovalRecord[] }>("/api/approvals?status=pending"),
+    apiGet<{ toolCalls: ToolCallRecord[] }>("/api/tool-calls"),
+  ]);
+  const byId = new Map(toolCalls.map((toolCall) => [toolCall.id, toolCall]));
+  return approvals.map((approval) => ({
+    ...approval,
+    toolCall: byId.get(approval.toolCallId),
+  }));
+}
+
 export async function getFileCompletions(
   projectId: string | undefined,
   query: string,
@@ -111,4 +129,6 @@ export type {
   SessionTree,
   SessionTreeNode,
   StatusResponse,
+  ApprovalRecord,
+  ToolCallRecord,
 };

@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 4: Web UI foundation — complete
+Phase 5: Tool layer + policy engine — complete
 ```
 
 ## Locked foundation decisions
@@ -117,6 +117,29 @@ Phase 4: Web UI foundation — complete
 - Added orchestrator completion endpoints: `GET /api/completions/slash` and `GET /api/completions/files`.
 - Added Shiki-powered highlighted code blocks to the sanitized markdown renderer.
 - Tested the UI in Chrome via `agent-browser` against the local orchestrator.
+
+### Phase 5: Tool layer + policy engine
+
+- [x] Implement/adapt tools for read, write, edit, bash, list, and search.
+- [x] Classify tools by risk, including read-only shell command detection and destructive shell pattern detection.
+- [x] Enforce permission levels: autonomous, supervised, and read_only.
+- [x] Enforce primary modes: planning and coding.
+- [x] Add plan sandbox writes under `~/.nerve/plans/`.
+- [x] Add an encrypted-file secret provider abstraction under `~/.nerve/keys/`.
+- [x] Enforce workspace root boundaries for filesystem and shell tools.
+- [x] Add approval queue for supervised and destructive actions.
+- [x] Persist approval audit trail to `~/.nerve/approvals/approvals.jsonl`.
+- [x] Add UI approval prompts in the inspector.
+- [x] Add durable events for policy evaluation, approval lifecycle, and tool call lifecycle.
+
+### Latest Phase 5 notes
+
+- Added shared tool-call and approval schemas and durable `tool_` / `approval_` ids.
+- Expanded `@nerve/tools` from placeholders into executable local tools with bounded filesystem, search, edit, and shell behavior.
+- Added an orchestrator policy layer that combines mode, permission level, tool risk, workspace scope, plan sandbox boundaries, and shell command classification.
+- Added orchestrator endpoints for listing tools, listing tool calls, requesting agent tool execution, and granting/denying approvals.
+- Tool calls now emit `agent.tool_call.*` events; policy checks emit `policy.evaluated`; approvals emit `approval.requested`, `approval.granted`, and `approval.denied`.
+- The web inspector now surfaces pending approvals with approve/deny actions and refreshes on tool/approval events.
 
 ### Later phases
 
