@@ -23,7 +23,7 @@
     color: var(--color-text);
     padding: 0 0.24rem;
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: var(--text-2xs);
     line-height: 1.28;
     box-shadow: var(--shadow-panel);
   }

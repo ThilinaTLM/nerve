@@ -1,16 +1,18 @@
 <script lang="ts">
-  import Bot from "lucide-svelte/icons/bot";
   import FolderOpen from "lucide-svelte/icons/folder-open";
   import Shield from "lucide-svelte/icons/shield";
   import SlidersHorizontal from "lucide-svelte/icons/sliders-horizontal";
   import Sparkles from "lucide-svelte/icons/sparkles";
   import Square from "lucide-svelte/icons/square";
-  import type { AgentRecord, CompletionItem, ModelInfo, ProjectRecord, SessionRecord } from "../../api";
-  import Button from "../ui/Button.svelte";
-  import Badge from "../ui/Badge.svelte";
-  import Kbd from "../ui/Kbd.svelte";
-  import Select, { type SelectItem } from "../ui/Select.svelte";
+  import { Toolbar } from "bits-ui";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionRecord } from "../../api";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
+  import Button from "../ui/Button.svelte";
+  import Kbd from "../ui/Kbd.svelte";
+  import Popover from "../ui/Popover.svelte";
+  import Select, { type SelectItem } from "../ui/Select.svelte";
+  import ToggleGroup from "../ui/ToggleGroup.svelte";
+  import ApprovalStrip from "./ApprovalStrip.svelte";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -20,6 +22,7 @@
     activeProject?: ProjectRecord;
     activeSession?: SessionRecord;
     activeAgent?: AgentRecord;
+    approvals?: ApprovalWithToolCall[];
     live?: boolean;
     sending?: boolean;
     error?: string;
@@ -36,6 +39,8 @@
     onModelChange?: (value: string) => void;
     onModeChange?: (value: Mode) => void;
     onPermissionChange?: (value: PermissionLevel) => void;
+    onGrantApproval?: (id: string) => void;
+    onDenyApproval?: (id: string) => void;
   };
 
   let {
@@ -43,6 +48,7 @@
     activeProject,
     activeSession,
     activeAgent,
+    approvals = [],
     live = false,
     sending = false,
     error,
@@ -59,6 +65,8 @@
     onModelChange,
     onModeChange,
     onPermissionChange,
+    onGrantApproval,
+    onDenyApproval,
   }: Props = $props();
 
   const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0));
@@ -70,27 +78,22 @@
     }))
     : [{ value: "", label: "No configured models", detail: "Run nerve auth list", disabled: true }]);
 
-  const modeItems: SelectItem[] = [
+  const modeItems = [
     { value: "coding", label: "Coding", detail: "Implement and modify files" },
     { value: "planning", label: "Planning", detail: "Read and prepare before edits" },
   ];
 
-  const permissionItems: SelectItem[] = [
-    { value: "read_only", label: "Read only", detail: "No writes or commands that mutate" },
+  const permissionItems = [
+    { value: "read_only", label: "Read only", detail: "No writes or mutating commands" },
     { value: "supervised", label: "Supervised", detail: "Ask before sensitive actions" },
     { value: "autonomous", label: "Autonomous", detail: "Proceed with broader authority" },
   ];
-
-  function statusTone(status: string | undefined): "neutral" | "accent" | "good" | "warn" | "danger" | "running" {
-    if (status === "running") return "running";
-    if (status === "error") return "danger";
-    if (status === "completed") return "good";
-    return "neutral";
-  }
 </script>
 
 <form class="composer" onsubmit={(event) => { event.preventDefault(); onSubmit?.(); }}>
-  <div class="composer-toolbar">
+  <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
+
+  <Toolbar.Root class="composer-toolbar" aria-label="Prompt controls">
     <div class="control-group model-control">
       <span><Sparkles size={12} strokeWidth={2.25} />Model</span>
       <Select
@@ -102,37 +105,36 @@
       />
     </div>
 
-    <div class="control-group mode-control">
-      <span><SlidersHorizontal size={12} strokeWidth={2.25} />Mode</span>
-      <Select
-        items={modeItems}
-        value={mode}
-        ariaLabel="Mode"
-        disabled={!activeSession || sending}
-        onValueChange={(value) => onModeChange?.(value as Mode)}
-      />
-    </div>
+    <Popover class="run-options-popover" triggerClass="run-options-trigger" ariaLabel="Run options" side="top" align="start">
+      {#snippet trigger()}
+        <span class="run-options-button">
+          <SlidersHorizontal size={13} strokeWidth={2.25} />
+          <span>Run options</span>
+          <small>{activeAgent?.mode ?? mode} · {activeAgent?.permissionLevel ?? permissionLevel}</small>
+        </span>
+      {/snippet}
 
-    <div class="control-group permission-control">
-      <span><Shield size={12} strokeWidth={2.25} />Access</span>
-      <Select
-        items={permissionItems}
-        value={permissionLevel}
-        ariaLabel="Permission level"
-        disabled={!activeSession || sending}
-        onValueChange={(value) => onPermissionChange?.(value as PermissionLevel)}
-      />
-    </div>
+      <div class="run-options-panel">
+        <header>
+          <strong>Run options</strong>
+          <span>Applied to this agent before the next prompt.</span>
+        </header>
+        <section>
+          <label><SlidersHorizontal size={12} strokeWidth={2.2} />Mode</label>
+          <ToggleGroup items={modeItems} value={mode} ariaLabel="Mode" disabled={!activeSession || sending} onValueChange={(value) => onModeChange?.(value as Mode)} />
+        </section>
+        <section>
+          <label><Shield size={12} strokeWidth={2.2} />Access</label>
+          <ToggleGroup items={permissionItems} value={permissionLevel} ariaLabel="Permission level" disabled={!activeSession || sending} onValueChange={(value) => onPermissionChange?.(value as PermissionLevel)} />
+        </section>
+      </div>
+    </Popover>
 
     <Button variant="toolbar" size="sm" class="project-pill" onclick={onOpenProject} title={activeProject?.dir ?? "Open project"}>
       <FolderOpen size={13} strokeWidth={2.2} />
       <span>{activeProject ? activeProject.name : "open project"}</span>
     </Button>
-
-    {#if activeAgent?.status}
-      <Badge tone={statusTone(activeAgent.status)}><Bot size={12} strokeWidth={2.25} />{activeAgent.status}</Badge>
-    {/if}
-  </div>
+  </Toolbar.Root>
 
   <div class="editor-shell">
     <CodeMirrorComposer
@@ -150,7 +152,7 @@
       {#if !activeSession}
         Select a project to start.
       {:else if models.length === 0}
-        Configure a provider from the CLI: <code>nerve auth list</code>.
+        Configure a provider from Settings.
       {:else if !live}
         Daemon is {activeSession ? "not live" : "offline"}.
       {:else}
@@ -171,39 +173,34 @@
 <style>
   .composer {
     display: grid;
-    gap: 0.45rem;
+    gap: 0.42rem;
     border-top: 1px solid var(--color-border-subtle);
     background: var(--color-panel-muted);
-    padding: 0.5rem;
+    padding: 0.45rem;
     box-shadow: 0 -1px 0 rgb(255 255 255 / 3%) inset;
   }
 
-  .composer-toolbar,
+  :global(.composer-toolbar),
   .composer-footer,
   .actions {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.38rem;
   }
 
-  .composer-toolbar {
+  :global(.composer-toolbar) {
     min-width: 0;
     flex-wrap: wrap;
   }
 
   .control-group {
     display: grid;
-    min-width: 7.5rem;
-    gap: 0.15rem;
+    min-width: 7rem;
+    gap: 0.12rem;
   }
 
   .model-control {
-    min-width: min(18rem, 34vw);
-  }
-
-  .mode-control,
-  .permission-control {
-    min-width: 8.5rem;
+    min-width: min(18rem, 42vw);
   }
 
   .control-group > span {
@@ -211,10 +208,74 @@
     align-items: center;
     gap: 0.22rem;
     color: var(--color-muted);
-    font-size: 0.66rem;
-    font-weight: 650;
-    letter-spacing: 0.02em;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
+  }
+
+  .run-options-button {
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    column-gap: 0.34rem;
+    min-height: var(--control-height-sm);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-field);
+    color: var(--color-muted);
+    padding: 0.24rem 0.5rem;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+  }
+
+  .run-options-button small {
+    grid-column: 2;
+    color: var(--color-faint);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-normal);
+  }
+
+  :global(.run-options-trigger:hover) .run-options-button,
+  :global(.run-options-trigger[data-state="open"]) .run-options-button {
+    border-color: var(--color-border);
+    background: var(--color-panel-raised);
+    color: var(--color-text);
+  }
+
+  :global(.run-options-popover) {
+    width: min(27rem, calc(100vw - 1.5rem));
+  }
+
+  .run-options-panel {
+    display: grid;
+    gap: 0.68rem;
+    padding: 0.72rem;
+  }
+
+  .run-options-panel header,
+  .run-options-panel section {
+    display: grid;
+    gap: 0.28rem;
+  }
+
+  .run-options-panel strong {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+  }
+
+  .run-options-panel header span {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+  }
+
+  .run-options-panel label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
   }
 
   :global(.project-pill) {
@@ -235,7 +296,7 @@
   .composer-footer {
     justify-content: space-between;
     color: var(--color-muted);
-    font-size: 0.72rem;
+    font-size: var(--text-xs);
   }
 
   .footer-hint {
@@ -246,17 +307,13 @@
     min-width: 0;
   }
 
-  .footer-hint code {
-    color: var(--color-code);
-  }
-
   .composer-error {
     margin: 0;
     border: 1px solid var(--color-danger-soft);
     border-radius: var(--radius-sm);
     background: var(--color-danger-soft);
     color: var(--color-danger);
-    padding: 0.4rem 0.5rem;
-    font-size: 0.78rem;
+    padding: 0.38rem 0.48rem;
+    font-size: var(--text-xs);
   }
 </style>

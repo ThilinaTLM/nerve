@@ -43,7 +43,7 @@
     justify-content: space-between;
     gap: 0.8rem;
     color: var(--color-text);
-    font-size: 0.78rem;
+    font-size: var(--text-sm);
   }
 
   .switch-copy {
@@ -54,7 +54,7 @@
 
   .switch-copy small {
     color: var(--color-muted);
-    font-size: 0.7rem;
+    font-size: var(--text-xs);
   }
 
   :global(.switch-root) {

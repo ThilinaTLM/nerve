@@ -1,11 +1,5 @@
 export type ThemePreference = "system" | "light" | "dark";
-export type InspectorTab =
-  | "session"
-  | "events"
-  | "branch"
-  | "approvals"
-  | "processes"
-  | "settings";
+export type InspectorTab = "history" | "processes" | "settings" | "info";
 
 export const selection = $state({
   projectId: undefined as string | undefined,
@@ -15,7 +9,7 @@ export const selection = $state({
 });
 
 export const layout = $state({
-  inspectorTab: "session" as InspectorTab,
+  inspectorTab: "history" as InspectorTab,
   sidebarCollapsed: false,
 });
 

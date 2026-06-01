@@ -86,7 +86,7 @@
     gap: 0.35rem;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
-    font-weight: 650;
+    font-weight: var(--weight-semibold);
     letter-spacing: 0;
     white-space: nowrap;
     user-select: none;
@@ -112,25 +112,25 @@
   .xs {
     min-height: var(--control-height-xs);
     padding: 0.08rem 0.38rem;
-    font-size: 0.68rem;
+    font-size: var(--text-2xs);
   }
 
   .sm {
     min-height: var(--control-height-sm);
     padding: 0.18rem 0.52rem;
-    font-size: 0.72rem;
+    font-size: var(--text-xs);
   }
 
   .md {
     min-height: var(--control-height-md);
     padding: 0.3rem 0.68rem;
-    font-size: 0.78rem;
+    font-size: var(--text-sm);
   }
 
   .lg {
     min-height: var(--control-height-lg);
     padding: 0.4rem 0.85rem;
-    font-size: 0.84rem;
+    font-size: var(--text-md);
   }
 
   .icon-size {

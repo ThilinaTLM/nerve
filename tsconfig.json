@@ -5,6 +5,7 @@
     { "path": "./packages/orchestrator" },
     { "path": "./packages/cli" },
     { "path": "./packages/agent" },
-    { "path": "./packages/tools" }
+    { "path": "./packages/tools" },
+    { "path": "./packages/desktop" }
   ]
 }

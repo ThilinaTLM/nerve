@@ -58,7 +58,7 @@
     border-radius: var(--radius-sm);
     background: var(--color-field);
     color: var(--color-text);
-    font-size: 0.78rem;
+    font-size: var(--text-sm);
     transition:
       border-color 140ms ease,
       box-shadow 140ms ease,
@@ -68,7 +68,7 @@
   .sm {
     height: var(--control-height-sm);
     padding: 0.2rem 0.48rem;
-    font-size: 0.74rem;
+    font-size: var(--text-xs);
   }
 
   .md {
@@ -79,7 +79,7 @@
   .lg {
     height: var(--control-height-lg);
     padding: 0.38rem 0.7rem;
-    font-size: 0.84rem;
+    font-size: var(--text-md);
   }
 
   .ui-input:focus {

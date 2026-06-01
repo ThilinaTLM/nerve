@@ -3,11 +3,10 @@
   import Clipboard from "lucide-svelte/icons/clipboard";
   import FolderOpen from "lucide-svelte/icons/folder-open";
   import GitBranch from "lucide-svelte/icons/git-branch";
-  import Radio from "lucide-svelte/icons/radio";
   import Sparkles from "lucide-svelte/icons/sparkles";
   import UserRound from "lucide-svelte/icons/user-round";
   import { toast } from "svelte-sonner";
-  import type { AgentRecord, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
@@ -24,6 +23,7 @@
     activeProject?: ProjectRecord;
     activeSession?: SessionRecord;
     activeAgent?: AgentRecord;
+    approvals?: ApprovalWithToolCall[];
     transcript?: TranscriptItem[];
     streamingText?: string;
     live?: boolean;
@@ -43,12 +43,15 @@
     onModelChange?: (value: string) => void;
     onModeChange?: (value: AgentRecord["mode"]) => void;
     onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
+    onGrantApproval?: (id: string) => void;
+    onDenyApproval?: (id: string) => void;
   };
 
   let {
     activeProject,
     activeSession,
     activeAgent,
+    approvals = [],
     transcript = [],
     streamingText = "",
     live = false,
@@ -68,6 +71,8 @@
     onModelChange,
     onModeChange,
     onPermissionChange,
+    onGrantApproval,
+    onDenyApproval,
   }: Props = $props();
 
   function roleLabel(item: TranscriptItem) {
@@ -100,12 +105,7 @@
         <strong>{activeSession.title}</strong>
         <span title={activeProject?.dir}>{activeProject?.dir ?? "No project"}</span>
       </div>
-      <div class="header-meta">
-        <Badge tone={live ? "good" : "neutral"}>{#if live}<Radio size={12} />{/if}{live ? "live" : "offline"}</Badge>
-        <Badge tone="accent">{activeAgent?.model ? `${activeAgent.model.provider}/${activeAgent.model.modelId}` : "model pending"}</Badge>
-        <Badge tone="neutral">{activeAgent?.mode ?? mode}</Badge>
-        <Badge tone="neutral">{activeAgent?.permissionLevel ?? permissionLevel}</Badge>
-      </div>
+
     </header>
 
     <div class="transcript" aria-live="polite">
@@ -157,6 +157,7 @@
       {activeProject}
       {activeSession}
       {activeAgent}
+      {approvals}
       {live}
       {sending}
       {error}
@@ -173,6 +174,8 @@
       {onModelChange}
       {onModeChange}
       {onPermissionChange}
+      {onGrantApproval}
+      {onDenyApproval}
     />
   {:else}
     <div class="start-panel">
@@ -200,7 +203,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    min-height: 2.45rem;
+    min-height: var(--size-pane-header);
     border-bottom: 1px solid var(--color-border-subtle);
     padding: 0.4rem 0.65rem;
     background: var(--color-panel-muted);
@@ -220,21 +223,13 @@
   }
 
   .title-block strong {
-    font-size: 0.84rem;
-    font-weight: 700;
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
   }
 
   .title-block span {
     color: var(--color-muted);
-    font-size: 0.72rem;
-  }
-
-  .header-meta {
-    display: flex;
-    flex: none;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.35rem;
+    font-size: var(--text-xs);
   }
 
   .transcript {
@@ -301,22 +296,22 @@
     border-bottom: 1px solid var(--color-border-subtle);
     padding: 0.25rem 0.35rem 0.25rem 0.55rem;
     color: var(--color-muted);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
   }
 
   .message-content {
     min-width: 0;
     color: var(--color-message-text);
-    font-size: 0.9rem;
+    font-size: var(--text-md);
     padding: 0.6rem 0.65rem;
   }
 
   .message-content p {
     margin: 0;
-    line-height: 1.52;
+    line-height: var(--leading-relaxed);
     white-space: pre-wrap;
   }
 
@@ -377,7 +372,7 @@
 
   .start-panel strong {
     color: var(--color-text);
-    font-size: 1rem;
+    font-size: var(--text-lg);
   }
 
   @keyframes pulse {

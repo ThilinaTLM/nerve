@@ -60,8 +60,8 @@
     background: transparent;
     color: var(--color-muted);
     padding: 0.18rem 0.42rem;
-    font-size: 0.72rem;
-    font-weight: 600;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
     cursor: pointer;
   }
 
@@ -84,7 +84,7 @@
 
   :global(.tabs-trigger b) {
     color: var(--color-accent);
-    font-size: 0.66rem;
-    font-weight: 700;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-bold);
   }
 </style>

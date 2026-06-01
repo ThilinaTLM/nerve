@@ -48,7 +48,7 @@
     color: var(--color-text);
     box-shadow: var(--shadow-popover);
     padding: 0.28rem 0.45rem;
-    font-size: 0.7rem;
+    font-size: var(--text-xs);
     line-height: 1.35;
   }
 

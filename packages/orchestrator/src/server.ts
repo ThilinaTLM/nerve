@@ -227,12 +227,24 @@ async function serveStatic(
   } catch {
     if (pathname.includes("."))
       return new Response("Not found", { status: 404 });
-    return new Response(fallbackHtml(state), {
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-        "set-cookie": cookieHeader(state.storage.localToken),
-      },
-    });
+
+    const indexPath = join(webDist, "index.html");
+    try {
+      const contents = await readFile(indexPath);
+      return new Response(contents, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "set-cookie": cookieHeader(state.storage.localToken),
+        },
+      });
+    } catch {
+      return new Response(fallbackHtml(state), {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "set-cookie": cookieHeader(state.storage.localToken),
+        },
+      });
+    }
   }
 }
 

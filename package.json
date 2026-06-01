@@ -9,6 +9,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "check": "pnpm -r check",
+    "desktop": "pnpm --filter @nerve/desktop dev",
     "dev": "pnpm --filter @nerve/orchestrator dev",
     "format": "biome format --write .",
     "lint": "biome check .",

@@ -1,104 +1,79 @@
 <script lang="ts">
-  import Activity from "lucide-svelte/icons/activity";
   import AppWindow from "lucide-svelte/icons/app-window";
-  import Monitor from "lucide-svelte/icons/monitor";
-  import Moon from "lucide-svelte/icons/moon";
-  import PanelRight from "lucide-svelte/icons/panel-right";
-  import Radio from "lucide-svelte/icons/radio";
-  import Sun from "lucide-svelte/icons/sun";
-  import TriangleAlert from "lucide-svelte/icons/triangle-alert";
-  import Wrench from "lucide-svelte/icons/wrench";
-  import type { ProjectRecord, SessionRecord } from "../../api";
-  import type { ThemePreference } from "../../state/app-state.svelte";
-  import Badge from "../ui/Badge.svelte";
+  import Settings2 from "lucide-svelte/icons/settings-2";
+  import { Toolbar } from "bits-ui";
+  import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
   import Button from "../ui/Button.svelte";
-  import DropdownMenu, { type MenuItem } from "../ui/DropdownMenu.svelte";
+  import StatusPopover from "./StatusPopover.svelte";
+
+  type AppRoute = "workspace" | "settings";
 
   type Props = {
     activeProject?: ProjectRecord;
     activeSession?: SessionRecord;
+    activeAgent?: AgentRecord;
+    processes?: ProcessRecord[];
+    branchDepth?: number;
+    activeRoute?: AppRoute;
     connection?: string;
     live?: boolean;
     pendingApprovals?: number;
-    utilityOpen?: boolean;
-    themePreference?: ThemePreference;
-    onToggleUtility?: () => void;
-    onThemeChange?: (theme: ThemePreference) => void;
+    onOpenSettings?: () => void;
   };
 
   let {
     activeProject,
     activeSession,
+    activeAgent,
+    processes = [],
+    branchDepth = 0,
+    activeRoute = "workspace",
     connection = "connecting",
     live = false,
     pendingApprovals = 0,
-    utilityOpen = false,
-    themePreference = "system",
-    onToggleUtility,
-    onThemeChange,
+    onOpenSettings,
   }: Props = $props();
 
-  const themeItems = $derived<MenuItem[]>([
-    { value: "system", label: "System", detail: "Follow OS appearance", checked: themePreference === "system" },
-    { value: "light", label: "Light", detail: "Bright desktop theme", checked: themePreference === "light" },
-    { value: "dark", label: "Dark", detail: "Dim command-center theme", checked: themePreference === "dark" },
-  ]);
-
   const contextLabel = $derived(activeProject?.name ?? "No project");
-  const sessionLabel = $derived(activeSession?.title ?? "No active session");
-
-  function themeIcon() {
-    if (themePreference === "light") return Sun;
-    if (themePreference === "dark") return Moon;
-    return Monitor;
-  }
+  const sessionLabel = $derived(activeRoute === "settings" ? "Settings" : activeSession?.title ?? "No active session");
+  const title = $derived(`${activeProject?.dir ?? "No project"}${activeSession ? ` / ${activeSession.id}` : ""}`);
 </script>
 
 <header class="titlebar">
   <div class="title-left">
-    <span class="app-mark" aria-hidden="true"><AppWindow size={14} strokeWidth={2.2} /></span>
+    <span class="app-mark" aria-hidden="true"><AppWindow size={13} strokeWidth={2.2} /></span>
     <span class="app-name">nerve</span>
     <span class="divider" aria-hidden="true"></span>
-    <span class="context" title={`${activeProject?.dir ?? "No project"}${activeSession ? ` / ${activeSession.id}` : ""}`}>
+    <span class="context" {title}>
       <span>{contextLabel}</span>
       <b>/</b>
       <span>{sessionLabel}</span>
     </span>
   </div>
 
-  <div class="title-actions">
-    {#if pendingApprovals > 0}
-      <Badge tone="warn"><TriangleAlert size={12} strokeWidth={2.25} />{pendingApprovals} approval{pendingApprovals === 1 ? "" : "s"}</Badge>
-    {/if}
-
-    <Badge tone={live ? "good" : connection === "error" ? "danger" : "neutral"}>
-      {#if live}<Radio size={12} strokeWidth={2.25} />{:else}<Activity size={12} strokeWidth={2.25} />{/if}
+  <Toolbar.Root class="title-actions" aria-label="Application actions">
+    <StatusPopover
       {connection}
-    </Badge>
-
-    <DropdownMenu
-      items={themeItems}
-      label="Theme"
-      ariaLabel="Theme preference"
-      triggerClass="theme-menu"
-      onSelect={(value) => onThemeChange?.(value as ThemePreference)}
-    >
-      {@const ThemeIcon = themeIcon()}
-      <ThemeIcon size={13} strokeWidth={2.15} aria-hidden="true" />
-      <span>{themePreference}</span>
-    </DropdownMenu>
-
+      {live}
+      {activeAgent}
+      {activeSession}
+      {activeProject}
+      {processes}
+      {branchDepth}
+      {pendingApprovals}
+    />
     <Button
       variant="icon"
       size="icon"
-      ariaLabel={utilityOpen ? "Hide utility panel" : "Show utility panel"}
-      title={utilityOpen ? "Hide utility panel" : "Show utility panel"}
-      active={utilityOpen}
-      onclick={onToggleUtility}
+      ariaLabel="Open settings"
+      title="Open settings"
+      active={activeRoute === "settings"}
+      pressed={activeRoute === "settings"}
+      onclick={() => { if (activeRoute !== "settings") onOpenSettings?.(); }}
     >
-      {#if utilityOpen}<PanelRight size={14} strokeWidth={2.25} />{:else}<Wrench size={14} strokeWidth={2.25} />{/if}
+      <Settings2 size={14} strokeWidth={2.25} />
     </Button>
-  </div>
+  </Toolbar.Root>
 </header>
 
 <style>
@@ -106,30 +81,30 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 2.15rem;
+    height: var(--size-header);
     border-bottom: 1px solid var(--color-border-subtle);
     background: var(--color-titlebar);
     box-shadow: var(--shadow-panel);
-    padding: 0 0.5rem;
+    padding: 0 0.45rem;
     user-select: none;
   }
 
   .title-left,
-  .title-actions {
+  :global(.title-actions) {
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 0.45rem;
+    gap: 0.42rem;
   }
 
-  .title-actions {
+  :global(.title-actions) {
     flex: none;
   }
 
   .app-mark {
     display: inline-grid;
-    width: 1.35rem;
-    height: 1.35rem;
+    width: 1.25rem;
+    height: 1.25rem;
     place-items: center;
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-sm);
@@ -139,14 +114,15 @@
 
   .app-name {
     color: var(--color-text);
-    font-size: 0.8rem;
-    font-weight: 750;
-    letter-spacing: 0.01em;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.015em;
   }
 
   .divider {
     width: 1px;
-    height: 1rem;
+    height: 0.95rem;
     background: var(--color-border-subtle);
   }
 
@@ -154,10 +130,10 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 0.35rem;
+    gap: 0.32rem;
     overflow: hidden;
     color: var(--color-muted);
-    font-size: 0.74rem;
+    font-size: var(--text-xs);
   }
 
   .context span {
@@ -168,16 +144,12 @@
 
   .context span:first-child {
     color: var(--color-text);
+    font-weight: var(--weight-semibold);
   }
 
   .context b {
     color: var(--color-faint);
-    font-weight: 500;
-  }
-
-  :global(.theme-menu) {
-    min-width: 5.5rem;
-    text-transform: capitalize;
+    font-weight: var(--weight-medium);
   }
 
   @media (max-width: 760px) {

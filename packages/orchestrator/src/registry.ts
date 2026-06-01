@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import {
@@ -115,9 +116,35 @@ export class RuntimeRegistry {
     });
   }
 
+  private async canonicalProjectDir(dir: string): Promise<string> {
+    const resolved = resolve(dir);
+    try {
+      return await realpath(resolved);
+    } catch {
+      return resolved;
+    }
+  }
+
+  private projectDirKey(dir: string): string {
+    const resolved = resolve(dir);
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  }
+
+  private async findProjectByDir(dir: string): Promise<ProjectRecord | undefined> {
+    const key = this.projectDirKey(dir);
+    for (const project of this.projects.values()) {
+      const projectDir = await this.canonicalProjectDir(project.dir);
+      if (this.projectDirKey(projectDir) === key) return project;
+    }
+    return undefined;
+  }
+
   async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {
+    const dir = await this.canonicalProjectDir(request.dir);
+    const existing = await this.findProjectByDir(dir);
+    if (existing) return existing;
+
     const now = new Date().toISOString();
-    const dir = resolve(request.dir);
     const project: ProjectRecord = {
       id: createId("proj"),
       name: request.name ?? (basename(dir) || dir),

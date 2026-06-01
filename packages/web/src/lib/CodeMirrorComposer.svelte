@@ -112,16 +112,16 @@
             "&": {
               background: "var(--color-field)",
               color: "var(--color-text)",
-              minHeight: "104px",
-              maxHeight: "min(32vh, 260px)",
+              minHeight: "96px",
+              maxHeight: "min(32vh, 240px)",
             },
             ".cm-content": {
               caretColor: "var(--color-accent)",
               fontFamily:
                 'var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
-              fontSize: "0.84rem",
-              lineHeight: "1.5",
-              padding: "9px 10px",
+              fontSize: "0.83rem",
+              lineHeight: "1.48",
+              padding: "8px 10px",
             },
             ".cm-line": {
               padding: "0 2px",
@@ -133,8 +133,8 @@
               color: "var(--color-faint)",
             },
             ".cm-scroller": {
-              minHeight: "104px",
-              maxHeight: "min(32vh, 260px)",
+              minHeight: "96px",
+              maxHeight: "min(32vh, 240px)",
               overflow: "auto",
             },
             ".cm-tooltip": {
@@ -192,7 +192,6 @@
 </script>
 
 <div class="composer-editor" class:disabled bind:this={host}></div>
-<p class="composer-hint"><kbd>⌘</kbd><kbd>Enter</kbd> sends · <kbd>/</kbd> commands · <kbd>@</kbd> files</p>
 
 <style>
   .composer-editor {
@@ -215,23 +214,4 @@
     opacity: 0.58;
   }
 
-  .composer-hint {
-    display: none;
-    margin: 0.3rem 0 0;
-    color: var(--color-muted);
-    font-size: 0.72rem;
-  }
-
-  kbd {
-    display: inline-grid;
-    min-width: 1.35rem;
-    place-items: center;
-    margin: 0 2px;
-    border: 1px solid var(--color-border);
-    border-radius: 0.35rem;
-    background: var(--color-field);
-    color: var(--color-text);
-    font-size: 0.72rem;
-    line-height: 1.35;
-  }
 </style>

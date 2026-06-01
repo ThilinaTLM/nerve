@@ -6,9 +6,7 @@
   import {
     applyTheme,
     composerDraft,
-    eventBuffer,
     loadThemePreference,
-    pushEventPreview,
     resetSelection,
     selection,
     themeState,
@@ -47,13 +45,14 @@
     restartProcess,
     stopProcess,
     updateAgentConfig,
-    updateAgentModel,
     updateSettings,
   } from "./lib/api";
   import { queryClient, queryKeys } from "./lib/query";
   import ConversationPane from "./lib/components/app/ConversationPane.svelte";
+  import Footerbar from "./lib/components/app/Footerbar.svelte";
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
   import ProjectDirectoryPicker from "./lib/components/app/ProjectDirectoryPicker.svelte";
+  import SettingsPage from "./lib/components/app/SettingsPage.svelte";
   import Titlebar from "./lib/components/app/Titlebar.svelte";
   import UtilityPanel from "./lib/components/app/UtilityPanel.svelte";
 
@@ -84,8 +83,11 @@
   let selectedModelKey = $state("nerve-faux:faux-fast");
   let selectedMode = $state<AgentRecord["mode"]>("coding");
   let selectedPermissionLevel = $state<AgentRecord["permissionLevel"]>("supervised");
-  let utilityPanelOpen = $state(false);
-  let utilityTab = $state<"history" | "approvals" | "processes" | "settings" | "events" | "info">("history");
+  type AppRoute = "workspace" | "settings";
+  type UtilityTab = "history" | "processes" | "info";
+
+  let appRoute = $state<AppRoute>("workspace");
+  let utilityTab = $state<UtilityTab>("history");
   let projectPickerOpen = $state(false);
   let settingsDraft = $state<Settings | undefined>(undefined);
   let authProviders = $state<AuthProviderMetadata[]>([]);
@@ -104,6 +106,24 @@
   );
   const usableModels = $derived(usableModelOptions(models, authProviders));
 
+  function routeFromPath(pathname: string): AppRoute {
+    return pathname === "/settings" || pathname === "/settings/" ? "settings" : "workspace";
+  }
+
+  function routePath(route: AppRoute): string {
+    return route === "settings" ? "/settings" : "/";
+  }
+
+  function navigateToRoute(route: AppRoute, mode: "push" | "replace" = "push") {
+    appRoute = route;
+    if (typeof window === "undefined") return;
+    const nextPath = routePath(route);
+    if (window.location.pathname === nextPath) return;
+    const nextUrl = `${nextPath}${window.location.search}${window.location.hash}`;
+    if (mode === "replace") window.history.replaceState({ route }, "", nextUrl);
+    else window.history.pushState({ route }, "", nextUrl);
+  }
+
   function usableModelOptions(modelList: ModelInfo[], providers: AuthProviderMetadata[]): ModelInfo[] {
     const configuredProviders = new Set(
       providers.filter((provider) => provider.configured).map((provider) => provider.provider),
@@ -116,7 +136,6 @@
     selection.projectId = agent.projectId;
     selection.sessionId = agent.sessionId;
     utilityTab = "info";
-    utilityPanelOpen = true;
   }
 
   function entriesToTranscript(entries: SessionEntry[]): TranscriptItem[] {
@@ -190,14 +209,6 @@
     }
   }
 
-  async function saveActiveModel() {
-    if (!selection.agentId) return;
-    const agent = await updateAgentModel(selection.agentId, selectedModel());
-    agents = agents.map((candidate) => candidate.id === agent.id ? agent : candidate);
-    settingsMessage = "Agent model updated.";
-    toast.success("Agent model updated");
-  }
-
   async function setComposerModel(key: string) {
     selectedModelKey = key;
     if (!selection.agentId) return;
@@ -268,7 +279,6 @@
     await loadWorkspaceState();
     await openSession(selection.sessionId);
     utilityTab = "history";
-    utilityPanelOpen = true;
   }
 
   async function compactActiveSession() {
@@ -278,7 +288,6 @@
     await loadWorkspaceState();
     await openSession(selection.sessionId);
     utilityTab = "history";
-    utilityPanelOpen = true;
   }
 
   function clearConversationState() {
@@ -369,8 +378,6 @@
   async function grantApproval(approvalId: string) {
     await apiPost(`/api/approvals/${approvalId}/grant`, {});
     approvals = await getPendingApprovals();
-    utilityTab = "events";
-    utilityPanelOpen = true;
     toast.success("Approval granted");
   }
 
@@ -378,7 +385,6 @@
     selectedProcessId = processId;
     processLogs = await getProcessLogs(processId);
     utilityTab = "processes";
-    utilityPanelOpen = true;
   }
 
   async function stopSelectedProcess(processId: string) {
@@ -404,8 +410,6 @@
   async function denyApproval(approvalId: string) {
     await apiPost(`/api/approvals/${approvalId}/deny`, { note: "Denied from UI." });
     approvals = await getPendingApprovals();
-    utilityTab = "events";
-    utilityPanelOpen = true;
     toast.message("Approval denied");
   }
 
@@ -430,9 +434,8 @@
       return;
     }
     if (usableModels.length === 0) {
-      utilityPanelOpen = true;
-      utilityTab = "settings";
-      error = "Configure a model provider in settings before prompting.";
+      navigateToRoute("settings");
+      error = "Configure a model provider in Settings before prompting.";
       return;
     }
     sending = true;
@@ -450,7 +453,6 @@
   }
 
   function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
-    pushEventPreview(JSON.stringify(event));
     const agentId = event.data?.agentId;
     if (agentId && agentId !== selection.agentId) return;
     if (event.type === "agent.message_delta") {
@@ -503,6 +505,9 @@
   onMount(() => {
     let themeMedia: MediaQueryList | undefined;
     const handleSystemTheme = () => applyTheme(themeState.preference);
+    const handlePopState = () => (appRoute = routeFromPath(window.location.pathname));
+    navigateToRoute(routeFromPath(window.location.pathname), "replace");
+    window.addEventListener("popstate", handlePopState);
 
     async function connect() {
       try {
@@ -539,76 +544,96 @@
     return () => {
       socket?.close();
       themeMedia?.removeEventListener("change", handleSystemTheme);
+      window.removeEventListener("popstate", handlePopState);
     };
   });
 </script>
 
 <svelte:head>
-  <title>nerve</title>
+  <title>{appRoute === "settings" ? "nerve · settings" : "nerve"}</title>
 </svelte:head>
 
 <main class="app-frame">
   <Titlebar
     {activeProject}
     {activeSession}
+    {activeAgent}
     {connection}
     {live}
+    activeRoute={appRoute}
     pendingApprovals={pendingApprovalCount}
-    utilityOpen={utilityPanelOpen}
-    themePreference={themeState.preference}
-    onToggleUtility={() => (utilityPanelOpen = !utilityPanelOpen)}
-    onThemeChange={setTheme}
+    {processes}
+    {branchDepth}
+    onOpenSettings={() => navigateToRoute("settings")}
   />
 
-  <div class="workspace-shell" class:utility-open={utilityPanelOpen}>
-    <PaneGroup direction="horizontal" autoSaveId="nerve.workspace.v1" keyboardResizeBy={8}>
-      <Pane defaultSize={20} minSize={14} maxSize={34} order={1}>
-        <div class="pane-shell navigator-pane">
-          <ProjectAgentTree
-            {projects}
-            {sessions}
-            {agents}
-            selectedProjectId={selection.projectId}
-            selectedSessionId={selection.sessionId}
-            onOpenSession={openSession}
-            onNewConversation={newSession}
-          />
-        </div>
-      </Pane>
+  {#if appRoute === "settings"}
+    <div class="settings-shell">
+      <SettingsPage
+        {status}
+        bind:settingsDraft
+        {authProviders}
+        {settingsMessage}
+        themePreference={themeState.preference}
+        onBack={() => navigateToRoute("workspace")}
+        onLoadSettings={() => void loadSettingsPanel()}
+        onSaveSettings={() => void saveSettings()}
+        onThemeChange={setTheme}
+      />
+    </div>
+  {:else}
+    <div class="workspace-shell">
+      <PaneGroup direction="horizontal" autoSaveId="nerve.workspace.v2" keyboardResizeBy={8}>
+        <Pane defaultSize={20} minSize={14} maxSize={34} order={1}>
+          <div class="pane-shell navigator-pane">
+            <ProjectAgentTree
+              {projects}
+              {sessions}
+              {agents}
+              selectedProjectId={selection.projectId}
+              selectedSessionId={selection.sessionId}
+              onOpenSession={openSession}
+              onNewConversation={newSession}
+            />
+          </div>
+        </Pane>
 
-      <PaneResizer aria-label="Resize navigator" />
+        <PaneResizer aria-label="Resize agents panel" />
 
-      <Pane defaultSize={utilityPanelOpen ? 56 : 80} minSize={38} order={2}>
-        <div class="pane-shell conversation-shell">
-          <ConversationPane
-            {activeProject}
-            {activeSession}
-            {activeAgent}
-            {transcript}
-            {streamingText}
-            {live}
-            {sending}
-            {error}
-            composerText={composerDraft.text}
-            models={usableModels}
-            {selectedModelKey}
-            mode={selectedMode}
-            permissionLevel={selectedPermissionLevel}
-            {slashCompletions}
-            fileCompletions={completeFiles}
-            onComposerChange={(value) => (composerDraft.text = value)}
-            onSubmit={sendPrompt}
-            onAbort={abortActiveRun}
-            onOpenProject={() => (projectPickerOpen = true)}
-            onModelChange={(value) => void setComposerModel(value)}
-            onModeChange={(value) => void setComposerMode(value)}
-            onPermissionChange={(value) => void setComposerPermission(value)}
-          />
-        </div>
-      </Pane>
+        <Pane defaultSize={56} minSize={38} order={2}>
+          <div class="pane-shell conversation-shell">
+            <ConversationPane
+              {activeProject}
+              {activeSession}
+              {activeAgent}
+              {approvals}
+              {transcript}
+              {streamingText}
+              {live}
+              {sending}
+              {error}
+              composerText={composerDraft.text}
+              models={usableModels}
+              {selectedModelKey}
+              mode={selectedMode}
+              permissionLevel={selectedPermissionLevel}
+              {slashCompletions}
+              fileCompletions={completeFiles}
+              onComposerChange={(value) => (composerDraft.text = value)}
+              onSubmit={sendPrompt}
+              onAbort={abortActiveRun}
+              onOpenProject={() => (projectPickerOpen = true)}
+              onModelChange={(value) => void setComposerModel(value)}
+              onModeChange={(value) => void setComposerMode(value)}
+              onPermissionChange={(value) => void setComposerPermission(value)}
+              onGrantApproval={(id) => void grantApproval(id)}
+              onDenyApproval={(id) => void denyApproval(id)}
+            />
+          </div>
+        </Pane>
 
-      {#if utilityPanelOpen}
         <PaneResizer aria-label="Resize utility panel" />
+
         <Pane defaultSize={24} minSize={18} maxSize={42} order={3}>
           <div class="pane-shell utility-shell">
             <UtilityPanel
@@ -619,36 +644,38 @@
               {activeAgent}
               {sessionAgents}
               {treeNodes}
-              {approvals}
               {processes}
               {selectedProcess}
               {processLogs}
-              eventItems={eventBuffer.items}
-              bind:settingsDraft
-              {authProviders}
-              {settingsMessage}
               {exportUrl}
               onTabChange={(tab) => (utilityTab = tab)}
               onSelectAgent={selectAgent}
               onNavigateToEntry={(entryId, summarize) => void navigateToEntry(entryId, summarize)}
               onCompact={() => void compactActiveSession()}
-              onGrantApproval={(id) => void grantApproval(id)}
-              onDenyApproval={(id) => void denyApproval(id)}
               onSelectProcess={(id) => void selectProcess(id)}
               onRefreshProcessLogs={() => void refreshProcessLogs()}
               onStopProcess={(id) => void stopSelectedProcess(id)}
               onRestartProcess={(id) => void restartSelectedProcess(id)}
-              onLoadSettings={() => void loadSettingsPanel()}
-              onSaveSettings={() => void saveSettings()}
             />
           </div>
         </Pane>
-      {/if}
-    </PaneGroup>
-  </div>
+      </PaneGroup>
+    </div>
+  {/if}
 
-  <ProjectDirectoryPicker bind:open={projectPickerOpen} onSelect={(path) => void createConversationForDirectory(path)} />
+  <Footerbar
+    {activeProject}
+    {activeSession}
+    {activeAgent}
+    {connection}
+    {live}
+    pendingApprovals={pendingApprovalCount}
+    {processes}
+    {branchDepth}
+  />
 </main>
+
+<ProjectDirectoryPicker bind:open={projectPickerOpen} onSelect={(path) => void createConversationForDirectory(path)} />
 
 <style>
   .app-frame {
@@ -657,13 +684,14 @@
     height: 100vh;
     min-width: 0;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: var(--size-header) minmax(0, 1fr) var(--size-footer);
     overflow: hidden;
     background: var(--color-bg);
     color: var(--color-text);
   }
 
-  .workspace-shell {
+  .workspace-shell,
+  .settings-shell {
     min-width: 0;
     min-height: 0;
     overflow: hidden;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { after, describe, it } from "node:test";
 import { providerEnvVar } from "../src/registry.js";
 import { EncryptedFileSecretProvider } from "../src/secrets.js";
@@ -47,6 +47,25 @@ describe("phase 10 hardening helpers", () => {
 
     await secrets.delete("provider:openai:apiKey");
     assert.equal(await secrets.get("provider:openai:apiKey"), undefined);
+  });
+
+  it("reuses projects by canonical working directory", async () => {
+    const storage = await initializeStorage(await tempHome());
+    const state = createOrchestratorState(storage, "127.0.0.1", 0);
+    await state.events.hydrate();
+    await state.registry.hydrate();
+
+    const projectDir = await mkdtemp(join(tmpdir(), "nerve-project-"));
+    roots.push(projectDir);
+    const first = await state.registry.createProject({ dir: projectDir });
+    const second = await state.registry.createProject({ dir: projectDir, name: "Duplicate" });
+    const third = await state.registry.createProject({ dir: relative(process.cwd(), projectDir) });
+
+    assert.equal(second.id, first.id);
+    assert.equal(third.id, first.id);
+    assert.equal(state.registry.listProjects().length, 1);
+
+    state.index.close();
   });
 
   it("imports and exports inspectable session bundles", async () => {

@@ -5,3 +5,4 @@
 - Use file-first storage under `~/.nerve`; SQLite is only a rebuildable index/cache.
 - Validate with `pnpm check`; use `pnpm lint` and `pnpm test` when relevant.
 - Use the `agent-browser` skill for UI debugging and browser-based testing.
+- Refer `https://bits-ui.com/docs/llms/llms.txt` for bits-ui docs.

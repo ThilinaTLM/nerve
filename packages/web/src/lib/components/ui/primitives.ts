@@ -1,10 +1,17 @@
 export {
+  Accordion,
   Checkbox,
+  Collapsible,
   Dialog,
   DropdownMenu,
   Popover,
+  RadioGroup,
+  ScrollArea,
   Select,
+  Separator,
   Switch,
   Tabs,
+  ToggleGroup,
+  Toolbar,
   Tooltip,
 } from "bits-ui";

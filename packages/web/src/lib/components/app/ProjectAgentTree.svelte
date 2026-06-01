@@ -1,13 +1,15 @@
 <script lang="ts">
   import ChevronDown from "lucide-svelte/icons/chevron-down";
-  import ChevronRight from "lucide-svelte/icons/chevron-right";
   import FolderKanban from "lucide-svelte/icons/folder-kanban";
   import Plus from "lucide-svelte/icons/plus";
   import Search from "lucide-svelte/icons/search";
+  import { Collapsible } from "bits-ui";
   import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
   import Input from "../ui/Input.svelte";
+  import ScrollArea from "../ui/ScrollArea.svelte";
+  import StatusDot from "../ui/StatusDot.svelte";
 
   type ConversationRow = {
     session: SessionRecord;
@@ -15,10 +17,14 @@
   };
 
   type ProjectGroup = {
+    key: string;
     project: ProjectRecord;
+    projects: ProjectRecord[];
     rows: ConversationRow[];
     updatedAt: string;
   };
+
+  type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
 
   type Props = {
     projects?: ProjectRecord[];
@@ -43,6 +49,10 @@
   let filter = $state("");
   let collapsed = $state<Record<string, boolean>>({});
 
+  function projectKey(project: ProjectRecord): string {
+    return project.dir.replace(/[\\/]+$/, "") || project.dir;
+  }
+
   function shortModel(agent: AgentRecord | undefined): string {
     if (!agent?.model) return "model pending";
     return agent.model.modelId.replace(/^claude-/, "claude ").replace(/^gpt-/, "gpt ");
@@ -52,35 +62,56 @@
     return agents.find((agent) => agent.id === session.activeAgentId) ?? agents.find((agent) => agent.sessionId === session.id);
   }
 
+  function groupIsActive(group: ProjectGroup): boolean {
+    return group.projects.some((project) => project.id === selectedProjectId);
+  }
+
   function matches(group: ProjectGroup, query: string): boolean {
     if (!query) return true;
     const normalized = query.toLowerCase();
     return group.project.name.toLowerCase().includes(normalized) ||
       group.project.dir.toLowerCase().includes(normalized) ||
+      group.projects.some((project) => project.name.toLowerCase().includes(normalized) || project.dir.toLowerCase().includes(normalized)) ||
       group.rows.some((row) => row.session.title.toLowerCase().includes(normalized) || row.session.id.toLowerCase().includes(normalized));
   }
 
-  function statusTone(status: string | undefined): "neutral" | "accent" | "good" | "warn" | "danger" | "running" {
+  function statusTone(status: string | undefined): StatusTone {
     if (status === "running") return "running";
     if (status === "error") return "danger";
     if (status === "completed") return "good";
     return "neutral";
   }
 
+  const projectDirectoryCount = $derived.by(() => new Set(projects.map(projectKey)).size);
+  const conversationCount = $derived(sessions.length);
+
   const groups = $derived.by(() => {
-    const byProject = new Map<string, ProjectGroup>();
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+    const byDir = new Map<string, ProjectGroup>();
+
     for (const project of projects) {
-      byProject.set(project.id, { project, rows: [], updatedAt: project.updatedAt });
+      const key = projectKey(project);
+      const existing = byDir.get(key);
+      if (existing) {
+        existing.projects.push(project);
+        if (project.updatedAt > existing.updatedAt) existing.updatedAt = project.updatedAt;
+        if (project.updatedAt > existing.project.updatedAt) existing.project = project;
+      } else {
+        byDir.set(key, { key, project, projects: [project], rows: [], updatedAt: project.updatedAt });
+      }
     }
+
     for (const session of sessions) {
-      const project = projects.find((candidate) => candidate.id === session.projectId);
+      const project = projectById.get(session.projectId);
       if (!project) continue;
-      const group = byProject.get(project.id) ?? { project, rows: [], updatedAt: project.updatedAt };
+      const key = projectKey(project);
+      const group = byDir.get(key) ?? { key, project, projects: [project], rows: [], updatedAt: project.updatedAt };
       group.rows.push({ session, agent: rowAgent(session) });
       if (session.updatedAt > group.updatedAt) group.updatedAt = session.updatedAt;
-      byProject.set(project.id, group);
+      byDir.set(key, group);
     }
-    return [...byProject.values()]
+
+    return [...byDir.values()]
       .filter((group) => matches(group, filter.trim()))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map((group) => ({
@@ -93,64 +124,60 @@
 <aside class="project-tree">
   <header class="tree-header">
     <div>
-      <strong>Navigator</strong>
-      <span>{projects.length} project{projects.length === 1 ? "" : "s"}</span>
+      <strong>Agents</strong>
+      <span>{projectDirectoryCount} project{projectDirectoryCount === 1 ? "" : "s"} · {conversationCount} conversation{conversationCount === 1 ? "" : "s"}</span>
     </div>
     <Button size="sm" variant="ghost" onclick={onNewConversation}><Plus size={13} strokeWidth={2.25} />New</Button>
   </header>
 
   <div class="search-box">
     <Search size={13} strokeWidth={2.25} aria-hidden="true" />
-    <Input bind:value={filter} size="sm" placeholder="Search projects or agents" ariaLabel="Search projects or agents" />
+    <Input bind:value={filter} size="sm" placeholder="Search projects or conversations" ariaLabel="Search projects or conversations" />
   </div>
 
-  <div class="tree-scroll">
+  <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
     {#if groups.length === 0}
       <p class="empty">No projects yet.</p>
     {/if}
 
     {#each groups as group}
-      <section class="project-group">
-        <button
-          class="project-row"
-          class:active={group.project.id === selectedProjectId}
-          type="button"
-          title={group.project.dir}
-          onclick={() => (collapsed[group.project.id] = !collapsed[group.project.id])}
-        >
+      {@const active = groupIsActive(group)}
+      <Collapsible.Root class="project-group" open={!collapsed[group.key]} onOpenChange={(open) => (collapsed[group.key] = !open)}>
+        <Collapsible.Trigger class={active ? "project-row active" : "project-row"} title={group.project.dir}>
           <span class="chevron" aria-hidden="true">
-            {#if collapsed[group.project.id]}<ChevronRight size={13} />{:else}<ChevronDown size={13} />{/if}
+            <ChevronDown size={13} />
           </span>
           <FolderKanban size={13} strokeWidth={2.15} aria-hidden="true" />
-          <span class="project-name">{group.project.name}</span>
-          <Badge tone={group.project.id === selectedProjectId ? "accent" : "neutral"}>{group.rows.length}</Badge>
-        </button>
-        {#if !collapsed[group.project.id]}
-          <div class="agent-rows">
-            {#if group.rows.length === 0}
-              <p class="empty child">No agent conversations.</p>
-            {/if}
-            {#each group.rows as row}
-              <button
-                class="agent-row"
-                class:selected={row.session.id === selectedSessionId}
-                type="button"
-                title={`${row.session.title} · ${row.session.id}`}
-                onclick={() => onOpenSession?.(row.session.id)}
-              >
-                <span class={`status ${row.agent?.status ?? "idle"}`}></span>
-                <span class="agent-main">
-                  <strong>{row.session.title}</strong>
-                  <small>{row.agent?.mode ?? row.session.mode} · {row.agent?.permissionLevel ?? row.session.permissionLevel} · {shortModel(row.agent)}</small>
-                </span>
-                <Badge tone={statusTone(row.agent?.status)}>{row.agent?.status ?? "idle"}</Badge>
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </section>
+          <span class="project-main">
+            <strong>{group.project.name}</strong>
+            <small>{group.project.dir}</small>
+          </span>
+          <Badge size="xs" tone={active ? "accent" : "neutral"}>{group.rows.length}</Badge>
+        </Collapsible.Trigger>
+        <Collapsible.Content class="conversation-rows" hiddenUntilFound>
+          {#if group.rows.length === 0}
+            <p class="empty child">No conversations.</p>
+          {/if}
+          {#each group.rows as row}
+            <button
+              class="conversation-row"
+              class:selected={row.session.id === selectedSessionId}
+              type="button"
+              title={`${row.session.title} · ${row.session.id}`}
+              onclick={() => onOpenSession?.(row.session.id)}
+            >
+              <StatusDot tone={statusTone(row.agent?.status)} pulse={row.agent?.status === "running"} />
+              <span class="conversation-main">
+                <strong>{row.session.title}</strong>
+                <small>{row.agent?.mode ?? row.session.mode} · {row.agent?.permissionLevel ?? row.session.permissionLevel} · {shortModel(row.agent)}</small>
+              </span>
+              <span class="row-status">{row.agent?.status ?? "idle"}</span>
+            </button>
+          {/each}
+        </Collapsible.Content>
+      </Collapsible.Root>
     {/each}
-  </div>
+  </ScrollArea>
 </aside>
 
 <style>
@@ -167,61 +194,63 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 2.45rem;
-    padding: 0.45rem 0.5rem;
+    min-height: var(--size-pane-header);
+    padding: 0.38rem 0.48rem;
     border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .tree-header div {
     display: grid;
-    gap: 0.05rem;
+    gap: 0.04rem;
   }
 
   .tree-header strong {
-    font-size: 0.78rem;
-    font-weight: 700;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-bold);
   }
 
   .tree-header span,
   .empty {
     color: var(--color-muted);
-    font-size: 0.7rem;
+    font-size: var(--text-2xs);
   }
 
   .search-box {
     position: relative;
     display: grid;
     align-items: center;
-    padding: 0.4rem;
+    padding: 0.35rem;
     border-bottom: 1px solid var(--color-border-subtle);
     background: var(--color-pane);
   }
 
   .search-box :global(svg) {
     position: absolute;
-    left: 0.8rem;
+    left: 0.75rem;
     z-index: 1;
     color: var(--color-muted);
     pointer-events: none;
   }
 
   .search-box :global(.ui-input) {
-    padding-left: 1.65rem;
+    padding-left: 1.6rem;
   }
 
-  .tree-scroll {
+  :global(.tree-scroll) {
     min-height: 0;
-    overflow: auto;
-    padding: 0.35rem;
   }
 
-  .project-group {
+  :global(.tree-viewport) {
+    padding: 0.3rem;
+  }
+
+  :global(.project-group) {
     display: grid;
     gap: 0.1rem;
   }
 
-  .project-row,
-  .agent-row {
+  :global(.project-row),
+  .conversation-row {
     width: 100%;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -231,96 +260,92 @@
     cursor: pointer;
   }
 
-  .project-row {
+  :global(.project-row) {
     display: grid;
     grid-template-columns: 0.85rem auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.28rem;
-    padding: 0.34rem 0.38rem;
+    gap: 0.3rem;
+    padding: 0.32rem 0.38rem;
     color: var(--color-muted);
-    font-size: 0.76rem;
+    font-size: var(--text-xs);
   }
 
-  .project-row:hover,
-  .project-row.active,
-  .agent-row:hover,
-  .agent-row.selected {
+  :global(.project-row:hover),
+  :global(.project-row.active),
+  .conversation-row:hover,
+  .conversation-row.selected {
     border-color: var(--color-border-subtle);
     background: var(--color-panel-raised);
   }
 
-  .project-row.active .project-name {
+  :global(.project-row.active .project-main strong) {
     color: var(--color-text);
+  }
+
+  :global(.project-row[data-state="closed"] .chevron) {
+    transform: rotate(-90deg);
   }
 
   .chevron {
     display: inline-grid;
     place-items: center;
     color: var(--color-faint);
+    transition: transform 140ms ease;
   }
 
-  .project-name,
-  .agent-main strong,
-  .agent-main small {
+  .project-main,
+  .conversation-main {
+    display: grid;
+    min-width: 0;
+    gap: 0.04rem;
+  }
+
+  .project-main strong,
+  .project-main small,
+  .conversation-main strong,
+  .conversation-main small {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .agent-rows {
-    display: grid;
-    gap: 0.12rem;
-    margin: 0 0 0.4rem;
+  .project-main strong {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
   }
 
-  .agent-row {
+  .project-main small,
+  .conversation-main small,
+  .row-status {
+    color: var(--color-muted);
+    font-size: var(--text-2xs);
+  }
+
+  :global(.conversation-rows) {
     display: grid;
-    grid-template-columns: 0.55rem minmax(0, 1fr) auto;
+    gap: 0.12rem;
+    margin: 0 0 0.35rem;
+    overflow: hidden;
+  }
+
+  .conversation-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.42rem;
-    min-height: 2.68rem;
-    padding: 0.36rem 0.45rem 0.36rem 1.15rem;
+    min-height: 2.5rem;
+    padding: 0.32rem 0.42rem 0.32rem 1.1rem;
     border-left: 2px solid transparent;
   }
 
-  .agent-row.selected {
+  .conversation-row.selected {
     border-left-color: var(--color-accent);
   }
 
-  .status {
-    width: 0.48rem;
-    height: 0.48rem;
-    border-radius: 999px;
-    background: var(--color-faint);
-    box-shadow: 0 0 0 3px rgb(255 255 255 / 3%);
-  }
-
-  .status.running {
-    background: var(--color-accent);
-  }
-
-  .status.error {
-    background: var(--color-danger);
-  }
-
-  .status.completed {
-    background: var(--color-good);
-  }
-
-  .agent-main {
-    display: grid;
-    min-width: 0;
-    gap: 0.08rem;
-  }
-
-  .agent-main strong {
-    font-size: 0.78rem;
-    font-weight: 600;
-  }
-
-  .agent-main small {
-    color: var(--color-muted);
-    font-size: 0.7rem;
+  .conversation-main strong {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
   }
 
   .empty {

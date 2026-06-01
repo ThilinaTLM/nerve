@@ -115,14 +115,14 @@
   :global(.dialog-title) {
     margin: 0;
     color: var(--color-text);
-    font-size: 0.86rem;
-    font-weight: 700;
+    font-size: var(--text-md);
+    font-weight: var(--weight-bold);
   }
 
   :global(.dialog-description) {
     margin: 0;
     color: var(--color-muted);
-    font-size: 0.74rem;
+    font-size: var(--text-xs);
   }
 
   :global(.dialog-close) {

@@ -79,7 +79,7 @@
     background: var(--color-field);
     color: var(--color-muted);
     padding: 0 0.45rem;
-    font-size: 0.72rem;
+    font-size: var(--text-xs);
     cursor: pointer;
   }
 
@@ -110,7 +110,7 @@
     border-radius: var(--radius-sm);
     color: var(--color-text);
     padding: 0.28rem 0.45rem;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     outline: none;
     cursor: pointer;
   }
@@ -151,6 +151,6 @@
 
   .item-copy small {
     color: var(--color-muted);
-    font-size: 0.68rem;
+    font-size: var(--text-2xs);
   }
 </style>

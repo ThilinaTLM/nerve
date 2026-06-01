@@ -10,6 +10,7 @@
   background: var(--color-bg);
   font-family: var(--font-body);
   font-synthesis: none;
+  font-kerning: normal;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

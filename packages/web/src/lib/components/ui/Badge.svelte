@@ -6,13 +6,14 @@
     children?: Snippet;
     class?: string;
     tone?: "neutral" | "accent" | "good" | "warn" | "danger" | "running";
+    size?: "xs" | "sm";
     title?: string;
   };
 
-  let { children, class: className = "", tone = "neutral", title }: Props = $props();
+  let { children, class: className = "", tone = "neutral", size = "sm", title }: Props = $props();
 </script>
 
-<span class={cn("ui-badge", tone, className)} {title}>
+<span class={cn("ui-badge", tone, size, className)} {title}>
   {@render children?.()}
 </span>
 
@@ -25,12 +26,20 @@
     max-width: 100%;
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-sm);
-    padding: 0.1rem 0.35rem;
-    font-size: 0.68rem;
-    font-weight: 650;
+    font-weight: var(--weight-semibold);
     letter-spacing: 0;
     line-height: 1.2;
     white-space: nowrap;
+  }
+
+  .xs {
+    padding: 0.06rem 0.28rem;
+    font-size: var(--text-2xs);
+  }
+
+  .sm {
+    padding: 0.1rem 0.35rem;
+    font-size: var(--text-xs);
   }
 
   .neutral {
