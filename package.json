@@ -11,7 +11,8 @@
     "check": "pnpm -r check",
     "dev": "pnpm --filter @nerve/orchestrator dev",
     "format": "biome format --write .",
-    "lint": "biome check ."
+    "lint": "biome check .",
+    "test": "pnpm -r --if-present test"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.78.0"

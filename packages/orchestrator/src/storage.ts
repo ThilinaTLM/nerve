@@ -17,6 +17,7 @@ import {
   defaultSettings,
   type Settings,
   settingsSchema,
+  type UpdateSettingsRequest,
 } from "@nerve/shared";
 
 const dataSubdirs = [
@@ -175,6 +176,25 @@ export async function initializeStorage(
   const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
 
   return { paths, settings, localToken };
+}
+
+export async function writeSettings(
+  storage: InitializedStorage,
+  patch: UpdateSettingsRequest,
+): Promise<Settings> {
+  const next = settingsSchema.parse({
+    ...storage.settings,
+    ...patch,
+    server: { ...storage.settings.server, ...(patch.server ?? {}) },
+    ui: { ...storage.settings.ui, ...(patch.ui ?? {}) },
+    compaction: {
+      ...storage.settings.compaction,
+      ...(patch.compaction ?? {}),
+    },
+  });
+  await atomicWriteJson(storage.paths.configPath, next, 0o600);
+  storage.settings = next;
+  return next;
 }
 
 export async function writeDaemonFile(

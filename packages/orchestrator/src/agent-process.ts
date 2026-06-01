@@ -14,6 +14,7 @@ export interface AgentProcessInput {
   systemPrompt?: string;
   messages: Message[];
   model?: ModelSelection;
+  env?: Record<string, string>;
 }
 
 export interface AgentProcessHandlers {
@@ -48,7 +49,7 @@ export function launchAgentProcess(
 ): AgentProcessRun {
   const workerPath = fileURLToPath(import.meta.resolve("@nerve/agent/worker"));
   const child = spawn(process.execPath, [workerPath], {
-    env: process.env,
+    env: { ...process.env, ...(input.env ?? {}) },
     stdio: ["pipe", "pipe", "pipe"],
   });
   const lines = createInterface({ input: child.stdout });

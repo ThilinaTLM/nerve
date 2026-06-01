@@ -22,6 +22,15 @@ async function main() {
   const storage = await initializeStorage();
   const host =
     readArg("--host") ?? process.env.NERVE_HOST ?? storage.settings.server.host;
+  const allowRemote =
+    readArg("--allow-remote") !== undefined ||
+    process.env.NERVE_ALLOW_REMOTE === "1" ||
+    storage.settings.server.allowRemote;
+  if (!allowRemote && !isLoopbackHost(host)) {
+    throw new Error(
+      `Refusing to bind nerve daemon to ${host}. Use --allow-remote, NERVE_ALLOW_REMOTE=1, or set server.allowRemote=true in config.json to explicitly opt in.`,
+    );
+  }
   const port = Number(
     readArg("--port") ?? process.env.NERVE_PORT ?? storage.settings.server.port,
   );
@@ -98,6 +107,15 @@ async function main() {
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+}
+
+function isLoopbackHost(host: string): boolean {
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host.startsWith("127.")
+  );
 }
 
 main().catch((error) => {

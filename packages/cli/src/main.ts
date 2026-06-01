@@ -162,7 +162,7 @@ function printHelp(): void {
   console.log(`nerve
 
 Usage:
-  nerve daemon [--host 127.0.0.1] [--port 3747]
+  nerve daemon [--host 127.0.0.1] [--port 3747] [--allow-remote]
   nerve status
   nerve ui [--open]
   nerve run [dir] [prompt...]
@@ -171,6 +171,7 @@ Environment:
   NERVE_HOME   Override the data directory (default: ~/.nerve)
   NERVE_HOST   Override daemon host
   NERVE_PORT   Override daemon port
+  NERVE_ALLOW_REMOTE=1   Allow non-loopback daemon bind addresses
 `);
 }
 

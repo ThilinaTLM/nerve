@@ -372,18 +372,28 @@ Success criteria:
 
 ## Phase 10: Polish and hardening
 
+Status: complete.
+
 Tasks:
 
-- auth/token protection for orchestrator
-- remote access mode with explicit opt-in
-- settings UI
-- model picker
-- API key management
-- import/export sessions
-- HTML/markdown export
-- crash recovery for unfinished turns/processes/agents
-- orphan process detection
-- tests for agent loop, session tree, process manager, policy engine, API protocol
+- [x] auth/token protection for orchestrator
+- [x] remote access mode with explicit opt-in
+- [x] settings UI
+- [x] model picker
+- [x] API key management
+- [x] import/export sessions
+- [x] HTML/markdown export
+- [x] crash recovery for unfinished turns/processes/agents
+- [x] orphan process detection
+- [x] tests for settings persistence, encrypted secrets, and session import/export
+
+Success criteria:
+
+- The daemon remains token-protected and refuses non-loopback binds unless explicitly enabled.
+- Users can update non-secret settings, select models, and manage encrypted provider API keys from the UI.
+- Sessions can be imported/exported as JSON and exported as Markdown or HTML.
+- Restart recovery preserves durable records and marks interrupted runtime state safely.
+- Phase 10 hardening tests run through `pnpm test`.
 
 ## Suggested first milestone
 

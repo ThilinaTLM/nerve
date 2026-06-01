@@ -4,7 +4,8 @@ export type InspectorTab =
   | "events"
   | "branch"
   | "approvals"
-  | "processes";
+  | "processes"
+  | "settings";
 
 export const selection = $state({
   projectId: undefined as string | undefined,

@@ -45,6 +45,7 @@ export const settingsSchema = z.object({
   server: z.object({
     host: z.string().default("127.0.0.1"),
     port: z.number().int().positive().default(3747),
+    allowRemote: z.boolean().default(false),
   }),
   ui: z.object({
     theme: z.enum(["system", "light", "dark"]),
@@ -65,6 +66,7 @@ export const defaultSettings: Settings = {
   server: {
     host: "127.0.0.1",
     port: 3747,
+    allowRemote: false,
   },
   ui: {
     theme: "system",
@@ -155,6 +157,72 @@ export const modelSelectionSchema = z.object({
   modelId: z.string().min(1),
 });
 export type ModelSelection = z.infer<typeof modelSelectionSchema>;
+
+export const updateSettingsRequestSchema = z.object({
+  defaultMode: modeSchema.optional(),
+  defaultPermissionLevel: permissionLevelSchema.optional(),
+  defaultSubagentMode: modeSchema.optional(),
+  defaultSubagentPermissionLevel: permissionLevelSchema.optional(),
+  server: z
+    .object({
+      host: z.string().optional(),
+      port: z.number().int().positive().optional(),
+      allowRemote: z.boolean().optional(),
+    })
+    .optional(),
+  ui: z
+    .object({
+      theme: z.enum(["system", "light", "dark"]).optional(),
+    })
+    .optional(),
+  compaction: z
+    .object({
+      auto: z.boolean().optional(),
+      thresholdTokens: z.number().int().positive().optional(),
+      keepRecentTokens: z.number().int().positive().optional(),
+    })
+    .optional(),
+});
+export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;
+
+export const updateAgentRequestSchema = z.object({
+  mode: modeSchema.optional(),
+  permissionLevel: permissionLevelSchema.optional(),
+  model: modelSelectionSchema.nullable().optional(),
+});
+export type UpdateAgentRequest = z.infer<typeof updateAgentRequestSchema>;
+
+export const providerApiKeySchema = z.object({
+  provider: z.string().min(1),
+  envVar: z.string().min(1),
+  configured: z.boolean(),
+});
+export type ProviderApiKey = z.infer<typeof providerApiKeySchema>;
+
+export const setProviderApiKeyRequestSchema = z.object({
+  provider: z.string().min(1),
+  apiKey: z.string().min(1),
+});
+export type SetProviderApiKeyRequest = z.infer<
+  typeof setProviderApiKeyRequestSchema
+>;
+
+export const importSessionRequestSchema = z.object({
+  project: z
+    .object({
+      name: z.string().min(1).optional(),
+      dir: z.string().min(1),
+    })
+    .optional(),
+  session: z.object({
+    title: z.string().min(1).optional(),
+    mode: modeSchema.optional(),
+    permissionLevel: permissionLevelSchema.optional(),
+  }),
+  agents: z.array(z.unknown()).default([]),
+  entries: z.array(z.unknown()).default([]),
+});
+export type ImportSessionRequest = z.infer<typeof importSessionRequestSchema>;
 
 export const projectRecordSchema = z.object({
   id: z.string().startsWith("proj_"),

@@ -6,6 +6,8 @@ import { pathExists } from "./storage.js";
 export interface SecretProvider {
   get(name: string): Promise<string | undefined>;
   set(name: string, value: string): Promise<void>;
+  delete(name: string): Promise<void>;
+  list(): Promise<string[]>;
 }
 
 export class EncryptedFileSecretProvider implements SecretProvider {
@@ -20,6 +22,16 @@ export class EncryptedFileSecretProvider implements SecretProvider {
     const values = await this.readAll();
     values[name] = value;
     await this.writeAll(values);
+  }
+
+  async delete(name: string): Promise<void> {
+    const values = await this.readAll();
+    delete values[name];
+    await this.writeAll(values);
+  }
+
+  async list(): Promise<string[]> {
+    return Object.keys(await this.readAll()).sort();
   }
 
   private keyPath(): string {

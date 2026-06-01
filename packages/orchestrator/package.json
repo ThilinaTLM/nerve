@@ -16,7 +16,8 @@
   "scripts": {
     "build": "tsc -b",
     "check": "tsc -b --pretty false",
-    "dev": "tsx src/main.ts"
+    "dev": "tsx src/main.ts",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.78.0",

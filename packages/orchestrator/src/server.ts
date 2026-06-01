@@ -9,22 +9,32 @@ import {
   createSessionRequestSchema,
   type DaemonFile,
   executeToolRequestSchema,
+  importSessionRequestSchema,
   navigateSessionRequestSchema,
   parseCookieHeader,
   processLogQuerySchema,
   promptRequestSchema,
   resolveApprovalRequestSchema,
   type StatusResponse,
+  setProviderApiKeyRequestSchema,
   startProcessRequestSchema,
   stopProcessRequestSchema,
+  updateAgentRequestSchema,
+  updateSettingsRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { EventBus } from "./events.js";
 import { IndexStore } from "./index-store.js";
-import { errorResponse, RuntimeRegistry } from "./registry.js";
+import {
+  errorResponse,
+  providerEnvVar,
+  providerSecretName,
+  RuntimeRegistry,
+} from "./registry.js";
 import type { SecretProvider } from "./secrets.js";
 import { EncryptedFileSecretProvider } from "./secrets.js";
 import type { InitializedStorage } from "./storage.js";
+import { writeSettings } from "./storage.js";
 
 export const version = "0.0.0";
 
@@ -48,6 +58,7 @@ export function createOrchestratorState(
   const index = new IndexStore(storage.paths.sqlitePath);
   index.initialize();
   const events = new EventBus(storage.paths.home, index);
+  const secrets = new EncryptedFileSecretProvider(storage.paths.home);
   return {
     daemonId: createId("daemon"),
     startedAt: new Date().toISOString(),
@@ -55,9 +66,9 @@ export function createOrchestratorState(
     port,
     storage,
     events,
-    registry: new RuntimeRegistry(storage, events, index),
+    registry: new RuntimeRegistry(storage, events, index, secrets),
     index,
-    secrets: new EncryptedFileSecretProvider(storage.paths.home),
+    secrets,
   };
 }
 
@@ -293,6 +304,55 @@ export function createApp(state: OrchestratorState): Hono {
 
   app.get("/api/status", (c) => c.json(statusResponse(state)));
   app.get("/api/settings", (c) => c.json(state.storage.settings));
+  app.put("/api/settings", async (c) => {
+    try {
+      const body = updateSettingsRequestSchema.parse(await c.req.json());
+      const settings = await writeSettings(state.storage, body);
+      await state.events.publish("settings.updated", { settings });
+      return c.json({ settings });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/provider-keys", async (c) => {
+    const providers = new Set(
+      state.registry
+        .listModels()
+        .map((model) => model.provider)
+        .filter((provider) => provider !== "nerve-faux"),
+    );
+    for (const name of await state.secrets.list()) {
+      const match = /^provider:(.+):apiKey$/.exec(name);
+      if (match) providers.add(match[1]);
+    }
+    const configured = new Set(await state.secrets.list());
+    return c.json({
+      keys: [...providers].sort().map((provider) => ({
+        provider,
+        envVar: providerEnvVar(provider),
+        configured: configured.has(providerSecretName(provider)),
+      })),
+    });
+  });
+  app.put("/api/provider-keys", async (c) => {
+    try {
+      const body = setProviderApiKeyRequestSchema.parse(await c.req.json());
+      await state.secrets.set(providerSecretName(body.provider), body.apiKey);
+      await state.events.publish("secrets.provider_key_set", {
+        provider: body.provider,
+        envVar: providerEnvVar(body.provider),
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.delete("/api/provider-keys/:provider", async (c) => {
+    const provider = c.req.param("provider");
+    await state.secrets.delete(providerSecretName(provider));
+    await state.events.publish("secrets.provider_key_deleted", { provider });
+    return c.json({ ok: true });
+  });
   app.get("/api/storage", (c) =>
     c.json({
       dataDir: state.storage.paths.home,
@@ -453,6 +513,14 @@ export function createApp(state: OrchestratorState): Hono {
       return errorResponse(error);
     }
   });
+  app.post("/api/import/session", async (c) => {
+    try {
+      const body = importSessionRequestSchema.parse(await c.req.json());
+      return c.json(await state.registry.importSession(body), 201);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
   app.get("/api/sessions", (c) =>
     c.json({ sessions: state.registry.listSessions() }),
   );
@@ -470,6 +538,33 @@ export function createApp(state: OrchestratorState): Hono {
       return c.json({
         entries: state.registry.getSessionEntries(c.req.param("sessionId")),
       });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/sessions/:sessionId/export", (c) => {
+    try {
+      return c.json(state.registry.exportSession(c.req.param("sessionId")));
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/sessions/:sessionId/export.md", (c) => {
+    try {
+      return c.text(
+        state.registry.exportSessionMarkdown(c.req.param("sessionId")),
+        200,
+        {
+          "content-type": "text/markdown; charset=utf-8",
+        },
+      );
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/sessions/:sessionId/export.html", (c) => {
+    try {
+      return c.html(state.registry.exportSessionHtml(c.req.param("sessionId")));
     } catch (error) {
       return errorResponse(error);
     }
@@ -522,6 +617,19 @@ export function createApp(state: OrchestratorState): Hono {
   app.get("/api/agents/:agentId", (c) => {
     try {
       return c.json({ agent: state.registry.getAgent(c.req.param("agentId")) });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.patch("/api/agents/:agentId", async (c) => {
+    try {
+      const body = updateAgentRequestSchema.parse(await c.req.json());
+      return c.json({
+        agent: await state.registry.configureAgent(
+          c.req.param("agentId"),
+          body,
+        ),
+      });
     } catch (error) {
       return errorResponse(error);
     }

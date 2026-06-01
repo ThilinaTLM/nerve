@@ -2,13 +2,17 @@ import type {
   AgentRecord,
   ApprovalRecord,
   EventEnvelope,
+  ModelInfo,
+  ModelSelection,
   ProcessLogQueryResponse,
   ProcessRecord,
   ProjectRecord,
+  ProviderApiKey,
   SessionEntry,
   SessionRecord,
   SessionTree,
   SessionTreeNode,
+  Settings,
   StatusResponse,
   ToolCallRecord,
 } from "@nerve/shared";
@@ -34,6 +38,9 @@ export type WorkspaceSnapshot = {
   processes: ProcessRecord[];
 };
 
+export type SettingsResponse = Settings;
+export type ModelOption = ModelInfo;
+
 export type ApprovalWithToolCall = ApprovalRecord & {
   toolCall?: ToolCallRecord;
 };
@@ -58,8 +65,82 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   );
 }
 
+export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return parseResponse<T>(
+    await fetch(path, {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  return parseResponse<T>(
+    await fetch(path, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+export async function apiDelete<T>(path: string): Promise<T> {
+  return parseResponse<T>(
+    await fetch(path, {
+      method: "DELETE",
+      credentials: "same-origin",
+    }),
+  );
+}
+
 export async function getClientConfig(): Promise<ClientConfig> {
   return apiGet<ClientConfig>("/api/client-config");
+}
+
+export async function getSettings(): Promise<Settings> {
+  return apiGet<Settings>("/api/settings");
+}
+
+export async function updateSettings(
+  patch: Partial<Settings>,
+): Promise<Settings> {
+  return (await apiPut<{ settings: Settings }>("/api/settings", patch))
+    .settings;
+}
+
+export async function getModels(): Promise<ModelInfo[]> {
+  return (await apiGet<{ models: ModelInfo[] }>("/api/models")).models;
+}
+
+export async function updateAgentModel(
+  agentId: string,
+  model: ModelSelection | undefined,
+): Promise<AgentRecord> {
+  return (
+    await apiPatch<{ agent: AgentRecord }>(`/api/agents/${agentId}`, {
+      model: model ?? null,
+    })
+  ).agent;
+}
+
+export async function getProviderKeys(): Promise<ProviderApiKey[]> {
+  return (await apiGet<{ keys: ProviderApiKey[] }>("/api/provider-keys")).keys;
+}
+
+export async function setProviderKey(
+  provider: string,
+  apiKey: string,
+): Promise<void> {
+  await apiPut<{ ok: true }>("/api/provider-keys", { provider, apiKey });
+}
+
+export async function deleteProviderKey(provider: string): Promise<void> {
+  await apiDelete<{ ok: true }>(
+    `/api/provider-keys/${encodeURIComponent(provider)}`,
+  );
 }
 
 export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
@@ -176,4 +257,8 @@ export type {
   ToolCallRecord,
   ProcessRecord,
   ProcessLogQueryResponse,
+  Settings,
+  ModelInfo,
+  ModelSelection,
+  ProviderApiKey,
 };

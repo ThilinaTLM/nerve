@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 9: Remote-ready worker abstraction — complete
+Phase 10: Polish and hardening — complete
 ```
 
 ## Locked foundation decisions
@@ -219,6 +219,27 @@ Phase 9: Remote-ready worker abstraction — complete
 - Added `GET /api/workers` and `GET /api/workers/:workerId`.
 - Documented the worker model and future remote-worker handshake requirements in the PRD.
 - Smoke-tested the worker endpoint and worker-routed process start against a temp `NERVE_HOME` daemon.
+
+### Phase 10: Polish and hardening
+
+- [x] Keep local token protection on API/WebSocket/static UI access.
+- [x] Add explicit remote-bind opt-in with `--allow-remote`, `NERVE_ALLOW_REMOTE=1`, or `server.allowRemote`.
+- [x] Add settings API and Web UI controls for defaults, auto-compaction, and remote-bind opt-in.
+- [x] Add model picker UI and idle-agent model update endpoint.
+- [x] Add encrypted provider API key management endpoints and UI.
+- [x] Add import/export endpoints for session JSON bundles.
+- [x] Add Markdown and HTML session export endpoints and UI links.
+- [x] Preserve crash recovery for running agents and orphan process detection on daemon hydration.
+- [x] Add node:test coverage for settings persistence, encrypted secrets, and session import/export.
+
+### Latest Phase 10 notes
+
+- Settings now persist via `PUT /api/settings` with nested default merging.
+- Non-loopback daemon binds are refused unless explicitly opted in.
+- Provider API keys are stored through the encrypted file secret provider and injected into local agent worker environments using provider-specific env var names.
+- The workbench Settings tab exposes defaults, model selection, provider keys, and export links.
+- Session bundles can be imported through `POST /api/import/session` and exported as JSON, Markdown, or HTML.
+- Added `pnpm test` and orchestrator Phase 10 tests.
 
 ### Later phases
 

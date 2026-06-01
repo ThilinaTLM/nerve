@@ -106,7 +106,7 @@ interface StatusResponse {
 
 ```txt
 GET  /api/settings
-POST /api/settings
+PUT  /api/settings
 GET  /api/storage
 POST /api/storage/rebuild-index
 ```
@@ -122,6 +122,7 @@ interface Settings {
   server: {
     host: string;
     port: number;
+    allowRemote: boolean;
   };
   ui: {
     theme: "system" | "light" | "dark";
@@ -156,10 +157,8 @@ Secret values are never returned by the API.
 
 ```txt
 GET    /api/provider-keys
-POST   /api/provider-keys/:provider
+PUT    /api/provider-keys
 DELETE /api/provider-keys/:provider
-GET    /api/auth/sessions
-DELETE /api/auth/sessions/:sessionId
 ```
 
 Provider key metadata:
@@ -167,9 +166,8 @@ Provider key metadata:
 ```ts
 interface ProviderKeyMetadata {
   provider: string;
+  envVar: string;
   configured: boolean;
-  source: "keychain" | "encrypted_file" | "environment";
-  lastValidatedAt?: string;
 }
 ```
 
@@ -177,8 +175,8 @@ Set provider key body:
 
 ```ts
 interface SetProviderKeyRequest {
-  value: string;
-  source?: "keychain" | "encrypted_file";
+  provider: string;
+  apiKey: string;
 }
 ```
 
@@ -234,8 +232,16 @@ Future completion endpoints may include symbols, agents, sessions, and prompt te
 
 ```txt
 POST   /api/sessions
+POST   /api/import/session
 GET    /api/sessions
 GET    /api/sessions/:sessionId
+GET    /api/sessions/:sessionId/messages
+GET    /api/sessions/:sessionId/tree
+GET    /api/sessions/:sessionId/export
+GET    /api/sessions/:sessionId/export.md
+GET    /api/sessions/:sessionId/export.html
+POST   /api/sessions/:sessionId/navigate
+POST   /api/sessions/:sessionId/compact
 DELETE /api/sessions/:sessionId
 ```
 
@@ -253,15 +259,16 @@ interface CreateSessionRequest {
 ### Agents
 
 ```txt
-POST /api/agents
-GET  /api/agents
-GET  /api/agents/:agentId
-POST /api/agents/:agentId/prompt
-POST /api/agents/:agentId/steer
-POST /api/agents/:agentId/follow-up
-POST /api/agents/:agentId/abort
-POST /api/agents/:agentId/mode
-POST /api/agents/:agentId/permission
+POST  /api/agents
+GET   /api/agents
+GET   /api/agents/:agentId
+PATCH /api/agents/:agentId
+POST  /api/agents/:agentId/prompt
+POST  /api/agents/:agentId/steer
+POST  /api/agents/:agentId/follow-up
+POST  /api/agents/:agentId/abort
+POST  /api/agents/:agentId/mode
+POST  /api/agents/:agentId/permission
 ```
 
 Create body:

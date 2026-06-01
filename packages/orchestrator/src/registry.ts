@@ -21,8 +21,10 @@ import {
   type CreateProjectRequest,
   type CreateSessionRequest,
   createId,
+  type ImportSessionRequest,
   type Mode,
   type ModelInfo,
+  type ModelSelection,
   type NavigateSessionRequest,
   type PermissionLevel,
   type ProcessLogQuery,
@@ -37,11 +39,13 @@ import {
   sessionEntrySchema,
   sessionRecordSchema,
   type ToolName,
+  type UpdateAgentRequest,
 } from "@nerve/shared";
 import { AgentProcessError } from "./agent-process.js";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
 import { ProcessManager } from "./process-manager.js";
+import type { SecretProvider } from "./secrets.js";
 import {
   appendJsonLine,
   atomicWriteJson,
@@ -75,6 +79,7 @@ export class RuntimeRegistry {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
+    private readonly secrets: SecretProvider,
   ) {
     this.processes = new ProcessManager(storage, events, index);
     this.workers = new WorkerManager(storage, events, index);
@@ -264,6 +269,27 @@ export class RuntimeRegistry {
     const agent = this.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
     return agent;
+  }
+
+  async configureAgent(
+    agentId: string,
+    request: UpdateAgentRequest,
+  ): Promise<AgentRecord> {
+    const agent = this.getAgent(agentId);
+    if (this.runs.has(agent.id)) {
+      throw new HttpError(409, "AGENT_BUSY", "Cannot update a running agent.");
+    }
+    const updated: AgentRecord = {
+      ...agent,
+      mode: request.mode ?? agent.mode,
+      permissionLevel: request.permissionLevel ?? agent.permissionLevel,
+      model:
+        request.model === null ? undefined : (request.model ?? agent.model),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.updateAgent(updated);
+    await this.events.publish("agent.configured", { agent: updated });
+    return updated;
   }
 
   private agentBudget(
@@ -497,6 +523,113 @@ export class RuntimeRegistry {
     return { session: this.getSession(sessionId), entry };
   }
 
+  exportSession(sessionId: string) {
+    const session = this.getSession(sessionId);
+    const project = this.getProject(session.projectId);
+    const agents = this.listAgents().filter(
+      (agent) => agent.sessionId === session.id,
+    );
+    return {
+      format: "nerve.session.v1",
+      exportedAt: new Date().toISOString(),
+      project,
+      session,
+      agents,
+      entries: this.entries.get(session.id) ?? [],
+    };
+  }
+
+  exportSessionMarkdown(sessionId: string): string {
+    const exported = this.exportSession(sessionId);
+    return sessionExportMarkdown(exported.session, exported.entries);
+  }
+
+  exportSessionHtml(sessionId: string): string {
+    const exported = this.exportSession(sessionId);
+    return sessionExportHtml(exported.session, exported.entries);
+  }
+
+  async importSession(request: ImportSessionRequest): Promise<{
+    project: ProjectRecord;
+    session: SessionRecord;
+    agents: AgentRecord[];
+    entries: SessionEntry[];
+  }> {
+    const project = await this.createProject({
+      dir: request.project?.dir ?? process.cwd(),
+      name: request.project?.name,
+    });
+    const session = await this.createSession({
+      projectId: project.id,
+      title: request.session.title ?? "Imported session",
+      mode: request.session.mode,
+      permissionLevel: request.session.permissionLevel,
+    });
+    const agentIdMap = new Map<string, string>();
+    const importedAgents: AgentRecord[] = [];
+    for (const candidate of request.agents ?? []) {
+      const parsed = agentRecordSchema.safeParse(candidate);
+      if (!parsed.success) continue;
+      const parentAgentId = parsed.data.parentAgentId
+        ? agentIdMap.get(parsed.data.parentAgentId)
+        : undefined;
+      const agent = await this.createAgent({
+        sessionId: session.id,
+        projectId: project.id,
+        projectDir: project.dir,
+        parentAgentId,
+        mode: parsed.data.mode,
+        permissionLevel: parsed.data.permissionLevel,
+        workspaceScope: { roots: [project.dir] },
+        budget: parsed.data.budget,
+        model: parsed.data.model,
+      });
+      agentIdMap.set(parsed.data.id, agent.id);
+      importedAgents.push(agent);
+    }
+    const entries = [...(request.entries ?? [])]
+      .map((entry) => sessionEntrySchema.safeParse(entry))
+      .filter((result) => result.success)
+      .map((result) => result.data);
+    const entryIdMap = new Map<string, string>();
+    const importedEntries: SessionEntry[] = [];
+    for (const entry of entries) {
+      const imported = await this.appendEntry({
+        sessionId: session.id,
+        agentId: entry.agentId ? agentIdMap.get(entry.agentId) : undefined,
+        parentEntryId: entry.parentEntryId
+          ? (entryIdMap.get(entry.parentEntryId) ?? null)
+          : null,
+        role: entry.role,
+        kind: entry.kind,
+        text: entry.text,
+        summary: entry.summary,
+        tokensBefore: entry.tokensBefore,
+        firstKeptEntryId: entry.firstKeptEntryId
+          ? entryIdMap.get(entry.firstKeptEntryId)
+          : undefined,
+        fromEntryId: entry.fromEntryId
+          ? entryIdMap.get(entry.fromEntryId)
+          : undefined,
+        details: entry.details,
+      });
+      entryIdMap.set(entry.id, imported.id);
+      importedEntries.push(imported);
+    }
+    await this.rebuildConversations();
+    await this.events.publish("session.imported", {
+      project,
+      session: this.getSession(session.id),
+      entryCount: importedEntries.length,
+    });
+    return {
+      project,
+      session: this.getSession(session.id),
+      agents: importedAgents,
+      entries: importedEntries,
+    };
+  }
+
   async requestTool(
     agentId: string,
     toolName: ToolName,
@@ -710,6 +843,7 @@ export class RuntimeRegistry {
         systemPrompt: systemPromptFor(agent),
         messages,
         model: agent.model,
+        env: await this.secretEnvForModel(agent.model),
       },
       {
         onStarted: async () => {
@@ -784,6 +918,14 @@ export class RuntimeRegistry {
       });
       throw error;
     }
+  }
+
+  private async secretEnvForModel(
+    model: ModelSelection | undefined,
+  ): Promise<Record<string, string>> {
+    if (!model) return {};
+    const value = await this.secrets.get(providerSecretName(model.provider));
+    return value ? { [providerEnvVar(model.provider)]: value } : {};
   }
 
   private async setAgentStatus(
@@ -1247,6 +1389,68 @@ function truncateText(text: string, maxChars: number): string {
   return `${text.slice(0, maxChars)}\n\n[…${text.length - maxChars} more characters truncated]`;
 }
 
+function sessionExportMarkdown(
+  session: SessionRecord,
+  entries: SessionEntry[],
+): string {
+  const lines = [
+    `# ${session.title}`,
+    "",
+    `- Session: ${session.id}`,
+    `- Mode: ${session.mode}`,
+    `- Permission: ${session.permissionLevel}`,
+    `- Exported: ${new Date().toISOString()}`,
+    "",
+  ];
+  for (const entry of entries) {
+    const label =
+      entry.kind && entry.kind !== "message"
+        ? `${entry.role} / ${entry.kind.replace("_", " ")}`
+        : entry.role;
+    lines.push(`## ${label}`, "", entry.text, "");
+  }
+  return `${lines.join("\n").trim()}\n`;
+}
+
+function sessionExportHtml(
+  session: SessionRecord,
+  entries: SessionEntry[],
+): string {
+  const body = entries
+    .map((entry) => {
+      const label =
+        entry.kind && entry.kind !== "message"
+          ? `${entry.role} / ${entry.kind.replace("_", " ")}`
+          : entry.role;
+      return `<article><h2>${escapeHtml(label)}</h2><pre>${escapeHtml(entry.text)}</pre></article>`;
+    })
+    .join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(session.title)}</title>
+<style>
+body{font-family:Inter,ui-sans-serif,system-ui,sans-serif;line-height:1.5;max-width:900px;margin:40px auto;padding:0 24px;color:#0f172a;background:#f8fafc}article{border:1px solid #cbd5e1;border-radius:16px;background:white;padding:20px;margin:16px 0;box-shadow:0 10px 30px rgba(15,23,42,.06)}pre{white-space:pre-wrap;font:inherit}small{color:#64748b}
+</style>
+</head>
+<body>
+<h1>${escapeHtml(session.title)}</h1>
+<small>${escapeHtml(session.id)} · exported ${new Date().toISOString()}</small>
+${body}
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 export class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -1287,6 +1491,25 @@ function systemPromptFor(agent: AgentRecord): string {
     `Project directory: ${agent.projectDir}.`,
     "Keep responses concise and useful.",
   ].join("\n");
+}
+
+export function providerSecretName(provider: string): string {
+  return `provider:${provider}:apiKey`;
+}
+
+export function providerEnvVar(provider: string): string {
+  const known: Record<string, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    google: "GOOGLE_API_KEY",
+    groq: "GROQ_API_KEY",
+    openai: "OPENAI_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+    xai: "XAI_API_KEY",
+  };
+  return (
+    known[provider] ??
+    `${provider.replaceAll(/[^a-zA-Z0-9]/g, "_").toUpperCase()}_API_KEY`
+  );
 }
 
 function modeRank(mode: Mode): number {

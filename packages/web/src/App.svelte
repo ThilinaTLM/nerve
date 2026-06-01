@@ -17,12 +17,16 @@
     apiGet,
     apiPost,
     compactSession,
+    deleteProviderKey,
     getClientConfig,
     getFileCompletions,
+    getModels,
     getPendingApprovals,
     getProcessLogs,
     getSessionMessages,
     getSessionTree,
+    getProviderKeys,
+    getSettings,
     getSlashCompletions,
     getWorkspaceSnapshot,
     type AgentRecord,
@@ -30,15 +34,22 @@
     type ClientConfig,
     type CompletionItem,
     type EventEnvelope,
+    type ModelInfo,
+    type ModelSelection,
     type ProcessLogQueryResponse,
     type ProcessRecord,
+    type ProviderApiKey,
     type ProjectRecord,
     type SessionEntry,
     type SessionRecord,
     type SessionTreeNode,
+    type Settings,
     type StatusResponse,
     restartProcess,
+    setProviderKey,
     stopProcess,
+    updateAgentModel,
+    updateSettings,
   } from "./lib/api";
   import { queryClient, queryKeys } from "./lib/query";
   import Badge from "./lib/components/ui/Badge.svelte";
@@ -72,6 +83,12 @@
   let transcript = $state<TranscriptItem[]>([]);
   let streamingText = $state("");
   let slashCompletions = $state<CompletionItem[]>([]);
+  let models = $state<ModelInfo[]>([]);
+  let selectedModelKey = $state("nerve-faux:faux-fast");
+  let settingsDraft = $state<Settings | undefined>(undefined);
+  let providerKeys = $state<ProviderApiKey[]>([]);
+  let providerKeyDraft = $state<Record<string, string>>({});
+  let settingsMessage = $state<string | undefined>(undefined);
   let socket: WebSocket | undefined;
 
   const activeProject = $derived(projects.find((project) => project.id === selection.projectId));
@@ -123,6 +140,67 @@
     });
   }
 
+  async function loadSettingsPanel() {
+    const [settings, modelList, keys] = await Promise.all([
+      getSettings(),
+      getModels(),
+      getProviderKeys(),
+    ]);
+    settingsDraft = settings;
+    models = modelList;
+    providerKeys = keys;
+    if (activeAgent?.model) {
+      selectedModelKey = modelKey(activeAgent.model);
+    } else if (!modelList.some((model) => modelKey(model) === selectedModelKey)) {
+      selectedModelKey = modelKey(modelList[0] ?? { provider: "nerve-faux", modelId: "faux-fast" });
+    }
+  }
+
+  function modelKey(model: { provider: string; modelId: string }): string {
+    return `${model.provider}:${model.modelId}`;
+  }
+
+  function selectedModel(): ModelSelection | undefined {
+    const [provider, ...modelParts] = selectedModelKey.split(":");
+    const modelId = modelParts.join(":");
+    return provider && modelId ? { provider, modelId } : undefined;
+  }
+
+  async function saveSettings() {
+    if (!settingsDraft) return;
+    settingsMessage = undefined;
+    settingsDraft = await updateSettings(settingsDraft);
+    settingsMessage = "Settings saved. Server host/port changes apply after daemon restart.";
+  }
+
+  async function saveActiveModel() {
+    if (!selection.agentId) return;
+    const agent = await updateAgentModel(selection.agentId, selectedModel());
+    agents = agents.map((candidate) => candidate.id === agent.id ? agent : candidate);
+    settingsMessage = "Agent model updated.";
+  }
+
+  async function saveProviderKey(provider: string) {
+    const apiKey = providerKeyDraft[provider]?.trim();
+    if (!apiKey) return;
+    await setProviderKey(provider, apiKey);
+    providerKeyDraft = { ...providerKeyDraft, [provider]: "" };
+    providerKeys = await getProviderKeys();
+    settingsMessage = `${provider} key saved in encrypted local storage.`;
+  }
+
+  async function removeProviderKey(provider: string) {
+    await deleteProviderKey(provider);
+    providerKeys = await getProviderKeys();
+    settingsMessage = `${provider} key removed.`;
+  }
+
+  function exportUrl(kind: "json" | "md" | "html"): string | undefined {
+    if (!selection.sessionId) return undefined;
+    const suffix = kind === "json" ? "export" : `export.${kind}`;
+    return `/api/sessions/${selection.sessionId}/${suffix}`;
+  }
+
   async function completeFiles(query: string): Promise<CompletionItem[]> {
     return queryClient.fetchQuery({
       queryKey: queryKeys.fileCompletions(selection.projectId, query),
@@ -141,6 +219,8 @@
     const project = projects.find((candidate) => candidate.id === session.projectId) ??
       (await apiGet<{ project: ProjectRecord }>(`/api/projects/${session.projectId}`)).project;
     composerDraft.projectDir = project.dir;
+    const sessionAgent = agents.find((agent) => agent.id === selection.agentId);
+    if (sessionAgent?.model) selectedModelKey = modelKey(sessionAgent.model);
     const [entries, tree] = await Promise.all([
       getSessionMessages(session.id),
       getSessionTree(session.id),
@@ -185,11 +265,18 @@
   }
 
   async function ensureAgent(): Promise<string> {
-    if (selection.agentId) return selection.agentId;
+    if (selection.agentId) {
+      const desired = selectedModel();
+      if (desired && modelKey(activeAgent?.model ?? { provider: "", modelId: "" }) !== modelKey(desired)) {
+        await updateAgentModel(selection.agentId, desired).catch(() => undefined);
+      }
+      return selection.agentId;
+    }
     if (selection.projectId && selection.sessionId) {
       const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
         projectId: selection.projectId,
         sessionId: selection.sessionId,
+        model: selectedModel(),
       });
       selection.agentId = agent.id;
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
@@ -207,6 +294,7 @@
     const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
       projectId: project.id,
       sessionId: session.id,
+      model: selectedModel(),
     });
     selection.projectId = project.id;
     selection.sessionId = session.id;
@@ -319,10 +407,13 @@
       event.type === "project.created" ||
       event.type.startsWith("approval.") ||
       event.type.startsWith("agent.tool_call") ||
-      event.type.startsWith("process.")
+      event.type.startsWith("process.") ||
+      event.type.startsWith("settings.") ||
+      event.type.startsWith("secrets.")
     ) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
       void loadWorkspaceState();
+      if (event.type.startsWith("settings.") || event.type.startsWith("secrets.")) void loadSettingsPanel();
     }
   }
 
@@ -343,6 +434,7 @@
         status = config.status;
         composerDraft.projectDir = config.status.storage.home;
         await Promise.all([loadWorkspaceState(), loadSlashCommands()]);
+        await loadSettingsPanel();
 
         socket = new WebSocket(new URL(config.wsUrl));
         socket.addEventListener("open", () => {
@@ -527,6 +619,7 @@
             <Tabs.Trigger value="branch" class="tab-trigger">Branch</Tabs.Trigger>
             <Tabs.Trigger value="approvals" class="tab-trigger">Approvals</Tabs.Trigger>
             <Tabs.Trigger value="processes" class="tab-trigger">Processes</Tabs.Trigger>
+            <Tabs.Trigger value="settings" class="tab-trigger">Settings</Tabs.Trigger>
             <Tabs.Trigger value="events" class="tab-trigger">Events</Tabs.Trigger>
           </Tabs.List>
 
@@ -690,6 +783,78 @@
             {:else}
               <p class="muted">No supervised background processes yet. Agents can create one with <code>process_start</code>.</p>
             {/if}
+          </Tabs.Content>
+
+          <Tabs.Content value="settings" class="tab-content">
+            <div class="branch-header">
+              <div>
+                <p class="eyebrow">polish</p>
+                <h3>Settings & exports</h3>
+              </div>
+              <Button variant="ghost" size="sm" onclick={loadSettingsPanel}>Refresh</Button>
+            </div>
+            {#if settingsDraft}
+              <Card tone="muted" class="detail-card settings-card">
+                <h3>Defaults</h3>
+                <label>Mode
+                  <select bind:value={settingsDraft.defaultMode}>
+                    <option value="planning">planning</option>
+                    <option value="coding">coding</option>
+                  </select>
+                </label>
+                <label>Permission
+                  <select bind:value={settingsDraft.defaultPermissionLevel}>
+                    <option value="read_only">read only</option>
+                    <option value="supervised">supervised</option>
+                    <option value="autonomous">autonomous</option>
+                  </select>
+                </label>
+                <label><input type="checkbox" bind:checked={settingsDraft.compaction.auto} /> Auto-compact sessions</label>
+                <label><input type="checkbox" bind:checked={settingsDraft.server.allowRemote} /> Allow remote daemon bind after restart</label>
+                <Button size="sm" onclick={saveSettings}>Save settings</Button>
+              </Card>
+            {/if}
+            <Card tone="muted" class="detail-card settings-card">
+              <h3>Model picker</h3>
+              <select bind:value={selectedModelKey}>
+                {#each models as model}
+                  <option value={modelKey(model)}>{model.label}</option>
+                {/each}
+              </select>
+              <Button size="sm" disabled={!selection.agentId} onclick={saveActiveModel}>Apply to active agent</Button>
+              <p class="muted">New agents use this model. Existing agents can be updated while idle.</p>
+            </Card>
+            <Card tone="muted" class="detail-card settings-card">
+              <h3>API keys</h3>
+              {#if providerKeys.length > 0}
+                {#each providerKeys as key}
+                  <div class="provider-key-row">
+                    <div>
+                      <strong>{key.provider}</strong>
+                      <small>{key.envVar} · {key.configured ? "configured" : "missing"}</small>
+                    </div>
+                    <Input type="password" bind:value={providerKeyDraft[key.provider]} placeholder="paste key" />
+                    <Button size="sm" onclick={() => saveProviderKey(key.provider)}>Save</Button>
+                    <Button size="sm" variant="secondary" disabled={!key.configured} onclick={() => removeProviderKey(key.provider)}>Remove</Button>
+                  </div>
+                {/each}
+              {:else}
+                <p class="muted">No external providers are reported by the installed model package.</p>
+              {/if}
+            </Card>
+            <Card tone="muted" class="detail-card settings-card">
+              <h3>Session export</h3>
+              {#if selection.sessionId}
+                <div class="export-actions">
+                  <a href={exportUrl("json")}>JSON bundle</a>
+                  <a href={exportUrl("md")}>Markdown</a>
+                  <a href={exportUrl("html")}>HTML</a>
+                </div>
+              {:else}
+                <p class="muted">Select a session to export it.</p>
+              {/if}
+            </Card>
+            {#if settingsMessage}<p class="muted">{settingsMessage}</p>{/if}
           </Tabs.Content>
 
           <Tabs.Content value="events" class="tab-content">
@@ -1093,7 +1258,7 @@
 
   :global(.tab-list) {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 0.25rem;
     margin-bottom: 1rem;
     border: 1px solid var(--color-border);
@@ -1132,9 +1297,52 @@
   .approval-list,
   .process-layout,
   .process-list,
-  .process-log-list {
+  .process-log-list,
+  :global(.settings-card),
+  .provider-key-row,
+  .export-actions {
     display: grid;
     gap: 0.75rem;
+  }
+
+  :global(.settings-card) label,
+  .provider-key-row {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+  }
+
+  :global(.settings-card) select {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-field);
+    color: var(--color-text);
+    padding: 0.65rem 0.75rem;
+  }
+
+  .provider-key-row {
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, 1fr) auto auto;
+    align-items: end;
+  }
+
+  .provider-key-row small {
+    display: block;
+    color: var(--color-faint);
+  }
+
+  .export-actions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .export-actions a {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--color-field);
+    color: var(--color-text);
+    padding: 0.72rem;
+    text-align: center;
+    text-decoration: none;
+    font-weight: 800;
   }
 
   .process-card {
