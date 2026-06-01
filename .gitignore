@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.svelte-kit/
+.vite/
+.DS_Store
+*.tsbuildinfo
+.env
+.env.*
+!.env.example

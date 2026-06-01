@@ -24,18 +24,26 @@ Phase 1: Foundation
 
 ### Phase 1: Foundation
 
-- [ ] Create pnpm workspace package structure.
-- [ ] Add TypeScript, strict ESM configuration, Biome, and `svelte-check`.
-- [ ] Create `packages/shared` with base schemas/types.
-- [ ] Create `packages/orchestrator` with Hono server.
-- [ ] Create `packages/cli` with `nerve` command.
-- [ ] Create `packages/web` as plain Svelte 5 + Vite SPA.
-- [ ] Initialize `~/.nerve` layout.
-- [ ] Implement daemon discovery via `~/.nerve/daemon.json`.
-- [ ] Implement local token auth for CLI/Web UI.
-- [ ] Implement `GET /api/status`.
-- [ ] Implement `WS /ws` with event envelope.
-- [ ] Serve Web UI static build from orchestrator.
+- [x] Create pnpm workspace package structure.
+- [x] Add TypeScript, strict ESM configuration, Biome, and `svelte-check`.
+- [x] Create `packages/shared` with base schemas/types.
+- [x] Create `packages/orchestrator` with Hono server.
+- [x] Create `packages/cli` with `nerve` command.
+- [x] Create `packages/web` as plain Svelte 5 + Vite SPA.
+- [x] Initialize `~/.nerve` layout.
+- [x] Implement daemon discovery via `~/.nerve/daemon.json`.
+- [x] Implement local token auth for CLI/Web UI.
+- [x] Implement `GET /api/status`.
+- [x] Implement `WS /ws` with event envelope.
+- [x] Serve Web UI static build from orchestrator.
+
+### Latest foundation implementation notes
+
+- Added `pnpm-workspace.yaml`, root TypeScript references, Biome config, package scripts, and lockfile.
+- Added placeholder `agent` and `tools` packages so the monorepo layout is ready for Phase 2+.
+- Orchestrator now creates the base file-first data layout, generated local token, `config.json`, `state.sqlite`, `daemon.json`, HTTP APIs, replayable in-memory event buffer, and append-only `logs/events.jsonl`.
+- CLI supports `nerve daemon`, `nerve status`, and `nerve ui [--open]`.
+- Web UI has a minimal Svelte/Vite shell that reads daemon status and connects to `/ws`.
 
 ### Later phases
 

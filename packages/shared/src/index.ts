@@ -1,0 +1,155 @@
+import { z } from "zod";
+
+export const modeSchema = z.enum(["planning", "coding"]);
+export type Mode = z.infer<typeof modeSchema>;
+
+export const permissionLevelSchema = z.enum([
+  "autonomous",
+  "supervised",
+  "read_only",
+]);
+export type PermissionLevel = z.infer<typeof permissionLevelSchema>;
+
+export const toolRiskSchema = z.enum([
+  "read",
+  "plan_write",
+  "workspace_write",
+  "command",
+  "network",
+  "secret",
+  "destructive",
+  "agent_spawn",
+  "deployment",
+]);
+export type ToolRisk = z.infer<typeof toolRiskSchema>;
+
+export const eventEnvelopeSchema = z.object({
+  seq: z.number().int().nonnegative(),
+  id: z.string().startsWith("evt_"),
+  ts: z.string().datetime(),
+  type: z.string().min(1),
+  data: z.unknown(),
+});
+export type EventEnvelope<T = unknown> = Omit<
+  z.infer<typeof eventEnvelopeSchema>,
+  "data"
+> & {
+  data: T;
+};
+
+export const settingsSchema = z.object({
+  defaultMode: modeSchema,
+  defaultPermissionLevel: permissionLevelSchema,
+  defaultSubagentMode: modeSchema,
+  defaultSubagentPermissionLevel: permissionLevelSchema,
+  server: z.object({
+    host: z.string().default("127.0.0.1"),
+    port: z.number().int().positive().default(3747),
+  }),
+  ui: z.object({
+    theme: z.enum(["system", "light", "dark"]),
+  }),
+});
+export type Settings = z.infer<typeof settingsSchema>;
+
+export const defaultSettings: Settings = {
+  defaultMode: "coding",
+  defaultPermissionLevel: "supervised",
+  defaultSubagentMode: "planning",
+  defaultSubagentPermissionLevel: "read_only",
+  server: {
+    host: "127.0.0.1",
+    port: 3747,
+  },
+  ui: {
+    theme: "system",
+  },
+};
+
+export const statusResponseSchema = z.object({
+  daemonId: z.string().startsWith("daemon_"),
+  version: z.string(),
+  startedAt: z.string().datetime(),
+  dataDir: z.string(),
+  storage: z.object({
+    home: z.string(),
+    sqlitePath: z.string(),
+    indexHealthy: z.boolean(),
+  }),
+});
+export type StatusResponse = z.infer<typeof statusResponseSchema>;
+
+export const daemonFileSchema = z.object({
+  daemonId: z.string().startsWith("daemon_"),
+  pid: z.number().int().positive(),
+  host: z.string(),
+  port: z.number().int().positive(),
+  url: z.string().url(),
+  startedAt: z.string().datetime(),
+  dataDir: z.string(),
+  version: z.string(),
+});
+export type DaemonFile = z.infer<typeof daemonFileSchema>;
+
+export const storageInfoSchema = z.object({
+  dataDir: z.string(),
+  sqlitePath: z.string(),
+  configPath: z.string(),
+});
+export type StorageInfo = z.infer<typeof storageInfoSchema>;
+
+export const apiErrorSchema = z.object({
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+    details: z.unknown().optional(),
+  }),
+});
+export type ApiError = z.infer<typeof apiErrorSchema>;
+
+export type IdPrefix =
+  | "daemon"
+  | "evt"
+  | "proj"
+  | "ses"
+  | "agent"
+  | "run"
+  | "proc";
+
+const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+function encodeTime(time: number, length: number): string {
+  let value = time;
+  let output = "";
+  for (let i = length - 1; i >= 0; i -= 1) {
+    output = crockford[value % 32] + output;
+    value = Math.floor(value / 32);
+  }
+  return output;
+}
+
+function encodeRandom(length: number): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let output = "";
+  for (const byte of bytes) {
+    output += crockford[byte % 32];
+  }
+  return output;
+}
+
+export function createId(prefix: IdPrefix): `${IdPrefix}_${string}` {
+  return `${prefix}_${encodeTime(Date.now(), 10)}${encodeRandom(16)}`;
+}
+
+export function parseCookieHeader(
+  header: string | null | undefined,
+): Record<string, string> {
+  if (!header) return {};
+  const cookies: Record<string, string> = {};
+  for (const part of header.split(";")) {
+    const [rawName, ...rawValue] = part.trim().split("=");
+    if (!rawName) continue;
+    cookies[rawName] = decodeURIComponent(rawValue.join("="));
+  }
+  return cookies;
+}

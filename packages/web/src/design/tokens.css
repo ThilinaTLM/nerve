@@ -1,0 +1,16 @@
+:root {
+  --color-bg: #070a10;
+  --color-bg-soft: #0b1020;
+  --color-panel: #111827;
+  --color-panel-strong: #172033;
+  --color-border: #26324a;
+  --color-text: #eef2ff;
+  --color-muted: #9aa8c2;
+  --color-accent: #7dd3fc;
+  --color-accent-strong: #38bdf8;
+  --color-good: #86efac;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.5rem;
+  --shadow-panel: 0 30px 100px rgb(0 0 0 / 45%);
+}

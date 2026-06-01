@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/orchestrator" },
+    { "path": "./packages/cli" },
+    { "path": "./packages/agent" },
+    { "path": "./packages/tools" }
+  ]
+}
