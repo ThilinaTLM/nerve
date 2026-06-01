@@ -3,18 +3,15 @@
     AgentRecord,
     ApprovalWithToolCall,
     AuthProviderMetadata,
-    OAuthFlowInfo,
     ProcessLogQueryResponse,
     ProcessRecord,
     ProjectRecord,
-    ProviderApiKey,
     SessionRecord,
     SessionTreeNode,
     Settings,
     StatusResponse,
   } from "../../api";
   import Button from "../ui/Button.svelte";
-  import Input from "../ui/Input.svelte";
 
   type UtilityTab = "history" | "approvals" | "processes" | "settings" | "events" | "info";
 
@@ -32,11 +29,7 @@
     processLogs?: ProcessLogQueryResponse;
     eventItems?: string[];
     settingsDraft?: Settings;
-    providerKeys?: ProviderApiKey[];
     authProviders?: AuthProviderMetadata[];
-    activeOAuthFlow?: OAuthFlowInfo;
-    providerKeyDraft?: Record<string, string>;
-    oauthResponseDraft?: Record<string, string>;
     settingsMessage?: string;
     exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
     onTabChange?: (tab: UtilityTab) => void;
@@ -51,14 +44,6 @@
     onRestartProcess?: (id: string) => void;
     onLoadSettings?: () => void;
     onSaveSettings?: () => void;
-    onSaveProviderKey?: (provider: string) => void;
-    onRemoveProviderKey?: (provider: string) => void;
-    onBeginOAuthLogin?: (provider: string) => void;
-    onRefreshOAuthFlow?: () => void;
-    onRespondOAuthSelection?: (id: string) => void;
-    onRespondOAuthPrompt?: () => void;
-    onCancelOAuthLogin?: () => void;
-    onRemoveAuthCredential?: (provider: string) => void;
   };
 
   let {
@@ -75,11 +60,7 @@
     processLogs,
     eventItems = [],
     settingsDraft = $bindable<Settings | undefined>(),
-    providerKeys = [],
     authProviders = [],
-    activeOAuthFlow,
-    providerKeyDraft = $bindable<Record<string, string>>({}),
-    oauthResponseDraft = $bindable<Record<string, string>>({}),
     settingsMessage,
     exportUrl,
     onTabChange,
@@ -94,14 +75,6 @@
     onRestartProcess,
     onLoadSettings,
     onSaveSettings,
-    onSaveProviderKey,
-    onRemoveProviderKey,
-    onBeginOAuthLogin,
-    onRefreshOAuthFlow,
-    onRespondOAuthSelection,
-    onRespondOAuthPrompt,
-    onCancelOAuthLogin,
-    onRemoveAuthCredential,
   }: Props = $props();
 
   const tabs: { id: UtilityTab; label: string; count?: number }[] = [
@@ -116,10 +89,6 @@
   function setTab(tab: UtilityTab) {
     activeTab = tab;
     onTabChange?.(tab);
-  }
-
-  function isTerminalOAuthFlow(flow: OAuthFlowInfo): boolean {
-    return ["succeeded", "failed", "cancelled"].includes(flow.status);
   }
 </script>
 
@@ -220,44 +189,19 @@
       {/if}
 
       <section class="utility-card form-card">
-        <strong>Provider auth</strong>
-        {#each authProviders as provider}
-          <div class="provider-row">
-            <span>{provider.displayName}<small>{provider.configured ? `configured (${provider.credentialType})` : "not configured"}</small></span>
-            {#if provider.supportsOAuth}<Button size="sm" variant="secondary" onclick={() => onBeginOAuthLogin?.(provider.provider)}>OAuth</Button>{/if}
-            {#if provider.configured}<Button size="sm" variant="secondary" onclick={() => onRemoveAuthCredential?.(provider.provider)}>Remove</Button>{/if}
-          </div>
-        {/each}
+        <strong>Configured providers</strong>
+        {#if authProviders.length === 0}
+          <p class="muted">No provider credentials configured.</p>
+        {:else}
+          {#each authProviders as provider}
+            <div class="provider-row">
+              <span>{provider.displayName}<small>{provider.provider} · {provider.credentialType ?? "configured"}</small></span>
+            </div>
+            {#if provider.warning}<p class="muted">{provider.warning}</p>{/if}
+          {/each}
+        {/if}
+        <p class="muted">Add or remove providers from the CLI: <code>nerve auth list</code></p>
       </section>
-
-      <section class="utility-card form-card">
-        <strong>API keys</strong>
-        {#each providerKeys as key}
-          <div class="provider-row key-row">
-            <span>{key.provider}<small>{key.configured ? "configured" : key.envVar}</small></span>
-            <Input type="password" bind:value={providerKeyDraft[key.provider]} placeholder="paste key" />
-            <Button size="sm" onclick={() => onSaveProviderKey?.(key.provider)}>Save</Button>
-            <Button size="sm" variant="secondary" disabled={!key.configured} onclick={() => onRemoveProviderKey?.(key.provider)}>Remove</Button>
-          </div>
-        {/each}
-      </section>
-
-      {#if activeOAuthFlow}
-        <section class="utility-card form-card">
-          <strong>{activeOAuthFlow.providerName}</strong>
-          <span>{activeOAuthFlow.status} · {activeOAuthFlow.message}</span>
-          {#if activeOAuthFlow.status === "select" && activeOAuthFlow.options}
-            {#each activeOAuthFlow.options as option}<Button size="sm" variant="secondary" onclick={() => onRespondOAuthSelection?.(option.id)}>{option.label}</Button>{/each}
-          {/if}
-          {#if !isTerminalOAuthFlow(activeOAuthFlow) && activeOAuthFlow.authUrl}<a href={activeOAuthFlow.authUrl} target="_blank" rel="noreferrer">Open login URL</a>{/if}
-          {#if !isTerminalOAuthFlow(activeOAuthFlow) && activeOAuthFlow.deviceCode}<code>{activeOAuthFlow.deviceCode.userCode}</code>{/if}
-          {#if !isTerminalOAuthFlow(activeOAuthFlow) && activeOAuthFlow.promptId}
-            <Input bind:value={oauthResponseDraft[activeOAuthFlow.promptId]} placeholder={activeOAuthFlow.placeholder ?? "response"} />
-            <Button size="sm" onclick={onRespondOAuthPrompt}>Submit</Button>
-          {/if}
-          <div class="row-actions"><Button size="sm" variant="secondary" onclick={onRefreshOAuthFlow}>Refresh</Button>{#if !isTerminalOAuthFlow(activeOAuthFlow)}<Button size="sm" variant="secondary" onclick={onCancelOAuthLogin}>Cancel</Button>{/if}</div>
-        </section>
-      {/if}
 
       {#if settingsMessage}<p class="muted">{settingsMessage}</p>{/if}
     {:else if activeTab === "events"}
@@ -395,13 +339,9 @@
 
   .provider-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
     gap: 0.35rem;
-  }
-
-  .key-row {
-    grid-template-columns: minmax(5rem, 0.8fr) minmax(0, 1fr) auto auto;
   }
 
   .provider-row span,
@@ -440,6 +380,12 @@
 
   code.error {
     color: var(--color-danger);
+  }
+
+  .muted code {
+    display: inline;
+    padding: 0.1rem 0.25rem;
+    white-space: normal;
   }
 
   dl {

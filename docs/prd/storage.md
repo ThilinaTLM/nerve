@@ -324,7 +324,7 @@ SQLite should be rebuildable from files as much as practical.
 
 ## Secrets and API keys
 
-Secrets must not be stored as plaintext JSON. Nerve stores both API keys and subscription OAuth credentials through the secret provider.
+Secrets must not be stored as plaintext JSON. Nerve stores both API keys and subscription OAuth credentials through the secret provider. Provider credential setup/removal is driven by CLI commands backed by bearer-token-only daemon endpoints; the Web UI only reads configured-provider metadata.
 
 Preferred order:
 

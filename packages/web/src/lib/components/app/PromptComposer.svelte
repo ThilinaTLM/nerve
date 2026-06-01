@@ -116,7 +116,7 @@
       {#if !activeSession}
         Select a project to start.
       {:else if models.length === 0}
-        Configure a model provider in settings.
+        Configure a provider from the CLI: nerve auth list.
       {:else if !live}
         Daemon is {" "}{activeSession ? "not live" : "offline"}.
       {:else}

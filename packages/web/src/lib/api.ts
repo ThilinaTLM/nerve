@@ -6,12 +6,9 @@ import type {
   FilesystemDirectoryResponse,
   ModelInfo,
   ModelSelection,
-  OAuthFlowInfo,
   ProcessLogQueryResponse,
   ProcessRecord,
   ProjectRecord,
-  ProviderApiKey,
-  RespondOAuthFlowRequest,
   SessionEntry,
   SessionRecord,
   SessionTree,
@@ -134,8 +131,9 @@ export async function updateAgentConfig(
     permissionLevel?: AgentRecord["permissionLevel"];
   },
 ): Promise<AgentRecord> {
-  return (await apiPatch<{ agent: AgentRecord }>(`/api/agents/${agentId}`, patch))
-    .agent;
+  return (
+    await apiPatch<{ agent: AgentRecord }>(`/api/agents/${agentId}`, patch)
+  ).agent;
 }
 
 export async function updateAgentModel(
@@ -149,66 +147,6 @@ export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
   return (
     await apiGet<{ providers: AuthProviderMetadata[] }>("/api/auth/providers")
   ).providers;
-}
-
-export async function startOAuthFlow(provider: string): Promise<OAuthFlowInfo> {
-  return (
-    await apiPost<{ flow: OAuthFlowInfo }>("/api/auth/oauth/flows", {
-      provider,
-    })
-  ).flow;
-}
-
-export async function getOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
-  return (
-    await apiGet<{ flow: OAuthFlowInfo }>(
-      `/api/auth/oauth/flows/${encodeURIComponent(flowId)}`,
-    )
-  ).flow;
-}
-
-export async function respondOAuthFlow(
-  flowId: string,
-  response: RespondOAuthFlowRequest,
-): Promise<OAuthFlowInfo> {
-  return (
-    await apiPost<{ flow: OAuthFlowInfo }>(
-      `/api/auth/oauth/flows/${encodeURIComponent(flowId)}/respond`,
-      response,
-    )
-  ).flow;
-}
-
-export async function cancelOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
-  return (
-    await apiPost<{ flow: OAuthFlowInfo }>(
-      `/api/auth/oauth/flows/${encodeURIComponent(flowId)}/cancel`,
-      {},
-    )
-  ).flow;
-}
-
-export async function deleteAuthCredential(provider: string): Promise<void> {
-  await apiDelete<{ ok: true }>(
-    `/api/auth/providers/${encodeURIComponent(provider)}`,
-  );
-}
-
-export async function getProviderKeys(): Promise<ProviderApiKey[]> {
-  return (await apiGet<{ keys: ProviderApiKey[] }>("/api/provider-keys")).keys;
-}
-
-export async function setProviderKey(
-  provider: string,
-  apiKey: string,
-): Promise<void> {
-  await apiPut<{ ok: true }>("/api/provider-keys", { provider, apiKey });
-}
-
-export async function deleteProviderKey(provider: string): Promise<void> {
-  await apiDelete<{ ok: true }>(
-    `/api/provider-keys/${encodeURIComponent(provider)}`,
-  );
 }
 
 export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
@@ -343,7 +281,4 @@ export type {
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
-  OAuthFlowInfo,
-  ProviderApiKey,
-  RespondOAuthFlowRequest,
 };

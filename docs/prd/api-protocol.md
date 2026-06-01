@@ -153,10 +153,17 @@ interface StorageInfo {
 
 ### Provider keys, subscription auth, and local auth metadata
 
-Secret values are never returned by the API. Provider API-key endpoints remain for compatibility; subscription OAuth flows use daemon-managed flow endpoints and encrypted credential storage.
+Secret values are never returned by the API. The daemon owns provider API-key storage, subscription OAuth flows, token refresh, and per-run auth delivery to agent workers.
+
+The Web UI may read configured-provider metadata for model availability and settings display:
 
 ```txt
-GET    /api/auth/providers
+GET /api/auth/providers
+```
+
+Credential mutation is a CLI/daemon-only surface. These endpoints require the local bearer token in the `Authorization` header and do not accept browser-cookie auth:
+
+```txt
 POST   /api/auth/oauth/flows
 GET    /api/auth/oauth/flows/:flowId
 POST   /api/auth/oauth/flows/:flowId/respond
@@ -167,6 +174,8 @@ GET    /api/provider-keys
 PUT    /api/provider-keys
 DELETE /api/provider-keys/:provider
 ```
+
+The Web UI must not render API-key entry, provider-login, OAuth prompt, or credential removal controls. It should show configured providers only and direct users to `nerve auth list` for setup.
 
 Provider key metadata:
 
@@ -203,7 +212,7 @@ interface AuthProviderMetadata {
 }
 ```
 
-OAuth flow responses expose state only, never credentials. Flows may request selection (`selectedId`) or text/manual-code input (`value`) through `POST /api/auth/oauth/flows/:flowId/respond`.
+OAuth flow responses expose state only, never credentials. Flows may request selection (`selectedId`) or text/manual-code input (`value`) through `POST /api/auth/oauth/flows/:flowId/respond`; the CLI drives those prompts while the daemon performs the provider OAuth work.
 
 ### Projects
 

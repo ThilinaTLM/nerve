@@ -64,11 +64,13 @@ packages/cli
 
 packages/web
   plain Svelte + Vite SPA for sessions, agent tree, events, tools,
-  approvals, logs, processes, markdown output, and prompt composer
+  approvals, logs, processes, markdown output, prompt composer, and
+  read-only configured-provider status
 
 packages/orchestrator
   HTTP + WebSocket API, singleton daemon, worker registry, agent registry,
-  policy engine, process supervisor, approval queue, durable state, web app serving
+  policy engine, process supervisor, approval queue, durable state, web app serving,
+  and daemon-owned provider credential management
 
 packages/agent
   copied/adapted Pi harness running as isolated worker processes
@@ -115,6 +117,10 @@ nerve run [dir]       # create/attach an agent session for a project
 nerve attach <id>     # attach to an existing session/agent
 nerve agents list     # list active and recent agents
 nerve stop <id>       # stop an agent/process/session
+nerve auth list       # list configured and available provider auth
+nerve auth login <provider>
+nerve auth set-key <provider> [--stdin]
+nerve auth remove <provider>
 ```
 
 If the daemon is not running, client commands may auto-start it.
@@ -456,6 +462,7 @@ Default local-first security:
 
 - bind orchestrator to `127.0.0.1` by default
 - never expose API keys to browser
+- keep provider credential mutation in CLI/daemon flows; mutation endpoints require bearer-token auth and do not accept browser-cookie auth
 - all filesystem access goes through orchestrator tools
 - enforce workspace root allowlist
 - require explicit opt-in for remote binding

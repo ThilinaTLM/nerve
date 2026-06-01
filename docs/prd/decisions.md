@@ -545,3 +545,24 @@ Future remote-worker handshake requirements:
 - encrypted transport with replay protection
 - no raw provider-secret transfer unless explicitly opted into by the operator
 - lifecycle/log/result reporting through transport-neutral event shapes
+
+## D027: Manage provider credentials from the CLI only
+
+Status: accepted
+
+Provider API-key entry, subscription OAuth login, and credential removal should be exposed through CLI commands backed by daemon-owned APIs, not through Web UI controls.
+
+Rules:
+
+- The orchestrator/daemon owns encrypted credential storage, OAuth execution, token refresh, and per-run auth delivery.
+- The CLI is a thin authenticated client that drives setup flows with `nerve auth ...` commands.
+- The Web UI may show read-only configured-provider status and use it for model availability.
+- Credential mutation endpoints require local bearer-token auth and must reject browser-cookie-only requests.
+- Raw secrets are never returned by APIs or rendered in the browser.
+
+Reasoning:
+
+- Provider subscriptions and API keys change rarely, so terminal setup is acceptable.
+- Terminal-driven setup matches the Pi coordination model.
+- Removing credential mutation from browser code gives a clearer local security boundary than merely hiding forms.
+- The Web UI remains focused on sessions, agents, approvals, logs, and model use rather than account administration.

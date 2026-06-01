@@ -14,25 +14,18 @@
   import {
     apiGet,
     apiPost,
-    cancelOAuthFlow,
     compactSession,
-    deleteAuthCredential,
-    deleteProviderKey,
     getAuthProviders,
     getClientConfig,
     getFileCompletions,
     getModels,
-    getOAuthFlow,
     getPendingApprovals,
     getProcessLogs,
     getSessionMessages,
     getSessionTree,
-    getProviderKeys,
     getSettings,
     getSlashCompletions,
     getWorkspaceSnapshot,
-    respondOAuthFlow,
-    startOAuthFlow,
     type AgentRecord,
     type ApprovalWithToolCall,
     type AuthProviderMetadata,
@@ -41,10 +34,8 @@
     type EventEnvelope,
     type ModelInfo,
     type ModelSelection,
-    type OAuthFlowInfo,
     type ProcessLogQueryResponse,
     type ProcessRecord,
-    type ProviderApiKey,
     type ProjectRecord,
     type SessionEntry,
     type SessionRecord,
@@ -52,7 +43,6 @@
     type Settings,
     type StatusResponse,
     restartProcess,
-    setProviderKey,
     stopProcess,
     updateAgentConfig,
     updateAgentModel,
@@ -96,11 +86,7 @@
   let utilityTab = $state<"history" | "approvals" | "processes" | "settings" | "events" | "info">("history");
   let projectPickerOpen = $state(false);
   let settingsDraft = $state<Settings | undefined>(undefined);
-  let providerKeys = $state<ProviderApiKey[]>([]);
   let authProviders = $state<AuthProviderMetadata[]>([]);
-  let activeOAuthFlow = $state<OAuthFlowInfo | undefined>(undefined);
-  let oauthResponseDraft = $state<Record<string, string>>({});
-  let providerKeyDraft = $state<Record<string, string>>({});
   let settingsMessage = $state<string | undefined>(undefined);
   let socket: WebSocket | undefined;
 
@@ -121,18 +107,6 @@
       providers.filter((provider) => provider.configured).map((provider) => provider.provider),
     );
     return modelList.filter((model) => model.faux || configuredProviders.has(model.provider));
-  }
-
-  function isTerminalOAuthFlow(flow: OAuthFlowInfo): boolean {
-    return ["succeeded", "failed", "cancelled"].includes(flow.status);
-  }
-
-  function shouldShowOAuthFlow(current: OAuthFlowInfo | undefined, incoming: OAuthFlowInfo): boolean {
-    if (status && Date.parse(incoming.createdAt) < Date.parse(status.startedAt)) return false;
-    if (!current || current.flowId === incoming.flowId) return true;
-    if (isTerminalOAuthFlow(incoming)) return false;
-    if (isTerminalOAuthFlow(current)) return true;
-    return Date.parse(incoming.createdAt) >= Date.parse(current.createdAt);
   }
 
   function selectAgent(agent: AgentRecord) {
@@ -171,19 +145,18 @@
   }
 
   async function loadSettingsPanel() {
-    const [settings, modelList, keys, auth] = await Promise.all([
+    const [settings, modelList, auth] = await Promise.all([
       getSettings(),
       getModels(),
-      getProviderKeys(),
       getAuthProviders(),
     ]);
+    const configuredAuth = auth.filter((provider) => provider.configured);
     settingsDraft = settings;
     models = modelList;
-    providerKeys = keys;
-    authProviders = auth;
+    authProviders = configuredAuth;
     selectedMode = activeAgent?.mode ?? settings.defaultMode;
     selectedPermissionLevel = activeAgent?.permissionLevel ?? settings.defaultPermissionLevel;
-    const usable = usableModelOptions(modelList, auth);
+    const usable = usableModelOptions(modelList, configuredAuth);
     const activeModel = activeAgent?.model;
     if (activeModel && usable.some((model) => modelKey(model) === modelKey(activeModel))) {
       selectedModelKey = modelKey(activeModel);
@@ -235,64 +208,6 @@
     if (!selection.agentId) return;
     const agent = await updateAgentConfig(selection.agentId, { permissionLevel });
     agents = agents.map((candidate) => candidate.id === agent.id ? agent : candidate);
-  }
-
-  async function saveProviderKey(provider: string) {
-    const apiKey = providerKeyDraft[provider]?.trim();
-    if (!apiKey) return;
-    await setProviderKey(provider, apiKey);
-    providerKeyDraft = { ...providerKeyDraft, [provider]: "" };
-    providerKeys = await getProviderKeys();
-    authProviders = await getAuthProviders();
-    settingsMessage = `${provider} key saved in encrypted local storage.`;
-  }
-
-  async function removeProviderKey(provider: string) {
-    await deleteProviderKey(provider);
-    providerKeys = await getProviderKeys();
-    authProviders = await getAuthProviders();
-    settingsMessage = `${provider} key removed.`;
-  }
-
-  async function beginOAuthLogin(provider: string) {
-    settingsMessage = undefined;
-    activeOAuthFlow = await startOAuthFlow(provider);
-  }
-
-  async function refreshOAuthFlow() {
-    if (!activeOAuthFlow) return;
-    activeOAuthFlow = await getOAuthFlow(activeOAuthFlow.flowId);
-  }
-
-  async function respondToOAuthSelection(selectedId: string) {
-    if (!activeOAuthFlow?.promptId) return;
-    activeOAuthFlow = await respondOAuthFlow(activeOAuthFlow.flowId, {
-      promptId: activeOAuthFlow.promptId,
-      selectedId,
-    });
-  }
-
-  async function respondToOAuthPrompt() {
-    if (!activeOAuthFlow?.promptId) return;
-    const promptId = activeOAuthFlow.promptId;
-    const value = oauthResponseDraft[promptId] ?? "";
-    activeOAuthFlow = await respondOAuthFlow(activeOAuthFlow.flowId, {
-      promptId,
-      value,
-    });
-    oauthResponseDraft = { ...oauthResponseDraft, [promptId]: "" };
-  }
-
-  async function cancelOAuthLogin() {
-    if (!activeOAuthFlow) return;
-    activeOAuthFlow = await cancelOAuthFlow(activeOAuthFlow.flowId);
-  }
-
-  async function removeAuthCredential(provider: string) {
-    await deleteAuthCredential(provider);
-    providerKeys = await getProviderKeys();
-    authProviders = await getAuthProviders();
-    settingsMessage = `${provider} credentials removed.`;
   }
 
   function exportUrl(kind: "json" | "md" | "html"): string | undefined {
@@ -558,10 +473,6 @@
       void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
       void loadWorkspaceState();
       if (event.type.startsWith("settings.") || event.type.startsWith("secrets.") || event.type.startsWith("auth.")) void loadSettingsPanel();
-      if (event.type === "auth.oauth_flow_updated") {
-        const flow = (event.data as { flow?: OAuthFlowInfo }).flow;
-        if (flow && shouldShowOAuthFlow(activeOAuthFlow, flow)) activeOAuthFlow = flow;
-      }
     }
   }
 
@@ -680,11 +591,7 @@
         {processLogs}
         eventItems={eventBuffer.items}
         bind:settingsDraft
-        {providerKeys}
         {authProviders}
-        {activeOAuthFlow}
-        bind:providerKeyDraft
-        bind:oauthResponseDraft
         {settingsMessage}
         {exportUrl}
         onTabChange={(tab) => (utilityTab = tab)}
@@ -699,14 +606,6 @@
         onRestartProcess={(id) => void restartSelectedProcess(id)}
         onLoadSettings={() => void loadSettingsPanel()}
         onSaveSettings={() => void saveSettings()}
-        onSaveProviderKey={(provider) => void saveProviderKey(provider)}
-        onRemoveProviderKey={(provider) => void removeProviderKey(provider)}
-        onBeginOAuthLogin={(provider) => void beginOAuthLogin(provider)}
-        onRefreshOAuthFlow={() => void refreshOAuthFlow()}
-        onRespondOAuthSelection={(id) => void respondToOAuthSelection(id)}
-        onRespondOAuthPrompt={() => void respondToOAuthPrompt()}
-        onCancelOAuthLogin={() => void cancelOAuthLogin()}
-        onRemoveAuthCredential={(provider) => void removeAuthCredential(provider)}
       />
     {/if}
   </div>

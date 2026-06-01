@@ -1,6 +1,14 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, extname, join, parse, resolve, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  extname,
+  join,
+  parse,
+  resolve,
+  sep,
+} from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   compactSessionRequestSchema,
@@ -106,25 +114,47 @@ export function statusResponse(state: OrchestratorState): StatusResponse {
   };
 }
 
-function isAuthorized(request: Request, token: string): boolean {
+type ClientAuthMode = "bearer" | "cookie" | "none";
+
+function clientAuthMode(request: Request, token: string): ClientAuthMode {
   const authorization = request.headers.get("authorization");
-  if (authorization === `Bearer ${token}`) return true;
+  if (authorization === `Bearer ${token}`) return "bearer";
   const cookies = parseCookieHeader(request.headers.get("cookie"));
-  return cookies.nerve_token === token;
+  return cookies.nerve_token === token ? "cookie" : "none";
+}
+
+function isAuthorized(request: Request, token: string): boolean {
+  return clientAuthMode(request, token) !== "none";
 }
 
 function unauthorized() {
-  return new Response(
-    JSON.stringify({
+  return Response.json(
+    {
       error: {
         code: "UNAUTHORIZED",
         message: "Missing or invalid local token.",
       },
-    }),
-    {
-      status: 401,
-      headers: { "content-type": "application/json" },
     },
+    { status: 401 },
+  );
+}
+
+function requireBearerAuth(
+  request: Request,
+  token: string,
+): Response | undefined {
+  const mode = clientAuthMode(request, token);
+  if (mode === "bearer") return undefined;
+  if (mode === "none") return unauthorized();
+  return Response.json(
+    {
+      error: {
+        code: "CLI_AUTH_REQUIRED",
+        message:
+          "Provider credential management requires CLI bearer-token auth.",
+      },
+    },
+    { status: 403 },
   );
 }
 
@@ -142,7 +172,7 @@ const contentTypes: Record<string, string> = {
 };
 
 function cookieHeader(token: string): string {
-  return `nerve_token=${encodeURIComponent(token)}; Path=/; SameSite=Strict; Max-Age=31536000`;
+  return `nerve_token=${encodeURIComponent(token)}; Path=/; SameSite=Strict; HttpOnly; Max-Age=31536000`;
 }
 
 function fallbackHtml(state: OrchestratorState): string {
@@ -353,6 +383,8 @@ export function createApp(state: OrchestratorState): Hono {
     }),
   );
   app.post("/api/auth/oauth/flows", async (c) => {
+    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
+    if (authError) return authError;
     try {
       const body = startOAuthFlowRequestSchema.parse(await c.req.json());
       return c.json({ flow: state.oauthFlows.start(body.provider) });
@@ -361,6 +393,8 @@ export function createApp(state: OrchestratorState): Hono {
     }
   });
   app.get("/api/auth/oauth/flows/:flowId", (c) => {
+    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
+    if (authError) return authError;
     try {
       return c.json({ flow: state.oauthFlows.get(c.req.param("flowId")) });
     } catch (error) {
@@ -368,6 +402,8 @@ export function createApp(state: OrchestratorState): Hono {
     }
   });
   app.post("/api/auth/oauth/flows/:flowId/respond", async (c) => {
+    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
+    if (authError) return authError;
     try {
       const body = respondOAuthFlowRequestSchema.parse(await c.req.json());
       return c.json({
@@ -378,6 +414,8 @@ export function createApp(state: OrchestratorState): Hono {
     }
   });
   app.post("/api/auth/oauth/flows/:flowId/cancel", async (c) => {
+    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
+    if (authError) return authError;
     try {
       return c.json({
         flow: await state.oauthFlows.cancel(c.req.param("flowId")),
@@ -387,6 +425,8 @@ export function createApp(state: OrchestratorState): Hono {
     }
   });
   app.delete("/api/auth/providers/:provider", async (c) => {
+    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
+    if (authError) return authError;
     const provider = c.req.param("provider");
     await state.auth.deleteCredential(provider);
     await state.events.publish("auth.credential_deleted", { provider });
@@ -394,6 +434,8 @@ export function createApp(state: OrchestratorState): Hono {
     return c.json({ ok: true });
   });
   app.get("/api/provider-keys", async (c) => {
+    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
+    if (authError) return authError;
     const providers = await state.auth.listProviderMetadata(
       state.registry.listModels(),
     );
@@ -408,6 +450,8 @@ export function createApp(state: OrchestratorState): Hono {
     });
   });
   app.put("/api/provider-keys", async (c) => {
+    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
+    if (authError) return authError;
     try {
       const body = setProviderApiKeyRequestSchema.parse(await c.req.json());
       await state.auth.setApiKey(body.provider, body.apiKey);
@@ -423,6 +467,8 @@ export function createApp(state: OrchestratorState): Hono {
     }
   });
   app.delete("/api/provider-keys/:provider", async (c) => {
+    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
+    if (authError) return authError;
     const provider = c.req.param("provider");
     await state.auth.deleteCredential(provider);
     await state.events.publish("secrets.provider_key_deleted", { provider });

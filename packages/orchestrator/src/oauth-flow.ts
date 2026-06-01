@@ -260,19 +260,24 @@ export class OAuthFlowManager {
         "Open the login URL, then complete authentication in your browser.",
       authUrl: info.url,
       instructions: info.instructions,
-      promptId: createId("authflow"),
+      promptId: undefined,
       options: undefined,
       deviceCode: undefined,
-      placeholder: "Paste redirect URL or authorization code",
+      placeholder: undefined,
     });
   }
 
   private async waitForManualCode(flow: FlowRecord): Promise<string> {
-    const promptId = flow.info.promptId ?? createId("authflow");
-    if (flow.info.promptId !== promptId) {
-      await this.update(flow, { promptId });
-    }
-    const response = await this.waitForPending(flow, promptId);
+    const promptId = createId("authflow");
+    const response = await this.waitForResponse(flow, {
+      status: "prompt",
+      message: "Paste redirect URL or authorization code.",
+      promptId,
+      placeholder: "Paste redirect URL or authorization code",
+      options: undefined,
+      deviceCode: undefined,
+      allowEmpty: undefined,
+    });
     return response.value ?? "";
   }
 
