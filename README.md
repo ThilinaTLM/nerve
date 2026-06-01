@@ -14,6 +14,7 @@ The goal is to keep the agent core small and explicit while adding first-class s
 - safe markdown rendering and CodeMirror prompt composer
 - coding tools for file and shell work
 - multi-provider LLM support via `@earendil-works/pi-ai`
+- subscription auth for ChatGPT Plus/Pro (`openai-codex`) and Anthropic OAuth through daemon-managed encrypted credentials
 
 ## Core direction
 

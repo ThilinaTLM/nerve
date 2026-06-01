@@ -151,11 +151,18 @@ interface StorageInfo {
 }
 ```
 
-### Provider keys and local auth metadata
+### Provider keys, subscription auth, and local auth metadata
 
-Secret values are never returned by the API.
+Secret values are never returned by the API. Provider API-key endpoints remain for compatibility; subscription OAuth flows use daemon-managed flow endpoints and encrypted credential storage.
 
 ```txt
+GET    /api/auth/providers
+POST   /api/auth/oauth/flows
+GET    /api/auth/oauth/flows/:flowId
+POST   /api/auth/oauth/flows/:flowId/respond
+POST   /api/auth/oauth/flows/:flowId/cancel
+DELETE /api/auth/providers/:provider
+
 GET    /api/provider-keys
 PUT    /api/provider-keys
 DELETE /api/provider-keys/:provider
@@ -179,6 +186,24 @@ interface SetProviderKeyRequest {
   apiKey: string;
 }
 ```
+
+Auth provider metadata:
+
+```ts
+interface AuthProviderMetadata {
+  provider: string;
+  displayName: string;
+  supportsApiKey: boolean;
+  supportsOAuth: boolean;
+  oauthName?: string;
+  configured: boolean;
+  credentialType?: "api_key" | "oauth";
+  envVar?: string;
+  warning?: string;
+}
+```
+
+OAuth flow responses expose state only, never credentials. Flows may request selection (`selectedId`) or text/manual-code input (`value`) through `POST /api/auth/oauth/flows/:flowId/respond`.
 
 ### Projects
 

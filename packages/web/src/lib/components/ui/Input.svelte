@@ -10,7 +10,7 @@
   };
 
   let {
-    value = $bindable(""),
+    value = $bindable(),
     placeholder = "",
     disabled = false,
     class: className = "",

@@ -16,11 +16,15 @@
   import {
     apiGet,
     apiPost,
+    cancelOAuthFlow,
     compactSession,
+    deleteAuthCredential,
     deleteProviderKey,
+    getAuthProviders,
     getClientConfig,
     getFileCompletions,
     getModels,
+    getOAuthFlow,
     getPendingApprovals,
     getProcessLogs,
     getSessionMessages,
@@ -29,13 +33,17 @@
     getSettings,
     getSlashCompletions,
     getWorkspaceSnapshot,
+    respondOAuthFlow,
+    startOAuthFlow,
     type AgentRecord,
     type ApprovalWithToolCall,
+    type AuthProviderMetadata,
     type ClientConfig,
     type CompletionItem,
     type EventEnvelope,
     type ModelInfo,
     type ModelSelection,
+    type OAuthFlowInfo,
     type ProcessLogQueryResponse,
     type ProcessRecord,
     type ProviderApiKey,
@@ -87,6 +95,9 @@
   let selectedModelKey = $state("nerve-faux:faux-fast");
   let settingsDraft = $state<Settings | undefined>(undefined);
   let providerKeys = $state<ProviderApiKey[]>([]);
+  let authProviders = $state<AuthProviderMetadata[]>([]);
+  let activeOAuthFlow = $state<OAuthFlowInfo | undefined>(undefined);
+  let oauthResponseDraft = $state<Record<string, string>>({});
   let providerKeyDraft = $state<Record<string, string>>({});
   let settingsMessage = $state<string | undefined>(undefined);
   let socket: WebSocket | undefined;
@@ -141,14 +152,16 @@
   }
 
   async function loadSettingsPanel() {
-    const [settings, modelList, keys] = await Promise.all([
+    const [settings, modelList, keys, auth] = await Promise.all([
       getSettings(),
       getModels(),
       getProviderKeys(),
+      getAuthProviders(),
     ]);
     settingsDraft = settings;
     models = modelList;
     providerKeys = keys;
+    authProviders = auth;
     if (activeAgent?.model) {
       selectedModelKey = modelKey(activeAgent.model);
     } else if (!modelList.some((model) => modelKey(model) === selectedModelKey)) {
@@ -186,13 +199,56 @@
     await setProviderKey(provider, apiKey);
     providerKeyDraft = { ...providerKeyDraft, [provider]: "" };
     providerKeys = await getProviderKeys();
+    authProviders = await getAuthProviders();
     settingsMessage = `${provider} key saved in encrypted local storage.`;
   }
 
   async function removeProviderKey(provider: string) {
     await deleteProviderKey(provider);
     providerKeys = await getProviderKeys();
+    authProviders = await getAuthProviders();
     settingsMessage = `${provider} key removed.`;
+  }
+
+  async function beginOAuthLogin(provider: string) {
+    settingsMessage = undefined;
+    activeOAuthFlow = await startOAuthFlow(provider);
+  }
+
+  async function refreshOAuthFlow() {
+    if (!activeOAuthFlow) return;
+    activeOAuthFlow = await getOAuthFlow(activeOAuthFlow.flowId);
+  }
+
+  async function respondToOAuthSelection(selectedId: string) {
+    if (!activeOAuthFlow?.promptId) return;
+    activeOAuthFlow = await respondOAuthFlow(activeOAuthFlow.flowId, {
+      promptId: activeOAuthFlow.promptId,
+      selectedId,
+    });
+  }
+
+  async function respondToOAuthPrompt() {
+    if (!activeOAuthFlow?.promptId) return;
+    const promptId = activeOAuthFlow.promptId;
+    const value = oauthResponseDraft[promptId] ?? "";
+    activeOAuthFlow = await respondOAuthFlow(activeOAuthFlow.flowId, {
+      promptId,
+      value,
+    });
+    oauthResponseDraft = { ...oauthResponseDraft, [promptId]: "" };
+  }
+
+  async function cancelOAuthLogin() {
+    if (!activeOAuthFlow) return;
+    activeOAuthFlow = await cancelOAuthFlow(activeOAuthFlow.flowId);
+  }
+
+  async function removeAuthCredential(provider: string) {
+    await deleteAuthCredential(provider);
+    providerKeys = await getProviderKeys();
+    authProviders = await getAuthProviders();
+    settingsMessage = `${provider} credentials removed.`;
   }
 
   function exportUrl(kind: "json" | "md" | "html"): string | undefined {
@@ -409,11 +465,16 @@
       event.type.startsWith("agent.tool_call") ||
       event.type.startsWith("process.") ||
       event.type.startsWith("settings.") ||
-      event.type.startsWith("secrets.")
+      event.type.startsWith("secrets.") ||
+      event.type.startsWith("auth.")
     ) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
       void loadWorkspaceState();
-      if (event.type.startsWith("settings.") || event.type.startsWith("secrets.")) void loadSettingsPanel();
+      if (event.type.startsWith("settings.") || event.type.startsWith("secrets.") || event.type.startsWith("auth.")) void loadSettingsPanel();
+      if (event.type === "auth.oauth_flow_updated") {
+        const flow = (event.data as { flow?: OAuthFlowInfo }).flow;
+        if (flow && (!activeOAuthFlow || flow.flowId === activeOAuthFlow.flowId)) activeOAuthFlow = flow;
+      }
     }
   }
 
@@ -823,6 +884,60 @@
               </select>
               <Button size="sm" disabled={!selection.agentId} onclick={saveActiveModel}>Apply to active agent</Button>
               <p class="muted">New agents use this model. Existing agents can be updated while idle.</p>
+            </Card>
+            <Card tone="muted" class="detail-card settings-card">
+              <h3>Authentication</h3>
+              {#if authProviders.length > 0}
+                {#each authProviders as provider}
+                  <div class="provider-key-row">
+                    <div>
+                      <strong>{provider.displayName}</strong>
+                      <small>{provider.provider} · {provider.configured ? provider.credentialType : "missing"}</small>
+                      {#if provider.warning}<small class="warning-text">{provider.warning}</small>{/if}
+                    </div>
+                    {#if provider.supportsOAuth}
+                      <Button size="sm" onclick={() => beginOAuthLogin(provider.provider)}>Use subscription</Button>
+                    {/if}
+                    <Button size="sm" variant="secondary" disabled={!provider.configured} onclick={() => removeAuthCredential(provider.provider)}>Remove</Button>
+                  </div>
+                {/each}
+              {:else}
+                <p class="muted">No authentication providers are available.</p>
+              {/if}
+              {#if activeOAuthFlow}
+                <div class="oauth-flow-panel">
+                  <strong>{activeOAuthFlow.providerName}</strong>
+                  <small>{activeOAuthFlow.status} · {activeOAuthFlow.message}</small>
+                  {#if activeOAuthFlow.error}<p class="warning-text">{activeOAuthFlow.error}</p>{/if}
+                  {#if activeOAuthFlow.status === "select" && activeOAuthFlow.options}
+                    <div class="oauth-actions">
+                      {#each activeOAuthFlow.options as option}
+                        <Button size="sm" onclick={() => respondToOAuthSelection(option.id)}>{option.label}</Button>
+                      {/each}
+                    </div>
+                  {/if}
+                  {#if activeOAuthFlow.status === "auth_url"}
+                    {#if activeOAuthFlow.authUrl}<a href={activeOAuthFlow.authUrl} target="_blank" rel="noreferrer">Open login URL</a>{/if}
+                    {#if activeOAuthFlow.instructions}<p class="muted">{activeOAuthFlow.instructions}</p>{/if}
+                    {#if activeOAuthFlow.promptId}
+                      <Input bind:value={oauthResponseDraft[activeOAuthFlow.promptId]} placeholder={activeOAuthFlow.placeholder ?? "paste redirect URL"} />
+                      <Button size="sm" onclick={respondToOAuthPrompt}>Submit code</Button>
+                    {/if}
+                  {/if}
+                  {#if activeOAuthFlow.status === "device_code" && activeOAuthFlow.deviceCode}
+                    <p class="muted">Open <a href={activeOAuthFlow.deviceCode.verificationUri} target="_blank" rel="noreferrer">{activeOAuthFlow.deviceCode.verificationUri}</a> and enter:</p>
+                    <code>{activeOAuthFlow.deviceCode.userCode}</code>
+                  {/if}
+                  {#if activeOAuthFlow.status === "prompt" && activeOAuthFlow.promptId}
+                    <Input bind:value={oauthResponseDraft[activeOAuthFlow.promptId]} placeholder={activeOAuthFlow.placeholder ?? "response"} />
+                    <Button size="sm" onclick={respondToOAuthPrompt}>Submit</Button>
+                  {/if}
+                  {#if activeOAuthFlow.status !== "succeeded" && activeOAuthFlow.status !== "failed" && activeOAuthFlow.status !== "cancelled"}
+                    <Button size="sm" variant="secondary" onclick={cancelOAuthLogin}>Cancel</Button>
+                    <Button size="sm" variant="ghost" onclick={refreshOAuthFlow}>Refresh</Button>
+                  {/if}
+                </div>
+              {/if}
             </Card>
             <Card tone="muted" class="detail-card settings-card">
               <h3>API keys</h3>
@@ -1328,6 +1443,22 @@
   .provider-key-row small {
     display: block;
     color: var(--color-faint);
+  }
+
+  .warning-text {
+    color: var(--color-warning);
+  }
+
+  .oauth-flow-panel,
+  .oauth-actions {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .oauth-flow-panel {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    padding: 0.8rem;
   }
 
   .export-actions {

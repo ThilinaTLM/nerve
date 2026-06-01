@@ -24,7 +24,6 @@ import {
   type ImportSessionRequest,
   type Mode,
   type ModelInfo,
-  type ModelSelection,
   type NavigateSessionRequest,
   type PermissionLevel,
   type ProcessLogQuery,
@@ -42,10 +41,11 @@ import {
   type UpdateAgentRequest,
 } from "@nerve/shared";
 import { AgentProcessError } from "./agent-process.js";
+import type { AuthManager } from "./auth.js";
+import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
 import { ProcessManager } from "./process-manager.js";
-import type { SecretProvider } from "./secrets.js";
 import {
   appendJsonLine,
   atomicWriteJson,
@@ -79,7 +79,7 @@ export class RuntimeRegistry {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
-    private readonly secrets: SecretProvider,
+    private readonly auth: AuthManager,
   ) {
     this.processes = new ProcessManager(storage, events, index);
     this.workers = new WorkerManager(storage, events, index);
@@ -843,7 +843,7 @@ export class RuntimeRegistry {
         systemPrompt: systemPromptFor(agent),
         messages,
         model: agent.model,
-        env: await this.secretEnvForModel(agent.model),
+        auth: await this.auth.requestAuthForModel(agent.model),
       },
       {
         onStarted: async () => {
@@ -918,14 +918,6 @@ export class RuntimeRegistry {
       });
       throw error;
     }
-  }
-
-  private async secretEnvForModel(
-    model: ModelSelection | undefined,
-  ): Promise<Record<string, string>> {
-    if (!model) return {};
-    const value = await this.secrets.get(providerSecretName(model.provider));
-    return value ? { [providerEnvVar(model.provider)]: value } : {};
   }
 
   private async setAgentStatus(
@@ -1494,22 +1486,11 @@ function systemPromptFor(agent: AgentRecord): string {
 }
 
 export function providerSecretName(provider: string): string {
-  return `provider:${provider}:apiKey`;
+  return providerApiKeySecretName(provider);
 }
 
 export function providerEnvVar(provider: string): string {
-  const known: Record<string, string> = {
-    anthropic: "ANTHROPIC_API_KEY",
-    google: "GOOGLE_API_KEY",
-    groq: "GROQ_API_KEY",
-    openai: "OPENAI_API_KEY",
-    openrouter: "OPENROUTER_API_KEY",
-    xai: "XAI_API_KEY",
-  };
-  return (
-    known[provider] ??
-    `${provider.replaceAll(/[^a-zA-Z0-9]/g, "_").toUpperCase()}_API_KEY`
-  );
+  return providerEnvVarName(provider);
 }
 
 function modeRank(mode: Mode): number {

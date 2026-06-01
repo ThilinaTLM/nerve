@@ -3,6 +3,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
 import {
+  type AgentRequestAuth,
   type AgentWorkerClientMessage,
   agentWorkerServerMessageSchema,
   type ModelSelection,
@@ -14,6 +15,7 @@ export interface AgentProcessInput {
   systemPrompt?: string;
   messages: Message[];
   model?: ModelSelection;
+  auth?: AgentRequestAuth;
   env?: Record<string, string>;
 }
 
@@ -124,6 +126,7 @@ export function launchAgentProcess(
             systemPrompt: input.systemPrompt,
             messages: input.messages,
             model: input.model,
+            auth: input.auth,
           });
         }
         return;

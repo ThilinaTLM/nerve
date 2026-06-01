@@ -21,6 +21,8 @@ export interface AgentPromptInput {
   systemPrompt?: string;
   messages: Message[];
   model?: AgentModelSelection;
+  apiKey?: string;
+  headers?: Record<string, string>;
   signal?: AbortSignal;
 }
 
@@ -92,6 +94,8 @@ export function streamAgentPrompt(
   };
   return streamSimple(model, context, {
     signal: input.signal,
+    apiKey: input.apiKey,
+    headers: input.headers,
     maxTokens: 4096,
   });
 }

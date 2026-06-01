@@ -15,22 +15,21 @@ import {
   processLogQuerySchema,
   promptRequestSchema,
   resolveApprovalRequestSchema,
+  respondOAuthFlowRequestSchema,
   type StatusResponse,
   setProviderApiKeyRequestSchema,
+  startOAuthFlowRequestSchema,
   startProcessRequestSchema,
   stopProcessRequestSchema,
   updateAgentRequestSchema,
   updateSettingsRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
+import { AuthManager } from "./auth.js";
 import { EventBus } from "./events.js";
 import { IndexStore } from "./index-store.js";
-import {
-  errorResponse,
-  providerEnvVar,
-  providerSecretName,
-  RuntimeRegistry,
-} from "./registry.js";
+import { OAuthFlowManager } from "./oauth-flow.js";
+import { errorResponse, RuntimeRegistry } from "./registry.js";
 import type { SecretProvider } from "./secrets.js";
 import { EncryptedFileSecretProvider } from "./secrets.js";
 import type { InitializedStorage } from "./storage.js";
@@ -48,6 +47,8 @@ export interface OrchestratorState {
   registry: RuntimeRegistry;
   index: IndexStore;
   secrets: SecretProvider;
+  auth: AuthManager;
+  oauthFlows: OAuthFlowManager;
 }
 
 export function createOrchestratorState(
@@ -59,6 +60,8 @@ export function createOrchestratorState(
   index.initialize();
   const events = new EventBus(storage.paths.home, index);
   const secrets = new EncryptedFileSecretProvider(storage.paths.home);
+  const auth = new AuthManager(secrets);
+  const oauthFlows = new OAuthFlowManager(auth, events);
   return {
     daemonId: createId("daemon"),
     startedAt: new Date().toISOString(),
@@ -66,9 +69,11 @@ export function createOrchestratorState(
     port,
     storage,
     events,
-    registry: new RuntimeRegistry(storage, events, index, secrets),
+    registry: new RuntimeRegistry(storage, events, index, auth),
     index,
     secrets,
+    auth,
+    oauthFlows,
   };
 }
 
@@ -314,33 +319,77 @@ export function createApp(state: OrchestratorState): Hono {
       return errorResponse(error);
     }
   });
-  app.get("/api/provider-keys", async (c) => {
-    const providers = new Set(
-      state.registry
-        .listModels()
-        .map((model) => model.provider)
-        .filter((provider) => provider !== "nerve-faux"),
-    );
-    for (const name of await state.secrets.list()) {
-      const match = /^provider:(.+):apiKey$/.exec(name);
-      if (match) providers.add(match[1]);
+  app.get("/api/auth/providers", async (c) =>
+    c.json({
+      providers: await state.auth.listProviderMetadata(
+        state.registry.listModels(),
+      ),
+    }),
+  );
+  app.post("/api/auth/oauth/flows", async (c) => {
+    try {
+      const body = startOAuthFlowRequestSchema.parse(await c.req.json());
+      return c.json({ flow: state.oauthFlows.start(body.provider) });
+    } catch (error) {
+      return errorResponse(error);
     }
-    const configured = new Set(await state.secrets.list());
+  });
+  app.get("/api/auth/oauth/flows/:flowId", (c) => {
+    try {
+      return c.json({ flow: state.oauthFlows.get(c.req.param("flowId")) });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/auth/oauth/flows/:flowId/respond", async (c) => {
+    try {
+      const body = respondOAuthFlowRequestSchema.parse(await c.req.json());
+      return c.json({
+        flow: await state.oauthFlows.respond(c.req.param("flowId"), body),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/auth/oauth/flows/:flowId/cancel", async (c) => {
+    try {
+      return c.json({
+        flow: await state.oauthFlows.cancel(c.req.param("flowId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.delete("/api/auth/providers/:provider", async (c) => {
+    const provider = c.req.param("provider");
+    await state.auth.deleteCredential(provider);
+    await state.events.publish("auth.credential_deleted", { provider });
+    await state.events.publish("auth.providers_changed", { provider });
+    return c.json({ ok: true });
+  });
+  app.get("/api/provider-keys", async (c) => {
+    const providers = await state.auth.listProviderMetadata(
+      state.registry.listModels(),
+    );
     return c.json({
-      keys: [...providers].sort().map((provider) => ({
-        provider,
-        envVar: providerEnvVar(provider),
-        configured: configured.has(providerSecretName(provider)),
-      })),
+      keys: providers
+        .filter((provider) => provider.supportsApiKey)
+        .map((provider) => ({
+          provider: provider.provider,
+          envVar: provider.envVar ?? "",
+          configured: provider.credentialType === "api_key",
+        })),
     });
   });
   app.put("/api/provider-keys", async (c) => {
     try {
       const body = setProviderApiKeyRequestSchema.parse(await c.req.json());
-      await state.secrets.set(providerSecretName(body.provider), body.apiKey);
+      await state.auth.setApiKey(body.provider, body.apiKey);
       await state.events.publish("secrets.provider_key_set", {
         provider: body.provider,
-        envVar: providerEnvVar(body.provider),
+      });
+      await state.events.publish("auth.providers_changed", {
+        provider: body.provider,
       });
       return c.json({ ok: true });
     } catch (error) {
@@ -349,8 +398,9 @@ export function createApp(state: OrchestratorState): Hono {
   });
   app.delete("/api/provider-keys/:provider", async (c) => {
     const provider = c.req.param("provider");
-    await state.secrets.delete(providerSecretName(provider));
+    await state.auth.deleteCredential(provider);
     await state.events.publish("secrets.provider_key_deleted", { provider });
+    await state.events.publish("auth.providers_changed", { provider });
     return c.json({ ok: true });
   });
   app.get("/api/storage", (c) =>

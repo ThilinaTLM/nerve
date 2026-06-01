@@ -237,7 +237,8 @@ Phase 10: Polish and hardening — complete
 - Settings now persist via `PUT /api/settings` with nested default merging.
 - Non-loopback daemon binds are refused unless explicitly opted in.
 - Provider API keys are stored through the encrypted file secret provider and injected into local agent worker environments using provider-specific env var names.
-- The workbench Settings tab exposes defaults, model selection, provider keys, and export links.
+- The workbench Settings tab exposes defaults, model selection, provider keys, subscription OAuth login, and export links.
+- ChatGPT Plus/Pro (`openai-codex`) and Anthropic subscription credentials are handled through daemon-managed OAuth flows and encrypted local storage.
 - Session bundles can be imported through `POST /api/import/session` and exported as JSON, Markdown, or HTML.
 - Added `pnpm test` and orchestrator Phase 10 tests.
 
