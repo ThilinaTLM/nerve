@@ -36,23 +36,17 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
     border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    font-weight: 800;
-    letter-spacing: -0.01em;
+    border-radius: var(--radius-sm);
+    font-weight: 650;
+    letter-spacing: 0;
     cursor: pointer;
     transition:
-      transform 140ms ease,
-      border-color 140ms ease,
-      background 140ms ease,
-      color 140ms ease,
-      box-shadow 140ms ease,
-      opacity 140ms ease;
-  }
-
-  .ui-button:hover:not(:disabled) {
-    transform: translateY(-1px);
+      border-color 120ms ease,
+      background 120ms ease,
+      color 120ms ease,
+      opacity 120ms ease;
   }
 
   .ui-button:focus-visible {
@@ -66,27 +60,26 @@
   }
 
   .sm {
-    min-height: 2rem;
-    padding: 0.35rem 0.65rem;
-    font-size: 0.78rem;
+    min-height: 1.5rem;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.72rem;
   }
 
   .md {
-    min-height: 2.6rem;
-    padding: 0.62rem 0.95rem;
-    font-size: 0.9rem;
+    min-height: 1.8rem;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.78rem;
   }
 
   .lg {
-    min-height: 3.2rem;
-    padding: 0.82rem 1.15rem;
-    font-size: 0.98rem;
+    min-height: 2rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.82rem;
   }
 
   .primary {
-    background: var(--gradient-accent);
+    background: var(--color-accent);
     color: var(--color-accent-ink);
-    box-shadow: var(--shadow-glow);
   }
 
   .secondary {

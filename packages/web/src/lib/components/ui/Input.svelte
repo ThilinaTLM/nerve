@@ -26,11 +26,11 @@
   .ui-input {
     width: 100%;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-field);
     color: var(--color-text);
-    padding: 0.72rem 0.85rem;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+    padding: 0.34rem 0.5rem;
+    font-size: 0.78rem;
     transition:
       border-color 140ms ease,
       box-shadow 140ms ease,
@@ -40,7 +40,7 @@
   .ui-input:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px var(--color-ring-soft);
+    box-shadow: 0 0 0 1px var(--color-ring-soft);
   }
 
   .ui-input::placeholder {

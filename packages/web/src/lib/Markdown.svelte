@@ -83,7 +83,7 @@
 <style>
   .markdown {
     color: var(--color-message-text);
-    line-height: 1.64;
+    line-height: 1.5;
     overflow-wrap: anywhere;
   }
 
@@ -101,7 +101,7 @@
   .markdown :global(blockquote),
   .markdown :global(pre),
   .markdown :global(table) {
-    margin: 0.78rem 0;
+    margin: 0.5rem 0;
   }
 
   .markdown :global(a) {
@@ -126,7 +126,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-code-bg) !important;
-    padding: 1rem;
+    padding: 0.65rem;
   }
 
   .markdown :global(pre code) {

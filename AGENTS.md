@@ -12,9 +12,7 @@
 ## Documentation structure
 
 - `docs/prd/` is the source of truth for product requirements, architecture, protocols, storage, permissions, and technical decisions.
-- `docs/plan/` is for implementation sequencing and progress tracking.
 - Update PRD docs before changing behavior, architecture, protocols, storage, or policy semantics.
-- Update plan docs when task ordering or implementation status changes.
 
 Key docs:
 

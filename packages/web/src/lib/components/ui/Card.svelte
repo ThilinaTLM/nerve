@@ -16,10 +16,10 @@
 
 <style>
   .ui-card {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
     background: var(--color-panel);
-    box-shadow: var(--shadow-panel);
+    box-shadow: none;
   }
 
   .muted {

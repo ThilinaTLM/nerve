@@ -112,15 +112,15 @@
             "&": {
               background: "var(--color-field)",
               color: "var(--color-text)",
-              minHeight: "168px",
+              minHeight: "104px",
             },
             ".cm-content": {
               caretColor: "var(--color-accent)",
               fontFamily:
                 'var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
-              fontSize: "0.94rem",
-              lineHeight: "1.58",
-              padding: "15px 17px",
+              fontSize: "0.84rem",
+              lineHeight: "1.5",
+              padding: "9px 10px",
             },
             ".cm-line": {
               padding: "0 2px",
@@ -132,12 +132,12 @@
               color: "var(--color-faint)",
             },
             ".cm-scroller": {
-              minHeight: "168px",
+              minHeight: "104px",
               overflow: "auto",
             },
             ".cm-tooltip": {
               border: "1px solid var(--color-border)",
-              borderRadius: "14px",
+              borderRadius: "6px",
               background: "var(--color-panel-raised)",
               color: "var(--color-text)",
               boxShadow: "var(--shadow-elevated)",
@@ -196,9 +196,8 @@
   .composer-editor {
     overflow: hidden;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-sm);
     background: var(--color-field);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
     transition:
       border-color 160ms ease,
       box-shadow 160ms ease,
@@ -207,9 +206,7 @@
 
   .composer-editor:focus-within {
     border-color: var(--color-accent);
-    box-shadow:
-      0 0 0 3px var(--color-ring-soft),
-      inset 0 1px 0 rgb(255 255 255 / 5%);
+    box-shadow: 0 0 0 1px var(--color-ring-soft);
   }
 
   .composer-editor.disabled {
@@ -217,9 +214,10 @@
   }
 
   .composer-hint {
-    margin: 0.5rem 0 0;
+    display: none;
+    margin: 0.3rem 0 0;
     color: var(--color-muted);
-    font-size: 0.78rem;
+    font-size: 0.72rem;
   }
 
   kbd {

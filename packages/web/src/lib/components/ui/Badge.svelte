@@ -18,15 +18,14 @@
   .ui-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.25rem;
     width: fit-content;
     border: 1px solid var(--color-border-subtle);
-    border-radius: 999px;
-    padding: 0.22rem 0.52rem;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    border-radius: var(--radius-sm);
+    padding: 0.1rem 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0;
   }
 
   .neutral {

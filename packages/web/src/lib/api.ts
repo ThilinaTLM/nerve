@@ -3,6 +3,7 @@ import type {
   ApprovalRecord,
   AuthProviderMetadata,
   EventEnvelope,
+  FilesystemDirectoryResponse,
   ModelInfo,
   ModelSelection,
   OAuthFlowInfo,
@@ -49,7 +50,14 @@ export type ApprovalWithToolCall = ApprovalRecord & {
 };
 
 async function parseResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) throw new Error(await response.text());
+  if (!contentType.includes("application/json")) {
+    const body = await response.text();
+    throw new Error(
+      `Expected JSON response from ${response.url || "API"}, received ${contentType || "unknown content type"}. ${body.slice(0, 80)}`,
+    );
+  }
   return (await response.json()) as T;
 }
 
@@ -118,15 +126,23 @@ export async function getModels(): Promise<ModelInfo[]> {
   return (await apiGet<{ models: ModelInfo[] }>("/api/models")).models;
 }
 
+export async function updateAgentConfig(
+  agentId: string,
+  patch: {
+    model?: ModelSelection | null;
+    mode?: AgentRecord["mode"];
+    permissionLevel?: AgentRecord["permissionLevel"];
+  },
+): Promise<AgentRecord> {
+  return (await apiPatch<{ agent: AgentRecord }>(`/api/agents/${agentId}`, patch))
+    .agent;
+}
+
 export async function updateAgentModel(
   agentId: string,
   model: ModelSelection | undefined,
 ): Promise<AgentRecord> {
-  return (
-    await apiPatch<{ agent: AgentRecord }>(`/api/agents/${agentId}`, {
-      model: model ?? null,
-    })
-  ).agent;
+  return updateAgentConfig(agentId, { model: model ?? null });
 }
 
 export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
@@ -296,9 +312,23 @@ export async function getFileCompletions(
   ).items;
 }
 
+export async function listDirectories(
+  path?: string,
+  showHidden = false,
+): Promise<FilesystemDirectoryResponse> {
+  const params = new URLSearchParams();
+  if (path) params.set("path", path);
+  if (showHidden) params.set("showHidden", "true");
+  const suffix = params.toString();
+  return apiGet<FilesystemDirectoryResponse>(
+    `/api/filesystem/directories${suffix ? `?${suffix}` : ""}`,
+  );
+}
+
 export type {
   AgentRecord,
   EventEnvelope,
+  FilesystemDirectoryResponse,
   ProjectRecord,
   SessionEntry,
   SessionRecord,

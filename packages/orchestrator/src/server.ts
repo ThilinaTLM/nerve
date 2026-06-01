@@ -1,5 +1,6 @@
-import { readdir, readFile } from "node:fs/promises";
-import { basename, dirname, extname, join, resolve, sep } from "node:path";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, dirname, extname, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   compactSessionRequestSchema,
@@ -9,6 +10,7 @@ import {
   createSessionRequestSchema,
   type DaemonFile,
   executeToolRequestSchema,
+  filesystemDirectoryQuerySchema,
   importSessionRequestSchema,
   navigateSessionRequestSchema,
   parseCookieHeader,
@@ -247,6 +249,30 @@ function numberQuery(value: string | undefined): number | undefined {
   if (value === undefined || value.trim() === "") return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+async function directoryListing(path: string | undefined, showHidden = false) {
+  const target = resolve(path?.trim() || homedir());
+  const info = await stat(target);
+  if (!info.isDirectory()) {
+    throw new Error(`${target} is not a directory.`);
+  }
+  const root = parse(target).root;
+  const entries = await readdir(target, { withFileTypes: true });
+  return {
+    path: target,
+    parent: target === root ? undefined : dirname(target),
+    entries: entries
+      .filter((entry) => entry.isDirectory())
+      .filter((entry) => showHidden || !entry.name.startsWith("."))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((entry) => ({
+        name: entry.name,
+        path: join(target, entry.name),
+        kind: "directory" as const,
+        hidden: entry.name.startsWith("."),
+      })),
+  };
 }
 
 async function fileCompletionItems(
@@ -531,6 +557,17 @@ export function createApp(state: OrchestratorState): Hono {
           c.req.query("q") ?? "",
         ),
       });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/filesystem/directories", async (c) => {
+    try {
+      const query = filesystemDirectoryQuerySchema.parse({
+        path: c.req.query("path"),
+        showHidden: c.req.query("showHidden"),
+      });
+      return c.json(await directoryListing(query.path, query.showHidden));
     } catch (error) {
       return errorResponse(error);
     }
