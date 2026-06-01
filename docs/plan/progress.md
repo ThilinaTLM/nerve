@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 2: Minimal agent run
+Phase 2: Minimal agent run — complete
 ```
 
 ## Locked foundation decisions
@@ -39,7 +39,7 @@ Phase 2: Minimal agent run
 
 ### Phase 2: Minimal agent run
 
-- [ ] Copy/adapt the full Pi `packages/agent` harness.
+- [x] Copy/adapt the full Pi `packages/agent` harness.
 - [x] Add npm dependency on `@earendil-works/pi-ai`.
 - [x] Create a minimal agent runtime path that streams through `@earendil-works/pi-ai`.
 - [x] Move agent execution behind an isolated process launcher.
@@ -70,6 +70,7 @@ Phase 2: Minimal agent run
 - Web UI can create a minimal project/session/agent and stream a faux-model assistant response over `/ws`.
 - Agent prompts now run in an isolated `@nerve/agent/worker` child process over an NDJSON stdio protocol; the orchestrator supervises the run, streams deltas, and sends abort requests across the process boundary.
 - Web UI prompt input now uses a CodeMirror Markdown composer with keyboard submit, and completed assistant messages render through a sanitized unified/remark/rehype markdown pipeline.
+- Copied/adapted Pi `packages/agent` harness core into `@nerve/agent`, including agent loop, harness, session repositories, compaction helpers, skills, proxy utilities, and Node execution environment. The existing Nerve worker runtime remains exported through `runtime.ts` for the current isolated prompt path.
 
 ### Later phases
 

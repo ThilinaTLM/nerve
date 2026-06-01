@@ -11,6 +11,10 @@
     "./worker": {
       "types": "./dist/worker.d.ts",
       "import": "./dist/worker.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
     }
   },
   "scripts": {
@@ -19,7 +23,10 @@
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.78.0",
-    "@nerve/shared": "workspace:*"
+    "@nerve/shared": "workspace:*",
+    "ignore": "7.0.5",
+    "typebox": "1.1.38",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "typescript": "5.9.3"

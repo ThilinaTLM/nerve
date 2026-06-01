@@ -1,113 +1,41 @@
-import {
-  type AssistantMessageEvent,
-  type Context,
-  fauxAssistantMessage,
-  getModel,
-  getModels,
-  getProviders,
-  type KnownProvider,
-  type Message,
-  type Model,
-  registerFauxProvider,
-  streamSimple,
-} from "@earendil-works/pi-ai";
-
-export interface AgentModelSelection {
-  provider: string;
-  modelId: string;
-}
-
-export interface AgentPromptInput {
-  systemPrompt?: string;
-  messages: Message[];
-  model?: AgentModelSelection;
-  signal?: AbortSignal;
-}
-
-let fauxProvider: ReturnType<typeof registerFauxProvider> | undefined;
-
-const fauxResponseFactory: Parameters<
-  ReturnType<typeof registerFauxProvider>["appendResponses"]
->[0][number] = (context) => {
-  const latest = [...context.messages]
-    .reverse()
-    .find((message) => message.role === "user");
-  const prompt = latest ? userMessageText(latest) : "";
-  return fauxAssistantMessage(
-    [
-      "I’m the temporary Nerve agent runtime.",
-      "",
-      prompt
-        ? `I received your prompt: “${prompt.slice(0, 240)}${prompt.length > 240 ? "…" : ""}”`
-        : "I did not receive a user prompt.",
-      "",
-      "The orchestrator, HTTP API, WebSocket event stream, and prompt plumbing are connected. Real provider execution can use a configured model/API key; otherwise this faux model keeps local development deterministic.",
-    ].join("\n"),
-  );
-};
-
-function getFauxProvider(): ReturnType<typeof registerFauxProvider> {
-  if (!fauxProvider) {
-    fauxProvider = registerFauxProvider({
-      provider: "nerve-faux",
-      models: [{ id: "faux-fast", name: "Nerve Faux Fast" }],
-      tokensPerSecond: 80,
-      tokenSize: { min: 10, max: 22 },
-    });
-  }
-  return fauxProvider;
-}
-
-function userMessageText(message: Extract<Message, { role: "user" }>): string {
-  if (typeof message.content === "string") return message.content;
-  return message.content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("\n");
-}
-
-function isKnownProvider(provider: string): provider is KnownProvider {
-  return (getProviders() as string[]).includes(provider);
-}
-
-function resolveModel(selection?: AgentModelSelection): Model<string> {
-  if (selection && isKnownProvider(selection.provider)) {
-    return getModel(
-      selection.provider,
-      selection.modelId as never,
-    ) as Model<string>;
-  }
-  const faux = getFauxProvider();
-  faux.appendResponses([fauxResponseFactory]);
-  return faux.getModel();
-}
-
-export function streamAgentPrompt(
-  input: AgentPromptInput,
-): AsyncIterable<AssistantMessageEvent> {
-  const model = resolveModel(input.model);
-  const context: Context = {
-    systemPrompt: input.systemPrompt,
-    messages: input.messages,
-  };
-  return streamSimple(model, context, {
-    signal: input.signal,
-    maxTokens: 4096,
-  });
-}
-
-export function listAvailableModels(): AgentModelSelection[] {
-  const faux = getFauxProvider().models.map((model) => ({
-    provider: model.provider,
-    modelId: model.id,
-  }));
-  const configured = getProviders().flatMap((provider) =>
-    getModels(provider)
-      .slice(0, 8)
-      .map((model) => ({
-        provider,
-        modelId: model.id,
-      })),
-  );
-  return [...faux, ...configured];
-}
+// Copied/adapted Pi agent harness core.
+export * from "./agent.js";
+export * from "./agent-loop.js";
+export * from "./harness/agent-harness.js";
+export {
+  type BranchPreparation,
+  type BranchSummaryDetails,
+  type CollectEntriesResult,
+  collectEntriesForBranchSummary,
+  generateBranchSummary,
+  prepareBranchEntries,
+} from "./harness/compaction/branch-summarization.js";
+export {
+  calculateContextTokens,
+  compact,
+  DEFAULT_COMPACTION_SETTINGS,
+  estimateContextTokens,
+  estimateTokens,
+  findCutPoint,
+  findTurnStartIndex,
+  generateSummary,
+  getLastAssistantUsage,
+  prepareCompaction,
+  serializeConversation,
+  shouldCompact,
+} from "./harness/compaction/compaction.js";
+export * from "./harness/messages.js";
+export * from "./harness/prompt-templates.js";
+export * from "./harness/session/jsonl-repo.js";
+export * from "./harness/session/memory-repo.js";
+export * from "./harness/session/repo-utils.js";
+export * from "./harness/session/session.js";
+export { uuidv7 } from "./harness/session/uuid.js";
+export * from "./harness/skills.js";
+export * from "./harness/system-prompt.js";
+export * from "./harness/types.js";
+export * from "./harness/utils/shell-output.js";
+export * from "./harness/utils/truncate.js";
+export * from "./proxy.js";
+export * from "./runtime.js";
+export * from "./types.js";
