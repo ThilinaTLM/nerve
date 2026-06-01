@@ -1,0 +1,21 @@
+{
+  "name": "nerve",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "check": "echo \"TODO: add typecheck/lint\"",
+    "dev": "echo \"TODO: start server and web dev app\""
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.78.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}
