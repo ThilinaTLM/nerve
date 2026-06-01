@@ -95,6 +95,15 @@ export const storageInfoSchema = z.object({
   dataDir: z.string(),
   sqlitePath: z.string(),
   configPath: z.string(),
+  counts: z
+    .object({
+      projects: z.number().int().nonnegative(),
+      sessions: z.number().int().nonnegative(),
+      agents: z.number().int().nonnegative(),
+      events: z.number().int().nonnegative(),
+      processes: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 export type StorageInfo = z.infer<typeof storageInfoSchema>;
 

@@ -24,9 +24,11 @@ export {
   serializeConversation,
   shouldCompact,
 } from "./harness/compaction/compaction.js";
+export { NodeExecutionEnv } from "./harness/env/nodejs.js";
 export * from "./harness/messages.js";
 export * from "./harness/prompt-templates.js";
 export * from "./harness/session/jsonl-repo.js";
+export * from "./harness/session/jsonl-storage.js";
 export * from "./harness/session/memory-repo.js";
 export * from "./harness/session/repo-utils.js";
 export * from "./harness/session/session.js";

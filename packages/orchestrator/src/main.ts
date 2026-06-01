@@ -28,6 +28,7 @@ async function main() {
   const state = createOrchestratorState(storage, host, port);
   await state.events.hydrate();
   await state.registry.hydrate();
+  await state.registry.rebuildIndex();
   const app = createApp(state);
 
   const server = serve(
@@ -90,6 +91,7 @@ async function main() {
       .catch(() => undefined);
     await rm(storage.paths.daemonPath, { force: true }).catch(() => undefined);
     webSockets.close();
+    state.index.close();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 2000).unref();
   };

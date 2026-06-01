@@ -50,6 +50,7 @@ This follows the spirit of Pi's `~/.pi` layout while giving `nerve` its own name
     <session-id>/
       session.json
       entries.jsonl
+      harness.jsonl
       events.jsonl
       artifacts/
       summaries/
@@ -138,6 +139,8 @@ sessions/<session-id>/
 - model changes
 - compaction entries
 - branch summaries
+
+`harness.jsonl` is a compatibility mirror that uses the copied Pi agent harness JSONL session format. Nerve's API currently reads and writes `entries.jsonl`; the mirror preserves a path for harness compaction/session helpers to operate on the same branch-shaped conversation data.
 
 `events.jsonl` stores runtime events associated with the session:
 
@@ -261,16 +264,19 @@ Each line records:
 
 SQLite should store indexes and active-state snapshots for fast UI/API queries.
 
-Suggested tables:
+Initial implemented tables:
 
 - `projects`
 - `sessions`
 - `agents`
-- `agent_runs`
 - `events_index`
 - `tool_calls`
 - `approvals`
 - `processes`
+
+Future tables:
+
+- `agent_runs`
 - `artifacts`
 - `settings_index`
 

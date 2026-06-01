@@ -14,6 +14,7 @@ import {
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { EventBus } from "./events.js";
+import { IndexStore } from "./index-store.js";
 import { errorResponse, RuntimeRegistry } from "./registry.js";
 import type { InitializedStorage } from "./storage.js";
 
@@ -27,6 +28,7 @@ export interface OrchestratorState {
   storage: InitializedStorage;
   events: EventBus;
   registry: RuntimeRegistry;
+  index: IndexStore;
 }
 
 export function createOrchestratorState(
@@ -34,7 +36,9 @@ export function createOrchestratorState(
   host: string,
   port: number,
 ): OrchestratorState {
-  const events = new EventBus(storage.paths.home);
+  const index = new IndexStore(storage.paths.sqlitePath);
+  index.initialize();
+  const events = new EventBus(storage.paths.home, index);
   return {
     daemonId: createId("daemon"),
     startedAt: new Date().toISOString(),
@@ -42,7 +46,8 @@ export function createOrchestratorState(
     port,
     storage,
     events,
-    registry: new RuntimeRegistry(storage, events),
+    registry: new RuntimeRegistry(storage, events, index),
+    index,
   };
 }
 
@@ -68,7 +73,7 @@ export function statusResponse(state: OrchestratorState): StatusResponse {
     storage: {
       home: state.storage.paths.home,
       sqlitePath: state.storage.paths.sqlitePath,
-      indexHealthy: true,
+      indexHealthy: state.index.isHealthy,
     },
   };
 }
@@ -191,8 +196,17 @@ export function createApp(state: OrchestratorState): Hono {
       dataDir: state.storage.paths.home,
       sqlitePath: state.storage.paths.sqlitePath,
       configPath: state.storage.paths.configPath,
+      counts: state.index.counts(),
     }),
   );
+  app.post("/api/storage/rebuild-index", async (c) => {
+    try {
+      await state.registry.rebuildIndex();
+      return c.json({ ok: true, counts: state.index.counts() });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
   app.get("/api/events", async (c) => {
     const since = Number(c.req.query("since") ?? "0");
     return c.json({

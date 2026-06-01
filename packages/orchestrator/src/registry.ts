@@ -1,6 +1,10 @@
 import { basename, join, resolve } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
-import { listAvailableModels } from "@nerve/agent";
+import {
+  JsonlSessionStorage,
+  listAvailableModels,
+  NodeExecutionEnv,
+} from "@nerve/agent";
 import {
   type AgentRecord,
   agentRecordSchema,
@@ -21,11 +25,13 @@ import {
 } from "@nerve/shared";
 import { AgentProcessError, launchAgentProcess } from "./agent-process.js";
 import type { EventBus } from "./events.js";
+import type { IndexStore } from "./index-store.js";
 import {
   appendJsonLine,
   atomicWriteJson,
   type InitializedStorage,
   listChildDirs,
+  pathExists,
   readJsonFile,
   readJsonLines,
 } from "./storage.js";
@@ -47,6 +53,7 @@ export class RuntimeRegistry {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
+    private readonly index: IndexStore,
   ) {}
 
   async hydrate(): Promise<void> {
@@ -54,6 +61,15 @@ export class RuntimeRegistry {
     await this.loadSessions();
     await this.loadAgents();
     await this.rebuildConversations();
+  }
+
+  async rebuildIndex(): Promise<void> {
+    this.index.rebuild({
+      projects: this.listProjects(),
+      sessions: this.listSessions(),
+      agents: this.listAgents(),
+      events: await this.events.replayPersistedSince(0),
+    });
   }
 
   async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {
@@ -67,6 +83,7 @@ export class RuntimeRegistry {
       updatedAt: now,
     };
     this.projects.set(project.id, project);
+    this.index.upsertProject(project);
     await atomicWriteJson(
       join(this.storage.paths.home, "projects", project.id, "project.json"),
       project,
@@ -105,8 +122,10 @@ export class RuntimeRegistry {
       updatedAt: now,
     };
     this.sessions.set(session.id, session);
+    this.index.upsertSession(session);
     this.entries.set(session.id, []);
     await this.writeSession(session);
+    await this.createHarnessSession(session, project.dir);
     await this.events.publish("session.created", { session });
     return session;
   }
@@ -160,6 +179,7 @@ export class RuntimeRegistry {
       updatedAt: now,
     };
     this.agents.set(agent.id, agent);
+    this.index.upsertAgent(agent);
     await this.writeAgent(agent);
     await this.updateSession({
       ...session,
@@ -232,6 +252,7 @@ export class RuntimeRegistry {
       updatedAt: new Date().toISOString(),
     };
     await this.updateSession(updated);
+    await this.setHarnessLeaf(updated, activeEntryId);
     await this.rebuildConversations();
     await this.events.publish("session.navigated", {
       sessionId: session.id,
@@ -373,6 +394,7 @@ export class RuntimeRegistry {
 
   private async updateSession(session: SessionRecord): Promise<void> {
     this.sessions.set(session.id, session);
+    this.index.upsertSession(session);
     await this.writeSession(session);
   }
 
@@ -410,7 +432,85 @@ export class RuntimeRegistry {
       activeEntryId: entry.id,
       updatedAt: entry.createdAt,
     });
+    await this.appendHarnessEntry(entry);
     return entry;
+  }
+
+  private async createHarnessSession(
+    session: SessionRecord,
+    cwd: string,
+  ): Promise<void> {
+    try {
+      const path = this.harnessSessionPath(session.id);
+      if (await pathExists(path)) return;
+      const env = new NodeExecutionEnv({ cwd });
+      await JsonlSessionStorage.create(env, path, {
+        cwd,
+        sessionId: session.id,
+      });
+    } catch (error) {
+      this.warnHarnessMirror(error);
+    }
+  }
+
+  private async appendHarnessEntry(entry: SessionEntry): Promise<void> {
+    if (entry.role === "system") return;
+    try {
+      const session = this.getSession(entry.sessionId);
+      const project = this.getProject(session.projectId);
+      await this.createHarnessSession(session, project.dir);
+      const storage = await JsonlSessionStorage.open(
+        new NodeExecutionEnv({ cwd: project.dir }),
+        this.harnessSessionPath(session.id),
+      );
+      await storage.appendEntry({
+        type: "message",
+        id: entry.id,
+        parentId: entry.parentEntryId ?? null,
+        timestamp: entry.createdAt,
+        message: {
+          role: entry.role,
+          content: entry.text,
+          timestamp: new Date(entry.createdAt).getTime(),
+        } as Message,
+      });
+    } catch (error) {
+      this.warnHarnessMirror(error);
+    }
+  }
+
+  private async setHarnessLeaf(
+    session: SessionRecord,
+    entryId: string | undefined,
+  ): Promise<void> {
+    try {
+      const project = this.getProject(session.projectId);
+      await this.createHarnessSession(session, project.dir);
+      const storage = await JsonlSessionStorage.open(
+        new NodeExecutionEnv({ cwd: project.dir }),
+        this.harnessSessionPath(session.id),
+      );
+      await storage.setLeafId(entryId ?? null);
+    } catch (error) {
+      this.warnHarnessMirror(error);
+    }
+  }
+
+  private warnHarnessMirror(error: unknown): void {
+    process.emitWarning(
+      `Failed to update harness JSONL session mirror: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
+  private harnessSessionPath(sessionId: string): string {
+    return join(
+      this.storage.paths.home,
+      "sessions",
+      sessionId,
+      "harness.jsonl",
+    );
   }
 
   private activeBranchEntries(session: SessionRecord): SessionEntry[] {
@@ -435,7 +535,10 @@ export class RuntimeRegistry {
       const parsed = projectRecordSchema.safeParse(
         await readJsonFile<unknown>(path).catch(() => undefined),
       );
-      if (parsed.success) this.projects.set(parsed.data.id, parsed.data);
+      if (parsed.success) {
+        this.projects.set(parsed.data.id, parsed.data);
+        this.index.upsertProject(parsed.data);
+      }
     }
   }
 
@@ -448,6 +551,7 @@ export class RuntimeRegistry {
       );
       if (!session.success) continue;
       this.sessions.set(session.data.id, session.data);
+      this.index.upsertSession(session.data);
       const rawEntries = await readJsonLines<unknown>(
         join(root, sessionId, "entries.jsonl"),
       ).catch(() => []);
@@ -476,6 +580,7 @@ export class RuntimeRegistry {
             }
           : parsed.data;
       this.agents.set(agent.id, agent);
+      this.index.upsertAgent(agent);
       if (agent !== parsed.data) await this.writeAgent(agent);
     }
   }
@@ -501,6 +606,7 @@ export class RuntimeRegistry {
   }
 
   private async writeSession(session: SessionRecord): Promise<void> {
+    this.index.upsertSession(session);
     await atomicWriteJson(
       join(this.storage.paths.home, "sessions", session.id, "session.json"),
       session,
@@ -509,6 +615,7 @@ export class RuntimeRegistry {
   }
 
   private async writeAgent(agent: AgentRecord): Promise<void> {
+    this.index.upsertAgent(agent);
     await atomicWriteJson(
       join(this.storage.paths.home, "agents", agent.id, "agent.json"),
       agent,

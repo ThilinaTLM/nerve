@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 3: Durable file-first state and event replay — in progress
+Phase 3: Durable file-first state and event replay — complete
 ```
 
 ## Locked foundation decisions
@@ -64,17 +64,17 @@ Phase 3: Durable file-first state and event replay — in progress
 
 - [x] Add storage service rooted at `~/.nerve` or `NERVE_HOME`.
 - [x] Add crash-safe write helpers for append JSONL and atomic JSON writes.
-- [ ] Add SQLite orchestrator index store.
+- [x] Add SQLite orchestrator index store.
 - [x] Persist canonical project, session, session-entry, and agent files.
-- [ ] Index canonical state in SQLite.
+- [x] Index canonical state in SQLite.
 - [x] Add startup hydration from file-first records.
 - [x] Add listing/opening endpoints for projects, sessions, and agents.
 - [x] Add event replay from persisted `logs/events.jsonl` through HTTP and WebSocket.
 - [x] Persist session-associated events to `sessions/<session-id>/events.jsonl`.
 - [x] Add initial session tree endpoint and branch navigation endpoint.
-- [ ] Add a rebuild path from files to SQLite indexes.
-- [ ] Enable JSONL session storage from the copied agent harness.
-- [ ] Surface previous sessions/branch navigation in the UI.
+- [x] Add a rebuild path from files to SQLite indexes.
+- [x] Enable JSONL session storage from the copied agent harness.
+- [x] Surface previous sessions/branch navigation in the UI.
 
 ### Latest implementation notes
 
@@ -91,6 +91,9 @@ Phase 3: Durable file-first state and event replay — in progress
 - `GET /api/events` and `WS /ws?since=` now replay persisted events rather than only the current process buffer.
 - Added opening endpoints (`GET /api/projects/:projectId`, `GET /api/sessions/:sessionId`, `GET /api/agents/:agentId`) plus initial `GET /api/sessions/:sessionId/tree` and `POST /api/sessions/:sessionId/navigate` support.
 - Session entries now include parent links and sessions track `activeEntryId`, enabling append-only branch metadata for later UI branch navigation.
+- Added a `node:sqlite`-backed `IndexStore` for projects, sessions, agents, process placeholders, and event indexes. Startup and `POST /api/storage/rebuild-index` rebuild SQLite from canonical files.
+- Added harness-compatible `sessions/<session-id>/harness.jsonl` mirrors using the copied `JsonlSessionStorage`, while keeping Nerve's readable `entries.jsonl` as the current API source.
+- Web UI now lists durable sessions, can reopen prior session messages, and exposes basic branch navigation over the session tree endpoint.
 
 ### Later phases
 

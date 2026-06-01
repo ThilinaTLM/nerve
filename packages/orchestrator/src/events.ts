@@ -5,6 +5,7 @@ import {
   type EventEnvelope,
   eventEnvelopeSchema,
 } from "@nerve/shared";
+import type { IndexStore } from "./index-store.js";
 import { readJsonLines } from "./storage.js";
 
 export class EventBus {
@@ -14,6 +15,7 @@ export class EventBus {
 
   constructor(
     private readonly dataDir: string,
+    private readonly index?: IndexStore,
     private readonly maxBufferedEvents = 10_000,
   ) {}
 
@@ -42,6 +44,7 @@ export class EventBus {
     this.#events.push(event as EventEnvelope);
     if (this.#events.length > this.maxBufferedEvents) this.#events.shift();
     await this.persist(event);
+    this.index?.insertEvent(event as EventEnvelope);
     for (const listener of this.#listeners) listener(event as EventEnvelope);
     return event;
   }
