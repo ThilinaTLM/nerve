@@ -1,5 +1,14 @@
 # Agent Instructions for nerve
 
+## Working directory and sibling repositories
+
+- Treat this repository (`/home/tlm/Projects/pi/nerve`) as the default working directory for `nerve` work.
+- The parent directory also contains sibling repositories that are useful references:
+  - `../pi`: the Pi agent harness monorepo. Use it as the main reference for code to copy/adapt, especially `packages/agent` and provider integration patterns. Do not modify it unless the user explicitly asks.
+  - `../pi-toolbelt`: the Pi toolbelt repo that provides agent-facing workflow tools such as todos, ask-user, web search/fetch, plan mode, and process-log management. Use it as a reference for process-manager and agent-harness ergonomics. Do not modify it unless the user explicitly asks.
+- When reading from sibling repositories, use explicit relative paths from `nerve`, for example `../pi/packages/agent` or `../pi-toolbelt/README.md`.
+- Keep commits and staged changes scoped to `nerve` unless the user explicitly expands the task.
+
 ## Documentation structure
 
 - `docs/prd/` is the source of truth for product requirements, architecture, protocols, storage, permissions, and technical decisions.

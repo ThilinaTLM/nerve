@@ -19,14 +19,97 @@ type ClientConfig = {
   status: StatusResponse;
 };
 
+type EventEnvelope = {
+  seq: number;
+  type: string;
+  data?: Record<string, unknown>;
+};
+
+type TranscriptItem = {
+  role: "user" | "assistant";
+  text: string;
+};
+
 let status = $state<StatusResponse | undefined>(undefined);
 let connection = $state("connecting");
 let events = $state<string[]>([]);
 let error = $state<string | undefined>(undefined);
+let projectDir = $state("");
+let prompt = $state("");
+let sending = $state(false);
+let activeAgentId = $state<string | undefined>(undefined);
+let activeSessionId = $state<string | undefined>(undefined);
+let transcript = $state<TranscriptItem[]>([]);
+let streamingText = $state("");
+let socket: WebSocket | undefined;
+
+async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return (await response.json()) as T;
+}
+
+async function ensureAgent(): Promise<string> {
+  if (activeAgentId) return activeAgentId;
+  const { project } = await apiPost<{ project: { id: string; name: string } }>(
+    "/api/projects",
+    { dir: projectDir || "." },
+  );
+  const { session } = await apiPost<{ session: { id: string } }>(
+    "/api/sessions",
+    { projectId: project.id, title: `Web session: ${project.name}` },
+  );
+  const { agent } = await apiPost<{ agent: { id: string } }>("/api/agents", {
+    projectId: project.id,
+    sessionId: session.id,
+  });
+  activeSessionId = session.id;
+  activeAgentId = agent.id;
+  return agent.id;
+}
+
+async function sendPrompt() {
+  const text = prompt.trim();
+  if (!text || sending) return;
+  sending = true;
+  error = undefined;
+  streamingText = "";
+  transcript = [...transcript, { role: "user", text }];
+  prompt = "";
+  try {
+    const agentId = await ensureAgent();
+    await apiPost(`/api/agents/${agentId}/prompt`, { text });
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : String(caught);
+    sending = false;
+  }
+}
+
+function handleEvent(event: EventEnvelope) {
+  events = [JSON.stringify(event), ...events].slice(0, 8);
+  const agentId = event.data?.agentId;
+  if (agentId && agentId !== activeAgentId) return;
+  if (event.type === "agent.message_delta") {
+    streamingText += String(event.data?.delta ?? "");
+  }
+  if (event.type === "agent.message_complete") {
+    const text = streamingText || String(event.data?.text ?? "");
+    if (text) transcript = [...transcript, { role: "assistant", text }];
+    streamingText = "";
+    sending = false;
+  }
+  if (event.type === "agent.error") {
+    error = String(event.data?.message ?? "Agent error");
+    sending = false;
+  }
+}
 
 onMount(() => {
-  let socket: WebSocket | undefined;
-
   async function connect() {
     try {
       const configResponse = await fetch("/api/client-config", {
@@ -35,14 +118,15 @@ onMount(() => {
       if (!configResponse.ok) throw new Error(await configResponse.text());
       const config = (await configResponse.json()) as ClientConfig;
       status = config.status;
+      projectDir = config.status.storage.home;
 
-      const wsUrl = new URL(config.wsUrl);
-      socket = new WebSocket(wsUrl);
+      socket = new WebSocket(new URL(config.wsUrl));
       socket.addEventListener("open", () => {
         connection = "live";
       });
       socket.addEventListener("message", (message) => {
-        events = [String(message.data), ...events].slice(0, 6);
+        const parsed = JSON.parse(String(message.data)) as EventEnvelope;
+        if (parsed.type) handleEvent(parsed);
       });
       socket.addEventListener("close", () => {
         connection = "closed";
@@ -70,10 +154,10 @@ onMount(() => {
 
     <div class="hero-grid">
       <div>
-        <p class="eyebrow">local-first coding harness</p>
+        <p class="eyebrow">minimal agent run</p>
         <h1>nerve</h1>
         <p class="lede">
-          The foundation daemon is online: storage, local auth, HTTP status, and WebSocket events are wired.
+          Create a project, session, and agent, then stream a response over the orchestrator WebSocket.
         </p>
       </div>
 
@@ -83,12 +167,12 @@ onMount(() => {
           <dl>
             <dt>ID</dt>
             <dd>{status.daemonId}</dd>
-            <dt>Version</dt>
-            <dd>{status.version}</dd>
             <dt>Data</dt>
             <dd>{status.dataDir}</dd>
-            <dt>Index</dt>
-            <dd>{status.storage.indexHealthy ? "healthy" : "unhealthy"}</dd>
+            <dt>Session</dt>
+            <dd>{activeSessionId ?? "not started"}</dd>
+            <dt>Agent</dt>
+            <dd>{activeAgentId ?? "not started"}</dd>
           </dl>
         {:else if error}
           <p class="error">{error}</p>
@@ -97,6 +181,41 @@ onMount(() => {
         {/if}
       </div>
     </div>
+
+    <section class="workspace">
+      <div class="conversation">
+        {#if transcript.length === 0 && !streamingText}
+          <p class="muted">No messages yet. Send a prompt to start a minimal agent run.</p>
+        {/if}
+        {#each transcript as item}
+          <article class="message" class:user={item.role === "user"}>
+            <strong>{item.role}</strong>
+            <p>{item.text}</p>
+          </article>
+        {/each}
+        {#if streamingText}
+          <article class="message streaming">
+            <strong>assistant</strong>
+            <p>{streamingText}</p>
+          </article>
+        {/if}
+      </div>
+
+      <form class="composer" onsubmit={(event) => { event.preventDefault(); sendPrompt(); }}>
+        <label>
+          Project directory
+          <input bind:value={projectDir} placeholder="/path/to/project" />
+        </label>
+        <label>
+          Prompt
+          <textarea bind:value={prompt} placeholder="Ask the local Nerve agent…"></textarea>
+        </label>
+        <button disabled={sending || connection !== "live"} type="submit">
+          {sending ? "Streaming…" : "Send prompt"}
+        </button>
+        {#if error}<p class="error">{error}</p>{/if}
+      </form>
+    </section>
 
     <div class="event-strip">
       <h2>Event stream</h2>
@@ -114,8 +233,6 @@ onMount(() => {
 <style>
   .shell {
     min-height: 100vh;
-    display: grid;
-    place-items: center;
     padding: 32px;
     background:
       radial-gradient(circle at 20% 0%, rgb(56 189 248 / 16%), transparent 32rem),
@@ -124,7 +241,8 @@ onMount(() => {
   }
 
   .hero-card {
-    width: min(1080px, 100%);
+    width: min(1180px, 100%);
+    margin: 0 auto;
     border: 1px solid var(--color-border);
     border-radius: 32px;
     background: linear-gradient(145deg, rgb(17 24 39 / 94%), rgb(7 10 16 / 92%));
@@ -145,7 +263,7 @@ onMount(() => {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 32px;
+    margin-bottom: 24px;
   }
 
   .status-dot {
@@ -160,10 +278,11 @@ onMount(() => {
     box-shadow: 0 0 24px rgb(134 239 172 / 80%);
   }
 
-  .hero-grid {
+  .hero-grid,
+  .workspace {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-    gap: 32px;
+    grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+    gap: 28px;
     align-items: start;
   }
 
@@ -187,11 +306,87 @@ onMount(() => {
   }
 
   .panel,
-  .event-strip {
+  .event-strip,
+  .conversation,
+  .composer {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     background: rgb(11 16 32 / 72%);
     padding: 22px;
+  }
+
+  .workspace,
+  .event-strip {
+    margin-top: 28px;
+  }
+
+  .conversation {
+    min-height: 330px;
+  }
+
+  .message {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    background: #020617;
+    margin-bottom: 12px;
+    white-space: pre-wrap;
+  }
+
+  .message.user {
+    background: rgb(14 116 144 / 18%);
+  }
+
+  .message.streaming {
+    border-color: rgb(125 211 252 / 55%);
+  }
+
+  .message p {
+    margin: 8px 0 0;
+    color: #dbeafe;
+    line-height: 1.5;
+  }
+
+  .composer {
+    display: grid;
+    gap: 16px;
+  }
+
+  label {
+    display: grid;
+    gap: 8px;
+    color: var(--color-muted);
+    font-size: 0.9rem;
+  }
+
+  input,
+  textarea {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: #020617;
+    color: var(--color-text);
+    padding: 12px 14px;
+  }
+
+  textarea {
+    min-height: 140px;
+    resize: vertical;
+  }
+
+  button {
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--color-accent);
+    color: #020617;
+    padding: 12px 16px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
   }
 
   dl {
@@ -209,10 +404,6 @@ onMount(() => {
     margin: 0;
     min-width: 0;
     overflow-wrap: anywhere;
-  }
-
-  .event-strip {
-    margin-top: 28px;
   }
 
   code {
@@ -235,8 +426,9 @@ onMount(() => {
     color: #fca5a5;
   }
 
-  @media (max-width: 780px) {
-    .hero-grid {
+  @media (max-width: 860px) {
+    .hero-grid,
+    .workspace {
       grid-template-columns: 1fr;
     }
   }

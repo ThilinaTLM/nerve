@@ -2,13 +2,18 @@ import { readFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  createAgentRequestSchema,
   createId,
+  createProjectRequestSchema,
+  createSessionRequestSchema,
   type DaemonFile,
   parseCookieHeader,
+  promptRequestSchema,
   type StatusResponse,
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { EventBus } from "./events.js";
+import { errorResponse, RuntimeRegistry } from "./registry.js";
 import type { InitializedStorage } from "./storage.js";
 
 export const version = "0.0.0";
@@ -20,6 +25,7 @@ export interface OrchestratorState {
   port: number;
   storage: InitializedStorage;
   events: EventBus;
+  registry: RuntimeRegistry;
 }
 
 export function createOrchestratorState(
@@ -27,13 +33,15 @@ export function createOrchestratorState(
   host: string,
   port: number,
 ): OrchestratorState {
+  const events = new EventBus(storage.paths.home);
   return {
     daemonId: createId("daemon"),
     startedAt: new Date().toISOString(),
     host,
     port,
     storage,
-    events: new EventBus(storage.paths.home),
+    events,
+    registry: new RuntimeRegistry(storage, events),
   };
 }
 
@@ -189,6 +197,68 @@ export function createApp(state: OrchestratorState): Hono {
     return c.json({
       events: state.events.replaySince(Number.isFinite(since) ? since : 0),
     });
+  });
+  app.get("/api/models", (c) =>
+    c.json({ models: state.registry.listModels() }),
+  );
+  app.post("/api/projects", async (c) => {
+    try {
+      const body = createProjectRequestSchema.parse(await c.req.json());
+      return c.json({ project: await state.registry.createProject(body) }, 201);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/projects", (c) =>
+    c.json({ projects: state.registry.listProjects() }),
+  );
+  app.post("/api/sessions", async (c) => {
+    try {
+      const body = createSessionRequestSchema.parse(await c.req.json());
+      return c.json({ session: await state.registry.createSession(body) }, 201);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/sessions", (c) =>
+    c.json({ sessions: state.registry.listSessions() }),
+  );
+  app.get("/api/sessions/:sessionId/messages", (c) => {
+    try {
+      return c.json({
+        entries: state.registry.getSessionEntries(c.req.param("sessionId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/agents", async (c) => {
+    try {
+      const body = createAgentRequestSchema.parse(await c.req.json());
+      return c.json({ agent: await state.registry.createAgent(body) }, 201);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/agents", (c) =>
+    c.json({ agents: state.registry.listAgents() }),
+  );
+  app.post("/api/agents/:agentId/prompt", async (c) => {
+    try {
+      const body = promptRequestSchema.parse(await c.req.json());
+      await state.registry.promptAgent(c.req.param("agentId"), body);
+      return c.json({ ok: true }, 202);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/agents/:agentId/abort", async (c) => {
+    try {
+      await state.registry.abortAgent(c.req.param("agentId"));
+      return c.json({ ok: true });
+    } catch (error) {
+      return errorResponse(error);
+    }
   });
   app.get("/api/client-config", (c) =>
     c.json({

@@ -76,13 +76,6 @@ async function main() {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
       });
       ws.on("close", unsubscribe);
-      ws.send(
-        JSON.stringify({
-          type: "hello",
-          daemonId: state.daemonId,
-          ts: new Date().toISOString(),
-        }),
-      );
     });
   });
 

@@ -19,7 +19,9 @@
     "dev": "tsx src/main.ts"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "0.78.0",
     "@hono/node-server": "1.19.5",
+    "@nerve/agent": "workspace:*",
     "@nerve/shared": "workspace:*",
     "hono": "4.10.5",
     "ws": "8.18.3"

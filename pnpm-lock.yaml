@@ -50,9 +50,15 @@ importers:
 
   packages/orchestrator:
     dependencies:
+      '@earendil-works/pi-ai':
+        specifier: 0.78.0
+        version: 0.78.0(ws@8.18.3)(zod@4.1.12)
       '@hono/node-server':
         specifier: 1.19.5
         version: 1.19.5(hono@4.10.5)
+      '@nerve/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@nerve/shared':
         specifier: workspace:*
         version: link:../shared

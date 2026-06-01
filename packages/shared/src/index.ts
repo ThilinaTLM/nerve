@@ -98,6 +98,124 @@ export const storageInfoSchema = z.object({
 });
 export type StorageInfo = z.infer<typeof storageInfoSchema>;
 
+export const workspaceScopeSchema = z.object({
+  roots: z.array(z.string()).min(1),
+  readonly: z.boolean().optional(),
+});
+export type WorkspaceScope = z.infer<typeof workspaceScopeSchema>;
+
+export const modelSelectionSchema = z.object({
+  provider: z.string().min(1),
+  modelId: z.string().min(1),
+});
+export type ModelSelection = z.infer<typeof modelSelectionSchema>;
+
+export const projectRecordSchema = z.object({
+  id: z.string().startsWith("proj_"),
+  name: z.string().min(1),
+  dir: z.string().min(1),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ProjectRecord = z.infer<typeof projectRecordSchema>;
+
+export const createProjectRequestSchema = z.object({
+  dir: z.string().min(1),
+  name: z.string().min(1).optional(),
+});
+export type CreateProjectRequest = z.infer<typeof createProjectRequestSchema>;
+
+export const sessionRecordSchema = z.object({
+  id: z.string().startsWith("ses_"),
+  projectId: z.string().startsWith("proj_"),
+  title: z.string().min(1),
+  mode: modeSchema,
+  permissionLevel: permissionLevelSchema,
+  activeAgentId: z.string().startsWith("agent_").optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type SessionRecord = z.infer<typeof sessionRecordSchema>;
+
+export const createSessionRequestSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+  title: z.string().min(1).optional(),
+  mode: modeSchema.optional(),
+  permissionLevel: permissionLevelSchema.optional(),
+});
+export type CreateSessionRequest = z.infer<typeof createSessionRequestSchema>;
+
+export const agentStatusSchema = z.enum([
+  "idle",
+  "running",
+  "aborted",
+  "error",
+]);
+export type AgentStatus = z.infer<typeof agentStatusSchema>;
+
+export const agentRecordSchema = z.object({
+  id: z.string().startsWith("agent_"),
+  sessionId: z.string().startsWith("ses_"),
+  projectId: z.string().startsWith("proj_"),
+  projectDir: z.string().min(1),
+  parentAgentId: z.string().startsWith("agent_").optional(),
+  rootAgentId: z.string().startsWith("agent_"),
+  mode: modeSchema,
+  permissionLevel: permissionLevelSchema,
+  workspaceScope: workspaceScopeSchema,
+  model: modelSelectionSchema.optional(),
+  status: agentStatusSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type AgentRecord = z.infer<typeof agentRecordSchema>;
+
+export const createAgentRequestSchema = z.object({
+  sessionId: z.string().startsWith("ses_"),
+  projectId: z.string().startsWith("proj_"),
+  projectDir: z.string().min(1).optional(),
+  parentAgentId: z.string().startsWith("agent_").optional(),
+  task: z.string().optional(),
+  mode: modeSchema.optional(),
+  permissionLevel: permissionLevelSchema.optional(),
+  workspaceScope: workspaceScopeSchema.optional(),
+  model: modelSelectionSchema.optional(),
+});
+export type CreateAgentRequest = z.infer<typeof createAgentRequestSchema>;
+
+export const promptRequestSchema = z.object({
+  text: z.string().min(1),
+  images: z
+    .array(
+      z.object({
+        type: z.literal("image"),
+        data: z.string(),
+        mimeType: z.string(),
+      }),
+    )
+    .optional(),
+  behavior: z.enum(["reject-if-busy", "steer", "follow-up"]).optional(),
+});
+export type PromptRequest = z.infer<typeof promptRequestSchema>;
+
+export const sessionEntrySchema = z.object({
+  id: z.string().startsWith("entry_"),
+  sessionId: z.string().startsWith("ses_"),
+  agentId: z.string().startsWith("agent_").optional(),
+  role: z.enum(["user", "assistant", "system"]),
+  text: z.string(),
+  createdAt: z.string().datetime(),
+});
+export type SessionEntry = z.infer<typeof sessionEntrySchema>;
+
+export const modelInfoSchema = z.object({
+  provider: z.string(),
+  modelId: z.string(),
+  label: z.string(),
+  faux: z.boolean().optional(),
+});
+export type ModelInfo = z.infer<typeof modelInfoSchema>;
+
 export const apiErrorSchema = z.object({
   error: z.object({
     code: z.string(),
@@ -114,7 +232,8 @@ export type IdPrefix =
   | "ses"
   | "agent"
   | "run"
-  | "proc";
+  | "proc"
+  | "entry";
 
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

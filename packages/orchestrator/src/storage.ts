@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import {
   access,
+  appendFile,
   chmod,
   mkdir,
   readFile,
@@ -95,6 +96,19 @@ export async function writeTextFileIfMissing(
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, contents, { mode, flag: "wx" });
   if (mode !== undefined) await chmod(path, mode);
+}
+
+export async function appendJsonLine(
+  path: string,
+  value: unknown,
+  mode?: number,
+): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await appendFile(path, `${JSON.stringify(value)}\n`, {
+    mode,
+    encoding: "utf8",
+  });
+  if (mode !== undefined) await chmod(path, mode).catch(() => undefined);
 }
 
 export async function initializeStorage(
