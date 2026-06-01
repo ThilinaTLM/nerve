@@ -10,9 +10,10 @@ nerve CLI ─────┐
 Web UI ────────┼──> nerve orchestrator / daemon
                │        │
 API clients ───┘        │
-                        ├── agent process: project A
-                        ├── agent process: project B
-                        ├── child agent process: spawned by agent A
+                        ├── worker: local (initial)
+                        │   ├── agent process: project A
+                        │   ├── agent process: project B
+                        │   └── child agent process: spawned by agent A
                         ├── tool/process manager
                         ├── logs/events/artifacts
                         └── ~/.nerve files + SQLite index
@@ -24,7 +25,7 @@ The important distinction:
 - **many agents, across many projects/directories**
 - **sub-agents are normal agents with parent metadata**
 
-The orchestrator is the durable control plane. Agents are isolated, disposable workers.
+The orchestrator is the durable control plane. Agent and supervised process launches are routed through worker records. The first worker kind is `local`, which preserves the current local-process behavior while creating a transport-neutral seam for later remote workers.
 
 ## Design principles
 
@@ -66,8 +67,8 @@ packages/web
   approvals, logs, processes, markdown output, and prompt composer
 
 packages/orchestrator
-  HTTP + WebSocket API, singleton daemon, agent registry, policy engine,
-  process supervisor, approval queue, durable state, web app serving
+  HTTP + WebSocket API, singleton daemon, worker registry, agent registry,
+  policy engine, process supervisor, approval queue, durable state, web app serving
 
 packages/agent
   copied/adapted Pi harness running as isolated worker processes
@@ -165,6 +166,7 @@ The orchestrator owns:
 - singleton local daemon lifecycle
 - web app serving
 - HTTP commands and WebSocket event stream
+- worker registry and launch routing
 - project/session/agent registry
 - agent process supervision
 - parent/child agent relationships
@@ -177,6 +179,20 @@ The orchestrator owns:
 - crash/orphan recovery
 
 Agents are informed of their mode and permissions, but enforcement happens in the orchestrator/tool layer.
+
+## Worker model
+
+Workers are durable execution targets selected by the orchestrator. The initial implementation creates one online `local` worker under `~/.nerve/workers/<worker-id>/worker.json` and routes agent-process and supervised-process launches through it.
+
+Worker records include:
+
+- `workerId`
+- kind (`local` initially)
+- status (`online`, `offline`, or `error`)
+- capabilities (`agent`, `process`)
+- endpoint metadata for local observability, such as the daemon PID
+
+Future remote workers should keep the same high-level contract: the orchestrator performs policy decisions and dispatches transport-neutral launch requests to a worker that reports lifecycle, logs, and results back through authenticated channels.
 
 ## Agent process model
 
@@ -212,7 +228,7 @@ Default binding:
 127.0.0.1:<port>
 ```
 
-This supports the CLI, browser UI, and future API clients. Later remote execution can reuse the same conceptual protocol through secure transports such as TLS WebSockets, gRPC, SSH tunnels, or a worker-node protocol.
+This supports the CLI, browser UI, and future API clients. Later remote execution can reuse the same conceptual protocol through secure transports such as TLS WebSockets, gRPC, SSH tunnels, or a worker-node protocol. A future remote-worker handshake must mutually authenticate worker and orchestrator, negotiate capabilities, bind a worker to an explicit operator-approved scope, and never transfer raw provider secrets unless the operator has opted into that trust boundary.
 
 ## Storage and state model
 

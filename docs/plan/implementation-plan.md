@@ -354,14 +354,16 @@ Success criteria:
 
 ## Phase 9: Remote-ready worker abstraction
 
+Status: complete.
+
 Goal: keep local MVP simple while preparing for remote agents later.
 
 Tasks:
 
-1. Add `workers` table/type, initially only `local`.
-2. Route agent/process launches through a worker abstraction.
-3. Keep protocol boundaries transport-neutral where practical.
-4. Document future secure remote-worker handshake.
+1. [x] Add `workers` table/type, initially only `local`.
+2. [x] Route agent/process launches through a worker abstraction.
+3. [x] Keep protocol boundaries transport-neutral where practical.
+4. [x] Document future secure remote-worker handshake.
 
 Success criteria:
 

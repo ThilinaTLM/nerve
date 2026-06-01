@@ -326,6 +326,18 @@ export function createApp(state: OrchestratorState): Hono {
   app.get("/api/tool-calls", (c) =>
     c.json({ toolCalls: state.registry.tools.listToolCalls() }),
   );
+  app.get("/api/workers", (c) =>
+    c.json({ workers: state.registry.listWorkers() }),
+  );
+  app.get("/api/workers/:workerId", (c) => {
+    try {
+      return c.json({
+        worker: state.registry.getWorker(c.req.param("workerId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
   app.get("/api/processes", (c) =>
     c.json({ processes: state.registry.listProcesses() }),
   );

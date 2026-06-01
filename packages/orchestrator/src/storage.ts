@@ -28,6 +28,7 @@ const dataSubdirs = [
   "plans",
   "handovers",
   "proc",
+  "workers",
   "approvals",
   "logs",
 ] as const;

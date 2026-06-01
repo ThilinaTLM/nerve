@@ -38,7 +38,7 @@ import {
   sessionRecordSchema,
   type ToolName,
 } from "@nerve/shared";
-import { AgentProcessError, launchAgentProcess } from "./agent-process.js";
+import { AgentProcessError } from "./agent-process.js";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
 import { ProcessManager } from "./process-manager.js";
@@ -52,6 +52,7 @@ import {
   readJsonLines,
 } from "./storage.js";
 import { ToolService } from "./tool-service.js";
+import { WorkerManager } from "./worker-manager.js";
 
 interface AgentRunState {
   runId: string;
@@ -67,6 +68,7 @@ export class RuntimeRegistry {
   readonly conversations = new Map<string, Message[]>();
   readonly runs = new Map<string, AgentRunState>();
   readonly processes: ProcessManager;
+  readonly workers: WorkerManager;
   readonly tools: ToolService;
 
   constructor(
@@ -75,17 +77,20 @@ export class RuntimeRegistry {
     private readonly index: IndexStore,
   ) {
     this.processes = new ProcessManager(storage, events, index);
+    this.workers = new WorkerManager(storage, events, index);
     this.tools = new ToolService(
       storage,
       events,
       index,
       this.processes,
+      (request) => this.startProcess(request),
       (agentId) => this.getAgent(agentId),
       (parent, args) => this.runSubagent(parent, args),
     );
   }
 
   async hydrate(): Promise<void> {
+    await this.workers.hydrate();
     await this.processes.hydrate();
     await this.tools.hydrate();
     await this.loadProjects();
@@ -101,6 +106,7 @@ export class RuntimeRegistry {
       agents: this.listAgents(),
       events: await this.events.replayPersistedSince(0),
       processes: this.processes.listProcesses(),
+      workers: this.workers.listWorkers(),
     });
   }
 
@@ -206,6 +212,10 @@ export class RuntimeRegistry {
       (parent
         ? this.storage.settings.defaultSubagentPermissionLevel
         : session.permissionLevel);
+    const workerId = this.workers.requireWorker(
+      request.workerId ?? parent?.workerId,
+      "agent",
+    ).id;
     if (parent) {
       this.assertChildAuthority(
         parent,
@@ -220,6 +230,7 @@ export class RuntimeRegistry {
       sessionId: session.id,
       projectId: project.id,
       projectDir,
+      workerId,
       parentAgentId: request.parentAgentId,
       rootAgentId: parent?.rootAgentId ?? id,
       mode,
@@ -510,6 +521,7 @@ export class RuntimeRegistry {
         sessionId: parent.sessionId,
         projectId: parent.projectId,
         projectDir: parent.projectDir,
+        workerId: parent.workerId,
         parentAgentId: parent.id,
         task,
         mode,
@@ -598,8 +610,24 @@ export class RuntimeRegistry {
     return this.processes.getProcess(processId);
   }
 
+  listWorkers() {
+    return this.workers.listWorkers();
+  }
+
+  getWorker(workerId: string) {
+    try {
+      return this.workers.getWorker(workerId);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "WORKER_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
   startProcess(request: StartProcessRequest) {
-    return this.processes.startProcess(request);
+    return this.workers.startProcess(request.workerId, this.processes, request);
   }
 
   stopProcess(processId: string, request?: StopProcessRequest) {
@@ -675,7 +703,8 @@ export class RuntimeRegistry {
       { role: "user", content: request.text, timestamp: Date.now() },
     ];
     const runId = createId("run");
-    const run = launchAgentProcess(
+    const run = this.workers.launchAgentProcess(
+      agent.workerId,
       {
         runId,
         systemPrompt: systemPromptFor(agent),
@@ -1087,17 +1116,24 @@ export class RuntimeRegistry {
         await readJsonFile<unknown>(path).catch(() => undefined),
       );
       if (!parsed.success) continue;
+      const localWorkerId = this.workers.requireDefaultLocalWorker().id;
+      const needsStatusRecovery = parsed.data.status === "running";
+      const needsWorkerBackfill = !parsed.data.workerId;
       const agent: AgentRecord =
-        parsed.data.status === "running"
+        needsStatusRecovery || needsWorkerBackfill
           ? {
               ...parsed.data,
-              status: "error",
-              updatedAt: new Date().toISOString(),
+              workerId: parsed.data.workerId ?? localWorkerId,
+              status: needsStatusRecovery ? "error" : parsed.data.status,
+              updatedAt: needsStatusRecovery
+                ? new Date().toISOString()
+                : parsed.data.updatedAt,
             }
           : parsed.data;
       this.agents.set(agent.id, agent);
       this.index.upsertAgent(agent);
-      if (agent !== parsed.data) await this.writeAgent(agent);
+      if (needsStatusRecovery || needsWorkerBackfill)
+        await this.writeAgent(agent);
     }
   }
 

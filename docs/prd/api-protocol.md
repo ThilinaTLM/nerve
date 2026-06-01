@@ -25,6 +25,9 @@ Default local binding:
 type Mode = "planning" | "coding";
 type PermissionLevel = "autonomous" | "supervised" | "read_only";
 
+type WorkerKind = "local";
+type WorkerStatus = "online" | "offline" | "error";
+
 type ToolRisk =
   | "read"
   | "plan_write"
@@ -268,6 +271,7 @@ interface CreateAgentRequest {
   sessionId: string;
   projectId: string;
   projectDir?: string;
+  workerId?: string;
   parentAgentId?: string;
   task?: string;
   mode?: Mode;
@@ -384,6 +388,32 @@ interface PolicyEvaluation {
 }
 ```
 
+### Workers
+
+```txt
+GET /api/workers
+GET /api/workers/:workerId
+```
+
+Initial worker records are local-only:
+
+```ts
+interface WorkerRecord {
+  id: string;
+  kind: WorkerKind;
+  name: string;
+  status: WorkerStatus;
+  capabilities: Array<"agent" | "process">;
+  endpoint?: {
+    pid?: number;
+    host?: string;
+    port?: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
 ### Background processes
 
 ```txt
@@ -400,6 +430,7 @@ Start body:
 ```ts
 interface StartProcessRequest {
   name?: string;
+  workerId?: string;
   projectId?: string;
   sessionId?: string;
   agentId?: string;
@@ -412,7 +443,7 @@ interface StartProcessRequest {
 }
 ```
 
-Process records are durable under `proc/<process-id>/process.json` and include status, readiness outcome, owner refs, command, cwd, timestamps, exit metadata, and log paths.
+Process records are durable under `proc/<process-id>/process.json` and include the selected `workerId`, status, readiness outcome, owner refs, command, cwd, timestamps, exit metadata, and log paths.
 
 Logs query:
 

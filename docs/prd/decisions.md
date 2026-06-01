@@ -512,3 +512,36 @@ Reasoning:
 Future:
 
 - Move auth tokens and OAuth sessions to keychain or encrypted file storage.
+
+## D026: Route launches through durable worker records
+
+Status: accepted
+
+Agent processes and supervised background processes should be launched through a worker abstraction, even while all execution remains local.
+
+Initial worker kind:
+
+```txt
+local
+```
+
+Initial durable record:
+
+```txt
+~/.nerve/workers/<worker-id>/worker.json
+```
+
+Reasoning:
+
+- Preserves the simple local MVP while adding a clean seam for future remote workers.
+- Lets agents and processes record where they were launched with `workerId`.
+- Keeps worker capabilities explicit (`agent`, `process`) instead of assuming every execution target can do everything.
+- Allows future remote-worker transports to reuse orchestrator-owned policy, event, and storage semantics.
+
+Future remote-worker handshake requirements:
+
+- mutual authentication between orchestrator and worker
+- explicit operator approval of worker scope and capabilities
+- encrypted transport with replay protection
+- no raw provider-secret transfer unless explicitly opted into by the operator
+- lifecycle/log/result reporting through transport-neutral event shapes

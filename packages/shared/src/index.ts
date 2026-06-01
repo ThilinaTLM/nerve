@@ -112,10 +112,37 @@ export const storageInfoSchema = z.object({
       agents: z.number().int().nonnegative(),
       events: z.number().int().nonnegative(),
       processes: z.number().int().nonnegative(),
+      workers: z.number().int().nonnegative(),
     })
     .optional(),
 });
 export type StorageInfo = z.infer<typeof storageInfoSchema>;
+
+export const workerKindSchema = z.enum(["local"]);
+export type WorkerKind = z.infer<typeof workerKindSchema>;
+
+export const workerStatusSchema = z.enum(["online", "offline", "error"]);
+export type WorkerStatus = z.infer<typeof workerStatusSchema>;
+
+export const workerRecordSchema = z.object({
+  id: z.string().startsWith("worker_"),
+  kind: workerKindSchema,
+  name: z.string().min(1),
+  status: workerStatusSchema,
+  capabilities: z
+    .array(z.enum(["agent", "process"]))
+    .default(["agent", "process"]),
+  endpoint: z
+    .object({
+      pid: z.number().int().positive().optional(),
+      host: z.string().optional(),
+      port: z.number().int().positive().optional(),
+    })
+    .optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type WorkerRecord = z.infer<typeof workerRecordSchema>;
 
 export const workspaceScopeSchema = z.object({
   roots: z.array(z.string()).min(1),
@@ -191,6 +218,7 @@ export const agentRecordSchema = z.object({
   sessionId: z.string().startsWith("ses_"),
   projectId: z.string().startsWith("proj_"),
   projectDir: z.string().min(1),
+  workerId: z.string().startsWith("worker_").optional(),
   parentAgentId: z.string().startsWith("agent_").optional(),
   rootAgentId: z.string().startsWith("agent_"),
   mode: modeSchema,
@@ -213,6 +241,7 @@ export const createAgentRequestSchema = z.object({
   sessionId: z.string().startsWith("ses_"),
   projectId: z.string().startsWith("proj_"),
   projectDir: z.string().min(1).optional(),
+  workerId: z.string().startsWith("worker_").optional(),
   parentAgentId: z.string().startsWith("agent_").optional(),
   task: z.string().optional(),
   mode: modeSchema.optional(),
@@ -337,6 +366,7 @@ export type ProcessReadiness = z.infer<typeof processReadinessSchema>;
 export const processRecordSchema = z.object({
   id: z.string().startsWith("proc_"),
   name: z.string().min(1).optional(),
+  workerId: z.string().startsWith("worker_").optional(),
   projectId: z.string().startsWith("proj_").optional(),
   sessionId: z.string().startsWith("ses_").optional(),
   agentId: z.string().startsWith("agent_").optional(),
@@ -360,6 +390,7 @@ export type ProcessRecord = z.infer<typeof processRecordSchema>;
 
 export const startProcessRequestSchema = z.object({
   name: z.string().min(1).optional(),
+  workerId: z.string().startsWith("worker_").optional(),
   projectId: z.string().startsWith("proj_").optional(),
   sessionId: z.string().startsWith("ses_").optional(),
   agentId: z.string().startsWith("agent_").optional(),
@@ -547,7 +578,8 @@ export type IdPrefix =
   | "proc"
   | "entry"
   | "tool"
-  | "approval";
+  | "approval"
+  | "worker";
 
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

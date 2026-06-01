@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 8: Compaction and branch summaries — complete
+Phase 9: Remote-ready worker abstraction — complete
 ```
 
 ## Locked foundation decisions
@@ -202,6 +202,23 @@ Phase 8: Compaction and branch summaries — complete
 - Future prompt context is rebuilt through harness session context helpers so compaction and branch summaries are consumed by agents.
 - Sub-agent completion now records a durable `subagent_summary` artifact in the parent session.
 - The Web UI renders system context entries and exposes a compact action from the Branch inspector.
+
+### Phase 9: Remote-ready worker abstraction
+
+- [x] Add `workers` table/type, initially only `local`.
+- [x] Route agent/process launches through a worker abstraction.
+- [x] Keep protocol boundaries transport-neutral where practical.
+- [x] Document future secure remote-worker handshake.
+
+### Latest Phase 9 notes
+
+- Added shared worker schemas and durable `worker_` ids, with a default local worker persisted under `~/.nerve/workers/<worker-id>/worker.json`.
+- Added a SQLite `workers` index and storage counts for worker records.
+- Added a `WorkerManager` that hydrates/creates the local worker and routes agent-process launches plus supervised process starts through capability-checked worker selection.
+- Agents and processes now store `workerId`; older agent records are assigned to the local worker during hydration.
+- Added `GET /api/workers` and `GET /api/workers/:workerId`.
+- Documented the worker model and future remote-worker handshake requirements in the PRD.
+- Smoke-tested the worker endpoint and worker-routed process start against a temp `NERVE_HOME` daemon.
 
 ### Later phases
 

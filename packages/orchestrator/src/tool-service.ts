@@ -2,6 +2,8 @@ import { join } from "node:path";
 import type {
   AgentRecord,
   ApprovalRecord,
+  ProcessRecord,
+  StartProcessRequest,
   ToolCallRecord,
   ToolName,
 } from "@nerve/shared";
@@ -29,6 +31,10 @@ export type SubagentRunner = (
   args: Record<string, unknown>,
 ) => Promise<SubagentRunResult>;
 
+export type ProcessStarter = (
+  request: StartProcessRequest,
+) => Promise<ProcessRecord>;
+
 export class ToolService {
   readonly toolCalls = new Map<string, ToolCallRecord>();
   readonly approvals = new Map<string, ApprovalRecord>();
@@ -38,6 +44,7 @@ export class ToolService {
     private readonly events: EventBus,
     private readonly index: IndexStore,
     private readonly processes: ProcessManager,
+    private readonly startProcess: ProcessStarter,
     private readonly getAgent: (agentId: string) => AgentRecord,
     private readonly runSubagent: SubagentRunner,
   ) {}
@@ -235,8 +242,9 @@ export class ToolService {
     switch (toolCall.toolName) {
       case "process_start":
         return {
-          process: await this.processes.startProcess({
+          process: await this.startProcess({
             name: typeof args.name === "string" ? args.name : undefined,
+            workerId: this.getAgent(toolCall.agentId).workerId,
             projectId: toolCall.projectId,
             sessionId: toolCall.sessionId,
             agentId: toolCall.agentId,

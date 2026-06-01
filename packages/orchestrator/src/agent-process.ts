@@ -10,6 +10,7 @@ import {
 
 export interface AgentProcessInput {
   runId: string;
+  workerId?: string;
   systemPrompt?: string;
   messages: Message[];
   model?: ModelSelection;

@@ -83,7 +83,10 @@ export class ProcessManager {
   }
 
   async startProcess(
-    request: StartProcessRequest & { restartedFromProcessId?: string },
+    request: StartProcessRequest & {
+      restartedFromProcessId?: string;
+      workerId?: string;
+    },
   ): Promise<ProcessRecord> {
     const now = new Date().toISOString();
     const id = createId("proc");
@@ -102,6 +105,7 @@ export class ProcessManager {
     const record: ProcessRecord = {
       id,
       name: request.name,
+      workerId: request.workerId,
       projectId: request.projectId,
       sessionId: request.sessionId,
       agentId: request.agentId,
@@ -194,6 +198,7 @@ export class ProcessManager {
     if (isActiveStatus(record.status)) await this.stopProcess(processId);
     return this.startProcess({
       name: record.name,
+      workerId: record.workerId,
       projectId: record.projectId,
       sessionId: record.sessionId,
       agentId: record.agentId,

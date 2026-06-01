@@ -7,6 +7,7 @@ import type {
   ProjectRecord,
   SessionRecord,
   ToolCallRecord,
+  WorkerRecord,
 } from "@nerve/shared";
 
 export interface IndexCounts {
@@ -15,6 +16,7 @@ export interface IndexCounts {
   agents: number;
   events: number;
   processes: number;
+  workers: number;
 }
 
 export interface RebuildIndexInput {
@@ -23,6 +25,7 @@ export interface RebuildIndexInput {
   agents: AgentRecord[];
   events: EventEnvelope[];
   processes?: ProcessRecord[];
+  workers?: WorkerRecord[];
 }
 
 interface EventRefs {
@@ -103,6 +106,15 @@ export class IndexStore {
           command TEXT NOT NULL,
           status TEXT NOT NULL,
           started_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS workers (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          name TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           json TEXT NOT NULL
         );
@@ -248,6 +260,32 @@ export class IndexStore {
     });
   }
 
+  upsertWorker(worker: WorkerRecord): void {
+    this.guard(() => {
+      this.db
+        .prepare(
+          `INSERT INTO workers (
+             id, kind, name, status, created_at, updated_at, json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             kind = excluded.kind,
+             name = excluded.name,
+             status = excluded.status,
+             updated_at = excluded.updated_at,
+             json = excluded.json`,
+        )
+        .run(
+          worker.id,
+          worker.kind,
+          worker.name,
+          worker.status,
+          worker.createdAt,
+          worker.updatedAt,
+          JSON.stringify(worker),
+        );
+    });
+  }
+
   upsertToolCall(toolCall: ToolCallRecord): void {
     this.guard(() => {
       this.db
@@ -300,8 +338,9 @@ export class IndexStore {
       this.db.exec("BEGIN IMMEDIATE");
       try {
         this.db.exec(
-          "DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM processes; DELETE FROM events_index; DELETE FROM agents; DELETE FROM sessions; DELETE FROM projects;",
+          "DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM processes; DELETE FROM workers; DELETE FROM events_index; DELETE FROM agents; DELETE FROM sessions; DELETE FROM projects;",
         );
+        for (const worker of input.workers ?? []) this.upsertWorker(worker);
         for (const project of input.projects) this.upsertProject(project);
         for (const session of input.sessions) this.upsertSession(session);
         for (const agent of input.agents) this.upsertAgent(agent);
@@ -323,6 +362,7 @@ export class IndexStore {
       agents: this.countTable("agents"),
       events: this.countTable("events_index"),
       processes: this.countTable("processes"),
+      workers: this.countTable("workers"),
     }));
   }
 

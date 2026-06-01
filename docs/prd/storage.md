@@ -66,6 +66,10 @@ This follows the spirit of Pi's `~/.pi` layout while giving `nerve` its own name
           stderr.log
           events.jsonl
 
+  workers/
+    <worker-id>/
+      worker.json
+
   plans/
     <plan-id>.md
     <plan-id>.json
@@ -80,6 +84,8 @@ This follows the spirit of Pi's `~/.pi` layout while giving `nerve` its own name
       stdout.log
       stderr.log
       logs.jsonl
+
+Process records include the selected `workerId` when launched through a worker.
 
   approvals/
     approvals.jsonl
@@ -173,6 +179,7 @@ agents/<agent-id>/
 - agent id
 - session id
 - project id
+- worker id
 - parent agent id
 - root agent id
 - mode
@@ -183,6 +190,26 @@ agents/<agent-id>/
 - status
 
 Each `run.json` stores one process execution attempt. Logs are ordinary files for easy inspection.
+
+### Workers
+
+Workers are durable execution targets. The foundation implementation creates a single `local` worker record and marks it online on daemon startup.
+
+```txt
+workers/<worker-id>/worker.json
+```
+
+`worker.json` stores:
+
+- worker id
+- kind (`local` initially)
+- name
+- status
+- capabilities (`agent`, `process`)
+- endpoint metadata such as local daemon PID
+- created/updated timestamps
+
+Agent and process records may reference `workerId`. Older records without `workerId` are assigned to the local worker during hydration.
 
 ### Projects
 
