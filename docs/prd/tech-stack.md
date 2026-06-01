@@ -44,7 +44,10 @@ Paneforge
 Svelte stores/runes
 CodeMirror 6
 unified/remark/rehype markdown pipeline
-Shiki
+Shiki with fine-grained @shikijs language/theme loading
+lucide-svelte icons
+svelte-sonner toasts
+clsx + tailwind-merge + class-variance-authority for wrapper styling
 ```
 
 ### Why plain Svelte instead of SvelteKit

@@ -1,6 +1,13 @@
 <script lang="ts">
+  import ChevronDown from "lucide-svelte/icons/chevron-down";
+  import ChevronRight from "lucide-svelte/icons/chevron-right";
+  import FolderKanban from "lucide-svelte/icons/folder-kanban";
+  import Plus from "lucide-svelte/icons/plus";
+  import Search from "lucide-svelte/icons/search";
   import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
+  import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
+  import Input from "../ui/Input.svelte";
 
   type ConversationRow = {
     session: SessionRecord;
@@ -37,7 +44,7 @@
   let collapsed = $state<Record<string, boolean>>({});
 
   function shortModel(agent: AgentRecord | undefined): string {
-    if (!agent?.model) return "model";
+    if (!agent?.model) return "model pending";
     return agent.model.modelId.replace(/^claude-/, "claude ").replace(/^gpt-/, "gpt ");
   }
 
@@ -51,6 +58,13 @@
     return group.project.name.toLowerCase().includes(normalized) ||
       group.project.dir.toLowerCase().includes(normalized) ||
       group.rows.some((row) => row.session.title.toLowerCase().includes(normalized) || row.session.id.toLowerCase().includes(normalized));
+  }
+
+  function statusTone(status: string | undefined): "neutral" | "accent" | "good" | "warn" | "danger" | "running" {
+    if (status === "running") return "running";
+    if (status === "error") return "danger";
+    if (status === "completed") return "good";
+    return "neutral";
   }
 
   const groups = $derived.by(() => {
@@ -78,11 +92,17 @@
 
 <aside class="project-tree">
   <header class="tree-header">
-    <strong>Projects</strong>
-    <Button size="sm" variant="ghost" onclick={onNewConversation}>New</Button>
+    <div>
+      <strong>Navigator</strong>
+      <span>{projects.length} project{projects.length === 1 ? "" : "s"}</span>
+    </div>
+    <Button size="sm" variant="ghost" onclick={onNewConversation}><Plus size={13} strokeWidth={2.25} />New</Button>
   </header>
 
-  <input class="tree-search" bind:value={filter} placeholder="Search projects or agents" />
+  <div class="search-box">
+    <Search size={13} strokeWidth={2.25} aria-hidden="true" />
+    <Input bind:value={filter} size="sm" placeholder="Search projects or agents" ariaLabel="Search projects or agents" />
+  </div>
 
   <div class="tree-scroll">
     {#if groups.length === 0}
@@ -95,11 +115,15 @@
           class="project-row"
           class:active={group.project.id === selectedProjectId}
           type="button"
+          title={group.project.dir}
           onclick={() => (collapsed[group.project.id] = !collapsed[group.project.id])}
         >
-          <span class="chevron">{collapsed[group.project.id] ? "▸" : "▾"}</span>
+          <span class="chevron" aria-hidden="true">
+            {#if collapsed[group.project.id]}<ChevronRight size={13} />{:else}<ChevronDown size={13} />{/if}
+          </span>
+          <FolderKanban size={13} strokeWidth={2.15} aria-hidden="true" />
           <span class="project-name">{group.project.name}</span>
-          <small>{group.rows.length}</small>
+          <Badge tone={group.project.id === selectedProjectId ? "accent" : "neutral"}>{group.rows.length}</Badge>
         </button>
         {#if !collapsed[group.project.id]}
           <div class="agent-rows">
@@ -111,6 +135,7 @@
                 class="agent-row"
                 class:selected={row.session.id === selectedSessionId}
                 type="button"
+                title={`${row.session.title} · ${row.session.id}`}
                 onclick={() => onOpenSession?.(row.session.id)}
               >
                 <span class={`status ${row.agent?.status ?? "idle"}`}></span>
@@ -118,6 +143,7 @@
                   <strong>{row.session.title}</strong>
                   <small>{row.agent?.mode ?? row.session.mode} · {row.agent?.permissionLevel ?? row.session.permissionLevel} · {shortModel(row.agent)}</small>
                 </span>
+                <Badge tone={statusTone(row.agent?.status)}>{row.agent?.status ?? "idle"}</Badge>
               </button>
             {/each}
           </div>
@@ -134,47 +160,70 @@
     min-height: 0;
     grid-template-rows: auto auto minmax(0, 1fr);
     background: var(--color-panel-muted);
+    border-right: 1px solid var(--color-border-subtle);
   }
 
   .tree-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 2.1rem;
-    padding: 0.35rem 0.5rem;
+    min-height: 2.45rem;
+    padding: 0.45rem 0.5rem;
     border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .tree-header div {
+    display: grid;
+    gap: 0.05rem;
   }
 
   .tree-header strong {
     font-size: 0.78rem;
-    font-weight: 650;
+    font-weight: 700;
   }
 
-  .tree-search {
-    height: 1.85rem;
-    border: 0;
+  .tree-header span,
+  .empty {
+    color: var(--color-muted);
+    font-size: 0.7rem;
+  }
+
+  .search-box {
+    position: relative;
+    display: grid;
+    align-items: center;
+    padding: 0.4rem;
     border-bottom: 1px solid var(--color-border-subtle);
-    background: var(--color-field);
-    color: var(--color-text);
-    padding: 0 0.55rem;
-    font-size: 0.78rem;
+    background: var(--color-pane);
   }
 
-  .tree-search:focus {
-    outline: 1px solid var(--color-accent);
-    outline-offset: -1px;
+  .search-box :global(svg) {
+    position: absolute;
+    left: 0.8rem;
+    z-index: 1;
+    color: var(--color-muted);
+    pointer-events: none;
+  }
+
+  .search-box :global(.ui-input) {
+    padding-left: 1.65rem;
   }
 
   .tree-scroll {
     min-height: 0;
     overflow: auto;
-    padding: 0.3rem;
+    padding: 0.35rem;
+  }
+
+  .project-group {
+    display: grid;
+    gap: 0.1rem;
   }
 
   .project-row,
   .agent-row {
     width: 100%;
-    border: 0;
+    border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text);
@@ -184,22 +233,30 @@
 
   .project-row {
     display: grid;
-    grid-template-columns: 1rem minmax(0, 1fr) auto;
+    grid-template-columns: 0.85rem auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.2rem;
-    padding: 0.35rem 0.4rem;
+    gap: 0.28rem;
+    padding: 0.34rem 0.38rem;
     color: var(--color-muted);
     font-size: 0.76rem;
   }
 
   .project-row:hover,
+  .project-row.active,
   .agent-row:hover,
   .agent-row.selected {
+    border-color: var(--color-border-subtle);
     background: var(--color-panel-raised);
   }
 
   .project-row.active .project-name {
     color: var(--color-text);
+  }
+
+  .chevron {
+    display: inline-grid;
+    place-items: center;
+    color: var(--color-faint);
   }
 
   .project-name,
@@ -212,17 +269,17 @@
 
   .agent-rows {
     display: grid;
-    gap: 0.1rem;
-    margin-bottom: 0.35rem;
+    gap: 0.12rem;
+    margin: 0 0 0.4rem;
   }
 
   .agent-row {
     display: grid;
-    grid-template-columns: 0.55rem minmax(0, 1fr);
+    grid-template-columns: 0.55rem minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.4rem;
-    min-height: 2.55rem;
-    padding: 0.35rem 0.45rem 0.35rem 1.15rem;
+    gap: 0.42rem;
+    min-height: 2.68rem;
+    padding: 0.36rem 0.45rem 0.36rem 1.15rem;
     border-left: 2px solid transparent;
   }
 
@@ -231,10 +288,11 @@
   }
 
   .status {
-    width: 0.45rem;
-    height: 0.45rem;
+    width: 0.48rem;
+    height: 0.48rem;
     border-radius: 999px;
     background: var(--color-faint);
+    box-shadow: 0 0 0 3px rgb(255 255 255 / 3%);
   }
 
   .status.running {
@@ -245,6 +303,10 @@
     background: var(--color-danger);
   }
 
+  .status.completed {
+    background: var(--color-good);
+  }
+
   .agent-main {
     display: grid;
     min-width: 0;
@@ -253,11 +315,10 @@
 
   .agent-main strong {
     font-size: 0.78rem;
-    font-weight: 550;
+    font-weight: 600;
   }
 
-  .agent-main small,
-  .empty {
+  .agent-main small {
     color: var(--color-muted);
     font-size: 0.7rem;
   }

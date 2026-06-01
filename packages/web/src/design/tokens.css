@@ -1,17 +1,26 @@
 :root {
   color-scheme: dark;
-  --font-display: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-body:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 
   --color-bg: #181719;
   --color-bg-deep: #101014;
   --color-bg-soft: #1d1c20;
   --color-shell: #1f1e22;
+  --color-titlebar: #18171c;
+  --color-pane: #201f24;
+  --color-pane-active: #27262d;
   --color-panel: #242329;
   --color-panel-muted: #1b1a1f;
   --color-panel-raised: #2c2b31;
   --color-field: #151519;
+  --color-resizer: rgb(255 255 255 / 7%);
+  --color-resizer-active: rgb(155 214 111 / 52%);
   --color-border: rgb(255 255 255 / 10%);
   --color-border-subtle: rgb(255 255 255 / 6%);
   --color-text: #e8e6eb;
@@ -32,6 +41,7 @@
   --color-code-bg: #121216;
   --color-user-message: rgb(255 255 255 / 3%);
   --color-ring: #9bd66f;
+  --color-focus-ring: #9bd66f;
   --color-ring-soft: rgb(155 214 111 / 18%);
   --color-selection: rgb(155 214 111 / 24%);
   --color-grid: transparent;
@@ -40,13 +50,28 @@
   --grid-opacity: 0;
 
   --gradient-accent: #9bd66f;
+  --radius-xs: 0.18rem;
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
-  --shadow-panel: none;
-  --shadow-elevated: none;
+  --radius-xl: 0.75rem;
+  --space-1: 0.25rem;
+  --space-2: 0.375rem;
+  --space-3: 0.5rem;
+  --space-4: 0.75rem;
+  --space-5: 1rem;
+  --space-6: 1.25rem;
+  --control-height-xs: 1.45rem;
+  --control-height-sm: 1.7rem;
+  --control-height-md: 2rem;
+  --control-height-lg: 2.35rem;
+  --shadow-panel: 0 1px 0 rgb(255 255 255 / 4%) inset;
+  --shadow-elevated: 0 12px 30px rgb(0 0 0 / 22%);
+  --shadow-popover: 0 18px 45px rgb(0 0 0 / 38%), 0 0 0 1px var(--color-border);
+  --shadow-dialog: 0 28px 70px rgb(0 0 0 / 48%), 0 0 0 1px var(--color-border);
   --shadow-message: none;
-  --shadow-glow: none;
+  --shadow-glow:
+    0 0 0 1px var(--color-ring-soft), 0 0 18px rgb(155 214 111 / 8%);
 }
 
 :root[data-theme="light"] {
@@ -55,10 +80,15 @@
   --color-bg-deep: #e5e5e7;
   --color-bg-soft: #eeeeef;
   --color-shell: #ffffff;
+  --color-titlebar: #f7f7f8;
+  --color-pane: #ffffff;
+  --color-pane-active: #f2f2f4;
   --color-panel: #ffffff;
   --color-panel-muted: #eeeeef;
   --color-panel-raised: #e3e3e6;
   --color-field: #ffffff;
+  --color-resizer: rgb(0 0 0 / 9%);
+  --color-resizer-active: rgb(78 143 47 / 45%);
   --color-border: rgb(0 0 0 / 14%);
   --color-border-subtle: rgb(0 0 0 / 8%);
   --color-text: #1f1f24;
@@ -79,7 +109,15 @@
   --color-code-bg: #f7f7f8;
   --color-user-message: rgb(0 0 0 / 3%);
   --color-ring: #4e8f2f;
+  --color-focus-ring: #4e8f2f;
   --color-ring-soft: rgb(78 143 47 / 16%);
   --color-selection: rgb(78 143 47 / 20%);
   --gradient-accent: #4e8f2f;
+  --shadow-panel: 0 1px 0 rgb(255 255 255 / 65%) inset;
+  --shadow-elevated: 0 12px 26px rgb(15 16 20 / 10%);
+  --shadow-popover:
+    0 18px 45px rgb(15 16 20 / 16%), 0 0 0 1px var(--color-border);
+  --shadow-dialog:
+    0 28px 70px rgb(15 16 20 / 22%), 0 0 0 1px var(--color-border);
+  --shadow-glow: 0 0 0 1px var(--color-ring-soft), 0 0 18px rgb(78 143 47 / 8%);
 }

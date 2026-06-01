@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { Pane, PaneGroup, PaneResizer } from "paneforge";
+  import { toast } from "svelte-sonner";
   import type { ThemePreference } from "./lib/state/app-state.svelte";
   import {
     applyTheme,
@@ -150,13 +152,12 @@
       getModels(),
       getAuthProviders(),
     ]);
-    const configuredAuth = auth.filter((provider) => provider.configured);
     settingsDraft = settings;
     models = modelList;
-    authProviders = configuredAuth;
+    authProviders = auth;
     selectedMode = activeAgent?.mode ?? settings.defaultMode;
     selectedPermissionLevel = activeAgent?.permissionLevel ?? settings.defaultPermissionLevel;
-    const usable = usableModelOptions(modelList, configuredAuth);
+    const usable = usableModelOptions(modelList, auth);
     const activeModel = activeAgent?.model;
     if (activeModel && usable.some((model) => modelKey(model) === modelKey(activeModel))) {
       selectedModelKey = modelKey(activeModel);
@@ -178,8 +179,15 @@
   async function saveSettings() {
     if (!settingsDraft) return;
     settingsMessage = undefined;
-    settingsDraft = await updateSettings(settingsDraft);
-    settingsMessage = "Settings saved. Server host/port changes apply after daemon restart.";
+    try {
+      settingsDraft = await updateSettings(settingsDraft);
+      settingsMessage = "Settings saved. Server host/port changes apply after daemon restart.";
+      toast.success("Settings saved", { description: "Host/port changes apply after daemon restart." });
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      settingsMessage = message;
+      toast.error("Could not save settings", { description: message });
+    }
   }
 
   async function saveActiveModel() {
@@ -187,6 +195,7 @@
     const agent = await updateAgentModel(selection.agentId, selectedModel());
     agents = agents.map((candidate) => candidate.id === agent.id ? agent : candidate);
     settingsMessage = "Agent model updated.";
+    toast.success("Agent model updated");
   }
 
   async function setComposerModel(key: string) {
@@ -288,33 +297,40 @@
 
   async function createConversationForDirectory(dir: string) {
     error = undefined;
-    const { project } = await apiPost<{ project: ProjectRecord }>("/api/projects", { dir });
-    const { session } = await apiPost<{ session: SessionRecord }>("/api/sessions", {
-      projectId: project.id,
-      title: project.name,
-      mode: selectedMode,
-      permissionLevel: selectedPermissionLevel,
-    });
-    const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
-      projectId: project.id,
-      sessionId: session.id,
-      model: selectedModel(),
-      mode: selectedMode,
-      permissionLevel: selectedPermissionLevel,
-    });
-    selection.projectId = project.id;
-    selection.sessionId = session.id;
-    selection.entryId = session.activeEntryId;
-    selection.agentId = agent.id;
-    composerDraft.projectDir = project.dir;
-    transcript = [];
-    treeNodes = [];
-    streamingText = "";
-    sending = false;
-    projectPickerOpen = false;
-    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-    await loadWorkspaceState();
-    await openSession(session.id);
+    try {
+      const { project } = await apiPost<{ project: ProjectRecord }>("/api/projects", { dir });
+      const { session } = await apiPost<{ session: SessionRecord }>("/api/sessions", {
+        projectId: project.id,
+        title: project.name,
+        mode: selectedMode,
+        permissionLevel: selectedPermissionLevel,
+      });
+      const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
+        projectId: project.id,
+        sessionId: session.id,
+        model: selectedModel(),
+        mode: selectedMode,
+        permissionLevel: selectedPermissionLevel,
+      });
+      selection.projectId = project.id;
+      selection.sessionId = session.id;
+      selection.entryId = session.activeEntryId;
+      selection.agentId = agent.id;
+      composerDraft.projectDir = project.dir;
+      transcript = [];
+      treeNodes = [];
+      streamingText = "";
+      sending = false;
+      projectPickerOpen = false;
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+      await loadWorkspaceState();
+      await openSession(session.id);
+      toast.success("Project opened", { description: project.dir });
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      error = message;
+      toast.error("Could not open project", { description: message });
+    }
   }
 
   async function ensureAgent(): Promise<string> {
@@ -355,6 +371,7 @@
     approvals = await getPendingApprovals();
     utilityTab = "events";
     utilityPanelOpen = true;
+    toast.success("Approval granted");
   }
 
   async function selectProcess(processId: string) {
@@ -368,6 +385,7 @@
     await stopProcess(processId);
     await loadWorkspaceState();
     if (selectedProcessId) processLogs = await getProcessLogs(selectedProcessId);
+    toast.success("Process stopped");
   }
 
   async function restartSelectedProcess(processId: string) {
@@ -375,6 +393,7 @@
     selectedProcessId = restarted.id;
     await loadWorkspaceState();
     processLogs = await getProcessLogs(restarted.id);
+    toast.success("Process restarted", { description: restarted.name ?? restarted.id });
   }
 
   async function refreshProcessLogs() {
@@ -387,6 +406,7 @@
     approvals = await getPendingApprovals();
     utilityTab = "events";
     utilityPanelOpen = true;
+    toast.message("Approval denied");
   }
 
   async function abortActiveRun() {
@@ -540,74 +560,91 @@
     onThemeChange={setTheme}
   />
 
-  <div class="workspace" class:utility-open={utilityPanelOpen}>
-    <ProjectAgentTree
-      {projects}
-      {sessions}
-      {agents}
-      selectedProjectId={selection.projectId}
-      selectedSessionId={selection.sessionId}
-      onOpenSession={openSession}
-      onNewConversation={newSession}
-    />
+  <div class="workspace-shell" class:utility-open={utilityPanelOpen}>
+    <PaneGroup direction="horizontal" autoSaveId="nerve.workspace.v1" keyboardResizeBy={8}>
+      <Pane defaultSize={20} minSize={14} maxSize={34} order={1}>
+        <div class="pane-shell navigator-pane">
+          <ProjectAgentTree
+            {projects}
+            {sessions}
+            {agents}
+            selectedProjectId={selection.projectId}
+            selectedSessionId={selection.sessionId}
+            onOpenSession={openSession}
+            onNewConversation={newSession}
+          />
+        </div>
+      </Pane>
 
-    <ConversationPane
-      {activeProject}
-      {activeSession}
-      {activeAgent}
-      {transcript}
-      {streamingText}
-      {live}
-      {sending}
-      {error}
-      composerText={composerDraft.text}
-      models={usableModels}
-      {selectedModelKey}
-      mode={selectedMode}
-      permissionLevel={selectedPermissionLevel}
-      {slashCompletions}
-      fileCompletions={completeFiles}
-      onComposerChange={(value) => (composerDraft.text = value)}
-      onSubmit={sendPrompt}
-      onAbort={abortActiveRun}
-      onOpenProject={() => (projectPickerOpen = true)}
-      onModelChange={(value) => void setComposerModel(value)}
-      onModeChange={(value) => void setComposerMode(value)}
-      onPermissionChange={(value) => void setComposerPermission(value)}
-    />
+      <PaneResizer aria-label="Resize navigator" />
 
-    {#if utilityPanelOpen}
-      <UtilityPanel
-        activeTab={utilityTab}
-        {status}
-        {activeProject}
-        {activeSession}
-        {activeAgent}
-        {sessionAgents}
-        {treeNodes}
-        {approvals}
-        {processes}
-        {selectedProcess}
-        {processLogs}
-        eventItems={eventBuffer.items}
-        bind:settingsDraft
-        {authProviders}
-        {settingsMessage}
-        {exportUrl}
-        onTabChange={(tab) => (utilityTab = tab)}
-        onSelectAgent={selectAgent}
-        onNavigateToEntry={(entryId, summarize) => void navigateToEntry(entryId, summarize)}
-        onCompact={() => void compactActiveSession()}
-        onGrantApproval={(id) => void grantApproval(id)}
-        onDenyApproval={(id) => void denyApproval(id)}
-        onSelectProcess={(id) => void selectProcess(id)}
-        onRefreshProcessLogs={() => void refreshProcessLogs()}
-        onStopProcess={(id) => void stopSelectedProcess(id)}
-        onRestartProcess={(id) => void restartSelectedProcess(id)}
-        onLoadSettings={() => void loadSettingsPanel()}
-        onSaveSettings={() => void saveSettings()}
-      />
-    {/if}
+      <Pane defaultSize={utilityPanelOpen ? 56 : 80} minSize={38} order={2}>
+        <div class="pane-shell conversation-shell">
+          <ConversationPane
+            {activeProject}
+            {activeSession}
+            {activeAgent}
+            {transcript}
+            {streamingText}
+            {live}
+            {sending}
+            {error}
+            composerText={composerDraft.text}
+            models={usableModels}
+            {selectedModelKey}
+            mode={selectedMode}
+            permissionLevel={selectedPermissionLevel}
+            {slashCompletions}
+            fileCompletions={completeFiles}
+            onComposerChange={(value) => (composerDraft.text = value)}
+            onSubmit={sendPrompt}
+            onAbort={abortActiveRun}
+            onOpenProject={() => (projectPickerOpen = true)}
+            onModelChange={(value) => void setComposerModel(value)}
+            onModeChange={(value) => void setComposerMode(value)}
+            onPermissionChange={(value) => void setComposerPermission(value)}
+          />
+        </div>
+      </Pane>
+
+      {#if utilityPanelOpen}
+        <PaneResizer aria-label="Resize utility panel" />
+        <Pane defaultSize={24} minSize={18} maxSize={42} order={3}>
+          <div class="pane-shell utility-shell">
+            <UtilityPanel
+              activeTab={utilityTab}
+              {status}
+              {activeProject}
+              {activeSession}
+              {activeAgent}
+              {sessionAgents}
+              {treeNodes}
+              {approvals}
+              {processes}
+              {selectedProcess}
+              {processLogs}
+              eventItems={eventBuffer.items}
+              bind:settingsDraft
+              {authProviders}
+              {settingsMessage}
+              {exportUrl}
+              onTabChange={(tab) => (utilityTab = tab)}
+              onSelectAgent={selectAgent}
+              onNavigateToEntry={(entryId, summarize) => void navigateToEntry(entryId, summarize)}
+              onCompact={() => void compactActiveSession()}
+              onGrantApproval={(id) => void grantApproval(id)}
+              onDenyApproval={(id) => void denyApproval(id)}
+              onSelectProcess={(id) => void selectProcess(id)}
+              onRefreshProcessLogs={() => void refreshProcessLogs()}
+              onStopProcess={(id) => void stopSelectedProcess(id)}
+              onRestartProcess={(id) => void restartSelectedProcess(id)}
+              onLoadSettings={() => void loadSettingsPanel()}
+              onSaveSettings={() => void saveSettings()}
+            />
+          </div>
+        </Pane>
+      {/if}
+    </PaneGroup>
   </div>
 
   <ProjectDirectoryPicker bind:open={projectPickerOpen} onSelect={(path) => void createConversationForDirectory(path)} />
@@ -626,28 +663,42 @@
     color: var(--color-text);
   }
 
-  .workspace {
-    display: grid;
+  .workspace-shell {
     min-width: 0;
     min-height: 0;
-    grid-template-columns: minmax(220px, 20vw) minmax(0, 1fr);
+    overflow: hidden;
+    background: var(--color-bg-deep);
   }
 
-  .workspace.utility-open {
-    grid-template-columns: minmax(220px, 19vw) minmax(0, 1fr) minmax(300px, 24vw);
+  .workspace-shell :global([data-pane-group]) {
+    width: 100%;
+    height: 100%;
   }
 
-  .workspace > :global(*) {
+  .pane-shell {
+    width: 100%;
+    height: 100%;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
+    background: var(--color-pane);
+  }
+
+  .conversation-shell {
+    background: var(--color-bg);
+  }
+
+  .utility-shell {
+    background: var(--color-panel-muted);
   }
 
   @media (max-width: 980px) {
-    .workspace,
-    .workspace.utility-open {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto minmax(620px, 1fr) auto;
+    .workspace-shell {
       overflow: auto;
+    }
+
+    .workspace-shell :global([data-pane-group]) {
+      min-width: 980px;
     }
   }
 </style>

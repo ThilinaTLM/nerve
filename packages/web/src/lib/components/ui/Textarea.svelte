@@ -1,10 +1,14 @@
 <script lang="ts">
+  import { cn } from "../../utils/cn";
+
   type Props = {
     value?: string;
     placeholder?: string;
     disabled?: boolean;
     class?: string;
     rows?: number;
+    ariaLabel?: string;
+    oninput?: (event: Event) => void;
   };
 
   let {
@@ -13,10 +17,12 @@
     disabled = false,
     class: className = "",
     rows = 4,
+    ariaLabel,
+    oninput,
   }: Props = $props();
 </script>
 
-<textarea class={`ui-textarea ${className}`} bind:value {placeholder} {disabled} {rows}></textarea>
+<textarea class={cn("ui-textarea", className)} bind:value {placeholder} {disabled} {rows} aria-label={ariaLabel} {oninput}></textarea>
 
 <style>
   .ui-textarea {
@@ -29,11 +35,19 @@
     color: var(--color-text);
     padding: 0.72rem 0.85rem;
     line-height: 1.55;
+    transition:
+      border-color 140ms ease,
+      box-shadow 140ms ease,
+      opacity 140ms ease;
   }
 
   .ui-textarea:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px var(--color-ring-soft);
+    box-shadow: 0 0 0 2px var(--color-ring-soft);
+  }
+
+  .ui-textarea:disabled {
+    opacity: 0.58;
   }
 </style>

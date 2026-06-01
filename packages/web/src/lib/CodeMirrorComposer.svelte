@@ -113,6 +113,7 @@
               background: "var(--color-field)",
               color: "var(--color-text)",
               minHeight: "104px",
+              maxHeight: "min(32vh, 260px)",
             },
             ".cm-content": {
               caretColor: "var(--color-accent)",
@@ -133,14 +134,15 @@
             },
             ".cm-scroller": {
               minHeight: "104px",
+              maxHeight: "min(32vh, 260px)",
               overflow: "auto",
             },
             ".cm-tooltip": {
               border: "1px solid var(--color-border)",
-              borderRadius: "6px",
+              borderRadius: "var(--radius-md)",
               background: "var(--color-panel-raised)",
               color: "var(--color-text)",
-              boxShadow: "var(--shadow-elevated)",
+              boxShadow: "var(--shadow-popover)",
               overflow: "hidden",
             },
             ".cm-tooltip-autocomplete ul li[aria-selected]": {

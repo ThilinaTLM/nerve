@@ -140,6 +140,18 @@ importers:
       '@nerve/shared':
         specifier: workspace:*
         version: link:../shared
+      '@shikijs/core':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@shikijs/engine-javascript':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@shikijs/langs':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@shikijs/themes':
+        specifier: ^4.1.0
+        version: 4.1.0
       '@tailwindcss/vite':
         specifier: 4.1.17
         version: 4.1.17(vite@7.2.4(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.30.2)(tsx@4.20.6)(yaml@2.9.0))
@@ -149,6 +161,15 @@ importers:
       bits-ui:
         specifier: ^2.18.1
         version: 2.18.1(@internationalized/date@3.12.2)(svelte@5.38.0)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lucide-svelte:
+        specifier: ^1.0.1
+        version: 1.0.1(svelte@5.38.0)
       paneforge:
         specifier: ^1.0.2
         version: 1.0.2(svelte@5.38.0)
@@ -173,6 +194,12 @@ importers:
       svelte:
         specifier: 5.38.0
         version: 5.38.0
+      svelte-sonner:
+        specifier: ^1.1.1
+        version: 1.1.1(svelte@5.38.0)
+      tailwind-merge:
+        specifier: ^3.6.0
+        version: 3.6.0
       tailwindcss:
         specifier: 4.1.17
         version: 4.1.17
@@ -1086,6 +1113,9 @@ packages:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
     engines: {node: '>= 14.16.0'}
 
+  class-variance-authority@0.7.1:
+    resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
+
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
     engines: {node: '>=6'}
@@ -1346,6 +1376,12 @@ packages:
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
 
+  lucide-svelte@1.0.1:
+    resolution: {integrity: sha512-WvzZgk0pqzgda+AErLvgWxHkfg/+GgUwqKMRHvzt0IqyMdmyEDzDCk3Z+Wo/3y753oIgx8u9Q4eUbWkghFa8Jg==}
+    deprecated: Package deprecated. Please use @lucide/svelte instead.
+    peerDependencies:
+      svelte: ^3 || ^4 || ^5.0.0-next.42
+
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
@@ -1600,6 +1636,11 @@ packages:
     peerDependencies:
       svelte: ^5.7.0
 
+  runed@0.28.0:
+    resolution: {integrity: sha512-k2xx7RuO9hWcdd9f+8JoBeqWtYrm5CALfgpkg2YDB80ds/QE4w0qqu34A7fqiAwiBBSBQOid7TLxwxVC27ymWQ==}
+    peerDependencies:
+      svelte: ^5.7.0
+
   runed@0.29.2:
     resolution: {integrity: sha512-0cq6cA6sYGZwl/FvVqjx9YN+1xEBu9sDDyuWdDW1yWX7JF2wmvmVKfH+hVCZs+csW+P3ARH92MjI3H9QTagOQA==}
     peerDependencies:
@@ -1652,6 +1693,11 @@ packages:
       svelte: ^4.0.0 || ^5.0.0-next.0
       typescript: '>=5.0.0'
 
+  svelte-sonner@1.1.1:
+    resolution: {integrity: sha512-5cd3p7wa4cq0NsqslMwdlPb7x1JglEZ/GKrLePWNr5bCxR1nagAVrY01FRFrXfUGs41miLt3C327+8XJo5BzZw==}
+    peerDependencies:
+      svelte: ^5.0.0
+
   svelte-toolbelt@0.10.6:
     resolution: {integrity: sha512-YWuX+RE+CnWYx09yseAe4ZVMM7e7GRFZM6OYWpBKOb++s+SQ8RBIMMe+Bs/CznBMc0QPLjr+vDBxTAkozXsFXQ==}
     engines: {node: '>=18', pnpm: '>=8.7.0'}
@@ -1670,6 +1716,9 @@ packages:
 
   tabbable@6.4.0:
     resolution: {integrity: sha512-05PUHKSNE8ou2dwIxTngl4EzcnsCDZGJ/iCLtDflR/SHB/ny14rXc+qU5P4mG9JkusiV7EivzY9Mhm55AzAvCg==}
+
+  tailwind-merge@3.6.0:
+    resolution: {integrity: sha512-uxL7qAVQriqRQPAyK3pj66VqskWqoZ37PW94jwOTwNfq/z9oyu1V+eqrZqtR2+fCiXdYOZe/Modt8GtvqNzu+w==}
 
   tailwindcss@4.1.17:
     resolution: {integrity: sha512-j9Ee2YjuQqYT9bbRTfTZht9W/ytp5H+jJpZKiYdP/bpnXARAuELt9ofP0lPnmHjbga7SNQIxdTAXCmtKVYjN+Q==}
@@ -2738,6 +2787,10 @@ snapshots:
     dependencies:
       readdirp: 4.1.2
 
+  class-variance-authority@0.7.1:
+    dependencies:
+      clsx: 2.1.1
+
   clsx@2.1.1: {}
 
   comma-separated-tokens@2.0.3: {}
@@ -3003,6 +3056,10 @@ snapshots:
   long@5.3.2: {}
 
   longest-streak@3.1.0: {}
+
+  lucide-svelte@1.0.1(svelte@5.38.0):
+    dependencies:
+      svelte: 5.38.0
 
   lz-string@1.5.0: {}
 
@@ -3485,6 +3542,11 @@ snapshots:
       esm-env: 1.2.2
       svelte: 5.38.0
 
+  runed@0.28.0(svelte@5.38.0):
+    dependencies:
+      esm-env: 1.2.2
+      svelte: 5.38.0
+
   runed@0.29.2(svelte@5.38.0):
     dependencies:
       esm-env: 1.2.2
@@ -3543,6 +3605,11 @@ snapshots:
     transitivePeerDependencies:
       - picomatch
 
+  svelte-sonner@1.1.1(svelte@5.38.0):
+    dependencies:
+      runed: 0.28.0(svelte@5.38.0)
+      svelte: 5.38.0
+
   svelte-toolbelt@0.10.6(svelte@5.38.0):
     dependencies:
       clsx: 2.1.1
@@ -3579,6 +3646,8 @@ snapshots:
       - '@typescript-eslint/types'
 
   tabbable@6.4.0: {}
+
+  tailwind-merge@3.6.0: {}
 
   tailwindcss@4.1.17: {}
 

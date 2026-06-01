@@ -1,4 +1,17 @@
 <script lang="ts">
+  import Activity from "lucide-svelte/icons/activity";
+  import Bot from "lucide-svelte/icons/bot";
+  import CheckCircle2 from "lucide-svelte/icons/check-circle-2";
+  import FileText from "lucide-svelte/icons/file-text";
+  import GitBranch from "lucide-svelte/icons/git-branch";
+  import Info from "lucide-svelte/icons/info";
+  import KeyRound from "lucide-svelte/icons/key-round";
+  import RefreshCw from "lucide-svelte/icons/refresh-cw";
+  import Settings2 from "lucide-svelte/icons/settings-2";
+  import ShieldAlert from "lucide-svelte/icons/shield-alert";
+  import Square from "lucide-svelte/icons/square";
+  import Terminal from "lucide-svelte/icons/terminal";
+  import XCircle from "lucide-svelte/icons/x-circle";
   import type {
     AgentRecord,
     ApprovalWithToolCall,
@@ -11,7 +24,12 @@
     Settings,
     StatusResponse,
   } from "../../api";
+  import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
+  import Input from "../ui/Input.svelte";
+  import Select, { type SelectItem } from "../ui/Select.svelte";
+  import Switch from "../ui/Switch.svelte";
+  import Tabs, { type TabItem } from "../ui/Tabs.svelte";
 
   type UtilityTab = "history" | "approvals" | "processes" | "settings" | "events" | "info";
 
@@ -77,35 +95,62 @@
     onSaveSettings,
   }: Props = $props();
 
-  const tabs: { id: UtilityTab; label: string; count?: number }[] = [
-    { id: "history", label: "History" },
-    { id: "approvals", label: "Approvals", count: approvals.length },
-    { id: "processes", label: "Processes", count: processes.length },
-    { id: "settings", label: "Settings" },
-    { id: "events", label: "Events", count: eventItems.length },
-    { id: "info", label: "Info" },
+  const tabs = $derived<TabItem[]>([
+    { value: "history", label: "History" },
+    { value: "approvals", label: "Approvals", count: approvals.length },
+    { value: "processes", label: "Processes", count: processes.length },
+    { value: "settings", label: "Settings" },
+    { value: "events", label: "Events", count: eventItems.length },
+    { value: "info", label: "Info" },
+  ]);
+
+  const modeItems: SelectItem[] = [
+    { value: "planning", label: "Planning" },
+    { value: "coding", label: "Coding" },
   ];
 
-  function setTab(tab: UtilityTab) {
-    activeTab = tab;
-    onTabChange?.(tab);
+  const permissionItems: SelectItem[] = [
+    { value: "read_only", label: "Read only" },
+    { value: "supervised", label: "Supervised" },
+    { value: "autonomous", label: "Autonomous" },
+  ];
+
+  function setTab(tab: string) {
+    activeTab = tab as UtilityTab;
+    onTabChange?.(activeTab);
+  }
+
+  function statusTone(statusValue: string | undefined): "neutral" | "accent" | "good" | "warn" | "danger" | "running" {
+    if (statusValue === "running") return "running";
+    if (statusValue === "error" || statusValue === "failed") return "danger";
+    if (statusValue === "completed" || statusValue === "stopped") return "good";
+    if (statusValue === "pending") return "warn";
+    return "neutral";
+  }
+
+  function updateNumber(path: "thresholdTokens" | "keepRecentTokens", value: string) {
+    if (!settingsDraft) return;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) settingsDraft.compaction[path] = Math.floor(parsed);
+  }
+
+  function providerCommand(provider: AuthProviderMetadata): string {
+    if (provider.supportsOAuth) return `nerve auth login ${provider.provider}`;
+    if (provider.supportsApiKey) return `nerve auth set ${provider.provider}`;
+    return "nerve auth list";
   }
 </script>
 
 <aside class="utility-panel">
-  <nav class="utility-tabs">
-    {#each tabs as tab}
-      <button type="button" class:active={activeTab === tab.id} onclick={() => setTab(tab.id)}>
-        {tab.label}{#if tab.count}<span>{tab.count}</span>{/if}
-      </button>
-    {/each}
-  </nav>
+  <div class="utility-tabs">
+    <Tabs tabs={tabs} bind:value={activeTab} ariaLabel="Utility panel tabs" onValueChange={setTab} />
+  </div>
 
   <div class="utility-content">
     {#if activeTab === "history"}
       <header class="section-head">
-        <strong>Branch history</strong>
-        <div>
+        <div><GitBranch size={14} strokeWidth={2.2} /><strong>Branch history</strong></div>
+        <div class="row-actions">
           <Button size="sm" variant="ghost" onclick={onCompact} disabled={!activeSession}>Compact</Button>
           <Button size="sm" variant="ghost" onclick={() => onNavigateToEntry?.(undefined)} disabled={!activeSession}>Root</Button>
         </div>
@@ -123,16 +168,17 @@
         <p class="muted">No branch metadata loaded.</p>
       {/if}
     {:else if activeTab === "approvals"}
+      <header class="section-head"><div><ShieldAlert size={14} strokeWidth={2.2} /><strong>Approvals</strong></div><Badge tone={approvals.length ? "warn" : "neutral"}>{approvals.length}</Badge></header>
       {#if approvals.length}
         <div class="row-list">
           {#each approvals as approval}
-            <section class="utility-card">
+            <section class="utility-card approval-card">
               <strong>{approval.toolCall?.toolName ?? "tool call"}</strong>
               <span>{approval.reason}</span>
               {#if approval.toolCall}<code>{JSON.stringify(approval.toolCall.args, null, 2)}</code>{/if}
               <div class="row-actions">
-                <Button size="sm" onclick={() => onGrantApproval?.(approval.id)}>Approve</Button>
-                <Button size="sm" variant="secondary" onclick={() => onDenyApproval?.(approval.id)}>Deny</Button>
+                <Button size="sm" onclick={() => onGrantApproval?.(approval.id)}><CheckCircle2 size={12} strokeWidth={2.3} />Approve</Button>
+                <Button size="sm" variant="secondary" onclick={() => onDenyApproval?.(approval.id)}><XCircle size={12} strokeWidth={2.3} />Deny</Button>
               </div>
             </section>
           {/each}
@@ -141,74 +187,85 @@
         <p class="muted">No pending approvals.</p>
       {/if}
     {:else if activeTab === "processes"}
-      <header class="section-head"><strong>Processes</strong><Button size="sm" variant="ghost" onclick={onRefreshProcessLogs}>Refresh</Button></header>
-      <div class="row-list">
+      <header class="section-head">
+        <div><Terminal size={14} strokeWidth={2.2} /><strong>Processes</strong></div>
+        <Button size="sm" variant="ghost" onclick={onRefreshProcessLogs}><RefreshCw size={12} strokeWidth={2.2} />Refresh</Button>
+      </header>
+      <div class="row-list process-list">
         {#each processes as process}
-          <button class="utility-row" class:active={process.id === selectedProcess?.id} type="button" onclick={() => onSelectProcess?.(process.id)}>
+          <button class="utility-row process-row" class:active={process.id === selectedProcess?.id} type="button" onclick={() => onSelectProcess?.(process.id)}>
             <strong>{process.name ?? process.command}</strong>
-            <span>{process.status} · {process.id}</span>
+            <span>{process.id}</span>
+            <Badge tone={statusTone(process.status)}>{process.status}</Badge>
           </button>
         {/each}
       </div>
       {#if selectedProcess}
-        <section class="utility-card">
+        <section class="utility-card selected-process">
           <strong>{selectedProcess.name ?? selectedProcess.id}</strong>
           <span>{selectedProcess.command}</span>
           <span>{selectedProcess.cwd}</span>
           <div class="row-actions">
-            <Button size="sm" variant="secondary" onclick={() => onStopProcess?.(selectedProcess.id)}>Stop</Button>
-            <Button size="sm" onclick={() => onRestartProcess?.(selectedProcess.id)}>Restart</Button>
+            <Button size="sm" variant="secondary" onclick={() => onStopProcess?.(selectedProcess.id)}><Square size={12} />Stop</Button>
+            <Button size="sm" onclick={() => onRestartProcess?.(selectedProcess.id)}><RefreshCw size={12} />Restart</Button>
           </div>
         </section>
       {/if}
       {#if processLogs?.events.length}
         <div class="log-list">
-          {#each processLogs.events as log}<code class:error={log.level === "error"}>{log.seq} {log.line}</code>{/each}
+          {#each processLogs.events as log}<code class:error={log.level === "error"} class:warn={log.level === "warn"}>{log.seq} {log.line}</code>{/each}
         </div>
+      {:else}
+        <p class="muted">No log events selected.</p>
       {/if}
     {:else if activeTab === "settings"}
-      <header class="section-head"><strong>Settings</strong><Button size="sm" variant="ghost" onclick={onLoadSettings}>Refresh</Button></header>
+      <header class="section-head"><div><Settings2 size={14} strokeWidth={2.2} /><strong>Settings</strong></div><Button size="sm" variant="ghost" onclick={onLoadSettings}>Refresh</Button></header>
       {#if settingsDraft}
         <section class="utility-card form-card">
           <label>Default mode
-            <select bind:value={settingsDraft.defaultMode}>
-              <option value="planning">planning</option>
-              <option value="coding">coding</option>
-            </select>
+            <Select items={modeItems} value={settingsDraft.defaultMode} ariaLabel="Default mode" onValueChange={(value) => { if (settingsDraft) settingsDraft.defaultMode = value as Settings["defaultMode"]; }} />
           </label>
           <label>Default permission
-            <select bind:value={settingsDraft.defaultPermissionLevel}>
-              <option value="read_only">read only</option>
-              <option value="supervised">supervised</option>
-              <option value="autonomous">autonomous</option>
-            </select>
+            <Select items={permissionItems} value={settingsDraft.defaultPermissionLevel} ariaLabel="Default permission" onValueChange={(value) => { if (settingsDraft) settingsDraft.defaultPermissionLevel = value as Settings["defaultPermissionLevel"]; }} />
           </label>
-          <label><input type="checkbox" bind:checked={settingsDraft.compaction.auto} /> Auto-compact sessions</label>
+          <Switch bind:checked={settingsDraft.compaction.auto} label="Auto-compact sessions" description="Let the daemon compact long branches when thresholds are reached." />
+          <div class="number-grid">
+            <label>Threshold tokens<Input value={String(settingsDraft.compaction.thresholdTokens)} type="number" size="sm" ariaLabel="Compaction threshold tokens" oninput={(event) => updateNumber("thresholdTokens", (event.currentTarget as HTMLInputElement).value)} /></label>
+            <label>Keep recent<Input value={String(settingsDraft.compaction.keepRecentTokens)} type="number" size="sm" ariaLabel="Keep recent tokens" oninput={(event) => updateNumber("keepRecentTokens", (event.currentTarget as HTMLInputElement).value)} /></label>
+          </div>
           <Button size="sm" onclick={onSaveSettings}>Save settings</Button>
         </section>
       {/if}
 
-      <section class="utility-card form-card">
-        <strong>Configured providers</strong>
+      <section class="utility-card provider-card">
+        <div class="card-title"><KeyRound size={14} strokeWidth={2.2} /><strong>Provider access</strong></div>
         {#if authProviders.length === 0}
-          <p class="muted">No provider credentials configured.</p>
+          <p class="muted">No provider metadata available. Use <code>nerve auth list</code> in the CLI.</p>
         {:else}
-          {#each authProviders as provider}
-            <div class="provider-row">
-              <span>{provider.displayName}<small>{provider.provider} · {provider.credentialType ?? "configured"}</small></span>
-            </div>
-            {#if provider.warning}<p class="muted">{provider.warning}</p>{/if}
-          {/each}
+          <div class="provider-list">
+            {#each authProviders as provider}
+              <div class="provider-row">
+                <div>
+                  <strong>{provider.displayName}</strong>
+                  <small>{provider.provider}{provider.envVar ? ` · ${provider.envVar}` : ""}</small>
+                </div>
+                <Badge tone={provider.configured ? "good" : "neutral"}>{provider.configured ? provider.credentialType ?? "configured" : "not configured"}</Badge>
+                {#if provider.warning}<p>{provider.warning}</p>{/if}
+                <code>{provider.configured ? "nerve auth list" : providerCommand(provider)}</code>
+              </div>
+            {/each}
+          </div>
         {/if}
-        <p class="muted">Add or remove providers from the CLI: <code>nerve auth list</code></p>
+        <p class="muted">Credentials are managed from the CLI only. Raw secrets are never rendered in the browser.</p>
       </section>
 
-      {#if settingsMessage}<p class="muted">{settingsMessage}</p>{/if}
+      {#if settingsMessage}<p class="settings-message">{settingsMessage}</p>{/if}
     {:else if activeTab === "events"}
-      <div class="log-list">{#each eventItems as event}<code>{event}</code>{/each}</div>
+      <header class="section-head"><div><Activity size={14} strokeWidth={2.2} /><strong>Event stream</strong></div><Badge tone="neutral">{eventItems.length}</Badge></header>
+      <div class="log-list event-list">{#each eventItems as event}<code>{event}</code>{/each}</div>
     {:else}
       <section class="utility-card form-card">
-        <strong>Active</strong>
+        <div class="card-title"><Info size={14} strokeWidth={2.2} /><strong>Active context</strong></div>
         <dl>
           <dt>Project</dt><dd>{activeProject?.name ?? "—"}</dd>
           <dt>Session</dt><dd>{activeSession?.id ?? "—"}</dd>
@@ -218,7 +275,7 @@
         </dl>
       </section>
       <section class="utility-card form-card">
-        <strong>Session agents</strong>
+        <div class="card-title"><Bot size={14} strokeWidth={2.2} /><strong>Session agents</strong></div>
         {#each sessionAgents as agent}
           <button class="utility-row" type="button" onclick={() => onSelectAgent?.(agent)}>
             <strong>{agent.parentAgentId ? "child" : "root"} · {agent.status}</strong>
@@ -228,7 +285,7 @@
       </section>
       {#if activeSession}
         <section class="utility-card form-card">
-          <strong>Export</strong>
+          <div class="card-title"><FileText size={14} strokeWidth={2.2} /><strong>Export</strong></div>
           <div class="export-links">
             <a href={exportUrl?.("json")}>JSON</a>
             <a href={exportUrl?.("md")}>Markdown</a>
@@ -251,57 +308,47 @@
   }
 
   .utility-tabs {
-    display: flex;
-    gap: 0.15rem;
-    overflow-x: auto;
     border-bottom: 1px solid var(--color-border-subtle);
-    padding: 0.3rem;
-  }
-
-  .utility-tabs button {
-    flex: 0 0 auto;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--color-muted);
-    padding: 0.28rem 0.4rem;
-    font-size: 0.72rem;
-    cursor: pointer;
-  }
-
-  .utility-tabs button.active,
-  .utility-tabs button:hover {
-    background: var(--color-panel-raised);
-    color: var(--color-text);
-  }
-
-  .utility-tabs span {
-    margin-left: 0.25rem;
-    color: var(--color-accent);
+    background: var(--color-titlebar);
   }
 
   .utility-content {
+    display: grid;
+    align-content: start;
     min-height: 0;
+    gap: 0.45rem;
     overflow: auto;
-    padding: 0.45rem;
+    padding: 0.5rem;
   }
 
   .section-head,
   .row-actions,
-  .export-links {
+  .export-links,
+  .card-title {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 0.4rem;
   }
 
   .section-head {
-    margin-bottom: 0.45rem;
+    justify-content: space-between;
+    margin-bottom: 0.1rem;
+  }
+
+  .section-head div,
+  .card-title {
+    color: var(--color-text);
+  }
+
+  .section-head strong,
+  .card-title strong {
+    font-size: 0.78rem;
   }
 
   .row-list,
   .log-list,
-  .form-card {
+  .form-card,
+  .provider-list {
     display: grid;
     gap: 0.35rem;
   }
@@ -310,13 +357,14 @@
   .utility-card {
     display: grid;
     width: 100%;
-    gap: 0.2rem;
+    gap: 0.28rem;
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-sm);
     background: var(--color-field);
     color: var(--color-text);
-    padding: 0.45rem;
+    padding: 0.48rem;
     text-align: left;
+    box-shadow: var(--shadow-panel);
   }
 
   .utility-row {
@@ -325,7 +373,22 @@
 
   .utility-row:hover,
   .utility-row.active {
+    border-color: var(--color-border);
     background: var(--color-panel-raised);
+  }
+
+  .process-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .process-row > span {
+    grid-column: 1;
+  }
+
+  .process-row :global(.ui-badge) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 
   .utility-row span,
@@ -337,26 +400,36 @@
     font-size: 0.72rem;
   }
 
-  .provider-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: center;
-    gap: 0.35rem;
+  .provider-card {
+    gap: 0.5rem;
   }
 
-  .provider-row span,
-  small {
+  .provider-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-panel-muted);
+    padding: 0.42rem;
+  }
+
+  .provider-row div,
+  .provider-row small {
     display: grid;
     min-width: 0;
   }
 
-  select {
-    width: 100%;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-field);
-    color: var(--color-text);
-    padding: 0.35rem;
+  .provider-row p,
+  .provider-row code {
+    grid-column: 1 / -1;
+  }
+
+  .number-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
   }
 
   label {
@@ -382,10 +455,24 @@
     color: var(--color-danger);
   }
 
+  code.warn {
+    color: var(--color-warn);
+  }
+
   .muted code {
     display: inline;
     padding: 0.1rem 0.25rem;
     white-space: normal;
+  }
+
+  .settings-message {
+    margin: 0;
+    border: 1px solid var(--color-accent-soft);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+    padding: 0.42rem;
+    font-size: 0.74rem;
   }
 
   dl {
@@ -403,5 +490,9 @@
 
   a {
     color: var(--color-accent);
+  }
+
+  .event-list {
+    min-height: 0;
   }
 </style>

@@ -1,6 +1,11 @@
 <script lang="ts">
+  import Folder from "lucide-svelte/icons/folder";
+  import FolderOpen from "lucide-svelte/icons/folder-open";
+  import MoveUp from "lucide-svelte/icons/move-up";
   import Button from "../ui/Button.svelte";
+  import Dialog from "../ui/Dialog.svelte";
   import Input from "../ui/Input.svelte";
+  import Switch from "../ui/Switch.svelte";
   import { listDirectories, type FilesystemDirectoryResponse } from "../../api";
 
   type Props = {
@@ -32,9 +37,9 @@
     }
   }
 
-  function close() {
-    open = false;
-    onClose?.();
+  function handleOpenChange(next: boolean) {
+    open = next;
+    if (!next) onClose?.();
   }
 
   async function selectCurrent() {
@@ -53,27 +58,32 @@
   });
 </script>
 
-{#if open}
-  <div class="picker-backdrop" role="presentation" onclick={close}></div>
-  <div class="picker" role="dialog" aria-modal="true" aria-label="Open project directory">
-    <header class="picker-header">
-      <div>
-        <strong>Open project</strong>
-        <span>Select a directory before starting an agent conversation.</span>
-      </div>
-      <Button variant="ghost" size="sm" onclick={close}>Close</Button>
-    </header>
-
+<Dialog
+  bind:open
+  title="Open project"
+  description="Select a local directory before starting an agent conversation."
+  class="project-picker-dialog"
+  onOpenChange={handleOpenChange}
+>
+  <div class="picker-body">
     <form class="path-row" onsubmit={(event) => { event.preventDefault(); void load(pathDraft); }}>
-      <Button type="button" variant="secondary" size="sm" disabled={!listing?.parent || loading} onclick={() => void load(listing?.parent)}>Up</Button>
-      <Input bind:value={pathDraft} placeholder="/path/to/project" disabled={loading} />
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        disabled={!listing?.parent || loading}
+        title="Go to parent directory"
+        onclick={() => void load(listing?.parent)}
+      >
+        <MoveUp size={13} strokeWidth={2.2} />Up
+      </Button>
+      <Input bind:value={pathDraft} placeholder="/path/to/project" disabled={loading} ariaLabel="Project directory path" />
       <Button size="sm" disabled={loading}>Go</Button>
     </form>
 
-    <label class="hidden-toggle">
-      <input type="checkbox" bind:checked={showHidden} />
-      show hidden directories
-    </label>
+    <div class="picker-options">
+      <Switch bind:checked={showHidden} label="Show hidden directories" description="Include dot-prefixed folders in this directory list." />
+    </div>
 
     {#if error}<p class="picker-error">{error}</p>{/if}
 
@@ -81,87 +91,58 @@
       {#if loading}
         <p class="muted">Loading directories…</p>
       {:else if listing?.entries.length}
-        {#each listing.entries as entry}
-          <button class="directory-row" type="button" onclick={() => void load(entry.path)}>
-            <span>{entry.name}</span>
-            <small>{entry.path}</small>
-          </button>
-        {/each}
+        <div class="directory-table" role="list" aria-label="Child directories">
+          {#each listing.entries as entry}
+            <button class="directory-row" type="button" onclick={() => void load(entry.path)} title={entry.path}>
+              <Folder size={15} strokeWidth={2.1} aria-hidden="true" />
+              <span>{entry.name}</span>
+              <small>{entry.path}</small>
+            </button>
+          {/each}
+        </div>
       {:else}
-        <p class="muted">No child directories.</p>
+        <div class="empty-directory">
+          <FolderOpen size={28} strokeWidth={1.8} />
+          <p>No child directories.</p>
+          <span>You can still open the current path.</span>
+        </div>
       {/if}
     </div>
-
-    <footer class="picker-footer">
-      <span>{listing?.path ?? "—"}</span>
-      <Button size="sm" disabled={!listing?.path || loading} onclick={selectCurrent}>Open here</Button>
-    </footer>
   </div>
-{/if}
+
+  {#snippet footer()}
+    <span class="current-path" title={listing?.path}>{listing?.path ?? "—"}</span>
+    <Button size="sm" disabled={!listing?.path || loading} onclick={selectCurrent}>Open here</Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .picker-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 30;
-    background: rgb(0 0 0 / 44%);
+  :global(.project-picker-dialog) {
+    width: min(780px, calc(100vw - 32px));
   }
 
-  .picker {
-    position: fixed;
-    z-index: 31;
-    top: 9vh;
-    left: 50%;
+  .picker-body {
     display: grid;
-    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
-    width: min(760px, calc(100vw - 32px));
-    max-height: 78vh;
-    transform: translateX(-50%);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    background: var(--color-panel);
-    color: var(--color-text);
+    min-height: 0;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
   }
 
-  .picker-header,
-  .picker-footer,
-  .path-row {
+  .path-row,
+  .picker-options {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.55rem 0.65rem;
     border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .picker-header {
-    justify-content: space-between;
-  }
-
-  .picker-header div {
-    display: grid;
-    gap: 0.1rem;
-  }
-
-  .picker-header span,
-  .picker-footer span,
-  .muted,
-  .directory-row small {
-    color: var(--color-muted);
-    font-size: 0.75rem;
+    padding: 0.55rem 0.65rem;
   }
 
   .path-row :global(.ui-input) {
     min-width: 0;
   }
 
-  .hidden-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.65rem;
-    color: var(--color-muted);
-    font-size: 0.78rem;
-    border-bottom: 1px solid var(--color-border-subtle);
+  .picker-options {
+    justify-content: space-between;
+    background: var(--color-panel-muted);
   }
 
   .picker-error {
@@ -173,16 +154,23 @@
   }
 
   .directory-list {
-    min-height: 18rem;
+    min-height: 19rem;
     overflow: auto;
     padding: 0.35rem;
   }
 
+  .directory-table {
+    display: grid;
+    gap: 0.12rem;
+  }
+
   .directory-row {
     display: grid;
+    grid-template-columns: auto minmax(8rem, 0.7fr) minmax(0, 1.3fr);
+    align-items: center;
     width: 100%;
-    gap: 0.15rem;
-    border: 0;
+    gap: 0.5rem;
+    border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text);
@@ -191,13 +179,58 @@
     cursor: pointer;
   }
 
-  .directory-row:hover {
+  .directory-row:hover,
+  .directory-row:focus-visible {
+    border-color: var(--color-border-subtle);
     background: var(--color-panel-raised);
   }
 
-  .picker-footer {
-    justify-content: space-between;
-    border-top: 1px solid var(--color-border-subtle);
-    border-bottom: 0;
+  .directory-row :global(svg) {
+    color: var(--color-accent);
+  }
+
+  .directory-row span,
+  .directory-row small,
+  .current-path {
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .directory-row small,
+  .current-path,
+  .muted,
+  .empty-directory span {
+    color: var(--color-muted);
+    font-size: 0.75rem;
+  }
+
+  .empty-directory {
+    display: grid;
+    place-items: center;
+    min-height: 14rem;
+    color: var(--color-muted);
+    text-align: center;
+  }
+
+  .empty-directory p {
+    margin: 0.5rem 0 0.1rem;
+    color: var(--color-text);
+  }
+
+  .current-path {
+    margin-right: auto;
+    max-width: min(34rem, 60vw);
+  }
+
+  @media (max-width: 680px) {
+    .directory-row {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .directory-row small {
+      grid-column: 2;
+    }
   }
 </style>

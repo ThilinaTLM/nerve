@@ -285,6 +285,32 @@ async function promptOAuthValue(flow: OAuthFlowInfo): Promise<string> {
   }
 }
 
+async function getOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
+  return (
+    await apiGet<{ flow: OAuthFlowInfo }>(
+      `/api/auth/oauth/flows/${encodeURIComponent(flowId)}`,
+    )
+  ).flow;
+}
+
+async function waitForOAuthFlowAdvance(
+  previous: OAuthFlowInfo,
+): Promise<OAuthFlowInfo> {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    await delay(attempt === 0 ? 100 : 500);
+    const next = await getOAuthFlow(previous.flowId);
+    if (
+      next.status !== previous.status ||
+      next.promptId !== previous.promptId ||
+      next.updatedAt !== previous.updatedAt ||
+      isTerminalOAuthFlow(next)
+    ) {
+      return next;
+    }
+  }
+  throw new Error("OAuth flow did not advance after submitting a response.");
+}
+
 async function driveOAuthFlow(initialFlow: OAuthFlowInfo): Promise<void> {
   let flow = initialFlow;
   const printed = new Set<string>();
@@ -324,32 +350,33 @@ async function driveOAuthFlow(initialFlow: OAuthFlowInfo): Promise<void> {
       );
     } else if (flow.status === "select" && flow.promptId) {
       const selectedId = await chooseOAuthOption(flow);
-      flow = (
-        await apiPost<{ flow: OAuthFlowInfo }>(
-          `/api/auth/oauth/flows/${encodeURIComponent(flow.flowId)}/respond`,
-          { promptId: flow.promptId, selectedId },
-        )
-      ).flow;
+      await apiPost<{ flow: OAuthFlowInfo }>(
+        `/api/auth/oauth/flows/${encodeURIComponent(flow.flowId)}/respond`,
+        { promptId: flow.promptId, selectedId },
+      );
+      flow = await waitForOAuthFlowAdvance(flow);
       continue;
     } else if (flow.status === "prompt" && flow.promptId) {
+      printOnce(
+        `prompt-auth:${flow.authUrl ?? ""}:${flow.instructions ?? ""}`,
+        () => {
+          if (flow.authUrl) console.log(`Open: ${flow.authUrl}`);
+          if (flow.instructions) console.log(flow.instructions);
+        },
+      );
       const value = await promptOAuthValue(flow);
-      flow = (
-        await apiPost<{ flow: OAuthFlowInfo }>(
-          `/api/auth/oauth/flows/${encodeURIComponent(flow.flowId)}/respond`,
-          { promptId: flow.promptId, value },
-        )
-      ).flow;
+      await apiPost<{ flow: OAuthFlowInfo }>(
+        `/api/auth/oauth/flows/${encodeURIComponent(flow.flowId)}/respond`,
+        { promptId: flow.promptId, value },
+      );
+      flow = await waitForOAuthFlowAdvance(flow);
       continue;
     } else if (flow.status === "progress" && flow.message) {
       printOnce(`progress:${flow.message}`, () => console.log(flow.message));
     }
 
     if (!isTerminalOAuthFlow(flow)) await delay(1000);
-    flow = (
-      await apiGet<{ flow: OAuthFlowInfo }>(
-        `/api/auth/oauth/flows/${encodeURIComponent(flow.flowId)}`,
-      )
-    ).flow;
+    flow = await getOAuthFlow(flow.flowId);
   }
 }
 

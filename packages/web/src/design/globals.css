@@ -15,20 +15,42 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
 button {
   color: inherit;
+}
+
+:where(
+    button,
+    input,
+    textarea,
+    select,
+    a,
+    [role="button"],
+    [tabindex]
+  ):focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 code,
@@ -55,4 +77,46 @@ pre {
   border-radius: 999px;
   background: var(--color-border);
   background-clip: padding-box;
+}
+
+[data-pane-group] {
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-pane] {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+[data-pane-resizer] {
+  position: relative;
+  flex: 0 0 1px;
+  background: var(--color-resizer);
+  outline: none;
+}
+
+[data-pane-resizer]::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0 -4px;
+}
+
+[data-pane-resizer]:hover,
+[data-pane-resizer]:focus-visible,
+[data-pane-resizer][data-active] {
+  background: var(--color-resizer-active);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
 }
