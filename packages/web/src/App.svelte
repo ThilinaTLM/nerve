@@ -123,6 +123,18 @@
     return modelList.filter((model) => model.faux || configuredProviders.has(model.provider));
   }
 
+  function isTerminalOAuthFlow(flow: OAuthFlowInfo): boolean {
+    return ["succeeded", "failed", "cancelled"].includes(flow.status);
+  }
+
+  function shouldShowOAuthFlow(current: OAuthFlowInfo | undefined, incoming: OAuthFlowInfo): boolean {
+    if (status && Date.parse(incoming.createdAt) < Date.parse(status.startedAt)) return false;
+    if (!current || current.flowId === incoming.flowId) return true;
+    if (isTerminalOAuthFlow(incoming)) return false;
+    if (isTerminalOAuthFlow(current)) return true;
+    return Date.parse(incoming.createdAt) >= Date.parse(current.createdAt);
+  }
+
   function selectAgent(agent: AgentRecord) {
     selection.agentId = agent.id;
     selection.projectId = agent.projectId;
@@ -548,7 +560,7 @@
       if (event.type.startsWith("settings.") || event.type.startsWith("secrets.") || event.type.startsWith("auth.")) void loadSettingsPanel();
       if (event.type === "auth.oauth_flow_updated") {
         const flow = (event.data as { flow?: OAuthFlowInfo }).flow;
-        if (flow && (!activeOAuthFlow || flow.flowId === activeOAuthFlow.flowId)) activeOAuthFlow = flow;
+        if (flow && shouldShowOAuthFlow(activeOAuthFlow, flow)) activeOAuthFlow = flow;
       }
     }
   }

@@ -154,6 +154,13 @@ export class OAuthFlowManager {
     await this.update(flow, {
       status: "cancelled",
       message: "Login cancelled.",
+      promptId: undefined,
+      options: undefined,
+      authUrl: undefined,
+      instructions: undefined,
+      deviceCode: undefined,
+      placeholder: undefined,
+      allowEmpty: undefined,
     });
     this.release(flow);
     return flow.info;
@@ -296,6 +303,13 @@ export class OAuthFlowManager {
       status: "failed",
       error: message,
       message: `Login failed: ${message}`,
+      promptId: undefined,
+      options: undefined,
+      authUrl: undefined,
+      instructions: undefined,
+      deviceCode: undefined,
+      placeholder: undefined,
+      allowEmpty: undefined,
     });
     await this.events.publish("auth.oauth_login_failed", {
       provider: flow.provider.id,

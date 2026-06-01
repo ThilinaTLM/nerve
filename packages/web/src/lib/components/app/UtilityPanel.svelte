@@ -117,6 +117,10 @@
     activeTab = tab;
     onTabChange?.(tab);
   }
+
+  function isTerminalOAuthFlow(flow: OAuthFlowInfo): boolean {
+    return ["succeeded", "failed", "cancelled"].includes(flow.status);
+  }
 </script>
 
 <aside class="utility-panel">
@@ -245,13 +249,13 @@
           {#if activeOAuthFlow.status === "select" && activeOAuthFlow.options}
             {#each activeOAuthFlow.options as option}<Button size="sm" variant="secondary" onclick={() => onRespondOAuthSelection?.(option.id)}>{option.label}</Button>{/each}
           {/if}
-          {#if activeOAuthFlow.authUrl}<a href={activeOAuthFlow.authUrl} target="_blank" rel="noreferrer">Open login URL</a>{/if}
-          {#if activeOAuthFlow.deviceCode}<code>{activeOAuthFlow.deviceCode.userCode}</code>{/if}
-          {#if activeOAuthFlow.promptId}
+          {#if !isTerminalOAuthFlow(activeOAuthFlow) && activeOAuthFlow.authUrl}<a href={activeOAuthFlow.authUrl} target="_blank" rel="noreferrer">Open login URL</a>{/if}
+          {#if !isTerminalOAuthFlow(activeOAuthFlow) && activeOAuthFlow.deviceCode}<code>{activeOAuthFlow.deviceCode.userCode}</code>{/if}
+          {#if !isTerminalOAuthFlow(activeOAuthFlow) && activeOAuthFlow.promptId}
             <Input bind:value={oauthResponseDraft[activeOAuthFlow.promptId]} placeholder={activeOAuthFlow.placeholder ?? "response"} />
             <Button size="sm" onclick={onRespondOAuthPrompt}>Submit</Button>
           {/if}
-          <div class="row-actions"><Button size="sm" variant="secondary" onclick={onRefreshOAuthFlow}>Refresh</Button><Button size="sm" variant="secondary" onclick={onCancelOAuthLogin}>Cancel</Button></div>
+          <div class="row-actions"><Button size="sm" variant="secondary" onclick={onRefreshOAuthFlow}>Refresh</Button>{#if !isTerminalOAuthFlow(activeOAuthFlow)}<Button size="sm" variant="secondary" onclick={onCancelOAuthLogin}>Cancel</Button>{/if}</div>
         </section>
       {/if}
 
