@@ -1,6 +1,5 @@
 - Keep changes scoped to `nerve`; read `../pi` and `../pi-toolbelt` only as references unless explicitly asked to modify them.
-- Treat `docs/prd/` as the source of truth; update the relevant PRD before changing architecture, protocols, storage, permissions, or policy semantics.
-- This is an early foundation project: prefer clean direct designs over compatibility shims or premature plugin/extension systems.
+- This is an early foundation project: prefer clean direct designs over compatibility shims.
 - Keep shared API, event, policy, and storage schemas in `packages/shared`; keep protocol types transport-neutral.
 - Keep secrets and dangerous capabilities in the orchestrator/tool layer, never in frontend code.
 - Use file-first storage under `~/.nerve`; SQLite is only a rebuildable index/cache.

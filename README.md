@@ -40,16 +40,6 @@ API clients ───┘        ├── agent process: project A
 
 The orchestrator owns sessions, tools, auth, process management, permissions, approvals, and agent lifecycle. Agent processes use `@earendil-works/pi-ai` for provider access.
 
-See:
-
-- [Docs Index](docs/README.md)
-- [Architecture](docs/prd/architecture.md)
-- [Tech Stack](docs/prd/tech-stack.md)
-- [API Protocol](docs/prd/api-protocol.md)
-- [Modes and Permissions](docs/prd/modes-permissions.md)
-- [Storage Model](docs/prd/storage.md)
-- [Decisions](docs/prd/decisions.md)
-
 ## Non-goals for the first version
 
 - no Pi extension SDK
