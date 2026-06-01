@@ -79,6 +79,20 @@
   const branchDepth = $derived(treeNodes.length);
   const pendingApprovalCount = $derived(approvals.length);
   const selectedProcess = $derived(processes.find((process) => process.id === selectedProcessId));
+  const sessionAgents = $derived(
+    agents.filter((agent) => agent.sessionId === selection.sessionId),
+  );
+
+  function agentLabel(agent: AgentRecord): string {
+    return agent.parentAgentId ? "child" : "root";
+  }
+
+  function selectAgent(agent: AgentRecord) {
+    selection.agentId = agent.id;
+    selection.projectId = agent.projectId;
+    selection.sessionId = agent.sessionId;
+    layout.inspectorTab = "session";
+  }
 
   function entriesToTranscript(entries: SessionEntry[]): TranscriptItem[] {
     return entries
@@ -283,6 +297,8 @@
     if (
       event.type === "session.created" ||
       event.type === "agent.created" ||
+      event.type === "agent.status_changed" ||
+      event.type.startsWith("agent.subagent_") ||
       event.type === "project.created" ||
       event.type.startsWith("approval.") ||
       event.type.startsWith("agent.tool_call") ||
@@ -512,6 +528,29 @@
                 <dt>Session</dt><dd>{selection.sessionId ?? "not started"}</dd>
                 <dt>Agent</dt><dd>{selection.agentId ?? "not started"}</dd>
               </dl>
+            </Card>
+            <Card tone="muted" class="detail-card">
+              <h3>Agent tree</h3>
+              {#if sessionAgents.length > 0}
+                <div class="agent-tree">
+                  {#each sessionAgents as agent}
+                    <button
+                      class="agent-node"
+                      class:active={agent.id === selection.agentId}
+                      style={`--agent-depth: ${agent.budget.depth}`}
+                      type="button"
+                      onclick={() => selectAgent(agent)}
+                    >
+                      <strong>{agentLabel(agent)} · {agent.status}</strong>
+                      <span>{agent.mode} / {agent.permissionLevel}</span>
+                      <small>{agent.id}</small>
+                      {#if agent.parentAgentId}<em>parent {agent.parentAgentId}</em>{/if}
+                    </button>
+                  {/each}
+                </div>
+              {:else}
+                <p class="muted">No agents in this session yet.</p>
+              {/if}
             </Card>
           </Tabs.Content>
 
@@ -838,13 +877,15 @@
 
   .session-list,
   .branch-list,
+  .agent-tree,
   .event-list {
     display: grid;
     gap: 0.65rem;
   }
 
   .session-card,
-  .branch-node {
+  .branch-node,
+  .agent-node {
     display: grid;
     width: 100%;
     gap: 0.28rem;
@@ -857,10 +898,17 @@
     cursor: pointer;
   }
 
+  .agent-node {
+    margin-left: calc(var(--agent-depth, 0) * 0.8rem);
+    width: calc(100% - (var(--agent-depth, 0) * 0.8rem));
+  }
+
   .session-card:hover,
   .branch-node:hover,
+  .agent-node:hover,
   .session-card.active,
-  .branch-node.active {
+  .branch-node.active,
+  .agent-node.active {
     border-color: var(--color-accent);
     background: var(--color-accent-soft);
   }
@@ -868,12 +916,17 @@
   .session-card small,
   .session-card em,
   .branch-node span,
+  .agent-node span,
+  .agent-node small,
+  .agent-node em,
   .muted {
     color: var(--color-muted);
   }
 
   .session-card small,
   .branch-node span,
+  .agent-node small,
+  .agent-node em,
   dd,
   code {
     overflow-wrap: anywhere;

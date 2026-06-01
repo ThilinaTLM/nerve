@@ -175,6 +175,7 @@ agents/<agent-id>/
 - mode
 - permission level
 - workspace scope
+- child-agent budget (`depth`, `maxDepth`, `maxRuns`, `usedRuns`)
 - model config
 - status
 

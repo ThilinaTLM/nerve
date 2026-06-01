@@ -122,7 +122,7 @@ Examples:
 - `network`: web fetch, API calls, package downloads
 - `secret`: credential/API-key access
 - `destructive`: deletes, resets, force operations
-- `agent_spawn`: create child agent
+- `agent_spawn`: create or run a child agent (`subagent_run`)
 - `deployment`: deploy, push, publish, production mutation
 
 ## Shell command policy
@@ -177,10 +177,13 @@ permissionLevel: read_only
 
 Rules:
 
+- default `subagent_run` children are planning + read-only and may be allowed even for read-only research parents when they stay within parent authority
 - child authority cannot exceed parent authority without explicit user approval
-- parent cancellation should cancel children
-- children have their own event streams and sessions
-- parent receives a summarized final result
+- child workspace scope cannot exceed parent workspace scope
+- parent budget limits child depth and child-run count
+- parent cancellation should cancel children recursively
+- children have their own event streams and are visible as normal agents in the session's agent tree
+- parent receives a summarized final result through the tool result
 - UI can inspect the full child history
 
 ## Policy error behavior

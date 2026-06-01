@@ -271,6 +271,12 @@ interface CreateAgentRequest {
     roots: string[];
     readonly?: boolean;
   };
+  budget?: {
+    depth?: number;
+    maxDepth?: number;
+    maxRuns?: number;
+    usedRuns?: number;
+  };
   model?: {
     provider: string;
     modelId: string;
@@ -325,11 +331,13 @@ POST /api/thinking-level
 ### Tool calls and approvals
 
 ```txt
+GET  /api/tools
 GET  /api/tool-calls
 GET  /api/tool-calls/:toolCallId
+POST /api/agents/:agentId/tools
 GET  /api/approvals
 GET  /api/approvals/:approvalId
-POST /api/approvals/:approvalId/approve
+POST /api/approvals/:approvalId/grant
 POST /api/approvals/:approvalId/deny
 ```
 
@@ -402,34 +410,50 @@ Log query responses include structured stdout/stderr events with `seq`, `ts`, `s
 
 ### Child agents / sub-agents
 
-Sub-agents are normal agents with `parentAgentId`. This endpoint is a convenience wrapper for child creation.
+Sub-agents are normal agents with `parentAgentId` and `rootAgentId`. The first implementation exposes child delegation through the tool-call API with `toolName: "subagent_run"`; direct `POST /api/agents` with `parentAgentId` can also create a child when it stays within parent authority.
 
 ```txt
-POST /api/agents/:agentId/children
-GET  /api/agents/:agentId/children
+POST /api/agents/:agentId/tools
 ```
 
-Create child body:
+Tool body:
 
 ```ts
-interface CreateChildAgentRequest {
+interface SubagentRunArgs {
   task: string;
   mode?: Mode; // default: planning
   permissionLevel?: PermissionLevel; // default: read_only
-  files?: string[];
-  workspaceScope?: {
-    roots: string[];
-    readonly?: boolean;
-  };
-  budget?: {
-    maxTurns?: number;
-    maxToolCalls?: number;
-    maxTokens?: number;
-  };
+  workspaceRoots?: string[]; // must remain inside parent workspace scope
 }
 ```
 
-Rule: child authority cannot exceed parent authority unless approved by the user.
+Result:
+
+```ts
+interface SubagentRunResult {
+  agent: AgentRecord;
+  summary: string;
+}
+```
+
+Agent budget metadata:
+
+```ts
+interface AgentBudget {
+  depth: number;
+  maxDepth: number;
+  maxRuns: number;
+  usedRuns: number;
+}
+```
+
+Rules:
+
+- default child mode is `planning` and default permission is `read_only`
+- child authority cannot exceed parent authority unless the `subagent_run` tool call is approved by the user
+- child workspace roots cannot exceed parent workspace scope
+- parent budget enforces child depth and child run count
+- aborting a parent propagates abort requests to descendants
 
 ### Events
 
@@ -451,9 +475,10 @@ WebSocket messages carry the `EventEnvelope` shape described above. The followin
 
 ```ts
 type AgentEvent =
-  | { type: "agent.started"; agentId: string; sessionId: string; parentAgentId?: string }
-  | { type: "agent.completed"; agentId: string; summary?: string }
-  | { type: "agent.failed"; agentId: string; error: string }
+  | { type: "agent.started"; agentId: string; runId: string }
+  | { type: "agent.status_changed"; agentId: string; status: string }
+  | { type: "agent.message_complete"; agentId: string; runId: string; sessionId: string; entry: unknown }
+  | { type: "agent.error"; agentId: string; runId: string; message: string; aborted?: boolean }
   | { type: "agent.cancelled"; agentId: string }
   | { type: "agent.mode_changed"; agentId: string; mode: Mode }
   | { type: "agent.permission_changed"; agentId: string; permissionLevel: PermissionLevel }
@@ -550,9 +575,8 @@ type ProcessEvent =
 
 ```ts
 type ChildAgentEvent =
-  | { type: "agent.spawn_requested"; parentAgentId: string; task: string }
-  | { type: "agent.spawned"; parentAgentId: string; childAgentId: string; sessionId: string }
-  | { type: "agent.child_summary"; parentAgentId: string; childAgentId: string; summary: string };
+  | { type: "agent.subagent_started"; parentAgentId: string; childAgentId: string; task: string }
+  | { type: "agent.subagent_completed"; parentAgentId: string; childAgentId: string; summary: string };
 ```
 
 ## Event replay

@@ -1,4 +1,4 @@
-import { basename, join, resolve } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import {
   JsonlSessionStorage,
@@ -12,8 +12,10 @@ import {
   type CreateProjectRequest,
   type CreateSessionRequest,
   createId,
+  type Mode,
   type ModelInfo,
   type NavigateSessionRequest,
+  type PermissionLevel,
   type ProcessLogQuery,
   type ProjectRecord,
   type PromptRequest,
@@ -64,7 +66,14 @@ export class RuntimeRegistry {
     private readonly index: IndexStore,
   ) {
     this.processes = new ProcessManager(storage, events, index);
-    this.tools = new ToolService(storage, events, index, this.processes);
+    this.tools = new ToolService(
+      storage,
+      events,
+      index,
+      this.processes,
+      (agentId) => this.getAgent(agentId),
+      (parent, args) => this.runSubagent(parent, args),
+    );
   }
 
   async hydrate(): Promise<void> {
@@ -157,7 +166,10 @@ export class RuntimeRegistry {
     return session;
   }
 
-  async createAgent(request: CreateAgentRequest): Promise<AgentRecord> {
+  async createAgent(
+    request: CreateAgentRequest,
+    options: { allowChildAuthorityExceed?: boolean } = {},
+  ): Promise<AgentRecord> {
     const session = this.sessions.get(request.sessionId);
     if (!session)
       throw new HttpError(404, "SESSION_NOT_FOUND", "Session not found.");
@@ -177,6 +189,23 @@ export class RuntimeRegistry {
     const now = new Date().toISOString();
     const id = createId("agent");
     const projectDir = resolve(request.projectDir ?? project.dir);
+    const mode =
+      request.mode ??
+      (parent ? this.storage.settings.defaultSubagentMode : session.mode);
+    const permissionLevel =
+      request.permissionLevel ??
+      (parent
+        ? this.storage.settings.defaultSubagentPermissionLevel
+        : session.permissionLevel);
+    if (parent) {
+      this.assertChildAuthority(
+        parent,
+        mode,
+        permissionLevel,
+        Boolean(options.allowChildAuthorityExceed),
+      );
+      await this.reserveChildRun(parent);
+    }
     const agent: AgentRecord = {
       id,
       sessionId: session.id,
@@ -184,9 +213,10 @@ export class RuntimeRegistry {
       projectDir,
       parentAgentId: request.parentAgentId,
       rootAgentId: parent?.rootAgentId ?? id,
-      mode: request.mode ?? session.mode,
-      permissionLevel: request.permissionLevel ?? session.permissionLevel,
+      mode,
+      permissionLevel,
       workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
+      budget: this.agentBudget(parent, request.budget),
       model: request.model,
       status: "idle",
       createdAt: now,
@@ -214,6 +244,71 @@ export class RuntimeRegistry {
     const agent = this.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
     return agent;
+  }
+
+  private agentBudget(
+    parent: AgentRecord | undefined,
+    request: CreateAgentRequest["budget"],
+  ): AgentRecord["budget"] {
+    if (!parent) {
+      return {
+        depth: request?.depth ?? 0,
+        maxDepth: request?.maxDepth ?? 3,
+        maxRuns: request?.maxRuns ?? 8,
+        usedRuns: request?.usedRuns ?? 0,
+      };
+    }
+    return {
+      depth: parent.budget.depth + 1,
+      maxDepth: request?.maxDepth ?? parent.budget.maxDepth,
+      maxRuns: request?.maxRuns ?? Math.max(1, parent.budget.maxRuns),
+      usedRuns: request?.usedRuns ?? 0,
+    };
+  }
+
+  private assertChildAuthority(
+    parent: AgentRecord,
+    mode: Mode,
+    permissionLevel: PermissionLevel,
+    allowAuthorityExceed: boolean,
+  ): void {
+    if (parent.budget.depth >= parent.budget.maxDepth) {
+      throw new HttpError(
+        403,
+        "SUBAGENT_DEPTH_LIMIT",
+        `Child-agent depth limit reached (${parent.budget.depth}/${parent.budget.maxDepth}).`,
+      );
+    }
+    if (parent.budget.usedRuns >= parent.budget.maxRuns) {
+      throw new HttpError(
+        403,
+        "SUBAGENT_BUDGET_EXHAUSTED",
+        `Child-agent run budget exhausted (${parent.budget.usedRuns}/${parent.budget.maxRuns}).`,
+      );
+    }
+    const exceeds =
+      modeRank(mode) > modeRank(parent.mode) ||
+      permissionRank(permissionLevel) > permissionRank(parent.permissionLevel);
+    if (exceeds && !allowAuthorityExceed) {
+      throw new HttpError(
+        403,
+        "SUBAGENT_AUTHORITY_EXCEEDED",
+        "Child agent authority cannot exceed parent authority without an approved subagent_run tool call.",
+      );
+    }
+  }
+
+  private async reserveChildRun(parent: AgentRecord): Promise<void> {
+    const latest = this.getAgent(parent.id);
+    const updated: AgentRecord = {
+      ...latest,
+      budget: {
+        ...latest.budget,
+        usedRuns: latest.budget.usedRuns + 1,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    await this.updateAgent(updated);
   }
 
   getSessionEntries(sessionId: string): SessionEntry[] {
@@ -283,6 +378,63 @@ export class RuntimeRegistry {
     return this.tools.requestTool(this.getAgent(agentId), toolName, args);
   }
 
+  private async runSubagent(
+    parent: AgentRecord,
+    args: Record<string, unknown>,
+  ): Promise<{ agent: AgentRecord; summary: string }> {
+    const task = stringArg(args, "task");
+    const mode =
+      modeArg(args.mode) ?? this.storage.settings.defaultSubagentMode;
+    const permissionLevel =
+      permissionArg(args.permissionLevel) ??
+      this.storage.settings.defaultSubagentPermissionLevel;
+    const requestedWorkspaceScope = workspaceScopeArg(args.workspaceRoots);
+    const child = await this.createAgent(
+      {
+        sessionId: parent.sessionId,
+        projectId: parent.projectId,
+        projectDir: parent.projectDir,
+        parentAgentId: parent.id,
+        task,
+        mode,
+        permissionLevel,
+        workspaceScope: requestedWorkspaceScope
+          ? boundedWorkspaceScope(parent, requestedWorkspaceScope)
+          : parent.workspaceScope,
+        model: parent.model,
+      },
+      { allowChildAuthorityExceed: true },
+    );
+    await this.events.publish("agent.subagent_started", {
+      parentAgentId: parent.id,
+      childAgentId: child.id,
+      task,
+    });
+    try {
+      const childEntry = await this.runAgentPrompt(child, {
+        text: [
+          "You are a child research/review agent.",
+          "Complete the delegated task, then respond with a concise summary and any key evidence.",
+          "Do not modify files unless your granted mode and permission explicitly allow it.",
+          "",
+          task,
+        ].join("\n"),
+      });
+      await this.events.publish("agent.subagent_completed", {
+        parentAgentId: parent.id,
+        childAgentId: child.id,
+        summary: childEntry.text,
+      });
+      return { agent: child, summary: childEntry.text };
+    } finally {
+      await this.updateSession({
+        ...this.getSession(parent.sessionId),
+        activeAgentId: parent.id,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
   async grantApproval(approvalId: string, note?: string) {
     try {
       return await this.tools.grantApproval(approvalId, note);
@@ -346,7 +498,32 @@ export class RuntimeRegistry {
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    if (this.runs.has(agentId) && request.behavior !== "follow-up") {
+    if (this.runs.has(agent.id) && request.behavior !== "follow-up") {
+      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+    }
+    void this.runAgentPrompt(agent, request).catch(() => undefined);
+  }
+
+  async abortAgent(agentId: string): Promise<void> {
+    const agent = this.agents.get(agentId);
+    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    for (const child of this.agents.values()) {
+      if (child.parentAgentId === agent.id) await this.abortAgent(child.id);
+    }
+    const run = this.runs.get(agentId);
+    if (!run) return;
+    run.abort();
+    await this.events.publish("agent.abort_requested", {
+      agentId,
+      runId: run.runId,
+    });
+  }
+
+  private async runAgentPrompt(
+    agent: AgentRecord,
+    request: PromptRequest,
+  ): Promise<SessionEntry> {
+    if (this.runs.has(agent.id) && request.behavior !== "follow-up") {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
 
@@ -357,11 +534,11 @@ export class RuntimeRegistry {
       text: request.text,
     });
     await this.events.publish("agent.prompt_received", {
-      agentId,
+      agentId: agent.id,
       entry: userEntry,
     });
 
-    const previousMessages = this.conversations.get(agentId) ?? [];
+    const previousMessages = this.conversations.get(agent.id) ?? [];
     const messages: Message[] = [
       ...previousMessages,
       { role: "user", content: request.text, timestamp: Date.now() },
@@ -376,11 +553,14 @@ export class RuntimeRegistry {
       },
       {
         onStarted: async () => {
-          await this.events.publish("agent.started", { agentId, runId });
+          await this.events.publish("agent.started", {
+            agentId: agent.id,
+            runId,
+          });
         },
         onTextDelta: async (delta) => {
           await this.events.publish("agent.message_delta", {
-            agentId,
+            agentId: agent.id,
             runId,
             sessionId: agent.sessionId,
             delta,
@@ -388,22 +568,10 @@ export class RuntimeRegistry {
         },
       },
     );
-    this.runs.set(agentId, { runId, abort: run.abort, messages });
+    this.runs.set(agent.id, { runId, abort: run.abort, messages });
     await this.setAgentStatus(agent, "running");
 
-    void this.finishAgentRun(agent.id, runId, messages, run.result);
-  }
-
-  async abortAgent(agentId: string): Promise<void> {
-    const agent = this.agents.get(agentId);
-    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    const run = this.runs.get(agentId);
-    if (!run) return;
-    run.abort();
-    await this.events.publish("agent.abort_requested", {
-      agentId,
-      runId: run.runId,
-    });
+    return this.finishAgentRun(agent.id, runId, messages, run.result);
   }
 
   private async finishAgentRun(
@@ -411,9 +579,9 @@ export class RuntimeRegistry {
     runId: string,
     messages: Message[],
     result: Promise<{ text: string; message?: Message }>,
-  ): Promise<void> {
+  ): Promise<SessionEntry> {
     const agent = this.agents.get(agentId);
-    if (!agent) return;
+    if (!agent) throw new Error("Agent disappeared before run finished.");
 
     try {
       const completion = await result;
@@ -434,6 +602,7 @@ export class RuntimeRegistry {
         sessionId: agent.sessionId,
         entry: assistantEntry,
       });
+      return assistantEntry;
     } catch (error) {
       this.runs.delete(agentId);
       const aborted = error instanceof AgentProcessError && error.aborted;
@@ -446,6 +615,7 @@ export class RuntimeRegistry {
         message: error instanceof Error ? error.message : String(error),
         aborted,
       });
+      throw error;
     }
   }
 
@@ -454,12 +624,17 @@ export class RuntimeRegistry {
     status: AgentRecord["status"],
   ): Promise<void> {
     const updated = { ...agent, status, updatedAt: new Date().toISOString() };
-    this.agents.set(updated.id, updated);
-    await this.writeAgent(updated);
+    await this.updateAgent(updated);
     await this.events.publish("agent.status_changed", {
       agentId: updated.id,
       status,
     });
+  }
+
+  private async updateAgent(agent: AgentRecord): Promise<void> {
+    this.agents.set(agent.id, agent);
+    this.index.upsertAgent(agent);
+    await this.writeAgent(agent);
   }
 
   private async updateSession(session: SessionRecord): Promise<void> {
@@ -723,10 +898,88 @@ export function errorResponse(error: unknown): Response {
 }
 
 function systemPromptFor(agent: AgentRecord): string {
+  const childContext = agent.parentAgentId
+    ? `Parent agent: ${agent.parentAgentId}. Root agent: ${agent.rootAgentId}.`
+    : `Root agent: ${agent.rootAgentId}.`;
   return [
     "You are a Nerve coding agent running under an orchestrator.",
     `Mode: ${agent.mode}. Permission level: ${agent.permissionLevel}.`,
+    childContext,
+    `Child budget: depth ${agent.budget.depth}/${agent.budget.maxDepth}, runs ${agent.budget.usedRuns}/${agent.budget.maxRuns}.`,
     `Project directory: ${agent.projectDir}.`,
     "Keep responses concise and useful.",
   ].join("\n");
+}
+
+function modeRank(mode: Mode): number {
+  return mode === "planning" ? 0 : 1;
+}
+
+function permissionRank(permission: PermissionLevel): number {
+  switch (permission) {
+    case "read_only":
+      return 0;
+    case "supervised":
+      return 1;
+    case "autonomous":
+      return 2;
+  }
+}
+
+function modeArg(value: unknown): Mode | undefined {
+  return value === "planning" || value === "coding" ? value : undefined;
+}
+
+function permissionArg(value: unknown): PermissionLevel | undefined {
+  return value === "read_only" ||
+    value === "supervised" ||
+    value === "autonomous"
+    ? value
+    : undefined;
+}
+
+function stringArg(args: Record<string, unknown>, name: string): string {
+  const value = args[name];
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Tool argument '${name}' must be a non-empty string.`);
+  }
+  return value;
+}
+
+function workspaceScopeArg(
+  value: unknown,
+): AgentRecord["workspaceScope"] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const roots = value.filter(
+    (candidate): candidate is string =>
+      typeof candidate === "string" && candidate.trim().length > 0,
+  );
+  return roots.length > 0 ? { roots } : undefined;
+}
+
+function boundedWorkspaceScope(
+  parent: AgentRecord,
+  requested: AgentRecord["workspaceScope"],
+): AgentRecord["workspaceScope"] {
+  const parentRoots = parent.workspaceScope.roots.map((root) => resolve(root));
+  const roots = requested.roots.map((root) => resolve(parent.projectDir, root));
+  const insideParent = roots.every((root) =>
+    parentRoots.some((parentRoot) => isInsidePath(parentRoot, root)),
+  );
+  if (!insideParent) {
+    throw new Error("Subagent workspace roots cannot exceed parent scope.");
+  }
+  return {
+    roots,
+    readonly: requested.readonly ?? parent.workspaceScope.readonly,
+  };
+}
+
+function isInsidePath(root: string, candidate: string): boolean {
+  const resolvedRoot = resolve(root);
+  const resolvedCandidate = resolve(candidate);
+  return (
+    resolvedCandidate === resolvedRoot ||
+    resolvedCandidate.startsWith(`${resolvedRoot}${sep}`)
+  );
 }

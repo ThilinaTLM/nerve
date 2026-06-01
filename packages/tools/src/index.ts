@@ -63,6 +63,11 @@ export const coreToolDescriptors: ToolDescriptor[] = [
     risk: "read",
     description: "Query captured background process logs.",
   },
+  {
+    name: "subagent_run",
+    risk: "agent_spawn",
+    description: "Run a bounded child agent for delegated research or review.",
+  },
 ];
 
 export type ToolExecutionContext = {
@@ -182,6 +187,8 @@ export async function executeTool(
       throw new Error(
         `${name} is executed by the orchestrator process manager.`,
       );
+    case "subagent_run":
+      throw new Error(`${name} is executed by the orchestrator agent runtime.`);
   }
 }
 

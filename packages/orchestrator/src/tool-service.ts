@@ -19,6 +19,16 @@ export interface ToolExecutionResponse {
   approval?: ApprovalRecord;
 }
 
+export type SubagentRunResult = {
+  agent: AgentRecord;
+  summary: string;
+};
+
+export type SubagentRunner = (
+  parent: AgentRecord,
+  args: Record<string, unknown>,
+) => Promise<SubagentRunResult>;
+
 export class ToolService {
   readonly toolCalls = new Map<string, ToolCallRecord>();
   readonly approvals = new Map<string, ApprovalRecord>();
@@ -28,6 +38,8 @@ export class ToolService {
     private readonly events: EventBus,
     private readonly index: IndexStore,
     private readonly processes: ProcessManager,
+    private readonly getAgent: (agentId: string) => AgentRecord,
+    private readonly runSubagent: SubagentRunner,
   ) {}
 
   async hydrate(): Promise<void> {
@@ -294,6 +306,8 @@ export class ToolService {
             limit: typeof args.limit === "number" ? args.limit : undefined,
           },
         );
+      case "subagent_run":
+        return this.runSubagent(this.getAgent(toolCall.agentId), args);
       default:
         if (toolCall.toolName === "bash") delete args.cwd;
         return executeTool(toolCall.toolName, args, { cwd: toolCall.cwd });

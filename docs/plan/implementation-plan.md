@@ -300,6 +300,8 @@ Success criteria:
 
 ## Phase 7: Sub-agents as child agents
 
+Status: complete.
+
 Goal: controlled child agents for research/review/debugging.
 
 Tasks:

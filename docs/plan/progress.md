@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 6: Background process manager — complete
+Phase 7: Sub-agents as child agents — complete
 ```
 
 ## Locked foundation decisions
@@ -161,6 +161,28 @@ Phase 6: Background process manager — complete
 - Normal `bash` tool calls now deny likely long-running dev/watch/server commands and instruct agents to use `process_start` instead.
 - Added a web inspector Processes tab that lists supervised processes, displays readiness state and live logs, and exposes stop/restart controls.
 - Smoke-tested URL readiness, recent log query, and stop behavior against a temp `NERVE_HOME` daemon.
+
+### Phase 7: Sub-agents as child agents
+
+- [x] Implement orchestrator child-agent creation.
+- [x] Add `subagent_run` / `agent_spawn` tool support.
+- [x] Represent child agents as normal agent records with parent/root ids, mode, permission level, workspace scope, and bounded budgets.
+- [x] Default child policy to planning + read-only.
+- [x] Enforce child authority, workspace scope, depth, and run-budget limits.
+- [x] Return summarized child results through the tool-call result.
+- [x] Stream child lifecycle/status events and cancellation propagation.
+- [x] Surface child agents in the UI agent tree.
+
+### Latest Phase 7 notes
+
+- Added durable agent budget metadata (`depth`, `maxDepth`, `maxRuns`, `usedRuns`) with backward-compatible hydration defaults.
+- Added `subagent_run` as an `agent_spawn` risk tool; default read-only planning delegation is allowed when within parent authority, while authority escalation requires approval.
+- Child agents are created as ordinary agents with `parentAgentId` / `rootAgentId`, inherit parent workspace/model by default, and cannot request workspace roots outside the parent scope.
+- Parent child-run budgets are consumed when children are created; max depth and run budget are enforced in both direct child creation and tool execution.
+- `subagent_run` launches the child through the same isolated agent process path, emits subagent lifecycle events, restores the parent as active agent afterward, and returns the child summary in the tool-call result.
+- `abortAgent` now propagates abort requests recursively to child agents.
+- The Web UI session inspector now includes an agent tree showing root/child agents, status, mode, permission level, and parent relationships.
+- Smoke-tested `subagent_run` against a temp `NERVE_HOME` daemon, including default read-only child execution and approval gating for authority escalation.
 
 ### Later phases
 

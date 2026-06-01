@@ -1,5 +1,11 @@
 import { resolve, sep } from "node:path";
-import type { AgentRecord, ToolName, ToolRisk } from "@nerve/shared";
+import type {
+  AgentRecord,
+  Mode,
+  PermissionLevel,
+  ToolName,
+  ToolRisk,
+} from "@nerve/shared";
 import {
   hasDangerousCommandPattern,
   isKnownReadOnlyCommand,
@@ -41,6 +47,84 @@ export function evaluateToolPolicy(
   );
   if (boundary)
     return { decision: "deny", risk, reason: boundary, normalizedArgs, cwd };
+
+  if (toolName === "subagent_run") {
+    const childMode = modeArg(args.mode) ?? "planning";
+    const childPermission = permissionArg(args.permissionLevel) ?? "read_only";
+    const budgetReason = evaluateSubagentBudget(agent);
+    if (budgetReason) {
+      return {
+        decision: "deny",
+        risk: "agent_spawn",
+        reason: budgetReason,
+        normalizedArgs: {
+          ...normalizedArgs,
+          mode: childMode,
+          permissionLevel: childPermission,
+        },
+        cwd,
+      };
+    }
+    const exceeds = childExceedsParentAuthority(
+      agent,
+      childMode,
+      childPermission,
+    );
+    if (
+      !exceeds &&
+      childMode === "planning" &&
+      childPermission === "read_only"
+    ) {
+      return {
+        decision: "allow",
+        risk: "agent_spawn",
+        reason: "Read-only planning subagent is within parent authority.",
+        normalizedArgs: {
+          ...normalizedArgs,
+          mode: childMode,
+          permissionLevel: childPermission,
+        },
+        cwd,
+      };
+    }
+    if (exceeds) {
+      return {
+        decision: "approval",
+        risk: "agent_spawn",
+        reason:
+          "Requested child-agent authority exceeds the parent and requires user approval.",
+        normalizedArgs: {
+          ...normalizedArgs,
+          mode: childMode,
+          permissionLevel: childPermission,
+        },
+        cwd,
+      };
+    }
+    return agent.permissionLevel === "autonomous"
+      ? {
+          decision: "allow",
+          risk: "agent_spawn",
+          reason: "Autonomous parent may spawn a bounded child agent.",
+          normalizedArgs: {
+            ...normalizedArgs,
+            mode: childMode,
+            permissionLevel: childPermission,
+          },
+          cwd,
+        }
+      : {
+          decision: "approval",
+          risk: "agent_spawn",
+          reason: "Non-default child-agent spawn requires user approval.",
+          normalizedArgs: {
+            ...normalizedArgs,
+            mode: childMode,
+            permissionLevel: childPermission,
+          },
+          cwd,
+        };
+  }
 
   if (toolName === "bash" && typeof args.command === "string") {
     if (isLikelyLongRunningCommand(args.command)) {
@@ -165,6 +249,7 @@ function classifyRisk(
   agent: AgentRecord,
   context: PolicyContext,
 ): ToolRisk {
+  if (toolName === "subagent_run") return "agent_spawn";
   if (toolName === "process_list" || toolName === "process_logs") return "read";
   if (toolName === "process_stop" || toolName === "process_restart") {
     return "destructive";
@@ -214,5 +299,53 @@ function enforceBoundaries(
     }
   }
 
+  return undefined;
+}
+
+function modeArg(value: unknown): Mode | undefined {
+  return value === "planning" || value === "coding" ? value : undefined;
+}
+
+function permissionArg(value: unknown): PermissionLevel | undefined {
+  return value === "read_only" ||
+    value === "supervised" ||
+    value === "autonomous"
+    ? value
+    : undefined;
+}
+
+function modeRank(mode: Mode): number {
+  return mode === "planning" ? 0 : 1;
+}
+
+function permissionRank(permission: PermissionLevel): number {
+  switch (permission) {
+    case "read_only":
+      return 0;
+    case "supervised":
+      return 1;
+    case "autonomous":
+      return 2;
+  }
+}
+
+function childExceedsParentAuthority(
+  parent: AgentRecord,
+  childMode: Mode,
+  childPermission: PermissionLevel,
+): boolean {
+  return (
+    modeRank(childMode) > modeRank(parent.mode) ||
+    permissionRank(childPermission) > permissionRank(parent.permissionLevel)
+  );
+}
+
+function evaluateSubagentBudget(agent: AgentRecord): string | undefined {
+  if (agent.budget.depth >= agent.budget.maxDepth) {
+    return `Child-agent depth limit reached (${agent.budget.depth}/${agent.budget.maxDepth}).`;
+  }
+  if (agent.budget.usedRuns >= agent.budget.maxRuns) {
+    return `Child-agent run budget exhausted (${agent.budget.usedRuns}/${agent.budget.maxRuns}).`;
+  }
   return undefined;
 }
