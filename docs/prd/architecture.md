@@ -408,6 +408,18 @@ The orchestrator owns a process supervisor with:
 
 Agents get tools for process control and log inspection. The UI gets live process events.
 
+## Compaction and branch summaries
+
+Long sessions are kept usable with durable context entries owned by the orchestrator:
+
+- manual compaction appends a `compaction` system entry and matching harness JSONL compaction entry
+- optional auto-compaction triggers when the configured token threshold is exceeded
+- branch navigation can append a `branch_summary` entry for the abandoned branch
+- sub-agent completion records a `subagent_summary` artifact in the parent session
+- future agent prompts rebuild context through the harness session helpers so compacted summaries replace old history while recent kept entries remain available
+
+Initial summarization may be local/extractive; provider-backed summarization can replace it without changing the storage or API shape.
+
 ## Future distributed execution
 
 Start with one local orchestrator and local agent workers. Design the protocol so future workers can run elsewhere:

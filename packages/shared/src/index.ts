@@ -49,6 +49,11 @@ export const settingsSchema = z.object({
   ui: z.object({
     theme: z.enum(["system", "light", "dark"]),
   }),
+  compaction: z.object({
+    auto: z.boolean(),
+    thresholdTokens: z.number().int().positive(),
+    keepRecentTokens: z.number().int().positive(),
+  }),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -63,6 +68,11 @@ export const defaultSettings: Settings = {
   },
   ui: {
     theme: "system",
+  },
+  compaction: {
+    auto: false,
+    thresholdTokens: 80_000,
+    keepRecentTokens: 20_000,
   },
 };
 
@@ -406,13 +416,27 @@ export type ResolveApprovalRequest = z.infer<
   typeof resolveApprovalRequestSchema
 >;
 
+export const sessionEntryKindSchema = z.enum([
+  "message",
+  "compaction",
+  "branch_summary",
+  "subagent_summary",
+]);
+export type SessionEntryKind = z.infer<typeof sessionEntryKindSchema>;
+
 export const sessionEntrySchema = z.object({
   id: z.string().startsWith("entry_"),
   sessionId: z.string().startsWith("ses_"),
   agentId: z.string().startsWith("agent_").optional(),
   parentEntryId: z.string().startsWith("entry_").optional(),
   role: z.enum(["user", "assistant", "system"]),
+  kind: sessionEntryKindSchema.default("message"),
   text: z.string(),
+  summary: z.string().optional(),
+  tokensBefore: z.number().int().nonnegative().optional(),
+  firstKeptEntryId: z.string().startsWith("entry_").optional(),
+  fromEntryId: z.string().startsWith("entry_").optional(),
+  details: z.unknown().optional(),
   createdAt: z.string().datetime(),
 });
 export type SessionEntry = z.infer<typeof sessionEntrySchema>;
@@ -433,10 +457,18 @@ export type SessionTree = z.infer<typeof sessionTreeSchema>;
 
 export const navigateSessionRequestSchema = z.object({
   activeEntryId: z.string().startsWith("entry_").nullable(),
+  summarize: z.boolean().optional(),
+  summaryInstructions: z.string().optional(),
 });
 export type NavigateSessionRequest = z.infer<
   typeof navigateSessionRequestSchema
 >;
+
+export const compactSessionRequestSchema = z.object({
+  instructions: z.string().optional(),
+  keepRecentTokens: z.number().int().positive().optional(),
+});
+export type CompactSessionRequest = z.infer<typeof compactSessionRequestSchema>;
 
 export const modelInfoSchema = z.object({
   provider: z.string(),

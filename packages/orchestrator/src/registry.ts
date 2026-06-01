@@ -1,13 +1,22 @@
 import { basename, join, resolve, sep } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import {
+  type AgentMessage,
+  buildSessionContext,
+  convertToLlm,
+  DEFAULT_COMPACTION_SETTINGS,
+  estimateContextTokens,
   JsonlSessionStorage,
   listAvailableModels,
   NodeExecutionEnv,
+  prepareCompaction,
+  type SessionTreeEntry,
+  serializeConversation,
 } from "@nerve/agent";
 import {
   type AgentRecord,
   agentRecordSchema,
+  type CompactSessionRequest,
   type CreateAgentRequest,
   type CreateProjectRequest,
   type CreateSessionRequest,
@@ -355,19 +364,126 @@ export class RuntimeRegistry {
     ) {
       throw new HttpError(404, "ENTRY_NOT_FOUND", "Entry not found.");
     }
+
+    let summaryEntry: SessionEntry | undefined;
+    if (request.summarize && session.activeEntryId !== activeEntryId) {
+      summaryEntry = await this.createBranchSummaryEntry(
+        session,
+        activeEntryId,
+        request.summaryInstructions,
+      );
+    }
+
+    const nextActiveEntryId = summaryEntry?.id ?? activeEntryId;
     const updated = {
-      ...session,
-      activeEntryId,
+      ...this.getSession(sessionId),
+      activeEntryId: nextActiveEntryId,
       updatedAt: new Date().toISOString(),
     };
     await this.updateSession(updated);
-    await this.setHarnessLeaf(updated, activeEntryId);
+    await this.setHarnessLeaf(updated, nextActiveEntryId);
     await this.rebuildConversations();
     await this.events.publish("session.navigated", {
       sessionId: session.id,
-      activeEntryId,
+      activeEntryId: nextActiveEntryId,
+      targetEntryId: activeEntryId,
+      summaryEntry,
     });
     return updated;
+  }
+
+  async compactSession(
+    sessionId: string,
+    request: CompactSessionRequest = {},
+  ): Promise<{ session: SessionRecord; entry: SessionEntry }> {
+    const session = this.getSession(sessionId);
+    const project = this.getProject(session.projectId);
+    const storage = await this.openHarnessStorage(session, project.dir);
+    const branch = await storage.getPathToRoot(await storage.getLeafId());
+    const settings = {
+      ...DEFAULT_COMPACTION_SETTINGS,
+      keepRecentTokens:
+        request.keepRecentTokens ??
+        this.storage.settings.compaction.keepRecentTokens,
+    };
+    const prepared = prepareCompaction(branch, settings);
+    if (!prepared.ok) {
+      throw new HttpError(400, "COMPACTION_FAILED", prepared.error.message);
+    }
+    if (!prepared.value) {
+      throw new HttpError(409, "NOTHING_TO_COMPACT", "Nothing to compact.");
+    }
+    const preparation = prepared.value;
+    let firstKeptEntryId = preparation.firstKeptEntryId;
+    let messagesToSummarize = [
+      ...preparation.messagesToSummarize,
+      ...preparation.turnPrefixMessages,
+    ];
+    if (messagesToSummarize.length === 0) {
+      const messageEntries = branch.filter(
+        (entry): entry is Extract<SessionTreeEntry, { type: "message" }> =>
+          entry.type === "message",
+      );
+      const fallbackKept = messageEntries.at(-1);
+      messagesToSummarize = messageEntries
+        .slice(0, -1)
+        .map((entry) => entry.message);
+      if (fallbackKept) firstKeptEntryId = fallbackKept.id;
+    }
+    if (messagesToSummarize.length === 0) {
+      throw new HttpError(
+        409,
+        "NOTHING_TO_COMPACT",
+        "No prior messages to compact.",
+      );
+    }
+    const summary = buildExtractiveSummary({
+      title: "Context checkpoint",
+      messages: messagesToSummarize,
+      previousSummary: preparation.previousSummary,
+      instructions: request.instructions,
+    });
+    const details = {
+      generatedBy: "orchestrator-extractive",
+      compactedMessages: messagesToSummarize.length,
+      splitTurn: preparation.isSplitTurn,
+      fileOps: {
+        read: [...preparation.fileOps.read].sort(),
+        written: [...preparation.fileOps.written].sort(),
+        edited: [...preparation.fileOps.edited].sort(),
+      },
+    };
+    const entry = await this.appendEntry(
+      {
+        sessionId,
+        role: "system",
+        kind: "compaction",
+        text: summary,
+        summary,
+        tokensBefore: preparation.tokensBefore,
+        firstKeptEntryId,
+        details,
+      },
+      { mirrorToHarness: false },
+    );
+    await storage.appendEntry({
+      type: "compaction",
+      id: entry.id,
+      parentId: entry.parentEntryId ?? null,
+      timestamp: entry.createdAt,
+      summary,
+      firstKeptEntryId,
+      tokensBefore: preparation.tokensBefore,
+      details,
+    });
+    await this.rebuildConversations();
+    await this.events.publish("session.compacted", {
+      sessionId,
+      entry,
+      tokensBefore: preparation.tokensBefore,
+      firstKeptEntryId,
+    });
+    return { session: this.getSession(sessionId), entry };
   }
 
   async requestTool(
@@ -420,10 +536,25 @@ export class RuntimeRegistry {
           task,
         ].join("\n"),
       });
+      const summaryEntry = await this.appendEntry(
+        {
+          sessionId: parent.sessionId,
+          agentId: parent.id,
+          role: "system",
+          kind: "subagent_summary",
+          text: childEntry.text,
+          summary: childEntry.text,
+          fromEntryId: childEntry.id,
+          details: { childAgentId: child.id },
+        },
+        { mirrorToHarness: false },
+      );
+      await this.appendHarnessSummaryEntry(parent, summaryEntry, childEntry.id);
       await this.events.publish("agent.subagent_completed", {
         parentAgentId: parent.id,
         childAgentId: child.id,
         summary: childEntry.text,
+        summaryEntry,
       });
       return { agent: child, summary: childEntry.text };
     } finally {
@@ -602,6 +733,13 @@ export class RuntimeRegistry {
         sessionId: agent.sessionId,
         entry: assistantEntry,
       });
+      await this.maybeAutoCompact(agent.sessionId).catch((error) => {
+        process.emitWarning(
+          `Auto-compaction failed for ${agent.sessionId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
       return assistantEntry;
     } catch (error) {
       this.runs.delete(agentId);
@@ -643,20 +781,39 @@ export class RuntimeRegistry {
     await this.writeSession(session);
   }
 
-  private async appendEntry(input: {
-    sessionId: string;
-    agentId?: string;
-    role: SessionEntry["role"];
-    text: string;
-  }): Promise<SessionEntry> {
+  private async appendEntry(
+    input: {
+      sessionId: string;
+      agentId?: string;
+      parentEntryId?: string | null;
+      role: SessionEntry["role"];
+      kind?: SessionEntry["kind"];
+      text: string;
+      summary?: string;
+      tokensBefore?: number;
+      firstKeptEntryId?: string;
+      fromEntryId?: string;
+      details?: unknown;
+    },
+    options: { mirrorToHarness?: boolean } = {},
+  ): Promise<SessionEntry> {
     const session = this.getSession(input.sessionId);
     const entry: SessionEntry = {
       id: createId("entry"),
       sessionId: input.sessionId,
       agentId: input.agentId,
-      parentEntryId: session.activeEntryId,
+      parentEntryId:
+        "parentEntryId" in input
+          ? (input.parentEntryId ?? undefined)
+          : session.activeEntryId,
       role: input.role,
+      kind: input.kind ?? "message",
       text: input.text,
+      summary: input.summary,
+      tokensBefore: input.tokensBefore,
+      firstKeptEntryId: input.firstKeptEntryId,
+      fromEntryId: input.fromEntryId,
+      details: input.details,
       createdAt: new Date().toISOString(),
     };
     const entries = this.entries.get(input.sessionId) ?? [];
@@ -677,8 +834,98 @@ export class RuntimeRegistry {
       activeEntryId: entry.id,
       updatedAt: entry.createdAt,
     });
-    await this.appendHarnessEntry(entry);
+    if (options.mirrorToHarness !== false) await this.appendHarnessEntry(entry);
     return entry;
+  }
+
+  private async createBranchSummaryEntry(
+    session: SessionRecord,
+    targetEntryId: string | undefined,
+    instructions?: string,
+  ): Promise<SessionEntry | undefined> {
+    const project = this.getProject(session.projectId);
+    const storage = await this.openHarnessStorage(session, project.dir);
+    const oldLeafId = await storage.getLeafId();
+    if (oldLeafId === (targetEntryId ?? null)) return undefined;
+
+    const oldBranch = oldLeafId ? await storage.getPathToRoot(oldLeafId) : [];
+    const targetBranch = targetEntryId
+      ? await storage.getPathToRoot(targetEntryId)
+      : [];
+    const targetIds = new Set(targetBranch.map((entry) => entry.id));
+    const entriesToSummarize = oldBranch.filter(
+      (entry): entry is Extract<SessionTreeEntry, { type: "message" }> =>
+        !targetIds.has(entry.id) && entry.type === "message",
+    );
+    if (entriesToSummarize.length === 0) return undefined;
+
+    const summary = buildExtractiveSummary({
+      title: "Branch summary",
+      messages: entriesToSummarize.map((entry) => entry.message),
+      instructions,
+    });
+    const entry = await this.appendEntry(
+      {
+        sessionId: session.id,
+        parentEntryId: targetEntryId ?? null,
+        role: "system",
+        kind: "branch_summary",
+        text: summary,
+        summary,
+        fromEntryId: oldLeafId ?? undefined,
+        details: {
+          generatedBy: "orchestrator-extractive",
+          summarizedEntryIds: entriesToSummarize.map((item) => item.id),
+          targetEntryId,
+        },
+      },
+      { mirrorToHarness: false },
+    );
+    await storage.setLeafId(targetEntryId ?? null);
+    await storage.appendEntry({
+      type: "branch_summary",
+      id: entry.id,
+      parentId: targetEntryId ?? null,
+      timestamp: entry.createdAt,
+      fromId: oldLeafId ?? "root",
+      summary,
+      details: entry.details,
+    });
+    await this.events.publish("session.branch_summarized", {
+      sessionId: session.id,
+      fromEntryId: oldLeafId,
+      targetEntryId,
+      entry,
+    });
+    return entry;
+  }
+
+  private async maybeAutoCompact(sessionId: string): Promise<void> {
+    if (!this.storage.settings.compaction.auto) return;
+    const session = this.getSession(sessionId);
+    const project = this.getProject(session.projectId);
+    const storage = await this.openHarnessStorage(session, project.dir);
+    const branch = await storage.getPathToRoot(await storage.getLeafId());
+    const tokens = estimateContextTokens(
+      buildSessionContext(branch).messages,
+    ).tokens;
+    if (tokens < this.storage.settings.compaction.thresholdTokens) return;
+    await this.compactSession(sessionId, {
+      instructions:
+        "Automatic compaction after the configured token threshold was exceeded.",
+      keepRecentTokens: this.storage.settings.compaction.keepRecentTokens,
+    });
+  }
+
+  private async openHarnessStorage(
+    session: SessionRecord,
+    cwd: string,
+  ): Promise<JsonlSessionStorage> {
+    await this.createHarnessSession(session, cwd);
+    return JsonlSessionStorage.open(
+      new NodeExecutionEnv({ cwd }),
+      this.harnessSessionPath(session.id),
+    );
   }
 
   private async createHarnessSession(
@@ -718,6 +965,30 @@ export class RuntimeRegistry {
           content: entry.text,
           timestamp: new Date(entry.createdAt).getTime(),
         } as Message,
+      });
+    } catch (error) {
+      this.warnHarnessMirror(error);
+    }
+  }
+
+  private async appendHarnessSummaryEntry(
+    agent: AgentRecord,
+    entry: SessionEntry,
+    fromId: string,
+  ): Promise<void> {
+    try {
+      const session = this.getSession(entry.sessionId);
+      const project = this.getProject(session.projectId);
+      const storage = await this.openHarnessStorage(session, project.dir);
+      await storage.appendEntry({
+        type: "branch_summary",
+        id: entry.id,
+        parentId: entry.parentEntryId ?? null,
+        timestamp: entry.createdAt,
+        fromId,
+        summary: entry.summary ?? entry.text,
+        details: { sourceDetails: entry.details, agentId: agent.id },
+        fromHook: true,
       });
     } catch (error) {
       this.warnHarnessMirror(error);
@@ -832,21 +1103,41 @@ export class RuntimeRegistry {
 
   private async rebuildConversations(): Promise<void> {
     this.conversations.clear();
+    const sessionMessages = new Map<string, Message[]>();
+    for (const session of this.sessions.values()) {
+      const project = this.projects.get(session.projectId);
+      if (!project) continue;
+      const messages = await this.contextMessagesForSession(
+        session,
+        project.dir,
+      );
+      sessionMessages.set(session.id, messages);
+    }
     for (const agent of this.agents.values()) {
-      const session = this.sessions.get(agent.sessionId);
-      if (!session) continue;
-      const messages = this.activeBranchEntries(session)
-        .filter(
-          (entry) =>
-            entry.agentId === agent.id &&
-            (entry.role === "user" || entry.role === "assistant"),
-        )
+      this.conversations.set(
+        agent.id,
+        sessionMessages.get(agent.sessionId) ?? [],
+      );
+    }
+  }
+
+  private async contextMessagesForSession(
+    session: SessionRecord,
+    projectDir: string,
+  ): Promise<Message[]> {
+    try {
+      const storage = await this.openHarnessStorage(session, projectDir);
+      const branch = await storage.getPathToRoot(await storage.getLeafId());
+      return convertToLlm(buildSessionContext(branch).messages);
+    } catch (error) {
+      this.warnHarnessMirror(error);
+      return this.activeBranchEntries(session)
+        .filter((entry) => entry.role === "user" || entry.role === "assistant")
         .map((entry) => ({
           role: entry.role,
           content: entry.text,
           timestamp: new Date(entry.createdAt).getTime(),
         })) as Message[];
-      this.conversations.set(agent.id, messages);
     }
   }
 
@@ -867,6 +1158,57 @@ export class RuntimeRegistry {
       0o600,
     );
   }
+}
+
+interface ExtractiveSummaryInput {
+  title: string;
+  messages: AgentMessage[];
+  previousSummary?: string;
+  instructions?: string;
+}
+
+function buildExtractiveSummary(input: ExtractiveSummaryInput): string {
+  const llmMessages = convertToLlm(input.messages);
+  const serialized = serializeConversation(llmMessages).trim();
+  const excerpt = truncateText(
+    serialized || "No message text was available.",
+    12_000,
+  );
+  const userMessages = llmMessages.filter((message) => message.role === "user");
+  const assistantMessages = llmMessages.filter(
+    (message) => message.role === "assistant",
+  );
+  const sections = [
+    `## ${input.title}`,
+    "",
+    "Generated locally by the orchestrator from the session branch. Treat this as a context checkpoint, not a new user request.",
+    "",
+  ];
+  if (input.instructions?.trim()) {
+    sections.push("## Operator instructions", input.instructions.trim(), "");
+  }
+  if (input.previousSummary?.trim()) {
+    sections.push(
+      "## Previous checkpoint",
+      truncateText(input.previousSummary.trim(), 4_000),
+      "",
+    );
+  }
+  sections.push(
+    "## Coverage",
+    `- User messages summarized: ${userMessages.length}`,
+    `- Assistant messages summarized: ${assistantMessages.length}`,
+    `- Total messages summarized: ${llmMessages.length}`,
+    "",
+    "## Conversation excerpt",
+    excerpt,
+  );
+  return sections.join("\n");
+}
+
+function truncateText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}\n\n[…${text.length - maxChars} more characters truncated]`;
 }
 
 export class HttpError extends Error {

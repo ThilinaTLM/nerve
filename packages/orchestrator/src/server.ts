@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  compactSessionRequestSchema,
   createAgentRequestSchema,
   createId,
   createProjectRequestSchema,
@@ -479,6 +480,18 @@ export function createApp(state: OrchestratorState): Hono {
           body,
         ),
       });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/sessions/:sessionId/compact", async (c) => {
+    try {
+      const body = compactSessionRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json(
+        await state.registry.compactSession(c.req.param("sessionId"), body),
+      );
     } catch (error) {
       return errorResponse(error);
     }

@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 7: Sub-agents as child agents — complete
+Phase 8: Compaction and branch summaries — complete
 ```
 
 ## Locked foundation decisions
@@ -183,6 +183,25 @@ Phase 7: Sub-agents as child agents — complete
 - `abortAgent` now propagates abort requests recursively to child agents.
 - The Web UI session inspector now includes an agent tree showing root/child agents, status, mode, permission level, and parent relationships.
 - Smoke-tested `subagent_run` against a temp `NERVE_HOME` daemon, including default read-only child execution and approval gating for authority escalation.
+
+### Phase 8: Compaction and branch summaries
+
+- [x] Wire copied compaction helpers into orchestrator actions.
+- [x] Add manual compaction endpoint.
+- [x] Add optional auto-compaction threshold.
+- [x] Add branch summary generation during navigation.
+- [x] Render compaction/summary entries in UI.
+- [x] Ensure child-agent summaries can be attached as durable artifacts/events.
+
+### Latest Phase 8 notes
+
+- Added durable session entry kinds for message, compaction, branch summary, and sub-agent summary artifacts.
+- Added `POST /api/sessions/:sessionId/compact` for manual compaction, using the copied harness compaction preparation/context helpers and appending matching harness JSONL compaction records.
+- Added compaction settings for optional auto-compaction by token threshold.
+- Added branch-summary generation during navigation when requested, with matching durable events and harness branch-summary entries.
+- Future prompt context is rebuilt through harness session context helpers so compaction and branch summaries are consumed by agents.
+- Sub-agent completion now records a durable `subagent_summary` artifact in the parent session.
+- The Web UI renders system context entries and exposes a compact action from the Branch inspector.
 
 ### Later phases
 

@@ -96,6 +96,13 @@ export async function getSessionTree(sessionId: string): Promise<SessionTree> {
   ).tree;
 }
 
+export async function compactSession(sessionId: string): Promise<{
+  session: SessionRecord;
+  entry: SessionEntry;
+}> {
+  return apiPost(`/api/sessions/${sessionId}/compact`, {});
+}
+
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
   return (await apiGet<{ items: CompletionItem[] }>("/api/completions/slash"))
     .items;

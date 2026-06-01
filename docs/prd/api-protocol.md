@@ -123,6 +123,11 @@ interface Settings {
   ui: {
     theme: "system" | "light" | "dark";
   };
+  compaction: {
+    auto: boolean;
+    thresholdTokens: number;
+    keepRecentTokens: number;
+  };
 }
 ```
 
@@ -316,7 +321,23 @@ interface SetPermissionRequest {
 GET  /api/sessions/:sessionId/messages
 GET  /api/sessions/:sessionId/tree
 POST /api/sessions/:sessionId/navigate
+POST /api/sessions/:sessionId/compact
 POST /api/sessions/:sessionId/label
+```
+
+Navigate body may set `summarize: true` to append a branch-summary entry for the abandoned branch before moving the active leaf. Compact body may include `instructions` and `keepRecentTokens`; the orchestrator appends a durable compaction entry and updates the harness session mirror.
+
+```ts
+interface SessionEntry {
+  id: string;
+  role: "user" | "assistant" | "system";
+  kind: "message" | "compaction" | "branch_summary" | "subagent_summary";
+  text: string;
+  summary?: string;
+  tokensBefore?: number;
+  firstKeptEntryId?: string;
+  fromEntryId?: string;
+}
 ```
 
 ### Models
@@ -557,6 +578,9 @@ type SessionEvent =
   | { type: "session.created"; sessionId: string; projectId: string }
   | { type: "session.updated"; sessionId: string }
   | { type: "session.tree_updated"; sessionId: string }
+  | { type: "session.navigated"; sessionId: string; activeEntryId?: string }
+  | { type: "session.compacted"; sessionId: string; entry: SessionEntry }
+  | { type: "session.branch_summarized"; sessionId: string; entry: SessionEntry }
   | { type: "model.changed"; agentId?: string; sessionId?: string; provider: string; modelId: string };
 ```
 

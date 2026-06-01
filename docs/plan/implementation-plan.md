@@ -333,16 +333,18 @@ Success criteria:
 
 ## Phase 8: Compaction and branch summaries
 
+Status: complete.
+
 Goal: keep long sessions usable.
 
 Tasks:
 
-1. Wire copied compaction helpers into orchestrator actions.
-2. Add manual compaction endpoint.
-3. Add optional auto-compaction threshold.
-4. Add branch summary generation during navigation.
-5. Render compaction/summary entries in UI.
-6. Ensure child-agent summaries can be attached as durable artifacts/events.
+1. [x] Wire copied compaction helpers into orchestrator actions.
+2. [x] Add manual compaction endpoint.
+3. [x] Add optional auto-compaction threshold.
+4. [x] Add branch summary generation during navigation.
+5. [x] Render compaction/summary entries in UI.
+6. [x] Ensure child-agent summaries can be attached as durable artifacts/events.
 
 Success criteria:
 

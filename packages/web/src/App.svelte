@@ -16,6 +16,7 @@
   import {
     apiGet,
     apiPost,
+    compactSession,
     getClientConfig,
     getFileCompletions,
     getPendingApprovals,
@@ -50,7 +51,8 @@
 
   type TranscriptItem = {
     id?: string;
-    role: "user" | "assistant";
+    role: "user" | "assistant" | "system";
+    kind?: SessionEntry["kind"];
     text: string;
   };
 
@@ -96,8 +98,8 @@
 
   function entriesToTranscript(entries: SessionEntry[]): TranscriptItem[] {
     return entries
-      .filter((entry) => entry.role === "user" || entry.role === "assistant")
-      .map((entry) => ({ id: entry.id, role: entry.role as "user" | "assistant", text: entry.text }));
+      .filter((entry) => entry.role === "user" || entry.role === "assistant" || entry.kind !== "message")
+      .map((entry) => ({ id: entry.id, role: entry.role, kind: entry.kind, text: entry.text }));
   }
 
   async function loadWorkspaceState() {
@@ -151,9 +153,21 @@
     layout.inspectorTab = "session";
   }
 
-  async function navigateToEntry(entryId: string | undefined) {
+  async function navigateToEntry(entryId: string | undefined, summarize = false) {
     if (!selection.sessionId) return;
-    await apiPost(`/api/sessions/${selection.sessionId}/navigate`, { activeEntryId: entryId ?? null });
+    await apiPost(`/api/sessions/${selection.sessionId}/navigate`, {
+      activeEntryId: entryId ?? null,
+      summarize,
+    });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+    await loadWorkspaceState();
+    await openSession(selection.sessionId);
+    layout.inspectorTab = "branch";
+  }
+
+  async function compactActiveSession() {
+    if (!selection.sessionId) return;
+    await compactSession(selection.sessionId);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     await openSession(selection.sessionId);
@@ -296,6 +310,9 @@
     }
     if (
       event.type === "session.created" ||
+      event.type === "session.compacted" ||
+      event.type === "session.branch_summarized" ||
+      event.type === "session.navigated" ||
       event.type === "agent.created" ||
       event.type === "agent.status_changed" ||
       event.type.startsWith("agent.subagent_") ||
@@ -448,10 +465,11 @@
           {/if}
 
           {#each transcript as item}
-            <article class="message" class:user={item.role === "user"}>
-              <div class="message-rail">{item.role === "user" ? "you" : "ai"}</div>
+            <article class="message" class:user={item.role === "user"} class:system={item.role === "system"}>
+              <div class="message-rail">{item.role === "user" ? "you" : item.role === "system" ? "ctx" : "ai"}</div>
               <div class="message-body">
-                {#if item.role === "assistant"}
+                {#if item.role === "assistant" || item.role === "system"}
+                  {#if item.kind && item.kind !== "message"}<Badge tone="accent">{item.kind.replace("_", " ")}</Badge>{/if}
                   <Markdown text={item.text} />
                 {:else}
                   <p>{item.text}</p>
@@ -560,7 +578,11 @@
                 <p class="eyebrow">active path</p>
                 <h3>{branchDepth} entries</h3>
               </div>
-              <Button variant="ghost" size="sm" onclick={() => navigateToEntry(undefined)}>Root</Button>
+              <div class="branch-actions">
+                <Button variant="ghost" size="sm" onclick={compactActiveSession}>Compact</Button>
+                <Button variant="ghost" size="sm" onclick={() => navigateToEntry(undefined, true)}>Root + summarize</Button>
+                <Button variant="ghost" size="sm" onclick={() => navigateToEntry(undefined)}>Root</Button>
+              </div>
             </div>
             {#if treeNodes.length > 0}
               <div class="branch-list">
@@ -571,7 +593,7 @@
                     type="button"
                     onclick={() => navigateToEntry(node.entry.id)}
                   >
-                    <strong>{node.entry.role}</strong>
+                    <strong>{node.entry.kind && node.entry.kind !== "message" ? node.entry.kind.replace("_", " ") : node.entry.role}</strong>
                     <span>{node.entry.text.slice(0, 120) || node.entry.id}</span>
                   </button>
                 {/each}
@@ -731,11 +753,17 @@
   .conversation-meta,
   .composer-actions,
   .branch-header,
+  .branch-actions,
   .approval-heading,
   .approval-actions {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+  }
+
+  .branch-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .brand-mark {
@@ -1013,6 +1041,15 @@
 
   .message.user .message-body {
     background: var(--color-user-message);
+  }
+
+  .message.system .message-body {
+    border-style: dashed;
+    background: var(--color-panel-muted);
+  }
+
+  .message.system .message-rail {
+    color: var(--color-accent);
   }
 
   .message.streaming .message-body {

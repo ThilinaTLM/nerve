@@ -139,8 +139,11 @@ sessions/<session-id>/
 - model changes
 - compaction entries
 - branch summaries
+- sub-agent summary artifacts
 
-`harness.jsonl` is a compatibility mirror that uses the copied Pi agent harness JSONL session format. Nerve's API currently reads and writes `entries.jsonl`; the mirror preserves a path for harness compaction/session helpers to operate on the same branch-shaped conversation data.
+Entries have a `kind` field (`message`, `compaction`, `branch_summary`, or `subagent_summary`). Summary/compaction entries are stored as readable system entries with optional metadata such as `summary`, `tokensBefore`, `firstKeptEntryId`, `fromEntryId`, and implementation-specific `details`.
+
+`harness.jsonl` is a compatibility mirror that uses the copied Pi agent harness JSONL session format. Nerve's API reads and writes `entries.jsonl`, while the orchestrator also appends matching message, compaction, and branch-summary records to the mirror so harness context-building helpers can preserve compacted context.
 
 `events.jsonl` stores runtime events associated with the session:
 
