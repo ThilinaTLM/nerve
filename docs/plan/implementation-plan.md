@@ -161,6 +161,8 @@ Success criteria:
 
 ## Phase 4: Web UI foundation
 
+Status: complete.
+
 Goal: establish the reusable UI system before the app becomes complex.
 
 Tasks:
@@ -195,6 +197,8 @@ Success criteria:
 - app layout supports resizable panels
 
 ## Phase 5: Tool layer + policy engine
+
+Status: next.
 
 Goal: useful coding tools with enforced modes and permission levels.
 

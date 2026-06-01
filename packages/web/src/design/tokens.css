@@ -1,16 +1,103 @@
 :root {
-  --color-bg: #070a10;
-  --color-bg-soft: #0b1020;
-  --color-panel: #111827;
-  --color-panel-strong: #172033;
-  --color-border: #26324a;
-  --color-text: #eef2ff;
-  --color-muted: #9aa8c2;
-  --color-accent: #7dd3fc;
-  --color-accent-strong: #38bdf8;
-  --color-good: #86efac;
+  color-scheme: dark;
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-body: "IBM Plex Sans", "Aptos", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+  --color-bg: #070806;
+  --color-bg-deep: #020302;
+  --color-bg-soft: #10140f;
+  --color-shell: rgb(9 11 9 / 86%);
+  --color-panel: rgb(18 22 18 / 84%);
+  --color-panel-muted: rgb(13 16 14 / 72%);
+  --color-panel-raised: rgb(29 35 29 / 92%);
+  --color-field: rgb(3 7 6 / 86%);
+  --color-border: rgb(185 167 121 / 28%);
+  --color-border-subtle: rgb(185 167 121 / 16%);
+  --color-text: #f6f0dd;
+  --color-message-text: #ebe5d2;
+  --color-muted: #9f9a88;
+  --color-faint: #6e6d61;
+  --color-accent: #d6ff64;
+  --color-accent-strong: #f2ff9b;
+  --color-accent-ink: #131904;
+  --color-accent-soft: rgb(214 255 100 / 11%);
+  --color-good: #8cffb4;
+  --color-good-soft: rgb(140 255 180 / 12%);
+  --color-warn: #ffd36e;
+  --color-warn-soft: rgb(255 211 110 / 14%);
+  --color-danger: #ff7d7d;
+  --color-danger-soft: rgb(255 125 125 / 13%);
+  --color-code: #d6ff64;
+  --color-code-bg: #050705;
+  --color-user-message: rgb(214 255 100 / 8%);
+  --color-ring: #d6ff64;
+  --color-ring-soft: rgb(214 255 100 / 16%);
+  --color-selection: rgb(214 255 100 / 22%);
+  --color-grid: rgb(246 240 221 / 8%);
+  --color-aurora-a: rgb(214 255 100 / 18%);
+  --color-aurora-b: rgb(66 211 146 / 14%);
+  --grid-opacity: 0.72;
+
+  --gradient-accent: linear-gradient(
+    135deg,
+    #d6ff64 0%,
+    #7ee787 52%,
+    #f6f0dd 100%
+  );
   --radius-sm: 0.5rem;
   --radius-md: 0.875rem;
-  --radius-lg: 1.5rem;
-  --shadow-panel: 0 30px 100px rgb(0 0 0 / 45%);
+  --radius-lg: 1.35rem;
+  --shadow-panel: 0 18px 54px rgb(0 0 0 / 28%);
+  --shadow-elevated: 0 30px 110px rgb(0 0 0 / 48%);
+  --shadow-message: 0 14px 40px rgb(0 0 0 / 18%);
+  --shadow-glow: 0 0 34px rgb(214 255 100 / 18%);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f7f0df;
+  --color-bg-deep: #e8dcc1;
+  --color-bg-soft: #fff9ea;
+  --color-shell: rgb(255 251 239 / 88%);
+  --color-panel: rgb(255 252 242 / 88%);
+  --color-panel-muted: rgb(246 238 219 / 78%);
+  --color-panel-raised: rgb(255 255 250 / 94%);
+  --color-field: rgb(255 252 242 / 92%);
+  --color-border: rgb(63 67 43 / 22%);
+  --color-border-subtle: rgb(63 67 43 / 13%);
+  --color-text: #171914;
+  --color-message-text: #292d23;
+  --color-muted: #6a6758;
+  --color-faint: #938f7b;
+  --color-accent: #517100;
+  --color-accent-strong: #6b9700;
+  --color-accent-ink: #faffdf;
+  --color-accent-soft: rgb(91 128 0 / 10%);
+  --color-good: #087d3f;
+  --color-good-soft: rgb(8 125 63 / 10%);
+  --color-warn: #9b6500;
+  --color-warn-soft: rgb(155 101 0 / 12%);
+  --color-danger: #b32626;
+  --color-danger-soft: rgb(179 38 38 / 11%);
+  --color-code: #3d6200;
+  --color-code-bg: #fffdf7;
+  --color-user-message: rgb(91 128 0 / 8%);
+  --color-ring: #5b8000;
+  --color-ring-soft: rgb(91 128 0 / 16%);
+  --color-selection: rgb(91 128 0 / 20%);
+  --color-grid: rgb(23 25 20 / 7%);
+  --color-aurora-a: rgb(114 164 0 / 18%);
+  --color-aurora-b: rgb(214 162 55 / 14%);
+  --grid-opacity: 0.9;
+  --gradient-accent: linear-gradient(
+    135deg,
+    #587d00 0%,
+    #95ba15 52%,
+    #242819 100%
+  );
+  --shadow-panel: 0 18px 54px rgb(56 45 22 / 12%);
+  --shadow-elevated: 0 30px 110px rgb(56 45 22 / 22%);
+  --shadow-message: 0 14px 40px rgb(56 45 22 / 10%);
+  --shadow-glow: 0 0 34px rgb(91 128 0 / 14%);
 }

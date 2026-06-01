@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 3: Durable file-first state and event replay — complete
+Phase 4: Web UI foundation — complete
 ```
 
 ## Locked foundation decisions
@@ -94,6 +94,29 @@ Phase 3: Durable file-first state and event replay — complete
 - Added a `node:sqlite`-backed `IndexStore` for projects, sessions, agents, process placeholders, and event indexes. Startup and `POST /api/storage/rebuild-index` rebuild SQLite from canonical files.
 - Added harness-compatible `sessions/<session-id>/harness.jsonl` mirrors using the copied `JsonlSessionStorage`, while keeping Nerve's readable `entries.jsonl` as the current API source.
 - Web UI now lists durable sessions, can reopen prior session messages, and exposes basic branch navigation over the session tree endpoint.
+
+### Phase 4: Web UI foundation
+
+- [x] Add CSS variable design tokens and light/dark themes.
+- [x] Configure TailwindCSS to consume design tokens.
+- [x] Add Nerve-owned UI abstractions for buttons, inputs, cards, badges, and a Bits UI primitive façade for dialog, dropdown menu, popover, tooltip, tabs, select, checkbox, and switch.
+- [x] Add Paneforge-based resizable application shell with sidebar, conversation area, and inspector panel.
+- [x] Add TanStack Svelte Query client and API helpers.
+- [x] Add Svelte rune state modules for selection, layout, event buffers, composer draft, and theme.
+- [x] Add sanitized markdown renderer with Shiki code highlighting.
+- [x] Add CodeMirror composer wrapper with slash-command and file mention completions.
+- [x] Add initial completion endpoints/client hooks for slash commands and project file/folder suggestions.
+
+### Latest Phase 4 notes
+
+- Rebuilt the web app around a resizable Nerve Workbench shell with durable session navigation, a conversation pane, and an inspector with session, branch, and event tabs.
+- Added dark/light/system theme state backed by CSS variable design tokens.
+- Added reusable Nerve UI components and a Bits UI primitive façade for the required accessible primitives.
+- Added TanStack Query wiring, API helper modules, and Svelte rune state modules to separate UI state from orchestration calls.
+- Upgraded the composer with CodeMirror autocompletion for `/` slash commands and `@` project file/folder mentions.
+- Added orchestrator completion endpoints: `GET /api/completions/slash` and `GET /api/completions/files`.
+- Added Shiki-powered highlighted code blocks to the sanitized markdown renderer.
+- Tested the UI in Chrome via `agent-browser` against the local orchestrator.
 
 ### Later phases
 

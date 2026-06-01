@@ -1,14 +1,18 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
+  import { autocompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
   import { markdown } from "@codemirror/lang-markdown";
   import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
   import { Compartment, EditorState, Prec } from "@codemirror/state";
   import { EditorView, keymap, placeholder as placeholderExtension, type ViewUpdate } from "@codemirror/view";
+  import type { CompletionItem } from "./api";
 
   type Props = {
     value: string;
     placeholder?: string;
     disabled?: boolean;
+    slashCompletions?: CompletionItem[];
+    fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     onChange?: (value: string) => void;
     onSubmit?: () => void;
   };
@@ -17,6 +21,8 @@
     value,
     placeholder = "Ask the local Nerve agent…",
     disabled = false,
+    slashCompletions = [],
+    fileCompletions,
     onChange,
     onSubmit,
   }: Props = $props();
@@ -25,9 +31,50 @@
   let view: EditorView | undefined;
   let editorValue = $state(value);
   const editableCompartment = new Compartment();
+  const completionCompartment = new Compartment();
 
   function editableExtensions(isDisabled: boolean) {
     return [EditorState.readOnly.of(isDisabled), EditorView.editable.of(!isDisabled)];
+  }
+
+  function toCompletion(item: CompletionItem): Completion {
+    return {
+      label: item.label,
+      detail: item.detail,
+      info: item.info,
+      type: item.kind === "directory" ? "folder" : item.kind === "file" ? "file" : "keyword",
+      apply: item.apply ?? item.label,
+    };
+  }
+
+  async function completionSource(context: CompletionContext) {
+    const before = context.matchBefore(/(?:^|\s)([/@][^\s]*)/);
+    if (!before && !context.explicit) return null;
+    const rawToken = before?.text.trimStart() ?? "";
+    const tokenStart = before ? before.to - rawToken.length : context.pos;
+
+    if (rawToken.startsWith("/")) {
+      const options = slashCompletions
+        .filter((item) => item.label.startsWith(rawToken) || item.label.includes(rawToken.slice(1)))
+        .map(toCompletion);
+      return { from: tokenStart, options, validFor: /^\/[\w-]*$/ };
+    }
+
+    if (rawToken.startsWith("@")) {
+      const query = rawToken.slice(1);
+      const options = (await fileCompletions?.(query) ?? []).map(toCompletion);
+      return { from: tokenStart, options };
+    }
+
+    if (context.explicit) {
+      return { from: context.pos, options: slashCompletions.map(toCompletion) };
+    }
+
+    return null;
+  }
+
+  function completionExtensions() {
+    return autocompletion({ override: [completionSource] });
   }
 
   function submit() {
@@ -46,6 +93,7 @@
           markdown(),
           placeholderExtension(placeholder),
           editableCompartment.of(editableExtensions(disabled)),
+          completionCompartment.of(completionExtensions()),
           Prec.highest(
             keymap.of([
               { key: "Mod-Enter", run: submit },
@@ -62,39 +110,51 @@
           }),
           EditorView.theme({
             "&": {
-              background: "#020617",
-              color: "#eef2ff",
-              minHeight: "156px",
+              background: "var(--color-field)",
+              color: "var(--color-text)",
+              minHeight: "168px",
             },
             ".cm-content": {
-              caretColor: "#7dd3fc",
+              caretColor: "var(--color-accent)",
               fontFamily:
-                'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace',
-              fontSize: "0.95rem",
-              lineHeight: "1.55",
-              padding: "14px 16px",
+                'var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+              fontSize: "0.94rem",
+              lineHeight: "1.58",
+              padding: "15px 17px",
             },
             ".cm-line": {
               padding: "0 2px",
             },
             ".cm-cursor": {
-              borderLeftColor: "#7dd3fc",
+              borderLeftColor: "var(--color-accent)",
             },
             ".cm-placeholder": {
-              color: "#64748b",
+              color: "var(--color-faint)",
             },
             ".cm-scroller": {
-              minHeight: "156px",
+              minHeight: "168px",
               overflow: "auto",
+            },
+            ".cm-tooltip": {
+              border: "1px solid var(--color-border)",
+              borderRadius: "14px",
+              background: "var(--color-panel-raised)",
+              color: "var(--color-text)",
+              boxShadow: "var(--shadow-elevated)",
+              overflow: "hidden",
+            },
+            ".cm-tooltip-autocomplete ul li[aria-selected]": {
+              background: "var(--color-accent-soft)",
+              color: "var(--color-text)",
             },
             "&.cm-focused": {
               outline: "none",
             },
             "&.cm-focused .cm-cursor": {
-              borderLeftColor: "#7dd3fc",
+              borderLeftColor: "var(--color-accent)",
             },
             "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
-              backgroundColor: "rgba(125, 211, 252, 0.22)",
+              backgroundColor: "var(--color-selection)",
             },
           }),
         ],
@@ -110,6 +170,15 @@
   });
 
   $effect(() => {
+    if (!view) return;
+    slashCompletions;
+    fileCompletions;
+    view.dispatch({
+      effects: completionCompartment.reconfigure(completionExtensions()),
+    });
+  });
+
+  $effect(() => {
     if (!view || value === editorValue) return;
     view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: value },
@@ -121,14 +190,14 @@
 </script>
 
 <div class="composer-editor" class:disabled bind:this={host}></div>
-<p class="composer-hint"><kbd>⌘</kbd><kbd>Enter</kbd> sends · Markdown supported</p>
+<p class="composer-hint"><kbd>⌘</kbd><kbd>Enter</kbd> sends · <kbd>/</kbd> commands · <kbd>@</kbd> files</p>
 
 <style>
   .composer-editor {
     overflow: hidden;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: #020617;
+    border-radius: var(--radius-lg);
+    background: var(--color-field);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
     transition:
       border-color 160ms ease,
@@ -137,9 +206,9 @@
   }
 
   .composer-editor:focus-within {
-    border-color: rgb(125 211 252 / 68%);
+    border-color: var(--color-accent);
     box-shadow:
-      0 0 0 3px rgb(125 211 252 / 10%),
+      0 0 0 3px var(--color-ring-soft),
       inset 0 1px 0 rgb(255 255 255 / 5%);
   }
 
@@ -148,7 +217,7 @@
   }
 
   .composer-hint {
-    margin: -6px 0 0;
+    margin: 0.5rem 0 0;
     color: var(--color-muted);
     font-size: 0.78rem;
   }
@@ -160,8 +229,8 @@
     margin: 0 2px;
     border: 1px solid var(--color-border);
     border-radius: 0.35rem;
-    background: rgb(2 6 23 / 90%);
-    color: #dbeafe;
+    background: var(--color-field);
+    color: var(--color-text);
     font-size: 0.72rem;
     line-height: 1.35;
   }

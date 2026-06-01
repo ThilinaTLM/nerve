@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { codeToHtml } from "shiki";
   import { unified } from "unified";
   import remarkParse from "remark-parse";
   import remarkGfm from "remark-gfm";
@@ -11,6 +12,7 @@
   };
 
   let { text }: Props = $props();
+  let html = $state("");
 
   const markdownProcessor = unified()
     .use(remarkParse)
@@ -19,26 +21,69 @@
     .use(rehypeSanitize)
     .use(rehypeStringify);
 
+  function escapeHtml(source: string): string {
+    return source
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
   function renderMarkdown(source: string): string {
     try {
       return String(markdownProcessor.processSync(source));
     } catch {
-      return source
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
+      return escapeHtml(source);
     }
   }
 
-  const html = $derived(renderMarkdown(text));
+  async function highlightCodeBlocks(safeHtml: string): Promise<string> {
+    if (typeof document === "undefined" || !safeHtml.includes("<pre")) return safeHtml;
+    const container = document.createElement("div");
+    container.innerHTML = safeHtml;
+    const blocks = Array.from(container.querySelectorAll("pre > code"));
+    await Promise.all(
+      blocks.map(async (block) => {
+        const className = block.getAttribute("class") ?? "";
+        const language = className.match(/language-([\w-]+)/)?.[1] ?? "text";
+        const highlighted = await codeToHtml(block.textContent ?? "", {
+          lang: language,
+          themes: {
+            light: "github-light",
+            dark: "night-owl",
+          },
+          defaultColor: false,
+        });
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = highlighted;
+        block.parentElement?.replaceWith(wrapper.firstElementChild ?? block);
+      }),
+    );
+    return container.innerHTML;
+  }
+
+  $effect(() => {
+    const source = text;
+    let cancelled = false;
+    html = renderMarkdown(source);
+    highlightCodeBlocks(html)
+      .then((highlighted) => {
+        if (!cancelled && source === text) html = highlighted;
+      })
+      .catch(() => {
+        if (!cancelled && source === text) html = renderMarkdown(source);
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
 </script>
 
 <div class="markdown">{@html html}</div>
 
 <style>
   .markdown {
-    color: #dbeafe;
-    line-height: 1.6;
+    color: var(--color-message-text);
+    line-height: 1.64;
     overflow-wrap: anywhere;
   }
 
@@ -56,22 +101,22 @@
   .markdown :global(blockquote),
   .markdown :global(pre),
   .markdown :global(table) {
-    margin: 0.75rem 0;
+    margin: 0.78rem 0;
   }
 
   .markdown :global(a) {
     color: var(--color-accent);
     text-decoration: underline;
-    text-decoration-color: rgb(125 211 252 / 36%);
+    text-decoration-color: color-mix(in oklab, var(--color-accent), transparent 62%);
     text-underline-offset: 0.18em;
   }
 
   .markdown :global(code) {
     display: inline;
-    border: 1px solid rgb(125 211 252 / 16%);
-    border-radius: 0.4rem;
-    background: rgb(2 6 23 / 88%);
-    color: #bae6fd;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 0.42rem;
+    background: var(--color-field);
+    color: var(--color-code);
     padding: 0.08rem 0.34rem;
     font-size: 0.88em;
   }
@@ -80,7 +125,7 @@
     overflow: auto;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    background: #020617;
+    background: var(--color-code-bg) !important;
     padding: 1rem;
   }
 
@@ -89,7 +134,7 @@
     border: 0;
     background: transparent;
     padding: 0;
-    color: #e0f2fe;
+    color: inherit;
   }
 
   .markdown :global(blockquote) {
@@ -111,7 +156,7 @@
   }
 
   .markdown :global(th) {
-    background: rgb(125 211 252 / 10%);
-    color: #eef2ff;
+    background: var(--color-accent-soft);
+    color: var(--color-text);
   }
 </style>
