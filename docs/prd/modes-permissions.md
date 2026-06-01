@@ -135,6 +135,7 @@ Recommended first implementation:
 - require approval for unknown commands in `supervised`
 - reject unknown commands in `read_only`
 - treat dangerous patterns as `destructive`
+- reject likely long-running dev/server/watch commands from normal `bash`; agents must use `process_start` so the orchestrator can supervise lifecycle and logs
 
 Known read-like examples:
 

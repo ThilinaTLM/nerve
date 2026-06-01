@@ -254,6 +254,8 @@ Success criteria:
 
 ## Phase 6: Background process manager
 
+Status: complete.
+
 Goal: dev servers and long-running commands become first-class.
 
 Tasks:

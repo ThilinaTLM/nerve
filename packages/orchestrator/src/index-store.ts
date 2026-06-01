@@ -3,6 +3,7 @@ import type {
   AgentRecord,
   ApprovalRecord,
   EventEnvelope,
+  ProcessRecord,
   ProjectRecord,
   SessionRecord,
   ToolCallRecord,
@@ -21,6 +22,7 @@ export interface RebuildIndexInput {
   sessions: SessionRecord[];
   agents: AgentRecord[];
   events: EventEnvelope[];
+  processes?: ProcessRecord[];
 }
 
 interface EventRefs {
@@ -93,6 +95,15 @@ export class IndexStore {
         );
         CREATE TABLE IF NOT EXISTS processes (
           id TEXT PRIMARY KEY,
+          name TEXT,
+          project_id TEXT,
+          session_id TEXT,
+          agent_id TEXT,
+          cwd TEXT NOT NULL,
+          command TEXT NOT NULL,
+          status TEXT NOT NULL,
+          started_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
           json TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS tool_calls (
@@ -107,6 +118,7 @@ export class IndexStore {
         CREATE INDEX IF NOT EXISTS events_index_session_seq ON events_index(session_id, seq);
         CREATE INDEX IF NOT EXISTS events_index_agent_seq ON events_index(agent_id, seq);
       `);
+      this.migrateProcessesTableIfNeeded();
     });
   }
 
@@ -201,6 +213,41 @@ export class IndexStore {
     });
   }
 
+  upsertProcess(process: ProcessRecord): void {
+    this.guard(() => {
+      this.db
+        .prepare(
+          `INSERT INTO processes (
+             id, name, project_id, session_id, agent_id, cwd, command,
+             status, started_at, updated_at, json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             project_id = excluded.project_id,
+             session_id = excluded.session_id,
+             agent_id = excluded.agent_id,
+             cwd = excluded.cwd,
+             command = excluded.command,
+             status = excluded.status,
+             updated_at = excluded.updated_at,
+             json = excluded.json`,
+        )
+        .run(
+          process.id,
+          process.name ?? null,
+          process.projectId ?? null,
+          process.sessionId ?? null,
+          process.agentId ?? null,
+          process.cwd,
+          process.command,
+          process.status,
+          process.startedAt,
+          process.updatedAt,
+          JSON.stringify(process),
+        );
+    });
+  }
+
   upsertToolCall(toolCall: ToolCallRecord): void {
     this.guard(() => {
       this.db
@@ -258,6 +305,8 @@ export class IndexStore {
         for (const project of input.projects) this.upsertProject(project);
         for (const session of input.sessions) this.upsertSession(session);
         for (const agent of input.agents) this.upsertAgent(agent);
+        for (const process of input.processes ?? [])
+          this.upsertProcess(process);
         for (const event of input.events) this.insertEvent(event);
         this.db.exec("COMMIT");
       } catch (error) {
@@ -279,6 +328,31 @@ export class IndexStore {
 
   close(): void {
     this.db.close();
+  }
+
+  private migrateProcessesTableIfNeeded(): void {
+    const columns = this.db
+      .prepare("PRAGMA table_info(processes)")
+      .all() as Array<{
+      name: string;
+    }>;
+    if (columns.some((column) => column.name === "status")) return;
+    this.db.exec("DROP TABLE IF EXISTS processes");
+    this.db.exec(`
+      CREATE TABLE processes (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        project_id TEXT,
+        session_id TEXT,
+        agent_id TEXT,
+        cwd TEXT NOT NULL,
+        command TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        json TEXT NOT NULL
+      );
+    `);
   }
 
   private countTable(table: string): number {
@@ -311,6 +385,9 @@ function refsForEvent(event: EventEnvelope): EventRefs {
   copyNestedRef(data.project, refs, "projectId", "id");
   copyNestedRef(data.session, refs, "sessionId", "id");
   copyNestedRef(data.agent, refs, "agentId", "id");
+  copyNestedRef(data.process, refs, "projectId", "projectId");
+  copyNestedRef(data.process, refs, "sessionId", "sessionId");
+  copyNestedRef(data.process, refs, "agentId", "agentId");
   copyNestedRef(data.entry, refs, "sessionId", "sessionId");
   copyNestedRef(data.entry, refs, "agentId", "agentId");
   return refs;

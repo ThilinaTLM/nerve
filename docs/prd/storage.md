@@ -79,7 +79,7 @@ This follows the spirit of Pi's `~/.pi` layout while giving `nerve` its own name
       process.json
       stdout.log
       stderr.log
-      events.jsonl
+      logs.jsonl
 
   approvals/
     approvals.jsonl
@@ -237,10 +237,10 @@ proc/<process-id>/
   process.json
   stdout.log
   stderr.log
-  events.jsonl
+  logs.jsonl
 ```
 
-Raw logs should live in files. SQLite may index process status and summarized incidents, but should not be the only place logs exist.
+`process.json` stores process identity, owner refs, cwd, command, status, readiness detection/outcome, timestamps, exit metadata, and log file paths. Raw stdout/stderr logs live in ordinary files. `logs.jsonl` stores structured log events with sequence numbers, stream, derived level, and line text so recent/error/warning/cursor/first-failure queries can be rebuilt from files. SQLite may index process status and summarized incidents, but should not be the only place logs exist.
 
 ### Approvals
 

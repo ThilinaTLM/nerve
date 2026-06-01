@@ -19,6 +19,7 @@
     getClientConfig,
     getFileCompletions,
     getPendingApprovals,
+    getProcessLogs,
     getSessionMessages,
     getSessionTree,
     getSlashCompletions,
@@ -28,11 +29,15 @@
     type ClientConfig,
     type CompletionItem,
     type EventEnvelope,
+    type ProcessLogQueryResponse,
+    type ProcessRecord,
     type ProjectRecord,
     type SessionEntry,
     type SessionRecord,
     type SessionTreeNode,
     type StatusResponse,
+    restartProcess,
+    stopProcess,
   } from "./lib/api";
   import { queryClient, queryKeys } from "./lib/query";
   import Badge from "./lib/components/ui/Badge.svelte";
@@ -59,6 +64,9 @@
   let agents = $state<AgentRecord[]>([]);
   let treeNodes = $state<SessionTreeNode[]>([]);
   let approvals = $state<ApprovalWithToolCall[]>([]);
+  let processes = $state<ProcessRecord[]>([]);
+  let selectedProcessId = $state<string | undefined>(undefined);
+  let processLogs = $state<ProcessLogQueryResponse | undefined>(undefined);
   let transcript = $state<TranscriptItem[]>([]);
   let streamingText = $state("");
   let slashCompletions = $state<CompletionItem[]>([]);
@@ -70,6 +78,7 @@
   const live = $derived(connection === "live");
   const branchDepth = $derived(treeNodes.length);
   const pendingApprovalCount = $derived(approvals.length);
+  const selectedProcess = $derived(processes.find((process) => process.id === selectedProcessId));
 
   function entriesToTranscript(entries: SessionEntry[]): TranscriptItem[] {
     return entries
@@ -85,7 +94,10 @@
     projects = snapshot.projects;
     sessions = snapshot.sessions;
     agents = snapshot.agents;
+    processes = snapshot.processes;
+    selectedProcessId = selectedProcessId ?? processes[0]?.id;
     approvals = await getPendingApprovals();
+    if (selectedProcessId) processLogs = await getProcessLogs(selectedProcessId);
   }
 
   async function loadSlashCommands() {
@@ -184,6 +196,30 @@
     layout.inspectorTab = "events";
   }
 
+  async function selectProcess(processId: string) {
+    selectedProcessId = processId;
+    processLogs = await getProcessLogs(processId);
+    layout.inspectorTab = "processes";
+  }
+
+  async function stopSelectedProcess(processId: string) {
+    await stopProcess(processId);
+    await loadWorkspaceState();
+    if (selectedProcessId) processLogs = await getProcessLogs(selectedProcessId);
+  }
+
+  async function restartSelectedProcess(processId: string) {
+    const restarted = await restartProcess(processId);
+    selectedProcessId = restarted.id;
+    await loadWorkspaceState();
+    processLogs = await getProcessLogs(restarted.id);
+  }
+
+  async function refreshProcessLogs() {
+    if (!selectedProcessId) return;
+    processLogs = await getProcessLogs(selectedProcessId);
+  }
+
   async function denyApproval(approvalId: string) {
     await apiPost(`/api/approvals/${approvalId}/deny`, { note: "Denied from UI." });
     approvals = await getPendingApprovals();
@@ -239,12 +275,18 @@
       error = String(event.data?.message ?? "Agent error");
       sending = false;
     }
+    if (event.type === "process.log") {
+      const processId = String(event.data?.processId ?? "");
+      if (processId && processId === selectedProcessId) void getProcessLogs(processId).then((logs) => (processLogs = logs));
+      return;
+    }
     if (
       event.type === "session.created" ||
       event.type === "agent.created" ||
       event.type === "project.created" ||
       event.type.startsWith("approval.") ||
-      event.type.startsWith("agent.tool_call")
+      event.type.startsWith("agent.tool_call") ||
+      event.type.startsWith("process.")
     ) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
       void loadWorkspaceState();
@@ -450,6 +492,7 @@
             <Tabs.Trigger value="session" class="tab-trigger">Session</Tabs.Trigger>
             <Tabs.Trigger value="branch" class="tab-trigger">Branch</Tabs.Trigger>
             <Tabs.Trigger value="approvals" class="tab-trigger">Approvals</Tabs.Trigger>
+            <Tabs.Trigger value="processes" class="tab-trigger">Processes</Tabs.Trigger>
             <Tabs.Trigger value="events" class="tab-trigger">Events</Tabs.Trigger>
           </Tabs.List>
 
@@ -524,6 +567,67 @@
               </div>
             {:else}
               <p class="muted">No pending approvals.</p>
+            {/if}
+          </Tabs.Content>
+
+          <Tabs.Content value="processes" class="tab-content">
+            <div class="branch-header">
+              <div>
+                <p class="eyebrow">background</p>
+                <h3>{processes.length} processes</h3>
+              </div>
+              <Button variant="ghost" size="sm" onclick={refreshProcessLogs}>Refresh</Button>
+            </div>
+            {#if processes.length > 0}
+              <div class="process-layout">
+                <div class="process-list">
+                  {#each processes as process}
+                    <button
+                      class="process-card"
+                      class:active={process.id === selectedProcessId}
+                      type="button"
+                      onclick={() => selectProcess(process.id)}
+                    >
+                      <strong>{process.name ?? process.command}</strong>
+                      <span>{process.status}</span>
+                      <small>{process.id}</small>
+                    </button>
+                  {/each}
+                </div>
+                {#if selectedProcess}
+                  <Card tone="muted" class="detail-card process-detail">
+                    <div class="approval-heading">
+                      <div>
+                        <p class="eyebrow">{selectedProcess.status}</p>
+                        <h3>{selectedProcess.name ?? selectedProcess.id}</h3>
+                      </div>
+                      <Badge tone={selectedProcess.status === "ready" || selectedProcess.status === "running" ? "good" : "warn"}>{selectedProcess.status}</Badge>
+                    </div>
+                    <dl>
+                      <dt>Command</dt><dd>{selectedProcess.command}</dd>
+                      <dt>CWD</dt><dd>{selectedProcess.cwd}</dd>
+                      <dt>Ready</dt><dd>{selectedProcess.readiness.outcome}{selectedProcess.readiness.matched ? ` · ${selectedProcess.readiness.matched}` : ""}</dd>
+                    </dl>
+                    <div class="approval-actions">
+                      <Button size="sm" variant="secondary" onclick={() => stopSelectedProcess(selectedProcess.id)}>Stop</Button>
+                      <Button size="sm" onclick={() => restartSelectedProcess(selectedProcess.id)}>Restart</Button>
+                    </div>
+                  </Card>
+                {/if}
+                {#if processLogs?.events.length}
+                  <div class="process-log-list">
+                    {#each processLogs.events as log}
+                      <code class:error-line={log.level === "error"} class:warn-line={log.level === "warn"}>
+                        {log.seq} {log.stream} {log.line}
+                      </code>
+                    {/each}
+                  </div>
+                {:else}
+                  <p class="muted">No captured logs for the selected process.</p>
+                {/if}
+              </div>
+            {:else}
+              <p class="muted">No supervised background processes yet. Agents can create one with <code>process_start</code>.</p>
             {/if}
           </Tabs.Content>
 
@@ -899,7 +1003,7 @@
 
   :global(.tab-list) {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 0.25rem;
     margin-bottom: 1rem;
     border: 1px solid var(--color-border);
@@ -935,9 +1039,45 @@
     padding: 1rem;
   }
 
-  .approval-list {
+  .approval-list,
+  .process-layout,
+  .process-list,
+  .process-log-list {
     display: grid;
     gap: 0.75rem;
+  }
+
+  .process-card {
+    display: grid;
+    gap: 0.25rem;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--color-field);
+    color: var(--color-text);
+    padding: 0.72rem;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .process-card.active,
+  .process-card:hover {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+
+  .process-card span,
+  .process-card small {
+    color: var(--color-muted);
+  }
+
+  .process-log-list code.error-line {
+    border-color: color-mix(in oklab, var(--color-danger), transparent 45%);
+    color: var(--color-danger);
+  }
+
+  .process-log-list code.warn-line {
+    border-color: color-mix(in oklab, var(--color-warn), transparent 45%);
+    color: var(--color-warn);
   }
 
   .approval-heading {

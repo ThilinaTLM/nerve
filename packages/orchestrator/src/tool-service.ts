@@ -10,6 +10,7 @@ import { coreToolDescriptors, executeTool } from "@nerve/tools";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
 import { evaluateToolPolicy } from "./policy.js";
+import type { ProcessManager } from "./process-manager.js";
 import type { InitializedStorage } from "./storage.js";
 import { appendJsonLine, readJsonLines } from "./storage.js";
 
@@ -26,6 +27,7 @@ export class ToolService {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
+    private readonly processes: ProcessManager,
   ) {}
 
   async hydrate(): Promise<void> {
@@ -194,10 +196,7 @@ export class ToolService {
     await this.events.publish("agent.tool_call.running", { toolCall });
     try {
       const args = { ...(toolCall.args as Record<string, unknown>) };
-      if (toolCall.toolName === "bash") delete args.cwd;
-      const result = await executeTool(toolCall.toolName, args, {
-        cwd: toolCall.cwd,
-      });
+      const result = await this.executeToolCall(toolCall, args);
       const completed = await this.updateToolCall(toolCall.id, {
         status: "completed",
         result,
@@ -214,6 +213,90 @@ export class ToolService {
       });
       await this.events.publish("agent.tool_call.error", { toolCall: failed });
       return failed;
+    }
+  }
+
+  private async executeToolCall(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    switch (toolCall.toolName) {
+      case "process_start":
+        return {
+          process: await this.processes.startProcess({
+            name: typeof args.name === "string" ? args.name : undefined,
+            projectId: toolCall.projectId,
+            sessionId: toolCall.sessionId,
+            agentId: toolCall.agentId,
+            cwd: toolCall.cwd,
+            command: stringArg(args, "command"),
+            env: stringRecordArg(args.env),
+            readyOnUrl: Boolean(args.readyOnUrl),
+            readyPattern:
+              typeof args.readyPattern === "string"
+                ? args.readyPattern
+                : undefined,
+            readyTimeoutMs:
+              typeof args.readyTimeoutMs === "number"
+                ? args.readyTimeoutMs
+                : undefined,
+          }),
+        };
+      case "process_stop":
+        return {
+          process: await this.processes.stopProcess(
+            processIdArg(args, this.processes, toolCall.projectId),
+            {
+              signal:
+                args.signal === "SIGINT" ||
+                args.signal === "SIGKILL" ||
+                args.signal === "SIGTERM"
+                  ? args.signal
+                  : undefined,
+              timeoutMs:
+                typeof args.timeoutMs === "number" ? args.timeoutMs : undefined,
+            },
+          ),
+        };
+      case "process_restart":
+        return {
+          process: await this.processes.restartProcess(
+            processIdArg(args, this.processes, toolCall.projectId),
+          ),
+        };
+      case "process_list":
+        return {
+          processes: this.processes
+            .listProcesses()
+            .filter((process) => process.projectId === toolCall.projectId),
+        };
+      case "process_logs":
+        return this.processes.queryLogs(
+          processIdArg(args, this.processes, toolCall.projectId),
+          {
+            mode:
+              args.mode === "errors" ||
+              args.mode === "warnings" ||
+              args.mode === "since_cursor" ||
+              args.mode === "first_failure" ||
+              args.mode === "recent"
+                ? args.mode
+                : undefined,
+            sinceSeq:
+              typeof args.sinceSeq === "number" ? args.sinceSeq : undefined,
+            contains:
+              typeof args.contains === "string" ? args.contains : undefined,
+            regex: typeof args.regex === "string" ? args.regex : undefined,
+            contextLines:
+              typeof args.contextLines === "number"
+                ? args.contextLines
+                : undefined,
+            limit: typeof args.limit === "number" ? args.limit : undefined,
+          },
+        );
+      default:
+        if (toolCall.toolName === "bash") delete args.cwd;
+        return executeTool(toolCall.toolName, args, { cwd: toolCall.cwd });
     }
   }
 
@@ -270,4 +353,47 @@ function latestById<T extends { id: string }>(values: T[]): T[] {
   const byId = new Map<string, T>();
   for (const value of values) byId.set(value.id, value);
   return [...byId.values()];
+}
+
+function stringArg(args: Record<string, unknown>, name: string): string {
+  const value = args[name];
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Tool argument '${name}' must be a non-empty string.`);
+  }
+  return value;
+}
+
+function stringRecordArg(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const output: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw === "string") output[key] = raw;
+  }
+  return output;
+}
+
+function processIdArg(
+  args: Record<string, unknown>,
+  processes: ProcessManager,
+  projectId: string,
+): string {
+  let processId: string | undefined;
+  if (typeof args.processId === "string" && args.processId.trim()) {
+    processId = args.processId;
+  } else if (typeof args.name === "string" && args.name.trim()) {
+    processId = processes
+      .listProcesses()
+      .find(
+        (process) =>
+          process.name === args.name && process.projectId === projectId,
+      )?.id;
+  }
+  if (!processId) {
+    throw new Error("Tool argument 'processId' or 'name' is required.");
+  }
+  const process = processes.getProcess(processId);
+  if (process.projectId !== projectId) {
+    throw new Error("Process is outside this agent's project scope.");
+  }
+  return process.id;
 }

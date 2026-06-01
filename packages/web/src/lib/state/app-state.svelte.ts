@@ -1,5 +1,10 @@
 export type ThemePreference = "system" | "light" | "dark";
-export type InspectorTab = "session" | "events" | "branch" | "approvals";
+export type InspectorTab =
+  | "session"
+  | "events"
+  | "branch"
+  | "approvals"
+  | "processes";
 
 export const selection = $state({
   projectId: undefined as string | undefined,

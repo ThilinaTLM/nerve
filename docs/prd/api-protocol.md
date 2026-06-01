@@ -358,7 +358,7 @@ interface PolicyEvaluation {
 ### Background processes
 
 ```txt
-POST /api/processes/start
+POST /api/processes
 GET  /api/processes
 GET  /api/processes/:processId
 POST /api/processes/:processId/stop
@@ -369,30 +369,36 @@ GET  /api/processes/:processId/logs
 Start body:
 
 ```ts
-interface ProcessStartRequest {
-  ownerAgentId?: string;
-  projectId?: string;
+interface StartProcessRequest {
   name?: string;
+  projectId?: string;
+  sessionId?: string;
+  agentId?: string;
+  cwd: string;
   command: string;
-  args?: string[];
-  cwd?: string;
-  env?: Record<string, string>;
+  env?: Record<string, string>; // used for spawn only; not persisted in process.json
   readyPattern?: string;
   readyOnUrl?: boolean;
-  onConflict?: "fail" | "replace" | "reuse";
+  readyTimeoutMs?: number;
 }
 ```
+
+Process records are durable under `proc/<process-id>/process.json` and include status, readiness outcome, owner refs, command, cwd, timestamps, exit metadata, and log paths.
 
 Logs query:
 
 ```ts
-interface ProcessLogsQuery {
-  since?: string;
-  cursor?: string;
-  mode?: "recent" | "errors" | "warnings" | "since-cursor" | "first-failure";
+interface ProcessLogQuery {
+  mode?: "recent" | "errors" | "warnings" | "since_cursor" | "first_failure";
+  sinceSeq?: number;
+  contains?: string;
+  regex?: string;
+  contextLines?: number;
   limit?: number;
 }
 ```
+
+Log query responses include structured stdout/stderr events with `seq`, `ts`, `stream`, `level`, and `line`, plus `nextCursor` for incremental reads.
 
 ### Child agents / sub-agents
 

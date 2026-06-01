@@ -2,6 +2,8 @@ import type {
   AgentRecord,
   ApprovalRecord,
   EventEnvelope,
+  ProcessLogQueryResponse,
+  ProcessRecord,
   ProjectRecord,
   SessionEntry,
   SessionRecord,
@@ -29,6 +31,7 @@ export type WorkspaceSnapshot = {
   projects: ProjectRecord[];
   sessions: SessionRecord[];
   agents: AgentRecord[];
+  processes: ProcessRecord[];
 };
 
 export type ApprovalWithToolCall = ApprovalRecord & {
@@ -60,17 +63,20 @@ export async function getClientConfig(): Promise<ClientConfig> {
 }
 
 export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
-  const [projectResponse, sessionResponse, agentResponse] = await Promise.all([
-    apiGet<{ projects: ProjectRecord[] }>("/api/projects"),
-    apiGet<{ sessions: SessionRecord[] }>("/api/sessions"),
-    apiGet<{ agents: AgentRecord[] }>("/api/agents"),
-  ]);
+  const [projectResponse, sessionResponse, agentResponse, processResponse] =
+    await Promise.all([
+      apiGet<{ projects: ProjectRecord[] }>("/api/projects"),
+      apiGet<{ sessions: SessionRecord[] }>("/api/sessions"),
+      apiGet<{ agents: AgentRecord[] }>("/api/agents"),
+      apiGet<{ processes: ProcessRecord[] }>("/api/processes"),
+    ]);
   return {
     projects: projectResponse.projects,
     sessions: [...sessionResponse.sessions].sort((a, b) =>
       b.updatedAt.localeCompare(a.updatedAt),
     ),
     agents: agentResponse.agents,
+    processes: processResponse.processes,
   };
 }
 
@@ -93,6 +99,36 @@ export async function getSessionTree(sessionId: string): Promise<SessionTree> {
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
   return (await apiGet<{ items: CompletionItem[] }>("/api/completions/slash"))
     .items;
+}
+
+export async function getProcessLogs(
+  processId: string,
+  mode = "recent",
+): Promise<ProcessLogQueryResponse> {
+  const params = new URLSearchParams({ mode, limit: "120" });
+  return apiGet<ProcessLogQueryResponse>(
+    `/api/processes/${processId}/logs?${params.toString()}`,
+  );
+}
+
+export async function stopProcess(processId: string): Promise<ProcessRecord> {
+  return (
+    await apiPost<{ process: ProcessRecord }>(
+      `/api/processes/${processId}/stop`,
+      {},
+    )
+  ).process;
+}
+
+export async function restartProcess(
+  processId: string,
+): Promise<ProcessRecord> {
+  return (
+    await apiPost<{ process: ProcessRecord }>(
+      `/api/processes/${processId}/restart`,
+      {},
+    )
+  ).process;
 }
 
 export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
@@ -131,4 +167,6 @@ export type {
   StatusResponse,
   ApprovalRecord,
   ToolCallRecord,
+  ProcessRecord,
+  ProcessLogQueryResponse,
 };

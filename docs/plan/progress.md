@@ -5,7 +5,7 @@ This file tracks implementation progress at a high level. Detailed requirements 
 ## Current phase
 
 ```txt
-Phase 5: Tool layer + policy engine — complete
+Phase 6: Background process manager — complete
 ```
 
 ## Locked foundation decisions
@@ -140,6 +140,27 @@ Phase 5: Tool layer + policy engine — complete
 - Added orchestrator endpoints for listing tools, listing tool calls, requesting agent tool execution, and granting/denying approvals.
 - Tool calls now emit `agent.tool_call.*` events; policy checks emit `policy.evaluated`; approvals emit `approval.requested`, `approval.granted`, and `approval.denied`.
 - The web inspector now surfaces pending approvals with approve/deny actions and refreshes on tool/approval events.
+
+### Phase 6: Background process manager
+
+- [x] Implement process supervisor in orchestrator.
+- [x] Store process state and logs under `~/.nerve/proc/<process-id>/`.
+- [x] Add process store with id/name, owner refs, cwd, command, status, timestamps, exit metadata, and log paths.
+- [x] Capture stdout/stderr incrementally into append-only stdout/stderr files and structured JSONL log events.
+- [x] Add readiness detection by URL, regex pattern, and timeout outcome.
+- [x] Add log querying modes for recent, errors, warnings, cursor-based reads, and first failure context.
+- [x] Add process tools: `process_start`, `process_stop`, `process_restart`, `process_list`, and `process_logs`.
+- [x] Add UI process/log panel with stop, restart, status, readiness, and recent logs.
+
+### Latest Phase 6 notes
+
+- Added shared process schemas and durable `proc_` process records.
+- Added `ProcessManager` in the orchestrator, with shell process supervision, process-group termination on Unix, durable `process.json`, `stdout.log`, `stderr.log`, and `logs.jsonl` files.
+- Added process APIs under `/api/processes`, including start, stop, restart, and log query endpoints.
+- Integrated process tools into the existing tool-call/policy/approval lifecycle, so supervised process starts/stops prompt like other command/destructive actions.
+- Normal `bash` tool calls now deny likely long-running dev/watch/server commands and instruct agents to use `process_start` instead.
+- Added a web inspector Processes tab that lists supervised processes, displays readiness state and live logs, and exposes stop/restart controls.
+- Smoke-tested URL readiness, recent log query, and stop behavior against a temp `NERVE_HOME` daemon.
 
 ### Later phases
 

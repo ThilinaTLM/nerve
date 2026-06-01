@@ -3,6 +3,7 @@ import type { AgentRecord, ToolName, ToolRisk } from "@nerve/shared";
 import {
   hasDangerousCommandPattern,
   isKnownReadOnlyCommand,
+  isLikelyLongRunningCommand,
   resolveToolPath,
   toolRiskForName,
 } from "@nerve/tools";
@@ -42,6 +43,16 @@ export function evaluateToolPolicy(
     return { decision: "deny", risk, reason: boundary, normalizedArgs, cwd };
 
   if (toolName === "bash" && typeof args.command === "string") {
+    if (isLikelyLongRunningCommand(args.command)) {
+      return {
+        decision: "deny",
+        risk: "command",
+        reason:
+          "Long-running commands must use process_start so logs and lifecycle are supervised.",
+        normalizedArgs,
+        cwd,
+      };
+    }
     if (hasDangerousCommandPattern(args.command)) risk = "destructive";
     else if (isKnownReadOnlyCommand(args.command)) risk = "read";
   }
@@ -154,6 +165,10 @@ function classifyRisk(
   agent: AgentRecord,
   context: PolicyContext,
 ): ToolRisk {
+  if (toolName === "process_list" || toolName === "process_logs") return "read";
+  if (toolName === "process_stop" || toolName === "process_restart") {
+    return "destructive";
+  }
   if (
     (toolName === "write" || toolName === "edit") &&
     typeof args.path === "string"
@@ -181,7 +196,10 @@ function enforceBoundaries(
     workspaceRoots.some((root) => isInside(root, path));
   const isInPlanSandbox = (path: string) => isInside(planRoot, path);
 
-  if (toolName === "bash" && !isInWorkspace(cwd)) {
+  if (
+    (toolName === "bash" || toolName === "process_start") &&
+    !isInWorkspace(cwd)
+  ) {
     return "Shell commands must run inside the agent workspace scope.";
   }
 

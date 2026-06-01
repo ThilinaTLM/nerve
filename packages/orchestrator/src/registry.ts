@@ -14,12 +14,15 @@ import {
   createId,
   type ModelInfo,
   type NavigateSessionRequest,
+  type ProcessLogQuery,
   type ProjectRecord,
   type PromptRequest,
   projectRecordSchema,
   type SessionEntry,
   type SessionRecord,
   type SessionTree,
+  type StartProcessRequest,
+  type StopProcessRequest,
   sessionEntrySchema,
   sessionRecordSchema,
   type ToolName,
@@ -27,6 +30,7 @@ import {
 import { AgentProcessError, launchAgentProcess } from "./agent-process.js";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
+import { ProcessManager } from "./process-manager.js";
 import {
   appendJsonLine,
   atomicWriteJson,
@@ -51,6 +55,7 @@ export class RuntimeRegistry {
   readonly entries = new Map<string, SessionEntry[]>();
   readonly conversations = new Map<string, Message[]>();
   readonly runs = new Map<string, AgentRunState>();
+  readonly processes: ProcessManager;
   readonly tools: ToolService;
 
   constructor(
@@ -58,10 +63,12 @@ export class RuntimeRegistry {
     private readonly events: EventBus,
     private readonly index: IndexStore,
   ) {
-    this.tools = new ToolService(storage, events, index);
+    this.processes = new ProcessManager(storage, events, index);
+    this.tools = new ToolService(storage, events, index, this.processes);
   }
 
   async hydrate(): Promise<void> {
+    await this.processes.hydrate();
     await this.tools.hydrate();
     await this.loadProjects();
     await this.loadSessions();
@@ -75,6 +82,7 @@ export class RuntimeRegistry {
       sessions: this.listSessions(),
       agents: this.listAgents(),
       events: await this.events.replayPersistedSince(0),
+      processes: this.processes.listProcesses(),
     });
   }
 
@@ -297,6 +305,30 @@ export class RuntimeRegistry {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  listProcesses() {
+    return this.processes.listProcesses();
+  }
+
+  getProcess(processId: string) {
+    return this.processes.getProcess(processId);
+  }
+
+  startProcess(request: StartProcessRequest) {
+    return this.processes.startProcess(request);
+  }
+
+  stopProcess(processId: string, request?: StopProcessRequest) {
+    return this.processes.stopProcess(processId, request);
+  }
+
+  restartProcess(processId: string) {
+    return this.processes.restartProcess(processId);
+  }
+
+  queryProcessLogs(processId: string, query?: ProcessLogQuery) {
+    return this.processes.queryLogs(processId, query);
   }
 
   listModels(): ModelInfo[] {

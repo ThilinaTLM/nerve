@@ -97,5 +97,7 @@ function sessionIdForEvent(event: EventEnvelope): string | undefined {
   if (typeof entry?.sessionId === "string") return entry.sessionId;
   const agent = data.agent as Record<string, unknown> | undefined;
   if (typeof agent?.sessionId === "string") return agent.sessionId;
+  const process = data.process as Record<string, unknown> | undefined;
+  if (typeof process?.sessionId === "string") return process.sessionId;
   return undefined;
 }

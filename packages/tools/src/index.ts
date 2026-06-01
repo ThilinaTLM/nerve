@@ -38,6 +38,31 @@ export const coreToolDescriptors: ToolDescriptor[] = [
     risk: "command",
     description: "Run a bounded shell command in a workspace directory.",
   },
+  {
+    name: "process_start",
+    risk: "command",
+    description: "Start a supervised background process and capture logs.",
+  },
+  {
+    name: "process_stop",
+    risk: "destructive",
+    description: "Stop a supervised background process.",
+  },
+  {
+    name: "process_restart",
+    risk: "destructive",
+    description: "Restart a supervised background process.",
+  },
+  {
+    name: "process_list",
+    risk: "read",
+    description: "List supervised background processes.",
+  },
+  {
+    name: "process_logs",
+    risk: "read",
+    description: "Query captured background process logs.",
+  },
 ];
 
 export type ToolExecutionContext = {
@@ -118,6 +143,19 @@ export function hasDangerousCommandPattern(command: string): boolean {
   );
 }
 
+export function isLikelyLongRunningCommand(command: string): boolean {
+  const normalized = command.trim().replace(/\s+/g, " ");
+  if (!normalized) return false;
+  return (
+    /(^|\s)(npm|pnpm|yarn|bun)\s+(run\s+)?(dev|start|serve|preview|watch)(\s|$)/.test(
+      normalized,
+    ) ||
+    /(^|\s)(vite|next\s+dev|svelte-kit\s+dev|astro\s+dev|webpack\s+serve|nodemon|tsx\s+watch|tsc\s+--watch|cargo\s+watch)(\s|$)/.test(
+      normalized,
+    )
+  );
+}
+
 export async function executeTool(
   name: ToolName,
   args: Record<string, unknown>,
@@ -136,6 +174,14 @@ export async function executeTool(
       return executeList(args, context);
     case "search":
       return executeSearch(args, context);
+    case "process_start":
+    case "process_stop":
+    case "process_restart":
+    case "process_list":
+    case "process_logs":
+      throw new Error(
+        `${name} is executed by the orchestrator process manager.`,
+      );
   }
 }
 

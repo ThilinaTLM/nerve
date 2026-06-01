@@ -10,9 +10,12 @@ import {
   executeToolRequestSchema,
   navigateSessionRequestSchema,
   parseCookieHeader,
+  processLogQuerySchema,
   promptRequestSchema,
   resolveApprovalRequestSchema,
   type StatusResponse,
+  startProcessRequestSchema,
+  stopProcessRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { EventBus } from "./events.js";
@@ -223,6 +226,12 @@ function isInside(root: string, candidate: string): boolean {
   return candidate === root || candidate.startsWith(`${root}${sep}`);
 }
 
+function numberQuery(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 async function fileCompletionItems(
   state: OrchestratorState,
   projectId: string | undefined,
@@ -316,6 +325,67 @@ export function createApp(state: OrchestratorState): Hono {
   app.get("/api/tool-calls", (c) =>
     c.json({ toolCalls: state.registry.tools.listToolCalls() }),
   );
+  app.get("/api/processes", (c) =>
+    c.json({ processes: state.registry.listProcesses() }),
+  );
+  app.post("/api/processes", async (c) => {
+    try {
+      const body = startProcessRequestSchema.parse(await c.req.json());
+      return c.json({ process: await state.registry.startProcess(body) }, 201);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/processes/:processId", (c) => {
+    try {
+      return c.json({
+        process: state.registry.getProcess(c.req.param("processId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/processes/:processId/stop", async (c) => {
+    try {
+      const body = stopProcessRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json({
+        process: await state.registry.stopProcess(
+          c.req.param("processId"),
+          body,
+        ),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.post("/api/processes/:processId/restart", async (c) => {
+    try {
+      return c.json({
+        process: await state.registry.restartProcess(c.req.param("processId")),
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.get("/api/processes/:processId/logs", async (c) => {
+    try {
+      const query = processLogQuerySchema.parse({
+        mode: c.req.query("mode"),
+        sinceSeq: numberQuery(c.req.query("sinceSeq")),
+        contains: c.req.query("contains"),
+        regex: c.req.query("regex"),
+        contextLines: numberQuery(c.req.query("contextLines")),
+        limit: numberQuery(c.req.query("limit")),
+      });
+      return c.json(
+        await state.registry.queryProcessLogs(c.req.param("processId"), query),
+      );
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
   app.get("/api/approvals", (c) => {
     const status = c.req.query("status");
     return c.json({
