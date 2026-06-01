@@ -49,15 +49,12 @@ See:
 - [Modes and Permissions](docs/prd/modes-permissions.md)
 - [Storage Model](docs/prd/storage.md)
 - [Decisions](docs/prd/decisions.md)
-- [Implementation Plan](docs/plan/implementation-plan.md)
-- [Progress](docs/plan/progress.md)
 
 ## Non-goals for the first version
 
 - no Pi extension SDK
 - no package/plugin marketplace
 - no terminal TUI clone
-- no large system prompt framework
 - no MCP-first design
 
 These can be added later if they prove necessary, but the first version should stay intentionally small.
