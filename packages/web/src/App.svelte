@@ -1,5 +1,7 @@
 <script lang="ts">
 import { onMount } from "svelte";
+import CodeMirrorComposer from "./lib/CodeMirrorComposer.svelte";
+import Markdown from "./lib/Markdown.svelte";
 
 type StatusResponse = {
   daemonId: string;
@@ -98,7 +100,8 @@ function handleEvent(event: EventEnvelope) {
     streamingText += String(event.data?.delta ?? "");
   }
   if (event.type === "agent.message_complete") {
-    const text = streamingText || String(event.data?.text ?? "");
+    const entry = event.data?.entry as { text?: string } | undefined;
+    const text = streamingText || entry?.text || String(event.data?.text ?? "");
     if (text) transcript = [...transcript, { role: "assistant", text }];
     streamingText = "";
     sending = false;
@@ -190,7 +193,11 @@ onMount(() => {
         {#each transcript as item}
           <article class="message" class:user={item.role === "user"}>
             <strong>{item.role}</strong>
-            <p>{item.text}</p>
+            {#if item.role === "assistant"}
+              <Markdown text={item.text} />
+            {:else}
+              <p>{item.text}</p>
+            {/if}
           </article>
         {/each}
         {#if streamingText}
@@ -206,10 +213,15 @@ onMount(() => {
           Project directory
           <input bind:value={projectDir} placeholder="/path/to/project" />
         </label>
-        <label>
-          Prompt
-          <textarea bind:value={prompt} placeholder="Ask the local Nerve agent…"></textarea>
-        </label>
+        <div class="composer-label">
+          <span>Prompt</span>
+          <CodeMirrorComposer
+            value={prompt}
+            disabled={sending || connection !== "live"}
+            onChange={(value) => (prompt = value)}
+            onSubmit={sendPrompt}
+          />
+        </div>
         <button disabled={sending || connection !== "live"} type="submit">
           {sending ? "Streaming…" : "Send prompt"}
         </button>
@@ -359,8 +371,7 @@ onMount(() => {
     font-size: 0.9rem;
   }
 
-  input,
-  textarea {
+  input {
     width: 100%;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -369,9 +380,11 @@ onMount(() => {
     padding: 12px 14px;
   }
 
-  textarea {
-    min-height: 140px;
-    resize: vertical;
+  .composer-label {
+    display: grid;
+    gap: 8px;
+    color: var(--color-muted);
+    font-size: 0.9rem;
   }
 
   button {

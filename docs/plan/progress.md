@@ -57,8 +57,8 @@ Phase 2: Minimal agent run
 - [x] Broadcast prompt, status, delta, completion, and error events over WebSocket.
 - [x] Add a minimal Svelte prompt UI with live streaming response text.
 - [x] Add CLI shortcut `nerve run [dir] [prompt...]`.
-- [ ] Add initial CodeMirror composer.
-- [ ] Render completed assistant messages through the sanitized markdown pipeline.
+- [x] Add initial CodeMirror composer.
+- [x] Render completed assistant messages through the sanitized markdown pipeline.
 
 ### Latest implementation notes
 
@@ -69,6 +69,7 @@ Phase 2: Minimal agent run
 - CLI supports `nerve daemon`, `nerve status`, `nerve ui [--open]`, and `nerve run [dir] [prompt...]`.
 - Web UI can create a minimal project/session/agent and stream a faux-model assistant response over `/ws`.
 - Agent prompts now run in an isolated `@nerve/agent/worker` child process over an NDJSON stdio protocol; the orchestrator supervises the run, streams deltas, and sends abort requests across the process boundary.
+- Web UI prompt input now uses a CodeMirror Markdown composer with keyboard submit, and completed assistant messages render through a sanitized unified/remark/rehype markdown pipeline.
 
 ### Later phases
 

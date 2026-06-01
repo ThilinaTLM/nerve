@@ -9,10 +9,20 @@
     "dev": "vite --host 127.0.0.1"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.0",
     "@tailwindcss/vite": "4.1.17",
     "@tanstack/svelte-query": "6.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
     "svelte": "5.38.0",
-    "tailwindcss": "4.1.17"
+    "tailwindcss": "4.1.17",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "6.2.1",
