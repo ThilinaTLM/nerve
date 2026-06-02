@@ -7,21 +7,16 @@ import type {
 } from "@earendil-works/pi-ai";
 import { completeSimple } from "@earendil-works/pi-ai";
 import type { AgentMessage, ThinkingLevel } from "../../types.js";
+import { CompactionError } from "../errors.js";
 import {
   convertToLlm,
   createBranchSummaryMessage,
   createCompactionSummaryMessage,
   createCustomMessage,
 } from "../messages.js";
+import { err, ok, type Result } from "../result.js";
+import type { CompactionEntry, SessionTreeEntry } from "../session/entries.js";
 import { buildSessionContext } from "../session/session.js";
-import {
-  type CompactionEntry,
-  CompactionError,
-  err,
-  ok,
-  type Result,
-  type SessionTreeEntry,
-} from "../types.js";
 import {
   computeFileLists,
   createFileOps,

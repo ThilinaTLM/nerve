@@ -16,17 +16,9 @@ import {
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import {
-  type ExecutionEnv,
-  ExecutionError,
-  err,
-  FileError,
-  type FileInfo,
-  type FileKind,
-  ok,
-  type Result,
-  toError,
-} from "../types.js";
+import { ExecutionError, FileError } from "../errors.js";
+import { err, ok, type Result, toError } from "../result.js";
+import type { ExecutionEnv, FileInfo, FileKind } from "./types.js";
 
 function resolvePath(cwd: string, path: string): string {
   return isAbsolute(path) ? path : resolve(cwd, path);

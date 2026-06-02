@@ -1,4 +1,4 @@
-import type { SessionTreeEntry } from "../types.js";
+import type { SessionTreeEntry } from "./entries.js";
 import { uuidv7 } from "./uuid.js";
 
 export type EntryIdStyle = "jsonl" | "short";

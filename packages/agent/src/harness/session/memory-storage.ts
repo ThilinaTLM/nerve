@@ -1,10 +1,10 @@
-import {
-  type LeafEntry,
-  SessionError,
-  type SessionMetadata,
-  type SessionStorage,
-  type SessionTreeEntry,
-} from "../types.js";
+import { SessionError } from "../errors.js";
+import type {
+  LeafEntry,
+  SessionMetadata,
+  SessionStorage,
+  SessionTreeEntry,
+} from "./entries.js";
 import {
   buildLabelsById,
   generateEntryId,

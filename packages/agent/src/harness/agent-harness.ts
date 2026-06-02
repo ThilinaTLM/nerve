@@ -25,37 +25,51 @@ import {
   DEFAULT_COMPACTION_SETTINGS,
   prepareCompaction,
 } from "./compaction/compaction.js";
-import { convertToLlm } from "./messages.js";
-import { formatPromptTemplateInvocation } from "./prompt-templates.js";
-import { formatSkillInvocation } from "./skills.js";
+import {
+  cloneHarnessResources,
+  createModelUpdateEvent,
+  createThinkingLevelUpdateEvent,
+  createToolMap,
+  prepareActiveToolsConfiguration,
+  prepareToolConfiguration,
+  validateToolNames,
+} from "./configuration.js";
+import type { ExecutionEnv } from "./env/types.js";
+import { AgentHarnessError } from "./errors.js";
 import type {
   AbortResult,
   AgentHarnessEvent,
   AgentHarnessEventResultMap,
-  AgentHarnessOptions,
   AgentHarnessOwnEvent,
   AgentHarnessPhase,
-  AgentHarnessResources,
-  AgentHarnessStreamOptions,
-  ExecutionEnv,
   NavigateTreeResult,
   PendingSessionWrite,
-  PromptTemplate,
-  Session,
-  Skill,
-} from "./types.js";
-import { validateToolNames, validateUniqueNames } from "./configuration.js";
-import { AgentHarnessError } from "./errors.js";
+} from "./events.js";
 import {
   AgentHarnessEventHub,
   normalizeHarnessError,
   normalizeHookError,
 } from "./harness-events.js";
+import { convertToLlm } from "./messages.js";
+import type {
+  AgentHarnessOptions,
+  AgentHarnessResources,
+  AgentHarnessStreamOptions,
+  PromptTemplate,
+  Skill,
+} from "./options.js";
+import { formatPromptTemplateInvocation } from "./prompt-templates.js";
 import { toError } from "./result.js";
+import type { Session } from "./session/session.js";
+import {
+  flushPendingSessionWrites as flushHarnessPendingSessionWrites,
+  queueOrWriteMessage,
+} from "./session-writes.js";
+import { formatSkillInvocation } from "./skills.js";
 import { cloneStreamOptions, mergeHeaders } from "./stream-options.js";
 import {
-  createTurnState as createAgentHarnessTurnState,
   type AgentHarnessTurnState,
+  createTurnState as createAgentHarnessTurnState,
 } from "./turn-state.js";
 
 function createUserMessage(text: string, images?: ImageContent[]): UserMessage {
@@ -128,22 +142,12 @@ export class AgentHarness<
     this.streamOptions = cloneStreamOptions(options.streamOptions);
     this.systemPrompt = options.systemPrompt;
     this.getApiKeyAndHeaders = options.getApiKeyAndHeaders;
-    this.validateUniqueNames(
-      (options.tools ?? []).map((tool) => tool.name),
-      "Duplicate tool name(s)",
-    );
-    for (const tool of options.tools ?? []) {
-      this.tools.set(tool.name, tool);
-    }
+    this.tools = createToolMap(options.tools ?? []);
     this.model = options.model;
     this.thinkingLevel = options.thinkingLevel ?? "off";
     this.activeToolNames = options.activeToolNames
       ? [...options.activeToolNames]
-      : (options.tools ?? []).map((tool) => tool.name);
-    this.validateUniqueNames(
-      this.activeToolNames,
-      "Duplicate active tool name(s)",
-    );
+      : [...this.tools.keys()];
     this.validateToolNames(this.activeToolNames);
     this.steeringQueueMode = options.steeringMode ?? "one-at-a-time";
     this.followUpQueueMode = options.followUpMode ?? "one-at-a-time";
@@ -174,7 +178,11 @@ export class AgentHarness<
     sessionId: string,
     streamOptions: AgentHarnessStreamOptions,
   ): Promise<AgentHarnessStreamOptions> {
-    return this.events.emitBeforeProviderRequest(model, sessionId, streamOptions);
+    return this.events.emitBeforeProviderRequest(
+      model,
+      sessionId,
+      streamOptions,
+    );
   }
 
   private async emitBeforeProviderPayload(
@@ -356,10 +364,6 @@ export class AgentHarness<
     };
   }
 
-  private validateUniqueNames(names: string[], message: string): void {
-    validateUniqueNames(names, message);
-  }
-
   private validateToolNames(
     toolNames: string[],
     tools: Map<string, TTool> = this.tools,
@@ -368,34 +372,10 @@ export class AgentHarness<
   }
 
   private async flushPendingSessionWrites(): Promise<void> {
-    while (this.pendingSessionWrites.length > 0) {
-      const write = this.pendingSessionWrites[0]!;
-      if (write.type === "message") {
-        await this.session.appendMessage(write.message);
-      } else if (write.type === "model_change") {
-        await this.session.appendModelChange(write.provider, write.modelId);
-      } else if (write.type === "thinking_level_change") {
-        await this.session.appendThinkingLevelChange(write.thinkingLevel);
-      } else if (write.type === "active_tools_change") {
-        await this.session.appendActiveToolsChange(write.activeToolNames);
-      } else if (write.type === "custom") {
-        await this.session.appendCustomEntry(write.customType, write.data);
-      } else if (write.type === "custom_message") {
-        await this.session.appendCustomMessageEntry(
-          write.customType,
-          write.content,
-          write.display,
-          write.details,
-        );
-      } else if (write.type === "label") {
-        await this.session.appendLabel(write.targetId, write.label);
-      } else if (write.type === "session_info") {
-        await this.session.appendSessionName(write.name ?? "");
-      } else if (write.type === "leaf") {
-        await this.session.getStorage().setLeafId(write.targetId);
-      }
-      this.pendingSessionWrites.shift();
-    }
+    await flushHarnessPendingSessionWrites(
+      this.session,
+      this.pendingSessionWrites,
+    );
   }
 
   private async handleAgentEvent(
@@ -654,11 +634,12 @@ export class AgentHarness<
 
   async appendMessage(message: AgentMessage): Promise<void> {
     try {
-      if (this.phase === "idle") {
-        await this.session.appendMessage(message);
-      } else {
-        this.pendingSessionWrites.push({ type: "message", message });
-      }
+      await queueOrWriteMessage(
+        this.phase,
+        this.pendingSessionWrites,
+        this.session,
+        message,
+      );
     } catch (error) {
       throw normalizeHarnessError(error, "session");
     }
@@ -901,12 +882,7 @@ export class AgentHarness<
         });
       }
       this.model = model;
-      await this.emitOwn({
-        type: "model_update",
-        model,
-        previousModel,
-        source: "set",
-      });
+      await this.emitOwn(createModelUpdateEvent(model, previousModel, "set"));
     } catch (error) {
       throw normalizeHarnessError(error, "session");
     }
@@ -928,11 +904,7 @@ export class AgentHarness<
         });
       }
       this.thinkingLevel = level;
-      await this.emitOwn({
-        type: "thinking_level_update",
-        level,
-        previousLevel,
-      });
+      await this.emitOwn(createThinkingLevelUpdateEvent(level, previousLevel));
     } catch (error) {
       throw normalizeHarnessError(error, "session");
     }
@@ -944,35 +916,24 @@ export class AgentHarness<
 
   async setTools(tools: TTool[], activeToolNames?: string[]): Promise<void> {
     try {
-      this.validateUniqueNames(
-        tools.map((tool) => tool.name),
-        "Duplicate tool name(s)",
-      );
-      const nextTools = new Map(tools.map((tool) => [tool.name, tool]));
-      const nextActiveToolNames = activeToolNames
-        ? [...activeToolNames]
-        : this.activeToolNames;
-      this.validateToolNames(nextActiveToolNames, nextTools);
-      const previousToolNames = [...this.tools.keys()];
-      const previousActiveToolNames = [...this.activeToolNames];
+      const next = prepareToolConfiguration({
+        currentTools: this.tools,
+        currentActiveToolNames: this.activeToolNames,
+        tools,
+        activeToolNames,
+        source: "set",
+      });
       if (this.phase === "idle") {
-        await this.session.appendActiveToolsChange(nextActiveToolNames);
+        await this.session.appendActiveToolsChange(next.activeToolNames);
       } else {
         this.pendingSessionWrites.push({
           type: "active_tools_change",
-          activeToolNames: [...nextActiveToolNames],
+          activeToolNames: [...next.activeToolNames],
         });
       }
-      this.tools = nextTools;
-      this.activeToolNames = [...nextActiveToolNames];
-      await this.emitOwn({
-        type: "tools_update",
-        toolNames: [...this.tools.keys()],
-        previousToolNames,
-        activeToolNames: [...this.activeToolNames],
-        previousActiveToolNames,
-        source: "set",
-      });
+      this.tools = next.tools;
+      this.activeToolNames = [...next.activeToolNames];
+      await this.emitOwn(next.event);
     } catch (error) {
       throw normalizeHarnessError(error, "invalid_argument");
     }
@@ -984,26 +945,22 @@ export class AgentHarness<
 
   async setActiveTools(toolNames: string[]): Promise<void> {
     try {
-      this.validateToolNames(toolNames);
-      const previousToolNames = [...this.tools.keys()];
-      const previousActiveToolNames = [...this.activeToolNames];
+      const next = prepareActiveToolsConfiguration({
+        tools: this.tools,
+        currentActiveToolNames: this.activeToolNames,
+        activeToolNames: toolNames,
+        source: "set",
+      });
       if (this.phase === "idle") {
-        await this.session.appendActiveToolsChange(toolNames);
+        await this.session.appendActiveToolsChange(next.activeToolNames);
       } else {
         this.pendingSessionWrites.push({
           type: "active_tools_change",
-          activeToolNames: [...toolNames],
+          activeToolNames: [...next.activeToolNames],
         });
       }
-      this.activeToolNames = [...toolNames];
-      await this.emitOwn({
-        type: "tools_update",
-        toolNames: [...this.tools.keys()],
-        previousToolNames,
-        activeToolNames: [...this.activeToolNames],
-        previousActiveToolNames,
-        source: "set",
-      });
+      this.activeToolNames = [...next.activeToolNames];
+      await this.emitOwn(next.event);
     } catch (error) {
       throw normalizeHarnessError(error, "invalid_argument");
     }
@@ -1026,20 +983,14 @@ export class AgentHarness<
   }
 
   getResources(): AgentHarnessResources<TSkill, TPromptTemplate> {
-    return {
-      skills: this.resources.skills?.slice(),
-      promptTemplates: this.resources.promptTemplates?.slice(),
-    };
+    return cloneHarnessResources(this.resources);
   }
 
   async setResources(
     resources: AgentHarnessResources<TSkill, TPromptTemplate>,
   ): Promise<void> {
     const previousResources = this.getResources();
-    this.resources = {
-      skills: resources.skills?.slice(),
-      promptTemplates: resources.promptTemplates?.slice(),
-    };
+    this.resources = cloneHarnessResources(resources);
     await this.emitOwn({
       type: "resources_update",
       resources: this.getResources(),

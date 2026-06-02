@@ -1,4 +1,4 @@
-import type { Skill } from "./types.js";
+import type { Skill } from "./options.js";
 
 export function formatSkillsForSystemPrompt(skills: Skill[]): string {
   const visibleSkills = skills.filter((skill) => !skill.disableModelInvocation);

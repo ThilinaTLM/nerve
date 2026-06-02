@@ -1,11 +1,7 @@
 import { parse } from "yaml";
-import {
-  type ExecutionEnv,
-  type FileInfo,
-  type PromptTemplate,
-  type Result,
-  toError,
-} from "./types.js";
+import type { ExecutionEnv, FileInfo } from "./env/types.js";
+import type { PromptTemplate } from "./options.js";
+import { type Result, toError } from "./result.js";
 
 export type PromptTemplateDiagnosticCode =
   | "file_info_failed"

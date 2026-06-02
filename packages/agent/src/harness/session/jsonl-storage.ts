@@ -1,11 +1,12 @@
+import type { FileSystem } from "../env/types.js";
+import { SessionError } from "../errors.js";
+import { toError } from "../result.js";
 import type {
-  FileSystem,
   JsonlSessionMetadata,
   LeafEntry,
   SessionStorage,
   SessionTreeEntry,
-} from "../types.js";
-import { SessionError, toError } from "../types.js";
+} from "./entries.js";
 import { getFileSystemResultOrThrow } from "./repo-utils.js";
 import {
   buildLabelsById,

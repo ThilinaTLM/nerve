@@ -1,11 +1,10 @@
-import {
-  type FileError,
-  type Result,
-  SessionError,
-  type SessionMetadata,
-  type SessionStorage,
-  type SessionTreeEntry,
-} from "../types.js";
+import { type FileError, SessionError } from "../errors.js";
+import type { Result } from "../result.js";
+import type {
+  SessionMetadata,
+  SessionStorage,
+  SessionTreeEntry,
+} from "./entries.js";
 import { Session } from "./session.js";
 import { uuidv7 } from "./uuid.js";
 

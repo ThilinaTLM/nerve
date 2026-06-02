@@ -1,9 +1,5 @@
-import {
-  type Session,
-  SessionError,
-  type SessionMetadata,
-  type SessionRepo,
-} from "../types.js";
+import { SessionError } from "../errors.js";
+import type { Session, SessionMetadata, SessionRepo } from "./entries.js";
 import { InMemorySessionStorage } from "./memory-storage.js";
 import {
   createSessionId,

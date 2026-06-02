@@ -1,12 +1,13 @@
+import type { FileSystem } from "../env/types.js";
+import { SessionError } from "../errors.js";
+import { toError } from "../result.js";
 import type {
-  FileSystem,
   JsonlSessionCreateOptions,
   JsonlSessionListOptions,
   JsonlSessionMetadata,
   JsonlSessionRepoApi,
   Session,
-} from "../types.js";
-import { SessionError, toError } from "../types.js";
+} from "./entries.js";
 import {
   JsonlSessionStorage,
   loadJsonlSessionMetadata,

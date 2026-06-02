@@ -1,12 +1,6 @@
-import {
-  type ExecutionEnv,
-  type ExecutionEnvExecOptions,
-  ExecutionError,
-  err,
-  ok,
-  type Result,
-  toError,
-} from "../types.js";
+import type { ExecutionEnv, ExecutionEnvExecOptions } from "../env/types.js";
+import { ExecutionError } from "../errors.js";
+import { err, ok, type Result, toError } from "../result.js";
 import { DEFAULT_MAX_BYTES, truncateTail } from "./truncate.js";
 
 export interface ShellCaptureOptions
