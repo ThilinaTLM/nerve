@@ -11,8 +11,44 @@ export function formatSkillInvocation(
     : skillBlock;
 }
 
+/** Format model-visible skill availability instructions for the system prompt. */
+export function formatSkillsForSystemPrompt(skills: Skill[]): string {
+  const visibleSkills = skills.filter((skill) => !skill.disableModelInvocation);
+  if (visibleSkills.length === 0) return "";
+
+  const lines = [
+    "The following skills provide specialized instructions for specific tasks.",
+    "Read the full skill file when the task matches its description.",
+    "When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.",
+    "",
+    "<available_skills>",
+  ];
+
+  for (const skill of visibleSkills) {
+    lines.push("  <skill>");
+    lines.push(`    <name>${escapeXml(skill.name)}</name>`);
+    lines.push(
+      `    <description>${escapeXml(skill.description)}</description>`,
+    );
+    lines.push(`    <location>${escapeXml(skill.filePath)}</location>`);
+    lines.push("  </skill>");
+  }
+
+  lines.push("</available_skills>");
+  return lines.join("\n");
+}
+
 function dirnameEnvPath(path: string): string {
   const normalized = path.replace(/\/+$/, "");
   const slashIndex = normalized.lastIndexOf("/");
   return slashIndex <= 0 ? "/" : normalized.slice(0, slashIndex);
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
