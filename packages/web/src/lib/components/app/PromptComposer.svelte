@@ -1,20 +1,12 @@
 <script lang="ts">
-  import FolderOpen from "lucide-svelte/icons/folder-open";
-  import Shield from "lucide-svelte/icons/shield";
-  import SlidersHorizontal from "lucide-svelte/icons/sliders-horizontal";
-  import Sparkles from "lucide-svelte/icons/sparkles";
-  import Square from "lucide-svelte/icons/square";
   import Send from "lucide-svelte/icons/send";
-  import { Toolbar } from "bits-ui";
+  import Square from "lucide-svelte/icons/square";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionRecord } from "../../api";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
-  import Button from "../ui/Button.svelte";
-  import Kbd from "../ui/Kbd.svelte";
-  import Popover from "../ui/Popover.svelte";
-  import Select, { type SelectItem } from "../ui/Select.svelte";
-  import ToggleGroup from "../ui/ToggleGroup.svelte";
-  import ApprovalStrip from "./ApprovalStrip.svelte";
   import { modelKey } from "../../utils/model";
+  import Button from "../ui/Button.svelte";
+  import Select, { type SelectItem } from "../ui/Select.svelte";
+  import ApprovalStrip from "./ApprovalStrip.svelte";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -23,7 +15,6 @@
     text?: string;
     activeProject?: ProjectRecord;
     activeSession?: SessionRecord;
-    activeAgent?: AgentRecord;
     approvals?: ApprovalWithToolCall[];
     live?: boolean;
     sending?: boolean;
@@ -37,7 +28,6 @@
     onChange?: (value: string) => void;
     onSubmit?: () => void;
     onAbort?: () => void;
-    onOpenProject?: () => void;
     onModelChange?: (value: string) => void;
     onModeChange?: (value: Mode) => void;
     onPermissionChange?: (value: PermissionLevel) => void;
@@ -49,7 +39,6 @@
     text = "",
     activeProject,
     activeSession,
-    activeAgent,
     approvals = [],
     live = false,
     sending = false,
@@ -63,7 +52,6 @@
     onChange,
     onSubmit,
     onAbort,
-    onOpenProject,
     onModelChange,
     onModeChange,
     onPermissionChange,
@@ -81,12 +69,12 @@
     }))
     : [{ value: "", label: "No configured models", detail: "Run nerve auth list", disabled: true }]);
 
-  const modeItems = [
+  const modeItems: SelectItem[] = [
     { value: "coding", label: "Coding", detail: "Implement and modify files" },
     { value: "planning", label: "Planning", detail: "Read and prepare before edits" },
   ];
 
-  const permissionItems = [
+  const permissionItems: SelectItem[] = [
     { value: "read_only", label: "Read only", detail: "No writes or mutating commands" },
     { value: "supervised", label: "Supervised", detail: "Ask before sensitive actions" },
     { value: "autonomous", label: "Autonomous", detail: "Proceed with broader authority" },
@@ -96,7 +84,7 @@
 <form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); if (!pendingApproval) onSubmit?.(); }}>
   <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
 
-  <div class="editor-dock">
+  <div class="composer-surface">
     <div class="editor-shell">
       {#if pendingApproval}
         <div class="approval-waiting" aria-live="polite">Waiting for approval to proceed…</div>
@@ -112,75 +100,50 @@
       />
     </div>
 
-    <div class="composer-footer">
-      <Toolbar.Root class="composer-toolbar" aria-label="Prompt controls">
-        <div class="control-group model-control">
-          <span><Sparkles size={12} strokeWidth={2.25} />Model</span>
-          <Select
-            items={modelItems}
-            bind:value={selectedModelKey}
-            ariaLabel="Model"
-            disabled={!activeSession || sending || models.length === 0 || pendingApproval}
-            onValueChange={(value) => onModelChange?.(value)}
-          />
-        </div>
-
-        <Popover class="run-options-popover" triggerClass="run-options-trigger" ariaLabel="Run options" side="top" align="start">
-          {#snippet trigger()}
-            <span class="run-options-button">
-              <SlidersHorizontal size={13} strokeWidth={2.25} />
-              <span>Run options</span>
-              <small>{activeAgent?.mode ?? mode} · {activeAgent?.permissionLevel ?? permissionLevel}</small>
-            </span>
-          {/snippet}
-
-          <div class="run-options-panel">
-            <header>
-              <strong>Run options</strong>
-              <span>Applied to this agent before the next prompt.</span>
-            </header>
-            <section>
-              <label><SlidersHorizontal size={12} strokeWidth={2.2} />Mode</label>
-              <ToggleGroup items={modeItems} value={mode} ariaLabel="Mode" disabled={!activeSession || sending || pendingApproval} onValueChange={(value) => onModeChange?.(value as Mode)} />
-            </section>
-            <section>
-              <label><Shield size={12} strokeWidth={2.2} />Access</label>
-              <ToggleGroup items={permissionItems} value={permissionLevel} ariaLabel="Permission level" disabled={!activeSession || sending || pendingApproval} onValueChange={(value) => onPermissionChange?.(value as PermissionLevel)} />
-            </section>
-          </div>
-        </Popover>
-
-        <Button variant="toolbar" size="sm" class="project-pill" onclick={onOpenProject} title={activeProject?.dir ?? "Open project"} disabled={sending || pendingApproval}>
-          <FolderOpen size={13} strokeWidth={2.2} />
-          <span>{activeProject ? activeProject.name : "open project"}</span>
-        </Button>
-      </Toolbar.Root>
-
-      <div class="footer-hint">
-        {#if pendingApproval}
-          Approval gate active. Review the request above.
-        {:else if !activeSession}
-          Select a project to start.
-        {:else if models.length === 0}
-          Configure a provider from Settings.
-        {:else if !live}
-          Daemon is {activeSession ? "not live" : "offline"}.
-        {:else}
-          <Kbd>⌘</Kbd><Kbd>Enter</Kbd> sends · <Kbd>/</Kbd> commands · <Kbd>@</Kbd> files
-        {/if}
+    <div class="composer-control-row">
+      <div class="composer-inputs" aria-label="Prompt settings">
+        <Select
+          class="composer-field model-field"
+          triggerClass="composer-select-trigger model-select-trigger"
+          contentClass="composer-select-content"
+          items={modelItems}
+          bind:value={selectedModelKey}
+          ariaLabel="Model"
+          disabled={!activeSession || sending || models.length === 0 || pendingApproval}
+          onValueChange={(value) => onModelChange?.(value)}
+        />
+        <Select
+          class="composer-field mode-field"
+          triggerClass="composer-select-trigger mode-select-trigger"
+          contentClass="composer-select-content"
+          items={modeItems}
+          value={mode}
+          ariaLabel="Mode"
+          disabled={!activeSession || sending || pendingApproval}
+          onValueChange={(value) => onModeChange?.(value as Mode)}
+        />
+        <Select
+          class="composer-field access-field"
+          triggerClass="composer-select-trigger access-select-trigger"
+          contentClass="composer-select-content"
+          items={permissionItems}
+          value={permissionLevel}
+          ariaLabel="Access"
+          disabled={!activeSession || sending || pendingApproval}
+          onValueChange={(value) => onPermissionChange?.(value as PermissionLevel)}
+        />
       </div>
 
       <div class="actions">
         {#if sending}
-          <Button variant="secondary" size="sm" onclick={onAbort}><Square size={12} strokeWidth={2.4} />Abort</Button>
+          <Button variant="secondary" size="icon" class="stop-button" onclick={onAbort} ariaLabel="Stop generation" title="Stop generation">
+            <Square size={13} strokeWidth={2.5} />
+          </Button>
+        {:else}
+          <Button size="icon" class="send-button" type="submit" disabled={!canPrompt} ariaLabel="Send prompt" title="Send prompt">
+            <Send size={14} strokeWidth={2.4} />
+          </Button>
         {/if}
-        <Button size="sm" type="submit" disabled={sending || !canPrompt}>
-          {#if sending}
-            Running
-          {:else}
-            <Send size={13} strokeWidth={2.3} />Send
-          {/if}
-        </Button>
       </div>
     </div>
   </div>
@@ -194,19 +157,22 @@
     gap: 0.55rem;
     border-top: 1px solid var(--color-border);
     background: var(--color-panel-muted);
-    padding: 0.55rem;
+    padding: 0.65rem;
     box-shadow: var(--shadow-dock);
   }
 
-  .editor-dock {
+  .composer-surface {
     overflow: hidden;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-xl);
     background: var(--color-field);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 3%) inset;
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
   }
 
-  .editor-dock:focus-within {
+  .composer-surface:focus-within {
     border-color: var(--color-accent);
     box-shadow: 0 0 0 1px var(--color-ring-soft);
   }
@@ -233,139 +199,86 @@
   .editor-shell :global(.composer-editor) {
     border: 0;
     border-radius: 0;
+    background: transparent;
   }
 
-  .composer-footer {
-    display: grid;
-    grid-template-columns: minmax(0, auto) minmax(8rem, 1fr) auto;
-    align-items: end;
+  .editor-shell :global(.composer-editor:focus-within) {
+    box-shadow: none;
+  }
+
+  .composer-control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 0.55rem;
-    border-top: 1px solid var(--color-border-subtle);
-    background: var(--color-panel-muted);
-    padding: 0.45rem;
+    padding: 0 0.45rem 0.45rem;
   }
 
-  :global(.composer-toolbar),
-  .actions {
+  .composer-inputs {
     display: flex;
-    align-items: end;
-    gap: 0.45rem;
-  }
-
-  :global(.composer-toolbar) {
+    align-items: center;
     min-width: 0;
-    flex-wrap: wrap;
+    gap: 0.35rem;
   }
 
-  .control-group {
-    display: grid;
-    min-width: 7rem;
-    gap: 0.15rem;
+  :global(.composer-field) {
+    width: auto;
+    min-width: 0;
   }
 
-  .model-control {
-    min-width: min(18rem, 42vw);
+  :global(.model-field) {
+    width: clamp(9rem, 24vw, 18rem);
   }
 
-  .control-group > span {
-    display: flex;
-    align-items: center;
-    gap: 0.22rem;
+  :global(.mode-field) {
+    width: 7rem;
+  }
+
+  :global(.access-field) {
+    width: 8.25rem;
+  }
+
+  :global(.composer-select-trigger) {
+    min-width: 0;
+    height: 1.75rem;
+    border-color: transparent;
+    border-radius: 999px;
+    background: transparent;
     color: var(--color-muted);
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
+    padding: 0 0.45rem;
+    box-shadow: none;
   }
 
-  .run-options-button {
-    display: inline-grid;
-    grid-template-columns: auto auto;
-    align-items: center;
-    column-gap: 0.34rem;
-    min-height: var(--control-height-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-field);
-    color: var(--color-muted);
-    padding: 0.25rem 0.55rem;
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-  }
-
-  .run-options-button small {
-    grid-column: 2;
-    color: var(--color-faint);
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-normal);
-  }
-
-  :global(.run-options-trigger:hover) .run-options-button,
-  :global(.run-options-trigger[data-state="open"]) .run-options-button {
-    border-color: var(--color-border-strong);
+  :global(.composer-select-trigger:hover:not([data-disabled])),
+  :global(.composer-select-trigger[data-state="open"]) {
+    border-color: var(--color-border-subtle);
     background: var(--color-panel-raised);
     color: var(--color-text);
   }
 
-  :global(.run-options-popover) {
-    width: min(27rem, calc(100vw - 1.5rem));
+  :global(.composer-select-trigger:focus-visible) {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-ring-soft);
   }
 
-  .run-options-panel {
-    display: grid;
-    gap: 0.7rem;
-    padding: 0.75rem;
-  }
-
-  .run-options-panel header,
-  .run-options-panel section {
-    display: grid;
-    gap: 0.3rem;
-  }
-
-  .run-options-panel strong {
-    font-size: var(--text-md);
-    font-weight: var(--weight-semibold);
-  }
-
-  .run-options-panel header span {
-    color: var(--color-muted);
-    font-size: var(--text-xs);
-  }
-
-  .run-options-panel label {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    color: var(--color-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-  }
-
-  :global(.project-pill) {
-    max-width: 15rem;
-  }
-
-  :global(.project-pill) span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .footer-hint {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.22rem;
-    min-width: 0;
-    color: var(--color-faint);
-    font-size: var(--text-2xs);
+  :global(.composer-select-content) {
+    min-width: max(var(--bits-select-anchor-width, 12rem), 11rem);
   }
 
   .actions {
+    display: flex;
+    flex: none;
+    align-items: center;
     justify-content: end;
+  }
+
+  :global(.send-button),
+  :global(.stop-button) {
+    border-radius: 999px;
+  }
+
+  :global(.send-button) {
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 12%) inset;
   }
 
   .composer-error {
@@ -378,14 +291,17 @@
     font-size: var(--text-xs);
   }
 
-  @media (max-width: 900px) {
-    .composer-footer {
-      grid-template-columns: minmax(0, 1fr);
+  @media (max-width: 760px) {
+    .composer-control-row {
+      align-items: end;
     }
 
-    .actions,
-    :global(.composer-toolbar) {
-      justify-content: start;
+    .composer-inputs {
+      flex-wrap: wrap;
+    }
+
+    :global(.model-field) {
+      width: min(100%, 18rem);
     }
   }
 </style>

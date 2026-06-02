@@ -158,7 +158,6 @@
       text={composerText}
       {activeProject}
       {activeSession}
-      {activeAgent}
       {approvals}
       {live}
       {sending}
@@ -172,7 +171,6 @@
       onChange={onComposerChange}
       {onSubmit}
       {onAbort}
-      {onOpenProject}
       {onModelChange}
       {onModeChange}
       {onPermissionChange}
