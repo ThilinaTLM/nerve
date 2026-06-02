@@ -1,5 +1,5 @@
 import type { Context, Handler } from "hono";
-import { errorResponse } from "../registry.js";
+import { errorResponse } from "./errors.js";
 
 export function routeHandler(
   handler: (c: Context) => Response | Promise<Response>,

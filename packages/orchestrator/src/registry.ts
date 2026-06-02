@@ -1,25 +1,20 @@
-import { realpath, rm } from "node:fs/promises";
-import { basename, join, resolve, sep } from "node:path";
+import { realpath } from "node:fs/promises";
+import { basename, resolve, sep } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import {
   AgentHarness,
   type AgentMessage,
   buildSessionContext,
   convertToLlm,
-  DEFAULT_COMPACTION_SETTINGS,
   estimateContextTokens,
-  JsonlSessionStorage,
+  type JsonlSessionStorage,
   listAvailableModels,
   NodeExecutionEnv,
-  prepareCompaction,
   resolveAgentModel,
   Session,
-  type SessionTreeEntry,
-  serializeConversation,
 } from "@nerve/agent";
 import {
   type AgentRecord,
-  agentRecordSchema,
   type CompactSessionRequest,
   type CreateAgentRequest,
   type CreateProjectRequest,
@@ -33,14 +28,11 @@ import {
   type ProcessLogQuery,
   type ProjectRecord,
   type PromptRequest,
-  projectRecordSchema,
   type SessionEntry,
   type SessionRecord,
   type SessionTree,
   type StartProcessRequest,
   type StopProcessRequest,
-  sessionEntrySchema,
-  sessionRecordSchema,
   type ToolName,
   type UpdateAgentRequest,
 } from "@nerve/shared";
@@ -49,22 +41,33 @@ import {
   createAgentToolsForAgent,
   toolPromptMetadata,
 } from "./agent-tool-adapter.js";
+import { assertChildAuthority } from "./agents/agent-authority.js";
+import { agentBudget } from "./agents/agent-budget.js";
+import { setAgentStatus as setAgentStatusHelper } from "./agents/agent-status.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
+import { ConversationService } from "./conversation-service.js";
 import type { EventBus } from "./events.js";
+import { HarnessManager } from "./harness-manager.js";
+import { HttpError } from "./http/errors.js";
 import type { IndexStore } from "./index-store.js";
 import { buildPiSystemPrompt } from "./pi-system-prompt.js";
 import { ProcessManager } from "./process-manager.js";
+import {
+  AgentRepository,
+  EntryRepository,
+  ProjectRepository,
+  SessionRepository,
+} from "./repositories/index.js";
 import { loadHarnessResources } from "./resource-loader.js";
 import {
-  appendJsonLine,
-  atomicWriteJson,
-  type InitializedStorage,
-  listChildDirs,
-  pathExists,
-  readJsonFile,
-  readJsonLines,
-} from "./storage.js";
+  CompactionService,
+  deriveSessionTitle,
+  ExportService,
+  ImportService,
+  NavigationService,
+} from "./session-operations/index.js";
+import type { InitializedStorage } from "./storage.js";
 import { ToolService } from "./tool-service.js";
 import { WorkerManager } from "./worker-manager.js";
 
@@ -81,11 +84,21 @@ export class RuntimeRegistry {
   readonly sessions = new Map<string, SessionRecord>();
   readonly agents = new Map<string, AgentRecord>();
   readonly entries = new Map<string, SessionEntry[]>();
-  readonly conversations = new Map<string, Message[]>();
+  readonly conversations: Map<string, Message[]>;
   readonly runs = new Map<string, AgentRunState>();
   readonly processes: ProcessManager;
   readonly workers: WorkerManager;
   readonly tools: ToolService;
+  private readonly projectRepository: ProjectRepository;
+  private readonly sessionRepository: SessionRepository;
+  private readonly agentRepository: AgentRepository;
+  private readonly entryRepository: EntryRepository;
+  private readonly harnessManager: HarnessManager;
+  private readonly conversationService: ConversationService;
+  private readonly compactionService: CompactionService;
+  private readonly navigationService: NavigationService;
+  private readonly exportService: ExportService;
+  private readonly importService: ImportService;
 
   constructor(
     private readonly storage: InitializedStorage,
@@ -93,6 +106,54 @@ export class RuntimeRegistry {
     private readonly index: IndexStore,
     private readonly auth: AuthManager,
   ) {
+    this.projectRepository = new ProjectRepository(storage);
+    this.sessionRepository = new SessionRepository(storage);
+    this.agentRepository = new AgentRepository(storage);
+    this.entryRepository = new EntryRepository(storage);
+    this.harnessManager = new HarnessManager(
+      this.sessionRepository,
+      (sessionId) => this.getSession(sessionId),
+      (projectId) => this.getProject(projectId),
+    );
+    this.conversationService = new ConversationService(
+      this.harnessManager,
+      this.entryRepository,
+    );
+    this.conversations = this.conversationService.conversations;
+    this.compactionService = new CompactionService(
+      storage,
+      (sessionId) => this.getSession(sessionId),
+      (projectId) => this.getProject(projectId),
+      (input, options) => this.appendEntry(input, options),
+      this.harnessManager,
+      () => this.rebuildConversations(),
+      events,
+    );
+    this.navigationService = new NavigationService(
+      (sessionId) => this.getSession(sessionId),
+      (projectId) => this.getProject(projectId),
+      this.entries,
+      (session) => this.updateSession(session),
+      (input, options) => this.appendEntry(input, options),
+      this.harnessManager,
+      () => this.rebuildConversations(),
+      events,
+    );
+    this.exportService = new ExportService(
+      (sessionId) => this.getSession(sessionId),
+      (projectId) => this.getProject(projectId),
+      () => this.listAgents(),
+      this.entries,
+    );
+    this.importService = new ImportService(
+      (request) => this.createProject(request),
+      (request) => this.createSession(request),
+      (request) => this.createAgent(request),
+      (sessionId) => this.getSession(sessionId),
+      (input, options) => this.appendEntry(input, options),
+      () => this.rebuildConversations(),
+      events,
+    );
     this.processes = new ProcessManager(storage, events, index);
     this.workers = new WorkerManager(storage, events, index);
     this.tools = new ToolService(
@@ -167,11 +228,7 @@ export class RuntimeRegistry {
     };
     this.projects.set(project.id, project);
     this.index.upsertProject(project);
-    await atomicWriteJson(
-      join(this.storage.paths.home, "projects", project.id, "project.json"),
-      project,
-      0o600,
-    );
+    await this.projectRepository.write(project);
     await this.events.publish("project.created", { project });
     return project;
   }
@@ -208,7 +265,7 @@ export class RuntimeRegistry {
     this.index.upsertSession(session);
     this.entries.set(session.id, []);
     await this.writeSession(session);
-    await this.createHarnessSession(session, project.dir);
+    await this.harnessManager.createSession(session, project.dir);
     await this.events.publish("session.created", { session });
     return session;
   }
@@ -262,7 +319,7 @@ export class RuntimeRegistry {
       "agent",
     ).id;
     if (parent) {
-      this.assertChildAuthority(
+      assertChildAuthority(
         parent,
         mode,
         permissionLevel,
@@ -281,7 +338,7 @@ export class RuntimeRegistry {
       mode,
       permissionLevel,
       workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
-      budget: this.agentBudget(parent, request.budget),
+      budget: agentBudget(parent, request.budget),
       model: request.model,
       status: "idle",
       createdAt: now,
@@ -320,13 +377,10 @@ export class RuntimeRegistry {
       await this.removeAgentInternal(child.id);
     }
     this.agents.delete(agentId);
-    this.conversations.delete(agentId);
+    this.conversationService.deleteAgent(agentId);
     this.runs.delete(agentId);
     this.index.removeAgent(agentId);
-    await rm(join(this.storage.paths.home, "agents", agentId), {
-      recursive: true,
-      force: true,
-    });
+    await this.agentRepository.remove(agentId);
   }
 
   async removeSession(sessionId: string): Promise<void> {
@@ -339,10 +393,7 @@ export class RuntimeRegistry {
     this.sessions.delete(sessionId);
     this.entries.delete(sessionId);
     this.index.removeSession(sessionId);
-    await rm(join(this.storage.paths.home, "sessions", sessionId), {
-      recursive: true,
-      force: true,
-    });
+    await this.sessionRepository.remove(sessionId);
     await this.events.publish("session.deleted", {
       sessionId,
       projectId: session.projectId,
@@ -358,10 +409,7 @@ export class RuntimeRegistry {
     }
     this.projects.delete(projectId);
     this.index.removeProject(projectId);
-    await rm(join(this.storage.paths.home, "projects", projectId), {
-      recursive: true,
-      force: true,
-    });
+    await this.projectRepository.remove(projectId);
     await this.events.publish("project.deleted", { projectId });
   }
 
@@ -386,58 +434,6 @@ export class RuntimeRegistry {
     return updated;
   }
 
-  private agentBudget(
-    parent: AgentRecord | undefined,
-    request: CreateAgentRequest["budget"],
-  ): AgentRecord["budget"] {
-    if (!parent) {
-      return {
-        depth: request?.depth ?? 0,
-        maxDepth: request?.maxDepth ?? 3,
-        maxRuns: request?.maxRuns ?? 8,
-        usedRuns: request?.usedRuns ?? 0,
-      };
-    }
-    return {
-      depth: parent.budget.depth + 1,
-      maxDepth: request?.maxDepth ?? parent.budget.maxDepth,
-      maxRuns: request?.maxRuns ?? Math.max(1, parent.budget.maxRuns),
-      usedRuns: request?.usedRuns ?? 0,
-    };
-  }
-
-  private assertChildAuthority(
-    parent: AgentRecord,
-    mode: Mode,
-    permissionLevel: PermissionLevel,
-    allowAuthorityExceed: boolean,
-  ): void {
-    if (parent.budget.depth >= parent.budget.maxDepth) {
-      throw new HttpError(
-        403,
-        "SUBAGENT_DEPTH_LIMIT",
-        `Child-agent depth limit reached (${parent.budget.depth}/${parent.budget.maxDepth}).`,
-      );
-    }
-    if (parent.budget.usedRuns >= parent.budget.maxRuns) {
-      throw new HttpError(
-        403,
-        "SUBAGENT_BUDGET_EXHAUSTED",
-        `Child-agent run budget exhausted (${parent.budget.usedRuns}/${parent.budget.maxRuns}).`,
-      );
-    }
-    const exceeds =
-      modeRank(mode) > modeRank(parent.mode) ||
-      permissionRank(permissionLevel) > permissionRank(parent.permissionLevel);
-    if (exceeds && !allowAuthorityExceed) {
-      throw new HttpError(
-        403,
-        "SUBAGENT_AUTHORITY_EXCEEDED",
-        "Child agent authority cannot exceed parent authority without an approved subagent_run tool call.",
-      );
-    }
-  }
-
   private async reserveChildRun(parent: AgentRecord): Promise<void> {
     const latest = this.getAgent(parent.id);
     const updated: AgentRecord = {
@@ -453,194 +449,38 @@ export class RuntimeRegistry {
 
   getSessionEntries(sessionId: string): SessionEntry[] {
     const session = this.getSession(sessionId);
-    return this.activeBranchEntries(session);
+    return this.entryRepository.activeBranchEntries(this.entries, session);
   }
 
   getSessionTree(sessionId: string): SessionTree {
     const session = this.getSession(sessionId);
-    const entries = this.entries.get(session.id) ?? [];
-    const children = new Map<string, string[]>();
-    const rootEntryIds: string[] = [];
-    for (const entry of entries) {
-      if (entry.parentEntryId) {
-        const childEntryIds = children.get(entry.parentEntryId) ?? [];
-        childEntryIds.push(entry.id);
-        children.set(entry.parentEntryId, childEntryIds);
-      } else {
-        rootEntryIds.push(entry.id);
-      }
-    }
-    return {
-      sessionId: session.id,
-      activeEntryId: session.activeEntryId,
-      rootEntryIds,
-      nodes: entries.map((entry) => ({
-        entry,
-        childEntryIds: children.get(entry.id) ?? [],
-      })),
-    };
+    return this.entryRepository.getSessionTree(this.entries, session);
   }
 
   async navigateSession(
     sessionId: string,
     request: NavigateSessionRequest,
   ): Promise<SessionRecord> {
-    const session = this.getSession(sessionId);
-    const activeEntryId = request.activeEntryId ?? undefined;
-    if (
-      activeEntryId &&
-      !(this.entries.get(session.id) ?? []).some(
-        (entry) => entry.id === activeEntryId,
-      )
-    ) {
-      throw new HttpError(404, "ENTRY_NOT_FOUND", "Entry not found.");
-    }
-
-    let summaryEntry: SessionEntry | undefined;
-    if (request.summarize && session.activeEntryId !== activeEntryId) {
-      summaryEntry = await this.createBranchSummaryEntry(
-        session,
-        activeEntryId,
-        request.summaryInstructions,
-      );
-    }
-
-    const nextActiveEntryId = summaryEntry?.id ?? activeEntryId;
-    const updated = {
-      ...this.getSession(sessionId),
-      activeEntryId: nextActiveEntryId,
-      updatedAt: new Date().toISOString(),
-    };
-    await this.updateSession(updated);
-    await this.setHarnessLeaf(updated, nextActiveEntryId);
-    await this.rebuildConversations();
-    await this.events.publish("session.navigated", {
-      sessionId: session.id,
-      activeEntryId: nextActiveEntryId,
-      targetEntryId: activeEntryId,
-      summaryEntry,
-    });
-    return updated;
+    return this.navigationService.navigateSession(sessionId, request);
   }
 
   async compactSession(
     sessionId: string,
     request: CompactSessionRequest = {},
   ): Promise<{ session: SessionRecord; entry: SessionEntry }> {
-    const session = this.getSession(sessionId);
-    const project = this.getProject(session.projectId);
-    const storage = await this.openHarnessStorage(session, project.dir);
-    const branch = await storage.getPathToRoot(await storage.getLeafId());
-    const settings = {
-      ...DEFAULT_COMPACTION_SETTINGS,
-      keepRecentTokens:
-        request.keepRecentTokens ??
-        this.storage.settings.compaction.keepRecentTokens,
-    };
-    const prepared = prepareCompaction(branch, settings);
-    if (!prepared.ok) {
-      throw new HttpError(400, "COMPACTION_FAILED", prepared.error.message);
-    }
-    if (!prepared.value) {
-      throw new HttpError(409, "NOTHING_TO_COMPACT", "Nothing to compact.");
-    }
-    const preparation = prepared.value;
-    let firstKeptEntryId = preparation.firstKeptEntryId;
-    let messagesToSummarize = [
-      ...preparation.messagesToSummarize,
-      ...preparation.turnPrefixMessages,
-    ];
-    if (messagesToSummarize.length === 0) {
-      const messageEntries = branch.filter(
-        (entry): entry is Extract<SessionTreeEntry, { type: "message" }> =>
-          entry.type === "message",
-      );
-      const fallbackKept = messageEntries.at(-1);
-      messagesToSummarize = messageEntries
-        .slice(0, -1)
-        .map((entry) => entry.message);
-      if (fallbackKept) firstKeptEntryId = fallbackKept.id;
-    }
-    if (messagesToSummarize.length === 0) {
-      throw new HttpError(
-        409,
-        "NOTHING_TO_COMPACT",
-        "No prior messages to compact.",
-      );
-    }
-    const summary = buildExtractiveSummary({
-      title: "Context checkpoint",
-      messages: messagesToSummarize,
-      previousSummary: preparation.previousSummary,
-      instructions: request.instructions,
-    });
-    const details = {
-      generatedBy: "orchestrator-extractive",
-      compactedMessages: messagesToSummarize.length,
-      splitTurn: preparation.isSplitTurn,
-      fileOps: {
-        read: [...preparation.fileOps.read].sort(),
-        written: [...preparation.fileOps.written].sort(),
-        edited: [...preparation.fileOps.edited].sort(),
-      },
-    };
-    const entry = await this.appendEntry(
-      {
-        sessionId,
-        role: "system",
-        kind: "compaction",
-        text: summary,
-        summary,
-        tokensBefore: preparation.tokensBefore,
-        firstKeptEntryId,
-        details,
-      },
-      { mirrorToHarness: false },
-    );
-    await storage.appendEntry({
-      type: "compaction",
-      id: entry.id,
-      parentId: entry.parentEntryId ?? null,
-      timestamp: entry.createdAt,
-      summary,
-      firstKeptEntryId,
-      tokensBefore: preparation.tokensBefore,
-      details,
-    });
-    await this.rebuildConversations();
-    await this.events.publish("session.compacted", {
-      sessionId,
-      entry,
-      tokensBefore: preparation.tokensBefore,
-      firstKeptEntryId,
-    });
-    return { session: this.getSession(sessionId), entry };
+    return this.compactionService.compactSession(sessionId, request);
   }
 
   exportSession(sessionId: string) {
-    const session = this.getSession(sessionId);
-    const project = this.getProject(session.projectId);
-    const agents = this.listAgents().filter(
-      (agent) => agent.sessionId === session.id,
-    );
-    return {
-      format: "nerve.session.v1",
-      exportedAt: new Date().toISOString(),
-      project,
-      session,
-      agents,
-      entries: this.entries.get(session.id) ?? [],
-    };
+    return this.exportService.exportSession(sessionId);
   }
 
   exportSessionMarkdown(sessionId: string): string {
-    const exported = this.exportSession(sessionId);
-    return sessionExportMarkdown(exported.session, exported.entries);
+    return this.exportService.exportSessionMarkdown(sessionId);
   }
 
   exportSessionHtml(sessionId: string): string {
-    const exported = this.exportSession(sessionId);
-    return sessionExportHtml(exported.session, exported.entries);
+    return this.exportService.exportSessionHtml(sessionId);
   }
 
   async importSession(request: ImportSessionRequest): Promise<{
@@ -649,79 +489,7 @@ export class RuntimeRegistry {
     agents: AgentRecord[];
     entries: SessionEntry[];
   }> {
-    const project = await this.createProject({
-      dir: request.project?.dir ?? process.cwd(),
-      name: request.project?.name,
-    });
-    const session = await this.createSession({
-      projectId: project.id,
-      title: request.session.title ?? "Imported session",
-      mode: request.session.mode,
-      permissionLevel: request.session.permissionLevel,
-    });
-    const agentIdMap = new Map<string, string>();
-    const importedAgents: AgentRecord[] = [];
-    for (const candidate of request.agents ?? []) {
-      const parsed = agentRecordSchema.safeParse(candidate);
-      if (!parsed.success) continue;
-      const parentAgentId = parsed.data.parentAgentId
-        ? agentIdMap.get(parsed.data.parentAgentId)
-        : undefined;
-      const agent = await this.createAgent({
-        sessionId: session.id,
-        projectId: project.id,
-        projectDir: project.dir,
-        parentAgentId,
-        mode: parsed.data.mode,
-        permissionLevel: parsed.data.permissionLevel,
-        workspaceScope: { roots: [project.dir] },
-        budget: parsed.data.budget,
-        model: parsed.data.model,
-      });
-      agentIdMap.set(parsed.data.id, agent.id);
-      importedAgents.push(agent);
-    }
-    const entries = [...(request.entries ?? [])]
-      .map((entry) => sessionEntrySchema.safeParse(entry))
-      .filter((result) => result.success)
-      .map((result) => result.data);
-    const entryIdMap = new Map<string, string>();
-    const importedEntries: SessionEntry[] = [];
-    for (const entry of entries) {
-      const imported = await this.appendEntry({
-        sessionId: session.id,
-        agentId: entry.agentId ? agentIdMap.get(entry.agentId) : undefined,
-        parentEntryId: entry.parentEntryId
-          ? (entryIdMap.get(entry.parentEntryId) ?? null)
-          : null,
-        role: entry.role,
-        kind: entry.kind,
-        text: entry.text,
-        summary: entry.summary,
-        tokensBefore: entry.tokensBefore,
-        firstKeptEntryId: entry.firstKeptEntryId
-          ? entryIdMap.get(entry.firstKeptEntryId)
-          : undefined,
-        fromEntryId: entry.fromEntryId
-          ? entryIdMap.get(entry.fromEntryId)
-          : undefined,
-        details: entry.details,
-      });
-      entryIdMap.set(entry.id, imported.id);
-      importedEntries.push(imported);
-    }
-    await this.rebuildConversations();
-    await this.events.publish("session.imported", {
-      project,
-      session: this.getSession(session.id),
-      entryCount: importedEntries.length,
-    });
-    return {
-      project,
-      session: this.getSession(session.id),
-      agents: importedAgents,
-      entries: importedEntries,
-    };
+    return this.importService.importSession(request);
   }
 
   async requestTool(
@@ -788,7 +556,11 @@ export class RuntimeRegistry {
         },
         { mirrorToHarness: false },
       );
-      await this.appendHarnessSummaryEntry(parent, summaryEntry, childEntry.id);
+      await this.harnessManager.appendSummaryEntry(
+        parent,
+        summaryEntry,
+        childEntry.id,
+      );
       await this.events.publish("agent.subagent_completed", {
         parentAgentId: parent.id,
         childAgentId: child.id,
@@ -924,7 +696,7 @@ export class RuntimeRegistry {
 
     const session = this.getSession(agent.sessionId);
     const project = this.getProject(agent.projectId);
-    const storage = await this.openHarnessStorage(session, project.dir);
+    const storage = await this.harnessManager.openStorage(session, project.dir);
     const harnessSession = new Session(storage);
     const initialHarnessEntryIds = new Set(
       (await storage.getEntries()).map((entry) => entry.id),
@@ -1011,7 +783,7 @@ export class RuntimeRegistry {
         abortRequested = true;
         void harness.abort();
       },
-      messages: this.conversations.get(agent.id) ?? [],
+      messages: this.conversationService.getForAgent(agent.id) ?? [],
       steer: (text, options) =>
         harness.steer(text, { images: options?.images }),
       followUp: (text, options) =>
@@ -1026,7 +798,7 @@ export class RuntimeRegistry {
       this.runs.delete(agent.id);
       const branch = await storage.getPathToRoot(await storage.getLeafId());
       const messages = convertToLlm(buildSessionContext(branch).messages);
-      this.conversations.set(agent.id, messages);
+      this.conversationService.setForAgent(agent.id, messages);
       const assistantEntry = lastAssistantEntry;
       if (!assistantEntry) {
         throw new Error("Agent run completed without an assistant entry.");
@@ -1065,12 +837,12 @@ export class RuntimeRegistry {
     agent: AgentRecord,
     status: AgentRecord["status"],
   ): Promise<void> {
-    const updated = { ...agent, status, updatedAt: new Date().toISOString() };
-    await this.updateAgent(updated);
-    await this.events.publish("agent.status_changed", {
-      agentId: updated.id,
+    await setAgentStatusHelper(
+      agent,
       status,
-    });
+      (updated) => this.updateAgent(updated),
+      this.events,
+    );
   }
 
   private async updateAgent(agent: AgentRecord): Promise<void> {
@@ -1125,22 +897,14 @@ export class RuntimeRegistry {
     const entries = this.entries.get(input.sessionId) ?? [];
     entries.push(entry);
     this.entries.set(input.sessionId, entries);
-    await appendJsonLine(
-      join(
-        this.storage.paths.home,
-        "sessions",
-        input.sessionId,
-        "entries.jsonl",
-      ),
-      entry,
-      0o600,
-    );
+    await this.entryRepository.append(entry);
     await this.updateSession({
       ...session,
       activeEntryId: entry.id,
       updatedAt: entry.createdAt,
     });
-    if (options.mirrorToHarness !== false) await this.appendHarnessEntry(entry);
+    if (options.mirrorToHarness !== false)
+      await this.harnessManager.appendEntry(entry);
     return entry;
   }
 
@@ -1211,73 +975,11 @@ export class RuntimeRegistry {
     });
   }
 
-  private async createBranchSummaryEntry(
-    session: SessionRecord,
-    targetEntryId: string | undefined,
-    instructions?: string,
-  ): Promise<SessionEntry | undefined> {
-    const project = this.getProject(session.projectId);
-    const storage = await this.openHarnessStorage(session, project.dir);
-    const oldLeafId = await storage.getLeafId();
-    if (oldLeafId === (targetEntryId ?? null)) return undefined;
-
-    const oldBranch = oldLeafId ? await storage.getPathToRoot(oldLeafId) : [];
-    const targetBranch = targetEntryId
-      ? await storage.getPathToRoot(targetEntryId)
-      : [];
-    const targetIds = new Set(targetBranch.map((entry) => entry.id));
-    const entriesToSummarize = oldBranch.filter(
-      (entry): entry is Extract<SessionTreeEntry, { type: "message" }> =>
-        !targetIds.has(entry.id) && entry.type === "message",
-    );
-    if (entriesToSummarize.length === 0) return undefined;
-
-    const summary = buildExtractiveSummary({
-      title: "Branch summary",
-      messages: entriesToSummarize.map((entry) => entry.message),
-      instructions,
-    });
-    const entry = await this.appendEntry(
-      {
-        sessionId: session.id,
-        parentEntryId: targetEntryId ?? null,
-        role: "system",
-        kind: "branch_summary",
-        text: summary,
-        summary,
-        fromEntryId: oldLeafId ?? undefined,
-        details: {
-          generatedBy: "orchestrator-extractive",
-          summarizedEntryIds: entriesToSummarize.map((item) => item.id),
-          targetEntryId,
-        },
-      },
-      { mirrorToHarness: false },
-    );
-    await storage.setLeafId(targetEntryId ?? null);
-    await storage.appendEntry({
-      type: "branch_summary",
-      id: entry.id,
-      parentId: targetEntryId ?? null,
-      timestamp: entry.createdAt,
-      fromId: oldLeafId ?? "root",
-      summary,
-      details: entry.details,
-    });
-    await this.events.publish("session.branch_summarized", {
-      sessionId: session.id,
-      fromEntryId: oldLeafId,
-      targetEntryId,
-      entry,
-    });
-    return entry;
-  }
-
   private async maybeAutoCompact(sessionId: string): Promise<void> {
     if (!this.storage.settings.compaction.auto) return;
     const session = this.getSession(sessionId);
     const project = this.getProject(session.projectId);
-    const storage = await this.openHarnessStorage(session, project.dir);
+    const storage = await this.harnessManager.openStorage(session, project.dir);
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const tokens = estimateContextTokens(
       buildSessionContext(branch).messages,
@@ -1290,190 +992,40 @@ export class RuntimeRegistry {
     });
   }
 
-  private async openHarnessStorage(
-    session: SessionRecord,
-    cwd: string,
-  ): Promise<JsonlSessionStorage> {
-    await this.createHarnessSession(session, cwd);
-    return JsonlSessionStorage.open(
-      new NodeExecutionEnv({ cwd }),
-      this.harnessSessionPath(session.id),
-    );
-  }
-
-  private async createHarnessSession(
-    session: SessionRecord,
-    cwd: string,
-  ): Promise<void> {
-    try {
-      const path = this.harnessSessionPath(session.id);
-      if (await pathExists(path)) return;
-      const env = new NodeExecutionEnv({ cwd });
-      await JsonlSessionStorage.create(env, path, {
-        cwd,
-        sessionId: session.id,
-      });
-    } catch (error) {
-      this.warnHarnessMirror(error);
-    }
-  }
-
-  private async appendHarnessEntry(entry: SessionEntry): Promise<void> {
-    if (entry.role === "system") return;
-    try {
-      const session = this.getSession(entry.sessionId);
-      const project = this.getProject(session.projectId);
-      await this.createHarnessSession(session, project.dir);
-      const storage = await JsonlSessionStorage.open(
-        new NodeExecutionEnv({ cwd: project.dir }),
-        this.harnessSessionPath(session.id),
-      );
-      await storage.appendEntry({
-        type: "message",
-        id: entry.id,
-        parentId: entry.parentEntryId ?? null,
-        timestamp: entry.createdAt,
-        message: {
-          role: entry.role,
-          content: entry.text,
-          timestamp: new Date(entry.createdAt).getTime(),
-        } as Message,
-      });
-    } catch (error) {
-      this.warnHarnessMirror(error);
-    }
-  }
-
-  private async appendHarnessSummaryEntry(
-    agent: AgentRecord,
-    entry: SessionEntry,
-    fromId: string,
-  ): Promise<void> {
-    try {
-      const session = this.getSession(entry.sessionId);
-      const project = this.getProject(session.projectId);
-      const storage = await this.openHarnessStorage(session, project.dir);
-      await storage.appendEntry({
-        type: "branch_summary",
-        id: entry.id,
-        parentId: entry.parentEntryId ?? null,
-        timestamp: entry.createdAt,
-        fromId,
-        summary: entry.summary ?? entry.text,
-        details: { sourceDetails: entry.details, agentId: agent.id },
-        fromHook: true,
-      });
-    } catch (error) {
-      this.warnHarnessMirror(error);
-    }
-  }
-
-  private async setHarnessLeaf(
-    session: SessionRecord,
-    entryId: string | undefined,
-  ): Promise<void> {
-    try {
-      const project = this.getProject(session.projectId);
-      await this.createHarnessSession(session, project.dir);
-      const storage = await JsonlSessionStorage.open(
-        new NodeExecutionEnv({ cwd: project.dir }),
-        this.harnessSessionPath(session.id),
-      );
-      await storage.setLeafId(entryId ?? null);
-    } catch (error) {
-      this.warnHarnessMirror(error);
-    }
-  }
-
-  private warnHarnessMirror(error: unknown): void {
-    process.emitWarning(
-      `Failed to update harness JSONL session mirror: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
-
-  private harnessSessionPath(sessionId: string): string {
-    return join(
-      this.storage.paths.home,
-      "sessions",
-      sessionId,
-      "harness.jsonl",
-    );
-  }
-
-  private activeBranchEntries(session: SessionRecord): SessionEntry[] {
-    const entries = this.entries.get(session.id) ?? [];
-    if (!session.activeEntryId) return entries;
-    const byId = new Map(entries.map((entry) => [entry.id, entry]));
-    const branch: SessionEntry[] = [];
-    let cursor: string | undefined = session.activeEntryId;
-    while (cursor) {
-      const entry = byId.get(cursor);
-      if (!entry) break;
-      branch.push(entry);
-      cursor = entry.parentEntryId;
-    }
-    return branch.reverse();
-  }
-
   private async loadProjects(): Promise<void> {
-    const root = join(this.storage.paths.home, "projects");
-    for (const projectId of await listChildDirs(root)) {
-      const path = join(root, projectId, "project.json");
-      const parsed = projectRecordSchema.safeParse(
-        await readJsonFile<unknown>(path).catch(() => undefined),
-      );
-      if (parsed.success) {
-        this.projects.set(parsed.data.id, parsed.data);
-        this.index.upsertProject(parsed.data);
-      }
+    for (const project of await this.projectRepository.loadAll()) {
+      this.projects.set(project.id, project);
+      this.index.upsertProject(project);
     }
   }
 
   private async loadSessions(): Promise<void> {
-    const root = join(this.storage.paths.home, "sessions");
-    for (const sessionId of await listChildDirs(root)) {
-      const sessionPath = join(root, sessionId, "session.json");
-      const session = sessionRecordSchema.safeParse(
-        await readJsonFile<unknown>(sessionPath).catch(() => undefined),
+    for (const session of await this.sessionRepository.loadAll()) {
+      this.sessions.set(session.id, session);
+      this.index.upsertSession(session);
+      this.entries.set(
+        session.id,
+        await this.entryRepository.loadForSession(session.id),
       );
-      if (!session.success) continue;
-      this.sessions.set(session.data.id, session.data);
-      this.index.upsertSession(session.data);
-      const rawEntries = await readJsonLines<unknown>(
-        join(root, sessionId, "entries.jsonl"),
-      ).catch(() => []);
-      const entries = rawEntries
-        .map((entry) => sessionEntrySchema.safeParse(entry))
-        .filter((result) => result.success)
-        .map((result) => result.data);
-      this.entries.set(session.data.id, entries);
     }
   }
 
   private async loadAgents(): Promise<void> {
-    const root = join(this.storage.paths.home, "agents");
-    for (const agentId of await listChildDirs(root)) {
-      const path = join(root, agentId, "agent.json");
-      const parsed = agentRecordSchema.safeParse(
-        await readJsonFile<unknown>(path).catch(() => undefined),
-      );
-      if (!parsed.success) continue;
+    for (const parsedAgent of await this.agentRepository.loadAll()) {
       const localWorkerId = this.workers.requireDefaultLocalWorker().id;
-      const needsStatusRecovery = parsed.data.status === "running";
-      const needsWorkerBackfill = !parsed.data.workerId;
+      const needsStatusRecovery = parsedAgent.status === "running";
+      const needsWorkerBackfill = !parsedAgent.workerId;
       const agent: AgentRecord =
         needsStatusRecovery || needsWorkerBackfill
           ? {
-              ...parsed.data,
-              workerId: parsed.data.workerId ?? localWorkerId,
-              status: needsStatusRecovery ? "error" : parsed.data.status,
+              ...parsedAgent,
+              workerId: parsedAgent.workerId ?? localWorkerId,
+              status: needsStatusRecovery ? "error" : parsedAgent.status,
               updatedAt: needsStatusRecovery
                 ? new Date().toISOString()
-                : parsed.data.updatedAt,
+                : parsedAgent.updatedAt,
             }
-          : parsed.data;
+          : parsedAgent;
       this.agents.set(agent.id, agent);
       this.index.upsertAgent(agent);
       if (needsStatusRecovery || needsWorkerBackfill)
@@ -1482,119 +1034,23 @@ export class RuntimeRegistry {
   }
 
   private async rebuildConversations(): Promise<void> {
-    this.conversations.clear();
-    const sessionMessages = new Map<string, Message[]>();
-    for (const session of this.sessions.values()) {
-      const project = this.projects.get(session.projectId);
-      if (!project) continue;
-      const messages = await this.contextMessagesForSession(
-        session,
-        project.dir,
-      );
-      sessionMessages.set(session.id, messages);
-    }
-    for (const agent of this.agents.values()) {
-      this.conversations.set(
-        agent.id,
-        sessionMessages.get(agent.sessionId) ?? [],
-      );
-    }
-  }
-
-  private async contextMessagesForSession(
-    session: SessionRecord,
-    projectDir: string,
-  ): Promise<Message[]> {
-    try {
-      const storage = await this.openHarnessStorage(session, projectDir);
-      const branch = await storage.getPathToRoot(await storage.getLeafId());
-      return convertToLlm(buildSessionContext(branch).messages);
-    } catch (error) {
-      this.warnHarnessMirror(error);
-      return this.activeBranchEntries(session)
-        .filter((entry) => entry.role === "user" || entry.role === "assistant")
-        .map((entry) => ({
-          role: entry.role,
-          content: entry.text,
-          timestamp: new Date(entry.createdAt).getTime(),
-        })) as Message[];
-    }
+    await this.conversationService.rebuildAll(
+      this.projects.values(),
+      this.sessions.values(),
+      this.agents.values(),
+      this.entries,
+    );
   }
 
   private async writeSession(session: SessionRecord): Promise<void> {
     this.index.upsertSession(session);
-    await atomicWriteJson(
-      join(this.storage.paths.home, "sessions", session.id, "session.json"),
-      session,
-      0o600,
-    );
+    await this.sessionRepository.write(session);
   }
 
   private async writeAgent(agent: AgentRecord): Promise<void> {
     this.index.upsertAgent(agent);
-    await atomicWriteJson(
-      join(this.storage.paths.home, "agents", agent.id, "agent.json"),
-      agent,
-      0o600,
-    );
+    await this.agentRepository.write(agent);
   }
-}
-
-interface ExtractiveSummaryInput {
-  title: string;
-  messages: AgentMessage[];
-  previousSummary?: string;
-  instructions?: string;
-}
-
-function buildExtractiveSummary(input: ExtractiveSummaryInput): string {
-  const llmMessages = convertToLlm(input.messages);
-  const serialized = serializeConversation(llmMessages).trim();
-  const excerpt = truncateText(
-    serialized || "No message text was available.",
-    12_000,
-  );
-  const userMessages = llmMessages.filter((message) => message.role === "user");
-  const assistantMessages = llmMessages.filter(
-    (message) => message.role === "assistant",
-  );
-  const sections = [
-    `## ${input.title}`,
-    "",
-    "Generated locally by the orchestrator from the session branch. Treat this as a context checkpoint, not a new user request.",
-    "",
-  ];
-  if (input.instructions?.trim()) {
-    sections.push("## Operator instructions", input.instructions.trim(), "");
-  }
-  if (input.previousSummary?.trim()) {
-    sections.push(
-      "## Previous checkpoint",
-      truncateText(input.previousSummary.trim(), 4_000),
-      "",
-    );
-  }
-  sections.push(
-    "## Coverage",
-    `- User messages summarized: ${userMessages.length}`,
-    `- Assistant messages summarized: ${assistantMessages.length}`,
-    `- Total messages summarized: ${llmMessages.length}`,
-    "",
-    "## Conversation excerpt",
-    excerpt,
-  );
-  return sections.join("\n");
-}
-
-function truncateText(text: string, maxChars: number): string {
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, maxChars)}\n\n[…${text.length - maxChars} more characters truncated]`;
-}
-
-function deriveSessionTitle(text: string): string {
-  const firstLine = text.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
-  if (!firstLine) return "";
-  return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
 }
 
 function agentMessageText(message: AgentMessage): string {
@@ -1626,95 +1082,7 @@ function agentMessageText(message: AgentMessage): string {
   return "";
 }
 
-function sessionExportMarkdown(
-  session: SessionRecord,
-  entries: SessionEntry[],
-): string {
-  const lines = [
-    `# ${session.title}`,
-    "",
-    `- Session: ${session.id}`,
-    `- Mode: ${session.mode}`,
-    `- Permission: ${session.permissionLevel}`,
-    `- Exported: ${new Date().toISOString()}`,
-    "",
-  ];
-  for (const entry of entries) {
-    const label =
-      entry.kind && entry.kind !== "message"
-        ? `${entry.role} / ${entry.kind.replace("_", " ")}`
-        : entry.role;
-    lines.push(`## ${label}`, "", entry.text, "");
-  }
-  return `${lines.join("\n").trim()}\n`;
-}
-
-function sessionExportHtml(
-  session: SessionRecord,
-  entries: SessionEntry[],
-): string {
-  const body = entries
-    .map((entry) => {
-      const label =
-        entry.kind && entry.kind !== "message"
-          ? `${entry.role} / ${entry.kind.replace("_", " ")}`
-          : entry.role;
-      return `<article><h2>${escapeHtml(label)}</h2><pre>${escapeHtml(entry.text)}</pre></article>`;
-    })
-    .join("\n");
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${escapeHtml(session.title)}</title>
-<style>
-body{font-family:Inter,ui-sans-serif,system-ui,sans-serif;line-height:1.5;max-width:900px;margin:40px auto;padding:0 24px;color:#0f172a;background:#f8fafc}article{border:1px solid #cbd5e1;border-radius:16px;background:white;padding:20px;margin:16px 0;box-shadow:0 10px 30px rgba(15,23,42,.06)}pre{white-space:pre-wrap;font:inherit}small{color:#64748b}
-</style>
-</head>
-<body>
-<h1>${escapeHtml(session.title)}</h1>
-<small>${escapeHtml(session.id)} · exported ${new Date().toISOString()}</small>
-${body}
-</body>
-</html>`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-export function errorResponse(error: unknown): Response {
-  if (error instanceof HttpError) {
-    return Response.json(
-      { error: { code: error.code, message: error.message } },
-      { status: error.status },
-    );
-  }
-  return Response.json(
-    {
-      error: {
-        code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : String(error),
-      },
-    },
-    { status: 500 },
-  );
-}
+export { errorResponse, HttpError } from "./http/errors.js";
 
 function nerveSystemContext(agent: AgentRecord): string {
   const childContext = agent.parentAgentId
@@ -1735,21 +1103,6 @@ export function providerSecretName(provider: string): string {
 
 export function providerEnvVar(provider: string): string {
   return providerEnvVarName(provider);
-}
-
-function modeRank(mode: Mode): number {
-  return mode === "planning" ? 0 : 1;
-}
-
-function permissionRank(permission: PermissionLevel): number {
-  switch (permission) {
-    case "read_only":
-      return 0;
-    case "supervised":
-      return 1;
-    case "autonomous":
-      return 2;
-  }
 }
 
 function modeArg(value: unknown): Mode | undefined {
