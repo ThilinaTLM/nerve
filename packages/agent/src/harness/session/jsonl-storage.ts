@@ -7,7 +7,12 @@ import type {
 } from "../types.js";
 import { SessionError, toError } from "../types.js";
 import { getFileSystemResultOrThrow } from "./repo-utils.js";
-import { uuidv7 } from "./uuid.js";
+import {
+  buildLabelsById,
+  generateEntryId,
+  leafIdAfterEntry,
+  updateLabelCache,
+} from "./storage-utils.js";
 
 type JsonlSessionStorageFileSystem = Pick<
   FileSystem,
@@ -21,35 +26,6 @@ interface SessionHeader {
   timestamp: string;
   cwd: string;
   parentSession?: string;
-}
-
-function updateLabelCache(
-  labelsById: Map<string, string>,
-  entry: SessionTreeEntry,
-): void {
-  if (entry.type !== "label") return;
-  const label = entry.label?.trim();
-  if (label) {
-    labelsById.set(entry.targetId, label);
-  } else {
-    labelsById.delete(entry.targetId);
-  }
-}
-
-function buildLabelsById(entries: SessionTreeEntry[]): Map<string, string> {
-  const labelsById = new Map<string, string>();
-  for (const entry of entries) {
-    updateLabelCache(labelsById, entry);
-  }
-  return labelsById;
-}
-
-function generateEntryId(byId: { has(id: string): boolean }): string {
-  for (let i = 0; i < 100; i++) {
-    const id = `entry_${uuidv7()}`;
-    if (!byId.has(id)) return id;
-  }
-  return `entry_${uuidv7()}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -162,10 +138,6 @@ function parseEntryLine(
   return parsed as unknown as SessionTreeEntry;
 }
 
-function leafIdAfterEntry(entry: SessionTreeEntry): string | null {
-  return entry.type === "leaf" ? entry.targetId : entry.id;
-}
-
 function headerToSessionMetadata(
   header: SessionHeader,
   path: string,
@@ -210,11 +182,17 @@ async function loadJsonlStorage(
     throw invalidSession(filePath, "missing session header");
   }
 
-  const header = parseHeaderLine(lines[0]!, filePath);
+  const headerLine = lines[0];
+  if (!headerLine) {
+    throw invalidSession(filePath, "missing session header");
+  }
+  const header = parseHeaderLine(headerLine, filePath);
   const entries: SessionTreeEntry[] = [];
   let leafId: string | null = null;
   for (let i = 1; i < lines.length; i++) {
-    const entry = parseEntryLine(lines[i]!, filePath, i + 1);
+    const line = lines[i];
+    if (!line) continue;
+    const entry = parseEntryLine(line, filePath, i + 1);
     entries.push(entry);
     leafId = leafIdAfterEntry(entry);
   }

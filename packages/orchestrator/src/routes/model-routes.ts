@@ -1,0 +1,10 @@
+import { Hono } from "hono";
+import type { OrchestratorState } from "../server.js";
+
+export function createModelRoutes(state: OrchestratorState): Hono {
+  const app = new Hono();
+
+  app.get("/models", (c) => c.json({ models: state.registry.listModels() }));
+
+  return app;
+}

@@ -60,6 +60,7 @@
   import SettingsPage from "./lib/components/app/SettingsPage.svelte";
   import Titlebar from "./lib/components/app/Titlebar.svelte";
   import UtilityPanel from "./lib/components/app/UtilityPanel.svelte";
+  import { modelKey, parseModelKey, usableModelOptions } from "./lib/utils/model";
 
   type TranscriptItem = {
     id?: string;
@@ -129,13 +130,6 @@
     else window.history.pushState({ route }, "", nextUrl);
   }
 
-  function usableModelOptions(modelList: ModelInfo[], providers: AuthProviderMetadata[]): ModelInfo[] {
-    const configuredProviders = new Set(
-      providers.filter((provider) => provider.configured).map((provider) => provider.provider),
-    );
-    return modelList.filter((model) => model.faux || configuredProviders.has(model.provider));
-  }
-
   function selectAgent(agent: AgentRecord) {
     selection.agentId = agent.id;
     selection.projectId = agent.projectId;
@@ -190,14 +184,8 @@
     }
   }
 
-  function modelKey(model: { provider: string; modelId: string }): string {
-    return `${model.provider}:${model.modelId}`;
-  }
-
   function selectedModel(): ModelSelection | undefined {
-    const [provider, ...modelParts] = selectedModelKey.split(":");
-    const modelId = modelParts.join(":");
-    return provider && modelId ? { provider, modelId } : undefined;
+    return parseModelKey(selectedModelKey);
   }
 
   async function saveSettings() {

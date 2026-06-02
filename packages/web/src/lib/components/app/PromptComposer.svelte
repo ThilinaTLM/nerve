@@ -14,6 +14,7 @@
   import Select, { type SelectItem } from "../ui/Select.svelte";
   import ToggleGroup from "../ui/ToggleGroup.svelte";
   import ApprovalStrip from "./ApprovalStrip.svelte";
+  import { modelKey } from "../../utils/model";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -74,7 +75,7 @@
   const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !pendingApproval));
   const modelItems = $derived<SelectItem[]>(models.length
     ? models.map((model) => ({
-      value: `${model.provider}:${model.modelId}`,
+      value: modelKey(model),
       label: model.label,
       detail: model.provider,
     }))

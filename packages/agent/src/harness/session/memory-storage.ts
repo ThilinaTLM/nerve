@@ -5,40 +5,13 @@ import {
   type SessionStorage,
   type SessionTreeEntry,
 } from "../types.js";
+import {
+  buildLabelsById,
+  generateEntryId,
+  leafIdAfterEntry,
+  updateLabelCache,
+} from "./storage-utils.js";
 import { uuidv7 } from "./uuid.js";
-
-function updateLabelCache(
-  labelsById: Map<string, string>,
-  entry: SessionTreeEntry,
-): void {
-  if (entry.type !== "label") return;
-  const label = entry.label?.trim();
-  if (label) {
-    labelsById.set(entry.targetId, label);
-  } else {
-    labelsById.delete(entry.targetId);
-  }
-}
-
-function buildLabelsById(entries: SessionTreeEntry[]): Map<string, string> {
-  const labelsById = new Map<string, string>();
-  for (const entry of entries) {
-    updateLabelCache(labelsById, entry);
-  }
-  return labelsById;
-}
-
-function generateEntryId(byId: { has(id: string): boolean }): string {
-  for (let i = 0; i < 100; i++) {
-    const id = uuidv7().slice(0, 8);
-    if (!byId.has(id)) return id;
-  }
-  return uuidv7();
-}
-
-function leafIdAfterEntry(entry: SessionTreeEntry): string | null {
-  return entry.type === "leaf" ? entry.targetId : entry.id;
-}
 
 export class InMemorySessionStorage<
   TMetadata extends SessionMetadata = SessionMetadata,
@@ -90,7 +63,7 @@ export class InMemorySessionStorage<
     }
     const entry: LeafEntry = {
       type: "leaf",
-      id: generateEntryId(this.byId),
+      id: generateEntryId(this.byId, { style: "short" }),
       parentId: this.leafId,
       timestamp: new Date().toISOString(),
       targetId: leafId,
@@ -101,7 +74,7 @@ export class InMemorySessionStorage<
   }
 
   async createEntryId(): Promise<string> {
-    return generateEntryId(this.byId);
+    return generateEntryId(this.byId, { style: "short" });
   }
 
   async appendEntry(entry: SessionTreeEntry): Promise<void> {

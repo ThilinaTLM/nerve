@@ -1,0 +1,45 @@
+import type { Hono } from "hono";
+import type { OrchestratorState } from "../server.js";
+import { createAgentRoutes } from "./agent-routes.js";
+import { createAuthRoutes } from "./auth-routes.js";
+import { createCompletionRoutes } from "./completion-routes.js";
+import { createFilesystemRoutes } from "./filesystem-routes.js";
+import { createModelRoutes } from "./model-routes.js";
+import { createProcessRoutes } from "./process-routes.js";
+import { createProjectRoutes } from "./project-routes.js";
+import { createSessionRoutes } from "./session-routes.js";
+import { createSettingsRoutes } from "./settings-routes.js";
+import { createStatusRoutes } from "./status-routes.js";
+import { createStorageRoutes } from "./storage-routes.js";
+import { createToolRoutes } from "./tool-routes.js";
+import { createWorkerRoutes } from "./worker-routes.js";
+
+export { createAgentRoutes } from "./agent-routes.js";
+export { createAuthRoutes } from "./auth-routes.js";
+export { createCompletionRoutes } from "./completion-routes.js";
+export { createFilesystemRoutes } from "./filesystem-routes.js";
+export { createModelRoutes } from "./model-routes.js";
+export { createProcessRoutes } from "./process-routes.js";
+export { createProjectRoutes } from "./project-routes.js";
+export { createSessionRoutes } from "./session-routes.js";
+export { createSettingsRoutes } from "./settings-routes.js";
+export { createStatusRoutes } from "./status-routes.js";
+export { createStorageRoutes } from "./storage-routes.js";
+export { createToolRoutes } from "./tool-routes.js";
+export { createWorkerRoutes } from "./worker-routes.js";
+
+export function mountApiRoutes(app: Hono, state: OrchestratorState): void {
+  app.route("/api", createStatusRoutes(state));
+  app.route("/api", createSettingsRoutes(state));
+  app.route("/api", createAuthRoutes(state));
+  app.route("/api", createStorageRoutes(state));
+  app.route("/api", createModelRoutes(state));
+  app.route("/api", createToolRoutes(state));
+  app.route("/api", createWorkerRoutes(state));
+  app.route("/api", createProcessRoutes(state));
+  app.route("/api", createCompletionRoutes(state));
+  app.route("/api", createFilesystemRoutes(state));
+  app.route("/api/projects", createProjectRoutes(state));
+  app.route("/api", createSessionRoutes(state));
+  app.route("/api", createAgentRoutes(state));
+}

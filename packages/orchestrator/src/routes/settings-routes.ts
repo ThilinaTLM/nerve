@@ -1,0 +1,22 @@
+import { updateSettingsRequestSchema } from "@nerve/shared";
+import { Hono } from "hono";
+import { routeHandler } from "../http/responses.js";
+import type { OrchestratorState } from "../server.js";
+import { writeSettings } from "../storage.js";
+
+export function createSettingsRoutes(state: OrchestratorState): Hono {
+  const app = new Hono();
+
+  app.get("/settings", (c) => c.json(state.storage.settings));
+  app.put(
+    "/settings",
+    routeHandler(async (c) => {
+      const body = updateSettingsRequestSchema.parse(await c.req.json());
+      const settings = await writeSettings(state.storage, body);
+      await state.events.publish("settings.updated", { settings });
+      return c.json({ settings });
+    }),
+  );
+
+  return app;
+}

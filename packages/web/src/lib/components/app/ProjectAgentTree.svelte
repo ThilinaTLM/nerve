@@ -13,21 +13,14 @@
   import Input from "../ui/Input.svelte";
   import ScrollArea from "../ui/ScrollArea.svelte";
   import StatusDot from "../ui/StatusDot.svelte";
-
-  type ConversationRow = {
-    session: SessionRecord;
-    agent?: AgentRecord;
-  };
-
-  type ProjectGroup = {
-    key: string;
-    project: ProjectRecord;
-    projects: ProjectRecord[];
-    rows: ConversationRow[];
-    updatedAt: string;
-  };
-
-  type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
+  import { pulseForStatus, statusTone } from "../../utils/status";
+  import {
+    buildProjectGroups,
+    conversationMeta,
+    groupIsActive,
+    projectKey,
+    shortProjectLabel,
+  } from "../../utils/project-tree";
 
   type DeleteTarget = {
     kind: "project" | "session";
@@ -67,60 +60,6 @@
   let collapsed = $state<Record<string, boolean>>({});
   let pendingDelete = $state<DeleteTarget | undefined>(undefined);
 
-  function projectKey(project: ProjectRecord): string {
-    return project.dir.replace(/[\\/]+$/, "") || project.dir;
-  }
-
-  function shortProjectLabel(dir: string): string {
-    let path = dir.replace(/[\\/]+$/, "");
-    if (homeDir && (path === homeDir || path.startsWith(`${homeDir}/`))) {
-      path = `~${path.slice(homeDir.length)}`;
-    }
-    const segments = path.split("/");
-    return segments
-      .map((segment, index) => {
-        if (index === segments.length - 1 || segment === "" || segment === "~") return segment;
-        return segment.startsWith(".") ? segment.slice(0, 2) : segment.charAt(0);
-      })
-      .join("/");
-  }
-
-  function shortModel(agent: AgentRecord | undefined): string {
-    if (!agent?.model) return "model pending";
-    return agent.model.modelId.replace(/^claude-/, "claude ").replace(/^gpt-/, "gpt ");
-  }
-
-  function conversationMeta(row: ConversationRow): string {
-    const mode = row.agent?.mode ?? row.session.mode;
-    const permission = row.agent?.permissionLevel ?? row.session.permissionLevel;
-    return `${mode} · ${permission} · ${shortModel(row.agent)}`;
-  }
-
-  function rowAgent(session: SessionRecord): AgentRecord | undefined {
-    return agents.find((agent) => agent.id === session.activeAgentId) ?? agents.find((agent) => agent.sessionId === session.id);
-  }
-
-  function groupIsActive(group: ProjectGroup): boolean {
-    return group.projects.some((project) => project.id === selectedProjectId);
-  }
-
-  function matches(group: ProjectGroup, query: string): boolean {
-    if (!query) return true;
-    const normalized = query.toLowerCase();
-    return group.project.name.toLowerCase().includes(normalized) ||
-      group.project.dir.toLowerCase().includes(normalized) ||
-      group.projects.some((project) => project.name.toLowerCase().includes(normalized) || project.dir.toLowerCase().includes(normalized)) ||
-      group.rows.some((row) => row.session.title.toLowerCase().includes(normalized) || row.session.id.toLowerCase().includes(normalized));
-  }
-
-  function statusTone(status: string | undefined): StatusTone {
-    if (status === "running") return "running";
-    if (status === "error") return "danger";
-    if (status === "completed") return "good";
-    if (status === "aborted") return "warn";
-    return "neutral";
-  }
-
   function requestDelete(target: DeleteTarget) {
     pendingDelete = target;
   }
@@ -134,40 +73,7 @@
 
   const projectDirectoryCount = $derived.by(() => new Set(projects.map(projectKey)).size);
 
-  const groups = $derived.by(() => {
-    const projectById = new Map(projects.map((project) => [project.id, project]));
-    const byDir = new Map<string, ProjectGroup>();
-
-    for (const project of projects) {
-      const key = projectKey(project);
-      const existing = byDir.get(key);
-      if (existing) {
-        existing.projects.push(project);
-        if (project.updatedAt > existing.updatedAt) existing.updatedAt = project.updatedAt;
-        if (project.updatedAt > existing.project.updatedAt) existing.project = project;
-      } else {
-        byDir.set(key, { key, project, projects: [project], rows: [], updatedAt: project.updatedAt });
-      }
-    }
-
-    for (const session of sessions) {
-      const project = projectById.get(session.projectId);
-      if (!project) continue;
-      const key = projectKey(project);
-      const group = byDir.get(key) ?? { key, project, projects: [project], rows: [], updatedAt: project.updatedAt };
-      group.rows.push({ session, agent: rowAgent(session) });
-      if (session.updatedAt > group.updatedAt) group.updatedAt = session.updatedAt;
-      byDir.set(key, group);
-    }
-
-    return [...byDir.values()]
-      .filter((group) => matches(group, filter.trim()))
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .map((group) => ({
-        ...group,
-        rows: group.rows.sort((a, b) => b.session.updatedAt.localeCompare(a.session.updatedAt)),
-      }));
-  });
+  const groups = $derived.by(() => buildProjectGroups({ projects, sessions, agents, filter }));
 </script>
 
 <aside class="project-tree">
@@ -191,7 +97,7 @@
     {/if}
 
     {#each groups as group}
-      {@const active = groupIsActive(group)}
+      {@const active = groupIsActive(group, selectedProjectId)}
       <Collapsible.Root class="project-group" open={!collapsed[group.key]} onOpenChange={(open) => (collapsed[group.key] = !open)}>
         <div class="project-row-wrap" class:active>
           <Collapsible.Trigger class="project-row" title={group.project.dir}>
@@ -199,7 +105,7 @@
               <ChevronDown size={13} />
             </span>
             <FolderKanban size={13} strokeWidth={2.15} aria-hidden="true" />
-            <strong class="project-label">{shortProjectLabel(group.project.dir)}</strong>
+            <strong class="project-label">{shortProjectLabel(group.project.dir, homeDir)}</strong>
             <Badge size="xs" tone={active ? "accent" : "neutral"}>{group.rows.length}</Badge>
           </Collapsible.Trigger>
           <div class="row-actions">
@@ -216,7 +122,7 @@
               ariaLabel="Project actions"
               triggerClass="row-menu-trigger"
               items={[{ value: "delete", label: "Delete project", tone: "danger" }]}
-              onSelect={(value) => value === "delete" && requestDelete({ kind: "project", id: group.project.id, label: shortProjectLabel(group.project.dir) })}
+              onSelect={(value) => value === "delete" && requestDelete({ kind: "project", id: group.project.id, label: shortProjectLabel(group.project.dir, homeDir) })}
             >
               <MoreHorizontal size={14} aria-hidden="true" />
             </DropdownMenu>
@@ -234,7 +140,7 @@
                 title={`${row.session.title} · ${conversationMeta(row)} · ${row.session.id}`}
                 onclick={() => onOpenSession?.(row.session.id)}
               >
-                <StatusDot tone={statusTone(row.agent?.status)} pulse={row.agent?.status === "running"} />
+                <StatusDot tone={statusTone(row.agent?.status)} pulse={pulseForStatus(row.agent?.status)} />
                 <strong class="conversation-label">{row.session.title}</strong>
                 <span class="row-status">{row.agent?.status ?? "idle"}</span>
               </button>

@@ -9,8 +9,7 @@
   import Badge from "../ui/Badge.svelte";
   import Popover from "../ui/Popover.svelte";
   import StatusDot from "../ui/StatusDot.svelte";
-
-  type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
+  import { pulseForStatus, statusTone, type StatusTone } from "../../utils/status";
 
   type Props = {
     connection?: string;
@@ -40,14 +39,6 @@
   const connectionTone = $derived<StatusTone>(live ? "good" : connection === "error" ? "danger" : connection === "closed" ? "warn" : "neutral");
   const summary = $derived(live ? "Connected" : connection);
   const modelLabel = $derived(activeAgent?.model ? `${activeAgent.model.provider}/${activeAgent.model.modelId}` : "model pending");
-
-  function statusTone(status: string | undefined): StatusTone {
-    if (status === "running" || status === "ready" || status === "starting") return "running";
-    if (status === "error" || status === "orphaned") return "danger";
-    if (status === "stopped" || status === "exited" || status === "completed") return "good";
-    if (status === "stopping") return "warn";
-    return "neutral";
-  }
 </script>
 
 <Popover class="status-popover" triggerClass="status-trigger-wrap" ariaLabel="Open status details" side="bottom" align="end">
@@ -107,7 +98,7 @@
       <div class="process-slice">
         {#each processes.slice(0, 4) as process}
           <div>
-            <StatusDot tone={statusTone(process.status)} size="xs" pulse={process.status === "running" || process.status === "ready"} />
+            <StatusDot tone={statusTone(process.status)} size="xs" pulse={pulseForStatus(process.status)} />
             <span>{process.name ?? process.command}</span>
             <small>{process.status}</small>
           </div>

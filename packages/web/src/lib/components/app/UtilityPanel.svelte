@@ -21,9 +21,10 @@
   import ScrollArea from "../ui/ScrollArea.svelte";
   import StatusDot from "../ui/StatusDot.svelte";
   import Tabs, { type TabItem } from "../ui/Tabs.svelte";
+  import { logLevelTone, pulseForStatus, statusTone } from "../../utils/status";
+  import { timeLabel } from "../../utils/time";
 
   type UtilityTab = "history" | "processes" | "info";
-  type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
 
   type Props = {
     activeTab?: UtilityTab;
@@ -80,27 +81,6 @@
     onTabChange?.(activeTab);
   }
 
-  function statusTone(statusValue: string | undefined): StatusTone {
-    if (statusValue === "running" || statusValue === "ready" || statusValue === "starting") return "running";
-    if (statusValue === "error" || statusValue === "failed" || statusValue === "orphaned") return "danger";
-    if (statusValue === "completed" || statusValue === "stopped" || statusValue === "exited") return "good";
-    if (statusValue === "pending" || statusValue === "stopping") return "warn";
-    return "neutral";
-  }
-
-  function logTone(level: string): StatusTone {
-    if (level === "error") return "danger";
-    if (level === "warn") return "warn";
-    return "neutral";
-  }
-
-  function timeLabel(ts: string): string {
-    try {
-      return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    } catch {
-      return ts;
-    }
-  }
 </script>
 
 <aside class="utility-panel">
@@ -145,7 +125,7 @@
         {/if}
         {#each processes as process}
           <button class="utility-row process-row" class:active={process.id === selectedProcess?.id} type="button" onclick={() => onSelectProcess?.(process.id)}>
-            <StatusDot tone={statusTone(process.status)} pulse={process.status === "running" || process.status === "ready"} />
+            <StatusDot tone={statusTone(process.status)} pulse={pulseForStatus(process.status)} />
             <div>
               <strong>{process.name ?? process.command}</strong>
               <span>{process.status} · {process.cwd}</span>
@@ -157,7 +137,7 @@
 
       {#if selectedProcess}
         <section class="process-detail">
-          <div class="process-title"><StatusDot tone={statusTone(selectedProcess.status)} pulse={selectedProcess.status === "running" || selectedProcess.status === "ready"} /><strong>{selectedProcess.name ?? selectedProcess.command}</strong></div>
+          <div class="process-title"><StatusDot tone={statusTone(selectedProcess.status)} pulse={pulseForStatus(selectedProcess.status)} /><strong>{selectedProcess.name ?? selectedProcess.command}</strong></div>
           <small title={selectedProcess.command}>{selectedProcess.command}</small>
           <small title={selectedProcess.cwd}>{selectedProcess.cwd}</small>
           <div class="row-actions">
@@ -173,7 +153,7 @@
             <code class={event.level}>
               <span class="seq">#{event.seq}</span>
               <span class="time">{timeLabel(event.ts)}</span>
-              <StatusDot size="xs" tone={logTone(event.level)} />
+              <StatusDot size="xs" tone={logLevelTone(event.level)} />
               <span class="line">{event.line}</span>
             </code>
           {/each}
@@ -198,7 +178,7 @@
         {/if}
         {#each sessionAgents as agent}
           <button class="utility-row agent-row" type="button" onclick={() => onSelectAgent?.(agent)}>
-            <StatusDot tone={statusTone(agent.status)} pulse={agent.status === "running"} />
+            <StatusDot tone={statusTone(agent.status)} pulse={pulseForStatus(agent.status)} />
             <div>
               <strong>{agent.parentAgentId ? "child" : "root"} · {agent.status}</strong>
               <span>{agent.mode} · {agent.permissionLevel} · {agent.id}</span>

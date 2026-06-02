@@ -1,0 +1,43 @@
+import { z } from "zod";
+
+export const statusResponseSchema = z.object({
+  daemonId: z.string().startsWith("daemon_"),
+  version: z.string(),
+  startedAt: z.string().datetime(),
+  dataDir: z.string(),
+  storage: z.object({
+    home: z.string(),
+    sqlitePath: z.string(),
+    indexHealthy: z.boolean(),
+  }),
+});
+export type StatusResponse = z.infer<typeof statusResponseSchema>;
+
+export const daemonFileSchema = z.object({
+  daemonId: z.string().startsWith("daemon_"),
+  pid: z.number().int().positive(),
+  host: z.string(),
+  port: z.number().int().positive(),
+  url: z.string().url(),
+  startedAt: z.string().datetime(),
+  dataDir: z.string(),
+  version: z.string(),
+});
+export type DaemonFile = z.infer<typeof daemonFileSchema>;
+
+export const storageInfoSchema = z.object({
+  dataDir: z.string(),
+  sqlitePath: z.string(),
+  configPath: z.string(),
+  counts: z
+    .object({
+      projects: z.number().int().nonnegative(),
+      sessions: z.number().int().nonnegative(),
+      agents: z.number().int().nonnegative(),
+      events: z.number().int().nonnegative(),
+      processes: z.number().int().nonnegative(),
+      workers: z.number().int().nonnegative(),
+    })
+    .optional(),
+});
+export type StorageInfo = z.infer<typeof storageInfoSchema>;
