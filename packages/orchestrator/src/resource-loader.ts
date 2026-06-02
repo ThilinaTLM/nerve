@@ -4,7 +4,12 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadSkills, NodeExecutionEnv, type Skill } from "@nerve/agent";
 
-const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"];
+const CONTEXT_FILE_CANDIDATES = [
+  "AGENTS.md",
+  "AGENTS.MD",
+  "CLAUDE.md",
+  "CLAUDE.MD",
+];
 const CONFIG_DIR_NAME = ".pi";
 
 export interface LoadedHarnessResources {
@@ -14,20 +19,23 @@ export interface LoadedHarnessResources {
   appendSystemPrompt?: string;
 }
 
-export async function loadHarnessResources(cwd: string): Promise<LoadedHarnessResources> {
+export async function loadHarnessResources(
+  cwd: string,
+): Promise<LoadedHarnessResources> {
   const resolvedCwd = resolve(cwd);
   const agentDir = join(homedir(), ".pi", "agent");
   const env = new NodeExecutionEnv({ cwd: resolvedCwd });
 
-  const [contextFiles, skills, systemPrompt, appendSystemPrompt] = await Promise.all([
-    loadProjectContextFiles(resolvedCwd, agentDir),
-    loadProjectSkills(env, resolvedCwd, agentDir),
-    loadFirstExistingText([
-      join(resolvedCwd, CONFIG_DIR_NAME, "SYSTEM.md"),
-      join(agentDir, "SYSTEM.md"),
-    ]),
-    loadAppendSystemPrompt(resolvedCwd, agentDir),
-  ]);
+  const [contextFiles, skills, systemPrompt, appendSystemPrompt] =
+    await Promise.all([
+      loadProjectContextFiles(resolvedCwd, agentDir),
+      loadProjectSkills(env, resolvedCwd, agentDir),
+      loadFirstExistingText([
+        join(resolvedCwd, CONFIG_DIR_NAME, "SYSTEM.md"),
+        join(agentDir, "SYSTEM.md"),
+      ]),
+      loadAppendSystemPrompt(resolvedCwd, agentDir),
+    ]);
 
   return { contextFiles, skills, systemPrompt, appendSystemPrompt };
 }
@@ -107,7 +115,9 @@ function ancestorAgentsSkillDirs(cwd: string): string[] {
   return dirs;
 }
 
-async function loadFirstExistingText(paths: string[]): Promise<string | undefined> {
+async function loadFirstExistingText(
+  paths: string[],
+): Promise<string | undefined> {
   for (const path of paths) {
     if (!existsSync(path)) continue;
     return readFile(path, "utf8");
@@ -120,7 +130,10 @@ async function loadAppendSystemPrompt(
   agentDir: string,
 ): Promise<string | undefined> {
   const values = await Promise.all(
-    [join(cwd, CONFIG_DIR_NAME, "APPEND_SYSTEM.md"), join(agentDir, "APPEND_SYSTEM.md")]
+    [
+      join(cwd, CONFIG_DIR_NAME, "APPEND_SYSTEM.md"),
+      join(agentDir, "APPEND_SYSTEM.md"),
+    ]
       .filter((path) => existsSync(path))
       .map((path) => readFile(path, "utf8")),
   );

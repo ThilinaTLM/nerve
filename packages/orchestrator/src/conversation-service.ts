@@ -10,7 +10,7 @@ import type { HarnessManager } from "./harness-manager.js";
 import type { EntryRepository } from "./repositories/index.js";
 
 export class ConversationService {
-  readonly conversations = new Map<string, Message[]>();
+  readonly agentConversationCache = new Map<string, Message[]>();
 
   constructor(
     private readonly harnessManager: HarnessManager,
@@ -23,7 +23,7 @@ export class ConversationService {
     agents: Iterable<AgentRecord>,
     entriesBySessionId: Map<string, SessionEntry[]>,
   ): Promise<void> {
-    this.conversations.clear();
+    this.agentConversationCache.clear();
     const projectsById = new Map(
       [...projects].map((project) => [project.id, project]),
     );
@@ -39,7 +39,7 @@ export class ConversationService {
       sessionMessages.set(session.id, messages);
     }
     for (const agent of agents) {
-      this.conversations.set(
+      this.agentConversationCache.set(
         agent.id,
         sessionMessages.get(agent.sessionId) ?? [],
       );
@@ -47,19 +47,19 @@ export class ConversationService {
   }
 
   getForAgent(agentId: string): Message[] | undefined {
-    return this.conversations.get(agentId);
+    return this.agentConversationCache.get(agentId);
   }
 
   setForAgent(agentId: string, messages: Message[]): void {
-    this.conversations.set(agentId, messages);
+    this.agentConversationCache.set(agentId, messages);
   }
 
   deleteAgent(agentId: string): void {
-    this.conversations.delete(agentId);
+    this.agentConversationCache.delete(agentId);
   }
 
   clear(): void {
-    this.conversations.clear();
+    this.agentConversationCache.clear();
   }
 
   async contextMessagesForSession(

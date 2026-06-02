@@ -1,4 +1,4 @@
-import type { FileError, ExecutionError } from "../errors.js";
+import type { ExecutionError, FileError } from "../errors.js";
 import type { Result } from "../result.js";
 
 /** Kind of filesystem object as addressed by a {@link FileSystem}. Symlinks are not followed automatically. */

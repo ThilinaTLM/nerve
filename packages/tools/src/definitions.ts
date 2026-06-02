@@ -1,4 +1,9 @@
-import type { CoreToolName, ToolDescriptor, ToolName, ToolRisk } from "@nerve/shared";
+import type {
+  CoreToolName,
+  ToolDescriptor,
+  ToolName,
+  ToolRisk,
+} from "@nerve/shared";
 import { type Static, type TSchema, Type } from "typebox";
 
 export type CoreToolExecutionMode = "sequential" | "parallel";
@@ -35,7 +40,9 @@ const bashParameters = Type.Object(
   {
     command: Type.String({ description: "Bash command to execute" }),
     timeout: Type.Optional(
-      Type.Number({ description: "Timeout in seconds, capped by the executor" }),
+      Type.Number({
+        description: "Timeout in seconds, capped by the executor",
+      }),
     ),
   },
   { additionalProperties: false },
@@ -119,7 +126,8 @@ const grepParameters = Type.Object(
     ),
     glob: Type.Optional(
       Type.String({
-        description: "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'",
+        description:
+          "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'",
       }),
     ),
     ignoreCase: Type.Optional(
@@ -127,16 +135,20 @@ const grepParameters = Type.Object(
     ),
     literal: Type.Optional(
       Type.Boolean({
-        description: "Treat pattern as literal string instead of regex (default: false)",
+        description:
+          "Treat pattern as literal string instead of regex (default: false)",
       }),
     ),
     context: Type.Optional(
       Type.Number({
-        description: "Number of lines to show before and after each match (default: 0)",
+        description:
+          "Number of lines to show before and after each match (default: 0)",
       }),
     ),
     limit: Type.Optional(
-      Type.Number({ description: "Maximum number of matches to return (default: 100)" }),
+      Type.Number({
+        description: "Maximum number of matches to return (default: 100)",
+      }),
     ),
   },
   { additionalProperties: false },
@@ -145,10 +157,13 @@ const grepParameters = Type.Object(
 const findParameters = Type.Object(
   {
     pattern: Type.String({
-      description: "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'",
+      description:
+        "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'",
     }),
     path: Type.Optional(
-      Type.String({ description: "Directory to search in (default: current directory)" }),
+      Type.String({
+        description: "Directory to search in (default: current directory)",
+      }),
     ),
     limit: Type.Optional(
       Type.Number({ description: "Maximum number of results (default: 1000)" }),
@@ -160,10 +175,14 @@ const findParameters = Type.Object(
 const lsParameters = Type.Object(
   {
     path: Type.Optional(
-      Type.String({ description: "Directory to list (default: current directory)" }),
+      Type.String({
+        description: "Directory to list (default: current directory)",
+      }),
     ),
     limit: Type.Optional(
-      Type.Number({ description: "Maximum number of entries to return (default: 500)" }),
+      Type.Number({
+        description: "Maximum number of entries to return (default: 500)",
+      }),
     ),
   },
   { additionalProperties: false },

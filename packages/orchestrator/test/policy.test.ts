@@ -6,18 +6,32 @@ import { evaluateToolPolicy } from "../src/policy.js";
 describe("tool policy", () => {
   it("allows Pi read-only tools for read_only agents", () => {
     for (const toolName of ["read", "grep", "find", "ls"] as ToolName[]) {
-      const decision = evaluateToolPolicy(agent("read_only"), toolName, argsFor(toolName), {
-        dataDir: "/tmp/nerve",
-      });
+      const decision = evaluateToolPolicy(
+        agent("read_only"),
+        toolName,
+        argsFor(toolName),
+        {
+          dataDir: "/tmp/nerve",
+        },
+      );
       assert.equal(decision.decision, "allow", toolName);
     }
   });
 
   it("does not classify shell redirection or control operators as read-only", () => {
-    for (const command of ["ls > out.txt", "pwd && touch x", "git diff | tee x"]) {
-      const decision = evaluateToolPolicy(agent("read_only"), "bash", { command }, {
-        dataDir: "/tmp/nerve",
-      });
+    for (const command of [
+      "ls > out.txt",
+      "pwd && touch x",
+      "git diff | tee x",
+    ]) {
+      const decision = evaluateToolPolicy(
+        agent("read_only"),
+        "bash",
+        { command },
+        {
+          dataDir: "/tmp/nerve",
+        },
+      );
       assert.equal(decision.decision, "deny", command);
     }
   });

@@ -19,7 +19,8 @@ export function createAgentToolsForAgent(
 }
 
 export function activeToolNamesForAgent(agent: AgentRecord): CoreToolName[] {
-  if (agent.permissionLevel === "read_only") return ["read", "grep", "find", "ls"];
+  if (agent.permissionLevel === "read_only")
+    return ["read", "grep", "find", "ls"];
   return ["read", "bash", "edit", "write"];
 }
 

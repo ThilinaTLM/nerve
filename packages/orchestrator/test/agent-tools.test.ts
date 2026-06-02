@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { coreToolNameSchema } from "@nerve/shared";
 import type { AgentRecord } from "@nerve/shared";
+import { coreToolNameSchema } from "@nerve/shared";
 import {
   coreToolDefinitionByName,
   coreToolDefinitions,
@@ -21,15 +21,10 @@ describe("agent tool definitions", () => {
 
     assert.deepEqual(definitionNames, schemaNames);
     assert.deepEqual(descriptorNames, schemaNames);
-    assert.deepEqual([...definitionNames], [
-      "read",
-      "bash",
-      "edit",
-      "write",
-      "grep",
-      "find",
-      "ls",
-    ]);
+    assert.deepEqual(
+      [...definitionNames],
+      ["read", "bash", "edit", "write", "grep", "find", "ls"],
+    );
 
     for (const definition of coreToolDefinitions) {
       assert.equal(typeof definition.description, "string");

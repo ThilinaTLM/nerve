@@ -12,13 +12,19 @@ export interface BuildPiSystemPromptOptions {
   nerveContext?: string;
 }
 
-export function buildPiSystemPrompt(options: BuildPiSystemPromptOptions): string {
+export function buildPiSystemPrompt(
+  options: BuildPiSystemPromptOptions,
+): string {
   const cwd = options.cwd.replace(/\\/g, "/");
   const date = currentDate();
   const tools = options.selectedTools ?? ["read", "bash", "edit", "write"];
   const hasRead = tools.includes("read");
-  const appendSection = options.appendSystemPrompt ? `\n\n${options.appendSystemPrompt}` : "";
-  const nerveSection = options.nerveContext ? `\n\n${options.nerveContext}` : "";
+  const appendSection = options.appendSystemPrompt
+    ? `\n\n${options.appendSystemPrompt}`
+    : "";
+  const nerveSection = options.nerveContext
+    ? `\n\n${options.nerveContext}`
+    : "";
 
   let prompt = options.customPrompt?.trim()
     ? options.customPrompt
@@ -51,7 +57,9 @@ function defaultPrompt(options: {
   );
   const toolsList =
     visibleTools.length > 0
-      ? visibleTools.map((name) => `- ${name}: ${options.toolSnippets[name]}`).join("\n")
+      ? visibleTools
+          .map((name) => `- ${name}: ${options.toolSnippets[name]}`)
+          .join("\n")
       : "(none)";
 
   const guidelines: string[] = [];

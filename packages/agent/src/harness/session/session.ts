@@ -1,8 +1,8 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../../types.js";
 import { SessionError } from "../errors.js";
-import { buildSessionContext } from "./context.js";
 import type { SessionContext } from "./context.js";
+import { buildSessionContext } from "./context.js";
 import type {
   ActiveToolsChangeEntry,
   BranchSummaryEntry,

@@ -21,7 +21,9 @@ export interface SessionState {
   compaction: CompactionEntry | null;
 }
 
-export function extractSessionState(pathEntries: SessionTreeEntry[]): SessionState {
+export function extractSessionState(
+  pathEntries: SessionTreeEntry[],
+): SessionState {
   let thinkingLevel = "off";
   let model: { provider: string; modelId: string } | null = null;
   let activeToolNames: string[] | null = null;
@@ -59,12 +61,19 @@ function messageFromEntry(entry: SessionTreeEntry): AgentMessage | undefined {
     );
   }
   if (entry.type === "branch_summary" && entry.summary) {
-    return createBranchSummaryMessage(entry.summary, entry.fromId, entry.timestamp);
+    return createBranchSummaryMessage(
+      entry.summary,
+      entry.fromId,
+      entry.timestamp,
+    );
   }
   return undefined;
 }
 
-function appendContextMessage(messages: AgentMessage[], entry: SessionTreeEntry): void {
+function appendContextMessage(
+  messages: AgentMessage[],
+  entry: SessionTreeEntry,
+): void {
   const message = messageFromEntry(entry);
   if (message) messages.push(message);
 }
@@ -84,7 +93,8 @@ export function buildContextMessages(
       ),
     );
     const compactionIdx = pathEntries.findIndex(
-      (entry) => entry.type === "compaction" && entry.id === state.compaction?.id,
+      (entry) =>
+        entry.type === "compaction" && entry.id === state.compaction?.id,
     );
     let foundFirstKept = false;
     for (let i = 0; i < compactionIdx; i++) {
@@ -104,7 +114,9 @@ export function buildContextMessages(
   return messages;
 }
 
-export function buildSessionContext(pathEntries: SessionTreeEntry[]): SessionContext {
+export function buildSessionContext(
+  pathEntries: SessionTreeEntry[],
+): SessionContext {
   const state = extractSessionState(pathEntries);
   return {
     messages: buildContextMessages(pathEntries, state),

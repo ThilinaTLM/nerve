@@ -97,7 +97,7 @@ export class RuntimeRegistry {
       this.harnessManager,
       this.entryRepository,
     );
-    this.conversations = this.conversationService.conversations;
+    this.conversations = this.conversationService.agentConversationCache;
     this.compactionService = new CompactionService(
       storage,
       (sessionId) => this.getSession(sessionId),

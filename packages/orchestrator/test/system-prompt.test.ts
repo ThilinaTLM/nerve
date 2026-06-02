@@ -9,7 +9,9 @@ import { loadHarnessResources } from "../src/resource-loader.js";
 const roots: string[] = [];
 
 after(async () => {
-  await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(
+    roots.map((root) => rm(root, { recursive: true, force: true })),
+  );
 });
 
 async function tempProject(): Promise<string> {

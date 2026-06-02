@@ -1,9 +1,5 @@
 import type { ImageContent, Model, TextContent } from "@earendil-works/pi-ai";
-import type {
-  AgentEvent,
-  AgentMessage,
-  ThinkingLevel,
-} from "../types.js";
+import type { AgentEvent, AgentMessage, ThinkingLevel } from "../types.js";
 import type {
   AgentHarnessResources,
   AgentHarnessStreamOptions,

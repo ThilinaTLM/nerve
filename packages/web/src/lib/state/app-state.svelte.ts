@@ -1,5 +1,5 @@
 export type ThemePreference = "system" | "light" | "dark";
-export type InspectorTab = "history" | "processes" | "settings" | "info";
+export type UtilityTab = "history" | "processes" | "info";
 
 export const selection = $state({
   projectId: undefined as string | undefined,
@@ -9,7 +9,7 @@ export const selection = $state({
 });
 
 export const layout = $state({
-  inspectorTab: "history" as InspectorTab,
+  utilityTab: "history" as UtilityTab,
   sidebarCollapsed: false,
 });
 
