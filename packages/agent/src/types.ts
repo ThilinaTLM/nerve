@@ -1,4 +1,5 @@
 import type {
+  Api,
   AssistantMessage,
   AssistantMessageEvent,
   ImageContent,
@@ -42,6 +43,9 @@ export type ToolExecutionMode = "sequential" | "parallel";
  * - "one-at-a-time": drain and inject only the oldest queued message, leaving the rest queued for later drain points.
  */
 export type QueueMode = "all" | "one-at-a-time";
+
+/** Provider-agnostic model supported by the runtime. */
+export type AnyModel = Model<Api>;
 
 /** A single tool call content block emitted by an assistant message. */
 export type AgentToolCall = Extract<
@@ -104,7 +108,7 @@ export interface AfterToolCallContext {
   /** Validated tool arguments for the target tool schema. */
   args: unknown;
   /** The executed tool result before any `afterToolCall` overrides are applied. */
-  result: AgentToolResult<any>;
+  result: AgentToolResult<unknown>;
   /** Whether the executed tool result is currently treated as an error. */
   isError: boolean;
   /** Current agent context at the time the tool call is finalized. */
@@ -128,7 +132,7 @@ export interface AgentLoopTurnUpdate {
   /** Context for the next provider request. */
   context?: AgentContext;
   /** Model for the next provider request. */
-  model?: Model<any>;
+  model?: AnyModel;
   /** Thinking level for the next provider request. */
   thinkingLevel?: ThinkingLevel;
 }
@@ -136,7 +140,7 @@ export interface AgentLoopTurnUpdate {
 export interface PrepareNextTurnContext extends ShouldStopAfterTurnContext {}
 
 export interface AgentLoopConfig extends SimpleStreamOptions {
-  model: Model<any>;
+  model: AnyModel;
 
   /**
    * Converts AgentMessage[] to LLM-compatible Message[] before each LLM call.
@@ -346,12 +350,12 @@ export interface AgentState {
   /** System prompt sent with each model request. */
   systemPrompt: string;
   /** Active model used for future turns. */
-  model: Model<any>;
+  model: AnyModel;
   /** Requested reasoning level for future turns. */
   thinkingLevel: ThinkingLevel;
   /** Available tools. Assigning a new array copies the top-level array. */
-  set tools(tools: AgentTool<any>[]);
-  get tools(): AgentTool<any>[];
+  set tools(tools: AgentTool[]);
+  get tools(): AgentTool[];
   /** Conversation transcript. Assigning a new array copies the top-level array. */
   set messages(messages: AgentMessage[]);
   get messages(): AgentMessage[];
@@ -383,14 +387,14 @@ export interface AgentToolResult<T> {
 }
 
 /** Callback used by tools to stream partial execution updates. */
-export type AgentToolUpdateCallback<T = any> = (
+export type AgentToolUpdateCallback<T = unknown> = (
   partialResult: AgentToolResult<T>,
 ) => void;
 
 /** Tool definition used by the agent runtime. */
 export interface AgentTool<
   TParameters extends TSchema = TSchema,
-  TDetails = any,
+  TDetails = unknown,
 > extends Tool<TParameters> {
   /** Human-readable label for UI display. */
   label: string;
@@ -423,7 +427,7 @@ export interface AgentContext {
   /** Transcript visible to the model. */
   messages: AgentMessage[];
   /** Tools available for this run. */
-  tools?: AgentTool<any>[];
+  tools?: AgentTool[];
 }
 
 /**
@@ -458,19 +462,19 @@ export type AgentEvent =
       type: "tool_execution_start";
       toolCallId: string;
       toolName: string;
-      args: any;
+      args: unknown;
     }
   | {
       type: "tool_execution_update";
       toolCallId: string;
       toolName: string;
-      args: any;
-      partialResult: any;
+      args: unknown;
+      partialResult: unknown;
     }
   | {
       type: "tool_execution_end";
       toolCallId: string;
       toolName: string;
-      result: any;
+      result: unknown;
       isError: boolean;
     };

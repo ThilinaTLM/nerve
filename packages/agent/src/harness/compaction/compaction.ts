@@ -1,12 +1,11 @@
 import type {
   AssistantMessage,
   ImageContent,
-  Model,
   TextContent,
   Usage,
 } from "@earendil-works/pi-ai";
 import { completeSimple } from "@earendil-works/pi-ai";
-import type { AgentMessage, ThinkingLevel } from "../../types.js";
+import type { AgentMessage, AnyModel, ThinkingLevel } from "../../types.js";
 import { CompactionError } from "../errors.js";
 import {
   convertToLlm,
@@ -514,7 +513,7 @@ Keep each section concise. Preserve exact file paths, function names, and error 
 /** Generate or update a conversation summary for compaction. */
 export async function generateSummary(
   currentMessages: AgentMessage[],
-  model: Model<any>,
+  model: AnyModel,
   reserveTokens: number,
   apiKey: string,
   headers?: Record<string, string>,
@@ -723,7 +722,7 @@ export { serializeConversation } from "./utils.js";
 /** Generate compaction summary data from prepared session history. */
 export async function compact(
   preparation: CompactionPreparation,
-  model: Model<any>,
+  model: AnyModel,
   apiKey: string,
   headers?: Record<string, string>,
   customInstructions?: string,
@@ -808,7 +807,7 @@ export async function compact(
 }
 async function generateTurnPrefixSummary(
   messages: AgentMessage[],
-  model: Model<any>,
+  model: AnyModel,
   reserveTokens: number,
   apiKey: string,
   headers?: Record<string, string>,

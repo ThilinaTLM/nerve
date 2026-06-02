@@ -1,5 +1,10 @@
-import type { ImageContent, Model, TextContent } from "@earendil-works/pi-ai";
-import type { AgentEvent, AgentMessage, ThinkingLevel } from "../types.js";
+import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import type {
+  AgentEvent,
+  AgentMessage,
+  AnyModel,
+  ThinkingLevel,
+} from "../types.js";
 import type {
   AgentHarnessResources,
   AgentHarnessStreamOptions,
@@ -67,14 +72,14 @@ export interface ContextEvent {
 
 export interface BeforeProviderRequestEvent {
   type: "before_provider_request";
-  model: Model<any>;
+  model: AnyModel;
   sessionId: string;
   streamOptions: AgentHarnessStreamOptions;
 }
 
 export interface BeforeProviderPayloadEvent {
   type: "before_provider_payload";
-  model: Model<any>;
+  model: AnyModel;
   payload: unknown;
 }
 
@@ -131,8 +136,8 @@ export interface SessionTreeEvent {
 
 export interface ModelUpdateEvent {
   type: "model_update";
-  model: Model<any>;
-  previousModel: Model<any> | undefined;
+  model: AnyModel;
+  previousModel: AnyModel | undefined;
   source: "set" | "restore";
 }
 
@@ -306,7 +311,7 @@ export interface TreePreparation {
 }
 
 export interface GenerateBranchSummaryOptions {
-  model: Model<any>;
+  model: AnyModel;
   apiKey: string;
   headers?: Record<string, string>;
   signal: AbortSignal;

@@ -565,24 +565,24 @@ async function executeToolCallsParallel(
 type PreparedToolCall = {
   kind: "prepared";
   toolCall: AgentToolCall;
-  tool: AgentTool<any>;
+  tool: AgentTool;
   args: unknown;
 };
 
 type ImmediateToolCallOutcome = {
   kind: "immediate";
-  result: AgentToolResult<any>;
+  result: AgentToolResult<unknown>;
   isError: boolean;
 };
 
 type ExecutedToolCallOutcome = {
-  result: AgentToolResult<any>;
+  result: AgentToolResult<unknown>;
   isError: boolean;
 };
 
 type FinalizedToolCallOutcome = {
   toolCall: AgentToolCall;
-  result: AgentToolResult<any>;
+  result: AgentToolResult<unknown>;
   isError: boolean;
 };
 
@@ -600,7 +600,7 @@ function shouldTerminateToolBatch(
 }
 
 function prepareToolCallArguments(
-  tool: AgentTool<any>,
+  tool: AgentTool,
   toolCall: AgentToolCall,
 ): AgentToolCall {
   if (!tool.prepareArguments) {
@@ -612,7 +612,7 @@ function prepareToolCallArguments(
   }
   return {
     ...toolCall,
-    arguments: preparedArguments as Record<string, any>,
+    arguments: preparedArguments as Record<string, unknown>,
   };
 }
 
@@ -772,7 +772,7 @@ async function finalizeExecutedToolCall(
   };
 }
 
-function createErrorToolResult(message: string): AgentToolResult<any> {
+function createErrorToolResult(message: string): AgentToolResult<unknown> {
   return {
     content: [{ type: "text", text: message }],
     details: {},

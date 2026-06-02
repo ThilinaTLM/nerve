@@ -1,10 +1,14 @@
 import type {
   ImageContent,
-  Model,
   SimpleStreamOptions,
   Transport,
 } from "@earendil-works/pi-ai";
-import type { AgentTool, QueueMode, ThinkingLevel } from "../types.js";
+import type {
+  AgentTool,
+  AnyModel,
+  QueueMode,
+  ThinkingLevel,
+} from "../types.js";
 import type { ExecutionEnv } from "./env/types.js";
 import type { Session } from "./session/session.js";
 
@@ -97,19 +101,19 @@ export interface AgentHarnessOptions<
     | ((context: {
         env: ExecutionEnv;
         session: Session;
-        model: Model<any>;
+        model: AnyModel;
         thinkingLevel: ThinkingLevel;
         activeTools: TTool[];
         resources: AgentHarnessResources<TSkill, TPromptTemplate>;
       }) => string | Promise<string>);
   getApiKeyAndHeaders?: (
-    model: Model<any>,
+    model: AnyModel,
   ) => Promise<
     { apiKey: string; headers?: Record<string, string> } | undefined
   >;
   /** Curated stream/provider request options. Snapshotted at turn start. */
   streamOptions?: AgentHarnessStreamOptions;
-  model: Model<any>;
+  model: AnyModel;
   thinkingLevel?: ThinkingLevel;
   activeToolNames?: string[];
   steeringMode?: QueueMode;

@@ -97,13 +97,12 @@ export function buildContextMessages(
         entry.type === "compaction" && entry.id === state.compaction?.id,
     );
     let foundFirstKept = false;
-    for (let i = 0; i < compactionIdx; i++) {
-      const entry = pathEntries[i]!;
+    for (const entry of pathEntries.slice(0, compactionIdx)) {
       if (entry.id === state.compaction.firstKeptEntryId) foundFirstKept = true;
       if (foundFirstKept) appendContextMessage(messages, entry);
     }
-    for (let i = compactionIdx + 1; i < pathEntries.length; i++) {
-      appendContextMessage(messages, pathEntries[i]!);
+    for (const entry of pathEntries.slice(compactionIdx + 1)) {
+      appendContextMessage(messages, entry);
     }
     return messages;
   }

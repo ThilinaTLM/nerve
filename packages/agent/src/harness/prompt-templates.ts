@@ -258,8 +258,7 @@ export function parseCommandArgs(argsString: string): string[] {
   let current = "";
   let inQuote: string | null = null;
 
-  for (let i = 0; i < argsString.length; i++) {
-    const char = argsString[i]!;
+  for (const char of argsString) {
     if (inQuote) {
       if (char === inQuote) inQuote = null;
       else current += char;

@@ -20,65 +20,69 @@
   import UtilityPanel from "./lib/components/app/UtilityPanel.svelte";
   import {
     abortActiveRun,
-    activeAgent,
-    activeProject,
-    activeSession,
-    agents,
-    approvals,
-    authProviders,
-    branchDepth,
     compactActiveSession,
     completeFiles,
-    connection,
     createConversationForDirectory,
     deleteProjectAndRefresh,
     deleteSessionAndRefresh,
     denyApproval,
     disconnectWorkbench,
-    error,
     exportUrl,
     grantApproval,
     initializeWorkbench,
-    live,
     loadSettingsPanel,
     navigateToEntry,
     newConversationInProject,
     newSession,
     openSession,
-    pendingApprovalCount,
-    processLogs,
-    processes,
-    projects,
     refreshProcessLogs,
     restartSelectedProcess,
     saveSettings,
-    selectedModelKey,
-    selectedMode,
-    selectedPermissionLevel,
-    selectedProcess,
     selectProcess,
     sendPrompt,
-    sessionAgents,
-    sessions,
     setComposerMode,
     setComposerModel,
     setComposerPermission,
     setSettingsNavigation,
     setTheme,
-    settingsMessage,
-    sending,
-    slashCompletions,
-    status,
     stopSelectedProcess,
-    streamingText,
-    transcript,
-    treeNodes,
-    usableModels,
+    workbenchSelectors,
     workbenchState,
   } from "./lib/stores/workbench.svelte";
 
   type AppRoute = "workspace" | "settings";
   let appRoute = $state<AppRoute>("workspace");
+
+  const status = $derived(workbenchSelectors.status);
+  const connection = $derived(workbenchSelectors.connection);
+  const error = $derived(workbenchSelectors.error);
+  const sending = $derived(workbenchSelectors.sending);
+  const projects = $derived(workbenchSelectors.projects);
+  const sessions = $derived(workbenchSelectors.sessions);
+  const agents = $derived(workbenchSelectors.agents);
+  const approvals = $derived(workbenchSelectors.approvals);
+  const processes = $derived(workbenchSelectors.processes);
+  const treeNodes = $derived(workbenchSelectors.treeNodes);
+  const processLogs = $derived(workbenchSelectors.processLogs);
+  const transcript = $derived(workbenchSelectors.transcript);
+  const streamingText = $derived(workbenchSelectors.streamingText);
+  const slashCompletions = $derived(workbenchSelectors.slashCompletions);
+  const selectedModelKey = $derived(workbenchSelectors.selectedModelKey);
+  const selectedMode = $derived(workbenchSelectors.selectedMode);
+  const selectedPermissionLevel = $derived(
+    workbenchSelectors.selectedPermissionLevel,
+  );
+  const authProviders = $derived(workbenchSelectors.authProviders);
+  const settingsMessage = $derived(workbenchSelectors.settingsMessage);
+  const activeProject = $derived(workbenchSelectors.activeProject);
+  const activeSession = $derived(workbenchSelectors.activeSession);
+  const activeAgent = $derived(workbenchSelectors.activeAgent);
+  const live = $derived(workbenchSelectors.live);
+  const branchDepth = $derived(workbenchSelectors.branchDepth);
+  const pendingApprovalCount = $derived(workbenchSelectors.pendingApprovalCount);
+  const selectedProcess = $derived(workbenchSelectors.selectedProcess);
+  const sessionAgents = $derived(workbenchSelectors.sessionAgents);
+  const usableModels = $derived(workbenchSelectors.usableModels);
 
   function routeFromPath(pathname: string): AppRoute {
     return pathname === "/settings" || pathname === "/settings/" ? "settings" : "workspace";

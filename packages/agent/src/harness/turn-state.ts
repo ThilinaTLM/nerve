@@ -1,5 +1,9 @@
-import type { Model } from "@earendil-works/pi-ai";
-import type { AgentMessage, AgentTool, ThinkingLevel } from "../types.js";
+import type {
+  AgentMessage,
+  AgentTool,
+  AnyModel,
+  ThinkingLevel,
+} from "../types.js";
 import type { ExecutionEnv } from "./env/types.js";
 import type {
   AgentHarnessOptions,
@@ -21,7 +25,7 @@ export interface AgentHarnessTurnState<
   streamOptions: AgentHarnessStreamOptions;
   sessionId: string;
   systemPrompt: string;
-  model: Model<any>;
+  model: AnyModel;
   thinkingLevel: ThinkingLevel;
   tools: TTool[];
   activeTools: TTool[];
@@ -41,7 +45,7 @@ export async function createTurnState<
     TPromptTemplate,
     TTool
   >["systemPrompt"];
-  model: Model<any>;
+  model: AnyModel;
   thinkingLevel: ThinkingLevel;
   tools: Map<string, TTool>;
   activeToolNames: string[];

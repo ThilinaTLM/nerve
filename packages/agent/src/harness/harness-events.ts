@@ -1,4 +1,4 @@
-import type { Model } from "@earendil-works/pi-ai";
+import type { AnyModel } from "../types.js";
 import {
   AgentHarnessError,
   BranchSummaryError,
@@ -24,9 +24,9 @@ import {
 const SUBSCRIBER_EVENT_TYPE = "*";
 
 export type AgentHarnessHandler = (
-  event: any,
+  event: unknown,
   signal?: AbortSignal,
-) => Promise<any> | any;
+) => Promise<unknown> | unknown;
 
 export function normalizeHarnessError(
   error: unknown,
@@ -91,7 +91,9 @@ export class AgentHarnessEventHub<
     let lastResult: AgentHarnessEventResultMap[TType] | undefined;
     for (const handler of handlers) {
       try {
-        const result = await handler(event);
+        const result = (await handler(event)) as
+          | AgentHarnessEventResultMap[TType]
+          | undefined;
         if (result !== undefined) {
           lastResult = result;
         }
@@ -103,7 +105,7 @@ export class AgentHarnessEventHub<
   }
 
   async emitBeforeProviderRequest(
-    model: Model<any>,
+    model: AnyModel,
     sessionId: string,
     streamOptions: AgentHarnessStreamOptions,
   ): Promise<AgentHarnessStreamOptions> {
@@ -112,12 +114,12 @@ export class AgentHarnessEventHub<
     if (!handlers || handlers.size === 0) return current;
     for (const handler of handlers) {
       try {
-        const result = await handler({
+        const result = (await handler({
           type: "before_provider_request",
           model,
           sessionId,
           streamOptions: cloneStreamOptions(current),
-        });
+        })) as AgentHarnessEventResultMap["before_provider_request"];
         if (result?.streamOptions) {
           current = applyStreamOptionsPatch(current, result.streamOptions);
         }
@@ -129,7 +131,7 @@ export class AgentHarnessEventHub<
   }
 
   async emitBeforeProviderPayload(
-    model: Model<any>,
+    model: AnyModel,
     payload: unknown,
   ): Promise<unknown> {
     const handlers = this.getHandlers("before_provider_payload");
@@ -137,11 +139,11 @@ export class AgentHarnessEventHub<
     if (!handlers || handlers.size === 0) return current;
     for (const handler of handlers) {
       try {
-        const result = await handler({
+        const result = (await handler({
           type: "before_provider_payload",
           model,
           payload: current,
-        });
+        })) as AgentHarnessEventResultMap["before_provider_payload"];
         if (result !== undefined) {
           current = result.payload;
         }
@@ -163,8 +165,9 @@ export class AgentHarnessEventHub<
       handlers = new Set();
       this.handlers.set(SUBSCRIBER_EVENT_TYPE, handlers);
     }
-    handlers.add(listener as AgentHarnessHandler);
-    return () => handlers!.delete(listener as AgentHarnessHandler);
+    const activeHandlers = handlers;
+    activeHandlers.add(listener as AgentHarnessHandler);
+    return () => activeHandlers.delete(listener as AgentHarnessHandler);
   }
 
   on<TType extends keyof AgentHarnessEventResultMap>(
@@ -180,7 +183,8 @@ export class AgentHarnessEventHub<
       handlers = new Set();
       this.handlers.set(type, handlers);
     }
-    handlers.add(handler as AgentHarnessHandler);
-    return () => handlers!.delete(handler as AgentHarnessHandler);
+    const activeHandlers = handlers;
+    activeHandlers.add(handler as AgentHarnessHandler);
+    return () => activeHandlers.delete(handler as AgentHarnessHandler);
   }
 }

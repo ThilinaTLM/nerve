@@ -9,12 +9,12 @@ import {
   type AssistantMessageEvent,
   type Context,
   EventStream,
-  type Model,
   parseStreamingJson,
   type SimpleStreamOptions,
   type StopReason,
   type ToolCall,
 } from "@earendil-works/pi-ai";
+import type { AnyModel } from "./types.js";
 
 // Create stream class matching ProxyMessageEventStream
 class ProxyMessageEventStream extends EventStream<
@@ -36,6 +36,8 @@ class ProxyMessageEventStream extends EventStream<
 /**
  * Proxy event types - server sends these with partial field stripped to reduce bandwidth.
  */
+type ToolCallWithPartialJson = ToolCall & { partialJson?: string };
+
 export type ProxyAssistantMessageEvent =
   | { type: "start" }
   | { type: "text_start"; contentIndex: number }
@@ -124,7 +126,7 @@ function buildProxyRequestOptions(
 }
 
 export function streamProxy(
-  model: Model<any>,
+  model: AnyModel,
   context: Context,
   options: ProxyStreamOptions,
 ): ProxyMessageEventStream {
@@ -190,7 +192,10 @@ export function streamProxy(
         throw new Error(errorMessage);
       }
 
-      reader = response.body!.getReader();
+      if (!response.body) {
+        throw new Error("Proxy response did not include a body");
+      }
+      reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
 
@@ -333,26 +338,29 @@ function processProxyEvent(
       throw new Error("Received thinking_end for non-thinking content");
     }
 
-    case "toolcall_start":
-      partial.content[proxyEvent.contentIndex] = {
+    case "toolcall_start": {
+      const toolCall: ToolCallWithPartialJson = {
         type: "toolCall",
         id: proxyEvent.id,
         name: proxyEvent.toolName,
         arguments: {},
         partialJson: "",
-      } satisfies ToolCall & { partialJson: string } as ToolCall;
+      };
+      partial.content[proxyEvent.contentIndex] = toolCall;
       return {
         type: "toolcall_start",
         contentIndex: proxyEvent.contentIndex,
         partial,
       };
+    }
 
     case "toolcall_delta": {
-      const content = partial.content[proxyEvent.contentIndex];
+      const content = partial.content[proxyEvent.contentIndex] as
+        | ToolCallWithPartialJson
+        | undefined;
       if (content?.type === "toolCall") {
-        (content as any).partialJson += proxyEvent.delta;
-        content.arguments =
-          parseStreamingJson((content as any).partialJson) || {};
+        content.partialJson = `${content.partialJson ?? ""}${proxyEvent.delta}`;
+        content.arguments = parseStreamingJson(content.partialJson) || {};
         partial.content[proxyEvent.contentIndex] = { ...content }; // Trigger reactivity
         return {
           type: "toolcall_delta",
@@ -365,9 +373,11 @@ function processProxyEvent(
     }
 
     case "toolcall_end": {
-      const content = partial.content[proxyEvent.contentIndex];
+      const content = partial.content[proxyEvent.contentIndex] as
+        | ToolCallWithPartialJson
+        | undefined;
       if (content?.type === "toolCall") {
-        delete (content as any).partialJson;
+        delete content.partialJson;
         return {
           type: "toolcall_end",
           contentIndex: proxyEvent.contentIndex,
@@ -391,7 +401,8 @@ function processProxyEvent(
 
     default: {
       const _exhaustiveCheck: never = proxyEvent;
-      console.warn(`Unhandled proxy event type: ${(proxyEvent as any).type}`);
+      const unexpected = _exhaustiveCheck as { type?: string };
+      console.warn(`Unhandled proxy event type: ${unexpected.type}`);
       return undefined;
     }
   }

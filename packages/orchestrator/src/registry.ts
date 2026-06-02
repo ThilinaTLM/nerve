@@ -1,36 +1,30 @@
-import { realpath } from "node:fs/promises";
-import { basename, resolve } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import { listAvailableModels } from "@nerve/agent";
-import {
-  type AgentRecord,
-  type CompactSessionRequest,
-  type CreateAgentRequest,
-  type CreateProjectRequest,
-  type CreateSessionRequest,
-  createId,
-  type ImportSessionRequest,
-  type ModelInfo,
-  type NavigateSessionRequest,
-  type ProcessLogQuery,
-  type ProjectRecord,
-  type PromptRequest,
-  type SessionEntry,
-  type SessionRecord,
-  type SessionTree,
-  type StartProcessRequest,
-  type StopProcessRequest,
-  type ToolName,
-  type UpdateAgentRequest,
+import type {
+  AgentRecord,
+  CompactSessionRequest,
+  CreateAgentRequest,
+  CreateProjectRequest,
+  CreateSessionRequest,
+  ImportSessionRequest,
+  ModelInfo,
+  NavigateSessionRequest,
+  ProcessLogQuery,
+  ProjectRecord,
+  PromptRequest,
+  SessionEntry,
+  SessionRecord,
+  SessionTree,
+  StartProcessRequest,
+  StopProcessRequest,
+  ToolName,
+  UpdateAgentRequest,
 } from "@nerve/shared";
 import {
   AgentRunner,
   type AgentRunState,
   MessageMirror,
 } from "./agent-runner/index.js";
-import { assertChildAuthority } from "./agents/agent-authority.js";
-import { agentBudget } from "./agents/agent-budget.js";
-import { setAgentStatus as setAgentStatusHelper } from "./agents/agent-status.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
 import { ConversationService } from "./conversation-service.js";
@@ -39,6 +33,10 @@ import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
 import type { IndexStore } from "./index-store.js";
 import { ProcessManager } from "./process-manager.js";
+import { AgentLifecycleService } from "./registry/agent-lifecycle-service.js";
+import { ProjectLifecycleService } from "./registry/project-lifecycle-service.js";
+import { SessionLifecycleService } from "./registry/session-lifecycle-service.js";
+import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
 import {
   AgentRepository,
   EntryRepository,
@@ -77,9 +75,12 @@ export class RuntimeRegistry {
   private readonly importService: ImportService;
   private readonly messageMirror: MessageMirror;
   private readonly agentRunner: AgentRunner;
+  private readonly projectLifecycle: ProjectLifecycleService;
+  private readonly sessionLifecycle: SessionLifecycleService;
+  private readonly agentLifecycle: AgentLifecycleService;
 
   constructor(
-    private readonly storage: InitializedStorage,
+    storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
     auth: AuthManager,
@@ -141,6 +142,44 @@ export class RuntimeRegistry {
     });
     this.processes = new ProcessManager(storage, events, index);
     this.workers = new WorkerManager(storage, events, index);
+    this.projectLifecycle = new ProjectLifecycleService(
+      this.projectRepository,
+      events,
+      index,
+      this.projects,
+      () => this.listSessions(),
+      (sessionId) => this.removeSession(sessionId),
+    );
+    this.sessionLifecycle = new SessionLifecycleService(
+      storage,
+      events,
+      index,
+      this.sessions,
+      this.entries,
+      this.sessionRepository,
+      this.entryRepository,
+      this.harnessManager,
+      (projectId) => this.getProject(projectId),
+      (agentId) => this.removeAgentInternal(agentId),
+      (sessionId) =>
+        [...this.agents.values()].filter(
+          (candidate) => candidate.sessionId === sessionId,
+        ),
+    );
+    this.agentLifecycle = new AgentLifecycleService(
+      storage,
+      events,
+      index,
+      this.agents,
+      this.runs,
+      this.agentRepository,
+      this.workers,
+      this.conversationService,
+      (sessionId) => this.getSession(sessionId),
+      (projectId) => this.getProject(projectId),
+      (session) => this.updateSession(session),
+      (agentId) => this.abortAgent(agentId),
+    );
     this.tools = new ToolService(
       storage,
       events,
@@ -191,273 +230,70 @@ export class RuntimeRegistry {
     });
   }
 
-  private async canonicalProjectDir(dir: string): Promise<string> {
-    const resolved = resolve(dir);
-    try {
-      return await realpath(resolved);
-    } catch {
-      return resolved;
-    }
-  }
-
-  private projectDirKey(dir: string): string {
-    const resolved = resolve(dir);
-    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-  }
-
-  private async findProjectByDir(
-    dir: string,
-  ): Promise<ProjectRecord | undefined> {
-    const key = this.projectDirKey(dir);
-    for (const project of this.projects.values()) {
-      const projectDir = await this.canonicalProjectDir(project.dir);
-      if (this.projectDirKey(projectDir) === key) return project;
-    }
-    return undefined;
-  }
-
   async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {
-    const dir = await this.canonicalProjectDir(request.dir);
-    const existing = await this.findProjectByDir(dir);
-    if (existing) return existing;
-
-    const now = new Date().toISOString();
-    const project: ProjectRecord = {
-      id: createId("proj"),
-      name: request.name ?? (basename(dir) || dir),
-      dir,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.projects.set(project.id, project);
-    this.index.upsertProject(project);
-    await this.projectRepository.write(project);
-    await this.events.publish("project.created", { project });
-    return project;
+    return this.projectLifecycle.createProject(request);
   }
 
   listProjects(): ProjectRecord[] {
-    return [...this.projects.values()].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt),
-    );
+    return this.projectLifecycle.listProjects();
   }
 
   getProject(projectId: string): ProjectRecord {
-    const project = this.projects.get(projectId);
-    if (!project)
-      throw new HttpError(404, "PROJECT_NOT_FOUND", "Project not found.");
-    return project;
+    return this.projectLifecycle.getProject(projectId);
   }
 
   async createSession(request: CreateSessionRequest): Promise<SessionRecord> {
-    const project = this.projects.get(request.projectId);
-    if (!project)
-      throw new HttpError(404, "PROJECT_NOT_FOUND", "Project not found.");
-    const now = new Date().toISOString();
-    const session: SessionRecord = {
-      id: createId("ses"),
-      projectId: project.id,
-      title: request.title ?? `Session in ${project.name}`,
-      mode: request.mode ?? this.storage.settings.defaultMode,
-      permissionLevel:
-        request.permissionLevel ?? this.storage.settings.defaultPermissionLevel,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.sessions.set(session.id, session);
-    this.index.upsertSession(session);
-    this.entries.set(session.id, []);
-    await this.writeSession(session);
-    await this.harnessManager.createSession(session, project.dir);
-    await this.events.publish("session.created", { session });
-    return session;
+    return this.sessionLifecycle.createSession(request);
   }
 
   listSessions(): SessionRecord[] {
-    return [...this.sessions.values()].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt),
-    );
+    return this.sessionLifecycle.listSessions();
   }
 
   getSession(sessionId: string): SessionRecord {
-    const session = this.sessions.get(sessionId);
-    if (!session)
-      throw new HttpError(404, "SESSION_NOT_FOUND", "Session not found.");
-    return session;
+    return this.sessionLifecycle.getSession(sessionId);
   }
 
   async createAgent(
     request: CreateAgentRequest,
     options: { allowChildAuthorityExceed?: boolean } = {},
   ): Promise<AgentRecord> {
-    const session = this.sessions.get(request.sessionId);
-    if (!session)
-      throw new HttpError(404, "SESSION_NOT_FOUND", "Session not found.");
-    const project = this.projects.get(request.projectId);
-    if (!project)
-      throw new HttpError(404, "PROJECT_NOT_FOUND", "Project not found.");
-    const parent = request.parentAgentId
-      ? this.agents.get(request.parentAgentId)
-      : undefined;
-    if (request.parentAgentId && !parent)
-      throw new HttpError(
-        404,
-        "PARENT_AGENT_NOT_FOUND",
-        "Parent agent not found.",
-      );
-
-    const now = new Date().toISOString();
-    const id = createId("agent");
-    const projectDir = resolve(request.projectDir ?? project.dir);
-    const mode =
-      request.mode ??
-      (parent ? this.storage.settings.defaultSubagentMode : session.mode);
-    const permissionLevel =
-      request.permissionLevel ??
-      (parent
-        ? this.storage.settings.defaultSubagentPermissionLevel
-        : session.permissionLevel);
-    const workerId = this.workers.requireWorker(
-      request.workerId ?? parent?.workerId,
-      "agent",
-    ).id;
-    if (parent) {
-      assertChildAuthority(
-        parent,
-        mode,
-        permissionLevel,
-        Boolean(options.allowChildAuthorityExceed),
-      );
-      await this.reserveChildRun(parent);
-    }
-    const agent: AgentRecord = {
-      id,
-      sessionId: session.id,
-      projectId: project.id,
-      projectDir,
-      workerId,
-      parentAgentId: request.parentAgentId,
-      rootAgentId: parent?.rootAgentId ?? id,
-      mode,
-      permissionLevel,
-      workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
-      budget: agentBudget(parent, request.budget),
-      model: request.model,
-      status: "idle",
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.agents.set(agent.id, agent);
-    this.index.upsertAgent(agent);
-    await this.writeAgent(agent);
-    await this.updateSession({
-      ...session,
-      activeAgentId: agent.id,
-      updatedAt: now,
-    });
-    await this.events.publish("agent.created", { agent, task: request.task });
-    return agent;
+    return this.agentLifecycle.createAgent(request, options);
   }
 
   listAgents(): AgentRecord[] {
-    return [...this.agents.values()].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt),
-    );
+    return this.agentLifecycle.listAgents();
   }
 
   getAgent(agentId: string): AgentRecord {
-    const agent = this.agents.get(agentId);
-    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    return agent;
+    return this.agentLifecycle.getAgent(agentId);
   }
 
   private async removeAgentInternal(agentId: string): Promise<void> {
-    if (!this.agents.has(agentId)) return;
-    if (this.runs.has(agentId)) await this.abortAgent(agentId);
-    for (const child of [...this.agents.values()].filter(
-      (candidate) => candidate.parentAgentId === agentId,
-    )) {
-      await this.removeAgentInternal(child.id);
-    }
-    this.agents.delete(agentId);
-    this.conversationService.deleteAgent(agentId);
-    this.runs.delete(agentId);
-    this.index.removeAgent(agentId);
-    await this.agentRepository.remove(agentId);
+    return this.agentLifecycle.removeAgentInternal(agentId);
   }
 
   async removeSession(sessionId: string): Promise<void> {
-    const session = this.getSession(sessionId);
-    for (const agent of [...this.agents.values()].filter(
-      (candidate) => candidate.sessionId === sessionId,
-    )) {
-      await this.removeAgentInternal(agent.id);
-    }
-    this.sessions.delete(sessionId);
-    this.entries.delete(sessionId);
-    this.index.removeSession(sessionId);
-    await this.sessionRepository.remove(sessionId);
-    await this.events.publish("session.deleted", {
-      sessionId,
-      projectId: session.projectId,
-    });
+    return this.sessionLifecycle.removeSession(sessionId);
   }
 
   async removeProject(projectId: string): Promise<void> {
-    this.getProject(projectId);
-    for (const session of [...this.sessions.values()].filter(
-      (candidate) => candidate.projectId === projectId,
-    )) {
-      await this.removeSession(session.id);
-    }
-    this.projects.delete(projectId);
-    this.index.removeProject(projectId);
-    await this.projectRepository.remove(projectId);
-    await this.events.publish("project.deleted", { projectId });
+    return this.projectLifecycle.removeProject(projectId);
   }
 
   async configureAgent(
     agentId: string,
     request: UpdateAgentRequest,
   ): Promise<AgentRecord> {
-    const agent = this.getAgent(agentId);
-    if (this.runs.has(agent.id)) {
-      throw new HttpError(409, "AGENT_BUSY", "Cannot update a running agent.");
-    }
-    const updated: AgentRecord = {
-      ...agent,
-      mode: request.mode ?? agent.mode,
-      permissionLevel: request.permissionLevel ?? agent.permissionLevel,
-      model:
-        request.model === null ? undefined : (request.model ?? agent.model),
-      updatedAt: new Date().toISOString(),
-    };
-    await this.updateAgent(updated);
-    await this.events.publish("agent.configured", { agent: updated });
-    return updated;
-  }
-
-  private async reserveChildRun(parent: AgentRecord): Promise<void> {
-    const latest = this.getAgent(parent.id);
-    const updated: AgentRecord = {
-      ...latest,
-      budget: {
-        ...latest.budget,
-        usedRuns: latest.budget.usedRuns + 1,
-      },
-      updatedAt: new Date().toISOString(),
-    };
-    await this.updateAgent(updated);
+    return this.agentLifecycle.configureAgent(agentId, request);
   }
 
   getSessionEntries(sessionId: string): SessionEntry[] {
-    const session = this.getSession(sessionId);
-    return this.entryRepository.activeBranchEntries(this.entries, session);
+    return this.sessionLifecycle.getSessionEntries(sessionId);
   }
 
   getSessionTree(sessionId: string): SessionTree {
-    const session = this.getSession(sessionId);
-    return this.entryRepository.getSessionTree(this.entries, session);
+    return this.sessionLifecycle.getSessionTree(sessionId);
   }
 
   async navigateSession(
@@ -591,116 +427,34 @@ export class RuntimeRegistry {
     agent: AgentRecord,
     status: AgentRecord["status"],
   ): Promise<void> {
-    await setAgentStatusHelper(
-      agent,
-      status,
-      (updated) => this.updateAgent(updated),
-      this.events,
-    );
+    await this.agentLifecycle.setAgentStatus(agent, status);
   }
 
   private async updateAgent(agent: AgentRecord): Promise<void> {
-    this.agents.set(agent.id, agent);
-    this.index.upsertAgent(agent);
-    await this.writeAgent(agent);
+    await this.agentLifecycle.updateAgent(agent);
   }
 
   private async updateSession(session: SessionRecord): Promise<void> {
-    this.sessions.set(session.id, session);
-    this.index.upsertSession(session);
-    await this.writeSession(session);
+    await this.sessionLifecycle.updateSession(session);
   }
 
   private async appendEntry(
-    input: {
-      id?: string;
-      sessionId: string;
-      agentId?: string;
-      parentEntryId?: string | null;
-      role: SessionEntry["role"];
-      kind?: SessionEntry["kind"];
-      text: string;
-      summary?: string;
-      tokensBefore?: number;
-      firstKeptEntryId?: string;
-      fromEntryId?: string;
-      details?: unknown;
-      createdAt?: string;
-    },
-    options: { mirrorToHarness?: boolean } = {},
+    input: AppendEntryInput,
+    options: AppendEntryOptions = {},
   ): Promise<SessionEntry> {
-    const session = this.getSession(input.sessionId);
-    const entry: SessionEntry = {
-      id: input.id ?? createId("entry"),
-      sessionId: input.sessionId,
-      agentId: input.agentId,
-      parentEntryId:
-        "parentEntryId" in input
-          ? (input.parentEntryId ?? undefined)
-          : session.activeEntryId,
-      role: input.role,
-      kind: input.kind ?? "message",
-      text: input.text,
-      summary: input.summary,
-      tokensBefore: input.tokensBefore,
-      firstKeptEntryId: input.firstKeptEntryId,
-      fromEntryId: input.fromEntryId,
-      details: input.details,
-      createdAt: input.createdAt ?? new Date().toISOString(),
-    };
-    const entries = this.entries.get(input.sessionId) ?? [];
-    entries.push(entry);
-    this.entries.set(input.sessionId, entries);
-    await this.entryRepository.append(entry);
-    await this.updateSession({
-      ...session,
-      activeEntryId: entry.id,
-      updatedAt: entry.createdAt,
-    });
-    if (options.mirrorToHarness !== false)
-      await this.harnessManager.appendEntry(entry);
-    return entry;
+    return this.sessionLifecycle.appendEntry(input, options);
   }
 
   private async loadProjects(): Promise<void> {
-    for (const project of await this.projectRepository.loadAll()) {
-      this.projects.set(project.id, project);
-      this.index.upsertProject(project);
-    }
+    await this.projectLifecycle.loadProjects();
   }
 
   private async loadSessions(): Promise<void> {
-    for (const session of await this.sessionRepository.loadAll()) {
-      this.sessions.set(session.id, session);
-      this.index.upsertSession(session);
-      this.entries.set(
-        session.id,
-        await this.entryRepository.loadForSession(session.id),
-      );
-    }
+    await this.sessionLifecycle.loadSessions();
   }
 
   private async loadAgents(): Promise<void> {
-    for (const parsedAgent of await this.agentRepository.loadAll()) {
-      const localWorkerId = this.workers.requireDefaultLocalWorker().id;
-      const needsStatusRecovery = parsedAgent.status === "running";
-      const needsWorkerBackfill = !parsedAgent.workerId;
-      const agent: AgentRecord =
-        needsStatusRecovery || needsWorkerBackfill
-          ? {
-              ...parsedAgent,
-              workerId: parsedAgent.workerId ?? localWorkerId,
-              status: needsStatusRecovery ? "error" : parsedAgent.status,
-              updatedAt: needsStatusRecovery
-                ? new Date().toISOString()
-                : parsedAgent.updatedAt,
-            }
-          : parsedAgent;
-      this.agents.set(agent.id, agent);
-      this.index.upsertAgent(agent);
-      if (needsStatusRecovery || needsWorkerBackfill)
-        await this.writeAgent(agent);
-    }
+    await this.agentLifecycle.loadAgents();
   }
 
   private async rebuildConversations(): Promise<void> {
@@ -710,16 +464,6 @@ export class RuntimeRegistry {
       this.agents.values(),
       this.entries,
     );
-  }
-
-  private async writeSession(session: SessionRecord): Promise<void> {
-    this.index.upsertSession(session);
-    await this.sessionRepository.write(session);
-  }
-
-  private async writeAgent(agent: AgentRecord): Promise<void> {
-    this.index.upsertAgent(agent);
-    await this.agentRepository.write(agent);
   }
 }
 

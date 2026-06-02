@@ -32,7 +32,17 @@ async function runFd(
 ): Promise<string[]> {
   const { stdout } = await execFileAsync(
     "fd",
-    ["--hidden", "--glob", "--max-results", String(limit), "--", pattern, root],
+    [
+      "--hidden",
+      "--glob",
+      "--type",
+      "file",
+      "--max-results",
+      String(limit),
+      "--",
+      pattern,
+      root,
+    ],
     { timeout: 30_000, maxBuffer: 1024 * 1024 },
   );
   return stdout

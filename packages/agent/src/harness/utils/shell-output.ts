@@ -102,7 +102,8 @@ export async function executeShellWithCapture(
       outputChunks.push(text);
       outputBytes += text.length;
       while (outputBytes > maxOutputBytes && outputChunks.length > 1) {
-        const removed = outputChunks.shift()!;
+        const removed = outputChunks.shift();
+        if (removed === undefined) break;
         outputBytes -= removed.length;
       }
       options?.onChunk?.(text);

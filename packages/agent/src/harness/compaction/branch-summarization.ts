@@ -1,6 +1,5 @@
-import type { Model } from "@earendil-works/pi-ai";
 import { completeSimple } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "../../types.js";
+import type { AgentMessage, AnyModel } from "../../types.js";
 import { BranchSummaryError, SessionError } from "../errors.js";
 import type { BranchSummaryResult } from "../events.js";
 import {
@@ -52,7 +51,7 @@ export interface CollectEntriesResult {
 /** Options for generating a branch summary. */
 export interface GenerateBranchSummaryOptions {
   /** Model used for summarization. */
-  model: Model<any>;
+  model: AnyModel;
   /** API key forwarded to the provider. */
   apiKey: string;
   /** Optional request headers forwarded to the provider. */

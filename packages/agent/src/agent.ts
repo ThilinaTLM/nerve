@@ -1,7 +1,6 @@
 import {
   type ImageContent,
   type Message,
-  type Model,
   type SimpleStreamOptions,
   streamSimple,
   type TextContent,
@@ -19,6 +18,7 @@ import type {
   AgentMessage,
   AgentState,
   AgentTool,
+  AnyModel,
   BeforeToolCallContext,
   BeforeToolCallResult,
   QueueMode,
@@ -57,7 +57,7 @@ const DEFAULT_MODEL = {
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   contextWindow: 0,
   maxTokens: 0,
-} satisfies Model<any>;
+} satisfies AnyModel;
 
 type MutableAgentState = Omit<
   AgentState,
@@ -87,7 +87,7 @@ function createMutableAgentState(
     get tools() {
       return tools;
     },
-    set tools(nextTools: AgentTool<any>[]) {
+    set tools(nextTools: AgentTool[]) {
       tools = nextTools.slice();
     },
     get messages() {
