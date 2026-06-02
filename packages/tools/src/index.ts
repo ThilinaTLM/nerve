@@ -12,63 +12,17 @@ import {
 import { dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { ToolDescriptor, ToolName, ToolRisk } from "@nerve/shared";
+import {
+  coreToolDescriptorsFromDefinitions,
+  coreToolRiskForName,
+} from "./definitions.js";
+
+export * from "./definitions.js";
 
 const execAsync = promisify(exec);
 
-export const coreToolDescriptors: ToolDescriptor[] = [
-  { name: "read", risk: "read", description: "Read UTF-8 file contents." },
-  { name: "list", risk: "read", description: "List files and folders." },
-  {
-    name: "search",
-    risk: "read",
-    description: "Search file contents by text or regular expression.",
-  },
-  {
-    name: "write",
-    risk: "workspace_write",
-    description: "Write a UTF-8 file with crash-safe replacement.",
-  },
-  {
-    name: "edit",
-    risk: "workspace_write",
-    description: "Replace one unique text region in a UTF-8 file.",
-  },
-  {
-    name: "bash",
-    risk: "command",
-    description: "Run a bounded shell command in a workspace directory.",
-  },
-  {
-    name: "process_start",
-    risk: "command",
-    description: "Start a supervised background process and capture logs.",
-  },
-  {
-    name: "process_stop",
-    risk: "destructive",
-    description: "Stop a supervised background process.",
-  },
-  {
-    name: "process_restart",
-    risk: "destructive",
-    description: "Restart a supervised background process.",
-  },
-  {
-    name: "process_list",
-    risk: "read",
-    description: "List supervised background processes.",
-  },
-  {
-    name: "process_logs",
-    risk: "read",
-    description: "Query captured background process logs.",
-  },
-  {
-    name: "subagent_run",
-    risk: "agent_spawn",
-    description: "Run a bounded child agent for delegated research or review.",
-  },
-];
+export const coreToolDescriptors: ToolDescriptor[] =
+  coreToolDescriptorsFromDefinitions();
 
 export type ToolExecutionContext = {
   cwd: string;
@@ -98,6 +52,7 @@ export type WriteToolArgs = ToolPathArgs & {
 };
 
 export type EditToolArgs = ToolPathArgs & {
+  edits?: unknown;
   oldText?: unknown;
   newText?: unknown;
 };
@@ -120,10 +75,7 @@ export type SearchToolArgs = ToolPathArgs & {
 };
 
 export function toolRiskForName(name: ToolName): ToolRisk {
-  const descriptor = coreToolDescriptors.find(
-    (candidate) => candidate.name === name,
-  );
-  return descriptor?.risk ?? "command";
+  return coreToolRiskForName(name);
 }
 
 export function isKnownReadOnlyCommand(command: string): boolean {
@@ -238,22 +190,71 @@ async function executeEdit(
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = resolveToolPath(context.cwd, args.path);
-  if (typeof args.oldText !== "string" || args.oldText.length === 0) {
-    throw new Error("Tool argument 'oldText' must be a non-empty string.");
-  }
-  if (typeof args.newText !== "string")
-    throw new Error("Tool argument 'newText' must be a string.");
+  const edits = normalizeEditOperations(args);
   const content = await readFile(path, "utf8");
-  const first = content.indexOf(args.oldText);
-  if (first < 0) throw new Error("oldText was not found.");
-  if (content.indexOf(args.oldText, first + args.oldText.length) >= 0) {
-    throw new Error("oldText matched more than once; provide a unique region.");
+  const matches = edits.map((edit, index) => {
+    const first = content.indexOf(edit.oldText);
+    if (first < 0) throw new Error(`edits[${index}].oldText was not found.`);
+    if (content.indexOf(edit.oldText, first + edit.oldText.length) >= 0) {
+      throw new Error(
+        `edits[${index}].oldText matched more than once; provide a unique region.`,
+      );
+    }
+    return { ...edit, index, start: first, end: first + edit.oldText.length };
+  });
+
+  const ordered = [...matches].sort((a, b) => a.start - b.start);
+  for (let i = 1; i < ordered.length; i++) {
+    const previous = ordered[i - 1]!;
+    const current = ordered[i]!;
+    if (current.start < previous.end) {
+      throw new Error(
+        `edits[${current.index}] overlaps edits[${previous.index}]; merge overlapping changes.`,
+      );
+    }
   }
-  const updated = `${content.slice(0, first)}${args.newText}${content.slice(first + args.oldText.length)}`;
+
+  let updated = content;
+  for (const edit of [...ordered].reverse()) {
+    updated = `${updated.slice(0, edit.start)}${edit.newText}${updated.slice(edit.end)}`;
+  }
   const tempPath = `${path}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(tempPath, updated, "utf8");
   await rename(tempPath, path);
-  return { path, content: "Edited file." };
+  return { path, content: `Edited file with ${edits.length} replacement(s).` };
+}
+
+type NormalizedEdit = { oldText: string; newText: string };
+
+function normalizeEditOperations(
+  args: Record<string, unknown>,
+): NormalizedEdit[] {
+  if (Array.isArray(args.edits)) {
+    if (args.edits.length === 0) {
+      throw new Error("Tool argument 'edits' must contain at least one edit.");
+    }
+    return args.edits.map((entry, index) => {
+      if (!entry || typeof entry !== "object") {
+        throw new Error(`edits[${index}] must be an object.`);
+      }
+      const edit = entry as Record<string, unknown>;
+      if (typeof edit.oldText !== "string" || edit.oldText.length === 0) {
+        throw new Error(`edits[${index}].oldText must be a non-empty string.`);
+      }
+      if (typeof edit.newText !== "string") {
+        throw new Error(`edits[${index}].newText must be a string.`);
+      }
+      return { oldText: edit.oldText, newText: edit.newText };
+    });
+  }
+
+  if (typeof args.oldText !== "string" || args.oldText.length === 0) {
+    throw new Error("Tool argument 'oldText' must be a non-empty string.");
+  }
+  if (typeof args.newText !== "string") {
+    throw new Error("Tool argument 'newText' must be a string.");
+  }
+  return [{ oldText: args.oldText, newText: args.newText }];
 }
 
 async function executeBash(

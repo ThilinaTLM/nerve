@@ -72,7 +72,9 @@ function isKnownProvider(provider: string): provider is KnownProvider {
   return (getProviders() as string[]).includes(provider);
 }
 
-function resolveModel(selection?: AgentModelSelection): Model<string> {
+export function resolveAgentModel(
+  selection?: AgentModelSelection,
+): Model<string> {
   if (selection && isKnownProvider(selection.provider)) {
     return getModel(
       selection.provider,
@@ -87,7 +89,7 @@ function resolveModel(selection?: AgentModelSelection): Model<string> {
 export function streamAgentPrompt(
   input: AgentPromptInput,
 ): AsyncIterable<AssistantMessageEvent> {
-  const model = resolveModel(input.model);
+  const model = resolveAgentModel(input.model);
   const context: Context = {
     systemPrompt: input.systemPrompt,
     messages: input.messages,

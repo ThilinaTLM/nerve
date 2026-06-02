@@ -15,6 +15,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.2.4
         version: 2.2.4
+      tsx:
+        specifier: 4.20.6
+        version: 4.20.6
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -131,6 +134,9 @@ importers:
       '@nerve/shared':
         specifier: workspace:*
         version: link:../shared
+      typebox:
+        specifier: 1.1.38
+        version: 1.1.38
     devDependencies:
       '@types/node':
         specifier: 24.10.1

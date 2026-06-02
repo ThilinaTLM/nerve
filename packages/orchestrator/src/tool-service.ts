@@ -38,6 +38,10 @@ export type ProcessStarter = (
 export class ToolService {
   readonly toolCalls = new Map<string, ToolCallRecord>();
   readonly approvals = new Map<string, ApprovalRecord>();
+  private readonly waiters = new Map<
+    string,
+    Set<(toolCall: ToolCallRecord) => void>
+  >();
 
   constructor(
     private readonly storage: InitializedStorage,
@@ -148,6 +152,51 @@ export class ToolService {
     }
 
     return { toolCall: await this.executeAllowedTool(toolCall.id) };
+  }
+
+  async requestToolAndWait(
+    agent: AgentRecord,
+    toolName: ToolName,
+    args: Record<string, unknown>,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<ToolCallRecord> {
+    const response = await this.requestTool(agent, toolName, args);
+    if (isTerminalToolCall(response.toolCall)) return response.toolCall;
+    if (response.toolCall.status !== "pending_approval")
+      return response.toolCall;
+    if (options.signal?.aborted) throw new Error("Tool execution aborted.");
+
+    return new Promise<ToolCallRecord>((resolve, reject) => {
+      const toolCallId = response.toolCall.id;
+      const settle = (toolCall: ToolCallRecord) => {
+        cleanup();
+        resolve(toolCall);
+      };
+      const onAbort = () => {
+        cleanup();
+        reject(new Error("Tool execution aborted."));
+      };
+      const cleanup = () => {
+        const waiters = this.waiters.get(toolCallId);
+        waiters?.delete(settle);
+        if (waiters && waiters.size === 0) this.waiters.delete(toolCallId);
+        options.signal?.removeEventListener("abort", onAbort);
+      };
+
+      const current = this.getToolCall(toolCallId);
+      if (isTerminalToolCall(current)) {
+        resolve(current);
+        return;
+      }
+
+      let waiters = this.waiters.get(toolCallId);
+      if (!waiters) {
+        waiters = new Set();
+        this.waiters.set(toolCallId, waiters);
+      }
+      waiters.add(settle);
+      options.signal?.addEventListener("abort", onAbort, { once: true });
+    });
   }
 
   async grantApproval(
@@ -333,6 +382,7 @@ export class ToolService {
       updatedAt: new Date().toISOString(),
     };
     await this.upsertToolCall(updated);
+    if (isTerminalToolCall(updated)) this.notifyWaiters(updated);
     return updated;
   }
 
@@ -340,6 +390,13 @@ export class ToolService {
     this.toolCalls.set(toolCall.id, toolCall);
     this.index.upsertToolCall(toolCall);
     await appendJsonLine(this.toolCallsPath(), toolCall, 0o600);
+  }
+
+  private notifyWaiters(toolCall: ToolCallRecord): void {
+    const waiters = this.waiters.get(toolCall.id);
+    if (!waiters) return;
+    this.waiters.delete(toolCall.id);
+    for (const waiter of waiters) waiter(toolCall);
   }
 
   private async upsertApproval(approval: ApprovalRecord): Promise<void> {
@@ -369,6 +426,14 @@ export class ToolService {
   private approvalsPath(): string {
     return join(this.storage.paths.home, "approvals", "approvals.jsonl");
   }
+}
+
+function isTerminalToolCall(toolCall: ToolCallRecord): boolean {
+  return (
+    toolCall.status === "completed" ||
+    toolCall.status === "denied" ||
+    toolCall.status === "error"
+  );
 }
 
 function latestById<T extends { id: string }>(values: T[]): T[] {

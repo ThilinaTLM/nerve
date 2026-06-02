@@ -14,7 +14,8 @@
     "check": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@nerve/shared": "workspace:*"
+    "@nerve/shared": "workspace:*",
+    "typebox": "1.1.38"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

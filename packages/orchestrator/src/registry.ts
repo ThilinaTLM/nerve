@@ -2,6 +2,7 @@ import { realpath, rm } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import {
+  AgentHarness,
   type AgentMessage,
   buildSessionContext,
   convertToLlm,
@@ -11,6 +12,8 @@ import {
   listAvailableModels,
   NodeExecutionEnv,
   prepareCompaction,
+  resolveAgentModel,
+  Session,
   type SessionTreeEntry,
   serializeConversation,
 } from "@nerve/agent";
@@ -41,7 +44,11 @@ import {
   type ToolName,
   type UpdateAgentRequest,
 } from "@nerve/shared";
-import { AgentProcessError } from "./agent-process.js";
+import {
+  activeToolNamesForAgent,
+  createAgentToolsForAgent,
+  toolPromptMetadata,
+} from "./agent-tool-adapter.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
 import type { EventBus } from "./events.js";
@@ -63,6 +70,8 @@ interface AgentRunState {
   runId: string;
   abort: () => void;
   messages: Message[];
+  steer?: (text: string, options?: PromptRequest) => Promise<void>;
+  followUp?: (text: string, options?: PromptRequest) => Promise<void>;
 }
 
 export class RuntimeRegistry {
@@ -130,7 +139,9 @@ export class RuntimeRegistry {
     return process.platform === "win32" ? resolved.toLowerCase() : resolved;
   }
 
-  private async findProjectByDir(dir: string): Promise<ProjectRecord | undefined> {
+  private async findProjectByDir(
+    dir: string,
+  ): Promise<ProjectRecord | undefined> {
     const key = this.projectDirKey(dir);
     for (const project of this.projects.values()) {
       const projectDir = await this.canonicalProjectDir(project.dir);
@@ -871,7 +882,16 @@ export class RuntimeRegistry {
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    if (this.runs.has(agent.id) && request.behavior !== "follow-up") {
+    const activeRun = this.runs.get(agent.id);
+    if (activeRun) {
+      if (request.behavior === "steer" && activeRun.steer) {
+        await activeRun.steer(request.text, request);
+        return;
+      }
+      if (request.behavior === "follow-up" && activeRun.followUp) {
+        await activeRun.followUp(request.text, request);
+        return;
+      }
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
     void this.runAgentPrompt(agent, request).catch(() => undefined);
@@ -896,103 +916,107 @@ export class RuntimeRegistry {
     agent: AgentRecord,
     request: PromptRequest,
   ): Promise<SessionEntry> {
-    if (this.runs.has(agent.id) && request.behavior !== "follow-up") {
+    if (this.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
 
-    const userEntry = await this.appendEntry({
-      sessionId: agent.sessionId,
-      agentId: agent.id,
-      role: "user",
-      text: request.text,
-    });
-    await this.events.publish("agent.prompt_received", {
-      agentId: agent.id,
-      entry: userEntry,
-    });
-
-    const session = this.sessions.get(agent.sessionId);
-    if (session) {
-      const userEntryCount = (this.entries.get(session.id) ?? []).filter(
-        (entry) => entry.role === "user",
-      ).length;
-      if (userEntryCount === 1) {
-        const title = deriveSessionTitle(request.text);
-        if (title && title !== session.title) {
-          await this.updateSession({
-            ...session,
-            title,
-            updatedAt: new Date().toISOString(),
-          });
-          await this.events.publish("session.updated", {
-            session: this.sessions.get(session.id),
-          });
-        }
-      }
-    }
-
-    const previousMessages = this.conversations.get(agent.id) ?? [];
-    const messages: Message[] = [
-      ...previousMessages,
-      { role: "user", content: request.text, timestamp: Date.now() },
-    ];
+    const session = this.getSession(agent.sessionId);
+    const project = this.getProject(agent.projectId);
+    const storage = await this.openHarnessStorage(session, project.dir);
+    const harnessSession = new Session(storage);
+    const initialHarnessEntryIds = new Set(
+      (await storage.getEntries()).map((entry) => entry.id),
+    );
     const runId = createId("run");
-    const run = this.workers.launchAgentProcess(
-      agent.workerId,
-      {
-        runId,
-        systemPrompt: systemPromptFor(agent),
-        messages,
-        model: agent.model,
-        auth: await this.auth.requestAuthForModel(agent.model),
+    let abortRequested = false;
+    const activeToolNames = activeToolNamesForAgent(agent);
+    const promptMetadata = toolPromptMetadata(activeToolNames);
+    const model = resolveAgentModel(agent.model);
+    let lastAssistantEntry: SessionEntry | undefined;
+
+    const harness = new AgentHarness({
+      env: new NodeExecutionEnv({ cwd: agent.projectDir }),
+      session: harnessSession,
+      tools: createAgentToolsForAgent(agent, this.tools),
+      activeToolNames,
+      model,
+      getApiKeyAndHeaders: async (requestModel) => {
+        if (requestModel.provider === "nerve-faux") return undefined;
+        const apiKey = await this.auth.getApiKey(requestModel.provider);
+        return apiKey ? { apiKey } : undefined;
       },
-      {
-        onStarted: async () => {
-          await this.events.publish("agent.started", {
-            agentId: agent.id,
-            runId,
-          });
-        },
-        onTextDelta: async (delta) => {
+      systemPrompt: () => systemPromptFor(agent, promptMetadata),
+    });
+
+    harness.subscribe(async (event) => {
+      if (event.type === "agent_start") {
+        await this.events.publish("agent.started", {
+          agentId: agent.id,
+          runId,
+        });
+        return;
+      }
+      if (event.type === "message_update") {
+        const update = event.assistantMessageEvent;
+        if (update.type === "text_delta") {
           await this.events.publish("agent.message_delta", {
             agentId: agent.id,
             runId,
             sessionId: agent.sessionId,
-            delta,
+            delta: update.delta,
           });
-        },
+        }
+        return;
+      }
+      if (event.type === "message_end") {
+        const mirrored = await this.mirrorNewHarnessEntries(
+          agent,
+          storage,
+          initialHarnessEntryIds,
+        );
+        for (const entry of mirrored) {
+          if (entry.role === "user") {
+            await this.events.publish("agent.prompt_received", {
+              agentId: agent.id,
+              entry,
+            });
+            await this.maybeDeriveInitialSessionTitle(session.id, entry.text);
+          } else if (entry.role === "assistant") {
+            lastAssistantEntry = entry;
+          }
+        }
+        return;
+      }
+    });
+
+    this.runs.set(agent.id, {
+      runId,
+      abort: () => {
+        abortRequested = true;
+        void harness.abort();
       },
-    );
-    this.runs.set(agent.id, { runId, abort: run.abort, messages });
+      messages: this.conversations.get(agent.id) ?? [],
+      steer: (text, options) =>
+        harness.steer(text, { images: options?.images }),
+      followUp: (text, options) =>
+        harness.followUp(text, { images: options?.images }),
+    });
     await this.setAgentStatus(agent, "running");
 
-    return this.finishAgentRun(agent.id, runId, messages, run.result);
-  }
-
-  private async finishAgentRun(
-    agentId: string,
-    runId: string,
-    messages: Message[],
-    result: Promise<{ text: string; message?: Message }>,
-  ): Promise<SessionEntry> {
-    const agent = this.agents.get(agentId);
-    if (!agent) throw new Error("Agent disappeared before run finished.");
-
     try {
-      const completion = await result;
-      if (completion.message) messages.push(completion.message);
-      const assistantEntry = await this.appendEntry({
-        sessionId: agent.sessionId,
-        agentId,
-        role: "assistant",
-        text: completion.text,
-      });
-      const latest = this.agents.get(agentId);
+      await harness.prompt(request.text, { images: request.images });
+      const latest = this.agents.get(agent.id);
       if (latest) await this.setAgentStatus(latest, "idle");
-      this.conversations.set(agentId, messages);
-      this.runs.delete(agentId);
+      this.runs.delete(agent.id);
+      const branch = await storage.getPathToRoot(await storage.getLeafId());
+      const messages = convertToLlm(buildSessionContext(branch).messages);
+      this.conversations.set(agent.id, messages);
+      const assistantEntry = lastAssistantEntry;
+      if (!assistantEntry) {
+        throw new Error("Agent run completed without an assistant entry.");
+      }
       await this.events.publish("agent.message_complete", {
-        agentId,
+        agentId: agent.id,
         runId,
         sessionId: agent.sessionId,
         entry: assistantEntry,
@@ -1006,13 +1030,13 @@ export class RuntimeRegistry {
       });
       return assistantEntry;
     } catch (error) {
-      this.runs.delete(agentId);
-      const aborted = error instanceof AgentProcessError && error.aborted;
-      const latest = this.agents.get(agentId);
+      this.runs.delete(agent.id);
+      const aborted = abortRequested;
+      const latest = this.agents.get(agent.id);
       if (latest)
         await this.setAgentStatus(latest, aborted ? "aborted" : "error");
       await this.events.publish("agent.error", {
-        agentId,
+        agentId: agent.id,
         runId,
         message: error instanceof Error ? error.message : String(error),
         aborted,
@@ -1047,6 +1071,7 @@ export class RuntimeRegistry {
 
   private async appendEntry(
     input: {
+      id?: string;
       sessionId: string;
       agentId?: string;
       parentEntryId?: string | null;
@@ -1058,12 +1083,13 @@ export class RuntimeRegistry {
       firstKeptEntryId?: string;
       fromEntryId?: string;
       details?: unknown;
+      createdAt?: string;
     },
     options: { mirrorToHarness?: boolean } = {},
   ): Promise<SessionEntry> {
     const session = this.getSession(input.sessionId);
     const entry: SessionEntry = {
-      id: createId("entry"),
+      id: input.id ?? createId("entry"),
       sessionId: input.sessionId,
       agentId: input.agentId,
       parentEntryId:
@@ -1078,7 +1104,7 @@ export class RuntimeRegistry {
       firstKeptEntryId: input.firstKeptEntryId,
       fromEntryId: input.fromEntryId,
       details: input.details,
-      createdAt: new Date().toISOString(),
+      createdAt: input.createdAt ?? new Date().toISOString(),
     };
     const entries = this.entries.get(input.sessionId) ?? [];
     entries.push(entry);
@@ -1100,6 +1126,73 @@ export class RuntimeRegistry {
     });
     if (options.mirrorToHarness !== false) await this.appendHarnessEntry(entry);
     return entry;
+  }
+
+  private async mirrorNewHarnessEntries(
+    agent: AgentRecord,
+    storage: JsonlSessionStorage,
+    knownEntryIds: Set<string>,
+  ): Promise<SessionEntry[]> {
+    const mirrored: SessionEntry[] = [];
+    for (const entry of await storage.getEntries()) {
+      if (knownEntryIds.has(entry.id)) continue;
+      knownEntryIds.add(entry.id);
+      if (entry.type !== "message") continue;
+      if (
+        entry.message.role !== "user" &&
+        entry.message.role !== "assistant" &&
+        entry.message.role !== "toolResult"
+      ) {
+        continue;
+      }
+      const role: SessionEntry["role"] =
+        entry.message.role === "toolResult" ? "system" : entry.message.role;
+      const uiEntry = await this.appendEntry(
+        {
+          id: entry.id,
+          sessionId: agent.sessionId,
+          agentId: agent.id,
+          parentEntryId: entry.parentId,
+          role,
+          text: agentMessageText(entry.message as AgentMessage),
+          details:
+            entry.message.role === "toolResult"
+              ? {
+                  toolCallId: entry.message.toolCallId,
+                  toolName: entry.message.toolName,
+                  isError: entry.message.isError,
+                  details: entry.message.details,
+                }
+              : undefined,
+          createdAt: entry.timestamp,
+        },
+        { mirrorToHarness: false },
+      );
+      mirrored.push(uiEntry);
+    }
+    return mirrored;
+  }
+
+  private async maybeDeriveInitialSessionTitle(
+    sessionId: string,
+    text: string,
+  ): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    const userEntryCount = (this.entries.get(session.id) ?? []).filter(
+      (entry) => entry.role === "user",
+    ).length;
+    if (userEntryCount !== 1) return;
+    const title = deriveSessionTitle(text);
+    if (!title || title === session.title) return;
+    await this.updateSession({
+      ...session,
+      title,
+      updatedAt: new Date().toISOString(),
+    });
+    await this.events.publish("session.updated", {
+      session: this.sessions.get(session.id),
+    });
   }
 
   private async createBranchSummaryEntry(
@@ -1488,6 +1581,35 @@ function deriveSessionTitle(text: string): string {
   return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
 }
 
+function agentMessageText(message: AgentMessage): string {
+  if (message.role === "user") {
+    if (typeof message.content === "string") return message.content;
+    return message.content
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n");
+  }
+  if (message.role === "assistant") {
+    const text = message.content
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n");
+    if (text.trim()) return text;
+    const toolCalls = message.content
+      .filter((part) => part.type === "toolCall")
+      .map((part) => `${part.name}(${JSON.stringify(part.arguments)})`);
+    return toolCalls.length > 0 ? `[Tool call: ${toolCalls.join(", ")}]` : "";
+  }
+  if (message.role === "toolResult") {
+    const text = message.content
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n");
+    return text || `[Tool result: ${message.toolName}]`;
+  }
+  return "";
+}
+
 function sessionExportMarkdown(
   session: SessionRecord,
   entries: SessionEntry[],
@@ -1578,17 +1700,45 @@ export function errorResponse(error: unknown): Response {
   );
 }
 
-function systemPromptFor(agent: AgentRecord): string {
+function systemPromptFor(
+  agent: AgentRecord,
+  tools?: {
+    activeToolNames: string[];
+    snippets: Record<string, string>;
+    guidelines: string[];
+  },
+): string {
   const childContext = agent.parentAgentId
     ? `Parent agent: ${agent.parentAgentId}. Root agent: ${agent.rootAgentId}.`
     : `Root agent: ${agent.rootAgentId}.`;
+  const activeToolNames = tools?.activeToolNames ?? [];
+  const visibleTools = activeToolNames.filter((name) => tools?.snippets[name]);
+  const toolsList =
+    visibleTools.length > 0
+      ? visibleTools
+          .map((name) => `- ${name}: ${tools?.snippets[name]}`)
+          .join("\n")
+      : "(none)";
+  const guidelines = new Set<string>([
+    ...(tools?.guidelines ?? []),
+    "Use tools to inspect files and run commands instead of guessing.",
+    "Use process_start for long-running servers, watchers, and daemons; do not run them with bash.",
+    "Tool calls may be approved, denied, or constrained according to mode and permission level.",
+    "Keep responses concise and useful.",
+    "Show file paths clearly when working with files.",
+  ]);
   return [
     "You are a Nerve coding agent running under an orchestrator.",
     `Mode: ${agent.mode}. Permission level: ${agent.permissionLevel}.`,
     childContext,
     `Child budget: depth ${agent.budget.depth}/${agent.budget.maxDepth}, runs ${agent.budget.usedRuns}/${agent.budget.maxRuns}.`,
     `Project directory: ${agent.projectDir}.`,
-    "Keep responses concise and useful.",
+    "",
+    "Available tools:",
+    toolsList,
+    "",
+    "Guidelines:",
+    [...guidelines].map((guideline) => `- ${guideline}`).join("\n"),
   ].join("\n");
 }
 

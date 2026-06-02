@@ -46,10 +46,10 @@ function buildLabelsById(entries: SessionTreeEntry[]): Map<string, string> {
 
 function generateEntryId(byId: { has(id: string): boolean }): string {
   for (let i = 0; i < 100; i++) {
-    const id = uuidv7().slice(0, 8);
+    const id = `entry_${uuidv7()}`;
     if (!byId.has(id)) return id;
   }
-  return uuidv7();
+  return `entry_${uuidv7()}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

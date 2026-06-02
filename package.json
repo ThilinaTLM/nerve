@@ -11,6 +11,7 @@
     "check": "pnpm -r check",
     "desktop": "pnpm --filter @nerve/desktop dev",
     "dev": "pnpm --filter @nerve/orchestrator dev",
+    "debug:agent-tools": "tsx scripts/debug-agent-tools.ts",
     "format": "biome format --write .",
     "lint": "biome check .",
     "test": "pnpm -r --if-present test"
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.4",
+    "tsx": "4.20.6",
     "typescript": "5.9.3"
   },
   "engines": {

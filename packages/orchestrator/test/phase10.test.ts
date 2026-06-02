@@ -58,8 +58,13 @@ describe("phase 10 hardening helpers", () => {
     const projectDir = await mkdtemp(join(tmpdir(), "nerve-project-"));
     roots.push(projectDir);
     const first = await state.registry.createProject({ dir: projectDir });
-    const second = await state.registry.createProject({ dir: projectDir, name: "Duplicate" });
-    const third = await state.registry.createProject({ dir: relative(process.cwd(), projectDir) });
+    const second = await state.registry.createProject({
+      dir: projectDir,
+      name: "Duplicate",
+    });
+    const third = await state.registry.createProject({
+      dir: relative(process.cwd(), projectDir),
+    });
 
     assert.equal(second.id, first.id);
     assert.equal(third.id, first.id);
