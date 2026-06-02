@@ -1,109 +1,169 @@
-# Nerve Design System
+# Nerve Design System — Technical Precision
 
-Nerve is a compact desktop workbench for local coding agents. The interface should feel closer to a native inspector/debugger than a web dashboard: dense, direct, low ornament, and optimized for long-running work.
+Nerve is a compact desktop workbench for local coding agents. The interface follows
+**Terminal-Adjacent Minimalism**: dense, glass-less, low-ornament, and optimized for
+long-running work. It should read like a native IDE/inspector, not a web dashboard.
+The emotional target is *total control and professional-grade power* — the tool stays
+out of the way and signals stability and low-latency interaction.
+
+The implementation reference for every token is
+`packages/web/src/design/tokens.css`. Components are Svelte 5 with scoped `<style>`
+blocks driven by these CSS custom properties; primitives wrap `bits-ui`. Icons use
+`lucide-svelte` (bundled — never a CDN icon font). Fonts are bundled via `@fontsource`.
 
 ## Principles
 
-- **Desktop density:** fit project navigation, conversation, process logs, and settings without modal churn.
-- **Crisp structure:** use 1px separators, pane headers, and row alignment instead of heavy cards.
-- **Stable context:** the active working directory is the project identity and should stay visible in header, left panel, and footer.
-- **Reserved color:** neutral surfaces carry layout; accent, warning, and danger colors carry state.
-- **No marketing gloss:** avoid broad gradients, oversized shadows, glass effects, and decorative illustrations.
+- **Desktop density:** fit project navigation, conversation, process logs, and
+  settings without modal churn. 4px base unit; 32px header/footer/toolbars; 36px tab
+  strips; ~12px pane padding.
+- **Glass-less tonal layering:** depth comes from a solid surface ladder plus 1px
+  borders, not translucency, big shadows, or gradients. Shadows are reserved for
+  popovers, dialogs, and the composer dock.
+- **Lime is the surgical instrument:** the lime accent marks primary actions, active
+  state, focus, and live/success status only. Neutral surfaces carry layout.
+- **Active state is a stroke, never elevation:** a 2px lime rail on rows, a 2px lime
+  top border on tabs, a lime focus ring on fields.
+- **Mono = "the work", sans = "the tool":** JetBrains Mono for anything typed by the
+  user/agent or emitted by the system (code, logs, paths, IDs, status); Inter for UI
+  chrome and labels.
+- **Stable context:** the active working directory is the project identity and stays
+  visible in the header breadcrumb, left panel, and footer.
 
 ## Tokens
 
-Implementation tokens live in `packages/web/src/design/tokens.css`.
+### Color roles (dark, MD3 surface ladder)
 
-### Color roles
+| Token | Stitch role | Value | Use |
+| --- | --- | --- | --- |
+| `--color-bg` | surface | `#131313` | conversation workspace, settings canvas |
+| `--color-bg-deep` / `--color-field` | surface-container-lowest | `#0e0e0e` | gutters, footer, inputs, code/log backing |
+| `--color-titlebar` / `--color-panel-muted` | surface-container-low | `#1c1b1b` | header, tab strips, breadcrumb bars |
+| `--color-pane` / `--color-panel` | surface-container | `#201f1f` | left/right panes, cards |
+| `--color-panel-raised` | surface-container-high | `#2a2a2a` | hover/active rows, dialog chrome |
+| `--color-panel-highest` | surface-container-highest | `#353534` | code-block headers, icon chips |
+| `--color-border` | outline-variant | `#424936` | primary 1px dividers and pane edges |
+| `--color-border-subtle` | — | `#2f3527` | hairline dividers inside panes |
+| `--color-text` | on-surface | `#e5e2e1` | primary UI text |
+| `--color-muted` | on-surface-variant | `#c2cab0` | metadata, secondary copy |
+| `--color-faint` | outline | `#8c947c` | tertiary/mono timestamps prefixes |
+| `--color-accent` | primary | `#ccff80` | selected, live, focus, primary action |
+| `--color-accent-strong` | primary-container | `#a3e635` | primary hover/avatars |
+| `--color-accent-ink` / `--color-on-accent` | on-primary | `#213600` | text on lime fills |
+| `--color-good` | surface-tint | `#98da27` | ready/success, log timestamps |
+| `--color-warn` | — | `#ffd166` | pending approvals, caution |
+| `--color-danger` | error | `#ffb4ab` | errors, destructive actions |
 
-| Role | Use |
-| --- | --- |
-| `--color-bg` | conversation workspace background |
-| `--color-bg-deep` | app gutters and pane backing |
-| `--color-titlebar` | compact global header and utility tabs |
-| `--color-pane` | left/right pane surface |
-| `--color-panel` | raised rows and message bodies |
-| `--color-panel-muted` | pane headers, composer, secondary surfaces |
-| `--color-field` | inputs, selects, code/editor fields |
-| `--color-border` / `--color-border-subtle` | primary and hairline dividers |
-| `--color-text` | primary UI text |
-| `--color-muted` / `--color-faint` | metadata and disabled copy |
-| `--color-accent` | selected, live, focus, primary action |
-| `--color-good` | ready/success |
-| `--color-warn` | pending approvals and caution |
-| `--color-danger` | errors and destructive actions |
+Light theme mirrors these roles with a darker lime (`#5c8e18`) as a compatibility
+fallback; dark is the reference. `:root[data-theme="light"]` retunes every role.
 
 ### Typography
 
-- `--font-ui` / `--font-body`: bundled Google Font Inter, followed by SF Pro/Segoe UI/system fallbacks for dense controls and conversation chrome.
-- `--font-display`: bundled Inter, followed by native display/system fallbacks for the app mark/name and short headings.
-- `--font-mono`: bundled Google Font JetBrains Mono, followed by Cascadia/SF Mono/system fallbacks for code, logs, composer text, command snippets, and IDs.
-- Font files are bundled through `@fontsource` dependencies, not loaded from a remote CDN.
-- UI labels use 11-13px equivalents with medium/semibold weights.
-- Logs and status metadata favor tabular, compact rows over paragraphs.
+- `--font-ui` / `--font-display` / `--font-body`: bundled **Inter**, then SF Pro /
+  Segoe UI / system fallbacks. 13px base, 11px small, 18px headline. The wordmark and
+  short headings use the display family.
+- `--font-mono`: bundled **JetBrains Mono**, then Cascadia / SF Mono / system. Used
+  for code, logs, composer text, command snippets, paths, IDs, and status chips.
+- Tight line-heights (~1.4). Labels are 11–13px with medium/semibold weight.
 
-### Spacing
+### Spacing & sizing
 
-Use a small scale: `--space-1` 4px, `--space-2` 6px, `--space-3` 8px, `--space-4` 12px, `--space-5` 16px, `--space-6` 20px.
+- Spacing scale: `--space-1` 4px … `--space-6` 20px. Dense rows use 4–8px internal
+  padding; reserve 16px+ for empty states and dialogs.
+- Sizing: `--size-header` / `--size-footer` / `--size-pane-header` 32px; tab strip
+  36px; `--control-height-xs/sm/md/lg` for controls; `--size-row-sm/md` for rows.
 
-Dense rows should usually use 4-8px internal padding. Reserve 16px+ only for empty states or dialogs.
+### Shape & elevation
 
-### Sizing
-
-- `--size-header`: global title/header row.
-- `--size-footer`: global status/footer row.
-- `--size-pane-header`: pane-local header rows.
-- `--control-height-xs/sm/md/lg`: buttons, tabs, inputs, selects.
-- `--size-row-sm/md`: compact list rows.
+- Radii: `--radius-xs` 2px, `--radius-sm`/`--radius-md` 4px, `--radius-lg` 8px,
+  badges fully rounded (pill, ~18px). Tabs are square-bottomed and flush.
+- Elevation: flat. `--shadow-popover` / `--shadow-dialog` for floating layers and
+  `--shadow-dock` for the composer; otherwise borders only.
 
 ## Components
 
 ### App shell
 
-The app has three fixed-purpose, horizontally resizable columns:
+Three fixed-purpose, horizontally resizable columns with a persistent header and
+footer:
 
-1. **Agents:** projects grouped by canonical working directory, then conversations.
-2. **Conversation:** active transcript and prompt composer.
-3. **Utility:** exactly four tabs: History, Processes, Settings, Info.
+1. **Agents (left, ~260px, `surface-container`):** an avatar + active-project header,
+   a full-width lime **New Agent** button, search, and a project→session tree.
+2. **Conversation (center, `surface`):** a mono breadcrumb sub-header, the transcript,
+   and the composer dock.
+3. **Utility (right, ~320px, `surface-container`):** exactly three tabs — History,
+   Processes, Context.
 
-Header and footer stay visible. Pane resizers are 1px with a wider invisible hit area.
+Pane resizers are 1px with a wider invisible hit area and turn lime on hover/active.
 
 ### Header
 
-The header is compact and informational: app mark, project/session breadcrumb, approvals count, and live connection status. Avoid stuffing secondary actions here; settings belong in the Settings tab.
+Compact and informational: lime **Nerve** wordmark, a mono `project › session`
+breadcrumb (chevron separators), the agent status pill, a live connection chip
+(pulsing lime dot when live), and the Settings button. No secondary action clutter.
 
 ### Footer
 
-The footer is a dense status strip showing working directory, session/agent state, branch depth, processes, approvals, and connection state.
+A dense mono status strip (`surface-container-lowest`): working directory, session,
+process count, branch depth, pending approvals, and connection state via a status dot.
 
-### Lists and rows
+### Sidebar tree
 
-Rows should be single-click, low-height, and aligned to a consistent grid. Prefer ellipsis for long paths/IDs and show full values in `title` attributes.
+Project groups are collapsible rows; session rows show a status dot, title, and mono
+metadata (mode · permission · model). Active/selected rows get a 2px lime left rail,
+lime text, and a `surface-container-high` hover.
 
-### Tabs
+### Conversation transcript
 
-Tabs use short labels and only necessary counts. The right panel tab strip must contain only `History`, `Processes`, `Settings`, and `Info`.
+A continuous flow separated by 1px rules — no bubbles. Each entry has a 24px gutter
+icon + body: user = lime double-chevron, assistant = boxed bot glyph, system = dim
+info glyph. A copy button appears on hover. Code blocks render with a
+`surface-container-highest` header (mono filename/language + lime-hover Copy) over a
+dark, syntax-highlighted body.
 
 ### Composer
 
-The composer is a command surface:
-
-- model/mode/access controls sit in a compact toolbar;
-- the editor uses the mono font and constrained height;
-- pending approvals render above the toolbar so tool-call decisions happen near the prompt workflow.
+A sticky dock over the conversation: an editor card (`surface-container-lowest`) whose
+border turns lime on focus-within, above a toolbar row with the model selector, a
+run-options control (mode/access), the project pill, and a lime **Send** button (an
+**Abort** appears while running). Pending approvals disable the editor with a
+"waiting for approval" state.
 
 ### Approvals
 
-Approval rows use warning tone, show tool name/risk/reason, truncate args by default, and provide explicit `Approve` and `Deny` actions. They are not a right-panel tab.
+Rendered above the composer (not a tab). A lime-ringed card with a round gavel chip,
+"Action Required" heading, and a TOOL / RISK / REASON detail panel (mono lime tool
+name, colored risk dot, wrapped reason; raw args in a collapsible `<details>`).
+Actions are a full-width lime **Approve & Execute** and an outlined **Deny**.
 
-### Process logs
+### Utility panel
 
-Logs use mono text, compact rows, and error/warn coloring only on the relevant line. Avoid wrapping status controls into large cards.
+Flush square-bottom tabs with a 2px lime top border when active. Processes show a
+spinner/status header with Stop/Restart and a terminal log (`surface-container-lowest`,
+JetBrains Mono, lime timestamps, warn/error coloring on the relevant line only).
+History lists branch entries with an active rail; Context shows cards for the active
+context, session agents, and export links.
+
+### Settings
+
+A full page: a mono `nerve › settings › section` breadcrumb (lime current segment)
+with Discard/Save actions, a left rail (`surface-container`) that filters to a single
+section (General, Appearance, Providers, Agents, Network) with a 2px lime active rail,
+and a centered content canvas of bordered cards. Credentials are CLI-managed and never
+rendered as raw secrets in the browser; provider rows show status chips and the CLI
+command to configure them.
+
+### Project picker
+
+A dialog (`surface-container`, 8px radius, dialog shadow): header + close, a path
+search with Go/Up, Recent Directories and a live Browse column (folder rows with name
+over mono path, 2px lime rail when selected), and a footer with the selected path plus
+Cancel and a lime **Open Directory**.
 
 ## Accessibility
 
-- Every interactive element must have visible `:focus-visible` styling.
-- Accent and status colors must be backed by text labels or icons; color alone is not sufficient.
-- Pane resizing must remain keyboard accessible through Paneforge.
-- Respect reduced-motion preferences and keep animations minimal.
+- Every interactive element has a visible `:focus-visible` outline (lime ring).
+- Accent and status colors are always backed by text labels or icons; color alone is
+  never the only signal.
+- Pane resizing stays keyboard-accessible via Paneforge.
+- Respect `prefers-reduced-motion`; animations stay minimal.
 - Maintain readable contrast in both dark and light themes.

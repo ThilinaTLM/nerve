@@ -59,27 +59,33 @@
     background: var(--color-field);
     color: var(--color-text);
     font-size: var(--text-sm);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 2%) inset;
     transition:
-      border-color 140ms ease,
-      box-shadow 140ms ease,
-      opacity 140ms ease;
+      border-color 120ms ease,
+      background 120ms ease,
+      box-shadow 120ms ease,
+      opacity 120ms ease;
   }
 
   .sm {
     height: var(--control-height-sm);
-    padding: 0.2rem 0.48rem;
+    padding: 0.18rem 0.55rem;
     font-size: var(--text-xs);
   }
 
   .md {
     height: var(--control-height-md);
-    padding: 0.3rem 0.55rem;
+    padding: 0.28rem 0.65rem;
   }
 
   .lg {
     height: var(--control-height-lg);
-    padding: 0.38rem 0.7rem;
+    padding: 0.38rem 0.8rem;
     font-size: var(--text-md);
+  }
+
+  .ui-input:hover:not(:disabled):not(:read-only) {
+    border-color: var(--color-border-strong);
   }
 
   .ui-input:focus {
@@ -94,6 +100,6 @@
 
   .ui-input:disabled,
   .ui-input:read-only {
-    opacity: 0.68;
+    opacity: 0.66;
   }
 </style>

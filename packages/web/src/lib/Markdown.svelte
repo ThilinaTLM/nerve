@@ -58,6 +58,19 @@
     return shell;
   }
 
+  function wrapPlainCodeBlocks(safeHtml: string): string {
+    if (typeof document === "undefined" || !safeHtml.includes("<pre")) return safeHtml;
+    const container = document.createElement("div");
+    container.innerHTML = safeHtml;
+    for (const block of Array.from(container.querySelectorAll("pre > code"))) {
+      const className = block.getAttribute("class") ?? "";
+      const language = languageFromClass(className);
+      const pre = block.parentElement;
+      if (pre) pre.replaceWith(wrapCodeBlock(pre.cloneNode(true) as Element, language));
+    }
+    return container.innerHTML;
+  }
+
   async function highlightCodeBlocks(safeHtml: string): Promise<string> {
     if (typeof document === "undefined" || !safeHtml.includes("<pre")) return safeHtml;
     const container = document.createElement("div");
@@ -67,16 +80,20 @@
       blocks.map(async (block) => {
         const className = block.getAttribute("class") ?? "";
         const language = languageFromClass(className);
-        const highlighted = await highlightCode(block.textContent ?? "", language);
-        if (highlighted) {
-          const wrapper = document.createElement("div");
-          wrapper.innerHTML = highlighted;
-          const highlightedPre = wrapper.firstElementChild;
-          if (highlightedPre) block.parentElement?.replaceWith(wrapCodeBlock(highlightedPre, language));
-          return;
+        try {
+          const highlighted = await highlightCode(block.textContent ?? "", language);
+          if (highlighted) {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = highlighted;
+            const highlightedPre = wrapper.firstElementChild;
+            if (highlightedPre) block.parentElement?.replaceWith(wrapCodeBlock(highlightedPre, language));
+            return;
+          }
+        } catch {
+          // Fall back to the plain pre/code while keeping the Stitch code header.
         }
         const pre = block.parentElement;
-        if (pre) pre.replaceWith(wrapCodeBlock(pre, language));
+        if (pre) pre.replaceWith(wrapCodeBlock(pre.cloneNode(true) as Element, language));
       }),
     );
     return container.innerHTML;
@@ -109,13 +126,14 @@
   $effect(() => {
     const source = text;
     let cancelled = false;
-    html = renderMarkdown(source);
-    highlightCodeBlocks(html)
+    const rendered = renderMarkdown(source);
+    html = wrapPlainCodeBlocks(rendered);
+    highlightCodeBlocks(rendered)
       .then((highlighted) => {
         if (!cancelled && source === text) html = highlighted;
       })
       .catch(() => {
-        if (!cancelled && source === text) html = renderMarkdown(source);
+        if (!cancelled && source === text) html = wrapPlainCodeBlocks(rendered);
       });
     return () => {
       cancelled = true;
@@ -128,7 +146,8 @@
 <style>
   .markdown {
     color: var(--color-message-text);
-    line-height: 1.5;
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
     overflow-wrap: anywhere;
   }
 
@@ -147,30 +166,31 @@
   .markdown :global(pre),
   .markdown :global(table),
   .markdown :global(.code-block) {
-    margin: 0.5rem 0;
+    margin: 0.55rem 0;
   }
 
   .markdown :global(a) {
     color: var(--color-accent);
     text-decoration: underline;
-    text-decoration-color: color-mix(in oklab, var(--color-accent), transparent 62%);
+    text-decoration-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
     text-underline-offset: 0.18em;
   }
 
   .markdown :global(code) {
     display: inline;
     border: 1px solid var(--color-border-subtle);
-    border-radius: 0.42rem;
+    border-radius: var(--radius-xs);
     background: var(--color-field);
     color: var(--color-code);
-    padding: 0.08rem 0.34rem;
-    font-size: 0.88em;
+    padding: 0.08rem 0.28rem;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
   }
 
   .markdown :global(.code-block) {
     overflow: hidden;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-code-bg);
   }
 
@@ -179,29 +199,32 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    border-bottom: 1px solid var(--color-border-subtle);
-    background: var(--color-panel-muted);
-    padding: 0.32rem 0.45rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-panel-highest);
+    padding: 0.32rem 0.6rem;
     color: var(--color-muted);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
   }
 
   .markdown :global(.code-copy) {
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-xs);
     background: var(--color-field);
     color: var(--color-muted);
-    padding: 0.12rem 0.35rem;
-    font-size: 0.66rem;
+    padding: 0.12rem 0.38rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
     cursor: pointer;
   }
 
   .markdown :global(.code-copy:hover) {
-    background: var(--color-panel-raised);
-    color: var(--color-text);
+    border-color: var(--color-accent-muted);
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
   }
 
   .markdown :global(pre) {
@@ -210,7 +233,9 @@
     border-radius: 0;
     background: var(--color-code-bg) !important;
     margin: 0;
-    padding: 0.7rem;
+    padding: 0.75rem;
+    font-size: var(--text-xs);
+    line-height: 1.55;
   }
 
   .markdown :global(pre code) {
@@ -222,25 +247,26 @@
   }
 
   .markdown :global(blockquote) {
-    border-left: 3px solid var(--color-accent);
-    padding-left: 1rem;
+    border-left: 2px solid var(--color-accent);
+    padding-left: 0.85rem;
     color: var(--color-muted);
   }
 
   .markdown :global(table) {
     width: 100%;
     border-collapse: collapse;
+    font-size: var(--text-xs);
   }
 
   .markdown :global(th),
   .markdown :global(td) {
-    border: 1px solid var(--color-border);
-    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--color-border-subtle);
+    padding: 0.45rem 0.55rem;
     text-align: left;
   }
 
   .markdown :global(th) {
-    background: var(--color-accent-soft);
+    background: var(--color-field);
     color: var(--color-text);
   }
 </style>

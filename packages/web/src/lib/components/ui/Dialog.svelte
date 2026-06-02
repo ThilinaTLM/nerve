@@ -64,19 +64,18 @@
     position: fixed;
     z-index: 50;
     inset: 0;
-    background: rgb(0 0 0 / 56%);
-    backdrop-filter: blur(2px);
+    background: rgb(0 0 0 / 68%);
   }
 
   :global(.dialog-content) {
     position: fixed;
     z-index: 51;
-    top: 8vh;
+    top: 7vh;
     left: 50%;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     width: min(760px, calc(100vw - 32px));
-    max-height: 82vh;
+    max-height: 84vh;
     transform: translateX(-50%);
     overflow: hidden;
     border: 1px solid var(--color-border);
@@ -90,33 +89,33 @@
   .dialog-footer {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    border-bottom: 1px solid var(--color-border-subtle);
-    background: var(--color-panel-muted);
-    padding: 0.62rem 0.72rem;
+    gap: 0.75rem;
+    background: var(--color-panel-raised);
+    padding: 0.75rem 0.875rem;
   }
 
   .dialog-header {
     justify-content: space-between;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .dialog-footer {
     justify-content: flex-end;
-    border-top: 1px solid var(--color-border-subtle);
-    border-bottom: 0;
+    border-top: 1px solid var(--color-border);
   }
 
   .dialog-title-block {
     display: grid;
     min-width: 0;
-    gap: 0.12rem;
+    gap: 0.16rem;
   }
 
   :global(.dialog-title) {
     margin: 0;
     color: var(--color-text);
-    font-size: var(--text-md);
-    font-weight: var(--weight-bold);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
   }
 
   :global(.dialog-description) {
@@ -139,12 +138,14 @@
   }
 
   :global(.dialog-close:hover) {
-    background: var(--color-panel-raised);
+    border-color: var(--color-border);
+    background: var(--color-panel);
     color: var(--color-text);
   }
 
   .dialog-body {
     min-height: 0;
     overflow: auto;
+    background: var(--color-panel);
   }
 </style>

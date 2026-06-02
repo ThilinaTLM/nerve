@@ -1,10 +1,11 @@
 <script lang="ts">
-  import CheckCircle2 from "lucide-svelte/icons/check-circle-2";
-  import ShieldAlert from "lucide-svelte/icons/shield-alert";
-  import XCircle from "lucide-svelte/icons/x-circle";
+  import Check from "lucide-svelte/icons/check";
+  import Gavel from "lucide-svelte/icons/gavel";
+  import X from "lucide-svelte/icons/x";
   import type { ApprovalWithToolCall } from "../../api";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
+  import StatusDot from "../ui/StatusDot.svelte";
 
   type Props = {
     approvals?: ApprovalWithToolCall[];
@@ -21,6 +22,7 @@
   function riskTone(risk: string | undefined): "neutral" | "accent" | "good" | "warn" | "danger" | "running" {
     if (risk === "destructive" || risk === "secret" || risk === "deployment") return "danger";
     if (risk === "command" || risk === "network" || risk === "workspace_write") return "warn";
+    if (risk === "agent_spawn") return "accent";
     return "neutral";
   }
 
@@ -28,8 +30,7 @@
     const args = approval.toolCall?.args;
     if (args === undefined) return "No arguments.";
     try {
-      const serialized = JSON.stringify(args);
-      return serialized.length > 180 ? `${serialized.slice(0, 180)}…` : serialized;
+      return JSON.stringify(args, null, 2);
     } catch {
       return String(args);
     }
@@ -39,27 +40,40 @@
 {#if approvals.length > 0}
   <section class="approval-strip" aria-label="Pending tool approvals">
     <header class="strip-head">
-      <div>
-        <ShieldAlert size={14} strokeWidth={2.25} aria-hidden="true" />
-        <strong>{approvals.length} approval{approvals.length === 1 ? "" : "s"} pending</strong>
+      <div class="head-copy">
+        <span class="head-icon"><Gavel size={16} strokeWidth={2.1} aria-hidden="true" /></span>
+        <div>
+          <strong>Action Required: Approval Needed</strong>
+          <span>The agent has requested permission to proceed.</span>
+        </div>
       </div>
-      <span>Review before the agent continues.</span>
+      <Badge size="xs" tone="warn">pending</Badge>
     </header>
 
     <div class="approval-list">
       {#each approvals as approval}
-        <article class="approval-row">
-          <div class="approval-copy">
-            <div class="approval-title">
-              <strong>{approval.toolCall?.toolName ?? "tool call"}</strong>
-              <Badge tone={riskTone(approval.risk)}>{approval.risk}</Badge>
+        <article class="approval-card">
+          <div class="approval-detail">
+            <div class="detail-row">
+              <span class="detail-label">Tool</span>
+              <span class="detail-tool">{approval.toolCall?.toolName ?? "tool call"}</span>
             </div>
-            <span>{approval.reason}</span>
-            <code title={argsPreview(approval)}>{argsPreview(approval)}</code>
+            <div class="detail-row">
+              <span class="detail-label">Risk</span>
+              <span class="detail-risk"><StatusDot tone={riskTone(approval.risk)} size="sm" />{approval.risk}</span>
+            </div>
+            <div class="detail-row align-start">
+              <span class="detail-label">Reason</span>
+              <span class="detail-reason">{approval.reason}</span>
+            </div>
+            <details class="detail-args">
+              <summary>Arguments · {approval.toolCallId}</summary>
+              <pre>{argsPreview(approval)}</pre>
+            </details>
           </div>
           <div class="approval-actions">
-            <Button size="xs" onclick={() => onGrantApproval?.(approval.id)}><CheckCircle2 size={12} strokeWidth={2.3} />Approve</Button>
-            <Button size="xs" variant="secondary" onclick={() => onDenyApproval?.(approval.id)}><XCircle size={12} strokeWidth={2.3} />Deny</Button>
+            <Button size="sm" onclick={() => onGrantApproval?.(approval.id)}><Check size={14} strokeWidth={2.4} />Approve &amp; Execute</Button>
+            <Button size="sm" variant="secondary" onclick={() => onDenyApproval?.(approval.id)}><X size={14} strokeWidth={2.4} />Deny</Button>
           </div>
         </article>
       {/each}
@@ -69,102 +83,166 @@
 
 <style>
   .approval-strip {
+    position: relative;
     display: grid;
-    gap: 0.35rem;
-    border: 1px solid var(--color-warn-soft);
-    border-radius: var(--radius-md);
-    background: var(--color-warn-soft);
-    padding: 0.45rem;
+    gap: 0.6rem;
+    overflow: hidden;
+    border: 1px solid var(--color-accent-muted);
+    border-radius: var(--radius-lg);
+    background: var(--color-panel);
+    padding: 0.75rem 0.75rem 0.75rem 0.85rem;
+    box-shadow: inset 0 0 0 1px var(--color-accent-soft), var(--shadow-glow);
+  }
+
+  .approval-strip::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--color-accent);
   }
 
   .strip-head,
-  .strip-head div,
-  .approval-title,
+  .head-copy,
   .approval-actions {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.5rem;
   }
 
   .strip-head {
     justify-content: space-between;
-    color: var(--color-warn);
-    font-size: var(--text-xs);
   }
 
-  .strip-head strong {
+  .head-copy {
+    min-width: 0;
+    align-items: start;
+  }
+
+  .head-icon {
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-panel-highest);
+    color: var(--color-accent);
+  }
+
+  .head-copy div {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+  }
+
+  .head-copy strong {
     color: var(--color-text);
-    font-size: var(--text-sm);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
   }
 
-  .strip-head span {
+  .head-copy span:not(.head-icon) {
     color: var(--color-muted);
+    font-size: var(--text-xs);
   }
 
   .approval-list {
     display: grid;
-    max-height: 9.5rem;
-    gap: 0.3rem;
+    max-height: 15rem;
+    gap: 0.5rem;
     overflow: auto;
   }
 
-  .approval-row {
+  .approval-card {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 0.45rem;
-    border: 1px solid var(--color-border-subtle);
+    gap: 0.6rem;
+  }
+
+  .approval-detail {
+    display: grid;
+    gap: 0.42rem;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
-    background: var(--color-field);
-    padding: 0.42rem;
+    background: var(--color-bg-deep);
+    padding: 0.6rem 0.65rem;
   }
 
-  .approval-copy {
+  .detail-row {
     display: grid;
-    min-width: 0;
-    gap: 0.2rem;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5rem;
   }
 
-  .approval-title strong,
-  .approval-copy span,
-  code {
+  .detail-row.align-start {
+    align-items: start;
+  }
+
+  .detail-label {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .detail-tool {
     overflow: hidden;
-    min-width: 0;
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .approval-title strong {
+  .detail-risk {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--color-text);
     font-size: var(--text-sm);
+    text-transform: capitalize;
   }
 
-  .approval-copy span {
+  .detail-reason {
     color: var(--color-muted);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
   }
 
-  code {
-    display: block;
+  .detail-args summary {
+    color: var(--color-faint);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    cursor: pointer;
+  }
+
+  .detail-args summary:hover {
+    color: var(--color-muted);
+  }
+
+  pre {
+    max-height: 7rem;
+    overflow: auto;
+    margin: 0.4rem 0 0;
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-xs);
     background: var(--color-code-bg);
     color: var(--color-code);
-    padding: 0.25rem 0.34rem;
+    padding: 0.45rem 0.5rem;
+    font-family: var(--font-mono);
     font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    white-space: pre-wrap;
   }
 
   .approval-actions {
-    flex-wrap: wrap;
-    justify-content: end;
+    display: flex;
+    gap: 0.5rem;
   }
 
-  @media (max-width: 720px) {
-    .approval-row {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .approval-actions {
-      justify-content: start;
-    }
+  .approval-actions :global(.ui-button) {
+    flex: 1;
   }
 </style>

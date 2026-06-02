@@ -28,7 +28,7 @@
     flex: none;
     border-radius: 999px;
     background: var(--color-faint);
-    box-shadow: 0 0 0 3px rgb(255 255 255 / 3%);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 8%);
   }
 
   .xs {
@@ -68,7 +68,7 @@
   }
 
   @keyframes status-pulse {
-    0%, 100% { box-shadow: 0 0 0 3px rgb(155 214 111 / 8%); }
-    50% { box-shadow: 0 0 0 5px rgb(155 214 111 / 16%); }
+    0%, 100% { box-shadow: 0 0 0 1px var(--color-accent-muted), 0 0 0 4px rgb(204 255 128 / 8%); }
+    50% { box-shadow: 0 0 0 1px var(--color-accent), 0 0 0 7px rgb(204 255 128 / 16%); }
   }
 </style>

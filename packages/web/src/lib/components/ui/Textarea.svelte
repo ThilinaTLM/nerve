@@ -30,21 +30,26 @@
     min-height: 7rem;
     resize: vertical;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-field);
     color: var(--color-text);
-    padding: 0.72rem 0.85rem;
-    line-height: 1.55;
+    padding: 0.7rem 0.75rem;
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
     transition:
-      border-color 140ms ease,
-      box-shadow 140ms ease,
-      opacity 140ms ease;
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      opacity 120ms ease;
   }
 
   .ui-textarea:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 2px var(--color-ring-soft);
+    box-shadow: 0 0 0 1px var(--color-ring-soft);
+  }
+
+  .ui-textarea::placeholder {
+    color: var(--color-faint);
   }
 
   .ui-textarea:disabled {

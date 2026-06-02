@@ -89,19 +89,21 @@
     border-radius: var(--radius-sm);
     background: var(--color-field);
     color: var(--color-text);
-    padding: 0 0.45rem;
+    padding: 0 0.55rem;
     font-size: var(--text-xs);
     line-height: 1;
     cursor: pointer;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 2%) inset;
     transition:
-      border-color 120ms ease,
-      background 120ms ease,
-      box-shadow 120ms ease,
-      opacity 120ms ease;
+      border-color 110ms ease,
+      background 110ms ease,
+      box-shadow 110ms ease,
+      opacity 110ms ease;
   }
 
   :global(.select-trigger:hover:not([data-disabled])) {
-    background: var(--color-panel-raised);
+    border-color: var(--color-border-strong);
+    background: var(--color-bg-deep);
   }
 
   :global(.select-trigger[data-state="open"]),
@@ -146,10 +148,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.6rem;
-    min-height: 1.8rem;
+    min-height: 2rem;
     border-radius: var(--radius-sm);
     color: var(--color-text);
-    padding: 0.3rem 0.45rem;
+    padding: 0.32rem 0.5rem;
     font-size: var(--text-xs);
     outline: none;
     cursor: pointer;

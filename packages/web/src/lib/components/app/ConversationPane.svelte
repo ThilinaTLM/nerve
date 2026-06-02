@@ -1,10 +1,11 @@
 <script lang="ts">
   import Bot from "lucide-svelte/icons/bot";
+  import ChevronRight from "lucide-svelte/icons/chevron-right";
+  import ChevronsRight from "lucide-svelte/icons/chevrons-right";
   import Clipboard from "lucide-svelte/icons/clipboard";
   import FolderOpen from "lucide-svelte/icons/folder-open";
-  import GitBranch from "lucide-svelte/icons/git-branch";
+  import Info from "lucide-svelte/icons/info";
   import Sparkles from "lucide-svelte/icons/sparkles";
-  import UserRound from "lucide-svelte/icons/user-round";
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
@@ -84,8 +85,8 @@
 
   function roleIcon(role: TranscriptItem["role"]) {
     if (role === "assistant") return Bot;
-    if (role === "system") return GitBranch;
-    return UserRound;
+    if (role === "system") return Info;
+    return ChevronsRight;
   }
 
   async function copyText(text: string) {
@@ -100,18 +101,23 @@
 
 <section class="conversation-pane">
   {#if activeSession}
-    <header class="conversation-header">
-      <div class="title-block">
-        <strong>{activeSession.title}</strong>
-        <span title={activeProject?.dir}>{activeProject?.dir ?? "No project"}</span>
+    <header class="conversation-breadcrumb">
+      <nav class="crumbs" aria-label="Breadcrumb" title={activeProject?.dir}>
+        <span class="crumb">{activeProject?.name ?? "workspace"}</span>
+        <ChevronRight size={13} strokeWidth={2} aria-hidden="true" />
+        <span class="crumb current">{activeSession.title}</span>
+      </nav>
+      <div class="session-meta">
+        <Badge size="xs" tone={activeAgent?.status === "running" ? "running" : "neutral"}>{activeAgent?.status ?? "idle"}</Badge>
+        <span>{activeAgent?.mode ?? activeSession.mode}</span>
+        <span>{activeAgent?.permissionLevel ?? activeSession.permissionLevel}</span>
       </div>
-
     </header>
 
     <div class="transcript" aria-live="polite">
       {#if transcript.length === 0 && !streamingText}
         <div class="empty-run">
-          <Sparkles size={34} strokeWidth={1.7} />
+          <Sparkles size={28} strokeWidth={1.7} />
           <p>No messages yet.</p>
           <span>Write a prompt below to start this agent conversation.</span>
         </div>
@@ -119,17 +125,11 @@
 
       {#each transcript as item}
         {@const Icon = roleIcon(item.role)}
-        <article class={`message-card ${item.role}`}>
+        <article class={`transcript-entry ${item.role}`}>
           <div class="message-gutter">
-            <span class="message-icon"><Icon size={14} strokeWidth={2.15} /></span>
+            <span class="message-icon" title={roleLabel(item)}><Icon size={item.role === "user" ? 18 : 14} strokeWidth={2.1} /></span>
           </div>
           <div class="message-body">
-            <header class="message-head">
-              <span>{roleLabel(item)}</span>
-              <Button variant="icon" size="icon" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(item.text)}>
-                <Clipboard size={12} strokeWidth={2.2} />
-              </Button>
-            </header>
             <div class="message-content">
               {#if item.role === "assistant" || item.role === "system"}
                 <Markdown text={item.text} />
@@ -137,15 +137,17 @@
                 <p>{item.text}</p>
               {/if}
             </div>
+            <Button class="copy-btn" variant="icon" size="icon" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(item.text)}>
+              <Clipboard size={12} strokeWidth={2.2} />
+            </Button>
           </div>
         </article>
       {/each}
 
       {#if streamingText}
-        <article class="message-card assistant streaming">
-          <div class="message-gutter"><span class="message-icon"><Bot size={14} strokeWidth={2.15} /></span></div>
+        <article class="transcript-entry assistant streaming">
+          <div class="message-gutter"><span class="message-icon" title="assistant"><Bot size={14} strokeWidth={2.1} /></span></div>
           <div class="message-body">
-            <header class="message-head"><span>assistant</span><Badge tone="running">streaming</Badge></header>
             <div class="message-content"><p>{streamingText}<span class="stream-caret" aria-hidden="true"></span></p></div>
           </div>
         </article>
@@ -180,10 +182,11 @@
   {:else}
     <div class="start-panel">
       <div class="start-card">
-        <div class="start-icon"><Sparkles size={30} strokeWidth={1.8} /></div>
-        <strong>Start an agent conversation</strong>
-        <p>Select a local project directory. Nerve will create a coding agent conversation for that workspace.</p>
-        <Button size="sm" onclick={onOpenProject}><FolderOpen size={13} strokeWidth={2.2} />Open project…</Button>
+        <span class="eyebrow">Local workbench</span>
+        <div class="start-icon"><Sparkles size={28} strokeWidth={1.8} /></div>
+        <strong>Open a project to start</strong>
+        <p>Select a local project directory. Nerve will create a scoped coding agent conversation for that workspace.</p>
+        <Button size="sm" onclick={onOpenProject}><FolderOpen size={13} strokeWidth={2.2} />Open Local Project</Button>
       </div>
     </div>
   {/if}
@@ -198,115 +201,134 @@
     background: var(--color-bg);
   }
 
-  .conversation-header {
+  .conversation-breadcrumb {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    min-height: var(--size-pane-header);
-    border-bottom: 1px solid var(--color-border-subtle);
-    padding: 0.4rem 0.65rem;
+    height: var(--size-pane-header);
+    border-bottom: 1px solid var(--color-border);
+    padding: 0 0.85rem;
     background: var(--color-panel-muted);
   }
 
-  .title-block {
-    display: grid;
+  .crumbs {
+    display: inline-flex;
+    align-items: center;
     min-width: 0;
-    gap: 0.05rem;
+    gap: 0.35rem;
+    color: var(--color-faint);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
   }
 
-  .title-block strong,
-  .title-block span {
+  .crumbs :global(svg) {
+    flex: none;
+    color: var(--color-faint);
+  }
+
+  .crumb {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .title-block strong {
-    font-size: var(--text-md);
-    font-weight: var(--weight-semibold);
-  }
-
-  .title-block span {
     color: var(--color-muted);
-    font-size: var(--text-xs);
+  }
+
+  .crumb.current {
+    color: var(--color-text);
+  }
+
+  .session-meta {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 0.45rem;
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   .transcript {
     display: grid;
     align-content: start;
-    gap: 0.55rem;
+    gap: 0;
     min-height: 0;
     overflow: auto;
-    padding: 0.65rem 0.72rem 1rem;
+    padding: 0.9rem 0.95rem 1.2rem;
   }
 
-  .message-card {
+  .transcript-entry {
     display: grid;
-    grid-template-columns: 1.7rem minmax(0, 1fr);
-    gap: 0.5rem;
+    grid-template-columns: 1.8rem minmax(0, 1fr);
+    gap: 0.55rem;
+    max-width: 920px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .transcript-entry:first-of-type {
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .message-gutter {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    padding-top: 0.1rem;
   }
 
   .message-icon {
     display: inline-grid;
-    width: 1.45rem;
-    height: 1.45rem;
+    width: 1.5rem;
+    height: 1.5rem;
     place-items: center;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid transparent;
     border-radius: var(--radius-sm);
-    background: var(--color-field);
+    background: transparent;
     color: var(--color-muted);
   }
 
-  .message-card.assistant .message-icon {
+  .transcript-entry.user .message-icon {
     color: var(--color-accent);
   }
 
-  .message-card.user .message-icon {
+  .transcript-entry.assistant .message-icon {
+    border-color: var(--color-border);
+    background: var(--color-panel-highest);
     color: var(--color-text);
   }
 
+  .transcript-entry.system .message-icon {
+    color: var(--color-faint);
+  }
+
   .message-body {
+    position: relative;
     min-width: 0;
     overflow: hidden;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
-    background: var(--color-panel);
-    box-shadow: var(--shadow-panel);
+    padding-top: 0.12rem;
   }
 
-  .message-card.user .message-body {
-    background: var(--color-user-message);
+  .message-body :global(.copy-btn) {
+    position: absolute;
+    top: 0;
+    right: 0;
+    opacity: 0;
   }
 
-  .message-card.system .message-body {
-    background: var(--color-panel-muted);
-  }
-
-  .message-card.streaming .message-body {
-    border-color: var(--color-accent-soft);
-    box-shadow: var(--shadow-glow);
-  }
-
-  .message-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 1.9rem;
-    border-bottom: 1px solid var(--color-border-subtle);
-    padding: 0.25rem 0.35rem 0.25rem 0.55rem;
-    color: var(--color-muted);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-bold);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
+  .transcript-entry:hover .message-body :global(.copy-btn),
+  .message-body :global(.copy-btn:focus-visible) {
+    opacity: 1;
   }
 
   .message-content {
     min-width: 0;
     color: var(--color-message-text);
-    font-size: var(--text-md);
-    padding: 0.6rem 0.65rem;
+    font-size: var(--text-sm);
   }
 
   .message-content p {
@@ -315,13 +337,17 @@
     white-space: pre-wrap;
   }
 
-  .message-card.user .message-content {
+  .transcript-entry.user .message-content {
     color: var(--color-text);
+  }
+
+  .transcript-entry.streaming {
+    border-color: var(--color-accent-muted);
   }
 
   .stream-caret {
     display: inline-block;
-    width: 0.45rem;
+    width: 0.42rem;
     height: 1em;
     margin-left: 0.18rem;
     transform: translateY(0.18em);
@@ -362,11 +388,11 @@
     display: grid;
     justify-items: center;
     gap: 0.65rem;
-    max-width: 28rem;
-    border: 1px solid var(--color-border-subtle);
+    max-width: 30rem;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     background: var(--color-panel);
-    padding: 1.5rem;
+    padding: 1.75rem;
     box-shadow: var(--shadow-panel);
   }
 

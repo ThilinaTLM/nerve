@@ -60,11 +60,11 @@
   :global(.ui-radio-group) {
     display: grid;
     min-width: 0;
-    gap: 0.42rem;
+    gap: 0.5rem;
   }
 
   :global(.ui-radio-group.horizontal) {
-    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   }
 
   :global(.radio-card) {
@@ -72,35 +72,34 @@
     grid-template-columns: auto minmax(0, 1fr);
     align-items: start;
     gap: 0.5rem;
-    min-height: 3.1rem;
+    min-height: 3rem;
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-field);
     color: var(--color-text);
-    padding: 0.55rem 0.62rem;
+    padding: 0.55rem 0.65rem;
     text-align: left;
     cursor: pointer;
-    box-shadow: var(--shadow-panel);
     transition:
-      border-color 140ms ease,
-      background 140ms ease,
-      box-shadow 140ms ease,
-      opacity 140ms ease;
+      border-color 120ms ease,
+      background 120ms ease,
+      box-shadow 120ms ease,
+      opacity 120ms ease;
   }
 
   :global(.radio-card:hover:not([data-disabled])) {
     border-color: var(--color-border);
-    background: var(--color-panel-raised);
+    background: var(--color-panel);
   }
 
   :global(.radio-card[data-state="checked"]) {
     border-color: var(--color-accent);
     background: var(--color-accent-soft);
-    box-shadow: 0 0 0 1px var(--color-ring-soft);
+    box-shadow: inset 2px 0 0 var(--color-accent);
   }
 
   :global(.radio-card:focus-visible) {
-    outline: 2px solid var(--color-focus-ring);
+    outline: 1px solid var(--color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -111,10 +110,10 @@
 
   .radio-indicator {
     display: inline-grid;
-    width: 0.86rem;
-    height: 0.86rem;
+    width: 0.85rem;
+    height: 0.85rem;
     place-items: center;
-    margin-top: 0.1rem;
+    margin-top: 0.08rem;
     border: 1px solid var(--color-border);
     border-radius: 999px;
     background: var(--color-bg-deep);

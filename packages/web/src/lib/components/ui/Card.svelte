@@ -30,6 +30,7 @@
   }
 
   .elevated {
+    border-color: var(--color-border);
     background: var(--color-panel-raised);
     box-shadow: var(--shadow-elevated);
   }

@@ -60,21 +60,26 @@
   :global(.switch-root) {
     position: relative;
     flex: none;
-    width: 2.18rem;
-    height: 1.18rem;
+    width: 2.25rem;
+    height: 1.25rem;
     border: 1px solid var(--color-border);
     border-radius: 999px;
     background: var(--color-field);
     cursor: pointer;
     transition:
-      background 140ms ease,
-      border-color 140ms ease,
-      opacity 140ms ease;
+      background 120ms ease,
+      border-color 120ms ease,
+      opacity 120ms ease;
   }
 
   :global(.switch-root[data-state="checked"]) {
     border-color: var(--color-accent);
     background: var(--color-accent-soft);
+  }
+
+  :global(.switch-root:focus-visible) {
+    outline: 1px solid var(--color-focus-ring);
+    outline-offset: 2px;
   }
 
   :global(.switch-root[data-disabled]) {
@@ -90,12 +95,12 @@
     background: var(--color-muted);
     transform: translate(0.16rem, 0.13rem);
     transition:
-      transform 140ms ease,
-      background 140ms ease;
+      transform 120ms ease,
+      background 120ms ease;
   }
 
   :global(.switch-root[data-state="checked"] .switch-thumb) {
     background: var(--color-accent);
-    transform: translate(1.05rem, 0.13rem);
+    transform: translate(1.08rem, 0.13rem);
   }
 </style>

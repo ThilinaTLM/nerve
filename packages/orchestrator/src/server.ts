@@ -650,6 +650,14 @@ export function createApp(state: OrchestratorState): Hono {
       return errorResponse(error);
     }
   });
+  app.delete("/api/projects/:projectId", async (c) => {
+    try {
+      await state.registry.removeProject(c.req.param("projectId"));
+      return c.body(null, 204);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
   app.post("/api/sessions", async (c) => {
     try {
       const body = createSessionRequestSchema.parse(await c.req.json());
@@ -674,6 +682,14 @@ export function createApp(state: OrchestratorState): Hono {
       return c.json({
         session: state.registry.getSession(c.req.param("sessionId")),
       });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+  app.delete("/api/sessions/:sessionId", async (c) => {
+    try {
+      await state.registry.removeSession(c.req.param("sessionId"));
+      return c.body(null, 204);
     } catch (error) {
       return errorResponse(error);
     }

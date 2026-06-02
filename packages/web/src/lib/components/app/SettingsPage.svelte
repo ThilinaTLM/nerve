@@ -1,6 +1,6 @@
 <script lang="ts">
   import ArrowLeft from "lucide-svelte/icons/arrow-left";
-  import ChevronDown from "lucide-svelte/icons/chevron-down";
+  import Bot from "lucide-svelte/icons/bot";
   import KeyRound from "lucide-svelte/icons/key-round";
   import Monitor from "lucide-svelte/icons/monitor";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
@@ -10,7 +10,6 @@
   import Shield from "lucide-svelte/icons/shield";
   import SlidersHorizontal from "lucide-svelte/icons/sliders-horizontal";
   import Sparkles from "lucide-svelte/icons/sparkles";
-  import { Accordion as AccordionPrimitive } from "bits-ui";
   import type { AuthProviderMetadata, Settings, StatusResponse } from "../../api";
   import type { ThemePreference } from "../../state/app-state.svelte";
   import Badge from "../ui/Badge.svelte";
@@ -26,6 +25,8 @@
     detail?: string;
     disabled?: boolean;
   };
+
+  type SettingsSection = "general" | "appearance" | "providers" | "agents" | "network";
 
   type Props = {
     status?: StatusResponse;
@@ -51,12 +52,12 @@
     onThemeChange,
   }: Props = $props();
 
-  let accordionValue = $state<string[]>(["server", "providers"]);
+  let activeSection = $state<SettingsSection>("general");
 
   const themeItems: RadioItem[] = [
     { value: "system", label: "System", detail: "Follow the operating system" },
-    { value: "light", label: "Light", detail: "Bright desktop surfaces" },
-    { value: "dark", label: "Dark", detail: "Dim command-center surfaces" },
+    { value: "dark", label: "Dark", detail: "Technical Precision reference" },
+    { value: "light", label: "Light", detail: "Fallback desktop surfaces" },
   ];
 
   const modeItems: RadioItem[] = [
@@ -69,6 +70,16 @@
     { value: "supervised", label: "Supervised", detail: "Ask before sensitive actions" },
     { value: "autonomous", label: "Autonomous", detail: "Proceed with broader authority" },
   ];
+
+  const navItems: { value: SettingsSection; label: string; detail: string }[] = [
+    { value: "general", label: "General", detail: "Daemon and storage" },
+    { value: "appearance", label: "Appearance", detail: "Theme surfaces" },
+    { value: "providers", label: "Providers", detail: "Credential status" },
+    { value: "agents", label: "Agents", detail: "Defaults and policy" },
+    { value: "network", label: "Network", detail: "Server binding" },
+  ];
+
+  const configuredProviders = $derived(authProviders.filter((provider) => provider.configured).length);
 
   function setThemePreference(value: string) {
     const preference = value as ThemePreference;
@@ -93,13 +104,34 @@
     if (provider.supportsApiKey) return `nerve auth set ${provider.provider}`;
     return "nerve auth list";
   }
+
+  function providerBadge(provider: AuthProviderMetadata): string {
+    if (!provider.configured) return "inactive";
+    if (provider.credentialType === "oauth") return "oauth";
+    if (provider.credentialType === "api_key") return "api key";
+    return "active";
+  }
+
+  function writePolicy(permission: Settings["defaultPermissionLevel"] | undefined): string {
+    if (permission === "read_only") return "Denied";
+    if (permission === "supervised") return "Approval required";
+    if (permission === "autonomous") return "Allowed in scope";
+    return "Policy-managed";
+  }
+
+  function commandPolicy(permission: Settings["defaultPermissionLevel"] | undefined): string {
+    if (permission === "read_only") return "Denied";
+    if (permission === "supervised") return "Approval required";
+    if (permission === "autonomous") return "Allowed; destructive still gated";
+    return "Policy-managed";
+  }
 </script>
 
 <section class="settings-page">
   <header class="settings-header">
     <div class="heading-block">
-      <span class="eyebrow"><Settings2 size={14} strokeWidth={2.2} />Global configuration</span>
-      <h1>Settings</h1>
+      <span class="breadcrumb">nerve <b>/</b> settings <b>/</b> <em>{activeSection}</em></span>
+      <h1>Workbench Settings</h1>
       <p>Control app appearance, agent defaults, compaction, server binding, and provider access.</p>
     </div>
     <div class="header-actions">
@@ -109,41 +141,68 @@
     </div>
   </header>
 
-  <ScrollArea class="settings-scroll" viewportClass="settings-viewport" type="auto">
-    <div class="settings-grid">
-      <aside class="settings-rail">
+  <div class="settings-grid">
+    <aside class="settings-rail" aria-label="Settings sections">
+      <div class="rail-title">
+        <Settings2 size={14} strokeWidth={2.2} />
+        <span>Configuration</span>
+      </div>
+      {#each navItems as item}
+        <button class:active={activeSection === item.value} type="button" onclick={() => (activeSection = item.value)}>
+          <strong>{item.label}</strong>
+          <small>{item.detail}</small>
+        </button>
+      {/each}
+      <div class="rail-status">
         <section>
           <span>Theme</span>
           <strong>{themePreference}</strong>
         </section>
         <section>
-          <span>Daemon</span>
-          <strong>{status?.daemonId ?? "not loaded"}</strong>
-        </section>
-        <section>
-          <span>Data directory</span>
-          <strong title={status?.dataDir}>{status?.dataDir ?? "—"}</strong>
-        </section>
-        <section>
           <span>Providers</span>
-          <strong>{authProviders.filter((provider) => provider.configured).length}/{authProviders.length} configured</strong>
+          <strong>{configuredProviders}/{authProviders.length} configured</strong>
         </section>
-      </aside>
+      </div>
+    </aside>
 
-      <div class="settings-main">
-        {#if !settingsDraft}
-          <section class="settings-card empty-card">
-            <Sparkles size={28} strokeWidth={1.8} />
-            <strong>Settings are loading</strong>
-            <p>Refresh if this takes longer than expected.</p>
+    <ScrollArea class="settings-scroll" viewportClass="settings-viewport" type="auto">
+      {#if !settingsDraft}
+        <section class="settings-card empty-card">
+          <Sparkles size={28} strokeWidth={1.8} />
+          <strong>Settings are loading</strong>
+          <p>Refresh if this takes longer than expected.</p>
+        </section>
+      {:else}
+        <div class="settings-main">
+          {#if activeSection === "general"}
+          <section class="settings-card" data-section="general">
+            <div class="card-head">
+              <div class="card-icon"><Settings2 size={16} strokeWidth={2.2} /></div>
+              <div>
+                <span class="eyebrow">General</span>
+                <h2>Daemon state</h2>
+                <p>Read-only runtime metadata from the orchestrator.</p>
+              </div>
+            </div>
+            <div class="stat-grid">
+              <section><span>Daemon</span><strong>{status?.daemonId ?? "not loaded"}</strong></section>
+              <section><span>Version</span><strong>{status?.version ?? "—"}</strong></section>
+              <section><span>Started</span><strong>{status?.startedAt ? new Date(status.startedAt).toLocaleString() : "—"}</strong></section>
+              <section><span>Index</span><strong>{status?.storage.indexHealthy ? "healthy" : "unknown"}</strong></section>
+              <section class="wide"><span>Data directory</span><strong title={status?.dataDir}>{status?.dataDir ?? "—"}</strong></section>
+              <section class="wide"><span>SQLite</span><strong title={status?.storage.sqlitePath}>{status?.storage.sqlitePath ?? "—"}</strong></section>
+            </div>
           </section>
-        {:else}
-          <section class="settings-card">
+          {/if}
+
+          {#if activeSection === "appearance"}
+          <section class="settings-card" data-section="appearance">
             <div class="card-head">
               <div class="card-icon"><Monitor size={16} strokeWidth={2.2} /></div>
               <div>
-                <h2>Appearance</h2>
-                <p>Choose how the desktop shell should render surfaces and text.</p>
+                <span class="eyebrow">Appearance</span>
+                <h2>Theme</h2>
+                <p>Dark mode follows the Stitch Technical Precision reference. Light remains as a compatibility fallback.</p>
               </div>
             </div>
             <RadioGroup
@@ -154,12 +213,45 @@
               onValueChange={setThemePreference}
             />
           </section>
+          {/if}
 
-          <section class="settings-card">
+          {#if activeSection === "providers"}
+          <section class="settings-card" data-section="providers">
             <div class="card-head">
-              <div class="card-icon"><SlidersHorizontal size={16} strokeWidth={2.2} /></div>
+              <div class="card-icon"><KeyRound size={16} strokeWidth={2.2} /></div>
               <div>
-                <h2>Agent defaults</h2>
+                <span class="eyebrow">Providers</span>
+                <h2>Credential status</h2>
+                <p>Credentials are managed from the CLI only. Raw secrets are never rendered in the browser.</p>
+              </div>
+            </div>
+            {#if authProviders.length === 0}
+              <p class="muted">No provider metadata available. Use <code>nerve auth list</code> in the CLI.</p>
+            {:else}
+              <div class="provider-list">
+                {#each authProviders as provider}
+                  <article class="provider-row">
+                    <div>
+                      <strong>{provider.displayName}</strong>
+                      <small>{provider.provider}{provider.envVar ? ` · ${provider.envVar}` : ""}</small>
+                    </div>
+                    <Badge size="xs" tone={provider.configured ? "good" : "neutral"}>{providerBadge(provider)}</Badge>
+                    {#if provider.warning}<p>{provider.warning}</p>{/if}
+                    <code>{provider.configured ? "nerve auth list" : providerCommand(provider)}</code>
+                  </article>
+                {/each}
+              </div>
+            {/if}
+          </section>
+          {/if}
+
+          {#if activeSection === "agents"}
+          <section class="settings-card" data-section="agents">
+            <div class="card-head">
+              <div class="card-icon"><Bot size={16} strokeWidth={2.2} /></div>
+              <div>
+                <span class="eyebrow">Agents</span>
+                <h2>Default behavior and policy</h2>
                 <p>Defaults apply to newly created root agents and subagents.</p>
               </div>
             </div>
@@ -181,82 +273,53 @@
                 <RadioGroup items={permissionItems} value={settingsDraft.defaultSubagentPermissionLevel} ariaLabel="Default subagent permission" onValueChange={(value) => { if (settingsDraft) settingsDraft.defaultSubagentPermissionLevel = value as Settings["defaultSubagentPermissionLevel"]; }} />
               </div>
             </div>
-          </section>
 
-          <section class="settings-card">
+            <div class="permission-table" role="table" aria-label="Default agent permissions">
+              <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Default policy</span></div>
+              <div role="row"><span>File system read</span><strong>Allowed within workspace scope</strong></div>
+              <div role="row"><span>File system write</span><strong>{writePolicy(settingsDraft.defaultPermissionLevel)}</strong></div>
+              <div role="row"><span>Terminal command execution</span><strong>{commandPolicy(settingsDraft.defaultPermissionLevel)}</strong></div>
+              <div role="row"><span>Network access</span><strong>Policy-managed by tools and daemon</strong></div>
+            </div>
+          </section>
+          {/if}
+
+          {#if activeSection === "network"}
+          <section class="settings-card" data-section="network">
             <div class="card-head">
-              <div class="card-icon"><Shield size={16} strokeWidth={2.2} /></div>
+              <div class="card-icon"><Server size={16} strokeWidth={2.2} /></div>
               <div>
-                <h2>Compaction</h2>
-                <p>Control automatic transcript compaction for long-running conversations.</p>
+                <span class="eyebrow">Network</span>
+                <h2>Server binding and compaction</h2>
+                <p>Host and port changes apply after daemon restart. Keep local binding unless remote access is required.</p>
               </div>
             </div>
-            <div class="compaction-row">
-              <Switch bind:checked={settingsDraft.compaction.auto} label="Auto-compact sessions" description="Let the daemon compact long branches when thresholds are reached." />
+            <div class="server-grid">
+              <label>Host<Input value={settingsDraft.server.host} size="sm" ariaLabel="Server host" oninput={(event) => { if (settingsDraft) settingsDraft.server.host = (event.currentTarget as HTMLInputElement).value; }} /></label>
+              <label>Port<Input value={String(settingsDraft.server.port)} type="number" size="sm" ariaLabel="Server port" oninput={(event) => updateServerPort((event.currentTarget as HTMLInputElement).value)} /></label>
             </div>
-            <div class="number-grid">
-              <label>Threshold tokens<Input value={String(settingsDraft.compaction.thresholdTokens)} type="number" size="sm" ariaLabel="Compaction threshold tokens" oninput={(event) => updateNumber("thresholdTokens", (event.currentTarget as HTMLInputElement).value)} /></label>
-              <label>Keep recent<Input value={String(settingsDraft.compaction.keepRecentTokens)} type="number" size="sm" ariaLabel="Keep recent tokens" oninput={(event) => updateNumber("keepRecentTokens", (event.currentTarget as HTMLInputElement).value)} /></label>
+            <div class="switch-card">
+              <Switch bind:checked={settingsDraft.server.allowRemote} label="Allow remote connections" description="Restart the daemon after changing host, port, or remote access." />
+            </div>
+            <div class="compaction-card">
+              <div>
+                <Shield size={14} strokeWidth={2.2} />
+                <strong>Transcript compaction</strong>
+              </div>
+              <Switch bind:checked={settingsDraft.compaction.auto} label="Auto-compact sessions" description="Let the daemon compact long branches when thresholds are reached." />
+              <div class="server-grid">
+                <label>Threshold tokens<Input value={String(settingsDraft.compaction.thresholdTokens)} type="number" size="sm" ariaLabel="Compaction threshold tokens" oninput={(event) => updateNumber("thresholdTokens", (event.currentTarget as HTMLInputElement).value)} /></label>
+                <label>Keep recent<Input value={String(settingsDraft.compaction.keepRecentTokens)} type="number" size="sm" ariaLabel="Keep recent tokens" oninput={(event) => updateNumber("keepRecentTokens", (event.currentTarget as HTMLInputElement).value)} /></label>
+              </div>
             </div>
           </section>
-
-          <AccordionPrimitive.Root class="settings-accordion" type="multiple" bind:value={accordionValue}>
-            <AccordionPrimitive.Item class="accordion-item" value="server">
-              <AccordionPrimitive.Header>
-                <AccordionPrimitive.Trigger class="accordion-trigger">
-                  <span><Server size={16} strokeWidth={2.2} />Server</span>
-                  <ChevronDown size={15} strokeWidth={2.3} />
-                </AccordionPrimitive.Trigger>
-              </AccordionPrimitive.Header>
-              <AccordionPrimitive.Content class="accordion-content">
-                <div class="settings-card nested-card">
-                  <p class="section-copy">These values affect daemon binding after restart. Use local binding unless you explicitly need remote access.</p>
-                  <div class="server-grid">
-                    <label>Host<Input value={settingsDraft.server.host} size="sm" ariaLabel="Server host" oninput={(event) => { if (settingsDraft) settingsDraft.server.host = (event.currentTarget as HTMLInputElement).value; }} /></label>
-                    <label>Port<Input value={String(settingsDraft.server.port)} type="number" size="sm" ariaLabel="Server port" oninput={(event) => updateServerPort((event.currentTarget as HTMLInputElement).value)} /></label>
-                  </div>
-                  <Switch bind:checked={settingsDraft.server.allowRemote} label="Allow remote connections" description="Restart the daemon after changing host, port, or remote access." />
-                </div>
-              </AccordionPrimitive.Content>
-            </AccordionPrimitive.Item>
-
-            <AccordionPrimitive.Item class="accordion-item" value="providers">
-              <AccordionPrimitive.Header>
-                <AccordionPrimitive.Trigger class="accordion-trigger">
-                  <span><KeyRound size={16} strokeWidth={2.2} />Provider access</span>
-                  <ChevronDown size={15} strokeWidth={2.3} />
-                </AccordionPrimitive.Trigger>
-              </AccordionPrimitive.Header>
-              <AccordionPrimitive.Content class="accordion-content">
-                <div class="settings-card nested-card">
-                  <p class="section-copy">Credentials are managed from the CLI only. Raw secrets are never rendered in the browser.</p>
-                  {#if authProviders.length === 0}
-                    <p class="muted">No provider metadata available. Use <code>nerve auth list</code> in the CLI.</p>
-                  {:else}
-                    <div class="provider-list">
-                      {#each authProviders as provider}
-                        <article class="provider-row">
-                          <div>
-                            <strong>{provider.displayName}</strong>
-                            <small>{provider.provider}{provider.envVar ? ` · ${provider.envVar}` : ""}</small>
-                          </div>
-                          <Badge size="xs" tone={provider.configured ? "good" : "neutral"}>{provider.configured ? provider.credentialType ?? "configured" : "not configured"}</Badge>
-                          {#if provider.warning}<p>{provider.warning}</p>{/if}
-                          <code>{provider.configured ? "nerve auth list" : providerCommand(provider)}</code>
-                        </article>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-              </AccordionPrimitive.Content>
-            </AccordionPrimitive.Item>
-          </AccordionPrimitive.Root>
+          {/if}
 
           {#if settingsMessage}<p class="settings-message">{settingsMessage}</p>{/if}
-        {/if}
-      </div>
-    </div>
-  </ScrollArea>
+        </div>
+      {/if}
+    </ScrollArea>
+  </div>
 </section>
 
 <style>
@@ -265,9 +328,7 @@
     height: 100%;
     min-height: 0;
     grid-template-rows: auto minmax(0, 1fr);
-    background:
-      radial-gradient(circle at top left, rgb(155 214 111 / 8%), transparent 25rem),
-      var(--color-bg-deep);
+    background: var(--color-bg);
   }
 
   .settings-header {
@@ -275,9 +336,9 @@
     align-items: end;
     justify-content: space-between;
     gap: 1rem;
-    border-bottom: 1px solid var(--color-border-subtle);
-    background: color-mix(in srgb, var(--color-panel-muted) 88%, transparent);
-    padding: 1.1rem 1.25rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-panel-muted);
+    padding: 0.85rem 1rem;
   }
 
   .heading-block {
@@ -286,15 +347,25 @@
     gap: 0.22rem;
   }
 
-  .eyebrow {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    color: var(--color-accent);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
+  .breadcrumb,
+  .eyebrow,
+  .rail-title,
+  h3 {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
     letter-spacing: var(--tracking-label);
     text-transform: uppercase;
+  }
+
+  .breadcrumb b {
+    color: var(--color-faint);
+    font-weight: var(--weight-normal);
+  }
+
+  .breadcrumb em {
+    color: var(--color-accent);
+    font-style: normal;
   }
 
   h1,
@@ -306,15 +377,13 @@
 
   h1 {
     color: var(--color-text);
-    font-family: var(--font-display);
-    font-size: clamp(1.45rem, 2vw, 2rem);
-    font-weight: var(--weight-bold);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
     line-height: var(--leading-tight);
   }
 
   .heading-block p,
   .card-head p,
-  .section-copy,
   .muted {
     color: var(--color-muted);
     font-size: var(--text-sm);
@@ -328,73 +397,128 @@
     gap: 0.42rem;
   }
 
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .settings-rail {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    border-right: 1px solid var(--color-border);
+    background: var(--color-pane);
+    padding: 0.65rem;
+  }
+
+  .rail-title {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.2rem 0.5rem;
+  }
+
+  .settings-rail button {
+    position: relative;
+    display: grid;
+    width: 100%;
+    gap: 0.12rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-muted);
+    padding: 0.48rem 0.55rem;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .settings-rail button:hover,
+  .settings-rail button.active {
+    border-color: var(--color-border-subtle);
+    background: var(--color-panel-raised);
+    color: var(--color-text);
+  }
+
+  .settings-rail button.active::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: var(--color-accent);
+  }
+
+  .settings-rail button strong {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .settings-rail button small {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+  }
+
+  .rail-status {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+  }
+
+  .rail-status section {
+    display: grid;
+    gap: 0.1rem;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-field);
+    padding: 0.45rem;
+  }
+
+  .rail-status span,
+  .stat-grid span {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .rail-status strong,
+  .stat-grid strong {
+    overflow: hidden;
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   :global(.settings-scroll) {
     min-height: 0;
   }
 
   :global(.settings-viewport) {
-    padding: 1rem;
-  }
-
-  .settings-grid {
-    display: grid;
-    grid-template-columns: minmax(12rem, 17rem) minmax(0, 1fr);
-    gap: 1rem;
-    max-width: 1180px;
-    margin: 0 auto;
-  }
-
-  .settings-rail {
-    position: sticky;
-    top: 0;
-    display: grid;
-    align-self: start;
-    gap: 0.45rem;
-  }
-
-  .settings-rail section,
-  .settings-card {
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--color-panel) 92%, transparent);
-    box-shadow: var(--shadow-panel);
-  }
-
-  .settings-rail section {
-    display: grid;
-    gap: 0.12rem;
-    padding: 0.65rem;
-  }
-
-  .settings-rail span {
-    color: var(--color-muted);
-    font-size: var(--text-xs);
-  }
-
-  .settings-rail strong {
-    overflow: hidden;
-    color: var(--color-text);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    padding: 0.8rem;
   }
 
   .settings-main {
     display: grid;
-    gap: 0.8rem;
+    gap: 1.25rem;
+    width: 100%;
+    max-width: 52rem;
+    margin: 0 auto;
     min-width: 0;
   }
 
-  .settings-card {
+  .settings-card,
+  .empty-card {
     display: grid;
-    gap: 0.72rem;
+    gap: 0.75rem;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--color-panel);
     padding: 0.85rem;
-  }
-
-  .nested-card {
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-    border-top: 0;
+    box-shadow: var(--shadow-panel);
   }
 
   .empty-card {
@@ -426,8 +550,12 @@
     height: 2rem;
     place-items: center;
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-field);
+    color: var(--color-accent);
+  }
+
+  .eyebrow {
     color: var(--color-accent);
   }
 
@@ -440,36 +568,49 @@
 
   h3 {
     color: var(--color-muted);
-    font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
   }
 
-  .defaults-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-
-  .control-block {
-    display: grid;
-    align-content: start;
-    gap: 0.42rem;
-  }
-
-  .compaction-row {
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
-    background: var(--color-field);
-    padding: 0.6rem;
-  }
-
-  .number-grid,
+  .stat-grid,
+  .defaults-grid,
   .server-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.55rem;
+  }
+
+  .stat-grid section,
+  .switch-card,
+  .compaction-card,
+  .control-block,
+  .permission-table {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-field);
+    padding: 0.55rem;
+  }
+
+  .stat-grid section {
+    display: grid;
+    gap: 0.14rem;
+  }
+
+  .stat-grid .wide {
+    grid-column: 1 / -1;
+  }
+
+  .control-block,
+  .compaction-card {
+    display: grid;
+    align-content: start;
+    gap: 0.5rem;
+  }
+
+  .compaction-card > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--color-text);
   }
 
   label {
@@ -478,57 +619,6 @@
     color: var(--color-muted);
     font-size: var(--text-xs);
     font-weight: var(--weight-medium);
-  }
-
-  :global(.settings-accordion) {
-    display: grid;
-    gap: 0.55rem;
-  }
-
-  :global(.accordion-item) {
-    overflow: hidden;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--color-panel);
-    box-shadow: var(--shadow-panel);
-  }
-
-  :global(.accordion-trigger) {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    border: 0;
-    background: var(--color-panel-muted);
-    color: var(--color-text);
-    padding: 0.7rem 0.85rem;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-    cursor: pointer;
-  }
-
-  :global(.accordion-trigger span) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-  }
-
-  :global(.accordion-trigger > svg) {
-    color: var(--color-muted);
-    transition: transform 160ms ease;
-  }
-
-  :global(.accordion-trigger[data-state="open"] > svg) {
-    transform: rotate(180deg);
-  }
-
-  :global(.accordion-trigger:focus-visible) {
-    outline: 2px solid var(--color-focus-ring);
-    outline-offset: -2px;
-  }
-
-  :global(.accordion-content) {
-    overflow: hidden;
   }
 
   .provider-list {
@@ -542,7 +632,7 @@
     align-items: start;
     gap: 0.45rem;
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-field);
     padding: 0.55rem;
   }
@@ -572,7 +662,7 @@
   code {
     overflow: auto;
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-xs);
     background: var(--color-code-bg);
     color: var(--color-code);
     padding: 0.34rem 0.42rem;
@@ -580,21 +670,57 @@
     font-size: var(--text-xs);
   }
 
+  .permission-table {
+    display: grid;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .permission-table div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .permission-table div:last-child {
+    border-bottom: 0;
+  }
+
+  .permission-table span,
+  .permission-table strong {
+    padding: 0.48rem 0.55rem;
+    font-size: var(--text-xs);
+  }
+
+  .permission-table div:first-child span {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .permission-table strong {
+    color: var(--color-text);
+    font-weight: var(--weight-medium);
+  }
+
   .settings-message {
-    border: 1px solid var(--color-accent-soft);
-    border-radius: var(--radius-md);
+    border: 1px solid var(--color-accent-muted);
+    border-radius: var(--radius-sm);
     background: var(--color-accent-soft);
     color: var(--color-accent);
     padding: 0.55rem 0.65rem;
     font-size: var(--text-sm);
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 960px) {
     .settings-header,
     .settings-grid,
     .defaults-grid,
-    .number-grid,
-    .server-grid {
+    .server-grid,
+    .stat-grid,
+    .permission-table div {
       grid-template-columns: minmax(0, 1fr);
     }
 
@@ -604,14 +730,8 @@
     }
 
     .settings-rail {
-      position: static;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 560px) {
-    .settings-rail {
-      grid-template-columns: minmax(0, 1fr);
+      border-right: 0;
+      border-bottom: 1px solid var(--color-border-subtle);
     }
   }
 </style>

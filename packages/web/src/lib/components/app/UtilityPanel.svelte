@@ -4,6 +4,7 @@
   import GitBranch from "lucide-svelte/icons/git-branch";
   import Info from "lucide-svelte/icons/info";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
+  import RotateCw from "lucide-svelte/icons/rotate-cw";
   import Square from "lucide-svelte/icons/square";
   import Terminal from "lucide-svelte/icons/terminal";
   import type {
@@ -71,7 +72,7 @@
   const tabs = $derived<TabItem[]>([
     { value: "history", label: "History" },
     { value: "processes", label: "Processes", count: processes.length },
-    { value: "info", label: "Info" },
+    { value: "info", label: "Context" },
   ]);
 
   function setTab(tab: string) {
@@ -92,6 +93,14 @@
     if (level === "warn") return "warn";
     return "neutral";
   }
+
+  function timeLabel(ts: string): string {
+    try {
+      return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch {
+      return ts;
+    }
+  }
 </script>
 
 <aside class="utility-panel">
@@ -102,7 +111,7 @@
   <ScrollArea class="utility-scroll" viewportClass="utility-content" type="auto">
     {#if activeTab === "history"}
       <header class="section-head">
-        <div><GitBranch size={14} strokeWidth={2.2} /><strong>History</strong></div>
+        <div><GitBranch size={14} strokeWidth={2.2} /><strong>Branch History</strong></div>
         <div class="row-actions">
           <Button size="sm" variant="ghost" onclick={onCompact} disabled={!activeSession}>Compact</Button>
           <Button size="sm" variant="ghost" onclick={() => onNavigateToEntry?.(undefined)} disabled={!activeSession}>Root</Button>
@@ -111,9 +120,9 @@
 
       {#if treeNodes.length}
         <div class="row-list tree-list">
-          {#each treeNodes as node}
+          {#each treeNodes as node, index}
             <button class="utility-row tree-row" class:active={node.entry.id === activeSession?.activeEntryId} type="button" onclick={() => onNavigateToEntry?.(node.entry.id)}>
-              <span class="tree-prefix"></span>
+              <span class="tree-index">{String(index + 1).padStart(2, "0")}</span>
               <div>
                 <strong>{node.entry.role} · {node.entry.kind}</strong>
                 <span>{node.entry.text.slice(0, 120) || "empty entry"}</span>
@@ -147,35 +156,43 @@
       </div>
 
       {#if selectedProcess}
-        <section class="utility-card process-detail">
-          <div class="card-title"><StatusDot tone={statusTone(selectedProcess.status)} /><strong>{selectedProcess.name ?? selectedProcess.command}</strong></div>
-          <small>{selectedProcess.command}</small>
-          <small>{selectedProcess.cwd}</small>
+        <section class="process-detail">
+          <div class="process-title"><StatusDot tone={statusTone(selectedProcess.status)} pulse={selectedProcess.status === "running" || selectedProcess.status === "ready"} /><strong>{selectedProcess.name ?? selectedProcess.command}</strong></div>
+          <small title={selectedProcess.command}>{selectedProcess.command}</small>
+          <small title={selectedProcess.cwd}>{selectedProcess.cwd}</small>
           <div class="row-actions">
-            <Button size="sm" variant="secondary" onclick={() => onRestartProcess?.(selectedProcess.id)}>Restart</Button>
+            <Button size="sm" variant="secondary" onclick={() => onRestartProcess?.(selectedProcess.id)}><RotateCw size={12} strokeWidth={2.3} />Restart</Button>
             <Button size="sm" variant="danger" onclick={() => onStopProcess?.(selectedProcess.id)}><Square size={12} strokeWidth={2.3} />Stop</Button>
           </div>
         </section>
-        <div class="log-list">
+        <div class="log-terminal" role="log" aria-label="Process logs">
+          {#if (processLogs?.events ?? []).length === 0}
+            <code><span class="seq">--</span><span class="time">--:--:--</span><span class="line">No logs captured.</span></code>
+          {/if}
           {#each processLogs?.events ?? [] as event}
-            <code class={event.level}><span>#{event.seq}</span><StatusDot size="xs" tone={logTone(event.level)} />{event.line}</code>
+            <code class={event.level}>
+              <span class="seq">#{event.seq}</span>
+              <span class="time">{timeLabel(event.ts)}</span>
+              <StatusDot size="xs" tone={logTone(event.level)} />
+              <span class="line">{event.line}</span>
+            </code>
           {/each}
         </div>
       {/if}
     {:else}
-      <section class="utility-card form-card">
-        <div class="card-title"><Info size={14} strokeWidth={2.2} /><strong>Active context</strong></div>
+      <section class="context-card">
+        <div class="card-title"><Info size={14} strokeWidth={2.2} /><strong>Active Context</strong></div>
         <dl>
-          <dt>Project</dt><dd>{activeProject?.name ?? "—"}</dd>
-          <dt>Directory</dt><dd>{activeProject?.dir ?? "—"}</dd>
-          <dt>Session</dt><dd>{activeSession?.id ?? "—"}</dd>
-          <dt>Agent</dt><dd>{activeAgent?.id ?? "—"}</dd>
-          <dt>Daemon</dt><dd>{status?.daemonId ?? "—"}</dd>
-          <dt>Data</dt><dd>{status?.dataDir ?? "—"}</dd>
+          <dt>Project</dt><dd title={activeProject?.name}>{activeProject?.name ?? "—"}</dd>
+          <dt>Directory</dt><dd title={activeProject?.dir}>{activeProject?.dir ?? "—"}</dd>
+          <dt>Session</dt><dd title={activeSession?.id}>{activeSession?.id ?? "—"}</dd>
+          <dt>Agent</dt><dd title={activeAgent?.id}>{activeAgent?.id ?? "—"}</dd>
+          <dt>Daemon</dt><dd title={status?.daemonId}>{status?.daemonId ?? "—"}</dd>
+          <dt>Data</dt><dd title={status?.dataDir}>{status?.dataDir ?? "—"}</dd>
         </dl>
       </section>
-      <section class="utility-card form-card">
-        <div class="card-title"><Bot size={14} strokeWidth={2.2} /><strong>Session agents</strong></div>
+      <section class="context-card">
+        <div class="card-title"><Bot size={14} strokeWidth={2.2} /><strong>Session Agents</strong></div>
         {#if sessionAgents.length === 0}
           <p class="muted">No agents in the active session.</p>
         {/if}
@@ -190,7 +207,7 @@
         {/each}
       </section>
       {#if activeSession}
-        <section class="utility-card form-card">
+        <section class="context-card">
           <div class="card-title"><FileText size={14} strokeWidth={2.2} /><strong>Export</strong></div>
           <div class="export-links">
             <a href={exportUrl?.("json")}>JSON</a>
@@ -209,13 +226,13 @@
     height: 100%;
     min-height: 0;
     grid-template-rows: auto minmax(0, 1fr);
-    background: var(--color-panel-muted);
-    border-left: 1px solid var(--color-border-subtle);
+    border-left: 1px solid var(--color-border);
+    background: var(--color-pane);
   }
 
   .utility-tabs {
-    border-bottom: 1px solid var(--color-border-subtle);
-    background: var(--color-titlebar);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-panel-muted);
   }
 
   :global(.utility-scroll) {
@@ -226,55 +243,61 @@
     display: grid;
     align-content: start;
     min-height: 100%;
-    gap: 0.42rem;
-    padding: 0.45rem;
+    gap: 0.5rem;
+    padding: 0.5rem;
   }
 
   .section-head,
   .row-actions,
   .export-links,
-  .card-title {
+  .card-title,
+  .process-title {
     display: flex;
     align-items: center;
-    gap: 0.38rem;
+    gap: 0.4rem;
   }
 
   .section-head {
     justify-content: space-between;
-    margin-bottom: 0.05rem;
   }
 
   .section-head div,
-  .card-title {
+  .card-title,
+  .process-title {
     min-width: 0;
   }
 
   .section-head strong,
-  .card-title strong {
+  .card-title strong,
+  .process-title strong {
+    overflow: hidden;
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .row-list,
   .tree-list,
-  .form-card {
+  .context-card {
     display: grid;
     gap: 0.32rem;
   }
 
   .utility-row,
-  .utility-card {
+  .context-card,
+  .process-detail {
     width: 100%;
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-sm);
     background: var(--color-field);
     color: var(--color-text);
-    padding: 0.42rem;
+    padding: 0.45rem;
     text-align: left;
-    box-shadow: var(--shadow-panel);
   }
 
   .utility-row {
+    position: relative;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
@@ -282,9 +305,10 @@
     cursor: pointer;
   }
 
-  .utility-card {
+  .context-card,
+  .process-detail {
     display: grid;
-    gap: 0.32rem;
+    gap: 0.38rem;
   }
 
   .utility-row:hover,
@@ -293,14 +317,22 @@
     background: var(--color-panel-raised);
   }
 
+  .utility-row.active::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: var(--color-accent);
+  }
+
   .tree-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .tree-prefix {
-    width: 0.65rem;
-    height: 1px;
-    background: var(--color-border);
+  .tree-index {
+    color: var(--color-faint);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
   }
 
   .utility-row div,
@@ -310,7 +342,7 @@
 
   .utility-row strong,
   .utility-row span,
-  .utility-card small,
+  .process-detail small,
   dd {
     overflow: hidden;
     min-width: 0;
@@ -332,45 +364,61 @@
     font-size: var(--text-xs);
   }
 
+  .utility-row span,
+  dt,
+  dd,
+  small {
+    font-family: var(--font-mono);
+  }
+
   .process-list,
-  .log-list {
+  .log-terminal {
     display: grid;
     gap: 0.28rem;
   }
 
-  .log-list {
-    min-height: 0;
-    max-height: 18rem;
+  .log-terminal {
+    min-height: 18rem;
+    max-height: 48vh;
     overflow: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-code-bg);
+    padding: 0.4rem;
   }
 
-  code {
-    display: flex;
+  .log-terminal code {
+    display: grid;
+    grid-template-columns: 3rem 4.8rem auto minmax(0, 1fr);
     align-items: start;
-    gap: 0.35rem;
+    gap: 0.4rem;
     min-width: 0;
-    overflow: hidden;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
-    background: var(--color-bg-deep);
-    color: var(--color-code);
-    padding: 0.34rem;
+    color: var(--color-message-text);
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
     line-height: var(--leading-normal);
     white-space: pre-wrap;
   }
 
-  code.warn {
+  .log-terminal code.warn .line {
     color: var(--color-warn);
   }
 
-  code.error {
+  .log-terminal code.error .line {
     color: var(--color-danger);
   }
 
-  code span {
+  .seq {
     color: var(--color-faint);
+  }
+
+  .time {
+    color: var(--color-good);
+  }
+
+  .line {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .muted {
@@ -380,16 +428,24 @@
   dl {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.3rem 0.55rem;
+    gap: 0.34rem 0.6rem;
     margin: 0;
     font-size: var(--text-xs);
   }
 
   dd {
     margin: 0;
+    color: var(--color-text);
   }
 
   a {
     color: var(--color-accent);
+    font-size: var(--text-xs);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
   }
 </style>

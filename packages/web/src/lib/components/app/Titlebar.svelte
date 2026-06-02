@@ -1,9 +1,10 @@
 <script lang="ts">
-  import AppWindow from "lucide-svelte/icons/app-window";
+  import ChevronRight from "lucide-svelte/icons/chevron-right";
   import Settings2 from "lucide-svelte/icons/settings-2";
   import { Toolbar } from "bits-ui";
   import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
   import Button from "../ui/Button.svelte";
+  import StatusDot from "../ui/StatusDot.svelte";
   import StatusPopover from "./StatusPopover.svelte";
 
   type AppRoute = "workspace" | "settings";
@@ -36,19 +37,25 @@
 
   const contextLabel = $derived(activeProject?.name ?? "No project");
   const sessionLabel = $derived(activeRoute === "settings" ? "Settings" : activeSession?.title ?? "No active session");
+  const agentLabel = $derived(activeAgent ? `${activeAgent.mode} · ${activeAgent.permissionLevel}` : "agent pending");
   const title = $derived(`${activeProject?.dir ?? "No project"}${activeSession ? ` / ${activeSession.id}` : ""}`);
 </script>
 
 <header class="titlebar">
   <div class="title-left">
-    <span class="app-mark" aria-hidden="true"><AppWindow size={13} strokeWidth={2.2} /></span>
-    <span class="app-name">nerve</span>
+    <span class="app-name">Nerve</span>
     <span class="divider" aria-hidden="true"></span>
-    <span class="context" {title}>
-      <span>{contextLabel}</span>
-      <b>/</b>
+    <span class="breadcrumb" {title}>
+      <span>{activeRoute === "settings" ? "nerve" : contextLabel}</span>
+      <ChevronRight size={13} strokeWidth={2} aria-hidden="true" />
       <span>{sessionLabel}</span>
     </span>
+    {#if activeRoute === "workspace"}
+      <span class="agent-pill" title={agentLabel}>
+        <StatusDot tone={activeAgent?.status === "running" ? "running" : activeAgent?.status === "error" ? "danger" : "neutral"} pulse={activeAgent?.status === "running"} />
+        {agentLabel}
+      </span>
+    {/if}
   </div>
 
   <Toolbar.Root class="title-actions" aria-label="Application actions">
@@ -84,8 +91,7 @@
     height: var(--size-header);
     border-bottom: 1px solid var(--color-border-subtle);
     background: var(--color-titlebar);
-    box-shadow: var(--shadow-panel);
-    padding: 0 0.45rem;
+    padding: 0 0.5rem;
     user-select: none;
   }
 
@@ -94,67 +100,68 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 0.42rem;
+    gap: 0.5rem;
   }
 
   :global(.title-actions) {
     flex: none;
   }
 
-  .app-mark {
-    display: inline-grid;
-    width: 1.25rem;
-    height: 1.25rem;
-    place-items: center;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
-    background: var(--color-field);
-    color: var(--color-accent);
-  }
-
   .app-name {
-    color: var(--color-text);
+    color: var(--color-accent);
     font-family: var(--font-display);
-    font-size: var(--text-sm);
+    font-size: var(--text-lg);
     font-weight: var(--weight-bold);
-    letter-spacing: 0.015em;
+    letter-spacing: -0.01em;
   }
 
   .divider {
     width: 1px;
-    height: 0.95rem;
+    height: 1rem;
     background: var(--color-border-subtle);
   }
 
-  .context {
-    display: flex;
+  .breadcrumb,
+  .agent-pill {
+    display: inline-flex;
     align-items: center;
     min-width: 0;
     gap: 0.32rem;
-    overflow: hidden;
     color: var(--color-muted);
     font-size: var(--text-xs);
   }
 
-  .context span {
+  .breadcrumb span {
     overflow: hidden;
+    max-width: 20rem;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .context span:first-child {
+  .breadcrumb span:first-child {
     color: var(--color-text);
     font-weight: var(--weight-semibold);
   }
 
-  .context b {
+  .breadcrumb :global(svg) {
+    flex: none;
     color: var(--color-faint);
-    font-weight: var(--weight-medium);
+  }
+
+  .agent-pill {
+    flex: none;
+    min-height: var(--control-height-xs);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 999px;
+    background: var(--color-field);
+    padding: 0 0.45rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
   }
 
   @media (max-width: 760px) {
-    .context b,
-    .context span:last-child {
+    .agent-pill,
+    .breadcrumb span:last-child {
       display: none;
     }
   }

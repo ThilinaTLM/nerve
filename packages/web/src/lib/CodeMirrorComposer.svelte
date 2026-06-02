@@ -32,6 +32,7 @@
   let editorValue = $state(value);
   const editableCompartment = new Compartment();
   const completionCompartment = new Compartment();
+  const placeholderCompartment = new Compartment();
 
   function editableExtensions(isDisabled: boolean) {
     return [EditorState.readOnly.of(isDisabled), EditorView.editable.of(!isDisabled)];
@@ -91,7 +92,7 @@
         extensions: [
           history(),
           markdown(),
-          placeholderExtension(placeholder),
+          placeholderCompartment.of(placeholderExtension(placeholder)),
           editableCompartment.of(editableExtensions(disabled)),
           completionCompartment.of(completionExtensions()),
           Prec.highest(
@@ -112,16 +113,16 @@
             "&": {
               background: "var(--color-field)",
               color: "var(--color-text)",
-              minHeight: "96px",
-              maxHeight: "min(32vh, 240px)",
+              minHeight: "72px",
+              maxHeight: "min(32vh, 220px)",
             },
             ".cm-content": {
               caretColor: "var(--color-accent)",
               fontFamily:
                 'var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
-              fontSize: "0.83rem",
-              lineHeight: "1.48",
-              padding: "8px 10px",
+              fontSize: "0.8125rem",
+              lineHeight: "1.5",
+              padding: "9px 10px",
             },
             ".cm-line": {
               padding: "0 2px",
@@ -133,8 +134,8 @@
               color: "var(--color-faint)",
             },
             ".cm-scroller": {
-              minHeight: "96px",
-              maxHeight: "min(32vh, 240px)",
+              minHeight: "72px",
+              maxHeight: "min(32vh, 220px)",
               overflow: "auto",
             },
             ".cm-tooltip": {
@@ -177,6 +178,13 @@
     fileCompletions;
     view.dispatch({
       effects: completionCompartment.reconfigure(completionExtensions()),
+    });
+  });
+
+  $effect(() => {
+    if (!view) return;
+    view.dispatch({
+      effects: placeholderCompartment.reconfigure(placeholderExtension(placeholder)),
     });
   });
 

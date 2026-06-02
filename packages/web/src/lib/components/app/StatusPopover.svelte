@@ -38,7 +38,7 @@
     processes.filter((process) => ["starting", "running", "ready", "stopping"].includes(process.status)).length,
   );
   const connectionTone = $derived<StatusTone>(live ? "good" : connection === "error" ? "danger" : connection === "closed" ? "warn" : "neutral");
-  const summary = $derived(live ? "live" : connection);
+  const summary = $derived(live ? "Connected" : connection);
   const modelLabel = $derived(activeAgent?.model ? `${activeAgent.model.provider}/${activeAgent.model.modelId}` : "model pending");
 
   function statusTone(status: string | undefined): StatusTone {
@@ -64,8 +64,8 @@
   <div class="status-card">
     <header>
       <div>
-        <strong>Status</strong>
-        <span>Runtime and active conversation details</span>
+        <strong>Runtime status</strong>
+        <span>Daemon, approvals, processes, and active agent.</span>
       </div>
       <Badge size="xs" tone={connectionTone}>{summary}</Badge>
     </header>
@@ -121,14 +121,15 @@
   .status-trigger {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.4rem;
     min-height: var(--control-height-sm);
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
+    border-radius: 999px;
     background: var(--color-field);
     color: var(--color-muted);
-    padding: 0 0.45rem;
-    font-size: var(--text-xs);
+    padding: 0 0.55rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
     font-weight: var(--weight-semibold);
   }
 
@@ -141,8 +142,8 @@
 
   .status-card {
     display: grid;
-    gap: 0.65rem;
-    padding: 0.72rem;
+    gap: 0.7rem;
+    padding: 0.75rem;
   }
 
   header {
@@ -151,7 +152,7 @@
     justify-content: space-between;
     gap: 0.8rem;
     border-bottom: 1px solid var(--color-border-subtle);
-    padding-bottom: 0.6rem;
+    padding-bottom: 0.65rem;
   }
 
   header div,
@@ -184,23 +185,24 @@
     display: grid;
     gap: 0.16rem;
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-field);
-    padding: 0.5rem;
+    padding: 0.55rem;
   }
 
   .status-grid span {
     display: flex;
     align-items: center;
-    gap: 0.28rem;
+    gap: 0.3rem;
   }
 
   .status-grid strong,
   .context-list strong {
     overflow: hidden;
     color: var(--color-text);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -208,17 +210,13 @@
   .context-list,
   .process-slice {
     display: grid;
-    gap: 0.34rem;
+    gap: 0.36rem;
   }
 
-  .context-list {
-    border-top: 1px solid var(--color-border-subtle);
-    padding-top: 0.58rem;
-  }
-
+  .context-list,
   .process-slice {
     border-top: 1px solid var(--color-border-subtle);
-    padding-top: 0.58rem;
+    padding-top: 0.6rem;
   }
 
   .process-slice div {

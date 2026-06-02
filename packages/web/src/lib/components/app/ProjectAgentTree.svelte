@@ -1,12 +1,15 @@
 <script lang="ts">
   import ChevronDown from "lucide-svelte/icons/chevron-down";
   import FolderKanban from "lucide-svelte/icons/folder-kanban";
+  import MoreHorizontal from "lucide-svelte/icons/more-horizontal";
   import Plus from "lucide-svelte/icons/plus";
   import Search from "lucide-svelte/icons/search";
   import { Collapsible } from "bits-ui";
   import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
+  import Dialog from "../ui/Dialog.svelte";
+  import DropdownMenu from "../ui/DropdownMenu.svelte";
   import Input from "../ui/Input.svelte";
   import ScrollArea from "../ui/ScrollArea.svelte";
   import StatusDot from "../ui/StatusDot.svelte";
@@ -26,36 +29,71 @@
 
   type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
 
+  type DeleteTarget = {
+    kind: "project" | "session";
+    id: string;
+    label: string;
+  };
+
   type Props = {
     projects?: ProjectRecord[];
     sessions?: SessionRecord[];
     agents?: AgentRecord[];
+    homeDir?: string;
     selectedProjectId?: string;
     selectedSessionId?: string;
     onOpenSession?: (sessionId: string) => void;
     onNewConversation?: () => void;
+    onNewConversationInProject?: (projectDir: string) => void;
+    onDeleteProject?: (projectId: string) => void;
+    onDeleteSession?: (sessionId: string) => void;
   };
 
   let {
     projects = [],
     sessions = [],
     agents = [],
+    homeDir,
     selectedProjectId,
     selectedSessionId,
     onOpenSession,
     onNewConversation,
+    onNewConversationInProject,
+    onDeleteProject,
+    onDeleteSession,
   }: Props = $props();
 
   let filter = $state("");
   let collapsed = $state<Record<string, boolean>>({});
+  let pendingDelete = $state<DeleteTarget | undefined>(undefined);
 
   function projectKey(project: ProjectRecord): string {
     return project.dir.replace(/[\\/]+$/, "") || project.dir;
   }
 
+  function shortProjectLabel(dir: string): string {
+    let path = dir.replace(/[\\/]+$/, "");
+    if (homeDir && (path === homeDir || path.startsWith(`${homeDir}/`))) {
+      path = `~${path.slice(homeDir.length)}`;
+    }
+    const segments = path.split("/");
+    return segments
+      .map((segment, index) => {
+        if (index === segments.length - 1 || segment === "" || segment === "~") return segment;
+        return segment.startsWith(".") ? segment.slice(0, 2) : segment.charAt(0);
+      })
+      .join("/");
+  }
+
   function shortModel(agent: AgentRecord | undefined): string {
     if (!agent?.model) return "model pending";
     return agent.model.modelId.replace(/^claude-/, "claude ").replace(/^gpt-/, "gpt ");
+  }
+
+  function conversationMeta(row: ConversationRow): string {
+    const mode = row.agent?.mode ?? row.session.mode;
+    const permission = row.agent?.permissionLevel ?? row.session.permissionLevel;
+    return `${mode} · ${permission} · ${shortModel(row.agent)}`;
   }
 
   function rowAgent(session: SessionRecord): AgentRecord | undefined {
@@ -79,11 +117,22 @@
     if (status === "running") return "running";
     if (status === "error") return "danger";
     if (status === "completed") return "good";
+    if (status === "aborted") return "warn";
     return "neutral";
   }
 
+  function requestDelete(target: DeleteTarget) {
+    pendingDelete = target;
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) return;
+    if (pendingDelete.kind === "project") onDeleteProject?.(pendingDelete.id);
+    else onDeleteSession?.(pendingDelete.id);
+    pendingDelete = undefined;
+  }
+
   const projectDirectoryCount = $derived.by(() => new Set(projects.map(projectKey)).size);
-  const conversationCount = $derived(sessions.length);
 
   const groups = $derived.by(() => {
     const projectById = new Map(projects.map((project) => [project.id, project]));
@@ -122,20 +171,21 @@
 </script>
 
 <aside class="project-tree">
-  <header class="tree-header">
-    <div>
-      <strong>Agents</strong>
-      <span>{projectDirectoryCount} project{projectDirectoryCount === 1 ? "" : "s"} · {conversationCount} conversation{conversationCount === 1 ? "" : "s"}</span>
-    </div>
-    <Button size="sm" variant="ghost" onclick={onNewConversation}><Plus size={13} strokeWidth={2.25} />New</Button>
-  </header>
-
   <div class="search-box">
     <Search size={13} strokeWidth={2.25} aria-hidden="true" />
-    <Input bind:value={filter} size="sm" placeholder="Search projects or conversations" ariaLabel="Search projects or conversations" />
+    <Input bind:value={filter} size="sm" placeholder="Search projects / sessions" ariaLabel="Search projects or conversations" />
   </div>
 
   <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
+    <div class="section-label">
+      <span>Projects</span>
+      <Badge size="xs">{projectDirectoryCount}</Badge>
+      <span class="section-spacer"></span>
+      <Button variant="icon" size="icon" ariaLabel="New agent" title="New agent" onclick={onNewConversation}>
+        <Plus size={13} strokeWidth={2.25} />
+      </Button>
+    </div>
+
     {#if groups.length === 0}
       <p class="empty">No projects yet.</p>
     {/if}
@@ -143,36 +193,62 @@
     {#each groups as group}
       {@const active = groupIsActive(group)}
       <Collapsible.Root class="project-group" open={!collapsed[group.key]} onOpenChange={(open) => (collapsed[group.key] = !open)}>
-        <Collapsible.Trigger class={active ? "project-row active" : "project-row"} title={group.project.dir}>
-          <span class="chevron" aria-hidden="true">
-            <ChevronDown size={13} />
-          </span>
-          <FolderKanban size={13} strokeWidth={2.15} aria-hidden="true" />
-          <span class="project-main">
-            <strong>{group.project.name}</strong>
-            <small>{group.project.dir}</small>
-          </span>
-          <Badge size="xs" tone={active ? "accent" : "neutral"}>{group.rows.length}</Badge>
-        </Collapsible.Trigger>
+        <div class="project-row-wrap" class:active>
+          <Collapsible.Trigger class="project-row" title={group.project.dir}>
+            <span class="chevron" aria-hidden="true">
+              <ChevronDown size={13} />
+            </span>
+            <FolderKanban size={13} strokeWidth={2.15} aria-hidden="true" />
+            <strong class="project-label">{shortProjectLabel(group.project.dir)}</strong>
+            <Badge size="xs" tone={active ? "accent" : "neutral"}>{group.rows.length}</Badge>
+          </Collapsible.Trigger>
+          <div class="row-actions">
+            <Button
+              variant="icon"
+              size="icon"
+              ariaLabel="New conversation"
+              title="New conversation in project"
+              onclick={() => onNewConversationInProject?.(group.project.dir)}
+            >
+              <Plus size={12} strokeWidth={2.25} />
+            </Button>
+            <DropdownMenu
+              ariaLabel="Project actions"
+              triggerClass="row-menu-trigger"
+              items={[{ value: "delete", label: "Delete project", tone: "danger" }]}
+              onSelect={(value) => value === "delete" && requestDelete({ kind: "project", id: group.project.id, label: shortProjectLabel(group.project.dir) })}
+            >
+              <MoreHorizontal size={14} aria-hidden="true" />
+            </DropdownMenu>
+          </div>
+        </div>
         <Collapsible.Content class="conversation-rows" hiddenUntilFound>
           {#if group.rows.length === 0}
             <p class="empty child">No conversations.</p>
           {/if}
           {#each group.rows as row}
-            <button
-              class="conversation-row"
-              class:selected={row.session.id === selectedSessionId}
-              type="button"
-              title={`${row.session.title} · ${row.session.id}`}
-              onclick={() => onOpenSession?.(row.session.id)}
-            >
-              <StatusDot tone={statusTone(row.agent?.status)} pulse={row.agent?.status === "running"} />
-              <span class="conversation-main">
-                <strong>{row.session.title}</strong>
-                <small>{row.agent?.mode ?? row.session.mode} · {row.agent?.permissionLevel ?? row.session.permissionLevel} · {shortModel(row.agent)}</small>
-              </span>
-              <span class="row-status">{row.agent?.status ?? "idle"}</span>
-            </button>
+            <div class="conversation-row-wrap" class:selected={row.session.id === selectedSessionId}>
+              <button
+                class="conversation-row"
+                type="button"
+                title={`${row.session.title} · ${conversationMeta(row)} · ${row.session.id}`}
+                onclick={() => onOpenSession?.(row.session.id)}
+              >
+                <StatusDot tone={statusTone(row.agent?.status)} pulse={row.agent?.status === "running"} />
+                <strong class="conversation-label">{row.session.title}</strong>
+                <span class="row-status">{row.agent?.status ?? "idle"}</span>
+              </button>
+              <div class="row-actions">
+                <DropdownMenu
+                  ariaLabel="Conversation actions"
+                  triggerClass="row-menu-trigger"
+                  items={[{ value: "delete", label: "Delete conversation", tone: "danger" }]}
+                  onSelect={(value) => value === "delete" && requestDelete({ kind: "session", id: row.session.id, label: row.session.title })}
+                >
+                  <MoreHorizontal size={13} aria-hidden="true" />
+                </DropdownMenu>
+              </div>
+            </div>
           {/each}
         </Collapsible.Content>
       </Collapsible.Root>
@@ -180,60 +256,61 @@
   </ScrollArea>
 </aside>
 
+<Dialog
+  open={!!pendingDelete}
+  title={pendingDelete?.kind === "project" ? "Delete project?" : "Delete conversation?"}
+  description={pendingDelete
+    ? `This permanently removes “${pendingDelete.label}”${pendingDelete.kind === "project" ? " and all its conversations." : "."}`
+    : ""}
+  onOpenChange={(open) => { if (!open) pendingDelete = undefined; }}
+>
+  {#snippet footer()}
+    <Button variant="secondary" size="sm" onclick={() => (pendingDelete = undefined)}>Cancel</Button>
+    <Button variant="danger" size="sm" onclick={confirmDelete}>Delete</Button>
+  {/snippet}
+</Dialog>
+
 <style>
   .project-tree {
     display: grid;
     height: 100%;
     min-height: 0;
-    grid-template-rows: auto auto minmax(0, 1fr);
-    background: var(--color-panel-muted);
-    border-right: 1px solid var(--color-border-subtle);
+    grid-template-rows: auto minmax(0, 1fr);
+    border-right: 1px solid var(--color-border);
+    background: var(--color-pane);
   }
 
-  .tree-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: var(--size-pane-header);
-    padding: 0.38rem 0.48rem;
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .tree-header div {
-    display: grid;
-    gap: 0.04rem;
-  }
-
-  .tree-header strong {
-    font-size: var(--text-sm);
-    font-weight: var(--weight-bold);
-  }
-
-  .tree-header span,
+  .section-label,
   .empty {
     color: var(--color-muted);
+    font-family: var(--font-mono);
     font-size: var(--text-2xs);
+  }
+
+  .section-label {
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
   }
 
   .search-box {
     position: relative;
     display: grid;
     align-items: center;
-    padding: 0.35rem;
+    padding: 0.45rem;
     border-bottom: 1px solid var(--color-border-subtle);
-    background: var(--color-pane);
+    background: transparent;
   }
 
   .search-box :global(svg) {
     position: absolute;
-    left: 0.75rem;
+    left: 0.85rem;
     z-index: 1;
     color: var(--color-muted);
     pointer-events: none;
   }
 
   .search-box :global(.ui-input) {
-    padding-left: 1.6rem;
+    padding-left: 1.75rem;
   }
 
   :global(.tree-scroll) {
@@ -241,16 +318,34 @@
   }
 
   :global(.tree-viewport) {
-    padding: 0.3rem;
+    padding: 0.35rem;
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.25rem 0.45rem;
+  }
+
+  .section-spacer {
+    flex: 1;
   }
 
   :global(.project-group) {
     display: grid;
-    gap: 0.1rem;
+    gap: 0.08rem;
+  }
+
+  .project-row-wrap,
+  .conversation-row-wrap {
+    position: relative;
+    display: block;
   }
 
   :global(.project-row),
   .conversation-row {
+    position: relative;
     width: 100%;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -264,21 +359,31 @@
     display: grid;
     grid-template-columns: 0.85rem auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.32rem 0.38rem;
+    gap: 0.35rem;
+    padding: 0.36rem 0.42rem;
     color: var(--color-muted);
     font-size: var(--text-xs);
   }
 
+  .project-row-wrap.active :global(.project-row)::before,
+  .conversation-row-wrap.selected .conversation-row::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    border-radius: 999px;
+    background: var(--color-accent);
+  }
+
   :global(.project-row:hover),
-  :global(.project-row.active),
+  .project-row-wrap.active :global(.project-row),
   .conversation-row:hover,
-  .conversation-row.selected {
+  .conversation-row-wrap.selected .conversation-row {
     border-color: var(--color-border-subtle);
     background: var(--color-panel-raised);
   }
 
-  :global(.project-row.active .project-main strong) {
+  .project-row-wrap.active :global(.project-label) {
     color: var(--color-text);
   }
 
@@ -290,41 +395,67 @@
     display: inline-grid;
     place-items: center;
     color: var(--color-faint);
-    transition: transform 140ms ease;
+    transition: transform 120ms ease;
   }
 
-  .project-main,
-  .conversation-main {
-    display: grid;
-    min-width: 0;
-    gap: 0.04rem;
-  }
-
-  .project-main strong,
-  .project-main small,
-  .conversation-main strong,
-  .conversation-main small {
+  .project-label,
+  .conversation-label {
     overflow: hidden;
+    min-width: 0;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .project-main strong {
+  .project-label {
     color: var(--color-muted);
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
   }
 
-  .project-main small,
-  .conversation-main small,
   .row-status {
     color: var(--color-muted);
+    font-family: var(--font-mono);
     font-size: var(--text-2xs);
+  }
+
+  .row-actions {
+    position: absolute;
+    top: 50%;
+    right: 0.3rem;
+    display: flex;
+    align-items: center;
+    gap: 0.1rem;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .project-row-wrap:hover .row-actions,
+  .project-row-wrap:focus-within .row-actions,
+  .conversation-row-wrap:hover .row-actions,
+  .conversation-row-wrap:focus-within .row-actions {
+    opacity: 1;
+  }
+
+  .row-actions :global(.ui-button),
+  .row-actions :global(.row-menu-trigger) {
+    width: 1.4rem;
+    height: 1.4rem;
+    min-width: 0;
+    border: none;
+    background: var(--color-panel-raised);
+    color: var(--color-muted);
+    padding: 0;
+  }
+
+  .row-actions :global(.row-menu-trigger:hover),
+  .row-actions :global(.ui-button:hover) {
+    color: var(--color-text);
   }
 
   :global(.conversation-rows) {
     display: grid;
-    gap: 0.12rem;
+    gap: 0.08rem;
     margin: 0 0 0.35rem;
     overflow: hidden;
   }
@@ -334,16 +465,11 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.42rem;
-    min-height: 2.5rem;
-    padding: 0.32rem 0.42rem 0.32rem 1.1rem;
-    border-left: 2px solid transparent;
+    min-height: 2.1rem;
+    padding: 0.34rem 0.42rem 0.34rem 1.1rem;
   }
 
-  .conversation-row.selected {
-    border-left-color: var(--color-accent);
-  }
-
-  .conversation-main strong {
+  .conversation-label {
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
   }

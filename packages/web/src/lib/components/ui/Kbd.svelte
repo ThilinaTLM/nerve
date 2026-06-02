@@ -15,16 +15,15 @@
 <style>
   .ui-kbd {
     display: inline-grid;
-    min-width: 1.25rem;
+    min-width: 1.2rem;
     place-items: center;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-xs);
     background: var(--color-field);
-    color: var(--color-text);
+    color: var(--color-muted);
     padding: 0 0.24rem;
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
-    line-height: 1.28;
-    box-shadow: var(--shadow-panel);
+    line-height: 1.35;
   }
 </style>

@@ -225,6 +225,24 @@ export class IndexStore {
     });
   }
 
+  removeProject(id: string): void {
+    this.guard(() => {
+      this.db.prepare(`DELETE FROM projects WHERE id = ?`).run(id);
+    });
+  }
+
+  removeSession(id: string): void {
+    this.guard(() => {
+      this.db.prepare(`DELETE FROM sessions WHERE id = ?`).run(id);
+    });
+  }
+
+  removeAgent(id: string): void {
+    this.guard(() => {
+      this.db.prepare(`DELETE FROM agents WHERE id = ?`).run(id);
+    });
+  }
+
   upsertProcess(process: ProcessRecord): void {
     this.guard(() => {
       this.db

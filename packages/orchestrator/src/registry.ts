@@ -1,4 +1,4 @@
-import { realpath } from "node:fs/promises";
+import { realpath, rm } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import type { Message } from "@earendil-works/pi-ai";
 import {
@@ -296,6 +296,60 @@ export class RuntimeRegistry {
     const agent = this.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
     return agent;
+  }
+
+  private async removeAgentInternal(agentId: string): Promise<void> {
+    if (!this.agents.has(agentId)) return;
+    if (this.runs.has(agentId)) await this.abortAgent(agentId);
+    for (const child of [...this.agents.values()].filter(
+      (candidate) => candidate.parentAgentId === agentId,
+    )) {
+      await this.removeAgentInternal(child.id);
+    }
+    this.agents.delete(agentId);
+    this.conversations.delete(agentId);
+    this.runs.delete(agentId);
+    this.index.removeAgent(agentId);
+    await rm(join(this.storage.paths.home, "agents", agentId), {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  async removeSession(sessionId: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    for (const agent of [...this.agents.values()].filter(
+      (candidate) => candidate.sessionId === sessionId,
+    )) {
+      await this.removeAgentInternal(agent.id);
+    }
+    this.sessions.delete(sessionId);
+    this.entries.delete(sessionId);
+    this.index.removeSession(sessionId);
+    await rm(join(this.storage.paths.home, "sessions", sessionId), {
+      recursive: true,
+      force: true,
+    });
+    await this.events.publish("session.deleted", {
+      sessionId,
+      projectId: session.projectId,
+    });
+  }
+
+  async removeProject(projectId: string): Promise<void> {
+    this.getProject(projectId);
+    for (const session of [...this.sessions.values()].filter(
+      (candidate) => candidate.projectId === projectId,
+    )) {
+      await this.removeSession(session.id);
+    }
+    this.projects.delete(projectId);
+    this.index.removeProject(projectId);
+    await rm(join(this.storage.paths.home, "projects", projectId), {
+      recursive: true,
+      force: true,
+    });
+    await this.events.publish("project.deleted", { projectId });
   }
 
   async configureAgent(
@@ -857,6 +911,26 @@ export class RuntimeRegistry {
       entry: userEntry,
     });
 
+    const session = this.sessions.get(agent.sessionId);
+    if (session) {
+      const userEntryCount = (this.entries.get(session.id) ?? []).filter(
+        (entry) => entry.role === "user",
+      ).length;
+      if (userEntryCount === 1) {
+        const title = deriveSessionTitle(request.text);
+        if (title && title !== session.title) {
+          await this.updateSession({
+            ...session,
+            title,
+            updatedAt: new Date().toISOString(),
+          });
+          await this.events.publish("session.updated", {
+            session: this.sessions.get(session.id),
+          });
+        }
+      }
+    }
+
     const previousMessages = this.conversations.get(agent.id) ?? [];
     const messages: Message[] = [
       ...previousMessages,
@@ -1406,6 +1480,12 @@ function buildExtractiveSummary(input: ExtractiveSummaryInput): string {
 function truncateText(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars)}\n\n[…${text.length - maxChars} more characters truncated]`;
+}
+
+function deriveSessionTitle(text: string): string {
+  const firstLine = text.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
+  if (!firstLine) return "";
+  return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
 }
 
 function sessionExportMarkdown(

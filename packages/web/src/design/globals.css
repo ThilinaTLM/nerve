@@ -28,6 +28,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   overflow: hidden;
+  background: var(--color-bg-deep);
 }
 
 button,
@@ -50,12 +51,14 @@ button {
     [role="button"],
     [tabindex]
   ):focus-visible {
-  outline: 2px solid var(--color-focus-ring);
+  outline: 1px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
 code,
-pre {
+pre,
+kbd,
+samp {
   font-family: var(--font-mono);
 }
 
@@ -65,7 +68,7 @@ pre {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
+  scrollbar-color: var(--color-panel-highest) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -73,10 +76,20 @@ pre {
   height: 8px;
 }
 
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
+  min-height: 48px;
   border: 2px solid transparent;
   border-radius: 999px;
-  background: var(--color-border);
+  background: var(--color-panel-highest);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
   background-clip: padding-box;
 }
 
@@ -109,6 +122,7 @@ pre {
 [data-pane-resizer]:focus-visible,
 [data-pane-resizer][data-active] {
   background: var(--color-resizer-active);
+  box-shadow: 0 0 0 1px var(--color-resizer-active);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -116,8 +130,8 @@ pre {
   *::before,
   *::after {
     scroll-behavior: auto;
-    transition-duration: 0.01ms;
-    animation-duration: 0.01ms;
-    animation-iteration-count: 1;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

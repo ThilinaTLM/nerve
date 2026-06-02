@@ -190,6 +190,22 @@ export async function compactSession(sessionId: string): Promise<{
   return apiPost(`/api/sessions/${sessionId}/compact`, {});
 }
 
+async function apiDeleteNoContent(path: string): Promise<void> {
+  const response = await fetch(path, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw new Error(await response.text());
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  await apiDeleteNoContent(`/api/projects/${projectId}`);
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  await apiDeleteNoContent(`/api/sessions/${sessionId}`);
+}
+
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
   return (await apiGet<{ items: CompletionItem[] }>("/api/completions/slash"))
     .items;

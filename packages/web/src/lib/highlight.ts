@@ -31,7 +31,7 @@ type HighlighterLike = {
       themes: { light: HighlightTheme; dark: HighlightTheme };
       defaultColor: false;
     },
-  ) => string;
+  ) => Promise<string>;
 };
 
 const languageAliases = new Map<string, HighlightLanguage>([
@@ -79,10 +79,7 @@ async function getHighlighter(): Promise<HighlighterLike> {
       themes: themeLoaders,
       engine: () => engine.createJavaScriptRegexEngine(),
     });
-    return createHighlighter({
-      themes: ["github-light", "night-owl"],
-      langs: Object.keys(languageLoaders) as HighlightLanguage[],
-    });
+    return core.createSingletonShorthands(createHighlighter);
   });
   return highlighterPromise;
 }

@@ -46,6 +46,17 @@ export function applyTheme(preference = themeState.preference) {
     localStorage.setItem("nerve.theme", preference);
 }
 
+export function loadSidebarCollapsed(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem("nerve.sidebarCollapsed") === "1";
+}
+
+export function setSidebarCollapsed(collapsed: boolean) {
+  layout.sidebarCollapsed = collapsed;
+  if (typeof localStorage !== "undefined")
+    localStorage.setItem("nerve.sidebarCollapsed", collapsed ? "1" : "0");
+}
+
 export function loadThemePreference(): ThemePreference {
   if (typeof localStorage === "undefined") return "system";
   const stored = localStorage.getItem("nerve.theme");

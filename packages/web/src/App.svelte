@@ -6,15 +6,20 @@
   import {
     applyTheme,
     composerDraft,
+    layout,
+    loadSidebarCollapsed,
     loadThemePreference,
     resetSelection,
     selection,
+    setSidebarCollapsed,
     themeState,
   } from "./lib/state/app-state.svelte";
   import {
     apiGet,
     apiPost,
     compactSession,
+    deleteProject,
+    deleteSession,
     getAuthProviders,
     getClientConfig,
     getFileCompletions,
@@ -304,6 +309,39 @@
     projectPickerOpen = true;
   }
 
+  function newConversationInProject(projectDir: string) {
+    clearConversationState();
+    void createConversationForDirectory(projectDir);
+  }
+
+  async function deleteProjectAndRefresh(projectId: string) {
+    try {
+      await deleteProject(projectId);
+      if (selection.projectId === projectId) clearConversationState();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+      await loadWorkspaceState();
+      toast.success("Project removed");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      error = message;
+      toast.error("Could not remove project", { description: message });
+    }
+  }
+
+  async function deleteSessionAndRefresh(sessionId: string) {
+    try {
+      await deleteSession(sessionId);
+      if (selection.sessionId === sessionId) clearConversationState();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+      await loadWorkspaceState();
+      toast.success("Conversation removed");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      error = message;
+      toast.error("Could not remove conversation", { description: message });
+    }
+  }
+
   async function createConversationForDirectory(dir: string) {
     error = undefined;
     try {
@@ -478,9 +516,12 @@
     }
     if (
       event.type === "session.created" ||
+      event.type === "session.updated" ||
+      event.type === "session.deleted" ||
       event.type === "session.compacted" ||
       event.type === "session.branch_summarized" ||
       event.type === "session.navigated" ||
+      event.type === "project.deleted" ||
       event.type === "agent.created" ||
       event.type === "agent.status_changed" ||
       event.type.startsWith("agent.subagent_") ||
@@ -507,6 +548,7 @@
     const handleSystemTheme = () => applyTheme(themeState.preference);
     const handlePopState = () => (appRoute = routeFromPath(window.location.pathname));
     navigateToRoute(routeFromPath(window.location.pathname), "replace");
+    setSidebarCollapsed(loadSidebarCollapsed());
     window.addEventListener("popstate", handlePopState);
 
     async function connect() {
@@ -583,24 +625,30 @@
     </div>
   {:else}
     <div class="workspace-shell">
-      <PaneGroup direction="horizontal" autoSaveId="nerve.workspace.v2" keyboardResizeBy={8}>
-        <Pane defaultSize={20} minSize={14} maxSize={34} order={1}>
-          <div class="pane-shell navigator-pane">
-            <ProjectAgentTree
-              {projects}
-              {sessions}
-              {agents}
-              selectedProjectId={selection.projectId}
-              selectedSessionId={selection.sessionId}
-              onOpenSession={openSession}
-              onNewConversation={newSession}
-            />
-          </div>
-        </Pane>
+      <PaneGroup direction="horizontal" autoSaveId="nerve.workspace.v3" keyboardResizeBy={8}>
+        {#if !layout.sidebarCollapsed}
+          <Pane defaultSize={19} minSize={14} maxSize={32} order={1}>
+            <div class="pane-shell navigator-pane">
+              <ProjectAgentTree
+                {projects}
+                {sessions}
+                {agents}
+                homeDir={status?.storage.home}
+                selectedProjectId={selection.projectId}
+                selectedSessionId={selection.sessionId}
+                onOpenSession={openSession}
+                onNewConversation={newSession}
+                onNewConversationInProject={newConversationInProject}
+                onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
+                onDeleteSession={(id) => void deleteSessionAndRefresh(id)}
+              />
+            </div>
+          </Pane>
 
-        <PaneResizer aria-label="Resize agents panel" />
+          <PaneResizer aria-label="Resize agents panel" />
+        {/if}
 
-        <Pane defaultSize={56} minSize={38} order={2}>
+        <Pane defaultSize={57} minSize={38} order={2}>
           <div class="pane-shell conversation-shell">
             <ConversationPane
               {activeProject}
@@ -634,7 +682,7 @@
 
         <PaneResizer aria-label="Resize utility panel" />
 
-        <Pane defaultSize={24} minSize={18} maxSize={42} order={3}>
+        <Pane defaultSize={24} minSize={19} maxSize={40} order={3}>
           <div class="pane-shell utility-shell">
             <UtilityPanel
               activeTab={utilityTab}
@@ -672,10 +720,12 @@
     pendingApprovals={pendingApprovalCount}
     {processes}
     {branchDepth}
+    sidebarCollapsed={layout.sidebarCollapsed}
+    onToggleSidebar={() => setSidebarCollapsed(!layout.sidebarCollapsed)}
   />
 </main>
 
-<ProjectDirectoryPicker bind:open={projectPickerOpen} onSelect={(path) => void createConversationForDirectory(path)} />
+<ProjectDirectoryPicker bind:open={projectPickerOpen} {projects} onSelect={(path) => void createConversationForDirectory(path)} />
 
 <style>
   .app-frame {
@@ -717,7 +767,7 @@
   }
 
   .utility-shell {
-    background: var(--color-panel-muted);
+    background: var(--color-pane);
   }
 
   @media (max-width: 980px) {
