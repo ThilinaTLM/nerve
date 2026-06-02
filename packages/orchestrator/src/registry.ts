@@ -53,7 +53,9 @@ import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
+import { buildPiSystemPrompt } from "./pi-system-prompt.js";
 import { ProcessManager } from "./process-manager.js";
+import { loadHarnessResources } from "./resource-loader.js";
 import {
   appendJsonLine,
   atomicWriteJson,
@@ -932,11 +934,14 @@ export class RuntimeRegistry {
     const activeToolNames = activeToolNamesForAgent(agent);
     const promptMetadata = toolPromptMetadata(activeToolNames);
     const model = resolveAgentModel(agent.model);
+    const env = new NodeExecutionEnv({ cwd: agent.projectDir });
+    const resources = await loadHarnessResources(agent.projectDir);
     let lastAssistantEntry: SessionEntry | undefined;
 
     const harness = new AgentHarness({
-      env: new NodeExecutionEnv({ cwd: agent.projectDir }),
+      env,
       session: harnessSession,
+      resources: { skills: resources.skills },
       tools: createAgentToolsForAgent(agent, this.tools),
       activeToolNames,
       model,
@@ -945,7 +950,18 @@ export class RuntimeRegistry {
         const apiKey = await this.auth.getApiKey(requestModel.provider);
         return apiKey ? { apiKey } : undefined;
       },
-      systemPrompt: () => systemPromptFor(agent, promptMetadata),
+      systemPrompt: () =>
+        buildPiSystemPrompt({
+          cwd: agent.projectDir,
+          selectedTools: activeToolNames,
+          toolSnippets: promptMetadata.snippets,
+          promptGuidelines: promptMetadata.guidelines,
+          contextFiles: resources.contextFiles,
+          skills: resources.skills,
+          customPrompt: resources.systemPrompt,
+          appendSystemPrompt: resources.appendSystemPrompt,
+          nerveContext: nerveSystemContext(agent),
+        }),
     });
 
     harness.subscribe(async (event) => {
@@ -1700,45 +1716,16 @@ export function errorResponse(error: unknown): Response {
   );
 }
 
-function systemPromptFor(
-  agent: AgentRecord,
-  tools?: {
-    activeToolNames: string[];
-    snippets: Record<string, string>;
-    guidelines: string[];
-  },
-): string {
+function nerveSystemContext(agent: AgentRecord): string {
   const childContext = agent.parentAgentId
     ? `Parent agent: ${agent.parentAgentId}. Root agent: ${agent.rootAgentId}.`
     : `Root agent: ${agent.rootAgentId}.`;
-  const activeToolNames = tools?.activeToolNames ?? [];
-  const visibleTools = activeToolNames.filter((name) => tools?.snippets[name]);
-  const toolsList =
-    visibleTools.length > 0
-      ? visibleTools
-          .map((name) => `- ${name}: ${tools?.snippets[name]}`)
-          .join("\n")
-      : "(none)";
-  const guidelines = new Set<string>([
-    ...(tools?.guidelines ?? []),
-    "Use tools to inspect files and run commands instead of guessing.",
-    "Use process_start for long-running servers, watchers, and daemons; do not run them with bash.",
-    "Tool calls may be approved, denied, or constrained according to mode and permission level.",
-    "Keep responses concise and useful.",
-    "Show file paths clearly when working with files.",
-  ]);
   return [
-    "You are a Nerve coding agent running under an orchestrator.",
-    `Mode: ${agent.mode}. Permission level: ${agent.permissionLevel}.`,
-    childContext,
-    `Child budget: depth ${agent.budget.depth}/${agent.budget.maxDepth}, runs ${agent.budget.usedRuns}/${agent.budget.maxRuns}.`,
-    `Project directory: ${agent.projectDir}.`,
-    "",
-    "Available tools:",
-    toolsList,
-    "",
-    "Guidelines:",
-    [...guidelines].map((guideline) => `- ${guideline}`).join("\n"),
+    "Nerve orchestration context:",
+    `- Mode: ${agent.mode}. Permission level: ${agent.permissionLevel}.`,
+    `- ${childContext}`,
+    `- Child budget: depth ${agent.budget.depth}/${agent.budget.maxDepth}, runs ${agent.budget.usedRuns}/${agent.budget.maxRuns}.`,
+    "- Tool calls may be approved, denied, or constrained according to mode and permission level.",
   ].join("\n");
 }
 

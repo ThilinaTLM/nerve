@@ -63,16 +63,14 @@ async function main() {
   let providerSawTools = false;
   let toolExecuted = false;
   let turn = 0;
-  const listDefinition = coreToolDefinitions.find(
-    (tool) => tool.name === "list",
-  );
-  assert.ok(listDefinition);
+  const lsDefinition = coreToolDefinitions.find((tool) => tool.name === "ls");
+  assert.ok(lsDefinition);
 
-  const listTool: AgentTool = {
-    name: listDefinition.name,
-    label: listDefinition.label,
-    description: listDefinition.description,
-    parameters: listDefinition.parameters,
+  const lsTool: AgentTool = {
+    name: lsDefinition.name,
+    label: lsDefinition.label,
+    description: lsDefinition.description,
+    parameters: lsDefinition.parameters,
     executionMode: "sequential",
     execute: async () => {
       toolExecuted = true;
@@ -86,7 +84,7 @@ async function main() {
   const context: AgentContext = {
     systemPrompt: "Debug tool wiring.",
     messages: [{ role: "user", content: "List files", timestamp: Date.now() }],
-    tools: [listTool],
+    tools: [lsTool],
   };
 
   const config: AgentLoopConfig = {
@@ -111,7 +109,7 @@ async function main() {
               {
                 type: "toolCall",
                 id: "tool_debug_list",
-                name: "list",
+                name: "ls",
                 arguments: { path: "." },
               },
             ],

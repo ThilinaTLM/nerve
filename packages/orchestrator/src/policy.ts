@@ -288,7 +288,7 @@ function enforceBoundaries(
     return "Shell commands must run inside the agent workspace scope.";
   }
 
-  if (["read", "write", "edit", "list", "search"].includes(toolName)) {
+  if (["read", "write", "edit", "grep", "find", "ls"].includes(toolName)) {
     const pathValue = args.path ?? ".";
     if (typeof pathValue !== "string" || pathValue.trim().length === 0) {
       return "Filesystem tools require a non-empty path.";

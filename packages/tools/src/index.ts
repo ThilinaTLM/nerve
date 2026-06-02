@@ -1,4 +1,4 @@
-import { exec } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import { constants } from "node:fs";
 import {
   access,
@@ -20,6 +20,7 @@ import {
 export * from "./definitions.js";
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export const coreToolDescriptors: ToolDescriptor[] =
   coreToolDescriptorsFromDefinitions();
@@ -59,30 +60,41 @@ export type EditToolArgs = ToolPathArgs & {
 
 export type BashToolArgs = {
   command?: unknown;
-  cwd?: unknown;
-  timeoutMs?: unknown;
+  timeout?: unknown;
 };
 
-export type ListToolArgs = ToolPathArgs & {
-  recursive?: unknown;
-  maxEntries?: unknown;
+export type LsToolArgs = ToolPathArgs & {
+  limit?: unknown;
 };
 
-export type SearchToolArgs = ToolPathArgs & {
+export type FindToolArgs = ToolPathArgs & {
   pattern?: unknown;
-  regex?: unknown;
-  maxResults?: unknown;
+  limit?: unknown;
+};
+
+export type GrepToolArgs = ToolPathArgs & {
+  pattern?: unknown;
+  glob?: unknown;
+  ignoreCase?: unknown;
+  literal?: unknown;
+  context?: unknown;
+  limit?: unknown;
 };
 
 export function toolRiskForName(name: ToolName): ToolRisk {
   return coreToolRiskForName(name);
 }
 
+export function hasShellControlOperator(command: string): boolean {
+  return /[><|`$();]/.test(command) || command.includes("&&") || command.includes("||");
+}
+
 export function isKnownReadOnlyCommand(command: string): boolean {
   const normalized = command.trim().replace(/\s+/g, " ");
-  if (!normalized) return false;
+  if (!normalized || hasShellControlOperator(normalized)) return false;
   const first = normalized.split(" ")[0];
-  if (["pwd", "ls", "find", "rg", "grep", "which"].includes(first)) return true;
+  if (["pwd", "ls", "find", "rg", "grep", "which", "cat"].includes(first))
+    return true;
   if (normalized === "git status" || normalized.startsWith("git status "))
     return true;
   if (normalized === "git diff" || normalized.startsWith("git diff "))
@@ -121,24 +133,24 @@ export async function executeTool(
   switch (name) {
     case "read":
       return executeRead(args, context);
-    case "write":
-      return executeWrite(args, context);
-    case "edit":
-      return executeEdit(args, context);
     case "bash":
       return executeBash(args, context);
-    case "list":
-      return executeList(args, context);
-    case "search":
-      return executeSearch(args, context);
+    case "edit":
+      return executeEdit(args, context);
+    case "write":
+      return executeWrite(args, context);
+    case "grep":
+      return executeGrep(args, context);
+    case "find":
+      return executeFind(args, context);
+    case "ls":
+      return executeLs(args, context);
     case "process_start":
     case "process_stop":
     case "process_restart":
     case "process_list":
     case "process_logs":
-      throw new Error(
-        `${name} is executed by the orchestrator process manager.`,
-      );
+      throw new Error(`${name} is executed by the orchestrator process manager.`);
     case "subagent_run":
       throw new Error(`${name} is executed by the orchestrator agent runtime.`);
   }
@@ -159,12 +171,17 @@ async function executeRead(
   const content = await readFile(path, "utf8");
   const lines = content.split(/\r?\n/);
   const offset = numberArg(args.offset, 1);
-  const limit = numberArg(args.limit, lines.length);
+  const limit = Math.min(numberArg(args.limit, 1000), 5000);
+  const selected = lines
+    .slice(Math.max(0, offset - 1), Math.max(0, offset - 1) + limit)
+    .join("\n");
+  const remaining = Math.max(0, lines.length - (offset - 1 + limit));
   return {
     path,
-    content: lines
-      .slice(Math.max(0, offset - 1), Math.max(0, offset - 1) + limit)
-      .join("\n"),
+    content:
+      remaining > 0
+        ? `${selected}\n\n[...${remaining} more lines. Continue with offset ${offset + limit}.]`
+        : selected,
   };
 }
 
@@ -205,8 +222,9 @@ async function executeEdit(
 
   const ordered = [...matches].sort((a, b) => a.start - b.start);
   for (let i = 1; i < ordered.length; i++) {
-    const previous = ordered[i - 1]!;
-    const current = ordered[i]!;
+    const previous = ordered[i - 1];
+    const current = ordered[i];
+    if (!previous || !current) continue;
     if (current.start < previous.end) {
       throw new Error(
         `edits[${current.index}] overlaps edits[${previous.index}]; merge overlapping changes.`,
@@ -264,15 +282,11 @@ async function executeBash(
   if (typeof args.command !== "string" || args.command.trim().length === 0) {
     throw new Error("Tool argument 'command' must be a non-empty string.");
   }
-  const cwd =
-    typeof args.cwd === "string" && args.cwd.trim()
-      ? resolve(context.cwd, args.cwd)
-      : context.cwd;
-  const timeout = Math.min(numberArg(args.timeoutMs, 30_000), 120_000);
+  const timeoutSeconds = Math.min(numberArg(args.timeout, 30), 120);
   try {
     const { stdout, stderr } = await execAsync(args.command, {
-      cwd,
-      timeout,
+      cwd: context.cwd,
+      timeout: timeoutSeconds * 1000,
       maxBuffer: 1024 * 1024 * 4,
     });
     return { stdout, stderr, exitCode: 0 };
@@ -281,7 +295,6 @@ async function executeBash(
       stdout?: string;
       stderr?: string;
       code?: number;
-      signal?: string;
     };
     return {
       stdout: failure.stdout ?? "",
@@ -291,96 +304,177 @@ async function executeBash(
   }
 }
 
-async function executeList(
+async function executeLs(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const root = resolveToolPath(context.cwd, args.path ?? ".");
-  const recursive = Boolean(args.recursive);
-  const maxEntries = Math.min(numberArg(args.maxEntries, 200), 2000);
-  const entries: ToolExecutionResult["entries"] = [];
-  await collectEntries(root, root, recursive, maxEntries, entries);
+  const limit = Math.min(numberArg(args.limit, 500), 5000);
+  const dirEntries = await readdir(root, { withFileTypes: true });
+  dirEntries.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+  const entries: NonNullable<ToolExecutionResult["entries"]> = [];
+  for (const entry of dirEntries.slice(0, limit)) {
+    entries.push({
+      path: `${entry.name}${entry.isDirectory() ? "/" : ""}`,
+      kind: entry.isDirectory() ? "directory" : entry.isFile() ? "file" : "other",
+    });
+  }
   return { path: root, entries };
 }
 
-async function executeSearch(
+async function executeFind(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
-  const root = resolveToolPath(context.cwd, args.path ?? ".");
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {
     throw new Error("Tool argument 'pattern' must be a non-empty string.");
   }
-  const maxResults = Math.min(numberArg(args.maxResults, 200), 2000);
-  const matcher = args.regex ? new RegExp(args.pattern) : undefined;
-  const matches: NonNullable<ToolExecutionResult["matches"]> = [];
-  await searchPath(root, root, args.pattern, matcher, maxResults, matches);
-  return { path: root, matches };
+  const root = resolveToolPath(context.cwd, args.path ?? ".");
+  const limit = Math.min(numberArg(args.limit, 1000), 5000);
+  const fd = await runFd(args.pattern, root, limit).catch(() => undefined);
+  const paths = fd ?? (await fallbackFind(root, args.pattern, limit));
+  return {
+    path: root,
+    entries: paths.slice(0, limit).map((path) => ({ path, kind: "file" })),
+  };
 }
 
-async function collectEntries(
-  root: string,
-  path: string,
-  recursive: boolean,
-  maxEntries: number,
-  output: NonNullable<ToolExecutionResult["entries"]>,
-): Promise<void> {
-  if (output.length >= maxEntries) return;
-  const entries = await readdir(path, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.name === "node_modules" || entry.name === ".git") continue;
-    const fullPath = join(path, entry.name);
-    output.push({
-      path: relative(root, fullPath) || entry.name,
-      kind: entry.isDirectory()
-        ? "directory"
-        : entry.isFile()
-          ? "file"
-          : "other",
-    });
-    if (output.length >= maxEntries) return;
-    if (recursive && entry.isDirectory())
-      await collectEntries(root, fullPath, true, maxEntries, output);
-  }
-}
-
-async function searchPath(
-  root: string,
-  path: string,
+async function runFd(
   pattern: string,
-  matcher: RegExp | undefined,
-  maxResults: number,
-  output: NonNullable<ToolExecutionResult["matches"]>,
+  root: string,
+  limit: number,
+): Promise<string[]> {
+  const { stdout } = await execFileAsync(
+    "fd",
+    ["--hidden", "--glob", "--max-results", String(limit), "--", pattern, root],
+    { timeout: 30_000, maxBuffer: 1024 * 1024 },
+  );
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((path) => relative(root, path) || path);
+}
+
+async function fallbackFind(
+  root: string,
+  pattern: string,
+  limit: number,
+): Promise<string[]> {
+  const results: string[] = [];
+  const regex = globToRegExp(pattern);
+  await walkFiles(root, root, limit, async (absolutePath, relativePath) => {
+    if (regex.test(relativePath)) results.push(relativePath);
+  });
+  return results;
+}
+
+async function executeGrep(
+  args: Record<string, unknown>,
+  context: ToolExecutionContext,
+): Promise<ToolExecutionResult> {
+  if (typeof args.pattern !== "string" || args.pattern.length === 0) {
+    throw new Error("Tool argument 'pattern' must be a non-empty string.");
+  }
+  const root = resolveToolPath(context.cwd, args.path ?? ".");
+  const limit = Math.min(numberArg(args.limit, 100), 2000);
+  const rg = await runRg(args, root, limit).catch(() => undefined);
+  const matches = rg ?? (await fallbackGrep(args, root, limit));
+  return { path: root, matches: matches.slice(0, limit) };
+}
+
+async function runRg(
+  args: Record<string, unknown>,
+  root: string,
+  limit: number,
+): Promise<NonNullable<ToolExecutionResult["matches"]>> {
+  const rgArgs = ["--line-number", "--color=never", "--hidden"];
+  if (args.ignoreCase) rgArgs.push("--ignore-case");
+  if (args.literal) rgArgs.push("--fixed-strings");
+  if (typeof args.glob === "string" && args.glob.length > 0) {
+    rgArgs.push("--glob", args.glob);
+  }
+  const contextLines = numberArg(args.context, 0);
+  if (contextLines > 0) rgArgs.push("--context", String(contextLines));
+  rgArgs.push("--", String(args.pattern), root);
+  const { stdout } = await execFileAsync("rg", rgArgs, {
+    timeout: 30_000,
+    maxBuffer: 1024 * 1024 * 4,
+  });
+  const matches: NonNullable<ToolExecutionResult["matches"]> = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line) continue;
+    const match = /^(.*?):(\d+):(.*)$/.exec(line);
+    if (!match) continue;
+    matches.push({
+      path: relative(root, match[1] ?? "") || (match[1] ?? ""),
+      line: Number(match[2]),
+      text: match[3] ?? "",
+    });
+    if (matches.length >= limit) break;
+  }
+  return matches;
+}
+
+async function fallbackGrep(
+  args: Record<string, unknown>,
+  root: string,
+  limit: number,
+): Promise<NonNullable<ToolExecutionResult["matches"]>> {
+  const matches: NonNullable<ToolExecutionResult["matches"]> = [];
+  const literal = Boolean(args.literal);
+  const ignoreCase = Boolean(args.ignoreCase);
+  const pattern = String(args.pattern);
+  const regex = literal
+    ? undefined
+    : new RegExp(pattern, ignoreCase ? "i" : undefined);
+  const needle = ignoreCase ? pattern.toLowerCase() : pattern;
+  const glob = typeof args.glob === "string" ? globToRegExp(args.glob) : undefined;
+  await walkFiles(root, root, limit, async (absolutePath, relativePath) => {
+    if (glob && !glob.test(relativePath)) return;
+    const info = await stat(absolutePath);
+    if (info.size > 1024 * 1024) return;
+    const content = await readFile(absolutePath, "utf8").catch(() => undefined);
+    if (content === undefined) return;
+    const lines = content.split(/\r?\n/);
+    for (const [index, line] of lines.entries()) {
+      const haystack = ignoreCase ? line.toLowerCase() : line;
+      if (regex ? regex.test(line) : haystack.includes(needle)) {
+        matches.push({ path: relativePath, line: index + 1, text: line });
+        if (matches.length >= limit) return;
+      }
+    }
+  });
+  return matches;
+}
+
+async function walkFiles(
+  root: string,
+  path: string,
+  limit: number,
+  onFile: (absolutePath: string, relativePath: string) => Promise<void>,
 ): Promise<void> {
-  if (output.length >= maxResults) return;
   const info = await stat(path);
   if (info.isDirectory()) {
     const entries = await readdir(path, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name === "node_modules" || entry.name === ".git") continue;
-      await searchPath(
-        root,
-        join(path, entry.name),
-        pattern,
-        matcher,
-        maxResults,
-        output,
-      );
-      if (output.length >= maxResults) return;
+      await walkFiles(root, join(path, entry.name), limit, onFile);
     }
     return;
   }
-  if (!info.isFile() || info.size > 1024 * 1024) return;
+  if (!info.isFile()) return;
   await access(path, constants.R_OK);
-  const content = await readFile(path, "utf8").catch(() => undefined);
-  if (content === undefined) return;
-  const lines = content.split(/\r?\n/);
-  for (const [index, line] of lines.entries()) {
-    if (matcher ? matcher.test(line) : line.includes(pattern)) {
-      output.push({ path: relative(root, path), line: index + 1, text: line });
-      if (output.length >= maxResults) return;
-    }
-  }
+  await onFile(path, relative(root, path));
+}
+
+function globToRegExp(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, ".*")
+    .replace(/\*/g, "[^/]*")
+    .replace(/\?/g, ".");
+  return new RegExp(`^${escaped}$`);
 }
 
 function numberArg(value: unknown, fallback: number): number {

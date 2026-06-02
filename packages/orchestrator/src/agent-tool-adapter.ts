@@ -1,5 +1,5 @@
 import type { AgentTool, AgentToolResult } from "@nerve/agent";
-import type { AgentRecord, ToolCallRecord } from "@nerve/shared";
+import type { AgentRecord, CoreToolName, ToolCallRecord } from "@nerve/shared";
 import { type CoreToolDefinition, coreToolDefinitions } from "@nerve/tools";
 import type { ToolService } from "./tool-service.js";
 
@@ -18,8 +18,9 @@ export function createAgentToolsForAgent(
   );
 }
 
-export function activeToolNamesForAgent(_agent: AgentRecord): string[] {
-  return coreToolDefinitions.map((definition) => definition.name);
+export function activeToolNamesForAgent(agent: AgentRecord): CoreToolName[] {
+  if (agent.permissionLevel === "read_only") return ["read", "grep", "find", "ls"];
+  return ["read", "bash", "edit", "write"];
 }
 
 export function toolPromptMetadata(

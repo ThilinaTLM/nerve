@@ -1,10 +1,10 @@
-import type { ToolDescriptor, ToolName, ToolRisk } from "@nerve/shared";
+import type { CoreToolName, ToolDescriptor, ToolName, ToolRisk } from "@nerve/shared";
 import { type Static, type TSchema, Type } from "typebox";
 
 export type CoreToolExecutionMode = "sequential" | "parallel";
 
 export interface CoreToolDefinition<TParams extends TSchema = TSchema> {
-  name: ToolName;
+  name: CoreToolName;
   label: string;
   description: string;
   promptSnippet?: string;
@@ -17,66 +17,26 @@ export interface CoreToolDefinition<TParams extends TSchema = TSchema> {
 const readParameters = Type.Object(
   {
     path: Type.String({
-      description: "Path to the file to read (relative or absolute).",
+      description: "Path to the file to read (relative or absolute)",
     }),
     offset: Type.Optional(
       Type.Number({
-        description: "Line number to start reading from (1-indexed).",
+        description: "Line number to start reading from (1-indexed)",
       }),
     ),
     limit: Type.Optional(
-      Type.Number({ description: "Maximum number of lines to read." }),
+      Type.Number({ description: "Maximum number of lines to read" }),
     ),
   },
   { additionalProperties: false },
 );
 
-const listParameters = Type.Object(
+const bashParameters = Type.Object(
   {
-    path: Type.Optional(
-      Type.String({
-        description: "Directory to list. Defaults to the project directory.",
-      }),
+    command: Type.String({ description: "Bash command to execute" }),
+    timeout: Type.Optional(
+      Type.Number({ description: "Timeout in seconds, capped by the executor" }),
     ),
-    recursive: Type.Optional(
-      Type.Boolean({ description: "Whether to recursively list descendants." }),
-    ),
-    maxEntries: Type.Optional(
-      Type.Number({ description: "Maximum number of entries to return." }),
-    ),
-  },
-  { additionalProperties: false },
-);
-
-const searchParameters = Type.Object(
-  {
-    path: Type.Optional(
-      Type.String({
-        description:
-          "Directory or file to search. Defaults to the project directory.",
-      }),
-    ),
-    pattern: Type.String({
-      description: "Text or regular expression pattern to search for.",
-    }),
-    regex: Type.Optional(
-      Type.Boolean({
-        description: "Treat pattern as a JavaScript regular expression.",
-      }),
-    ),
-    maxResults: Type.Optional(
-      Type.Number({
-        description: "Maximum number of matching lines to return.",
-      }),
-    ),
-  },
-  { additionalProperties: false },
-);
-
-const writeParameters = Type.Object(
-  {
-    path: Type.String({ description: "Path to write (relative or absolute)." }),
-    content: Type.String({ description: "UTF-8 file content to write." }),
   },
   { additionalProperties: false },
 );
@@ -139,148 +99,71 @@ function prepareEditArguments(input: unknown): EditParameters {
   return args as EditParameters;
 }
 
-const bashParameters = Type.Object(
+const writeParameters = Type.Object(
   {
-    command: Type.String({ description: "Bounded shell command to execute." }),
-    cwd: Type.Optional(
+    path: Type.String({ description: "Path to write (relative or absolute)" }),
+    content: Type.String({ description: "File content to write" }),
+  },
+  { additionalProperties: false },
+);
+
+const grepParameters = Type.Object(
+  {
+    pattern: Type.String({
+      description: "Search pattern (regex or literal string)",
+    }),
+    path: Type.Optional(
       Type.String({
-        description: "Working directory relative to the project directory.",
+        description: "Directory or file to search (default: current directory)",
       }),
     ),
-    timeoutMs: Type.Optional(
+    glob: Type.Optional(
+      Type.String({
+        description: "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'",
+      }),
+    ),
+    ignoreCase: Type.Optional(
+      Type.Boolean({ description: "Case-insensitive search (default: false)" }),
+    ),
+    literal: Type.Optional(
+      Type.Boolean({
+        description: "Treat pattern as literal string instead of regex (default: false)",
+      }),
+    ),
+    context: Type.Optional(
       Type.Number({
-        description: "Timeout in milliseconds, capped by the executor.",
+        description: "Number of lines to show before and after each match (default: 0)",
       }),
-    ),
-  },
-  { additionalProperties: false },
-);
-
-const processStartParameters = Type.Object(
-  {
-    name: Type.Optional(
-      Type.String({
-        description: "Stable process name for later stop/restart/log queries.",
-      }),
-    ),
-    command: Type.String({ description: "Long-running command to supervise." }),
-    cwd: Type.Optional(
-      Type.String({
-        description: "Working directory relative to the project directory.",
-      }),
-    ),
-    env: Type.Optional(
-      Type.Record(Type.String(), Type.String(), {
-        description: "Additional environment variables.",
-      }),
-    ),
-    readyOnUrl: Type.Optional(
-      Type.Boolean({ description: "Mark ready when a URL appears in output." }),
-    ),
-    readyPattern: Type.Optional(
-      Type.String({
-        description: "Regex pattern that marks the process ready.",
-      }),
-    ),
-    readyTimeoutMs: Type.Optional(
-      Type.Number({ description: "Maximum readiness wait in milliseconds." }),
-    ),
-  },
-  { additionalProperties: false },
-);
-
-const processIdOrNameParameters = Type.Object(
-  {
-    processId: Type.Optional(Type.String({ description: "Process id." })),
-    name: Type.Optional(
-      Type.String({ description: "Process name within this project." }),
-    ),
-  },
-  { additionalProperties: false },
-);
-
-const processStopParameters = Type.Object(
-  {
-    processId: Type.Optional(Type.String({ description: "Process id." })),
-    name: Type.Optional(
-      Type.String({ description: "Process name within this project." }),
-    ),
-    signal: Type.Optional(
-      Type.Union(
-        [
-          Type.Literal("SIGTERM"),
-          Type.Literal("SIGINT"),
-          Type.Literal("SIGKILL"),
-        ],
-        {
-          description: "Signal to send.",
-        },
-      ),
-    ),
-    timeoutMs: Type.Optional(
-      Type.Number({ description: "Grace period before escalation." }),
-    ),
-  },
-  { additionalProperties: false },
-);
-
-const processListParameters = Type.Object({}, { additionalProperties: false });
-
-const processLogsParameters = Type.Object(
-  {
-    processId: Type.Optional(Type.String({ description: "Process id." })),
-    name: Type.Optional(
-      Type.String({ description: "Process name within this project." }),
-    ),
-    mode: Type.Optional(
-      Type.Union([
-        Type.Literal("recent"),
-        Type.Literal("errors"),
-        Type.Literal("warnings"),
-        Type.Literal("since_cursor"),
-        Type.Literal("first_failure"),
-      ]),
-    ),
-    sinceSeq: Type.Optional(
-      Type.Number({ description: "Only return events after this sequence." }),
-    ),
-    contains: Type.Optional(
-      Type.String({ description: "Case-insensitive substring filter." }),
-    ),
-    regex: Type.Optional(
-      Type.String({ description: "Regular expression filter." }),
-    ),
-    contextLines: Type.Optional(
-      Type.Number({ description: "Lines of context around matches." }),
     ),
     limit: Type.Optional(
-      Type.Number({ description: "Maximum events to return." }),
+      Type.Number({ description: "Maximum number of matches to return (default: 100)" }),
     ),
   },
   { additionalProperties: false },
 );
 
-const subagentRunParameters = Type.Object(
+const findParameters = Type.Object(
   {
-    task: Type.String({
-      description: "Delegated research or review task for the child agent.",
+    pattern: Type.String({
+      description: "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'",
     }),
-    mode: Type.Optional(
-      Type.Union([Type.Literal("planning"), Type.Literal("coding")]),
+    path: Type.Optional(
+      Type.String({ description: "Directory to search in (default: current directory)" }),
     ),
-    permissionLevel: Type.Optional(
-      Type.Union([
-        Type.Literal("read_only"),
-        Type.Literal("supervised"),
-        Type.Literal("autonomous"),
-      ]),
+    limit: Type.Optional(
+      Type.Number({ description: "Maximum number of results (default: 1000)" }),
     ),
-    workspaceRoots: Type.Optional(
-      Type.Array(
-        Type.String({
-          description: "Workspace root relative to project directory.",
-        }),
-      ),
+  },
+  { additionalProperties: false },
+);
+
+const lsParameters = Type.Object(
+  {
+    path: Type.Optional(
+      Type.String({ description: "Directory to list (default: current directory)" }),
+    ),
+    limit: Type.Optional(
+      Type.Number({ description: "Maximum number of entries to return (default: 500)" }),
     ),
   },
   { additionalProperties: false },
@@ -291,142 +174,93 @@ export const coreToolDefinitions = [
     name: "read",
     label: "read",
     description:
-      "Read UTF-8 file contents. Use offset and limit to continue through large files.",
-    promptSnippet: "Read file contents by path.",
+      "Read file contents. Supports offset and limit to continue through large files.",
+    promptSnippet: "Read file contents",
     promptGuidelines: ["Use read to examine files instead of cat or sed."],
     parameters: readParameters,
     executionMode: "parallel",
   },
   {
-    name: "list",
-    label: "list",
-    description: "List files and folders, optionally recursively.",
-    promptSnippet: "List files and folders.",
-    promptGuidelines: [
-      "Use list for directory overviews before reading specific files.",
-    ],
-    parameters: listParameters,
-    executionMode: "parallel",
-  },
-  {
-    name: "search",
-    label: "search",
-    description: "Search file contents by text or regular expression.",
-    promptSnippet: "Search file contents for text or regex patterns.",
-    promptGuidelines: [
-      "Use search to locate symbols, text, and relevant files quickly.",
-    ],
-    parameters: searchParameters,
-    executionMode: "parallel",
-  },
-  {
-    name: "write",
-    label: "write",
-    description: "Write a UTF-8 file with crash-safe replacement.",
-    promptSnippet: "Write complete UTF-8 file contents.",
-    promptGuidelines: [
-      "Use write only when creating a new file or replacing a whole file intentionally.",
-    ],
-    parameters: writeParameters,
+    name: "bash",
+    label: "bash",
+    description:
+      "Execute a bash command in the current working directory. Returns stdout and stderr. Optionally provide a timeout in seconds.",
+    promptSnippet: "Execute bash commands (ls, grep, find, etc.)",
+    parameters: bashParameters,
     executionMode: "sequential",
   },
   {
     name: "edit",
     label: "edit",
-    description: "Apply exact targeted text replacements to a UTF-8 file.",
-    promptSnippet: "Edit files by exact unique text replacement.",
+    description:
+      "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+    promptSnippet:
+      "Make precise file edits with exact text replacement, including multiple disjoint edits in one call",
     promptGuidelines: [
-      "Use edit for precise changes. Every oldText must match exactly once.",
-      "When changing multiple nearby regions in one file, send them in a single edit call.",
+      "Use edit for precise changes (edits[].oldText must match exactly)",
+      "When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls",
+      "Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
+      "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
     ],
     parameters: editParameters,
     prepareArguments: prepareEditArguments,
     executionMode: "sequential",
   },
   {
-    name: "bash",
-    label: "bash",
-    description: "Run a bounded shell command in a workspace directory.",
-    promptSnippet: "Run bounded shell commands.",
-    promptGuidelines: [
-      "Use bash for short-lived commands only.",
-      "Do not use bash for long-running dev servers or watchers; use process_start instead.",
-    ],
-    parameters: bashParameters,
+    name: "write",
+    label: "write",
+    description:
+      "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+    promptSnippet: "Create or overwrite files",
+    promptGuidelines: ["Use write only for new files or complete rewrites."],
+    parameters: writeParameters,
     executionMode: "sequential",
   },
   {
-    name: "process_start",
-    label: "process_start",
-    description: "Start a supervised background process and capture logs.",
-    promptSnippet: "Start supervised long-running processes and capture logs.",
-    promptGuidelines: [
-      "Use process_start for dev servers, watchers, daemons, and other long-running commands.",
-    ],
-    parameters: processStartParameters,
-    executionMode: "sequential",
-  },
-  {
-    name: "process_stop",
-    label: "process_stop",
-    description: "Stop a supervised background process.",
-    promptSnippet: "Stop a supervised background process.",
-    parameters: processStopParameters,
-    executionMode: "sequential",
-  },
-  {
-    name: "process_restart",
-    label: "process_restart",
-    description: "Restart a supervised background process.",
-    promptSnippet: "Restart a supervised background process.",
-    parameters: processIdOrNameParameters,
-    executionMode: "sequential",
-  },
-  {
-    name: "process_list",
-    label: "process_list",
-    description: "List supervised background processes for this project.",
-    promptSnippet: "List supervised background processes.",
-    parameters: processListParameters,
+    name: "grep",
+    label: "grep",
+    description:
+      "Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore when using ripgrep.",
+    promptSnippet: "Search file contents for patterns (respects .gitignore)",
+    parameters: grepParameters,
     executionMode: "parallel",
   },
   {
-    name: "process_logs",
-    label: "process_logs",
-    description: "Query captured background process logs.",
-    promptSnippet: "Query supervised process logs.",
-    promptGuidelines: [
-      "Use process_logs to inspect server errors instead of restarting processes blindly.",
-    ],
-    parameters: processLogsParameters,
+    name: "find",
+    label: "find",
+    description:
+      "Search for files by glob pattern. Returns matching file paths relative to the search directory. Respects .gitignore when using fd.",
+    promptSnippet: "Find files by glob pattern (respects .gitignore)",
+    parameters: findParameters,
     executionMode: "parallel",
   },
   {
-    name: "subagent_run",
-    label: "subagent_run",
-    description: "Run a bounded child agent for delegated research or review.",
-    promptSnippet: "Delegate bounded research or review to a child agent.",
-    promptGuidelines: [
-      "Use subagent_run for independent research tasks when parallel investigation helps.",
-    ],
-    parameters: subagentRunParameters,
-    executionMode: "sequential",
+    name: "ls",
+    label: "ls",
+    description:
+      "List directory contents. Returns entries sorted alphabetically, with '/' suffix for directories. Includes dotfiles.",
+    promptSnippet: "List directory contents",
+    parameters: lsParameters,
+    executionMode: "parallel",
   },
 ] satisfies CoreToolDefinition[];
 
-export function coreToolDefinitionByName(name: ToolName): CoreToolDefinition {
+export function coreToolDefinitionByName(
+  name: CoreToolName,
+): CoreToolDefinition {
   const definition = coreToolDefinitions.find((tool) => tool.name === name);
-  if (!definition) throw new Error(`Unknown tool: ${name}`);
+  if (!definition) throw new Error(`Unknown core tool: ${name}`);
   return definition;
 }
 
 const toolRisks: Record<ToolName, ToolRisk> = {
   read: "read",
-  list: "read",
-  search: "read",
-  write: "workspace_write",
-  edit: "workspace_write",
   bash: "command",
+  edit: "workspace_write",
+  write: "workspace_write",
+  grep: "read",
+  find: "read",
+  ls: "read",
   process_start: "command",
   process_stop: "destructive",
   process_restart: "destructive",

@@ -429,19 +429,32 @@ export const promptRequestSchema = z.object({
 });
 export type PromptRequest = z.infer<typeof promptRequestSchema>;
 
-export const toolNameSchema = z.enum([
+export const coreToolNameSchema = z.enum([
   "read",
-  "write",
-  "edit",
   "bash",
-  "list",
-  "search",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+]);
+export type CoreToolName = z.infer<typeof coreToolNameSchema>;
+
+export const orchestrationToolNameSchema = z.enum([
   "process_start",
   "process_stop",
   "process_restart",
   "process_list",
   "process_logs",
   "subagent_run",
+]);
+export type OrchestrationToolName = z.infer<
+  typeof orchestrationToolNameSchema
+>;
+
+export const toolNameSchema = z.enum([
+  ...coreToolNameSchema.options,
+  ...orchestrationToolNameSchema.options,
 ]);
 export type ToolName = z.infer<typeof toolNameSchema>;
 
