@@ -37,7 +37,6 @@ import type {
   AgentHarnessPhase,
   AgentHarnessResources,
   AgentHarnessStreamOptions,
-  AgentHarnessStreamOptionsPatch,
   ExecutionEnv,
   NavigateTreeResult,
   PendingSessionWrite,
@@ -45,13 +44,19 @@ import type {
   Session,
   Skill,
 } from "./types.js";
+import { validateToolNames, validateUniqueNames } from "./configuration.js";
+import { AgentHarnessError } from "./errors.js";
 import {
-  AgentHarnessError,
-  BranchSummaryError,
-  CompactionError,
-  SessionError,
-  toError,
-} from "./types.js";
+  AgentHarnessEventHub,
+  normalizeHarnessError,
+  normalizeHookError,
+} from "./harness-events.js";
+import { toError } from "./result.js";
+import { cloneStreamOptions, mergeHeaders } from "./stream-options.js";
+import {
+  createTurnState as createAgentHarnessTurnState,
+  type AgentHarnessTurnState,
+} from "./turn-state.js";
 
 function createUserMessage(text: string, images?: ImageContent[]): UserMessage {
   const content: Array<{ type: "text"; text: string } | ImageContent> = [
@@ -86,127 +91,6 @@ function createFailureMessage(
   };
 }
 
-function cloneStreamOptions(
-  streamOptions?: AgentHarnessStreamOptions,
-): AgentHarnessStreamOptions {
-  return {
-    ...streamOptions,
-    headers: streamOptions?.headers ? { ...streamOptions.headers } : undefined,
-    metadata: streamOptions?.metadata
-      ? { ...streamOptions.metadata }
-      : undefined,
-  };
-}
-
-function mergeHeaders(
-  ...headers: Array<Record<string, string> | undefined>
-): Record<string, string> | undefined {
-  const merged: Record<string, string> = {};
-  let hasHeaders = false;
-  for (const entry of headers) {
-    if (!entry) continue;
-    Object.assign(merged, entry);
-    hasHeaders = true;
-  }
-  return hasHeaders ? merged : undefined;
-}
-
-function findDuplicateNames(names: string[]): string[] {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-  for (const name of names) {
-    if (seen.has(name)) duplicates.add(name);
-    seen.add(name);
-  }
-  return [...duplicates];
-}
-
-function applyStreamOptionsPatch(
-  base: AgentHarnessStreamOptions,
-  patch?: AgentHarnessStreamOptionsPatch,
-): AgentHarnessStreamOptions {
-  const result = cloneStreamOptions(base);
-  if (!patch) return result;
-
-  if (Object.hasOwn(patch, "transport")) result.transport = patch.transport;
-  if (Object.hasOwn(patch, "timeoutMs")) result.timeoutMs = patch.timeoutMs;
-  if (Object.hasOwn(patch, "maxRetries")) result.maxRetries = patch.maxRetries;
-  if (Object.hasOwn(patch, "maxRetryDelayMs"))
-    result.maxRetryDelayMs = patch.maxRetryDelayMs;
-  if (Object.hasOwn(patch, "cacheRetention"))
-    result.cacheRetention = patch.cacheRetention;
-
-  if (Object.hasOwn(patch, "headers")) {
-    if (patch.headers === undefined) {
-      result.headers = undefined;
-    } else {
-      const headers = { ...(result.headers ?? {}) };
-      for (const [key, value] of Object.entries(patch.headers)) {
-        if (value === undefined) delete headers[key];
-        else headers[key] = value;
-      }
-      result.headers = Object.keys(headers).length > 0 ? headers : undefined;
-    }
-  }
-
-  if (Object.hasOwn(patch, "metadata")) {
-    if (patch.metadata === undefined) {
-      result.metadata = undefined;
-    } else {
-      const metadata = { ...(result.metadata ?? {}) };
-      for (const [key, value] of Object.entries(patch.metadata)) {
-        if (value === undefined) delete metadata[key];
-        else metadata[key] = value;
-      }
-      result.metadata = Object.keys(metadata).length > 0 ? metadata : undefined;
-    }
-  }
-
-  return result;
-}
-
-const SUBSCRIBER_EVENT_TYPE = "*";
-
-type AgentHarnessHandler = (
-  event: any,
-  signal?: AbortSignal,
-) => Promise<any> | any;
-
-function normalizeHarnessError(
-  error: unknown,
-  fallbackCode: AgentHarnessError["code"],
-): AgentHarnessError {
-  if (error instanceof AgentHarnessError) return error;
-  const cause = toError(error);
-  if (cause instanceof SessionError)
-    return new AgentHarnessError("session", cause.message, cause);
-  if (cause instanceof CompactionError)
-    return new AgentHarnessError("compaction", cause.message, cause);
-  if (cause instanceof BranchSummaryError)
-    return new AgentHarnessError("branch_summary", cause.message, cause);
-  return new AgentHarnessError(fallbackCode, cause.message, cause);
-}
-
-function normalizeHookError(error: unknown): AgentHarnessError {
-  return normalizeHarnessError(error, "hook");
-}
-
-interface AgentHarnessTurnState<
-  TSkill extends Skill = Skill,
-  TPromptTemplate extends PromptTemplate = PromptTemplate,
-  TTool extends AgentTool = AgentTool,
-> {
-  messages: AgentMessage[];
-  resources: AgentHarnessResources<TSkill, TPromptTemplate>;
-  streamOptions: AgentHarnessStreamOptions;
-  sessionId: string;
-  systemPrompt: string;
-  model: Model<any>;
-  thinkingLevel: ThinkingLevel;
-  tools: TTool[];
-  activeTools: TTool[];
-}
-
 export class AgentHarness<
   TSkill extends Skill = Skill,
   TPromptTemplate extends PromptTemplate = PromptTemplate,
@@ -235,7 +119,7 @@ export class AgentHarness<
   private followUpQueue: UserMessage[] = [];
   private followUpQueueMode: QueueMode;
   private nextTurnQueue: AgentMessage[] = [];
-  private handlers = new Map<string, Set<AgentHarnessHandler>>();
+  private events = new AgentHarnessEventHub<TSkill, TPromptTemplate>();
 
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
     this.env = options.env;
@@ -265,53 +149,24 @@ export class AgentHarness<
     this.followUpQueueMode = options.followUpMode ?? "one-at-a-time";
   }
 
-  private getHandlers(type: string): Set<AgentHarnessHandler> | undefined {
-    return this.handlers.get(type);
-  }
-
   private async emitOwn(
     event: AgentHarnessOwnEvent<TSkill, TPromptTemplate>,
     signal?: AbortSignal,
   ): Promise<void> {
-    for (const listener of this.getHandlers(SUBSCRIBER_EVENT_TYPE) ?? []) {
-      try {
-        await listener(event, signal);
-      } catch (error) {
-        throw normalizeHookError(error);
-      }
-    }
+    await this.events.emitOwn(event, signal);
   }
 
   private async emitAny(
     event: AgentHarnessEvent<TSkill, TPromptTemplate>,
     signal?: AbortSignal,
   ): Promise<void> {
-    for (const listener of this.getHandlers(SUBSCRIBER_EVENT_TYPE) ?? []) {
-      try {
-        await listener(event, signal);
-      } catch (error) {
-        throw normalizeHookError(error);
-      }
-    }
+    await this.events.emitAny(event, signal);
   }
 
   private async emitHook<TType extends keyof AgentHarnessEventResultMap>(
     event: Extract<AgentHarnessOwnEvent, { type: TType }>,
   ): Promise<AgentHarnessEventResultMap[TType] | undefined> {
-    const handlers = this.getHandlers(event.type as TType);
-    if (!handlers || handlers.size === 0) return undefined;
-    let lastResult: AgentHarnessEventResultMap[TType] | undefined;
-    for (const handler of handlers) {
-      try {
-        const result = await handler(event);
-        if (result !== undefined) {
-          lastResult = result;
-        }
-      } catch (error) {
-        throw normalizeHookError(error);
-      }
-    }
-    return lastResult;
+    return this.events.emitHook(event);
   }
 
   private async emitBeforeProviderRequest(
@@ -319,49 +174,14 @@ export class AgentHarness<
     sessionId: string,
     streamOptions: AgentHarnessStreamOptions,
   ): Promise<AgentHarnessStreamOptions> {
-    const handlers = this.getHandlers("before_provider_request");
-    let current = cloneStreamOptions(streamOptions);
-    if (!handlers || handlers.size === 0) return current;
-    for (const handler of handlers) {
-      try {
-        const result = await handler({
-          type: "before_provider_request",
-          model,
-          sessionId,
-          streamOptions: cloneStreamOptions(current),
-        });
-        if (result?.streamOptions) {
-          current = applyStreamOptionsPatch(current, result.streamOptions);
-        }
-      } catch (error) {
-        throw normalizeHookError(error);
-      }
-    }
-    return current;
+    return this.events.emitBeforeProviderRequest(model, sessionId, streamOptions);
   }
 
   private async emitBeforeProviderPayload(
     model: Model<any>,
     payload: unknown,
   ): Promise<unknown> {
-    const handlers = this.getHandlers("before_provider_payload");
-    let current = payload;
-    if (!handlers || handlers.size === 0) return current;
-    for (const handler of handlers) {
-      try {
-        const result = await handler({
-          type: "before_provider_payload",
-          model,
-          payload: current,
-        });
-        if (result !== undefined) {
-          current = result.payload;
-        }
-      } catch (error) {
-        throw normalizeHookError(error);
-      }
-    }
-    return current;
+    return this.events.emitBeforeProviderPayload(model, payload);
   }
 
   private async emitQueueUpdate(): Promise<void> {
@@ -387,37 +207,17 @@ export class AgentHarness<
   private async createTurnState(): Promise<
     AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>
   > {
-    const context = await this.session.buildContext();
-    const resources = this.getResources();
-    const sessionMetadata = await this.session.getMetadata();
-    const tools = [...this.tools.values()];
-    const activeTools = this.activeToolNames
-      .map((name) => this.tools.get(name))
-      .filter((tool): tool is TTool => tool !== undefined);
-    let systemPrompt = "You are a helpful assistant.";
-    if (typeof this.systemPrompt === "string") {
-      systemPrompt = this.systemPrompt;
-    } else if (this.systemPrompt) {
-      systemPrompt = await this.systemPrompt({
-        env: this.env,
-        session: this.session,
-        model: this.model,
-        thinkingLevel: this.thinkingLevel,
-        activeTools,
-        resources,
-      });
-    }
-    return {
-      messages: context.messages,
-      resources,
-      streamOptions: cloneStreamOptions(this.streamOptions),
-      sessionId: sessionMetadata.id,
-      systemPrompt,
+    return createAgentHarnessTurnState({
+      env: this.env,
+      session: this.session,
+      resources: this.getResources(),
+      streamOptions: this.streamOptions,
+      systemPrompt: this.systemPrompt,
       model: this.model,
       thinkingLevel: this.thinkingLevel,
-      tools,
-      activeTools,
-    };
+      tools: this.tools,
+      activeToolNames: this.activeToolNames,
+    });
   }
 
   private createContext(
@@ -557,25 +357,14 @@ export class AgentHarness<
   }
 
   private validateUniqueNames(names: string[], message: string): void {
-    const duplicates = findDuplicateNames(names);
-    if (duplicates.length > 0)
-      throw new AgentHarnessError(
-        "invalid_argument",
-        `${message}: ${duplicates.join(", ")}`,
-      );
+    validateUniqueNames(names, message);
   }
 
   private validateToolNames(
     toolNames: string[],
     tools: Map<string, TTool> = this.tools,
   ): void {
-    this.validateUniqueNames(toolNames, "Duplicate active tool name(s)");
-    const missing = toolNames.filter((name) => !tools.has(name));
-    if (missing.length > 0)
-      throw new AgentHarnessError(
-        "invalid_argument",
-        `Unknown tool(s): ${missing.join(", ")}`,
-      );
+    validateToolNames(toolNames, tools);
   }
 
   private async flushPendingSessionWrites(): Promise<void> {
@@ -1310,13 +1099,7 @@ export class AgentHarness<
       signal?: AbortSignal,
     ) => Promise<void> | void,
   ): () => void {
-    let handlers = this.handlers.get(SUBSCRIBER_EVENT_TYPE);
-    if (!handlers) {
-      handlers = new Set();
-      this.handlers.set(SUBSCRIBER_EVENT_TYPE, handlers);
-    }
-    handlers.add(listener as AgentHarnessHandler);
-    return () => handlers!.delete(listener as AgentHarnessHandler);
+    return this.events.subscribe(listener);
   }
 
   on<TType extends keyof AgentHarnessEventResultMap>(
@@ -1327,12 +1110,6 @@ export class AgentHarness<
       | Promise<AgentHarnessEventResultMap[TType]>
       | AgentHarnessEventResultMap[TType],
   ): () => void {
-    let handlers = this.handlers.get(type);
-    if (!handlers) {
-      handlers = new Set();
-      this.handlers.set(type, handlers);
-    }
-    handlers.add(handler as AgentHarnessHandler);
-    return () => handlers!.delete(handler as AgentHarnessHandler);
+    return this.events.on(type, handler);
   }
 }
