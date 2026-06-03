@@ -49,6 +49,10 @@ export class EventBus {
     return event;
   }
 
+  get latestSeq(): number {
+    return this.#seq;
+  }
+
   replaySince(seq = 0): EventEnvelope[] {
     return this.#events.filter((event) => event.seq > seq);
   }

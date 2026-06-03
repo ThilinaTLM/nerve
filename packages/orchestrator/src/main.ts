@@ -78,13 +78,19 @@ async function main() {
       return;
     }
     webSockets.handleUpgrade(request, socket, head, (ws) => {
-      const since = Number(url.searchParams.get("since") ?? "0");
-      const replayAfter = Number.isFinite(since) ? since : 0;
-      void state.events.replayPersistedSince(replayAfter).then((events) => {
-        for (const event of events) {
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
-        }
-      });
+      const sinceParam = url.searchParams.get("since");
+      const since = sinceParam === null ? undefined : Number(sinceParam);
+      const replayAfter =
+        since === undefined || !Number.isFinite(since)
+          ? state.events.latestSeq
+          : since;
+      if (since !== undefined && Number.isFinite(since)) {
+        void state.events.replayPersistedSince(replayAfter).then((events) => {
+          for (const event of events) {
+            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
+          }
+        });
+      }
       const unsubscribe = state.events.subscribe((event) => {
         if (event.seq > replayAfter && ws.readyState === WebSocket.OPEN)
           ws.send(JSON.stringify(event));
