@@ -3,13 +3,17 @@
   import ChevronsRight from "lucide-svelte/icons/chevrons-right";
   import Clipboard from "lucide-svelte/icons/clipboard";
   import Copy from "lucide-svelte/icons/copy";
+  import FolderKanban from "lucide-svelte/icons/folder-kanban";
   import FolderOpen from "lucide-svelte/icons/folder-open";
   import Info from "lucide-svelte/icons/info";
+  import Plus from "lucide-svelte/icons/plus";
   import Sparkles from "lucide-svelte/icons/sparkles";
   import TextQuote from "lucide-svelte/icons/text-quote";
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
+  import { buildProjectGroups, shortProjectLabel } from "../../utils/project-tree";
+  import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
   import ContextMenu, { type ContextMenuItem } from "../ui/ContextMenu.svelte";
   import PromptComposer from "./PromptComposer.svelte";
@@ -25,6 +29,10 @@
     activeProject?: ProjectRecord;
     activeSession?: SessionRecord;
     activeAgent?: AgentRecord;
+    projects?: ProjectRecord[];
+    sessions?: SessionRecord[];
+    agents?: AgentRecord[];
+    homeDir?: string;
     approvals?: ApprovalWithToolCall[];
     transcript?: TranscriptItem[];
     streamingText?: string;
@@ -42,6 +50,7 @@
     onSubmit?: () => void;
     onAbort?: () => void;
     onOpenProject?: () => void;
+    onNewConversationInProject?: (projectDir: string) => void;
     onModelChange?: (value: string) => void;
     onModeChange?: (value: AgentRecord["mode"]) => void;
     onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
@@ -53,6 +62,10 @@
     activeProject,
     activeSession,
     activeAgent,
+    projects = [],
+    sessions = [],
+    agents = [],
+    homeDir,
     approvals = [],
     transcript = [],
     streamingText = "",
@@ -70,12 +83,15 @@
     onSubmit,
     onAbort,
     onOpenProject,
+    onNewConversationInProject,
     onModelChange,
     onModeChange,
     onPermissionChange,
     onGrantApproval,
     onDenyApproval,
   }: Props = $props();
+
+  const recentProjectGroups = $derived.by(() => buildProjectGroups({ projects, sessions, agents }).slice(0, 6));
 
   function roleLabel(item: TranscriptItem) {
     if (item.kind && item.kind !== "message") return item.kind.replace("_", " ");
@@ -190,13 +206,45 @@
     />
   {:else}
     <div class="start-panel">
-      <div class="start-card">
-        <span class="eyebrow">Local workbench</span>
-        <div class="start-icon"><Sparkles size={28} strokeWidth={1.8} /></div>
-        <strong>Open a project to start</strong>
-        <p>Select a local project directory. Nerve will create a scoped coding agent conversation for that workspace.</p>
-        <Button size="sm" onclick={onOpenProject}><FolderOpen size={13} strokeWidth={2.2} />Open Local Project</Button>
-      </div>
+      {#if recentProjectGroups.length > 0}
+        <div class="start-card recent-card">
+          <div class="start-header">
+            <span class="eyebrow">Local workbench</span>
+            <strong>Recent projects</strong>
+            <p>Start a fresh conversation in a workspace you already use.</p>
+          </div>
+
+          <div class="recent-project-list" role="list" aria-label="Recent projects">
+            {#each recentProjectGroups as group}
+              <article class="recent-project-row" role="listitem">
+                <div class="recent-project-main">
+                  <span class="recent-project-icon"><FolderKanban size={15} strokeWidth={2.15} /></span>
+                  <div class="recent-project-text">
+                    <strong>{group.project.name}</strong>
+                    <small title={group.project.dir}>{shortProjectLabel(group.project.dir, homeDir)}</small>
+                  </div>
+                </div>
+                <Badge size="xs" tone="neutral">{group.rows.length} {group.rows.length === 1 ? "conversation" : "conversations"}</Badge>
+                <Button size="sm" onclick={() => onNewConversationInProject?.(group.project.dir)}>
+                  <Plus size={13} strokeWidth={2.2} />New conversation
+                </Button>
+              </article>
+            {/each}
+          </div>
+
+          <div class="start-actions">
+            <Button variant="secondary" size="sm" onclick={onOpenProject}><FolderOpen size={13} strokeWidth={2.2} />Open another project</Button>
+          </div>
+        </div>
+      {:else}
+        <div class="start-card">
+          <span class="eyebrow">Local workbench</span>
+          <div class="start-icon"><Sparkles size={28} strokeWidth={1.8} /></div>
+          <strong>Open a project to start</strong>
+          <p>Select a local project directory. Nerve will create a scoped coding agent conversation for that workspace.</p>
+          <Button size="sm" onclick={onOpenProject}><FolderOpen size={13} strokeWidth={2.2} />Open Local Project</Button>
+        </div>
+      {/if}
     </div>
   {/if}
 </section>
@@ -355,6 +403,98 @@
   .start-panel strong {
     color: hsl(var(--foreground));
     font-size: var(--text-lg);
+  }
+
+  .start-header {
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    text-align: center;
+  }
+
+  .recent-card {
+    width: min(42rem, calc(100vw - 2rem));
+    max-width: 42rem;
+    justify-items: stretch;
+    padding: 1.35rem;
+    text-align: left;
+  }
+
+  .recent-project-list {
+    display: grid;
+    gap: 0.22rem;
+  }
+
+  .recent-project-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.55rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    padding: 0.5rem;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+
+  .recent-project-row:hover,
+  .recent-project-row:focus-within {
+    border-color: hsl(var(--border) / 0.75);
+    background: hsl(var(--accent));
+  }
+
+  .recent-project-main {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .recent-project-icon {
+    display: inline-grid;
+    width: 1.65rem;
+    height: 1.65rem;
+    place-items: center;
+    border: 1px solid hsl(var(--border) / 0.7);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--secondary));
+    color: hsl(var(--foreground));
+  }
+
+  .recent-project-text {
+    display: grid;
+    min-width: 0;
+    gap: 0.08rem;
+  }
+
+  .recent-project-text strong {
+    overflow: hidden;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent-project-text small {
+    overflow: hidden;
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .start-actions {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.25rem;
+  }
+
+  @media (max-width: 760px) {
+    .recent-project-row {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+    }
   }
 
   @keyframes pulse {

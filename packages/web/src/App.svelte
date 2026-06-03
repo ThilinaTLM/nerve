@@ -201,6 +201,10 @@
               {activeProject}
               {activeSession}
               {activeAgent}
+              {projects}
+              {sessions}
+              {agents}
+              homeDir={status?.storage.home}
               {approvals}
               {transcript}
               {streamingText}
@@ -218,6 +222,7 @@
               onSubmit={sendPrompt}
               onAbort={abortActiveRun}
               onOpenProject={openProjectPicker}
+              onNewConversationInProject={newConversationInProject}
               onModelChange={(value) => void setComposerModel(value)}
               onModeChange={(value) => void setComposerMode(value)}
               onPermissionChange={(value) => void setComposerPermission(value)}
