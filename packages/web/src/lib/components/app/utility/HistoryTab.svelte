@@ -1,12 +1,12 @@
 <script lang="ts">
-  import ArrowRight from "lucide-svelte/icons/arrow-right";
-  import Copy from "lucide-svelte/icons/copy";
-  import GitBranch from "lucide-svelte/icons/git-branch";
-  import Sparkles from "lucide-svelte/icons/sparkles";
+  import ArrowRight from "@lucide/svelte/icons/arrow-right";
+  import Copy from "@lucide/svelte/icons/copy";
+  import GitBranch from "@lucide/svelte/icons/git-branch";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
   import { toast } from "svelte-sonner";
   import type { SessionRecord, SessionTreeNode } from "../../../api";
-  import Button from "../../ui/Button.svelte";
-  import ContextMenu, { type ContextMenuItem } from "../../ui/ContextMenu.svelte";
+  import { Button } from "$lib/components/ui/button";
+  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
 
   type Props = {
     activeSession?: SessionRecord;

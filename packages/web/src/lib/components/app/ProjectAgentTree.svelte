@@ -1,19 +1,19 @@
 <script lang="ts">
-  import ArrowRight from "lucide-svelte/icons/arrow-right";
-  import ChevronDown from "lucide-svelte/icons/chevron-down";
-  import Copy from "lucide-svelte/icons/copy";
-  import Plus from "lucide-svelte/icons/plus";
-  import Search from "lucide-svelte/icons/search";
-  import Trash2 from "lucide-svelte/icons/trash-2";
+  import ArrowRight from "@lucide/svelte/icons/arrow-right";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
+  import Copy from "@lucide/svelte/icons/copy";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Search from "@lucide/svelte/icons/search";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
   import { Collapsible } from "bits-ui";
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
-  import AlertDialog from "../ui/AlertDialog.svelte";
-  import Badge from "../ui/Badge.svelte";
-  import Button from "../ui/Button.svelte";
-  import ContextMenu, { type ContextMenuItem } from "../ui/ContextMenu.svelte";
-  import Input from "../ui/Input.svelte";
-  import ScrollArea from "../ui/ScrollArea.svelte";
+  import AlertDialog from "$lib/components/ui/confirm-dialog";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import { Input } from "$lib/components/ui/input";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import {
     buildProjectGroups,
     conversationMeta,
@@ -124,7 +124,7 @@
       <span>Projects</span>
       <Badge size="xs">{projectDirectoryCount}</Badge>
       <span class="section-spacer"></span>
-      <Button variant="icon" size="icon" ariaLabel="New conversation" title="New conversation" onclick={onNewConversation}>
+      <Button variant="ghost" size="icon-sm" ariaLabel="New conversation" title="New conversation" onclick={onNewConversation}>
         <Plus size={13} strokeWidth={2.25} />
       </Button>
     </div>
@@ -147,8 +147,8 @@
             </Collapsible.Trigger>
             <div class="row-actions">
               <Button
-                variant="icon"
-                size="icon"
+                variant="ghost"
+                size="icon-sm"
                 ariaLabel="New conversation"
                 title="New conversation in project"
                 onclick={() => onNewConversationInProject?.(group.project.dir)}
@@ -203,19 +203,19 @@
     height: 100%;
     min-height: 0;
     grid-template-rows: auto minmax(0, 1fr);
-    border-right: 1px solid hsl(var(--border));
-    background: hsl(var(--card));
+    border-right: 1px solid var(--border);
+    background: var(--card);
   }
 
   .section-label,
   .empty {
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: 0.6875rem;
   }
 
   .section-label {
-    letter-spacing: var(--tracking-label);
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
@@ -224,7 +224,7 @@
     display: grid;
     align-items: center;
     padding: 0.45rem;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     background: transparent;
   }
 
@@ -232,11 +232,11 @@
     position: absolute;
     left: 0.85rem;
     z-index: 1;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     pointer-events: none;
   }
 
-  .search-box :global(.ui-input) {
+  .search-box :global([data-slot="input"]) {
     padding-left: 1.75rem;
   }
 
@@ -277,7 +277,7 @@
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: hsl(var(--foreground));
+    color: var(--foreground);
     text-align: left;
     cursor: pointer;
   }
@@ -288,8 +288,8 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.36rem 0.42rem;
-    color: hsl(var(--muted-foreground));
-    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
   }
 
   .project-row-wrap.active :global(.project-row)::before,
@@ -299,19 +299,19 @@
     inset: 0 auto 0 0;
     width: 2px;
     border-radius: 999px;
-    background: hsl(var(--primary));
+    background: var(--primary);
   }
 
   :global(.project-row:hover),
   .project-row-wrap.active :global(.project-row),
   .conversation-row:hover,
   .conversation-row-wrap.selected .conversation-row {
-    border-color: hsl(var(--border) / 0.6);
-    background: hsl(var(--accent));
+    border-color: color-mix(in oklab, var(--border) 60%, transparent);
+    background: var(--accent);
   }
 
   .project-row-wrap.active :global(.project-label) {
-    color: hsl(var(--foreground));
+    color: var(--foreground);
   }
 
   :global(.project-row[data-state="closed"] .chevron) {
@@ -321,7 +321,7 @@
   .chevron {
     display: inline-grid;
     place-items: center;
-    color: hsl(var(--muted-foreground) / 0.75);
+    color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
     transition: transform 120ms ease;
   }
 
@@ -334,15 +334,15 @@
   }
 
   .project-label {
-    color: hsl(var(--muted-foreground));
-    font-size: var(--text-xs);
-    font-weight: var(--weight-normal);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 400;
   }
 
   .row-status {
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: 0.6875rem;
   }
 
   .row-actions {
@@ -367,13 +367,13 @@
     height: 1.4rem;
     min-width: 0;
     border: none;
-    background: hsl(var(--accent));
-    color: hsl(var(--muted-foreground));
+    background: var(--accent);
+    color: var(--muted-foreground);
     padding: 0;
   }
 
   .row-actions :global(.ui-button:hover) {
-    color: hsl(var(--foreground));
+    color: var(--foreground);
   }
 
   :global(.conversation-rows) {
@@ -393,8 +393,8 @@
   }
 
   .conversation-label {
-    font-size: var(--text-sm);
-    font-weight: var(--weight-normal);
+    font-size: 0.8125rem;
+    font-weight: 400;
   }
 
   .empty {

@@ -31,6 +31,17 @@ describe("executeTool dispatch", () => {
     }
   });
 
+  it("rejects ask_user because it is orchestrator-owned", async () => {
+    await assert.rejects(
+      executeTool(
+        "ask_user",
+        { question: "What should I do next?" },
+        { cwd: process.cwd() },
+      ),
+      /orchestrator user-interaction service/,
+    );
+  });
+
   it("rejects process tools because they are orchestrator-owned", async () => {
     const processTools = [
       "process_start",

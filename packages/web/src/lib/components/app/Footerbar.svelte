@@ -1,15 +1,15 @@
 <script lang="ts">
-  import GitBranch from "lucide-svelte/icons/git-branch";
-  import PanelLeft from "lucide-svelte/icons/panel-left";
-  import PanelLeftClose from "lucide-svelte/icons/panel-left-close";
-  import PanelRight from "lucide-svelte/icons/panel-right";
-  import PanelRightClose from "lucide-svelte/icons/panel-right-close";
-  import Terminal from "lucide-svelte/icons/terminal";
-  import TriangleAlert from "lucide-svelte/icons/triangle-alert";
+  import GitBranch from "@lucide/svelte/icons/git-branch";
+  import PanelLeft from "@lucide/svelte/icons/panel-left";
+  import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
+  import PanelRight from "@lucide/svelte/icons/panel-right";
+  import PanelRightClose from "@lucide/svelte/icons/panel-right-close";
+  import Terminal from "@lucide/svelte/icons/terminal";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
   import { shortenPath } from "../../utils/path";
-  import Button from "../ui/Button.svelte";
-  import StatusDot from "../ui/StatusDot.svelte";
+  import { Button } from "$lib/components/ui/button";
+  import { StatusDot } from "$lib/components/ui/status-dot";
 
   type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
   type GitStatus = { branch: string; dirty: boolean };
@@ -61,8 +61,8 @@
 <footer class="footerbar">
   <div class="footer-group">
     <Button
-      variant="icon"
-      size="icon"
+      variant="ghost"
+      size="icon-sm"
       class="footer-toggle"
       ariaLabel="Toggle agents panel"
       title={sidebarCollapsed ? "Show agents panel" : "Hide agents panel"}
@@ -106,8 +106,8 @@
     </span>
 
     <Button
-      variant="icon"
-      size="icon"
+      variant="ghost"
+      size="icon-sm"
       class="footer-toggle"
       ariaLabel="Toggle utility panel"
       title={utilityCollapsed ? "Show utility panel" : "Hide utility panel"}
@@ -129,13 +129,13 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    height: var(--size-footer);
+    height: 1.75rem;
     min-width: 0;
-    border-top: 1px solid hsl(var(--border));
-    background: hsl(var(--sidebar));
-    color: hsl(var(--muted-foreground));
+    border-top: 1px solid var(--border);
+    background: var(--sidebar);
+    color: var(--muted-foreground);
     padding: 0 0.4rem 0 0.3rem;
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
     user-select: none;
   }
 
@@ -157,7 +157,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: 0.6875rem;
   }
 
   .footer-chip {
@@ -168,15 +168,15 @@
   }
 
   .footer-chip :global(svg) {
-    color: hsl(var(--muted-foreground) / 80%);
+    color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
   }
 
   .footer-chip.warn {
-    color: hsl(var(--warning));
+    color: var(--warning);
   }
 
   .footer-chip.warn :global(svg) {
-    color: hsl(var(--warning));
+    color: var(--warning);
   }
 
   :global(.footer-toggle) {

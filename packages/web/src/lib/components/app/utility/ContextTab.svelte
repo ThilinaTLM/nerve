@@ -1,7 +1,7 @@
 <script lang="ts">
-  import Bot from "lucide-svelte/icons/bot";
-  import FileText from "lucide-svelte/icons/file-text";
-  import Info from "lucide-svelte/icons/info";
+  import Bot from "@lucide/svelte/icons/bot";
+  import FileText from "@lucide/svelte/icons/file-text";
+  import Info from "@lucide/svelte/icons/info";
   import type {
     AgentRecord,
     ProjectRecord,
@@ -9,7 +9,7 @@
     StatusResponse,
   } from "../../../api";
   import { pulseForStatus, statusTone } from "../../../utils/status";
-  import StatusDot from "../../ui/StatusDot.svelte";
+  import { StatusDot } from "$lib/components/ui/status-dot";
 
   type Props = {
     status?: StatusResponse;

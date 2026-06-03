@@ -1,16 +1,16 @@
 <script lang="ts">
-  import Copy from "lucide-svelte/icons/copy";
-  import RefreshCw from "lucide-svelte/icons/refresh-cw";
-  import RotateCw from "lucide-svelte/icons/rotate-cw";
-  import Square from "lucide-svelte/icons/square";
-  import Terminal from "lucide-svelte/icons/terminal";
+  import Copy from "@lucide/svelte/icons/copy";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import RotateCw from "@lucide/svelte/icons/rotate-cw";
+  import Square from "@lucide/svelte/icons/square";
+  import Terminal from "@lucide/svelte/icons/terminal";
   import { toast } from "svelte-sonner";
   import type { ProcessLogQueryResponse, ProcessRecord } from "../../../api";
   import { pulseForStatus, statusTone } from "../../../utils/status";
-  import Badge from "../../ui/Badge.svelte";
-  import Button from "../../ui/Button.svelte";
-  import ContextMenu, { type ContextMenuItem } from "../../ui/ContextMenu.svelte";
-  import StatusDot from "../../ui/StatusDot.svelte";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import ProcessLogTerminal from "./ProcessLogTerminal.svelte";
 
   type Props = {
@@ -103,7 +103,7 @@
       <Button size="sm" variant="secondary" onclick={() => onRestartProcess?.(selectedProcess.id)}>
         <RotateCw size={12} strokeWidth={2.3} />Restart
       </Button>
-      <Button size="sm" variant="danger" onclick={() => onStopProcess?.(selectedProcess.id)}>
+      <Button size="sm" variant="destructive" onclick={() => onStopProcess?.(selectedProcess.id)}>
         <Square size={12} strokeWidth={2.3} />Stop
       </Button>
     </div>

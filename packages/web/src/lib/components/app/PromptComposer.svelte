@@ -1,12 +1,13 @@
 <script lang="ts">
-  import Send from "lucide-svelte/icons/send";
-  import Square from "lucide-svelte/icons/square";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionRecord } from "../../api";
+  import Send from "@lucide/svelte/icons/send";
+  import Square from "@lucide/svelte/icons/square";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionRecord, UserQuestionRecord } from "../../api";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
   import { modelKey } from "../../utils/model";
-  import Button from "../ui/Button.svelte";
-  import Select, { type SelectItem } from "../ui/Select.svelte";
+  import { Button } from "$lib/components/ui/button";
+  import Select, { type SelectItem } from "$lib/components/ui/select-field";
   import ApprovalStrip from "./ApprovalStrip.svelte";
+  import UserQuestionStrip from "./UserQuestionStrip.svelte";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -16,6 +17,7 @@
     activeProject?: ProjectRecord;
     activeSession?: SessionRecord;
     approvals?: ApprovalWithToolCall[];
+    pendingUserQuestion?: UserQuestionRecord;
     live?: boolean;
     sending?: boolean;
     error?: string;
@@ -27,6 +29,8 @@
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     onChange?: (value: string) => void;
     onSubmit?: () => void;
+    onAnswerUserQuestion?: () => void;
+    onDismissUserQuestion?: () => void;
     onAbort?: () => void;
     onModelChange?: (value: string) => void;
     onModeChange?: (value: Mode) => void;
@@ -40,6 +44,7 @@
     activeProject,
     activeSession,
     approvals = [],
+    pendingUserQuestion,
     live = false,
     sending = false,
     error,
@@ -51,6 +56,8 @@
     fileCompletions,
     onChange,
     onSubmit,
+    onAnswerUserQuestion,
+    onDismissUserQuestion,
     onAbort,
     onModelChange,
     onModeChange,
@@ -60,7 +67,16 @@
   }: Props = $props();
 
   const pendingApproval = $derived(approvals.length > 0);
-  const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !pendingApproval));
+  const pendingQuestion = $derived(Boolean(pendingUserQuestion));
+  const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !pendingApproval && !pendingQuestion));
+  const canAnswerQuestion = $derived(Boolean(activeSession && live && pendingQuestion));
+  const editorDisabled = $derived(pendingApproval || (!pendingQuestion && (sending || !canPrompt)) || (pendingQuestion && !canAnswerQuestion));
+  const submitDisabled = $derived(pendingQuestion ? !canAnswerQuestion : !canPrompt);
+
+  function submitComposer() {
+    if (pendingQuestion) onAnswerUserQuestion?.();
+    else if (!pendingApproval) onSubmit?.();
+  }
   const modelItems = $derived<SelectItem[]>(models.length
     ? models.map((model) => ({
       value: modelKey(model),
@@ -81,22 +97,25 @@
   ];
 </script>
 
-<form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); if (!pendingApproval) onSubmit?.(); }}>
+<form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
   <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
+  <UserQuestionStrip question={pendingUserQuestion} onDismiss={onDismissUserQuestion} />
 
   <div class="composer-surface">
     <div class="editor-shell">
       {#if pendingApproval}
         <div class="approval-waiting" aria-live="polite">Waiting for approval to proceed…</div>
+      {:else if pendingQuestion}
+        <div class="approval-waiting" aria-live="polite">Waiting for your reply…</div>
       {/if}
       <CodeMirrorComposer
         value={text}
-        disabled={sending || !canPrompt}
-        placeholder={pendingApproval ? "Approval required before the agent can continue…" : "Ask the local Nerve agent…"}
+        disabled={editorDisabled}
+        placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingUserQuestion?.placeholder ?? (pendingQuestion ? "Reply to the agent's question…" : "Ask the local Nerve agent…")}
         {slashCompletions}
         {fileCompletions}
         onChange={onChange}
-        onSubmit={onSubmit}
+        onSubmit={submitComposer}
       />
     </div>
 
@@ -109,7 +128,7 @@
           items={modelItems}
           bind:value={selectedModelKey}
           ariaLabel="Model"
-          disabled={!activeSession || sending || models.length === 0 || pendingApproval}
+          disabled={!activeSession || sending || models.length === 0 || pendingApproval || pendingQuestion}
           onValueChange={(value) => onModelChange?.(value)}
         />
         <Select
@@ -119,7 +138,7 @@
           items={modeItems}
           value={mode}
           ariaLabel="Mode"
-          disabled={!activeSession || sending || pendingApproval}
+          disabled={!activeSession || sending || pendingApproval || pendingQuestion}
           onValueChange={(value) => onModeChange?.(value as Mode)}
         />
         <Select
@@ -129,18 +148,18 @@
           items={permissionItems}
           value={permissionLevel}
           ariaLabel="Access"
-          disabled={!activeSession || sending || pendingApproval}
+          disabled={!activeSession || sending || pendingApproval || pendingQuestion}
           onValueChange={(value) => onPermissionChange?.(value as PermissionLevel)}
         />
       </div>
 
       <div class="actions">
-        {#if sending}
-          <Button variant="secondary" size="icon" class="stop-button" onclick={onAbort} ariaLabel="Stop generation" title="Stop generation">
+        {#if sending && !pendingQuestion}
+          <Button variant="secondary" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" title="Stop generation">
             <Square size={13} strokeWidth={2.5} />
           </Button>
         {:else}
-          <Button size="icon" class="send-button" type="submit" disabled={!canPrompt} ariaLabel="Send prompt" title="Send prompt">
+          <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label={pendingQuestion ? "Send reply" : "Send prompt"} title={pendingQuestion ? "Send reply" : "Send prompt"}>
             <Send size={14} strokeWidth={2.4} />
           </Button>
         {/if}
@@ -155,17 +174,17 @@
   .composer {
     display: grid;
     gap: 0.55rem;
-    border-top: 1px solid hsl(var(--border));
-    background: hsl(var(--muted));
+    border-top: 1px solid var(--border);
+    background: var(--muted);
     padding: 0.65rem;
-    box-shadow: var(--shadow-dock);
+    box-shadow: var(--shadow-lg);
   }
 
   .composer-surface {
     overflow: hidden;
-    border: 1px solid hsl(var(--border));
+    border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    background: hsl(var(--input));
+    background: var(--input);
     box-shadow: 0 1px 0 rgb(255 255 255 / 3%) inset;
     transition:
       border-color 120ms ease,
@@ -173,8 +192,8 @@
   }
 
   .composer-surface:focus-within {
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
   }
 
   .editor-shell {
@@ -187,13 +206,13 @@
     z-index: 2;
     top: 0.45rem;
     right: 0.55rem;
-    border: 1px solid hsl(var(--accent));
+    border: 1px solid var(--accent);
     border-radius: 999px;
-    background: hsl(var(--card));
-    color: hsl(var(--primary));
+    background: var(--card);
+    color: var(--primary);
     padding: 0.12rem 0.45rem;
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: 0.6875rem;
   }
 
   .editor-shell :global(.composer-editor) {
@@ -244,21 +263,21 @@
     border-color: transparent;
     border-radius: 999px;
     background: transparent;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     padding: 0 0.45rem;
     box-shadow: none;
   }
 
   :global(.composer-select-trigger:hover:not([data-disabled])),
   :global(.composer-select-trigger[data-state="open"]) {
-    border-color: hsl(var(--border) / 0.6);
-    background: hsl(var(--accent));
-    color: hsl(var(--foreground));
+    border-color: color-mix(in oklab, var(--border) 60%, transparent);
+    background: var(--accent);
+    color: var(--foreground);
   }
 
   :global(.composer-select-trigger:focus-visible) {
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
   }
 
   :global(.composer-select-content) {
@@ -283,12 +302,12 @@
 
   .composer-error {
     margin: 0;
-    border: 1px solid hsl(var(--destructive) / 0.16);
+    border: 1px solid color-mix(in oklab, var(--destructive) 16%, transparent);
     border-radius: var(--radius-sm);
-    background: hsl(var(--destructive) / 0.16);
-    color: hsl(var(--destructive));
+    background: color-mix(in oklab, var(--destructive) 16%, transparent);
+    color: var(--destructive);
     padding: 0.42rem 0.5rem;
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
   }
 
   @media (max-width: 760px) {

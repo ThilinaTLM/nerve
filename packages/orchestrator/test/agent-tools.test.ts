@@ -23,7 +23,7 @@ describe("agent tool definitions", () => {
     assert.deepEqual(descriptorNames, schemaNames);
     assert.deepEqual(
       [...definitionNames],
-      ["read", "bash", "edit", "write", "grep", "find", "ls"],
+      ["read", "bash", "edit", "write", "grep", "find", "ls", "ask_user"],
     );
 
     for (const definition of coreToolDefinitions) {
@@ -44,19 +44,30 @@ describe("agent tool definitions", () => {
       "bash",
       "edit",
       "write",
+      "ask_user",
     ]);
     assert.deepEqual(activeToolNamesForAgent(agent("supervised")), [
       "read",
       "bash",
       "edit",
       "write",
+      "ask_user",
     ]);
     assert.deepEqual(activeToolNamesForAgent(agent("read_only")), [
       "read",
       "grep",
       "find",
       "ls",
+      "ask_user",
     ]);
+  });
+
+  it("defines ask_user as a sequential free-text interaction tool", () => {
+    const askUser = coreToolDefinitionByName("ask_user");
+    assert.equal(askUser.label, "Ask User");
+    assert.equal(askUser.executionMode, "sequential");
+    assert.ok(askUser.description.includes("free-text"));
+    assert.ok(askUser.parameters);
   });
 
   it("normalizes legacy single-edit arguments to the multi-edit schema", () => {

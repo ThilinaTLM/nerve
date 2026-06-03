@@ -188,6 +188,30 @@ const lsParameters = Type.Object(
   { additionalProperties: false },
 );
 
+const askUserParameters = Type.Object(
+  {
+    question: Type.String({
+      description: "The single focused free-text question to ask the user",
+    }),
+    context: Type.Optional(
+      Type.String({
+        description: "Optional brief background that helps the user answer",
+      }),
+    ),
+    recommendation: Type.Optional(
+      Type.String({
+        description: "Optional current leaning or recommendation and why",
+      }),
+    ),
+    placeholder: Type.Optional(
+      Type.String({
+        description: "Optional placeholder text for the reply input",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 export const coreToolDefinitions = [
   {
     name: "read",
@@ -262,6 +286,20 @@ export const coreToolDefinitions = [
     parameters: lsParameters,
     executionMode: "parallel",
   },
+  {
+    name: "ask_user",
+    label: "Ask User",
+    description:
+      "Ask the user one focused free-text question and wait for their reply. Use only when the answer depends on the user's intent, preference, decision, or unavailable context.",
+    promptSnippet: "Ask the user a focused free-text clarification question",
+    promptGuidelines: [
+      "Use ask_user only when the answer must come from the user rather than the codebase, tools, or prior context.",
+      "Ask one focused question at a time. Include brief context and a recommendation when it helps the user answer.",
+      "Do not use ask_user for questions you can answer by inspecting files, running tools, or reasoning from existing conversation context.",
+    ],
+    parameters: askUserParameters,
+    executionMode: "sequential",
+  },
 ] satisfies CoreToolDefinition[];
 
 export function coreToolDefinitionByName(
@@ -280,6 +318,7 @@ const toolRisks: Record<ToolName, ToolRisk> = {
   grep: "read",
   find: "read",
   ls: "read",
+  ask_user: "interaction",
   process_start: "command",
   process_stop: "destructive",
   process_restart: "destructive",

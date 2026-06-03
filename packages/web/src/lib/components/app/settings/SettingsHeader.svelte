@@ -1,8 +1,8 @@
 <script lang="ts">
-  import ArrowLeft from "lucide-svelte/icons/arrow-left";
-  import RefreshCw from "lucide-svelte/icons/refresh-cw";
-  import Save from "lucide-svelte/icons/save";
-  import Button from "../../ui/Button.svelte";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Save from "@lucide/svelte/icons/save";
+  import { Button } from "$lib/components/ui/button";
   import type { SettingsSection } from "./options";
 
   type Props = {
@@ -32,7 +32,7 @@
     <Button variant="secondary" size="sm" onclick={onBack}>
       <ArrowLeft size={13} strokeWidth={2.25} />Workspace
     </Button>
-    <Button variant="toolbar" size="sm" onclick={onLoadSettings}>
+    <Button variant="ghost" size="sm" onclick={onLoadSettings}>
       <RefreshCw size={13} strokeWidth={2.25} />Refresh
     </Button>
     <Button size="sm" onclick={onSaveSettings} disabled={!canSave}>

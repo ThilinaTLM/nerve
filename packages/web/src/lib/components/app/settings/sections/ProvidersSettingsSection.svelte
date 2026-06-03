@@ -1,7 +1,7 @@
 <script lang="ts">
-  import KeyRound from "lucide-svelte/icons/key-round";
+  import KeyRound from "@lucide/svelte/icons/key-round";
   import type { AuthProviderMetadata } from "../../../../api";
-  import Badge from "../../../ui/Badge.svelte";
+  import { Badge } from "$lib/components/ui/badge";
 
   type Props = {
     authProviders?: AuthProviderMetadata[];

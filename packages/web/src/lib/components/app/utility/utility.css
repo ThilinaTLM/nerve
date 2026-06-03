@@ -3,13 +3,13 @@
   height: 100%;
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr);
-  border-left: 1px solid hsl(var(--border));
-  background: hsl(var(--card));
+  border-left: 1px solid var(--border);
+  background: var(--card);
 }
 
 .utility-panel .utility-tabs {
-  border-bottom: 1px solid hsl(var(--border));
-  background: hsl(var(--muted));
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
 }
 
 .utility-scroll {
@@ -48,8 +48,8 @@
 .utility-panel .card-title strong,
 .utility-panel .process-title strong {
   overflow: hidden;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  font-size: 0.8125rem;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -65,10 +65,10 @@
 .utility-panel .context-card,
 .utility-panel .process-detail {
   width: 100%;
-  border: 1px solid hsl(var(--border) / 0.6);
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   border-radius: var(--radius-sm);
-  background: hsl(var(--input));
-  color: hsl(var(--foreground));
+  background: var(--input);
+  color: var(--foreground);
   padding: 0.45rem;
   text-align: left;
 }
@@ -90,8 +90,8 @@
 
 .utility-panel .utility-row:hover,
 .utility-panel .utility-row.active {
-  border-color: hsl(var(--border));
-  background: hsl(var(--accent));
+  border-color: var(--border);
+  background: var(--accent);
 }
 
 .utility-panel .utility-row.active::before {
@@ -99,7 +99,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 2px;
-  background: hsl(var(--primary));
+  background: var(--primary);
 }
 
 .utility-panel .tree-row {
@@ -107,9 +107,9 @@
 }
 
 .utility-panel .tree-index {
-  color: hsl(var(--muted-foreground) / 0.75);
+  color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
+  font-size: 0.6875rem;
 }
 
 .utility-panel .utility-row div,
@@ -121,8 +121,8 @@
 .utility-panel dt,
 .utility-panel small,
 .utility-panel .muted {
-  color: hsl(var(--muted-foreground));
-  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
 }
 
 .utility-panel .utility-row span,
@@ -144,8 +144,8 @@
 
 .utility-panel .utility-row strong {
   display: block;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .utility-panel .process-list,
@@ -158,9 +158,9 @@
   min-height: 18rem;
   max-height: 48vh;
   overflow: auto;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: hsl(var(--sidebar));
+  background: var(--sidebar);
   padding: 0.4rem;
 }
 
@@ -170,19 +170,19 @@
   align-items: start;
   gap: 0.4rem;
   min-width: 0;
-  color: hsl(var(--foreground) / 0.92);
+  color: color-mix(in oklab, var(--foreground) 92%, transparent);
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  line-height: var(--leading-normal);
+  font-size: 0.6875rem;
+  line-height: 1.38;
   white-space: pre-wrap;
 }
 
 .utility-panel .seq {
-  color: hsl(var(--muted-foreground) / 0.75);
+  color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
 }
 
 .utility-panel .time {
-  color: hsl(var(--success));
+  color: var(--success);
 }
 
 .utility-panel .line {
@@ -191,11 +191,11 @@
 }
 
 .utility-panel .log-terminal code.warn .line {
-  color: hsl(var(--warning));
+  color: var(--warning);
 }
 
 .utility-panel .log-terminal code.error .line {
-  color: hsl(var(--destructive));
+  color: var(--destructive);
 }
 
 .utility-panel .muted {
@@ -207,17 +207,17 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.34rem 0.6rem;
   margin: 0;
-  font-size: var(--text-xs);
+  font-size: 0.75rem;
 }
 
 .utility-panel dd {
   margin: 0;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .utility-panel a {
-  color: hsl(var(--primary));
-  font-size: var(--text-xs);
+  color: var(--primary);
+  font-size: 0.75rem;
   text-decoration: none;
 }
 

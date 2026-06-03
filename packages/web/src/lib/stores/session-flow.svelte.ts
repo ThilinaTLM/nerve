@@ -1,10 +1,13 @@
 import { toast } from "svelte-sonner";
 import {
   type AgentRecord,
+  answerUserQuestion,
   apiGet,
   apiPost,
   compactSession,
+  dismissUserQuestion as dismissUserQuestionRequest,
   getPendingApprovals,
+  getPendingUserQuestions,
   getSessionMessages,
   getSessionTree,
   type ProjectRecord,
@@ -311,6 +314,39 @@ export async function denyApproval(approvalId: string) {
   });
   workbenchState.approvals = await getPendingApprovals();
   toast.message("Approval denied");
+}
+
+export async function answerActiveUserQuestion() {
+  const question = workbenchState.userQuestions.find((candidate) => {
+    if (selection.sessionId && candidate.sessionId === selection.sessionId)
+      return true;
+    return Boolean(
+      selection.agentId && candidate.agentId === selection.agentId,
+    );
+  });
+  if (!question || !selection.sessionId) return;
+  const view = ensureConversationView(selection.sessionId);
+  const answer = view.composerText.trim();
+  if (!answer) return;
+  await answerUserQuestion(question.id, answer);
+  view.composerText = "";
+  composerDraft.text = "";
+  workbenchState.userQuestions = await getPendingUserQuestions();
+  toast.success("Reply sent");
+}
+
+export async function dismissActiveUserQuestion() {
+  const question = workbenchState.userQuestions.find((candidate) => {
+    if (selection.sessionId && candidate.sessionId === selection.sessionId)
+      return true;
+    return Boolean(
+      selection.agentId && candidate.agentId === selection.agentId,
+    );
+  });
+  if (!question) return;
+  await dismissUserQuestionRequest(question.id, "Dismissed from UI.");
+  workbenchState.userQuestions = await getPendingUserQuestions();
+  toast.message("Question dismissed");
 }
 
 export async function abortActiveRun() {

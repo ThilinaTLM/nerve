@@ -6,6 +6,8 @@ import type {
   StartProcessRequest,
   ToolCallRecord,
   ToolName,
+  UserQuestionRecord,
+  UserQuestionStatus,
 } from "@nerve/shared";
 import { createId } from "@nerve/shared";
 import { coreToolDescriptors, executeTool } from "@nerve/tools";
@@ -38,9 +40,14 @@ export type ProcessStarter = (
 export class ToolService {
   readonly toolCalls = new Map<string, ToolCallRecord>();
   readonly approvals = new Map<string, ApprovalRecord>();
+  readonly userQuestions = new Map<string, UserQuestionRecord>();
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
+  >();
+  private readonly userQuestionWaiters = new Map<
+    string,
+    Set<(question: UserQuestionRecord) => void>
   >();
 
   constructor(
@@ -62,6 +69,10 @@ export class ToolService {
       this.approvals.set(approval.id, approval);
       this.index.upsertApproval(approval);
     }
+    for (const question of await this.readLatestUserQuestions()) {
+      this.userQuestions.set(question.id, question);
+      this.index.upsertUserQuestion(question);
+    }
   }
 
   listTools() {
@@ -80,10 +91,17 @@ export class ToolService {
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
   }
 
+  listUserQuestions(status?: UserQuestionStatus): UserQuestionRecord[] {
+    return [...this.userQuestions.values()]
+      .filter((question) => !status || question.status === status)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
   async requestTool(
     agent: AgentRecord,
     toolName: ToolName,
     args: Record<string, unknown>,
+    options: { signal?: AbortSignal } = {},
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
     const evaluation = evaluateToolPolicy(agent, toolName, args, {
@@ -151,7 +169,7 @@ export class ToolService {
       return { toolCall: pending, approval };
     }
 
-    return { toolCall: await this.executeAllowedTool(toolCall.id) };
+    return { toolCall: await this.executeAllowedTool(toolCall.id, options) };
   }
 
   async requestToolAndWait(
@@ -160,7 +178,7 @@ export class ToolService {
     args: Record<string, unknown>,
     options: { signal?: AbortSignal } = {},
   ): Promise<ToolCallRecord> {
-    const response = await this.requestTool(agent, toolName, args);
+    const response = await this.requestTool(agent, toolName, args, options);
     if (isTerminalToolCall(response.toolCall)) return response.toolCall;
     if (response.toolCall.status !== "pending_approval")
       return response.toolCall;
@@ -241,6 +259,42 @@ export class ToolService {
     return deniedToolCall;
   }
 
+  async answerUserQuestion(
+    questionId: string,
+    answer: string,
+  ): Promise<UserQuestionRecord> {
+    const question = this.getPendingUserQuestion(questionId);
+    const updated: UserQuestionRecord = {
+      ...question,
+      status: "answered",
+      answer,
+      resolvedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.upsertUserQuestion(updated);
+    await this.events.publish("user_question.answered", { question: updated });
+    this.notifyUserQuestionWaiters(updated);
+    return updated;
+  }
+
+  async dismissUserQuestion(
+    questionId: string,
+    reason?: string,
+  ): Promise<UserQuestionRecord> {
+    const question = this.getPendingUserQuestion(questionId);
+    const updated: UserQuestionRecord = {
+      ...question,
+      status: "dismissed",
+      dismissedReason: reason ?? "Dismissed by user.",
+      resolvedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.upsertUserQuestion(updated);
+    await this.events.publish("user_question.dismissed", { question: updated });
+    this.notifyUserQuestionWaiters(updated);
+    return updated;
+  }
+
   getToolCall(toolCallId: string): ToolCallRecord {
     const toolCall = this.toolCalls.get(toolCallId);
     if (!toolCall) throw new Error("Tool call not found.");
@@ -255,8 +309,17 @@ export class ToolService {
     return approval;
   }
 
+  private getPendingUserQuestion(questionId: string): UserQuestionRecord {
+    const question = this.userQuestions.get(questionId);
+    if (!question) throw new Error("User question not found.");
+    if (question.status !== "pending")
+      throw new Error("User question is already resolved.");
+    return question;
+  }
+
   private async executeAllowedTool(
     toolCallId: string,
+    options: { signal?: AbortSignal } = {},
   ): Promise<ToolCallRecord> {
     const toolCall = await this.updateToolCall(toolCallId, {
       status: "running",
@@ -264,7 +327,7 @@ export class ToolService {
     await this.events.publish("agent.tool_call.running", { toolCall });
     try {
       const args = { ...(toolCall.args as Record<string, unknown>) };
-      const result = await this.executeToolCall(toolCall, args);
+      const result = await this.executeToolCall(toolCall, args, options);
       const completed = await this.updateToolCall(toolCall.id, {
         status: "completed",
         result,
@@ -287,6 +350,7 @@ export class ToolService {
   private async executeToolCall(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
+    options: { signal?: AbortSignal } = {},
   ): Promise<unknown> {
     switch (toolCall.toolName) {
       case "process_start":
@@ -365,10 +429,103 @@ export class ToolService {
         );
       case "subagent_run":
         return this.runSubagent(this.getAgent(toolCall.agentId), args);
+      case "ask_user":
+        return this.requestUserQuestion(toolCall, args, options);
       default:
         if (toolCall.toolName === "bash") delete args.cwd;
         return executeTool(toolCall.toolName, args, { cwd: toolCall.cwd });
     }
+  }
+
+  private async requestUserQuestion(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<unknown> {
+    const now = new Date().toISOString();
+    const question: UserQuestionRecord = {
+      id: createId("question"),
+      toolCallId: toolCall.id,
+      agentId: toolCall.agentId,
+      sessionId: toolCall.sessionId,
+      projectId: toolCall.projectId,
+      question: stringArg(args, "question"),
+      context: optionalStringArg(args.context),
+      recommendation: optionalStringArg(args.recommendation),
+      placeholder: optionalStringArg(args.placeholder),
+      status: "pending",
+      requestedAt: now,
+      updatedAt: now,
+    };
+    await this.upsertUserQuestion(question);
+    const waitingToolCall = await this.updateToolCall(toolCall.id, {
+      status: "waiting_for_user",
+    });
+    await this.events.publish("agent.tool_call.waiting_for_user", {
+      toolCall: waitingToolCall,
+    });
+    await this.events.publish("user_question.requested", {
+      question,
+      toolCall: waitingToolCall,
+    });
+
+    const resolved = await this.waitForUserQuestion(
+      question.id,
+      options.signal,
+    );
+    return {
+      question: resolved.question,
+      context: resolved.context,
+      recommendation: resolved.recommendation,
+      response: resolved.answer,
+      dismissed: resolved.status === "dismissed",
+      dismissedReason: resolved.dismissedReason,
+    };
+  }
+
+  private waitForUserQuestion(
+    questionId: string,
+    signal?: AbortSignal,
+  ): Promise<UserQuestionRecord> {
+    if (signal?.aborted) {
+      void this.dismissUserQuestion(questionId, "Agent run aborted.").catch(
+        () => undefined,
+      );
+    }
+
+    return new Promise<UserQuestionRecord>((resolve) => {
+      const settle = (question: UserQuestionRecord) => {
+        if (question.status === "pending") return;
+        cleanup();
+        resolve(question);
+      };
+      const onAbort = () => {
+        void this.dismissUserQuestion(questionId, "Agent run aborted.").catch(
+          () => undefined,
+        );
+      };
+      const cleanup = () => {
+        const waiters = this.userQuestionWaiters.get(questionId);
+        waiters?.delete(settle);
+        if (waiters && waiters.size === 0)
+          this.userQuestionWaiters.delete(questionId);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
+      const current = this.userQuestions.get(questionId);
+      if (current && current.status !== "pending") {
+        resolve(current);
+        return;
+      }
+
+      let waiters = this.userQuestionWaiters.get(questionId);
+      if (!waiters) {
+        waiters = new Set();
+        this.userQuestionWaiters.set(questionId, waiters);
+      }
+      waiters.add(settle);
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
   }
 
   private async updateToolCall(
@@ -399,10 +556,25 @@ export class ToolService {
     for (const waiter of waiters) waiter(toolCall);
   }
 
+  private notifyUserQuestionWaiters(question: UserQuestionRecord): void {
+    const waiters = this.userQuestionWaiters.get(question.id);
+    if (!waiters) return;
+    this.userQuestionWaiters.delete(question.id);
+    for (const waiter of waiters) waiter(question);
+  }
+
   private async upsertApproval(approval: ApprovalRecord): Promise<void> {
     this.approvals.set(approval.id, approval);
     this.index.upsertApproval(approval);
     await appendJsonLine(this.approvalsPath(), approval, 0o600);
+  }
+
+  private async upsertUserQuestion(
+    question: UserQuestionRecord,
+  ): Promise<void> {
+    this.userQuestions.set(question.id, question);
+    this.index.upsertUserQuestion(question);
+    await appendJsonLine(this.userQuestionsPath(), question, 0o600);
   }
 
   private async readLatestToolCalls(): Promise<ToolCallRecord[]> {
@@ -419,12 +591,27 @@ export class ToolService {
     return latestById(values);
   }
 
+  private async readLatestUserQuestions(): Promise<UserQuestionRecord[]> {
+    const values = await readJsonLines<UserQuestionRecord>(
+      this.userQuestionsPath(),
+    ).catch(() => []);
+    return latestById(values);
+  }
+
   private toolCallsPath(): string {
     return join(this.storage.paths.home, "logs", "tool-calls.jsonl");
   }
 
   private approvalsPath(): string {
     return join(this.storage.paths.home, "approvals", "approvals.jsonl");
+  }
+
+  private userQuestionsPath(): string {
+    return join(
+      this.storage.paths.home,
+      "user-questions",
+      "user-questions.jsonl",
+    );
   }
 }
 
@@ -448,6 +635,12 @@ function stringArg(args: Record<string, unknown>, name: string): string {
     throw new Error(`Tool argument '${name}' must be a non-empty string.`);
   }
   return value;
+}
+
+function optionalStringArg(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : undefined;
 }
 
 function stringRecordArg(value: unknown): Record<string, string> | undefined {

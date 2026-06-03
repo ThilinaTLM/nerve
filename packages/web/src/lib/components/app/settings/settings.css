@@ -3,7 +3,7 @@
   height: 100%;
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr);
-  background: hsl(var(--background));
+  background: var(--background);
 }
 
 .settings-header {
@@ -11,8 +11,8 @@
   align-items: end;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid hsl(var(--border));
-  background: hsl(var(--muted));
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
   padding: 0.85rem 1rem;
 }
 
@@ -26,20 +26,20 @@
 .settings-page .eyebrow,
 .settings-page .rail-title,
 .settings-page h3 {
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: var(--tracking-label);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .settings-page .breadcrumb b {
-  color: hsl(var(--muted-foreground) / 0.75);
-  font-weight: var(--weight-normal);
+  color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
+  font-weight: 400;
 }
 
 .settings-page .breadcrumb em {
-  color: hsl(var(--primary));
+  color: var(--primary);
   font-style: normal;
 }
 
@@ -51,18 +51,18 @@
 }
 
 .settings-page h1 {
-  color: hsl(var(--foreground));
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  line-height: var(--leading-tight);
+  color: var(--foreground);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.18;
 }
 
 .settings-page .heading-block p,
 .settings-page .card-head p,
 .settings-page .muted {
-  color: hsl(var(--muted-foreground));
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.38;
 }
 
 .settings-page .header-actions {
@@ -82,8 +82,8 @@
   display: grid;
   align-content: start;
   gap: 0.25rem;
-  border-right: 1px solid hsl(var(--border));
-  background: hsl(var(--card));
+  border-right: 1px solid var(--border);
+  background: var(--card);
   padding: 0.65rem;
 }
 
@@ -102,7 +102,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   padding: 0.48rem 0.55rem;
   text-align: left;
   cursor: pointer;
@@ -110,9 +110,9 @@
 
 .settings-rail button:hover,
 .settings-rail button.active {
-  border-color: hsl(var(--border) / 0.6);
-  background: hsl(var(--accent));
-  color: hsl(var(--foreground));
+  border-color: color-mix(in oklab, var(--border) 60%, transparent);
+  background: var(--accent);
+  color: var(--foreground);
 }
 
 .settings-rail button.active::before {
@@ -120,17 +120,17 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 2px;
-  background: hsl(var(--primary));
+  background: var(--primary);
 }
 
 .settings-rail button strong {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .settings-rail button small {
-  color: hsl(var(--muted-foreground));
-  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
 }
 
 .settings-page .rail-status {
@@ -142,28 +142,28 @@
 .settings-page .rail-status section {
   display: grid;
   gap: 0.1rem;
-  border: 1px solid hsl(var(--border) / 0.6);
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   border-radius: var(--radius-sm);
-  background: hsl(var(--input));
+  background: var(--input);
   padding: 0.45rem;
 }
 
 .settings-page .rail-status span,
 .settings-page .stat-grid span {
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: var(--tracking-label);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .settings-page .rail-status strong,
 .settings-page .stat-grid strong {
   overflow: hidden;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
+  font-size: 0.75rem;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -189,27 +189,27 @@
 .settings-page .empty-card {
   display: grid;
   gap: 0.75rem;
-  border: 1px solid hsl(var(--border) / 0.6);
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   border-radius: var(--radius-md);
-  background: hsl(var(--card));
+  background: var(--card);
   padding: 0.85rem;
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-xs);
 }
 
 .settings-page .empty-card {
   justify-items: center;
   padding: 3rem 1rem;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   text-align: center;
 }
 
 .settings-page .empty-card svg {
-  color: hsl(var(--primary));
+  color: var(--primary);
 }
 
 .settings-page .empty-card strong {
-  color: hsl(var(--foreground));
-  font-size: var(--text-lg);
+  color: var(--foreground);
+  font-size: 1rem;
 }
 
 .settings-page .card-head {
@@ -224,26 +224,26 @@
   width: 2rem;
   height: 2rem;
   place-items: center;
-  border: 1px solid hsl(var(--border) / 0.6);
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   border-radius: var(--radius-sm);
-  background: hsl(var(--input));
-  color: hsl(var(--primary));
+  background: var(--input);
+  color: var(--primary);
 }
 
 .settings-page .eyebrow {
-  color: hsl(var(--primary));
+  color: var(--primary);
 }
 
 .settings-page h2 {
-  color: hsl(var(--foreground));
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  line-height: var(--leading-tight);
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.18;
 }
 
 .settings-page h3 {
-  color: hsl(var(--muted-foreground));
-  font-weight: var(--weight-semibold);
+  color: var(--muted-foreground);
+  font-weight: 600;
 }
 
 .settings-page .stat-grid,
@@ -259,9 +259,9 @@
 .settings-page .compaction-card,
 .settings-page .control-block,
 .settings-page .permission-table {
-  border: 1px solid hsl(var(--border) / 0.6);
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   border-radius: var(--radius-sm);
-  background: hsl(var(--input));
+  background: var(--input);
   padding: 0.55rem;
 }
 
@@ -285,15 +285,15 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .settings-page label {
   display: grid;
   gap: 0.24rem;
-  color: hsl(var(--muted-foreground));
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .settings-page .provider-list {
@@ -306,9 +306,9 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 0.45rem;
-  border: 1px solid hsl(var(--border) / 0.6);
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   border-radius: var(--radius-sm);
-  background: hsl(var(--input));
+  background: var(--input);
   padding: 0.55rem;
 }
 
@@ -319,25 +319,25 @@
 }
 
 .settings-page .provider-row strong {
-  color: hsl(var(--foreground));
-  font-size: var(--text-sm);
+  color: var(--foreground);
+  font-size: 0.8125rem;
 }
 
 .settings-page .provider-row small,
 .settings-page .provider-row p {
-  color: hsl(var(--muted-foreground));
-  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
 }
 
 .settings-page code {
   overflow: auto;
-  border: 1px solid hsl(var(--border) / 0.6);
-  border-radius: var(--radius-xs);
-  background: hsl(var(--sidebar));
-  color: hsl(var(--foreground));
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-radius: 0.25rem;
+  background: var(--sidebar);
+  color: var(--foreground);
   padding: 0.34rem 0.42rem;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: 0.75rem;
 }
 
 .settings-page .provider-row p,
@@ -354,7 +354,7 @@
 .settings-page .permission-table div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  border-bottom: 1px solid hsl(var(--border) / 0.6);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
 }
 
 .settings-page .permission-table div:last-child {
@@ -364,29 +364,29 @@
 .settings-page .permission-table span,
 .settings-page .permission-table strong {
   padding: 0.48rem 0.55rem;
-  font-size: var(--text-xs);
+  font-size: 0.75rem;
 }
 
 .settings-page .permission-table div:first-child span {
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: var(--tracking-label);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .settings-page .permission-table strong {
-  color: hsl(var(--foreground));
-  font-weight: var(--weight-medium);
+  color: var(--foreground);
+  font-weight: 500;
 }
 
 .settings-page .settings-message {
-  border: 1px solid hsl(var(--accent));
+  border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
-  background: hsl(var(--accent));
-  color: hsl(var(--primary));
+  background: var(--accent);
+  color: var(--primary);
   padding: 0.55rem 0.65rem;
-  font-size: var(--text-sm);
+  font-size: 0.8125rem;
 }
 
 @media (max-width: 960px) {
@@ -406,6 +406,6 @@
 
   .settings-page .settings-rail {
     border-right: 0;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   }
 }

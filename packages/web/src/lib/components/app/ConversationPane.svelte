@@ -1,16 +1,16 @@
 <script lang="ts">
-  import Bot from "lucide-svelte/icons/bot";
-  import ChevronsRight from "lucide-svelte/icons/chevrons-right";
-  import Clipboard from "lucide-svelte/icons/clipboard";
-  import Copy from "lucide-svelte/icons/copy";
-  import Info from "lucide-svelte/icons/info";
-  import Sparkles from "lucide-svelte/icons/sparkles";
-  import TextQuote from "lucide-svelte/icons/text-quote";
+  import Bot from "@lucide/svelte/icons/bot";
+  import ChevronsRight from "@lucide/svelte/icons/chevrons-right";
+  import Clipboard from "@lucide/svelte/icons/clipboard";
+  import Copy from "@lucide/svelte/icons/copy";
+  import Info from "@lucide/svelte/icons/info";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
+  import TextQuote from "@lucide/svelte/icons/text-quote";
   import { toast } from "svelte-sonner";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
-  import Button from "../ui/Button.svelte";
-  import ContextMenu, { type ContextMenuItem } from "../ui/ContextMenu.svelte";
+  import { Button } from "$lib/components/ui/button";
+  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import PromptComposer from "./PromptComposer.svelte";
 
   type TranscriptItem = {
@@ -29,6 +29,7 @@
     agents?: AgentRecord[];
     homeDir?: string;
     approvals?: ApprovalWithToolCall[];
+    pendingUserQuestion?: UserQuestionRecord;
     transcript?: TranscriptItem[];
     streamingText?: string;
     live?: boolean;
@@ -43,6 +44,8 @@
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     onComposerChange?: (value: string) => void;
     onSubmit?: () => void;
+    onAnswerUserQuestion?: () => void;
+    onDismissUserQuestion?: () => void;
     onAbort?: () => void;
     onOpenProject?: () => void;
     onNewConversationInProject?: (projectDir: string) => void;
@@ -58,6 +61,7 @@
     activeSession,
     activeAgent,
     approvals = [],
+    pendingUserQuestion,
     transcript = [],
     streamingText = "",
     live = false,
@@ -72,6 +76,8 @@
     fileCompletions,
     onComposerChange,
     onSubmit,
+    onAnswerUserQuestion,
+    onDismissUserQuestion,
     onAbort,
     onOpenProject,
     onModelChange,
@@ -151,7 +157,7 @@
                   <p>{item.text}</p>
                 {/if}
               </div>
-              <Button class="copy-btn" variant="icon" size="icon" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(item.text)}>
+              <Button class="copy-btn" variant="ghost" size="icon-sm" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(item.text)}>
                 <Clipboard size={12} strokeWidth={2.2} />
               </Button>
             </div>
@@ -174,6 +180,7 @@
       {activeProject}
       {activeSession}
       {approvals}
+      {pendingUserQuestion}
       {live}
       {sending}
       {error}
@@ -185,6 +192,8 @@
       {fileCompletions}
       onChange={onComposerChange}
       {onSubmit}
+      {onAnswerUserQuestion}
+      {onDismissUserQuestion}
       {onAbort}
       {onModelChange}
       {onModeChange}
@@ -208,7 +217,7 @@
     height: 100%;
     min-height: 0;
     grid-template-rows: minmax(0, 1fr) auto;
-    background: hsl(var(--background));
+    background: var(--background);
   }
 
   .transcript {
@@ -228,7 +237,7 @@
     width: 100%;
     margin: 0 auto;
     padding: 0.8rem 0;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   }
 
   .message-gutter {
@@ -246,21 +255,21 @@
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
   }
 
   .transcript-entry.user .message-icon {
-    color: hsl(var(--primary));
+    color: var(--primary);
   }
 
   .transcript-entry.assistant .message-icon {
-    border-color: hsl(var(--border));
-    background: hsl(var(--secondary));
-    color: hsl(var(--foreground));
+    border-color: var(--border);
+    background: var(--secondary);
+    color: var(--foreground);
   }
 
   .transcript-entry.system .message-icon {
-    color: hsl(var(--muted-foreground) / 0.75);
+    color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
   }
 
   .message-body {
@@ -284,22 +293,22 @@
 
   .message-content {
     min-width: 0;
-    color: hsl(var(--foreground) / 0.92);
-    font-size: var(--text-sm);
+    color: color-mix(in oklab, var(--foreground) 92%, transparent);
+    font-size: 0.8125rem;
   }
 
   .message-content p {
     margin: 0;
-    line-height: var(--leading-relaxed);
+    line-height: 1.55;
     white-space: pre-wrap;
   }
 
   .transcript-entry.user .message-content {
-    color: hsl(var(--foreground));
+    color: var(--foreground);
   }
 
   .transcript-entry.streaming {
-    border-color: hsl(var(--accent));
+    border-color: var(--accent);
   }
 
   .stream-caret {
@@ -308,7 +317,7 @@
     height: 1em;
     margin-left: 0.18rem;
     transform: translateY(0.18em);
-    background: hsl(var(--primary));
+    background: var(--primary);
     animation: pulse 1s steps(2, start) infinite;
   }
 
@@ -317,7 +326,7 @@
     display: grid;
     place-content: center;
     min-height: 100%;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     text-align: center;
   }
 
@@ -329,14 +338,14 @@
 
   .empty-run :global(svg),
   .empty-center :global(svg) {
-    color: hsl(var(--primary));
+    color: var(--primary);
     justify-self: center;
   }
 
   .empty-run p,
   .empty-center p {
     margin: 0.25rem 0 0;
-    color: hsl(var(--foreground));
+    color: var(--foreground);
   }
 
   .empty-center :global(.ui-button) {

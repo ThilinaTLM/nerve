@@ -127,6 +127,7 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type.startsWith("agent.subagent_") ||
     type === "project.created" ||
     type.startsWith("approval.") ||
+    type.startsWith("user_question.") ||
     type.startsWith("agent.tool_call") ||
     type.startsWith("process.") ||
     shouldRefreshSettings(type)

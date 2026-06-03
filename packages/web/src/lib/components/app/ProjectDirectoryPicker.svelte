@@ -1,19 +1,19 @@
 <script lang="ts">
-  import CheckCircle2 from "lucide-svelte/icons/check-circle-2";
-  import ChevronRight from "lucide-svelte/icons/chevron-right";
-  import Folder from "lucide-svelte/icons/folder";
-  import FolderOpen from "lucide-svelte/icons/folder-open";
-  import GitBranch from "lucide-svelte/icons/git-branch";
-  import MoveUp from "lucide-svelte/icons/move-up";
-  import PackageIcon from "lucide-svelte/icons/package";
-  import RefreshCw from "lucide-svelte/icons/refresh-cw";
-  import Search from "lucide-svelte/icons/search";
-  import Terminal from "lucide-svelte/icons/terminal";
-  import Badge from "../ui/Badge.svelte";
-  import Button from "../ui/Button.svelte";
-  import Dialog from "../ui/Dialog.svelte";
-  import Input from "../ui/Input.svelte";
-  import Switch from "../ui/Switch.svelte";
+  import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Folder from "@lucide/svelte/icons/folder";
+  import FolderOpen from "@lucide/svelte/icons/folder-open";
+  import GitBranch from "@lucide/svelte/icons/git-branch";
+  import MoveUp from "@lucide/svelte/icons/move-up";
+  import PackageIcon from "@lucide/svelte/icons/package";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Search from "@lucide/svelte/icons/search";
+  import Terminal from "@lucide/svelte/icons/terminal";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import Dialog from "$lib/components/ui/dialog-shell";
+  import { Input } from "$lib/components/ui/input";
+  import Switch from "$lib/components/ui/switch-field";
   import {
     listDirectories,
     type FilesystemDirectoryResponse,
@@ -298,10 +298,10 @@
       {/each}
     </nav>
     <div class="crumb-tools">
-      <Button variant="toolbar" size="icon" disabled={!listing?.parent || loading} title="Parent directory" onclick={() => void load(listing?.parent)}>
+      <Button variant="ghost" size="icon-sm" disabled={!listing?.parent || loading} title="Parent directory" onclick={() => void load(listing?.parent)}>
         <MoveUp size={14} strokeWidth={2.2} />
       </Button>
-      <Button variant="toolbar" size="icon" disabled={loading} title="Refresh" onclick={reloadCurrent}>
+      <Button variant="ghost" size="icon-sm" disabled={loading} title="Refresh" onclick={reloadCurrent}>
         <RefreshCw size={14} strokeWidth={2.2} />
       </Button>
     </div>
@@ -448,7 +448,7 @@
     gap: 0.15rem;
     overflow: hidden;
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
   }
 
   .crumb {
@@ -458,7 +458,7 @@
     border-radius: var(--radius-sm);
     background: transparent;
     padding: 0.1rem 0.3rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
@@ -467,19 +467,19 @@
 
   .crumb:hover:not(:disabled),
   .crumb:focus-visible {
-    background: hsl(var(--accent));
-    color: hsl(var(--foreground));
+    background: var(--accent);
+    color: var(--foreground);
     outline: none;
   }
 
   .crumb.current {
-    color: hsl(var(--foreground));
-    font-weight: var(--weight-medium);
+    color: var(--foreground);
+    font-weight: 500;
     cursor: default;
   }
 
   .crumb-sep {
-    color: hsl(var(--muted-foreground) / 0.55);
+    color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
   }
 
   .crumb-tools {
@@ -500,7 +500,7 @@
     position: relative;
     display: grid;
     align-items: center;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     padding: 0.6rem 0.75rem;
   }
 
@@ -509,23 +509,23 @@
     z-index: 1;
     top: 50%;
     left: 1.3rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     transform: translateY(-50%);
     pointer-events: none;
   }
 
-  .picker-search :global(.ui-input) {
+  .picker-search :global([data-slot="input"]) {
     padding-left: 2rem;
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
   }
 
   .picker-error {
     margin: 0;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     padding: 0.5rem 0.75rem;
-    color: hsl(var(--destructive));
-    font-size: var(--text-xs);
+    color: var(--destructive);
+    font-size: 0.75rem;
   }
 
   .picker-scroll {
@@ -543,10 +543,10 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.25rem 0.3rem 0.4rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    letter-spacing: var(--tracking-label);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
@@ -567,14 +567,14 @@
     border-radius: var(--radius-md);
     background: transparent;
     padding: 0.3rem 0.5rem;
-    color: hsl(var(--foreground));
+    color: var(--foreground);
     text-align: left;
     cursor: pointer;
     transition: background 120ms ease, border-color 120ms ease;
   }
 
   .row > :global(svg) {
-    color: hsl(var(--primary));
+    color: var(--primary);
   }
 
   .row-main {
@@ -584,8 +584,8 @@
   .row-main strong {
     display: block;
     overflow: hidden;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
+    font-size: 0.8125rem;
+    font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -599,14 +599,14 @@
   }
 
   .row-meta small {
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: 0.6875rem;
     white-space: nowrap;
   }
 
   .row :global(.row-chevron) {
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     opacity: 0;
     transition: opacity 120ms ease;
   }
@@ -614,8 +614,8 @@
   .row:hover,
   .row:focus-visible,
   .row.selected {
-    border-color: hsl(var(--border));
-    background: hsl(var(--accent));
+    border-color: var(--border);
+    background: var(--accent);
     outline: none;
   }
 
@@ -630,13 +630,13 @@
     inset: 0.2rem auto 0.2rem 0;
     width: 2px;
     border-radius: 999px;
-    background: hsl(var(--primary));
+    background: var(--primary);
   }
 
   .skeleton-row {
     height: 2.25rem;
     border-radius: var(--radius-md);
-    background: linear-gradient(90deg, hsl(var(--muted) / 0.45), hsl(var(--accent) / 0.65), hsl(var(--muted) / 0.45));
+    background: linear-gradient(90deg, color-mix(in oklab, var(--muted) 45%, transparent), color-mix(in oklab, var(--accent) 65%, transparent), color-mix(in oklab, var(--muted) 45%, transparent));
     background-size: 220% 100%;
     animation: picker-sheen 1.2s ease-in-out infinite;
   }
@@ -655,19 +655,19 @@
     place-items: center;
     min-height: 12rem;
     gap: 0.3rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     text-align: center;
   }
 
   .empty p {
     margin: 0.3rem 0 0;
-    color: hsl(var(--foreground));
-    font-size: var(--text-sm);
+    color: var(--foreground);
+    font-size: 0.8125rem;
   }
 
   .empty span {
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: 0.6875rem;
   }
 
   /* Footer */
@@ -682,20 +682,20 @@
     flex: 1;
     align-items: center;
     gap: 0.4rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
   }
 
   .footer-path > :global(svg) {
     flex: none;
-    color: hsl(var(--primary));
+    color: var(--primary);
   }
 
   .footer-path-text {
     overflow: hidden;
     min-width: 0;
-    color: hsl(var(--foreground));
+    color: var(--foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -715,13 +715,13 @@
   }
 
   :global(.hidden-switch) {
-    height: var(--control-height-sm);
+    height: 1.75rem;
     gap: 0.45rem;
-    border: 1px solid hsl(var(--border) / 0.6);
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     border-radius: var(--radius-sm);
-    background: hsl(var(--input));
+    background: var(--input);
     padding: 0 0.45rem;
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
   }
 
   :global(.hidden-switch) :global(.switch-copy small) {

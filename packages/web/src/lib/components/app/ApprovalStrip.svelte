@@ -1,11 +1,11 @@
 <script lang="ts">
-  import Check from "lucide-svelte/icons/check";
-  import Gavel from "lucide-svelte/icons/gavel";
-  import X from "lucide-svelte/icons/x";
+  import Check from "@lucide/svelte/icons/check";
+  import Gavel from "@lucide/svelte/icons/gavel";
+  import X from "@lucide/svelte/icons/x";
   import type { ApprovalWithToolCall } from "../../api";
-  import Badge from "../ui/Badge.svelte";
-  import Button from "../ui/Button.svelte";
-  import StatusDot from "../ui/StatusDot.svelte";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import { StatusDot } from "$lib/components/ui/status-dot";
 
   type Props = {
     approvals?: ApprovalWithToolCall[];
@@ -87,11 +87,11 @@
     display: grid;
     gap: 0.6rem;
     overflow: hidden;
-    border: 1px solid hsl(var(--accent));
+    border: 1px solid var(--accent);
     border-radius: var(--radius-lg);
-    background: hsl(var(--card));
+    background: var(--card);
     padding: 0.75rem 0.75rem 0.75rem 0.85rem;
-    box-shadow: inset 0 0 0 1px hsl(var(--accent)), var(--shadow-glow);
+    box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-sm);
   }
 
   .approval-strip::before {
@@ -99,7 +99,7 @@
     position: absolute;
     inset: 0 auto 0 0;
     width: 3px;
-    background: hsl(var(--primary));
+    background: var(--primary);
   }
 
   .strip-head,
@@ -124,10 +124,10 @@
     width: 2rem;
     height: 2rem;
     place-items: center;
-    border: 1px solid hsl(var(--border));
+    border: 1px solid var(--border);
     border-radius: 999px;
-    background: hsl(var(--secondary));
-    color: hsl(var(--primary));
+    background: var(--secondary);
+    color: var(--primary);
   }
 
   .head-copy div {
@@ -137,14 +137,14 @@
   }
 
   .head-copy strong {
-    color: hsl(var(--foreground));
-    font-size: var(--text-md);
-    font-weight: var(--weight-semibold);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    font-weight: 600;
   }
 
   .head-copy span:not(.head-icon) {
-    color: hsl(var(--muted-foreground));
-    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
   }
 
   .approval-list {
@@ -162,9 +162,9 @@
   .approval-detail {
     display: grid;
     gap: 0.42rem;
-    border: 1px solid hsl(var(--border));
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: hsl(var(--sidebar));
+    background: var(--sidebar);
     padding: 0.6rem 0.65rem;
   }
 
@@ -180,18 +180,18 @@
   }
 
   .detail-label {
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    letter-spacing: var(--tracking-label);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
   .detail-tool {
     overflow: hidden;
-    color: hsl(var(--primary));
+    color: var(--primary);
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: 0.8125rem;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -200,40 +200,40 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    color: hsl(var(--foreground));
-    font-size: var(--text-sm);
+    color: var(--foreground);
+    font-size: 0.8125rem;
     text-transform: capitalize;
   }
 
   .detail-reason {
-    color: hsl(var(--muted-foreground));
-    font-size: var(--text-sm);
-    line-height: var(--leading-normal);
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+    line-height: 1.38;
   }
 
   .detail-args summary {
-    color: hsl(var(--muted-foreground) / 0.75);
+    color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: 0.6875rem;
     cursor: pointer;
   }
 
   .detail-args summary:hover {
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
   }
 
   pre {
     max-height: 7rem;
     overflow: auto;
     margin: 0.4rem 0 0;
-    border: 1px solid hsl(var(--border) / 0.6);
-    border-radius: var(--radius-xs);
-    background: hsl(var(--sidebar));
-    color: hsl(var(--foreground));
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    border-radius: 0.25rem;
+    background: var(--sidebar);
+    color: var(--foreground);
     padding: 0.45rem 0.5rem;
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    line-height: var(--leading-normal);
+    font-size: 0.6875rem;
+    line-height: 1.38;
     white-space: pre-wrap;
   }
 

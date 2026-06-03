@@ -18,6 +18,23 @@ describe("tool policy", () => {
     }
   });
 
+  it("allows ask_user for all permission levels and planning mode", () => {
+    for (const permissionLevel of [
+      "read_only",
+      "supervised",
+      "autonomous",
+    ] as AgentRecord["permissionLevel"][]) {
+      const decision = evaluateToolPolicy(
+        { ...agent(permissionLevel), mode: "planning" },
+        "ask_user",
+        { question: "What should I optimize for?" },
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(decision.decision, "allow", permissionLevel);
+      assert.equal(decision.risk, "interaction");
+    }
+  });
+
   it("does not classify shell redirection or control operators as read-only", () => {
     for (const command of [
       "ls > out.txt",

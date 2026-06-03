@@ -1,14 +1,14 @@
 <script lang="ts">
-  import Activity from "lucide-svelte/icons/activity";
-  import Bot from "lucide-svelte/icons/bot";
-  import GitBranch from "lucide-svelte/icons/git-branch";
-  import Radio from "lucide-svelte/icons/radio";
-  import Terminal from "lucide-svelte/icons/terminal";
-  import TriangleAlert from "lucide-svelte/icons/triangle-alert";
+  import Activity from "@lucide/svelte/icons/activity";
+  import Bot from "@lucide/svelte/icons/bot";
+  import GitBranch from "@lucide/svelte/icons/git-branch";
+  import Radio from "@lucide/svelte/icons/radio";
+  import Terminal from "@lucide/svelte/icons/terminal";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
-  import Badge from "../ui/Badge.svelte";
-  import Popover from "../ui/Popover.svelte";
-  import StatusDot from "../ui/StatusDot.svelte";
+  import { Badge } from "$lib/components/ui/badge";
+  import Popover from "$lib/components/ui/popover-panel";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import { pulseForStatus, statusTone, type StatusTone } from "../../utils/status";
 
   type Props = {
@@ -113,22 +113,22 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    min-height: var(--control-height-sm);
-    border: 1px solid hsl(var(--border) / 0.6);
+    min-height: 1.75rem;
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     border-radius: 999px;
-    background: hsl(var(--input));
-    color: hsl(var(--muted-foreground));
+    background: var(--input);
+    color: var(--muted-foreground);
     padding: 0 0.55rem;
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-semibold);
+    font-size: 0.6875rem;
+    font-weight: 600;
   }
 
   :global(.status-trigger-wrap:hover) .status-trigger,
   :global(.status-trigger-wrap[data-state="open"]) .status-trigger {
-    border-color: hsl(var(--border));
-    background: hsl(var(--accent));
-    color: hsl(var(--foreground));
+    border-color: var(--border);
+    background: var(--accent);
+    color: var(--foreground);
   }
 
   .status-card {
@@ -142,7 +142,7 @@
     align-items: start;
     justify-content: space-between;
     gap: 0.8rem;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     padding-bottom: 0.65rem;
   }
 
@@ -154,16 +154,16 @@
   }
 
   header strong {
-    font-size: var(--text-md);
-    font-weight: var(--weight-semibold);
+    font-size: 0.875rem;
+    font-weight: 600;
   }
 
   header span,
   .status-grid span,
   .context-list span,
   .process-slice small {
-    color: hsl(var(--muted-foreground));
-    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
   }
 
   .status-grid {
@@ -175,9 +175,9 @@
   .status-grid section {
     display: grid;
     gap: 0.16rem;
-    border: 1px solid hsl(var(--border) / 0.6);
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     border-radius: var(--radius-sm);
-    background: hsl(var(--input));
+    background: var(--input);
     padding: 0.55rem;
   }
 
@@ -190,10 +190,10 @@
   .status-grid strong,
   .context-list strong {
     overflow: hidden;
-    color: hsl(var(--foreground));
+    color: var(--foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-medium);
+    font-size: 0.75rem;
+    font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -206,7 +206,7 @@
 
   .context-list,
   .process-slice {
-    border-top: 1px solid hsl(var(--border) / 0.6);
+    border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     padding-top: 0.6rem;
   }
 
@@ -219,8 +219,8 @@
 
   .process-slice span {
     overflow: hidden;
-    color: hsl(var(--foreground));
-    font-size: var(--text-xs);
+    color: var(--foreground);
+    font-size: 0.75rem;
     text-overflow: ellipsis;
     white-space: nowrap;
   }

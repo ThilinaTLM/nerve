@@ -17,6 +17,7 @@ import type {
   Settings,
   StatusResponse,
   ToolCallRecord,
+  UserQuestionRecord,
 } from "@nerve/shared";
 
 export type ClientConfig = {
@@ -254,6 +255,38 @@ export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
   }));
 }
 
+export async function getPendingUserQuestions(): Promise<UserQuestionRecord[]> {
+  return (
+    await apiGet<{ questions: UserQuestionRecord[] }>(
+      "/api/user-questions?status=pending",
+    )
+  ).questions;
+}
+
+export async function answerUserQuestion(
+  questionId: string,
+  answer: string,
+): Promise<UserQuestionRecord> {
+  return (
+    await apiPost<{ question: UserQuestionRecord }>(
+      `/api/user-questions/${questionId}/answer`,
+      { answer },
+    )
+  ).question;
+}
+
+export async function dismissUserQuestion(
+  questionId: string,
+  reason?: string,
+): Promise<UserQuestionRecord> {
+  return (
+    await apiPost<{ question: UserQuestionRecord }>(
+      `/api/user-questions/${questionId}/dismiss`,
+      { reason },
+    )
+  ).question;
+}
+
 export async function getFileCompletions(
   projectId: string | undefined,
   query: string,
@@ -293,6 +326,7 @@ export type {
   StatusResponse,
   ApprovalRecord,
   ToolCallRecord,
+  UserQuestionRecord,
   ProcessRecord,
   ProcessLogQueryResponse,
   Settings,

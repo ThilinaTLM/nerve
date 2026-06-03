@@ -26,5 +26,6 @@ describe("public source exports", () => {
     assert.ok(coreToolDefinitions.length > 0);
     assert.ok(coreToolDescriptors.length > 0);
     assert.equal(toolRiskForName("read"), "read");
+    assert.equal(toolRiskForName("ask_user"), "interaction");
   });
 });

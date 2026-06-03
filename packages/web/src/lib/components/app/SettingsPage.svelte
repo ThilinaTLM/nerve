@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Sparkles from "lucide-svelte/icons/sparkles";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
   import type { AuthProviderMetadata, Settings, StatusResponse } from "../../api";
   import type { ThemePreference } from "../../state/app-state.svelte";
-  import ScrollArea from "../ui/ScrollArea.svelte";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
   import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";

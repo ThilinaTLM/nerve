@@ -19,6 +19,7 @@ import type {
   StopProcessRequest,
   ToolName,
   UpdateAgentRequest,
+  UserQuestionStatus,
 } from "@nerve/shared";
 import {
   AgentRunner,
@@ -227,6 +228,7 @@ export class RuntimeRegistry {
       events: await this.events.replayPersistedSince(0),
       processes: this.processes.listProcesses(),
       workers: this.workers.listWorkers(),
+      userQuestions: this.tools.listUserQuestions(),
     });
   }
 
@@ -358,6 +360,34 @@ export class RuntimeRegistry {
       throw new HttpError(
         404,
         "APPROVAL_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  listUserQuestions(status?: UserQuestionStatus) {
+    return this.tools.listUserQuestions(status);
+  }
+
+  async answerUserQuestion(questionId: string, answer: string) {
+    try {
+      return await this.tools.answerUserQuestion(questionId, answer);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "USER_QUESTION_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  async dismissUserQuestion(questionId: string, reason?: string) {
+    try {
+      return await this.tools.dismissUserQuestion(questionId, reason);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "USER_QUESTION_NOT_FOUND",
         error instanceof Error ? error.message : String(error),
       );
     }

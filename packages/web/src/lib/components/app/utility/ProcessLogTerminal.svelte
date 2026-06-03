@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ProcessLogQueryResponse } from "../../../api";
-  import StatusDot from "../../ui/StatusDot.svelte";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import { logLevelTone } from "../../../utils/status";
   import { timeLabel } from "../../../utils/time";
 

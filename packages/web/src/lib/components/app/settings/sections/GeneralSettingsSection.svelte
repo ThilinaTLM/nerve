@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Settings2 from "lucide-svelte/icons/settings-2";
+  import Settings2 from "@lucide/svelte/icons/settings-2";
   import type { StatusResponse } from "../../../../api";
 
   type Props = {

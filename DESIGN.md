@@ -1,148 +1,116 @@
 # Nerve Design System
 
-Nerve is a compact, pane-based workbench for local coding agents. The interface is
-**calm, neutral, and dense** — closer to a native IDE/inspector than a web dashboard.
-The aesthetic follows the **shadcn semantic token model** tuned to a **ChatGPT-style
-near-monochrome neutral palette**: grayscale surfaces, no brand accent, hue reserved
-for status only. We follow shadcn conventions but own our primitives, built on
-[`bits-ui`](https://bits-ui.com) headless components.
+Nerve's frontend (`packages/web`) uses the **official
+[shadcn-svelte](https://www.shadcn-svelte.com)** component library (Svelte 5 + Tailwind v4,
+built on [`bits-ui`](https://bits-ui.com)). We do **not** maintain a bespoke primitive layer
+— components are generated with the shadcn-svelte CLI and owned in-repo.
+
+The visual theme is **"Jamaica"** from [tweakcn](https://tweakcn.com) — a green/gold palette
+with generous radius (`1.25rem`), **Outfit** for UI text and **JetBrains Mono** for code.
 
 Implementation reference:
 
-- Tokens: `packages/web/src/design/tokens.css` (per-theme semantic variables).
-- Tailwind mapping: `packages/web/src/design/theme.css` (`@theme inline`).
-- Base/reset: `packages/web/src/design/globals.css`.
-- Primitives: `packages/web/src/lib/components/ui/*` (Svelte 5 wrappers over `bits-ui`).
-- Icons: `lucide-svelte` (bundled, never a CDN). Fonts: bundled via `@fontsource`.
+- Theme + tokens: `packages/web/src/app.css` (`:root` light, `.dark` dark, `@theme inline`).
+- Components: `packages/web/src/lib/components/ui/*` (shadcn-svelte, generated via the CLI).
+- Project wrappers: a few thin convenience components over the shadcn primitives (see below).
+- Utilities: `packages/web/src/lib/utils.ts` (`cn`, `WithElementRef`, …).
+- Dark mode: [`mode-watcher`](https://mode-watcher.svecosystem.com) toggles the `.dark` class.
+- Icons: `@lucide/svelte` (bundled). Fonts: bundled via `@fontsource` (`outfit`,
+  `jetbrains-mono`).
+- Config: `packages/web/components.json` (`style: vega`, aliases under `$lib`).
 
 ## Principles
 
-- **Neutral & monochrome.** Surfaces are grayscale. `primary` is a solid near-white
-  (dark) / near-black (light). Color appears only in semantic status
-  (`success`, `warning`, `destructive`, `info`).
-- **Compact density.** 48px header, 28px footer, 32px pane/tab bars, 4px spacing base.
-  Body text 13–14px; metadata 11–12px.
-- **Tonal layering, not elevation.** Depth comes from a neutral surface ladder
-  (`sidebar` → `background` → `card` → `popover`) plus 1px borders. Shadows are
-  reserved for popovers, dialogs, and the composer dock.
-- **Active = subtle fill.** Selected/active rows use a quiet `accent` fill (and a thin
-  rail), never a loud color.
-- **Sans for the tool, mono for the work.** Inter for all chrome, labels, and body;
-  JetBrains Mono only for code, logs, paths, and IDs.
-- **Pane-based shell.** Resizable columns (Paneforge) with a persistent header and a
-  minimal footer — the foundation for a future VSCode-like, customizable layout.
+- **Stay official.** Prefer stock shadcn-svelte components and the standard token set. Add
+  new components with `pnpm dlx shadcn-svelte@latest add <name>`.
+- **Token-driven color.** All color comes from the shadcn semantic tokens
+  (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-sidebar`, …). Never hard-code
+  colors. This keeps whole-theme swaps trivial.
+- **Plain & swappable.** The token vocabulary is exactly the official shadcn set plus three
+  semantic status additions (`success`, `warning`, `info`). No project/domain tokens — a
+  one-off value (e.g. a 48px header) is written inline in its single component, not tokenized.
+- **Sans for the tool, mono for the work.** Outfit for UI/chrome; JetBrains Mono for code,
+  logs, paths, and IDs.
+- **Pane-based shell.** Resizable columns via the shadcn `resizable` component (Paneforge),
+  with a persistent header and a minimal footer.
 
 ## Tokens
 
-Tokens are defined as HSL channel triples per theme in `tokens.css` (dark is the
-`:root` default; `:root[data-theme="light"]` overrides), then exposed as Tailwind
-utilities through `@theme inline` in `theme.css`. Use the Tailwind utilities
-(`bg-card`, `text-muted-foreground`, `border-border`, `ring-ring`) in primitives, and
-`hsl(var(--token))` in app-shell scoped styles.
+Defined in `app.css` as oklch values: `:root` (light) and `.dark` (dark), then exposed as
+Tailwind utilities through `@theme inline`. The set is the **official shadcn tokens**:
 
-### Color roles
+`background`, `foreground`, `card(-foreground)`, `popover(-foreground)`,
+`primary(-foreground)`, `secondary(-foreground)`, `muted(-foreground)`,
+`accent(-foreground)`, `destructive(-foreground)`, `border`, `input`, `ring`,
+`chart-1..5`, `sidebar(-foreground/-primary/-accent/-border/-ring)`, `radius`,
+`font-sans`/`font-serif`/`font-mono`, and the `shadow-2xs..2xl` scale.
 
-| Token | Tailwind | Use |
-| --- | --- | --- |
-| `--background` / `--foreground` | `bg-background` / `text-foreground` | conversation canvas + primary text |
-| `--sidebar` / `--sidebar-foreground` | `bg-sidebar` | left/right rails, footer, gutters (deeper than canvas) |
-| `--card` / `--card-foreground` | `bg-card` | panes, cards, header, tab strips |
-| `--popover` / `--popover-foreground` | `bg-popover` | menus, popovers, dialogs |
-| `--primary` / `--primary-foreground` | `bg-primary` | primary action, solid fills (near-white / near-black) |
-| `--secondary` / `--secondary-foreground` | `bg-secondary` | secondary buttons, chips, badges |
-| `--muted` / `--muted-foreground` | `bg-muted` / `text-muted-foreground` | muted surfaces + metadata text |
-| `--accent` / `--accent-foreground` | `bg-accent` | hover/active row fills |
-| `--destructive` / `--destructive-foreground` | `bg-destructive` | errors, destructive actions |
-| `--border` | `border-border` | 1px dividers and pane edges (hairlines via `/ 0.6`) |
-| `--input` | `bg-input` / `border-input` | field backgrounds and borders |
-| `--ring` | `ring-ring` | focus ring, resizer active, active strokes |
-| `--success` / `--warning` / `--info` | `text-success` … | status only (always paired with icon/text) |
+**Only addition:** semantic status colors `success`, `warning`, `info` (each with a
+`-foreground`), used for status dots/badges and connection state — always paired with an
+icon or text label, never color alone.
 
-### Typography, spacing, shape
+### Swapping the theme
 
-- `--font-ui` (Inter) for chrome; `--font-mono` (JetBrains Mono) for code/logs/paths.
-- Text scale `--text-2xs` (11px) … `--text-xl` (18px); tight line-heights (~1.18–1.55).
-- Spacing scale `--space-1` (4px) … `--space-6` (20px).
-- Sizing: `--size-header` 48px, `--size-footer` 28px, `--size-pane-header` 32px,
-  `--control-height-xs/sm/md/lg` (24/28/32/36px).
-- Radius: `--radius` 0.5rem base, with `--radius-sm/md/lg/xl` derived; badges are pills.
-- Elevation: flat by default; `--shadow-popover` / `--shadow-dialog` / `--shadow-dock`.
+Because we stick to the official tokens, changing the entire look is a copy-paste:
 
-## Primitives
+1. Pick a theme on [tweakcn](https://tweakcn.com) and open its registry item
+   (`https://tweakcn.com/r/themes/<id>`).
+2. Replace the values under `:root` and `.dark` in `app.css` with the theme's `light` and
+   `dark` `cssVars` (keep the `success`/`warning`/`info` additions, deriving sensible values
+   from the new palette).
 
-All primitives live in `lib/components/ui/` and share one grammar: a `cva()` variant
-map + Tailwind utility classes bound to the tokens, merged with `cn()` (clsx +
-tailwind-merge). bits-ui wrappers keep scoped styles only where a portalled part needs
-it. The `class` prop is always accepted and merged last.
+## Components
 
-- **Leaf (Tailwind + CVA):** `Button`, `Badge`, `Card`, `Input`, `Textarea`, `Kbd`,
-  `StatusDot`, `Label`, `Checkbox`, `Toggle`, `Progress`.
-- **bits-ui wrappers:** `Select`, `Tabs`, `Dialog`, `AlertDialog`, `ContextMenu`,
-  `DropdownMenu`, `Popover`, `Tooltip`, `Switch`, `RadioGroup`, `ToggleGroup`,
-  `ScrollArea`, `Separator`.
-- **Raw families** are re-exported from `ui/primitives.ts` for advanced/compound cases
-  (`Accordion`, `Collapsible`, `Command`, `Menubar`, …); prefer a styled wrapper.
+Generated shadcn-svelte components live in `lib/components/ui/<name>/` with namespaced
+`index.ts` exports. Import the official compositional primitives directly, e.g.:
 
-Variant grammar:
+```svelte
+import { Button } from "$lib/components/ui/button";
+import * as Select from "$lib/components/ui/select";
+```
 
-- `Button`: `variant` = `primary | secondary | ghost | outline? | danger | toolbar |
-  icon`; `size` = `xs | sm | md | lg | icon`.
-- `Badge` / `StatusDot`: `tone` = `neutral | accent | good | warn | danger | running`
-  (resolved to the semantic status colors); `size` = `xs | sm`.
-- `ContextMenu`: an `items` model of `item | separator | label | submenu`, each item
-  supporting `label`, `icon`, `shortcut`, `disabled`, `destructive`, `onSelect`.
-- `AlertDialog`: `title` / `description` / `confirmLabel` / `cancelLabel` /
-  `destructive` + `onConfirm`. (`Action` does not auto-close; the wrapper closes after
-  `onConfirm`.) Use it for destructive confirmations instead of a generic `Dialog`.
-- `Switch`: the **on** state uses a solid `primary` track with a `primary-foreground`
-  thumb (off = `input` track with a `muted-foreground` thumb). This is the sanctioned
-  solid fill for a primary affordance and is an intentional exception to the
-  "active = subtle fill" rule, which governs row/hover fills — a toggle must read its
-  state at a glance.
+A handful of generated components carry small, intentional project extensions (documented in
+the component file):
+
+- **`button`** — adds an `active`/`pressed` toggle state (`data-active`/`aria-pressed`) and
+  an `ariaLabel` convenience alias. Variants/sizes are stock vega.
+- **`badge`** — adds project status `tone`s (`neutral|accent|good|warn|danger|running`) and
+  `size`s (`xs|sm`) alongside the stock `variant`s.
+- **`input`** — adds a `size` (`sm|default`) and an `ariaLabel` alias.
+- **`scroll-area`** — adds a `viewportClass` pass-through.
+
+### Project wrappers (thin convenience layers)
+
+These compose the official primitives but expose a prop-driven API the app already used. They
+are clearly project-level, not modifications to shadcn:
+
+- `ui/context-menu-list` — `items`-model context menu over `ui/context-menu`.
+- `ui/tabs-bar` — `tabs`-model bar over `ui/tabs`.
+- `ui/select-field` — `items`-model select over `ui/select`.
+- `ui/radio-group-field` — labeled `items`-model radio cards over `ui/radio-group`.
+- `ui/confirm-dialog` — title/confirm/cancel wrapper over `ui/alert-dialog`.
+- `ui/dialog-shell` — titled dialog with header-actions/footer snippets over `ui/dialog`.
+- `ui/popover-panel` — trigger/content wrapper over `ui/popover`.
+- `ui/switch-field` — labeled toggle row over `ui/switch`.
+
+### Custom components
+
+- `ui/status-dot` — a small status indicator (no shadcn equivalent), using the status tokens.
 
 ## Shell
 
-A persistent header + footer wrap three resizable panes (Paneforge):
+A persistent header + footer wrap three resizable panes (shadcn `resizable` / Paneforge):
 
-- **Left — Agents (`sidebar`):** search + project→session tree. Right-click rows for
-  actions; selected rows get a quiet `accent` fill and a thin rail.
-- **Center — Conversation (`background`):** a VSCode-like tab strip for open
-  conversations, followed by the continuous transcript and composer dock. Tabs are
-  conversations, not files; closing a tab is non-destructive and only removes it
-  from the middle pane. The left tree remains the source of all conversations.
-  Each message has a gutter icon; code blocks get a header (language + Copy) over
-  a neutral syntax-highlighted body.
-- **Right — Utility (`sidebar`):** History / Processes / Context tabs.
-
-### Header (48px)
-
-`bg-card` with a bottom hairline. Left: **Nerve** wordmark, a `project › conversation`
-breadcrumb, and an agent status pill (idle/running/error). Right: the connection
-status popover and a Settings icon button. Room is reserved for future toolbar/pane
-controls.
-
-### Footer (28px)
-
-`bg-sidebar`, sans, minimal. Left: left-panel toggle + a shortened project path
-(`~/P/90events` via `utils/path.ts`). Right: a git-status slot (hidden until the
-backend exposes git), compact process/approval count chips, a connection dot, and the
-right-panel toggle.
-
-## Context menus
-
-Right-click is the primary secondary-action surface (a visible affordance such as the
-`+` button is kept for discoverability):
-
-- **Project rows:** New conversation · Copy path · Delete (destructive → `AlertDialog`).
-- **Session rows:** Open · New conversation · Copy session id · Delete (destructive).
-- **Transcript messages:** Copy text · Quote in composer · Copy message id.
-- **Process rows:** Restart · Stop · Refresh logs · Copy command · Copy cwd.
-- **History entries:** Jump here · Jump + summarize · Copy entry id.
+- **Left — Agents (`bg-sidebar`):** search + project→session tree. Right-click rows for
+  actions; selected rows get a quiet `accent` fill.
+- **Center — Conversation (`bg-background`):** a tab strip for open conversations, the
+  transcript, and the composer dock.
+- **Right — Utility (`bg-sidebar`):** History / Processes / Context tabs.
 
 ## Accessibility
 
 - Every interactive element has a visible `:focus-visible` ring (`ring`).
 - Status color is always backed by an icon or text label — never color alone.
-- Pane resizing stays keyboard-accessible via Paneforge.
-- `prefers-reduced-motion` is respected; animation stays minimal.
-- Both dark (default) and light themes maintain readable contrast.
+- Pane resizing stays keyboard-accessible via the `resizable` handle.
+- `prefers-reduced-motion` is respected (see `app.css`).
+- Both light and dark themes maintain readable contrast.

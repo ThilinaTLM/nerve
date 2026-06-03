@@ -104,6 +104,74 @@ describe("orchestrator server routes", () => {
     }
   });
 
+  it("lists and answers pending user questions", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const session = await state.registry.createSession({
+        projectId: project.id,
+      });
+      const agent = await state.registry.createAgent({
+        projectId: project.id,
+        sessionId: session.id,
+      });
+
+      const toolPromise = state.registry.requestTool(agent.id, "ask_user", {
+        question: "What should I optimize for?",
+        context: "The implementation has two reasonable paths.",
+        recommendation: "Prefer the simpler path.",
+      });
+
+      let questionId = "";
+      for (let i = 0; i < 20; i += 1) {
+        const response = await app.request(
+          "/api/user-questions?status=pending",
+          { headers },
+        );
+        assert.equal(response.status, 200);
+        const body = (await response.json()) as {
+          questions: Array<{ id: string; question: string }>;
+        };
+        questionId = body.questions[0]?.id ?? "";
+        if (questionId) break;
+        await delay(20);
+      }
+      assert.ok(questionId.startsWith("question_"));
+
+      const answer = await app.request(
+        `/api/user-questions/${questionId}/answer`,
+        {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ answer: "Optimize for maintainability." }),
+        },
+      );
+      assert.equal(answer.status, 200);
+      assert.equal(
+        ((await answer.json()) as { question: { status: string } }).question
+          .status,
+        "answered",
+      );
+
+      const result = await toolPromise;
+      assert.equal(result.toolCall.status, "completed");
+      assert.deepEqual(
+        (result.toolCall.result as { response?: string; dismissed?: boolean })
+          .response,
+        "Optimize for maintainability.",
+      );
+      assert.equal(
+        (result.toolCall.result as { response?: string; dismissed?: boolean })
+          .dismissed,
+        false,
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("returns representative project, session, agent, and process log responses", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
     try {

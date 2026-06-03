@@ -20,8 +20,8 @@ export function createAgentToolsForAgent(
 
 export function activeToolNamesForAgent(agent: AgentRecord): CoreToolName[] {
   if (agent.permissionLevel === "read_only")
-    return ["read", "grep", "find", "ls"];
-  return ["read", "bash", "edit", "write"];
+    return ["read", "grep", "find", "ls", "ask_user"];
+  return ["read", "bash", "edit", "write", "ask_user"];
 }
 
 export function toolPromptMetadata(
@@ -89,6 +89,23 @@ function completedToolResult(
 function formatToolResultForModel(toolCall: ToolCallRecord): string {
   const result = toolCall.result;
   if (result === undefined) return "Tool completed.";
+  if (
+    toolCall.toolName === "ask_user" &&
+    result &&
+    typeof result === "object"
+  ) {
+    const record = result as Record<string, unknown>;
+    if (record.dismissed === true) {
+      return `User dismissed the question.${
+        typeof record.dismissedReason === "string"
+          ? `\nReason: ${record.dismissedReason}`
+          : ""
+      }`;
+    }
+    if (typeof record.response === "string") {
+      return `User replied:\n${record.response}`;
+    }
+  }
   if (typeof result === "string") return truncate(result, 24_000);
   if (result && typeof result === "object") {
     const record = result as Record<string, unknown>;

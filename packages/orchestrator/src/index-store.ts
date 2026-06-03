@@ -7,6 +7,7 @@ import type {
   ProjectRecord,
   SessionRecord,
   ToolCallRecord,
+  UserQuestionRecord,
   WorkerRecord,
 } from "@nerve/shared";
 
@@ -17,6 +18,7 @@ export interface IndexCounts {
   events: number;
   processes: number;
   workers: number;
+  userQuestions: number;
 }
 
 export interface RebuildIndexInput {
@@ -26,6 +28,7 @@ export interface RebuildIndexInput {
   events: EventEnvelope[];
   processes?: ProcessRecord[];
   workers?: WorkerRecord[];
+  userQuestions?: UserQuestionRecord[];
 }
 
 interface EventRefs {
@@ -123,6 +126,10 @@ export class IndexStore {
           json TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS approvals (
+          id TEXT PRIMARY KEY,
+          json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS user_questions (
           id TEXT PRIMARY KEY,
           json TEXT NOT NULL
         );
@@ -328,6 +335,18 @@ export class IndexStore {
     });
   }
 
+  upsertUserQuestion(question: UserQuestionRecord): void {
+    this.guard(() => {
+      this.db
+        .prepare(
+          `INSERT INTO user_questions (id, json)
+           VALUES (?, ?)
+           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
+        )
+        .run(question.id, JSON.stringify(question));
+    });
+  }
+
   insertEvent(event: EventEnvelope): void {
     this.guard(() => {
       const refs = refsForEvent(event);
@@ -356,8 +375,10 @@ export class IndexStore {
       this.db.exec("BEGIN IMMEDIATE");
       try {
         this.db.exec(
-          "DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM processes; DELETE FROM workers; DELETE FROM events_index; DELETE FROM agents; DELETE FROM sessions; DELETE FROM projects;",
+          "DELETE FROM user_questions; DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM processes; DELETE FROM workers; DELETE FROM events_index; DELETE FROM agents; DELETE FROM sessions; DELETE FROM projects;",
         );
+        for (const question of input.userQuestions ?? [])
+          this.upsertUserQuestion(question);
         for (const worker of input.workers ?? []) this.upsertWorker(worker);
         for (const project of input.projects) this.upsertProject(project);
         for (const session of input.sessions) this.upsertSession(session);
@@ -381,6 +402,7 @@ export class IndexStore {
       events: this.countTable("events_index"),
       processes: this.countTable("processes"),
       workers: this.countTable("workers"),
+      userQuestions: this.countTable("user_questions"),
     }));
   }
 
@@ -446,6 +468,9 @@ function refsForEvent(event: EventEnvelope): EventRefs {
   copyNestedRef(data.process, refs, "projectId", "projectId");
   copyNestedRef(data.process, refs, "sessionId", "sessionId");
   copyNestedRef(data.process, refs, "agentId", "agentId");
+  copyNestedRef(data.question, refs, "projectId", "projectId");
+  copyNestedRef(data.question, refs, "sessionId", "sessionId");
+  copyNestedRef(data.question, refs, "agentId", "agentId");
   copyNestedRef(data.entry, refs, "sessionId", "sessionId");
   copyNestedRef(data.entry, refs, "agentId", "agentId");
   return refs;

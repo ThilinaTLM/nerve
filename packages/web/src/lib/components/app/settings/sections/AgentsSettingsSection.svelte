@@ -1,7 +1,7 @@
 <script lang="ts">
-  import Bot from "lucide-svelte/icons/bot";
+  import Bot from "@lucide/svelte/icons/bot";
   import type { Settings } from "../../../../api";
-  import RadioGroup from "../../../ui/RadioGroup.svelte";
+  import RadioGroup from "$lib/components/ui/radio-group-field";
   import { modeItems, permissionItems } from "../options";
 
   type Props = {

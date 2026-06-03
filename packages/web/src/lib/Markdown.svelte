@@ -145,9 +145,9 @@
 
 <style>
   .markdown {
-    color: hsl(var(--foreground) / 0.92);
-    font-size: var(--text-sm);
-    line-height: var(--leading-relaxed);
+    color: color-mix(in oklab, var(--foreground) 92%, transparent);
+    font-size: 0.8125rem;
+    line-height: 1.55;
     overflow-wrap: anywhere;
   }
 
@@ -170,18 +170,18 @@
   }
 
   .markdown :global(a) {
-    color: hsl(var(--primary));
+    color: var(--primary);
     text-decoration: underline;
-    text-decoration-color: color-mix(in srgb, hsl(var(--primary)) 50%, transparent);
+    text-decoration-color: color-mix(in srgb, var(--primary) 50%, transparent);
     text-underline-offset: 0.18em;
   }
 
   .markdown :global(code) {
     display: inline;
-    border: 1px solid hsl(var(--border) / 0.6);
-    border-radius: var(--radius-xs);
-    background: hsl(var(--input));
-    color: hsl(var(--foreground));
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    border-radius: 0.25rem;
+    background: var(--input);
+    color: var(--foreground);
     padding: 0.08rem 0.28rem;
     font-family: var(--font-mono);
     font-size: 0.9em;
@@ -189,9 +189,9 @@
 
   .markdown :global(.code-block) {
     overflow: hidden;
-    border: 1px solid hsl(var(--border));
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: hsl(var(--sidebar));
+    background: var(--sidebar);
   }
 
   .markdown :global(.code-block-header) {
@@ -199,42 +199,42 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    border-bottom: 1px solid hsl(var(--border));
-    background: hsl(var(--secondary));
+    border-bottom: 1px solid var(--border);
+    background: var(--secondary);
     padding: 0.32rem 0.6rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-label);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
   .markdown :global(.code-copy) {
-    border: 1px solid hsl(var(--border) / 0.6);
-    border-radius: var(--radius-xs);
-    background: hsl(var(--input));
-    color: hsl(var(--muted-foreground));
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    border-radius: 0.25rem;
+    background: var(--input);
+    color: var(--muted-foreground);
     padding: 0.12rem 0.38rem;
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: 0.6875rem;
     cursor: pointer;
   }
 
   .markdown :global(.code-copy:hover) {
-    border-color: hsl(var(--accent));
-    background: hsl(var(--accent));
-    color: hsl(var(--primary));
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--primary);
   }
 
   .markdown :global(pre) {
     overflow: auto;
     border: 0;
     border-radius: 0;
-    background: hsl(var(--sidebar)) !important;
+    background: var(--sidebar) !important;
     margin: 0;
     padding: 0.75rem;
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
     line-height: 1.55;
   }
 
@@ -247,26 +247,26 @@
   }
 
   .markdown :global(blockquote) {
-    border-left: 2px solid hsl(var(--primary));
+    border-left: 2px solid var(--primary);
     padding-left: 0.85rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
   }
 
   .markdown :global(table) {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
   }
 
   .markdown :global(th),
   .markdown :global(td) {
-    border: 1px solid hsl(var(--border) / 0.6);
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     padding: 0.45rem 0.55rem;
     text-align: left;
   }
 
   .markdown :global(th) {
-    background: hsl(var(--input));
-    color: hsl(var(--foreground));
+    background: var(--input);
+    color: var(--foreground);
   }
 </style>

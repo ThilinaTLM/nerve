@@ -1,9 +1,9 @@
 <script lang="ts">
-  import Server from "lucide-svelte/icons/server";
-  import Shield from "lucide-svelte/icons/shield";
+  import Server from "@lucide/svelte/icons/server";
+  import Shield from "@lucide/svelte/icons/shield";
   import type { Settings } from "../../../../api";
-  import Input from "../../../ui/Input.svelte";
-  import Switch from "../../../ui/Switch.svelte";
+  import { Input } from "$lib/components/ui/input";
+  import Switch from "$lib/components/ui/switch-field";
 
   type Props = {
     settingsDraft: Settings;

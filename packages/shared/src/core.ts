@@ -9,6 +9,7 @@ export type IdPrefix =
   | "entry"
   | "tool"
   | "approval"
+  | "question"
   | "worker"
   | "authflow";
 

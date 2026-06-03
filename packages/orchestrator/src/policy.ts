@@ -38,6 +38,16 @@ export function evaluateToolPolicy(
   const normalizedArgs = { ...args };
   let risk = classifyRisk(toolName, args, agent, context);
 
+  if (toolName === "ask_user") {
+    return {
+      decision: "allow",
+      risk: "interaction",
+      reason: "User-interaction tool call is allowed.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
   const boundary = enforceBoundaries(
     agent,
     toolName,
@@ -250,6 +260,7 @@ function classifyRisk(
   context: PolicyContext,
 ): ToolRisk {
   if (toolName === "subagent_run") return "agent_spawn";
+  if (toolName === "ask_user") return "interaction";
   if (toolName === "process_list" || toolName === "process_logs") return "read";
   if (toolName === "process_stop" || toolName === "process_restart") {
     return "destructive";

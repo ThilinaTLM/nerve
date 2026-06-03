@@ -10,6 +10,7 @@ export const toolRiskSchema = z.enum([
   "destructive",
   "agent_spawn",
   "deployment",
+  "interaction",
 ]);
 export type ToolRisk = z.infer<typeof toolRiskSchema>;
 
@@ -21,6 +22,7 @@ export const coreToolNameSchema = z.enum([
   "grep",
   "find",
   "ls",
+  "ask_user",
 ]);
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 
@@ -50,6 +52,7 @@ export type ToolDescriptor = z.infer<typeof toolDescriptorSchema>;
 export const toolCallStatusSchema = z.enum([
   "requested",
   "pending_approval",
+  "waiting_for_user",
   "running",
   "completed",
   "denied",
@@ -91,6 +94,46 @@ export const approvalRecordSchema = z.object({
   resolvedAt: z.string().datetime().optional(),
 });
 export type ApprovalRecord = z.infer<typeof approvalRecordSchema>;
+
+export const userQuestionStatusSchema = z.enum([
+  "pending",
+  "answered",
+  "dismissed",
+]);
+export type UserQuestionStatus = z.infer<typeof userQuestionStatusSchema>;
+
+export const userQuestionRecordSchema = z.object({
+  id: z.string().startsWith("question_"),
+  toolCallId: z.string().startsWith("tool_"),
+  agentId: z.string().startsWith("agent_"),
+  sessionId: z.string().startsWith("ses_"),
+  projectId: z.string().startsWith("proj_"),
+  question: z.string().min(1),
+  context: z.string().optional(),
+  recommendation: z.string().optional(),
+  placeholder: z.string().optional(),
+  status: userQuestionStatusSchema,
+  answer: z.string().optional(),
+  dismissedReason: z.string().optional(),
+  requestedAt: z.string().datetime(),
+  resolvedAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime(),
+});
+export type UserQuestionRecord = z.infer<typeof userQuestionRecordSchema>;
+
+export const answerUserQuestionRequestSchema = z.object({
+  answer: z.string().min(1),
+});
+export type AnswerUserQuestionRequest = z.infer<
+  typeof answerUserQuestionRequestSchema
+>;
+
+export const dismissUserQuestionRequestSchema = z.object({
+  reason: z.string().optional(),
+});
+export type DismissUserQuestionRequest = z.infer<
+  typeof dismissUserQuestionRequestSchema
+>;
 
 export const executeToolRequestSchema = z.object({
   toolName: toolNameSchema,

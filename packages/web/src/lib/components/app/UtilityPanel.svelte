@@ -8,8 +8,8 @@
     SessionTreeNode,
     StatusResponse,
   } from "../../api";
-  import ScrollArea from "../ui/ScrollArea.svelte";
-  import Tabs, { type TabItem } from "../ui/Tabs.svelte";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import Tabs, { type TabItem } from "$lib/components/ui/tabs-bar";
   import ContextTab from "./utility/ContextTab.svelte";
   import HistoryTab from "./utility/HistoryTab.svelte";
   import ProcessesTab from "./utility/ProcessesTab.svelte";

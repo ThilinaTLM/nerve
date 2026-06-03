@@ -7,6 +7,7 @@ import {
   deleteSession,
   getFileCompletions,
   getPendingApprovals,
+  getPendingUserQuestions,
   getProcessLogs,
   getSlashCompletions,
   getWorkspaceSnapshot,
@@ -35,7 +36,12 @@ export async function loadWorkspaceState() {
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
   workbenchState.selectedProcessId =
     workbenchState.selectedProcessId ?? workbenchState.processes[0]?.id;
-  workbenchState.approvals = await getPendingApprovals();
+  const [approvals, userQuestions] = await Promise.all([
+    getPendingApprovals(),
+    getPendingUserQuestions(),
+  ]);
+  workbenchState.approvals = approvals;
+  workbenchState.userQuestions = userQuestions;
   if (workbenchState.selectedProcessId) {
     workbenchState.processLogs = await getProcessLogs(
       workbenchState.selectedProcessId,

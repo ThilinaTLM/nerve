@@ -1,9 +1,9 @@
 <script lang="ts">
-  import Plus from "lucide-svelte/icons/plus";
-  import X from "lucide-svelte/icons/x";
+  import Plus from "@lucide/svelte/icons/plus";
+  import X from "@lucide/svelte/icons/x";
   import type { ConversationTabModel } from "../../stores/workbench/selectors.svelte";
   import { shortProjectLabel } from "../../utils/project-tree";
-  import Button from "../ui/Button.svelte";
+  import { Button } from "$lib/components/ui/button";
 
   type Props = {
     tabs?: ConversationTabModel[];
@@ -77,8 +77,8 @@
 
   <div class="tab-actions">
     <Button
-      variant="icon"
-      size="icon"
+      variant="ghost"
+      size="icon-sm"
       ariaLabel="New conversation"
       title="New conversation"
       onclick={onNewConversation}
@@ -92,10 +92,10 @@
   .conversation-tab-strip {
     display: grid;
     min-width: 0;
-    min-height: var(--size-pane-header);
+    min-height: 2rem;
     grid-template-columns: minmax(0, 1fr) auto;
-    border-bottom: 1px solid hsl(var(--border));
-    background: hsl(var(--card));
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
   }
 
   .tab-scroller {
@@ -113,10 +113,10 @@
     grid-template-columns: minmax(0, 1fr) auto;
     min-width: 7.5rem;
     max-width: 15rem;
-    height: var(--size-pane-header);
-    border-right: 1px solid hsl(var(--border) / 0.62);
-    background: hsl(var(--card));
-    color: hsl(var(--muted-foreground));
+    height: 2rem;
+    border-right: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+    background: var(--card);
+    color: var(--muted-foreground);
   }
 
   .conversation-tab::before {
@@ -128,17 +128,17 @@
   }
 
   .conversation-tab:hover {
-    background: hsl(var(--accent) / 0.6);
-    color: hsl(var(--foreground));
+    background: color-mix(in oklab, var(--accent) 60%, transparent);
+    color: var(--foreground);
   }
 
   .conversation-tab.active {
-    background: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background: var(--background);
+    color: var(--foreground);
   }
 
   .conversation-tab.active::before {
-    background: hsl(var(--primary));
+    background: var(--primary);
   }
 
   .tab-select,
@@ -156,15 +156,15 @@
     align-items: center;
     gap: 0.42rem;
     min-width: 0;
-    height: var(--size-pane-header);
+    height: 2rem;
     padding: 0 0.3rem 0 0.68rem;
-    font-size: var(--text-xs);
+    font-size: 0.75rem;
     text-align: left;
   }
 
   .tab-select:focus-visible,
   .tab-close:focus-visible {
-    outline: 1px solid hsl(var(--ring));
+    outline: 1px solid var(--ring);
     outline-offset: -1px;
     z-index: 1;
   }
@@ -174,17 +174,17 @@
     width: 0.42rem;
     height: 0.42rem;
     border-radius: 999px;
-    background: hsl(var(--muted-foreground) / 0.5);
+    background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
   }
 
   .conversation-tab.running .tab-status {
-    background: hsl(var(--info));
-    box-shadow: 0 0 0 0 hsl(var(--info) / 0.45);
+    background: var(--info);
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 45%, transparent);
     animation: tab-pulse 1.3s ease-out infinite;
   }
 
   .conversation-tab.errored .tab-status {
-    background: hsl(var(--destructive));
+    background: var(--destructive);
   }
 
   .tab-title {
@@ -199,15 +199,15 @@
     width: 0.32rem;
     height: 0.32rem;
     border-radius: 999px;
-    background: hsl(var(--primary));
+    background: var(--primary);
   }
 
   .tab-close {
     display: inline-grid;
     width: 1.45rem;
-    height: var(--size-pane-header);
+    height: 2rem;
     place-items: center;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     opacity: 0;
   }
 
@@ -219,24 +219,24 @@
 
   .tab-close:hover,
   .tab-close:focus-visible {
-    background: hsl(var(--accent));
-    color: hsl(var(--foreground));
+    background: var(--accent);
+    color: var(--foreground);
   }
 
   .tab-actions {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--size-pane-header);
-    border-left: 1px solid hsl(var(--border) / 0.62);
+    width: 2rem;
+    border-left: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
   }
 
   @keyframes tab-pulse {
     70% {
-      box-shadow: 0 0 0 5px hsl(var(--info) / 0);
+      box-shadow: 0 0 0 5px color-mix(in oklab, var(--info) 0%, transparent);
     }
     100% {
-      box-shadow: 0 0 0 0 hsl(var(--info) / 0);
+      box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 0%, transparent);
     }
   }
 </style>

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import ChevronRight from "lucide-svelte/icons/chevron-right";
-  import Settings2 from "lucide-svelte/icons/settings-2";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Settings2 from "@lucide/svelte/icons/settings-2";
   import { Toolbar } from "bits-ui";
   import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
-  import Button from "../ui/Button.svelte";
-  import StatusDot from "../ui/StatusDot.svelte";
+  import { Button } from "$lib/components/ui/button";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import StatusPopover from "./StatusPopover.svelte";
 
   type AppRoute = "workspace" | "settings";
@@ -77,8 +77,8 @@
       {pendingApprovals}
     />
     <Button
-      variant="icon"
-      size="icon"
+      variant="ghost"
+      size="icon-sm"
       ariaLabel="Open settings"
       title="Open settings"
       active={activeRoute === "settings"}
@@ -98,9 +98,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    height: var(--size-header);
-    border-bottom: 1px solid hsl(var(--border));
-    background: hsl(var(--card));
+    height: 3rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
     padding: 0 0.75rem;
     user-select: none;
   }
@@ -119,17 +119,17 @@
   }
 
   .app-name {
-    color: hsl(var(--foreground));
-    font-family: var(--font-display);
-    font-size: var(--text-lg);
-    font-weight: var(--weight-bold);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 700;
     letter-spacing: -0.01em;
   }
 
   .divider {
     width: 1px;
     height: 1.25rem;
-    background: hsl(var(--border));
+    background: var(--border);
   }
 
   .breadcrumb {
@@ -137,12 +137,12 @@
     align-items: center;
     min-width: 0;
     gap: 0.375rem;
-    font-size: var(--text-sm);
+    font-size: 0.8125rem;
   }
 
   .breadcrumb :global(svg) {
     flex: none;
-    color: hsl(var(--muted-foreground) / 70%);
+    color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
   }
 
   .crumb {
@@ -150,12 +150,12 @@
     max-width: 18rem;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
   }
 
   .crumb.current {
-    color: hsl(var(--foreground));
-    font-weight: var(--weight-medium);
+    color: var(--foreground);
+    font-weight: 500;
   }
 
   .agent-pill {
@@ -163,13 +163,13 @@
     align-items: center;
     flex: none;
     gap: 0.4rem;
-    height: var(--control-height-xs);
-    border: 1px solid hsl(var(--border));
+    height: 1.5rem;
+    border: 1px solid var(--border);
     border-radius: 999px;
-    background: hsl(var(--secondary));
+    background: var(--secondary);
     padding: 0 0.55rem;
-    color: hsl(var(--muted-foreground));
-    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
   }
 
   .agent-status {

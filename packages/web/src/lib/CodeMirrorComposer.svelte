@@ -111,13 +111,13 @@
           }),
           EditorView.theme({
             "&": {
-              background: "hsl(var(--input))",
-              color: "hsl(var(--foreground))",
+              background: "var(--input)",
+              color: "var(--foreground)",
               minHeight: "72px",
               maxHeight: "min(32vh, 220px)",
             },
             ".cm-content": {
-              caretColor: "hsl(var(--primary))",
+              caretColor: "var(--primary)",
               fontFamily:
                 'var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
               fontSize: "0.8125rem",
@@ -128,10 +128,10 @@
               padding: "0 2px",
             },
             ".cm-cursor": {
-              borderLeftColor: "hsl(var(--primary))",
+              borderLeftColor: "var(--primary)",
             },
             ".cm-placeholder": {
-              color: "hsl(var(--muted-foreground) / 0.75)",
+              color: "color-mix(in oklab, var(--muted-foreground) 75%, transparent)",
             },
             ".cm-scroller": {
               minHeight: "72px",
@@ -139,25 +139,25 @@
               overflow: "auto",
             },
             ".cm-tooltip": {
-              border: "1px solid hsl(var(--border))",
+              border: "1px solid var(--border)",
               borderRadius: "var(--radius-md)",
-              background: "hsl(var(--accent))",
-              color: "hsl(var(--foreground))",
-              boxShadow: "var(--shadow-popover)",
+              background: "var(--accent)",
+              color: "var(--foreground)",
+              boxShadow: "var(--shadow-md)",
               overflow: "hidden",
             },
             ".cm-tooltip-autocomplete ul li[aria-selected]": {
-              background: "hsl(var(--accent))",
-              color: "hsl(var(--foreground))",
+              background: "var(--accent)",
+              color: "var(--foreground)",
             },
             "&.cm-focused": {
               outline: "none",
             },
             "&.cm-focused .cm-cursor": {
-              borderLeftColor: "hsl(var(--primary))",
+              borderLeftColor: "var(--primary)",
             },
             "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
-              backgroundColor: "hsl(var(--selection) / 0.22)",
+              backgroundColor: "color-mix(in oklab, var(--primary) 22%, transparent)",
             },
           }),
         ],
@@ -204,9 +204,9 @@
 <style>
   .composer-editor {
     overflow: hidden;
-    border: 1px solid hsl(var(--border));
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: hsl(var(--input));
+    background: var(--input);
     transition:
       border-color 160ms ease,
       box-shadow 160ms ease,
@@ -214,8 +214,8 @@
   }
 
   .composer-editor:focus-within {
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
   }
 
   .composer-editor.disabled {

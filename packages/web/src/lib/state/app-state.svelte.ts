@@ -1,3 +1,5 @@
+import { setMode, userPrefersMode } from "mode-watcher";
+
 export type ThemePreference = "system" | "light" | "dark";
 export type UtilityTab = "history" | "processes" | "info";
 
@@ -25,26 +27,13 @@ export const composerDraft = $state({
 
 export const themeState = $state({
   preference: "system" as ThemePreference,
-  resolved: "dark" as "light" | "dark",
 });
 
-function resolveTheme(preference: ThemePreference): "light" | "dark" {
-  if (preference !== "system") return preference;
-  if (typeof window === "undefined") return "dark";
-  return window.matchMedia("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
-}
-
+// Theme switching is delegated to mode-watcher, which toggles the `.dark` class
+// on <html>, follows the system preference, and persists the choice.
 export function applyTheme(preference = themeState.preference) {
   themeState.preference = preference;
-  themeState.resolved = resolveTheme(preference);
-  if (typeof document !== "undefined") {
-    document.documentElement.dataset.theme = themeState.resolved;
-    document.documentElement.dataset.themePreference = preference;
-  }
-  if (typeof localStorage !== "undefined")
-    localStorage.setItem("nerve.theme", preference);
+  setMode(preference);
 }
 
 export function loadSidebarCollapsed(): boolean {
@@ -70,11 +59,8 @@ export function setUtilityCollapsed(collapsed: boolean) {
 }
 
 export function loadThemePreference(): ThemePreference {
-  if (typeof localStorage === "undefined") return "system";
-  const stored = localStorage.getItem("nerve.theme");
-  return stored === "light" || stored === "dark" || stored === "system"
-    ? stored
-    : "system";
+  // mode-watcher restores the persisted mode on mount; mirror it into state.
+  return userPrefersMode.current ?? "system";
 }
 
 export function pushEventPreview(serialized: string) {

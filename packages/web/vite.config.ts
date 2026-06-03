@@ -1,3 +1,4 @@
+import path from "node:path";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv } from "vite";
@@ -8,6 +9,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [svelte(), tailwindcss()],
+    resolve: {
+      alias: {
+        $lib: path.resolve("./src/lib"),
+      },
+    },
     server: {
       host: "127.0.0.1",
       port: 5173,

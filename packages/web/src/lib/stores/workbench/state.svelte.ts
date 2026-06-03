@@ -13,6 +13,7 @@ import type {
   SessionTreeNode,
   Settings,
   StatusResponse,
+  UserQuestionRecord,
 } from "../../api";
 
 export type TranscriptItem = {
@@ -44,6 +45,7 @@ export const workbenchState = $state({
   agents: [] as AgentRecord[],
   treeNodes: [] as SessionTreeNode[],
   approvals: [] as ApprovalWithToolCall[],
+  userQuestions: [] as UserQuestionRecord[],
   processes: [] as ProcessRecord[],
   selectedProcessId: undefined as string | undefined,
   processLogs: undefined as ProcessLogQueryResponse | undefined,

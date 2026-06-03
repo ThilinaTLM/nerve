@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Pane, PaneGroup, PaneResizer } from "paneforge";
+  import {
+    Pane,
+    PaneGroup,
+    Handle as PaneResizer,
+  } from "$lib/components/ui/resizable";
   import type { AgentRecord } from "./lib/api";
   import {
-    applyTheme,
     layout,
     loadSidebarCollapsed,
     loadUtilityCollapsed,
@@ -22,6 +25,7 @@
   import UtilityPanel from "./lib/components/app/UtilityPanel.svelte";
   import {
     abortActiveRun,
+    answerActiveUserQuestion,
     closeConversationTab,
     compactActiveSession,
     completeFiles,
@@ -29,6 +33,7 @@
     deleteProjectAndRefresh,
     deleteSessionAndRefresh,
     denyApproval,
+    dismissActiveUserQuestion,
     disconnectWorkbench,
     exportUrl,
     grantApproval,
@@ -65,6 +70,7 @@
   const sessions = $derived(workbenchSelectors.sessions);
   const agents = $derived(workbenchSelectors.agents);
   const approvals = $derived(workbenchSelectors.approvals);
+  const pendingUserQuestion = $derived(workbenchSelectors.activeUserQuestion);
   const processes = $derived(workbenchSelectors.processes);
   const treeNodes = $derived(workbenchSelectors.treeNodes);
   const processLogs = $derived(workbenchSelectors.processLogs);
@@ -121,8 +127,6 @@
   }
 
   onMount(() => {
-    let themeMedia: MediaQueryList | undefined;
-    const handleSystemTheme = () => applyTheme(themeState.preference);
     const handlePopState = () => (appRoute = routeFromPath(window.location.pathname));
 
     setSettingsNavigation(() => navigateToRoute("settings"));
@@ -131,13 +135,10 @@
     setUtilityCollapsed(loadUtilityCollapsed());
     window.addEventListener("popstate", handlePopState);
 
-    themeMedia = window.matchMedia("(prefers-color-scheme: light)");
-    themeMedia.addEventListener("change", handleSystemTheme);
     void initializeWorkbench();
 
     return () => {
       disconnectWorkbench();
-      themeMedia?.removeEventListener("change", handleSystemTheme);
       window.removeEventListener("popstate", handlePopState);
     };
   });
@@ -218,6 +219,7 @@
               {agents}
               homeDir={status?.storage.home}
               {approvals}
+              {pendingUserQuestion}
               {transcript}
               {streamingText}
               {live}
@@ -232,6 +234,8 @@
               fileCompletions={completeFiles}
               onComposerChange={setActiveComposerText}
               onSubmit={sendPrompt}
+              onAnswerUserQuestion={answerActiveUserQuestion}
+              onDismissUserQuestion={dismissActiveUserQuestion}
               onAbort={abortActiveRun}
               onOpenProject={openProjectPicker}
               onNewConversationInProject={newConversationInProject}
@@ -319,10 +323,10 @@
     height: 100vh;
     min-width: 0;
     min-height: 0;
-    grid-template-rows: var(--size-header) minmax(0, 1fr) var(--size-footer);
+    grid-template-rows: 3rem minmax(0, 1fr) 1.75rem;
     overflow: hidden;
-    background: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background: var(--background);
+    color: var(--foreground);
   }
 
   .workspace-shell,
@@ -330,7 +334,7 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    background: hsl(var(--sidebar));
+    background: var(--sidebar);
   }
 
   .workspace-shell :global([data-pane-group]) {
@@ -344,17 +348,17 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    background: hsl(var(--sidebar));
+    background: var(--sidebar);
   }
 
   .conversation-shell {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    background: hsl(var(--background));
+    background: var(--background);
   }
 
   .utility-shell {
-    background: hsl(var(--sidebar));
+    background: var(--sidebar);
   }
 
   @media (max-width: 980px) {

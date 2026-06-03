@@ -28,6 +28,10 @@ export async function executeTool(
       return executeFind(args, context);
     case "ls":
       return executeLs(args, context);
+    case "ask_user":
+      throw new Error(
+        "ask_user is executed by the orchestrator user-interaction service.",
+      );
     case "process_start":
     case "process_stop":
     case "process_restart":
