@@ -271,27 +271,26 @@
     gap: 0.4rem;
     padding: 0.45rem 0.42rem;
     border-color: color-mix(in oklab, var(--border) 45%, transparent);
-    background: color-mix(in oklab, var(--accent) 55%, transparent);
+    background: color-mix(in oklab, var(--foreground) 7%, transparent);
     color: var(--foreground);
     font-size: 0.8125rem;
   }
 
-  .project-row-wrap.active :global(.project-row)::before,
-  .conversation-row-wrap.selected .conversation-row::before {
-    content: "";
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 2px;
-    border-radius: 999px;
-    background: var(--primary);
+  :global(.project-row:hover),
+  .project-row-wrap.active :global(.project-row) {
+    border-color: color-mix(in oklab, var(--border) 55%, transparent);
+    background: color-mix(in oklab, var(--foreground) 11%, transparent);
   }
 
-  :global(.project-row:hover),
-  .project-row-wrap.active :global(.project-row),
-  .conversation-row:hover,
+  .conversation-row:hover {
+    border-color: color-mix(in oklab, var(--border) 60%, transparent);
+    background: color-mix(in oklab, var(--accent) 70%, transparent);
+  }
+
   .conversation-row-wrap.selected .conversation-row {
     border-color: color-mix(in oklab, var(--border) 60%, transparent);
     background: var(--accent);
+    font-weight: 500;
   }
 
   .project-row-wrap.active :global(.project-label) {
