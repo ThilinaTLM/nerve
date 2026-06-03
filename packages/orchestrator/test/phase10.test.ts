@@ -31,6 +31,7 @@ describe("phase 10 hardening helpers", () => {
     });
 
     assert.equal(settings.defaultPermissionLevel, "autonomous");
+    assert.equal(settings.defaultSubagentPermissionLevel, "autonomous");
     assert.equal(settings.server.host, "127.0.0.1");
     assert.equal(settings.server.allowRemote, true);
     assert.equal(storage.settings.server.allowRemote, true);

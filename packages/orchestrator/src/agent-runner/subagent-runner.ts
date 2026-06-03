@@ -7,10 +7,6 @@ import type {
   SessionEntry,
   SessionRecord,
 } from "@nerve/shared";
-import {
-  boundedWorkspaceScope,
-  workspaceScopeArg,
-} from "../agents/workspace-scope.js";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
 import type { InitializedStorage } from "../storage.js";
@@ -46,7 +42,6 @@ export class SubagentRunner {
     const permissionLevel =
       permissionArg(args.permissionLevel) ??
       this.deps.storage.settings.defaultSubagentPermissionLevel;
-    const requestedWorkspaceScope = workspaceScopeArg(args.workspaceRoots);
     const child = await this.deps.createAgent(
       {
         sessionId: parent.sessionId,
@@ -57,9 +52,7 @@ export class SubagentRunner {
         task,
         mode,
         permissionLevel,
-        workspaceScope: requestedWorkspaceScope
-          ? boundedWorkspaceScope(parent, requestedWorkspaceScope)
-          : parent.workspaceScope,
+        workspaceScope: parent.workspaceScope,
         model: parent.model,
         thinkingLevel: parent.thinkingLevel,
       },

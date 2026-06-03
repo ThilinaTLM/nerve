@@ -65,7 +65,12 @@ describe("filesystem executors", () => {
 
   it("reads @-prefixed paths and truncates large text with continuation guidance", async () => {
     const project = await createTempProject();
-    await project.write("large.txt", Array.from({ length: 2002 }, (_, index) => `line ${index + 1}`).join("\n"));
+    await project.write(
+      "large.txt",
+      Array.from({ length: 2002 }, (_, index) => `line ${index + 1}`).join(
+        "\n",
+      ),
+    );
 
     const result = await executeRead(
       { path: "@large.txt" },

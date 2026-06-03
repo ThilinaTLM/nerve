@@ -64,7 +64,7 @@
     selectedModelKey = "",
     thinkingLevel = "off",
     mode = "coding",
-    permissionLevel = "supervised",
+    permissionLevel = "autonomous",
     slashCompletions = [],
     fileCompletions,
     onChange,
@@ -139,8 +139,8 @@
 
   const permissionItems: SelectItem[] = [
     { value: "read_only", label: "Read only", detail: "No writes or mutating commands" },
-    { value: "supervised", label: "Supervised", detail: "Ask before sensitive actions" },
-    { value: "autonomous", label: "Autonomous", detail: "Proceed with broader authority" },
+    { value: "supervised", label: "Supervised", detail: "Ask before non-read tool calls" },
+    { value: "autonomous", label: "Autonomous", detail: "Allow tool calls without approval" },
   ];
 </script>
 

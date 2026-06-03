@@ -57,6 +57,6 @@ export function nerveSystemContext(agent: AgentRecord): string {
     `- Mode: ${agent.mode}. Permission level: ${agent.permissionLevel}.`,
     `- ${childContext}`,
     `- Child budget: depth ${agent.budget.depth}/${agent.budget.maxDepth}, runs ${agent.budget.usedRuns}/${agent.budget.maxRuns}.`,
-    "- Tool calls may be approved, denied, or constrained according to mode and permission level.",
+    "- Permission level controls tool-call supervision: autonomous allows calls, supervised asks for non-read calls, read_only denies non-read calls.",
   ].join("\n");
 }

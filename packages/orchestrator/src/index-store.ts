@@ -287,9 +287,7 @@ export class IndexStore {
 
   deleteProcess(processId: string): void {
     this.guard(() => {
-      this.db
-        .prepare("DELETE FROM processes WHERE id = ?")
-        .run(processId);
+      this.db.prepare("DELETE FROM processes WHERE id = ?").run(processId);
     });
   }
 

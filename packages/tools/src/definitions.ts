@@ -242,9 +242,15 @@ const processTargetParameters = Type.Object(
     processId: Type.Optional(Type.String({ description: "Process id" })),
     name: Type.Optional(Type.String({ description: "Process name" })),
     signal: Type.Optional(
-      Type.Union([Type.Literal("SIGTERM"), Type.Literal("SIGINT"), Type.Literal("SIGKILL")]),
+      Type.Union([
+        Type.Literal("SIGTERM"),
+        Type.Literal("SIGINT"),
+        Type.Literal("SIGKILL"),
+      ]),
     ),
-    timeoutMs: Type.Optional(Type.Number({ description: "Stop timeout in milliseconds" })),
+    timeoutMs: Type.Optional(
+      Type.Number({ description: "Stop timeout in milliseconds" }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -284,8 +290,12 @@ const processLogsParameters = Type.Object(
 const subagentRunParameters = Type.Object(
   {
     task: Type.String({ description: "Task for the child agent" }),
-    context: Type.Optional(Type.String({ description: "Useful context for the child agent" })),
-    mode: Type.Optional(Type.Union([Type.Literal("planning"), Type.Literal("coding")])),
+    context: Type.Optional(
+      Type.String({ description: "Useful context for the child agent" }),
+    ),
+    mode: Type.Optional(
+      Type.Union([Type.Literal("planning"), Type.Literal("coding")]),
+    ),
     permissionLevel: Type.Optional(
       Type.Union([
         Type.Literal("read_only"),

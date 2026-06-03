@@ -9,7 +9,13 @@ export async function withFileMutationQueue<T>(
   const current = new Promise<void>((resolve) => {
     release = resolve;
   });
-  queues.set(path, previous.then(() => current, () => current));
+  queues.set(
+    path,
+    previous.then(
+      () => current,
+      () => current,
+    ),
+  );
   await previous.catch(() => undefined);
   try {
     return await task();

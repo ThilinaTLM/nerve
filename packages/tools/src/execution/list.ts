@@ -33,7 +33,9 @@ export async function executeLs(
   if (dirEntries.length > entries.length) {
     content += `${content ? "\n\n" : ""}[...${dirEntries.length - entries.length} more entries. Increase limit to see more.]`;
   }
-  const truncated = truncateHead(content, { maxLines: Number.MAX_SAFE_INTEGER });
+  const truncated = truncateHead(content, {
+    maxLines: Number.MAX_SAFE_INTEGER,
+  });
   content = truncated.text;
   return {
     path: root,

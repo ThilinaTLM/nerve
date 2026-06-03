@@ -87,7 +87,8 @@ async function main() {
       if (since !== undefined && Number.isFinite(since)) {
         void state.events.replayPersistedSince(replayAfter).then((events) => {
           for (const event of events) {
-            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
+            if (ws.readyState === WebSocket.OPEN)
+              ws.send(JSON.stringify(event));
           }
         });
       }

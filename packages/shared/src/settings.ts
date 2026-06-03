@@ -33,9 +33,9 @@ export type Settings = z.infer<typeof settingsSchema>;
 
 export const defaultSettings: Settings = {
   defaultMode: "coding",
-  defaultPermissionLevel: "supervised",
+  defaultPermissionLevel: "autonomous",
   defaultSubagentMode: "planning",
-  defaultSubagentPermissionLevel: "read_only",
+  defaultSubagentPermissionLevel: "autonomous",
   server: {
     host: "127.0.0.1",
     port: 3747,

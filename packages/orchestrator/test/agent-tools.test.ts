@@ -58,6 +58,10 @@ describe("agent tool definitions", () => {
     ];
     assert.deepEqual(activeToolNamesForAgent(agent("autonomous")), codingTools);
     assert.deepEqual(activeToolNamesForAgent(agent("supervised")), codingTools);
+    assert.deepEqual(
+      activeToolNamesForAgent({ ...agent("autonomous"), mode: "planning" }),
+      codingTools,
+    );
     assert.deepEqual(activeToolNamesForAgent(agent("read_only")), [
       "read",
       "grep",
@@ -73,7 +77,9 @@ describe("agent tool definitions", () => {
     assert.deepEqual(
       allToolDefinitions
         .map((tool) => tool.name)
-        .filter((name) => name.startsWith("process_") || name === "subagent_run"),
+        .filter(
+          (name) => name.startsWith("process_") || name === "subagent_run",
+        ),
       [
         "process_start",
         "process_stop",

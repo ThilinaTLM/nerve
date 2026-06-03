@@ -31,20 +31,6 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
       "ask_user",
     ];
   }
-  if (agent.mode === "planning") {
-    return [
-      "read",
-      "grep",
-      "find",
-      "ls",
-      "write",
-      "edit",
-      "process_list",
-      "process_logs",
-      "subagent_run",
-      "ask_user",
-    ];
-  }
   return [
     "read",
     "bash",

@@ -77,7 +77,12 @@ export async function executeRead(
       contentBlocks: [{ type: "text", text: output }],
       details:
         remaining > 0
-          ? { truncation: { omittedLines: remaining, nextOffset: offset + limit } }
+          ? {
+              truncation: {
+                omittedLines: remaining,
+                nextOffset: offset + limit,
+              },
+            }
           : undefined,
     };
   }

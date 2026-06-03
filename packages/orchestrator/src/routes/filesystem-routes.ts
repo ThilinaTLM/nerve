@@ -84,28 +84,41 @@ const imageExtensionByMime = new Map([
 ]);
 
 function slugifyName(name: string | undefined): string {
-  const base = name?.trim() ? name.trim().replace(extname(name.trim()), "") : "clipboard-image";
-  return base
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64) || "clipboard-image";
+  const base = name?.trim()
+    ? name.trim().replace(extname(name.trim()), "")
+    : "clipboard-image";
+  return (
+    base
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64) || "clipboard-image"
+  );
 }
 
 function timestampSlug(date = new Date()): string {
-  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return date
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
 }
 
 async function saveClipboardImage(input: unknown) {
   const request = clipboardImageUploadRequestSchema.parse(input);
   const type = request.type.toLowerCase();
   const ext = imageExtensionByMime.get(type);
-  if (!ext) throw new Error(`Unsupported clipboard image type: ${request.type}`);
+  if (!ext)
+    throw new Error(`Unsupported clipboard image type: ${request.type}`);
 
   const dir = join(tmpdir(), "nerve");
   await mkdir(dir, { recursive: true });
-  const filePath = join(dir, `${slugifyName(request.name)}-${timestampSlug()}.${ext}`);
-  await writeFile(filePath, Buffer.from(request.dataBase64, "base64"), { flag: "wx" });
+  const filePath = join(
+    dir,
+    `${slugifyName(request.name)}-${timestampSlug()}.${ext}`,
+  );
+  await writeFile(filePath, Buffer.from(request.dataBase64, "base64"), {
+    flag: "wx",
+  });
   return { path: filePath };
 }
 
@@ -154,7 +167,9 @@ export function createFilesystemRoutes(_state: OrchestratorState): Hono {
 
   app.post(
     "/filesystem/clipboard-image",
-    routeHandler(async (c) => c.json(await saveClipboardImage(await c.req.json()))),
+    routeHandler(async (c) =>
+      c.json(await saveClipboardImage(await c.req.json())),
+    ),
   );
 
   return app;

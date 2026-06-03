@@ -4,17 +4,25 @@ import type { AgentRecord, ToolName } from "@nerve/shared";
 import { evaluateToolPolicy } from "../src/policy.js";
 
 describe("tool policy", () => {
-  it("allows Pi read-only tools for read_only agents", () => {
-    for (const toolName of ["read", "grep", "find", "ls"] as ToolName[]) {
-      const decision = evaluateToolPolicy(
-        agent("read_only"),
-        toolName,
-        argsFor(toolName),
-        {
-          dataDir: "/tmp/nerve",
-        },
-      );
-      assert.equal(decision.decision, "allow", toolName);
+  it("allows Pi read-only tools for all permission levels", () => {
+    for (const permissionLevel of [
+      "read_only",
+      "supervised",
+      "autonomous",
+    ] as AgentRecord["permissionLevel"][]) {
+      for (const toolName of ["read", "grep", "find", "ls"] as ToolName[]) {
+        const decision = evaluateToolPolicy(
+          agent(permissionLevel),
+          toolName,
+          argsFor(toolName),
+          { dataDir: "/tmp/nerve" },
+        );
+        assert.equal(
+          decision.decision,
+          "allow",
+          `${permissionLevel}:${toolName}`,
+        );
+      }
     }
   });
 
@@ -35,21 +43,98 @@ describe("tool policy", () => {
     }
   });
 
-  it("does not classify shell redirection or control operators as read-only", () => {
+  it("does not sandbox autonomous filesystem paths", () => {
+    for (const [toolName, args] of [
+      ["read", { path: "/tmp/outside.png" }],
+      ["write", { path: "/tmp/outside.txt", content: "hello" }],
+      [
+        "edit",
+        {
+          path: "/tmp/outside.txt",
+          edits: [{ oldText: "hello", newText: "goodbye" }],
+        },
+      ],
+      ["grep", { pattern: "hello", path: "/tmp" }],
+      ["find", { pattern: "*.png", path: "/tmp" }],
+      ["ls", { path: "/tmp" }],
+    ] as Array<[ToolName, Record<string, unknown>]>) {
+      const decision = evaluateToolPolicy(agent("autonomous"), toolName, args, {
+        dataDir: "/tmp/nerve",
+      });
+      assert.equal(decision.decision, "allow", toolName);
+    }
+  });
+
+  it("allows autonomous commands without destructive or long-running gates", () => {
     for (const command of [
-      "ls > out.txt",
-      "pwd && touch x",
-      "git diff | tee x",
+      "rm -rf /tmp/scratch",
+      "git reset --hard HEAD",
+      "pnpm dev",
+      "npm run watch",
     ]) {
+      const decision = evaluateToolPolicy(
+        agent("autonomous"),
+        "bash",
+        { command },
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(decision.decision, "allow", command);
+    }
+  });
+
+  it("allows autonomous process mutation tools", () => {
+    for (const toolName of ["process_stop", "process_restart"] as ToolName[]) {
+      const decision = evaluateToolPolicy(
+        agent("autonomous"),
+        toolName,
+        { processId: "proc_01HN0000000000000000000000" },
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(decision.decision, "allow", toolName);
+      assert.equal(decision.risk, "destructive");
+    }
+  });
+
+  it("requires approval for supervised non-read tool calls", () => {
+    for (const [toolName, args] of [
+      ["bash", { command: "touch x" }],
+      ["write", { path: "/tmp/outside.txt", content: "hello" }],
+      ["process_start", { command: "pnpm dev" }],
+      ["process_stop", { processId: "proc_01HN0000000000000000000000" }],
+      ["subagent_run", { task: "Review the code" }],
+    ] as Array<[ToolName, Record<string, unknown>]>) {
+      const decision = evaluateToolPolicy(agent("supervised"), toolName, args, {
+        dataDir: "/tmp/nerve",
+      });
+      assert.equal(decision.decision, "approval", toolName);
+    }
+  });
+
+  it("denies read_only non-read tool calls", () => {
+    for (const [toolName, args] of [
+      ["bash", { command: "touch x" }],
+      ["write", { path: "/tmp/outside.txt", content: "hello" }],
+      ["process_start", { command: "pnpm dev" }],
+      ["process_stop", { processId: "proc_01HN0000000000000000000000" }],
+      ["subagent_run", { task: "Review the code" }],
+    ] as Array<[ToolName, Record<string, unknown>]>) {
+      const decision = evaluateToolPolicy(agent("read_only"), toolName, args, {
+        dataDir: "/tmp/nerve",
+      });
+      assert.equal(decision.decision, "deny", toolName);
+    }
+  });
+
+  it("still permits known read-only shell commands for read_only agents", () => {
+    for (const command of ["pwd", "ls /tmp", "git diff -- README.md"]) {
       const decision = evaluateToolPolicy(
         agent("read_only"),
         "bash",
         { command },
-        {
-          dataDir: "/tmp/nerve",
-        },
+        { dataDir: "/tmp/nerve" },
       );
-      assert.equal(decision.decision, "deny", command);
+      assert.equal(decision.decision, "allow", command);
+      assert.equal(decision.risk, "read", command);
     }
   });
 });

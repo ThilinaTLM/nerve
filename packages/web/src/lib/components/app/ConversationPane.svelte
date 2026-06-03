@@ -72,7 +72,7 @@
     selectedModelKey = "",
     thinkingLevel = "off",
     mode = "coding",
-    permissionLevel = "supervised",
+    permissionLevel = "autonomous",
     slashCompletions = [],
     fileCompletions,
     onComposerChange,

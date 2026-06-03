@@ -24,6 +24,21 @@
 		onCancel?: () => void;
 		onOpenChange?: (open: boolean) => void;
 	} = $props();
+
+	function close() {
+		open = false;
+		onOpenChange?.(false);
+	}
+
+	function handleConfirm() {
+		onConfirm?.();
+		close();
+	}
+
+	function handleCancel() {
+		onCancel?.();
+		close();
+	}
 </script>
 
 <AlertDialog.Root bind:open {onOpenChange}>
@@ -35,10 +50,10 @@
 			{/if}
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
-			<AlertDialog.Cancel onclick={() => onCancel?.()}>{cancelLabel}</AlertDialog.Cancel>
+			<AlertDialog.Cancel onclick={handleCancel}>{cancelLabel}</AlertDialog.Cancel>
 			<AlertDialog.Action
 				variant={destructive ? "destructive" : "default"}
-				onclick={() => onConfirm?.()}
+				onclick={handleConfirm}
 			>
 				{confirmLabel}
 			</AlertDialog.Action>

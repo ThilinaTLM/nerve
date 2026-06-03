@@ -13,14 +13,14 @@
   function writePolicy(permission: Settings["defaultPermissionLevel"] | undefined): string {
     if (permission === "read_only") return "Denied";
     if (permission === "supervised") return "Approval required";
-    if (permission === "autonomous") return "Allowed in scope";
+    if (permission === "autonomous") return "Allowed";
     return "Policy-managed";
   }
 
   function commandPolicy(permission: Settings["defaultPermissionLevel"] | undefined): string {
     if (permission === "read_only") return "Denied";
     if (permission === "supervised") return "Approval required";
-    if (permission === "autonomous") return "Allowed; destructive still gated";
+    if (permission === "autonomous") return "Allowed";
     return "Policy-managed";
   }
 </script>
@@ -83,11 +83,11 @@
 
   <div class="permission-table" role="table" aria-label="Default agent permissions">
     <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Default policy</span></div>
-    <div role="row"><span>File system read</span><strong>Allowed within workspace scope</strong></div>
+    <div role="row"><span>File system read</span><strong>Allowed</strong></div>
     <div role="row"><span>File system write</span><strong>{writePolicy(settingsDraft.defaultPermissionLevel)}</strong></div>
     <div role="row">
       <span>Terminal command execution</span><strong>{commandPolicy(settingsDraft.defaultPermissionLevel)}</strong>
     </div>
-    <div role="row"><span>Network access</span><strong>Policy-managed by tools and daemon</strong></div>
+    <div role="row"><span>Network access</span><strong>Tool-dependent</strong></div>
   </div>
 </section>

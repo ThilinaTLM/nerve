@@ -1,27 +1,20 @@
+import type {
+  ToolContentBlockPayload,
+  ToolExecutionResultPayload,
+  ToolImageContentPayload,
+  ToolTextContentPayload,
+} from "@nerve/shared";
+
 export type ToolExecutionContext = {
   cwd: string;
   signal?: AbortSignal;
 };
 
-export type ToolTextContent = { type: "text"; text: string };
-export type ToolImageContent = {
-  type: "image";
-  data: string;
-  mimeType: string;
-};
-export type ToolContentBlock = ToolTextContent | ToolImageContent;
-
-export type ToolExecutionResult = {
-  content?: string;
-  contentBlocks?: ToolContentBlock[];
-  details?: unknown;
-  path?: string;
-  entries?: Array<{ path: string; kind: "file" | "directory" | "other" }>;
-  matches?: Array<{ path: string; line: number; text: string }>;
-  stdout?: string;
-  stderr?: string;
-  exitCode?: number;
-};
+// Result contracts live in `@nerve/shared` (single source of truth shared with the web UI).
+export type ToolTextContent = ToolTextContentPayload;
+export type ToolImageContent = ToolImageContentPayload;
+export type ToolContentBlock = ToolContentBlockPayload;
+export type ToolExecutionResult = ToolExecutionResultPayload;
 
 export type ToolPathArgs = {
   path?: unknown;

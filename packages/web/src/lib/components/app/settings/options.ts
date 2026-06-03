@@ -40,12 +40,12 @@ export const permissionItems: RadioItem[] = [
   {
     value: "supervised",
     label: "Supervised",
-    detail: "Ask before sensitive actions",
+    detail: "Ask before non-read tool calls",
   },
   {
     value: "autonomous",
     label: "Autonomous",
-    detail: "Proceed with broader authority",
+    detail: "Allow tool calls without approval",
   },
 ];
 

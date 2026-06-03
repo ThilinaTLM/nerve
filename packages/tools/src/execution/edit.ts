@@ -64,7 +64,11 @@ export async function executeEdit(
   });
 }
 
-function findUniqueMatch(content: string, edit: NormalizedEdit, index: number): Match {
+function findUniqueMatch(
+  content: string,
+  edit: NormalizedEdit,
+  index: number,
+): Match {
   const first = content.indexOf(edit.oldText);
   if (first >= 0) {
     if (content.indexOf(edit.oldText, first + edit.oldText.length) >= 0) {
@@ -85,7 +89,10 @@ function findUniqueMatch(content: string, edit: NormalizedEdit, index: number): 
   return { ...edit, index, start: fuzzy.start, end: fuzzy.end };
 }
 
-function fuzzyFind(content: string, needle: string): { start: number; end: number; duplicate: boolean } | undefined {
+function fuzzyFind(
+  content: string,
+  needle: string,
+): { start: number; end: number; duplicate: boolean } | undefined {
   const normalizedNeedle = normalizeForFuzzyMatch(needle);
   const lines = content.split("\n");
   const needleLineCount = needle.split("\n").length;
@@ -97,7 +104,11 @@ function fuzzyFind(content: string, needle: string): { start: number; end: numbe
     offset += line.length + 1;
   }
   for (let line = 0; line < lines.length; line += 1) {
-    for (let count = Math.max(1, needleLineCount - 1); count <= needleLineCount + 1; count += 1) {
+    for (
+      let count = Math.max(1, needleLineCount - 1);
+      count <= needleLineCount + 1;
+      count += 1
+    ) {
       const chunk = lines.slice(line, line + count).join("\n");
       if (normalizeForFuzzyMatch(chunk) !== normalizedNeedle) continue;
       const start = offsets[line] ?? 0;
@@ -149,8 +160,13 @@ function generateDiffString(before: string, after: string): string {
   const beforeLines = before.split("\n");
   const afterLines = after.split("\n");
   const start = Math.max(0, line - 3);
-  const end = Math.min(Math.max(beforeLines.length, afterLines.length), line + 3);
-  const output = [`@@ -${start + 1},${end - start} +${start + 1},${end - start} @@`];
+  const end = Math.min(
+    Math.max(beforeLines.length, afterLines.length),
+    line + 3,
+  );
+  const output = [
+    `@@ -${start + 1},${end - start} +${start + 1},${end - start} @@`,
+  ];
   for (let index = start; index < end; index += 1) {
     const beforeLine = beforeLines[index];
     const afterLine = afterLines[index];

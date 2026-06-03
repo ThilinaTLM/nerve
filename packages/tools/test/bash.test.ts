@@ -38,7 +38,8 @@ describe("bash executor", () => {
     );
 
     assert.match(result.content ?? "", /output truncated/);
-    const fullOutputPath = (result.details as { fullOutputPath?: string }).fullOutputPath;
+    const fullOutputPath = (result.details as { fullOutputPath?: string })
+      .fullOutputPath;
     assert.ok(fullOutputPath);
     assert.match(await readFile(fullOutputPath, "utf8"), /line 0/);
   });

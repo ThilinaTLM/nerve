@@ -24,7 +24,10 @@ export function resolveToolPath(cwd: string, input: unknown): string {
   return resolveToCwd(cwd, input);
 }
 
-export async function resolveReadPath(cwd: string, input: unknown): Promise<string> {
+export async function resolveReadPath(
+  cwd: string,
+  input: unknown,
+): Promise<string> {
   const initial = resolveToolPath(cwd, input);
   const candidates = readPathCandidates(initial);
   for (const candidate of candidates) {
@@ -34,7 +37,11 @@ export async function resolveReadPath(cwd: string, input: unknown): Promise<stri
 }
 
 function readPathCandidates(path: string): string[] {
-  const variants = new Set<string>([path, path.normalize("NFC"), path.normalize("NFD")]);
+  const variants = new Set<string>([
+    path,
+    path.normalize("NFC"),
+    path.normalize("NFD"),
+  ]);
   for (const value of [...variants]) {
     variants.add(value.replace(UNICODE_SPACES, " "));
   }

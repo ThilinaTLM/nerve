@@ -71,7 +71,7 @@ export const workbenchState = $state({
   selectedModelKey: "nerve-faux:faux-fast",
   selectedThinkingLevel: "off" as AgentRecord["thinkingLevel"],
   selectedMode: "coding" as AgentRecord["mode"],
-  selectedPermissionLevel: "supervised" as AgentRecord["permissionLevel"],
+  selectedPermissionLevel: "autonomous" as AgentRecord["permissionLevel"],
   projectPickerOpen: false,
   settingsDraft: undefined as Settings | undefined,
   authProviders: [] as AuthProviderMetadata[],

@@ -107,7 +107,10 @@ async function fallbackGrep(
   return matches;
 }
 
-function formatMatches(matches: GrepMatch[], limit: number): {
+function formatMatches(
+  matches: GrepMatch[],
+  limit: number,
+): {
   content: string;
   details?: unknown;
 } {

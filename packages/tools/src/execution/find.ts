@@ -20,7 +20,9 @@ export async function executeFind(
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
   const fd = await runFd(args.pattern, root, limit).catch(() => undefined);
   const paths = fd ?? (await fallbackFind(root, args.pattern, limit));
-  const entries = paths.slice(0, limit).map((path) => ({ path, kind: "file" as const }));
+  const entries = paths
+    .slice(0, limit)
+    .map((path) => ({ path, kind: "file" as const }));
   const formatted = formatFind(paths, limit);
   return {
     path: root,
@@ -77,21 +79,28 @@ async function fallbackFind(
     root,
     limit,
     async (_absolutePath, relativePath) => {
-      if (regex.test(relativePath)) results.push(relativePath.replaceAll("\\", "/"));
+      if (regex.test(relativePath))
+        results.push(relativePath.replaceAll("\\", "/"));
     },
     () => results.length >= limit,
   );
   return results;
 }
 
-function formatFind(paths: string[], limit: number): {
+function formatFind(
+  paths: string[],
+  limit: number,
+): {
   content: string;
   details?: unknown;
 } {
   const lines = paths.slice(0, limit);
   if (lines.length === 0) lines.push("No files found.");
   if (paths.length >= limit) {
-    lines.push("", `[Result limit ${limit} reached. Increase limit or refine the pattern for more results.]`);
+    lines.push(
+      "",
+      `[Result limit ${limit} reached. Increase limit or refine the pattern for more results.]`,
+    );
   }
   const truncated = truncateHead(lines.join("\n"), {
     maxLines: Number.MAX_SAFE_INTEGER,

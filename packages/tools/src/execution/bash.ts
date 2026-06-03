@@ -15,7 +15,9 @@ export async function executeBash(
   }
 
   const timeoutSeconds =
-    typeof args.timeout === "number" ? Math.max(0, numberArg(args.timeout, 0)) : undefined;
+    typeof args.timeout === "number"
+      ? Math.max(0, numberArg(args.timeout, 0))
+      : undefined;
   const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
   const combinedChunks: Buffer[] = [];
