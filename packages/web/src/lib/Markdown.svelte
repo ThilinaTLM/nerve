@@ -71,6 +71,20 @@
     return container.innerHTML;
   }
 
+  function wrapTables(safeHtml: string): string {
+    if (typeof document === "undefined" || !safeHtml.includes("<table")) return safeHtml;
+    const container = document.createElement("div");
+    container.innerHTML = safeHtml;
+    for (const table of Array.from(container.querySelectorAll("table"))) {
+      if (table.parentElement?.classList.contains("table-scroll")) continue;
+      const wrapper = document.createElement("div");
+      wrapper.className = "table-scroll";
+      table.replaceWith(wrapper);
+      wrapper.append(table);
+    }
+    return container.innerHTML;
+  }
+
   async function highlightCodeBlocks(safeHtml: string): Promise<string> {
     if (typeof document === "undefined" || !safeHtml.includes("<pre")) return safeHtml;
     const container = document.createElement("div");
@@ -127,13 +141,13 @@
     const source = text;
     let cancelled = false;
     const rendered = renderMarkdown(source);
-    html = wrapPlainCodeBlocks(rendered);
+    html = wrapTables(wrapPlainCodeBlocks(rendered));
     highlightCodeBlocks(rendered)
       .then((highlighted) => {
-        if (!cancelled && source === text) html = highlighted;
+        if (!cancelled && source === text) html = wrapTables(highlighted);
       })
       .catch(() => {
-        if (!cancelled && source === text) html = wrapPlainCodeBlocks(rendered);
+        if (!cancelled && source === text) html = wrapTables(wrapPlainCodeBlocks(rendered));
       });
     return () => {
       cancelled = true;
@@ -164,9 +178,72 @@
   .markdown :global(ol),
   .markdown :global(blockquote),
   .markdown :global(pre),
-  .markdown :global(table),
+  .markdown :global(.table-scroll),
   .markdown :global(.code-block) {
     margin: 0.55rem 0;
+  }
+
+  .markdown :global(ul),
+  .markdown :global(ol) {
+    padding-left: 1.35rem;
+  }
+
+  .markdown :global(ul) {
+    list-style: disc;
+  }
+
+  .markdown :global(ul ul) {
+    list-style: circle;
+  }
+
+  .markdown :global(ul ul ul) {
+    list-style: square;
+  }
+
+  .markdown :global(ol) {
+    list-style: decimal;
+  }
+
+  .markdown :global(ol ol) {
+    list-style: lower-alpha;
+  }
+
+  .markdown :global(ol ol ol) {
+    list-style: lower-roman;
+  }
+
+  .markdown :global(li) {
+    margin: 0.2rem 0;
+    padding-left: 0.15rem;
+  }
+
+  .markdown :global(li > p) {
+    margin: 0.25rem 0;
+  }
+
+  .markdown :global(li > ul),
+  .markdown :global(li > ol) {
+    margin: 0.25rem 0;
+  }
+
+  .markdown :global(.contains-task-list) {
+    list-style: none;
+    padding-left: 0.2rem;
+  }
+
+  .markdown :global(.task-list-item) {
+    display: flex;
+    gap: 0.45rem;
+    align-items: flex-start;
+    padding-left: 0;
+  }
+
+  .markdown :global(.task-list-item > input[type="checkbox"]) {
+    flex: 0 0 auto;
+    width: 0.85rem;
+    height: 0.85rem;
+    margin: 0.22rem 0 0;
+    accent-color: var(--primary);
   }
 
   .markdown :global(a) {
@@ -252,8 +329,14 @@
     color: var(--muted-foreground);
   }
 
+  .markdown :global(.table-scroll) {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
   .markdown :global(table) {
-    width: 100%;
+    min-width: 100%;
+    width: max-content;
     border-collapse: collapse;
     font-size: 0.75rem;
   }

@@ -161,11 +161,7 @@
             </div>
             <div class="message-body">
               <div class="message-content">
-                {#if item.role === "assistant" || item.role === "system"}
-                  <Markdown text={item.text} />
-                {:else}
-                  <p>{item.text}</p>
-                {/if}
+                <Markdown text={item.text} />
               </div>
               <Button class="copy-btn" variant="ghost" size="icon-sm" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(item.text)}>
                 <Clipboard size={12} strokeWidth={2.2} />
@@ -180,7 +176,10 @@
         <article class="transcript-entry assistant streaming">
           <div class="message-gutter"><span class="message-icon" title="assistant"><Bot size={14} strokeWidth={2.1} /></span></div>
           <div class="message-body">
-            <div class="message-content"><p>{streamingText}<span class="stream-caret" aria-hidden="true"></span></p></div>
+            <div class="message-content streaming-content">
+              <Markdown text={streamingText} />
+              <span class="stream-caret" aria-hidden="true"></span>
+            </div>
           </div>
         </article>
       {/if}
@@ -308,10 +307,8 @@
     font-size: 0.8125rem;
   }
 
-  .message-content p {
-    margin: 0;
-    line-height: 1.55;
-    white-space: pre-wrap;
+  .streaming-content {
+    position: relative;
   }
 
   .transcript-entry.user .message-content {
@@ -326,8 +323,7 @@
     display: inline-block;
     width: 0.42rem;
     height: 1em;
-    margin-left: 0.18rem;
-    transform: translateY(0.18em);
+    margin-top: 0.18rem;
     background: var(--primary);
     animation: pulse 1s steps(2, start) infinite;
   }
