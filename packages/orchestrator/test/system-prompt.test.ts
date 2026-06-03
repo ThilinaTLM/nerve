@@ -3,7 +3,13 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { buildPiSystemPrompt } from "../src/pi-system-prompt.js";
+import type { AgentRecord } from "@nerve/shared";
+import { composeAgentSystemPrompt } from "../src/agent-runner/system-prompt-builder.js";
+import {
+  activeToolNamesForAgent,
+  toolPromptMetadata,
+} from "../src/agent-tool-adapter.js";
+import { buildNerveSystemPrompt } from "../src/nerve-system-prompt.js";
 import { loadHarnessResources } from "../src/resource-loader.js";
 
 const roots: string[] = [];
@@ -20,8 +26,8 @@ async function tempProject(): Promise<string> {
   return root;
 }
 
-describe("Pi-compatible system prompt", () => {
-  it("renders active tools, context files, skills, date, and cwd", async () => {
+describe("Nerve system prompt", () => {
+  it("renders active tool summary, context files, skills, date, and cwd", async () => {
     const cwd = await tempProject();
     await writeFile(join(cwd, "AGENTS.md"), "Project rule: prefer tests.\n");
     await mkdir(join(cwd, ".pi", "skills", "review"), { recursive: true });
@@ -31,33 +37,49 @@ describe("Pi-compatible system prompt", () => {
     );
 
     const resources = await loadHarnessResources(cwd);
-    const prompt = buildPiSystemPrompt({
+    const prompt = buildNerveSystemPrompt({
       cwd,
       selectedTools: ["read", "bash", "edit", "write"],
-      toolSnippets: {
-        read: "Read file contents",
-        bash: "Execute bash commands",
-        edit: "Edit files",
-        write: "Create or overwrite files",
-      },
       contextFiles: resources.contextFiles,
       skills: resources.skills,
     });
 
-    assert.match(prompt, /Available tools:\n- read: Read file contents/);
-    assert.match(prompt, /<project_context>/);
+    assert.match(prompt, /inside Nerve, a coding agent harness/);
+    assert.doesNotMatch(prompt, /inside pi, a coding agent harness/);
+    assert.match(
+      prompt,
+      /Tools available in this session include: read, bash, edit, write\./,
+    );
+    assert.match(prompt, /API-provided tool schemas/);
+    assert.doesNotMatch(prompt, /Available tools:\n- read:/);
+    assert.doesNotMatch(prompt, /<project_context>/);
+    assert.match(prompt, /<project_instructions path=".*AGENTS\.md">/);
     assert.match(prompt, /Project rule: prefer tests\./);
     assert.match(prompt, /<available_skills>/);
     assert.match(prompt, /<name>review<\/name>/);
+    assert.match(prompt, /<description>Review code carefully\.<\/description>/);
     assert.match(prompt, /Current date: \d{4}-\d{2}-\d{2}/);
     assert.ok(prompt.endsWith(`Current working directory: ${cwd}`));
   });
 
+  it("uses only active tools in the concise tool summary", () => {
+    const prompt = buildNerveSystemPrompt({
+      cwd: "/tmp/project",
+      selectedTools: ["read", "grep"],
+    });
+
+    assert.match(
+      prompt,
+      /Tools available in this session include: read, grep\./,
+    );
+    assert.doesNotMatch(prompt, /write/);
+    assert.doesNotMatch(prompt, /process_start/);
+  });
+
   it("omits skills when read is not active", async () => {
-    const prompt = buildPiSystemPrompt({
+    const prompt = buildNerveSystemPrompt({
       cwd: "/tmp/project",
       selectedTools: ["bash"],
-      toolSnippets: { bash: "Execute bash commands" },
       skills: [
         {
           name: "hidden",
@@ -70,4 +92,38 @@ describe("Pi-compatible system prompt", () => {
 
     assert.doesNotMatch(prompt, /<available_skills>/);
   });
+
+  it("does not expose orchestration metadata", () => {
+    const agent = testAgent();
+    const activeToolNames = activeToolNamesForAgent(agent);
+    const prompt = composeAgentSystemPrompt(
+      agent,
+      activeToolNames,
+      toolPromptMetadata(activeToolNames),
+      { contextFiles: [], skills: [] },
+    );
+
+    assert.doesNotMatch(prompt, /Nerve orchestration context:/);
+    assert.doesNotMatch(prompt, /Root agent:/);
+    assert.doesNotMatch(prompt, /Child budget:/);
+    assert.doesNotMatch(prompt, /Permission level:/);
+  });
 });
+
+function testAgent(): AgentRecord {
+  return {
+    id: "agent_01HN0000000000000000000000",
+    sessionId: "ses_01HN0000000000000000000000",
+    projectId: "proj_01HN0000000000000000000000",
+    projectDir: "/tmp/project",
+    workerId: "worker_01HN0000000000000000000000",
+    rootAgentId: "agent_01HN0000000000000000000000",
+    mode: "coding",
+    permissionLevel: "autonomous",
+    workspaceScope: { roots: ["/tmp/project"] },
+    budget: { depth: 0, maxDepth: 3, maxRuns: 8, usedRuns: 0 },
+    status: "idle",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+}

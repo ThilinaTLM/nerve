@@ -1,67 +1,52 @@
 import { formatSkillsForSystemPrompt, type Skill } from "@nerve/agent";
 
-export interface BuildPiSystemPromptOptions {
+export interface BuildNerveSystemPromptOptions {
   customPrompt?: string;
   selectedTools?: string[];
-  toolSnippets?: Record<string, string>;
   promptGuidelines?: string[];
   appendSystemPrompt?: string;
   cwd: string;
   contextFiles?: Array<{ path: string; content: string }>;
   skills?: Skill[];
-  nerveContext?: string;
 }
 
-export function buildPiSystemPrompt(
-  options: BuildPiSystemPromptOptions,
+export function buildNerveSystemPrompt(
+  options: BuildNerveSystemPromptOptions,
 ): string {
   const cwd = options.cwd.replace(/\\/g, "/");
   const date = currentDate();
   const tools = options.selectedTools ?? ["read", "bash", "edit", "write"];
   const hasRead = tools.includes("read");
-  const appendSection = options.appendSystemPrompt
-    ? `\n\n${options.appendSystemPrompt}`
-    : "";
-  const nerveSection = options.nerveContext
-    ? `\n\n${options.nerveContext}`
-    : "";
 
-  let prompt = options.customPrompt?.trim()
+  const basePrompt = options.customPrompt?.trim()
     ? options.customPrompt
     : defaultPrompt({
         selectedTools: tools,
-        toolSnippets: options.toolSnippets ?? {},
         promptGuidelines: options.promptGuidelines ?? [],
       });
 
-  prompt += appendSection;
-  prompt += nerveSection;
-  prompt += formatProjectContext(options.contextFiles ?? []);
+  const skillsBlock =
+    hasRead && (options.skills?.length ?? 0) > 0
+      ? formatSkillsForSystemPrompt(options.skills ?? [])
+      : "";
 
-  if (hasRead && (options.skills?.length ?? 0) > 0) {
-    prompt += formatSkillsForSystemPrompt(options.skills ?? []);
-  }
+  const footer = `Current date: ${date}\nCurrent working directory: ${cwd}`;
 
-  prompt += `\nCurrent date: ${date}`;
-  prompt += `\nCurrent working directory: ${cwd}`;
-  return prompt;
+  return [
+    basePrompt,
+    options.appendSystemPrompt,
+    formatProjectInstructions(options.contextFiles ?? []),
+    skillsBlock,
+    footer,
+  ]
+    .filter((section): section is string => Boolean(section?.trim()))
+    .join("\n\n");
 }
 
 function defaultPrompt(options: {
   selectedTools: string[];
-  toolSnippets: Record<string, string>;
   promptGuidelines: string[];
 }): string {
-  const visibleTools = options.selectedTools.filter(
-    (name) => options.toolSnippets[name],
-  );
-  const toolsList =
-    visibleTools.length > 0
-      ? visibleTools
-          .map((name) => `- ${name}: ${options.toolSnippets[name]}`)
-          .join("\n")
-      : "(none)";
-
   const guidelines: string[] = [];
   const seen = new Set<string>();
   const addGuideline = (value: string) => {
@@ -82,10 +67,9 @@ function defaultPrompt(options: {
   addGuideline("Be concise in your responses");
   addGuideline("Show file paths clearly when working with files");
 
-  return `You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.
+  return `You are an expert coding assistant operating inside Nerve, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.
 
-Available tools:
-${toolsList}
+${formatToolSummary(options.selectedTools)}
 
 In addition to the tools above, you may have access to other custom tools depending on the project.
 
@@ -93,28 +77,23 @@ Guidelines:
 ${guidelines.map((guideline) => `- ${guideline}`).join("\n")}`;
 }
 
-function formatProjectContext(
+function formatToolSummary(selectedTools: string[]): string {
+  const tools = selectedTools.length > 0 ? selectedTools.join(", ") : "none";
+  return `Tools available in this session include: ${tools}. Use the API-provided tool schemas as the source of truth for arguments and capabilities.`;
+}
+
+function formatProjectInstructions(
   contextFiles: Array<{ path: string; content: string }>,
 ): string {
-  if (contextFiles.length === 0) return "";
-  const lines = [
-    "",
-    "",
-    "<project_context>",
-    "",
-    "Project-specific instructions and guidelines:",
-    "",
-  ];
-  for (const file of contextFiles) {
-    lines.push(
-      `<project_instructions path="${escapeXml(file.path)}">`,
-      file.content,
-      "</project_instructions>",
-      "",
-    );
-  }
-  lines.push("</project_context>");
-  return lines.join("\n");
+  return contextFiles
+    .map((file) =>
+      [
+        `<project_instructions path="${escapeXml(file.path)}">`,
+        file.content.trimEnd(),
+        "</project_instructions>",
+      ].join("\n"),
+    )
+    .join("\n\n");
 }
 
 function currentDate(): string {

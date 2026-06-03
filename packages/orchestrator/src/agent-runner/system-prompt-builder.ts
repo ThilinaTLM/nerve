@@ -3,7 +3,7 @@ import {
   activeToolNamesForAgent,
   toolPromptMetadata,
 } from "../agent-tool-adapter.js";
-import { buildPiSystemPrompt } from "../pi-system-prompt.js";
+import { buildNerveSystemPrompt } from "../nerve-system-prompt.js";
 import { loadHarnessResources } from "../resource-loader.js";
 
 /**
@@ -35,28 +35,13 @@ export function composeAgentSystemPrompt(
   promptMetadata: ReturnType<typeof toolPromptMetadata>,
   resources: Awaited<ReturnType<typeof loadHarnessResources>>,
 ): string {
-  return buildPiSystemPrompt({
+  return buildNerveSystemPrompt({
     cwd: agent.projectDir,
     selectedTools: activeToolNames,
-    toolSnippets: promptMetadata.snippets,
     promptGuidelines: promptMetadata.guidelines,
     contextFiles: resources.contextFiles,
     skills: resources.skills,
     customPrompt: resources.systemPrompt,
     appendSystemPrompt: resources.appendSystemPrompt,
-    nerveContext: nerveSystemContext(agent),
   });
-}
-
-export function nerveSystemContext(agent: AgentRecord): string {
-  const childContext = agent.parentAgentId
-    ? `Parent agent: ${agent.parentAgentId}. Root agent: ${agent.rootAgentId}.`
-    : `Root agent: ${agent.rootAgentId}.`;
-  return [
-    "Nerve orchestration context:",
-    `- Mode: ${agent.mode}. Permission level: ${agent.permissionLevel}.`,
-    `- ${childContext}`,
-    `- Child budget: depth ${agent.budget.depth}/${agent.budget.maxDepth}, runs ${agent.budget.usedRuns}/${agent.budget.maxRuns}.`,
-    "- Permission level controls tool-call supervision: autonomous allows calls, supervised asks for non-read calls, read_only denies non-read calls.",
-  ].join("\n");
 }
