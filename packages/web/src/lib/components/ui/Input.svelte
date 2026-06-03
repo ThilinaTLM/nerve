@@ -4,7 +4,7 @@
   import { cn } from "../../utils/cn";
 
   const inputVariants = cva(
-    "w-full min-w-0 rounded-md border border-input bg-input/40 text-foreground transition-colors placeholder:text-muted-foreground/70 hover:border-ring/60 focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-60 read-only:opacity-80",
+    "ui-input w-full min-w-0 rounded-md border border-input bg-input/40 text-foreground transition-colors placeholder:text-muted-foreground/70 hover:border-ring/60 focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-60 read-only:opacity-80",
     {
       variants: {
         size: {

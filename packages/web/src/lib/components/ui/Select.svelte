@@ -63,7 +63,7 @@
                 <span>{item.label}</span>
                 {#if item.detail}<small>{item.detail}</small>{/if}
               </span>
-              <Check class="item-check" size={13} strokeWidth={2.5} aria-hidden="true" />
+              <Check class="select-item-check" size={13} strokeWidth={2.5} aria-hidden="true" />
             </SelectPrimitive.Item>
           {/each}
         </SelectPrimitive.Viewport>
@@ -166,7 +166,7 @@
     opacity: 0.45;
   }
 
-  :global(.select-item:not([data-selected])) .item-check {
+  :global(.select-item:not([data-selected]) .select-item-check) {
     visibility: hidden;
   }
 
@@ -189,7 +189,7 @@
     font-size: var(--text-2xs);
   }
 
-  .item-check {
+  :global(.select-item-check) {
     flex: none;
     color: hsl(var(--primary));
   }

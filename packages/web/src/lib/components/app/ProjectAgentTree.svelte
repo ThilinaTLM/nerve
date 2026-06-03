@@ -2,7 +2,6 @@
   import ArrowRight from "lucide-svelte/icons/arrow-right";
   import ChevronDown from "lucide-svelte/icons/chevron-down";
   import Copy from "lucide-svelte/icons/copy";
-  import FolderKanban from "lucide-svelte/icons/folder-kanban";
   import Plus from "lucide-svelte/icons/plus";
   import Search from "lucide-svelte/icons/search";
   import Trash2 from "lucide-svelte/icons/trash-2";
@@ -15,8 +14,6 @@
   import ContextMenu, { type ContextMenuItem } from "../ui/ContextMenu.svelte";
   import Input from "../ui/Input.svelte";
   import ScrollArea from "../ui/ScrollArea.svelte";
-  import StatusDot from "../ui/StatusDot.svelte";
-  import { pulseForStatus, statusTone } from "../../utils/status";
   import {
     buildProjectGroups,
     conversationMeta,
@@ -101,7 +98,7 @@
       { label: "Open conversation", icon: ArrowRight, onSelect: () => onOpenSession?.(session.id) },
       { label: "New conversation", icon: Plus, onSelect: () => onNewConversationInProject?.(project.dir) },
       { type: "separator" },
-      { label: "Copy session id", icon: Copy, onSelect: () => void copyToClipboard(session.id, "session id") },
+      { label: "Copy conversation id", icon: Copy, onSelect: () => void copyToClipboard(session.id, "conversation id") },
       {
         label: "Delete conversation",
         icon: Trash2,
@@ -119,7 +116,7 @@
 <aside class="project-tree">
   <div class="search-box">
     <Search size={13} strokeWidth={2.25} aria-hidden="true" />
-    <Input bind:value={filter} size="sm" placeholder="Search projects / sessions" ariaLabel="Search projects or conversations" />
+    <Input bind:value={filter} size="sm" placeholder="Search projects / conversations" ariaLabel="Search projects or conversations" />
   </div>
 
   <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
@@ -127,7 +124,7 @@
       <span>Projects</span>
       <Badge size="xs">{projectDirectoryCount}</Badge>
       <span class="section-spacer"></span>
-      <Button variant="icon" size="icon" ariaLabel="New agent" title="New agent" onclick={onNewConversation}>
+      <Button variant="icon" size="icon" ariaLabel="New conversation" title="New conversation" onclick={onNewConversation}>
         <Plus size={13} strokeWidth={2.25} />
       </Button>
     </div>
@@ -145,8 +142,7 @@
               <span class="chevron" aria-hidden="true">
                 <ChevronDown size={13} />
               </span>
-              <FolderKanban size={13} strokeWidth={2.15} aria-hidden="true" />
-              <strong class="project-label">{shortProjectLabel(group.project.dir, homeDir)}</strong>
+              <span class="project-label">{shortProjectLabel(group.project.dir, homeDir)}</span>
               <Badge size="xs" tone={active ? "accent" : "neutral"}>{group.rows.length}</Badge>
             </Collapsible.Trigger>
             <div class="row-actions">
@@ -175,9 +171,10 @@
                   title={`${row.session.title} · ${conversationMeta(row)} · ${row.session.id}`}
                   onclick={() => onOpenSession?.(row.session.id)}
                 >
-                  <StatusDot tone={statusTone(row.agent?.status)} pulse={pulseForStatus(row.agent?.status)} />
-                  <strong class="conversation-label">{row.session.title}</strong>
-                  <span class="row-status">{row.agent?.status ?? "idle"}</span>
+                  <span class="conversation-label">{row.session.title}</span>
+                  {#if row.agent?.status && row.agent.status !== "idle"}
+                    <span class="row-status">{row.agent.status}</span>
+                  {/if}
                 </button>
               </div>
             </ContextMenu>
@@ -287,7 +284,7 @@
 
   :global(.project-row) {
     display: grid;
-    grid-template-columns: 0.85rem auto minmax(0, 1fr) auto;
+    grid-template-columns: 0.85rem minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.35rem;
     padding: 0.36rem 0.42rem;
@@ -339,7 +336,7 @@
   .project-label {
     color: hsl(var(--muted-foreground));
     font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-normal);
   }
 
   .row-status {
@@ -388,16 +385,16 @@
 
   .conversation-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.42rem;
     min-height: 2.1rem;
-    padding: 0.34rem 0.42rem 0.34rem 1.1rem;
+    padding: 0.34rem 0.42rem 0.34rem 0.72rem;
   }
 
   .conversation-label {
     font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-normal);
   }
 
   .empty {

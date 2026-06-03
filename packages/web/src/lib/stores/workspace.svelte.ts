@@ -60,13 +60,72 @@ export async function completeFiles(query: string): Promise<CompletionItem[]> {
 }
 
 export function newSession() {
-  clearConversationState();
   workbenchState.projectPickerOpen = true;
 }
 
 export function newConversationInProject(projectDir: string) {
-  clearConversationState();
   void createConversationForDirectory(projectDir);
+}
+
+function projectDirKey(dir: string): string {
+  return dir.replace(/[\\/]+$/, "") || dir;
+}
+
+function isEmptySession(session: SessionRecord): boolean {
+  return !session.activeEntryId;
+}
+
+function projectForSession(session: SessionRecord): ProjectRecord | undefined {
+  return workbenchState.projects.find(
+    (project) => project.id === session.projectId,
+  );
+}
+
+function activeEmptySession(): SessionRecord | undefined {
+  const active = workbenchState.sessions.find(
+    (session) => session.id === selection.sessionId,
+  );
+  return active && isEmptySession(active) ? active : undefined;
+}
+
+function emptySessionForProjectDir(dir: string): SessionRecord | undefined {
+  const targetKey = projectDirKey(dir);
+  const projectIds = new Set(
+    workbenchState.projects
+      .filter((project) => projectDirKey(project.dir) === targetKey)
+      .map((project) => project.id),
+  );
+  return workbenchState.sessions.find(
+    (session) => projectIds.has(session.projectId) && isEmptySession(session),
+  );
+}
+
+async function handleExistingEmptyConversation(dir: string): Promise<boolean> {
+  const targetKey = projectDirKey(dir);
+  const active = activeEmptySession();
+  const activeProject = active ? projectForSession(active) : undefined;
+  if (
+    active &&
+    activeProject &&
+    projectDirKey(activeProject.dir) !== targetKey
+  ) {
+    toast.message("Use or delete the empty conversation first", {
+      description:
+        "The active conversation has no messages yet, so Nerve will not create another empty conversation.",
+    });
+    return true;
+  }
+
+  const empty = emptySessionForProjectDir(dir);
+  if (!empty) return false;
+
+  const project = projectForSession(empty);
+  await openSession(empty.id);
+  workbenchState.projectPickerOpen = false;
+  toast.message("Opened existing empty conversation", {
+    description: project?.dir,
+  });
+  return true;
 }
 
 export async function deleteProjectAndRefresh(projectId: string) {
@@ -100,6 +159,8 @@ export async function deleteSessionAndRefresh(sessionId: string) {
 export async function createConversationForDirectory(dir: string) {
   workbenchState.error = undefined;
   try {
+    if (await handleExistingEmptyConversation(dir)) return;
+    clearConversationState();
     const { project } = await apiPost<{ project: ProjectRecord }>(
       "/api/projects",
       {
