@@ -20,6 +20,7 @@
     activeAgent?: AgentRecord;
     activeSession?: SessionRecord;
     activeProject?: ProjectRecord;
+    side?: "top" | "bottom";
   };
 
   let {
@@ -31,6 +32,7 @@
     activeAgent,
     activeSession,
     activeProject,
+    side = "top",
   }: Props = $props();
 
   const activeProcesses = $derived(
@@ -41,7 +43,7 @@
   const modelLabel = $derived(activeAgent?.model ? `${activeAgent.model.provider}/${activeAgent.model.modelId}` : "model pending");
 </script>
 
-<Popover class="status-popover" triggerClass="status-trigger-wrap" ariaLabel="Open status details" side="bottom" align="end">
+<Popover class="status-popover" triggerClass="status-trigger-wrap" ariaLabel="Open status details" {side} align="end">
   {#snippet trigger()}
     <span class="status-trigger" title="Open status details">
       <StatusDot tone={connectionTone} pulse={live} />
@@ -113,12 +115,12 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    min-height: 1.75rem;
+    min-height: 1.4rem;
     border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     border-radius: 999px;
     background: var(--input);
     color: var(--muted-foreground);
-    padding: 0 0.55rem;
+    padding: 0 0.5rem;
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     font-weight: 600;

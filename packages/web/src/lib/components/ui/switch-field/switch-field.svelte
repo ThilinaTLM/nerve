@@ -88,19 +88,22 @@
   }
 
   :global(.switch-thumb) {
+    position: absolute;
+    top: 50%;
+    left: 0.16rem;
     display: block;
     width: 0.82rem;
     height: 0.82rem;
     border-radius: 999px;
     background: var(--muted-foreground);
-    transform: translate(0.16rem, 0.13rem);
+    transform: translateY(-50%);
     transition:
-      transform 120ms ease,
+      left 120ms ease,
       background 120ms ease;
   }
 
   :global(.switch-root[data-state="checked"] .switch-thumb) {
+    left: calc(100% - 0.82rem - 0.16rem);
     background: var(--primary-foreground);
-    transform: translate(1.08rem, 0.13rem);
   }
 </style>

@@ -9,18 +9,18 @@
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
   import AlertDialog from "$lib/components/ui/confirm-dialog";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import { Input } from "$lib/components/ui/input";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import {
     buildProjectGroups,
     conversationMeta,
     groupIsActive,
-    projectKey,
     shortProjectLabel,
   } from "../../utils/project-tree";
+  import { pulseForStatus, statusTone } from "../../utils/status";
 
   type DeleteTarget = {
     kind: "project" | "session";
@@ -36,7 +36,6 @@
     selectedProjectId?: string;
     selectedSessionId?: string;
     onOpenSession?: (sessionId: string) => void;
-    onNewConversation?: () => void;
     onNewConversationInProject?: (projectDir: string) => void;
     onDeleteProject?: (projectId: string) => void;
     onDeleteSession?: (sessionId: string) => void;
@@ -50,7 +49,6 @@
     selectedProjectId,
     selectedSessionId,
     onOpenSession,
-    onNewConversation,
     onNewConversationInProject,
     onDeleteProject,
     onDeleteSession,
@@ -108,9 +106,11 @@
     ];
   }
 
-  const projectDirectoryCount = $derived.by(() => new Set(projects.map(projectKey)).size);
-
-  const groups = $derived.by(() => buildProjectGroups({ projects, sessions, agents, filter }));
+  const result = $derived.by(() =>
+    buildProjectGroups({ projects, sessions, agents, filter }),
+  );
+  const groups = $derived(result.groups);
+  const hiddenProjects = $derived(result.hiddenProjects);
 </script>
 
 <aside class="project-tree">
@@ -120,15 +120,6 @@
   </div>
 
   <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
-    <div class="section-label">
-      <span>Projects</span>
-      <Badge size="xs">{projectDirectoryCount}</Badge>
-      <span class="section-spacer"></span>
-      <Button variant="ghost" size="icon-sm" ariaLabel="New conversation" title="New conversation" onclick={onNewConversation}>
-        <Plus size={13} strokeWidth={2.25} />
-      </Button>
-    </div>
-
     {#if groups.length === 0}
       <p class="empty">No projects yet.</p>
     {/if}
@@ -143,7 +134,6 @@
                 <ChevronDown size={13} />
               </span>
               <span class="project-label">{shortProjectLabel(group.project.dir, homeDir)}</span>
-              <Badge size="xs" tone={active ? "accent" : "neutral"}>{group.rows.length}</Badge>
             </Collapsible.Trigger>
             <div class="row-actions">
               <Button
@@ -168,20 +158,29 @@
                 <button
                   class="conversation-row"
                   type="button"
-                  title={`${row.session.title} · ${conversationMeta(row)} · ${row.session.id}`}
+                  title={`${row.session.title} · ${row.agent?.status ?? "idle"} · ${conversationMeta(row)} · ${row.session.id}`}
                   onclick={() => onOpenSession?.(row.session.id)}
                 >
+                  <StatusDot
+                    tone={statusTone(row.agent?.status)}
+                    pulse={pulseForStatus(row.agent?.status)}
+                    size="sm"
+                  />
                   <span class="conversation-label">{row.session.title}</span>
-                  {#if row.agent?.status && row.agent.status !== "idle"}
-                    <span class="row-status">{row.agent.status}</span>
-                  {/if}
                 </button>
               </div>
             </ContextMenu>
           {/each}
+          {#if group.hiddenRows > 0}
+            <p class="empty child">+{group.hiddenRows} more…</p>
+          {/if}
         </Collapsible.Content>
       </Collapsible.Root>
     {/each}
+
+    {#if hiddenProjects > 0}
+      <p class="empty">+{hiddenProjects} more projects…</p>
+    {/if}
   </ScrollArea>
 </aside>
 
@@ -207,16 +206,10 @@
     background: var(--card);
   }
 
-  .section-label,
   .empty {
     color: var(--muted-foreground);
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-  }
-
-  .section-label {
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
 
   .search-box {
@@ -248,17 +241,6 @@
     padding: 0.35rem;
   }
 
-  .section-label {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.35rem 0.25rem 0.45rem;
-  }
-
-  .section-spacer {
-    flex: 1;
-  }
-
   :global(.project-group) {
     display: grid;
     gap: 0.08rem;
@@ -284,12 +266,14 @@
 
   :global(.project-row) {
     display: grid;
-    grid-template-columns: 0.85rem minmax(0, 1fr) auto;
+    grid-template-columns: 0.85rem minmax(0, 1fr);
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.36rem 0.42rem;
-    color: var(--muted-foreground);
-    font-size: 0.75rem;
+    gap: 0.4rem;
+    padding: 0.45rem 0.42rem;
+    border-color: color-mix(in oklab, var(--border) 45%, transparent);
+    background: color-mix(in oklab, var(--accent) 55%, transparent);
+    color: var(--foreground);
+    font-size: 0.8125rem;
   }
 
   .project-row-wrap.active :global(.project-row)::before,
@@ -334,15 +318,9 @@
   }
 
   .project-label {
-    color: var(--muted-foreground);
-    font-size: 0.75rem;
-    font-weight: 400;
-  }
-
-  .row-status {
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    font-weight: 600;
   }
 
   .row-actions {
@@ -385,9 +363,9 @@
 
   .conversation-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
-    gap: 0.42rem;
+    gap: 0.5rem;
     min-height: 2.1rem;
     padding: 0.34rem 0.42rem 0.34rem 0.72rem;
   }

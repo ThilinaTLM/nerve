@@ -11,8 +11,17 @@ export type ProjectGroup = {
   project: ProjectRecord;
   projects: ProjectRecord[];
   rows: ConversationRow[];
+  hiddenRows: number;
   updatedAt: string;
 };
+
+export type ProjectGroupResult = {
+  groups: ProjectGroup[];
+  hiddenProjects: number;
+};
+
+export const MAX_PROJECTS = 5;
+export const MAX_ROWS_PER_PROJECT = 5;
 
 export function projectKey(project: ProjectRecord): string {
   return project.dir.replace(/[\\/]+$/, "") || project.dir;
@@ -89,9 +98,13 @@ export function buildProjectGroups(options: {
   sessions: SessionRecord[];
   agents: AgentRecord[];
   filter?: string;
-}): ProjectGroup[] {
+  maxProjects?: number;
+  maxRowsPerProject?: number;
+}): ProjectGroupResult {
   const { projects, sessions, agents } = options;
   const query = options.filter?.trim() ?? "";
+  const maxProjects = options.maxProjects ?? MAX_PROJECTS;
+  const maxRowsPerProject = options.maxRowsPerProject ?? MAX_ROWS_PER_PROJECT;
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const byDir = new Map<string, ProjectGroup>();
 
@@ -110,6 +123,7 @@ export function buildProjectGroups(options: {
         project,
         projects: [project],
         rows: [],
+        hiddenRows: 0,
         updatedAt: project.updatedAt,
       });
     }
@@ -124,6 +138,7 @@ export function buildProjectGroups(options: {
       project,
       projects: [project],
       rows: [],
+      hiddenRows: 0,
       updatedAt: project.updatedAt,
     };
     group.rows.push({ session, agent: activeSessionAgent(session, agents) });
@@ -132,13 +147,22 @@ export function buildProjectGroups(options: {
     byDir.set(key, group);
   }
 
-  return [...byDir.values()]
+  const sorted = [...byDir.values()]
     .filter((group) => projectGroupMatches(group, query))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .map((group) => ({
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  const hiddenProjects = Math.max(0, sorted.length - maxProjects);
+
+  const groups = sorted.slice(0, maxProjects).map((group) => {
+    const rows = group.rows.sort((a, b) =>
+      b.session.updatedAt.localeCompare(a.session.updatedAt),
+    );
+    return {
       ...group,
-      rows: group.rows.sort((a, b) =>
-        b.session.updatedAt.localeCompare(a.session.updatedAt),
-      ),
-    }));
+      hiddenRows: Math.max(0, rows.length - maxRowsPerProject),
+      rows: rows.slice(0, maxRowsPerProject),
+    };
+  });
+
+  return { groups, hiddenProjects };
 }

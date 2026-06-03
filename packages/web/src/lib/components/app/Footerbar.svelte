@@ -9,9 +9,8 @@
   import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
   import { shortenPath } from "../../utils/path";
   import { Button } from "$lib/components/ui/button";
-  import { StatusDot } from "$lib/components/ui/status-dot";
+  import StatusPopover from "./StatusPopover.svelte";
 
-  type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
   type GitStatus = { branch: string; dirty: boolean };
 
   type Props = {
@@ -33,10 +32,13 @@
 
   let {
     activeProject,
+    activeSession,
+    activeAgent,
     connection = "connecting",
     live = false,
     pendingApprovals = 0,
     processes = [],
+    branchDepth = 0,
     gitStatus,
     homeDir,
     sidebarCollapsed = false,
@@ -49,9 +51,6 @@
     processes.filter((process) =>
       ["starting", "running", "ready", "stopping"].includes(process.status),
     ).length,
-  );
-  const statusTone = $derived<StatusTone>(
-    live ? "good" : connection === "error" ? "danger" : connection === "closed" ? "warn" : "neutral",
   );
   const projectPath = $derived(
     activeProject ? shortenPath(activeProject.dir, homeDir) : "No project",
@@ -100,10 +99,17 @@
       </span>
     {/if}
 
-    <span class="footer-chip" title="Connection">
-      <StatusDot tone={statusTone} pulse={live} />
-      <span>{live ? "connected" : connection}</span>
-    </span>
+    <StatusPopover
+      {connection}
+      {live}
+      {activeAgent}
+      {activeSession}
+      {activeProject}
+      {processes}
+      {branchDepth}
+      {pendingApprovals}
+      side="top"
+    />
 
     <Button
       variant="ghost"

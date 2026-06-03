@@ -152,14 +152,8 @@
 <main class="app-frame">
   <Titlebar
     {activeProject}
-    {activeSession}
-    {activeAgent}
-    {connection}
-    {live}
     activeRoute={appRoute}
-    pendingApprovals={pendingApprovalCount}
-    {processes}
-    {branchDepth}
+    onOpenProject={openProjectPicker}
     onOpenSettings={() => navigateToRoute("settings")}
   />
 
@@ -191,7 +185,6 @@
                 selectedProjectId={selection.projectId}
                 selectedSessionId={selection.sessionId}
                 onOpenSession={openSession}
-                onNewConversation={newSession}
                 onNewConversationInProject={newConversationInProject}
                 onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
                 onDeleteSession={(id) => void deleteSessionAndRefresh(id)}
