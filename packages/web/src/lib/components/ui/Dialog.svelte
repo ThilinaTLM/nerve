@@ -78,10 +78,10 @@
     max-height: 84vh;
     transform: translateX(-50%);
     overflow: hidden;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-lg);
-    background: var(--color-panel);
-    color: var(--color-text);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
     box-shadow: var(--shadow-dialog);
   }
 
@@ -90,18 +90,18 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: var(--color-panel-raised);
+    background: hsl(var(--accent));
     padding: 0.75rem 0.875rem;
   }
 
   .dialog-header {
     justify-content: space-between;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid hsl(var(--border));
   }
 
   .dialog-footer {
     justify-content: flex-end;
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid hsl(var(--border));
   }
 
   .dialog-title-block {
@@ -112,7 +112,7 @@
 
   :global(.dialog-title) {
     margin: 0;
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     font-size: var(--text-lg);
     font-weight: var(--weight-semibold);
     line-height: var(--leading-tight);
@@ -120,7 +120,7 @@
 
   :global(.dialog-description) {
     margin: 0;
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-size: var(--text-xs);
   }
 
@@ -130,22 +130,22 @@
     width: var(--control-height-sm);
     height: var(--control-height-sm);
     place-items: center;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid hsl(var(--border) / 0.6);
     border-radius: var(--radius-sm);
-    background: var(--color-field);
-    color: var(--color-muted);
+    background: hsl(var(--input));
+    color: hsl(var(--muted-foreground));
     cursor: pointer;
   }
 
   :global(.dialog-close:hover) {
-    border-color: var(--color-border);
-    background: var(--color-panel);
-    color: var(--color-text);
+    border-color: hsl(var(--border));
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
   }
 
   .dialog-body {
     min-height: 0;
     overflow: auto;
-    background: var(--color-panel);
+    background: hsl(var(--card));
   }
 </style>

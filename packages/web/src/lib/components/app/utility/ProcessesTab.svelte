@@ -1,12 +1,15 @@
 <script lang="ts">
+  import Copy from "lucide-svelte/icons/copy";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
   import RotateCw from "lucide-svelte/icons/rotate-cw";
   import Square from "lucide-svelte/icons/square";
   import Terminal from "lucide-svelte/icons/terminal";
+  import { toast } from "svelte-sonner";
   import type { ProcessLogQueryResponse, ProcessRecord } from "../../../api";
   import { pulseForStatus, statusTone } from "../../../utils/status";
   import Badge from "../../ui/Badge.svelte";
   import Button from "../../ui/Button.svelte";
+  import ContextMenu, { type ContextMenuItem } from "../../ui/ContextMenu.svelte";
   import StatusDot from "../../ui/StatusDot.svelte";
   import ProcessLogTerminal from "./ProcessLogTerminal.svelte";
 
@@ -29,6 +32,33 @@
     onStopProcess,
     onRestartProcess,
   }: Props = $props();
+
+  async function copyToClipboard(text: string, label: string) {
+    try {
+      await navigator.clipboard?.writeText(text);
+      toast.success(`Copied ${label}`);
+    } catch {
+      toast.error("Could not copy to clipboard");
+    }
+  }
+
+  function processMenu(process: ProcessRecord): ContextMenuItem[] {
+    return [
+      { label: "Restart", icon: RotateCw, onSelect: () => onRestartProcess?.(process.id) },
+      { label: "Stop", icon: Square, destructive: true, onSelect: () => onStopProcess?.(process.id) },
+      { type: "separator" },
+      {
+        label: "Refresh logs",
+        icon: RefreshCw,
+        onSelect: () => {
+          onSelectProcess?.(process.id);
+          onRefreshProcessLogs?.();
+        },
+      },
+      { label: "Copy command", icon: Copy, onSelect: () => void copyToClipboard(process.command, "command") },
+      { label: "Copy working directory", icon: Copy, onSelect: () => void copyToClipboard(process.cwd, "working directory") },
+    ];
+  }
 </script>
 
 <header class="section-head">
@@ -43,19 +73,21 @@
     <p class="muted">No managed processes.</p>
   {/if}
   {#each processes as process}
-    <button
-      class="utility-row process-row"
-      class:active={process.id === selectedProcess?.id}
-      type="button"
-      onclick={() => onSelectProcess?.(process.id)}
-    >
-      <StatusDot tone={statusTone(process.status)} pulse={pulseForStatus(process.status)} />
-      <div>
-        <strong>{process.name ?? process.command}</strong>
-        <span>{process.status} · {process.cwd}</span>
-      </div>
-      <Badge size="xs" tone={statusTone(process.status)}>{process.status}</Badge>
-    </button>
+    <ContextMenu items={processMenu(process)}>
+      <button
+        class="utility-row process-row"
+        class:active={process.id === selectedProcess?.id}
+        type="button"
+        onclick={() => onSelectProcess?.(process.id)}
+      >
+        <StatusDot tone={statusTone(process.status)} pulse={pulseForStatus(process.status)} />
+        <div>
+          <strong>{process.name ?? process.command}</strong>
+          <span>{process.status} · {process.cwd}</span>
+        </div>
+        <Badge size="xs" tone={statusTone(process.status)}>{process.status}</Badge>
+      </button>
+    </ContextMenu>
   {/each}
 </div>
 

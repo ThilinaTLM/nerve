@@ -64,7 +64,7 @@
   }
 
   :global(.popover-trigger:focus-visible) {
-    outline: 2px solid var(--color-focus-ring);
+    outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
   }
 
@@ -73,10 +73,10 @@
     width: min(24rem, calc(100vw - 1.5rem));
     max-height: min(32rem, var(--bits-popover-content-available-height, 32rem));
     overflow: hidden;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-lg);
-    background: var(--color-panel);
-    color: var(--color-text);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
     box-shadow: var(--shadow-popover);
   }
 
@@ -85,6 +85,6 @@
   }
 
   :global(.popover-arrow) {
-    fill: var(--color-panel);
+    fill: hsl(var(--card));
   }
 </style>

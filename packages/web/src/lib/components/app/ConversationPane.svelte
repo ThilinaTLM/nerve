@@ -1,16 +1,17 @@
 <script lang="ts">
   import Bot from "lucide-svelte/icons/bot";
-  import ChevronRight from "lucide-svelte/icons/chevron-right";
   import ChevronsRight from "lucide-svelte/icons/chevrons-right";
   import Clipboard from "lucide-svelte/icons/clipboard";
+  import Copy from "lucide-svelte/icons/copy";
   import FolderOpen from "lucide-svelte/icons/folder-open";
   import Info from "lucide-svelte/icons/info";
   import Sparkles from "lucide-svelte/icons/sparkles";
+  import TextQuote from "lucide-svelte/icons/text-quote";
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
-  import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
+  import ContextMenu, { type ContextMenuItem } from "../ui/ContextMenu.svelte";
   import PromptComposer from "./PromptComposer.svelte";
 
   type TranscriptItem = {
@@ -89,31 +90,39 @@
     return ChevronsRight;
   }
 
-  async function copyText(text: string) {
+  async function copyText(text: string, label = "message") {
     try {
       await navigator.clipboard?.writeText(text);
-      toast.success("Copied message");
+      toast.success(`Copied ${label}`);
     } catch {
-      toast.error("Could not copy message");
+      toast.error("Could not copy to clipboard");
     }
+  }
+
+  function quoteInComposer(text: string) {
+    const quoted = text
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n");
+    const prefix = composerText ? `${composerText}\n\n` : "";
+    onComposerChange?.(`${prefix}${quoted}\n\n`);
+  }
+
+  function messageMenu(item: TranscriptItem): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [
+      { label: "Copy text", icon: Clipboard, onSelect: () => void copyText(item.text) },
+      { label: "Quote in composer", icon: TextQuote, onSelect: () => quoteInComposer(item.text) },
+    ];
+    if (item.id) {
+      items.push({ type: "separator" });
+      items.push({ label: "Copy message id", icon: Copy, onSelect: () => void copyText(item.id ?? "", "message id") });
+    }
+    return items;
   }
 </script>
 
 <section class="conversation-pane">
   {#if activeSession}
-    <header class="conversation-breadcrumb">
-      <nav class="crumbs" aria-label="Breadcrumb" title={activeProject?.dir}>
-        <span class="crumb">{activeProject?.name ?? "workspace"}</span>
-        <ChevronRight size={13} strokeWidth={2} aria-hidden="true" />
-        <span class="crumb current">{activeSession.title}</span>
-      </nav>
-      <div class="session-meta">
-        <Badge size="xs" tone={activeAgent?.status === "running" ? "running" : "neutral"}>{activeAgent?.status ?? "idle"}</Badge>
-        <span>{activeAgent?.mode ?? activeSession.mode}</span>
-        <span>{activeAgent?.permissionLevel ?? activeSession.permissionLevel}</span>
-      </div>
-    </header>
-
     <div class="transcript" aria-live="polite">
       {#if transcript.length === 0 && !streamingText}
         <div class="empty-run">
@@ -125,23 +134,25 @@
 
       {#each transcript as item}
         {@const Icon = roleIcon(item.role)}
-        <article class={`transcript-entry ${item.role}`}>
-          <div class="message-gutter">
-            <span class="message-icon" title={roleLabel(item)}><Icon size={item.role === "user" ? 18 : 14} strokeWidth={2.1} /></span>
-          </div>
-          <div class="message-body">
-            <div class="message-content">
-              {#if item.role === "assistant" || item.role === "system"}
-                <Markdown text={item.text} />
-              {:else}
-                <p>{item.text}</p>
-              {/if}
+        <ContextMenu items={messageMenu(item)}>
+          <article class={`transcript-entry ${item.role}`}>
+            <div class="message-gutter">
+              <span class="message-icon" title={roleLabel(item)}><Icon size={item.role === "user" ? 18 : 14} strokeWidth={2.1} /></span>
             </div>
-            <Button class="copy-btn" variant="icon" size="icon" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(item.text)}>
-              <Clipboard size={12} strokeWidth={2.2} />
-            </Button>
-          </div>
-        </article>
+            <div class="message-body">
+              <div class="message-content">
+                {#if item.role === "assistant" || item.role === "system"}
+                  <Markdown text={item.text} />
+                {:else}
+                  <p>{item.text}</p>
+                {/if}
+              </div>
+              <Button class="copy-btn" variant="icon" size="icon" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(item.text)}>
+                <Clipboard size={12} strokeWidth={2.2} />
+              </Button>
+            </div>
+          </article>
+        </ContextMenu>
       {/each}
 
       {#if streamingText}
@@ -195,57 +206,8 @@
     display: grid;
     height: 100%;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    background: var(--color-bg);
-  }
-
-  .conversation-breadcrumb {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    height: var(--size-pane-header);
-    border-bottom: 1px solid var(--color-border);
-    padding: 0 0.85rem;
-    background: var(--color-panel-muted);
-  }
-
-  .crumbs {
-    display: inline-flex;
-    align-items: center;
-    min-width: 0;
-    gap: 0.35rem;
-    color: var(--color-faint);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-  }
-
-  .crumbs :global(svg) {
-    flex: none;
-    color: var(--color-faint);
-  }
-
-  .crumb {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--color-muted);
-  }
-
-  .crumb.current {
-    color: var(--color-text);
-  }
-
-  .session-meta {
-    display: flex;
-    align-items: center;
-    flex: none;
-    gap: 0.45rem;
-    color: var(--color-muted);
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    grid-template-rows: minmax(0, 1fr) auto;
+    background: hsl(var(--background));
   }
 
   .transcript {
@@ -265,11 +227,7 @@
     width: 100%;
     margin: 0 auto;
     padding: 0.8rem 0;
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .transcript-entry:first-of-type {
-    border-top: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid hsl(var(--border) / 0.6);
   }
 
   .message-gutter {
@@ -287,21 +245,21 @@
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
   }
 
   .transcript-entry.user .message-icon {
-    color: var(--color-accent);
+    color: hsl(var(--primary));
   }
 
   .transcript-entry.assistant .message-icon {
-    border-color: var(--color-border);
-    background: var(--color-panel-highest);
-    color: var(--color-text);
+    border-color: hsl(var(--border));
+    background: hsl(var(--secondary));
+    color: hsl(var(--foreground));
   }
 
   .transcript-entry.system .message-icon {
-    color: var(--color-faint);
+    color: hsl(var(--muted-foreground) / 0.75);
   }
 
   .message-body {
@@ -325,7 +283,7 @@
 
   .message-content {
     min-width: 0;
-    color: var(--color-message-text);
+    color: hsl(var(--foreground) / 0.92);
     font-size: var(--text-sm);
   }
 
@@ -336,11 +294,11 @@
   }
 
   .transcript-entry.user .message-content {
-    color: var(--color-text);
+    color: hsl(var(--foreground));
   }
 
   .transcript-entry.streaming {
-    border-color: var(--color-accent-muted);
+    border-color: hsl(var(--accent));
   }
 
   .stream-caret {
@@ -349,7 +307,7 @@
     height: 1em;
     margin-left: 0.18rem;
     transform: translateY(0.18em);
-    background: var(--color-accent);
+    background: hsl(var(--primary));
     animation: pulse 1s steps(2, start) infinite;
   }
 
@@ -358,7 +316,7 @@
     display: grid;
     place-content: center;
     min-height: 100%;
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     text-align: center;
   }
 
@@ -369,7 +327,7 @@
 
   .empty-run :global(svg),
   .start-icon {
-    color: var(--color-accent);
+    color: hsl(var(--primary));
     justify-self: center;
   }
 
@@ -387,15 +345,15 @@
     justify-items: center;
     gap: 0.65rem;
     max-width: 30rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-lg);
-    background: var(--color-panel);
+    background: hsl(var(--card));
     padding: 1.75rem;
     box-shadow: var(--shadow-panel);
   }
 
   .start-panel strong {
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     font-size: var(--text-lg);
   }
 

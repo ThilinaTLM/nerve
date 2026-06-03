@@ -12,7 +12,7 @@
     theme="system"
     closeButton
     toastOptions={{
-      style: "background: var(--color-panel); color: var(--color-text); border: 1px solid var(--color-border); box-shadow: var(--shadow-popover); border-radius: var(--radius-md);",
+      style: "background: hsl(var(--card)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); box-shadow: var(--shadow-popover); border-radius: var(--radius-md);",
       descriptionClass: "nerve-toast-description",
     }}
   />

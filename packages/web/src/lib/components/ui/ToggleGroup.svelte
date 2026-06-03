@@ -55,9 +55,9 @@
     align-items: center;
     min-width: 0;
     gap: 0;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-sm);
-    background: var(--color-field);
+    background: hsl(var(--input));
     padding: 0;
     overflow: hidden;
   }
@@ -68,10 +68,10 @@
     justify-content: center;
     min-height: var(--control-height-sm);
     border: 0;
-    border-right: 1px solid var(--color-border-subtle);
+    border-right: 1px solid hsl(var(--border) / 0.6);
     border-radius: 0;
     background: transparent;
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     padding: 0.18rem 0.58rem;
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
@@ -88,18 +88,18 @@
   }
 
   :global(.toggle-item:hover:not([data-disabled])) {
-    background: var(--color-panel-raised);
-    color: var(--color-text);
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
   }
 
   :global(.toggle-item[data-state="on"]) {
-    background: var(--color-accent-soft);
-    color: var(--color-accent);
-    box-shadow: inset 0 2px 0 var(--color-accent);
+    background: hsl(var(--accent));
+    color: hsl(var(--primary));
+    box-shadow: inset 0 2px 0 hsl(var(--primary));
   }
 
   :global(.toggle-item:focus-visible) {
-    outline: 1px solid var(--color-focus-ring);
+    outline: 1px solid hsl(var(--ring));
     outline-offset: -1px;
   }
 

@@ -36,24 +36,31 @@
   }: Props = $props();
 
   const contextLabel = $derived(activeProject?.name ?? "No project");
-  const sessionLabel = $derived(activeRoute === "settings" ? "Settings" : activeSession?.title ?? "No active session");
-  const agentLabel = $derived(activeAgent ? `${activeAgent.mode} · ${activeAgent.permissionLevel}` : "agent pending");
-  const title = $derived(`${activeProject?.dir ?? "No project"}${activeSession ? ` / ${activeSession.id}` : ""}`);
+  const sessionLabel = $derived(
+    activeRoute === "settings" ? "Settings" : activeSession?.title ?? "No active session",
+  );
+  const agentStatus = $derived(activeAgent?.status ?? "idle");
+  const agentDetail = $derived(
+    activeAgent ? `${activeAgent.mode} · ${activeAgent.permissionLevel}` : "agent pending",
+  );
+  const statusTone = $derived(
+    agentStatus === "running" ? "running" : agentStatus === "error" ? "danger" : "neutral",
+  );
 </script>
 
 <header class="titlebar">
   <div class="title-left">
     <span class="app-name">Nerve</span>
     <span class="divider" aria-hidden="true"></span>
-    <span class="breadcrumb" {title}>
-      <span>{activeRoute === "settings" ? "nerve" : contextLabel}</span>
-      <ChevronRight size={13} strokeWidth={2} aria-hidden="true" />
-      <span>{sessionLabel}</span>
-    </span>
+    <nav class="breadcrumb" aria-label="Breadcrumb" title={activeProject?.dir}>
+      <span class="crumb">{activeRoute === "settings" ? "nerve" : contextLabel}</span>
+      <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
+      <span class="crumb current">{sessionLabel}</span>
+    </nav>
     {#if activeRoute === "workspace"}
-      <span class="agent-pill" title={agentLabel}>
-        <StatusDot tone={activeAgent?.status === "running" ? "running" : activeAgent?.status === "error" ? "danger" : "neutral"} pulse={activeAgent?.status === "running"} />
-        {agentLabel}
+      <span class="agent-pill" title={agentDetail}>
+        <StatusDot tone={statusTone} pulse={agentStatus === "running"} />
+        <span class="agent-status">{agentStatus}</span>
       </span>
     {/if}
   </div>
@@ -76,9 +83,11 @@
       title="Open settings"
       active={activeRoute === "settings"}
       pressed={activeRoute === "settings"}
-      onclick={() => { if (activeRoute !== "settings") onOpenSettings?.(); }}
+      onclick={() => {
+        if (activeRoute !== "settings") onOpenSettings?.();
+      }}
     >
-      <Settings2 size={14} strokeWidth={2.25} />
+      <Settings2 size={16} strokeWidth={2.1} />
     </Button>
   </Toolbar.Root>
 </header>
@@ -88,10 +97,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1rem;
     height: var(--size-header);
-    border-bottom: 1px solid var(--color-border-subtle);
-    background: var(--color-titlebar);
-    padding: 0 0.5rem;
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    padding: 0 0.75rem;
     user-select: none;
   }
 
@@ -100,15 +110,16 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 0.5rem;
+    gap: 0.625rem;
   }
 
   :global(.title-actions) {
     flex: none;
+    gap: 0.375rem;
   }
 
   .app-name {
-    color: var(--color-accent);
+    color: hsl(var(--foreground));
     font-family: var(--font-display);
     font-size: var(--text-lg);
     font-weight: var(--weight-bold);
@@ -117,51 +128,57 @@
 
   .divider {
     width: 1px;
-    height: 1rem;
-    background: var(--color-border-subtle);
+    height: 1.25rem;
+    background: hsl(var(--border));
   }
 
-  .breadcrumb,
-  .agent-pill {
+  .breadcrumb {
     display: inline-flex;
     align-items: center;
     min-width: 0;
-    gap: 0.32rem;
-    color: var(--color-muted);
-    font-size: var(--text-xs);
-  }
-
-  .breadcrumb span {
-    overflow: hidden;
-    max-width: 20rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .breadcrumb span:first-child {
-    color: var(--color-text);
-    font-weight: var(--weight-semibold);
+    gap: 0.375rem;
+    font-size: var(--text-sm);
   }
 
   .breadcrumb :global(svg) {
     flex: none;
-    color: var(--color-faint);
+    color: hsl(var(--muted-foreground) / 70%);
+  }
+
+  .crumb {
+    overflow: hidden;
+    max-width: 18rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .crumb.current {
+    color: hsl(var(--foreground));
+    font-weight: var(--weight-medium);
   }
 
   .agent-pill {
+    display: inline-flex;
+    align-items: center;
     flex: none;
-    min-height: var(--control-height-xs);
-    border: 1px solid var(--color-border-subtle);
+    gap: 0.4rem;
+    height: var(--control-height-xs);
+    border: 1px solid hsl(var(--border));
     border-radius: 999px;
-    background: var(--color-field);
-    padding: 0 0.45rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    background: hsl(var(--secondary));
+    padding: 0 0.55rem;
+    color: hsl(var(--muted-foreground));
+    font-size: var(--text-xs);
+  }
+
+  .agent-status {
+    text-transform: capitalize;
   }
 
   @media (max-width: 760px) {
     .agent-pill,
-    .breadcrumb span:last-child {
+    .crumb.current {
       display: none;
     }
   }

@@ -111,13 +111,13 @@
           }),
           EditorView.theme({
             "&": {
-              background: "var(--color-field)",
-              color: "var(--color-text)",
+              background: "hsl(var(--input))",
+              color: "hsl(var(--foreground))",
               minHeight: "72px",
               maxHeight: "min(32vh, 220px)",
             },
             ".cm-content": {
-              caretColor: "var(--color-accent)",
+              caretColor: "hsl(var(--primary))",
               fontFamily:
                 'var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
               fontSize: "0.8125rem",
@@ -128,10 +128,10 @@
               padding: "0 2px",
             },
             ".cm-cursor": {
-              borderLeftColor: "var(--color-accent)",
+              borderLeftColor: "hsl(var(--primary))",
             },
             ".cm-placeholder": {
-              color: "var(--color-faint)",
+              color: "hsl(var(--muted-foreground) / 0.75)",
             },
             ".cm-scroller": {
               minHeight: "72px",
@@ -139,25 +139,25 @@
               overflow: "auto",
             },
             ".cm-tooltip": {
-              border: "1px solid var(--color-border)",
+              border: "1px solid hsl(var(--border))",
               borderRadius: "var(--radius-md)",
-              background: "var(--color-panel-raised)",
-              color: "var(--color-text)",
+              background: "hsl(var(--accent))",
+              color: "hsl(var(--foreground))",
               boxShadow: "var(--shadow-popover)",
               overflow: "hidden",
             },
             ".cm-tooltip-autocomplete ul li[aria-selected]": {
-              background: "var(--color-accent-soft)",
-              color: "var(--color-text)",
+              background: "hsl(var(--accent))",
+              color: "hsl(var(--foreground))",
             },
             "&.cm-focused": {
               outline: "none",
             },
             "&.cm-focused .cm-cursor": {
-              borderLeftColor: "var(--color-accent)",
+              borderLeftColor: "hsl(var(--primary))",
             },
             "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
-              backgroundColor: "var(--color-selection)",
+              backgroundColor: "hsl(var(--selection) / 0.22)",
             },
           }),
         ],
@@ -204,9 +204,9 @@
 <style>
   .composer-editor {
     overflow: hidden;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-sm);
-    background: var(--color-field);
+    background: hsl(var(--input));
     transition:
       border-color 160ms ease,
       box-shadow 160ms ease,
@@ -214,8 +214,8 @@
   }
 
   .composer-editor:focus-within {
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 1px var(--color-ring-soft);
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
   }
 
   .composer-editor.disabled {

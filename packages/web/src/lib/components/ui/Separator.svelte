@@ -14,7 +14,7 @@
 
 <style>
   :global(.ui-separator) {
-    background: var(--color-border-subtle);
+    background: hsl(var(--border) / 0.6);
   }
 
   :global(.horizontal) {

@@ -84,6 +84,14 @@ export const workbenchSelectors = {
   get branchDepth() {
     return workbenchState.treeNodes.length;
   },
+  /**
+   * Reserved seam for git status. The orchestrator does not expose git data yet,
+   * so this returns undefined and the footer slot stays hidden. Wire this to real
+   * branch/dirty state once the daemon provides it.
+   */
+  get gitStatus(): { branch: string; dirty: boolean } | undefined {
+    return undefined;
+  },
   get pendingApprovalCount() {
     return workbenchState.approvals.length;
   },

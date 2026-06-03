@@ -4,5 +4,8 @@
 - Keep secrets and dangerous capabilities in the orchestrator/tool layer, never in frontend code.
 - Use file-first storage under `~/.nerve`; SQLite is only a rebuildable index/cache.
 - Validate with `pnpm check`; use `pnpm lint` and `pnpm test` when relevant.
+- For UI work, follow `DESIGN.md` (shadcn-semantic tokens + ChatGPT-neutral palette);
+  build primitives in `packages/web/src/lib/components/ui` over `bits-ui`, use the
+  design tokens (never hard-coded colors), and keep mono for code/logs/paths only.
 - Use the `agent-browser` skill for UI debugging and browser-based testing.
 - Refer `https://bits-ui.com/docs/llms/llms.txt` for bits-ui docs.

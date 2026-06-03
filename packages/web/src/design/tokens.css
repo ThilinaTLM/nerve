@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
 
-  /* Typography: Google Stitch technical precision uses Inter UI + mono data. */
+  /* Typography */
   --font-ui:
     "Inter", "SF Pro Text", "Segoe UI Variable", "Segoe UI", Roboto,
     "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
@@ -23,11 +23,11 @@
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
-  --tracking-label: 0.08em;
+  --tracking-label: 0.04em;
 
   /* Shell sizing */
-  --size-header: 2rem;
-  --size-footer: 2rem;
+  --size-header: 3rem; /* 48px */
+  --size-footer: 1.75rem; /* 28px */
   --size-pane-header: 2rem;
   --size-row-sm: 1.5rem;
   --size-row-md: 2rem;
@@ -42,131 +42,110 @@
 
   /* Controls */
   --control-height-xs: 1.5rem;
-  --control-height-sm: 2rem;
-  --control-height-md: 2.25rem;
-  --control-height-lg: 2.75rem;
+  --control-height-sm: 1.75rem;
+  --control-height-md: 2rem;
+  --control-height-lg: 2.25rem;
 
-  /* Radius and borders */
-  --radius-xs: 0.125rem;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.625rem;
-  --border-hairline: 1px solid var(--color-border-subtle);
+  /* Radius (shadcn base) */
+  --radius: 0.5rem;
+  --radius-xs: 0.25rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --border-hairline: 1px solid hsl(var(--border));
 
-  /* Stitch technical dark palette (MD3 surface ladder) */
-  --color-bg: #131313; /* surface / background */
-  --color-bg-deep: #0e0e0e; /* surface-container-lowest */
-  --color-bg-soft: #171717;
-  --color-shell: #131313;
-  --color-titlebar: #1c1b1b; /* surface-container-low */
-  --color-pane: #201f1f; /* surface-container */
-  --color-pane-low: #1c1b1b; /* surface-container-low */
-  --color-pane-active: #201f1f;
-  --color-panel: #201f1f; /* surface-container */
-  --color-panel-muted: #1c1b1b; /* surface-container-low */
-  --color-panel-raised: #2a2a2a; /* surface-container-high */
-  --color-panel-highest: #353534; /* surface-container-highest */
-  --color-field: #0e0e0e; /* surface-container-lowest */
-  --color-resizer: #424936;
-  --color-resizer-active: #ccff80;
-  --color-border: #424936; /* outline-variant */
-  --color-border-subtle: #2f3527;
-  --color-border-strong: #596646;
-  --color-text: #e5e2e1; /* on-surface */
-  --color-message-text: #d6d3d1;
-  --color-muted: #c2cab0; /* on-surface-variant */
-  --color-faint: #8c947c; /* outline */
-  --color-accent: #ccff80; /* primary */
-  --color-accent-strong: #a3e635; /* primary-container */
-  --color-accent-ink: #213600; /* on-primary */
-  --color-on-accent: #213600;
-  --color-accent-soft: rgb(204 255 128 / 12%);
-  --color-accent-muted: rgb(204 255 128 / 22%);
-  --color-tab-active: #131313;
-  --color-good: #98da27; /* surface-tint */
-  --color-good-soft: rgb(152 218 39 / 13%);
-  --color-warn: #ffd166;
-  --color-warn-soft: rgb(255 209 102 / 13%);
-  --color-danger: #ffb4ab;
-  --color-danger-soft: rgb(255 180 171 / 13%);
-  --color-code: #ccff80;
-  --color-code-bg: #0b0b0b;
-  --color-user-message: rgb(204 255 128 / 7%);
-  --color-ring: #ccff80;
-  --color-focus-ring: #ccff80;
-  --color-ring-soft: rgb(204 255 128 / 24%);
-  --color-selection: rgb(204 255 128 / 24%);
-  --color-grid: transparent;
-  --color-aurora-a: transparent;
-  --color-aurora-b: transparent;
-  --grid-opacity: 0;
-  --gradient-accent: #ccff80;
+  /* ---- shadcn semantic tokens (dark / ChatGPT-neutral) ---- */
+  --background: 0 0% 13%; /* center conversation canvas (~#212121) */
+  --foreground: 0 0% 93%;
+  --card: 0 0% 16%; /* panes, cards */
+  --card-foreground: 0 0% 93%;
+  --popover: 0 0% 18%; /* menus, popovers */
+  --popover-foreground: 0 0% 93%;
+  --primary: 0 0% 96%; /* solid near-white action */
+  --primary-foreground: 0 0% 11%;
+  --secondary: 0 0% 21%;
+  --secondary-foreground: 0 0% 93%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 63%;
+  --accent: 0 0% 22%; /* hover / active neutral fill */
+  --accent-foreground: 0 0% 96%;
+  --destructive: 0 72% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 24%;
+  --input: 0 0% 26%;
+  --ring: 0 0% 55%;
 
-  /* Elevation: mostly flat, with one dock/popover shadow tier. */
+  /* status (used with icon/text, never color alone) */
+  --success: 142 58% 48%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 55%;
+  --warning-foreground: 38 70% 12%;
+  --info: 210 90% 62%;
+  --info-foreground: 0 0% 98%;
+
+  /* sidebar surfaces (left/right rails — deeper than canvas) */
+  --sidebar: 0 0% 9%;
+  --sidebar-foreground: 0 0% 88%;
+
+  /* selection / focus helpers */
+  --selection: 0 0% 100%;
+
+  /* Elevation: mostly flat, one floating tier. */
   --shadow-panel: 0 1px 0 rgb(255 255 255 / 3%) inset;
-  --shadow-elevated: 0 18px 38px rgb(0 0 0 / 34%);
-  --shadow-popover: 0 18px 45px rgb(0 0 0 / 52%), 0 0 0 1px var(--color-border);
-  --shadow-dialog: 0 30px 80px rgb(0 0 0 / 62%), 0 0 0 1px var(--color-border);
+  --shadow-elevated: 0 18px 38px rgb(0 0 0 / 40%);
+  --shadow-popover: 0 10px 30px rgb(0 0 0 / 45%), 0 0 0 1px hsl(var(--border));
+  --shadow-dialog: 0 24px 64px rgb(0 0 0 / 55%), 0 0 0 1px hsl(var(--border));
   --shadow-message: none;
-  --shadow-glow:
-    0 0 0 1px var(--color-ring-soft), 0 0 24px rgb(204 255 128 / 10%);
-  --shadow-dock: 0 -18px 48px rgb(0 0 0 / 42%);
+  --shadow-glow: 0 0 0 1px hsl(var(--ring) / 35%);
+  --shadow-dock: 0 -14px 40px rgb(0 0 0 / 38%);
+
+  /* legacy decorative tokens (kept neutral/no-op) */
+  --grid-opacity: 0;
+  --gradient-accent: hsl(var(--primary));
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --color-bg: #f6f7f2;
-  --color-bg-deep: #e8eadf;
-  --color-bg-soft: #f0f1ec;
-  --color-shell: #f6f7f2;
-  --color-titlebar: #eef0e7;
-  --color-pane: #fbfcf6;
-  --color-pane-low: #f1f3eb;
-  --color-pane-active: #f1f3eb;
-  --color-panel: #ffffff;
-  --color-panel-muted: #eef0e7;
-  --color-panel-raised: #e4e8d9;
-  --color-panel-highest: #d9dfcc;
-  --color-field: #ffffff;
-  --color-resizer: #d0d6c4;
-  --color-resizer-active: #5c8e18;
-  --color-border: #c3ccb4;
-  --color-border-subtle: #d7ddcc;
-  --color-border-strong: #9dad89;
-  --color-text: #171916;
-  --color-message-text: #282b25;
-  --color-muted: #5d6255;
-  --color-faint: #858d79;
-  --color-accent: #5c8e18;
-  --color-accent-strong: #3f6d0d;
-  --color-accent-ink: #ffffff;
-  --color-on-accent: #ffffff;
-  --color-tab-active: #fbfcf6;
-  --color-accent-soft: rgb(92 142 24 / 11%);
-  --color-accent-muted: rgb(92 142 24 / 22%);
-  --color-good: #3f7d16;
-  --color-good-soft: rgb(63 125 22 / 10%);
-  --color-warn: #9a6b18;
-  --color-warn-soft: rgb(154 107 24 / 11%);
-  --color-danger: #b34046;
-  --color-danger-soft: rgb(179 64 70 / 11%);
-  --color-code: #3f6d0d;
-  --color-code-bg: #f8faf4;
-  --color-user-message: rgb(92 142 24 / 6%);
-  --color-ring: #5c8e18;
-  --color-focus-ring: #5c8e18;
-  --color-ring-soft: rgb(92 142 24 / 18%);
-  --color-selection: rgb(92 142 24 / 20%);
-  --gradient-accent: #5c8e18;
+  --background: 0 0% 100%;
+  --foreground: 0 0% 13%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 13%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 13%;
+  --primary: 0 0% 13%; /* solid near-black action */
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 13%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 0 0% 94%;
+  --accent-foreground: 0 0% 13%;
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 90%;
+  --input: 0 0% 87%;
+  --ring: 0 0% 60%;
+
+  --success: 142 55% 38%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 90% 42%;
+  --warning-foreground: 0 0% 98%;
+  --info: 210 85% 48%;
+  --info-foreground: 0 0% 98%;
+
+  --sidebar: 0 0% 98%;
+  --sidebar-foreground: 0 0% 22%;
+
+  --selection: 0 0% 0%;
 
   --shadow-panel: 0 1px 0 rgb(255 255 255 / 85%) inset;
   --shadow-elevated: 0 16px 34px rgb(15 16 20 / 12%);
   --shadow-popover:
-    0 18px 45px rgb(15 16 20 / 18%), 0 0 0 1px var(--color-border);
+    0 10px 30px rgb(15 16 20 / 14%), 0 0 0 1px hsl(var(--border));
   --shadow-dialog:
-    0 28px 70px rgb(15 16 20 / 22%), 0 0 0 1px var(--color-border);
-  --shadow-glow: 0 0 0 1px var(--color-ring-soft), 0 0 18px rgb(92 142 24 / 8%);
-  --shadow-dock: 0 -18px 48px rgb(15 16 20 / 12%);
+    0 24px 60px rgb(15 16 20 / 18%), 0 0 0 1px hsl(var(--border));
+  --shadow-glow: 0 0 0 1px hsl(var(--ring) / 30%);
+  --shadow-dock: 0 -14px 40px rgb(15 16 20 / 10%);
 }

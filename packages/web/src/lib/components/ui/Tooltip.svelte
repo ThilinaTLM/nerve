@@ -42,10 +42,10 @@
   :global(.tooltip-content) {
     z-index: 80;
     max-width: 18rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-sm);
-    background: var(--color-panel-raised);
-    color: var(--color-text);
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
     box-shadow: var(--shadow-popover);
     padding: 0.28rem 0.45rem;
     font-size: var(--text-xs);
@@ -53,6 +53,6 @@
   }
 
   :global(.tooltip-arrow) {
-    fill: var(--color-panel-raised);
+    fill: hsl(var(--accent));
   }
 </style>

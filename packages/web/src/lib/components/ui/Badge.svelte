@@ -1,76 +1,46 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { cva, type VariantProps } from "class-variance-authority";
   import { cn } from "../../utils/cn";
+
+  const badgeVariants = cva(
+    "inline-flex items-center gap-1 w-fit max-w-full rounded-full border px-2 py-0.5 font-medium leading-tight whitespace-nowrap",
+    {
+      variants: {
+        tone: {
+          neutral: "border-border bg-secondary text-muted-foreground",
+          accent: "border-border bg-accent text-foreground",
+          running: "border-info/40 bg-info/15 text-info",
+          good: "border-success/40 bg-success/15 text-success",
+          warn: "border-warning/40 bg-warning/15 text-warning",
+          danger: "border-destructive/40 bg-destructive/15 text-destructive",
+        },
+        size: {
+          xs: "px-1.5 py-px text-[11px]",
+          sm: "px-2 py-0.5 text-xs",
+        },
+      },
+      defaultVariants: {
+        tone: "neutral",
+        size: "sm",
+      },
+    },
+  );
+
+  type Tone = NonNullable<VariantProps<typeof badgeVariants>["tone"]>;
+  type Size = NonNullable<VariantProps<typeof badgeVariants>["size"]>;
 
   type Props = {
     children?: Snippet;
     class?: string;
-    tone?: "neutral" | "accent" | "good" | "warn" | "danger" | "running";
-    size?: "xs" | "sm";
+    tone?: Tone;
+    size?: Size;
     title?: string;
   };
 
   let { children, class: className = "", tone = "neutral", size = "sm", title }: Props = $props();
 </script>
 
-<span class={cn("ui-badge", tone, size, className)} {title}>
+<span class={cn(badgeVariants({ tone, size }), className)} {title}>
   {@render children?.()}
 </span>
-
-<style>
-  .ui-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    width: fit-content;
-    max-width: 100%;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 999px;
-    font-family: var(--font-mono);
-    font-weight: var(--weight-semibold);
-    letter-spacing: 0.02em;
-    line-height: 1.2;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .xs {
-    padding: 0.06rem 0.32rem;
-    font-size: var(--text-2xs);
-  }
-
-  .sm {
-    padding: 0.12rem 0.42rem;
-    font-size: var(--text-xs);
-  }
-
-  .neutral {
-    background: var(--color-field);
-    color: var(--color-muted);
-  }
-
-  .accent,
-  .running {
-    border-color: var(--color-accent-muted);
-    background: var(--color-accent-soft);
-    color: var(--color-accent);
-  }
-
-  .good {
-    border-color: color-mix(in srgb, var(--color-good) 38%, transparent);
-    background: var(--color-good-soft);
-    color: var(--color-good);
-  }
-
-  .warn {
-    border-color: color-mix(in srgb, var(--color-warn) 38%, transparent);
-    background: var(--color-warn-soft);
-    color: var(--color-warn);
-  }
-
-  .danger {
-    border-color: color-mix(in srgb, var(--color-danger) 38%, transparent);
-    background: var(--color-danger-soft);
-    color: var(--color-danger);
-  }
-</style>

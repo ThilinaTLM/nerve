@@ -90,11 +90,11 @@
     position: relative;
     flex: 1;
     border-radius: 999px;
-    background: var(--color-border);
+    background: hsl(var(--border));
   }
 
   :global(.scroll-thumb:hover) {
-    background: var(--color-muted);
+    background: hsl(var(--muted-foreground));
   }
 
   :global(.scroll-corner) {

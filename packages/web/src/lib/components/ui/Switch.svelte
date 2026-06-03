@@ -42,7 +42,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.8rem;
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     font-size: var(--text-sm);
   }
 
@@ -53,7 +53,7 @@
   }
 
   .switch-copy small {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-size: var(--text-xs);
   }
 
@@ -62,9 +62,9 @@
     flex: none;
     width: 2.25rem;
     height: 1.25rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: 999px;
-    background: var(--color-field);
+    background: hsl(var(--input));
     cursor: pointer;
     transition:
       background 120ms ease,
@@ -73,12 +73,12 @@
   }
 
   :global(.switch-root[data-state="checked"]) {
-    border-color: var(--color-accent);
-    background: var(--color-accent-soft);
+    border-color: hsl(var(--primary));
+    background: hsl(var(--accent));
   }
 
   :global(.switch-root:focus-visible) {
-    outline: 1px solid var(--color-focus-ring);
+    outline: 1px solid hsl(var(--ring));
     outline-offset: 2px;
   }
 
@@ -92,7 +92,7 @@
     width: 0.82rem;
     height: 0.82rem;
     border-radius: 999px;
-    background: var(--color-muted);
+    background: hsl(var(--muted-foreground));
     transform: translate(0.16rem, 0.13rem);
     transition:
       transform 120ms ease,
@@ -100,7 +100,7 @@
   }
 
   :global(.switch-root[data-state="checked"] .switch-thumb) {
-    background: var(--color-accent);
+    background: hsl(var(--primary));
     transform: translate(1.08rem, 0.13rem);
   }
 </style>

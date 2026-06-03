@@ -81,6 +81,7 @@
   const activeAgent = $derived(workbenchSelectors.activeAgent);
   const live = $derived(workbenchSelectors.live);
   const branchDepth = $derived(workbenchSelectors.branchDepth);
+  const gitStatus = $derived(workbenchSelectors.gitStatus);
   const pendingApprovalCount = $derived(workbenchSelectors.pendingApprovalCount);
   const selectedProcess = $derived(workbenchSelectors.selectedProcess);
   const sessionAgents = $derived(workbenchSelectors.sessionAgents);
@@ -277,6 +278,8 @@
     pendingApprovals={pendingApprovalCount}
     {processes}
     {branchDepth}
+    {gitStatus}
+    homeDir={status?.storage.home}
     sidebarCollapsed={layout.sidebarCollapsed}
     utilityCollapsed={layout.utilityCollapsed}
     onToggleSidebar={() => setSidebarCollapsed(!layout.sidebarCollapsed)}
@@ -299,8 +302,8 @@
     min-height: 0;
     grid-template-rows: var(--size-header) minmax(0, 1fr) var(--size-footer);
     overflow: hidden;
-    background: var(--color-bg);
-    color: var(--color-text);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 
   .workspace-shell,
@@ -308,7 +311,7 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    background: var(--color-bg-deep);
+    background: hsl(var(--sidebar));
   }
 
   .workspace-shell :global([data-pane-group]) {
@@ -322,15 +325,15 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    background: var(--color-pane);
+    background: hsl(var(--sidebar));
   }
 
   .conversation-shell {
-    background: var(--color-bg);
+    background: hsl(var(--background));
   }
 
   .utility-shell {
-    background: var(--color-pane);
+    background: hsl(var(--sidebar));
   }
 
   @media (max-width: 980px) {

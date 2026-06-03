@@ -74,10 +74,10 @@
     justify-content: center;
     gap: 0.35rem;
     height: var(--control-height-sm);
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid hsl(var(--border) / 0.6);
     border-radius: var(--radius-sm);
-    background: var(--color-field);
-    color: var(--color-muted);
+    background: hsl(var(--input));
+    color: hsl(var(--muted-foreground));
     padding: 0 0.45rem;
     font-size: var(--text-xs);
     cursor: pointer;
@@ -85,18 +85,18 @@
 
   :global(.menu-trigger:hover),
   :global(.menu-trigger[data-state="open"]) {
-    border-color: var(--color-border);
-    background: var(--color-panel-raised);
-    color: var(--color-text);
+    border-color: hsl(var(--border));
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
   }
 
   :global(.menu-content) {
     z-index: 70;
     min-width: 11rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-md);
-    background: var(--color-panel);
-    color: var(--color-text);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
     box-shadow: var(--shadow-popover);
     padding: 0.25rem;
   }
@@ -108,7 +108,7 @@
     gap: 0.35rem;
     min-height: 1.85rem;
     border-radius: var(--radius-sm);
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     padding: 0.28rem 0.45rem;
     font-size: var(--text-xs);
     outline: none;
@@ -117,7 +117,7 @@
 
   :global(.menu-item[data-highlighted]),
   :global(.menu-item:hover) {
-    background: var(--color-accent-soft);
+    background: hsl(var(--accent));
   }
 
   :global(.menu-item[data-disabled]) {
@@ -126,14 +126,14 @@
   }
 
   :global(.menu-item[data-tone="danger"]) {
-    color: var(--color-danger);
+    color: hsl(var(--destructive));
   }
 
   .item-check {
     display: inline-grid;
     width: 1rem;
     place-items: center;
-    color: var(--color-accent);
+    color: hsl(var(--primary));
   }
 
   .item-copy {
@@ -150,7 +150,7 @@
   }
 
   .item-copy small {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-size: var(--text-2xs);
   }
 </style>

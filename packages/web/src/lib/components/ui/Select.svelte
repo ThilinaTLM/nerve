@@ -85,10 +85,10 @@
     width: 100%;
     min-width: 8rem;
     height: var(--control-height-sm);
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-sm);
-    background: var(--color-field);
-    color: var(--color-text);
+    background: hsl(var(--input));
+    color: hsl(var(--foreground));
     padding: 0 0.55rem;
     font-size: var(--text-xs);
     line-height: 1;
@@ -102,14 +102,14 @@
   }
 
   :global(.select-trigger:hover:not([data-disabled])) {
-    border-color: var(--color-border-strong);
-    background: var(--color-bg-deep);
+    border-color: hsl(var(--ring));
+    background: hsl(var(--sidebar));
   }
 
   :global(.select-trigger[data-state="open"]),
   :global(.select-trigger:focus-visible) {
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 1px var(--color-ring-soft);
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
     outline: none;
   }
 
@@ -130,10 +130,10 @@
     min-width: var(--bits-select-anchor-width, 12rem);
     max-height: min(20rem, var(--bits-select-content-available-height, 20rem));
     overflow: hidden;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-md);
-    background: var(--color-panel);
-    color: var(--color-text);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
     box-shadow: var(--shadow-popover);
     padding: 0.25rem;
   }
@@ -150,7 +150,7 @@
     gap: 0.6rem;
     min-height: 2rem;
     border-radius: var(--radius-sm);
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     padding: 0.32rem 0.5rem;
     font-size: var(--text-xs);
     outline: none;
@@ -158,7 +158,7 @@
   }
 
   :global(.select-item[data-highlighted]) {
-    background: var(--color-accent-soft);
+    background: hsl(var(--accent));
   }
 
   :global(.select-item[data-disabled]) {
@@ -185,12 +185,12 @@
   }
 
   .item-copy small {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-size: var(--text-2xs);
   }
 
   .item-check {
     flex: none;
-    color: var(--color-accent);
+    color: hsl(var(--primary));
   }
 </style>

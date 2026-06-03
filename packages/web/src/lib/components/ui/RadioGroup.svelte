@@ -73,10 +73,10 @@
     align-items: start;
     gap: 0.5rem;
     min-height: 3rem;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid hsl(var(--border) / 0.6);
     border-radius: var(--radius-sm);
-    background: var(--color-field);
-    color: var(--color-text);
+    background: hsl(var(--input));
+    color: hsl(var(--foreground));
     padding: 0.55rem 0.65rem;
     text-align: left;
     cursor: pointer;
@@ -88,18 +88,18 @@
   }
 
   :global(.radio-card:hover:not([data-disabled])) {
-    border-color: var(--color-border);
-    background: var(--color-panel);
+    border-color: hsl(var(--border));
+    background: hsl(var(--card));
   }
 
   :global(.radio-card[data-state="checked"]) {
-    border-color: var(--color-accent);
-    background: var(--color-accent-soft);
-    box-shadow: inset 2px 0 0 var(--color-accent);
+    border-color: hsl(var(--primary));
+    background: hsl(var(--accent));
+    box-shadow: inset 2px 0 0 hsl(var(--primary));
   }
 
   :global(.radio-card:focus-visible) {
-    outline: 1px solid var(--color-focus-ring);
+    outline: 1px solid hsl(var(--ring));
     outline-offset: 2px;
   }
 
@@ -114,9 +114,9 @@
     height: 0.85rem;
     place-items: center;
     margin-top: 0.08rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: 999px;
-    background: var(--color-bg-deep);
+    background: hsl(var(--sidebar));
   }
 
   .radio-indicator::after {
@@ -128,11 +128,11 @@
   }
 
   .radio-indicator[data-checked] {
-    border-color: var(--color-accent);
+    border-color: hsl(var(--primary));
   }
 
   .radio-indicator[data-checked]::after {
-    background: var(--color-accent);
+    background: hsl(var(--primary));
   }
 
   .radio-copy {
@@ -154,7 +154,7 @@
   }
 
   .radio-copy small {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-size: var(--text-xs);
     line-height: var(--leading-normal);
   }

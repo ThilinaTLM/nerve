@@ -1,13 +1,14 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./theme.css";
 
 * {
   box-sizing: border-box;
 }
 
 :root {
-  color: var(--color-text);
-  background: var(--color-bg);
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
   font-family: var(--font-body);
   font-synthesis: none;
   font-kerning: normal;
@@ -28,7 +29,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   overflow: hidden;
-  background: var(--color-bg-deep);
+  background: hsl(var(--sidebar));
 }
 
 button,
@@ -51,7 +52,7 @@ button {
     [role="button"],
     [tabindex]
   ):focus-visible {
-  outline: 1px solid var(--color-focus-ring);
+  outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
 
@@ -63,12 +64,12 @@ samp {
 }
 
 ::selection {
-  background: var(--color-selection);
+  background: hsl(var(--selection) / 22%);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-panel-highest) transparent;
+  scrollbar-color: hsl(var(--border)) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -84,12 +85,12 @@ samp {
   min-height: 48px;
   border: 2px solid transparent;
   border-radius: 999px;
-  background: var(--color-panel-highest);
+  background: hsl(var(--border));
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-strong);
+  background: hsl(var(--muted-foreground) / 70%);
   background-clip: padding-box;
 }
 
@@ -107,7 +108,7 @@ samp {
 [data-pane-resizer] {
   position: relative;
   flex: 0 0 1px;
-  background: var(--color-resizer);
+  background: hsl(var(--border));
   outline: none;
 }
 
@@ -121,8 +122,8 @@ samp {
 [data-pane-resizer]:hover,
 [data-pane-resizer]:focus-visible,
 [data-pane-resizer][data-active] {
-  background: var(--color-resizer-active);
-  box-shadow: 0 0 0 1px var(--color-resizer-active);
+  background: hsl(var(--ring));
+  box-shadow: 0 0 0 1px hsl(var(--ring));
 }
 
 @media (prefers-reduced-motion: reduce) {

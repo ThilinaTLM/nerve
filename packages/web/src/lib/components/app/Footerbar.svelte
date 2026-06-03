@@ -1,7 +1,5 @@
 <script lang="ts">
-  import Folder from "lucide-svelte/icons/folder";
   import GitBranch from "lucide-svelte/icons/git-branch";
-  import MessageSquare from "lucide-svelte/icons/message-square";
   import PanelLeft from "lucide-svelte/icons/panel-left";
   import PanelLeftClose from "lucide-svelte/icons/panel-left-close";
   import PanelRight from "lucide-svelte/icons/panel-right";
@@ -9,10 +7,12 @@
   import Terminal from "lucide-svelte/icons/terminal";
   import TriangleAlert from "lucide-svelte/icons/triangle-alert";
   import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
+  import { shortenPath } from "../../utils/path";
   import Button from "../ui/Button.svelte";
   import StatusDot from "../ui/StatusDot.svelte";
 
   type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
+  type GitStatus = { branch: string; dirty: boolean };
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -23,6 +23,8 @@
     pendingApprovals?: number;
     processes?: ProcessRecord[];
     branchDepth?: number;
+    gitStatus?: GitStatus;
+    homeDir?: string;
     sidebarCollapsed?: boolean;
     utilityCollapsed?: boolean;
     onToggleSidebar?: () => void;
@@ -31,158 +33,154 @@
 
   let {
     activeProject,
-    activeSession,
-    activeAgent,
     connection = "connecting",
     live = false,
     pendingApprovals = 0,
     processes = [],
-    branchDepth = 0,
+    gitStatus,
+    homeDir,
     sidebarCollapsed = false,
     utilityCollapsed = false,
     onToggleSidebar,
     onToggleUtility,
   }: Props = $props();
 
-  const activeProcesses = $derived(processes.filter((process) => ["starting", "running", "ready", "stopping"].includes(process.status)).length);
-  const statusTone = $derived<StatusTone>(live ? "good" : connection === "error" ? "danger" : connection === "closed" ? "warn" : "neutral");
-  const sessionLabel = $derived(activeSession?.title ?? "No active session");
-  const projectLabel = $derived(activeProject?.dir ?? "No project");
-  const contextTitle = $derived(`${projectLabel}${activeAgent ? ` · ${activeAgent.status} · depth ${branchDepth}` : ""}`);
+  const activeProcesses = $derived(
+    processes.filter((process) =>
+      ["starting", "running", "ready", "stopping"].includes(process.status),
+    ).length,
+  );
+  const statusTone = $derived<StatusTone>(
+    live ? "good" : connection === "error" ? "danger" : connection === "closed" ? "warn" : "neutral",
+  );
+  const projectPath = $derived(
+    activeProject ? shortenPath(activeProject.dir, homeDir) : "No project",
+  );
 </script>
 
-<footer class="footerbar" title={contextTitle}>
-  <div class="footer-section toggle-section">
+<footer class="footerbar">
+  <div class="footer-group">
     <Button
       variant="icon"
       size="icon"
+      class="footer-toggle"
       ariaLabel="Toggle agents panel"
       title={sidebarCollapsed ? "Show agents panel" : "Hide agents panel"}
       pressed={!sidebarCollapsed}
       onclick={() => onToggleSidebar?.()}
     >
       {#if sidebarCollapsed}
-        <PanelLeft size={14} strokeWidth={2.2} aria-hidden="true" />
+        <PanelLeft size={13} strokeWidth={2.1} aria-hidden="true" />
       {:else}
-        <PanelLeftClose size={14} strokeWidth={2.2} aria-hidden="true" />
+        <PanelLeftClose size={13} strokeWidth={2.1} aria-hidden="true" />
       {/if}
     </Button>
+    <span class="footer-path" title={activeProject?.dir}>{projectPath}</span>
   </div>
 
-  <div class="footer-section project-section">
-    <Folder size={12} strokeWidth={2.2} aria-hidden="true" />
-    <span>{projectLabel}</span>
-  </div>
+  <div class="footer-group footer-right">
+    {#if gitStatus}
+      <span class="footer-chip" title="Git branch">
+        <GitBranch size={12} strokeWidth={2.1} aria-hidden="true" />
+        <span>{gitStatus.branch}{gitStatus.dirty ? "*" : ""}</span>
+      </span>
+    {/if}
 
-  <div class="footer-section session-section">
-    <MessageSquare size={12} strokeWidth={2.2} aria-hidden="true" />
-    <span>{sessionLabel}</span>
-  </div>
+    {#if activeProcesses > 0}
+      <span class="footer-chip" title="Running processes">
+        <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
+        <span>{activeProcesses}</span>
+      </span>
+    {/if}
 
-  <div class="footer-section metric-section">
-    <Terminal size={12} strokeWidth={2.2} aria-hidden="true" />
-    <span>{activeProcesses}/{processes.length} proc</span>
-    <GitBranch size={12} strokeWidth={2.2} aria-hidden="true" />
-    <span>depth {branchDepth}</span>
-    <TriangleAlert size={12} strokeWidth={2.2} aria-hidden="true" />
-    <span>{pendingApprovals} approval{pendingApprovals === 1 ? "" : "s"}</span>
-  </div>
+    {#if pendingApprovals > 0}
+      <span class="footer-chip warn" title="Pending approvals">
+        <TriangleAlert size={12} strokeWidth={2.1} aria-hidden="true" />
+        <span>{pendingApprovals}</span>
+      </span>
+    {/if}
 
-  <div class="footer-section utility-toggle-section">
+    <span class="footer-chip" title="Connection">
+      <StatusDot tone={statusTone} pulse={live} />
+      <span>{live ? "connected" : connection}</span>
+    </span>
+
     <Button
       variant="icon"
       size="icon"
+      class="footer-toggle"
       ariaLabel="Toggle utility panel"
       title={utilityCollapsed ? "Show utility panel" : "Hide utility panel"}
       pressed={!utilityCollapsed}
       onclick={() => onToggleUtility?.()}
     >
       {#if utilityCollapsed}
-        <PanelRight size={14} strokeWidth={2.2} aria-hidden="true" />
+        <PanelRight size={13} strokeWidth={2.1} aria-hidden="true" />
       {:else}
-        <PanelRightClose size={14} strokeWidth={2.2} aria-hidden="true" />
+        <PanelRightClose size={13} strokeWidth={2.1} aria-hidden="true" />
       {/if}
     </Button>
-  </div>
-
-  <div class="footer-section status-section">
-    <StatusDot tone={statusTone} pulse={live} />
-    <span>{live ? "connected" : connection}</span>
   </div>
 </footer>
 
 <style>
   .footerbar {
-    display: grid;
-    grid-template-columns: auto minmax(8rem, 1fr) minmax(8rem, 1fr) auto auto auto;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     height: var(--size-footer);
     min-width: 0;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-bg-deep);
-    color: var(--color-muted);
-    padding: 0 0.75rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    border-top: 1px solid hsl(var(--border));
+    background: hsl(var(--sidebar));
+    color: hsl(var(--muted-foreground));
+    padding: 0 0.4rem 0 0.3rem;
+    font-size: var(--text-xs);
     user-select: none;
   }
 
-  .footer-section {
+  .footer-group {
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 0.35rem;
+    gap: 0.4rem;
   }
 
-  .footer-section :global(svg) {
+  .footer-right {
     flex: none;
-    color: var(--color-faint);
+    gap: 0.55rem;
   }
 
-  .toggle-section {
-    padding-right: 0.4rem;
-  }
-
-  .utility-toggle-section {
-    justify-content: end;
-    padding-right: 0.4rem;
-  }
-
-  .toggle-section :global(.ui-button),
-  .utility-toggle-section :global(.ui-button) {
-    width: 1.5rem;
-    height: 1.5rem;
-  }
-
-  .footer-section span {
+  .footer-path {
     overflow: hidden;
     min-width: 0;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
   }
 
-  .session-section {
-    justify-content: center;
+  .footer-chip {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: 0.3rem;
   }
 
-  .metric-section {
-    justify-content: end;
-    padding-right: 0.75rem;
+  .footer-chip :global(svg) {
+    color: hsl(var(--muted-foreground) / 80%);
   }
 
-  .status-section {
-    justify-content: end;
-    color: var(--color-text);
+  .footer-chip.warn {
+    color: hsl(var(--warning));
   }
 
-  @media (max-width: 980px) {
-    .footerbar {
-      grid-template-columns: auto minmax(0, 1fr) auto auto;
-    }
+  .footer-chip.warn :global(svg) {
+    color: hsl(var(--warning));
+  }
 
-    .session-section,
-    .metric-section {
-      display: none;
-    }
+  :global(.footer-toggle) {
+    width: 1.5rem;
+    height: 1.5rem;
   }
 </style>

@@ -18,7 +18,7 @@ const languageLoaders = {
 
 const themeLoaders = {
   "github-light": () => import("@shikijs/themes/github-light"),
-  "night-owl": () => import("@shikijs/themes/night-owl"),
+  "github-dark-dimmed": () => import("@shikijs/themes/github-dark-dimmed"),
 } as const;
 
 type HighlightLanguage = keyof typeof languageLoaders;
@@ -95,7 +95,7 @@ export async function highlightCode(
     lang,
     themes: {
       light: "github-light",
-      dark: "night-owl",
+      dark: "github-dark-dimmed",
     },
     defaultColor: false,
   });

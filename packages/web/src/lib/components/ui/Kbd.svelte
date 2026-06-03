@@ -10,20 +10,8 @@
   let { children, class: className = "" }: Props = $props();
 </script>
 
-<kbd class={cn("ui-kbd", className)}>{@render children?.()}</kbd>
-
-<style>
-  .ui-kbd {
-    display: inline-grid;
-    min-width: 1.2rem;
-    place-items: center;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-xs);
-    background: var(--color-field);
-    color: var(--color-muted);
-    padding: 0 0.24rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    line-height: 1.35;
-  }
-</style>
+<kbd
+  class={cn(
+    "inline-grid min-w-5 place-items-center rounded-sm border border-border bg-secondary px-1 font-mono text-[11px] leading-snug text-muted-foreground",
+    className,
+  )}>{@render children?.()}</kbd>

@@ -58,10 +58,10 @@
     gap: 0.3rem;
     min-height: var(--size-pane-header);
     border: 0;
-    border-right: 1px solid var(--color-border-subtle);
+    border-right: 1px solid hsl(var(--border) / 0.6);
     border-radius: 0;
     background: transparent;
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     padding: 0 0.75rem;
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
@@ -77,21 +77,21 @@
   }
 
   :global(.tabs-trigger:hover:not([data-disabled])) {
-    background: var(--color-panel);
-    color: var(--color-text);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
   }
 
   :global(.tabs-trigger[data-state="active"]) {
-    background: var(--color-tab-active);
-    color: var(--color-accent);
+    background: hsl(var(--background));
+    color: hsl(var(--primary));
   }
 
   :global(.tabs-trigger[data-state="active"]::before) {
-    background: var(--color-accent);
+    background: hsl(var(--primary));
   }
 
   :global(.tabs-trigger:focus-visible) {
-    outline: 1px solid var(--color-focus-ring);
+    outline: 1px solid hsl(var(--ring));
     outline-offset: -1px;
   }
 
@@ -102,9 +102,9 @@
 
   :global(.tabs-trigger b) {
     min-width: 1rem;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid hsl(var(--border) / 0.6);
     border-radius: 999px;
-    color: var(--color-accent);
+    color: hsl(var(--primary));
     padding: 0 0.25rem;
     font-family: var(--font-mono);
     font-size: var(--text-2xs);

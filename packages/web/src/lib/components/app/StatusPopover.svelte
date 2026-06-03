@@ -114,10 +114,10 @@
     align-items: center;
     gap: 0.4rem;
     min-height: var(--control-height-sm);
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid hsl(var(--border) / 0.6);
     border-radius: 999px;
-    background: var(--color-field);
-    color: var(--color-muted);
+    background: hsl(var(--input));
+    color: hsl(var(--muted-foreground));
     padding: 0 0.55rem;
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
@@ -126,9 +126,9 @@
 
   :global(.status-trigger-wrap:hover) .status-trigger,
   :global(.status-trigger-wrap[data-state="open"]) .status-trigger {
-    border-color: var(--color-border);
-    background: var(--color-panel-raised);
-    color: var(--color-text);
+    border-color: hsl(var(--border));
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
   }
 
   .status-card {
@@ -142,7 +142,7 @@
     align-items: start;
     justify-content: space-between;
     gap: 0.8rem;
-    border-bottom: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid hsl(var(--border) / 0.6);
     padding-bottom: 0.65rem;
   }
 
@@ -162,7 +162,7 @@
   .status-grid span,
   .context-list span,
   .process-slice small {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-size: var(--text-xs);
   }
 
@@ -175,9 +175,9 @@
   .status-grid section {
     display: grid;
     gap: 0.16rem;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid hsl(var(--border) / 0.6);
     border-radius: var(--radius-sm);
-    background: var(--color-field);
+    background: hsl(var(--input));
     padding: 0.55rem;
   }
 
@@ -190,7 +190,7 @@
   .status-grid strong,
   .context-list strong {
     overflow: hidden;
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     font-weight: var(--weight-medium);
@@ -206,7 +206,7 @@
 
   .context-list,
   .process-slice {
-    border-top: 1px solid var(--color-border-subtle);
+    border-top: 1px solid hsl(var(--border) / 0.6);
     padding-top: 0.6rem;
   }
 
@@ -219,7 +219,7 @@
 
   .process-slice span {
     overflow: hidden;
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     font-size: var(--text-xs);
     text-overflow: ellipsis;
     white-space: nowrap;

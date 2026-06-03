@@ -1,11 +1,39 @@
+<script lang="ts" module>
+  export type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
+</script>
+
 <script lang="ts">
+  import { cva, type VariantProps } from "class-variance-authority";
   import { cn } from "../../utils/cn";
 
-  export type StatusTone = "neutral" | "accent" | "good" | "warn" | "danger" | "running";
+  const dotVariants = cva("inline-block flex-none rounded-full", {
+    variants: {
+      tone: {
+        neutral: "bg-muted-foreground",
+        accent: "bg-foreground",
+        running: "bg-info",
+        good: "bg-success",
+        warn: "bg-warning",
+        danger: "bg-destructive",
+      },
+      size: {
+        xs: "size-[0.42rem]",
+        sm: "size-2",
+        md: "size-2.5",
+      },
+    },
+    defaultVariants: {
+      tone: "neutral",
+      size: "sm",
+    },
+  });
+
+  type Tone = NonNullable<VariantProps<typeof dotVariants>["tone"]>;
+  type Size = NonNullable<VariantProps<typeof dotVariants>["size"]>;
 
   type Props = {
-    tone?: StatusTone;
-    size?: "xs" | "sm" | "md";
+    tone?: Tone;
+    size?: Size;
     pulse?: boolean;
     label?: string;
     class?: string;
@@ -20,55 +48,24 @@
   }: Props = $props();
 </script>
 
-<span class={cn("status-dot", tone, size, pulse && "pulse", className)} aria-label={label} aria-hidden={label ? undefined : "true"}></span>
+<span
+  class={cn(dotVariants({ tone, size }), pulse && "status-pulse", className)}
+  aria-label={label}
+  aria-hidden={label ? undefined : "true"}
+></span>
 
 <style>
-  .status-dot {
-    display: inline-block;
-    flex: none;
-    border-radius: 999px;
-    background: var(--color-faint);
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 8%);
-  }
-
-  .xs {
-    width: 0.42rem;
-    height: 0.42rem;
-  }
-
-  .sm {
-    width: 0.5rem;
-    height: 0.5rem;
-  }
-
-  .md {
-    width: 0.62rem;
-    height: 0.62rem;
-  }
-
-  .accent,
-  .running {
-    background: var(--color-accent);
-  }
-
-  .good {
-    background: var(--color-good);
-  }
-
-  .warn {
-    background: var(--color-warn);
-  }
-
-  .danger {
-    background: var(--color-danger);
-  }
-
-  .pulse {
-    animation: status-pulse 1.4s ease-in-out infinite;
+  .status-pulse {
+    animation: status-pulse 1.5s ease-in-out infinite;
   }
 
   @keyframes status-pulse {
-    0%, 100% { box-shadow: 0 0 0 1px var(--color-accent-muted), 0 0 0 4px rgb(204 255 128 / 8%); }
-    50% { box-shadow: 0 0 0 1px var(--color-accent), 0 0 0 7px rgb(204 255 128 / 16%); }
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 0%, transparent);
+    }
   }
 </style>

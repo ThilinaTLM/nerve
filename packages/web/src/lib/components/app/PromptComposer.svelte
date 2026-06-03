@@ -155,17 +155,17 @@
   .composer {
     display: grid;
     gap: 0.55rem;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-panel-muted);
+    border-top: 1px solid hsl(var(--border));
+    background: hsl(var(--muted));
     padding: 0.65rem;
     box-shadow: var(--shadow-dock);
   }
 
   .composer-surface {
     overflow: hidden;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-xl);
-    background: var(--color-field);
+    background: hsl(var(--input));
     box-shadow: 0 1px 0 rgb(255 255 255 / 3%) inset;
     transition:
       border-color 120ms ease,
@@ -173,8 +173,8 @@
   }
 
   .composer-surface:focus-within {
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 1px var(--color-ring-soft);
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
   }
 
   .editor-shell {
@@ -187,10 +187,10 @@
     z-index: 2;
     top: 0.45rem;
     right: 0.55rem;
-    border: 1px solid var(--color-accent-muted);
+    border: 1px solid hsl(var(--accent));
     border-radius: 999px;
-    background: var(--color-panel);
-    color: var(--color-accent);
+    background: hsl(var(--card));
+    color: hsl(var(--primary));
     padding: 0.12rem 0.45rem;
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
@@ -244,21 +244,21 @@
     border-color: transparent;
     border-radius: 999px;
     background: transparent;
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     padding: 0 0.45rem;
     box-shadow: none;
   }
 
   :global(.composer-select-trigger:hover:not([data-disabled])),
   :global(.composer-select-trigger[data-state="open"]) {
-    border-color: var(--color-border-subtle);
-    background: var(--color-panel-raised);
-    color: var(--color-text);
+    border-color: hsl(var(--border) / 0.6);
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
   }
 
   :global(.composer-select-trigger:focus-visible) {
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 1px var(--color-ring-soft);
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
   }
 
   :global(.composer-select-content) {
@@ -283,10 +283,10 @@
 
   .composer-error {
     margin: 0;
-    border: 1px solid var(--color-danger-soft);
+    border: 1px solid hsl(var(--destructive) / 0.16);
     border-radius: var(--radius-sm);
-    background: var(--color-danger-soft);
-    color: var(--color-danger);
+    background: hsl(var(--destructive) / 0.16);
+    color: hsl(var(--destructive));
     padding: 0.42rem 0.5rem;
     font-size: var(--text-xs);
   }

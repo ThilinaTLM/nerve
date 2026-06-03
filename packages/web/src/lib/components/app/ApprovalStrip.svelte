@@ -87,11 +87,11 @@
     display: grid;
     gap: 0.6rem;
     overflow: hidden;
-    border: 1px solid var(--color-accent-muted);
+    border: 1px solid hsl(var(--accent));
     border-radius: var(--radius-lg);
-    background: var(--color-panel);
+    background: hsl(var(--card));
     padding: 0.75rem 0.75rem 0.75rem 0.85rem;
-    box-shadow: inset 0 0 0 1px var(--color-accent-soft), var(--shadow-glow);
+    box-shadow: inset 0 0 0 1px hsl(var(--accent)), var(--shadow-glow);
   }
 
   .approval-strip::before {
@@ -99,7 +99,7 @@
     position: absolute;
     inset: 0 auto 0 0;
     width: 3px;
-    background: var(--color-accent);
+    background: hsl(var(--primary));
   }
 
   .strip-head,
@@ -124,10 +124,10 @@
     width: 2rem;
     height: 2rem;
     place-items: center;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: 999px;
-    background: var(--color-panel-highest);
-    color: var(--color-accent);
+    background: hsl(var(--secondary));
+    color: hsl(var(--primary));
   }
 
   .head-copy div {
@@ -137,13 +137,13 @@
   }
 
   .head-copy strong {
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     font-size: var(--text-md);
     font-weight: var(--weight-semibold);
   }
 
   .head-copy span:not(.head-icon) {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-size: var(--text-xs);
   }
 
@@ -162,9 +162,9 @@
   .approval-detail {
     display: grid;
     gap: 0.42rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-sm);
-    background: var(--color-bg-deep);
+    background: hsl(var(--sidebar));
     padding: 0.6rem 0.65rem;
   }
 
@@ -180,7 +180,7 @@
   }
 
   .detail-label {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
     letter-spacing: var(--tracking-label);
@@ -189,7 +189,7 @@
 
   .detail-tool {
     overflow: hidden;
-    color: var(--color-accent);
+    color: hsl(var(--primary));
     font-family: var(--font-mono);
     font-size: var(--text-sm);
     text-overflow: ellipsis;
@@ -200,36 +200,36 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    color: var(--color-text);
+    color: hsl(var(--foreground));
     font-size: var(--text-sm);
     text-transform: capitalize;
   }
 
   .detail-reason {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
     font-size: var(--text-sm);
     line-height: var(--leading-normal);
   }
 
   .detail-args summary {
-    color: var(--color-faint);
+    color: hsl(var(--muted-foreground) / 0.75);
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
     cursor: pointer;
   }
 
   .detail-args summary:hover {
-    color: var(--color-muted);
+    color: hsl(var(--muted-foreground));
   }
 
   pre {
     max-height: 7rem;
     overflow: auto;
     margin: 0.4rem 0 0;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid hsl(var(--border) / 0.6);
     border-radius: var(--radius-xs);
-    background: var(--color-code-bg);
-    color: var(--color-code);
+    background: hsl(var(--sidebar));
+    color: hsl(var(--foreground));
     padding: 0.45rem 0.5rem;
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
