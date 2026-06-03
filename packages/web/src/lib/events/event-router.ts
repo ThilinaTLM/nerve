@@ -16,7 +16,14 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (event.type.startsWith("agent.tool_call.")) handleToolCallEvent(event);
   if (event.type === "process.log") {
     const processId = String(event.data?.processId ?? "");
-    if (processId && processId === workbenchState.selectedProcessId) {
+    const viewingProcess =
+      workbenchState.activeCenterTab?.kind === "process" &&
+      workbenchState.activeCenterTab.id === processId;
+    if (
+      processId &&
+      processId === workbenchState.selectedProcessId &&
+      viewingProcess
+    ) {
       void getProcessLogs(processId).then((logs) => {
         workbenchState.processLogs = logs;
       });

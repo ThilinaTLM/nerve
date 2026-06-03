@@ -148,6 +148,39 @@
   font-weight: 600;
 }
 
+.utility-panel .process-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+.utility-panel .process-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0.45rem;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.utility-panel .process-main:focus-visible {
+  outline: 1px solid var(--ring);
+  outline-offset: -1px;
+}
+
+.utility-panel .process-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.35rem 0.38rem 0.35rem 0;
+}
+
 .utility-panel .process-list,
 .utility-panel .log-terminal {
   display: grid;

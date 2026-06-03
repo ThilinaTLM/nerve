@@ -1,7 +1,6 @@
 <script lang="ts">
   import type {
     AgentRecord,
-    ProcessLogQueryResponse,
     ProcessRecord,
     ProjectRecord,
     SessionRecord,
@@ -27,14 +26,13 @@
     treeNodes?: SessionTreeNode[];
     processes?: ProcessRecord[];
     selectedProcess?: ProcessRecord;
-    processLogs?: ProcessLogQueryResponse;
+    homeDir?: string;
     exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
     onTabChange?: (tab: UtilityTab) => void;
     onSelectAgent?: (agent: AgentRecord) => void;
     onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
     onCompact?: () => void;
-    onSelectProcess?: (id: string) => void;
-    onRefreshProcessLogs?: () => void;
+    onOpenProcessOutput?: (id: string) => void;
     onStopProcess?: (id: string) => void;
     onRestartProcess?: (id: string) => void;
   };
@@ -49,14 +47,13 @@
     treeNodes = [],
     processes = [],
     selectedProcess,
-    processLogs,
+    homeDir,
     exportUrl,
     onTabChange,
     onSelectAgent,
     onNavigateToEntry,
     onCompact,
-    onSelectProcess,
-    onRefreshProcessLogs,
+    onOpenProcessOutput,
     onStopProcess,
     onRestartProcess,
   }: Props = $props();
@@ -85,9 +82,8 @@
       <ProcessesTab
         {processes}
         {selectedProcess}
-        {processLogs}
-        {onSelectProcess}
-        {onRefreshProcessLogs}
+        {homeDir}
+        {onOpenProcessOutput}
         {onStopProcess}
         {onRestartProcess}
       />

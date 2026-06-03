@@ -1,10 +1,18 @@
-import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
+import type {
+  AgentRecord,
+  ProcessRecord,
+  ProjectRecord,
+  SessionRecord,
+} from "../../api";
 import { selection } from "../../state/app-state.svelte";
 import { usableModelOptions } from "../../utils/model";
-import type { ConversationViewState } from "./state.svelte";
+import { isPathInDirectory } from "../../utils/path";
+import type { CenterTabIdentity, ConversationViewState } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
 
 export type ConversationTabModel = {
+  kind: "conversation";
+  id: string;
   session: SessionRecord;
   project?: ProjectRecord;
   agent?: AgentRecord;
@@ -14,11 +22,44 @@ export type ConversationTabModel = {
   error?: string;
 };
 
+export type ProcessTabModel = {
+  kind: "process";
+  id: string;
+  process?: ProcessRecord;
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
+export type CenterTabModel = ConversationTabModel | ProcessTabModel;
+
 function activeView(): ConversationViewState | undefined {
   const sessionId =
     selection.sessionId ?? workbenchState.activeConversationTabId;
   if (!sessionId) return undefined;
   return workbenchState.conversationViews[sessionId];
+}
+
+function activeTabMatches(
+  kind: CenterTabIdentity["kind"],
+  id: string,
+): boolean {
+  return (
+    workbenchState.activeCenterTab?.kind === kind &&
+    workbenchState.activeCenterTab.id === id
+  );
+}
+
+function isActiveProcessStatus(status: string): boolean {
+  return ["starting", "running", "ready", "stopping"].includes(status);
+}
+
+function scopedProcesses(): ProcessRecord[] {
+  const projectDir = workbenchSelectors.activeProject?.dir;
+  if (!projectDir) return [];
+  return workbenchState.processes.filter((process) =>
+    isPathInDirectory(process.cwd, projectDir),
+  );
 }
 
 export const workbenchSelectors = {
@@ -59,6 +100,9 @@ export const workbenchSelectors = {
   },
   get processes() {
     return workbenchState.processes;
+  },
+  get scopedProcesses() {
+    return scopedProcesses();
   },
   get treeNodes() {
     return activeView()?.treeNodes ?? [];
@@ -134,10 +178,12 @@ export const workbenchSelectors = {
       );
       const view = workbenchState.conversationViews[session.id];
       tabs.push({
+        kind: "conversation",
+        id: session.id,
         session,
         project,
         agent,
-        active: session.id === selection.sessionId,
+        active: activeTabMatches("conversation", session.id),
         hasDraft: Boolean(view?.composerText.trim()),
         sending: Boolean(view?.sending || agent?.status === "running"),
         error:
@@ -146,6 +192,38 @@ export const workbenchSelectors = {
       });
     }
     return tabs;
+  },
+  get openProcessTabs(): ProcessTabModel[] {
+    const tabs: ProcessTabModel[] = [];
+    for (const processId of workbenchState.openProcessTabIds) {
+      const process = workbenchState.processes.find(
+        (candidate) => candidate.id === processId,
+      );
+      tabs.push({
+        kind: "process",
+        id: processId,
+        process,
+        active: activeTabMatches("process", processId),
+        sending: process ? isActiveProcessStatus(process.status) : false,
+        error: process
+          ? process.status === "error"
+            ? (process.error ?? "Process error")
+            : undefined
+          : "Process not found",
+      });
+    }
+    return tabs;
+  },
+  get centerTabs(): CenterTabModel[] {
+    return [...this.openConversationTabs, ...this.openProcessTabs];
+  },
+  get activeCenterTab() {
+    return workbenchState.activeCenterTab;
+  },
+  get activeCenterProcess() {
+    const active = workbenchState.activeCenterTab;
+    if (active?.kind !== "process") return undefined;
+    return workbenchState.processes.find((process) => process.id === active.id);
   },
   get live() {
     return workbenchState.connection === "live";

@@ -152,6 +152,7 @@ export async function openSession(sessionId: string) {
       .session;
   addConversationTab(session.id);
   workbenchState.activeConversationTabId = session.id;
+  workbenchState.activeCenterTab = { kind: "conversation", id: session.id };
   persistConversationTabs();
   await applyActiveSessionSelection(session);
   await refreshSessionView(session.id);
@@ -194,7 +195,15 @@ export async function closeConversationTab(sessionId: string) {
   workbenchState.openConversationTabIds = nextIds;
   delete workbenchState.conversationViews[sessionId];
 
+  const closingActiveCenter =
+    workbenchState.activeCenterTab?.kind === "conversation" &&
+    workbenchState.activeCenterTab.id === sessionId;
+
   if (selection.sessionId !== sessionId) {
+    if (closingActiveCenter && nextIds[0]) {
+      await openSession(nextIds[0]);
+      return;
+    }
     persistConversationTabs();
     return;
   }
@@ -203,11 +212,18 @@ export async function closeConversationTab(sessionId: string) {
   if (nextSessionId) {
     workbenchState.activeConversationTabId = nextSessionId;
     persistConversationTabs();
-    await openSession(nextSessionId);
+    if (closingActiveCenter) await openSession(nextSessionId);
     return;
   }
 
   clearActiveSelection();
+  if (closingActiveCenter && workbenchState.openProcessTabIds[0]) {
+    const processId = workbenchState.openProcessTabIds[0];
+    workbenchState.activeCenterTab = { kind: "process", id: processId };
+    workbenchState.selectedProcessId = processId;
+  } else if (closingActiveCenter) {
+    workbenchState.activeCenterTab = undefined;
+  }
   persistConversationTabs();
 }
 
@@ -235,6 +251,9 @@ export async function removeConversationTabs(sessionIds: string[]) {
   }
 
   clearActiveSelection();
+  workbenchState.activeCenterTab = workbenchState.openProcessTabIds[0]
+    ? { kind: "process", id: workbenchState.openProcessTabIds[0] }
+    : undefined;
   persistConversationTabs();
 }
 
@@ -264,7 +283,9 @@ export async function compactActiveSession() {
 
 export function clearConversationState() {
   workbenchState.openConversationTabIds = [];
+  workbenchState.openProcessTabIds = [];
   workbenchState.activeConversationTabId = undefined;
+  workbenchState.activeCenterTab = undefined;
   workbenchState.conversationViews = {};
   clearActiveSelection();
   persistConversationTabs();

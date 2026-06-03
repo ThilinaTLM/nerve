@@ -18,6 +18,7 @@
   import ConversationPane from "./lib/components/app/ConversationPane.svelte";
   import ConversationTabStrip from "./lib/components/app/ConversationTabStrip.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";
+  import ProcessOutputPane from "./lib/components/app/ProcessOutputPane.svelte";
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
   import ProjectDirectoryPicker from "./lib/components/app/ProjectDirectoryPicker.svelte";
   import SettingsPage from "./lib/components/app/SettingsPage.svelte";
@@ -27,6 +28,7 @@
     abortActiveRun,
     answerActiveUserQuestion,
     closeConversationTab,
+    closeProcessTab,
     compactActiveSession,
     completeFiles,
     createConversationForDirectory,
@@ -42,11 +44,13 @@
     navigateToEntry,
     newConversationInProject,
     newSession,
+    openProcessTab,
     openSession,
     refreshProcessLogs,
     restartSelectedProcess,
     saveSettings,
-    selectProcess,
+    selectCenterConversationTab,
+    selectCenterProcessTab,
     sendPrompt,
     setActiveComposerText,
     setComposerMode,
@@ -71,14 +75,15 @@
   const agents = $derived(workbenchSelectors.agents);
   const approvals = $derived(workbenchSelectors.approvals);
   const pendingUserQuestion = $derived(workbenchSelectors.activeUserQuestion);
-  const processes = $derived(workbenchSelectors.processes);
+  const processes = $derived(workbenchSelectors.scopedProcesses);
   const treeNodes = $derived(workbenchSelectors.treeNodes);
   const processLogs = $derived(workbenchSelectors.processLogs);
   const transcript = $derived(workbenchSelectors.transcript);
   const toolCalls = $derived(workbenchSelectors.toolCalls);
   const streamingText = $derived(workbenchSelectors.streamingText);
   const activeComposerText = $derived(workbenchSelectors.activeComposerText);
-  const openConversationTabs = $derived(workbenchSelectors.openConversationTabs);
+  const centerTabs = $derived(workbenchSelectors.centerTabs);
+  const activeCenterTab = $derived(workbenchSelectors.activeCenterTab);
   const slashCompletions = $derived(workbenchSelectors.slashCompletions);
   const selectedModelKey = $derived(workbenchSelectors.selectedModelKey);
   const selectedMode = $derived(workbenchSelectors.selectedMode);
@@ -95,6 +100,7 @@
   const gitStatus = $derived(workbenchSelectors.gitStatus);
   const pendingApprovalCount = $derived(workbenchSelectors.pendingApprovalCount);
   const selectedProcess = $derived(workbenchSelectors.selectedProcess);
+  const activeCenterProcess = $derived(workbenchSelectors.activeCenterProcess);
   const sessionAgents = $derived(workbenchSelectors.sessionAgents);
   const usableModels = $derived(workbenchSelectors.usableModels);
 
@@ -197,49 +203,65 @@
         <Pane defaultSize={57} minSize={38} order={2}>
           <div class="pane-shell conversation-shell">
             <ConversationTabStrip
-              tabs={openConversationTabs}
-              activeSessionId={selection.sessionId}
+              tabs={centerTabs}
               homeDir={status?.storage.home}
-              onSelect={(id) => void openSession(id)}
-              onClose={(id) => void closeConversationTab(id)}
+              onSelect={(tab) => {
+                if (tab.kind === "process") void selectCenterProcessTab(tab.id);
+                else void selectCenterConversationTab(tab.id);
+              }}
+              onClose={(tab) => {
+                if (tab.kind === "process") void closeProcessTab(tab.id);
+                else void closeConversationTab(tab.id);
+              }}
               onNewConversation={newSession}
             />
-            <ConversationPane
-              {activeProject}
-              {activeSession}
-              {activeAgent}
-              {projects}
-              {sessions}
-              {agents}
-              homeDir={status?.storage.home}
-              {approvals}
-              {pendingUserQuestion}
-              {transcript}
-              {toolCalls}
-              {streamingText}
-              {live}
-              {sending}
-              {error}
-              composerText={activeComposerText}
-              models={usableModels}
-              {selectedModelKey}
-              mode={selectedMode}
-              permissionLevel={selectedPermissionLevel}
-              {slashCompletions}
-              fileCompletions={completeFiles}
-              onComposerChange={setActiveComposerText}
-              onSubmit={sendPrompt}
-              onAnswerUserQuestion={answerActiveUserQuestion}
-              onDismissUserQuestion={dismissActiveUserQuestion}
-              onAbort={abortActiveRun}
-              onOpenProject={openProjectPicker}
-              onNewConversationInProject={newConversationInProject}
-              onModelChange={(value) => void setComposerModel(value)}
-              onModeChange={(value) => void setComposerMode(value)}
-              onPermissionChange={(value) => void setComposerPermission(value)}
-              onGrantApproval={(id) => void grantApproval(id)}
-              onDenyApproval={(id) => void denyApproval(id)}
-            />
+            {#if activeCenterTab?.kind === "process"}
+              <ProcessOutputPane
+                process={activeCenterProcess}
+                {processLogs}
+                homeDir={status?.storage.home}
+                onRefresh={() => void refreshProcessLogs()}
+                onRestart={(id) => void restartSelectedProcess(id)}
+                onStop={(id) => void stopSelectedProcess(id)}
+              />
+            {:else}
+              <ConversationPane
+                {activeProject}
+                {activeSession}
+                {activeAgent}
+                {projects}
+                {sessions}
+                {agents}
+                homeDir={status?.storage.home}
+                {approvals}
+                {pendingUserQuestion}
+                {transcript}
+                {toolCalls}
+                {streamingText}
+                {live}
+                {sending}
+                {error}
+                composerText={activeComposerText}
+                models={usableModels}
+                {selectedModelKey}
+                mode={selectedMode}
+                permissionLevel={selectedPermissionLevel}
+                {slashCompletions}
+                fileCompletions={completeFiles}
+                onComposerChange={setActiveComposerText}
+                onSubmit={sendPrompt}
+                onAnswerUserQuestion={answerActiveUserQuestion}
+                onDismissUserQuestion={dismissActiveUserQuestion}
+                onAbort={abortActiveRun}
+                onOpenProject={openProjectPicker}
+                onNewConversationInProject={newConversationInProject}
+                onModelChange={(value) => void setComposerModel(value)}
+                onModeChange={(value) => void setComposerMode(value)}
+                onPermissionChange={(value) => void setComposerPermission(value)}
+                onGrantApproval={(id) => void grantApproval(id)}
+                onDenyApproval={(id) => void denyApproval(id)}
+              />
+            {/if}
           </div>
         </Pane>
 
@@ -258,7 +280,7 @@
                 {treeNodes}
                 {processes}
                 {selectedProcess}
-                {processLogs}
+                homeDir={status?.storage.home}
                 {exportUrl}
                 onTabChange={(tab) => (layout.utilityTab = tab)}
                 onSelectAgent={selectAgent}
@@ -270,11 +292,10 @@
                   layout.utilityTab = "history";
                   void compactActiveSession();
                 }}
-                onSelectProcess={(id) => {
+                onOpenProcessOutput={(id) => {
                   layout.utilityTab = "processes";
-                  void selectProcess(id);
+                  void openProcessTab(id);
                 }}
-                onRefreshProcessLogs={() => void refreshProcessLogs()}
                 onStopProcess={(id) => void stopSelectedProcess(id)}
                 onRestartProcess={(id) => void restartSelectedProcess(id)}
               />

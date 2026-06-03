@@ -12,8 +12,8 @@ import type {
   SessionRecord,
   SessionTreeNode,
   Settings,
-  ToolCallRecord,
   StatusResponse,
+  ToolCallRecord,
   UserQuestionRecord,
 } from "../../api";
 
@@ -38,6 +38,10 @@ export type ConversationViewState = {
   loading: boolean;
 };
 
+export type CenterTabIdentity =
+  | { kind: "conversation"; id: string }
+  | { kind: "process"; id: string };
+
 export const workbenchState = $state({
   status: undefined as StatusResponse | undefined,
   config: undefined as ClientConfig | undefined,
@@ -54,7 +58,9 @@ export const workbenchState = $state({
   selectedProcessId: undefined as string | undefined,
   processLogs: undefined as ProcessLogQueryResponse | undefined,
   openConversationTabIds: [] as string[],
+  openProcessTabIds: [] as string[],
   activeConversationTabId: undefined as string | undefined,
+  activeCenterTab: undefined as CenterTabIdentity | undefined,
   conversationViews: {} as Record<string, ConversationViewState>,
   transcript: [] as TranscriptItem[],
   streamingText: "",

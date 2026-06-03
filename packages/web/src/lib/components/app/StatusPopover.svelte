@@ -9,7 +9,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import Popover from "$lib/components/ui/popover-panel";
   import { StatusDot } from "$lib/components/ui/status-dot";
-  import { pulseForStatus, statusTone, type StatusTone } from "../../utils/status";
+  import { type StatusTone } from "../../utils/status";
 
   type Props = {
     connection?: string;
@@ -96,17 +96,6 @@
       <div><span>Permission</span><strong>{activeAgent?.permissionLevel ?? activeSession?.permissionLevel ?? "—"}</strong></div>
     </div>
 
-    {#if processes.length > 0}
-      <div class="process-slice">
-        {#each processes.slice(0, 4) as process}
-          <div>
-            <StatusDot tone={statusTone(process.status)} size="xs" pulse={pulseForStatus(process.status)} />
-            <span>{process.name ?? process.command}</span>
-            <small>{process.status}</small>
-          </div>
-        {/each}
-      </div>
-    {/if}
   </div>
 </Popover>
 
@@ -162,8 +151,7 @@
 
   header span,
   .status-grid span,
-  .context-list span,
-  .process-slice small {
+  .context-list span {
     color: var(--muted-foreground);
     font-size: 0.75rem;
   }
@@ -200,30 +188,10 @@
     white-space: nowrap;
   }
 
-  .context-list,
-  .process-slice {
+  .context-list {
     display: grid;
     gap: 0.36rem;
-  }
-
-  .context-list,
-  .process-slice {
     border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     padding-top: 0.6rem;
-  }
-
-  .process-slice div {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .process-slice span {
-    overflow: hidden;
-    color: var(--foreground);
-    font-size: 0.75rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 </style>

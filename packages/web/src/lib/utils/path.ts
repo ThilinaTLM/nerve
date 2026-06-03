@@ -37,6 +37,24 @@ export function shortenPath(dir?: string, home?: string): string {
   return [...head, leaf].join("/");
 }
 
+function stripTrailingSlashes(path: string): string {
+  return path.replace(/\/+$/, "") || path;
+}
+
+/**
+ * Return true when `candidate` is exactly `root` or is inside `root`.
+ * This deliberately avoids sibling-prefix matches such as `/repo-app` for `/repo`.
+ */
+export function isPathInDirectory(candidate?: string, root?: string): boolean {
+  if (!candidate || !root) return false;
+  const normalizedCandidate = stripTrailingSlashes(candidate);
+  const normalizedRoot = stripTrailingSlashes(root);
+  return (
+    normalizedCandidate === normalizedRoot ||
+    normalizedCandidate.startsWith(`${normalizedRoot}/`)
+  );
+}
+
 /**
  * Collapse a leading home directory to `~` while keeping every path segment
  * intact (unlike {@link shortenPath}, which abbreviates intermediate segments).

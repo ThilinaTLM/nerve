@@ -21,6 +21,19 @@ export async function stopSelectedProcess(processId: string) {
 
 export async function restartSelectedProcess(processId: string) {
   const restarted = await restartProcess(processId);
+  workbenchState.openProcessTabIds = [
+    ...new Set(
+      workbenchState.openProcessTabIds.map((id) =>
+        id === processId ? restarted.id : id,
+      ),
+    ),
+  ];
+  if (
+    workbenchState.activeCenterTab?.kind === "process" &&
+    workbenchState.activeCenterTab.id === processId
+  ) {
+    workbenchState.activeCenterTab = { kind: "process", id: restarted.id };
+  }
   workbenchState.selectedProcessId = restarted.id;
   await loadWorkspaceState();
   workbenchState.processLogs = await getProcessLogs(restarted.id);

@@ -154,7 +154,7 @@
         {:else}
         {@const item = node.item}
         {@const Icon = roleIcon(item.role)}
-        <ContextMenu items={messageMenu(item)}>
+        <ContextMenu items={messageMenu(item)} triggerClass="select-text">
           <article class={`transcript-entry ${item.role}`}>
             <div class="message-gutter">
               <span class="message-icon" title={roleLabel(item)}><Icon size={item.role === "user" ? 18 : 14} strokeWidth={2.1} /></span>
