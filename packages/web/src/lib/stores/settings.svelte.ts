@@ -8,7 +8,11 @@ import {
 import type { ThemePreference } from "../state/app-state.svelte";
 import { applyTheme } from "../state/app-state.svelte";
 import { modelKey, usableModelOptions } from "../utils/model";
-import { currentActiveAgent } from "./composer-config.svelte";
+import {
+  clampThinkingLevelForModel,
+  currentActiveAgent,
+  selectedModelInfo,
+} from "./composer-config.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 
 let navigateToSettings: (() => void) | undefined;
@@ -41,12 +45,18 @@ export async function loadSettingsPanel() {
     usable.some((model) => modelKey(model) === modelKey(activeModel))
   ) {
     workbenchState.selectedModelKey = modelKey(activeModel);
+    workbenchState.selectedThinkingLevel =
+      currentActiveAgent()?.thinkingLevel ?? "off";
   } else if (
     !usable.some((model) => modelKey(model) === workbenchState.selectedModelKey)
   ) {
     workbenchState.selectedModelKey =
       usable.length > 0 ? modelKey(usable[0]) : "";
   }
+  workbenchState.selectedThinkingLevel = clampThinkingLevelForModel(
+    workbenchState.selectedThinkingLevel,
+    selectedModelInfo(),
+  );
 }
 
 export async function saveSettings() {

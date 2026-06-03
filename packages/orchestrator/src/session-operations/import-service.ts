@@ -64,6 +64,7 @@ export class ImportService {
         workspaceScope: { roots: [project.dir] },
         budget: parsed.data.budget,
         model: parsed.data.model,
+        thinkingLevel: parsed.data.thinkingLevel,
       });
       agentIdMap.set(parsed.data.id, agent.id);
       importedAgents.push(agent);

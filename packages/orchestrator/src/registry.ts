@@ -429,6 +429,14 @@ export class RuntimeRegistry {
     return this.processes.restartProcess(processId);
   }
 
+  removeProcess(processId: string) {
+    return this.processes.removeProcess(processId);
+  }
+
+  pruneProcesses() {
+    return this.processes.pruneProcesses();
+  }
+
   queryProcessLogs(processId: string, query?: ProcessLogQuery) {
     return this.processes.queryLogs(processId, query);
   }
@@ -441,6 +449,8 @@ export class RuntimeRegistry {
         model.provider === "nerve-faux"
           ? "Nerve Faux Fast"
           : `${model.provider} / ${model.modelId}`,
+      reasoning: model.reasoning,
+      supportedThinkingLevels: model.supportedThinkingLevels,
       faux: model.provider === "nerve-faux",
     }));
   }

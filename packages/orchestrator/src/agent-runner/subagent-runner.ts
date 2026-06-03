@@ -61,6 +61,7 @@ export class SubagentRunner {
           ? boundedWorkspaceScope(parent, requestedWorkspaceScope)
           : parent.workspaceScope,
         model: parent.model,
+        thinkingLevel: parent.thinkingLevel,
       },
       { allowChildAuthorityExceed: true },
     );

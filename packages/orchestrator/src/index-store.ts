@@ -285,6 +285,14 @@ export class IndexStore {
     });
   }
 
+  deleteProcess(processId: string): void {
+    this.guard(() => {
+      this.db
+        .prepare("DELETE FROM processes WHERE id = ?")
+        .run(processId);
+    });
+  }
+
   upsertWorker(worker: WorkerRecord): void {
     this.guard(() => {
       this.db

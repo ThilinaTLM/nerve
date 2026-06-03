@@ -41,6 +41,7 @@
     composerText?: string;
     models?: ModelInfo[];
     selectedModelKey?: string;
+    thinkingLevel?: AgentRecord["thinkingLevel"];
     mode?: AgentRecord["mode"];
     permissionLevel?: AgentRecord["permissionLevel"];
     slashCompletions?: CompletionItem[];
@@ -53,6 +54,7 @@
     onOpenProject?: () => void;
     onNewConversationInProject?: (projectDir: string) => void;
     onModelChange?: (value: string) => void;
+    onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
     onModeChange?: (value: AgentRecord["mode"]) => void;
     onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
     onGrantApproval?: (id: string) => void;
@@ -74,6 +76,7 @@
     composerText = "",
     models = [],
     selectedModelKey = "",
+    thinkingLevel = "off",
     mode = "coding",
     permissionLevel = "supervised",
     slashCompletions = [],
@@ -85,6 +88,7 @@
     onAbort,
     onOpenProject,
     onModelChange,
+    onThinkingLevelChange,
     onModeChange,
     onPermissionChange,
     onGrantApproval,
@@ -196,6 +200,7 @@
       {error}
       {models}
       {selectedModelKey}
+      {thinkingLevel}
       {mode}
       {permissionLevel}
       {slashCompletions}
@@ -206,6 +211,7 @@
       {onDismissUserQuestion}
       {onAbort}
       {onModelChange}
+      {onThinkingLevelChange}
       {onModeChange}
       {onPermissionChange}
       {onGrantApproval}

@@ -68,6 +68,13 @@ export const stopProcessRequestSchema = z.object({
 });
 export type StopProcessRequest = z.infer<typeof stopProcessRequestSchema>;
 
+export const pruneProcessesResponseSchema = z.object({
+  removed: z.array(z.string().startsWith("proc_")),
+});
+export type PruneProcessesResponse = z.infer<
+  typeof pruneProcessesResponseSchema
+>;
+
 export const processLogEventSchema = z.object({
   seq: z.number().int().positive(),
   ts: z.string().datetime(),

@@ -1,8 +1,17 @@
-import type { AgentRecord, ModelSelection } from "../api";
+import type { AgentRecord, ModelInfo, ModelSelection } from "../api";
 import { updateAgentConfig } from "../api";
 import { selection } from "../state/app-state.svelte";
 import { modelKey, parseModelKey } from "../utils/model";
 import { workbenchState } from "./workbench/state.svelte";
+
+const THINKING_LEVEL_ORDER: AgentRecord["thinkingLevel"][] = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
 
 export function currentActiveAgent(): AgentRecord | undefined {
   return workbenchState.agents.find((agent) => agent.id === selection.agentId);
@@ -12,12 +21,82 @@ export function selectedModel(): ModelSelection | undefined {
   return parseModelKey(workbenchState.selectedModelKey);
 }
 
+export function selectedModelInfo(): ModelInfo | undefined {
+  return workbenchState.models.find(
+    (model) => modelKey(model) === workbenchState.selectedModelKey,
+  );
+}
+
+export function supportedThinkingLevelsForModel(
+  model: ModelInfo | undefined,
+): AgentRecord["thinkingLevel"][] {
+  return model?.supportedThinkingLevels?.length
+    ? model.supportedThinkingLevels
+    : ["off"];
+}
+
+export function supportedThinkingLevelsForSelectedModel(): AgentRecord["thinkingLevel"][] {
+  return supportedThinkingLevelsForModel(selectedModelInfo());
+}
+
+export function clampThinkingLevelForModel(
+  level: AgentRecord["thinkingLevel"],
+  model: ModelInfo | undefined,
+): AgentRecord["thinkingLevel"] {
+  const supported = supportedThinkingLevelsForModel(model);
+  if (supported.includes(level)) return level;
+
+  const requestedIndex = THINKING_LEVEL_ORDER.indexOf(level);
+  if (requestedIndex === -1) return supported[0] ?? "off";
+
+  for (
+    let index = requestedIndex;
+    index < THINKING_LEVEL_ORDER.length;
+    index++
+  ) {
+    const candidate = THINKING_LEVEL_ORDER[index];
+    if (supported.includes(candidate)) return candidate;
+  }
+  for (let index = requestedIndex - 1; index >= 0; index--) {
+    const candidate = THINKING_LEVEL_ORDER[index];
+    if (supported.includes(candidate)) return candidate;
+  }
+  return supported[0] ?? "off";
+}
+
+export function selectedThinkingLevel(): AgentRecord["thinkingLevel"] {
+  return clampThinkingLevelForModel(
+    workbenchState.selectedThinkingLevel,
+    selectedModelInfo(),
+  );
+}
+
 export async function setComposerModel(key: string) {
   workbenchState.selectedModelKey = key;
+  const thinkingLevel = clampThinkingLevelForModel(
+    workbenchState.selectedThinkingLevel,
+    selectedModelInfo(),
+  );
+  workbenchState.selectedThinkingLevel = thinkingLevel;
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, {
     model: selectedModel() ?? null,
+    thinkingLevel,
   });
+  workbenchState.selectedThinkingLevel = agent.thinkingLevel;
+  workbenchState.agents = workbenchState.agents.map((candidate) =>
+    candidate.id === agent.id ? agent : candidate,
+  );
+}
+
+export async function setComposerThinkingLevel(
+  level: AgentRecord["thinkingLevel"],
+) {
+  const thinkingLevel = clampThinkingLevelForModel(level, selectedModelInfo());
+  workbenchState.selectedThinkingLevel = thinkingLevel;
+  if (!selection.agentId) return;
+  const agent = await updateAgentConfig(selection.agentId, { thinkingLevel });
+  workbenchState.selectedThinkingLevel = agent.thinkingLevel;
   workbenchState.agents = workbenchState.agents.map((candidate) =>
     candidate.id === agent.id ? agent : candidate,
   );
@@ -45,6 +124,7 @@ export async function setComposerPermission(
 
 export function agentNeedsComposerUpdate(agent: AgentRecord | undefined) {
   const desired = selectedModel();
+  const thinkingLevel = selectedThinkingLevel();
   const needsModel =
     desired &&
     modelKey(agent?.model ?? { provider: "", modelId: "" }) !==
@@ -52,5 +132,13 @@ export function agentNeedsComposerUpdate(agent: AgentRecord | undefined) {
   const needsMode = agent?.mode !== workbenchState.selectedMode;
   const needsPermission =
     agent?.permissionLevel !== workbenchState.selectedPermissionLevel;
-  return { desired, needsModel, needsMode, needsPermission };
+  const needsThinking = agent?.thinkingLevel !== thinkingLevel;
+  return {
+    desired,
+    thinkingLevel,
+    needsModel,
+    needsMode,
+    needsPermission,
+    needsThinking,
+  };
 }

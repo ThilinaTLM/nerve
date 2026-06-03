@@ -46,7 +46,9 @@
     newSession,
     openProcessTab,
     openSession,
+    pruneStoppedProcesses,
     refreshProcessLogs,
+    removeProcess,
     restartSelectedProcess,
     saveSettings,
     selectCenterConversationTab,
@@ -56,9 +58,11 @@
     setComposerMode,
     setComposerModel,
     setComposerPermission,
+    setComposerThinkingLevel,
     setSettingsNavigation,
     setTheme,
     stopSelectedProcess,
+    systemPromptUrl,
     workbenchSelectors,
     workbenchState,
   } from "./lib/stores/workbench.svelte";
@@ -86,6 +90,7 @@
   const activeCenterTab = $derived(workbenchSelectors.activeCenterTab);
   const slashCompletions = $derived(workbenchSelectors.slashCompletions);
   const selectedModelKey = $derived(workbenchSelectors.selectedModelKey);
+  const selectedThinkingLevel = $derived(workbenchSelectors.selectedThinkingLevel);
   const selectedMode = $derived(workbenchSelectors.selectedMode);
   const selectedPermissionLevel = $derived(
     workbenchSelectors.selectedPermissionLevel,
@@ -244,6 +249,7 @@
                 composerText={activeComposerText}
                 models={usableModels}
                 {selectedModelKey}
+                thinkingLevel={selectedThinkingLevel}
                 mode={selectedMode}
                 permissionLevel={selectedPermissionLevel}
                 {slashCompletions}
@@ -256,6 +262,7 @@
                 onOpenProject={openProjectPicker}
                 onNewConversationInProject={newConversationInProject}
                 onModelChange={(value) => void setComposerModel(value)}
+                onThinkingLevelChange={(value) => void setComposerThinkingLevel(value)}
                 onModeChange={(value) => void setComposerMode(value)}
                 onPermissionChange={(value) => void setComposerPermission(value)}
                 onGrantApproval={(id) => void grantApproval(id)}
@@ -282,6 +289,7 @@
                 {selectedProcess}
                 homeDir={status?.storage.home}
                 {exportUrl}
+                {systemPromptUrl}
                 onTabChange={(tab) => (layout.utilityTab = tab)}
                 onSelectAgent={selectAgent}
                 onNavigateToEntry={(entryId, summarize) => {
@@ -298,6 +306,8 @@
                 }}
                 onStopProcess={(id) => void stopSelectedProcess(id)}
                 onRestartProcess={(id) => void restartSelectedProcess(id)}
+                onRemoveProcess={(id) => void removeProcess(id)}
+                onPruneProcesses={() => void pruneStoppedProcesses()}
               />
             </div>
           </Pane>

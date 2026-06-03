@@ -1,5 +1,11 @@
 import { toast } from "svelte-sonner";
-import { getProcessLogs, restartProcess, stopProcess } from "../../api";
+import {
+  deleteProcess,
+  getProcessLogs,
+  pruneProcesses,
+  restartProcess,
+  stopProcess,
+} from "../../api";
 import { loadWorkspaceState } from "../workspace.svelte";
 import { workbenchState } from "./state.svelte";
 
@@ -40,6 +46,40 @@ export async function restartSelectedProcess(processId: string) {
   toast.success("Process restarted", {
     description: restarted.name ?? restarted.id,
   });
+}
+
+function forgetProcess(processId: string) {
+  workbenchState.openProcessTabIds = workbenchState.openProcessTabIds.filter(
+    (id) => id !== processId,
+  );
+  if (
+    workbenchState.activeCenterTab?.kind === "process" &&
+    workbenchState.activeCenterTab.id === processId
+  ) {
+    workbenchState.activeCenterTab = undefined;
+  }
+  if (workbenchState.selectedProcessId === processId) {
+    workbenchState.selectedProcessId = undefined;
+    workbenchState.processLogs = undefined;
+  }
+}
+
+export async function removeProcess(processId: string) {
+  await deleteProcess(processId);
+  forgetProcess(processId);
+  await loadWorkspaceState();
+  toast.success("Process removed");
+}
+
+export async function pruneStoppedProcesses() {
+  const { removed } = await pruneProcesses();
+  for (const id of removed) forgetProcess(id);
+  await loadWorkspaceState();
+  toast.success(
+    removed.length === 1
+      ? "Removed 1 stopped process"
+      : `Removed ${removed.length} stopped processes`,
+  );
 }
 
 export async function refreshProcessLogs() {

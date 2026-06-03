@@ -68,10 +68,13 @@ export async function apiGet<T>(path: string): Promise<T> {
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file."));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("Failed to read file."));
     reader.onload = () => {
       const result = String(reader.result ?? "");
-      resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result);
+      resolve(
+        result.includes(",") ? result.slice(result.indexOf(",") + 1) : result,
+      );
     };
     reader.readAsDataURL(file);
   });
@@ -144,6 +147,7 @@ export async function updateAgentConfig(
     model?: ModelSelection | null;
     mode?: AgentRecord["mode"];
     permissionLevel?: AgentRecord["permissionLevel"];
+    thinkingLevel?: AgentRecord["thinkingLevel"];
   },
 ): Promise<AgentRecord> {
   return (
@@ -254,6 +258,14 @@ export async function restartProcess(
       {},
     )
   ).process;
+}
+
+export async function deleteProcess(processId: string): Promise<void> {
+  await apiDelete<{ removed: boolean }>(`/api/processes/${processId}`);
+}
+
+export async function pruneProcesses(): Promise<{ removed: string[] }> {
+  return apiPost<{ removed: string[] }>("/api/processes/prune", {});
 }
 
 export async function getToolCalls(): Promise<ToolCallRecord[]> {

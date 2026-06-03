@@ -29,14 +29,12 @@
   .log-terminal {
     display: grid;
     align-content: start;
-    gap: 0.16rem;
+    gap: 0.12rem;
     height: 100%;
     min-height: 0;
     overflow: auto;
-    border: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
-    border-radius: var(--radius-sm);
     background: var(--sidebar);
-    padding: 0.62rem;
+    padding: 0.5rem 0.75rem;
   }
 
   code {

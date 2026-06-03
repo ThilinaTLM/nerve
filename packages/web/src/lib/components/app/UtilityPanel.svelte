@@ -28,6 +28,7 @@
     selectedProcess?: ProcessRecord;
     homeDir?: string;
     exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
+    systemPromptUrl?: () => string | undefined;
     onTabChange?: (tab: UtilityTab) => void;
     onSelectAgent?: (agent: AgentRecord) => void;
     onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
@@ -35,10 +36,12 @@
     onOpenProcessOutput?: (id: string) => void;
     onStopProcess?: (id: string) => void;
     onRestartProcess?: (id: string) => void;
+    onRemoveProcess?: (id: string) => void;
+    onPruneProcesses?: () => void;
   };
 
   let {
-    activeTab = $bindable<UtilityTab>("history"),
+    activeTab = $bindable<UtilityTab>("info"),
     status,
     activeProject,
     activeSession,
@@ -49,6 +52,7 @@
     selectedProcess,
     homeDir,
     exportUrl,
+    systemPromptUrl,
     onTabChange,
     onSelectAgent,
     onNavigateToEntry,
@@ -56,12 +60,14 @@
     onOpenProcessOutput,
     onStopProcess,
     onRestartProcess,
+    onRemoveProcess,
+    onPruneProcesses,
   }: Props = $props();
 
   const tabs = $derived<TabItem[]>([
-    { value: "history", label: "History" },
-    { value: "processes", label: "Processes", count: processes.length },
     { value: "info", label: "Context" },
+    { value: "processes", label: "Processes", count: processes.length },
+    { value: "history", label: "History" },
   ]);
 
   function setTab(tab: string) {
@@ -76,8 +82,17 @@
   </div>
 
   <ScrollArea class="utility-scroll" viewportClass="utility-content" type="auto">
-    {#if activeTab === "history"}
-      <HistoryTab {activeSession} {treeNodes} {onNavigateToEntry} {onCompact} />
+    {#if activeTab === "info"}
+      <ContextTab
+        {status}
+        {activeProject}
+        {activeSession}
+        {activeAgent}
+        {sessionAgents}
+        {exportUrl}
+        {systemPromptUrl}
+        {onSelectAgent}
+      />
     {:else if activeTab === "processes"}
       <ProcessesTab
         {processes}
@@ -86,17 +101,11 @@
         {onOpenProcessOutput}
         {onStopProcess}
         {onRestartProcess}
+        {onRemoveProcess}
+        {onPruneProcesses}
       />
     {:else}
-      <ContextTab
-        {status}
-        {activeProject}
-        {activeSession}
-        {activeAgent}
-        {sessionAgents}
-        {exportUrl}
-        {onSelectAgent}
-      />
+      <HistoryTab {activeSession} {treeNodes} {onNavigateToEntry} {onCompact} />
     {/if}
   </ScrollArea>
 </aside>

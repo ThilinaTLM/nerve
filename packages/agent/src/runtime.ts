@@ -1,20 +1,28 @@
 import {
   type AssistantMessageEvent,
   type Context,
+  clampThinkingLevel,
   fauxAssistantMessage,
   getModel,
   getModels,
   getProviders,
+  getSupportedThinkingLevels,
   type KnownProvider,
   type Message,
   type Model,
   registerFauxProvider,
   streamSimple,
 } from "@earendil-works/pi-ai";
+import type { ThinkingLevel } from "./types.js";
 
 export interface AgentModelSelection {
   provider: string;
   modelId: string;
+}
+
+export interface AgentModelInfo extends AgentModelSelection {
+  reasoning: boolean;
+  supportedThinkingLevels: ThinkingLevel[];
 }
 
 export interface AgentPromptInput {
@@ -72,8 +80,9 @@ function isKnownProvider(provider: string): provider is KnownProvider {
   return (getProviders() as string[]).includes(provider);
 }
 
-export function resolveAgentModel(
-  selection?: AgentModelSelection,
+function resolveAgentModelInternal(
+  selection: AgentModelSelection | undefined,
+  appendFauxResponse: boolean,
 ): Model<string> {
   if (selection && isKnownProvider(selection.provider)) {
     return getModel(
@@ -82,8 +91,33 @@ export function resolveAgentModel(
     ) as Model<string>;
   }
   const faux = getFauxProvider();
-  faux.appendResponses([fauxResponseFactory]);
+  if (appendFauxResponse) faux.appendResponses([fauxResponseFactory]);
   return faux.getModel();
+}
+
+export function resolveAgentModel(
+  selection?: AgentModelSelection,
+): Model<string> {
+  return resolveAgentModelInternal(selection, true);
+}
+
+export function getAgentModelInfo(model: Model<string>): AgentModelInfo {
+  return {
+    provider: model.provider,
+    modelId: model.id,
+    reasoning: model.reasoning,
+    supportedThinkingLevels: getSupportedThinkingLevels(
+      model,
+    ) as ThinkingLevel[],
+  };
+}
+
+export function clampAgentThinkingLevel(
+  selection: AgentModelSelection | undefined,
+  requested: ThinkingLevel | undefined,
+): ThinkingLevel {
+  const model = resolveAgentModelInternal(selection, false);
+  return clampThinkingLevel(model, requested ?? "off") as ThinkingLevel;
 }
 
 export function streamAgentPrompt(
@@ -102,18 +136,14 @@ export function streamAgentPrompt(
   });
 }
 
-export function listAvailableModels(): AgentModelSelection[] {
-  const faux = getFauxProvider().models.map((model) => ({
-    provider: model.provider,
-    modelId: model.id,
-  }));
+export function listAvailableModels(): AgentModelInfo[] {
+  const faux = getFauxProvider().models.map((model) =>
+    getAgentModelInfo(model),
+  );
   const configured = getProviders().flatMap((provider) =>
     getModels(provider)
       .slice(0, 8)
-      .map((model) => ({
-        provider,
-        modelId: model.id,
-      })),
+      .map((model) => getAgentModelInfo(model as Model<string>)),
   );
   return [...faux, ...configured];
 }

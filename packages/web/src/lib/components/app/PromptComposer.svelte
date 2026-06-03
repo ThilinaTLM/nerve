@@ -20,6 +20,7 @@
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
+  type ThinkingLevel = AgentRecord["thinkingLevel"];
 
   type Props = {
     text?: string;
@@ -32,6 +33,7 @@
     error?: string;
     models?: ModelInfo[];
     selectedModelKey?: string;
+    thinkingLevel?: ThinkingLevel;
     mode?: Mode;
     permissionLevel?: PermissionLevel;
     slashCompletions?: CompletionItem[];
@@ -42,6 +44,7 @@
     onDismissUserQuestion?: () => void;
     onAbort?: () => void;
     onModelChange?: (value: string) => void;
+    onThinkingLevelChange?: (value: ThinkingLevel) => void;
     onModeChange?: (value: Mode) => void;
     onPermissionChange?: (value: PermissionLevel) => void;
     onGrantApproval?: (id: string) => void;
@@ -59,6 +62,7 @@
     error,
     models = [],
     selectedModelKey = "",
+    thinkingLevel = "off",
     mode = "coding",
     permissionLevel = "supervised",
     slashCompletions = [],
@@ -69,6 +73,7 @@
     onDismissUserQuestion,
     onAbort,
     onModelChange,
+    onThinkingLevelChange,
     onModeChange,
     onPermissionChange,
     onGrantApproval,
@@ -97,6 +102,35 @@
       detail: model.provider,
     }))
     : [{ value: "", label: "No configured models", detail: "Run nerve auth list", disabled: true }]);
+
+  const selectedModel = $derived(models.find((model) => modelKey(model) === selectedModelKey));
+
+  const thinkingLevelDetails: Record<ThinkingLevel, string> = {
+    off: "No reasoning",
+    minimal: "Very brief reasoning",
+    low: "Light reasoning",
+    medium: "Moderate reasoning",
+    high: "Deep reasoning",
+    xhigh: "Maximum reasoning",
+  };
+
+  function thinkingLevelLabel(level: ThinkingLevel): string {
+    return level === "off" ? "Off" : level[0].toUpperCase() + level.slice(1);
+  }
+
+  const thinkingLevels = $derived<ThinkingLevel[]>(
+    selectedModel?.supportedThinkingLevels?.length
+      ? selectedModel.supportedThinkingLevels
+      : ["off"],
+  );
+
+  const thinkingItems = $derived<SelectItem[]>(
+    thinkingLevels.map((level) => ({
+      value: level,
+      label: thinkingLevelLabel(level),
+      detail: thinkingLevelDetails[level],
+    })),
+  );
 
   const modeItems: SelectItem[] = [
     { value: "coding", label: "Coding", detail: "Implement and modify files" },
@@ -144,6 +178,16 @@
           ariaLabel="Model"
           disabled={!activeSession || sending || models.length === 0 || pendingApproval || pendingQuestion}
           onValueChange={(value) => onModelChange?.(value)}
+        />
+        <Select
+          class="composer-field thinking-field"
+          triggerClass="composer-select-trigger thinking-select-trigger"
+          contentClass="composer-select-content"
+          items={thinkingItems}
+          value={thinkingLevel}
+          ariaLabel="Thinking level"
+          disabled={!activeSession || sending || pendingApproval || pendingQuestion || thinkingItems.length <= 1}
+          onValueChange={(value) => onThinkingLevelChange?.(value as ThinkingLevel)}
         />
         <Select
           class="composer-field mode-field"

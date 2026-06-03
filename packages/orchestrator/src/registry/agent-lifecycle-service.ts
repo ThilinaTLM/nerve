@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { clampAgentThinkingLevel } from "@nerve/agent";
 import {
   type AgentRecord,
   type CreateAgentRequest,
@@ -89,6 +90,10 @@ export class AgentLifecycleService {
       workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
       budget: agentBudget(parent, request.budget),
       model: request.model,
+      thinkingLevel: clampAgentThinkingLevel(
+        request.model,
+        request.thinkingLevel,
+      ),
       status: "idle",
       createdAt: now,
       updatedAt: now,
@@ -140,12 +145,17 @@ export class AgentLifecycleService {
     if (this.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Cannot update a running agent.");
     }
+    const model =
+      request.model === null ? undefined : (request.model ?? agent.model);
     const updated: AgentRecord = {
       ...agent,
       mode: request.mode ?? agent.mode,
       permissionLevel: request.permissionLevel ?? agent.permissionLevel,
-      model:
-        request.model === null ? undefined : (request.model ?? agent.model),
+      model,
+      thinkingLevel: clampAgentThinkingLevel(
+        model,
+        request.thinkingLevel ?? agent.thinkingLevel,
+      ),
       updatedAt: new Date().toISOString(),
     };
     await this.updateAgent(updated);

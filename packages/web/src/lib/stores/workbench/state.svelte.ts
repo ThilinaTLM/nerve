@@ -67,6 +67,7 @@ export const workbenchState = $state({
   slashCompletions: [] as CompletionItem[],
   models: [] as ModelInfo[],
   selectedModelKey: "nerve-faux:faux-fast",
+  selectedThinkingLevel: "off" as AgentRecord["thinkingLevel"],
   selectedMode: "coding" as AgentRecord["mode"],
   selectedPermissionLevel: "supervised" as AgentRecord["permissionLevel"],
   projectPickerOpen: false,

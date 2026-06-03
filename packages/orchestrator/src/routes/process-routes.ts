@@ -51,6 +51,19 @@ export function createProcessRoutes(state: OrchestratorState): Hono {
       }),
     ),
   );
+  app.post(
+    "/processes/prune",
+    routeHandler(async (c) =>
+      c.json({ removed: await state.registry.pruneProcesses() }),
+    ),
+  );
+  app.delete(
+    "/processes/:processId",
+    routeHandler(async (c) => {
+      await state.registry.removeProcess(c.req.param("processId"));
+      return c.json({ removed: true });
+    }),
+  );
   app.get(
     "/processes/:processId/logs",
     routeHandler(async (c) => {

@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   createId,
@@ -209,6 +209,34 @@ export class ProcessManager {
       readyTimeoutMs: record.readiness.timeoutMs,
       restartedFromProcessId: record.id,
     });
+  }
+
+  async removeProcess(processId: string): Promise<void> {
+    const record = this.getProcess(processId);
+    if (isActiveStatus(record.status)) {
+      throw new Error("Stop the process before removing it.");
+    }
+    const managed = this.managed.get(record.id);
+    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    this.managed.delete(record.id);
+    this.processes.delete(record.id);
+    this.index.deleteProcess(record.id);
+    await rm(this.processDir(record.id), { recursive: true, force: true });
+    await this.events.publish("process.removed", { processId: record.id });
+  }
+
+  async pruneProcesses(): Promise<string[]> {
+    const removed: string[] = [];
+    for (const record of this.listProcesses()) {
+      if (isActiveStatus(record.status)) continue;
+      try {
+        await this.removeProcess(record.id);
+        removed.push(record.id);
+      } catch {
+        // Best-effort: skip processes that can't be removed right now.
+      }
+    }
+    return removed;
   }
 
   async queryLogs(

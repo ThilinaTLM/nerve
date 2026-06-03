@@ -26,7 +26,6 @@ import type { ConversationService } from "../conversation-service.js";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
-import { buildPiSystemPrompt } from "../pi-system-prompt.js";
 import { loadHarnessResources } from "../resource-loader.js";
 import type { CompactionService } from "../session-operations/index.js";
 import type { InitializedStorage } from "../storage.js";
@@ -34,7 +33,7 @@ import type { ToolService } from "../tool-service.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import type { AgentRunStateMap } from "./run-state.js";
 import { SubagentRunner } from "./subagent-runner.js";
-import { nerveSystemContext } from "./system-prompt-builder.js";
+import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
 
 export interface AgentRunnerDeps {
   storage: InitializedStorage;
@@ -151,23 +150,19 @@ export class AgentRunner {
       tools: createAgentToolsForAgent(agent, this.deps.tools),
       activeToolNames,
       model,
+      thinkingLevel: agent.thinkingLevel,
       getApiKeyAndHeaders: async (requestModel) => {
         if (requestModel.provider === "nerve-faux") return undefined;
         const apiKey = await this.deps.auth.getApiKey(requestModel.provider);
         return apiKey ? { apiKey } : undefined;
       },
       systemPrompt: () =>
-        buildPiSystemPrompt({
-          cwd: agent.projectDir,
-          selectedTools: activeToolNames,
-          toolSnippets: promptMetadata.snippets,
-          promptGuidelines: promptMetadata.guidelines,
-          contextFiles: resources.contextFiles,
-          skills: resources.skills,
-          customPrompt: resources.systemPrompt,
-          appendSystemPrompt: resources.appendSystemPrompt,
-          nerveContext: nerveSystemContext(agent),
-        }),
+        composeAgentSystemPrompt(
+          agent,
+          activeToolNames,
+          promptMetadata,
+          resources,
+        ),
     });
 
     harness.subscribe(async (event) => {

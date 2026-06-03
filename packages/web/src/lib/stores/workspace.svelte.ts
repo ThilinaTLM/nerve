@@ -16,7 +16,7 @@ import {
 } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { composerDraft, selection } from "../state/app-state.svelte";
-import { selectedModel } from "./composer-config.svelte";
+import { selectedModel, selectedThinkingLevel } from "./composer-config.svelte";
 import { openSession, removeConversationTabs } from "./session-flow.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 
@@ -60,6 +60,11 @@ export function exportUrl(kind: "json" | "md" | "html"): string | undefined {
   if (!selection.sessionId) return undefined;
   const suffix = kind === "json" ? "export" : `export.${kind}`;
   return `/api/sessions/${selection.sessionId}/${suffix}`;
+}
+
+export function systemPromptUrl(): string | undefined {
+  if (!selection.agentId) return undefined;
+  return `/api/agents/${selection.agentId}/system-prompt`;
 }
 
 export async function completeFiles(query: string): Promise<CompletionItem[]> {
@@ -193,6 +198,7 @@ export async function createConversationForDirectory(dir: string) {
       projectId: project.id,
       sessionId: session.id,
       model: selectedModel(),
+      thinkingLevel: selectedThinkingLevel(),
       mode: workbenchState.selectedMode,
       permissionLevel: workbenchState.selectedPermissionLevel,
     });

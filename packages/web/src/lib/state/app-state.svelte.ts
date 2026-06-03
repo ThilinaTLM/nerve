@@ -11,7 +11,7 @@ export const selection = $state({
 });
 
 export const layout = $state({
-  utilityTab: "history" as UtilityTab,
+  utilityTab: "info" as UtilityTab,
   sidebarCollapsed: false,
   utilityCollapsed: false,
 });

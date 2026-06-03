@@ -26,6 +26,7 @@ import {
   agentNeedsComposerUpdate,
   currentActiveAgent,
   selectedModel,
+  selectedThinkingLevel,
 } from "./composer-config.svelte";
 import { navigateToSettingsPanel } from "./settings.svelte";
 import {
@@ -104,6 +105,7 @@ async function applyActiveSessionSelection(session: SessionRecord) {
   if (sessionAgent?.model) {
     workbenchState.selectedModelKey = modelKey(sessionAgent.model);
   }
+  workbenchState.selectedThinkingLevel = sessionAgent?.thinkingLevel ?? "off";
   workbenchState.selectedMode = sessionAgent?.mode ?? session.mode;
   workbenchState.selectedPermissionLevel =
     sessionAgent?.permissionLevel ?? session.permissionLevel;
@@ -294,15 +296,23 @@ export function clearConversationState() {
 export async function ensureAgent(): Promise<string> {
   if (selection.agentId) {
     const agent = currentActiveAgent();
-    const { desired, needsModel, needsMode, needsPermission } =
-      agentNeedsComposerUpdate(agent);
-    if (needsModel || needsMode || needsPermission) {
+    const {
+      desired,
+      thinkingLevel,
+      needsModel,
+      needsMode,
+      needsPermission,
+      needsThinking,
+    } = agentNeedsComposerUpdate(agent);
+    if (needsModel || needsMode || needsPermission || needsThinking) {
       const updated = await updateAgentConfig(selection.agentId, {
         model: desired ?? null,
+        thinkingLevel,
         mode: workbenchState.selectedMode,
         permissionLevel: workbenchState.selectedPermissionLevel,
       }).catch(() => undefined);
       if (updated) {
+        workbenchState.selectedThinkingLevel = updated.thinkingLevel;
         workbenchState.agents = workbenchState.agents.map((candidate) =>
           candidate.id === updated.id ? updated : candidate,
         );
@@ -315,6 +325,7 @@ export async function ensureAgent(): Promise<string> {
       projectId: selection.projectId,
       sessionId: selection.sessionId,
       model: selectedModel(),
+      thinkingLevel: selectedThinkingLevel(),
       mode: workbenchState.selectedMode,
       permissionLevel: workbenchState.selectedPermissionLevel,
     });

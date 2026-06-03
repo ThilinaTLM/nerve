@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { modelSelectionSchema } from "./models.js";
+import { modelSelectionSchema, thinkingLevelSchema } from "./models.js";
 import { modeSchema, permissionLevelSchema } from "./settings.js";
 
 export const workspaceScopeSchema = z.object({
@@ -12,6 +12,7 @@ export const updateAgentRequestSchema = z.object({
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
   model: modelSelectionSchema.nullable().optional(),
+  thinkingLevel: thinkingLevelSchema.optional(),
 });
 export type UpdateAgentRequest = z.infer<typeof updateAgentRequestSchema>;
 
@@ -54,6 +55,7 @@ export const agentRecordSchema = z.object({
     usedRuns: 0,
   }),
   model: modelSelectionSchema.optional(),
+  thinkingLevel: thinkingLevelSchema.default("off"),
   status: agentStatusSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -72,6 +74,7 @@ export const createAgentRequestSchema = z.object({
   workspaceScope: workspaceScopeSchema.optional(),
   budget: createAgentBudgetRequestSchema.optional(),
   model: modelSelectionSchema.optional(),
+  thinkingLevel: thinkingLevelSchema.optional(),
 });
 export type CreateAgentRequest = z.infer<typeof createAgentRequestSchema>;
 

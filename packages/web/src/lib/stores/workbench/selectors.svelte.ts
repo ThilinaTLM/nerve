@@ -128,6 +128,9 @@ export const workbenchSelectors = {
   get selectedModelKey() {
     return workbenchState.selectedModelKey;
   },
+  get selectedThinkingLevel() {
+    return workbenchState.selectedThinkingLevel;
+  },
   get selectedMode() {
     return workbenchState.selectedMode;
   },

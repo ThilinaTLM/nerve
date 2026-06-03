@@ -5,6 +5,7 @@ import {
   updateAgentRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
+import { buildAgentSystemPrompt } from "../agent-runner/system-prompt-builder.js";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";
 
@@ -24,6 +25,18 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     routeHandler((c) =>
       c.json({ agent: state.registry.getAgent(c.req.param("agentId")) }),
     ),
+  );
+  app.get(
+    "/agents/:agentId/system-prompt",
+    routeHandler(async (c) => {
+      const agentId = c.req.param("agentId");
+      const agent = state.registry.getAgent(agentId);
+      const prompt = await buildAgentSystemPrompt(agent);
+      return c.body(prompt, 200, {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Disposition": `attachment; filename="system-prompt-${agentId}.md"`,
+      });
+    }),
   );
   app.patch(
     "/agents/:agentId",
