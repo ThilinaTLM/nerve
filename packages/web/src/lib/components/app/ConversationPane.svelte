@@ -7,20 +7,14 @@
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { toast } from "svelte-sonner";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
+  import type { TranscriptItem } from "../../stores/workbench/state.svelte";
   import { buildConversationTimeline } from "../../stores/workbench/timeline";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import PromptComposer from "./PromptComposer.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
-
-  type TranscriptItem = {
-    id?: string;
-    role: "user" | "assistant" | "system";
-    kind?: SessionEntry["kind"];
-    text: string;
-  };
 
   type Props = {
     activeProject?: ProjectRecord;

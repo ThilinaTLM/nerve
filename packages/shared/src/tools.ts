@@ -66,6 +66,7 @@ export const toolCallRecordSchema = z.object({
   sessionId: z.string().startsWith("ses_"),
   projectId: z.string().startsWith("proj_"),
   toolName: toolNameSchema,
+  sourceToolCallId: z.string().min(1).optional(),
   risk: toolRiskSchema,
   args: z.unknown(),
   cwd: z.string().min(1),

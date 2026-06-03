@@ -1,4 +1,4 @@
-import type { EventEnvelope, ToolCallRecord } from "../api";
+import type { EventEnvelope, SessionEntry, ToolCallRecord } from "../api";
 import { getProcessLogs } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
@@ -9,6 +9,7 @@ import {
 } from "../stores/session-flow.svelte";
 import { loadSettingsPanel } from "../stores/settings.svelte";
 import { workbenchState } from "../stores/workbench/state.svelte";
+import { entryToTranscriptItem } from "../stores/workbench/transcript";
 import { loadWorkspaceState } from "../stores/workspace.svelte";
 
 export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
@@ -41,6 +42,7 @@ export function isAgentStreamEvent(
   event: EventEnvelope<Record<string, unknown>>,
 ): boolean {
   return (
+    event.type === "agent.prompt_received" ||
     event.type === "agent.message_delta" ||
     event.type === "agent.message_complete" ||
     event.type === "agent.error"
@@ -53,6 +55,13 @@ function sessionIdForAgentEvent(
   const sessionId = event.data?.sessionId;
   if (typeof sessionId === "string" && sessionId.startsWith("ses_")) {
     return sessionId;
+  }
+  const entry = event.data?.entry as { sessionId?: unknown } | undefined;
+  if (
+    typeof entry?.sessionId === "string" &&
+    entry.sessionId.startsWith("ses_")
+  ) {
+    return entry.sessionId;
   }
   const agentId = event.data?.agentId;
   if (typeof agentId !== "string") return undefined;
@@ -93,6 +102,44 @@ export function handleAgentStreamEvent(
   }
   const view = ensureConversationView(sessionId);
   const active = selection.sessionId === sessionId;
+
+  if (event.type === "agent.prompt_received") {
+    const entry = event.data?.entry as SessionEntry | undefined;
+    if (!entry) return;
+    const item = entryToTranscriptItem(entry);
+    const existingIndex = item.id
+      ? view.transcript.findIndex((candidate) => candidate.id === item.id)
+      : -1;
+    if (existingIndex !== -1) {
+      view.transcript = view.transcript.map((candidate, index) =>
+        index === existingIndex ? item : candidate,
+      );
+    } else {
+      let optimisticIndex = -1;
+      for (let index = view.transcript.length - 1; index >= 0; index -= 1) {
+        const candidate = view.transcript[index];
+        if (
+          candidate?.optimistic &&
+          candidate.role === "user" &&
+          candidate.text === item.text
+        ) {
+          optimisticIndex = index;
+          break;
+        }
+      }
+      view.transcript =
+        optimisticIndex === -1
+          ? [...view.transcript, item]
+          : view.transcript.map((candidate, index) =>
+              index === optimisticIndex ? item : candidate,
+            );
+    }
+    if (active) {
+      selection.entryId = item.id ?? selection.entryId;
+      workbenchState.transcript = view.transcript;
+    }
+    return;
+  }
 
   if (event.type === "agent.message_delta") {
     view.streamingText += String(event.data?.delta ?? "");

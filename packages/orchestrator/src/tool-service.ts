@@ -23,6 +23,11 @@ export interface ToolExecutionResponse {
   approval?: ApprovalRecord;
 }
 
+type ToolRequestOptions = {
+  signal?: AbortSignal;
+  sourceToolCallId?: string;
+};
+
 export type SubagentRunResult = {
   agent: AgentRecord;
   summary: string;
@@ -101,7 +106,7 @@ export class ToolService {
     agent: AgentRecord,
     toolName: ToolName,
     args: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: ToolRequestOptions = {},
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
     const evaluation = evaluateToolPolicy(agent, toolName, args, {
@@ -113,6 +118,7 @@ export class ToolService {
       sessionId: agent.sessionId,
       projectId: agent.projectId,
       toolName,
+      sourceToolCallId: options.sourceToolCallId,
       risk: evaluation.risk,
       args: evaluation.normalizedArgs,
       cwd: evaluation.cwd,
@@ -176,7 +182,7 @@ export class ToolService {
     agent: AgentRecord,
     toolName: ToolName,
     args: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: ToolRequestOptions = {},
   ): Promise<ToolCallRecord> {
     const response = await this.requestTool(agent, toolName, args, options);
     if (isTerminalToolCall(response.toolCall)) return response.toolCall;

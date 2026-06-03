@@ -434,7 +434,10 @@ export async function sendPrompt() {
   workbenchState.streamingText = "";
   try {
     const agentId = await ensureAgent();
-    view.transcript = [...view.transcript, { role: "user", text }];
+    view.transcript = [
+      ...view.transcript,
+      { role: "user", text, optimistic: true },
+    ];
     workbenchState.transcript = view.transcript;
     view.composerText = "";
     composerDraft.text = "";

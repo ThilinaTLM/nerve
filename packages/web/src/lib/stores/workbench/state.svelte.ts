@@ -23,7 +23,9 @@ export type TranscriptItem = {
   kind?: SessionEntry["kind"];
   text: string;
   createdAt?: string;
+  optimistic?: boolean;
   toolCallId?: string;
+  toolRecordId?: string;
 };
 
 export type ConversationViewState = {

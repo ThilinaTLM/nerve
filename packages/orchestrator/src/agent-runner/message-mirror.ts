@@ -68,6 +68,7 @@ export class MessageMirror {
                   toolCallId: entry.message.toolCallId,
                   toolName: entry.message.toolName,
                   isError: entry.message.isError,
+                  toolRecordId: toolRecordIdFromDetails(entry.message.details),
                   details: entry.message.details,
                 }
               : undefined,
@@ -101,6 +102,14 @@ export class MessageMirror {
       session: this.deps.sessions.get(session.id),
     });
   }
+}
+
+function toolRecordIdFromDetails(details: unknown): string | undefined {
+  if (!details || typeof details !== "object") return undefined;
+  const toolCall = (details as { toolCall?: { id?: unknown } }).toolCall;
+  return typeof toolCall?.id === "string" && toolCall.id.startsWith("tool_")
+    ? toolCall.id
+    : undefined;
 }
 
 export function agentMessageText(message: AgentMessage): string {

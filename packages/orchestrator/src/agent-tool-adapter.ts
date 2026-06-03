@@ -98,12 +98,12 @@ function wrapCoreToolDefinition(
     parameters: definition.parameters,
     prepareArguments: definition.prepareArguments,
     executionMode: definition.executionMode,
-    execute: async (_toolCallId, params, signal) => {
+    execute: async (sourceToolCallId, params, signal) => {
       const toolCall = await tools.requestToolAndWait(
         agent,
         definition.name,
         params as Record<string, unknown>,
-        { signal },
+        { signal, sourceToolCallId },
       );
       if (toolCall.status === "completed") return completedToolResult(toolCall);
       const message =
