@@ -183,7 +183,7 @@
   .composer-surface {
     overflow: hidden;
     border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-md);
     background: var(--input);
     box-shadow: 0 1px 0 rgb(255 255 255 / 3%) inset;
     transition:
@@ -259,25 +259,6 @@
 
   :global(.composer-select-trigger) {
     min-width: 0;
-    height: 1.75rem;
-    border-color: transparent;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--muted-foreground);
-    padding: 0 0.45rem;
-    box-shadow: none;
-  }
-
-  :global(.composer-select-trigger:hover:not([data-disabled])),
-  :global(.composer-select-trigger[data-state="open"]) {
-    border-color: color-mix(in oklab, var(--border) 60%, transparent);
-    background: var(--accent);
-    color: var(--foreground);
-  }
-
-  :global(.composer-select-trigger:focus-visible) {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
   }
 
   :global(.composer-select-content) {

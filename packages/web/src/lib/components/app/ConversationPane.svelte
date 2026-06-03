@@ -7,11 +7,13 @@
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { toast } from "svelte-sonner";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord, UserQuestionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionEntry, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
+  import { buildConversationTimeline } from "../../stores/workbench/timeline";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import PromptComposer from "./PromptComposer.svelte";
+  import ToolCallCard from "./ToolCallCard.svelte";
 
   type TranscriptItem = {
     id?: string;
@@ -31,6 +33,7 @@
     approvals?: ApprovalWithToolCall[];
     pendingUserQuestion?: UserQuestionRecord;
     transcript?: TranscriptItem[];
+    toolCalls?: ToolCallRecord[];
     streamingText?: string;
     live?: boolean;
     sending?: boolean;
@@ -63,6 +66,7 @@
     approvals = [],
     pendingUserQuestion,
     transcript = [],
+    toolCalls = [],
     streamingText = "",
     live = false,
     sending = false,
@@ -86,6 +90,8 @@
     onGrantApproval,
     onDenyApproval,
   }: Props = $props();
+
+  const timeline = $derived(buildConversationTimeline(transcript, toolCalls));
 
   function roleLabel(item: TranscriptItem) {
     if (item.kind && item.kind !== "message") return item.kind.replace("_", " ");
@@ -134,7 +140,7 @@
 <section class="conversation-pane">
   {#if activeSession}
     <div class="transcript" aria-live="polite">
-      {#if transcript.length === 0 && !streamingText}
+      {#if timeline.length === 0 && !streamingText}
         <div class="empty-run">
           <Sparkles size={28} strokeWidth={1.7} />
           <p>No messages yet.</p>
@@ -142,7 +148,11 @@
         </div>
       {/if}
 
-      {#each transcript as item}
+      {#each timeline as node (node.key)}
+        {#if node.kind === "tool"}
+          <ToolCallCard toolCall={node.toolCall} />
+        {:else}
+        {@const item = node.item}
         {@const Icon = roleIcon(item.role)}
         <ContextMenu items={messageMenu(item)}>
           <article class={`transcript-entry ${item.role}`}>
@@ -163,6 +173,7 @@
             </div>
           </article>
         </ContextMenu>
+        {/if}
       {/each}
 
       {#if streamingText}
@@ -265,7 +276,7 @@
   .transcript-entry.assistant .message-icon {
     border-color: var(--border);
     background: var(--secondary);
-    color: var(--foreground);
+    color: var(--secondary-foreground);
   }
 
   .transcript-entry.system .message-icon {

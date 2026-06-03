@@ -47,12 +47,12 @@
 	<Select.Content class={contentClass}>
 		{#each items as item (item.value)}
 			<Select.Item value={item.value} label={item.label} disabled={item.disabled}>
-				<span class="flex min-w-0 flex-col">
+				<div class="flex min-w-0 flex-col items-start">
 					<span class="truncate">{item.label}</span>
 					{#if item.detail}
 						<span class="truncate text-xs text-muted-foreground">{item.detail}</span>
 					{/if}
-				</span>
+				</div>
 			</Select.Item>
 		{/each}
 	</Select.Content>

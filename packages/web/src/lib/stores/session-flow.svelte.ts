@@ -10,6 +10,7 @@ import {
   getPendingUserQuestions,
   getSessionMessages,
   getSessionTree,
+  getToolCalls,
   type ProjectRecord,
   type SessionRecord,
   updateAgentConfig,
@@ -43,6 +44,7 @@ export function ensureConversationView(
   workbenchState.conversationViews[sessionId] ??= {
     sessionId,
     transcript: [],
+    toolCalls: [],
     treeNodes: [],
     streamingText: "",
     sending: false,
@@ -122,14 +124,16 @@ export async function refreshSessionView(sessionId: string) {
   const view = ensureConversationView(sessionId);
   view.loading = true;
   try {
-    const [entries, tree] = await Promise.all([
+    const [entries, tree, toolCalls] = await Promise.all([
       getSessionMessages(sessionId),
       getSessionTree(sessionId),
+      getToolCalls(),
     ]);
     const nextTranscript = entriesToTranscript(entries);
     if (!view.sending || nextTranscript.length >= view.transcript.length) {
       view.transcript = nextTranscript;
     }
+    view.toolCalls = toolCalls.filter((call) => call.sessionId === sessionId);
     view.treeNodes = tree.nodes;
     if (selection.sessionId === sessionId) {
       selection.entryId = tree.activeEntryId;

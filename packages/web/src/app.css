@@ -5,6 +5,8 @@
 @import "@fontsource/outfit/500.css";
 @import "@fontsource/outfit/600.css";
 @import "@fontsource/outfit/700.css";
+@import "@fontsource/iosevka/400.css";
+@import "@fontsource/iosevka/500.css";
 
 @custom-variant dark (&:is(.dark *));
 

@@ -168,7 +168,7 @@
     border-radius: 999px;
     background: var(--secondary);
     padding: 0 0.55rem;
-    color: var(--muted-foreground);
+    color: var(--secondary-foreground);
     font-size: 0.75rem;
   }
 

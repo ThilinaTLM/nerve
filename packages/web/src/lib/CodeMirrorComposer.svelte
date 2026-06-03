@@ -113,13 +113,12 @@
             "&": {
               background: "var(--input)",
               color: "var(--foreground)",
-              minHeight: "72px",
-              maxHeight: "min(32vh, 220px)",
+              maxHeight: "min(40vh, 320px)",
             },
             ".cm-content": {
               caretColor: "var(--primary)",
               fontFamily:
-                'var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+                'Iosevka, var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
               fontSize: "0.8125rem",
               lineHeight: "1.5",
               padding: "9px 10px",
@@ -134,8 +133,8 @@
               color: "color-mix(in oklab, var(--muted-foreground) 75%, transparent)",
             },
             ".cm-scroller": {
-              minHeight: "72px",
-              maxHeight: "min(32vh, 220px)",
+              minHeight: "38px",
+              maxHeight: "min(40vh, 320px)",
               overflow: "auto",
             },
             ".cm-tooltip": {

@@ -243,6 +243,11 @@ export async function restartProcess(
   ).process;
 }
 
+export async function getToolCalls(): Promise<ToolCallRecord[]> {
+  return (await apiGet<{ toolCalls: ToolCallRecord[] }>("/api/tool-calls"))
+    .toolCalls;
+}
+
 export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
   const [{ approvals }, { toolCalls }] = await Promise.all([
     apiGet<{ approvals: ApprovalRecord[] }>("/api/approvals?status=pending"),

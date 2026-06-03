@@ -202,7 +202,7 @@
     border-bottom: 1px solid var(--border);
     background: var(--secondary);
     padding: 0.32rem 0.6rem;
-    color: var(--muted-foreground);
+    color: var(--secondary-foreground);
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     font-weight: 600;

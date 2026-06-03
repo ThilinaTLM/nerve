@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "../api";
+import type { EventEnvelope, ToolCallRecord } from "../api";
 import { getProcessLogs } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
@@ -13,6 +13,7 @@ import { loadWorkspaceState } from "../stores/workspace.svelte";
 
 export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (isAgentStreamEvent(event)) handleAgentStreamEvent(event);
+  if (event.type.startsWith("agent.tool_call.")) handleToolCallEvent(event);
   if (event.type === "process.log") {
     const processId = String(event.data?.processId ?? "");
     if (processId && processId === workbenchState.selectedProcessId) {
@@ -49,6 +50,28 @@ function sessionIdForAgentEvent(
   const agentId = event.data?.agentId;
   if (typeof agentId !== "string") return undefined;
   return workbenchState.agents.find((agent) => agent.id === agentId)?.sessionId;
+}
+
+export function handleToolCallEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+) {
+  const toolCall = event.data?.toolCall as ToolCallRecord | undefined;
+  if (!toolCall) return;
+  const sessionId = sessionIdForAgentEvent(event) ?? toolCall.sessionId;
+  if (
+    !sessionId ||
+    !workbenchState.openConversationTabIds.includes(sessionId)
+  ) {
+    return;
+  }
+  const view = ensureConversationView(sessionId);
+  const index = view.toolCalls.findIndex((entry) => entry.id === toolCall.id);
+  view.toolCalls =
+    index === -1
+      ? [...view.toolCalls, toolCall]
+      : view.toolCalls.map((entry) =>
+          entry.id === toolCall.id ? toolCall : entry,
+        );
 }
 
 export function handleAgentStreamEvent(

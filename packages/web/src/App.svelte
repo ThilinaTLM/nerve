@@ -75,6 +75,7 @@
   const treeNodes = $derived(workbenchSelectors.treeNodes);
   const processLogs = $derived(workbenchSelectors.processLogs);
   const transcript = $derived(workbenchSelectors.transcript);
+  const toolCalls = $derived(workbenchSelectors.toolCalls);
   const streamingText = $derived(workbenchSelectors.streamingText);
   const activeComposerText = $derived(workbenchSelectors.activeComposerText);
   const openConversationTabs = $derived(workbenchSelectors.openConversationTabs);
@@ -221,6 +222,7 @@
               {approvals}
               {pendingUserQuestion}
               {transcript}
+              {toolCalls}
               {streamingText}
               {live}
               {sending}

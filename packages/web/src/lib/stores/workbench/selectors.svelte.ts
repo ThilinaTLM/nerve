@@ -69,6 +69,9 @@ export const workbenchSelectors = {
   get transcript() {
     return activeView()?.transcript ?? [];
   },
+  get toolCalls() {
+    return activeView()?.toolCalls ?? [];
+  },
   get streamingText() {
     return activeView()?.streamingText ?? "";
   },

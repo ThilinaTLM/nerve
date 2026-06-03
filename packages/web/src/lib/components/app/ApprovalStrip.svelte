@@ -127,7 +127,7 @@
     border: 1px solid var(--border);
     border-radius: 999px;
     background: var(--secondary);
-    color: var(--primary);
+    color: var(--secondary-foreground);
   }
 
   .head-copy div {

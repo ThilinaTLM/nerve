@@ -12,6 +12,7 @@ import type {
   SessionRecord,
   SessionTreeNode,
   Settings,
+  ToolCallRecord,
   StatusResponse,
   UserQuestionRecord,
 } from "../../api";
@@ -21,11 +22,14 @@ export type TranscriptItem = {
   role: "user" | "assistant" | "system";
   kind?: SessionEntry["kind"];
   text: string;
+  createdAt?: string;
+  toolCallId?: string;
 };
 
 export type ConversationViewState = {
   sessionId: string;
   transcript: TranscriptItem[];
+  toolCalls: ToolCallRecord[];
   treeNodes: SessionTreeNode[];
   streamingText: string;
   sending: boolean;

@@ -14,5 +14,8 @@ export function entriesToTranscript(entries: SessionEntry[]): TranscriptItem[] {
       role: entry.role,
       kind: entry.kind,
       text: entry.text,
+      createdAt: entry.createdAt,
+      toolCallId: (entry.details as { toolCallId?: string } | undefined)
+        ?.toolCallId,
     }));
 }
