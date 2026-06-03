@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { AgentRecord } from "@nerve/shared";
 import { coreToolNameSchema } from "@nerve/shared";
 import {
+  allToolDefinitions,
   coreToolDefinitionByName,
   coreToolDefinitions,
   coreToolDescriptors,
@@ -39,27 +40,49 @@ describe("agent tool definitions", () => {
   });
 
   it("uses Pi-compatible default active tools", () => {
-    assert.deepEqual(activeToolNamesForAgent(agent("autonomous")), [
+    const codingTools = [
       "read",
       "bash",
       "edit",
       "write",
+      "grep",
+      "find",
+      "ls",
+      "process_start",
+      "process_stop",
+      "process_restart",
+      "process_list",
+      "process_logs",
+      "subagent_run",
       "ask_user",
-    ]);
-    assert.deepEqual(activeToolNamesForAgent(agent("supervised")), [
-      "read",
-      "bash",
-      "edit",
-      "write",
-      "ask_user",
-    ]);
+    ];
+    assert.deepEqual(activeToolNamesForAgent(agent("autonomous")), codingTools);
+    assert.deepEqual(activeToolNamesForAgent(agent("supervised")), codingTools);
     assert.deepEqual(activeToolNamesForAgent(agent("read_only")), [
       "read",
       "grep",
       "find",
       "ls",
+      "process_list",
+      "process_logs",
       "ask_user",
     ]);
+  });
+
+  it("exposes orchestration tools to the harness definition set", () => {
+    assert.deepEqual(
+      allToolDefinitions
+        .map((tool) => tool.name)
+        .filter((name) => name.startsWith("process_") || name === "subagent_run"),
+      [
+        "process_start",
+        "process_stop",
+        "process_restart",
+        "process_list",
+        "process_logs",
+        "subagent_run",
+      ],
+    );
   });
 
   it("defines ask_user as a sequential free-text interaction tool", () => {

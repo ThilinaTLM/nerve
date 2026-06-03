@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
@@ -35,6 +35,46 @@ describe("filesystem executors", () => {
       { cwd: project.root },
     );
     assert.equal(eof.content, "four");
+  });
+
+  it("reads supported image files as model-visible image attachments", async () => {
+    const project = await createTempProject();
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+      "base64",
+    );
+    await writeFile(join(project.root, "clipboard.png"), png);
+
+    const result = await executeRead(
+      { path: "clipboard.png" },
+      { cwd: project.root },
+    );
+
+    assert.equal(result.content, "Read image file [image/png]");
+    assert.equal(result.path, join(project.root, "clipboard.png"));
+    assert.deepEqual(result.contentBlocks?.[0], {
+      type: "text",
+      text: "Read image file [image/png]",
+    });
+    assert.deepEqual(result.contentBlocks?.[1], {
+      type: "image",
+      data: png.toString("base64"),
+      mimeType: "image/png",
+    });
+  });
+
+  it("reads @-prefixed paths and truncates large text with continuation guidance", async () => {
+    const project = await createTempProject();
+    await project.write("large.txt", Array.from({ length: 2002 }, (_, index) => `line ${index + 1}`).join("\n"));
+
+    const result = await executeRead(
+      { path: "@large.txt" },
+      { cwd: project.root },
+    );
+
+    assert.match(result.content ?? "", /^line 1\nline 2/);
+    assert.match(result.content ?? "", /output truncated/);
+    assert.equal(result.contentBlocks?.[0]?.type, "text");
   });
 
   it("rejects missing read paths", async () => {

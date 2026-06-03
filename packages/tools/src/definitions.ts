@@ -9,7 +9,7 @@ import { type Static, type TSchema, Type } from "typebox";
 export type CoreToolExecutionMode = "sequential" | "parallel";
 
 export interface CoreToolDefinition<TParams extends TSchema = TSchema> {
-  name: CoreToolName;
+  name: ToolName;
   label: string;
   description: string;
   promptSnippet?: string;
@@ -212,13 +212,98 @@ const askUserParameters = Type.Object(
   { additionalProperties: false },
 );
 
+const processStartParameters = Type.Object(
+  {
+    name: Type.Optional(Type.String({ description: "Stable process name" })),
+    cwd: Type.Optional(
+      Type.String({ description: "Working directory relative to the project" }),
+    ),
+    command: Type.String({ description: "Command to start and supervise" }),
+    env: Type.Optional(
+      Type.Record(Type.String(), Type.String(), {
+        description: "Extra environment variables",
+      }),
+    ),
+    readyOnUrl: Type.Optional(
+      Type.Boolean({ description: "Treat first detected URL as ready" }),
+    ),
+    readyPattern: Type.Optional(
+      Type.String({ description: "Regex line that marks the process ready" }),
+    ),
+    readyTimeoutMs: Type.Optional(
+      Type.Number({ description: "Readiness wait timeout in milliseconds" }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const processTargetParameters = Type.Object(
+  {
+    processId: Type.Optional(Type.String({ description: "Process id" })),
+    name: Type.Optional(Type.String({ description: "Process name" })),
+    signal: Type.Optional(
+      Type.Union([Type.Literal("SIGTERM"), Type.Literal("SIGINT"), Type.Literal("SIGKILL")]),
+    ),
+    timeoutMs: Type.Optional(Type.Number({ description: "Stop timeout in milliseconds" })),
+  },
+  { additionalProperties: false },
+);
+
+const processRestartParameters = Type.Object(
+  {
+    processId: Type.Optional(Type.String({ description: "Process id" })),
+    name: Type.Optional(Type.String({ description: "Process name" })),
+  },
+  { additionalProperties: false },
+);
+
+const processListParameters = Type.Object({}, { additionalProperties: false });
+
+const processLogsParameters = Type.Object(
+  {
+    processId: Type.Optional(Type.String({ description: "Process id" })),
+    name: Type.Optional(Type.String({ description: "Process name" })),
+    mode: Type.Optional(
+      Type.Union([
+        Type.Literal("recent"),
+        Type.Literal("errors"),
+        Type.Literal("warnings"),
+        Type.Literal("since_cursor"),
+        Type.Literal("first_failure"),
+      ]),
+    ),
+    sinceSeq: Type.Optional(Type.Number({ description: "Cursor sequence" })),
+    contains: Type.Optional(Type.String({ description: "Substring filter" })),
+    regex: Type.Optional(Type.String({ description: "Regex filter" })),
+    contextLines: Type.Optional(Type.Number({ description: "Context lines" })),
+    limit: Type.Optional(Type.Number({ description: "Maximum events" })),
+  },
+  { additionalProperties: false },
+);
+
+const subagentRunParameters = Type.Object(
+  {
+    task: Type.String({ description: "Task for the child agent" }),
+    context: Type.Optional(Type.String({ description: "Useful context for the child agent" })),
+    mode: Type.Optional(Type.Union([Type.Literal("planning"), Type.Literal("coding")])),
+    permissionLevel: Type.Optional(
+      Type.Union([
+        Type.Literal("read_only"),
+        Type.Literal("supervised"),
+        Type.Literal("autonomous"),
+      ]),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 export const coreToolDefinitions = [
   {
     name: "read",
     label: "read",
     description:
-      "Read file contents. Supports offset and limit to continue through large files.",
-    promptSnippet: "Read file contents",
+      "Read file contents. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, supports offset and limit to continue through large files.",
+    promptSnippet: "Read file contents, including image files as attachments",
     promptGuidelines: ["Use read to examine files instead of cat or sed."],
     parameters: readParameters,
     executionMode: "parallel",
@@ -302,6 +387,76 @@ export const coreToolDefinitions = [
   },
 ] satisfies CoreToolDefinition[];
 
+export const orchestrationToolDefinitions = [
+  {
+    name: "process_start",
+    label: "process_start",
+    description:
+      "Start a managed long-running command such as a dev server, watcher, or daemon. Captures logs and readiness state for later process_logs queries.",
+    promptSnippet:
+      "Start long-running commands with supervised logs and lifecycle management",
+    promptGuidelines: [
+      "Use process_start instead of bash for dev servers, file watchers, queue workers, and other long-running commands.",
+      "Provide readyOnUrl or readyPattern when possible so the tool can wait for readiness.",
+    ],
+    parameters: processStartParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "process_stop",
+    label: "process_stop",
+    description: "Stop a managed process by processId or name.",
+    promptSnippet: "Stop supervised long-running processes",
+    parameters: processTargetParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "process_restart",
+    label: "process_restart",
+    description: "Restart a managed process by processId or name.",
+    promptSnippet: "Restart supervised long-running processes",
+    parameters: processRestartParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "process_list",
+    label: "process_list",
+    description: "List managed processes for the current project.",
+    promptSnippet: "List supervised processes",
+    parameters: processListParameters,
+    executionMode: "parallel",
+  },
+  {
+    name: "process_logs",
+    label: "process_logs",
+    description:
+      "Query captured logs from a managed process, including recent output, errors, warnings, cursor-based updates, and first-failure context.",
+    promptSnippet: "Inspect logs from supervised processes",
+    promptGuidelines: [
+      "After code changes that trigger a running process to recompile, inspect process_logs instead of restarting the command just to see errors.",
+    ],
+    parameters: processLogsParameters,
+    executionMode: "parallel",
+  },
+  {
+    name: "subagent_run",
+    label: "subagent_run",
+    description:
+      "Spawn a child agent to investigate an independent task with bounded authority.",
+    promptSnippet: "Run a bounded child agent for independent investigation",
+    promptGuidelines: [
+      "Use subagent_run only for substantial independent investigations, not simple lookups.",
+    ],
+    parameters: subagentRunParameters,
+    executionMode: "sequential",
+  },
+] satisfies CoreToolDefinition[];
+
+export const allToolDefinitions = [
+  ...coreToolDefinitions,
+  ...orchestrationToolDefinitions,
+] satisfies CoreToolDefinition[];
+
 export function coreToolDefinitionByName(
   name: CoreToolName,
 ): CoreToolDefinition {
@@ -333,6 +488,14 @@ export function coreToolRiskForName(name: ToolName): ToolRisk {
 
 export function coreToolDescriptorsFromDefinitions(): ToolDescriptor[] {
   return coreToolDefinitions.map((definition) => ({
+    name: definition.name,
+    risk: coreToolRiskForName(definition.name),
+    description: definition.description,
+  }));
+}
+
+export function allToolDescriptorsFromDefinitions(): ToolDescriptor[] {
+  return allToolDefinitions.map((definition) => ({
     name: definition.name,
     risk: coreToolRiskForName(definition.name),
     description: definition.description,

@@ -1,9 +1,20 @@
 export type ToolExecutionContext = {
   cwd: string;
+  signal?: AbortSignal;
 };
+
+export type ToolTextContent = { type: "text"; text: string };
+export type ToolImageContent = {
+  type: "image";
+  data: string;
+  mimeType: string;
+};
+export type ToolContentBlock = ToolTextContent | ToolImageContent;
 
 export type ToolExecutionResult = {
   content?: string;
+  contentBlocks?: ToolContentBlock[];
+  details?: unknown;
   path?: string;
   entries?: Array<{ path: string; kind: "file" | "directory" | "other" }>;
   matches?: Array<{ path: string; line: number; text: string }>;

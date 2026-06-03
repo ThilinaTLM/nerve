@@ -26,10 +26,24 @@ export async function walkFiles(
 }
 
 export function globToRegExp(pattern: string): RegExp {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*/g, ".*")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\?/g, ".");
-  return new RegExp(`^${escaped}$`);
+  let output = "";
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index];
+    const next = pattern[index + 1];
+    if (char === "*" && next === "*") {
+      output += ".*";
+      index += 1;
+      continue;
+    }
+    if (char === "*") {
+      output += "[^/]*";
+      continue;
+    }
+    if (char === "?") {
+      output += "[^/]";
+      continue;
+    }
+    output += char?.replace(/[.+^${}()|[\]\\]/g, "\\$&") ?? "";
+  }
+  return new RegExp(`^${output}$`);
 }

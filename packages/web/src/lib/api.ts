@@ -2,6 +2,7 @@ import type {
   AgentRecord,
   ApprovalRecord,
   AuthProviderMetadata,
+  ClipboardImageUploadResponse,
   EventEnvelope,
   FilesystemDirectoryResponse,
   FilesystemSignal,
@@ -62,6 +63,18 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 export async function apiGet<T>(path: string): Promise<T> {
   return parseResponse<T>(await fetch(path, { credentials: "same-origin" }));
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file."));
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
@@ -305,6 +318,18 @@ export async function getFileCompletions(
   ).items;
 }
 
+export async function uploadClipboardImage(file: File): Promise<string> {
+  const response = await apiPost<ClipboardImageUploadResponse>(
+    "/api/filesystem/clipboard-image",
+    {
+      name: file.name,
+      type: file.type,
+      dataBase64: await fileToBase64(file),
+    },
+  );
+  return response.path;
+}
+
 export async function listDirectories(
   path?: string,
   showHidden = false,
@@ -320,6 +345,7 @@ export async function listDirectories(
 
 export type {
   AgentRecord,
+  ClipboardImageUploadResponse,
   EventEnvelope,
   FilesystemDirectoryResponse,
   FilesystemSignal,

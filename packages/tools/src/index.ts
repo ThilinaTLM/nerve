@@ -1,5 +1,6 @@
 import type { ToolDescriptor, ToolName, ToolRisk } from "@nerve/shared";
 import {
+  allToolDescriptorsFromDefinitions,
   coreToolDescriptorsFromDefinitions,
   coreToolRiskForName,
 } from "./definitions.js";
@@ -16,6 +17,9 @@ export * from "./types.js";
 
 export const coreToolDescriptors: ToolDescriptor[] =
   coreToolDescriptorsFromDefinitions();
+
+export const allToolDescriptors: ToolDescriptor[] =
+  allToolDescriptorsFromDefinitions();
 
 export function toolRiskForName(name: ToolName): ToolRisk {
   return coreToolRiskForName(name);

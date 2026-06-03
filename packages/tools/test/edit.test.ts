@@ -74,6 +74,31 @@ describe("edit executor", () => {
     );
   });
 
+  it("preserves CRLF line endings and UTF-8 BOM", async () => {
+    const project = await createTempProject();
+    const path = await project.write("crlf.txt", "\uFEFFalpha\r\nbeta\r\n");
+
+    await executeEdit(
+      { path: "crlf.txt", oldText: "beta", newText: "BETA" },
+      { cwd: project.root },
+    );
+
+    assert.equal(await readFile(path, "utf8"), "\uFEFFalpha\r\nBETA\r\n");
+  });
+
+  it("rejects no-op edits", async () => {
+    const project = await createTempProject();
+    await project.write("noop.txt", "same\n");
+
+    await assert.rejects(
+      executeEdit(
+        { path: "noop.txt", oldText: "same", newText: "same" },
+        { cwd: project.root },
+      ),
+      /would not change/,
+    );
+  });
+
   it("rejects missing, duplicate, and overlapping oldText regions", async () => {
     const project = await createTempProject();
     await project.write("target.txt", "one two one\nabcdef\n");

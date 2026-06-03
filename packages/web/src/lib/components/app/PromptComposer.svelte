@@ -1,7 +1,16 @@
 <script lang="ts">
   import Send from "@lucide/svelte/icons/send";
   import Square from "@lucide/svelte/icons/square";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionRecord, UserQuestionRecord } from "../../api";
+  import {
+    uploadClipboardImage,
+    type AgentRecord,
+    type ApprovalWithToolCall,
+    type CompletionItem,
+    type ModelInfo,
+    type ProjectRecord,
+    type SessionRecord,
+    type UserQuestionRecord,
+  } from "../../api";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
   import { modelKey } from "../../utils/model";
   import { Button } from "$lib/components/ui/button";
@@ -77,6 +86,10 @@
     if (pendingQuestion) onAnswerUserQuestion?.();
     else if (!pendingApproval) onSubmit?.();
   }
+
+  async function pasteImage(file: File): Promise<string> {
+    return uploadClipboardImage(file);
+  }
   const modelItems = $derived<SelectItem[]>(models.length
     ? models.map((model) => ({
       value: modelKey(model),
@@ -116,6 +129,7 @@
         {fileCompletions}
         onChange={onChange}
         onSubmit={submitComposer}
+        onPasteImage={pasteImage}
       />
     </div>
 

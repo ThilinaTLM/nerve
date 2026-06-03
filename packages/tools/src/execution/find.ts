@@ -5,6 +5,7 @@ import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import { numberArg } from "./common.js";
 import { resolveToolPath } from "./path.js";
 import { globToRegExp, walkFiles } from "./search-utils.js";
+import { truncateHead } from "./truncate.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -19,9 +20,14 @@ export async function executeFind(
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
   const fd = await runFd(args.pattern, root, limit).catch(() => undefined);
   const paths = fd ?? (await fallbackFind(root, args.pattern, limit));
+  const entries = paths.slice(0, limit).map((path) => ({ path, kind: "file" as const }));
+  const formatted = formatFind(paths, limit);
   return {
     path: root,
-    entries: paths.slice(0, limit).map((path) => ({ path, kind: "file" })),
+    entries,
+    content: formatted.content,
+    contentBlocks: [{ type: "text", text: formatted.content }],
+    details: formatted.details,
   };
 }
 
@@ -30,26 +36,33 @@ async function runFd(
   root: string,
   limit: number,
 ): Promise<string[]> {
-  const { stdout } = await execFileAsync(
-    "fd",
-    [
-      "--hidden",
-      "--glob",
-      "--type",
-      "file",
-      "--max-results",
-      String(limit),
-      "--",
-      pattern,
-      root,
-    ],
-    { timeout: 30_000, maxBuffer: 1024 * 1024 },
-  );
+  const fdArgs = [
+    "--hidden",
+    "--glob",
+    "--type",
+    "file",
+    "--color=never",
+    "--no-require-git",
+    "--max-results",
+    String(limit),
+  ];
+  let effectivePattern = pattern;
+  if (pattern.includes("/")) {
+    fdArgs.push("--full-path");
+    if (!pattern.startsWith("/") && !pattern.startsWith("**/")) {
+      effectivePattern = `**/${pattern}`;
+    }
+  }
+  fdArgs.push("--", effectivePattern, root);
+  const { stdout } = await execFileAsync("fd", fdArgs, {
+    timeout: 30_000,
+    maxBuffer: 1024 * 1024,
+  });
   return stdout
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((path) => relative(root, path) || path);
+    .map((path) => (relative(root, path) || path).replaceAll("\\", "/"));
 }
 
 async function fallbackFind(
@@ -64,9 +77,27 @@ async function fallbackFind(
     root,
     limit,
     async (_absolutePath, relativePath) => {
-      if (regex.test(relativePath)) results.push(relativePath);
+      if (regex.test(relativePath)) results.push(relativePath.replaceAll("\\", "/"));
     },
     () => results.length >= limit,
   );
   return results;
+}
+
+function formatFind(paths: string[], limit: number): {
+  content: string;
+  details?: unknown;
+} {
+  const lines = paths.slice(0, limit);
+  if (lines.length === 0) lines.push("No files found.");
+  if (paths.length >= limit) {
+    lines.push("", `[Result limit ${limit} reached. Increase limit or refine the pattern for more results.]`);
+  }
+  const truncated = truncateHead(lines.join("\n"), {
+    maxLines: Number.MAX_SAFE_INTEGER,
+  });
+  return {
+    content: truncated.text,
+    details: truncated.truncated ? { truncation: truncated } : undefined,
+  };
 }

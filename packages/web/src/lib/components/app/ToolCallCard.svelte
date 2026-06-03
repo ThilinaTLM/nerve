@@ -58,13 +58,43 @@
     }
   }
 
+  function resultSummary(value: unknown): string {
+    if (value === undefined || value === null) return "";
+    if (typeof value === "string") return value;
+    if (typeof value !== "object") return stringify(value);
+    const record = value as Record<string, unknown>;
+    const parts: string[] = [];
+    if (typeof record.content === "string") parts.push(record.content);
+    if (Array.isArray(record.contentBlocks)) {
+      for (const block of record.contentBlocks) {
+        if (!block || typeof block !== "object") continue;
+        const item = block as Record<string, unknown>;
+        if (item.type === "text" && typeof item.text === "string") {
+          if (!parts.includes(item.text)) parts.push(item.text);
+        } else if (item.type === "image" && typeof item.mimeType === "string") {
+          parts.push(`[Image: ${item.mimeType}]`);
+        }
+      }
+    }
+    if (typeof record.stdout === "string" && record.stdout.length > 0) parts.push(`stdout:\n${record.stdout}`);
+    if (typeof record.stderr === "string" && record.stderr.length > 0) parts.push(`stderr:\n${record.stderr}`);
+    if (Array.isArray(record.entries)) parts.push(record.entries.map((entry) => stringify(entry)).join("\n"));
+    if (Array.isArray(record.matches)) parts.push(record.matches.map((match) => stringify(match)).join("\n"));
+    return parts.filter(Boolean).join("\n\n") || stringify(value);
+  }
+
   const argsText = $derived(stringify(toolCall.args));
-  const resultText = $derived(toolCall.error ?? stringify(toolCall.result));
+  const resultText = $derived(toolCall.error ?? resultSummary(toolCall.result));
+  const rawResultText = $derived(stringify(toolCall.result));
   const hasArgs = $derived(argsText.trim().length > 0 && argsText.trim() !== "{}");
   const hasResult = $derived(resultText.trim().length > 0);
+  const hasRawResult = $derived(
+    !toolCall.error && rawResultText.trim().length > 0 && rawResultText.trim() !== resultText.trim(),
+  );
 
   let argsOpen = $state(false);
   let resultOpen = $state(false);
+  let rawResultOpen = $state(false);
 </script>
 
 <article class={`tool-card status-${toolCall.status}`}>
@@ -97,6 +127,16 @@
       </button>
       {#if resultOpen}
         <pre class="tool-pre" class:error={Boolean(toolCall.error)}>{resultText}</pre>
+      {/if}
+    {/if}
+
+    {#if hasRawResult}
+      <button type="button" class="tool-section-toggle raw-toggle" aria-expanded={rawResultOpen} onclick={() => (rawResultOpen = !rawResultOpen)}>
+        <ChevronRight class="chevron" size={12} strokeWidth={2.4} />
+        <span>raw result</span>
+      </button>
+      {#if rawResultOpen}
+        <pre class="tool-pre">{rawResultText}</pre>
       {/if}
     {/if}
   </div>

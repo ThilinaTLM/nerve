@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -100,6 +100,32 @@ describe("orchestrator server routes", () => {
         ).entries.some((entry) => entry.name === ".hidden-app"),
       );
     } finally {
+      state.index.close();
+    }
+  });
+
+  it("saves pasted clipboard images to the temp nerve directory", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    let filePath: string | undefined;
+    try {
+      const response = await app.request("/api/filesystem/clipboard-image", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Screenshot 2026-06-03.png",
+          type: "image/png",
+          dataBase64: Buffer.from([1, 2, 3]).toString("base64"),
+        }),
+      });
+      assert.equal(response.status, 200);
+
+      const body = (await response.json()) as { path: string };
+      filePath = body.path;
+      assert.ok(body.path.startsWith(`${join(tmpdir(), "nerve")}/`));
+      assert.match(body.path, /\/screenshot-2026-06-03-\d{8}T\d{6}Z\.png$/);
+      assert.deepEqual(Array.from(await readFile(body.path)), [1, 2, 3]);
+    } finally {
+      if (filePath) await rm(filePath, { force: true });
       state.index.close();
     }
   });

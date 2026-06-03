@@ -1,6 +1,7 @@
+import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentTool, AgentToolResult } from "@nerve/agent";
-import type { AgentRecord, CoreToolName, ToolCallRecord } from "@nerve/shared";
-import { type CoreToolDefinition, coreToolDefinitions } from "@nerve/tools";
+import type { AgentRecord, ToolCallRecord, ToolName } from "@nerve/shared";
+import { allToolDefinitions, type CoreToolDefinition } from "@nerve/tools";
 import type { ToolService } from "./tool-service.js";
 
 export type AgentToolPromptMetadata = {
@@ -13,15 +14,53 @@ export function createAgentToolsForAgent(
   agent: AgentRecord,
   tools: ToolService,
 ): AgentTool[] {
-  return coreToolDefinitions.map((definition) =>
+  return allToolDefinitions.map((definition) =>
     wrapCoreToolDefinition(definition, agent, tools),
   );
 }
 
-export function activeToolNamesForAgent(agent: AgentRecord): CoreToolName[] {
-  if (agent.permissionLevel === "read_only")
-    return ["read", "grep", "find", "ls", "ask_user"];
-  return ["read", "bash", "edit", "write", "ask_user"];
+export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
+  if (agent.permissionLevel === "read_only") {
+    return [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "process_list",
+      "process_logs",
+      "ask_user",
+    ];
+  }
+  if (agent.mode === "planning") {
+    return [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "write",
+      "edit",
+      "process_list",
+      "process_logs",
+      "subagent_run",
+      "ask_user",
+    ];
+  }
+  return [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls",
+    "process_start",
+    "process_stop",
+    "process_restart",
+    "process_list",
+    "process_logs",
+    "subagent_run",
+    "ask_user",
+  ];
 }
 
 export function toolPromptMetadata(
@@ -32,7 +71,7 @@ export function toolPromptMetadata(
   const guidelines: string[] = [];
   const seenGuidelines = new Set<string>();
 
-  for (const definition of coreToolDefinitions) {
+  for (const definition of allToolDefinitions) {
     if (!active.has(definition.name)) continue;
     if (definition.promptSnippet)
       snippets[definition.name] = definition.promptSnippet;
@@ -78,12 +117,48 @@ function completedToolResult(
   toolCall: ToolCallRecord,
 ): AgentToolResult<unknown> {
   return {
-    content: [{ type: "text", text: formatToolResultForModel(toolCall) }],
+    content: contentBlocksFromResult(toolCall.result) ?? [
+      { type: "text", text: formatToolResultForModel(toolCall) },
+    ],
     details: {
       toolCall,
       result: toolCall.result,
     },
   };
+}
+
+function contentBlocksFromResult(
+  result: unknown,
+): Array<TextContent | ImageContent> | undefined {
+  if (!result || typeof result !== "object") return undefined;
+  const contentBlocks = (result as Record<string, unknown>).contentBlocks;
+  if (!Array.isArray(contentBlocks) || contentBlocks.length === 0) {
+    return undefined;
+  }
+
+  const blocks: Array<TextContent | ImageContent> = [];
+  for (const block of contentBlocks) {
+    if (!block || typeof block !== "object") return undefined;
+    const record = block as Record<string, unknown>;
+    if (record.type === "text" && typeof record.text === "string") {
+      blocks.push({ type: "text", text: record.text });
+      continue;
+    }
+    if (
+      record.type === "image" &&
+      typeof record.data === "string" &&
+      typeof record.mimeType === "string"
+    ) {
+      blocks.push({
+        type: "image",
+        data: record.data,
+        mimeType: record.mimeType,
+      });
+      continue;
+    }
+    return undefined;
+  }
+  return blocks;
 }
 
 function formatToolResultForModel(toolCall: ToolCallRecord): string {

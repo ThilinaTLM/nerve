@@ -1,7 +1,8 @@
-import { access, readdir, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, parse, resolve } from "node:path";
+import { access, mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, extname, join, parse, resolve } from "node:path";
 import {
+  clipboardImageUploadRequestSchema,
   type FilesystemSignal,
   filesystemDirectoryQuerySchema,
 } from "@nerve/shared";
@@ -70,8 +71,46 @@ async function mapBatched<T, U>(
   return results;
 }
 
+const imageExtensionByMime = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/jpg", "jpg"],
+  ["image/gif", "gif"],
+  ["image/webp", "webp"],
+  ["image/svg+xml", "svg"],
+  ["image/bmp", "bmp"],
+  ["image/tiff", "tiff"],
+  ["image/avif", "avif"],
+]);
+
+function slugifyName(name: string | undefined): string {
+  const base = name?.trim() ? name.trim().replace(extname(name.trim()), "") : "clipboard-image";
+  return base
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64) || "clipboard-image";
+}
+
+function timestampSlug(date = new Date()): string {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+async function saveClipboardImage(input: unknown) {
+  const request = clipboardImageUploadRequestSchema.parse(input);
+  const type = request.type.toLowerCase();
+  const ext = imageExtensionByMime.get(type);
+  if (!ext) throw new Error(`Unsupported clipboard image type: ${request.type}`);
+
+  const dir = join(tmpdir(), "nerve");
+  await mkdir(dir, { recursive: true });
+  const filePath = join(dir, `${slugifyName(request.name)}-${timestampSlug()}.${ext}`);
+  await writeFile(filePath, Buffer.from(request.dataBase64, "base64"), { flag: "wx" });
+  return { path: filePath };
+}
+
 async function directoryListing(path: string | undefined, showHidden = false) {
-  const target = resolve(path?.trim() || homedir());
+  const target = resolve(path?.trim() || process.env.HOME || tmpdir());
   const info = await stat(target);
   if (!info.isDirectory()) {
     throw new Error(`${target} is not a directory.`);
@@ -111,6 +150,11 @@ export function createFilesystemRoutes(_state: OrchestratorState): Hono {
       });
       return c.json(await directoryListing(query.path, query.showHidden));
     }),
+  );
+
+  app.post(
+    "/filesystem/clipboard-image",
+    routeHandler(async (c) => c.json(await saveClipboardImage(await c.req.json()))),
   );
 
   return app;

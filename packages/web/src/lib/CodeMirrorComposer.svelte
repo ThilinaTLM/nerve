@@ -15,6 +15,7 @@
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     onChange?: (value: string) => void;
     onSubmit?: () => void;
+    onPasteImage?: (file: File) => Promise<string>;
   };
 
   let {
@@ -25,6 +26,7 @@
     fileCompletions,
     onChange,
     onSubmit,
+    onPasteImage,
   }: Props = $props();
 
   let host: HTMLDivElement;
@@ -84,6 +86,32 @@
     return true;
   }
 
+  function insertAtSelection(text: string) {
+    if (!view) return;
+    const selection = view.state.selection.main;
+    view.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: text },
+      selection: { anchor: selection.from + text.length },
+      scrollIntoView: true,
+    });
+    view.focus();
+  }
+
+  function handlePaste(event: ClipboardEvent) {
+    if (disabled || !onPasteImage) return false;
+    const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (!files.length) return false;
+    event.preventDefault();
+    void Promise.all(files.map((file) => onPasteImage(file)))
+      .then((paths) => insertAtSelection(paths.join("\n")))
+      .catch((error: unknown) => {
+        console.error("Failed to paste clipboard image", error);
+      });
+    return true;
+  }
+
   onMount(() => {
     view = new EditorView({
       parent: host,
@@ -104,6 +132,7 @@
           ),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.lineWrapping,
+          EditorView.domEventHandlers({ paste: handlePaste }),
           EditorView.updateListener.of((update: ViewUpdate) => {
             if (!update.docChanged) return;
             editorValue = update.state.doc.toString();

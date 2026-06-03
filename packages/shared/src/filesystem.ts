@@ -36,3 +36,19 @@ export const filesystemDirectoryQuerySchema = z.object({
 export type FilesystemDirectoryQuery = z.infer<
   typeof filesystemDirectoryQuerySchema
 >;
+
+export const clipboardImageUploadRequestSchema = z.object({
+  name: z.string().optional(),
+  type: z.string().min(1),
+  dataBase64: z.string().min(1),
+});
+export type ClipboardImageUploadRequest = z.infer<
+  typeof clipboardImageUploadRequestSchema
+>;
+
+export const clipboardImageUploadResponseSchema = z.object({
+  path: z.string().min(1),
+});
+export type ClipboardImageUploadResponse = z.infer<
+  typeof clipboardImageUploadResponseSchema
+>;

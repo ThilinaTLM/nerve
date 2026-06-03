@@ -10,7 +10,7 @@ import type {
   UserQuestionStatus,
 } from "@nerve/shared";
 import { createId } from "@nerve/shared";
-import { coreToolDescriptors, executeTool } from "@nerve/tools";
+import { allToolDescriptors, executeTool } from "@nerve/tools";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
 import { evaluateToolPolicy } from "./policy.js";
@@ -76,7 +76,7 @@ export class ToolService {
   }
 
   listTools() {
-    return coreToolDescriptors;
+    return allToolDescriptors;
   }
 
   listToolCalls(): ToolCallRecord[] {
@@ -433,7 +433,10 @@ export class ToolService {
         return this.requestUserQuestion(toolCall, args, options);
       default:
         if (toolCall.toolName === "bash") delete args.cwd;
-        return executeTool(toolCall.toolName, args, { cwd: toolCall.cwd });
+        return executeTool(toolCall.toolName, args, {
+          cwd: toolCall.cwd,
+          signal: options.signal,
+        });
     }
   }
 
