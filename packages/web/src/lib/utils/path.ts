@@ -36,3 +36,22 @@ export function shortenPath(dir?: string, home?: string): string {
   const head = prefix ? [prefix, ...parents] : parents;
   return [...head, leaf].join("/");
 }
+
+/**
+ * Collapse a leading home directory to `~` while keeping every path segment
+ * intact (unlike {@link shortenPath}, which abbreviates intermediate segments).
+ *
+ * e.g. `/home/tlm/Projects/nerve` with home `/home/tlm` → `~/Projects/nerve`
+ */
+export function tildePath(dir?: string, home?: string): string {
+  if (!dir) return "";
+
+  const rest = dir.replace(/\/+$/, "");
+  const normalizedHome = home?.replace(/\/+$/, "");
+
+  if (normalizedHome && rest === normalizedHome) return "~";
+  if (normalizedHome && rest.startsWith(`${normalizedHome}/`)) {
+    return `~${rest.slice(normalizedHome.length)}`;
+  }
+  return rest || dir || "/";
+}

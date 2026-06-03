@@ -5,6 +5,7 @@ import {
   composerDraft,
   loadThemePreference,
 } from "../state/app-state.svelte";
+import { restoreConversationTabs } from "../stores/session-flow.svelte";
 import { loadSettingsPanel } from "../stores/settings.svelte";
 import { workbenchState } from "../stores/workbench/state.svelte";
 import {
@@ -22,6 +23,7 @@ export async function initializeWorkbench(): Promise<void> {
     workbenchState.status = workbenchState.config.status;
     composerDraft.projectDir = workbenchState.config.status.storage.home;
     await Promise.all([loadWorkspaceState(), loadSlashCommands()]);
+    await restoreConversationTabs();
     await loadSettingsPanel();
     connectWebsocket(workbenchState.config.wsUrl);
   } catch (caught) {

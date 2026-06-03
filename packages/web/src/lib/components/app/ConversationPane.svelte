@@ -73,6 +73,7 @@
     onComposerChange,
     onSubmit,
     onAbort,
+    onOpenProject,
     onModelChange,
     onModeChange,
     onPermissionChange,
@@ -191,6 +192,13 @@
       {onGrantApproval}
       {onDenyApproval}
     />
+  {:else}
+    <div class="empty-center">
+      <Sparkles size={30} strokeWidth={1.7} />
+      <p>No conversation open.</p>
+      <span>Open a conversation from the left pane or start a new one.</span>
+      <Button variant="secondary" size="sm" onclick={onOpenProject}>New conversation</Button>
+    </div>
   {/if}
 </section>
 
@@ -304,7 +312,8 @@
     animation: pulse 1s steps(2, start) infinite;
   }
 
-  .empty-run {
+  .empty-run,
+  .empty-center {
     display: grid;
     place-content: center;
     min-height: 100%;
@@ -312,18 +321,27 @@
     text-align: center;
   }
 
-  .empty-run {
+  .empty-run,
+  .empty-center {
     gap: 0.35rem;
     min-height: 22rem;
   }
 
-  .empty-run :global(svg) {
+  .empty-run :global(svg),
+  .empty-center :global(svg) {
     color: hsl(var(--primary));
     justify-self: center;
   }
 
-  .empty-run p {
+  .empty-run p,
+  .empty-center p {
     margin: 0.25rem 0 0;
+    color: hsl(var(--foreground));
+  }
+
+  .empty-center :global(.ui-button) {
+    justify-self: center;
+    margin-top: 0.45rem;
   }
 
   @keyframes pulse {

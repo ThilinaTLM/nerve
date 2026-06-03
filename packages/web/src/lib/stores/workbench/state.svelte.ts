@@ -22,6 +22,17 @@ export type TranscriptItem = {
   text: string;
 };
 
+export type ConversationViewState = {
+  sessionId: string;
+  transcript: TranscriptItem[];
+  treeNodes: SessionTreeNode[];
+  streamingText: string;
+  sending: boolean;
+  error?: string;
+  composerText: string;
+  loading: boolean;
+};
+
 export const workbenchState = $state({
   status: undefined as StatusResponse | undefined,
   config: undefined as ClientConfig | undefined,
@@ -36,6 +47,9 @@ export const workbenchState = $state({
   processes: [] as ProcessRecord[],
   selectedProcessId: undefined as string | undefined,
   processLogs: undefined as ProcessLogQueryResponse | undefined,
+  openConversationTabIds: [] as string[],
+  activeConversationTabId: undefined as string | undefined,
+  conversationViews: {} as Record<string, ConversationViewState>,
   transcript: [] as TranscriptItem[],
   streamingText: "",
   slashCompletions: [] as CompletionItem[],

@@ -4,7 +4,6 @@
   import type { AgentRecord } from "./lib/api";
   import {
     applyTheme,
-    composerDraft,
     layout,
     loadSidebarCollapsed,
     loadUtilityCollapsed,
@@ -14,6 +13,7 @@
     themeState,
   } from "./lib/state/app-state.svelte";
   import ConversationPane from "./lib/components/app/ConversationPane.svelte";
+  import ConversationTabStrip from "./lib/components/app/ConversationTabStrip.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
   import ProjectDirectoryPicker from "./lib/components/app/ProjectDirectoryPicker.svelte";
@@ -22,6 +22,7 @@
   import UtilityPanel from "./lib/components/app/UtilityPanel.svelte";
   import {
     abortActiveRun,
+    closeConversationTab,
     compactActiveSession,
     completeFiles,
     createConversationForDirectory,
@@ -42,6 +43,7 @@
     saveSettings,
     selectProcess,
     sendPrompt,
+    setActiveComposerText,
     setComposerMode,
     setComposerModel,
     setComposerPermission,
@@ -68,6 +70,8 @@
   const processLogs = $derived(workbenchSelectors.processLogs);
   const transcript = $derived(workbenchSelectors.transcript);
   const streamingText = $derived(workbenchSelectors.streamingText);
+  const activeComposerText = $derived(workbenchSelectors.activeComposerText);
+  const openConversationTabs = $derived(workbenchSelectors.openConversationTabs);
   const slashCompletions = $derived(workbenchSelectors.slashCompletions);
   const selectedModelKey = $derived(workbenchSelectors.selectedModelKey);
   const selectedMode = $derived(workbenchSelectors.selectedMode);
@@ -197,6 +201,14 @@
 
         <Pane defaultSize={57} minSize={38} order={2}>
           <div class="pane-shell conversation-shell">
+            <ConversationTabStrip
+              tabs={openConversationTabs}
+              activeSessionId={selection.sessionId}
+              homeDir={status?.storage.home}
+              onSelect={(id) => void openSession(id)}
+              onClose={(id) => void closeConversationTab(id)}
+              onNewConversation={newSession}
+            />
             <ConversationPane
               {activeProject}
               {activeSession}
@@ -211,14 +223,14 @@
               {live}
               {sending}
               {error}
-              composerText={composerDraft.text}
+              composerText={activeComposerText}
               models={usableModels}
               {selectedModelKey}
               mode={selectedMode}
               permissionLevel={selectedPermissionLevel}
               {slashCompletions}
               fileCompletions={completeFiles}
-              onComposerChange={(value) => (composerDraft.text = value)}
+              onComposerChange={setActiveComposerText}
               onSubmit={sendPrompt}
               onAbort={abortActiveRun}
               onOpenProject={openProjectPicker}
@@ -295,6 +307,8 @@
 <ProjectDirectoryPicker
   bind:open={workbenchState.projectPickerOpen}
   {projects}
+  {sessions}
+  homeDir={status?.storage.home}
   onSelect={(path) => void createConversationForDirectory(path)}
 />
 
@@ -334,6 +348,8 @@
   }
 
   .conversation-shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     background: hsl(var(--background));
   }
 

@@ -74,7 +74,7 @@
 
   :global(.switch-root[data-state="checked"]) {
     border-color: hsl(var(--primary));
-    background: hsl(var(--accent));
+    background: hsl(var(--primary));
   }
 
   :global(.switch-root:focus-visible) {
@@ -100,7 +100,7 @@
   }
 
   :global(.switch-root[data-state="checked"] .switch-thumb) {
-    background: hsl(var(--primary));
+    background: hsl(var(--primary-foreground));
     transform: translate(1.08rem, 0.13rem);
   }
 </style>

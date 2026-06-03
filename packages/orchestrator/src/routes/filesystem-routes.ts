@@ -1,10 +1,74 @@
-import { readdir, stat } from "node:fs/promises";
+import { access, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
-import { filesystemDirectoryQuerySchema } from "@nerve/shared";
+import {
+  type FilesystemSignal,
+  filesystemDirectoryQuerySchema,
+} from "@nerve/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function anyPathExists(paths: string[]): Promise<boolean> {
+  return (await Promise.all(paths.map(pathExists))).some(Boolean);
+}
+
+async function detectDirectorySignals(
+  dir: string,
+): Promise<FilesystemSignal[]> {
+  const checks = await Promise.all([
+    pathExists(join(dir, ".git")),
+    pathExists(join(dir, "package.json")),
+    anyPathExists([
+      join(dir, "pnpm-workspace.yaml"),
+      join(dir, "lerna.json"),
+      join(dir, "nx.json"),
+      join(dir, "turbo.json"),
+      join(dir, "yarn.lock"),
+    ]),
+    anyPathExists([
+      join(dir, "pyproject.toml"),
+      join(dir, "requirements.txt"),
+      join(dir, "setup.py"),
+    ]),
+    pathExists(join(dir, "Cargo.toml")),
+    pathExists(join(dir, "go.mod")),
+  ]);
+
+  const signals: FilesystemSignal[] = [];
+  if (checks[0]) signals.push("git");
+  if (checks[1]) signals.push("package");
+  if (checks[2]) signals.push("workspace");
+  if (checks[3]) signals.push("python");
+  if (checks[4]) signals.push("rust");
+  if (checks[5]) signals.push("go");
+  return signals;
+}
+
+async function mapBatched<T, U>(
+  values: T[],
+  batchSize: number,
+  mapper: (value: T) => Promise<U>,
+): Promise<U[]> {
+  const results: U[] = [];
+  for (let index = 0; index < values.length; index += batchSize) {
+    results.push(
+      ...(await Promise.all(
+        values.slice(index, index + batchSize).map(mapper),
+      )),
+    );
+  }
+  return results;
+}
 
 async function directoryListing(path: string | undefined, showHidden = false) {
   const target = resolve(path?.trim() || homedir());
@@ -13,20 +77,25 @@ async function directoryListing(path: string | undefined, showHidden = false) {
     throw new Error(`${target} is not a directory.`);
   }
   const root = parse(target).root;
-  const entries = await readdir(target, { withFileTypes: true });
+  const entries = (await readdir(target, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .filter((entry) => showHidden || !entry.name.startsWith("."))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return {
     path: target,
     parent: target === root ? undefined : dirname(target),
-    entries: entries
-      .filter((entry) => entry.isDirectory())
-      .filter((entry) => showHidden || !entry.name.startsWith("."))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((entry) => ({
+    signals: await detectDirectorySignals(target),
+    entries: await mapBatched(entries, 16, async (entry) => {
+      const entryPath = join(target, entry.name);
+      return {
         name: entry.name,
-        path: join(target, entry.name),
+        path: entryPath,
         kind: "directory" as const,
         hidden: entry.name.startsWith("."),
-      })),
+        signals: await detectDirectorySignals(entryPath),
+      };
+    }),
   };
 }
 

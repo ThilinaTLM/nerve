@@ -7,6 +7,7 @@
   type Props = {
     children?: Snippet;
     footer?: Snippet;
+    headerActions?: Snippet;
     open?: boolean;
     title?: string;
     description?: string;
@@ -18,6 +19,7 @@
   let {
     children,
     footer,
+    headerActions,
     open = $bindable(false),
     title = "Dialog",
     description,
@@ -43,6 +45,11 @@
             <DialogPrimitive.Description class="dialog-description">{description}</DialogPrimitive.Description>
           {/if}
         </div>
+        {#if headerActions}
+          <div class="dialog-header-actions">
+            {@render headerActions()}
+          </div>
+        {/if}
         <DialogPrimitive.Close class="dialog-close" aria-label={closeLabel}>
           <X size={15} strokeWidth={2.25} aria-hidden="true" />
         </DialogPrimitive.Close>
@@ -99,6 +106,16 @@
     border-bottom: 1px solid hsl(var(--border));
   }
 
+  .dialog-header-actions {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+
   .dialog-footer {
     justify-content: flex-end;
     border-top: 1px solid hsl(var(--border));
@@ -106,7 +123,7 @@
 
   .dialog-title-block {
     display: grid;
-    min-width: 0;
+    min-width: min(16rem, 40%);
     gap: 0.16rem;
   }
 

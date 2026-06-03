@@ -1,58 +1,197 @@
 <script lang="ts">
+  import CheckCircle2 from "lucide-svelte/icons/check-circle-2";
+  import ChevronRight from "lucide-svelte/icons/chevron-right";
   import Folder from "lucide-svelte/icons/folder";
   import FolderOpen from "lucide-svelte/icons/folder-open";
+  import GitBranch from "lucide-svelte/icons/git-branch";
   import MoveUp from "lucide-svelte/icons/move-up";
+  import PackageIcon from "lucide-svelte/icons/package";
+  import RefreshCw from "lucide-svelte/icons/refresh-cw";
   import Search from "lucide-svelte/icons/search";
+  import Terminal from "lucide-svelte/icons/terminal";
+  import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
   import Dialog from "../ui/Dialog.svelte";
   import Input from "../ui/Input.svelte";
   import Switch from "../ui/Switch.svelte";
-  import { listDirectories, type FilesystemDirectoryResponse, type ProjectRecord } from "../../api";
+  import {
+    listDirectories,
+    type FilesystemDirectoryResponse,
+    type FilesystemSignal,
+    type ProjectRecord,
+    type SessionRecord,
+  } from "../../api";
+  import { tildePath } from "../../utils/path";
+  import { dateTimeLabel } from "../../utils/time";
 
   type Props = {
     open?: boolean;
     projects?: ProjectRecord[];
+    sessions?: SessionRecord[];
+    homeDir?: string;
     onClose?: () => void;
     onSelect?: (path: string) => void | Promise<void>;
   };
 
-  let { open = $bindable(false), projects = [], onClose, onSelect }: Props = $props();
+  type SignalMeta = {
+    label: string;
+    title: string;
+    tone?: "neutral" | "accent" | "good" | "warn" | "danger" | "running";
+    icon: typeof GitBranch;
+  };
 
-  let pathDraft = $state("");
-  let selectedPath = $state("");
-  let showHidden = $state(false);
+  type FilesystemEntry = FilesystemDirectoryResponse["entries"][number];
+  type Crumb = { label: string; path: string };
+
+  let {
+    open = $bindable(false),
+    projects = [],
+    sessions = [],
+    homeDir,
+    onClose,
+    onSelect,
+  }: Props = $props();
+
+  let query = $state("");
   let listing = $state<FilesystemDirectoryResponse | undefined>(undefined);
   let loading = $state(false);
   let error = $state<string | undefined>(undefined);
+  let showHidden = $state(false);
+  let selectedIndex = $state(-1);
   let wasOpen = $state(false);
   let previousShowHidden = $state(false);
+  let listEl = $state<HTMLDivElement | undefined>(undefined);
+
+  const signalMeta: Record<FilesystemSignal, SignalMeta> = {
+    git: { label: "Git", title: "Git repository", tone: "accent", icon: GitBranch },
+    package: { label: "Pkg", title: "JavaScript package", icon: PackageIcon },
+    workspace: { label: "Workspace", title: "Workspace marker", tone: "accent", icon: PackageIcon },
+    python: { label: "Py", title: "Python project", icon: Terminal },
+    rust: { label: "Rust", title: "Rust project", icon: Terminal },
+    go: { label: "Go", title: "Go module", icon: Terminal },
+  };
+
+  function pathKey(path: string): string {
+    const trimmed = path.trim().replace(/[\\/]+$/, "") || path.trim();
+    return trimmed.toLowerCase();
+  }
+
+  function leafName(path: string | undefined): string {
+    if (!path) return "";
+    const normalized = path.replace(/[\\/]+$/, "");
+    const parts = normalized.split(/[\\/]/).filter(Boolean);
+    return parts.at(-1) ?? (normalized || path);
+  }
+
+  function uniqueSignals(signals: FilesystemSignal[] | undefined): FilesystemSignal[] {
+    return [...new Set(signals ?? [])];
+  }
+
+  function looksLikePath(value: string): boolean {
+    const v = value.trim();
+    return v.startsWith("/") || v.startsWith("~") || v.includes("/");
+  }
+
+  function expandHome(value: string): string {
+    const v = value.trim();
+    if (homeDir && (v === "~" || v.startsWith("~/"))) return `${homeDir}${v.slice(1)}`;
+    return v;
+  }
+
+  function breadcrumbFor(path: string | undefined, home?: string): Crumb[] {
+    if (!path) return [];
+    const norm = path.replace(/\/+$/, "");
+    const normHome = home?.replace(/\/+$/, "");
+    const crumbs: Crumb[] = [];
+    let base = "";
+    let rest = norm;
+
+    if (normHome && (norm === normHome || norm.startsWith(`${normHome}/`))) {
+      crumbs.push({ label: "~", path: normHome });
+      base = normHome;
+      rest = norm.slice(normHome.length);
+    } else {
+      crumbs.push({ label: "/", path: "/" });
+      base = "";
+      rest = norm;
+    }
+
+    let acc = base;
+    for (const part of rest.split("/").filter(Boolean)) {
+      acc = `${acc}/${part}`;
+      crumbs.push({ label: part, path: acc });
+    }
+    return crumbs;
+  }
+
+  const openedProjectKeys = $derived.by(() => new Set(projects.map((project) => pathKey(project.dir))));
+
+  const sessionCounts = $derived.by(() => {
+    const counts = new Map<string, number>();
+    for (const session of sessions) {
+      counts.set(session.projectId, (counts.get(session.projectId) ?? 0) + 1);
+    }
+    return counts;
+  });
 
   const recentProjects = $derived.by(() => {
     const seen = new Set<string>();
     return [...projects]
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .filter((project) => {
-        const key = project.dir.replace(/[\\/]+$/, "") || project.dir;
+        const key = pathKey(project.dir);
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       })
-      .slice(0, 6);
+      .slice(0, 7);
   });
+
+  const filteredEntries = $derived.by(() => {
+    const entries = listing?.entries ?? [];
+    const q = query.trim();
+    if (!q || looksLikePath(q)) return entries;
+    const lower = q.toLowerCase();
+    return entries.filter((entry) => entry.name.toLowerCase().includes(lower));
+  });
+
+  const selectedEntry = $derived<FilesystemEntry | undefined>(
+    selectedIndex >= 0 ? filteredEntries[selectedIndex] : undefined,
+  );
+  const openTargetPath = $derived(selectedEntry?.path ?? listing?.path ?? "");
+  const openTargetSignals = $derived(uniqueSignals(selectedEntry?.signals ?? listing?.signals));
+  const crumbs = $derived(breadcrumbFor(listing?.path, homeDir));
+
+  function isOpened(path: string): boolean {
+    return openedProjectKeys.has(pathKey(path));
+  }
+
+  function sessionCountFor(project: ProjectRecord): number {
+    return sessionCounts.get(project.id) ?? 0;
+  }
 
   async function load(path?: string) {
     loading = true;
     error = undefined;
     try {
       listing = await listDirectories(path, showHidden);
-      pathDraft = listing.path;
-      selectedPath = listing.path;
+      query = "";
+      selectedIndex = -1;
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
-      if (path) selectedPath = path;
     } finally {
       loading = false;
     }
+  }
+
+  function reloadCurrent() {
+    void load(listing?.path || undefined);
+  }
+
+  function scrollActiveIntoView() {
+    requestAnimationFrame(() => {
+      listEl?.querySelector(".row.selected")?.scrollIntoView({ block: "nearest" });
+    });
   }
 
   function handleOpenChange(next: boolean) {
@@ -60,95 +199,199 @@
     if (!next) onClose?.();
   }
 
-  async function selectCurrent() {
-    const path = selectedPath || listing?.path;
+  function handleSubmit(event: Event) {
+    event.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    if (looksLikePath(q)) {
+      void load(expandHome(q));
+      return;
+    }
+    const first = filteredEntries[0];
+    if (first) void load(first.path);
+  }
+
+  async function openTarget() {
+    const path = openTargetPath;
     if (!path) return;
     await onSelect?.(path);
   }
 
+  function handleKeydown(event: KeyboardEvent) {
+    const target = event.target as HTMLElement | null;
+    const inInput = target?.tagName === "INPUT";
+    const count = filteredEntries.length;
+
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        if (count) {
+          selectedIndex = selectedIndex < 0 ? 0 : Math.min(selectedIndex + 1, count - 1);
+          scrollActiveIntoView();
+        }
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        if (count) {
+          selectedIndex = selectedIndex <= 0 ? 0 : selectedIndex - 1;
+          scrollActiveIntoView();
+        }
+        break;
+      case "ArrowRight":
+        if (!inInput && selectedEntry) {
+          event.preventDefault();
+          void load(selectedEntry.path);
+        }
+        break;
+      case "Enter":
+        if (event.metaKey || event.ctrlKey) {
+          event.preventDefault();
+          void openTarget();
+        } else if (!inInput && selectedEntry) {
+          event.preventDefault();
+          void load(selectedEntry.path);
+        }
+        break;
+      case "ArrowLeft":
+        if (!inInput && listing?.parent) {
+          event.preventDefault();
+          void load(listing.parent);
+        }
+        break;
+      case "Backspace":
+        if (query.length === 0 && listing?.parent) {
+          event.preventDefault();
+          void load(listing.parent);
+        }
+        break;
+    }
+  }
+
   $effect(() => {
-    if (open && !wasOpen) void load(pathDraft || undefined);
+    if (open && !wasOpen) void load(listing?.path || undefined);
     wasOpen = open;
   });
 
   $effect(() => {
-    if (open && showHidden !== previousShowHidden) void load(pathDraft || undefined);
+    if (open && showHidden !== previousShowHidden) reloadCurrent();
     previousShowHidden = showHidden;
   });
 </script>
 
 <Dialog
   bind:open
-  title="Open Local Project"
-  description="Choose a directory Nerve can use as the scoped agent workspace."
+  title="Open Project"
   class="project-picker-dialog"
   onOpenChange={handleOpenChange}
 >
-  <div class="picker-body">
-    <form class="path-row" onsubmit={(event) => { event.preventDefault(); void load(pathDraft); }}>
-      <div class="search-input">
-        <Search size={14} strokeWidth={2.2} aria-hidden="true" />
-        <Input bind:value={pathDraft} placeholder="/path/to/project" disabled={loading} ariaLabel="Project directory path" />
-      </div>
-      <Button size="sm" disabled={loading}>Go</Button>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled={!listing?.parent || loading}
-        title="Go to parent directory"
-        onclick={() => void load(listing?.parent)}
-      >
-        <MoveUp size={13} strokeWidth={2.2} />Up
+  {#snippet headerActions()}
+    <nav class="crumbs" aria-label="Current location">
+      {#each crumbs as crumb, i}
+        {#if i > 0}<span class="crumb-sep" aria-hidden="true">/</span>{/if}
+        {#if i === crumbs.length - 1}
+          <span class="crumb current" title={crumb.path}>{crumb.label}</span>
+        {:else}
+          <button class="crumb" type="button" title={crumb.path} disabled={loading} onclick={() => void load(crumb.path)}>
+            {crumb.label}
+          </button>
+        {/if}
+      {/each}
+    </nav>
+    <div class="crumb-tools">
+      <Button variant="toolbar" size="icon" disabled={!listing?.parent || loading} title="Parent directory" onclick={() => void load(listing?.parent)}>
+        <MoveUp size={14} strokeWidth={2.2} />
       </Button>
+      <Button variant="toolbar" size="icon" disabled={loading} title="Refresh" onclick={reloadCurrent}>
+        <RefreshCw size={14} strokeWidth={2.2} />
+      </Button>
+    </div>
+  {/snippet}
+
+  <div class="picker-body" role="presentation" onkeydown={handleKeydown}>
+    <form class="picker-search" onsubmit={handleSubmit}>
+      <Search size={14} strokeWidth={2.2} aria-hidden="true" />
+      <Input
+        bind:value={query}
+        oninput={() => (selectedIndex = -1)}
+        placeholder="Filter folders or paste a path…"
+        disabled={loading}
+        size="sm"
+        ariaLabel="Filter folders or enter a path"
+      />
     </form>
 
-    <div class="picker-options">
-      <span>Recent Directories</span>
-      <Switch bind:checked={showHidden} label="Show hidden" description="Include dot-prefixed folders." />
-    </div>
+    {#if error}
+      <p class="picker-error">{error}</p>
+    {/if}
 
-    {#if error}<p class="picker-error">{error}</p>{/if}
-
-    <div class="picker-content" aria-busy={loading}>
-      <section class="recent-section">
-        {#if recentProjects.length === 0}
-          <p class="muted">No recent projects yet.</p>
-        {:else}
-          <div class="directory-table" role="list" aria-label="Recent directories">
+    <div class="picker-scroll" bind:this={listEl}>
+      {#if recentProjects.length && !query.trim()}
+        <section class="group">
+          <header class="group-head"><span>Recent</span></header>
+          <div class="rows" role="list" aria-label="Recent projects">
             {#each recentProjects as project}
-              <button class="directory-row recent" class:selected={selectedPath === project.dir} type="button" onclick={() => void load(project.dir)} title={project.dir}>
-                <FolderOpen size={15} strokeWidth={2.1} aria-hidden="true" />
-                <span>{project.name}</span>
-                <small>{project.dir}</small>
+              <button class="row" type="button" title={project.dir} onclick={() => void onSelect?.(project.dir)}>
+                <FolderOpen size={16} strokeWidth={2.05} aria-hidden="true" />
+                <span class="row-main"><strong>{project.name}</strong></span>
+                <span class="row-meta">
+                  <small>{sessionCountFor(project)} conv · {dateTimeLabel(project.updatedAt)}</small>
+                  <Badge tone="good" size="xs"><CheckCircle2 size={11} />Opened</Badge>
+                </span>
               </button>
             {/each}
           </div>
-        {/if}
-      </section>
+        </section>
+      {/if}
 
-      <section class="browse-section">
-        <header>
-          <span>Browse Current Directory</span>
-          <small title={listing?.path}>{loading ? "Loading…" : listing?.path ?? "—"}</small>
+      <section class="group">
+        <header class="group-head">
+          <span>Folders</span>
+          {#if loading}<Badge size="xs">Loading…</Badge>{/if}
         </header>
+
         {#if loading}
-          <p class="muted">Loading directories…</p>
-        {:else if listing?.entries.length}
-          <div class="directory-table" role="list" aria-label="Child directories">
-            {#each listing.entries as entry}
-              <button class="directory-row" class:selected={selectedPath === entry.path} type="button" onclick={() => void load(entry.path)} title={entry.path}>
+          <div class="rows" aria-label="Loading directories">
+            {#each Array.from({ length: 7 }) as _}
+              <span class="skeleton-row"></span>
+            {/each}
+          </div>
+        {:else if filteredEntries.length}
+          <div class="rows" role="listbox" aria-label="Folders">
+            {#each filteredEntries as entry, i}
+              <button
+                class="row"
+                class:selected={selectedIndex === i}
+                type="button"
+                role="option"
+                aria-selected={selectedIndex === i}
+                data-index={i}
+                title={entry.path}
+                onclick={() => (selectedIndex = i)}
+                ondblclick={() => void load(entry.path)}
+              >
                 <Folder size={15} strokeWidth={2.1} aria-hidden="true" />
-                <span>{entry.name}</span>
-                <small>{entry.path}</small>
+                <span class="row-main"><strong>{entry.name}</strong></span>
+                <span class="row-badges">
+                  {#if isOpened(entry.path)}
+                    <Badge tone="good" size="xs"><CheckCircle2 size={11} />Opened</Badge>
+                  {/if}
+                  {#each uniqueSignals(entry.signals) as signal}
+                    {@const meta = signalMeta[signal]}
+                    {@const Icon = meta.icon}
+                    <Badge tone={meta.tone ?? "neutral"} size="xs" title={meta.title}>
+                      <Icon size={11} strokeWidth={2.2} />{meta.label}
+                    </Badge>
+                  {/each}
+                  <ChevronRight class="row-chevron" size={15} strokeWidth={2.2} aria-hidden="true" />
+                </span>
               </button>
             {/each}
           </div>
         {:else}
-          <div class="empty-directory">
-            <FolderOpen size={28} strokeWidth={1.8} />
-            <p>No child directories.</p>
-            <span>You can still open the current path.</span>
+          <div class="empty">
+            <FolderOpen size={26} strokeWidth={1.8} />
+            <p>{query.trim() ? "No folders match your filter." : "No subfolders here."}</p>
+            <span>{query.trim() ? "Clear the filter or paste a path." : "Use Open below to choose this folder as the project."}</span>
           </div>
         {/if}
       </section>
@@ -156,60 +399,150 @@
   </div>
 
   {#snippet footer()}
-    <span class="current-path" title={selectedPath || listing?.path}>Selected: {(selectedPath || listing?.path) ?? "—"}</span>
-    <Button variant="secondary" size="sm" onclick={() => handleOpenChange(false)}>Cancel</Button>
-    <Button size="sm" disabled={!(selectedPath || listing?.path) || loading} onclick={selectCurrent}>Open Directory</Button>
+    <div class="footer-path" title={openTargetPath}>
+      <FolderOpen size={14} strokeWidth={2.1} aria-hidden="true" />
+      <span class="footer-path-text">{openTargetPath ? tildePath(openTargetPath, homeDir) : "—"}</span>
+      <span class="footer-signals">
+        {#each openTargetSignals as signal}
+          {@const meta = signalMeta[signal]}
+          {@const Icon = meta.icon}
+          <Badge tone={meta.tone ?? "neutral"} size="xs" title={meta.title}>
+            <Icon size={11} strokeWidth={2.2} />{meta.label}
+          </Badge>
+        {/each}
+      </span>
+    </div>
+    <div class="footer-actions">
+      <Switch bind:checked={showHidden} label="Hidden" class="hidden-switch" />
+      <Button size="sm" disabled={!openTargetPath || loading} onclick={() => void openTarget()}>
+        <FolderOpen size={14} strokeWidth={2.2} />
+        {openTargetPath ? `Open ${leafName(openTargetPath)}` : "Open"}
+      </Button>
+    </div>
   {/snippet}
 </Dialog>
 
 <style>
   :global(.project-picker-dialog) {
-    width: min(840px, calc(100vw - 32px));
+    width: min(680px, calc(100vw - 24px));
+    max-height: min(82vh, 720px);
   }
 
+  :global(.project-picker-dialog .dialog-header) {
+    gap: 0.6rem;
+  }
+
+  :global(.project-picker-dialog .dialog-header-actions) {
+    flex: 1;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  /* Breadcrumb */
+  .crumbs {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 0.15rem;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+
+  .crumb {
+    max-width: 12rem;
+    overflow: hidden;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    padding: 0.1rem 0.3rem;
+    color: hsl(var(--muted-foreground));
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 120ms ease, background 120ms ease;
+  }
+
+  .crumb:hover:not(:disabled),
+  .crumb:focus-visible {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+    outline: none;
+  }
+
+  .crumb.current {
+    color: hsl(var(--foreground));
+    font-weight: var(--weight-medium);
+    cursor: default;
+  }
+
+  .crumb-sep {
+    color: hsl(var(--muted-foreground) / 0.55);
+  }
+
+  .crumb-tools {
+    display: flex;
+    flex: none;
+    gap: 0.3rem;
+  }
+
+  /* Body */
   .picker-body {
     display: grid;
     min-height: 0;
-    grid-template-rows: auto auto auto minmax(0, 1fr);
+    height: 100%;
+    grid-template-rows: auto auto minmax(0, 1fr);
   }
 
-  .path-row,
-  .picker-options {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
-    padding: 0.65rem 0.75rem;
-  }
-
-  .search-input {
+  .picker-search {
     position: relative;
     display: grid;
-    min-width: 0;
-    flex: 1;
+    align-items: center;
+    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    padding: 0.6rem 0.75rem;
   }
 
-  .search-input :global(svg) {
+  .picker-search :global(svg) {
     position: absolute;
     z-index: 1;
     top: 50%;
-    left: 0.65rem;
+    left: 1.3rem;
     color: hsl(var(--muted-foreground));
     transform: translateY(-50%);
     pointer-events: none;
   }
 
-  .search-input :global(.ui-input) {
+  .picker-search :global(.ui-input) {
     padding-left: 2rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
   }
 
-  .picker-options {
-    justify-content: space-between;
-    background: hsl(var(--muted));
+  .picker-error {
+    margin: 0;
+    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    padding: 0.5rem 0.75rem;
+    color: hsl(var(--destructive));
+    font-size: var(--text-xs);
   }
 
-  .picker-options > span,
-  .browse-section header span {
+  .picker-scroll {
+    min-height: 0;
+    overflow: auto;
+    padding: 0.5rem;
+  }
+
+  .group + .group {
+    margin-top: 0.5rem;
+  }
+
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.3rem 0.4rem;
     color: hsl(var(--muted-foreground));
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
@@ -217,158 +550,196 @@
     text-transform: uppercase;
   }
 
-  .picker-error {
-    margin: 0;
-    padding: 0.45rem 0.75rem;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
-    color: hsl(var(--destructive));
-    font-size: var(--text-xs);
-  }
-
-  .picker-content {
+  .rows {
     display: grid;
-    grid-template-columns: minmax(13rem, 0.8fr) minmax(0, 1.2fr);
-    min-height: 23rem;
-    overflow: hidden;
+    gap: 0.12rem;
   }
 
-  .recent-section,
-  .browse-section {
-    min-height: 0;
-    overflow: auto;
-    padding: 0.45rem;
-  }
-
-  .recent-section {
-    border-right: 1px solid hsl(var(--border) / 0.6);
-    background: hsl(var(--muted));
-  }
-
-  .browse-section header {
-    display: flex;
+  .row {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-bottom: 0.4rem;
-    padding: 0.1rem 0.2rem;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 2.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    padding: 0.3rem 0.5rem;
+    color: hsl(var(--foreground));
+    text-align: left;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
   }
 
-  .browse-section header small {
+  .row > :global(svg) {
+    color: hsl(var(--primary));
+  }
+
+  .row-main {
+    min-width: 0;
+  }
+
+  .row-main strong {
+    display: block;
     overflow: hidden;
-    color: hsl(var(--muted-foreground));
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .directory-table {
-    display: grid;
-    gap: 0.14rem;
-  }
-
-  .directory-row {
-    position: relative;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto auto;
+  .row-meta,
+  .row-badges {
+    display: flex;
     align-items: center;
-    width: 100%;
-    column-gap: 0.6rem;
-    row-gap: 0.05rem;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: hsl(var(--foreground));
-    padding: 0.45rem 0.5rem 0.45rem 0.65rem;
-    text-align: left;
-    cursor: pointer;
+    justify-content: flex-end;
+    gap: 0.4rem;
   }
 
-  .directory-row span {
-    grid-column: 2;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
+  .row-meta small {
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    white-space: nowrap;
   }
 
-  .directory-row small {
-    grid-column: 2;
+  .row :global(.row-chevron) {
+    color: hsl(var(--muted-foreground));
+    opacity: 0;
+    transition: opacity 120ms ease;
   }
 
-  .directory-row.selected span {
-    color: hsl(var(--primary));
-  }
-
-  .directory-row:hover,
-  .directory-row:focus-visible,
-  .directory-row.selected {
+  .row:hover,
+  .row:focus-visible,
+  .row.selected {
     border-color: hsl(var(--border));
     background: hsl(var(--accent));
+    outline: none;
   }
 
-  .directory-row.selected::before {
+  .row:hover :global(.row-chevron),
+  .row.selected :global(.row-chevron) {
+    opacity: 1;
+  }
+
+  .row.selected::before {
     content: "";
     position: absolute;
-    inset: 0.15rem auto 0.15rem 0;
+    inset: 0.2rem auto 0.2rem 0;
     width: 2px;
     border-radius: 999px;
     background: hsl(var(--primary));
   }
 
-  .directory-row :global(svg) {
-    grid-row: 1 / 3;
-    color: hsl(var(--primary));
+  .skeleton-row {
+    height: 2.25rem;
+    border-radius: var(--radius-md);
+    background: linear-gradient(90deg, hsl(var(--muted) / 0.45), hsl(var(--accent) / 0.65), hsl(var(--muted) / 0.45));
+    background-size: 220% 100%;
+    animation: picker-sheen 1.2s ease-in-out infinite;
   }
 
-  .directory-row span,
-  .directory-row small,
-  .current-path {
-    overflow: hidden;
-    min-width: 0;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  @keyframes picker-sheen {
+    from { background-position: 120% 0; }
+    to { background-position: -120% 0; }
   }
 
-  .directory-row small,
-  .current-path,
-  .muted,
-  .empty-directory span {
-    color: hsl(var(--muted-foreground));
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-row { animation: none; }
   }
 
-  .empty-directory {
+  .empty {
     display: grid;
     place-items: center;
-    min-height: 14rem;
+    min-height: 12rem;
+    gap: 0.3rem;
     color: hsl(var(--muted-foreground));
     text-align: center;
   }
 
-  .empty-directory p {
-    margin: 0.5rem 0 0.1rem;
+  .empty p {
+    margin: 0.3rem 0 0;
     color: hsl(var(--foreground));
+    font-size: var(--text-sm);
   }
 
-  .muted {
-    margin: 0.45rem;
+  .empty span {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
   }
 
-  .current-path {
-    margin-right: auto;
-    max-width: min(34rem, 52vw);
+  /* Footer */
+  :global(.project-picker-dialog .dialog-footer) {
+    justify-content: space-between;
+    gap: 0.75rem;
   }
 
-  @media (max-width: 760px) {
-    .picker-content {
-      grid-template-columns: minmax(0, 1fr);
+  .footer-path {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 0.4rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .footer-path > :global(svg) {
+    flex: none;
+    color: hsl(var(--primary));
+  }
+
+  .footer-path-text {
+    overflow: hidden;
+    min-width: 0;
+    color: hsl(var(--foreground));
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .footer-signals {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .footer-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  :global(.hidden-switch) {
+    height: var(--control-height-sm);
+    gap: 0.45rem;
+    border: 1px solid hsl(var(--border) / 0.6);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--input));
+    padding: 0 0.45rem;
+    font-size: var(--text-xs);
+  }
+
+  :global(.hidden-switch) :global(.switch-copy small) {
+    display: none;
+  }
+
+  @media (max-width: 560px) {
+    :global(.project-picker-dialog) {
+      width: calc(100vw - 12px);
+      max-height: calc(100vh - 12px);
     }
 
-    .recent-section {
-      border-right: 0;
-      border-bottom: 1px solid hsl(var(--border) / 0.6);
+    .crumb {
+      max-width: 7rem;
     }
 
+    .footer-actions :global(.hidden-switch) :global(.switch-copy) {
+      display: none;
+    }
   }
 </style>

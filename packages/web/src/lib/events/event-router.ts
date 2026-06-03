@@ -2,13 +2,17 @@ import type { EventEnvelope } from "../api";
 import { getProcessLogs } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
-import { openSession } from "../stores/session-flow.svelte";
+import {
+  ensureConversationView,
+  openSession,
+  refreshSessionView,
+} from "../stores/session-flow.svelte";
 import { loadSettingsPanel } from "../stores/settings.svelte";
 import { workbenchState } from "../stores/workbench/state.svelte";
 import { loadWorkspaceState } from "../stores/workspace.svelte";
 
 export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
-  if (isSelectedAgentStreamEvent(event)) handleSelectedAgentStreamEvent(event);
+  if (isAgentStreamEvent(event)) handleAgentStreamEvent(event);
   if (event.type === "process.log") {
     const processId = String(event.data?.processId ?? "");
     if (processId && processId === workbenchState.selectedProcessId) {
@@ -25,48 +29,87 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   }
 }
 
-export function isSelectedAgentStreamEvent(
+export function isAgentStreamEvent(
   event: EventEnvelope<Record<string, unknown>>,
 ): boolean {
-  if (
-    event.type !== "agent.message_delta" &&
-    event.type !== "agent.message_complete" &&
-    event.type !== "agent.error"
-  ) {
-    return false;
-  }
-  const agentId = event.data?.agentId;
-  return !agentId || agentId === selection.agentId;
+  return (
+    event.type === "agent.message_delta" ||
+    event.type === "agent.message_complete" ||
+    event.type === "agent.error"
+  );
 }
 
-export function handleSelectedAgentStreamEvent(
+function sessionIdForAgentEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+): string | undefined {
+  const sessionId = event.data?.sessionId;
+  if (typeof sessionId === "string" && sessionId.startsWith("ses_")) {
+    return sessionId;
+  }
+  const agentId = event.data?.agentId;
+  if (typeof agentId !== "string") return undefined;
+  return workbenchState.agents.find((agent) => agent.id === agentId)?.sessionId;
+}
+
+export function handleAgentStreamEvent(
   event: EventEnvelope<Record<string, unknown>>,
 ) {
+  const sessionId = sessionIdForAgentEvent(event);
+  if (
+    !sessionId ||
+    !workbenchState.openConversationTabIds.includes(sessionId)
+  ) {
+    return;
+  }
+  const view = ensureConversationView(sessionId);
+  const active = selection.sessionId === sessionId;
+
   if (event.type === "agent.message_delta") {
-    workbenchState.streamingText += String(event.data?.delta ?? "");
+    view.streamingText += String(event.data?.delta ?? "");
+    view.sending = true;
+    if (active) {
+      workbenchState.streamingText = view.streamingText;
+      workbenchState.sending = true;
+    }
   }
   if (event.type === "agent.message_complete") {
     const entry = event.data?.entry as
       | { id?: string; text?: string }
       | undefined;
     const text =
-      workbenchState.streamingText ||
-      entry?.text ||
-      String(event.data?.text ?? "");
+      view.streamingText || entry?.text || String(event.data?.text ?? "");
     if (text) {
-      workbenchState.transcript = [
-        ...workbenchState.transcript,
+      view.transcript = [
+        ...view.transcript,
         { id: entry?.id, role: "assistant", text },
       ];
     }
-    selection.entryId = entry?.id ?? selection.entryId;
-    workbenchState.streamingText = "";
-    workbenchState.sending = false;
-    if (selection.sessionId) void openSession(selection.sessionId);
+    view.streamingText = "";
+    view.sending = false;
+    view.error = undefined;
+    if (active) {
+      selection.entryId = entry?.id ?? selection.entryId;
+      workbenchState.transcript = view.transcript;
+      workbenchState.streamingText = "";
+      workbenchState.sending = false;
+      workbenchState.error = undefined;
+    }
+    void refreshSessionView(sessionId).then(() => {
+      if (selection.sessionId === sessionId) void openSession(sessionId);
+    });
   }
   if (event.type === "agent.error") {
-    workbenchState.error = String(event.data?.message ?? "Agent error");
-    workbenchState.sending = false;
+    const aborted = Boolean(event.data?.aborted);
+    view.error = aborted
+      ? undefined
+      : String(event.data?.message ?? "Agent error");
+    view.sending = false;
+    view.streamingText = "";
+    if (active) {
+      workbenchState.error = view.error;
+      workbenchState.sending = false;
+      workbenchState.streamingText = "";
+    }
   }
 }
 

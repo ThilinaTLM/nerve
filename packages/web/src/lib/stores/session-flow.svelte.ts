@@ -24,22 +24,59 @@ import {
   selectedModel,
 } from "./composer-config.svelte";
 import { navigateToSettingsPanel } from "./settings.svelte";
+import {
+  filterStoredTabsAgainstSessions,
+  loadStoredConversationTabs,
+  saveConversationTabs,
+} from "./workbench/conversation-tabs";
+import type { ConversationViewState } from "./workbench/state.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 import { entriesToTranscript } from "./workbench/transcript";
 import { loadWorkspaceState } from "./workspace.svelte";
 
-export async function openSession(sessionId: string) {
-  const session =
-    workbenchState.sessions.find((candidate) => candidate.id === sessionId) ??
-    (await apiGet<{ session: SessionRecord }>(`/api/sessions/${sessionId}`))
-      .session;
-  selection.sessionId = session.id;
-  selection.projectId = session.projectId;
-  selection.agentId =
-    session.activeAgentId ??
-    workbenchState.agents.find((agent) => agent.sessionId === session.id)?.id;
-  selection.entryId = session.activeEntryId;
-  const project =
+export function ensureConversationView(
+  sessionId: string,
+): ConversationViewState {
+  workbenchState.conversationViews[sessionId] ??= {
+    sessionId,
+    transcript: [],
+    treeNodes: [],
+    streamingText: "",
+    sending: false,
+    composerText: "",
+    loading: false,
+  };
+  return workbenchState.conversationViews[sessionId];
+}
+
+function persistConversationTabs() {
+  saveConversationTabs(
+    workbenchState.openConversationTabIds,
+    workbenchState.activeConversationTabId,
+  );
+}
+
+function addConversationTab(sessionId: string) {
+  if (!workbenchState.openConversationTabIds.includes(sessionId)) {
+    workbenchState.openConversationTabIds = [
+      ...workbenchState.openConversationTabIds,
+      sessionId,
+    ];
+  }
+  ensureConversationView(sessionId);
+}
+
+function agentForSession(session: SessionRecord): AgentRecord | undefined {
+  return workbenchState.agents.find(
+    (agent) =>
+      agent.id === session.activeAgentId || agent.sessionId === session.id,
+  );
+}
+
+async function projectForSession(
+  session: SessionRecord,
+): Promise<ProjectRecord> {
+  return (
     workbenchState.projects.find(
       (candidate) => candidate.id === session.projectId,
     ) ??
@@ -47,26 +84,151 @@ export async function openSession(sessionId: string) {
       await apiGet<{ project: ProjectRecord }>(
         `/api/projects/${session.projectId}`,
       )
-    ).project;
-  composerDraft.projectDir = project.dir;
-  const sessionAgent = workbenchState.agents.find(
-    (agent) => agent.id === selection.agentId,
+    ).project
   );
+}
+
+async function applyActiveSessionSelection(session: SessionRecord) {
+  selection.sessionId = session.id;
+  selection.projectId = session.projectId;
+  const sessionAgent = agentForSession(session);
+  selection.agentId = session.activeAgentId ?? sessionAgent?.id;
+  selection.entryId = session.activeEntryId;
+  const project = await projectForSession(session);
+  composerDraft.projectDir = project.dir;
   if (sessionAgent?.model) {
     workbenchState.selectedModelKey = modelKey(sessionAgent.model);
   }
   workbenchState.selectedMode = sessionAgent?.mode ?? session.mode;
   workbenchState.selectedPermissionLevel =
     sessionAgent?.permissionLevel ?? session.permissionLevel;
-  const [entries, tree] = await Promise.all([
-    getSessionMessages(session.id),
-    getSessionTree(session.id),
-  ]);
-  workbenchState.transcript = entriesToTranscript(entries);
-  workbenchState.treeNodes = tree.nodes;
-  selection.entryId = tree.activeEntryId;
+}
+
+function clearActiveSelection() {
+  resetSelection();
+  workbenchState.activeConversationTabId = undefined;
+  workbenchState.treeNodes = [];
+  workbenchState.transcript = [];
   workbenchState.streamingText = "";
   workbenchState.sending = false;
+  workbenchState.error = undefined;
+  composerDraft.text = "";
+}
+
+export async function refreshSessionView(sessionId: string) {
+  const view = ensureConversationView(sessionId);
+  view.loading = true;
+  try {
+    const [entries, tree] = await Promise.all([
+      getSessionMessages(sessionId),
+      getSessionTree(sessionId),
+    ]);
+    const nextTranscript = entriesToTranscript(entries);
+    if (!view.sending || nextTranscript.length >= view.transcript.length) {
+      view.transcript = nextTranscript;
+    }
+    view.treeNodes = tree.nodes;
+    if (selection.sessionId === sessionId) {
+      selection.entryId = tree.activeEntryId;
+      workbenchState.treeNodes = tree.nodes;
+      workbenchState.transcript = view.transcript;
+    }
+  } finally {
+    view.loading = false;
+  }
+}
+
+export async function openSession(sessionId: string) {
+  const session =
+    workbenchState.sessions.find((candidate) => candidate.id === sessionId) ??
+    (await apiGet<{ session: SessionRecord }>(`/api/sessions/${sessionId}`))
+      .session;
+  addConversationTab(session.id);
+  workbenchState.activeConversationTabId = session.id;
+  persistConversationTabs();
+  await applyActiveSessionSelection(session);
+  await refreshSessionView(session.id);
+  const view = ensureConversationView(session.id);
+  workbenchState.streamingText = view.streamingText;
+  workbenchState.sending = view.sending;
+  workbenchState.error = view.error;
+}
+
+export async function restoreConversationTabs() {
+  const stored = loadStoredConversationTabs();
+  const tabIds = filterStoredTabsAgainstSessions(
+    stored.tabIds,
+    workbenchState.sessions,
+  );
+  workbenchState.openConversationTabIds = tabIds;
+  for (const sessionId of tabIds) ensureConversationView(sessionId);
+  const activeId =
+    stored.activeId && tabIds.includes(stored.activeId)
+      ? stored.activeId
+      : tabIds[0];
+  workbenchState.activeConversationTabId = activeId;
+  persistConversationTabs();
+  if (activeId) await openSession(activeId);
+}
+
+export function setActiveComposerText(value: string) {
+  if (!selection.sessionId) {
+    composerDraft.text = value;
+    return;
+  }
+  ensureConversationView(selection.sessionId).composerText = value;
+}
+
+export async function closeConversationTab(sessionId: string) {
+  const currentIds = workbenchState.openConversationTabIds;
+  const closingIndex = currentIds.indexOf(sessionId);
+  if (closingIndex === -1) return;
+  const nextIds = currentIds.filter((id) => id !== sessionId);
+  workbenchState.openConversationTabIds = nextIds;
+  delete workbenchState.conversationViews[sessionId];
+
+  if (selection.sessionId !== sessionId) {
+    persistConversationTabs();
+    return;
+  }
+
+  const nextSessionId = nextIds[closingIndex] ?? nextIds[closingIndex - 1];
+  if (nextSessionId) {
+    workbenchState.activeConversationTabId = nextSessionId;
+    persistConversationTabs();
+    await openSession(nextSessionId);
+    return;
+  }
+
+  clearActiveSelection();
+  persistConversationTabs();
+}
+
+export async function removeConversationTabs(sessionIds: string[]) {
+  const removing = new Set(sessionIds);
+  const activeRemoved = selection.sessionId
+    ? removing.has(selection.sessionId)
+    : false;
+  workbenchState.openConversationTabIds =
+    workbenchState.openConversationTabIds.filter((id) => !removing.has(id));
+  for (const sessionId of removing)
+    delete workbenchState.conversationViews[sessionId];
+
+  if (!activeRemoved) {
+    persistConversationTabs();
+    return;
+  }
+
+  const nextSessionId = workbenchState.openConversationTabIds[0];
+  if (nextSessionId) {
+    workbenchState.activeConversationTabId = nextSessionId;
+    persistConversationTabs();
+    await openSession(nextSessionId);
+    return;
+  }
+
+  clearActiveSelection();
+  persistConversationTabs();
 }
 
 export async function navigateToEntry(
@@ -74,30 +236,31 @@ export async function navigateToEntry(
   summarize = false,
 ) {
   if (!selection.sessionId) return;
-  await apiPost(`/api/sessions/${selection.sessionId}/navigate`, {
+  const sessionId = selection.sessionId;
+  await apiPost(`/api/sessions/${sessionId}/navigate`, {
     activeEntryId: entryId ?? null,
     summarize,
   });
   await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
   await loadWorkspaceState();
-  await openSession(selection.sessionId);
+  await openSession(sessionId);
 }
 
 export async function compactActiveSession() {
   if (!selection.sessionId) return;
-  await compactSession(selection.sessionId);
+  const sessionId = selection.sessionId;
+  await compactSession(sessionId);
   await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
   await loadWorkspaceState();
-  await openSession(selection.sessionId);
+  await openSession(sessionId);
 }
 
 export function clearConversationState() {
-  resetSelection();
-  workbenchState.transcript = [];
-  workbenchState.treeNodes = [];
-  workbenchState.streamingText = "";
-  workbenchState.sending = false;
-  composerDraft.text = "";
+  workbenchState.openConversationTabIds = [];
+  workbenchState.activeConversationTabId = undefined;
+  workbenchState.conversationViews = {};
+  clearActiveSelection();
+  persistConversationTabs();
 }
 
 export async function ensureAgent(): Promise<string> {
@@ -152,20 +315,31 @@ export async function denyApproval(approvalId: string) {
 
 export async function abortActiveRun() {
   if (!selection.agentId) return;
+  const view = selection.sessionId
+    ? ensureConversationView(selection.sessionId)
+    : undefined;
   await apiPost(`/api/agents/${selection.agentId}/abort`, {});
+  if (view) {
+    view.sending = false;
+    view.streamingText = "";
+  }
   workbenchState.sending = false;
   workbenchState.streamingText = "";
 }
 
 export async function sendPrompt() {
-  const text = composerDraft.text.trim();
-  if (!text || workbenchState.sending) return;
+  const view = selection.sessionId
+    ? ensureConversationView(selection.sessionId)
+    : undefined;
+  const text = (view?.composerText ?? composerDraft.text).trim();
+  if (!text || view?.sending || workbenchState.sending) return;
   if (text === "/abort") {
+    if (view) view.composerText = "";
     composerDraft.text = "";
     await abortActiveRun();
     return;
   }
-  if (!selection.projectId || !selection.sessionId) {
+  if (!selection.projectId || !selection.sessionId || !view) {
     workbenchState.projectPickerOpen = true;
     workbenchState.error =
       "Select a project directory before starting a conversation.";
@@ -176,24 +350,28 @@ export async function sendPrompt() {
       .length === 0
   ) {
     navigateToSettingsPanel();
-    workbenchState.error =
-      "Configure a model provider in Settings before prompting.";
+    view.error = "Configure a model provider in Settings before prompting.";
+    workbenchState.error = view.error;
     return;
   }
+  view.sending = true;
+  view.error = undefined;
+  view.streamingText = "";
   workbenchState.sending = true;
   workbenchState.error = undefined;
   workbenchState.streamingText = "";
   try {
     const agentId = await ensureAgent();
-    workbenchState.transcript = [
-      ...workbenchState.transcript,
-      { role: "user", text },
-    ];
+    view.transcript = [...view.transcript, { role: "user", text }];
+    workbenchState.transcript = view.transcript;
+    view.composerText = "";
     composerDraft.text = "";
     await apiPost(`/api/agents/${agentId}/prompt`, { text });
   } catch (caught) {
-    workbenchState.error =
-      caught instanceof Error ? caught.message : String(caught);
+    const message = caught instanceof Error ? caught.message : String(caught);
+    view.error = message;
+    workbenchState.error = message;
+    view.sending = false;
     workbenchState.sending = false;
   }
 }

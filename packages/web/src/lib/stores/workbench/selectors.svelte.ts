@@ -1,6 +1,25 @@
+import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
 import { selection } from "../../state/app-state.svelte";
 import { usableModelOptions } from "../../utils/model";
+import type { ConversationViewState } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
+
+export type ConversationTabModel = {
+  session: SessionRecord;
+  project?: ProjectRecord;
+  agent?: AgentRecord;
+  active: boolean;
+  hasDraft: boolean;
+  sending: boolean;
+  error?: string;
+};
+
+function activeView(): ConversationViewState | undefined {
+  const sessionId =
+    selection.sessionId ?? workbenchState.activeConversationTabId;
+  if (!sessionId) return undefined;
+  return workbenchState.conversationViews[sessionId];
+}
 
 export const workbenchSelectors = {
   get status() {
@@ -10,10 +29,10 @@ export const workbenchSelectors = {
     return workbenchState.connection;
   },
   get error() {
-    return workbenchState.error;
+    return activeView()?.error ?? workbenchState.error;
   },
   get sending() {
-    return workbenchState.sending;
+    return activeView()?.sending ?? false;
   },
   get projects() {
     return workbenchState.projects;
@@ -31,16 +50,19 @@ export const workbenchSelectors = {
     return workbenchState.processes;
   },
   get treeNodes() {
-    return workbenchState.treeNodes;
+    return activeView()?.treeNodes ?? [];
   },
   get processLogs() {
     return workbenchState.processLogs;
   },
   get transcript() {
-    return workbenchState.transcript;
+    return activeView()?.transcript ?? [];
   },
   get streamingText() {
-    return workbenchState.streamingText;
+    return activeView()?.streamingText ?? "";
+  },
+  get activeComposerText() {
+    return activeView()?.composerText ?? "";
   },
   get slashCompletions() {
     return workbenchState.slashCompletions;
@@ -78,11 +100,44 @@ export const workbenchSelectors = {
       (agent) => agent.id === selection.agentId,
     );
   },
+  get activeConversationView() {
+    return activeView();
+  },
+  get openConversationTabs(): ConversationTabModel[] {
+    const tabs: ConversationTabModel[] = [];
+    for (const sessionId of workbenchState.openConversationTabIds) {
+      const session = workbenchState.sessions.find(
+        (candidate) => candidate.id === sessionId,
+      );
+      if (!session) continue;
+      const project = workbenchState.projects.find(
+        (candidate) => candidate.id === session.projectId,
+      );
+      const agent = workbenchState.agents.find(
+        (candidate) =>
+          candidate.id === session.activeAgentId ||
+          candidate.sessionId === session.id,
+      );
+      const view = workbenchState.conversationViews[session.id];
+      tabs.push({
+        session,
+        project,
+        agent,
+        active: session.id === selection.sessionId,
+        hasDraft: Boolean(view?.composerText.trim()),
+        sending: Boolean(view?.sending || agent?.status === "running"),
+        error:
+          view?.error ??
+          (agent?.status === "error" ? "Agent error" : undefined),
+      });
+    }
+    return tabs;
+  },
   get live() {
     return workbenchState.connection === "live";
   },
   get branchDepth() {
-    return workbenchState.treeNodes.length;
+    return (activeView()?.treeNodes ?? workbenchState.treeNodes).length;
   },
   /**
    * Reserved seam for git status. The orchestrator does not expose git data yet,

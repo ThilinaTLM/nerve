@@ -94,6 +94,11 @@ Variant grammar:
 - `AlertDialog`: `title` / `description` / `confirmLabel` / `cancelLabel` /
   `destructive` + `onConfirm`. (`Action` does not auto-close; the wrapper closes after
   `onConfirm`.) Use it for destructive confirmations instead of a generic `Dialog`.
+- `Switch`: the **on** state uses a solid `primary` track with a `primary-foreground`
+  thumb (off = `input` track with a `muted-foreground` thumb). This is the sanctioned
+  solid fill for a primary affordance and is an intentional exception to the
+  "active = subtle fill" rule, which governs row/hover fills — a toggle must read its
+  state at a glance.
 
 ## Shell
 
@@ -101,9 +106,12 @@ A persistent header + footer wrap three resizable panes (Paneforge):
 
 - **Left — Agents (`sidebar`):** search + project→session tree. Right-click rows for
   actions; selected rows get a quiet `accent` fill and a thin rail.
-- **Center — Conversation (`background`):** a continuous transcript (no sub-header) and
-  the composer dock. Each message has a gutter icon; code blocks get a header
-  (language + Copy) over a neutral syntax-highlighted body.
+- **Center — Conversation (`background`):** a VSCode-like tab strip for open
+  conversations, followed by the continuous transcript and composer dock. Tabs are
+  conversations, not files; closing a tab is non-destructive and only removes it
+  from the middle pane. The left tree remains the source of all conversations.
+  Each message has a gutter icon; code blocks get a header (language + Copy) over
+  a neutral syntax-highlighted body.
 - **Right — Utility (`sidebar`):** History / Processes / Context tabs.
 
 ### Header (48px)

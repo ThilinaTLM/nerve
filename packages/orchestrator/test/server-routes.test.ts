@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -41,6 +41,63 @@ describe("orchestrator server routes", () => {
       assert.equal(
         ((await response.json()) as { error: { code: string } }).error.code,
         "UNAUTHORIZED",
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("returns directory listings with shallow project signals and hidden filtering", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const root = await tempHome("nerve-fs-routes-");
+      const jsProject = join(root, "js-app");
+      const pyProject = join(root, "py-tool");
+      const hiddenProject = join(root, ".hidden-app");
+      await mkdir(join(jsProject, ".git"), { recursive: true });
+      await mkdir(pyProject, { recursive: true });
+      await mkdir(hiddenProject, { recursive: true });
+      await writeFile(join(jsProject, "package.json"), "{}\n");
+      await writeFile(join(root, "pnpm-workspace.yaml"), "packages: []\n");
+      await writeFile(
+        join(pyProject, "pyproject.toml"),
+        '[project]\nname = "py-tool"\n',
+      );
+
+      const response = await app.request(
+        `/api/filesystem/directories?path=${encodeURIComponent(root)}`,
+        { headers },
+      );
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+        path: string;
+        signals: string[];
+        entries: Array<{ name: string; signals: string[] }>;
+      };
+      assert.equal(body.path, root);
+      assert.ok(body.signals.includes("workspace"));
+      assert.equal(
+        body.entries.some((entry) => entry.name === ".hidden-app"),
+        false,
+      );
+      assert.deepEqual(
+        body.entries.find((entry) => entry.name === "js-app")?.signals,
+        ["git", "package"],
+      );
+      assert.deepEqual(
+        body.entries.find((entry) => entry.name === "py-tool")?.signals,
+        ["python"],
+      );
+
+      const withHidden = await app.request(
+        `/api/filesystem/directories?path=${encodeURIComponent(root)}&showHidden=true`,
+        { headers },
+      );
+      assert.equal(withHidden.status, 200);
+      assert.ok(
+        (
+          (await withHidden.json()) as { entries: Array<{ name: string }> }
+        ).entries.some((entry) => entry.name === ".hidden-app"),
       );
     } finally {
       state.index.close();

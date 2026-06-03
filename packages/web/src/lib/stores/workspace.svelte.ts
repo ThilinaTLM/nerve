@@ -16,7 +16,7 @@ import {
 import { queryClient, queryKeys } from "../query";
 import { composerDraft, selection } from "../state/app-state.svelte";
 import { selectedModel } from "./composer-config.svelte";
-import { clearConversationState, openSession } from "./session-flow.svelte";
+import { openSession, removeConversationTabs } from "./session-flow.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 
 export async function loadWorkspaceState() {
@@ -28,6 +28,11 @@ export async function loadWorkspaceState() {
   workbenchState.sessions = snapshot.sessions;
   workbenchState.agents = snapshot.agents;
   workbenchState.processes = snapshot.processes;
+  const sessionIds = new Set(snapshot.sessions.map((session) => session.id));
+  const staleOpenTabIds = workbenchState.openConversationTabIds.filter(
+    (sessionId) => !sessionIds.has(sessionId),
+  );
+  if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
   workbenchState.selectedProcessId =
     workbenchState.selectedProcessId ?? workbenchState.processes[0]?.id;
   workbenchState.approvals = await getPendingApprovals();
@@ -130,8 +135,11 @@ async function handleExistingEmptyConversation(dir: string): Promise<boolean> {
 
 export async function deleteProjectAndRefresh(projectId: string) {
   try {
+    const sessionIds = workbenchState.sessions
+      .filter((session) => session.projectId === projectId)
+      .map((session) => session.id);
     await deleteProject(projectId);
-    if (selection.projectId === projectId) clearConversationState();
+    await removeConversationTabs(sessionIds);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     toast.success("Project removed");
@@ -145,7 +153,7 @@ export async function deleteProjectAndRefresh(projectId: string) {
 export async function deleteSessionAndRefresh(sessionId: string) {
   try {
     await deleteSession(sessionId);
-    if (selection.sessionId === sessionId) clearConversationState();
+    await removeConversationTabs([sessionId]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     toast.success("Conversation removed");
@@ -160,7 +168,6 @@ export async function createConversationForDirectory(dir: string) {
   workbenchState.error = undefined;
   try {
     if (await handleExistingEmptyConversation(dir)) return;
-    clearConversationState();
     const { project } = await apiPost<{ project: ProjectRecord }>(
       "/api/projects",
       {
@@ -188,10 +195,6 @@ export async function createConversationForDirectory(dir: string) {
     selection.entryId = session.activeEntryId;
     selection.agentId = agent.id;
     composerDraft.projectDir = project.dir;
-    workbenchState.transcript = [];
-    workbenchState.treeNodes = [];
-    workbenchState.streamingText = "";
-    workbenchState.sending = false;
     workbenchState.projectPickerOpen = false;
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
