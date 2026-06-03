@@ -11,6 +11,7 @@ export const selection = $state({
 export const layout = $state({
   utilityTab: "history" as UtilityTab,
   sidebarCollapsed: false,
+  utilityCollapsed: false,
 });
 
 export const eventBuffer = $state({
@@ -55,6 +56,17 @@ export function setSidebarCollapsed(collapsed: boolean) {
   layout.sidebarCollapsed = collapsed;
   if (typeof localStorage !== "undefined")
     localStorage.setItem("nerve.sidebarCollapsed", collapsed ? "1" : "0");
+}
+
+export function loadUtilityCollapsed(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem("nerve.utilityCollapsed") === "1";
+}
+
+export function setUtilityCollapsed(collapsed: boolean) {
+  layout.utilityCollapsed = collapsed;
+  if (typeof localStorage !== "undefined")
+    localStorage.setItem("nerve.utilityCollapsed", collapsed ? "1" : "0");
 }
 
 export function loadThemePreference(): ThemePreference {

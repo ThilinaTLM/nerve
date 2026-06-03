@@ -4,6 +4,8 @@
   import MessageSquare from "lucide-svelte/icons/message-square";
   import PanelLeft from "lucide-svelte/icons/panel-left";
   import PanelLeftClose from "lucide-svelte/icons/panel-left-close";
+  import PanelRight from "lucide-svelte/icons/panel-right";
+  import PanelRightClose from "lucide-svelte/icons/panel-right-close";
   import Terminal from "lucide-svelte/icons/terminal";
   import TriangleAlert from "lucide-svelte/icons/triangle-alert";
   import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
@@ -22,7 +24,9 @@
     processes?: ProcessRecord[];
     branchDepth?: number;
     sidebarCollapsed?: boolean;
+    utilityCollapsed?: boolean;
     onToggleSidebar?: () => void;
+    onToggleUtility?: () => void;
   };
 
   let {
@@ -35,7 +39,9 @@
     processes = [],
     branchDepth = 0,
     sidebarCollapsed = false,
+    utilityCollapsed = false,
     onToggleSidebar,
+    onToggleUtility,
   }: Props = $props();
 
   const activeProcesses = $derived(processes.filter((process) => ["starting", "running", "ready", "stopping"].includes(process.status)).length);
@@ -82,6 +88,23 @@
     <span>{pendingApprovals} approval{pendingApprovals === 1 ? "" : "s"}</span>
   </div>
 
+  <div class="footer-section utility-toggle-section">
+    <Button
+      variant="icon"
+      size="icon"
+      ariaLabel="Toggle utility panel"
+      title={utilityCollapsed ? "Show utility panel" : "Hide utility panel"}
+      pressed={!utilityCollapsed}
+      onclick={() => onToggleUtility?.()}
+    >
+      {#if utilityCollapsed}
+        <PanelRight size={14} strokeWidth={2.2} aria-hidden="true" />
+      {:else}
+        <PanelRightClose size={14} strokeWidth={2.2} aria-hidden="true" />
+      {/if}
+    </Button>
+  </div>
+
   <div class="footer-section status-section">
     <StatusDot tone={statusTone} pulse={live} />
     <span>{live ? "connected" : connection}</span>
@@ -91,7 +114,7 @@
 <style>
   .footerbar {
     display: grid;
-    grid-template-columns: auto minmax(8rem, 1fr) minmax(8rem, 1fr) auto auto;
+    grid-template-columns: auto minmax(8rem, 1fr) minmax(8rem, 1fr) auto auto auto;
     align-items: center;
     height: var(--size-footer);
     min-width: 0;
@@ -120,7 +143,13 @@
     padding-right: 0.4rem;
   }
 
-  .toggle-section :global(.ui-button) {
+  .utility-toggle-section {
+    justify-content: end;
+    padding-right: 0.4rem;
+  }
+
+  .toggle-section :global(.ui-button),
+  .utility-toggle-section :global(.ui-button) {
     width: 1.5rem;
     height: 1.5rem;
   }
@@ -148,7 +177,7 @@
 
   @media (max-width: 980px) {
     .footerbar {
-      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
     }
 
     .session-section,

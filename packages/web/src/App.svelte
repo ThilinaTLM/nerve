@@ -7,7 +7,9 @@
     composerDraft,
     layout,
     loadSidebarCollapsed,
+    loadUtilityCollapsed,
     setSidebarCollapsed,
+    setUtilityCollapsed,
     selection,
     themeState,
   } from "./lib/state/app-state.svelte";
@@ -121,6 +123,7 @@
     setSettingsNavigation(() => navigateToRoute("settings"));
     navigateToRoute(routeFromPath(window.location.pathname), "replace");
     setSidebarCollapsed(loadSidebarCollapsed());
+    setUtilityCollapsed(loadUtilityCollapsed());
     window.addEventListener("popstate", handlePopState);
 
     themeMedia = window.matchMedia("(prefers-color-scheme: light)");
@@ -223,42 +226,44 @@
           </div>
         </Pane>
 
-        <PaneResizer aria-label="Resize utility panel" />
+        {#if !layout.utilityCollapsed}
+          <PaneResizer aria-label="Resize utility panel" />
 
-        <Pane defaultSize={24} minSize={19} maxSize={40} order={3}>
-          <div class="pane-shell utility-shell">
-            <UtilityPanel
-              activeTab={layout.utilityTab}
-              {status}
-              {activeProject}
-              {activeSession}
-              {activeAgent}
-              {sessionAgents}
-              {treeNodes}
-              {processes}
-              {selectedProcess}
-              {processLogs}
-              {exportUrl}
-              onTabChange={(tab) => (layout.utilityTab = tab)}
-              onSelectAgent={selectAgent}
-              onNavigateToEntry={(entryId, summarize) => {
-                layout.utilityTab = "history";
-                void navigateToEntry(entryId, summarize);
-              }}
-              onCompact={() => {
-                layout.utilityTab = "history";
-                void compactActiveSession();
-              }}
-              onSelectProcess={(id) => {
-                layout.utilityTab = "processes";
-                void selectProcess(id);
-              }}
-              onRefreshProcessLogs={() => void refreshProcessLogs()}
-              onStopProcess={(id) => void stopSelectedProcess(id)}
-              onRestartProcess={(id) => void restartSelectedProcess(id)}
-            />
-          </div>
-        </Pane>
+          <Pane defaultSize={24} minSize={19} maxSize={40} order={3}>
+            <div class="pane-shell utility-shell">
+              <UtilityPanel
+                activeTab={layout.utilityTab}
+                {status}
+                {activeProject}
+                {activeSession}
+                {activeAgent}
+                {sessionAgents}
+                {treeNodes}
+                {processes}
+                {selectedProcess}
+                {processLogs}
+                {exportUrl}
+                onTabChange={(tab) => (layout.utilityTab = tab)}
+                onSelectAgent={selectAgent}
+                onNavigateToEntry={(entryId, summarize) => {
+                  layout.utilityTab = "history";
+                  void navigateToEntry(entryId, summarize);
+                }}
+                onCompact={() => {
+                  layout.utilityTab = "history";
+                  void compactActiveSession();
+                }}
+                onSelectProcess={(id) => {
+                  layout.utilityTab = "processes";
+                  void selectProcess(id);
+                }}
+                onRefreshProcessLogs={() => void refreshProcessLogs()}
+                onStopProcess={(id) => void stopSelectedProcess(id)}
+                onRestartProcess={(id) => void restartSelectedProcess(id)}
+              />
+            </div>
+          </Pane>
+        {/if}
       </PaneGroup>
     </div>
   {/if}
@@ -273,7 +278,9 @@
     {processes}
     {branchDepth}
     sidebarCollapsed={layout.sidebarCollapsed}
+    utilityCollapsed={layout.utilityCollapsed}
     onToggleSidebar={() => setSidebarCollapsed(!layout.sidebarCollapsed)}
+    onToggleUtility={() => setUtilityCollapsed(!layout.utilityCollapsed)}
   />
 </main>
 
