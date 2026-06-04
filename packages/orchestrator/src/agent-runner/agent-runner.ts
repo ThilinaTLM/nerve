@@ -1,3 +1,4 @@
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   AgentHarness,
   buildSessionContext,
@@ -177,6 +178,17 @@ export class AgentRunner {
           });
           return;
         }
+        if (
+          event.type === "message_start" &&
+          event.message.role === "assistant"
+        ) {
+          await this.deps.events.publish("agent.message_started", {
+            agentId: agent.id,
+            runId,
+            sessionId: agent.sessionId,
+          });
+          return;
+        }
         if (event.type === "message_update") {
           const update = event.assistantMessageEvent;
           if (update.type === "text_delta") {
@@ -185,6 +197,76 @@ export class AgentRunner {
               runId,
               sessionId: agent.sessionId,
               delta: update.delta,
+            });
+            await this.deps.events.publish("agent.message_content_delta", {
+              agentId: agent.id,
+              runId,
+              sessionId: agent.sessionId,
+              contentIndex: update.contentIndex,
+              kind: "text",
+              delta: update.delta,
+            });
+          } else if (update.type === "thinking_delta") {
+            await this.deps.events.publish("agent.message_content_delta", {
+              agentId: agent.id,
+              runId,
+              sessionId: agent.sessionId,
+              contentIndex: update.contentIndex,
+              kind: "thinking",
+              delta: update.delta,
+            });
+          } else if (update.type === "text_end") {
+            await this.deps.events.publish("agent.message_content_done", {
+              agentId: agent.id,
+              runId,
+              sessionId: agent.sessionId,
+              contentIndex: update.contentIndex,
+              kind: "text",
+              content: update.content,
+            });
+          } else if (update.type === "thinking_end") {
+            await this.deps.events.publish("agent.message_content_done", {
+              agentId: agent.id,
+              runId,
+              sessionId: agent.sessionId,
+              contentIndex: update.contentIndex,
+              kind: "thinking",
+              content: update.content,
+              redacted: assistantContentRedacted(
+                update.partial,
+                update.contentIndex,
+              ),
+            });
+          } else if (update.type === "toolcall_start") {
+            const draft = assistantToolCallDraft(
+              update.partial,
+              update.contentIndex,
+            );
+            await this.deps.events.publish("agent.tool_call_draft.started", {
+              agentId: agent.id,
+              runId,
+              sessionId: agent.sessionId,
+              contentIndex: update.contentIndex,
+              providerToolCallId: draft?.id,
+              toolName: draft?.name,
+            });
+          } else if (update.type === "toolcall_delta") {
+            await this.deps.events.publish("agent.tool_call_draft.delta", {
+              agentId: agent.id,
+              runId,
+              sessionId: agent.sessionId,
+              contentIndex: update.contentIndex,
+              delta: update.delta,
+            });
+          } else if (update.type === "toolcall_end") {
+            await this.deps.events.publish("agent.tool_call_draft.done", {
+              agentId: agent.id,
+              runId,
+              sessionId: agent.sessionId,
+              contentIndex: update.contentIndex,
+              providerToolCallId: update.toolCall.id,
+              toolName: update.toolCall.name,
+              args: update.toolCall.arguments,
             });
           }
           return;
@@ -292,4 +374,22 @@ export class AgentRunner {
       keepRecentTokens: this.deps.storage.settings.compaction.keepRecentTokens,
     });
   }
+}
+
+function assistantContentRedacted(
+  message: AssistantMessage,
+  contentIndex: number,
+): boolean | undefined {
+  const block = message.content[contentIndex];
+  return block?.type === "thinking" ? block.redacted : undefined;
+}
+
+function assistantToolCallDraft(
+  message: AssistantMessage,
+  contentIndex: number,
+): { id?: string; name?: string } | undefined {
+  const block = message.content[contentIndex];
+  return block?.type === "toolCall"
+    ? { id: block.id, name: block.name }
+    : undefined;
 }

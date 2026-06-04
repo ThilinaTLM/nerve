@@ -74,16 +74,7 @@ export class MessageMirror {
           ),
           role,
           text: agentMessageText(entry.message as AgentMessage),
-          details:
-            entry.message.role === "toolResult"
-              ? {
-                  toolCallId: entry.message.toolCallId,
-                  toolName: entry.message.toolName,
-                  isError: entry.message.isError,
-                  toolRecordId: toolRecordIdFromDetails(entry.message.details),
-                  details: entry.message.details,
-                }
-              : undefined,
+          details: entryDetails(entry.message as AgentMessage),
           createdAt: entry.timestamp,
         },
         { mirrorToHarness: false },
@@ -131,6 +122,24 @@ function resolveVisibleParentId(
     cursor = rawEntriesById.get(cursor)?.parentId ?? undefined;
   }
   return undefined;
+}
+
+function entryDetails(message: AgentMessage): unknown {
+  if (message.role === "toolResult") {
+    return {
+      toolCallId: message.toolCallId,
+      toolName: message.toolName,
+      isError: message.isError,
+      toolRecordId: toolRecordIdFromDetails(message.details),
+      details: message.details,
+    };
+  }
+  if (message.role !== "assistant") return undefined;
+  const thinkingBlocks = message.content
+    .filter((part) => part.type === "thinking")
+    .map((part) => ({ text: part.thinking, redacted: part.redacted }))
+    .filter((part) => part.text.length > 0 || part.redacted === true);
+  return thinkingBlocks.length > 0 ? { thinkingBlocks } : undefined;
 }
 
 function toolRecordIdFromDetails(details: unknown): string | undefined {

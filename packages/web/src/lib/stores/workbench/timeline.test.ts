@@ -50,6 +50,28 @@ describe("buildConversationTimeline", () => {
     assert.equal(timeline[1]?.kind, "tool");
   });
 
+  it("keeps completed assistant thinking blocks attached to message items", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Think about it" },
+      {
+        id: "entry_assistant",
+        role: "assistant",
+        text: "Done.",
+        thinkingBlocks: [{ text: "I should inspect the request first." }],
+      },
+    ];
+
+    const timeline = buildConversationTimeline(transcript, []);
+
+    assert.deepEqual(keys(timeline), ["entry_user", "entry_assistant"]);
+    assert.equal(timeline[1]?.kind, "message");
+    if (timeline[1]?.kind === "message") {
+      assert.deepEqual(timeline[1].item.thinkingBlocks, [
+        { text: "I should inspect the request first." },
+      ]);
+    }
+  });
+
   it("anchors historical tool cards at matching tool-result entries", () => {
     const transcript: TranscriptItem[] = [
       {
@@ -86,6 +108,22 @@ describe("buildConversationTimeline", () => {
       timeline.map((item) => item.kind),
       ["message", "tool", "message"],
     );
+  });
+
+  it("keeps tool placeholders when they carry thinking blocks", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "List files" },
+      {
+        id: "entry_placeholder",
+        role: "assistant",
+        text: "[Tool call: ls({})]",
+        thinkingBlocks: [{ text: "I need to inspect the directory." }],
+      },
+    ];
+
+    const timeline = buildConversationTimeline(transcript, []);
+
+    assert.deepEqual(keys(timeline), ["entry_user", "entry_placeholder"]);
   });
 
   it("hides tool-only assistant placeholders", () => {

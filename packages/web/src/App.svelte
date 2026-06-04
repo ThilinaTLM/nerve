@@ -89,6 +89,7 @@
   const transcript = $derived(workbenchSelectors.transcript);
   const toolCalls = $derived(workbenchSelectors.toolCalls);
   const streamingText = $derived(workbenchSelectors.streamingText);
+  const liveRun = $derived(workbenchSelectors.liveRun);
   const activeComposerText = $derived(workbenchSelectors.activeComposerText);
   const centerTabs = $derived(workbenchSelectors.centerTabs);
   const activeCenterTab = $derived(workbenchSelectors.activeCenterTab);
@@ -248,6 +249,7 @@
                 {transcript}
                 {toolCalls}
                 {streamingText}
+                {liveRun}
                 {live}
                 {sending}
                 {error}

@@ -9,7 +9,9 @@ const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 
 function isToolCallPlaceholder(item: TranscriptItem): boolean {
   return (
-    item.role === "assistant" && TOOL_CALL_PLACEHOLDER.test(item.text.trim())
+    item.role === "assistant" &&
+    !item.thinkingBlocks?.length &&
+    TOOL_CALL_PLACEHOLDER.test(item.text.trim())
   );
 }
 

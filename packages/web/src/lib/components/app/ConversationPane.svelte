@@ -6,11 +6,13 @@
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, PlanReviewRecord, ProjectRecord, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
-  import type { TranscriptItem } from "../../stores/workbench/state.svelte";
+  import type { LiveRunState, TranscriptItem } from "../../stores/workbench/state.svelte";
   import { buildConversationTimeline } from "../../stores/workbench/timeline";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import LiveRunPanel from "./LiveRunPanel.svelte";
   import PromptComposer from "./PromptComposer.svelte";
+  import ThinkingBlock from "./ThinkingBlock.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
 
   type Props = {
@@ -27,6 +29,7 @@
     transcript?: TranscriptItem[];
     toolCalls?: ToolCallRecord[];
     streamingText?: string;
+    liveRun?: LiveRunState;
     live?: boolean;
     sending?: boolean;
     error?: string;
@@ -66,6 +69,7 @@
     transcript = [],
     toolCalls = [],
     streamingText = "",
+    liveRun,
     live = false,
     sending = false,
     error,
@@ -95,6 +99,18 @@
   }: Props = $props();
 
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls));
+  const toolCallPlaceholder = /^\[Tool call:[\s\S]*\]$/;
+
+  function visibleMessageText(item: TranscriptItem): string {
+    if (
+      item.role === "assistant" &&
+      item.thinkingBlocks?.length &&
+      toolCallPlaceholder.test(item.text.trim())
+    ) {
+      return "";
+    }
+    return item.text;
+  }
 
   async function copyText(text: string, label = "message") {
     try {
@@ -130,7 +146,7 @@
 <section class="conversation-pane">
   {#if activeSession}
     <div class="transcript" aria-live="polite">
-      {#if timeline.length === 0 && !streamingText}
+      {#if timeline.length === 0 && !streamingText && !liveRun?.assistantStarted}
         <div class="empty-run">
           <Sparkles size={28} strokeWidth={1.7} />
           <p>No messages yet.</p>
@@ -146,9 +162,18 @@
         <ContextMenu items={messageMenu(item)} triggerClass="select-text">
           <article class={`transcript-entry ${item.role}`}>
             <div class="message-body">
-              <div class="message-content">
-                <Markdown text={item.text} />
-              </div>
+              {#if item.role === "assistant" && item.thinkingBlocks?.length}
+                <div class="message-thinking">
+                  {#each item.thinkingBlocks as block, index (`${item.id ?? "thinking"}-${index}`)}
+                    <ThinkingBlock {block} open={false} />
+                  {/each}
+                </div>
+              {/if}
+              {#if visibleMessageText(item)}
+                <div class="message-content">
+                  <Markdown text={visibleMessageText(item)} />
+                </div>
+              {/if}
               <Button class="copy-btn" variant="ghost" size="icon-sm" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(item.text)}>
                 <Clipboard size={12} strokeWidth={2.2} />
               </Button>
@@ -158,7 +183,9 @@
         {/if}
       {/each}
 
-      {#if streamingText}
+      {#if liveRun?.blocks.length || liveRun?.assistantStarted}
+        <LiveRunPanel {liveRun} />
+      {:else if streamingText}
         <article class="transcript-entry assistant streaming">
           <div class="message-body">
             <div class="message-content streaming-content">
@@ -246,6 +273,12 @@
     position: relative;
     min-width: 0;
     overflow: hidden;
+  }
+
+  .message-thinking {
+    display: grid;
+    gap: 0.45rem;
+    margin-right: 2rem;
   }
 
   .message-body :global(.copy-btn) {

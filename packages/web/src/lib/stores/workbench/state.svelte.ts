@@ -18,6 +18,11 @@ import type {
   UserQuestionRecord,
 } from "../../api";
 
+export type ThinkingBlockItem = {
+  text: string;
+  redacted?: boolean;
+};
+
 export type TranscriptItem = {
   id?: string;
   role: "user" | "assistant" | "system";
@@ -27,6 +32,38 @@ export type TranscriptItem = {
   optimistic?: boolean;
   toolCallId?: string;
   toolRecordId?: string;
+  thinkingBlocks?: ThinkingBlockItem[];
+};
+
+export type LiveAssistantBlock =
+  | {
+      kind: "text";
+      contentIndex: number;
+      text: string;
+      done?: boolean;
+    }
+  | {
+      kind: "thinking";
+      contentIndex: number;
+      text: string;
+      done?: boolean;
+      redacted?: boolean;
+    }
+  | {
+      kind: "tool_call_draft";
+      contentIndex: number;
+      providerToolCallId?: string;
+      toolName?: string;
+      argsText: string;
+      args?: Record<string, unknown>;
+      done?: boolean;
+    };
+
+export type LiveRunState = {
+  runId?: string;
+  assistantStarted: boolean;
+  blocks: LiveAssistantBlock[];
+  updatedAt?: string;
 };
 
 export type ConversationViewState = {
@@ -35,6 +72,7 @@ export type ConversationViewState = {
   toolCalls: ToolCallRecord[];
   treeNodes: SessionTreeNode[];
   streamingText: string;
+  liveRun: LiveRunState;
   sending: boolean;
   error?: string;
   composerText: string;

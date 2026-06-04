@@ -52,6 +52,7 @@ export function ensureConversationView(
     toolCalls: [],
     treeNodes: [],
     streamingText: "",
+    liveRun: { assistantStarted: false, blocks: [] },
     sending: false,
     composerText: "",
     loading: false,
@@ -420,6 +421,7 @@ export async function abortActiveRun() {
   if (view) {
     view.sending = false;
     view.streamingText = "";
+    view.liveRun = { assistantStarted: false, blocks: [] };
   }
   workbenchState.sending = false;
   workbenchState.streamingText = "";
@@ -455,6 +457,7 @@ export async function sendPrompt() {
   view.sending = true;
   view.error = undefined;
   view.streamingText = "";
+  view.liveRun = { assistantStarted: false, blocks: [] };
   workbenchState.sending = true;
   workbenchState.error = undefined;
   workbenchState.streamingText = "";

@@ -1,5 +1,5 @@
 import type { SessionEntry } from "../../api";
-import type { TranscriptItem } from "./state.svelte";
+import type { ThinkingBlockItem, TranscriptItem } from "./state.svelte";
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -9,6 +9,18 @@ function startsWithToolPrefix(value: unknown): string | undefined {
   return typeof value === "string" && value.startsWith("tool_")
     ? value
     : undefined;
+}
+
+function thinkingBlocks(value: unknown): ThinkingBlockItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const blocks = value.flatMap((block) => {
+    if (!block || typeof block !== "object") return [];
+    const record = block as Record<string, unknown>;
+    const text = typeof record.text === "string" ? record.text : "";
+    const redacted = record.redacted === true;
+    return text.length > 0 || redacted ? [{ text, redacted }] : [];
+  });
+  return blocks.length > 0 ? blocks : undefined;
 }
 
 function entryDetails(
@@ -40,6 +52,7 @@ export function entryToTranscriptItem(entry: SessionEntry): TranscriptItem {
     toolRecordId:
       startsWithToolPrefix(details?.toolRecordId) ??
       startsWithToolPrefix(nestedToolCall?.id),
+    thinkingBlocks: thinkingBlocks(details?.thinkingBlocks),
   };
 }
 
