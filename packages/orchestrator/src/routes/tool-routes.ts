@@ -1,7 +1,9 @@
 import {
   answerUserQuestionRequestSchema,
   dismissUserQuestionRequestSchema,
+  planReviewStatusSchema,
   resolveApprovalRequestSchema,
+  resolvePlanReviewRequestSchema,
   userQuestionStatusSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
@@ -84,6 +86,57 @@ export function createToolRoutes(state: OrchestratorState): Hono {
         question: await state.registry.dismissUserQuestion(
           c.req.param("questionId"),
           body.reason,
+        ),
+      });
+    }),
+  );
+
+  app.get("/plan-reviews", (c) => {
+    const status = planReviewStatusSchema.safeParse(c.req.query("status"));
+    return c.json({
+      planReviews: state.registry.listPlanReviews(
+        status.success ? status.data : undefined,
+      ),
+    });
+  });
+  app.post(
+    "/plan-reviews/:reviewId/accept",
+    routeHandler(async (c) => {
+      const body = resolvePlanReviewRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json({
+        planReview: await state.registry.acceptPlanReview(
+          c.req.param("reviewId"),
+          body.feedback,
+        ),
+      });
+    }),
+  );
+  app.post(
+    "/plan-reviews/:reviewId/request-changes",
+    routeHandler(async (c) => {
+      const body = resolvePlanReviewRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json({
+        planReview: await state.registry.requestPlanChanges(
+          c.req.param("reviewId"),
+          body.feedback,
+        ),
+      });
+    }),
+  );
+  app.post(
+    "/plan-reviews/:reviewId/discard",
+    routeHandler(async (c) => {
+      const body = resolvePlanReviewRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json({
+        planReview: await state.registry.discardPlanReview(
+          c.req.param("reviewId"),
+          body.feedback,
         ),
       });
     }),

@@ -7,7 +7,7 @@
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { toast } from "svelte-sonner";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, ProjectRecord, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, PlanReviewRecord, ProjectRecord, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
   import type { TranscriptItem } from "../../stores/workbench/state.svelte";
   import { buildConversationTimeline } from "../../stores/workbench/timeline";
@@ -26,6 +26,7 @@
     homeDir?: string;
     approvals?: ApprovalWithToolCall[];
     pendingUserQuestion?: UserQuestionRecord;
+    pendingPlanReview?: PlanReviewRecord;
     transcript?: TranscriptItem[];
     toolCalls?: ToolCallRecord[];
     streamingText?: string;
@@ -53,6 +54,9 @@
     onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
     onGrantApproval?: (id: string) => void;
     onDenyApproval?: (id: string) => void;
+    onAcceptPlanReview?: (id: string) => void;
+    onRequestPlanChanges?: (id: string, feedback: string) => void;
+    onDiscardPlanReview?: (id: string) => void;
   };
 
   let {
@@ -61,6 +65,7 @@
     activeAgent,
     approvals = [],
     pendingUserQuestion,
+    pendingPlanReview,
     transcript = [],
     toolCalls = [],
     streamingText = "",
@@ -87,6 +92,9 @@
     onPermissionChange,
     onGrantApproval,
     onDenyApproval,
+    onAcceptPlanReview,
+    onRequestPlanChanges,
+    onDiscardPlanReview,
   }: Props = $props();
 
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls));
@@ -189,6 +197,7 @@
       {activeSession}
       {approvals}
       {pendingUserQuestion}
+      {pendingPlanReview}
       {live}
       {sending}
       {error}
@@ -210,6 +219,9 @@
       {onPermissionChange}
       {onGrantApproval}
       {onDenyApproval}
+      {onAcceptPlanReview}
+      {onRequestPlanChanges}
+      {onDiscardPlanReview}
     />
   {:else}
     <div class="empty-center">

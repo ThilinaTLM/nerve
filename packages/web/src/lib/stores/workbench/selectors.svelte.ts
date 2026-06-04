@@ -90,6 +90,17 @@ export const workbenchSelectors = {
   get userQuestions() {
     return workbenchState.userQuestions;
   },
+  get planReviews() {
+    return workbenchState.planReviews;
+  },
+  get activePlanReview() {
+    const sessionId = selection.sessionId;
+    const agentId = selection.agentId;
+    return workbenchState.planReviews.find((review) => {
+      if (sessionId && review.sessionId === sessionId) return true;
+      return Boolean(agentId && review.agentId === agentId);
+    });
+  },
   get activeUserQuestion() {
     const sessionId = selection.sessionId;
     const agentId = selection.agentId;
@@ -247,6 +258,9 @@ export const workbenchSelectors = {
   },
   get pendingUserQuestionCount() {
     return workbenchState.userQuestions.length;
+  },
+  get pendingPlanReviewCount() {
+    return workbenchState.planReviews.length;
   },
   get selectedProcess() {
     return workbenchState.processes.find(

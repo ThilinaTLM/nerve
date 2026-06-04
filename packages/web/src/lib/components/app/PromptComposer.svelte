@@ -7,6 +7,7 @@
     type ApprovalWithToolCall,
     type CompletionItem,
     type ModelInfo,
+    type PlanReviewRecord,
     type ProjectRecord,
     type SessionRecord,
     type UserQuestionRecord,
@@ -16,6 +17,7 @@
   import { Button } from "$lib/components/ui/button";
   import Select, { type SelectItem } from "$lib/components/ui/select-field";
   import ApprovalStrip from "./ApprovalStrip.svelte";
+  import PlanReviewStrip from "./PlanReviewStrip.svelte";
   import UserQuestionStrip from "./UserQuestionStrip.svelte";
 
   type Mode = AgentRecord["mode"];
@@ -28,6 +30,7 @@
     activeSession?: SessionRecord;
     approvals?: ApprovalWithToolCall[];
     pendingUserQuestion?: UserQuestionRecord;
+    pendingPlanReview?: PlanReviewRecord;
     live?: boolean;
     sending?: boolean;
     error?: string;
@@ -49,6 +52,9 @@
     onPermissionChange?: (value: PermissionLevel) => void;
     onGrantApproval?: (id: string) => void;
     onDenyApproval?: (id: string) => void;
+    onAcceptPlanReview?: (id: string) => void;
+    onRequestPlanChanges?: (id: string, feedback: string) => void;
+    onDiscardPlanReview?: (id: string) => void;
   };
 
   let {
@@ -57,6 +63,7 @@
     activeSession,
     approvals = [],
     pendingUserQuestion,
+    pendingPlanReview,
     live = false,
     sending = false,
     error,
@@ -78,18 +85,23 @@
     onPermissionChange,
     onGrantApproval,
     onDenyApproval,
+    onAcceptPlanReview,
+    onRequestPlanChanges,
+    onDiscardPlanReview,
   }: Props = $props();
 
   const pendingApproval = $derived(approvals.length > 0);
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
-  const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !pendingApproval && !pendingQuestion));
-  const canAnswerQuestion = $derived(Boolean(activeSession && live && pendingQuestion));
-  const editorDisabled = $derived(pendingApproval || (!pendingQuestion && (sending || !canPrompt)) || (pendingQuestion && !canAnswerQuestion));
+  const pendingPlan = $derived(Boolean(pendingPlanReview));
+  const blockedForReview = $derived(pendingApproval || pendingPlan);
+  const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !blockedForReview && !pendingQuestion));
+  const canAnswerQuestion = $derived(Boolean(activeSession && live && pendingQuestion && !blockedForReview));
+  const editorDisabled = $derived(blockedForReview || (!pendingQuestion && (sending || !canPrompt)) || (pendingQuestion && !canAnswerQuestion));
   const submitDisabled = $derived(pendingQuestion ? !canAnswerQuestion : !canPrompt);
 
   function submitComposer() {
-    if (pendingQuestion) onAnswerUserQuestion?.();
-    else if (!pendingApproval) onSubmit?.();
+    if (pendingQuestion && !blockedForReview) onAnswerUserQuestion?.();
+    else if (!blockedForReview) onSubmit?.();
   }
 
   async function pasteImage(file: File): Promise<string> {
@@ -144,21 +156,24 @@
   ];
 </script>
 
-<form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
+<form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
   <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
+  <PlanReviewStrip planReview={pendingPlanReview} onAccept={onAcceptPlanReview} onRequestChanges={onRequestPlanChanges} onDiscard={onDiscardPlanReview} />
   <UserQuestionStrip question={pendingUserQuestion} onDismiss={onDismissUserQuestion} />
 
   <div class="composer-surface">
     <div class="editor-shell">
       {#if pendingApproval}
         <div class="approval-waiting" aria-live="polite">Waiting for approval to proceed…</div>
+      {:else if pendingPlan}
+        <div class="approval-waiting" aria-live="polite">Waiting for your plan review…</div>
       {:else if pendingQuestion}
         <div class="approval-waiting" aria-live="polite">Waiting for your reply…</div>
       {/if}
       <CodeMirrorComposer
         value={text}
         disabled={editorDisabled}
-        placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingUserQuestion?.placeholder ?? (pendingQuestion ? "Reply to the agent's question…" : "Ask the local Nerve agent…")}
+        placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingPlan ? "Review the plan above before the agent can continue…" : pendingUserQuestion?.placeholder ?? (pendingQuestion ? "Reply to the agent's question…" : "Ask the local Nerve agent…")}
         {slashCompletions}
         {fileCompletions}
         onChange={onChange}
@@ -176,7 +191,7 @@
           items={modelItems}
           bind:value={selectedModelKey}
           ariaLabel="Model"
-          disabled={!activeSession || sending || models.length === 0 || pendingApproval || pendingQuestion}
+          disabled={!activeSession || sending || models.length === 0 || blockedForReview || pendingQuestion}
           onValueChange={(value) => onModelChange?.(value)}
         />
         <Select
@@ -186,7 +201,7 @@
           items={thinkingItems}
           value={thinkingLevel}
           ariaLabel="Thinking level"
-          disabled={!activeSession || sending || pendingApproval || pendingQuestion || thinkingItems.length <= 1}
+          disabled={!activeSession || sending || blockedForReview || pendingQuestion || thinkingItems.length <= 1}
           onValueChange={(value) => onThinkingLevelChange?.(value as ThinkingLevel)}
         />
         <Select
@@ -196,7 +211,7 @@
           items={modeItems}
           value={mode}
           ariaLabel="Mode"
-          disabled={!activeSession || sending || pendingApproval || pendingQuestion}
+          disabled={!activeSession || sending || blockedForReview || pendingQuestion}
           onValueChange={(value) => onModeChange?.(value as Mode)}
         />
         <Select
@@ -206,7 +221,7 @@
           items={permissionItems}
           value={permissionLevel}
           ariaLabel="Access"
-          disabled={!activeSession || sending || pendingApproval || pendingQuestion}
+          disabled={!activeSession || sending || blockedForReview || pendingQuestion}
           onValueChange={(value) => onPermissionChange?.(value as PermissionLevel)}
         />
       </div>

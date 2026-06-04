@@ -205,6 +205,9 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type === "project.created" ||
     type.startsWith("approval.") ||
     type.startsWith("user_question.") ||
+    type.startsWith("plan_review.") ||
+    type === "plan.written" ||
+    type === "agent.mode_changed" ||
     type.startsWith("agent.tool_call") ||
     type.startsWith("process.") ||
     shouldRefreshSettings(type)

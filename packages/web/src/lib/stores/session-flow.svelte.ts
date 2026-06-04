@@ -1,17 +1,21 @@
 import { toast } from "svelte-sonner";
 import {
   type AgentRecord,
+  acceptPlanReview,
   answerUserQuestion,
   apiGet,
   apiPost,
   compactSession,
+  discardPlanReview,
   dismissUserQuestion as dismissUserQuestionRequest,
   getPendingApprovals,
+  getPendingPlanReviews,
   getPendingUserQuestions,
   getSessionMessages,
   getSessionTree,
   getToolCalls,
   type ProjectRecord,
+  requestPlanChanges,
   type SessionRecord,
   updateAgentConfig,
 } from "../api";
@@ -350,6 +354,28 @@ export async function denyApproval(approvalId: string) {
   });
   workbenchState.approvals = await getPendingApprovals();
   toast.message("Approval denied");
+}
+
+export async function acceptPendingPlanReview(reviewId: string) {
+  await acceptPlanReview(reviewId);
+  workbenchState.planReviews = await getPendingPlanReviews();
+  await loadWorkspaceState();
+  toast.success("Plan accepted");
+}
+
+export async function requestPendingPlanChanges(
+  reviewId: string,
+  feedback: string,
+) {
+  await requestPlanChanges(reviewId, feedback);
+  workbenchState.planReviews = await getPendingPlanReviews();
+  toast.message("Change request sent");
+}
+
+export async function discardPendingPlanReview(reviewId: string) {
+  await discardPlanReview(reviewId, "Discarded from UI.");
+  workbenchState.planReviews = await getPendingPlanReviews();
+  toast.message("Plan discarded");
 }
 
 export async function answerActiveUserQuestion() {

@@ -220,6 +220,9 @@ export class AgentRunner {
         harness.steer(text, { images: options?.images }),
       followUp: (text, options) =>
         harness.followUp(text, { images: options?.images }),
+      updateAgentRuntimeConfig: async (updatedAgent) => {
+        await harness.setActiveTools(activeToolNamesForAgent(updatedAgent));
+      },
     });
     await this.deps.setAgentStatus(agent, "running");
 

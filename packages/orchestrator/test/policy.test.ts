@@ -137,6 +137,68 @@ describe("tool policy", () => {
       assert.equal(decision.risk, "read", command);
     }
   });
+
+  it("blocks workspace and process mutation in planning mode", () => {
+    for (const [toolName, args] of [
+      ["edit", { path: "/tmp/outside.txt", edits: [] }],
+      ["write", { path: "/tmp/outside.txt", content: "hello" }],
+      ["bash", { command: "touch file" }],
+      ["process_start", { command: "pnpm dev" }],
+      ["process_stop", { processId: "proc_01HN0000000000000000000000" }],
+    ] as Array<[ToolName, Record<string, unknown>]>) {
+      const decision = evaluateToolPolicy(
+        { ...agent("autonomous"), mode: "planning" },
+        toolName,
+        args,
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(decision.decision, "deny", toolName);
+    }
+  });
+
+  it("allows planning mode plan review tools with permission-aware plan writes", () => {
+    assert.equal(
+      evaluateToolPolicy(
+        { ...agent("autonomous"), mode: "planning" },
+        "plan_write",
+        { slug: "test-plan", content: "# Plan" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        { ...agent("supervised"), mode: "planning" },
+        "plan_write",
+        { slug: "test-plan", content: "# Plan" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "approval",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        { ...agent("read_only"), mode: "planning" },
+        "plan_write",
+        { slug: "test-plan", content: "# Plan" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "deny",
+    );
+    for (const toolName of [
+      "plan_mode_enter",
+      "plan_mode_present",
+      "plan_mode_force_exit",
+      "plan_mode_status",
+    ] as ToolName[]) {
+      const decision = evaluateToolPolicy(
+        { ...agent("read_only"), mode: "planning" },
+        toolName,
+        toolName === "plan_mode_force_exit" ? { reason: "done" } : {},
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(decision.decision, "allow", toolName);
+    }
+  });
 });
 
 function argsFor(toolName: ToolName): Record<string, unknown> {

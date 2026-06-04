@@ -55,12 +55,30 @@ describe("agent tool definitions", () => {
       "process_logs",
       "subagent_run",
       "ask_user",
+      "plan_mode_enter",
+      "plan_mode_status",
+    ];
+    const planningTools = [
+      "read",
+      "bash",
+      "grep",
+      "find",
+      "ls",
+      "process_list",
+      "process_logs",
+      "subagent_run",
+      "ask_user",
+      "plan_mode_enter",
+      "plan_write",
+      "plan_mode_present",
+      "plan_mode_force_exit",
+      "plan_mode_status",
     ];
     assert.deepEqual(activeToolNamesForAgent(agent("autonomous")), codingTools);
     assert.deepEqual(activeToolNamesForAgent(agent("supervised")), codingTools);
     assert.deepEqual(
       activeToolNamesForAgent({ ...agent("autonomous"), mode: "planning" }),
-      codingTools,
+      planningTools,
     );
     assert.deepEqual(activeToolNamesForAgent(agent("read_only")), [
       "read",
@@ -70,6 +88,10 @@ describe("agent tool definitions", () => {
       "process_list",
       "process_logs",
       "ask_user",
+      "plan_mode_enter",
+      "plan_mode_present",
+      "plan_mode_force_exit",
+      "plan_mode_status",
     ]);
   });
 
@@ -78,7 +100,10 @@ describe("agent tool definitions", () => {
       allToolDefinitions
         .map((tool) => tool.name)
         .filter(
-          (name) => name.startsWith("process_") || name === "subagent_run",
+          (name) =>
+            name.startsWith("process_") ||
+            name === "subagent_run" ||
+            name.startsWith("plan_"),
         ),
       [
         "process_start",
@@ -87,6 +112,11 @@ describe("agent tool definitions", () => {
         "process_list",
         "process_logs",
         "subagent_run",
+        "plan_mode_enter",
+        "plan_write",
+        "plan_mode_present",
+        "plan_mode_force_exit",
+        "plan_mode_status",
       ],
     );
   });

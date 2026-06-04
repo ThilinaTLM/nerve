@@ -46,5 +46,12 @@ export async function executeTool(
     case "subagent_run":
       // Subagents require runtime/session authority checks owned by orchestrator.
       throw new Error(`${name} is executed by the orchestrator agent runtime.`);
+    case "plan_mode_enter":
+    case "plan_write":
+    case "plan_mode_present":
+    case "plan_mode_force_exit":
+    case "plan_mode_status":
+      // Plan mode requires runtime/session state and user-review waiters owned by orchestrator.
+      throw new Error(`${name} is executed by the orchestrator plan service.`);
   }
 }

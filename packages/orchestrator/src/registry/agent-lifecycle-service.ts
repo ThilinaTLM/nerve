@@ -3,6 +3,7 @@ import { clampAgentThinkingLevel } from "@nerve/agent";
 import {
   type AgentRecord,
   type CreateAgentRequest,
+  type Mode,
   createId,
   type ProjectRecord,
   type SessionRecord,
@@ -160,6 +161,28 @@ export class AgentLifecycleService {
     };
     await this.updateAgent(updated);
     await this.events.publish("agent.configured", { agent: updated });
+    return updated;
+  }
+
+  async setAgentModeInternal(
+    agentId: string,
+    mode: Mode,
+    reason: string,
+  ): Promise<AgentRecord> {
+    const agent = this.getAgent(agentId);
+    const updated: AgentRecord = {
+      ...agent,
+      mode,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.updateAgent(updated);
+    await this.runs.get(agentId)?.updateAgentRuntimeConfig?.(updated);
+    await this.events.publish("agent.mode_changed", {
+      agent: updated,
+      previousMode: agent.mode,
+      mode,
+      reason,
+    });
     return updated;
   }
 

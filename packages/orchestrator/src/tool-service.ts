@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type {
   AgentRecord,
   ApprovalRecord,
+  Mode,
   ProcessRecord,
   StartProcessRequest,
   ToolCallRecord,
@@ -13,6 +14,7 @@ import { createId } from "@nerve/shared";
 import { allToolDescriptors, executeTool } from "@nerve/tools";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
+import type { PlanService } from "./plan-service.js";
 import { evaluateToolPolicy } from "./policy.js";
 import type { ProcessManager } from "./process-manager.js";
 import type { InitializedStorage } from "./storage.js";
@@ -63,6 +65,12 @@ export class ToolService {
     private readonly startProcess: ProcessStarter,
     private readonly getAgent: (agentId: string) => AgentRecord,
     private readonly runSubagent: SubagentRunner,
+    private readonly plans: PlanService,
+    private readonly setAgentMode: (
+      agentId: string,
+      mode: Mode,
+      reason: string,
+    ) => Promise<AgentRecord>,
   ) {}
 
   async hydrate(): Promise<void> {
@@ -109,14 +117,15 @@ export class ToolService {
     options: ToolRequestOptions = {},
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
-    const evaluation = evaluateToolPolicy(agent, toolName, args, {
+    const latestAgent = this.getAgent(agent.id);
+    const evaluation = evaluateToolPolicy(latestAgent, toolName, args, {
       dataDir: this.storage.paths.home,
     });
     const toolCall: ToolCallRecord = {
       id: createId("tool"),
-      agentId: agent.id,
-      sessionId: agent.sessionId,
-      projectId: agent.projectId,
+      agentId: latestAgent.id,
+      sessionId: latestAgent.sessionId,
+      projectId: latestAgent.projectId,
       toolName,
       sourceToolCallId: options.sourceToolCallId,
       risk: evaluation.risk,
@@ -437,6 +446,16 @@ export class ToolService {
         return this.runSubagent(this.getAgent(toolCall.agentId), args);
       case "ask_user":
         return this.requestUserQuestion(toolCall, args, options);
+      case "plan_mode_enter":
+        return this.enterPlanMode(toolCall, args);
+      case "plan_write":
+        return this.plans.writePlan(this.getAgent(toolCall.agentId), args);
+      case "plan_mode_present":
+        return this.requestPlanReview(toolCall, args, options);
+      case "plan_mode_force_exit":
+        return this.forceExitPlanMode(toolCall, args);
+      case "plan_mode_status":
+        return this.planModeStatus(toolCall);
       default:
         if (toolCall.toolName === "bash") delete args.cwd;
         return executeTool(toolCall.toolName, args, {
@@ -444,6 +463,66 @@ export class ToolService {
           signal: options.signal,
         });
     }
+  }
+
+  private async requestPlanReview(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<unknown> {
+    const waitingToolCall = await this.updateToolCall(toolCall.id, {
+      status: "waiting_for_user",
+    });
+    await this.events.publish("agent.tool_call.waiting_for_user", {
+      toolCall: waitingToolCall,
+    });
+    return this.plans.presentPlan(
+      waitingToolCall,
+      this.getAgent(toolCall.agentId),
+      args,
+      options.signal,
+    );
+  }
+
+  private async enterPlanMode(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    const agent = this.getAgent(toolCall.agentId);
+    const reason = optionalStringArg(args.reason) ?? "Agent entered planning mode.";
+    const updated =
+      agent.mode === "planning"
+        ? agent
+        : await this.setAgentMode(agent.id, "planning", reason);
+    return {
+      mode: updated.mode,
+      planDir: this.plans.planDir(updated),
+      alreadyPlanning: agent.mode === "planning",
+    };
+  }
+
+  private async forceExitPlanMode(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    const reason = stringArg(args, "reason");
+    const updated = await this.plans.forceExitAgentPlanning(
+      toolCall.agentId,
+      reason,
+    );
+    return { mode: updated.mode, reason };
+  }
+
+  private async planModeStatus(toolCall: ToolCallRecord): Promise<unknown> {
+    const agent = this.getAgent(toolCall.agentId);
+    return {
+      mode: agent.mode,
+      planDir: this.plans.planDir(agent),
+      planFiles: await this.plans.listPlanFiles(agent),
+      pendingReviews: this.plans
+        .listPlanReviews("pending")
+        .filter((review) => review.agentId === agent.id),
+    };
   }
 
   private async requestUserQuestion(

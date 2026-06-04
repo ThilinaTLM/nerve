@@ -8,6 +8,7 @@ import type {
   FilesystemSignal,
   ModelInfo,
   ModelSelection,
+  PlanReviewRecord,
   ProcessLogEvent,
   ProcessLogQueryResponse,
   ProcessRecord,
@@ -294,6 +295,50 @@ export async function getPendingUserQuestions(): Promise<UserQuestionRecord[]> {
   ).questions;
 }
 
+export async function getPendingPlanReviews(): Promise<PlanReviewRecord[]> {
+  return (
+    await apiGet<{ planReviews: PlanReviewRecord[] }>(
+      "/api/plan-reviews?status=pending",
+    )
+  ).planReviews;
+}
+
+export async function acceptPlanReview(
+  reviewId: string,
+  feedback?: string,
+): Promise<PlanReviewRecord> {
+  return (
+    await apiPost<{ planReview: PlanReviewRecord }>(
+      `/api/plan-reviews/${reviewId}/accept`,
+      { feedback },
+    )
+  ).planReview;
+}
+
+export async function requestPlanChanges(
+  reviewId: string,
+  feedback?: string,
+): Promise<PlanReviewRecord> {
+  return (
+    await apiPost<{ planReview: PlanReviewRecord }>(
+      `/api/plan-reviews/${reviewId}/request-changes`,
+      { feedback },
+    )
+  ).planReview;
+}
+
+export async function discardPlanReview(
+  reviewId: string,
+  feedback?: string,
+): Promise<PlanReviewRecord> {
+  return (
+    await apiPost<{ planReview: PlanReviewRecord }>(
+      `/api/plan-reviews/${reviewId}/discard`,
+      { feedback },
+    )
+  ).planReview;
+}
+
 export async function answerUserQuestion(
   questionId: string,
   answer: string,
@@ -371,6 +416,7 @@ export type {
   ApprovalRecord,
   ToolCallRecord,
   UserQuestionRecord,
+  PlanReviewRecord,
   ProcessRecord,
   ProcessLogEvent,
   ProcessLogQueryResponse,

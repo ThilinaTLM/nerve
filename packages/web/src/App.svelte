@@ -26,6 +26,7 @@
   import UtilityPanel from "./lib/components/app/UtilityPanel.svelte";
   import {
     abortActiveRun,
+    acceptPendingPlanReview,
     answerActiveUserQuestion,
     closeConversationTab,
     closeProcessTab,
@@ -35,6 +36,7 @@
     deleteProjectAndRefresh,
     deleteSessionAndRefresh,
     denyApproval,
+    discardPendingPlanReview,
     dismissActiveUserQuestion,
     disconnectWorkbench,
     exportUrl,
@@ -48,6 +50,7 @@
     openSession,
     pruneStoppedProcesses,
     refreshProcessLogs,
+    requestPendingPlanChanges,
     removeProcess,
     restartSelectedProcess,
     saveSettings,
@@ -79,6 +82,7 @@
   const agents = $derived(workbenchSelectors.agents);
   const approvals = $derived(workbenchSelectors.approvals);
   const pendingUserQuestion = $derived(workbenchSelectors.activeUserQuestion);
+  const pendingPlanReview = $derived(workbenchSelectors.activePlanReview);
   const processes = $derived(workbenchSelectors.scopedProcesses);
   const treeNodes = $derived(workbenchSelectors.treeNodes);
   const processLogs = $derived(workbenchSelectors.processLogs);
@@ -240,6 +244,7 @@
                 homeDir={status?.storage.home}
                 {approvals}
                 {pendingUserQuestion}
+                {pendingPlanReview}
                 {transcript}
                 {toolCalls}
                 {streamingText}
@@ -267,6 +272,9 @@
                 onPermissionChange={(value) => void setComposerPermission(value)}
                 onGrantApproval={(id) => void grantApproval(id)}
                 onDenyApproval={(id) => void denyApproval(id)}
+                onAcceptPlanReview={(id) => void acceptPendingPlanReview(id)}
+                onRequestPlanChanges={(id, feedback) => void requestPendingPlanChanges(id, feedback)}
+                onDiscardPlanReview={(id) => void discardPendingPlanReview(id)}
               />
             {/if}
           </div>

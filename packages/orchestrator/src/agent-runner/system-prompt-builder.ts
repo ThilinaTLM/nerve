@@ -37,6 +37,7 @@ export function composeAgentSystemPrompt(
 ): string {
   return buildNerveSystemPrompt({
     cwd: agent.projectDir,
+    mode: agent.mode,
     selectedTools: activeToolNames,
     promptGuidelines: promptMetadata.guidelines,
     contextFiles: resources.contextFiles,

@@ -29,6 +29,28 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
       "process_list",
       "process_logs",
       "ask_user",
+      "plan_mode_enter",
+      "plan_mode_present",
+      "plan_mode_force_exit",
+      "plan_mode_status",
+    ];
+  }
+  if (agent.mode === "planning") {
+    return [
+      "read",
+      "bash",
+      "grep",
+      "find",
+      "ls",
+      "process_list",
+      "process_logs",
+      "subagent_run",
+      "ask_user",
+      "plan_mode_enter",
+      "plan_write",
+      "plan_mode_present",
+      "plan_mode_force_exit",
+      "plan_mode_status",
     ];
   }
   return [
@@ -46,6 +68,8 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
     "process_logs",
     "subagent_run",
     "ask_user",
+    "plan_mode_enter",
+    "plan_mode_status",
   ];
 }
 

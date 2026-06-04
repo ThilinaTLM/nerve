@@ -105,5 +105,7 @@ function sessionIdForEvent(event: EventEnvelope): string | undefined {
   if (typeof process?.sessionId === "string") return process.sessionId;
   const question = data.question as Record<string, unknown> | undefined;
   if (typeof question?.sessionId === "string") return question.sessionId;
+  const planReview = data.planReview as Record<string, unknown> | undefined;
+  if (typeof planReview?.sessionId === "string") return planReview.sessionId;
   return undefined;
 }

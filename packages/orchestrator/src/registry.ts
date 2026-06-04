@@ -9,6 +9,7 @@ import type {
   ImportSessionRequest,
   ModelInfo,
   NavigateSessionRequest,
+  PlanReviewStatus,
   ProcessLogQuery,
   ProjectRecord,
   PromptRequest,
@@ -33,6 +34,7 @@ import type { EventBus } from "./events.js";
 import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
 import type { IndexStore } from "./index-store.js";
+import { PlanService } from "./plan-service.js";
 import { ProcessManager } from "./process-manager.js";
 import { AgentLifecycleService } from "./registry/agent-lifecycle-service.js";
 import { ProjectLifecycleService } from "./registry/project-lifecycle-service.js";
@@ -63,6 +65,7 @@ export class RuntimeRegistry {
   readonly runs = new Map<string, AgentRunState>();
   readonly processes: ProcessManager;
   readonly workers: WorkerManager;
+  readonly plans: PlanService;
   readonly tools: ToolService;
   private readonly projectRepository: ProjectRepository;
   private readonly sessionRepository: SessionRepository;
@@ -181,6 +184,13 @@ export class RuntimeRegistry {
       (session) => this.updateSession(session),
       (agentId) => this.abortAgent(agentId),
     );
+    this.plans = new PlanService(
+      storage,
+      events,
+      (agentId) => this.getAgent(agentId),
+      (agentId, mode, reason) =>
+        this.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
+    );
     this.tools = new ToolService(
       storage,
       events,
@@ -189,6 +199,9 @@ export class RuntimeRegistry {
       (request) => this.startProcess(request),
       (agentId) => this.getAgent(agentId),
       (parent, args) => this.agentRunner.runSubagent(parent, args),
+      this.plans,
+      (agentId, mode, reason) =>
+        this.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
     );
     this.agentRunner = new AgentRunner({
       storage,
@@ -214,6 +227,7 @@ export class RuntimeRegistry {
     await this.workers.hydrate();
     await this.processes.hydrate();
     await this.tools.hydrate();
+    await this.plans.hydrate();
     await this.loadProjects();
     await this.loadSessions();
     await this.loadAgents();
@@ -367,6 +381,46 @@ export class RuntimeRegistry {
 
   listUserQuestions(status?: UserQuestionStatus) {
     return this.tools.listUserQuestions(status);
+  }
+
+  listPlanReviews(status?: PlanReviewStatus) {
+    return this.plans.listPlanReviews(status);
+  }
+
+  async acceptPlanReview(reviewId: string, feedback?: string) {
+    try {
+      return await this.plans.acceptPlanReview(reviewId, feedback);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  async requestPlanChanges(reviewId: string, feedback?: string) {
+    try {
+      return await this.plans.requestPlanChanges(reviewId, feedback);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  async discardPlanReview(reviewId: string, feedback?: string) {
+    try {
+      return await this.plans.discardPlanReview(reviewId, feedback);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   async answerUserQuestion(questionId: string, answer: string) {

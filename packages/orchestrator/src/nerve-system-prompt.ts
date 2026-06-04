@@ -6,6 +6,7 @@ export interface BuildNerveSystemPromptOptions {
   promptGuidelines?: string[];
   appendSystemPrompt?: string;
   cwd: string;
+  mode?: "planning" | "coding";
   contextFiles?: Array<{ path: string; content: string }>;
   skills?: Skill[];
 }
@@ -23,6 +24,7 @@ export function buildNerveSystemPrompt(
     : defaultPrompt({
         selectedTools: tools,
         promptGuidelines: options.promptGuidelines ?? [],
+        mode: options.mode,
       });
 
   const skillsBlock =
@@ -46,6 +48,7 @@ export function buildNerveSystemPrompt(
 function defaultPrompt(options: {
   selectedTools: string[];
   promptGuidelines: string[];
+  mode?: "planning" | "coding";
 }): string {
   const guidelines: string[] = [];
   const seen = new Set<string>();
@@ -64,6 +67,19 @@ function defaultPrompt(options: {
     addGuideline("Use bash for file operations like ls, rg, find");
   }
   for (const guideline of options.promptGuidelines) addGuideline(guideline);
+  if (options.mode === "planning") {
+    addGuideline(
+      "Planning mode: inspect and prepare only; do not modify workspace files or run mutating commands.",
+    );
+    addGuideline(
+      "Write plans with plan_write using a descriptive lowercase slug, then call plan_mode_present for user review.",
+    );
+    addGuideline("Do not implement workspace changes until the plan is accepted.");
+  } else {
+    addGuideline(
+      "If the user asks for a plan or the task needs research before edits, call plan_mode_enter first.",
+    );
+  }
   addGuideline("Be concise in your responses");
   addGuideline("Show file paths clearly when working with files");
 

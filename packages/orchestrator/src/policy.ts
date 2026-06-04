@@ -30,6 +30,28 @@ export function evaluateToolPolicy(
   const normalizedArgs = { ...args };
   const risk = classifyRisk(toolName, args);
 
+  if (agent.mode === "planning") {
+    const planningDecision = evaluatePlanningModePolicy(
+      agent,
+      toolName,
+      args,
+      risk,
+      normalizedArgs,
+      cwd,
+    );
+    if (planningDecision) return planningDecision;
+  }
+
+  if (toolName === "plan_write" || toolName === "plan_mode_present") {
+    return {
+      decision: "deny",
+      risk,
+      reason: `${toolName} is only available after entering planning mode.`,
+      normalizedArgs,
+      cwd,
+    };
+  }
+
   if (risk === "interaction") {
     return {
       decision: "allow",
@@ -90,12 +112,134 @@ function normalizeCwd(
   return cwd;
 }
 
+function evaluatePlanningModePolicy(
+  agent: AgentRecord,
+  toolName: ToolName,
+  args: Record<string, unknown>,
+  risk: ToolRisk,
+  normalizedArgs: Record<string, unknown>,
+  cwd: string,
+): PolicyEvaluation | undefined {
+  const allowedInteractionTools = new Set<ToolName>([
+    "ask_user",
+    "plan_mode_enter",
+    "plan_mode_present",
+    "plan_mode_force_exit",
+  ]);
+  if (allowedInteractionTools.has(toolName)) {
+    return {
+      decision: "allow",
+      risk,
+      reason: "Planning-mode interaction tool call is allowed.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
+  if (risk === "read") {
+    return {
+      decision: "allow",
+      risk,
+      reason: "Planning-mode read-only tool call is allowed.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
+  if (toolName === "subagent_run") {
+    if (args.mode === "coding") {
+      return {
+        decision: "deny",
+        risk,
+        reason: "Planning mode cannot spawn coding subagents.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (agent.permissionLevel === "read_only") {
+      return {
+        decision: "deny",
+        risk,
+        reason: "read_only agents cannot spawn subagents.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (agent.permissionLevel === "supervised") {
+      return {
+        decision: "approval",
+        risk,
+        reason: "Supervised agent requires approval for planning subagents.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    return {
+      decision: "allow",
+      risk,
+      reason: "Planning-mode subagent investigation is allowed.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
+  if (toolName === "plan_write") {
+    if (agent.permissionLevel === "read_only") {
+      return {
+        decision: "deny",
+        risk,
+        reason: "read_only agents cannot write plan documents.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (agent.permissionLevel === "supervised") {
+      return {
+        decision: "approval",
+        risk,
+        reason: "Supervised agent requires approval for plan_write tool calls.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    return {
+      decision: "allow",
+      risk,
+      reason: "Planning-mode plan_write tool call is allowed.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
+  return {
+    decision: "deny",
+    risk,
+    reason: `Planning mode cannot run '${toolName}' because it may mutate workspace files, processes, or runtime state outside plan review.`,
+    normalizedArgs,
+    cwd,
+  };
+}
+
 function classifyRisk(
   toolName: ToolName,
   args: Record<string, unknown>,
 ): ToolRisk {
-  if (toolName === "ask_user") return "interaction";
-  if (toolName === "process_list" || toolName === "process_logs") return "read";
+  if (
+    toolName === "ask_user" ||
+    toolName === "plan_mode_enter" ||
+    toolName === "plan_mode_present" ||
+    toolName === "plan_mode_force_exit"
+  ) {
+    return "interaction";
+  }
+  if (
+    toolName === "process_list" ||
+    toolName === "process_logs" ||
+    toolName === "plan_mode_status"
+  ) {
+    return "read";
+  }
+  if (toolName === "plan_write") return "plan_write";
   if (toolName === "process_stop" || toolName === "process_restart") {
     return "destructive";
   }
