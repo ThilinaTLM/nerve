@@ -1,10 +1,9 @@
 <script lang="ts">
-  import Folder from "@lucide/svelte/icons/folder";
   import FileIcon from "@lucide/svelte/icons/file";
-  import type { ToolCallRecord } from "../../../api";
+  import Folder from "@lucide/svelte/icons/folder";
   import type { FileEntry } from "@nerve/shared";
+  import type { ToolCallRecord } from "../../../api";
   import { PREVIEW_LIMITS, type ToolView } from "../../../tool-views/tool-result-view";
-  import Disclosure from "./Disclosure.svelte";
 
   type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "ls" }> };
   let { view }: Props = $props();
@@ -20,25 +19,19 @@
   const preview = $derived(sorted.slice(0, PREVIEW_LIMITS.LS_PREVIEW));
 </script>
 
-{#snippet entryList(entries: FileEntry[])}
+{#if view.total === 0}
+  <p class="note">Empty directory.</p>
+{:else}
   <ul class="entries">
-    {#each entries as entry (entry.path)}
+    {#each preview as entry (entry.path)}
       <li>
         {#if entry.kind === "directory"}<Folder size={12} strokeWidth={2} />{:else}<FileIcon size={12} strokeWidth={2} />{/if}
         <span>{entry.path}</span>
       </li>
     {/each}
   </ul>
-{/snippet}
-
-{#if view.total === 0}
-  <p class="note">Empty directory.</p>
-{:else}
-  {@render entryList(preview)}
   {#if view.total > preview.length}
-    <Disclosure label={`all ${view.total} entries`}>
-      {@render entryList(sorted)}
-    </Disclosure>
+    <p class="note">Showing first {preview.length} of {view.total} entries.</p>
   {/if}
 {/if}
 

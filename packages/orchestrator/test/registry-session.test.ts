@@ -3,8 +3,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
+import { EntryRepository } from "../src/repositories/index.js";
 import { createOrchestratorState } from "../src/server.js";
-import { initializeStorage } from "../src/storage.js";
+import { type InitializedStorage, initializeStorage } from "../src/storage.js";
 
 const roots: string[] = [];
 
@@ -131,5 +132,70 @@ describe("RuntimeRegistry session behavior", () => {
     } finally {
       state.index.close();
     }
+  });
+
+  it("repairs display parents that point at skipped harness metadata entries", () => {
+    const repository = new EntryRepository({} as InitializedStorage);
+    const session = {
+      id: "ses_01HN0000000000000000000001",
+      projectId: "proj_01HN0000000000000000000001",
+      title: "Missing metadata parent",
+      mode: "coding",
+      permissionLevel: "autonomous",
+      activeEntryId: "entry_01HN0000000000000000000005",
+      createdAt,
+      updatedAt: createdAt,
+    } as const;
+    const entries = [
+      {
+        id: "entry_01HN0000000000000000000002",
+        sessionId: session.id,
+        role: "user",
+        kind: "message",
+        text: "Start",
+        createdAt,
+      },
+      {
+        id: "entry_01HN0000000000000000000003",
+        sessionId: session.id,
+        parentEntryId: "entry_01HN0000000000000000000002",
+        role: "system",
+        kind: "message",
+        text: "Plan accepted",
+        createdAt,
+      },
+      {
+        id: "entry_01HN0000000000000000000005",
+        sessionId: session.id,
+        parentEntryId: "entry_01HN0000000000000000000004",
+        role: "assistant",
+        kind: "message",
+        text: "Continue after active tools change",
+        createdAt,
+      },
+    ] as const;
+    const entriesBySessionId = new Map([[session.id, [...entries]]]);
+
+    assert.deepEqual(
+      repository
+        .activeBranchEntries(entriesBySessionId, session)
+        .map((entry) => entry.text),
+      ["Start", "Plan accepted", "Continue after active tools change"],
+    );
+
+    const tree = repository.getSessionTree(entriesBySessionId, session);
+    const ids = new Set(tree.nodes.map((node) => node.entry.id));
+    assert.equal(
+      tree.nodes.every(
+        (node) =>
+          !node.entry.parentEntryId || ids.has(node.entry.parentEntryId),
+      ),
+      true,
+    );
+    assert.equal(
+      tree.nodes.find((node) => node.entry.id === session.activeEntryId)?.entry
+        .parentEntryId,
+      "entry_01HN0000000000000000000003",
+    );
   });
 });

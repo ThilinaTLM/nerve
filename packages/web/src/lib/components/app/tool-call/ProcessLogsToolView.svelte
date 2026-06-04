@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { ToolCallRecord } from "../../../api";
   import type { ToolView } from "../../../tool-views/tool-result-view";
-  import Disclosure from "./Disclosure.svelte";
   import LogLineList from "./LogLineList.svelte";
 
   type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "process_logs" }> };
@@ -13,9 +12,7 @@
 {:else}
   <LogLineList events={view.tailEvents} />
   {#if view.events.length > view.tailEvents.length}
-    <Disclosure label={`all ${view.events.length} events`}>
-      <LogLineList events={view.events} maxHeight="26rem" />
-    </Disclosure>
+    <p class="note">Showing latest {view.tailEvents.length} of {view.events.length} events.</p>
   {/if}
 {/if}
 

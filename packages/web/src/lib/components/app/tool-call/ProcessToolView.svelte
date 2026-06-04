@@ -4,15 +4,12 @@
   import type { ToolCallRecord } from "../../../api";
   import { processTone, processUrl } from "../../../tool-views/process";
   import type { ToolView } from "../../../tool-views/tool-result-view";
-  import Disclosure from "./Disclosure.svelte";
-  import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
   type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "process_action" }> };
   let { view }: Props = $props();
 
   const process = $derived(view.process);
   const url = $derived(process ? processUrl(process) : undefined);
-  const envEntries = $derived(process?.env ? Object.entries(process.env) : []);
 </script>
 
 {#if process}
@@ -34,11 +31,6 @@
   {/if}
   {#if process.error}
     <p class="error">{process.error}</p>
-  {/if}
-  {#if envEntries.length > 0}
-    <Disclosure label="environment">
-      <ResultCodeBlock code={envEntries.map(([key, value]) => `${key}=${value}`).join("\n")} maxHeight="12rem" />
-    </Disclosure>
   {/if}
 {/if}
 

@@ -1,9 +1,6 @@
 <script lang="ts">
-  import Bot from "@lucide/svelte/icons/bot";
-  import ChevronsRight from "@lucide/svelte/icons/chevrons-right";
   import Clipboard from "@lucide/svelte/icons/clipboard";
   import Copy from "@lucide/svelte/icons/copy";
-  import Info from "@lucide/svelte/icons/info";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { toast } from "svelte-sonner";
@@ -99,19 +96,6 @@
 
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls));
 
-  function roleLabel(item: TranscriptItem) {
-    if (item.kind && item.kind !== "message") return item.kind.replace("_", " ");
-    if (item.role === "assistant") return "assistant";
-    if (item.role === "system") return "context";
-    return "you";
-  }
-
-  function roleIcon(role: TranscriptItem["role"]) {
-    if (role === "assistant") return Bot;
-    if (role === "system") return Info;
-    return ChevronsRight;
-  }
-
   async function copyText(text: string, label = "message") {
     try {
       await navigator.clipboard?.writeText(text);
@@ -159,12 +143,8 @@
           <ToolCallCard toolCall={node.toolCall} />
         {:else}
         {@const item = node.item}
-        {@const Icon = roleIcon(item.role)}
         <ContextMenu items={messageMenu(item)} triggerClass="select-text">
           <article class={`transcript-entry ${item.role}`}>
-            <div class="message-gutter">
-              <span class="message-icon" title={roleLabel(item)}><Icon size={item.role === "user" ? 18 : 14} strokeWidth={2.1} /></span>
-            </div>
             <div class="message-body">
               <div class="message-content">
                 <Markdown text={item.text} />
@@ -180,7 +160,6 @@
 
       {#if streamingText}
         <article class="transcript-entry assistant streaming">
-          <div class="message-gutter"><span class="message-icon" title="assistant"><Bot size={14} strokeWidth={2.1} /></span></div>
           <div class="message-body">
             <div class="message-content streaming-content">
               <Markdown text={streamingText} />
@@ -248,57 +227,25 @@
     gap: 0;
     min-height: 0;
     overflow: auto;
-    padding: 0.9rem 0.95rem 1.2rem;
+    padding: 0.75rem 0.75rem 1.1rem;
   }
 
   .transcript-entry {
-    display: grid;
-    grid-template-columns: 1.8rem minmax(0, 1fr);
-    gap: 0.55rem;
-    max-width: 920px;
     width: 100%;
-    margin: 0 auto;
-    padding: 0.8rem 0;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    padding: 0.75rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
   }
 
-  .message-gutter {
-    position: relative;
-    display: grid;
-    justify-items: center;
-    padding-top: 0.1rem;
-  }
-
-  .message-icon {
-    display: inline-grid;
-    width: 1.5rem;
-    height: 1.5rem;
-    place-items: center;
-    border: 1px solid transparent;
+  .transcript-entry.user {
     border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--muted-foreground);
-  }
-
-  .transcript-entry.user .message-icon {
-    color: var(--primary);
-  }
-
-  .transcript-entry.assistant .message-icon {
-    border-color: var(--border);
-    background: var(--secondary);
-    color: var(--secondary-foreground);
-  }
-
-  .transcript-entry.system .message-icon {
-    color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
+    background: color-mix(in oklab, var(--primary) 8%, transparent);
+    border-bottom-color: color-mix(in oklab, var(--primary) 18%, var(--border));
   }
 
   .message-body {
     position: relative;
     min-width: 0;
     overflow: hidden;
-    padding-top: 0.12rem;
   }
 
   .message-body :global(.copy-btn) {

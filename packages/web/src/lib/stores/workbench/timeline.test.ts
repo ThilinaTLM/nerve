@@ -9,6 +9,7 @@ function toolCall(
   createdAt: string,
   toolName: ToolCallRecord["toolName"] = "read",
   sourceToolCallId?: string,
+  overrides: Partial<ToolCallRecord> = {},
 ): ToolCallRecord {
   return {
     id,
@@ -23,6 +24,7 @@ function toolCall(
     status: "completed",
     createdAt,
     updatedAt: createdAt,
+    ...overrides,
   };
 }
 
@@ -35,7 +37,11 @@ describe("buildConversationTimeline", () => {
     const transcript: TranscriptItem[] = [
       { role: "user", text: "Investigate this", optimistic: true },
     ];
-    const toolCalls = [toolCall("tool_02", "2026-01-01T00:00:02.000Z")];
+    const toolCalls = [
+      toolCall("tool_02", "2026-01-01T00:00:02.000Z", "read", undefined, {
+        status: "running",
+      }),
+    ];
 
     const timeline = buildConversationTimeline(transcript, toolCalls);
 
@@ -91,7 +97,11 @@ describe("buildConversationTimeline", () => {
         text: "[Tool call: ls({})]",
       },
     ];
-    const toolCalls = [toolCall("tool_01", "2026-01-01T00:00:01.000Z", "ls")];
+    const toolCalls = [
+      toolCall("tool_01", "2026-01-01T00:00:01.000Z", "ls", undefined, {
+        status: "running",
+      }),
+    ];
 
     const timeline = buildConversationTimeline(transcript, toolCalls);
 
@@ -159,8 +169,12 @@ describe("buildConversationTimeline", () => {
       { id: "entry_assistant", role: "assistant", text: "Working..." },
     ];
     const toolCalls = [
-      toolCall("tool_late", "2026-01-01T00:00:03.000Z"),
-      toolCall("tool_early", "2026-01-01T00:00:01.000Z"),
+      toolCall("tool_late", "2026-01-01T00:00:03.000Z", "read", undefined, {
+        status: "running",
+      }),
+      toolCall("tool_early", "2026-01-01T00:00:01.000Z", "read", undefined, {
+        status: "requested",
+      }),
     ];
 
     const timeline = buildConversationTimeline(transcript, toolCalls);
@@ -170,6 +184,71 @@ describe("buildConversationTimeline", () => {
       "entry_assistant",
       "tool_early",
       "tool_late",
+    ]);
+  });
+
+  it("omits completed unanchored historical tool calls", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Run tools" },
+      { id: "entry_assistant", role: "assistant", text: "Done." },
+    ];
+    const toolCalls = [
+      toolCall(
+        "tool_historical",
+        "2026-01-01T00:00:01.000Z",
+        "read",
+        undefined,
+        {
+          status: "completed",
+        },
+      ),
+      toolCall("tool_live", "2026-01-01T00:00:02.000Z", "read", undefined, {
+        status: "running",
+      }),
+    ];
+
+    const timeline = buildConversationTimeline(transcript, toolCalls);
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "entry_assistant",
+      "tool_live",
+    ]);
+  });
+
+  it("ignores API updatedAt order for unanchored tool calls", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Run tools" },
+    ];
+    const toolCalls = [
+      toolCall(
+        "tool_newer_update",
+        "2026-01-01T00:00:02.000Z",
+        "read",
+        undefined,
+        {
+          status: "running",
+          updatedAt: "2026-01-01T00:00:10.000Z",
+        },
+      ),
+      toolCall(
+        "tool_older_create",
+        "2026-01-01T00:00:01.000Z",
+        "read",
+        undefined,
+        {
+          status: "requested",
+          updatedAt: "2026-01-01T00:00:11.000Z",
+        },
+      ),
+    ];
+
+    const timeline = buildConversationTimeline(transcript, toolCalls);
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "tool_older_create",
+      "tool_newer_update",
     ]);
   });
 });

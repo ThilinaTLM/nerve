@@ -1,4 +1,8 @@
-import type { AgentMessage, JsonlSessionStorage } from "@nerve/agent";
+import type {
+  AgentMessage,
+  JsonlSessionStorage,
+  SessionTreeEntry,
+} from "@nerve/agent";
 import type { AgentRecord, SessionEntry, SessionRecord } from "@nerve/shared";
 import type { EventBus } from "../events.js";
 import { deriveSessionTitle } from "../session-operations/index.js";
@@ -41,7 +45,11 @@ export class MessageMirror {
     knownEntryIds: Set<string>,
   ): Promise<SessionEntry[]> {
     const mirrored: SessionEntry[] = [];
-    for (const entry of await storage.getEntries()) {
+    const storageEntries = await storage.getEntries();
+    const visibleEntryIds = new Set(
+      (this.deps.entries.get(agent.sessionId) ?? []).map((entry) => entry.id),
+    );
+    for (const entry of storageEntries) {
       if (knownEntryIds.has(entry.id)) continue;
       knownEntryIds.add(entry.id);
       if (entry.type !== "message") continue;
@@ -59,7 +67,11 @@ export class MessageMirror {
           id: entry.id,
           sessionId: agent.sessionId,
           agentId: agent.id,
-          parentEntryId: entry.parentId,
+          parentEntryId: resolveVisibleParentId(
+            entry.parentId,
+            storageEntries,
+            visibleEntryIds,
+          ),
           role,
           text: agentMessageText(entry.message as AgentMessage),
           details:
@@ -76,6 +88,7 @@ export class MessageMirror {
         },
         { mirrorToHarness: false },
       );
+      visibleEntryIds.add(uiEntry.id);
       mirrored.push(uiEntry);
     }
     return mirrored;
@@ -102,6 +115,22 @@ export class MessageMirror {
       session: this.deps.sessions.get(session.id),
     });
   }
+}
+
+function resolveVisibleParentId(
+  parentId: string | null | undefined,
+  storageEntries: SessionTreeEntry[],
+  visibleEntryIds: Set<string>,
+): string | undefined {
+  const rawEntriesById = new Map(
+    storageEntries.map((entry) => [entry.id, entry]),
+  );
+  let cursor = parentId ?? undefined;
+  while (cursor) {
+    if (visibleEntryIds.has(cursor)) return cursor;
+    cursor = rawEntriesById.get(cursor)?.parentId ?? undefined;
+  }
+  return undefined;
 }
 
 function toolRecordIdFromDetails(details: unknown): string | undefined {

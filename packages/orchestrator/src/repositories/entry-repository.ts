@@ -37,11 +37,27 @@ export class EntryRepository {
     await appendJsonLine(this.entriesPath(entry.sessionId), entry, 0o600);
   }
 
+  displayLinkedEntries(entries: SessionEntry[]): SessionEntry[] {
+    const allIds = new Set(entries.map((entry) => entry.id));
+    let previousVisibleEntryId: string | undefined;
+    return entries.map((entry) => {
+      const parentEntryId = entry.parentEntryId;
+      const normalized =
+        parentEntryId && !allIds.has(parentEntryId)
+          ? { ...entry, parentEntryId: previousVisibleEntryId }
+          : entry;
+      previousVisibleEntryId = normalized.id;
+      return normalized;
+    });
+  }
+
   activeBranchEntries(
     entriesBySessionId: Map<string, SessionEntry[]>,
     session: SessionRecord,
   ): SessionEntry[] {
-    const entries = entriesBySessionId.get(session.id) ?? [];
+    const entries = this.displayLinkedEntries(
+      entriesBySessionId.get(session.id) ?? [],
+    );
     if (!session.activeEntryId) return entries;
     const byId = new Map(entries.map((entry) => [entry.id, entry]));
     const branch: SessionEntry[] = [];
@@ -59,7 +75,9 @@ export class EntryRepository {
     entriesBySessionId: Map<string, SessionEntry[]>,
     session: SessionRecord,
   ): SessionTree {
-    const entries = entriesBySessionId.get(session.id) ?? [];
+    const entries = this.displayLinkedEntries(
+      entriesBySessionId.get(session.id) ?? [],
+    );
     const children = new Map<string, string[]>();
     const rootEntryIds: string[] = [];
     for (const entry of entries) {

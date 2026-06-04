@@ -2,7 +2,6 @@
   import Markdown from "../../../Markdown.svelte";
   import type { ToolCallRecord } from "../../../api";
   import type { ToolView } from "../../../tool-views/tool-result-view";
-  import Disclosure from "./Disclosure.svelte";
 
   type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "subagent_run" }> };
   let { toolCall, view }: Props = $props();
@@ -16,11 +15,11 @@
 {#if view.summary}
   <div class="summary"><Markdown text={view.summary} /></div>
 {/if}
-{#if view.task || typeof context === "string"}
-  <Disclosure label="task">
-    {#if view.task}<p class="task">{view.task}</p>{/if}
-    {#if typeof context === "string" && context.length > 0}<p class="task context">{context}</p>{/if}
-  </Disclosure>
+{#if view.task}
+  <p class="task">{view.task}</p>
+{/if}
+{#if typeof context === "string" && context.length > 0}
+  <p class="task context">{context}</p>
 {/if}
 
 <style>
@@ -45,7 +44,7 @@
   }
 
   .task {
-    margin: 0 0 0.3rem;
+    margin: 0;
     font-size: 0.8125rem;
     white-space: pre-wrap;
     word-break: break-word;

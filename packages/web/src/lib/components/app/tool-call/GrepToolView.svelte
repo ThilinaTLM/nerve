@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { ToolCallRecord } from "../../../api";
   import type { GroupedMatches, ToolView } from "../../../tool-views/tool-result-view";
-  import Disclosure from "./Disclosure.svelte";
 
   type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "grep" }> };
   let { view }: Props = $props();
+
+  const shownMatches = $derived(view.previewMatches.reduce((sum, group) => sum + group.matches.length, 0));
 </script>
 
 {#snippet matchGroups(groups: GroupedMatches[])}
@@ -12,7 +13,7 @@
     {#each groups as group (group.path)}
       <div class="file">
         <span class="file-path">{group.path}</span>
-        {#each group.matches as match (match.line)}
+        {#each group.matches as match (`${group.path}:${match.line}:${match.text}`)}
           <div class="match"><span class="line-no">{match.line}</span><span class="line-text">{match.text}</span></div>
         {/each}
       </div>
@@ -24,10 +25,8 @@
   <p class="note">No matches.</p>
 {:else}
   {@render matchGroups(view.previewMatches)}
-  {#if view.matchCount > view.previewMatches.reduce((sum, group) => sum + group.matches.length, 0)}
-    <Disclosure label="all matches">
-      {@render matchGroups(view.allMatches)}
-    </Disclosure>
+  {#if view.matchCount > shownMatches}
+    <p class="note">Showing first {shownMatches} of {view.matchCount} matches.</p>
   {/if}
 {/if}
 

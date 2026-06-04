@@ -327,6 +327,50 @@ describe("parseToolView", () => {
     assert.equal(view.childAgentId, "agent_02H00000000000000000000000");
   });
 
+  it("parses plan_mode_enter", () => {
+    const view = parseToolView(
+      toolCall("plan_mode_enter", {}, {
+        mode: "planning",
+        planDir: "/home/tlm/.pi/plans",
+        contentBlocks: [
+          { type: "text", text: "Plan mode active." },
+        ],
+      }),
+    );
+    assert.equal(view.kind, "plan_mode");
+    if (view.kind !== "plan_mode") return;
+    assert.equal(view.title, "plan mode entered · /home/tlm/.pi/plans");
+    assert.equal(view.summary, "Plan mode active.");
+  });
+
+  it("parses plan_mode_present", () => {
+    const view = parseToolView(
+      toolCall(
+        "plan_mode_present",
+        { file_path: "/home/tlm/.pi/plans/feature.md" },
+        {
+          review: { planPath: "/home/tlm/.pi/plans/feature.md" },
+          outcome: "accepted",
+          feedback: "Looks good",
+        },
+      ),
+    );
+    assert.equal(view.kind, "plan_mode");
+    if (view.kind !== "plan_mode") return;
+    assert.equal(view.title, "presented /home/tlm/.pi/plans/feature.md · accepted");
+    assert.equal(view.summary, "Looks good");
+  });
+
+  it("parses plan_mode_force_exit", () => {
+    const view = parseToolView(
+      toolCall("plan_mode_force_exit", {}, { mode: "coding", reason: "Done" }),
+    );
+    assert.equal(view.kind, "plan_mode");
+    if (view.kind !== "plan_mode") return;
+    assert.equal(view.title, "exited plan mode");
+    assert.equal(view.summary, "Done");
+  });
+
   it("falls back to generic for a malformed result", () => {
     const view = parseToolView(
       toolCall("grep", { pattern: "x" }, "not an object"),

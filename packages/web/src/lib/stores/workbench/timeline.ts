@@ -18,6 +18,15 @@ function byCreatedAtAscending(a: ToolCallRecord, b: ToolCallRecord): number {
   return cmp !== 0 ? cmp : a.id.localeCompare(b.id);
 }
 
+function isLiveToolCall(toolCall: ToolCallRecord): boolean {
+  return (
+    toolCall.status === "requested" ||
+    toolCall.status === "pending_approval" ||
+    toolCall.status === "waiting_for_user" ||
+    toolCall.status === "running"
+  );
+}
+
 /**
  * Merge plain message entries with structured tool-call records into a single
  * branch-ordered timeline. The transcript/session branch is the source of truth:
@@ -29,11 +38,12 @@ export function buildConversationTimeline(
   toolCalls: ToolCallRecord[],
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
+  const orderedToolCalls = [...toolCalls].sort(byCreatedAtAscending);
   const toolCallsById = new Map(
-    toolCalls.map((toolCall) => [toolCall.id, toolCall]),
+    orderedToolCalls.map((toolCall) => [toolCall.id, toolCall]),
   );
   const toolCallsBySourceId = new Map(
-    toolCalls.flatMap((toolCall) =>
+    orderedToolCalls.flatMap((toolCall) =>
       toolCall.sourceToolCallId ? [[toolCall.sourceToolCallId, toolCall]] : [],
     ),
   );
@@ -64,8 +74,10 @@ export function buildConversationTimeline(
     });
   });
 
-  for (const toolCall of [...toolCalls].sort(byCreatedAtAscending)) {
-    if (consumedToolCallIds.has(toolCall.id)) continue;
+  for (const toolCall of orderedToolCalls) {
+    if (consumedToolCallIds.has(toolCall.id) || !isLiveToolCall(toolCall)) {
+      continue;
+    }
     items.push({
       kind: "tool",
       key: toolCall.id,

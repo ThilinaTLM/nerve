@@ -107,6 +107,11 @@ export type ToolView =
       childAgentId?: string;
       summary?: string;
     }
+  | {
+      kind: "plan_mode";
+      title?: string;
+      summary?: string;
+    }
   | { kind: "generic" };
 
 const READ_PREVIEW = 10;
@@ -123,6 +128,19 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function stringField(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function firstTextBlock(value: unknown): string | undefined {
+  const blocks = asRecord(value).contentBlocks;
+  if (!Array.isArray(blocks)) return undefined;
+  const textBlock = blocks.find(
+    (block) =>
+      block &&
+      typeof block === "object" &&
+      (block as Record<string, unknown>).type === "text" &&
+      typeof (block as Record<string, unknown>).text === "string",
+  ) as { text?: string } | undefined;
+  return textBlock?.text;
 }
 
 export function relativePath(
@@ -406,6 +424,42 @@ export function parseToolView(toolCall: ToolCallRecord): ToolView {
         task,
         childAgentId: data?.agent.id,
         summary: data?.summary,
+      };
+    }
+
+    case "plan_mode_enter": {
+      const resultRecord = asRecord(toolCall.result);
+      const planDir = stringField(resultRecord.planDir);
+      return {
+        kind: "plan_mode",
+        title: planDir ? `plan mode entered · ${planDir}` : "plan mode entered",
+        summary: firstTextBlock(toolCall.result),
+      };
+    }
+
+    case "plan_mode_present": {
+      const resultRecord = asRecord(toolCall.result);
+      const review = asRecord(resultRecord.review);
+      const planPath =
+        stringField(review.planPath) ?? stringField(args.file_path);
+      const outcome = stringField(resultRecord.outcome);
+      return {
+        kind: "plan_mode",
+        title: planPath
+          ? `presented ${planPath}${outcome ? ` · ${outcome}` : ""}`
+          : "presented plan",
+        summary:
+          stringField(resultRecord.feedback) ?? firstTextBlock(toolCall.result),
+      };
+    }
+
+    case "plan_mode_force_exit": {
+      const resultRecord = asRecord(toolCall.result);
+      const reason = stringField(resultRecord.reason);
+      return {
+        kind: "plan_mode",
+        title: "exited plan mode",
+        summary: reason,
       };
     }
 
