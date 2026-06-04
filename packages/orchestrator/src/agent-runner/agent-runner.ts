@@ -124,109 +124,111 @@ export class AgentRunner {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
 
-    const session = this.deps.getSession(agent.sessionId);
-    const project = this.deps.getProject(agent.projectId);
-    const storage = await this.deps.harnessManager.openStorage(
-      session,
-      project.dir,
-    );
-    const harnessSession = new Session(storage);
-    const initialHarnessEntryIds = new Set(
-      (await storage.getEntries()).map((entry) => entry.id),
-    );
     const runId = createId("run");
     let abortRequested = false;
-    const activeToolNames = activeToolNamesForAgent(agent);
-    const promptMetadata = toolPromptMetadata(activeToolNames);
-    const model = resolveAgentModel(agent.model);
-    const env = new NodeExecutionEnv({ cwd: agent.projectDir });
-    const resources = await loadHarnessResources(agent.projectDir);
     let lastAssistantEntry: SessionEntry | undefined;
 
-    const harness = new AgentHarness({
-      env,
-      session: harnessSession,
-      resources: { skills: resources.skills },
-      tools: createAgentToolsForAgent(agent, this.deps.tools),
-      activeToolNames,
-      model,
-      thinkingLevel: agent.thinkingLevel,
-      getApiKeyAndHeaders: async (requestModel) => {
-        if (requestModel.provider === "nerve-faux") return undefined;
-        const apiKey = await this.deps.auth.getApiKey(requestModel.provider);
-        return apiKey ? { apiKey } : undefined;
-      },
-      systemPrompt: () =>
-        composeAgentSystemPrompt(
-          agent,
-          activeToolNames,
-          promptMetadata,
-          resources,
-        ),
-    });
+    try {
+      const session = this.deps.getSession(agent.sessionId);
+      const project = this.deps.getProject(agent.projectId);
+      const storage = await this.deps.harnessManager.openStorage(
+        session,
+        project.dir,
+      );
+      const harnessSession = new Session(storage);
+      const initialHarnessEntryIds = new Set(
+        (await storage.getEntries()).map((entry) => entry.id),
+      );
+      const activeToolNames = activeToolNamesForAgent(agent);
+      const promptMetadata = toolPromptMetadata(activeToolNames);
+      const model = resolveAgentModel(agent.model);
+      const env = new NodeExecutionEnv({ cwd: agent.projectDir });
+      const resources = await loadHarnessResources(agent.projectDir);
 
-    harness.subscribe(async (event) => {
-      if (event.type === "agent_start") {
-        await this.deps.events.publish("agent.started", {
-          agentId: agent.id,
-          runId,
-        });
-        return;
-      }
-      if (event.type === "message_update") {
-        const update = event.assistantMessageEvent;
-        if (update.type === "text_delta") {
-          await this.deps.events.publish("agent.message_delta", {
+      const harness = new AgentHarness({
+        env,
+        session: harnessSession,
+        resources: { skills: resources.skills },
+        tools: createAgentToolsForAgent(agent, this.deps.tools),
+        activeToolNames,
+        model,
+        thinkingLevel: agent.thinkingLevel,
+        getApiKeyAndHeaders: async (requestModel) => {
+          if (requestModel.provider === "nerve-faux") return undefined;
+          const apiKey = await this.deps.auth.getApiKey(requestModel.provider);
+          return apiKey ? { apiKey } : undefined;
+        },
+        systemPrompt: () =>
+          composeAgentSystemPrompt(
+            agent,
+            activeToolNames,
+            promptMetadata,
+            resources,
+          ),
+      });
+
+      harness.subscribe(async (event) => {
+        if (event.type === "agent_start") {
+          await this.deps.events.publish("agent.started", {
             agentId: agent.id,
             runId,
-            sessionId: agent.sessionId,
-            delta: update.delta,
           });
+          return;
         }
-        return;
-      }
-      if (event.type === "message_end") {
-        const mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
-          agent,
-          storage,
-          initialHarnessEntryIds,
-        );
-        for (const entry of mirrored) {
-          if (entry.role === "user") {
-            await this.deps.events.publish("agent.prompt_received", {
+        if (event.type === "message_update") {
+          const update = event.assistantMessageEvent;
+          if (update.type === "text_delta") {
+            await this.deps.events.publish("agent.message_delta", {
               agentId: agent.id,
-              entry,
+              runId,
+              sessionId: agent.sessionId,
+              delta: update.delta,
             });
-            await this.deps.messageMirror.maybeDeriveInitialSessionTitle(
-              session.id,
-              entry.text,
-            );
-          } else if (entry.role === "assistant") {
-            lastAssistantEntry = entry;
           }
+          return;
         }
-        return;
-      }
-    });
+        if (event.type === "message_end") {
+          const mirrored =
+            await this.deps.messageMirror.mirrorNewHarnessEntries(
+              agent,
+              storage,
+              initialHarnessEntryIds,
+            );
+          for (const entry of mirrored) {
+            if (entry.role === "user") {
+              await this.deps.events.publish("agent.prompt_received", {
+                agentId: agent.id,
+                entry,
+              });
+              await this.deps.messageMirror.maybeDeriveInitialSessionTitle(
+                session.id,
+                entry.text,
+              );
+            } else if (entry.role === "assistant") {
+              lastAssistantEntry = entry;
+            }
+          }
+          return;
+        }
+      });
 
-    this.deps.runs.set(agent.id, {
-      runId,
-      abort: () => {
-        abortRequested = true;
-        void harness.abort();
-      },
-      messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
-      steer: (text, options) =>
-        harness.steer(text, { images: options?.images }),
-      followUp: (text, options) =>
-        harness.followUp(text, { images: options?.images }),
-      updateAgentRuntimeConfig: async (updatedAgent) => {
-        await harness.setActiveTools(activeToolNamesForAgent(updatedAgent));
-      },
-    });
-    await this.deps.setAgentStatus(agent, "running");
+      this.deps.runs.set(agent.id, {
+        runId,
+        abort: () => {
+          abortRequested = true;
+          void harness.abort();
+        },
+        messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
+        steer: (text, options) =>
+          harness.steer(text, { images: options?.images }),
+        followUp: (text, options) =>
+          harness.followUp(text, { images: options?.images }),
+        updateAgentRuntimeConfig: async (updatedAgent) => {
+          await harness.setActiveTools(activeToolNamesForAgent(updatedAgent));
+        },
+      });
+      await this.deps.setAgentStatus(agent, "running");
 
-    try {
       await harness.prompt(request.text, { images: request.images });
       const latest = this.deps.agents.get(agent.id);
       if (latest) await this.deps.setAgentStatus(latest, "idle");
@@ -261,6 +263,7 @@ export class AgentRunner {
       await this.deps.events.publish("agent.error", {
         agentId: agent.id,
         runId,
+        sessionId: agent.sessionId,
         message: error instanceof Error ? error.message : String(error),
         aborted,
       });
