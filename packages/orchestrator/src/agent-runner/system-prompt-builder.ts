@@ -4,6 +4,7 @@ import {
   toolPromptMetadata,
 } from "../agent-tool-adapter.js";
 import { buildNerveSystemPrompt } from "../nerve-system-prompt.js";
+import { planDirForStorageHome } from "../plan-paths.js";
 import { loadHarnessResources } from "../resource-loader.js";
 
 /**
@@ -13,6 +14,7 @@ import { loadHarnessResources } from "../resource-loader.js";
  */
 export async function buildAgentSystemPrompt(
   agent: AgentRecord,
+  options: { storageHome?: string } = {},
 ): Promise<string> {
   const activeToolNames = activeToolNamesForAgent(agent);
   const promptMetadata = toolPromptMetadata(activeToolNames);
@@ -22,6 +24,9 @@ export async function buildAgentSystemPrompt(
     activeToolNames,
     promptMetadata,
     resources,
+    options.storageHome
+      ? { planDir: planDirForStorageHome(options.storageHome) }
+      : undefined,
   );
 }
 
@@ -34,6 +39,7 @@ export function composeAgentSystemPrompt(
   activeToolNames: ReturnType<typeof activeToolNamesForAgent>,
   promptMetadata: ReturnType<typeof toolPromptMetadata>,
   resources: Awaited<ReturnType<typeof loadHarnessResources>>,
+  options: { planDir?: string } = {},
 ): string {
   return buildNerveSystemPrompt({
     cwd: agent.projectDir,
@@ -44,5 +50,6 @@ export function composeAgentSystemPrompt(
     skills: resources.skills,
     customPrompt: resources.systemPrompt,
     appendSystemPrompt: resources.appendSystemPrompt,
+    planDir: options.planDir,
   });
 }

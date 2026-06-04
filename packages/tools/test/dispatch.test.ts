@@ -70,10 +70,8 @@ describe("executeTool dispatch", () => {
   it("rejects plan tools because they are orchestrator-owned", async () => {
     const planTools = [
       "plan_mode_enter",
-      "plan_write",
       "plan_mode_present",
       "plan_mode_force_exit",
-      "plan_mode_status",
     ] as ToolName[];
 
     for (const name of planTools) {

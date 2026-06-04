@@ -93,6 +93,28 @@ describe("Nerve system prompt", () => {
     assert.doesNotMatch(prompt, /<available_skills>/);
   });
 
+  it("adds full plan-mode instructions, including for custom prompts", () => {
+    const prompt = buildNerveSystemPrompt({
+      cwd: "/tmp/project",
+      mode: "planning",
+      selectedTools: [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "plan_mode_present",
+      ],
+      customPrompt: "Custom base prompt.",
+      planDir: "/tmp/nerve/plans",
+    });
+
+    assert.match(prompt, /Custom base prompt\./);
+    assert.match(prompt, /\[PLAN MODE ACTIVE\]/);
+    assert.match(prompt, /WRITE and EDIT only plan files inside \/tmp\/nerve\/plans\//);
+    assert.match(prompt, /plan_mode_present using the plan file path/);
+    assert.doesNotMatch(prompt, /plan_write/);
+  });
+
   it("does not expose orchestration metadata", () => {
     const agent = testAgent();
     const activeToolNames = activeToolNamesForAgent(agent);

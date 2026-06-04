@@ -15,6 +15,7 @@ import { allToolDescriptors, executeTool } from "@nerve/tools";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
 import type { PlanService } from "./plan-service.js";
+import { ensurePlanDir } from "./plan-paths.js";
 import { evaluateToolPolicy } from "./policy.js";
 import type { ProcessManager } from "./process-manager.js";
 import type { InitializedStorage } from "./storage.js";
@@ -448,14 +449,10 @@ export class ToolService {
         return this.requestUserQuestion(toolCall, args, options);
       case "plan_mode_enter":
         return this.enterPlanMode(toolCall, args);
-      case "plan_write":
-        return this.plans.writePlan(this.getAgent(toolCall.agentId), args);
       case "plan_mode_present":
         return this.requestPlanReview(toolCall, args, options);
       case "plan_mode_force_exit":
         return this.forceExitPlanMode(toolCall, args);
-      case "plan_mode_status":
-        return this.planModeStatus(toolCall);
       default:
         if (toolCall.toolName === "bash") delete args.cwd;
         return executeTool(toolCall.toolName, args, {
@@ -494,10 +491,17 @@ export class ToolService {
       agent.mode === "planning"
         ? agent
         : await this.setAgentMode(agent.id, "planning", reason);
+    await ensurePlanDir(this.storage.paths.home);
     return {
       mode: updated.mode,
       planDir: this.plans.planDir(updated),
       alreadyPlanning: agent.mode === "planning",
+      contentBlocks: [
+        {
+          type: "text",
+          text: `Plan mode active. Plans are saved to ${this.plans.planDir(updated)}/<feature-name>.md. Use write/edit only inside that directory, then call plan_mode_present with the plan file path when ready.`,
+        },
+      ],
     };
   }
 
@@ -505,24 +509,12 @@ export class ToolService {
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    const reason = stringArg(args, "reason");
+    const reason = optionalStringArg(args.reason) ?? "Agent exited planning mode.";
     const updated = await this.plans.forceExitAgentPlanning(
       toolCall.agentId,
       reason,
     );
     return { mode: updated.mode, reason };
-  }
-
-  private async planModeStatus(toolCall: ToolCallRecord): Promise<unknown> {
-    const agent = this.getAgent(toolCall.agentId);
-    return {
-      mode: agent.mode,
-      planDir: this.plans.planDir(agent),
-      planFiles: await this.plans.listPlanFiles(agent),
-      pendingReviews: this.plans
-        .listPlanReviews("pending")
-        .filter((review) => review.agentId === agent.id),
-    };
   }
 
   private async requestUserQuestion(

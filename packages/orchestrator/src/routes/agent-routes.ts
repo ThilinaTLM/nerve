@@ -31,7 +31,9 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) => {
       const agentId = c.req.param("agentId");
       const agent = state.registry.getAgent(agentId);
-      const prompt = await buildAgentSystemPrompt(agent);
+      const prompt = await buildAgentSystemPrompt(agent, {
+        storageHome: state.storage.paths.home,
+      });
       return c.body(prompt, 200, {
         "Content-Type": "text/markdown; charset=utf-8",
         "Content-Disposition": `attachment; filename="system-prompt-${agentId}.md"`,

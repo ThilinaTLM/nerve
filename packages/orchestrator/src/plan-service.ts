@@ -1,5 +1,5 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, readdir } from "node:fs/promises";
+import { basename, join } from "node:path";
 import {
   type AgentRecord,
   createId,
@@ -7,10 +7,15 @@ import {
   type PlanReviewRecord,
   type PlanReviewStatus,
   planReviewRecordSchema,
-  planSlugSchema,
   type ToolCallRecord,
 } from "@nerve/shared";
 import type { EventBus } from "./events.js";
+import {
+  isPathInsidePlanDir,
+  planDirForStorageHome,
+  planSlugFromPath,
+  resolvePlanPath,
+} from "./plan-paths.js";
 import type { InitializedStorage } from "./storage.js";
 import { appendJsonLine, pathExists, readJsonLines } from "./storage.js";
 
@@ -19,14 +24,10 @@ export type PlanReviewResult = {
   outcome: PlanReviewStatus;
   feedback?: string;
   mode: Mode;
+  contentBlocks?: Array<{ type: "text"; text: string }>;
 };
 
-export type PlanWriteResult = {
-  slug: string;
-  title?: string;
-  planPath: string;
-  bytes: number;
-};
+const UNRESOLVED_PLAN_MARKER = /\[!(QUESTION|DECISION)\]/i;
 
 export type SetAgentMode = (
   agentId: string,
@@ -60,8 +61,8 @@ export class PlanService {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  planDir(agent: AgentRecord): string {
-    return join(this.storage.paths.home, "plans", agent.sessionId, agent.id);
+  planDir(_agent: AgentRecord): string {
+    return planDirForStorageHome(this.storage.paths.home);
   }
 
   async listPlanFiles(agent: AgentRecord): Promise<string[]> {
@@ -74,47 +75,40 @@ export class PlanService {
       .sort();
   }
 
-  async writePlan(
-    agent: AgentRecord,
-    args: Record<string, unknown>,
-  ): Promise<PlanWriteResult> {
-    const slug = this.slugArg(args.slug);
-    const content = stringArg(args, "content");
-    const title = optionalStringArg(args.title);
-    const planPath = this.planPath(agent, slug);
-    await mkdir(this.planDir(agent), { recursive: true, mode: 0o755 });
-    await writeFile(planPath, content, { encoding: "utf8", mode: 0o644 });
-    await this.events.publish("plan.written", {
-      agentId: agent.id,
-      sessionId: agent.sessionId,
-      projectId: agent.projectId,
-      slug,
-      title,
-      planPath,
-    });
-    return { slug, title, planPath, bytes: Buffer.byteLength(content, "utf8") };
-  }
-
   async presentPlan(
     toolCall: ToolCallRecord,
     agent: AgentRecord,
     args: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<PlanReviewResult> {
-    const slug = this.slugArg(args.slug);
-    const title = optionalStringArg(args.title);
-    const summary = optionalStringArg(args.summary);
-    const planPath = this.planPath(agent, slug);
-    if (!(await pathExists(planPath))) {
+    const planPath = resolvePlanPath(toolCall.cwd, args.file_path);
+    const planDir = this.planDir(agent);
+    if (!isPathInsidePlanDir(planDir, planPath)) {
       throw new Error(
-        `No plan exists for slug '${slug}'. Call plan_write before plan_mode_present.`,
+        `Plan file must be inside ${planDir}. Attempted: ${planPath}`,
       );
     }
+    if (!(await pathExists(planPath))) {
+      throw new Error(`Could not read plan file: ${planPath}`);
+    }
+    const content = await readFile(planPath, "utf8");
+    if (!content.trim()) {
+      throw new Error("Plan file is empty. Write your plan first, then present it.");
+    }
+    if (UNRESOLVED_PLAN_MARKER.test(content)) {
+      throw new Error(
+        "Plan still contains unresolved question or decision callouts. Resolve them before presenting.",
+      );
+    }
+
+    const slug = planSlugFromPath(planPath);
+    const title = optionalStringArg(args.title) ?? basename(planPath);
+    const summary = optionalStringArg(args.summary);
     const existingPending = this.listPlanReviews("pending").find(
-      (review) => review.agentId === agent.id && review.slug === slug,
+      (review) => review.agentId === agent.id && review.planPath === planPath,
     );
     if (existingPending) {
-      throw new Error(`Plan '${slug}' is already pending user review.`);
+      throw new Error(`Plan '${planPath}' is already pending user review.`);
     }
 
     const now = new Date().toISOString();
@@ -128,7 +122,7 @@ export class PlanService {
       title,
       summary,
       planPath,
-      content: await readFile(planPath, "utf8"),
+      content,
       status: "pending",
       requestedAt: now,
       updatedAt: now,
@@ -142,6 +136,12 @@ export class PlanService {
       outcome: resolved.status,
       feedback: resolved.feedback,
       mode: this.getAgent(agent.id).mode,
+      contentBlocks: [
+        {
+          type: "text",
+          text: this.planReviewOutcomeMessage(resolved),
+        },
+      ],
     };
   }
 
@@ -289,35 +289,22 @@ export class PlanService {
     return latestById(parsed);
   }
 
-  private planPath(agent: AgentRecord, slug: string): string {
-    return join(this.planDir(agent), `${slug}.md`);
-  }
-
-  private slugArg(value: unknown): string {
-    if (typeof value !== "string") {
-      throw new Error("Tool argument 'slug' must be a string.");
+  private planReviewOutcomeMessage(review: PlanReviewRecord): string {
+    if (review.status === "accepted") {
+      return `Plan accepted. Proceed with implementation using ${review.planPath} as the source of truth.`;
     }
-    const slug = value.trim();
-    const parsed = planSlugSchema.safeParse(slug);
-    if (!parsed.success) {
-      throw new Error(
-        "Tool argument 'slug' must match /^[a-z0-9][a-z0-9._-]{0,79}$/ and cannot contain path separators or spaces.",
-      );
+    if (review.status === "changes_requested") {
+      return `User requested changes. Update the plan file at ${review.planPath} and present it again.`;
     }
-    return parsed.data;
+    if (review.status === "discarded") {
+      return `Plan review discarded. Plan mode remains active; continue planning or exit with plan_mode_force_exit.`;
+    }
+    return `Plan review status: ${review.status}.`;
   }
 
   private planReviewsPath(): string {
     return join(this.storage.paths.home, "plans", "plan-reviews.jsonl");
   }
-}
-
-function stringArg(args: Record<string, unknown>, name: string): string {
-  const value = args[name];
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`Tool argument '${name}' must be a non-empty string.`);
-  }
-  return value;
 }
 
 function optionalStringArg(value: unknown): string | undefined {

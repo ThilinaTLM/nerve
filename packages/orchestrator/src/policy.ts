@@ -5,6 +5,11 @@ import {
   isKnownReadOnlyCommand,
   toolRiskForName,
 } from "@nerve/tools";
+import {
+  isPathInsidePlanDir,
+  planDirForStorageHome,
+  resolvePlanPath,
+} from "./plan-paths.js";
 
 export type PolicyDecision = "allow" | "approval" | "deny";
 
@@ -24,7 +29,7 @@ export function evaluateToolPolicy(
   agent: AgentRecord,
   toolName: ToolName,
   args: Record<string, unknown>,
-  _context: PolicyContext,
+  context: PolicyContext,
 ): PolicyEvaluation {
   const cwd = normalizeCwd(agent, args);
   const normalizedArgs = { ...args };
@@ -38,11 +43,12 @@ export function evaluateToolPolicy(
       risk,
       normalizedArgs,
       cwd,
+      context,
     );
     if (planningDecision) return planningDecision;
   }
 
-  if (toolName === "plan_write" || toolName === "plan_mode_present") {
+  if (toolName === "plan_mode_present" || toolName === "plan_mode_force_exit") {
     return {
       decision: "deny",
       risk,
@@ -119,6 +125,7 @@ function evaluatePlanningModePolicy(
   risk: ToolRisk,
   normalizedArgs: Record<string, unknown>,
   cwd: string,
+  context: PolicyContext,
 ): PolicyEvaluation | undefined {
   const allowedInteractionTools = new Set<ToolName>([
     "ask_user",
@@ -141,6 +148,57 @@ function evaluatePlanningModePolicy(
       decision: "allow",
       risk,
       reason: "Planning-mode read-only tool call is allowed.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
+  if (toolName === "edit" || toolName === "write") {
+    let targetPath: string;
+    try {
+      targetPath = resolvePlanPath(cwd, args.path);
+    } catch (error) {
+      return {
+        decision: "deny",
+        risk,
+        reason: error instanceof Error ? error.message : String(error),
+        normalizedArgs,
+        cwd,
+      };
+    }
+    const planDir = planDirForStorageHome(context.dataDir);
+    if (!isPathInsidePlanDir(planDir, targetPath)) {
+      return {
+        decision: "deny",
+        risk,
+        reason: `Planning mode allows ${toolName} only for plan files inside ${planDir}. Attempted: ${targetPath}`,
+        normalizedArgs,
+        cwd,
+      };
+    }
+    normalizedArgs.path = targetPath;
+    if (agent.permissionLevel === "read_only") {
+      return {
+        decision: "deny",
+        risk,
+        reason: "read_only agents cannot write plan documents.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (agent.permissionLevel === "supervised") {
+      return {
+        decision: "approval",
+        risk,
+        reason: "Supervised agent requires approval for plan file write/edit tool calls.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    return {
+      decision: "allow",
+      risk,
+      reason: "Planning-mode plan file write/edit tool call is allowed.",
       normalizedArgs,
       cwd,
     };
@@ -183,34 +241,6 @@ function evaluatePlanningModePolicy(
     };
   }
 
-  if (toolName === "plan_write") {
-    if (agent.permissionLevel === "read_only") {
-      return {
-        decision: "deny",
-        risk,
-        reason: "read_only agents cannot write plan documents.",
-        normalizedArgs,
-        cwd,
-      };
-    }
-    if (agent.permissionLevel === "supervised") {
-      return {
-        decision: "approval",
-        risk,
-        reason: "Supervised agent requires approval for plan_write tool calls.",
-        normalizedArgs,
-        cwd,
-      };
-    }
-    return {
-      decision: "allow",
-      risk,
-      reason: "Planning-mode plan_write tool call is allowed.",
-      normalizedArgs,
-      cwd,
-    };
-  }
-
   return {
     decision: "deny",
     risk,
@@ -232,14 +262,9 @@ function classifyRisk(
   ) {
     return "interaction";
   }
-  if (
-    toolName === "process_list" ||
-    toolName === "process_logs" ||
-    toolName === "plan_mode_status"
-  ) {
+  if (toolName === "process_list" || toolName === "process_logs") {
     return "read";
   }
-  if (toolName === "plan_write") return "plan_write";
   if (toolName === "process_stop" || toolName === "process_restart") {
     return "destructive";
   }

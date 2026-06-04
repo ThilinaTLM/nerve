@@ -7,6 +7,7 @@ export interface BuildNerveSystemPromptOptions {
   appendSystemPrompt?: string;
   cwd: string;
   mode?: "planning" | "coding";
+  planDir?: string;
   contextFiles?: Array<{ path: string; content: string }>;
   skills?: Skill[];
 }
@@ -32,11 +33,16 @@ export function buildNerveSystemPrompt(
       ? formatSkillsForSystemPrompt(options.skills ?? [])
       : "";
 
+  const planModeBlock =
+    options.mode === "planning"
+      ? buildPlanModeInstructions(options.planDir ?? "Nerve plan storage")
+      : "";
   const footer = `Current date: ${date}\nCurrent working directory: ${cwd}`;
 
   return [
     basePrompt,
     options.appendSystemPrompt,
+    planModeBlock,
     formatProjectInstructions(options.contextFiles ?? []),
     skillsBlock,
     footer,
@@ -67,15 +73,7 @@ function defaultPrompt(options: {
     addGuideline("Use bash for file operations like ls, rg, find");
   }
   for (const guideline of options.promptGuidelines) addGuideline(guideline);
-  if (options.mode === "planning") {
-    addGuideline(
-      "Planning mode: inspect and prepare only; do not modify workspace files or run mutating commands.",
-    );
-    addGuideline(
-      "Write plans with plan_write using a descriptive lowercase slug, then call plan_mode_present for user review.",
-    );
-    addGuideline("Do not implement workspace changes until the plan is accepted.");
-  } else {
+  if (options.mode !== "planning") {
     addGuideline(
       "If the user asks for a plan or the task needs research before edits, call plan_mode_enter first.",
     );
@@ -96,6 +94,38 @@ ${guidelines.map((guideline) => `- ${guideline}`).join("\n")}`;
 function formatToolSummary(selectedTools: string[]): string {
   const tools = selectedTools.length > 0 ? selectedTools.join(", ") : "none";
   return `Tools available in this session include: ${tools}. Use the API-provided tool schemas as the source of truth for arguments and capabilities.`;
+}
+
+function buildPlanModeInstructions(planDir: string): string {
+  return `[PLAN MODE ACTIVE]
+You are in plan mode — a research and planning mode with guarded writes.
+
+Restrictions:
+- READ files, search, grep, list directories, and run planning-safe bash commands.
+- WRITE and EDIT only plan files inside ${planDir}/.
+- NO code modifications outside the plans directory.
+- Do not run mutating package scripts, long-running dev servers, deployments, or destructive commands.
+
+## Your Role
+
+You are a technical partner, not an order-taker. Research first, challenge weak assumptions, propose better alternatives when justified, and ask focused questions when user intent is unclear.
+
+## Workflow
+
+1. Understand the request and clarify user-dependent decisions.
+2. Research the codebase and relevant options before proposing implementation details.
+3. Discuss trade-offs and resolve meaningful decisions with the user.
+4. Draft the plan as a markdown file under ${planDir}/ using write/edit.
+5. Refine the plan until every open question and decision is resolved.
+6. Present the finalized plan with plan_mode_present using the plan file path. Do not implement workspace changes until the plan is accepted.
+
+## Plan Quality
+
+- Name specific files, functions, types, and modules.
+- Respect existing codebase patterns and conventions.
+- Call out breaking changes, migrations, dependencies, ordering, and risks.
+- Keep steps small and reviewable.
+- The final plan must be self-contained and actionable with no unresolved question or decision callouts.`;
 }
 
 function formatProjectInstructions(

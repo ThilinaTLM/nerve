@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -45,41 +45,16 @@ async function fixture() {
 }
 
 describe("PlanService", () => {
-  it("writes plan files using the agent-selected slug", async () => {
-    const { plans, agent } = await fixture();
-    const result = await plans.writePlan(agent, {
-      slug: "plan-mode-lifecycle",
-      content: "# Plan\n",
-    });
-
-    assert.equal(result.slug, "plan-mode-lifecycle");
-    assert.equal(result.planPath.endsWith("plan-mode-lifecycle.md"), true);
-    assert.equal(await readFile(result.planPath, "utf8"), "# Plan\n");
-  });
-
-  it("rejects unsafe slugs", async () => {
-    const { plans, agent } = await fixture();
-    await assert.rejects(
-      plans.writePlan(agent, { slug: "../escape", content: "# Plan\n" }),
-      /slug/,
-    );
-    await assert.rejects(
-      plans.writePlan(agent, { slug: "with space", content: "# Plan\n" }),
-      /slug/,
-    );
-  });
-
-  it("presents a plan, resolves with feedback, and switches to coding on acceptance", async () => {
+  it("presents a plan file, resolves with feedback, and switches to coding on acceptance", async () => {
     const fx = await fixture();
-    await fx.plans.writePlan(fx.agent, {
-      slug: "accepted-plan",
-      content: "# Accepted\n",
-    });
+    const planPath = join(fx.plans.planDir(fx.agent), "accepted-plan.md");
+    await mkdir(fx.plans.planDir(fx.agent), { recursive: true });
+    await writeFile(planPath, "# Accepted\n", "utf8");
 
     const pending = fx.plans.presentPlan(
-      toolCall(),
+      toolCall(planPath),
       fx.agent,
-      { slug: "accepted-plan" },
+      { file_path: planPath },
     );
     let review = fx.plans.listPlanReviews("pending")[0];
     for (let attempt = 0; !review && attempt < 20; attempt += 1) {
@@ -88,13 +63,46 @@ describe("PlanService", () => {
     }
     assert.ok(review);
     assert.equal(review.slug, "accepted-plan");
+    assert.equal(review.planPath, planPath);
     assert.equal(review.content, "# Accepted\n");
 
     await fx.plans.acceptPlanReview(review.id, "Looks good.");
     const result = await pending;
     assert.equal(result.outcome, "accepted");
     assert.equal(result.feedback, "Looks good.");
+    assert.match(result.contentBlocks?.[0]?.text ?? "", /source of truth/);
     assert.equal(fx.agent.mode, "coding");
+  });
+
+  it("rejects plan files outside the plan directory", async () => {
+    const fx = await fixture();
+    const outside = join(fx.root, "outside.md");
+    await writeFile(outside, "# Outside\n", "utf8");
+    await assert.rejects(
+      fx.plans.presentPlan(toolCall(outside), fx.agent, { file_path: outside }),
+      /inside/,
+    );
+  });
+
+  it("rejects empty plans and unresolved markers", async () => {
+    const fx = await fixture();
+    const planDir = fx.plans.planDir(fx.agent);
+    await mkdir(planDir, { recursive: true });
+    const empty = join(planDir, "empty.md");
+    await writeFile(empty, "\n", "utf8");
+    await assert.rejects(
+      fx.plans.presentPlan(toolCall(empty), fx.agent, { file_path: empty }),
+      /empty/,
+    );
+
+    const unresolved = join(planDir, "unresolved.md");
+    await writeFile(unresolved, "# Plan\n\n[!QUESTION] Decide this.\n", "utf8");
+    await assert.rejects(
+      fx.plans.presentPlan(toolCall(unresolved), fx.agent, {
+        file_path: unresolved,
+      }),
+      /unresolved/,
+    );
   });
 });
 
@@ -116,7 +124,7 @@ function agent(): AgentRecord {
   };
 }
 
-function toolCall(): ToolCallRecord {
+function toolCall(planPath: string): ToolCallRecord {
   return {
     id: "tool_01HN0000000000000000000000",
     agentId: "agent_01HN0000000000000000000000",
@@ -124,7 +132,7 @@ function toolCall(): ToolCallRecord {
     projectId: "proj_01HN0000000000000000000000",
     toolName: "plan_mode_present",
     risk: "interaction",
-    args: { slug: "accepted-plan" },
+    args: { file_path: planPath },
     cwd: "/tmp/project",
     status: "running",
     createdAt: "2026-01-01T00:00:00.000Z",

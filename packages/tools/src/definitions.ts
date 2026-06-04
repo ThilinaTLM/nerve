@@ -316,23 +316,11 @@ const planModeEnterParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const planWriteParameters = Type.Object(
-  {
-    slug: Type.String({
-      description:
-        "Agent-chosen filename slug for the plan, e.g. plan-mode-lifecycle. Must match lowercase letters, numbers, dots, underscores, and hyphens.",
-    }),
-    content: Type.String({ description: "Markdown plan content" }),
-    title: Type.Optional(
-      Type.String({ description: "Human-readable plan title" }),
-    ),
-  },
-  { additionalProperties: false },
-);
-
 const planModePresentParameters = Type.Object(
   {
-    slug: Type.String({ description: "Slug of the plan file to present" }),
+    file_path: Type.String({
+      description: "Path to the markdown plan file inside Nerve plan storage",
+    }),
     title: Type.Optional(Type.String({ description: "Optional display title" })),
     summary: Type.Optional(
       Type.String({ description: "Short summary for the review UI" }),
@@ -343,15 +331,15 @@ const planModePresentParameters = Type.Object(
 
 const planModeForceExitParameters = Type.Object(
   {
-    reason: Type.String({
-      description:
-        "Why planning mode should be exited without an accepted plan",
-    }),
+    reason: Type.Optional(
+      Type.String({
+        description:
+          "Why planning mode should be exited without an accepted plan",
+      }),
+    ),
   },
   { additionalProperties: false },
 );
-
-const planModeStatusParameters = Type.Object({}, { additionalProperties: false });
 
 export const coreToolDefinitions = [
   {
@@ -519,26 +507,13 @@ export const orchestrationToolDefinitions = [
     executionMode: "sequential",
   },
   {
-    name: "plan_write",
-    label: "plan_write",
-    description:
-      "Write or update a markdown plan in Nerve plan storage using an agent-chosen slug filename. Does not write to the project workspace.",
-    promptSnippet: "Write a plan document using a safe slug filename",
-    promptGuidelines: [
-      "In planning mode, write plans with plan_write; choose a descriptive lowercase slug such as dependency-upgrade-plan.",
-      "Use plan_write only for plan documents, not workspace files.",
-    ],
-    parameters: planWriteParameters,
-    executionMode: "sequential",
-  },
-  {
     name: "plan_mode_present",
     label: "plan_mode_present",
     description:
       "Present a written plan to the user for review and wait for acceptance, change requests, or discard.",
     promptSnippet: "Present a written plan and wait for user review",
     promptGuidelines: [
-      "Call plan_mode_present after plan_write when the plan is ready for user review.",
+      "Call plan_mode_present with the plan file path after writing the plan with write/edit and resolving every open question.",
       "Do not implement workspace changes until the plan is accepted.",
     ],
     parameters: planModePresentParameters,
@@ -555,14 +530,6 @@ export const orchestrationToolDefinitions = [
     ],
     parameters: planModeForceExitParameters,
     executionMode: "sequential",
-  },
-  {
-    name: "plan_mode_status",
-    label: "plan_mode_status",
-    description: "Return the current plan mode state and plan storage location.",
-    promptSnippet: "Inspect current plan mode status",
-    parameters: planModeStatusParameters,
-    executionMode: "parallel",
   },
 ] satisfies CoreToolDefinition[];
 
@@ -595,10 +562,8 @@ const toolRisks: Record<ToolName, ToolRisk> = {
   process_logs: "read",
   subagent_run: "agent_spawn",
   plan_mode_enter: "interaction",
-  plan_write: "plan_write",
   plan_mode_present: "interaction",
   plan_mode_force_exit: "interaction",
-  plan_mode_status: "read",
 };
 
 export function coreToolRiskForName(name: ToolName): ToolRisk {

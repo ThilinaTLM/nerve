@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const toolRiskSchema = z.enum([
   "read",
-  "plan_write",
   "workspace_write",
   "command",
   "network",
@@ -34,10 +33,8 @@ export const orchestrationToolNameSchema = z.enum([
   "process_logs",
   "subagent_run",
   "plan_mode_enter",
-  "plan_write",
   "plan_mode_present",
   "plan_mode_force_exit",
-  "plan_mode_status",
 ]);
 export type OrchestrationToolName = z.infer<typeof orchestrationToolNameSchema>;
 

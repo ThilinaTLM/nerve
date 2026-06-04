@@ -21,7 +21,7 @@ export function createAgentToolsForAgent(
 
 export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
   if (agent.permissionLevel === "read_only") {
-    return [
+    const tools: ToolName[] = [
       "read",
       "grep",
       "find",
@@ -30,15 +30,18 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
       "process_logs",
       "ask_user",
       "plan_mode_enter",
-      "plan_mode_present",
-      "plan_mode_force_exit",
-      "plan_mode_status",
     ];
+    if (agent.mode === "planning") {
+      tools.push("plan_mode_present", "plan_mode_force_exit");
+    }
+    return tools;
   }
   if (agent.mode === "planning") {
     return [
       "read",
       "bash",
+      "edit",
+      "write",
       "grep",
       "find",
       "ls",
@@ -47,10 +50,8 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
       "subagent_run",
       "ask_user",
       "plan_mode_enter",
-      "plan_write",
       "plan_mode_present",
       "plan_mode_force_exit",
-      "plan_mode_status",
     ];
   }
   return [
@@ -69,7 +70,6 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
     "subagent_run",
     "ask_user",
     "plan_mode_enter",
-    "plan_mode_status",
   ];
 }
 

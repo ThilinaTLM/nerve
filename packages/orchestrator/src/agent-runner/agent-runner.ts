@@ -26,6 +26,7 @@ import type { ConversationService } from "../conversation-service.js";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
+import { planDirForStorageHome } from "../plan-paths.js";
 import { loadHarnessResources } from "../resource-loader.js";
 import type { CompactionService } from "../session-operations/index.js";
 import type { InitializedStorage } from "../storage.js";
@@ -164,6 +165,7 @@ export class AgentRunner {
             activeToolNames,
             promptMetadata,
             resources,
+            { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
           ),
       });
 

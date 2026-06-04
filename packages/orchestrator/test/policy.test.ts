@@ -156,12 +156,12 @@ describe("tool policy", () => {
     }
   });
 
-  it("allows planning mode plan review tools with permission-aware plan writes", () => {
+  it("allows planning mode lifecycle tools and permission-aware plan file writes", () => {
     assert.equal(
       evaluateToolPolicy(
         { ...agent("autonomous"), mode: "planning" },
-        "plan_write",
-        { slug: "test-plan", content: "# Plan" },
+        "write",
+        { path: "/tmp/nerve/plans/test-plan.md", content: "# Plan" },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "allow",
@@ -169,8 +169,11 @@ describe("tool policy", () => {
     assert.equal(
       evaluateToolPolicy(
         { ...agent("supervised"), mode: "planning" },
-        "plan_write",
-        { slug: "test-plan", content: "# Plan" },
+        "edit",
+        {
+          path: "/tmp/nerve/plans/test-plan.md",
+          edits: [{ oldText: "a", newText: "b" }],
+        },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "approval",
@@ -178,8 +181,8 @@ describe("tool policy", () => {
     assert.equal(
       evaluateToolPolicy(
         { ...agent("read_only"), mode: "planning" },
-        "plan_write",
-        { slug: "test-plan", content: "# Plan" },
+        "write",
+        { path: "/tmp/nerve/plans/test-plan.md", content: "# Plan" },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "deny",
@@ -188,12 +191,15 @@ describe("tool policy", () => {
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",
-      "plan_mode_status",
     ] as ToolName[]) {
       const decision = evaluateToolPolicy(
         { ...agent("read_only"), mode: "planning" },
         toolName,
-        toolName === "plan_mode_force_exit" ? { reason: "done" } : {},
+        toolName === "plan_mode_present"
+          ? { file_path: "/tmp/nerve/plans/test-plan.md" }
+          : toolName === "plan_mode_force_exit"
+            ? { reason: "done" }
+            : {},
         { dataDir: "/tmp/nerve" },
       );
       assert.equal(decision.decision, "allow", toolName);

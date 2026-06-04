@@ -21,6 +21,10 @@
     onDiscard,
   }: Props = $props();
   let feedback = $state("");
+  const displayPath = $derived(planReview?.planPath ?? (planReview ? `${planReview.slug}.md` : ""));
+  const displayName = $derived(
+    planReview?.title ?? displayPath.split(/[\\/]/).pop() ?? planReview?.slug,
+  );
 </script>
 
 {#if planReview}
@@ -29,7 +33,7 @@
       <div class="head-copy">
         <span class="head-icon"><ClipboardCheck size={16} strokeWidth={2.1} aria-hidden="true" /></span>
         <div>
-          <strong>{planReview.title ?? planReview.slug}</strong>
+          <strong>{displayName}</strong>
           <span>Review the plan. Accepting exits planning mode.</span>
         </div>
       </div>
@@ -41,7 +45,7 @@
     {/if}
 
     <details class="plan-details" open>
-      <summary>{planReview.slug}.md</summary>
+      <summary>{displayPath}</summary>
       <div class="plan-content">
         <Markdown text={planReview.content ?? ""} />
       </div>
