@@ -5,8 +5,24 @@
 @import "@fontsource/outfit/500.css";
 @import "@fontsource/outfit/600.css";
 @import "@fontsource/outfit/700.css";
-@import "@fontsource/iosevka/400.css";
-@import "@fontsource/iosevka/500.css";
+
+@font-face {
+  font-family: "Iosevka";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/iosevka/files/iosevka-latin-400-normal.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Iosevka";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("@fontsource/iosevka/files/iosevka-latin-500-normal.woff2")
+    format("woff2");
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -59,7 +75,8 @@
   --sidebar-ring: oklch(0.623 0.1688 149.1777);
   --font-sans: Outfit, system-ui, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-mono:
+    Iosevka, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --tracking-normal: -0.02em;
   --shadow-color: hsl(142 76% 10%);
   --shadow-2xs: 0px 10px 30px 0px hsl(142 76% 10% / 0.05);
@@ -197,6 +214,66 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
+}
+
+@layer components {
+  .app-surface {
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    border-radius: var(--radius-sm);
+    background: var(--input);
+  }
+
+  .app-surface-muted {
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    border-radius: var(--radius-sm);
+    background: var(--muted);
+  }
+
+  .app-card {
+    display: grid;
+    gap: 0.75rem;
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    border-radius: var(--radius-md);
+    background: var(--card);
+    padding: 0.85rem;
+    box-shadow: var(--shadow-xs);
+  }
+
+  .app-caption {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .app-muted {
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+    line-height: 1.38;
+  }
+
+  .app-empty-state {
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    color: var(--muted-foreground);
+    text-align: center;
+  }
+
+  .app-interactive-row {
+    outline: none;
+    transition:
+      border-color 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .app-interactive-row:focus-visible {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent);
+  }
 }
 
 @layer base {

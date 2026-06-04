@@ -26,7 +26,7 @@
   }
 </script>
 
-<section class="settings-card" data-section="network">
+<section class="settings-card app-card" data-section="network">
   <div class="card-head">
     <div class="card-icon"><Server size={16} strokeWidth={2.2} /></div>
     <div>
@@ -56,14 +56,14 @@
       />
     </label>
   </div>
-  <div class="switch-card">
+  <div class="switch-card app-surface">
     <Switch
       bind:checked={settingsDraft.server.allowRemote}
       label="Allow remote connections"
       description="Restart the daemon after changing host, port, or remote access."
     />
   </div>
-  <div class="compaction-card">
+  <div class="compaction-card app-surface">
     <div>
       <Shield size={14} strokeWidth={2.2} />
       <strong>Transcript compaction</strong>

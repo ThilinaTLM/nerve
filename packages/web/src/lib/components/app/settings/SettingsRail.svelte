@@ -19,12 +19,13 @@
 </script>
 
 <aside class="settings-rail" aria-label="Settings sections">
-  <div class="rail-title">
+  <div class="rail-title app-caption">
     <Settings2 size={14} strokeWidth={2.2} />
     <span>Configuration</span>
   </div>
   {#each navItems as item}
     <button
+      class="app-interactive-row"
       class:active={activeSection === item.value}
       type="button"
       onclick={() => (activeSection = item.value)}
@@ -34,11 +35,11 @@
     </button>
   {/each}
   <div class="rail-status">
-    <section>
+    <section class="app-surface">
       <span>Theme</span>
       <strong>{themePreference}</strong>
     </section>
-    <section>
+    <section class="app-surface">
       <span>Providers</span>
       <strong>{configuredProviders}/{providerCount} configured</strong>
     </section>

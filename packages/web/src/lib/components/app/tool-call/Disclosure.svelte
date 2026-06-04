@@ -13,7 +13,7 @@
 
 <button
   type="button"
-  class="tool-section-toggle"
+  class="tool-section-toggle app-interactive-row"
   aria-expanded={isOpen}
   onclick={() => (isOpen = !isOpen)}
 >
@@ -30,10 +30,11 @@
     align-items: center;
     gap: 0.28rem;
     width: fit-content;
-    border: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--muted-foreground);
-    padding: 0;
+    padding: 0.05rem 0.12rem;
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     letter-spacing: 0.02em;

@@ -291,7 +291,7 @@
         {#if i === crumbs.length - 1}
           <span class="crumb current" title={crumb.path}>{crumb.label}</span>
         {:else}
-          <button class="crumb" type="button" title={crumb.path} disabled={loading} onclick={() => void load(crumb.path)}>
+          <button class="crumb app-interactive-row" type="button" title={crumb.path} disabled={loading} onclick={() => void load(crumb.path)}>
             {crumb.label}
           </button>
         {/if}
@@ -330,7 +330,7 @@
           <header class="group-head"><span>Recent</span></header>
           <div class="rows" role="list" aria-label="Recent projects">
             {#each recentProjects as project}
-              <button class="row" type="button" title={project.dir} onclick={() => void onSelect?.(project.dir)}>
+              <button class="row app-interactive-row" type="button" title={project.dir} onclick={() => void onSelect?.(project.dir)}>
                 <FolderOpen size={16} strokeWidth={2.05} aria-hidden="true" />
                 <span class="row-main"><strong>{project.name}</strong></span>
                 <span class="row-meta">
@@ -359,7 +359,7 @@
           <div class="rows" role="listbox" aria-label="Folders">
             {#each filteredEntries as entry, i}
               <button
-                class="row"
+                class="row app-interactive-row"
                 class:selected={selectedIndex === i}
                 type="button"
                 role="option"

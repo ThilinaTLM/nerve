@@ -9,7 +9,7 @@
   let { status }: Props = $props();
 </script>
 
-<section class="settings-card" data-section="general">
+<section class="settings-card app-card" data-section="general">
   <div class="card-head">
     <div class="card-icon"><Settings2 size={16} strokeWidth={2.2} /></div>
     <div>
@@ -19,14 +19,14 @@
     </div>
   </div>
   <div class="stat-grid">
-    <section><span>Daemon</span><strong>{status?.daemonId ?? "not loaded"}</strong></section>
-    <section><span>Version</span><strong>{status?.version ?? "—"}</strong></section>
-    <section>
+    <section class="app-surface"><span>Daemon</span><strong>{status?.daemonId ?? "not loaded"}</strong></section>
+    <section class="app-surface"><span>Version</span><strong>{status?.version ?? "—"}</strong></section>
+    <section class="app-surface">
       <span>Started</span><strong>{status?.startedAt ? new Date(status.startedAt).toLocaleString() : "—"}</strong>
     </section>
-    <section><span>Index</span><strong>{status?.storage.indexHealthy ? "healthy" : "unknown"}</strong></section>
-    <section class="wide"><span>Data directory</span><strong title={status?.dataDir}>{status?.dataDir ?? "—"}</strong></section>
-    <section class="wide">
+    <section class="app-surface"><span>Index</span><strong>{status?.storage.indexHealthy ? "healthy" : "unknown"}</strong></section>
+    <section class="wide app-surface"><span>Data directory</span><strong title={status?.dataDir}>{status?.dataDir ?? "—"}</strong></section>
+    <section class="wide app-surface">
       <span>SQLite</span><strong title={status?.storage.sqlitePath}>{status?.storage.sqlitePath ?? "—"}</strong>
     </section>
   </div>

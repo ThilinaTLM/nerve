@@ -19,7 +19,7 @@
   }
 </script>
 
-<section class="settings-card" data-section="appearance">
+<section class="settings-card app-card" data-section="appearance">
   <div class="card-head">
     <div class="card-icon"><Monitor size={16} strokeWidth={2.2} /></div>
     <div>

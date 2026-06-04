@@ -129,7 +129,7 @@
       <Collapsible.Root class="project-group" open={!collapsed[group.key]} onOpenChange={(open) => (collapsed[group.key] = !open)}>
         <ContextMenu items={projectMenu(group.project)}>
           <div class="project-row-wrap" class:active>
-            <Collapsible.Trigger class="project-row" title={group.project.dir}>
+            <Collapsible.Trigger class="project-row app-interactive-row" title={group.project.dir}>
               <span class="chevron" aria-hidden="true">
                 <ChevronDown size={13} />
               </span>
@@ -156,7 +156,7 @@
             <ContextMenu items={sessionMenu(group.project, row.session)}>
               <div class="conversation-row-wrap" class:selected={row.session.id === selectedSessionId}>
                 <button
-                  class="conversation-row"
+                  class="conversation-row app-interactive-row"
                   type="button"
                   title={`${row.session.title} · ${row.agent?.status ?? "idle"} · ${conversationMeta(row)} · ${row.session.id}`}
                   onclick={() => onOpenSession?.(row.session.id)}

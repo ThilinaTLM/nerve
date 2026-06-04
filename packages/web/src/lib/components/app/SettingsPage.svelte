@@ -63,7 +63,7 @@
 
     <ScrollArea class="settings-scroll" viewportClass="settings-viewport" type="auto">
       {#if !settingsDraft}
-        <section class="settings-card empty-card">
+        <section class="settings-card app-card empty-card app-empty-state">
           <Sparkles size={28} strokeWidth={1.8} />
           <strong>Settings are loading</strong>
           <p>Refresh if this takes longer than expected.</p>

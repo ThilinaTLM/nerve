@@ -23,7 +23,7 @@
   }
 </script>
 
-<section class="settings-card" data-section="providers">
+<section class="settings-card app-card" data-section="providers">
   <div class="card-head">
     <div class="card-icon"><KeyRound size={16} strokeWidth={2.2} /></div>
     <div>
@@ -37,7 +37,7 @@
   {:else}
     <div class="provider-list">
       {#each authProviders as provider}
-        <article class="provider-row">
+        <article class="provider-row app-surface">
           <div>
             <strong>{provider.displayName}</strong>
             <small>{provider.provider}{provider.envVar ? ` · ${provider.envVar}` : ""}</small>

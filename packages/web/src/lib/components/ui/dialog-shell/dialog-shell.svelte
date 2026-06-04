@@ -71,7 +71,7 @@
     position: fixed;
     z-index: 50;
     inset: 0;
-    background: rgb(0 0 0 / 68%);
+    background: color-mix(in oklab, var(--sidebar) 72%, transparent);
   }
 
   :global(.dialog-content) {
@@ -158,6 +158,12 @@
     border-color: var(--border);
     background: var(--card);
     color: var(--foreground);
+  }
+
+  :global(.dialog-close:focus-visible) {
+    border-color: var(--ring);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent);
   }
 
   .dialog-body {

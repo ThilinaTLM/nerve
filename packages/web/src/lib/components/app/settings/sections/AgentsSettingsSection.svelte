@@ -25,7 +25,7 @@
   }
 </script>
 
-<section class="settings-card" data-section="agents">
+<section class="settings-card app-card" data-section="agents">
   <div class="card-head">
     <div class="card-icon"><Bot size={16} strokeWidth={2.2} /></div>
     <div>
@@ -35,7 +35,7 @@
     </div>
   </div>
   <div class="defaults-grid">
-    <div class="control-block">
+    <div class="control-block app-surface">
       <h3>Root mode</h3>
       <RadioGroup
         items={modeItems}
@@ -46,7 +46,7 @@
         }}
       />
     </div>
-    <div class="control-block">
+    <div class="control-block app-surface">
       <h3>Root permission</h3>
       <RadioGroup
         items={permissionItems}
@@ -57,7 +57,7 @@
         }}
       />
     </div>
-    <div class="control-block">
+    <div class="control-block app-surface">
       <h3>Subagent mode</h3>
       <RadioGroup
         items={modeItems}
@@ -68,7 +68,7 @@
         }}
       />
     </div>
-    <div class="control-block">
+    <div class="control-block app-surface">
       <h3>Subagent permission</h3>
       <RadioGroup
         items={permissionItems}
@@ -81,7 +81,7 @@
     </div>
   </div>
 
-  <div class="permission-table" role="table" aria-label="Default agent permissions">
+  <div class="permission-table app-surface" role="table" aria-label="Default agent permissions">
     <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Default policy</span></div>
     <div role="row"><span>File system read</span><strong>Allowed</strong></div>
     <div role="row"><span>File system write</span><strong>{writePolicy(settingsDraft.defaultPermissionLevel)}</strong></div>

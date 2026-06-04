@@ -146,8 +146,7 @@
             },
             ".cm-content": {
               caretColor: "var(--primary)",
-              fontFamily:
-                'Iosevka, var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+              fontFamily: "var(--font-mono)",
               fontSize: "0.8125rem",
               lineHeight: "1.5",
               padding: "9px 10px",

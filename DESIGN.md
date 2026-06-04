@@ -6,7 +6,7 @@ built on [`bits-ui`](https://bits-ui.com)). We do **not** maintain a bespoke pri
 — components are generated with the shadcn-svelte CLI and owned in-repo.
 
 The visual theme is **"Jamaica"** from [tweakcn](https://tweakcn.com) — a green/gold palette
-with generous radius (`1.25rem`), **Outfit** for UI text and **JetBrains Mono** for code.
+with generous radius (`1.25rem`), **Outfit** for UI text and **Iosevka** for code.
 
 Implementation reference:
 
@@ -16,7 +16,7 @@ Implementation reference:
 - Utilities: `packages/web/src/lib/utils.ts` (`cn`, `WithElementRef`, …).
 - Dark mode: [`mode-watcher`](https://mode-watcher.svecosystem.com) toggles the `.dark` class.
 - Icons: `@lucide/svelte` (bundled). Fonts: bundled via `@fontsource` (`outfit`,
-  `jetbrains-mono`).
+  `iosevka`).
 - Config: `packages/web/components.json` (`style: vega`, aliases under `$lib`).
 
 ## Principles
@@ -29,8 +29,8 @@ Implementation reference:
 - **Plain & swappable.** The token vocabulary is exactly the official shadcn set plus three
   semantic status additions (`success`, `warning`, `info`). No project/domain tokens — a
   one-off value (e.g. a 48px header) is written inline in its single component, not tokenized.
-- **Sans for the tool, mono for the work.** Outfit for UI/chrome; JetBrains Mono for code,
-  logs, paths, and IDs.
+- **Sans for the tool, mono for the work.** Outfit for UI/chrome; Iosevka for code,
+  logs, paths, IDs, and inline technical metadata.
 - **Pane-based shell.** Resizable columns via the shadcn `resizable` component (Paneforge),
   with a persistent header and a minimal footer.
 
@@ -97,6 +97,21 @@ are clearly project-level, not modifications to shadcn:
 
 - `ui/status-dot` — a small status indicator (no shadcn equivalent), using the status tokens.
 
+## Styling boundaries
+
+- Use shadcn/Tailwind utilities for primitive composition, variants, and simple layout.
+- Use scoped Svelte CSS for complex app components, pane layout, third-party internals,
+  generated HTML, Markdown rendering, and CodeMirror styling.
+- Use `app.css` `@layer components` only for small shared app patterns that repeat across
+  multiple features, such as surfaces, captions, muted text, empty states, and custom
+  interactive rows.
+- Keep shared app classes generic (`app-*`) and token-driven; one-off dimensions stay local
+  to the component that owns them.
+- Formatting today is split: Biome covers TypeScript, CSS, and JSON, while Svelte files are
+  excluded from Biome and validated with `svelte-check`. Keep Tailwind class strings readable
+  and stable manually until a dedicated Svelte/Tailwind formatter is adopted in a separate
+  tooling change.
+
 ## Shell
 
 A persistent header + footer wrap three resizable panes (shadcn `resizable` / Paneforge):
@@ -106,6 +121,11 @@ A persistent header + footer wrap three resizable panes (shadcn `resizable` / Pa
 - **Center — Conversation (`bg-background`):** a tab strip for open conversations, the
   transcript, and the composer dock.
 - **Right — Utility (`bg-sidebar`):** History / Processes / Context tabs.
+
+The shell is currently desktop/workbench-first. Below the compact breakpoint, panes keep a
+minimum workbench width and the workspace scrolls horizontally rather than converting to a
+mobile drawer/tab model. If full mobile support becomes a product goal, treat it as a separate
+layout project.
 
 ## Accessibility
 

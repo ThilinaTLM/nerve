@@ -258,7 +258,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--input);
-    box-shadow: 0 1px 0 rgb(255 255 255 / 3%) inset;
+    box-shadow: 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent) inset;
     transition:
       border-color 120ms ease,
       box-shadow 120ms ease;
@@ -351,7 +351,7 @@
   }
 
   :global(.send-button) {
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 12%) inset;
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary-foreground) 18%, transparent) inset;
   }
 
   .composer-error {

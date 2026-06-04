@@ -396,6 +396,7 @@
   }
 
   @media (max-width: 980px) {
+    /* Desktop/workbench-first shell: preserve pane usability instead of collapsing to mobile drawers. */
     .workspace-shell {
       overflow: auto;
     }

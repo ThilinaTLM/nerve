@@ -165,9 +165,6 @@ importers:
       '@fontsource/iosevka':
         specifier: ^5.2.5
         version: 5.2.5
-      '@fontsource/jetbrains-mono':
-        specifier: ^5.2.8
-        version: 5.2.8
       '@fontsource/outfit':
         specifier: ^5.2.8
         version: 5.2.8
@@ -646,9 +643,6 @@ packages:
 
   '@fontsource/iosevka@5.2.5':
     resolution: {integrity: sha512-Zv/UHJodDug1LcnWv2u2+GPp3oWP3U6Xp16cJOsqqZQNsCu8sA/ttT331N0NypxBZ+7c8szlSRlYDcy9liZ8pw==}
-
-  '@fontsource/jetbrains-mono@5.2.8':
-    resolution: {integrity: sha512-6w8/SG4kqvIMu7xd7wt6x3idn1Qux3p9N62s6G3rfldOUYHpWcc2FKrqf+Vo44jRvqWj2oAtTHrZXEP23oSKwQ==}
 
   '@fontsource/outfit@5.2.8':
     resolution: {integrity: sha512-rXC6g0MqD7cOBjht0bMqc43qM6lRqDLML9KXsmg9uykz0wLQhy8Z/ajrMG6iyoT3NJR+MYgU+OEHp7uHoTb+Yw==}
@@ -2505,8 +2499,6 @@ snapshots:
   '@floating-ui/utils@0.2.11': {}
 
   '@fontsource/iosevka@5.2.5': {}
-
-  '@fontsource/jetbrains-mono@5.2.8': {}
 
   '@fontsource/outfit@5.2.8': {}
 
