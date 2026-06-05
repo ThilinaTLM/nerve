@@ -1,6 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   AgentHarness,
+  AgentToolSuspension,
   buildSessionContext,
   convertToLlm,
   estimateContextTokens,
@@ -475,15 +476,20 @@ export class AgentRunner {
       });
       return assistantEntry;
     } catch (error) {
-      if (isAgentToolSuspension(error)) {
+      const suspensionError = isAgentToolSuspension(error)
+        ? error
+        : this.suspensionFromWaitingToolCall(agent, runId, error);
+      if (suspensionError) {
         this.deps.runs.delete(agent.id);
         const latest = this.deps.agents.get(agent.id);
-        const toolCall = this.deps.tools.getToolCall(error.data.toolCallId);
+        const toolCall = this.deps.tools.getToolCall(
+          suspensionError.data.toolCallId,
+        );
         const providerToolCallId =
           toolCall.providerToolCallId ??
           toolCall.sourceToolCallId ??
-          error.data.toolCall?.id ??
-          error.data.toolCallId;
+          suspensionError.data.toolCall?.id ??
+          suspensionError.data.toolCallId;
         const suspension = await this.deps.suspensions.createSuspension({
           agentId: agent.id,
           sessionId: agent.sessionId,
@@ -495,14 +501,14 @@ export class AgentRunner {
           toolCallId: toolCall.id,
           providerToolCallId,
           toolName: toolCall.toolName as "ask_user" | "plan_mode_present",
-          remainingToolCalls: (error.data.remainingToolCalls ?? []).map(
+          remainingToolCalls: (suspensionError.data.remainingToolCalls ?? []).map(
             (remaining) => ({
               id: remaining.id,
               name: remaining.name,
               arguments: remaining.arguments,
             }),
           ),
-          reason: error.data.reason,
+          reason: suspensionError.data.reason,
         });
         if (latest) await this.deps.setAgentStatus(latest, "awaiting_user");
         const suspendedAt = new Date().toISOString();
@@ -514,7 +520,7 @@ export class AgentRunner {
           suspensionId: suspension.id,
           toolCallId: toolCall.id,
           suspendedAt,
-          reason: error.data.reason,
+          reason: suspensionError.data.reason,
         });
         this.deps.conversationRuntime.completeRun(runId);
         if (lastAssistantEntry) return lastAssistantEntry;
@@ -537,6 +543,31 @@ export class AgentRunner {
       this.deps.conversationRuntime.failRun(runId);
       throw error;
     }
+  }
+
+  private suspensionFromWaitingToolCall(
+    agent: AgentRecord,
+    runId: string,
+    error: unknown,
+  ): AgentToolSuspension | undefined {
+    const message = error instanceof Error ? error.message : String(error);
+    const toolCall = this.deps.tools
+      .listToolCalls()
+      .find(
+        (candidate) =>
+          candidate.agentId === agent.id &&
+          candidate.runId === runId &&
+          candidate.status === "waiting_for_user" &&
+          (candidate.toolName === "ask_user" ||
+            candidate.toolName === "plan_mode_present"),
+      );
+    if (!toolCall) return undefined;
+    return new AgentToolSuspension({
+      toolCallId: toolCall.id,
+      toolName: toolCall.toolName,
+      reason: message || `Tool ${toolCall.toolName} is awaiting user input.`,
+      remainingToolCalls: [],
+    });
   }
 
   private async maybeAutoCompact(sessionId: string): Promise<void> {

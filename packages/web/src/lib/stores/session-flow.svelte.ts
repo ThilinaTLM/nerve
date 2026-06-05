@@ -427,6 +427,7 @@ export async function acceptPendingPlanReview(reviewId: string) {
   await acceptPlanReview(reviewId);
   workbenchState.planReviews = await getPendingPlanReviews();
   await loadWorkspaceState();
+  if (selection.sessionId) await refreshSessionView(selection.sessionId);
   toast.success("Plan accepted");
 }
 
@@ -434,6 +435,7 @@ export async function rejectPendingPlanReview(reviewId: string) {
   await rejectPlanReview(reviewId, "Rejected from UI.");
   workbenchState.planReviews = await getPendingPlanReviews();
   await loadWorkspaceState();
+  if (selection.sessionId) await refreshSessionView(selection.sessionId);
   toast.message("Plan rejected");
 }
 

@@ -539,9 +539,13 @@ export class RuntimeRegistry {
       finalSuspensionStatus: "resumed" | "cancelled";
     },
   ): Promise<void> {
-    const suspension = this.suspensions.pendingForToolCall(toolCallId);
+    const toolCall = this.tools.getToolCall(toolCallId);
+    const suspension =
+      this.suspensions.pendingForToolCall(toolCallId) ??
+      (toolCall.runId
+        ? await this.waitForSuspensionForToolCall(toolCallId, 1500)
+        : undefined);
     if (!suspension) {
-      const toolCall = this.tools.getToolCall(toolCallId);
       if (toolCall.status === "waiting_for_user") {
         await this.tools.completeToolCall(toolCallId, result);
       }
@@ -572,6 +576,19 @@ export class RuntimeRegistry {
     }
     const latest = this.agents.get(suspension.agentId);
     if (latest) await this.setAgentStatus(latest, "idle");
+  }
+
+  private async waitForSuspensionForToolCall(
+    toolCallId: string,
+    timeoutMs: number,
+  ) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const suspension = this.suspensions.pendingForToolCall(toolCallId);
+      if (suspension) return suspension;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return this.suspensions.pendingForToolCall(toolCallId);
   }
 
   private async appendUserInstructionForAgent(

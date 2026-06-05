@@ -17,6 +17,7 @@ import {
 } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { composerDraft, selection } from "../state/app-state.svelte";
+import { modelKey } from "../utils/model";
 import { selectedModel, selectedThinkingLevel } from "./composer-config.svelte";
 import { openSession, removeConversationTabs } from "./session-flow.svelte";
 import { workbenchState } from "./workbench/state.svelte";
@@ -30,6 +31,7 @@ export async function loadWorkspaceState() {
   workbenchState.sessions = snapshot.sessions;
   workbenchState.agents = snapshot.agents;
   workbenchState.processes = snapshot.processes;
+  syncSelectedAgentConfig(snapshot.agents, snapshot.sessions);
   const sessionIds = new Set(snapshot.sessions.map((session) => session.id));
   const staleOpenTabIds = workbenchState.openConversationTabIds.filter(
     (sessionId) => !sessionIds.has(sessionId),
@@ -50,6 +52,29 @@ export async function loadWorkspaceState() {
       workbenchState.selectedProcessId,
     );
   }
+}
+
+function syncSelectedAgentConfig(
+  agents: AgentRecord[],
+  sessions: SessionRecord[],
+): void {
+  const activeAgent = selection.agentId
+    ? agents.find((agent) => agent.id === selection.agentId)
+    : undefined;
+  if (activeAgent) {
+    if (activeAgent.model) workbenchState.selectedModelKey = modelKey(activeAgent.model);
+    workbenchState.selectedThinkingLevel = activeAgent.thinkingLevel;
+    workbenchState.selectedMode = activeAgent.mode;
+    workbenchState.selectedPermissionLevel = activeAgent.permissionLevel;
+    return;
+  }
+
+  const activeSession = selection.sessionId
+    ? sessions.find((session) => session.id === selection.sessionId)
+    : undefined;
+  if (!activeSession) return;
+  workbenchState.selectedMode = activeSession.mode;
+  workbenchState.selectedPermissionLevel = activeSession.permissionLevel;
 }
 
 export async function loadSlashCommands() {
