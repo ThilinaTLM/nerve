@@ -16,7 +16,10 @@ import {
   executeTool,
   type ToolExecutionOutputUpdate,
 } from "@nerve/tools";
-import type { ConversationRuntime, ToolAnchor } from "./conversation-runtime.js";
+import type {
+  ConversationRuntime,
+  ToolAnchor,
+} from "./conversation-runtime.js";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
 import { ensurePlanDir } from "./plan-paths.js";
@@ -57,6 +60,8 @@ export type ProcessStarter = (
   request: StartProcessRequest,
 ) => Promise<ProcessRecord>;
 
+type TodoItem = { todo: string; done: boolean };
+
 class ToolExecutionSuspended extends Error {
   constructor() {
     super("Tool execution suspended waiting for user input.");
@@ -73,6 +78,7 @@ export class ToolService {
   readonly toolCalls = new Map<string, ToolCallRecord>();
   readonly approvals = new Map<string, ApprovalRecord>();
   readonly userQuestions = new Map<string, UserQuestionRecord>();
+  private readonly todoLists = new Map<string, TodoItem[]>();
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
@@ -100,10 +106,12 @@ export class ToolService {
   ) {}
 
   async hydrate(): Promise<void> {
-    for (const toolCall of await this.readLatestToolCalls()) {
+    const toolCalls = await this.readLatestToolCalls();
+    for (const toolCall of toolCalls) {
       this.toolCalls.set(toolCall.id, toolCall);
       this.index.upsertToolCall(toolCall);
     }
+    this.hydrateTodoListsFromToolCalls(toolCalls);
     for (const approval of await this.readLatestApprovals()) {
       this.approvals.set(approval.id, approval);
       this.index.upsertApproval(approval);
@@ -111,6 +119,24 @@ export class ToolService {
     for (const question of await this.readLatestUserQuestions()) {
       this.userQuestions.set(question.id, question);
       this.index.upsertUserQuestion(question);
+    }
+  }
+
+  private hydrateTodoListsFromToolCalls(toolCalls: ToolCallRecord[]): void {
+    const completedTodoSets = toolCalls
+      .filter(
+        (toolCall) =>
+          toolCall.toolName === "todos_set" && toolCall.status === "completed",
+      )
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+
+    for (const toolCall of completedTodoSets) {
+      const resultRecord = recordFromUnknown(toolCall.result);
+      const details = recordFromUnknown(resultRecord.details);
+      const items =
+        parseTodoItems(details.todos) ??
+        parseTodoItems(recordFromUnknown(toolCall.args).todos);
+      if (items) this.todoLists.set(toolCall.agentId, items);
     }
   }
 
@@ -147,7 +173,8 @@ export class ToolService {
     const evaluation = evaluateToolPolicy(latestAgent, toolName, args, {
       dataDir: this.storage.paths.home,
     });
-    const providerToolCallId = options.providerToolCallId ?? options.sourceToolCallId;
+    const providerToolCallId =
+      options.providerToolCallId ?? options.sourceToolCallId;
     const anchor = options.anchor;
     const toolCall: ToolCallRecord = {
       id: createId("tool"),
@@ -497,6 +524,13 @@ export class ToolService {
         return this.runSubagent(this.getAgent(toolCall.agentId), args);
       case "ask_user":
         return this.requestUserQuestion(toolCall, args, options);
+      case "todos_set": {
+        const items = todoItemsArg(args);
+        this.todoLists.set(toolCall.agentId, cloneTodos(items));
+        return todosResult(items);
+      }
+      case "todos_get":
+        return todosResult(this.todoLists.get(toolCall.agentId) ?? []);
       case "plan_mode_enter":
         return this.enterPlanMode(toolCall, args);
       case "plan_mode_present":
@@ -526,7 +560,8 @@ export class ToolService {
       turnId: toolCall.turnId,
       liveMessageId: toolCall.liveMessageId,
       contentIndex: toolCall.contentIndex,
-      providerToolCallId: toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
+      providerToolCallId:
+        toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
       sessionId: toolCall.sessionId,
       projectId: toolCall.projectId,
       toolCallId: toolCall.id,
@@ -633,7 +668,10 @@ export class ToolService {
     });
 
     if (options.durableSuspend) throw new ToolExecutionSuspended();
-    const resolved = await this.waitForUserQuestion(question.id, options.signal);
+    const resolved = await this.waitForUserQuestion(
+      question.id,
+      options.signal,
+    );
     return this.userQuestionResult(resolved);
   }
 
@@ -697,7 +735,9 @@ export class ToolService {
     return updated;
   }
 
-  private async publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void> {
+  private async publishToolCallUpdated(
+    toolCall: ToolCallRecord,
+  ): Promise<void> {
     await this.events.publish("conversation.tool_call.updated", {
       sessionId: toolCall.sessionId,
       agentId: toolCall.agentId,
@@ -796,6 +836,49 @@ function latestById<T extends { id: string }>(values: T[]): T[] {
   const byId = new Map<string, T>();
   for (const value of values) byId.set(value.id, value);
   return [...byId.values()];
+}
+
+function todoItemsArg(args: Record<string, unknown>): TodoItem[] {
+  const items = parseTodoItems(args.todos);
+  if (!items) {
+    throw new Error("Tool argument 'todos' must be an array of todo items.");
+  }
+  return items;
+}
+
+function parseTodoItems(value: unknown): TodoItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items: TodoItem[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") return undefined;
+    const record = item as Record<string, unknown>;
+    if (typeof record.todo !== "string" || typeof record.done !== "boolean") {
+      return undefined;
+    }
+    items.push({ todo: record.todo, done: record.done });
+  }
+  return items;
+}
+
+function cloneTodos(items: TodoItem[]): TodoItem[] {
+  return items.map((item) => ({ ...item }));
+}
+
+function todosResult(items: TodoItem[]): {
+  contentBlocks: Array<{ type: "text"; text: string }>;
+  details: { todos: TodoItem[] };
+} {
+  const snapshot = cloneTodos(items);
+  return {
+    contentBlocks: [{ type: "text", text: JSON.stringify(snapshot, null, 2) }],
+    details: { todos: snapshot },
+  };
+}
+
+function recordFromUnknown(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function stringArg(args: Record<string, unknown>, name: string): string {

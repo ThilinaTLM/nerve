@@ -16,7 +16,6 @@ import {
   parse,
   relative,
   resolve,
-  sep,
 } from "node:path";
 import {
   clipboardImageUploadRequestSchema,
@@ -225,16 +224,8 @@ function isInside(root: string, candidate: string): boolean {
 }
 
 function resolveProjectFile(root: string, rawPath: string): string {
-  const candidate =
-    rawPath.startsWith(`.${sep}`) || rawPath.startsWith("./")
-      ? resolve(root, rawPath)
-      : isAbsolute(rawPath)
-        ? resolve(rawPath)
-        : resolve(root, rawPath);
-  if (!isInside(root, candidate)) {
-    throw new Error("File path must be inside the selected project.");
-  }
-  return candidate;
+  const path = rawPath.trim();
+  return isAbsolute(path) ? resolve(path) : resolve(root, path);
 }
 
 async function readFileChunk(path: string, bytes: number): Promise<Buffer> {
@@ -261,7 +252,9 @@ async function fileContent(state: OrchestratorState, input: unknown) {
   const info = await stat(target);
   if (info.isDirectory()) throw new Error(`${target} is a directory.`);
 
-  const relativePath = relative(root, target).replaceAll("\\", "/");
+  const relativePath = (
+    isInside(root, target) ? relative(root, target) : target
+  ).replaceAll("\\", "/");
   const ext = extname(target).toLowerCase();
   const imageMimeType = imageMimeByExtension.get(ext);
 

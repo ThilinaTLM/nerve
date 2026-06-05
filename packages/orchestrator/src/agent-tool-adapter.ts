@@ -1,8 +1,8 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import {
-  AgentToolSuspension,
   type AgentTool,
   type AgentToolResult,
+  AgentToolSuspension,
 } from "@nerve/agent";
 import type { AgentRecord, ToolCallRecord, ToolName } from "@nerve/shared";
 import { allToolDefinitions, type CoreToolDefinition } from "@nerve/tools";
@@ -38,6 +38,8 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
       "process_list",
       "process_logs",
       "ask_user",
+      "todos_set",
+      "todos_get",
       "plan_mode_enter",
     ];
     if (agent.mode === "planning") {
@@ -58,6 +60,8 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
       "process_logs",
       "subagent_run",
       "ask_user",
+      "todos_set",
+      "todos_get",
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",
@@ -78,6 +82,8 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
     "process_logs",
     "subagent_run",
     "ask_user",
+    "todos_set",
+    "todos_get",
     "plan_mode_enter",
   ];
 }
@@ -138,7 +144,8 @@ function wrapCoreToolDefinition(
       if (toolCall.status === "completed") return completedToolResult(toolCall);
       if (
         toolCall.status === "waiting_for_user" &&
-        (definition.name === "ask_user" || definition.name === "plan_mode_present")
+        (definition.name === "ask_user" ||
+          definition.name === "plan_mode_present")
       ) {
         throw new AgentToolSuspension({
           toolCallId: toolCall.id,

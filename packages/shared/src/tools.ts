@@ -22,6 +22,8 @@ export const coreToolNameSchema = z.enum([
   "find",
   "ls",
   "ask_user",
+  "todos_set",
+  "todos_get",
 ]);
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 

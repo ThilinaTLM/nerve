@@ -40,7 +40,6 @@
     deleteProjectAndRefresh,
     deleteSessionAndRefresh,
     denyApproval,
-    discardPendingPlanReview,
     dismissUserQuestionById,
     disconnectWorkbench,
     exportUrl,
@@ -58,7 +57,7 @@
     refreshFilePane,
     refreshProcessLogs,
     refreshSessionView,
-    requestPendingPlanChanges,
+    rejectPendingPlanReview,
     removeProcess,
     restartSelectedProcess,
     saveSettings,
@@ -286,8 +285,7 @@
                 onGrantApproval={(id) => void grantApproval(id)}
                 onDenyApproval={(id) => void denyApproval(id)}
                 onAcceptPlanReview={(id) => void acceptPendingPlanReview(id)}
-                onRequestPlanChanges={(id, feedback) => void requestPendingPlanChanges(id, feedback)}
-                onDiscardPlanReview={(id) => void discardPendingPlanReview(id)}
+                onRejectPlanReview={(id) => void rejectPendingPlanReview(id)}
               />
             {/if}
           </div>

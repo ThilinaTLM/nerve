@@ -172,10 +172,21 @@ export class AgentRunner {
         (await storage.getEntries()).map((entry) => entry.id),
       );
       const activeToolNames = activeToolNamesForAgent(agent);
-      const promptMetadata = toolPromptMetadata(activeToolNames);
       const model = resolveAgentModel(agent.model);
       const env = new NodeExecutionEnv({ cwd: agent.projectDir });
       const resources = await loadHarnessResources(agent.projectDir);
+      const latestAgent = () => this.deps.agents.get(agent.id) ?? agent;
+      const composeLatestSystemPrompt = () => {
+        const currentAgent = latestAgent();
+        const currentActiveToolNames = activeToolNamesForAgent(currentAgent);
+        return composeAgentSystemPrompt(
+          currentAgent,
+          currentActiveToolNames,
+          toolPromptMetadata(currentActiveToolNames),
+          resources,
+          { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
+        );
+      };
 
       const harness = new AgentHarness({
         env,
@@ -197,14 +208,7 @@ export class AgentRunner {
           const apiKey = await this.deps.auth.getApiKey(requestModel.provider);
           return apiKey ? { apiKey } : undefined;
         },
-        systemPrompt: () =>
-          composeAgentSystemPrompt(
-            agent,
-            activeToolNames,
-            promptMetadata,
-            resources,
-            { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
-          ),
+        systemPrompt: composeLatestSystemPrompt,
       });
 
       harness.subscribe(async (event) => {

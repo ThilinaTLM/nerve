@@ -10,6 +10,8 @@ import {
   processListResultSchema,
   processLogsResultSchema,
   subagentRunResultSchema,
+  type TodoItem,
+  todosResultSchema,
   toolExecutionResultSchema,
   truncationDetailsSchema,
 } from "@nerve/shared";
@@ -99,6 +101,13 @@ export type ToolView =
       dismissedReason?: string;
     }
   | {
+      kind: "todos";
+      title?: string;
+      items: TodoItem[];
+      completed: number;
+      total: number;
+    }
+  | {
       kind: "process_action";
       title?: string;
       action: "start" | "stop" | "restart";
@@ -124,6 +133,7 @@ export type ToolView =
       kind: "plan_mode";
       title?: string;
       summary?: string;
+      planPath?: string;
     }
   | { kind: "generic" };
 
@@ -142,6 +152,19 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function stringField(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function todoItemsField(value: unknown): TodoItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items: TodoItem[] = [];
+  for (const item of value) {
+    const record = asRecord(item);
+    if (typeof record.todo !== "string" || typeof record.done !== "boolean") {
+      return undefined;
+    }
+    items.push({ todo: record.todo, done: record.done });
+  }
+  return items;
 }
 
 function firstTextBlock(value: unknown): string | undefined {
@@ -422,6 +445,24 @@ export function parseToolView(
       };
     }
 
+    case "todos_set":
+    case "todos_get": {
+      const parsed = todosResultSchema.safeParse(toolCall.result);
+      const fromResult = parsed.success
+        ? parsed.data.details?.todos
+        : undefined;
+      const items = fromResult ?? todoItemsField(args.todos) ?? [];
+      const completed = items.filter((item) => item.done).length;
+      const action = toolCall.toolName === "todos_set" ? "set" : "get";
+      return {
+        kind: "todos",
+        title: `${action} todos · ${completed}/${items.length} done`,
+        items,
+        completed,
+        total: items.length,
+      };
+    }
+
     case "process_start":
     case "process_stop":
     case "process_restart": {
@@ -513,6 +554,7 @@ export function parseToolView(
           : "presented plan",
         summary:
           stringField(resultRecord.feedback) ?? firstTextBlock(toolCall.result),
+        planPath,
       };
     }
 

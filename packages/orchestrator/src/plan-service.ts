@@ -184,6 +184,20 @@ export class PlanService {
     return updated;
   }
 
+  async rejectPlanReview(
+    reviewId: string,
+    feedback?: string,
+  ): Promise<PlanReviewRecord> {
+    const review = this.getPendingPlanReview(reviewId);
+    const updated = await this.resolvePlanReview(
+      review,
+      "changes_requested",
+      feedback ?? "Plan rejected by user.",
+    );
+    await this.events.publish("plan_review.rejected", { planReview: updated });
+    return updated;
+  }
+
   async discardPlanReview(
     reviewId: string,
     feedback?: string,
@@ -306,7 +320,7 @@ export class PlanService {
       return `Plan accepted. Proceed with implementation using ${review.planPath} as the source of truth.`;
     }
     if (review.status === "changes_requested") {
-      return `User requested changes. Update the plan file at ${review.planPath} and present it again.`;
+      return `Plan rejected. The current mode remains unchanged; wait for the user's follow-up instructions before presenting another plan.`;
     }
     if (review.status === "discarded") {
       return `Plan review discarded. Plan mode remains active; continue planning or exit with plan_mode_force_exit.`;

@@ -244,6 +244,48 @@ describe("parseToolView", () => {
     assert.equal(view.kind === "ask_user" && view.dismissed, true);
   });
 
+  it("parses todos_set from structured result details", () => {
+    const view = parseToolView(
+      toolCall(
+        "todos_set",
+        { todos: [] },
+        {
+          details: {
+            todos: [
+              { todo: "Inspect", done: true },
+              { todo: "Implement", done: false },
+            ],
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "todos");
+    if (view.kind !== "todos") return;
+    assert.equal(view.completed, 1);
+    assert.equal(view.total, 2);
+    assert.equal(view.title, "set todos · 1/2 done");
+  });
+
+  it("parses empty todos_get", () => {
+    const view = parseToolView(
+      toolCall("todos_get", {}, { details: { todos: [] } }),
+    );
+    assert.equal(view.kind, "todos");
+    if (view.kind !== "todos") return;
+    assert.equal(view.completed, 0);
+    assert.equal(view.total, 0);
+    assert.deepEqual(view.items, []);
+  });
+
+  it("falls back to todos_set args when result details are missing", () => {
+    const view = parseToolView(
+      toolCall("todos_set", { todos: [{ todo: "Fallback", done: false }] }, {}),
+    );
+    assert.equal(view.kind, "todos");
+    if (view.kind !== "todos") return;
+    assert.deepEqual(view.items, [{ todo: "Fallback", done: false }]);
+  });
+
   it("parses a process_start action with ready url", () => {
     const view = parseToolView(
       toolCall(

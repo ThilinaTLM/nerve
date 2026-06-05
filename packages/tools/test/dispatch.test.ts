@@ -42,6 +42,16 @@ describe("executeTool dispatch", () => {
     );
   });
 
+  it("rejects todo tools because they are orchestrator-owned", async () => {
+    for (const name of ["todos_set", "todos_get"] as ToolName[]) {
+      await assert.rejects(
+        executeTool(name, { todos: [] }, { cwd: process.cwd() }),
+        /orchestrator task-state service/,
+        name,
+      );
+    }
+  });
+
   it("rejects process tools because they are orchestrator-owned", async () => {
     const processTools = [
       "process_start",

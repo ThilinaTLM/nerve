@@ -58,8 +58,7 @@
     onGrantApproval?: (id: string) => void;
     onDenyApproval?: (id: string) => void;
     onAcceptPlanReview?: (id: string) => void;
-    onRequestPlanChanges?: (id: string, feedback: string) => void;
-    onDiscardPlanReview?: (id: string) => void;
+    onRejectPlanReview?: (id: string) => void;
   };
 
   let {
@@ -98,8 +97,7 @@
     onGrantApproval,
     onDenyApproval,
     onAcceptPlanReview,
-    onRequestPlanChanges,
-    onDiscardPlanReview,
+    onRejectPlanReview,
   }: Props = $props();
 
   let transcriptEl = $state<HTMLDivElement>();
@@ -265,8 +263,7 @@
             {onAnswerUserQuestion}
             {onDismissUserQuestion}
             {onAcceptPlanReview}
-            {onRequestPlanChanges}
-            {onDiscardPlanReview}
+            {onRejectPlanReview}
           />
         {:else if node.kind === "tool_draft"}
           <article class="tool-draft-card">

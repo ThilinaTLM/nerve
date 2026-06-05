@@ -104,6 +104,51 @@ describe("orchestrator server routes", () => {
     }
   });
 
+  it("previews files outside the selected project from absolute paths", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const projectRoot = await tempHome("nerve-fs-project-");
+      const outsideRoot = await tempHome("nerve-fs-outside-");
+      const insidePath = join(projectRoot, "inside.txt");
+      const outsidePath = join(outsideRoot, "outside.txt");
+      await writeFile(insidePath, "inside file\n");
+      await writeFile(outsidePath, "outside file\n");
+      const project = await state.registry.createProject({ dir: projectRoot });
+
+      const outsideResponse = await app.request(
+        `/api/filesystem/file?projectId=${encodeURIComponent(project.id)}&path=${encodeURIComponent(outsidePath)}`,
+        { headers },
+      );
+      assert.equal(outsideResponse.status, 200);
+      const outsideBody = (await outsideResponse.json()) as {
+        path: string;
+        relativePath: string;
+        type: string;
+        text?: string;
+      };
+      assert.equal(outsideBody.path, outsidePath);
+      assert.equal(outsideBody.relativePath, outsidePath);
+      assert.equal(outsideBody.type, "text");
+      assert.equal(outsideBody.text, "outside file\n");
+
+      const insideResponse = await app.request(
+        `/api/filesystem/file?projectId=${encodeURIComponent(project.id)}&path=inside.txt`,
+        { headers },
+      );
+      assert.equal(insideResponse.status, 200);
+      const insideBody = (await insideResponse.json()) as {
+        path: string;
+        relativePath: string;
+        text?: string;
+      };
+      assert.equal(insideBody.path, insidePath);
+      assert.equal(insideBody.relativePath, "inside.txt");
+      assert.equal(insideBody.text, "inside file\n");
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("saves pasted clipboard images to the temp nerve directory", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
     let filePath: string | undefined;
@@ -195,6 +240,113 @@ describe("orchestrator server routes", () => {
       );
     } finally {
       state.index.close();
+    }
+  });
+
+  it("keeps todo tool state scoped per agent", async () => {
+    const { state } = await createAuthenticatedApp();
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const session = await state.registry.createSession({
+        projectId: project.id,
+      });
+      const firstAgent = await state.registry.createAgent({
+        projectId: project.id,
+        sessionId: session.id,
+      });
+      const secondAgent = await state.registry.createAgent({
+        projectId: project.id,
+        sessionId: session.id,
+      });
+
+      const setResult = await state.registry.requestTool(
+        firstAgent.id,
+        "todos_set",
+        {
+          todos: [
+            { todo: "Inspect", done: true },
+            { todo: "Implement", done: false },
+          ],
+        },
+      );
+      assert.equal(setResult.toolCall.status, "completed");
+
+      const firstGet = await state.registry.requestTool(
+        firstAgent.id,
+        "todos_get",
+        {},
+      );
+      const firstTodos = (
+        firstGet.toolCall.result as {
+          details?: { todos?: Array<{ todo: string; done: boolean }> };
+        }
+      ).details?.todos;
+      assert.deepEqual(firstTodos, [
+        { todo: "Inspect", done: true },
+        { todo: "Implement", done: false },
+      ]);
+
+      const secondGet = await state.registry.requestTool(
+        secondAgent.id,
+        "todos_get",
+        {},
+      );
+      const secondTodos = (
+        secondGet.toolCall.result as {
+          details?: { todos?: Array<{ todo: string; done: boolean }> };
+        }
+      ).details?.todos;
+      assert.deepEqual(secondTodos, []);
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("rehydrates the latest completed todo_set per agent", async () => {
+    const storage = await initializeStorage(await tempHome("nerve-todos-"));
+    const state = createOrchestratorState(storage, "127.0.0.1", 0);
+    let rehydrated: ReturnType<typeof createOrchestratorState> | undefined;
+    let originalClosed = false;
+    try {
+      await state.registry.hydrate();
+      const project = await state.registry.createProject({
+        dir: storage.paths.home,
+      });
+      const session = await state.registry.createSession({
+        projectId: project.id,
+      });
+      const agent = await state.registry.createAgent({
+        projectId: project.id,
+        sessionId: session.id,
+      });
+
+      await state.registry.requestTool(agent.id, "todos_set", {
+        todos: [{ todo: "Old", done: false }],
+      });
+      await state.registry.requestTool(agent.id, "todos_set", {
+        todos: [{ todo: "Newest", done: true }],
+      });
+      state.index.close();
+      originalClosed = true;
+
+      rehydrated = createOrchestratorState(storage, "127.0.0.1", 0);
+      await rehydrated.registry.hydrate();
+      const result = await rehydrated.registry.requestTool(
+        agent.id,
+        "todos_get",
+        {},
+      );
+      const todos = (
+        result.toolCall.result as {
+          details?: { todos?: Array<{ todo: string; done: boolean }> };
+        }
+      ).details?.todos;
+      assert.deepEqual(todos, [{ todo: "Newest", done: true }]);
+    } finally {
+      if (!originalClosed) state.index.close();
+      rehydrated?.index.close();
     }
   });
 

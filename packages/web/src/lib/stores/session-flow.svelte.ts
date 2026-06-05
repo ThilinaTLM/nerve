@@ -14,6 +14,7 @@ import {
   getPendingPlanReviews,
   getPendingUserQuestions,
   type ProjectRecord,
+  rejectPlanReview,
   requestPlanChanges,
   type SessionRecord,
   updateAgentConfig,
@@ -427,6 +428,13 @@ export async function acceptPendingPlanReview(reviewId: string) {
   workbenchState.planReviews = await getPendingPlanReviews();
   await loadWorkspaceState();
   toast.success("Plan accepted");
+}
+
+export async function rejectPendingPlanReview(reviewId: string) {
+  await rejectPlanReview(reviewId, "Rejected from UI.");
+  workbenchState.planReviews = await getPendingPlanReviews();
+  await loadWorkspaceState();
+  toast.message("Plan rejected");
 }
 
 export async function requestPendingPlanChanges(

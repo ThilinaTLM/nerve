@@ -43,6 +43,42 @@ describe("tool policy", () => {
     }
   });
 
+  it("allows todo tools for all permission levels and planning mode", () => {
+    for (const permissionLevel of [
+      "read_only",
+      "supervised",
+      "autonomous",
+    ] as AgentRecord["permissionLevel"][]) {
+      for (const mode of ["coding", "planning"] as AgentRecord["mode"][]) {
+        const setDecision = evaluateToolPolicy(
+          { ...agent(permissionLevel), mode },
+          "todos_set",
+          { todos: [{ todo: "Plan", done: false }] },
+          { dataDir: "/tmp/nerve" },
+        );
+        assert.equal(
+          setDecision.decision,
+          "allow",
+          `${permissionLevel}:${mode}:set`,
+        );
+        assert.equal(setDecision.risk, "interaction");
+
+        const getDecision = evaluateToolPolicy(
+          { ...agent(permissionLevel), mode },
+          "todos_get",
+          {},
+          { dataDir: "/tmp/nerve" },
+        );
+        assert.equal(
+          getDecision.decision,
+          "allow",
+          `${permissionLevel}:${mode}:get`,
+        );
+        assert.equal(getDecision.risk, "read");
+      }
+    }
+  });
+
   it("does not sandbox autonomous filesystem paths", () => {
     for (const [toolName, args] of [
       ["read", { path: "/tmp/outside.png" }],

@@ -12,6 +12,7 @@ import ProcessLogsToolView from "../components/app/tool-call/ProcessLogsToolView
 import ProcessToolView from "../components/app/tool-call/ProcessToolView.svelte";
 import ReadToolView from "../components/app/tool-call/ReadToolView.svelte";
 import SubagentRunToolView from "../components/app/tool-call/SubagentRunToolView.svelte";
+import TodoToolView from "../components/app/tool-call/TodoToolView.svelte";
 import WriteToolView from "../components/app/tool-call/WriteToolView.svelte";
 import type { ToolView } from "./tool-result-view";
 
@@ -27,6 +28,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   find: FindToolView,
   ls: LsToolView,
   ask_user: AskUserToolView,
+  todos: TodoToolView,
   process_action: ProcessToolView,
   process_list: ProcessListToolView,
   process_logs: ProcessLogsToolView,

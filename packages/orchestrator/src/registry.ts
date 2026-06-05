@@ -1,5 +1,5 @@
 import type { Message, ToolResultMessage } from "@earendil-works/pi-ai";
-import { listAvailableModels } from "@nerve/agent";
+import { type AgentMessage, listAvailableModels } from "@nerve/agent";
 import type {
   AgentRecord,
   CompactSessionRequest,
@@ -418,9 +418,35 @@ export class RuntimeRegistry {
   async acceptPlanReview(reviewId: string, feedback?: string) {
     try {
       const review = await this.plans.acceptPlanReview(reviewId, feedback);
-      await this.resumeSuspensionForToolCall(
+      await this.resolveSuspensionForToolCall(
         review.toolCallId,
         this.plans.planReviewResult(review),
+        {
+          continueAgent: true,
+          followUpUserMessage: acceptedPlanFollowUp(review.planPath),
+          finalSuspensionStatus: "resumed",
+        },
+      );
+      return review;
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  async rejectPlanReview(reviewId: string, feedback?: string) {
+    try {
+      const review = await this.plans.rejectPlanReview(reviewId, feedback);
+      await this.resolveSuspensionForToolCall(
+        review.toolCallId,
+        this.plans.planReviewResult(review),
+        {
+          continueAgent: false,
+          finalSuspensionStatus: "cancelled",
+        },
       );
       return review;
     } catch (error) {
@@ -435,9 +461,10 @@ export class RuntimeRegistry {
   async requestPlanChanges(reviewId: string, feedback?: string) {
     try {
       const review = await this.plans.requestPlanChanges(reviewId, feedback);
-      await this.resumeSuspensionForToolCall(
+      await this.resolveSuspensionForToolCall(
         review.toolCallId,
         this.plans.planReviewResult(review),
+        { continueAgent: true, finalSuspensionStatus: "resumed" },
       );
       return review;
     } catch (error) {
@@ -452,9 +479,10 @@ export class RuntimeRegistry {
   async discardPlanReview(reviewId: string, feedback?: string) {
     try {
       const review = await this.plans.discardPlanReview(reviewId, feedback);
-      await this.resumeSuspensionForToolCall(
+      await this.resolveSuspensionForToolCall(
         review.toolCallId,
         this.plans.planReviewResult(review),
+        { continueAgent: true, finalSuspensionStatus: "resumed" },
       );
       return review;
     } catch (error) {
@@ -469,9 +497,10 @@ export class RuntimeRegistry {
   async answerUserQuestion(questionId: string, answer: string) {
     try {
       const question = await this.tools.answerUserQuestion(questionId, answer);
-      await this.resumeSuspensionForToolCall(
+      await this.resolveSuspensionForToolCall(
         question.toolCallId,
         this.tools.userQuestionResult(question),
+        { continueAgent: true, finalSuspensionStatus: "resumed" },
       );
       return question;
     } catch (error) {
@@ -486,9 +515,10 @@ export class RuntimeRegistry {
   async dismissUserQuestion(questionId: string, reason?: string) {
     try {
       const question = await this.tools.dismissUserQuestion(questionId, reason);
-      await this.resumeSuspensionForToolCall(
+      await this.resolveSuspensionForToolCall(
         question.toolCallId,
         this.tools.userQuestionResult(question),
+        { continueAgent: true, finalSuspensionStatus: "resumed" },
       );
       return question;
     } catch (error) {
@@ -500,9 +530,14 @@ export class RuntimeRegistry {
     }
   }
 
-  private async resumeSuspensionForToolCall(
+  private async resolveSuspensionForToolCall(
     toolCallId: string,
     result: unknown,
+    options: {
+      continueAgent: boolean;
+      followUpUserMessage?: string;
+      finalSuspensionStatus: "resumed" | "cancelled";
+    },
   ): Promise<void> {
     const suspension = this.suspensions.pendingForToolCall(toolCallId);
     if (!suspension) {
@@ -520,11 +555,53 @@ export class RuntimeRegistry {
     for (const remaining of suspension.remainingToolCalls) {
       await this.appendSkippedToolResult(suspension.agentId, remaining);
     }
+    if (options.followUpUserMessage) {
+      await this.appendUserInstructionForAgent(
+        suspension.agentId,
+        options.followUpUserMessage,
+        { runId: suspension.runId, turnId: suspension.turnId },
+      );
+    }
     await this.suspensions.updateSuspension(suspension.id, {
-      status: "resumed",
+      status: options.finalSuspensionStatus,
       resolvedAt: new Date().toISOString(),
     });
-    await this.agentRunner.continueAgent(suspension.agentId);
+    if (options.continueAgent) {
+      await this.agentRunner.continueAgent(suspension.agentId);
+      return;
+    }
+    const latest = this.agents.get(suspension.agentId);
+    if (latest) await this.setAgentStatus(latest, "idle");
+  }
+
+  private async appendUserInstructionForAgent(
+    agentId: string,
+    text: string,
+    metadata: { runId?: string; turnId?: string } = {},
+  ): Promise<void> {
+    const agent = this.getAgent(agentId);
+    const message: AgentMessage = {
+      role: "user",
+      content: text,
+      timestamp: Date.now(),
+    };
+    const appended = await this.harnessManager.appendAgentMessage(
+      agent,
+      message,
+    );
+    await this.appendEntry(
+      {
+        id: appended.id,
+        sessionId: agent.sessionId,
+        agentId: agent.id,
+        runId: metadata.runId,
+        turnId: metadata.turnId,
+        role: "user",
+        text,
+        createdAt: appended.timestamp,
+      },
+      { mirrorToHarness: false },
+    );
   }
 
   private async appendToolResultForToolCall(
@@ -721,6 +798,10 @@ export class RuntimeRegistry {
 }
 
 export { errorResponse, HttpError } from "./http/errors.js";
+
+function acceptedPlanFollowUp(planPath: string): string {
+  return `The user accepted the plan at ${planPath}. Proceed with the implementation using that plan as the source of truth.`;
+}
 
 export function providerSecretName(provider: string): string {
   return providerApiKeySecretName(provider);

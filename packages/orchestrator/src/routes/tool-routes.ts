@@ -114,6 +114,20 @@ export function createToolRoutes(state: OrchestratorState): Hono {
     }),
   );
   app.post(
+    "/plan-reviews/:reviewId/reject",
+    routeHandler(async (c) => {
+      const body = resolvePlanReviewRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json({
+        planReview: await state.registry.rejectPlanReview(
+          c.req.param("reviewId"),
+          body.feedback,
+        ),
+      });
+    }),
+  );
+  app.post(
     "/plan-reviews/:reviewId/request-changes",
     routeHandler(async (c) => {
       const body = resolvePlanReviewRequestSchema.parse(

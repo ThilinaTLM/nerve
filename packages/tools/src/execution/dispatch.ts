@@ -32,6 +32,11 @@ export async function executeTool(
       throw new Error(
         "ask_user is executed by the orchestrator user-interaction service.",
       );
+    case "todos_set":
+    case "todos_get":
+      throw new Error(
+        `${name} is executed by the orchestrator task-state service.`,
+      );
     case "process_start":
     case "process_stop":
     case "process_restart":

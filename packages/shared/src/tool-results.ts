@@ -121,3 +121,21 @@ export const askUserResultSchema = z.object({
   dismissedReason: z.string().optional(),
 });
 export type AskUserResult = z.infer<typeof askUserResultSchema>;
+
+/** Todo item shape shared by todos_set / todos_get. */
+export const todoItemSchema = z.object({
+  todo: z.string(),
+  done: z.boolean(),
+});
+export type TodoItem = z.infer<typeof todoItemSchema>;
+
+/** Result of todos_set / todos_get. */
+export const todosResultSchema = z.object({
+  contentBlocks: z.array(toolContentBlockSchema).optional(),
+  details: z
+    .object({
+      todos: z.array(todoItemSchema),
+    })
+    .optional(),
+});
+export type TodosResult = z.infer<typeof todosResultSchema>;

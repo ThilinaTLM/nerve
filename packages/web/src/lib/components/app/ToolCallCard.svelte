@@ -14,8 +14,7 @@
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
     onAcceptPlanReview?: (id: string) => void;
-    onRequestPlanChanges?: (id: string, feedback: string) => void;
-    onDiscardPlanReview?: (id: string) => void;
+    onRejectPlanReview?: (id: string) => void;
   };
   let {
     toolCall,
@@ -26,8 +25,7 @@
     onAnswerUserQuestion,
     onDismissUserQuestion,
     onAcceptPlanReview,
-    onRequestPlanChanges,
-    onDiscardPlanReview,
+    onRejectPlanReview,
   }: Props = $props();
 
   const view = $derived(parseToolView(toolCall, liveOutput));
@@ -54,7 +52,9 @@
   const titleOpenPath = $derived(
     (view.kind === "read" || view.kind === "write" || view.kind === "edit") && view.path
       ? view.path
-      : undefined,
+      : view.kind === "plan_mode" && view.planPath
+        ? view.planPath
+        : undefined,
   );
   const bashStatus = $derived(
     view.kind === "bash" && view.exitCode !== undefined && view.exitCode !== 0
@@ -104,8 +104,7 @@
     {onAnswerUserQuestion}
     {onDismissUserQuestion}
     {onAcceptPlanReview}
-    {onRequestPlanChanges}
-    {onDiscardPlanReview}
+    {onRejectPlanReview}
   />
 </article>
 

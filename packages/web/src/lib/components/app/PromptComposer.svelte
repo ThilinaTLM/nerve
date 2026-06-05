@@ -99,6 +99,7 @@
   }
 
   const controlsDisabled = $derived(!activeSession || sending || blockedForReview);
+  const modeDisabled = $derived(!activeSession);
   const modelDisabled = $derived(controlsDisabled || models.length === 0);
 
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
@@ -172,7 +173,7 @@
           </div>
         </Popover>
 
-        <button type="button" class="composer-tab mode-tab" disabled={controlsDisabled} title={`Mode: ${modeLabel} (click to switch)`} onclick={toggleMode}>
+        <button type="button" class="composer-tab mode-tab" disabled={modeDisabled} title={`Mode: ${modeLabel} (click to switch)`} onclick={toggleMode}>
           {modeLabel}
         </button>
 

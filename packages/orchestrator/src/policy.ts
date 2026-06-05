@@ -129,6 +129,7 @@ function evaluatePlanningModePolicy(
 ): PolicyEvaluation | undefined {
   const allowedInteractionTools = new Set<ToolName>([
     "ask_user",
+    "todos_set",
     "plan_mode_enter",
     "plan_mode_present",
     "plan_mode_force_exit",
@@ -190,7 +191,8 @@ function evaluatePlanningModePolicy(
       return {
         decision: "approval",
         risk,
-        reason: "Supervised agent requires approval for plan file write/edit tool calls.",
+        reason:
+          "Supervised agent requires approval for plan file write/edit tool calls.",
         normalizedArgs,
         cwd,
       };
@@ -256,13 +258,18 @@ function classifyRisk(
 ): ToolRisk {
   if (
     toolName === "ask_user" ||
+    toolName === "todos_set" ||
     toolName === "plan_mode_enter" ||
     toolName === "plan_mode_present" ||
     toolName === "plan_mode_force_exit"
   ) {
     return "interaction";
   }
-  if (toolName === "process_list" || toolName === "process_logs") {
+  if (
+    toolName === "todos_get" ||
+    toolName === "process_list" ||
+    toolName === "process_logs"
+  ) {
     return "read";
   }
   if (toolName === "process_stop" || toolName === "process_restart") {

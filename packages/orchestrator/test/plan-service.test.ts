@@ -74,6 +74,32 @@ describe("PlanService", () => {
     assert.equal(fx.agent.mode, "coding");
   });
 
+  it("rejects a presented plan without switching out of planning mode", async () => {
+    const fx = await fixture();
+    const planPath = join(fx.plans.planDir(fx.agent), "rejected-plan.md");
+    await mkdir(fx.plans.planDir(fx.agent), { recursive: true });
+    await writeFile(planPath, "# Rejected\n", "utf8");
+
+    const pending = fx.plans.presentPlan(
+      toolCall(planPath),
+      fx.agent,
+      { file_path: planPath },
+    );
+    let review = fx.plans.listPlanReviews("pending")[0];
+    for (let attempt = 0; !review && attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      review = fx.plans.listPlanReviews("pending")[0];
+    }
+    assert.ok(review);
+
+    await fx.plans.rejectPlanReview(review.id, "Not yet.");
+    const result = await pending;
+    assert.equal(result.outcome, "changes_requested");
+    assert.equal(result.feedback, "Not yet.");
+    assert.match(result.contentBlocks?.[0]?.text ?? "", /Plan rejected/);
+    assert.equal(fx.agent.mode, "planning");
+  });
+
   it("rejects plan files outside the plan directory", async () => {
     const fx = await fixture();
     const outside = join(fx.root, "outside.md");

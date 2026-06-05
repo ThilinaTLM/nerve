@@ -24,7 +24,18 @@ describe("agent tool definitions", () => {
     assert.deepEqual(descriptorNames, schemaNames);
     assert.deepEqual(
       [...definitionNames],
-      ["read", "bash", "edit", "write", "grep", "find", "ls", "ask_user"],
+      [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "grep",
+        "find",
+        "ls",
+        "ask_user",
+        "todos_set",
+        "todos_get",
+      ],
     );
 
     for (const definition of coreToolDefinitions) {
@@ -55,6 +66,8 @@ describe("agent tool definitions", () => {
       "process_logs",
       "subagent_run",
       "ask_user",
+      "todos_set",
+      "todos_get",
       "plan_mode_enter",
     ];
     const planningTools = [
@@ -69,6 +82,8 @@ describe("agent tool definitions", () => {
       "process_logs",
       "subagent_run",
       "ask_user",
+      "todos_set",
+      "todos_get",
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",
@@ -87,6 +102,8 @@ describe("agent tool definitions", () => {
       "process_list",
       "process_logs",
       "ask_user",
+      "todos_set",
+      "todos_get",
       "plan_mode_enter",
     ]);
     assert.deepEqual(
@@ -99,6 +116,8 @@ describe("agent tool definitions", () => {
         "process_list",
         "process_logs",
         "ask_user",
+        "todos_set",
+        "todos_get",
         "plan_mode_enter",
         "plan_mode_present",
         "plan_mode_force_exit",

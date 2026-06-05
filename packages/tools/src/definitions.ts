@@ -212,6 +212,25 @@ const askUserParameters = Type.Object(
   { additionalProperties: false },
 );
 
+const todoItemParameters = Type.Object(
+  {
+    todo: Type.String({ description: "The todo item text" }),
+    done: Type.Boolean({ description: "Whether the item is done" }),
+  },
+  { additionalProperties: false },
+);
+
+const todosSetParameters = Type.Object(
+  {
+    todos: Type.Array(todoItemParameters, {
+      description: "List of todo items with completion status",
+    }),
+  },
+  { additionalProperties: false },
+);
+
+const todosGetParameters = Type.Object({}, { additionalProperties: false });
+
 const processStartParameters = Type.Object(
   {
     name: Type.Optional(Type.String({ description: "Stable process name" })),
@@ -321,7 +340,9 @@ const planModePresentParameters = Type.Object(
     file_path: Type.String({
       description: "Path to the markdown plan file inside Nerve plan storage",
     }),
-    title: Type.Optional(Type.String({ description: "Optional display title" })),
+    title: Type.Optional(
+      Type.String({ description: "Optional display title" }),
+    ),
     summary: Type.Optional(
       Type.String({ description: "Short summary for the review UI" }),
     ),
@@ -428,6 +449,24 @@ export const coreToolDefinitions = [
     ],
     parameters: askUserParameters,
     executionMode: "sequential",
+  },
+  {
+    name: "todos_set",
+    label: "Set Todos",
+    description:
+      "Set the todo list for the current task. Replaces any existing todos. Use this at the start of a complex task to outline the steps.",
+    promptSnippet:
+      "Set the todo list for the current task, replacing any existing todos",
+    parameters: todosSetParameters,
+    executionMode: "sequential",
+  },
+  {
+    name: "todos_get",
+    label: "Get Todos",
+    description: "Get the current todo list with completion status.",
+    promptSnippet: "Get the current todo list with completion status",
+    parameters: todosGetParameters,
+    executionMode: "parallel",
   },
 ] satisfies CoreToolDefinition[];
 
@@ -555,6 +594,8 @@ const toolRisks: Record<ToolName, ToolRisk> = {
   find: "read",
   ls: "read",
   ask_user: "interaction",
+  todos_set: "interaction",
+  todos_get: "read",
   process_start: "command",
   process_stop: "destructive",
   process_restart: "destructive",

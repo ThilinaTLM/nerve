@@ -22,6 +22,17 @@ import type { InitializedStorage } from "../storage.js";
 import type { WorkerManager } from "../worker-manager.js";
 import type { AgentStatus } from "./types.js";
 
+function isModeOnlyUpdate(
+  request: UpdateAgentRequest,
+): request is UpdateAgentRequest & { mode: Mode } {
+  return (
+    request.mode !== undefined &&
+    request.permissionLevel === undefined &&
+    request.model === undefined &&
+    request.thinkingLevel === undefined
+  );
+}
+
 export class AgentLifecycleService {
   constructor(
     private readonly storage: InitializedStorage,
@@ -144,6 +155,13 @@ export class AgentLifecycleService {
   ): Promise<AgentRecord> {
     const agent = this.getAgent(agentId);
     if (this.runs.has(agent.id)) {
+      if (isModeOnlyUpdate(request)) {
+        return this.setAgentModeInternal(
+          agent.id,
+          request.mode,
+          "Mode changed by user.",
+        );
+      }
       throw new HttpError(409, "AGENT_BUSY", "Cannot update a running agent.");
     }
     const model =

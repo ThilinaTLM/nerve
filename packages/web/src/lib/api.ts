@@ -328,6 +328,18 @@ export async function acceptPlanReview(
   ).planReview;
 }
 
+export async function rejectPlanReview(
+  reviewId: string,
+  feedback?: string,
+): Promise<PlanReviewRecord> {
+  return (
+    await apiPost<{ planReview: PlanReviewRecord }>(
+      `/api/plan-reviews/${reviewId}/reject`,
+      { feedback },
+    )
+  ).planReview;
+}
+
 export async function requestPlanChanges(
   reviewId: string,
   feedback?: string,
