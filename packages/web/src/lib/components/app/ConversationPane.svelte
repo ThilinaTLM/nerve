@@ -50,6 +50,7 @@
     onAbort?: () => void;
     onOpenProject?: () => void;
     onNewConversationInProject?: (projectDir: string) => void;
+    onOpenFile?: (path: string, line?: number) => void;
     onModelChange?: (value: string) => void;
     onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
     onModeChange?: (value: AgentRecord["mode"]) => void;
@@ -89,6 +90,7 @@
     onDismissUserQuestion,
     onAbort,
     onOpenProject,
+    onOpenFile,
     onModelChange,
     onThinkingLevelChange,
     onModeChange,
@@ -235,7 +237,7 @@
 
       {#each timeline as node (node.key)}
         {#if node.kind === "tool"}
-          <ToolCallCard toolCall={node.toolCall} liveOutput={node.liveOutput} />
+          <ToolCallCard toolCall={node.toolCall} liveOutput={node.liveOutput} {onOpenFile} />
         {:else if node.kind === "tool_draft"}
           <article class="tool-draft-card">
             <div class="tool-draft-head">

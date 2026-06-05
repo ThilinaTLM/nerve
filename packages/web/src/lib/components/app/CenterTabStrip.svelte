@@ -1,13 +1,16 @@
 <script lang="ts">
+  import FileText from "@lucide/svelte/icons/file-text";
   import Plus from "@lucide/svelte/icons/plus";
+  import Settings from "@lucide/svelte/icons/settings";
   import Terminal from "@lucide/svelte/icons/terminal";
   import X from "@lucide/svelte/icons/x";
   import type { CenterTabModel } from "../../stores/workbench/selectors.svelte";
+  import type { CenterTabIdentity } from "../../stores/workbench/state.svelte";
   import { shortProjectLabel } from "../../utils/project-tree";
   import { shortenPath } from "../../utils/path";
   import { Button } from "$lib/components/ui/button";
 
-  type TabIdentity = { kind: CenterTabModel["kind"]; id: string };
+  type TabIdentity = CenterTabIdentity;
 
   type Props = {
     tabs?: CenterTabModel[];
@@ -26,11 +29,14 @@
   }: Props = $props();
 
   function tabIdentity(tab: CenterTabModel): TabIdentity {
+    if (tab.kind === "settings") return { kind: "settings", id: "settings" };
     return { kind: tab.kind, id: tab.id };
   }
 
   function tabLabel(tab: CenterTabModel): string {
     if (tab.kind === "process") return tab.process?.name ?? tab.process?.command ?? tab.id;
+    if (tab.kind === "file") return tab.file?.name ?? tab.relativePath?.split("/").pop() ?? tab.path?.split("/").pop() ?? "File";
+    if (tab.kind === "settings") return "Settings";
     return tab.session.title;
   }
 
@@ -39,6 +45,8 @@
       if (!tab.process) return `Missing process · ${tab.id}`;
       return `${tab.process.name ?? tab.process.command} · ${tab.process.status} · ${shortenPath(tab.process.cwd, homeDir)} · ${tab.process.id}`;
     }
+    if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
+    if (tab.kind === "settings") return "Workbench settings";
     const project = tab.project?.dir
       ? shortProjectLabel(tab.project.dir, homeDir)
       : "Unknown project";
@@ -46,23 +54,28 @@
   }
 
   function statusLabel(tab: CenterTabModel): string | undefined {
-    if (tab.error) return tab.kind === "process" ? tab.error : "Conversation has an error";
-    if (tab.sending) return tab.kind === "process" ? "Process active" : "Agent running";
+    if (tab.error) return tab.error;
+    if (tab.sending) {
+      if (tab.kind === "process") return "Process active";
+      if (tab.kind === "file") return "Loading file";
+      return "Agent running";
+    }
     if (tab.kind === "conversation" && tab.hasDraft) return "Unsaved draft";
     if (tab.kind === "process") return tab.process?.status ?? "missing";
+    if (tab.kind === "file" && tab.file?.truncated) return "Truncated";
     return undefined;
   }
 </script>
 
-<nav class="conversation-tab-strip" aria-label="Open center tabs">
-  <div class="tab-scroller" role="tablist" aria-label="Open conversations and process outputs">
+<nav class="center-tab-strip" aria-label="Open center tabs">
+  <div class="tab-scroller" role="tablist" aria-label="Open center panes">
     {#each tabs as tab (`${tab.kind}:${tab.id}`)}
       <div
-        class="conversation-tab"
+        class="center-tab"
         class:active={tab.active}
         class:running={tab.sending}
         class:errored={Boolean(tab.error)}
-        class:process-tab={tab.kind === "process"}
+        class:wide-tab={tab.kind === "process" || tab.kind === "file"}
       >
         <button
           type="button"
@@ -75,6 +88,10 @@
           <span class="tab-status" title={statusLabel(tab)} aria-hidden="true"></span>
           {#if tab.kind === "process"}
             <span class="tab-kind-icon"><Terminal size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+          {:else if tab.kind === "file"}
+            <span class="tab-kind-icon"><FileText size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+          {:else if tab.kind === "settings"}
+            <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
           {/if}
           <span class="tab-title">{tabLabel(tab)}</span>
           {#if tab.kind === "conversation" && tab.hasDraft}
@@ -108,7 +125,7 @@
 </nav>
 
 <style>
-  .conversation-tab-strip {
+  .center-tab-strip {
     display: grid;
     min-width: 0;
     min-height: 2rem;
@@ -125,7 +142,7 @@
     scrollbar-width: thin;
   }
 
-  .conversation-tab {
+  .center-tab {
     position: relative;
     display: inline-grid;
     flex: 0 1 12.5rem;
@@ -138,11 +155,11 @@
     color: var(--muted-foreground);
   }
 
-  .conversation-tab.process-tab {
+  .center-tab.wide-tab {
     flex-basis: 13.5rem;
   }
 
-  .conversation-tab::before {
+  .center-tab::before {
     content: "";
     position: absolute;
     inset: 0 0 auto;
@@ -150,17 +167,17 @@
     background: transparent;
   }
 
-  .conversation-tab:hover {
+  .center-tab:hover {
     background: color-mix(in oklab, var(--accent) 60%, transparent);
     color: var(--foreground);
   }
 
-  .conversation-tab.active {
+  .center-tab.active {
     background: var(--background);
     color: var(--foreground);
   }
 
-  .conversation-tab.active::before {
+  .center-tab.active::before {
     background: var(--primary);
   }
 
@@ -200,13 +217,13 @@
     background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
   }
 
-  .conversation-tab.running .tab-status {
+  .center-tab.running .tab-status {
     background: var(--info);
     box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 45%, transparent);
     animation: tab-pulse 1.3s ease-out infinite;
   }
 
-  .conversation-tab.errored .tab-status {
+  .center-tab.errored .tab-status {
     background: var(--destructive);
   }
 
@@ -215,8 +232,8 @@
     color: color-mix(in oklab, var(--muted-foreground) 82%, transparent);
   }
 
-  .conversation-tab.active .tab-kind-icon,
-  .conversation-tab:hover .tab-kind-icon {
+  .center-tab.active .tab-kind-icon,
+  .center-tab:hover .tab-kind-icon {
     color: currentColor;
   }
 
@@ -238,38 +255,25 @@
   .tab-close {
     display: inline-grid;
     width: 1.45rem;
-    height: 2rem;
     place-items: center;
-    color: var(--muted-foreground);
-    opacity: 0;
+    opacity: 0.62;
   }
 
-  .conversation-tab:hover .tab-close,
-  .conversation-tab:focus-within .tab-close,
-  .conversation-tab.active .tab-close {
+  .tab-close:hover {
+    background: color-mix(in oklab, var(--destructive) 12%, transparent);
+    color: var(--destructive);
     opacity: 1;
   }
 
-  .tab-close:hover,
-  .tab-close:focus-visible {
-    background: var(--accent);
-    color: var(--foreground);
-  }
-
   .tab-actions {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    width: 2rem;
     border-left: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+    padding: 0 0.28rem;
   }
 
   @keyframes tab-pulse {
-    70% {
-      box-shadow: 0 0 0 5px color-mix(in oklab, var(--info) 0%, transparent);
-    }
-    100% {
-      box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 0%, transparent);
-    }
+    0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 45%, transparent); }
+    100% { box-shadow: 0 0 0 0.36rem transparent; }
   }
 </style>

@@ -1,10 +1,10 @@
 import type {
   AgentRecord,
   ApprovalRecord,
-  ConversationActiveRunSnapshot,
-  ConversationSnapshot,
   AuthProviderMetadata,
   ClipboardImageUploadResponse,
+  ConversationActiveRunSnapshot,
+  ConversationSnapshot,
   EventEnvelope,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
@@ -417,8 +417,10 @@ export async function listDirectories(
 export async function getFileContent(
   projectId: string,
   path: string,
+  line?: number,
 ): Promise<FilesystemFileResponse> {
   const params = new URLSearchParams({ projectId, path });
+  if (line !== undefined) params.set("line", String(line));
   return apiGet<FilesystemFileResponse>(
     `/api/filesystem/file?${params.toString()}`,
   );

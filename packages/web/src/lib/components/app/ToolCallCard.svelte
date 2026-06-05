@@ -5,8 +5,12 @@
   import { toolViewComponent } from "../../tool-views/registry";
   import { trimTextPreview } from "../../utils/text-preview";
 
-  type Props = { toolCall: ToolCallRecord; liveOutput?: LiveToolOutput };
-  let { toolCall, liveOutput }: Props = $props();
+  type Props = {
+    toolCall: ToolCallRecord;
+    liveOutput?: LiveToolOutput;
+    onOpenFile?: (path: string, line?: number) => void;
+  };
+  let { toolCall, liveOutput, onOpenFile }: Props = $props();
 
   const view = $derived(parseToolView(toolCall, liveOutput));
   const ToolView = $derived(toolViewComponent(view.kind));
@@ -54,7 +58,7 @@
     <pre class="tool-pre error">{errorPreview}</pre>
   {/if}
 
-  <ToolView {toolCall} {view} />
+  <ToolView {toolCall} {view} {onOpenFile} />
 </article>
 
 <style>

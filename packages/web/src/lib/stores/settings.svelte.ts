@@ -13,26 +13,33 @@ import {
   currentActiveAgent,
   selectedModelInfo,
 } from "./composer-config.svelte";
-import { activateFallbackCenterTab } from "./workbench/center-tabs.svelte";
+import {
+  addCenterTab,
+  nextCenterTabAfterClose,
+  removeCenterTab,
+  selectCenterTab,
+  setActiveCenterTab,
+} from "./workbench/center-tabs.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 
 export async function openSettingsPane() {
-  workbenchState.settingsTabOpen = true;
-  workbenchState.activeCenterTab = { kind: "settings", id: "settings" };
+  addCenterTab({ kind: "settings", id: "settings" });
+  setActiveCenterTab({ kind: "settings", id: "settings" });
   await loadSettingsPanel();
 }
 
 export async function selectCenterSettingsTab() {
-  workbenchState.settingsTabOpen = true;
-  workbenchState.activeCenterTab = { kind: "settings", id: "settings" };
+  addCenterTab({ kind: "settings", id: "settings" });
+  setActiveCenterTab({ kind: "settings", id: "settings" });
   if (!workbenchState.settingsDraft) await loadSettingsPanel();
 }
 
 export function closeSettingsTab() {
-  workbenchState.settingsTabOpen = false;
-  if (workbenchState.activeCenterTab?.kind === "settings") {
-    activateFallbackCenterTab();
-  }
+  const tab = { kind: "settings" as const, id: "settings" as const };
+  const closingActive = workbenchState.activeCenterTab?.kind === "settings";
+  const fallback = nextCenterTabAfterClose(tab);
+  removeCenterTab(tab);
+  if (closingActive) void selectCenterTab(fallback);
 }
 
 export async function loadSettingsPanel() {

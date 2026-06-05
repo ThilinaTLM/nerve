@@ -7,6 +7,11 @@ import {
   stopProcess,
 } from "../../api";
 import { loadWorkspaceState } from "../workspace.svelte";
+import {
+  activateFallbackCenterTab,
+  removeCenterTab,
+  replaceCenterTab,
+} from "./center-tabs.svelte";
 import { workbenchState } from "./state.svelte";
 
 export async function selectProcess(processId: string) {
@@ -27,19 +32,10 @@ export async function stopSelectedProcess(processId: string) {
 
 export async function restartSelectedProcess(processId: string) {
   const restarted = await restartProcess(processId);
-  workbenchState.openProcessTabIds = [
-    ...new Set(
-      workbenchState.openProcessTabIds.map((id) =>
-        id === processId ? restarted.id : id,
-      ),
-    ),
-  ];
-  if (
-    workbenchState.activeCenterTab?.kind === "process" &&
-    workbenchState.activeCenterTab.id === processId
-  ) {
-    workbenchState.activeCenterTab = { kind: "process", id: restarted.id };
-  }
+  replaceCenterTab(
+    { kind: "process", id: processId },
+    { kind: "process", id: restarted.id },
+  );
   workbenchState.selectedProcessId = restarted.id;
   await loadWorkspaceState();
   workbenchState.processLogs = await getProcessLogs(restarted.id);
@@ -49,14 +45,12 @@ export async function restartSelectedProcess(processId: string) {
 }
 
 function forgetProcess(processId: string) {
-  workbenchState.openProcessTabIds = workbenchState.openProcessTabIds.filter(
-    (id) => id !== processId,
-  );
+  removeCenterTab({ kind: "process", id: processId });
   if (
     workbenchState.activeCenterTab?.kind === "process" &&
     workbenchState.activeCenterTab.id === processId
   ) {
-    workbenchState.activeCenterTab = undefined;
+    activateFallbackCenterTab();
   }
   if (workbenchState.selectedProcessId === processId) {
     workbenchState.selectedProcessId = undefined;

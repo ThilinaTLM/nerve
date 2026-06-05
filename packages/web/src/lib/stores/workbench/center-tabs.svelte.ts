@@ -5,22 +5,154 @@ export function centerTabKey(tab: CenterTabIdentity): string {
   return `${tab.kind}:${tab.id}`;
 }
 
+export function centerTabsEqual(
+  left: CenterTabIdentity | undefined,
+  right: CenterTabIdentity | undefined,
+): boolean {
+  return Boolean(
+    left && right && left.kind === right.kind && left.id === right.id,
+  );
+}
+
+function syncLegacyTabFields() {
+  workbenchState.openConversationTabIds = workbenchState.openCenterTabs
+    .filter((tab) => tab.kind === "conversation")
+    .map((tab) => tab.id);
+  workbenchState.openProcessTabIds = workbenchState.openCenterTabs
+    .filter((tab) => tab.kind === "process")
+    .map((tab) => tab.id);
+  workbenchState.openFileTabIds = workbenchState.openCenterTabs
+    .filter((tab) => tab.kind === "file")
+    .map((tab) => tab.id);
+  workbenchState.settingsTabOpen = workbenchState.openCenterTabs.some(
+    (tab) => tab.kind === "settings",
+  );
+}
+
+export function replaceOpenCenterTabs(tabs: CenterTabIdentity[]) {
+  const seen = new Set<string>();
+  workbenchState.openCenterTabs = tabs.filter((tab) => {
+    const key = centerTabKey(tab);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  syncLegacyTabFields();
+}
+
+export function addCenterTab(tab: CenterTabIdentity) {
+  if (
+    !workbenchState.openCenterTabs.some((candidate) =>
+      centerTabsEqual(candidate, tab),
+    )
+  ) {
+    workbenchState.openCenterTabs = [...workbenchState.openCenterTabs, tab];
+    syncLegacyTabFields();
+  }
+}
+
+export function replaceCenterTab(
+  previous: CenterTabIdentity,
+  next: CenterTabIdentity,
+) {
+  replaceOpenCenterTabs(
+    workbenchState.openCenterTabs.map((tab) =>
+      centerTabsEqual(tab, previous) ? next : tab,
+    ),
+  );
+  if (centerTabsEqual(workbenchState.activeCenterTab, previous)) {
+    workbenchState.activeCenterTab = next;
+  }
+}
+
+export function nextCenterTabAfterClose(
+  tab: CenterTabIdentity,
+): CenterTabIdentity | undefined {
+  const tabs = workbenchState.openCenterTabs;
+  const closingIndex = tabs.findIndex((candidate) =>
+    centerTabsEqual(candidate, tab),
+  );
+  if (closingIndex === -1) return fallbackCenterTab(tab);
+  const remaining = tabs.filter(
+    (candidate) => !centerTabsEqual(candidate, tab),
+  );
+  return remaining[closingIndex] ?? remaining[closingIndex - 1] ?? remaining[0];
+}
+
+export function removeCenterTab(tab: CenterTabIdentity) {
+  replaceOpenCenterTabs(
+    workbenchState.openCenterTabs.filter(
+      (candidate) => !centerTabsEqual(candidate, tab),
+    ),
+  );
+}
+
 export function setActiveCenterTab(tab: CenterTabIdentity | undefined) {
+  if (tab) addCenterTab(tab);
   workbenchState.activeCenterTab = tab;
   if (tab?.kind === "process") workbenchState.selectedProcessId = tab.id;
 }
 
-export function fallbackCenterTab(): CenterTabIdentity | undefined {
-  const sessionId =
-    workbenchState.activeConversationTabId ??
-    workbenchState.openConversationTabIds[0];
-  if (sessionId) return { kind: "conversation", id: sessionId };
-  const processId = workbenchState.openProcessTabIds[0];
-  if (processId) return { kind: "process", id: processId };
-  const fileId = workbenchState.openFileTabIds[0];
-  if (fileId) return { kind: "file", id: fileId };
-  if (workbenchState.settingsTabOpen) return { kind: "settings", id: "settings" };
-  return undefined;
+export function fallbackCenterTab(
+  excluding?: CenterTabIdentity,
+): CenterTabIdentity | undefined {
+  return workbenchState.openCenterTabs.find(
+    (tab) => !excluding || !centerTabsEqual(tab, excluding),
+  );
+}
+
+export async function selectCenterTab(tab: CenterTabIdentity | undefined) {
+  if (!tab) {
+    setActiveCenterTab(undefined);
+    return;
+  }
+  switch (tab.kind) {
+    case "conversation": {
+      const { openSession } = await import("../session-flow.svelte");
+      await openSession(tab.id);
+      return;
+    }
+    case "process": {
+      const { selectCenterProcessTab } = await import("./process-tabs.svelte");
+      await selectCenterProcessTab(tab.id);
+      return;
+    }
+    case "file": {
+      const { selectCenterFileTab } = await import("./file-tabs.svelte");
+      await selectCenterFileTab(tab.id);
+      return;
+    }
+    case "settings": {
+      const { selectCenterSettingsTab } = await import("../settings.svelte");
+      await selectCenterSettingsTab();
+      return;
+    }
+  }
+}
+
+export async function closeCenterTab(tab: CenterTabIdentity) {
+  switch (tab.kind) {
+    case "conversation": {
+      const { closeConversationTab } = await import("../session-flow.svelte");
+      await closeConversationTab(tab.id);
+      return;
+    }
+    case "process": {
+      const { closeProcessTab } = await import("./process-tabs.svelte");
+      await closeProcessTab(tab.id);
+      return;
+    }
+    case "file": {
+      const { closeFileTab } = await import("./file-tabs.svelte");
+      closeFileTab(tab.id);
+      return;
+    }
+    case "settings": {
+      const { closeSettingsTab } = await import("../settings.svelte");
+      closeSettingsTab();
+      return;
+    }
+  }
 }
 
 export function activateFallbackCenterTab() {

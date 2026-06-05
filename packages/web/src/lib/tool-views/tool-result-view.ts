@@ -17,12 +17,18 @@ import type { ToolCallRecord } from "../api";
 import type { LiveToolOutput } from "../stores/workbench/state.svelte";
 import { trimTextPreview } from "../utils/text-preview";
 
-export type GroupedMatches = { path: string; matches: GrepMatch[] };
+export type GrepMatchView = GrepMatch & { openPath?: string };
+export type GroupedMatches = {
+  path: string;
+  openPath?: string;
+  matches: GrepMatchView[];
+};
 
 export type ToolView =
   | {
       kind: "read";
       title?: string;
+      path?: string;
       relPath?: string;
       lineLabel?: string;
       image?: { dataUrl: string; mimeType: string };
@@ -45,6 +51,7 @@ export type ToolView =
   | {
       kind: "edit";
       title?: string;
+      path?: string;
       relPath?: string;
       replacements: number;
       diff?: string;
@@ -52,6 +59,7 @@ export type ToolView =
   | {
       kind: "write";
       title?: string;
+      path?: string;
       relPath?: string;
       bytes?: number;
       content?: string;
@@ -70,13 +78,15 @@ export type ToolView =
       title?: string;
       pattern?: string;
       paths: string[];
+      openPaths: string[];
       count: number;
     }
   | {
       kind: "ls";
       title?: string;
+      path?: string;
       relPath?: string;
-      entries: FileEntry[];
+      entries: Array<FileEntry & { openPath?: string }>;
       total: number;
     }
   | {
@@ -172,7 +182,7 @@ export function imageDataUrl(mimeType: string, data: string): string {
   return `data:${mimeType};base64,${data}`;
 }
 
-function previewGrepMatch(match: GrepMatch): GrepMatch {
+function previewGrepMatch(match: GrepMatchView): GrepMatchView {
   return {
     ...match,
     text: trimTextPreview(match.text, {
@@ -183,19 +193,32 @@ function previewGrepMatch(match: GrepMatch): GrepMatch {
   };
 }
 
-export function groupMatchesByFile(matches: GrepMatch[]): GroupedMatches[] {
+export function groupMatchesByFile(matches: GrepMatchView[]): GroupedMatches[] {
   const groups: GroupedMatches[] = [];
-  const byPath = new Map<string, GrepMatch[]>();
+  const byPath = new Map<string, GrepMatchView[]>();
   for (const match of matches) {
     let bucket = byPath.get(match.path);
     if (!bucket) {
       bucket = [];
       byPath.set(match.path, bucket);
-      groups.push({ path: match.path, matches: bucket });
+      groups.push({
+        path: match.path,
+        openPath: match.openPath,
+        matches: bucket,
+      });
     }
     bucket.push(match);
   }
   return groups;
+}
+
+function resolveToolPath(
+  path: string | undefined,
+  cwd: string,
+): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith("/")) return path;
+  return `${cwd.replace(/\/$/, "")}/${path}`;
 }
 
 function detailsTruncated(details: unknown): boolean {
@@ -217,7 +240,8 @@ export function parseToolView(
 
   switch (toolCall.toolName) {
     case "read": {
-      const relPath = relativePath(result?.path ?? stringField(args.path), cwd);
+      const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
+      const relPath = relativePath(path, cwd);
       const imageBlock = result?.contentBlocks?.find(
         (block) => block.type === "image",
       );
@@ -225,6 +249,7 @@ export function parseToolView(
         return {
           kind: "read",
           title: relPath ? `${relPath} · image` : "image",
+          path,
           relPath,
           image: {
             dataUrl: imageDataUrl(imageBlock.mimeType, imageBlock.data),
@@ -249,6 +274,7 @@ export function parseToolView(
       return {
         kind: "read",
         title: [relPath, lineLabel].filter(Boolean).join(" · ") || undefined,
+        path,
         relPath,
         lineLabel,
         content,
@@ -280,7 +306,8 @@ export function parseToolView(
     }
 
     case "edit": {
-      const relPath = relativePath(result?.path ?? stringField(args.path), cwd);
+      const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
+      const relPath = relativePath(path, cwd);
       const edits = Array.isArray(args.edits) ? args.edits.length : 0;
       const details = editResultDetailsSchema.safeParse(result?.details);
       return {
@@ -288,6 +315,7 @@ export function parseToolView(
         title: relPath
           ? `${relPath} · ${edits} replacement${edits === 1 ? "" : "s"}`
           : undefined,
+        path,
         relPath,
         replacements: edits,
         diff: details.success ? details.data.diff : undefined,
@@ -295,7 +323,8 @@ export function parseToolView(
     }
 
     case "write": {
-      const relPath = relativePath(result?.path ?? stringField(args.path), cwd);
+      const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
+      const relPath = relativePath(path, cwd);
       const content = stringField(args.content);
       const byteMatch = result?.content?.match(/Wrote (\d+) bytes/);
       const bytes = byteMatch ? Number(byteMatch[1]) : undefined;
@@ -304,6 +333,7 @@ export function parseToolView(
         title: relPath
           ? `${relPath}${bytes !== undefined ? ` · wrote ${bytes} bytes` : ""}`
           : undefined,
+        path,
         relPath,
         bytes,
         content,
@@ -312,7 +342,10 @@ export function parseToolView(
 
     case "grep": {
       const pattern = stringField(args.pattern);
-      const matches = result?.matches ?? [];
+      const matches = (result?.matches ?? []).map((match) => ({
+        ...match,
+        openPath: resolveToolPath(match.path, cwd) ?? match.path,
+      }));
       const all = groupMatchesByFile(matches);
       const fileCount = all.length;
       const preview: GroupedMatches[] = [];
@@ -340,7 +373,11 @@ export function parseToolView(
 
     case "find": {
       const pattern = stringField(args.pattern);
-      const paths = (result?.entries ?? []).map((entry) => entry.path);
+      const entries = result?.entries ?? [];
+      const paths = entries.map((entry) => entry.path);
+      const openPaths = entries.map(
+        (entry) => resolveToolPath(entry.path, cwd) ?? entry.path,
+      );
       return {
         kind: "find",
         title: pattern
@@ -348,17 +385,22 @@ export function parseToolView(
           : undefined,
         pattern,
         paths,
+        openPaths,
         count: paths.length,
       };
     }
 
     case "ls": {
-      const relPath =
-        relativePath(result?.path ?? stringField(args.path), cwd) ?? ".";
-      const entries = result?.entries ?? [];
+      const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
+      const relPath = relativePath(path, cwd) ?? ".";
+      const entries = (result?.entries ?? []).map((entry) => ({
+        ...entry,
+        openPath: resolveToolPath(entry.path, path ?? cwd) ?? entry.path,
+      }));
       return {
         kind: "ls",
         title: `${relPath} · ${entries.length} entr${entries.length === 1 ? "y" : "ies"}`,
+        path,
         relPath,
         entries,
         total: entries.length,

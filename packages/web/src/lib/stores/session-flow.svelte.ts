@@ -1,19 +1,18 @@
 import { toast } from "svelte-sonner";
 import {
   type AgentRecord,
-  type ConversationActiveRunSnapshot,
   acceptPlanReview,
   answerUserQuestion,
   apiGet,
   apiPost,
+  type ConversationActiveRunSnapshot,
   compactSession,
   discardPlanReview,
   dismissUserQuestion as dismissUserQuestionRequest,
+  getConversationSnapshot,
   getPendingApprovals,
   getPendingPlanReviews,
   getPendingUserQuestions,
-  getConversationSnapshot,
-  getProcessLogs,
   type ProjectRecord,
   requestPlanChanges,
   type SessionRecord,
@@ -33,6 +32,14 @@ import {
   selectedThinkingLevel,
 } from "./composer-config.svelte";
 import { openSettingsPane } from "./settings.svelte";
+import {
+  addCenterTab,
+  nextCenterTabAfterClose,
+  removeCenterTab,
+  replaceOpenCenterTabs,
+  selectCenterTab,
+  setActiveCenterTab,
+} from "./workbench/center-tabs.svelte";
 import {
   filterStoredTabsAgainstSessions,
   loadStoredConversationTabs,
@@ -78,7 +85,10 @@ export function activeRunToLegacyLive(
           {
             id: `live:${message.liveMessageId}:${block.kind}:${block.contentIndex}`,
             role: "assistant" as const,
-            displayKind: block.kind === "thinking" ? "thinking" as const : "message" as const,
+            displayKind:
+              block.kind === "thinking"
+                ? ("thinking" as const)
+                : ("message" as const),
             text: block.text,
             createdAt: message.startedAt,
             contentIndex: block.contentIndex,
@@ -137,12 +147,7 @@ function persistConversationTabs() {
 }
 
 function addConversationTab(sessionId: string) {
-  if (!workbenchState.openConversationTabIds.includes(sessionId)) {
-    workbenchState.openConversationTabIds = [
-      ...workbenchState.openConversationTabIds,
-      sessionId,
-    ];
-  }
+  addCenterTab({ kind: "conversation", id: sessionId });
   ensureConversationView(sessionId);
 }
 
@@ -228,7 +233,7 @@ export async function openSession(sessionId: string) {
       .session;
   addConversationTab(session.id);
   workbenchState.activeConversationTabId = session.id;
-  workbenchState.activeCenterTab = { kind: "conversation", id: session.id };
+  setActiveCenterTab({ kind: "conversation", id: session.id });
   persistConversationTabs();
   await applyActiveSessionSelection(session);
   await refreshSessionView(session.id);
@@ -244,7 +249,7 @@ export async function restoreConversationTabs() {
     stored.tabIds,
     workbenchState.sessions,
   );
-  workbenchState.openConversationTabIds = tabIds;
+  replaceOpenCenterTabs(tabIds.map((id) => ({ kind: "conversation", id })));
   for (const sessionId of tabIds) ensureConversationView(sessionId);
   const activeId =
     stored.activeId && tabIds.includes(stored.activeId)
@@ -267,48 +272,30 @@ export async function closeConversationTab(sessionId: string) {
   const currentIds = workbenchState.openConversationTabIds;
   const closingIndex = currentIds.indexOf(sessionId);
   if (closingIndex === -1) return;
+  const tab = { kind: "conversation" as const, id: sessionId };
+  const fallback = nextCenterTabAfterClose(tab);
   const nextIds = currentIds.filter((id) => id !== sessionId);
-  workbenchState.openConversationTabIds = nextIds;
+  const nextSessionId = nextIds[closingIndex] ?? nextIds[closingIndex - 1];
+  removeCenterTab(tab);
   delete workbenchState.conversationViews[sessionId];
 
   const closingActiveCenter =
     workbenchState.activeCenterTab?.kind === "conversation" &&
     workbenchState.activeCenterTab.id === sessionId;
 
-  if (selection.sessionId !== sessionId) {
-    if (closingActiveCenter && nextIds[0]) {
-      await openSession(nextIds[0]);
-      return;
-    }
-    persistConversationTabs();
-    return;
-  }
-
-  const nextSessionId = nextIds[closingIndex] ?? nextIds[closingIndex - 1];
-  if (nextSessionId) {
+  if (workbenchState.activeConversationTabId === sessionId) {
     workbenchState.activeConversationTabId = nextSessionId;
-    persistConversationTabs();
-    if (closingActiveCenter) await openSession(nextSessionId);
-    return;
   }
 
-  clearActiveSelection();
-  if (closingActiveCenter && workbenchState.openProcessTabIds[0]) {
-    const processId = workbenchState.openProcessTabIds[0];
-    workbenchState.activeCenterTab = { kind: "process", id: processId };
-    workbenchState.selectedProcessId = processId;
-    workbenchState.processLogs = await getProcessLogs(processId);
-  } else if (closingActiveCenter && workbenchState.openFileTabIds[0]) {
-    workbenchState.activeCenterTab = {
-      kind: "file",
-      id: workbenchState.openFileTabIds[0],
-    };
-  } else if (closingActiveCenter && workbenchState.settingsTabOpen) {
-    workbenchState.activeCenterTab = { kind: "settings", id: "settings" };
-  } else if (closingActiveCenter) {
-    workbenchState.activeCenterTab = undefined;
+  if (selection.sessionId === sessionId && !nextSessionId) {
+    clearActiveSelection();
   }
+
   persistConversationTabs();
+
+  if (closingActiveCenter) {
+    await selectCenterTab(fallback);
+  }
 }
 
 export async function removeConversationTabs(sessionIds: string[]) {
@@ -316,8 +303,11 @@ export async function removeConversationTabs(sessionIds: string[]) {
   const activeRemoved = selection.sessionId
     ? removing.has(selection.sessionId)
     : false;
-  workbenchState.openConversationTabIds =
-    workbenchState.openConversationTabIds.filter((id) => !removing.has(id));
+  replaceOpenCenterTabs(
+    workbenchState.openCenterTabs.filter(
+      (tab) => tab.kind !== "conversation" || !removing.has(tab.id),
+    ),
+  );
   for (const sessionId of removing)
     delete workbenchState.conversationViews[sessionId];
 
@@ -335,21 +325,7 @@ export async function removeConversationTabs(sessionIds: string[]) {
   }
 
   clearActiveSelection();
-  if (workbenchState.openProcessTabIds[0]) {
-    const processId = workbenchState.openProcessTabIds[0];
-    workbenchState.activeCenterTab = { kind: "process", id: processId };
-    workbenchState.selectedProcessId = processId;
-    workbenchState.processLogs = await getProcessLogs(processId);
-  } else if (workbenchState.openFileTabIds[0]) {
-    workbenchState.activeCenterTab = {
-      kind: "file",
-      id: workbenchState.openFileTabIds[0],
-    };
-  } else if (workbenchState.settingsTabOpen) {
-    workbenchState.activeCenterTab = { kind: "settings", id: "settings" };
-  } else {
-    workbenchState.activeCenterTab = undefined;
-  }
+  await selectCenterTab(workbenchState.openCenterTabs[0]);
   persistConversationTabs();
 }
 
@@ -378,10 +354,7 @@ export async function compactActiveSession() {
 }
 
 export function clearConversationState() {
-  workbenchState.openConversationTabIds = [];
-  workbenchState.openProcessTabIds = [];
-  workbenchState.openFileTabIds = [];
-  workbenchState.settingsTabOpen = false;
+  replaceOpenCenterTabs([]);
   workbenchState.activeConversationTabId = undefined;
   workbenchState.activeCenterTab = undefined;
   workbenchState.conversationViews = {};

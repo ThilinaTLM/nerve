@@ -69,14 +69,18 @@ function sessionIdFromEvent(
 }
 
 function isOpenSession(sessionId: string): boolean {
-  return workbenchState.openConversationTabIds.includes(sessionId);
+  return workbenchState.openCenterTabs.some(
+    (tab) => tab.kind === "conversation" && tab.id === sessionId,
+  );
 }
 
 function active(sessionId: string): boolean {
   return selection.sessionId === sessionId;
 }
 
-function handleConversationEvent(event: EventEnvelope<Record<string, unknown>>) {
+function handleConversationEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+) {
   const sessionId = sessionIdFromEvent(event);
   if (!sessionId || !isOpenSession(sessionId)) return;
   const view = ensureConversationView(sessionId);
@@ -92,7 +96,10 @@ function handleConversationEvent(event: EventEnvelope<Record<string, unknown>>) 
       handleEntryAppended(view, event.data?.entry as SessionEntry | undefined);
       break;
     case "conversation.tool_call.updated":
-      handleToolCallUpdated(view, event.data?.toolCall as ToolCallRecord | undefined);
+      handleToolCallUpdated(
+        view,
+        event.data?.toolCall as ToolCallRecord | undefined,
+      );
       break;
     case "conversation.live.message.started":
       ensureLiveState(view, String(event.data?.runId ?? ""));
@@ -176,7 +183,7 @@ function handleEntryAppended(
   view.transcript = [
     ...view.transcript.filter((item) => !item.id || !ids.has(item.id)),
     ...items,
-  ].filter((item, index, all) => {
+  ].filter((item, _index, all) => {
     if (!item.optimistic) return true;
     return !all.some(
       (candidate) =>
@@ -198,14 +205,17 @@ function handleToolCallUpdated(
   toolCall: ToolCallRecord | undefined,
 ): void {
   if (!toolCall) return;
-  const index = view.toolCalls.findIndex((candidate) => candidate.id === toolCall.id);
+  const index = view.toolCalls.findIndex(
+    (candidate) => candidate.id === toolCall.id,
+  );
   view.toolCalls =
     index === -1
       ? [...view.toolCalls, toolCall]
       : view.toolCalls.map((candidate) =>
           candidate.id === toolCall.id ? toolCall : candidate,
         );
-  const providerToolCallId = toolCall.providerToolCallId ?? toolCall.sourceToolCallId;
+  const providerToolCallId =
+    toolCall.providerToolCallId ?? toolCall.sourceToolCallId;
   if (providerToolCallId) {
     view.live.toolDrafts = view.live.toolDrafts.filter(
       (draft) => draft.providerToolCallId !== providerToolCallId,
@@ -213,8 +223,13 @@ function handleToolCallUpdated(
   }
 }
 
-function upsertLiveMessage(view: ConversationViewState, item: TranscriptItem): void {
-  const index = view.live.messages.findIndex((candidate) => candidate.id === item.id);
+function upsertLiveMessage(
+  view: ConversationViewState,
+  item: TranscriptItem,
+): void {
+  const index = view.live.messages.findIndex(
+    (candidate) => candidate.id === item.id,
+  );
   view.live.messages =
     index === -1
       ? [...view.live.messages, item]
@@ -229,7 +244,8 @@ function handleContentDelta(
 ): void {
   const delta = typeof event.data?.delta === "string" ? event.data.delta : "";
   if (!delta) return;
-  const runId = typeof event.data?.runId === "string" ? event.data.runId : undefined;
+  const runId =
+    typeof event.data?.runId === "string" ? event.data.runId : undefined;
   ensureLiveState(view, runId);
   const id = liveTextId(event.data);
   const current = view.live.messages.find((item) => item.id === id);
@@ -259,7 +275,8 @@ function handleContentDone(
   view: ConversationViewState,
   event: EventEnvelope<Record<string, unknown>>,
 ): void {
-  const runId = typeof event.data?.runId === "string" ? event.data.runId : undefined;
+  const runId =
+    typeof event.data?.runId === "string" ? event.data.runId : undefined;
   ensureLiveState(view, runId);
   const id = liveTextId(event.data);
   const current = view.live.messages.find((item) => item.id === id);
@@ -285,15 +302,22 @@ function draftKey(data: Record<string, unknown>): string {
   return `live:${liveMessageId(data)}:tool-draft:${Number(data.contentIndex ?? 0)}`;
 }
 
-function upsertToolDraft(view: ConversationViewState, event: EventEnvelope<Record<string, unknown>>, patch: Record<string, unknown>) {
+function upsertToolDraft(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+  patch: Record<string, unknown>,
+) {
   const key = draftKey(event.data);
   const current = view.live.toolDrafts.find((draft) => draft.key === key);
   const updated = {
     kind: "tool_call_draft" as const,
     key,
-    runId: typeof event.data?.runId === "string" ? event.data.runId : current?.runId,
+    runId:
+      typeof event.data?.runId === "string" ? event.data.runId : current?.runId,
     sessionId: view.sessionId,
-    contentIndex: Number(event.data?.contentIndex ?? current?.contentIndex ?? 0),
+    contentIndex: Number(
+      event.data?.contentIndex ?? current?.contentIndex ?? 0,
+    ),
     providerToolCallId:
       typeof event.data?.providerToolCallId === "string"
         ? event.data.providerToolCallId
@@ -302,7 +326,10 @@ function upsertToolDraft(view: ConversationViewState, event: EventEnvelope<Recor
       typeof event.data?.toolName === "string"
         ? event.data.toolName
         : current?.toolName,
-    argsText: typeof patch.argsText === "string" ? patch.argsText : (current?.argsText ?? ""),
+    argsText:
+      typeof patch.argsText === "string"
+        ? patch.argsText
+        : (current?.argsText ?? ""),
     args: (patch.args as Record<string, unknown> | undefined) ?? current?.args,
     done: typeof patch.done === "boolean" ? patch.done : current?.done,
     createdAt: current?.createdAt ?? new Date().toISOString(),
@@ -313,13 +340,25 @@ function upsertToolDraft(view: ConversationViewState, event: EventEnvelope<Recor
     : [...view.live.toolDrafts, updated];
 }
 
-function handleToolDraftStarted(view: ConversationViewState, event: EventEnvelope<Record<string, unknown>>): void {
-  ensureLiveState(view, typeof event.data?.runId === "string" ? event.data.runId : undefined);
+function handleToolDraftStarted(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  ensureLiveState(
+    view,
+    typeof event.data?.runId === "string" ? event.data.runId : undefined,
+  );
   upsertToolDraft(view, event, {});
 }
 
-function handleToolDraftDelta(view: ConversationViewState, event: EventEnvelope<Record<string, unknown>>): void {
-  ensureLiveState(view, typeof event.data?.runId === "string" ? event.data.runId : undefined);
+function handleToolDraftDelta(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  ensureLiveState(
+    view,
+    typeof event.data?.runId === "string" ? event.data.runId : undefined,
+  );
   const key = draftKey(event.data);
   const current = view.live.toolDrafts.find((draft) => draft.key === key);
   const delta = typeof event.data?.delta === "string" ? event.data.delta : "";
@@ -329,13 +368,24 @@ function handleToolDraftDelta(view: ConversationViewState, event: EventEnvelope<
     void refreshSessionView(view.sessionId);
     return;
   }
-  upsertToolDraft(view, event, { argsText: `${current?.argsText ?? ""}${delta}` });
+  upsertToolDraft(view, event, {
+    argsText: `${current?.argsText ?? ""}${delta}`,
+  });
 }
 
-function handleToolDraftDone(view: ConversationViewState, event: EventEnvelope<Record<string, unknown>>): void {
-  ensureLiveState(view, typeof event.data?.runId === "string" ? event.data.runId : undefined);
+function handleToolDraftDone(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  ensureLiveState(
+    view,
+    typeof event.data?.runId === "string" ? event.data.runId : undefined,
+  );
   upsertToolDraft(view, event, {
-    args: event.data?.args && typeof event.data.args === "object" ? event.data.args : undefined,
+    args:
+      event.data?.args && typeof event.data.args === "object"
+        ? event.data.args
+        : undefined,
     done: true,
   });
 }
@@ -364,7 +414,8 @@ function handleToolOutputDelta(
     typeof delta !== "string" ||
     delta.length === 0 ||
     (stream !== "stdout" && stream !== "stderr" && stream !== "combined")
-  ) return;
+  )
+    return;
   const previous = view.live.toolOutputByToolCallId[toolCallId];
   const expected = Number(event.data?.offset ?? previous?.text.length ?? 0);
   if (previous && previous.text.length > expected) return;

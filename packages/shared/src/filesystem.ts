@@ -40,6 +40,7 @@ export type FilesystemDirectoryQuery = z.infer<
 export const filesystemFileQuerySchema = z.object({
   projectId: z.string().min(1),
   path: z.string().min(1),
+  line: z.coerce.number().int().positive().optional(),
 });
 export type FilesystemFileQuery = z.infer<typeof filesystemFileQuerySchema>;
 
@@ -51,6 +52,7 @@ export const filesystemFileResponseSchema = z.object({
   size: z.number().nonnegative(),
   mtimeMs: z.number().nonnegative(),
   type: z.enum(["text", "image", "binary"]),
+  binary: z.boolean(),
   text: z.string().optional(),
   dataBase64: z.string().optional(),
   mimeType: z.string().optional(),

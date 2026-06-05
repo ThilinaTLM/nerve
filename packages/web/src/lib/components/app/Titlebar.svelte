@@ -5,18 +5,16 @@
   import type { ProjectRecord } from "../../api";
   import { Button } from "$lib/components/ui/button";
 
-  type AppRoute = "workspace" | "settings";
-
   type Props = {
     activeProject?: ProjectRecord;
-    activeRoute?: AppRoute;
+    settingsActive?: boolean;
     onOpenProject?: () => void;
     onOpenSettings?: () => void;
   };
 
   let {
     activeProject,
-    activeRoute = "workspace",
+    settingsActive = false,
     onOpenProject,
     onOpenSettings,
   }: Props = $props();
@@ -47,11 +45,9 @@
       size="icon-sm"
       ariaLabel="Open settings"
       title="Open settings"
-      active={activeRoute === "settings"}
-      pressed={activeRoute === "settings"}
-      onclick={() => {
-        if (activeRoute !== "settings") onOpenSettings?.();
-      }}
+      active={settingsActive}
+      pressed={settingsActive}
+      onclick={() => onOpenSettings?.()}
     >
       <Settings size={16} strokeWidth={2.1} />
     </Button>

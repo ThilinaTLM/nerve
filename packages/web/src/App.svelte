@@ -16,7 +16,8 @@
     themeState,
   } from "./lib/state/app-state.svelte";
   import ConversationPane from "./lib/components/app/ConversationPane.svelte";
-  import ConversationTabStrip from "./lib/components/app/ConversationTabStrip.svelte";
+  import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
+  import FilePane from "./lib/components/app/FilePane.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";
   import ProcessOutputPane from "./lib/components/app/ProcessOutputPane.svelte";
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
@@ -28,8 +29,7 @@
     abortActiveRun,
     acceptPendingPlanReview,
     answerActiveUserQuestion,
-    closeConversationTab,
-    closeProcessTab,
+    closeCenterTab,
     compactActiveSession,
     completeFiles,
     createConversationForDirectory,
@@ -46,23 +46,24 @@
     navigateToEntry,
     newConversationInProject,
     newSession,
+    openFilePane,
     openProcessTab,
+    openSettingsPane,
     openSession,
     pruneStoppedProcesses,
+    refreshFilePane,
     refreshProcessLogs,
     requestPendingPlanChanges,
     removeProcess,
     restartSelectedProcess,
     saveSettings,
-    selectCenterConversationTab,
-    selectCenterProcessTab,
+    selectCenterTab,
     sendPrompt,
     setActiveComposerText,
     setComposerMode,
     setComposerModel,
     setComposerPermission,
     setComposerThinkingLevel,
-    setSettingsNavigation,
     setTheme,
     stopSelectedProcess,
     systemPromptUrl,
@@ -70,8 +71,6 @@
     workbenchState,
   } from "./lib/stores/workbench.svelte";
 
-  type AppRoute = "workspace" | "settings";
-  let appRoute = $state<AppRoute>("workspace");
 
   const status = $derived(workbenchSelectors.status);
   const connection = $derived(workbenchSelectors.connection);
@@ -93,6 +92,7 @@
   const activeComposerText = $derived(workbenchSelectors.activeComposerText);
   const centerTabs = $derived(workbenchSelectors.centerTabs);
   const activeCenterTab = $derived(workbenchSelectors.activeCenterTab);
+  const activeCenterFileView = $derived(workbenchSelectors.activeCenterFileView);
   const slashCompletions = $derived(workbenchSelectors.slashCompletions);
   const selectedModelKey = $derived(workbenchSelectors.selectedModelKey);
   const selectedThinkingLevel = $derived(workbenchSelectors.selectedThinkingLevel);
@@ -114,24 +114,6 @@
   const sessionAgents = $derived(workbenchSelectors.sessionAgents);
   const usableModels = $derived(workbenchSelectors.usableModels);
 
-  function routeFromPath(pathname: string): AppRoute {
-    return pathname === "/settings" || pathname === "/settings/" ? "settings" : "workspace";
-  }
-
-  function routePath(route: AppRoute): string {
-    return route === "settings" ? "/settings" : "/";
-  }
-
-  function navigateToRoute(route: AppRoute, mode: "push" | "replace" = "push") {
-    appRoute = route;
-    if (typeof window === "undefined") return;
-    const nextPath = routePath(route);
-    if (window.location.pathname === nextPath) return;
-    const nextUrl = `${nextPath}${window.location.search}${window.location.hash}`;
-    if (mode === "replace") window.history.replaceState({ route }, "", nextUrl);
-    else window.history.pushState({ route }, "", nextUrl);
-  }
-
   function selectAgent(agent: AgentRecord) {
     selection.agentId = agent.id;
     selection.projectId = agent.projectId;
@@ -143,52 +125,44 @@
     workbenchState.projectPickerOpen = true;
   }
 
-  onMount(() => {
-    const handlePopState = () => (appRoute = routeFromPath(window.location.pathname));
+  function openToolFile(path: string, line?: number) {
+    if (!activeProject) return;
+    void openFilePane({ projectId: activeProject.id, path, line });
+  }
 
-    setSettingsNavigation(() => navigateToRoute("settings"));
-    navigateToRoute(routeFromPath(window.location.pathname), "replace");
+  onMount(() => {
+    const startedOnSettings =
+      window.location.pathname === "/settings" ||
+      window.location.pathname === "/settings/";
+    if (startedOnSettings) {
+      window.history.replaceState({}, "", `/${window.location.search}${window.location.hash}`);
+    }
     setSidebarCollapsed(loadSidebarCollapsed());
     setUtilityCollapsed(loadUtilityCollapsed());
-    window.addEventListener("popstate", handlePopState);
 
-    void initializeWorkbench();
+    void initializeWorkbench().then(() => {
+      if (startedOnSettings) void openSettingsPane();
+    });
 
     return () => {
       disconnectWorkbench();
-      window.removeEventListener("popstate", handlePopState);
     };
   });
 </script>
 
 <svelte:head>
-  <title>{appRoute === "settings" ? "nerve · settings" : "nerve"}</title>
+  <title>nerve</title>
 </svelte:head>
 
 <main class="app-frame">
   <Titlebar
     {activeProject}
-    activeRoute={appRoute}
+    settingsActive={activeCenterTab?.kind === "settings"}
     onOpenProject={openProjectPicker}
-    onOpenSettings={() => navigateToRoute("settings")}
+    onOpenSettings={() => void openSettingsPane()}
   />
 
-  {#if appRoute === "settings"}
-    <div class="settings-shell">
-      <SettingsPage
-        {status}
-        bind:settingsDraft={workbenchState.settingsDraft}
-        {authProviders}
-        {settingsMessage}
-        themePreference={themeState.preference}
-        onBack={() => navigateToRoute("workspace")}
-        onLoadSettings={() => void loadSettingsPanel()}
-        onSaveSettings={() => void saveSettings()}
-        onThemeChange={setTheme}
-      />
-    </div>
-  {:else}
-    <div class="workspace-shell">
+  <div class="workspace-shell">
       <PaneGroup direction="horizontal" autoSaveId="nerve.workspace.v3" keyboardResizeBy={8}>
         {#if !layout.sidebarCollapsed}
           <Pane defaultSize={19} minSize={14} maxSize={32} order={1}>
@@ -211,18 +185,12 @@
         {/if}
 
         <Pane defaultSize={57} minSize={38} order={2}>
-          <div class="pane-shell conversation-shell">
-            <ConversationTabStrip
+          <div class="pane-shell center-shell">
+            <CenterTabStrip
               tabs={centerTabs}
               homeDir={status?.storage.home}
-              onSelect={(tab) => {
-                if (tab.kind === "process") void selectCenterProcessTab(tab.id);
-                else void selectCenterConversationTab(tab.id);
-              }}
-              onClose={(tab) => {
-                if (tab.kind === "process") void closeProcessTab(tab.id);
-                else void closeConversationTab(tab.id);
-              }}
+              onSelect={(tab) => void selectCenterTab(tab)}
+              onClose={(tab) => void closeCenterTab(tab)}
               onNewConversation={newSession}
             />
             {#if activeCenterTab?.kind === "process"}
@@ -233,6 +201,23 @@
                 onRefresh={() => void refreshProcessLogs()}
                 onRestart={(id) => void restartSelectedProcess(id)}
                 onStop={(id) => void stopSelectedProcess(id)}
+              />
+            {:else if activeCenterTab?.kind === "file"}
+              <FilePane
+                view={activeCenterFileView}
+                homeDir={status?.storage.home}
+                onRefresh={(id) => void refreshFilePane(id)}
+              />
+            {:else if activeCenterTab?.kind === "settings"}
+              <SettingsPage
+                {status}
+                bind:settingsDraft={workbenchState.settingsDraft}
+                {authProviders}
+                {settingsMessage}
+                themePreference={themeState.preference}
+                onLoadSettings={() => void loadSettingsPanel()}
+                onSaveSettings={() => void saveSettings()}
+                onThemeChange={setTheme}
               />
             {:else}
               <ConversationPane
@@ -268,6 +253,7 @@
                 onAbort={abortActiveRun}
                 onOpenProject={openProjectPicker}
                 onNewConversationInProject={newConversationInProject}
+                onOpenFile={openToolFile}
                 onModelChange={(value) => void setComposerModel(value)}
                 onThinkingLevelChange={(value) => void setComposerThinkingLevel(value)}
                 onModeChange={(value) => void setComposerMode(value)}
@@ -323,8 +309,7 @@
           </Pane>
         {/if}
       </PaneGroup>
-    </div>
-  {/if}
+  </div>
 
   <Footerbar
     {activeProject}
@@ -365,8 +350,7 @@
     color: var(--foreground);
   }
 
-  .workspace-shell,
-  .settings-shell {
+  .workspace-shell {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -387,7 +371,7 @@
     background: var(--sidebar);
   }
 
-  .conversation-shell {
+  .center-shell {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     background: var(--background);

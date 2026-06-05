@@ -19,7 +19,6 @@
     authProviders?: AuthProviderMetadata[];
     settingsMessage?: string;
     themePreference?: ThemePreference;
-    onBack?: () => void;
     onLoadSettings?: () => void;
     onSaveSettings?: () => void;
     onThemeChange?: (theme: ThemePreference) => void;
@@ -31,7 +30,6 @@
     authProviders = [],
     settingsMessage,
     themePreference = "system",
-    onBack,
     onLoadSettings,
     onSaveSettings,
     onThemeChange,
@@ -48,7 +46,6 @@
   <SettingsHeader
     {activeSection}
     canSave={Boolean(settingsDraft)}
-    {onBack}
     {onLoadSettings}
     {onSaveSettings}
   />

@@ -1,11 +1,28 @@
-import { access, mkdir, open, readdir, stat, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  open,
+  readdir,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  parse,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import {
   clipboardImageUploadRequestSchema,
-  filesystemFileQuerySchema,
   type FilesystemSignal,
   filesystemDirectoryQuerySchema,
+  filesystemFileQuerySchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
@@ -208,11 +225,12 @@ function isInside(root: string, candidate: string): boolean {
 }
 
 function resolveProjectFile(root: string, rawPath: string): string {
-  const candidate = rawPath.startsWith(`.${sep}`) || rawPath.startsWith("./")
-    ? resolve(root, rawPath)
-    : isAbsolute(rawPath)
-      ? resolve(rawPath)
-      : resolve(root, rawPath);
+  const candidate =
+    rawPath.startsWith(`.${sep}`) || rawPath.startsWith("./")
+      ? resolve(root, rawPath)
+      : isAbsolute(rawPath)
+        ? resolve(rawPath)
+        : resolve(root, rawPath);
   if (!isInside(root, candidate)) {
     throw new Error("File path must be inside the selected project.");
   }
@@ -257,6 +275,7 @@ async function fileContent(state: OrchestratorState, input: unknown) {
         size: info.size,
         mtimeMs: info.mtimeMs,
         type: "binary" as const,
+        binary: true,
         mimeType: imageMimeType,
         truncated: true,
       };
@@ -270,6 +289,7 @@ async function fileContent(state: OrchestratorState, input: unknown) {
       size: info.size,
       mtimeMs: info.mtimeMs,
       type: "image" as const,
+      binary: false,
       dataBase64: chunk.toString("base64"),
       mimeType: imageMimeType,
       truncated: false,
@@ -289,7 +309,8 @@ async function fileContent(state: OrchestratorState, input: unknown) {
     name: basename(target),
     size: info.size,
     mtimeMs: info.mtimeMs,
-    type: textual ? "text" as const : "binary" as const,
+    type: textual ? ("text" as const) : ("binary" as const),
+    binary: !textual,
     text: textual ? textChunk.toString("utf8") : undefined,
     truncated,
   };
@@ -316,6 +337,7 @@ export function createFilesystemRoutes(state: OrchestratorState): Hono {
         await fileContent(state, {
           projectId: c.req.query("projectId"),
           path: c.req.query("path"),
+          line: c.req.query("line"),
         }),
       ),
     ),

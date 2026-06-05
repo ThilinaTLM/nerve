@@ -1,5 +1,6 @@
 import type {
   AgentRecord,
+  FilesystemFileResponse,
   ProcessRecord,
   ProjectRecord,
   SessionRecord,
@@ -31,7 +32,30 @@ export type ProcessTabModel = {
   error?: string;
 };
 
-export type CenterTabModel = ConversationTabModel | ProcessTabModel;
+export type FileTabModel = {
+  kind: "file";
+  id: string;
+  file?: FilesystemFileResponse;
+  path?: string;
+  relativePath?: string;
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
+export type SettingsTabModel = {
+  kind: "settings";
+  id: "settings";
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
+export type CenterTabModel =
+  | ConversationTabModel
+  | ProcessTabModel
+  | FileTabModel
+  | SettingsTabModel;
 
 function activeView(): ConversationViewState | undefined {
   const sessionId =
@@ -231,8 +255,57 @@ export const workbenchSelectors = {
     }
     return tabs;
   },
+  get openFileTabs(): FileTabModel[] {
+    return workbenchState.openFileTabIds.map((id) => {
+      const view = workbenchState.fileViews[id];
+      return {
+        kind: "file" as const,
+        id,
+        file: view?.content,
+        path: view?.path,
+        relativePath: view?.content?.relativePath,
+        active: activeTabMatches("file", id),
+        sending: Boolean(view?.loading),
+        error: view?.error,
+      };
+    });
+  },
+  get openSettingsTabs(): SettingsTabModel[] {
+    return workbenchState.settingsTabOpen
+      ? [
+          {
+            kind: "settings" as const,
+            id: "settings" as const,
+            active: activeTabMatches("settings", "settings"),
+            sending: false,
+            error: workbenchState.settingsMessage,
+          },
+        ]
+      : [];
+  },
   get centerTabs(): CenterTabModel[] {
-    return [...this.openConversationTabs, ...this.openProcessTabs];
+    const models: CenterTabModel[] = [];
+    for (const tab of workbenchState.openCenterTabs) {
+      if (tab.kind === "conversation") {
+        const model = this.openConversationTabs.find(
+          (candidate) => candidate.id === tab.id,
+        );
+        if (model) models.push(model);
+      } else if (tab.kind === "process") {
+        const model = this.openProcessTabs.find(
+          (candidate) => candidate.id === tab.id,
+        );
+        if (model) models.push(model);
+      } else if (tab.kind === "file") {
+        const model = this.openFileTabs.find(
+          (candidate) => candidate.id === tab.id,
+        );
+        if (model) models.push(model);
+      } else {
+        models.push(...this.openSettingsTabs);
+      }
+    }
+    return models;
   },
   get activeCenterTab() {
     return workbenchState.activeCenterTab;
@@ -241,6 +314,11 @@ export const workbenchSelectors = {
     const active = workbenchState.activeCenterTab;
     if (active?.kind !== "process") return undefined;
     return workbenchState.processes.find((process) => process.id === active.id);
+  },
+  get activeCenterFileView() {
+    const active = workbenchState.activeCenterTab;
+    if (active?.kind !== "file") return undefined;
+    return workbenchState.fileViews[active.id];
   },
   get live() {
     return workbenchState.connection === "live";

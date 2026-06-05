@@ -5,10 +5,16 @@
   import type { ToolCallRecord } from "../../../api";
   import { PREVIEW_LIMITS, type ToolView } from "../../../tool-views/tool-result-view";
 
-  type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "ls" }> };
-  let { view }: Props = $props();
+  type Props = {
+    toolCall: ToolCallRecord;
+    view: Extract<ToolView, { kind: "ls" }>;
+    onOpenFile?: (path: string) => void;
+  };
+  let { view, onOpenFile }: Props = $props();
 
-  function sortEntries(entries: FileEntry[]): FileEntry[] {
+  type FileEntryView = FileEntry & { openPath?: string };
+
+  function sortEntries(entries: FileEntryView[]): FileEntryView[] {
     return [...entries].sort((a, b) => {
       if (a.kind === b.kind) return a.path.localeCompare(b.path);
       return a.kind === "directory" ? -1 : 1;
@@ -26,7 +32,11 @@
     {#each preview as entry (entry.path)}
       <li>
         {#if entry.kind === "directory"}<Folder size={12} strokeWidth={2} />{:else}<FileIcon size={12} strokeWidth={2} />{/if}
-        <span>{entry.path}</span>
+        {#if entry.kind === "file"}
+          <button type="button" onclick={() => onOpenFile?.(entry.openPath ?? entry.path)}>{entry.path}</button>
+        {:else}
+          <span>{entry.path}</span>
+        {/if}
       </li>
     {/each}
   </ul>
@@ -59,6 +69,20 @@
   .entries li :global(svg) {
     color: var(--muted-foreground);
     flex: none;
+  }
+
+  .entries button {
+    border: 0;
+    background: transparent;
+    color: var(--primary);
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+    text-align: left;
+  }
+
+  .entries button:hover {
+    text-decoration: underline;
   }
 
   .note {
