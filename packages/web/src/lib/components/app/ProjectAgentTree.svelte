@@ -151,7 +151,7 @@
                         {#snippet child({ props: tip })}
                           <Collapsible.Trigger>
                             {#snippet child({ props: trg })}
-                              <Sidebar.MenuButton {...mergeProps(trg, tip)} class="project-button bg-card">
+                              <Sidebar.MenuButton {...mergeProps(trg, tip)} class="project-button bg-card w-full min-w-0">
                                 <ChevronDown class="chevron" size={12} aria-hidden="true" />
                                 <span class="project-label">{group.label}</span>
                               </Sidebar.MenuButton>
@@ -252,9 +252,12 @@
 <style>
   .project-tree {
     display: grid;
+    width: 100%;
     height: 100%;
+    min-width: 0;
     min-height: 0;
     grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
     border-right: 1px solid var(--border);
     background: var(--card);
   }
@@ -273,6 +276,8 @@
   .search-box {
     position: relative;
     display: grid;
+    width: 100%;
+    min-width: 0;
     align-items: center;
     padding: 0.45rem;
     border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
@@ -292,11 +297,26 @@
   }
 
   :global(.tree-scroll) {
+    width: 100%;
+    min-width: 0;
     min-height: 0;
+    overflow-x: hidden;
   }
 
   :global(.tree-viewport) {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
     padding: 0.35rem;
+  }
+
+  :global(.tree-group),
+  :global(.conversation-sub),
+  :global(.tree-group [data-sidebar="menu-item"]),
+  :global(.tree-group [data-sidebar="menu-sub-item"]) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 
   :global([data-sidebar="menu-button"][data-state="closed"]) .chevron {
@@ -311,8 +331,10 @@
 
   .project-label,
   .conversation-label {
-    overflow: hidden;
+    display: block;
     min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }

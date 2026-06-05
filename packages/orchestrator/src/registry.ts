@@ -556,16 +556,25 @@ export class RuntimeRegistry {
       status: "resuming",
     });
     const completed = await this.tools.completeToolCall(toolCallId, result);
-    await this.appendToolResultForToolCall(completed, false);
+    const toolResultEntry = await this.appendToolResultForToolCall(
+      completed,
+      false,
+    );
+    await this.publishConversationEntryAppended(toolResultEntry);
     for (const remaining of suspension.remainingToolCalls) {
-      await this.appendSkippedToolResult(suspension.agentId, remaining);
+      const skippedEntry = await this.appendSkippedToolResult(
+        suspension.agentId,
+        remaining,
+      );
+      await this.publishConversationEntryAppended(skippedEntry);
     }
     if (options.followUpUserMessage) {
-      await this.appendUserInstructionForAgent(
+      const instructionEntry = await this.appendUserInstructionForAgent(
         suspension.agentId,
         options.followUpUserMessage,
         { runId: suspension.runId, turnId: suspension.turnId },
       );
+      await this.publishConversationEntryAppended(instructionEntry);
     }
     await this.suspensions.updateSuspension(suspension.id, {
       status: options.finalSuspensionStatus,
@@ -596,7 +605,7 @@ export class RuntimeRegistry {
     agentId: string,
     text: string,
     metadata: { runId?: string; turnId?: string } = {},
-  ): Promise<void> {
+  ): Promise<SessionEntry> {
     const agent = this.getAgent(agentId);
     const message: AgentMessage = {
       role: "user",
@@ -607,7 +616,7 @@ export class RuntimeRegistry {
       agent,
       message,
     );
-    await this.appendEntry(
+    return this.appendEntry(
       {
         id: appended.id,
         sessionId: agent.sessionId,
@@ -625,7 +634,7 @@ export class RuntimeRegistry {
   private async appendToolResultForToolCall(
     toolCall: ToolCallRecord,
     isError: boolean,
-  ): Promise<void> {
+  ): Promise<SessionEntry> {
     const agent = this.getAgent(toolCall.agentId);
     const result = completedToolResult(toolCall);
     const providerToolCallId =
@@ -643,7 +652,7 @@ export class RuntimeRegistry {
       agent,
       message,
     );
-    await this.appendEntry(
+    return this.appendEntry(
       {
         id: appended.id,
         sessionId: toolCall.sessionId,
@@ -668,7 +677,7 @@ export class RuntimeRegistry {
   private async appendSkippedToolResult(
     agentId: string,
     remaining: { id: string; name: string },
-  ): Promise<void> {
+  ): Promise<SessionEntry> {
     const agent = this.getAgent(agentId);
     const message: ToolResultMessage = {
       role: "toolResult",
@@ -688,7 +697,7 @@ export class RuntimeRegistry {
       agent,
       message,
     );
-    await this.appendEntry(
+    return this.appendEntry(
       {
         id: appended.id,
         sessionId: agent.sessionId,
@@ -705,6 +714,19 @@ export class RuntimeRegistry {
       },
       { mirrorToHarness: false },
     );
+  }
+
+  private async publishConversationEntryAppended(
+    entry: SessionEntry,
+  ): Promise<void> {
+    await this.events.publish("conversation.entry.appended", {
+      sessionId: entry.sessionId,
+      agentId: entry.agentId,
+      runId: entry.runId,
+      turnId: entry.turnId,
+      liveMessageId: entry.liveMessageId,
+      entry,
+    });
   }
 
   listProcesses() {

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { ToolCallRecord } from "@nerve/shared";
+import type { EventEnvelope, SessionEntry, ToolCallRecord } from "@nerve/shared";
 import { HttpError } from "../src/registry.js";
 import { createOrchestratorState } from "../src/server.js";
 import { initializeStorage } from "../src/storage.js";
@@ -116,25 +116,64 @@ describe("RuntimeRegistry agent run state", () => {
   it("accepts a suspended plan by appending an implementation instruction and continuing", async () => {
     const { state, agent } = await createProjectSessionAgent();
     let continued = false;
+    let continuedAtSeq: number | undefined;
     try {
       await state.registry.configureAgent(agent.id, { mode: "planning" });
-      const { review } = await createPendingPlanReviewSuspension(state, agent.id);
-      (state.registry as unknown as { agentRunner: { continueAgent: (agentId: string) => Promise<void> } }).agentRunner.continueAgent = async () => {
+      const { review, toolCall } = await createPendingPlanReviewSuspension(
+        state,
+        agent.id,
+      );
+      const startSeq = state.events.latestSeq;
+      setContinueAgentMock(state, async () => {
         continued = true;
-      };
+        continuedAtSeq = state.events.latestSeq;
+      });
 
       await state.registry.acceptPlanReview(review.id);
 
       assert.equal(state.registry.getAgent(agent.id).mode, "coding");
       assert.equal(continued, true);
       const entries = state.registry.getSessionEntries(agent.sessionId);
+      const followUp = acceptedPlanFollowUpText(review.planPath);
       assert.ok(
         entries.some(
-          (entry) =>
-            entry.role === "user" &&
-            entry.text ===
-              `The user accepted the plan at ${review.planPath}. Proceed with the implementation using that plan as the source of truth.`,
+          (entry) => entry.role === "user" && entry.text === followUp,
         ),
+      );
+
+      const events = await state.events.replayPersistedSince(startSeq);
+      const completedToolEvent = findToolCallEvent(
+        events,
+        toolCall.id,
+        "completed",
+      );
+      const toolResultEntryEvent = findEntryEvent(events, (entry) => {
+        const details = detailsRecord(entry);
+        return (
+          entry.role === "system" &&
+          details.toolRecordId === toolCall.id &&
+          details.toolName === "plan_mode_present"
+        );
+      });
+      const followUpEntryEvent = findEntryEvent(
+        events,
+        (entry) => entry.role === "user" && entry.text === followUp,
+      );
+
+      assert.ok(completedToolEvent, "completed tool-call event was published");
+      assert.ok(toolResultEntryEvent, "tool-result entry event was published");
+      assert.ok(followUpEntryEvent, "accepted-plan user entry event was published");
+      assert.ok(
+        completedToolEvent.seq < toolResultEntryEvent.seq,
+        "tool result entry is published after tool-call completion",
+      );
+      assert.ok(
+        toolResultEntryEvent.seq < followUpEntryEvent.seq,
+        "follow-up user entry is published after tool result",
+      );
+      assert.ok(
+        continuedAtSeq !== undefined && followUpEntryEvent.seq <= continuedAtSeq,
+        "follow-up user entry is published before agent continuation",
       );
     } finally {
       state.index.close();
@@ -150,16 +189,93 @@ describe("RuntimeRegistry agent run state", () => {
         state,
         agent.id,
       );
-      (state.registry as unknown as { agentRunner: { continueAgent: (agentId: string) => Promise<void> } }).agentRunner.continueAgent = async () => {
+      setContinueAgentMock(state, async () => {
         continued = true;
-      };
+      });
 
       await state.registry.rejectPlanReview(review.id);
 
       assert.equal(state.registry.getAgent(agent.id).mode, "planning");
       assert.equal(state.registry.getAgent(agent.id).status, "idle");
       assert.equal(continued, false);
-      assert.equal(state.registry.suspensions.getSuspension(suspension.id).status, "cancelled");
+      assert.equal(
+        state.registry.suspensions.getSuspension(suspension.id).status,
+        "cancelled",
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("answers a suspended user question by publishing the tool-result entry before continuing", async () => {
+    const { state, agent } = await createProjectSessionAgent();
+    let continued = false;
+    let continuedAtSeq: number | undefined;
+    try {
+      const { toolCall } = await state.registry.tools.requestTool(
+        agent,
+        "ask_user",
+        {
+          question: "Which option should I use?",
+          context: "Testing the suspended ask_user path.",
+        },
+        {
+          runId: "run_01HN0000000000000000000000",
+          turnId: "turn_01HN0000000000000000000000",
+          providerToolCallId: "call_question",
+          durableSuspend: true,
+        },
+      );
+      const question = state.registry.tools
+        .listUserQuestions("pending")
+        .find((candidate) => candidate.toolCallId === toolCall.id);
+      assert.ok(question, "pending question was created");
+      await state.registry.suspensions.createSuspension({
+        agentId: agent.id,
+        sessionId: agent.sessionId,
+        projectId: agent.projectId,
+        runId: "run_01HN0000000000000000000000",
+        turnId: "turn_01HN0000000000000000000000",
+        toolCallId: toolCall.id,
+        providerToolCallId: "call_question",
+        toolName: "ask_user",
+        remainingToolCalls: [],
+        reason: "Tool ask_user is awaiting user input.",
+      });
+      const startSeq = state.events.latestSeq;
+      setContinueAgentMock(state, async () => {
+        continued = true;
+        continuedAtSeq = state.events.latestSeq;
+      });
+
+      await state.registry.answerUserQuestion(question.id, "Use option B.");
+
+      assert.equal(continued, true);
+      const events = await state.events.replayPersistedSince(startSeq);
+      const completedToolEvent = findToolCallEvent(
+        events,
+        toolCall.id,
+        "completed",
+      );
+      const toolResultEntryEvent = findEntryEvent(events, (entry) => {
+        const details = detailsRecord(entry);
+        return (
+          entry.role === "system" &&
+          details.toolRecordId === toolCall.id &&
+          details.toolName === "ask_user"
+        );
+      });
+
+      assert.ok(completedToolEvent, "completed ask_user event was published");
+      assert.ok(toolResultEntryEvent, "ask_user result entry event was published");
+      assert.ok(
+        completedToolEvent.seq < toolResultEntryEvent.seq,
+        "ask_user result entry is published after tool-call completion",
+      );
+      assert.ok(
+        continuedAtSeq !== undefined && toolResultEntryEvent.seq <= continuedAtSeq,
+        "ask_user result entry is published before agent continuation",
+      );
     } finally {
       state.index.close();
     }
@@ -222,6 +338,50 @@ describe("RuntimeRegistry agent run state", () => {
     }
   });
 });
+
+function acceptedPlanFollowUpText(planPath: string): string {
+  return `The user accepted the plan at ${planPath}. Proceed with the implementation using that plan as the source of truth.`;
+}
+
+function setContinueAgentMock(
+  state: Awaited<ReturnType<typeof createState>>,
+  continueAgent: (agentId: string) => Promise<void>,
+): void {
+  (
+    state.registry as unknown as {
+      agentRunner: { continueAgent: (agentId: string) => Promise<void> };
+    }
+  ).agentRunner.continueAgent = continueAgent;
+}
+
+function findToolCallEvent(
+  events: EventEnvelope[],
+  toolCallId: string,
+  status: ToolCallRecord["status"],
+): EventEnvelope | undefined {
+  return events.find((event) => {
+    if (event.type !== "conversation.tool_call.updated") return false;
+    const data = event.data as { toolCall?: ToolCallRecord };
+    return data.toolCall?.id === toolCallId && data.toolCall.status === status;
+  });
+}
+
+function findEntryEvent(
+  events: EventEnvelope[],
+  predicate: (entry: SessionEntry) => boolean,
+): EventEnvelope | undefined {
+  return events.find((event) => {
+    if (event.type !== "conversation.entry.appended") return false;
+    const data = event.data as { entry?: SessionEntry };
+    return data.entry ? predicate(data.entry) : false;
+  });
+}
+
+function detailsRecord(entry: SessionEntry): Record<string, unknown> {
+  return entry.details && typeof entry.details === "object"
+    ? (entry.details as Record<string, unknown>)
+    : {};
+}
 
 async function createPendingPlanReviewSuspension(
   state: Awaited<ReturnType<typeof createState>>,

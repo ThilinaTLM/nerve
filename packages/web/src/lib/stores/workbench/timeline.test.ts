@@ -130,6 +130,52 @@ describe("buildConversationTimeline", () => {
     );
   });
 
+  it("keeps accepted plan tool cards before the follow-up implementation instruction", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Create a plan" },
+      {
+        id: "entry_plan_placeholder",
+        role: "assistant",
+        text: "[Tool call: plan_mode_present({})]",
+      },
+      {
+        id: "entry_plan_result",
+        role: "system",
+        text: "Plan accepted. Proceed with implementation.",
+        toolCallId: "call_plan",
+        toolRecordId: "tool_plan",
+      },
+      {
+        id: "entry_plan_followup",
+        role: "user",
+        text: "The user accepted the plan. Proceed with implementation.",
+      },
+      {
+        id: "entry_next_assistant",
+        role: "assistant",
+        text: "I will start coding.",
+      },
+    ];
+    const toolCalls = [
+      toolCall(
+        "tool_plan",
+        "2026-01-01T00:00:01.000Z",
+        "plan_mode_present",
+        "call_plan",
+        { risk: "interaction" },
+      ),
+    ];
+
+    const timeline = buildConversationTimeline(transcript, toolCalls);
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "tool_plan",
+      "entry_plan_followup",
+      "entry_next_assistant",
+    ]);
+  });
+
   it("keeps thinking entries while hiding adjacent tool placeholders", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "List files" },
