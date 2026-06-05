@@ -51,6 +51,11 @@
   };
 
   const title = $derived("title" in view ? view.title : undefined);
+  const titleOpenPath = $derived(
+    (view.kind === "read" || view.kind === "write" || view.kind === "edit") && view.path
+      ? view.path
+      : undefined,
+  );
   const bashStatus = $derived(
     view.kind === "bash" && view.exitCode !== undefined && view.exitCode !== 0
       ? `failed · exit ${view.exitCode}`
@@ -73,7 +78,13 @@
   <div class="tool-head">
     <span class="tool-name">{toolCall.toolName}</span>
     {#if title}
-      <span class="tool-title" title={title}>{title}</span>
+      {#if titleOpenPath}
+        <button class="tool-title title-link" type="button" title={title} onclick={() => onOpenFile?.(titleOpenPath)}>
+          {title}
+        </button>
+      {:else}
+        <span class="tool-title" title={title}>{title}</span>
+      {/if}
     {/if}
     {#if visibleStatus}
       <span class={`tool-status ${visibleStatusClass}`}>{visibleStatus}</span>
@@ -131,6 +142,19 @@
     white-space: nowrap;
     flex: 1 1 auto;
     min-width: 8rem;
+  }
+
+  .tool-title.title-link {
+    border: 0;
+    background: transparent;
+    color: var(--primary);
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+  }
+
+  .tool-title.title-link:hover {
+    text-decoration: underline;
   }
 
   .tool-status {

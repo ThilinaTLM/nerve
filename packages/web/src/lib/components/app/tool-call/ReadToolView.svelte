@@ -14,12 +14,6 @@
   const language = $derived(extname(view.relPath));
 </script>
 
-{#if view.path}
-  <button class="file-link" type="button" onclick={() => onOpenFile?.(view.path!)} title="Open file pane">
-    {view.relPath ?? view.path}
-  </button>
-{/if}
-
 {#if view.image}
   <button class="thumb-button" type="button" onclick={() => view.path && onOpenFile?.(view.path)} title="Open image pane">
     <img class="read-thumb" src={view.image.dataUrl} alt={view.relPath ?? "image"} />
@@ -39,7 +33,6 @@
 {/if}
 
 <style>
-  .file-link,
   .note button {
     border: 0;
     background: transparent;
@@ -51,7 +44,6 @@
     text-align: left;
   }
 
-  .file-link:hover,
   .note button:hover {
     text-decoration: underline;
   }
