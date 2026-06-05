@@ -28,6 +28,14 @@
       ? `data:${file.mimeType};base64,${file.dataBase64}`
       : undefined,
   );
+  const textLines = $derived(
+    file?.type === "text" && file.text !== undefined ? file.text.split("\n") : [],
+  );
+  const lineNumberWidth = $derived(`${Math.max(2, String(textLines.length || 1).length)}ch`);
+
+  function withCompactHighlightedLines(highlighted: string): string {
+    return highlighted.replaceAll(/<\/span>\r?\n<span class="line">/g, "</span><span class=\"line\">");
+  }
 
   $effect(() => {
     if (file?.type !== "text" || file.text === undefined || !codeSignature) return;
@@ -36,7 +44,7 @@
 
     const result = highlightCodeCached(file.text, language);
     if (typeof result === "string") {
-      html = result;
+      html = withCompactHighlightedLines(result);
       htmlSignature = currentSignature;
       unavailableSignature = undefined;
       return;
@@ -50,7 +58,7 @@
     void result.then((highlighted) => {
       if (cancelled || codeSignature !== currentSignature) return;
       if (highlighted) {
-        html = highlighted;
+        html = withCompactHighlightedLines(highlighted);
         htmlSignature = currentSignature;
         unavailableSignature = undefined;
       } else {
@@ -89,9 +97,9 @@
       </div>
     {:else if file?.type === "text"}
       {#if html && htmlSignature === codeSignature}
-        <div class="code-view">{@html html}</div>
+        <div class="code-view" style={`--line-number-width: ${lineNumberWidth};`}>{@html html}</div>
       {:else}
-        <pre class="code-view plain">{file.text}</pre>
+        <pre class="code-view plain" style={`--line-number-width: ${lineNumberWidth};`}><code>{#each textLines as line}<span class="code-line">{line}</span>{/each}</code></pre>
       {/if}
     {:else}
       <div class="file-empty">
@@ -160,12 +168,15 @@
   }
 
   .code-view {
+    --line-number-width: 2ch;
+    counter-reset: code-line;
     margin: 0;
     overflow: auto;
     color: var(--foreground);
     font-family: var(--font-mono);
     font-size: 0.75rem;
     line-height: 1.5;
+    tab-size: 2;
   }
 
   .code-view.plain {
@@ -174,13 +185,37 @@
 
   .code-view :global(pre) {
     margin: 0;
+    overflow: visible;
     background: transparent !important;
     white-space: pre;
   }
 
-  .code-view :global(code) {
+  .code-view :global(code),
+  .code-view code {
     font-family: var(--font-mono);
     font-size: 0.75rem;
+  }
+
+  .code-view :global(.line),
+  .code-line {
+    display: block;
+    min-height: 1.5em;
+    padding-right: 1rem;
+  }
+
+  .code-view :global(.line)::before,
+  .code-line::before {
+    counter-increment: code-line;
+    content: counter(code-line);
+    position: sticky;
+    left: 0;
+    display: inline-block;
+    width: var(--line-number-width);
+    margin-right: 1rem;
+    background: var(--background);
+    color: color-mix(in oklab, var(--muted-foreground) 58%, transparent);
+    text-align: right;
+    user-select: none;
   }
 
   .code-view :global(span) {
