@@ -7,6 +7,7 @@
   import rehypeSanitize from "rehype-sanitize";
   import rehypeStringify from "rehype-stringify";
   import { highlightCode } from "./highlight";
+  import { trimTextPreview } from "./utils/text-preview";
 
   type Props = {
     text: string;
@@ -41,6 +42,18 @@
     return className.match(/language-([\w-]+)/)?.[1] ?? "text";
   }
 
+  function trimmedCodeText(block: Element): string {
+    return trimTextPreview(block.textContent ?? "").text;
+  }
+
+  function clonePreWithTrimmedCode(pre: Element, code: string): Element {
+    const clone = pre.cloneNode(true) as Element;
+    const codeEl = clone.querySelector("code");
+    if (codeEl) codeEl.textContent = code;
+    else clone.textContent = code;
+    return clone;
+  }
+
   function wrapCodeBlock(pre: Element, language: string): Element {
     const shell = document.createElement("div");
     shell.className = "code-block";
@@ -66,7 +79,7 @@
       const className = block.getAttribute("class") ?? "";
       const language = languageFromClass(className);
       const pre = block.parentElement;
-      if (pre) pre.replaceWith(wrapCodeBlock(pre.cloneNode(true) as Element, language));
+      if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, trimmedCodeText(block)), language));
     }
     return container.innerHTML;
   }
@@ -95,7 +108,8 @@
         const className = block.getAttribute("class") ?? "";
         const language = languageFromClass(className);
         try {
-          const highlighted = await highlightCode(block.textContent ?? "", language);
+          const code = trimmedCodeText(block);
+          const highlighted = await highlightCode(code, language);
           if (highlighted) {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = highlighted;
@@ -107,7 +121,7 @@
           // Fall back to the plain pre/code while keeping the Stitch code header.
         }
         const pre = block.parentElement;
-        if (pre) pre.replaceWith(wrapCodeBlock(pre.cloneNode(true) as Element, language));
+        if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, trimmedCodeText(block)), language));
       }),
     );
     return container.innerHTML;
@@ -278,7 +292,7 @@
     gap: 0.5rem;
     border-bottom: 1px solid var(--border);
     background: var(--secondary);
-    padding: 0.32rem 0.6rem;
+    padding: 0.26rem 0.52rem;
     color: var(--secondary-foreground);
     font-family: var(--font-mono);
     font-size: 0.6875rem;
@@ -305,14 +319,16 @@
   }
 
   .markdown :global(pre) {
-    overflow: auto;
+    overflow: visible;
     border: 0;
     border-radius: 0;
     background: var(--sidebar) !important;
     margin: 0;
-    padding: 0.75rem;
-    font-size: 0.75rem;
-    line-height: 1.55;
+    padding: 0.55rem 0.6rem;
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .markdown :global(pre code) {
@@ -321,6 +337,9 @@
     background: transparent;
     padding: 0;
     color: inherit;
+    font-size: inherit;
+    white-space: inherit;
+    word-break: inherit;
   }
 
   .markdown :global(blockquote) {

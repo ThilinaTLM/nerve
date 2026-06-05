@@ -84,19 +84,57 @@ async function main() {
         since === undefined || !Number.isFinite(since)
           ? state.events.latestSeq
           : since;
-      if (since !== undefined && Number.isFinite(since)) {
-        void state.events.replayPersistedSince(replayAfter).then((events) => {
-          for (const event of events) {
-            if (ws.readyState === WebSocket.OPEN)
-              ws.send(JSON.stringify(event));
-          }
-        });
-      }
+      let replayReady = since === undefined || !Number.isFinite(since);
+      let maxSentSeq = replayAfter;
+      const pendingLive: Array<unknown> = [];
+      const sendEvent = (event: unknown) => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify(event));
+      };
       const unsubscribe = state.events.subscribe((event) => {
-        if (event.seq > replayAfter && ws.readyState === WebSocket.OPEN)
-          ws.send(JSON.stringify(event));
+        if (event.seq <= replayAfter || event.seq <= maxSentSeq) return;
+        if (!replayReady) {
+          pendingLive.push(event);
+          return;
+        }
+        maxSentSeq = event.seq;
+        sendEvent(event);
       });
       ws.on("close", unsubscribe);
+
+      if (!replayReady) {
+        void state.events
+          .replayPersistedSince(replayAfter)
+          .then((events) => {
+            for (const event of events) {
+              if (event.seq <= maxSentSeq) continue;
+              maxSentSeq = event.seq;
+              sendEvent(event);
+            }
+            replayReady = true;
+            const sortedPending = pendingLive
+              .splice(0)
+              .sort((a, b) => {
+                const left = (a as { seq?: number }).seq ?? 0;
+                const right = (b as { seq?: number }).seq ?? 0;
+                return left - right;
+              });
+            for (const event of sortedPending) {
+              const seq = (event as { seq?: number }).seq ?? 0;
+              if (seq <= maxSentSeq) continue;
+              maxSentSeq = seq;
+              sendEvent(event);
+            }
+          })
+          .catch((error) => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.close(
+                1011,
+                error instanceof Error ? error.message : "Replay failed",
+              );
+            }
+          });
+      }
     });
   });
 

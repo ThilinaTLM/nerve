@@ -40,10 +40,9 @@
     color: var(--sidebar-foreground);
     padding: 0.5rem 0.6rem;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
-    line-height: 1.45;
-    max-height: 22rem;
-    overflow: auto;
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    overflow: visible;
   }
 
   .file-path {

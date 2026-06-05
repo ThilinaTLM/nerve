@@ -3,6 +3,7 @@ export * from "./agents.js";
 export * from "./api-errors.js";
 export * from "./auth.js";
 export * from "./core.js";
+export * from "./conversation.js";
 export * from "./events.js";
 export * from "./filesystem.js";
 export * from "./models.js";

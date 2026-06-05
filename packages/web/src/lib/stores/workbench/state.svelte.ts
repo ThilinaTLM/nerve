@@ -1,6 +1,7 @@
 import type {
   AgentRecord,
   ApprovalWithToolCall,
+  ConversationActiveRunSnapshot,
   AuthProviderMetadata,
   ClientConfig,
   CompletionItem,
@@ -18,52 +19,56 @@ import type {
   UserQuestionRecord,
 } from "../../api";
 
-export type ThinkingBlockItem = {
-  text: string;
-  redacted?: boolean;
-};
+export type TranscriptDisplayKind = "message" | "thinking";
 
 export type TranscriptItem = {
   id?: string;
   role: "user" | "assistant" | "system";
   kind?: SessionEntry["kind"];
+  displayKind?: TranscriptDisplayKind;
   text: string;
   createdAt?: string;
   optimistic?: boolean;
+  live?: boolean;
+  done?: boolean;
+  redacted?: boolean;
+  contentIndex?: number;
   toolCallId?: string;
   toolRecordId?: string;
-  thinkingBlocks?: ThinkingBlockItem[];
 };
 
-export type LiveAssistantBlock =
-  | {
-      kind: "text";
-      contentIndex: number;
-      text: string;
-      done?: boolean;
-    }
-  | {
-      kind: "thinking";
-      contentIndex: number;
-      text: string;
-      done?: boolean;
-      redacted?: boolean;
-    }
-  | {
-      kind: "tool_call_draft";
-      contentIndex: number;
-      providerToolCallId?: string;
-      toolName?: string;
-      argsText: string;
-      args?: Record<string, unknown>;
-      done?: boolean;
-    };
-
-export type LiveRunState = {
+export type LiveToolCallDraft = {
+  kind: "tool_call_draft";
+  key: string;
   runId?: string;
-  assistantStarted: boolean;
-  blocks: LiveAssistantBlock[];
-  updatedAt?: string;
+  sessionId: string;
+  contentIndex: number;
+  providerToolCallId?: string;
+  toolName?: string;
+  argsText: string;
+  args?: Record<string, unknown>;
+  done?: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LiveToolOutputChunk = {
+  stream: "stdout" | "stderr" | "combined";
+  text: string;
+  ts: string;
+};
+
+export type LiveToolOutput = {
+  chunks: LiveToolOutputChunk[];
+  text: string;
+  updatedAt: string;
+};
+
+export type ConversationLiveState = {
+  runId?: string;
+  messages: TranscriptItem[];
+  toolDrafts: LiveToolCallDraft[];
+  toolOutputByToolCallId: Record<string, LiveToolOutput>;
 };
 
 export type ConversationViewState = {
@@ -72,7 +77,9 @@ export type ConversationViewState = {
   toolCalls: ToolCallRecord[];
   treeNodes: SessionTreeNode[];
   streamingText: string;
-  liveRun: LiveRunState;
+  live: ConversationLiveState;
+  activeRun?: ConversationActiveRunSnapshot;
+  cursorSeq: number;
   sending: boolean;
   error?: string;
   composerText: string;
@@ -87,6 +94,7 @@ export const workbenchState = $state({
   status: undefined as StatusResponse | undefined,
   config: undefined as ClientConfig | undefined,
   connection: "connecting",
+  lastEventSeq: 0,
   error: undefined as string | undefined,
   sending: false,
   projects: [] as ProjectRecord[],

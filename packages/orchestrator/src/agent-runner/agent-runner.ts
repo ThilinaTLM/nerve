@@ -24,6 +24,7 @@ import {
 } from "../agent-tool-adapter.js";
 import type { AuthManager } from "../auth.js";
 import type { ConversationService } from "../conversation-service.js";
+import type { ConversationRuntime } from "../conversation-runtime.js";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
@@ -60,6 +61,7 @@ export interface AgentRunnerDeps {
   appendEntry: AppendEntryFn;
   updateSession: (session: SessionRecord) => Promise<void>;
   messageMirror: MessageMirror;
+  conversationRuntime: ConversationRuntime;
 }
 
 export class AgentRunner {
@@ -129,6 +131,8 @@ export class AgentRunner {
     const runId = createId("run");
     let abortRequested = false;
     let lastAssistantEntry: SessionEntry | undefined;
+    let currentTurnId: string | undefined;
+    let currentLiveMessageId: string | undefined;
 
     try {
       const session = this.deps.getSession(agent.sessionId);
@@ -151,7 +155,14 @@ export class AgentRunner {
         env,
         session: harnessSession,
         resources: { skills: resources.skills },
-        tools: createAgentToolsForAgent(agent, this.deps.tools),
+        tools: createAgentToolsForAgent(agent, this.deps.tools, {
+          runId,
+          resolveToolAnchor: (providerToolCallId) =>
+            this.deps.conversationRuntime.resolveToolAnchor(
+              runId,
+              providerToolCallId,
+            ),
+        }),
         activeToolNames,
         model,
         thinkingLevel: agent.thinkingLevel,
@@ -171,119 +182,164 @@ export class AgentRunner {
       });
 
       harness.subscribe(async (event) => {
-        if (event.type === "agent_start") {
-          await this.deps.events.publish("agent.started", {
-            agentId: agent.id,
-            runId,
-          });
+        if (event.type === "turn_start") {
+          const turn = this.deps.conversationRuntime.startTurn(runId);
+          currentTurnId = turn.turnId;
+          currentLiveMessageId = undefined;
           return;
         }
         if (
           event.type === "message_start" &&
           event.message.role === "assistant"
         ) {
-          await this.deps.events.publish("agent.message_started", {
-            agentId: agent.id,
+          if (!currentTurnId) {
+            const turn = this.deps.conversationRuntime.startTurn(runId);
+            currentTurnId = turn.turnId;
+          }
+          const started = this.deps.conversationRuntime.startAssistantMessage(
             runId,
-            sessionId: agent.sessionId,
-          });
+            currentTurnId,
+          );
+          currentLiveMessageId = started.liveMessageId;
+          await this.deps.events.publish(
+            "conversation.live.message.started",
+            started,
+            { durability: "transient" },
+          );
           return;
         }
         if (event.type === "message_update") {
+          if (!currentTurnId || !currentLiveMessageId) return;
           const update = event.assistantMessageEvent;
           if (update.type === "text_delta") {
-            await this.deps.events.publish("agent.message_delta", {
-              agentId: agent.id,
+            const data = this.deps.conversationRuntime.applyContentDelta({
               runId,
-              sessionId: agent.sessionId,
-              delta: update.delta,
-            });
-            await this.deps.events.publish("agent.message_content_delta", {
-              agentId: agent.id,
-              runId,
-              sessionId: agent.sessionId,
+              turnId: currentTurnId,
+              liveMessageId: currentLiveMessageId,
               contentIndex: update.contentIndex,
               kind: "text",
               delta: update.delta,
             });
+            await this.deps.events.publish(
+              "conversation.live.content.delta",
+              data,
+              { durability: "transient" },
+            );
           } else if (update.type === "thinking_delta") {
-            await this.deps.events.publish("agent.message_content_delta", {
-              agentId: agent.id,
+            const data = this.deps.conversationRuntime.applyContentDelta({
               runId,
-              sessionId: agent.sessionId,
+              turnId: currentTurnId,
+              liveMessageId: currentLiveMessageId,
               contentIndex: update.contentIndex,
               kind: "thinking",
               delta: update.delta,
             });
+            await this.deps.events.publish(
+              "conversation.live.content.delta",
+              data,
+              { durability: "transient" },
+            );
           } else if (update.type === "text_end") {
-            await this.deps.events.publish("agent.message_content_done", {
-              agentId: agent.id,
+            const data = this.deps.conversationRuntime.finishContent({
               runId,
-              sessionId: agent.sessionId,
+              turnId: currentTurnId,
+              liveMessageId: currentLiveMessageId,
               contentIndex: update.contentIndex,
               kind: "text",
-              content: update.content,
+              finalText: update.content,
+            });
+            await this.deps.events.publish("conversation.live.content.done", data, {
+              durability: "transient",
             });
           } else if (update.type === "thinking_end") {
-            await this.deps.events.publish("agent.message_content_done", {
-              agentId: agent.id,
+            const data = this.deps.conversationRuntime.finishContent({
               runId,
-              sessionId: agent.sessionId,
+              turnId: currentTurnId,
+              liveMessageId: currentLiveMessageId,
               contentIndex: update.contentIndex,
               kind: "thinking",
-              content: update.content,
+              finalText: update.content,
               redacted: assistantContentRedacted(
                 update.partial,
                 update.contentIndex,
               ),
+            });
+            await this.deps.events.publish("conversation.live.content.done", data, {
+              durability: "transient",
             });
           } else if (update.type === "toolcall_start") {
             const draft = assistantToolCallDraft(
               update.partial,
               update.contentIndex,
             );
-            await this.deps.events.publish("agent.tool_call_draft.started", {
-              agentId: agent.id,
+            const data = this.deps.conversationRuntime.startToolDraft({
               runId,
-              sessionId: agent.sessionId,
+              turnId: currentTurnId,
+              liveMessageId: currentLiveMessageId,
               contentIndex: update.contentIndex,
               providerToolCallId: draft?.id,
               toolName: draft?.name,
             });
+            await this.deps.events.publish(
+              "conversation.live.tool_draft.started",
+              data,
+              { durability: "transient" },
+            );
           } else if (update.type === "toolcall_delta") {
-            await this.deps.events.publish("agent.tool_call_draft.delta", {
-              agentId: agent.id,
+            const data = this.deps.conversationRuntime.applyToolDraftDelta({
               runId,
-              sessionId: agent.sessionId,
+              turnId: currentTurnId,
+              liveMessageId: currentLiveMessageId,
               contentIndex: update.contentIndex,
               delta: update.delta,
             });
+            await this.deps.events.publish(
+              "conversation.live.tool_draft.delta",
+              data,
+              { durability: "transient" },
+            );
           } else if (update.type === "toolcall_end") {
-            await this.deps.events.publish("agent.tool_call_draft.done", {
-              agentId: agent.id,
+            const data = this.deps.conversationRuntime.finishToolDraft({
               runId,
-              sessionId: agent.sessionId,
+              turnId: currentTurnId,
+              liveMessageId: currentLiveMessageId,
               contentIndex: update.contentIndex,
               providerToolCallId: update.toolCall.id,
               toolName: update.toolCall.name,
               args: update.toolCall.arguments,
             });
+            await this.deps.events.publish(
+              "conversation.live.tool_draft.done",
+              data,
+              { durability: "transient" },
+            );
           }
           return;
         }
         if (event.type === "message_end") {
+          const liveMessageId =
+            event.message.role === "assistant" ? currentLiveMessageId : undefined;
           const mirrored =
             await this.deps.messageMirror.mirrorNewHarnessEntries(
               agent,
               storage,
               initialHarnessEntryIds,
+              {
+                runId,
+                turnId: currentTurnId,
+                liveMessageId,
+              },
             );
           for (const entry of mirrored) {
+            await this.deps.events.publish("conversation.entry.appended", {
+              sessionId: agent.sessionId,
+              agentId: agent.id,
+              runId,
+              turnId: entry.turnId ?? currentTurnId,
+              liveMessageId: entry.liveMessageId,
+              entry,
+            });
             if (entry.role === "user") {
-              await this.deps.events.publish("agent.prompt_received", {
-                agentId: agent.id,
-                entry,
-              });
               await this.deps.messageMirror.maybeDeriveInitialSessionTitle(
                 session.id,
                 entry.text,
@@ -292,14 +348,33 @@ export class AgentRunner {
               lastAssistantEntry = entry;
             }
           }
+          if (event.message.role === "assistant") currentLiveMessageId = undefined;
           return;
         }
+      });
+
+      const startedAt = new Date().toISOString();
+      this.deps.conversationRuntime.startRun({
+        agentId: agent.id,
+        projectId: agent.projectId,
+        sessionId: agent.sessionId,
+        runId,
+        startedAt,
+      });
+      await this.deps.events.publish("conversation.run.started", {
+        agentId: agent.id,
+        projectId: agent.projectId,
+        sessionId: agent.sessionId,
+        runId,
+        parentEntryId: session.activeEntryId,
+        startedAt,
       });
 
       this.deps.runs.set(agent.id, {
         runId,
         abort: () => {
           abortRequested = true;
+          this.deps.conversationRuntime.markAborting(runId);
           void harness.abort();
         },
         messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
@@ -324,12 +399,16 @@ export class AgentRunner {
       if (!assistantEntry) {
         throw new Error("Agent run completed without an assistant entry.");
       }
-      await this.deps.events.publish("agent.message_complete", {
+      const completedAt = new Date().toISOString();
+      await this.deps.events.publish("conversation.run.completed", {
         agentId: agent.id,
+        projectId: agent.projectId,
         runId,
         sessionId: agent.sessionId,
-        entry: assistantEntry,
+        finalEntryId: assistantEntry.id,
+        completedAt,
       });
+      this.deps.conversationRuntime.completeRun(runId);
       await this.maybeAutoCompact(agent.sessionId).catch((error) => {
         process.emitWarning(
           `Auto-compaction failed for ${agent.sessionId}: ${
@@ -344,13 +423,16 @@ export class AgentRunner {
       const latest = this.deps.agents.get(agent.id);
       if (latest)
         await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
-      await this.deps.events.publish("agent.error", {
+      await this.deps.events.publish("conversation.run.failed", {
         agentId: agent.id,
+        projectId: agent.projectId,
         runId,
         sessionId: agent.sessionId,
         message: error instanceof Error ? error.message : String(error),
         aborted,
+        failedAt: new Date().toISOString(),
       });
+      this.deps.conversationRuntime.failRun(runId);
       throw error;
     }
   }

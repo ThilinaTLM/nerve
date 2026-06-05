@@ -4,11 +4,17 @@
   import LogLineList from "./LogLineList.svelte";
 
   type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "bash" }> };
-  let { view }: Props = $props();
+  let { toolCall, view }: Props = $props();
 </script>
 
 {#if view.tailLines.length > 0}
   <LogLineList lines={view.tailLines} />
+{:else if toolCall.status === "running"}
+  <p class="note live-note">Waiting for command output…</p>
+{/if}
+
+{#if view.live}
+  <p class="note live-note">Streaming live output…</p>
 {/if}
 
 {#if view.savedTo}

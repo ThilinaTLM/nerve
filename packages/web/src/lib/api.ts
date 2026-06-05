@@ -1,6 +1,8 @@
 import type {
   AgentRecord,
   ApprovalRecord,
+  ConversationActiveRunSnapshot,
+  ConversationSnapshot,
   AuthProviderMetadata,
   ClipboardImageUploadResponse,
   EventEnvelope,
@@ -126,6 +128,16 @@ export async function apiDelete<T>(path: string): Promise<T> {
 
 export async function getClientConfig(): Promise<ClientConfig> {
   return apiGet<ClientConfig>("/api/client-config");
+}
+
+export async function getConversationSnapshot(
+  sessionId: string,
+): Promise<ConversationSnapshot> {
+  return (
+    await apiGet<{ conversation: ConversationSnapshot }>(
+      `/api/sessions/${sessionId}/conversation`,
+    )
+  ).conversation;
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -404,6 +416,8 @@ export async function listDirectories(
 export type {
   AgentRecord,
   ClipboardImageUploadResponse,
+  ConversationActiveRunSnapshot,
+  ConversationSnapshot,
   EventEnvelope,
   FilesystemDirectoryResponse,
   FilesystemSignal,

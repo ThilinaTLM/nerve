@@ -2,6 +2,7 @@ import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentTool, AgentToolResult } from "@nerve/agent";
 import type { AgentRecord, ToolCallRecord, ToolName } from "@nerve/shared";
 import { allToolDefinitions, type CoreToolDefinition } from "@nerve/tools";
+import type { ToolAnchor } from "./conversation-runtime.js";
 import type { ToolService } from "./tool-service.js";
 
 export type AgentToolPromptMetadata = {
@@ -13,9 +14,13 @@ export type AgentToolPromptMetadata = {
 export function createAgentToolsForAgent(
   agent: AgentRecord,
   tools: ToolService,
+  options: {
+    runId?: string;
+    resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
+  } = {},
 ): AgentTool[] {
   return allToolDefinitions.map((definition) =>
-    wrapCoreToolDefinition(definition, agent, tools),
+    wrapCoreToolDefinition(definition, agent, tools, options),
   );
 }
 
@@ -100,6 +105,10 @@ function wrapCoreToolDefinition(
   definition: CoreToolDefinition,
   agent: AgentRecord,
   tools: ToolService,
+  options: {
+    runId?: string;
+    resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
+  },
 ): AgentTool {
   return {
     name: definition.name,
@@ -113,7 +122,13 @@ function wrapCoreToolDefinition(
         agent,
         definition.name,
         params as Record<string, unknown>,
-        { signal, sourceToolCallId },
+        {
+          signal,
+          sourceToolCallId,
+          providerToolCallId: sourceToolCallId,
+          runId: options.runId,
+          anchor: options.resolveToolAnchor?.(sourceToolCallId),
+        },
       );
       if (toolCall.status === "completed") return completedToolResult(toolCall);
       const message =

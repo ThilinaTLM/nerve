@@ -31,10 +31,9 @@
     background: var(--sidebar);
     color: var(--sidebar-foreground);
     font-family: var(--font-mono);
-    font-size: 0.75rem;
-    line-height: 1.5;
-    max-height: 22rem;
-    overflow: auto;
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    overflow: visible;
   }
 
   .note {

@@ -11,11 +11,16 @@ import type {
   UserQuestionStatus,
 } from "@nerve/shared";
 import { createId } from "@nerve/shared";
-import { allToolDescriptors, executeTool } from "@nerve/tools";
+import {
+  allToolDescriptors,
+  executeTool,
+  type ToolExecutionOutputUpdate,
+} from "@nerve/tools";
+import type { ConversationRuntime, ToolAnchor } from "./conversation-runtime.js";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
-import type { PlanService } from "./plan-service.js";
 import { ensurePlanDir } from "./plan-paths.js";
+import type { PlanService } from "./plan-service.js";
 import { evaluateToolPolicy } from "./policy.js";
 import type { ProcessManager } from "./process-manager.js";
 import type { InitializedStorage } from "./storage.js";
@@ -29,6 +34,12 @@ export interface ToolExecutionResponse {
 type ToolRequestOptions = {
   signal?: AbortSignal;
   sourceToolCallId?: string;
+  providerToolCallId?: string;
+  runId?: string;
+  turnId?: string;
+  liveMessageId?: string;
+  contentIndex?: number;
+  anchor?: ToolAnchor;
 };
 
 export type SubagentRunResult = {
@@ -72,6 +83,7 @@ export class ToolService {
       mode: Mode,
       reason: string,
     ) => Promise<AgentRecord>,
+    private readonly conversationRuntime: ConversationRuntime,
   ) {}
 
   async hydrate(): Promise<void> {
@@ -122,13 +134,20 @@ export class ToolService {
     const evaluation = evaluateToolPolicy(latestAgent, toolName, args, {
       dataDir: this.storage.paths.home,
     });
+    const providerToolCallId = options.providerToolCallId ?? options.sourceToolCallId;
+    const anchor = options.anchor;
     const toolCall: ToolCallRecord = {
       id: createId("tool"),
       agentId: latestAgent.id,
       sessionId: latestAgent.sessionId,
       projectId: latestAgent.projectId,
       toolName,
-      sourceToolCallId: options.sourceToolCallId,
+      sourceToolCallId: providerToolCallId,
+      providerToolCallId,
+      runId: options.runId ?? anchor?.runId,
+      turnId: options.turnId ?? anchor?.turnId,
+      liveMessageId: options.liveMessageId ?? anchor?.liveMessageId,
+      contentIndex: options.contentIndex ?? anchor?.contentIndex,
       risk: evaluation.risk,
       args: evaluation.normalizedArgs,
       cwd: evaluation.cwd,
@@ -137,7 +156,7 @@ export class ToolService {
       updatedAt: now,
     };
     await this.upsertToolCall(toolCall);
-    await this.events.publish("agent.tool_call.requested", { toolCall });
+    await this.publishToolCallUpdated(toolCall);
     await this.events.publish("policy.evaluated", {
       toolCallId: toolCall.id,
       agentId: agent.id,
@@ -154,10 +173,7 @@ export class ToolService {
         status: "denied",
         error: evaluation.reason,
       });
-      await this.events.publish("agent.tool_call.denied", {
-        toolCall: denied,
-        reason: evaluation.reason,
-      });
+      await this.publishToolCallUpdated(denied);
       return { toolCall: denied };
     }
 
@@ -178,6 +194,7 @@ export class ToolService {
         status: "pending_approval",
         approvalId: approval.id,
       });
+      await this.publishToolCallUpdated(pending);
       await this.events.publish("approval.requested", {
         approval,
         toolCall: pending,
@@ -268,10 +285,7 @@ export class ToolService {
       approval: deniedApproval,
       note,
     });
-    await this.events.publish("agent.tool_call.denied", {
-      toolCall: deniedToolCall,
-      reason: note ?? "Denied by user.",
-    });
+    await this.publishToolCallUpdated(deniedToolCall);
     return deniedToolCall;
   }
 
@@ -335,12 +349,12 @@ export class ToolService {
 
   private async executeAllowedTool(
     toolCallId: string,
-    options: { signal?: AbortSignal } = {},
+    options: ToolRequestOptions = {},
   ): Promise<ToolCallRecord> {
     const toolCall = await this.updateToolCall(toolCallId, {
       status: "running",
     });
-    await this.events.publish("agent.tool_call.running", { toolCall });
+    await this.publishToolCallUpdated(toolCall);
     try {
       const args = { ...(toolCall.args as Record<string, unknown>) };
       const result = await this.executeToolCall(toolCall, args, options);
@@ -349,16 +363,14 @@ export class ToolService {
         result,
         error: undefined,
       });
-      await this.events.publish("agent.tool_call.completed", {
-        toolCall: completed,
-      });
+      await this.publishToolCallUpdated(completed);
       return completed;
     } catch (error) {
       const failed = await this.updateToolCall(toolCall.id, {
         status: "error",
         error: error instanceof Error ? error.message : String(error),
       });
-      await this.events.publish("agent.tool_call.error", { toolCall: failed });
+      await this.publishToolCallUpdated(failed);
       return failed;
     }
   }
@@ -366,7 +378,7 @@ export class ToolService {
   private async executeToolCall(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: ToolRequestOptions = {},
   ): Promise<unknown> {
     switch (toolCall.toolName) {
       case "process_start":
@@ -458,8 +470,35 @@ export class ToolService {
         return executeTool(toolCall.toolName, args, {
           cwd: toolCall.cwd,
           signal: options.signal,
+          onUpdate: (update) =>
+            this.publishToolExecutionUpdate(toolCall, update, options.runId),
         });
     }
+  }
+
+  private publishToolExecutionUpdate(
+    toolCall: ToolCallRecord,
+    update: ToolExecutionOutputUpdate,
+    runId?: string,
+  ): void {
+    if (update.kind !== "output" || update.chunk.length === 0) return;
+    const data = this.conversationRuntime.applyToolOutputDelta({
+      agentId: toolCall.agentId,
+      runId: runId ?? toolCall.runId,
+      turnId: toolCall.turnId,
+      liveMessageId: toolCall.liveMessageId,
+      contentIndex: toolCall.contentIndex,
+      providerToolCallId: toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
+      sessionId: toolCall.sessionId,
+      projectId: toolCall.projectId,
+      toolCallId: toolCall.id,
+      toolName: toolCall.toolName,
+      stream: update.stream,
+      delta: update.chunk,
+    });
+    void this.events.publish("conversation.live.tool_output.delta", data, {
+      durability: "transient",
+    });
   }
 
   private async requestPlanReview(
@@ -470,9 +509,7 @@ export class ToolService {
     const waitingToolCall = await this.updateToolCall(toolCall.id, {
       status: "waiting_for_user",
     });
-    await this.events.publish("agent.tool_call.waiting_for_user", {
-      toolCall: waitingToolCall,
-    });
+    await this.publishToolCallUpdated(waitingToolCall);
     return this.plans.presentPlan(
       waitingToolCall,
       this.getAgent(toolCall.agentId),
@@ -486,7 +523,8 @@ export class ToolService {
     args: Record<string, unknown>,
   ): Promise<unknown> {
     const agent = this.getAgent(toolCall.agentId);
-    const reason = optionalStringArg(args.reason) ?? "Agent entered planning mode.";
+    const reason =
+      optionalStringArg(args.reason) ?? "Agent entered planning mode.";
     const updated =
       agent.mode === "planning"
         ? agent
@@ -509,7 +547,8 @@ export class ToolService {
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    const reason = optionalStringArg(args.reason) ?? "Agent exited planning mode.";
+    const reason =
+      optionalStringArg(args.reason) ?? "Agent exited planning mode.";
     const updated = await this.plans.forceExitAgentPlanning(
       toolCall.agentId,
       reason,
@@ -541,9 +580,7 @@ export class ToolService {
     const waitingToolCall = await this.updateToolCall(toolCall.id, {
       status: "waiting_for_user",
     });
-    await this.events.publish("agent.tool_call.waiting_for_user", {
-      toolCall: waitingToolCall,
-    });
+    await this.publishToolCallUpdated(waitingToolCall);
     await this.events.publish("user_question.requested", {
       question,
       toolCall: waitingToolCall,
@@ -621,6 +658,21 @@ export class ToolService {
     await this.upsertToolCall(updated);
     if (isTerminalToolCall(updated)) this.notifyWaiters(updated);
     return updated;
+  }
+
+  private async publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void> {
+    await this.events.publish("conversation.tool_call.updated", {
+      sessionId: toolCall.sessionId,
+      agentId: toolCall.agentId,
+      projectId: toolCall.projectId,
+      runId: toolCall.runId,
+      turnId: toolCall.turnId,
+      liveMessageId: toolCall.liveMessageId,
+      contentIndex: toolCall.contentIndex,
+      providerToolCallId:
+        toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
+      toolCall,
+    });
   }
 
   private async upsertToolCall(toolCall: ToolCallRecord): Promise<void> {

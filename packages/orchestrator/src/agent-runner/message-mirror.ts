@@ -11,6 +11,9 @@ export interface AppendEntryInput {
   id?: string;
   sessionId: string;
   agentId?: string;
+  runId?: string;
+  turnId?: string;
+  liveMessageId?: string;
   parentEntryId?: string | null;
   role: SessionEntry["role"];
   kind?: SessionEntry["kind"];
@@ -43,6 +46,7 @@ export class MessageMirror {
     agent: AgentRecord,
     storage: JsonlSessionStorage,
     knownEntryIds: Set<string>,
+    metadata: { runId?: string; turnId?: string; liveMessageId?: string } = {},
   ): Promise<SessionEntry[]> {
     const mirrored: SessionEntry[] = [];
     const storageEntries = await storage.getEntries();
@@ -67,6 +71,10 @@ export class MessageMirror {
           id: entry.id,
           sessionId: agent.sessionId,
           agentId: agent.id,
+          runId: metadata.runId,
+          turnId: metadata.turnId,
+          liveMessageId:
+            role === "assistant" ? metadata.liveMessageId : undefined,
           parentEntryId: resolveVisibleParentId(
             entry.parentId,
             storageEntries,

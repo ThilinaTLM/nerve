@@ -1,6 +1,7 @@
 import { toast } from "svelte-sonner";
 import {
   type AgentRecord,
+  type ConversationActiveRunSnapshot,
   acceptPlanReview,
   answerUserQuestion,
   apiGet,
@@ -11,9 +12,7 @@ import {
   getPendingApprovals,
   getPendingPlanReviews,
   getPendingUserQuestions,
-  getSessionMessages,
-  getSessionTree,
-  getToolCalls,
+  getConversationSnapshot,
   type ProjectRecord,
   requestPlanChanges,
   type SessionRecord,
@@ -38,7 +37,10 @@ import {
   loadStoredConversationTabs,
   saveConversationTabs,
 } from "./workbench/conversation-tabs";
-import type { ConversationViewState } from "./workbench/state.svelte";
+import type {
+  ConversationLiveState,
+  ConversationViewState,
+} from "./workbench/state.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 import { entriesToTranscript } from "./workbench/transcript";
 import { loadWorkspaceState } from "./workspace.svelte";
@@ -52,12 +54,78 @@ export function ensureConversationView(
     toolCalls: [],
     treeNodes: [],
     streamingText: "",
-    liveRun: { assistantStarted: false, blocks: [] },
+    live: { messages: [], toolDrafts: [], toolOutputByToolCallId: {} },
+    cursorSeq: 0,
     sending: false,
     composerText: "",
     loading: false,
   };
   return workbenchState.conversationViews[sessionId];
+}
+
+export function activeRunToLegacyLive(
+  activeRun: ConversationActiveRunSnapshot | undefined,
+): ConversationLiveState {
+  if (!activeRun) {
+    return { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
+  }
+  const messages = activeRun.turns.flatMap((turn) =>
+    turn.messages.flatMap((message) =>
+      message.blocks.flatMap((block) => {
+        if (block.kind === "tool_call_draft") return [];
+        return [
+          {
+            id: `live:${message.liveMessageId}:${block.kind}:${block.contentIndex}`,
+            role: "assistant" as const,
+            displayKind: block.kind === "thinking" ? "thinking" as const : "message" as const,
+            text: block.text,
+            createdAt: message.startedAt,
+            contentIndex: block.contentIndex,
+            live: !block.done,
+            done: block.done,
+            redacted: block.redacted,
+          },
+        ];
+      }),
+    ),
+  );
+  const toolDrafts = activeRun.turns.flatMap((turn) =>
+    turn.messages.flatMap((message) =>
+      message.blocks.flatMap((block) => {
+        if (block.kind !== "tool_call_draft") return [];
+        return [
+          {
+            kind: "tool_call_draft" as const,
+            key: `live:${message.liveMessageId}:tool-draft:${block.contentIndex}`,
+            runId: activeRun.runId,
+            sessionId: activeRun.sessionId,
+            contentIndex: block.contentIndex,
+            providerToolCallId: block.providerToolCallId,
+            toolName: block.toolName,
+            argsText: block.argsText,
+            args: block.args,
+            done: block.done,
+            createdAt: message.startedAt,
+            updatedAt: message.startedAt,
+          },
+        ];
+      }),
+    ),
+  );
+  return {
+    runId: activeRun.runId,
+    messages,
+    toolDrafts,
+    toolOutputByToolCallId: activeRun.toolOutputsByToolCallId,
+  };
+}
+
+export function liveTextFromLegacyLive(live: ConversationLiveState): string {
+  return live.messages
+    .filter((item) => item.displayKind !== "thinking")
+    .sort((a, b) => (a.contentIndex ?? 0) - (b.contentIndex ?? 0))
+    .map((item) => item.text)
+    .join("\n");
 }
 
 function persistConversationTabs() {
@@ -131,21 +199,21 @@ export async function refreshSessionView(sessionId: string) {
   const view = ensureConversationView(sessionId);
   view.loading = true;
   try {
-    const [entries, tree, toolCalls] = await Promise.all([
-      getSessionMessages(sessionId),
-      getSessionTree(sessionId),
-      getToolCalls(),
-    ]);
-    const nextTranscript = entriesToTranscript(entries);
-    if (!view.sending || nextTranscript.length >= view.transcript.length) {
-      view.transcript = nextTranscript;
-    }
-    view.toolCalls = toolCalls.filter((call) => call.sessionId === sessionId);
-    view.treeNodes = tree.nodes;
+    const snapshot = await getConversationSnapshot(sessionId);
+    view.transcript = entriesToTranscript(snapshot.entries);
+    view.toolCalls = snapshot.toolCalls;
+    view.treeNodes = snapshot.tree.nodes;
+    view.activeRun = snapshot.activeRun;
+    view.cursorSeq = snapshot.cursorSeq;
+    view.live = activeRunToLegacyLive(snapshot.activeRun);
+    view.streamingText = liveTextFromLegacyLive(view.live);
+    view.sending = Boolean(snapshot.activeRun);
     if (selection.sessionId === sessionId) {
-      selection.entryId = tree.activeEntryId;
-      workbenchState.treeNodes = tree.nodes;
+      selection.entryId = snapshot.tree.activeEntryId;
+      workbenchState.treeNodes = snapshot.tree.nodes;
       workbenchState.transcript = view.transcript;
+      workbenchState.streamingText = view.streamingText;
+      workbenchState.sending = view.sending;
     }
   } finally {
     view.loading = false;
@@ -421,7 +489,7 @@ export async function abortActiveRun() {
   if (view) {
     view.sending = false;
     view.streamingText = "";
-    view.liveRun = { assistantStarted: false, blocks: [] };
+    view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
   }
   workbenchState.sending = false;
   workbenchState.streamingText = "";
@@ -457,7 +525,7 @@ export async function sendPrompt() {
   view.sending = true;
   view.error = undefined;
   view.streamingText = "";
-  view.liveRun = { assistantStarted: false, blocks: [] };
+  view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
   workbenchState.sending = true;
   workbenchState.error = undefined;
   workbenchState.streamingText = "";

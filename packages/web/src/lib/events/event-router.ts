@@ -3,22 +3,35 @@ import { getProcessLogs } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
 import {
+  activeRunToLegacyLive,
   ensureConversationView,
+  liveTextFromLegacyLive,
   openSession,
   refreshSessionView,
 } from "../stores/session-flow.svelte";
 import { loadSettingsPanel } from "../stores/settings.svelte";
-import {
-  type LiveAssistantBlock,
-  type LiveRunState,
-  workbenchState,
+import type {
+  ConversationLiveState,
+  ConversationViewState,
+  LiveToolOutput,
+  TranscriptItem,
 } from "../stores/workbench/state.svelte";
-import { entryToTranscriptItem } from "../stores/workbench/transcript";
+import { workbenchState } from "../stores/workbench/state.svelte";
+import { entryToTranscriptItems } from "../stores/workbench/transcript";
 import { loadWorkspaceState } from "../stores/workspace.svelte";
 
+const MAX_LIVE_TOOL_OUTPUT_CHARS = 32_000;
+const MAX_LIVE_TOOL_OUTPUT_CHUNKS = 400;
+
 export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
-  if (isAgentStreamEvent(event)) handleAgentStreamEvent(event);
-  if (event.type.startsWith("agent.tool_call.")) handleToolCallEvent(event);
+  if (event.seq && event.seq <= workbenchState.lastEventSeq) return;
+  if (event.seq) workbenchState.lastEventSeq = event.seq;
+
+  if (event.type.startsWith("conversation.")) {
+    handleConversationEvent(event);
+    return;
+  }
+
   if (event.type === "process.log") {
     const processId = String(event.data?.processId ?? "");
     const viewingProcess =
@@ -35,6 +48,7 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
     }
     return;
   }
+
   if (shouldRefreshWorkspace(event.type)) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     void loadWorkspaceState();
@@ -42,393 +56,343 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   }
 }
 
-export function isAgentStreamEvent(
-  event: EventEnvelope<Record<string, unknown>>,
-): boolean {
-  return (
-    event.type === "agent.prompt_received" ||
-    event.type === "agent.message_started" ||
-    event.type === "agent.message_delta" ||
-    event.type === "agent.message_content_delta" ||
-    event.type === "agent.message_content_done" ||
-    event.type === "agent.tool_call_draft.started" ||
-    event.type === "agent.tool_call_draft.delta" ||
-    event.type === "agent.tool_call_draft.done" ||
-    event.type === "agent.message_complete" ||
-    event.type === "agent.error"
-  );
-}
-
-function emptyLiveRun(): LiveRunState {
-  return { assistantStarted: false, blocks: [] };
-}
-
-function runIdFromEvent(
-  event: EventEnvelope<Record<string, unknown>>,
-): string | undefined {
-  const runId = event.data?.runId;
-  return typeof runId === "string" && runId.startsWith("run_")
-    ? runId
-    : undefined;
-}
-
-function ensureLiveRunState(
-  liveRun: LiveRunState,
-  runId?: string,
-): LiveRunState {
-  if (!runId || liveRun.runId === runId) {
-    return {
-      ...liveRun,
-      runId: runId ?? liveRun.runId,
-      assistantStarted: true,
-      updatedAt: new Date().toISOString(),
-    };
-  }
-  return {
-    runId,
-    assistantStarted: true,
-    blocks: [],
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-function sortLiveBlocks(blocks: LiveAssistantBlock[]): LiveAssistantBlock[] {
-  return [...blocks].sort((a, b) => a.contentIndex - b.contentIndex);
-}
-
-function upsertLiveBlock(
-  liveRun: LiveRunState,
-  block: LiveAssistantBlock,
-): LiveRunState {
-  const index = liveRun.blocks.findIndex(
-    (candidate) => candidate.contentIndex === block.contentIndex,
-  );
-  const blocks =
-    index === -1
-      ? [...liveRun.blocks, block]
-      : liveRun.blocks.map((candidate, candidateIndex) =>
-          candidateIndex === index ? block : candidate,
-        );
-  return {
-    ...liveRun,
-    blocks: sortLiveBlocks(blocks),
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-function liveBlock(
-  liveRun: LiveRunState,
-  contentIndex: number,
-): LiveAssistantBlock | undefined {
-  return liveRun.blocks.find((block) => block.contentIndex === contentIndex);
-}
-
-function objectArgs(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function sessionIdForAgentEvent(
+function sessionIdFromEvent(
   event: EventEnvelope<Record<string, unknown>>,
 ): string | undefined {
   const sessionId = event.data?.sessionId;
-  if (typeof sessionId === "string" && sessionId.startsWith("ses_")) {
-    return sessionId;
-  }
+  if (typeof sessionId === "string") return sessionId;
   const entry = event.data?.entry as { sessionId?: unknown } | undefined;
-  if (
-    typeof entry?.sessionId === "string" &&
-    entry.sessionId.startsWith("ses_")
-  ) {
-    return entry.sessionId;
-  }
-  const agentId = event.data?.agentId;
-  if (typeof agentId !== "string") return undefined;
-  return workbenchState.agents.find((agent) => agent.id === agentId)?.sessionId;
+  if (typeof entry?.sessionId === "string") return entry.sessionId;
+  const toolCall = event.data?.toolCall as { sessionId?: unknown } | undefined;
+  if (typeof toolCall?.sessionId === "string") return toolCall.sessionId;
+  return undefined;
 }
 
-export function handleToolCallEvent(
-  event: EventEnvelope<Record<string, unknown>>,
-) {
-  const toolCall = event.data?.toolCall as ToolCallRecord | undefined;
-  if (!toolCall) return;
-  const sessionId = sessionIdForAgentEvent(event) ?? toolCall.sessionId;
-  if (
-    !sessionId ||
-    !workbenchState.openConversationTabIds.includes(sessionId)
-  ) {
-    return;
-  }
+function isOpenSession(sessionId: string): boolean {
+  return workbenchState.openConversationTabIds.includes(sessionId);
+}
+
+function active(sessionId: string): boolean {
+  return selection.sessionId === sessionId;
+}
+
+function handleConversationEvent(event: EventEnvelope<Record<string, unknown>>) {
+  const sessionId = sessionIdFromEvent(event);
+  if (!sessionId || !isOpenSession(sessionId)) return;
   const view = ensureConversationView(sessionId);
-  const index = view.toolCalls.findIndex((entry) => entry.id === toolCall.id);
+  if (event.seq <= view.cursorSeq) return;
+  view.cursorSeq = event.seq;
+
+  switch (event.type) {
+    case "conversation.run.started":
+      view.sending = true;
+      view.error = undefined;
+      break;
+    case "conversation.entry.appended":
+      handleEntryAppended(view, event.data?.entry as SessionEntry | undefined);
+      break;
+    case "conversation.tool_call.updated":
+      handleToolCallUpdated(view, event.data?.toolCall as ToolCallRecord | undefined);
+      break;
+    case "conversation.live.message.started":
+      ensureLiveState(view, String(event.data?.runId ?? ""));
+      view.sending = true;
+      break;
+    case "conversation.live.content.delta":
+      handleContentDelta(view, event);
+      break;
+    case "conversation.live.content.done":
+      handleContentDone(view, event);
+      break;
+    case "conversation.live.tool_draft.started":
+      handleToolDraftStarted(view, event);
+      break;
+    case "conversation.live.tool_draft.delta":
+      handleToolDraftDelta(view, event);
+      break;
+    case "conversation.live.tool_draft.done":
+      handleToolDraftDone(view, event);
+      break;
+    case "conversation.live.tool_output.delta":
+      handleToolOutputDelta(view, event);
+      break;
+    case "conversation.run.completed":
+      view.sending = false;
+      view.streamingText = "";
+      view.live = emptyLiveState();
+      view.activeRun = undefined;
+      view.error = undefined;
+      void refreshSessionView(sessionId).then(() => {
+        if (selection.sessionId === sessionId) void openSession(sessionId);
+      });
+      break;
+    case "conversation.run.failed":
+      view.sending = false;
+      view.streamingText = "";
+      view.live = emptyLiveState();
+      view.activeRun = undefined;
+      view.error = event.data?.aborted
+        ? undefined
+        : String(event.data?.message ?? "Agent error");
+      break;
+  }
+
+  syncActiveView(view);
+}
+
+function emptyLiveState(runId?: string): ConversationLiveState {
+  return { runId, messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
+}
+
+function ensureLiveState(
+  view: ConversationViewState,
+  runId?: string,
+): ConversationLiveState {
+  if (!runId || view.live.runId === runId || !view.live.runId) {
+    view.live = { ...view.live, runId: runId || view.live.runId };
+    return view.live;
+  }
+  view.live = emptyLiveState(runId);
+  return view.live;
+}
+
+function liveMessageId(data: Record<string, unknown>): string {
+  return typeof data.liveMessageId === "string"
+    ? data.liveMessageId
+    : String(data.runId ?? "unknown");
+}
+
+function liveTextId(data: Record<string, unknown>): string {
+  return `live:${liveMessageId(data)}:${String(data.kind ?? "text")}:${Number(data.contentIndex ?? 0)}`;
+}
+
+function handleEntryAppended(
+  view: ConversationViewState,
+  entry: SessionEntry | undefined,
+): void {
+  if (!entry) return;
+  const items = entryToTranscriptItems(entry);
+  const ids = new Set(items.map((item) => item.id).filter(Boolean));
+  view.transcript = [
+    ...view.transcript.filter((item) => !item.id || !ids.has(item.id)),
+    ...items,
+  ].filter((item, index, all) => {
+    if (!item.optimistic) return true;
+    return !all.some(
+      (candidate) =>
+        !candidate.optimistic &&
+        candidate.role === item.role &&
+        candidate.text === item.text,
+    );
+  });
+  if (entry.role === "assistant" && entry.liveMessageId) {
+    view.live.messages = view.live.messages.filter(
+      (item) => !item.id?.startsWith(`live:${entry.liveMessageId}:`),
+    );
+    view.streamingText = liveTextFromLegacyLive(view.live);
+  }
+}
+
+function handleToolCallUpdated(
+  view: ConversationViewState,
+  toolCall: ToolCallRecord | undefined,
+): void {
+  if (!toolCall) return;
+  const index = view.toolCalls.findIndex((candidate) => candidate.id === toolCall.id);
   view.toolCalls =
     index === -1
       ? [...view.toolCalls, toolCall]
-      : view.toolCalls.map((entry) =>
-          entry.id === toolCall.id ? toolCall : entry,
+      : view.toolCalls.map((candidate) =>
+          candidate.id === toolCall.id ? toolCall : candidate,
+        );
+  const providerToolCallId = toolCall.providerToolCallId ?? toolCall.sourceToolCallId;
+  if (providerToolCallId) {
+    view.live.toolDrafts = view.live.toolDrafts.filter(
+      (draft) => draft.providerToolCallId !== providerToolCallId,
+    );
+  }
+}
+
+function upsertLiveMessage(view: ConversationViewState, item: TranscriptItem): void {
+  const index = view.live.messages.findIndex((candidate) => candidate.id === item.id);
+  view.live.messages =
+    index === -1
+      ? [...view.live.messages, item]
+      : view.live.messages.map((candidate) =>
+          candidate.id === item.id ? item : candidate,
         );
 }
 
-export function handleAgentStreamEvent(
+function handleContentDelta(
+  view: ConversationViewState,
   event: EventEnvelope<Record<string, unknown>>,
-) {
-  const sessionId = sessionIdForAgentEvent(event);
+): void {
+  const delta = typeof event.data?.delta === "string" ? event.data.delta : "";
+  if (!delta) return;
+  const runId = typeof event.data?.runId === "string" ? event.data.runId : undefined;
+  ensureLiveState(view, runId);
+  const id = liveTextId(event.data);
+  const current = view.live.messages.find((item) => item.id === id);
+  const expected = Number(event.data?.offset ?? current?.text.length ?? 0);
+  if (current && current.text.length > expected) return;
+  if (current && current.text.length < expected) {
+    void refreshSessionView(view.sessionId);
+    return;
+  }
+  const kind = event.data?.kind === "thinking" ? "thinking" : "text";
+  upsertLiveMessage(view, {
+    id,
+    role: "assistant",
+    displayKind: kind === "thinking" ? "thinking" : "message",
+    text: `${current?.text ?? ""}${delta}`,
+    createdAt: current?.createdAt ?? new Date().toISOString(),
+    contentIndex: Number(event.data?.contentIndex ?? 0),
+    live: true,
+    done: false,
+    redacted: current?.redacted,
+  });
+  view.streamingText = liveTextFromLegacyLive(view.live);
+  view.sending = true;
+}
+
+function handleContentDone(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  const runId = typeof event.data?.runId === "string" ? event.data.runId : undefined;
+  ensureLiveState(view, runId);
+  const id = liveTextId(event.data);
+  const current = view.live.messages.find((item) => item.id === id);
+  const kind = event.data?.kind === "thinking" ? "thinking" : "text";
+  upsertLiveMessage(view, {
+    id,
+    role: "assistant",
+    displayKind: kind === "thinking" ? "thinking" : "message",
+    text:
+      typeof event.data?.finalText === "string"
+        ? event.data.finalText
+        : (current?.text ?? ""),
+    createdAt: current?.createdAt ?? new Date().toISOString(),
+    contentIndex: Number(event.data?.contentIndex ?? 0),
+    live: false,
+    done: true,
+    redacted: kind === "thinking" ? Boolean(event.data?.redacted) : undefined,
+  });
+  view.streamingText = liveTextFromLegacyLive(view.live);
+}
+
+function draftKey(data: Record<string, unknown>): string {
+  return `live:${liveMessageId(data)}:tool-draft:${Number(data.contentIndex ?? 0)}`;
+}
+
+function upsertToolDraft(view: ConversationViewState, event: EventEnvelope<Record<string, unknown>>, patch: Record<string, unknown>) {
+  const key = draftKey(event.data);
+  const current = view.live.toolDrafts.find((draft) => draft.key === key);
+  const updated = {
+    kind: "tool_call_draft" as const,
+    key,
+    runId: typeof event.data?.runId === "string" ? event.data.runId : current?.runId,
+    sessionId: view.sessionId,
+    contentIndex: Number(event.data?.contentIndex ?? current?.contentIndex ?? 0),
+    providerToolCallId:
+      typeof event.data?.providerToolCallId === "string"
+        ? event.data.providerToolCallId
+        : current?.providerToolCallId,
+    toolName:
+      typeof event.data?.toolName === "string"
+        ? event.data.toolName
+        : current?.toolName,
+    argsText: typeof patch.argsText === "string" ? patch.argsText : (current?.argsText ?? ""),
+    args: (patch.args as Record<string, unknown> | undefined) ?? current?.args,
+    done: typeof patch.done === "boolean" ? patch.done : current?.done,
+    createdAt: current?.createdAt ?? new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  view.live.toolDrafts = current
+    ? view.live.toolDrafts.map((draft) => (draft.key === key ? updated : draft))
+    : [...view.live.toolDrafts, updated];
+}
+
+function handleToolDraftStarted(view: ConversationViewState, event: EventEnvelope<Record<string, unknown>>): void {
+  ensureLiveState(view, typeof event.data?.runId === "string" ? event.data.runId : undefined);
+  upsertToolDraft(view, event, {});
+}
+
+function handleToolDraftDelta(view: ConversationViewState, event: EventEnvelope<Record<string, unknown>>): void {
+  ensureLiveState(view, typeof event.data?.runId === "string" ? event.data.runId : undefined);
+  const key = draftKey(event.data);
+  const current = view.live.toolDrafts.find((draft) => draft.key === key);
+  const delta = typeof event.data?.delta === "string" ? event.data.delta : "";
+  const expected = Number(event.data?.offset ?? current?.argsText.length ?? 0);
+  if (current && current.argsText.length > expected) return;
+  if (current && current.argsText.length < expected) {
+    void refreshSessionView(view.sessionId);
+    return;
+  }
+  upsertToolDraft(view, event, { argsText: `${current?.argsText ?? ""}${delta}` });
+}
+
+function handleToolDraftDone(view: ConversationViewState, event: EventEnvelope<Record<string, unknown>>): void {
+  ensureLiveState(view, typeof event.data?.runId === "string" ? event.data.runId : undefined);
+  upsertToolDraft(view, event, {
+    args: event.data?.args && typeof event.data.args === "object" ? event.data.args : undefined,
+    done: true,
+  });
+}
+
+function capLiveOutput(output: LiveToolOutput): LiveToolOutput {
+  let text = output.text;
+  if (text.length > MAX_LIVE_TOOL_OUTPUT_CHARS) {
+    text = text.slice(text.length - MAX_LIVE_TOOL_OUTPUT_CHARS);
+  }
+  const chunks =
+    output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS
+      ? output.chunks.slice(output.chunks.length - MAX_LIVE_TOOL_OUTPUT_CHUNKS)
+      : output.chunks;
+  return { ...output, text, chunks };
+}
+
+function handleToolOutputDelta(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  const toolCallId = event.data?.toolCallId;
+  const delta = event.data?.delta;
+  const stream = event.data?.stream;
   if (
-    !sessionId ||
-    !workbenchState.openConversationTabIds.includes(sessionId)
-  ) {
+    typeof toolCallId !== "string" ||
+    typeof delta !== "string" ||
+    delta.length === 0 ||
+    (stream !== "stdout" && stream !== "stderr" && stream !== "combined")
+  ) return;
+  const previous = view.live.toolOutputByToolCallId[toolCallId];
+  const expected = Number(event.data?.offset ?? previous?.text.length ?? 0);
+  if (previous && previous.text.length > expected) return;
+  if (previous && previous.text.length < expected) {
+    void refreshSessionView(view.sessionId);
     return;
   }
-  const view = ensureConversationView(sessionId);
-  const active = selection.sessionId === sessionId;
+  const updatedAt = new Date().toISOString();
+  const output = capLiveOutput({
+    chunks: [
+      ...(previous?.chunks ?? []),
+      { stream, text: delta, ts: updatedAt },
+    ],
+    text: `${previous?.text ?? ""}${delta}`,
+    updatedAt,
+  });
+  view.live.toolOutputByToolCallId = {
+    ...view.live.toolOutputByToolCallId,
+    [toolCallId]: output,
+  };
+}
 
-  if (event.type === "agent.prompt_received") {
-    const entry = event.data?.entry as SessionEntry | undefined;
-    if (!entry) return;
-    const item = entryToTranscriptItem(entry);
-    const existingIndex = item.id
-      ? view.transcript.findIndex((candidate) => candidate.id === item.id)
-      : -1;
-    if (existingIndex !== -1) {
-      view.transcript = view.transcript.map((candidate, index) =>
-        index === existingIndex ? item : candidate,
-      );
-    } else {
-      let optimisticIndex = -1;
-      for (let index = view.transcript.length - 1; index >= 0; index -= 1) {
-        const candidate = view.transcript[index];
-        if (
-          candidate?.optimistic &&
-          candidate.role === "user" &&
-          candidate.text === item.text
-        ) {
-          optimisticIndex = index;
-          break;
-        }
-      }
-      view.transcript =
-        optimisticIndex === -1
-          ? [...view.transcript, item]
-          : view.transcript.map((candidate, index) =>
-              index === optimisticIndex ? item : candidate,
-            );
-    }
-    if (active) {
-      selection.entryId = item.id ?? selection.entryId;
-      workbenchState.transcript = view.transcript;
-    }
-    return;
-  }
-
-  if (event.type === "agent.message_started") {
-    view.liveRun = ensureLiveRunState(view.liveRun, runIdFromEvent(event));
-    view.sending = true;
-    if (active) workbenchState.sending = true;
-    return;
-  }
-
-  if (event.type === "agent.message_content_delta") {
-    const contentIndex = Number(event.data?.contentIndex);
-    const delta = String(event.data?.delta ?? "");
-    const kind = event.data?.kind;
-    if (!Number.isFinite(contentIndex) || !delta) return;
-    view.liveRun = ensureLiveRunState(view.liveRun, runIdFromEvent(event));
-    const current = liveBlock(view.liveRun, contentIndex);
-    if (kind === "thinking") {
-      view.liveRun = upsertLiveBlock(view.liveRun, {
-        kind: "thinking",
-        contentIndex,
-        text: current?.kind === "thinking" ? current.text + delta : delta,
-        done: current?.kind === "thinking" ? current.done : undefined,
-        redacted: current?.kind === "thinking" ? current.redacted : undefined,
-      });
-    } else if (kind === "text") {
-      const text = current?.kind === "text" ? current.text + delta : delta;
-      view.liveRun = upsertLiveBlock(view.liveRun, {
-        kind: "text",
-        contentIndex,
-        text,
-        done: current?.kind === "text" ? current.done : undefined,
-      });
-      view.streamingText = view.liveRun.blocks
-        .filter((block) => block.kind === "text")
-        .map((block) => block.text)
-        .join("\n");
-      if (active) workbenchState.streamingText = view.streamingText;
-    }
-    view.sending = true;
-    if (active) workbenchState.sending = true;
-    return;
-  }
-
-  if (event.type === "agent.message_content_done") {
-    const contentIndex = Number(event.data?.contentIndex);
-    const kind = event.data?.kind;
-    if (!Number.isFinite(contentIndex)) return;
-    view.liveRun = ensureLiveRunState(view.liveRun, runIdFromEvent(event));
-    const current = liveBlock(view.liveRun, contentIndex);
-    if (kind === "thinking") {
-      view.liveRun = upsertLiveBlock(view.liveRun, {
-        kind: "thinking",
-        contentIndex,
-        text:
-          typeof event.data?.content === "string"
-            ? event.data.content
-            : current?.kind === "thinking"
-              ? current.text
-              : "",
-        done: true,
-        redacted: Boolean(event.data?.redacted),
-      });
-    } else if (kind === "text") {
-      view.liveRun = upsertLiveBlock(view.liveRun, {
-        kind: "text",
-        contentIndex,
-        text:
-          typeof event.data?.content === "string"
-            ? event.data.content
-            : current?.kind === "text"
-              ? current.text
-              : "",
-        done: true,
-      });
-      view.streamingText = view.liveRun.blocks
-        .filter((block) => block.kind === "text")
-        .map((block) => block.text)
-        .join("\n");
-      if (active) workbenchState.streamingText = view.streamingText;
-    }
-    return;
-  }
-
-  if (event.type === "agent.tool_call_draft.started") {
-    const contentIndex = Number(event.data?.contentIndex);
-    if (!Number.isFinite(contentIndex)) return;
-    view.liveRun = ensureLiveRunState(view.liveRun, runIdFromEvent(event));
-    view.liveRun = upsertLiveBlock(view.liveRun, {
-      kind: "tool_call_draft",
-      contentIndex,
-      providerToolCallId:
-        typeof event.data?.providerToolCallId === "string"
-          ? event.data.providerToolCallId
-          : undefined,
-      toolName:
-        typeof event.data?.toolName === "string"
-          ? event.data.toolName
-          : undefined,
-      argsText: "",
-    });
-    return;
-  }
-
-  if (event.type === "agent.tool_call_draft.delta") {
-    const contentIndex = Number(event.data?.contentIndex);
-    const delta = String(event.data?.delta ?? "");
-    if (!Number.isFinite(contentIndex) || !delta) return;
-    view.liveRun = ensureLiveRunState(view.liveRun, runIdFromEvent(event));
-    const current = liveBlock(view.liveRun, contentIndex);
-    view.liveRun = upsertLiveBlock(view.liveRun, {
-      kind: "tool_call_draft",
-      contentIndex,
-      providerToolCallId:
-        current?.kind === "tool_call_draft"
-          ? current.providerToolCallId
-          : undefined,
-      toolName:
-        current?.kind === "tool_call_draft" ? current.toolName : undefined,
-      argsText:
-        current?.kind === "tool_call_draft" ? current.argsText + delta : delta,
-      args: current?.kind === "tool_call_draft" ? current.args : undefined,
-      done: current?.kind === "tool_call_draft" ? current.done : undefined,
-    });
-    return;
-  }
-
-  if (event.type === "agent.tool_call_draft.done") {
-    const contentIndex = Number(event.data?.contentIndex);
-    if (!Number.isFinite(contentIndex)) return;
-    view.liveRun = ensureLiveRunState(view.liveRun, runIdFromEvent(event));
-    const current = liveBlock(view.liveRun, contentIndex);
-    const args = objectArgs(event.data?.args);
-    view.liveRun = upsertLiveBlock(view.liveRun, {
-      kind: "tool_call_draft",
-      contentIndex,
-      providerToolCallId:
-        typeof event.data?.providerToolCallId === "string"
-          ? event.data.providerToolCallId
-          : current?.kind === "tool_call_draft"
-            ? current.providerToolCallId
-            : undefined,
-      toolName:
-        typeof event.data?.toolName === "string"
-          ? event.data.toolName
-          : current?.kind === "tool_call_draft"
-            ? current.toolName
-            : undefined,
-      argsText: current?.kind === "tool_call_draft" ? current.argsText : "",
-      args,
-      done: true,
-    });
-    return;
-  }
-
-  if (event.type === "agent.message_delta") {
-    if (view.liveRun.blocks.some((block) => block.kind === "text")) return;
-    view.streamingText += String(event.data?.delta ?? "");
-    view.sending = true;
-    if (active) {
-      workbenchState.streamingText = view.streamingText;
-      workbenchState.sending = true;
-    }
-  }
-  if (event.type === "agent.message_complete") {
-    const entry = event.data?.entry as SessionEntry | undefined;
-    const text =
-      view.streamingText || entry?.text || String(event.data?.text ?? "");
-    if (entry) {
-      const item = entryToTranscriptItem(entry);
-      const existingIndex = item.id
-        ? view.transcript.findIndex((candidate) => candidate.id === item.id)
-        : -1;
-      view.transcript =
-        existingIndex === -1
-          ? [...view.transcript, item]
-          : view.transcript.map((candidate, index) =>
-              index === existingIndex ? item : candidate,
-            );
-    } else if (text) {
-      view.transcript = [...view.transcript, { role: "assistant", text }];
-    }
-    view.streamingText = "";
-    view.liveRun = emptyLiveRun();
-    view.sending = false;
-    view.error = undefined;
-    if (active) {
-      selection.entryId = entry?.id ?? selection.entryId;
-      workbenchState.transcript = view.transcript;
-      workbenchState.streamingText = "";
-      workbenchState.sending = false;
-      workbenchState.error = undefined;
-    }
-    void refreshSessionView(sessionId).then(() => {
-      if (selection.sessionId === sessionId) void openSession(sessionId);
-    });
-  }
-  if (event.type === "agent.error") {
-    const aborted = Boolean(event.data?.aborted);
-    view.error = aborted
-      ? undefined
-      : String(event.data?.message ?? "Agent error");
-    view.sending = false;
-    view.streamingText = "";
-    view.liveRun = emptyLiveRun();
-    if (active) {
-      workbenchState.error = view.error;
-      workbenchState.sending = false;
-      workbenchState.streamingText = "";
-    }
-  }
+function syncActiveView(view: ConversationViewState): void {
+  if (!active(view.sessionId)) return;
+  workbenchState.transcript = view.transcript;
+  workbenchState.streamingText = view.streamingText;
+  workbenchState.sending = view.sending;
+  workbenchState.error = view.error;
 }
 
 export function shouldRefreshWorkspace(type: string): boolean {
@@ -449,7 +413,10 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type.startsWith("plan_review.") ||
     type === "plan.written" ||
     type === "agent.mode_changed" ||
-    type.startsWith("agent.tool_call.") ||
+    type === "conversation.tool_call.updated" ||
+    type === "conversation.run.started" ||
+    type === "conversation.run.completed" ||
+    type === "conversation.run.failed" ||
     type.startsWith("process.") ||
     shouldRefreshSettings(type)
   );
@@ -462,3 +429,5 @@ export function shouldRefreshSettings(type: string): boolean {
     type.startsWith("auth.")
   );
 }
+
+export { activeRunToLegacyLive };

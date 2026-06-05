@@ -479,6 +479,11 @@ function refsForEvent(event: EventEnvelope): EventRefs {
   copyNestedRef(data.question, refs, "agentId", "agentId");
   copyNestedRef(data.entry, refs, "sessionId", "sessionId");
   copyNestedRef(data.entry, refs, "agentId", "agentId");
+  copyNestedRef(data.entry, refs, "runId", "runId");
+  copyNestedRef(data.toolCall, refs, "projectId", "projectId");
+  copyNestedRef(data.toolCall, refs, "sessionId", "sessionId");
+  copyNestedRef(data.toolCall, refs, "agentId", "agentId");
+  copyNestedRef(data.toolCall, refs, "runId", "runId");
   return refs;
 }
 

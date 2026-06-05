@@ -5,9 +5,16 @@ import type {
   ToolTextContentPayload,
 } from "@nerve/shared";
 
+export type ToolExecutionOutputUpdate = {
+  kind: "output";
+  stream: "stdout" | "stderr" | "combined";
+  chunk: string;
+};
+
 export type ToolExecutionContext = {
   cwd: string;
   signal?: AbortSignal;
+  onUpdate?: (update: ToolExecutionOutputUpdate) => void;
 };
 
 // Result contracts live in `@nerve/shared` (single source of truth shared with the web UI).

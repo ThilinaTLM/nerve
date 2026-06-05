@@ -489,21 +489,32 @@ async function streamPrompt(agentId: string, prompt: string): Promise<void> {
     socket.addEventListener("message", (message) => {
       const event = JSON.parse(String(message.data)) as {
         type?: string;
-        data?: { agentId?: string; delta?: string; message?: string };
+        data?: {
+          agentId?: string;
+          kind?: string;
+          delta?: string;
+          message?: string;
+          aborted?: boolean;
+        };
       };
       if (event.data?.agentId !== agentId) return;
-      if (event.type === "agent.message_delta")
+      if (
+        event.type === "conversation.live.content.delta" &&
+        event.data.kind === "text"
+      ) {
         process.stdout.write(event.data.delta ?? "");
-      if (event.type === "agent.message_complete") {
+      }
+      if (event.type === "conversation.run.completed") {
         done = true;
         process.stdout.write("\n");
         socket.close();
         resolve();
       }
-      if (event.type === "agent.error") {
+      if (event.type === "conversation.run.failed") {
         done = true;
         socket.close();
-        reject(new Error(event.data?.message ?? "Agent error"));
+        if (event.data.aborted) resolve();
+        else reject(new Error(event.data?.message ?? "Agent error"));
       }
     });
     socket.addEventListener("error", () =>

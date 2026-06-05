@@ -4,6 +4,9 @@ export type AppendEntryInput = {
   id?: string;
   sessionId: string;
   agentId?: string;
+  runId?: string;
+  turnId?: string;
+  liveMessageId?: string;
   parentEntryId?: string | null;
   role: SessionEntry["role"];
   kind?: SessionEntry["kind"];

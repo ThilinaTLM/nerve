@@ -14,6 +14,8 @@ import {
   truncationDetailsSchema,
 } from "@nerve/shared";
 import type { ToolCallRecord } from "../api";
+import type { LiveToolOutput } from "../stores/workbench/state.svelte";
+import { trimTextPreview } from "../utils/text-preview";
 
 export type GroupedMatches = { path: string; matches: GrepMatch[] };
 
@@ -38,6 +40,7 @@ export type ToolView =
       stderr?: string;
       savedTo?: string;
       truncated: boolean;
+      live?: boolean;
     }
   | {
       kind: "edit";
@@ -119,6 +122,7 @@ const LIST_PREVIEW = 10;
 const LS_PREVIEW = 20;
 const LOG_TAIL = 15;
 const TITLE_MAX = 120;
+const GREP_MATCH_TEXT_MAX = 260;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"
@@ -168,6 +172,17 @@ export function imageDataUrl(mimeType: string, data: string): string {
   return `data:${mimeType};base64,${data}`;
 }
 
+function previewGrepMatch(match: GrepMatch): GrepMatch {
+  return {
+    ...match,
+    text: trimTextPreview(match.text, {
+      headLines: 2,
+      tailLines: 1,
+      maxChars: GREP_MATCH_TEXT_MAX,
+    }).text,
+  };
+}
+
 export function groupMatchesByFile(matches: GrepMatch[]): GroupedMatches[] {
   const groups: GroupedMatches[] = [];
   const byPath = new Map<string, GrepMatch[]>();
@@ -191,7 +206,10 @@ function detailsTruncated(details: unknown): boolean {
   return Boolean(nested.success && nested.data.truncated);
 }
 
-export function parseToolView(toolCall: ToolCallRecord): ToolView {
+export function parseToolView(
+  toolCall: ToolCallRecord,
+  liveOutput?: LiveToolOutput,
+): ToolView {
   const args = asRecord(toolCall.args);
   const cwd = toolCall.cwd;
   const fileResult = toolExecutionResultSchema.safeParse(toolCall.result);
@@ -241,7 +259,7 @@ export function parseToolView(toolCall: ToolCallRecord): ToolView {
     case "bash": {
       const command = stringField(args.command);
       const details = bashResultDetailsSchema.safeParse(result?.details);
-      const combined = result?.content ?? "";
+      const combined = result?.content ?? liveOutput?.text ?? "";
       const tailLines =
         combined.length > 0 ? tail(combined.split("\n"), READ_PREVIEW) : [];
       return {
@@ -257,6 +275,7 @@ export function parseToolView(toolCall: ToolCallRecord): ToolView {
         stderr: result?.stderr,
         savedTo: details.success ? details.data.fullOutputPath : undefined,
         truncated: detailsTruncated(result?.details),
+        live: !result && Boolean(liveOutput?.text),
       };
     }
 
@@ -300,7 +319,9 @@ export function parseToolView(toolCall: ToolCallRecord): ToolView {
       let shown = 0;
       for (const group of all) {
         if (shown >= LIST_PREVIEW) break;
-        const slice = group.matches.slice(0, LIST_PREVIEW - shown);
+        const slice = group.matches
+          .slice(0, LIST_PREVIEW - shown)
+          .map(previewGrepMatch);
         preview.push({ path: group.path, matches: slice });
         shown += slice.length;
       }

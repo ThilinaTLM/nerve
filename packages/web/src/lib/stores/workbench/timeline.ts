@@ -1,16 +1,27 @@
 import type { ToolCallRecord } from "../../api";
-import type { TranscriptItem } from "./state.svelte";
+import type {
+  ConversationLiveState,
+  LiveToolCallDraft,
+  LiveToolOutput,
+  TranscriptItem,
+} from "./state.svelte";
 
 export type TimelineItem =
   | { kind: "message"; key: string; item: TranscriptItem }
-  | { kind: "tool"; key: string; toolCall: ToolCallRecord };
+  | {
+      kind: "tool";
+      key: string;
+      toolCall: ToolCallRecord;
+      liveOutput?: LiveToolOutput;
+    }
+  | { kind: "tool_draft"; key: string; draft: LiveToolCallDraft };
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 
 function isToolCallPlaceholder(item: TranscriptItem): boolean {
   return (
     item.role === "assistant" &&
-    !item.thinkingBlocks?.length &&
+    item.displayKind !== "thinking" &&
     TOOL_CALL_PLACEHOLDER.test(item.text.trim())
   );
 }
@@ -29,15 +40,39 @@ function isLiveToolCall(toolCall: ToolCallRecord): boolean {
   );
 }
 
+function shouldAppendUnanchoredToolCall(
+  toolCall: ToolCallRecord,
+  liveOutput: LiveToolOutput | undefined,
+  live: ConversationLiveState | undefined,
+): boolean {
+  return (
+    isLiveToolCall(toolCall) || Boolean(liveOutput) || Boolean(live?.runId)
+  );
+}
+
+function liveOutputFor(
+  live: ConversationLiveState | undefined,
+  toolCallId: string,
+): LiveToolOutput | undefined {
+  return live?.toolOutputByToolCallId[toolCallId];
+}
+
+function contentIndexOf(item: TranscriptItem | LiveToolCallDraft): number {
+  return typeof item.contentIndex === "number"
+    ? item.contentIndex
+    : Number.MAX_SAFE_INTEGER;
+}
+
 /**
- * Merge plain message entries with structured tool-call records into a single
- * branch-ordered timeline. The transcript/session branch is the source of truth:
- * completed tool cards are anchored at their corresponding tool-result entry,
- * while still-live/unanchored tool calls are appended after the current branch.
+ * Merge persisted branch entries, live assistant content, tool-call drafts, and
+ * live/unanchored tool records into one renderer-facing conversation timeline.
+ * Persisted branch entries remain source of truth; live nodes are transient
+ * first-class transcript nodes appended at the current branch tail.
  */
 export function buildConversationTimeline(
   transcript: TranscriptItem[],
   toolCalls: ToolCallRecord[],
+  live?: ConversationLiveState,
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
   const orderedToolCalls = [...toolCalls].sort(byCreatedAtAscending);
@@ -64,6 +99,7 @@ export function buildConversationTimeline(
         kind: "tool",
         key: toolCall.id,
         toolCall,
+        liveOutput: liveOutputFor(live, toolCall.id),
       });
       consumedToolCallIds.add(toolCall.id);
       return;
@@ -76,14 +112,70 @@ export function buildConversationTimeline(
     });
   });
 
+  const liveNodes = [
+    ...(live?.messages ?? []).map((item) => ({
+      type: "message" as const,
+      item,
+    })),
+    ...(live?.toolDrafts ?? []).map((draft) => ({
+      type: "draft" as const,
+      draft,
+    })),
+  ].sort((a, b) => {
+    const aIndex = contentIndexOf(a.type === "message" ? a.item : a.draft);
+    const bIndex = contentIndexOf(b.type === "message" ? b.item : b.draft);
+    if (aIndex !== bIndex) return aIndex - bIndex;
+    return a.type.localeCompare(b.type);
+  });
+
+  for (const node of liveNodes) {
+    if (node.type === "message") {
+      if (!node.item.text && node.item.displayKind !== "thinking") continue;
+      items.push({
+        kind: "message",
+        key:
+          node.item.id ?? `live-msg-${node.item.contentIndex ?? items.length}`,
+        item: node.item,
+      });
+      continue;
+    }
+
+    const matchingToolCall = node.draft.providerToolCallId
+      ? toolCallsBySourceId.get(node.draft.providerToolCallId)
+      : undefined;
+    if (matchingToolCall) {
+      if (!consumedToolCallIds.has(matchingToolCall.id)) {
+        items.push({
+          kind: "tool",
+          key: matchingToolCall.id,
+          toolCall: matchingToolCall,
+          liveOutput: liveOutputFor(live, matchingToolCall.id),
+        });
+        consumedToolCallIds.add(matchingToolCall.id);
+      }
+      continue;
+    }
+
+    items.push({
+      kind: "tool_draft",
+      key: node.draft.key,
+      draft: node.draft,
+    });
+  }
+
   for (const toolCall of orderedToolCalls) {
-    if (consumedToolCallIds.has(toolCall.id) || !isLiveToolCall(toolCall)) {
+    const liveOutput = liveOutputFor(live, toolCall.id);
+    if (
+      consumedToolCallIds.has(toolCall.id) ||
+      !shouldAppendUnanchoredToolCall(toolCall, liveOutput, live)
+    ) {
       continue;
     }
     items.push({
       kind: "tool",
       key: toolCall.id,
       toolCall,
+      liveOutput,
     });
   }
 

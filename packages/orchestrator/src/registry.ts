@@ -3,6 +3,7 @@ import { listAvailableModels } from "@nerve/agent";
 import type {
   AgentRecord,
   CompactSessionRequest,
+  ConversationSnapshot,
   CreateAgentRequest,
   CreateProjectRequest,
   CreateSessionRequest,
@@ -30,6 +31,7 @@ import {
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
 import { ConversationService } from "./conversation-service.js";
+import { ConversationRuntime } from "./conversation-runtime.js";
 import type { EventBus } from "./events.js";
 import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
@@ -62,6 +64,7 @@ export class RuntimeRegistry {
   readonly agents = new Map<string, AgentRecord>();
   readonly entries = new Map<string, SessionEntry[]>();
   readonly conversations: Map<string, Message[]>;
+  readonly conversationRuntime = new ConversationRuntime();
   readonly runs = new Map<string, AgentRunState>();
   readonly processes: ProcessManager;
   readonly workers: WorkerManager;
@@ -202,6 +205,7 @@ export class RuntimeRegistry {
       this.plans,
       (agentId, mode, reason) =>
         this.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
+      this.conversationRuntime,
     );
     this.agentRunner = new AgentRunner({
       storage,
@@ -220,6 +224,7 @@ export class RuntimeRegistry {
       appendEntry: (input, options) => this.appendEntry(input, options),
       updateSession: (session) => this.updateSession(session),
       messageMirror: this.messageMirror,
+      conversationRuntime: this.conversationRuntime,
     });
   }
 
@@ -310,6 +315,21 @@ export class RuntimeRegistry {
 
   getSessionTree(sessionId: string): SessionTree {
     return this.sessionLifecycle.getSessionTree(sessionId);
+  }
+
+  getConversationSnapshot(sessionId: string): ConversationSnapshot {
+    const cursorSeq = this.events.latestSeq;
+    return {
+      session: this.getSession(sessionId),
+      entries: this.getSessionEntries(sessionId),
+      tree: this.getSessionTree(sessionId),
+      toolCalls: this.tools
+        .listToolCalls()
+        .filter((toolCall) => toolCall.sessionId === sessionId),
+      activeRun: this.conversationRuntime.snapshotForSession(sessionId),
+      cursorSeq,
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   async navigateSession(

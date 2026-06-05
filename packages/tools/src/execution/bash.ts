@@ -74,10 +74,20 @@ export async function executeBash(
     child.stdout?.on("data", (chunk: Buffer) => {
       stdoutChunks.push(chunk);
       combinedChunks.push(chunk);
+      context.onUpdate?.({
+        kind: "output",
+        stream: "stdout",
+        chunk: chunk.toString("utf8"),
+      });
     });
     child.stderr?.on("data", (chunk: Buffer) => {
       stderrChunks.push(chunk);
       combinedChunks.push(chunk);
+      context.onUpdate?.({
+        kind: "output",
+        stream: "stderr",
+        chunk: chunk.toString("utf8"),
+      });
     });
     child.on("error", (error) => {
       if (settled) return;

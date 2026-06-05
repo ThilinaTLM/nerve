@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { ToolCallRecord } from "../../api";
+  import type { LiveToolOutput } from "../../stores/workbench/state.svelte";
   import { parseToolView } from "../../tool-views/tool-result-view";
   import { toolViewComponent } from "../../tool-views/registry";
+  import { trimTextPreview } from "../../utils/text-preview";
 
-  type Props = { toolCall: ToolCallRecord };
-  let { toolCall }: Props = $props();
+  type Props = { toolCall: ToolCallRecord; liveOutput?: LiveToolOutput };
+  let { toolCall, liveOutput }: Props = $props();
 
-  const view = $derived(parseToolView(toolCall));
+  const view = $derived(parseToolView(toolCall, liveOutput));
   const ToolView = $derived(toolViewComponent(view.kind));
 
   const statusLabel: Partial<Record<ToolCallRecord["status"], string>> = {
@@ -34,6 +36,7 @@
         ? "status-warning"
         : `status-${toolCall.status}`,
   );
+  const errorPreview = $derived(toolCall.error ? trimTextPreview(toolCall.error, { headLines: 18, tailLines: 6, maxChars: 6_000 }).text : "");
 </script>
 
 <article class={`tool-card status-${toolCall.status}`}>
@@ -48,7 +51,7 @@
   </div>
 
   {#if toolCall.error}
-    <pre class="tool-pre error">{toolCall.error}</pre>
+    <pre class="tool-pre error">{errorPreview}</pre>
   {/if}
 
   <ToolView {toolCall} {view} />
@@ -60,7 +63,7 @@
     gap: 0.45rem;
     width: 100%;
     padding: 0.65rem 0.75rem;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+    border-bottom: 0;
   }
 
   .tool-head {
@@ -111,16 +114,15 @@
 
   .tool-pre {
     margin: 0;
-    overflow: auto;
-    max-height: 12rem;
+    overflow: visible;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--sidebar);
     color: var(--sidebar-foreground);
-    padding: 0.5rem 0.6rem;
+    padding: 0.48rem 0.58rem;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
-    line-height: 1.5;
+    font-size: 0.6875rem;
+    line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-word;
   }

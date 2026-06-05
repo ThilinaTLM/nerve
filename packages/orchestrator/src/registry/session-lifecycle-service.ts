@@ -107,6 +107,9 @@ export class SessionLifecycleService {
       id: input.id ?? createId("entry"),
       sessionId: input.sessionId,
       agentId: input.agentId,
+      runId: input.runId,
+      turnId: input.turnId,
+      liveMessageId: input.liveMessageId,
       parentEntryId:
         "parentEntryId" in input
           ? (input.parentEntryId ?? undefined)

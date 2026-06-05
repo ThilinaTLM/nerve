@@ -1,7 +1,11 @@
 <script lang="ts">
   import Brain from "@lucide/svelte/icons/brain";
   import Markdown from "../../Markdown.svelte";
-  import type { ThinkingBlockItem } from "../../stores/workbench/state.svelte";
+
+  type ThinkingBlockItem = {
+    text: string;
+    redacted?: boolean;
+  };
 
   type Props = {
     block: ThinkingBlockItem;

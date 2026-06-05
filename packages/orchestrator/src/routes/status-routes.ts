@@ -11,6 +11,7 @@ export function createStatusRoutes(state: OrchestratorState): Hono {
       events: await state.events.replayPersistedSince(
         Number.isFinite(since) ? since : 0,
       ),
+      cursorSeq: state.events.latestSeq,
     });
   });
   app.get("/client-config", (c) =>

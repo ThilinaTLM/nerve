@@ -165,6 +165,24 @@ describe("parseToolView", () => {
     assert.equal(view.allMatches[0]?.matches.length, 2);
   });
 
+  it("truncates long grep preview lines", () => {
+    const longLine = `prefix ${"x".repeat(1_000)} suffix`;
+    const view = parseToolView(
+      toolCall(
+        "grep",
+        { pattern: "prefix" },
+        { matches: [{ path: "dist/app.css", line: 1, text: longLine }] },
+      ),
+    );
+
+    assert.equal(view.kind, "grep");
+    if (view.kind !== "grep") return;
+    const previewText = view.previewMatches[0]?.matches[0]?.text ?? "";
+    assert.ok(previewText.length <= 260);
+    assert.match(previewText, /chars omitted/);
+    assert.equal(view.allMatches[0]?.matches[0]?.text, longLine);
+  });
+
   it("parses find paths", () => {
     const view = parseToolView(
       toolCall(
@@ -329,13 +347,15 @@ describe("parseToolView", () => {
 
   it("parses plan_mode_enter", () => {
     const view = parseToolView(
-      toolCall("plan_mode_enter", {}, {
-        mode: "planning",
-        planDir: "/home/tlm/.pi/plans",
-        contentBlocks: [
-          { type: "text", text: "Plan mode active." },
-        ],
-      }),
+      toolCall(
+        "plan_mode_enter",
+        {},
+        {
+          mode: "planning",
+          planDir: "/home/tlm/.pi/plans",
+          contentBlocks: [{ type: "text", text: "Plan mode active." }],
+        },
+      ),
     );
     assert.equal(view.kind, "plan_mode");
     if (view.kind !== "plan_mode") return;
@@ -357,7 +377,10 @@ describe("parseToolView", () => {
     );
     assert.equal(view.kind, "plan_mode");
     if (view.kind !== "plan_mode") return;
-    assert.equal(view.title, "presented /home/tlm/.pi/plans/feature.md · accepted");
+    assert.equal(
+      view.title,
+      "presented /home/tlm/.pi/plans/feature.md · accepted",
+    );
     assert.equal(view.summary, "Looks good");
   });
 

@@ -52,6 +52,16 @@ export function createSessionRoutes(state: OrchestratorState): Hono {
     ),
   );
   app.get(
+    "/sessions/:sessionId/conversation",
+    routeHandler((c) =>
+      c.json({
+        conversation: state.registry.getConversationSnapshot(
+          c.req.param("sessionId"),
+        ),
+      }),
+    ),
+  );
+  app.get(
     "/sessions/:sessionId/export",
     routeHandler((c) =>
       c.json(state.registry.exportSession(c.req.param("sessionId"))),

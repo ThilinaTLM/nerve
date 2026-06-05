@@ -130,8 +130,8 @@ export const workbenchSelectors = {
   get streamingText() {
     return activeView()?.streamingText ?? "";
   },
-  get liveRun() {
-    return activeView()?.liveRun;
+  get conversationLiveState() {
+    return activeView()?.live;
   },
   get activeComposerText() {
     return activeView()?.composerText ?? "";
