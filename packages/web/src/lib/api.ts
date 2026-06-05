@@ -1,6 +1,7 @@
 import type {
   AgentRecord,
   ApprovalRecord,
+  AudioTranscriptionResponse,
   AuthProviderMetadata,
   ClipboardImageUploadResponse,
   ConversationActiveRunSnapshot,
@@ -94,6 +95,24 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
       body: JSON.stringify(body),
     }),
   );
+}
+
+export async function transcribeAudio(
+  audio: Blob,
+  durationMs: number,
+): Promise<string> {
+  const form = new FormData();
+  form.append("file", audio, "composer-recording.webm");
+  form.append("durationMs", String(Math.max(1, Math.round(durationMs))));
+  return (
+    await parseResponse<AudioTranscriptionResponse>(
+      await fetch("/api/transcription/audio", {
+        method: "POST",
+        credentials: "same-origin",
+        body: form,
+      }),
+    )
+  ).text;
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {

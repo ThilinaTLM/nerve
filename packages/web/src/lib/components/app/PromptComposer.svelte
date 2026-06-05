@@ -1,10 +1,13 @@
 <script lang="ts">
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Lock from "@lucide/svelte/icons/lock";
+  import Mic from "@lucide/svelte/icons/mic";
   import Send from "@lucide/svelte/icons/send";
   import Shield from "@lucide/svelte/icons/shield";
   import Square from "@lucide/svelte/icons/square";
   import Zap from "@lucide/svelte/icons/zap";
   import {
+    transcribeAudio,
     uploadClipboardImage,
     type AgentRecord,
     type ApprovalWithToolCall,
@@ -82,6 +85,14 @@
     onDenyApproval,
   }: Props = $props();
 
+  let recording = $state(false);
+  let transcribing = $state(false);
+  let audioError = $state<string | undefined>();
+  let mediaRecorder: MediaRecorder | undefined;
+  let audioStream: MediaStream | undefined;
+  let recordedChunks: Blob[] = [];
+  let recordingStartedAt = 0;
+
   const pendingApproval = $derived(approvals.length > 0);
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
   const pendingPlan = $derived(Boolean(pendingPlanReview));
@@ -89,6 +100,15 @@
   const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !blockedForReview));
   const editorDisabled = $derived(sending || !canPrompt);
   const submitDisabled = $derived(!canPrompt);
+  const supportsAudioRecording = $derived(
+    typeof navigator !== "undefined" &&
+      Boolean(navigator.mediaDevices?.getUserMedia) &&
+      typeof MediaRecorder !== "undefined",
+  );
+  const micDisabled = $derived(
+    transcribing || (!recording && (!canPrompt || sending || !supportsAudioRecording)),
+  );
+  const displayedError = $derived(error ?? audioError);
 
   function submitComposer() {
     if (!blockedForReview) onSubmit?.();
@@ -130,6 +150,108 @@
   function selectPermission(value: PermissionLevel) {
     if (value !== permissionLevel) onPermissionChange?.(value);
     permissionOpen = false;
+  }
+
+  function preferredRecordingMimeType(): string | undefined {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4",
+      "audio/wav",
+    ];
+    return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
+  }
+
+  function stopAudioTracks() {
+    audioStream?.getTracks().forEach((track) => track.stop());
+    audioStream = undefined;
+  }
+
+  function appendTranscript(transcript: string) {
+    const trimmed = transcript.trim();
+    if (!trimmed) return;
+    const separator = text.trim() ? (/[\s\n]$/.test(text) ? "" : "\n\n") : "";
+    onChange?.(`${text}${separator}${trimmed}`);
+  }
+
+  async function finishRecording(mimeType: string | undefined) {
+    const chunks = recordedChunks;
+    const durationMs = Math.max(1, Date.now() - recordingStartedAt);
+    recordedChunks = [];
+    mediaRecorder = undefined;
+    recording = false;
+    stopAudioTracks();
+
+    if (chunks.length === 0) {
+      audioError = "No audio was captured.";
+      return;
+    }
+
+    const blobType = mimeType || chunks.find((chunk) => chunk.type)?.type || "audio/webm";
+    const audio = new Blob(chunks, { type: blobType });
+    transcribing = true;
+    audioError = undefined;
+    try {
+      appendTranscript(await transcribeAudio(audio, durationMs));
+    } catch (err) {
+      audioError = err instanceof Error ? err.message : String(err);
+    } finally {
+      transcribing = false;
+    }
+  }
+
+  async function startRecording() {
+    if (!supportsAudioRecording) {
+      audioError = "Audio recording is not supported in this browser.";
+      return;
+    }
+    audioError = undefined;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      const mimeType = preferredRecordingMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordedChunks = [];
+      audioStream = stream;
+      mediaRecorder = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+      recorder.onerror = (event) => {
+        audioError = event.error?.message || "Audio recording failed.";
+        stopAudioTracks();
+        recording = false;
+      };
+      recorder.onstop = () => {
+        void finishRecording(recorder.mimeType || mimeType);
+      };
+      recordingStartedAt = Date.now();
+      recording = true;
+      recorder.start();
+    } catch (err) {
+      stopAudioTracks();
+      mediaRecorder = undefined;
+      recording = false;
+      audioError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function stopRecording() {
+    if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+    mediaRecorder.stop();
+  }
+
+  function toggleRecording() {
+    if (recording) {
+      stopRecording();
+    } else {
+      void startRecording();
+    }
   }
 </script>
 
@@ -199,6 +321,22 @@
       />
 
       <div class="composer-send">
+        <Button
+          variant={recording ? "destructive" : "secondary"}
+          size="icon-sm"
+          class={`mic-button${recording ? " recording" : ""}`}
+          type="button"
+          disabled={micDisabled}
+          onclick={toggleRecording}
+          aria-label={recording ? "Stop recording" : "Record voice prompt"}
+          title={recording ? "Stop recording" : transcribing ? "Transcribing audio…" : "Record voice prompt"}
+        >
+          {#if transcribing}
+            <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
+          {:else}
+            <Mic size={14} strokeWidth={2.4} />
+          {/if}
+        </Button>
         {#if sending && !pendingQuestion}
           <Button variant="secondary" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" title="Stop generation">
             <Square size={13} strokeWidth={2.5} />
@@ -212,7 +350,7 @@
     </div>
   </div>
 
-  {#if error}<p class="composer-error">{error}</p>{/if}
+  {#if displayedError}<p class="composer-error">{displayedError}</p>{/if}
 </form>
 
 <style>
@@ -430,15 +568,33 @@
     right: 0.5rem;
     bottom: 0.5rem;
     z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
   }
 
   :global(.send-button),
-  :global(.stop-button) {
+  :global(.stop-button),
+  :global(.mic-button) {
     border-radius: 999px;
   }
 
   :global(.send-button) {
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary-foreground) 18%, transparent) inset;
+  }
+
+  :global(.mic-button.recording) {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent) inset;
+  }
+
+  :global(.spin) {
+    animation: composer-spin 900ms linear infinite;
+  }
+
+  @keyframes composer-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .composer-error {

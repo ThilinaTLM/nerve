@@ -12,6 +12,7 @@ import { createSettingsRoutes } from "./settings-routes.js";
 import { createStatusRoutes } from "./status-routes.js";
 import { createStorageRoutes } from "./storage-routes.js";
 import { createToolRoutes } from "./tool-routes.js";
+import { createTranscriptionRoutes } from "./transcription-routes.js";
 import { createWorkerRoutes } from "./worker-routes.js";
 
 export { createAgentRoutes } from "./agent-routes.js";
@@ -26,6 +27,7 @@ export { createSettingsRoutes } from "./settings-routes.js";
 export { createStatusRoutes } from "./status-routes.js";
 export { createStorageRoutes } from "./storage-routes.js";
 export { createToolRoutes } from "./tool-routes.js";
+export { createTranscriptionRoutes } from "./transcription-routes.js";
 export { createWorkerRoutes } from "./worker-routes.js";
 
 export function mountApiRoutes(app: Hono, state: OrchestratorState): void {
@@ -35,6 +37,7 @@ export function mountApiRoutes(app: Hono, state: OrchestratorState): void {
   app.route("/api", createStorageRoutes(state));
   app.route("/api", createModelRoutes(state));
   app.route("/api", createToolRoutes(state));
+  app.route("/api", createTranscriptionRoutes(state));
   app.route("/api", createWorkerRoutes(state));
   app.route("/api", createProcessRoutes(state));
   app.route("/api", createCompletionRoutes(state));
