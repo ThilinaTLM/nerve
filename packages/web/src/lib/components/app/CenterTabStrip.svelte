@@ -1,14 +1,18 @@
 <script lang="ts">
+  import Copy from "@lucide/svelte/icons/copy";
   import FileText from "@lucide/svelte/icons/file-text";
   import Plus from "@lucide/svelte/icons/plus";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Settings from "@lucide/svelte/icons/settings";
   import Terminal from "@lucide/svelte/icons/terminal";
   import X from "@lucide/svelte/icons/x";
+  import { toast } from "svelte-sonner";
   import type { CenterTabModel } from "../../stores/workbench/selectors.svelte";
   import type { CenterTabIdentity } from "../../stores/workbench/state.svelte";
-  import { shortProjectLabel } from "../../utils/project-tree";
   import { shortenPath } from "../../utils/path";
+  import { shortProjectLabel } from "../../utils/project-tree";
   import { Button } from "$lib/components/ui/button";
+  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
 
   type TabIdentity = CenterTabIdentity;
 
@@ -17,6 +21,10 @@
     homeDir?: string;
     onSelect?: (tab: TabIdentity) => void;
     onClose?: (tab: TabIdentity) => void;
+    onRefresh?: (tab: TabIdentity) => void;
+    onCloseOther?: (tab: TabIdentity) => void;
+    onCloseRight?: (tab: TabIdentity) => void;
+    onCloseLeft?: (tab: TabIdentity) => void;
     onNewConversation?: () => void;
   };
 
@@ -25,6 +33,10 @@
     homeDir,
     onSelect,
     onClose,
+    onRefresh,
+    onCloseOther,
+    onCloseRight,
+    onCloseLeft,
     onNewConversation,
   }: Props = $props();
 
@@ -65,49 +77,130 @@
     if (tab.kind === "file" && tab.file?.truncated) return "Truncated";
     return undefined;
   }
+
+  function tabIndex(tab: CenterTabModel): number {
+    const identity = tabIdentity(tab);
+    return tabs.findIndex((candidate) => {
+      const candidateIdentity = tabIdentity(candidate);
+      return candidateIdentity.kind === identity.kind && candidateIdentity.id === identity.id;
+    });
+  }
+
+  async function copyToClipboard(text: string | undefined, label: string) {
+    if (!text) return;
+    try {
+      await navigator.clipboard?.writeText(text);
+      toast.success(`Copied ${label}`);
+    } catch {
+      toast.error("Could not copy to clipboard");
+    }
+  }
+
+  function tabMenu(tab: CenterTabModel): ContextMenuItem[] {
+    const identity = tabIdentity(tab);
+    const index = tabIndex(tab);
+    const hasLeft = index > 0;
+    const hasRight = index !== -1 && index < tabs.length - 1;
+    const items: ContextMenuItem[] = [];
+
+    if (tab.kind === "file") {
+      const absolutePath = tab.file?.path ?? tab.path;
+      const relativePath = tab.relativePath ?? tab.file?.relativePath;
+      items.push(
+        {
+          label: "Copy Path",
+          icon: Copy,
+          disabled: !absolutePath,
+          onSelect: () => void copyToClipboard(absolutePath, "path"),
+        },
+        {
+          label: "Copy Relative Path",
+          icon: Copy,
+          disabled: !relativePath,
+          onSelect: () => void copyToClipboard(relativePath, "relative path"),
+        },
+      );
+    }
+
+    items.push({
+      label: "Refresh",
+      icon: RefreshCw,
+      disabled: !onRefresh,
+      onSelect: () => onRefresh?.(identity),
+    });
+
+    items.push(
+      { type: "separator" },
+      { label: "Close Pane", icon: X, onSelect: () => onClose?.(identity) },
+      {
+        label: "Close Other Panes",
+        icon: X,
+        disabled: tabs.length <= 1 || !onCloseOther,
+        onSelect: () => onCloseOther?.(identity),
+      },
+      {
+        label: "Close Panes on Right",
+        icon: X,
+        disabled: !hasRight || !onCloseRight,
+        onSelect: () => onCloseRight?.(identity),
+      },
+      {
+        label: "Close Panes on Left",
+        icon: X,
+        disabled: !hasLeft || !onCloseLeft,
+        onSelect: () => onCloseLeft?.(identity),
+      },
+    );
+
+    return items;
+  }
 </script>
 
 <nav class="center-tab-strip" aria-label="Open center tabs">
   <div class="tab-scroller" role="tablist" aria-label="Open center panes">
     {#each tabs as tab (`${tab.kind}:${tab.id}`)}
-      <div
-        class="center-tab"
-        class:active={tab.active}
-        class:running={tab.sending}
-        class:errored={Boolean(tab.error)}
-        class:wide-tab={tab.kind === "process" || tab.kind === "file"}
+      <ContextMenu
+        items={tabMenu(tab)}
+        triggerClass={`center-tab-menu-trigger ${tab.kind === "process" || tab.kind === "file" ? "wide-tab" : ""}`}
       >
-        <button
-          type="button"
-          class="tab-select"
-          role="tab"
-          aria-selected={tab.active}
-          title={tabTitle(tab)}
-          onclick={() => onSelect?.(tabIdentity(tab))}
+        <div
+          class="center-tab"
+          class:active={tab.active}
+          class:running={tab.sending}
+          class:errored={Boolean(tab.error)}
         >
-          <span class="tab-status" title={statusLabel(tab)} aria-hidden="true"></span>
-          {#if tab.kind === "process"}
-            <span class="tab-kind-icon"><Terminal size={12} strokeWidth={2.2} aria-hidden="true" /></span>
-          {:else if tab.kind === "file"}
-            <span class="tab-kind-icon"><FileText size={12} strokeWidth={2.2} aria-hidden="true" /></span>
-          {:else if tab.kind === "settings"}
-            <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
-          {/if}
-          <span class="tab-title">{tabLabel(tab)}</span>
-          {#if tab.kind === "conversation" && tab.hasDraft}
-            <span class="draft-dot" title="Draft" aria-label="Draft"></span>
-          {/if}
-        </button>
-        <button
-          type="button"
-          class="tab-close"
-          aria-label={`Close ${tabLabel(tab)}`}
-          title="Close tab"
-          onclick={() => onClose?.(tabIdentity(tab))}
-        >
-          <X size={13} strokeWidth={2.2} />
-        </button>
-      </div>
+          <button
+            type="button"
+            class="tab-select"
+            role="tab"
+            aria-selected={tab.active}
+            title={tabTitle(tab)}
+            onclick={() => onSelect?.(tabIdentity(tab))}
+          >
+            <span class="tab-status" title={statusLabel(tab)} aria-hidden="true"></span>
+            {#if tab.kind === "process"}
+              <span class="tab-kind-icon"><Terminal size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+            {:else if tab.kind === "file"}
+              <span class="tab-kind-icon"><FileText size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+            {:else if tab.kind === "settings"}
+              <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+            {/if}
+            <span class="tab-title">{tabLabel(tab)}</span>
+            {#if tab.kind === "conversation" && tab.hasDraft}
+              <span class="draft-dot" title="Draft" aria-label="Draft"></span>
+            {/if}
+          </button>
+          <button
+            type="button"
+            class="tab-close"
+            aria-label={`Close ${tabLabel(tab)}`}
+            title="Close tab"
+            onclick={() => onClose?.(tabIdentity(tab))}
+          >
+            <X size={13} strokeWidth={2.2} />
+          </button>
+        </div>
+      </ContextMenu>
     {/each}
   </div>
 
@@ -142,21 +235,26 @@
     scrollbar-width: thin;
   }
 
-  .center-tab {
-    position: relative;
-    display: inline-grid;
+  :global(.center-tab-menu-trigger) {
     flex: 0 1 12.5rem;
-    grid-template-columns: minmax(0, 1fr) auto;
     min-width: 7.5rem;
     max-width: 15rem;
     height: 2rem;
+  }
+
+  :global(.center-tab-menu-trigger.wide-tab) {
+    flex-basis: 13.5rem;
+  }
+
+  .center-tab {
+    position: relative;
+    display: inline-grid;
+    width: 100%;
+    height: 2rem;
+    grid-template-columns: minmax(0, 1fr) auto;
     border-right: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
     background: var(--card);
     color: var(--muted-foreground);
-  }
-
-  .center-tab.wide-tab {
-    flex-basis: 13.5rem;
   }
 
   .center-tab::before {

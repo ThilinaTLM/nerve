@@ -3,6 +3,7 @@ export * from "../events/websocket-client.svelte";
 export * from "./composer-config.svelte";
 export * from "./session-flow.svelte";
 export * from "./settings.svelte";
+export * from "./workbench/center-tab-actions.svelte";
 export * from "./workbench/center-tabs.svelte";
 export * from "./workbench/file-tabs.svelte";
 export * from "./workbench/process-tabs.svelte";

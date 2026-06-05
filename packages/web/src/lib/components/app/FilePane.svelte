@@ -1,23 +1,17 @@
 <script lang="ts">
-  import Clipboard from "@lucide/svelte/icons/clipboard";
   import FileText from "@lucide/svelte/icons/file-text";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import { toast } from "svelte-sonner";
   import { highlightCodeCached } from "../../highlight";
   import type { FileViewState } from "../../stores/workbench/state.svelte";
   import { extname } from "../../tool-views/lang";
-  import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
 
   type Props = {
     view?: FileViewState;
-    homeDir?: string;
-    onRefresh?: (id: string) => void;
   };
 
-  let { view, homeDir: _homeDir, onRefresh }: Props = $props();
-  void _homeDir;
+  let { view }: Props = $props();
 
   let html = $state<string | undefined>(undefined);
   let htmlSignature = $state<string | undefined>(undefined);
@@ -29,14 +23,10 @@
       ? `${language ?? ""}\0${file.text}`
       : undefined,
   );
-  const displayPath = $derived(file?.relativePath ?? view?.path ?? "File");
   const imageSrc = $derived(
     file?.type === "image" && file.dataBase64 && file.mimeType
       ? `data:${file.mimeType};base64,${file.dataBase64}`
       : undefined,
-  );
-  const sizeLabel = $derived(
-    file ? `${file.size.toLocaleString()} bytes${file.truncated ? " · truncated" : ""}` : "",
   );
 
   $effect(() => {
@@ -71,40 +61,9 @@
       cancelled = true;
     };
   });
-
-  async function copyPath() {
-    const path = file?.path ?? view?.path;
-    if (!path) return;
-    try {
-      await navigator.clipboard?.writeText(path);
-      toast.success("Copied file path");
-    } catch {
-      toast.error("Could not copy to clipboard");
-    }
-  }
 </script>
 
 <section class="file-pane">
-  <header class="file-header">
-    <div class="file-heading">
-      <FileText size={16} strokeWidth={2.15} aria-hidden="true" />
-      <div class="file-title-block">
-        <strong>{file?.name ?? "File"}</strong>
-        <span title={file?.path ?? view?.path}>{displayPath}</span>
-      </div>
-    </div>
-    <div class="file-actions">
-      {#if view?.line}<span class="file-size">line {view.line}</span>{/if}
-      {#if sizeLabel}<span class="file-size">{sizeLabel}</span>{/if}
-      <Button variant="ghost" size="sm" onclick={copyPath} disabled={!view}>
-        <Clipboard size={13} strokeWidth={2.2} />Copy path
-      </Button>
-      <Button variant="ghost" size="sm" onclick={() => view && onRefresh?.(view.id)} disabled={!view || view.loading}>
-        <RefreshCw size={13} strokeWidth={2.2} />Refresh
-      </Button>
-    </div>
-  </header>
-
   <ScrollArea class="file-scroll" viewportClass="file-viewport" type="auto">
     {#if !view}
       <div class="file-empty">
@@ -149,60 +108,7 @@
     display: grid;
     height: 100%;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
     background: var(--background);
-  }
-
-  .file-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    min-width: 0;
-    border-bottom: 1px solid var(--border);
-    background: var(--muted);
-    padding: 0.62rem 0.75rem;
-  }
-
-  .file-heading,
-  .file-actions {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: 0.55rem;
-  }
-
-  .file-heading :global(svg) {
-    flex: none;
-    color: var(--primary);
-  }
-
-  .file-title-block {
-    display: grid;
-    min-width: 0;
-    gap: 0.1rem;
-  }
-
-  .file-title-block strong {
-    overflow: hidden;
-    color: var(--foreground);
-    font-size: 0.875rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .file-title-block span,
-  .file-size {
-    overflow: hidden;
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .file-actions {
-    flex: none;
   }
 
   :global(.file-scroll) {
@@ -210,7 +116,7 @@
   }
 
   :global(.file-viewport) {
-    padding: 0.75rem;
+    padding: 1rem;
   }
 
   .file-empty {
@@ -249,21 +155,14 @@
 
   .image-wrap img {
     max-width: 100%;
-    max-height: calc(100vh - 9rem);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--card);
+    max-height: calc(100vh - 7rem);
     object-fit: contain;
   }
 
   .code-view {
     margin: 0;
     overflow: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--sidebar-foreground);
-    padding: 0.75rem;
+    color: var(--foreground);
     font-family: var(--font-mono);
     font-size: 0.75rem;
     line-height: 1.5;

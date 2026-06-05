@@ -29,7 +29,11 @@
     abortActiveRun,
     acceptPendingPlanReview,
     answerUserQuestionById,
+    centerTabsExcept,
+    centerTabsToLeftOf,
+    centerTabsToRightOf,
     closeCenterTab,
+    closeCenterTabs,
     compactActiveSession,
     completeFiles,
     createConversationForDirectory,
@@ -53,6 +57,7 @@
     pruneStoppedProcesses,
     refreshFilePane,
     refreshProcessLogs,
+    refreshSessionView,
     requestPendingPlanChanges,
     removeProcess,
     restartSelectedProcess,
@@ -69,6 +74,7 @@
     systemPromptUrl,
     workbenchSelectors,
     workbenchState,
+    type CenterTabIdentity,
   } from "./lib/stores/workbench.svelte";
 
 
@@ -128,6 +134,25 @@
   function openToolFile(path: string, line?: number) {
     if (!activeProject) return;
     void openFilePane({ projectId: activeProject.id, path, line });
+  }
+
+  function refreshCenterTab(tab: CenterTabIdentity) {
+    if (tab.kind === "conversation") void refreshSessionView(tab.id);
+    else if (tab.kind === "process") void selectCenterTab(tab);
+    else if (tab.kind === "file") void refreshFilePane(tab.id);
+    else void loadSettingsPanel();
+  }
+
+  function closeOtherCenterTabs(tab: CenterTabIdentity) {
+    void closeCenterTabs(centerTabsExcept(tab), tab);
+  }
+
+  function closeCenterTabsRight(tab: CenterTabIdentity) {
+    void closeCenterTabs(centerTabsToRightOf(tab), tab);
+  }
+
+  function closeCenterTabsLeft(tab: CenterTabIdentity) {
+    void closeCenterTabs(centerTabsToLeftOf(tab), tab);
   }
 
   onMount(() => {
@@ -191,6 +216,10 @@
               homeDir={status?.storage.home}
               onSelect={(tab) => void selectCenterTab(tab)}
               onClose={(tab) => void closeCenterTab(tab)}
+              onRefresh={refreshCenterTab}
+              onCloseOther={closeOtherCenterTabs}
+              onCloseRight={closeCenterTabsRight}
+              onCloseLeft={closeCenterTabsLeft}
               onNewConversation={newSession}
             />
             {#if activeCenterTab?.kind === "process"}
@@ -203,11 +232,7 @@
                 onStop={(id) => void stopSelectedProcess(id)}
               />
             {:else if activeCenterTab?.kind === "file"}
-              <FilePane
-                view={activeCenterFileView}
-                homeDir={status?.storage.home}
-                onRefresh={(id) => void refreshFilePane(id)}
-              />
+              <FilePane view={activeCenterFileView} />
             {:else if activeCenterTab?.kind === "settings"}
               <SettingsPage
                 {status}
