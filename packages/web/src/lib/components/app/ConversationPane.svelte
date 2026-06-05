@@ -589,7 +589,6 @@
     }
   }
 
-  .empty-run p,
   .empty-center p {
     margin: 0.25rem 0 0;
     color: var(--foreground);
