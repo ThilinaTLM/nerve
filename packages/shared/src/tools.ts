@@ -79,6 +79,7 @@ export const toolCallRecordSchema = z.object({
   cwd: z.string().min(1),
   status: toolCallStatusSchema,
   approvalId: z.string().startsWith("approval_").optional(),
+  suspensionId: z.string().startsWith("susp_").optional(),
   result: z.unknown().optional(),
   error: z.string().optional(),
   createdAt: z.string().datetime(),

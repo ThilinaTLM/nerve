@@ -4,6 +4,7 @@ import {
   buildSessionContext,
   convertToLlm,
   estimateContextTokens,
+  isAgentToolSuspension,
   NodeExecutionEnv,
   resolveAgentModel,
   Session,
@@ -22,6 +23,7 @@ import {
   createAgentToolsForAgent,
   toolPromptMetadata,
 } from "../agent-tool-adapter.js";
+import type { AgentSuspensionService } from "../agent-suspension-service.js";
 import type { AuthManager } from "../auth.js";
 import type { ConversationService } from "../conversation-service.js";
 import type { ConversationRuntime } from "../conversation-runtime.js";
@@ -44,6 +46,7 @@ export interface AgentRunnerDeps {
   events: EventBus;
   auth: AuthManager;
   tools: ToolService;
+  suspensions: AgentSuspensionService;
   harnessManager: HarnessManager;
   conversationService: ConversationService;
   compactionService: CompactionService;
@@ -84,6 +87,13 @@ export class AgentRunner {
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.deps.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    if (agent.status === "awaiting_user") {
+      throw new HttpError(
+        409,
+        "AGENT_AWAITING_USER",
+        "Agent is awaiting a human-in-the-loop tool response.",
+      );
+    }
     const activeRun = this.deps.runs.get(agent.id);
     if (activeRun) {
       if (request.behavior === "steer" && activeRun.steer) {
@@ -97,6 +107,19 @@ export class AgentRunner {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
     void this.runAgentPrompt(agent, request).catch(() => undefined);
+  }
+
+  async continueAgent(agentId: string): Promise<void> {
+    const agent = this.deps.agents.get(agentId);
+    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    if (this.deps.runs.has(agent.id)) {
+      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+    }
+    void this.runAgentPrompt(
+      agent,
+      { text: "Continue after resolved tool result." },
+      { continue: true },
+    ).catch(() => undefined);
   }
 
   async abortAgent(agentId: string): Promise<void> {
@@ -124,6 +147,7 @@ export class AgentRunner {
   async runAgentPrompt(
     agent: AgentRecord,
     request: PromptRequest,
+    options: { continue?: boolean } = {},
   ): Promise<SessionEntry> {
     if (this.deps.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
@@ -413,7 +437,11 @@ export class AgentRunner {
       });
       await this.deps.setAgentStatus(agent, "running");
 
-      await harness.prompt(request.text, { images: request.images });
+      if (options.continue) {
+        await harness.continue();
+      } else {
+        await harness.prompt(request.text, { images: request.images });
+      }
       const latest = this.deps.agents.get(agent.id);
       if (latest) await this.deps.setAgentStatus(latest, "idle");
       this.deps.runs.delete(agent.id);
@@ -443,6 +471,51 @@ export class AgentRunner {
       });
       return assistantEntry;
     } catch (error) {
+      if (isAgentToolSuspension(error)) {
+        this.deps.runs.delete(agent.id);
+        const latest = this.deps.agents.get(agent.id);
+        const toolCall = this.deps.tools.getToolCall(error.data.toolCallId);
+        const providerToolCallId =
+          toolCall.providerToolCallId ??
+          toolCall.sourceToolCallId ??
+          error.data.toolCall?.id ??
+          error.data.toolCallId;
+        const suspension = await this.deps.suspensions.createSuspension({
+          agentId: agent.id,
+          sessionId: agent.sessionId,
+          projectId: agent.projectId,
+          runId,
+          turnId: currentTurnId,
+          liveMessageId: currentLiveMessageId,
+          assistantEntryId: lastAssistantEntry?.id,
+          toolCallId: toolCall.id,
+          providerToolCallId,
+          toolName: toolCall.toolName as "ask_user" | "plan_mode_present",
+          remainingToolCalls: (error.data.remainingToolCalls ?? []).map(
+            (remaining) => ({
+              id: remaining.id,
+              name: remaining.name,
+              arguments: remaining.arguments,
+            }),
+          ),
+          reason: error.data.reason,
+        });
+        if (latest) await this.deps.setAgentStatus(latest, "awaiting_user");
+        const suspendedAt = new Date().toISOString();
+        await this.deps.events.publish("conversation.run.suspended", {
+          agentId: agent.id,
+          projectId: agent.projectId,
+          runId,
+          sessionId: agent.sessionId,
+          suspensionId: suspension.id,
+          toolCallId: toolCall.id,
+          suspendedAt,
+          reason: error.data.reason,
+        });
+        this.deps.conversationRuntime.completeRun(runId);
+        if (lastAssistantEntry) return lastAssistantEntry;
+        throw new Error("Agent run suspended without an assistant entry.");
+      }
       this.deps.runs.delete(agent.id);
       const aborted = abortRequested;
       const latest = this.deps.agents.get(agent.id);

@@ -1,5 +1,10 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { JsonlSessionStorage, NodeExecutionEnv } from "@nerve/agent";
+import {
+  type AgentMessage,
+  JsonlSessionStorage,
+  NodeExecutionEnv,
+  Session,
+} from "@nerve/agent";
 import type {
   AgentRecord,
   ProjectRecord,
@@ -39,6 +44,22 @@ export class HarnessManager {
     } catch (error) {
       this.warnMirror(error);
     }
+  }
+
+  async appendAgentMessage(
+    agent: AgentRecord,
+    message: AgentMessage,
+  ): Promise<{ id: string; timestamp: string }> {
+    const session = this.getSession(agent.sessionId);
+    const project = this.getProject(session.projectId);
+    const storage = await this.openStorage(session, project.dir);
+    const harnessSession = new Session(storage);
+    const id = await harnessSession.appendMessage(message);
+    const entry = await storage.getEntry(id);
+    return {
+      id,
+      timestamp: entry?.timestamp ?? new Date().toISOString(),
+    };
   }
 
   async appendEntry(entry: SessionEntry): Promise<void> {

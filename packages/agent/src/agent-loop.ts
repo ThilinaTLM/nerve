@@ -11,6 +11,7 @@ import {
   type ToolResultMessage,
   validateToolArguments,
 } from "@earendil-works/pi-ai";
+import { isAgentToolSuspension } from "./suspension.js";
 import type {
   AgentContext,
   AgentEvent,
@@ -459,15 +460,27 @@ async function executeToolCallsSequential(
         isError: preparation.isError,
       };
     } else {
-      const executed = await executePreparedToolCall(preparation, signal, emit);
-      finalized = await finalizeExecutedToolCall(
-        currentContext,
-        assistantMessage,
-        preparation,
-        executed,
-        config,
-        signal,
-      );
+      try {
+        const executed = await executePreparedToolCall(preparation, signal, emit);
+        finalized = await finalizeExecutedToolCall(
+          currentContext,
+          assistantMessage,
+          preparation,
+          executed,
+          config,
+          signal,
+        );
+      } catch (error) {
+        if (isAgentToolSuspension(error)) {
+          const index = toolCalls.findIndex((candidate) => candidate.id === toolCall.id);
+          throw error.withContext({
+            assistantMessage,
+            toolCall,
+            remainingToolCalls: index === -1 ? [] : toolCalls.slice(index + 1),
+          });
+        }
+        throw error;
+      }
     }
 
     await emitToolExecutionEnd(finalized, emit);
@@ -716,6 +729,7 @@ async function executePreparedToolCall(
     return { result, isError: false };
   } catch (error) {
     await Promise.all(updateEvents);
+    if (isAgentToolSuspension(error)) throw error;
     return {
       result: createErrorToolResult(
         error instanceof Error ? error.message : String(error),

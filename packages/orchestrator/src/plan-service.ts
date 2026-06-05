@@ -75,12 +75,11 @@ export class PlanService {
       .sort();
   }
 
-  async presentPlan(
+  async createPlanReview(
     toolCall: ToolCallRecord,
     agent: AgentRecord,
     args: Record<string, unknown>,
-    signal?: AbortSignal,
-  ): Promise<PlanReviewResult> {
+  ): Promise<PlanReviewRecord> {
     const planPath = resolvePlanPath(toolCall.cwd, args.file_path);
     const planDir = this.planDir(agent);
     if (!isPathInsidePlanDir(planDir, planPath)) {
@@ -129,17 +128,30 @@ export class PlanService {
     };
     await this.upsertPlanReview(review);
     await this.events.publish("plan_review.requested", { planReview: review });
+    return review;
+  }
 
+  async presentPlan(
+    toolCall: ToolCallRecord,
+    agent: AgentRecord,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<PlanReviewResult> {
+    const review = await this.createPlanReview(toolCall, agent, args);
     const resolved = await this.waitForPlanReview(review.id, signal);
+    return this.planReviewResult(resolved);
+  }
+
+  planReviewResult(review: PlanReviewRecord): PlanReviewResult {
     return {
-      review: resolved,
-      outcome: resolved.status,
-      feedback: resolved.feedback,
-      mode: this.getAgent(agent.id).mode,
+      review,
+      outcome: review.status,
+      feedback: review.feedback,
+      mode: this.getAgent(review.agentId).mode,
       contentBlocks: [
         {
           type: "text",
-          text: this.planReviewOutcomeMessage(resolved),
+          text: this.planReviewOutcomeMessage(review),
         },
       ],
     };

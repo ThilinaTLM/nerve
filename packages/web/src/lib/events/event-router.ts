@@ -142,6 +142,13 @@ function handleConversationEvent(
         ? undefined
         : String(event.data?.message ?? "Agent error");
       break;
+    case "conversation.run.suspended":
+      view.sending = false;
+      view.streamingText = "";
+      view.live = emptyLiveState();
+      view.activeRun = undefined;
+      view.error = undefined;
+      break;
   }
 
   syncActiveView(view);
@@ -468,6 +475,7 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type === "conversation.run.started" ||
     type === "conversation.run.completed" ||
     type === "conversation.run.failed" ||
+    type === "conversation.run.suspended" ||
     type.startsWith("process.") ||
     shouldRefreshSettings(type)
   );

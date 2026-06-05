@@ -16,7 +16,12 @@ export function statusTone(status: string | undefined): StatusTone {
   if (status === "completed" || status === "stopped" || status === "exited") {
     return "good";
   }
-  if (status === "pending" || status === "stopping" || status === "aborted") {
+  if (
+    status === "pending" ||
+    status === "stopping" ||
+    status === "aborted" ||
+    status === "awaiting_user"
+  ) {
     return "warn";
   }
   return "neutral";

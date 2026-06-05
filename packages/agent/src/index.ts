@@ -40,4 +40,5 @@ export * from "./harness/utils/shell-output.js";
 export * from "./harness/utils/truncate.js";
 export * from "./proxy.js";
 export * from "./runtime.js";
+export * from "./suspension.js";
 export * from "./types.js";

@@ -19,6 +19,7 @@ export type UpdateAgentRequest = z.infer<typeof updateAgentRequestSchema>;
 export const agentStatusSchema = z.enum([
   "idle",
   "running",
+  "awaiting_user",
   "aborted",
   "error",
 ]);

@@ -4,7 +4,8 @@ import {
   streamSimple,
   type UserMessage,
 } from "@earendil-works/pi-ai";
-import { runAgentLoop } from "../agent-loop.js";
+import { runAgentLoop, runAgentLoopContinue } from "../agent-loop.js";
+import { isAgentToolSuspension } from "../suspension.js";
 import type {
   AgentContext,
   AgentEvent,
@@ -455,6 +456,10 @@ export class AgentHarness<
           this.createStreamFn(getTurnState),
         );
       } catch (error) {
+        if (isAgentToolSuspension(error)) {
+          this.phase = "idle";
+          throw error;
+        }
         try {
           return await this.emitRunFailure(
             activeTurnState.model,
@@ -520,6 +525,70 @@ export class AgentHarness<
     options?: { images?: ImageContent[] },
   ): Promise<AssistantMessage> {
     return this.runForegroundTurn(() => ({ text, options }));
+  }
+
+  async continue(): Promise<AssistantMessage> {
+    if (this.phase !== "idle") {
+      throw new AgentHarnessError("busy", "AgentHarness is busy");
+    }
+    this.phase = "turn";
+    const finishRunPromise = this.startRunPromise();
+    let activeTurnState = await this.createTurnState();
+    const abortController = new AbortController();
+    const getTurnState = () => activeTurnState;
+    const setTurnState = (
+      nextTurnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
+    ) => {
+      activeTurnState = nextTurnState;
+    };
+    this.runAbortController = abortController;
+    try {
+      const newMessages = await runAgentLoopContinue(
+        this.createContext(activeTurnState),
+        this.createLoopConfig(getTurnState, setTurnState),
+        (event) => this.handleAgentEvent(event, abortController.signal),
+        abortController.signal,
+        this.createStreamFn(getTurnState),
+      );
+      for (const message of [...newMessages].reverse()) {
+        if (message.role === "assistant") return message;
+      }
+      throw new AgentHarnessError(
+        "invalid_state",
+        "AgentHarness continue completed without an assistant message",
+      );
+    } catch (error) {
+      if (isAgentToolSuspension(error)) {
+        this.phase = "idle";
+        throw error;
+      }
+      try {
+        const failureMessages = await this.emitRunFailure(
+          activeTurnState.model,
+          error,
+          abortController.signal.aborted,
+          abortController.signal,
+        );
+        const assistant = [...failureMessages]
+          .reverse()
+          .find((message): message is AssistantMessage => message.role === "assistant");
+        if (assistant) return assistant;
+      } catch (failureError) {
+        const cause = new AggregateError(
+          [toError(error), toError(failureError)],
+          "Agent continuation failed and failure reporting failed",
+        );
+        throw new AgentHarnessError("unknown", cause.message, cause);
+      }
+      throw normalizeHarnessError(error, "unknown");
+    } finally {
+      try {
+        await this.flushPendingSessionWrites();
+      } finally {
+        this.runAbortController = undefined;
+        finishRunPromise();
+      }
+    }
   }
 
   async skill(

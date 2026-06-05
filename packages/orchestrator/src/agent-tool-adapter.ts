@@ -1,5 +1,9 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import type { AgentTool, AgentToolResult } from "@nerve/agent";
+import {
+  AgentToolSuspension,
+  type AgentTool,
+  type AgentToolResult,
+} from "@nerve/agent";
 import type { AgentRecord, ToolCallRecord, ToolName } from "@nerve/shared";
 import { allToolDefinitions, type CoreToolDefinition } from "@nerve/tools";
 import type { ToolAnchor } from "./conversation-runtime.js";
@@ -128,9 +132,20 @@ function wrapCoreToolDefinition(
           providerToolCallId: sourceToolCallId,
           runId: options.runId,
           anchor: options.resolveToolAnchor?.(sourceToolCallId),
+          durableSuspend: true,
         },
       );
       if (toolCall.status === "completed") return completedToolResult(toolCall);
+      if (
+        toolCall.status === "waiting_for_user" &&
+        (definition.name === "ask_user" || definition.name === "plan_mode_present")
+      ) {
+        throw new AgentToolSuspension({
+          toolCallId: toolCall.id,
+          toolName: definition.name,
+          reason: `Tool ${definition.name} is awaiting user input.`,
+        });
+      }
       const message =
         toolCall.error ?? `Tool ${definition.name} ${toolCall.status}.`;
       throw new Error(message);
@@ -138,7 +153,7 @@ function wrapCoreToolDefinition(
   };
 }
 
-function completedToolResult(
+export function completedToolResult(
   toolCall: ToolCallRecord,
 ): AgentToolResult<unknown> {
   return {
@@ -152,7 +167,7 @@ function completedToolResult(
   };
 }
 
-function contentBlocksFromResult(
+export function contentBlocksFromResult(
   result: unknown,
 ): Array<TextContent | ImageContent> | undefined {
   if (!result || typeof result !== "object") return undefined;
@@ -186,7 +201,7 @@ function contentBlocksFromResult(
   return blocks;
 }
 
-function formatToolResultForModel(toolCall: ToolCallRecord): string {
+export function formatToolResultForModel(toolCall: ToolCallRecord): string {
   const result = toolCall.result;
   if (result === undefined) return "Tool completed.";
   if (

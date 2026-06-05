@@ -14,6 +14,7 @@ export type IdPrefix =
   | "approval"
   | "question"
   | "plan_review"
+  | "susp"
   | "worker"
   | "authflow";
 

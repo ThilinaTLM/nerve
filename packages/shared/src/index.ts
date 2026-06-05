@@ -13,6 +13,7 @@ export * from "./projects.js";
 export * from "./sessions.js";
 export * from "./settings.js";
 export * from "./status.js";
+export * from "./suspensions.js";
 export * from "./tool-results.js";
 export * from "./tools.js";
 export * from "./workers.js";

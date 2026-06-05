@@ -1,4 +1,4 @@
-import type { Message } from "@earendil-works/pi-ai";
+import type { Message, ToolResultMessage } from "@earendil-works/pi-ai";
 import { listAvailableModels } from "@nerve/agent";
 import type {
   AgentRecord,
@@ -19,6 +19,7 @@ import type {
   SessionTree,
   StartProcessRequest,
   StopProcessRequest,
+  ToolCallRecord,
   ToolName,
   UpdateAgentRequest,
   UserQuestionStatus,
@@ -26,12 +27,15 @@ import type {
 import {
   AgentRunner,
   type AgentRunState,
+  agentMessageText,
   MessageMirror,
 } from "./agent-runner/index.js";
+import { AgentSuspensionService } from "./agent-suspension-service.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
 import { ConversationService } from "./conversation-service.js";
 import { ConversationRuntime } from "./conversation-runtime.js";
+import { completedToolResult } from "./agent-tool-adapter.js";
 import type { EventBus } from "./events.js";
 import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
@@ -69,6 +73,7 @@ export class RuntimeRegistry {
   readonly processes: ProcessManager;
   readonly workers: WorkerManager;
   readonly plans: PlanService;
+  readonly suspensions: AgentSuspensionService;
   readonly tools: ToolService;
   private readonly projectRepository: ProjectRepository;
   private readonly sessionRepository: SessionRepository;
@@ -194,6 +199,7 @@ export class RuntimeRegistry {
       (agentId, mode, reason) =>
         this.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
     );
+    this.suspensions = new AgentSuspensionService(storage, events);
     this.tools = new ToolService(
       storage,
       events,
@@ -212,6 +218,7 @@ export class RuntimeRegistry {
       events,
       auth,
       tools: this.tools,
+      suspensions: this.suspensions,
       harnessManager: this.harnessManager,
       conversationService: this.conversationService,
       compactionService: this.compactionService,
@@ -233,6 +240,7 @@ export class RuntimeRegistry {
     await this.processes.hydrate();
     await this.tools.hydrate();
     await this.plans.hydrate();
+    await this.suspensions.hydrate();
     await this.loadProjects();
     await this.loadSessions();
     await this.loadAgents();
@@ -409,7 +417,12 @@ export class RuntimeRegistry {
 
   async acceptPlanReview(reviewId: string, feedback?: string) {
     try {
-      return await this.plans.acceptPlanReview(reviewId, feedback);
+      const review = await this.plans.acceptPlanReview(reviewId, feedback);
+      await this.resumeSuspensionForToolCall(
+        review.toolCallId,
+        this.plans.planReviewResult(review),
+      );
+      return review;
     } catch (error) {
       throw new HttpError(
         404,
@@ -421,7 +434,12 @@ export class RuntimeRegistry {
 
   async requestPlanChanges(reviewId: string, feedback?: string) {
     try {
-      return await this.plans.requestPlanChanges(reviewId, feedback);
+      const review = await this.plans.requestPlanChanges(reviewId, feedback);
+      await this.resumeSuspensionForToolCall(
+        review.toolCallId,
+        this.plans.planReviewResult(review),
+      );
+      return review;
     } catch (error) {
       throw new HttpError(
         404,
@@ -433,7 +451,12 @@ export class RuntimeRegistry {
 
   async discardPlanReview(reviewId: string, feedback?: string) {
     try {
-      return await this.plans.discardPlanReview(reviewId, feedback);
+      const review = await this.plans.discardPlanReview(reviewId, feedback);
+      await this.resumeSuspensionForToolCall(
+        review.toolCallId,
+        this.plans.planReviewResult(review),
+      );
+      return review;
     } catch (error) {
       throw new HttpError(
         404,
@@ -445,7 +468,12 @@ export class RuntimeRegistry {
 
   async answerUserQuestion(questionId: string, answer: string) {
     try {
-      return await this.tools.answerUserQuestion(questionId, answer);
+      const question = await this.tools.answerUserQuestion(questionId, answer);
+      await this.resumeSuspensionForToolCall(
+        question.toolCallId,
+        this.tools.userQuestionResult(question),
+      );
+      return question;
     } catch (error) {
       throw new HttpError(
         404,
@@ -457,7 +485,12 @@ export class RuntimeRegistry {
 
   async dismissUserQuestion(questionId: string, reason?: string) {
     try {
-      return await this.tools.dismissUserQuestion(questionId, reason);
+      const question = await this.tools.dismissUserQuestion(questionId, reason);
+      await this.resumeSuspensionForToolCall(
+        question.toolCallId,
+        this.tools.userQuestionResult(question),
+      );
+      return question;
     } catch (error) {
       throw new HttpError(
         404,
@@ -465,6 +498,112 @@ export class RuntimeRegistry {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  private async resumeSuspensionForToolCall(
+    toolCallId: string,
+    result: unknown,
+  ): Promise<void> {
+    const suspension = this.suspensions.pendingForToolCall(toolCallId);
+    if (!suspension) {
+      const toolCall = this.tools.getToolCall(toolCallId);
+      if (toolCall.status === "waiting_for_user") {
+        await this.tools.completeToolCall(toolCallId, result);
+      }
+      return;
+    }
+    await this.suspensions.updateSuspension(suspension.id, {
+      status: "resuming",
+    });
+    const completed = await this.tools.completeToolCall(toolCallId, result);
+    await this.appendToolResultForToolCall(completed, false);
+    for (const remaining of suspension.remainingToolCalls) {
+      await this.appendSkippedToolResult(suspension.agentId, remaining);
+    }
+    await this.suspensions.updateSuspension(suspension.id, {
+      status: "resumed",
+      resolvedAt: new Date().toISOString(),
+    });
+    await this.agentRunner.continueAgent(suspension.agentId);
+  }
+
+  private async appendToolResultForToolCall(
+    toolCall: ToolCallRecord,
+    isError: boolean,
+  ): Promise<void> {
+    const agent = this.getAgent(toolCall.agentId);
+    const result = completedToolResult(toolCall);
+    const providerToolCallId =
+      toolCall.providerToolCallId ?? toolCall.sourceToolCallId ?? toolCall.id;
+    const message: ToolResultMessage = {
+      role: "toolResult",
+      toolCallId: providerToolCallId,
+      toolName: toolCall.toolName,
+      content: result.content,
+      details: result.details,
+      isError,
+      timestamp: Date.now(),
+    };
+    const appended = await this.harnessManager.appendAgentMessage(agent, message);
+    await this.appendEntry(
+      {
+        id: appended.id,
+        sessionId: toolCall.sessionId,
+        agentId: toolCall.agentId,
+        runId: toolCall.runId,
+        turnId: toolCall.turnId,
+        role: "system",
+        text: agentMessageText(message),
+        details: {
+          toolCallId: message.toolCallId,
+          toolName: message.toolName,
+          isError: message.isError,
+          toolRecordId: toolCall.id,
+          details: message.details,
+        },
+        createdAt: appended.timestamp,
+      },
+      { mirrorToHarness: false },
+    );
+  }
+
+  private async appendSkippedToolResult(
+    agentId: string,
+    remaining: { id: string; name: string },
+  ): Promise<void> {
+    const agent = this.getAgent(agentId);
+    const message: ToolResultMessage = {
+      role: "toolResult",
+      toolCallId: remaining.id,
+      toolName: remaining.name,
+      content: [
+        {
+          type: "text",
+          text: "Tool call was not executed because the agent suspended for user input. Re-issue this tool call if it is still needed after the user response.",
+        },
+      ],
+      details: { skippedForHumanInput: true },
+      isError: true,
+      timestamp: Date.now(),
+    };
+    const appended = await this.harnessManager.appendAgentMessage(agent, message);
+    await this.appendEntry(
+      {
+        id: appended.id,
+        sessionId: agent.sessionId,
+        agentId: agent.id,
+        role: "system",
+        text: agentMessageText(message),
+        details: {
+          toolCallId: message.toolCallId,
+          toolName: message.toolName,
+          isError: message.isError,
+          details: message.details,
+        },
+        createdAt: appended.timestamp,
+      },
+      { mirrorToHarness: false },
+    );
   }
 
   listProcesses() {

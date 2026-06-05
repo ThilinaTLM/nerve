@@ -38,6 +38,17 @@ export interface ConversationRunFailedData {
   failedAt: string;
 }
 
+export interface ConversationRunSuspendedData {
+  sessionId: string;
+  agentId: string;
+  runId: string;
+  projectId: string;
+  suspensionId: string;
+  toolCallId: string;
+  suspendedAt: string;
+  reason: string;
+}
+
 export interface ConversationEntryAppendedData {
   sessionId: string;
   agentId?: string;
@@ -158,6 +169,7 @@ export type ConversationEventData =
   | ConversationRunStartedData
   | ConversationRunCompletedData
   | ConversationRunFailedData
+  | ConversationRunSuspendedData
   | ConversationEntryAppendedData
   | ConversationToolCallUpdatedData
   | ConversationLiveMessageStartedData
@@ -243,6 +255,7 @@ export const conversationEventTypes = [
   "conversation.run.started",
   "conversation.run.completed",
   "conversation.run.failed",
+  "conversation.run.suspended",
   "conversation.entry.appended",
   "conversation.tool_call.updated",
   "conversation.live.message.started",

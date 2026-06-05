@@ -40,6 +40,7 @@ type ToolRequestOptions = {
   liveMessageId?: string;
   contentIndex?: number;
   anchor?: ToolAnchor;
+  durableSuspend?: boolean;
 };
 
 export type SubagentRunResult = {
@@ -55,6 +56,18 @@ export type SubagentRunner = (
 export type ProcessStarter = (
   request: StartProcessRequest,
 ) => Promise<ProcessRecord>;
+
+class ToolExecutionSuspended extends Error {
+  constructor() {
+    super("Tool execution suspended waiting for user input.");
+  }
+}
+
+function isToolExecutionSuspended(
+  error: unknown,
+): error is ToolExecutionSuspended {
+  return error instanceof ToolExecutionSuspended;
+}
 
 export class ToolService {
   readonly toolCalls = new Map<string, ToolCallRecord>();
@@ -325,6 +338,30 @@ export class ToolService {
     return updated;
   }
 
+  userQuestionResult(question: UserQuestionRecord): Record<string, unknown> {
+    return {
+      question: question.question,
+      context: question.context,
+      recommendation: question.recommendation,
+      response: question.answer,
+      dismissed: question.status === "dismissed",
+      dismissedReason: question.dismissedReason,
+    };
+  }
+
+  async completeToolCall(
+    toolCallId: string,
+    result: unknown,
+  ): Promise<ToolCallRecord> {
+    const completed = await this.updateToolCall(toolCallId, {
+      status: "completed",
+      result,
+      error: undefined,
+    });
+    await this.publishToolCallUpdated(completed);
+    return completed;
+  }
+
   getToolCall(toolCallId: string): ToolCallRecord {
     const toolCall = this.toolCalls.get(toolCallId);
     if (!toolCall) throw new Error("Tool call not found.");
@@ -366,6 +403,7 @@ export class ToolService {
       await this.publishToolCallUpdated(completed);
       return completed;
     } catch (error) {
+      if (isToolExecutionSuspended(error)) return this.getToolCall(toolCall.id);
       const failed = await this.updateToolCall(toolCall.id, {
         status: "error",
         error: error instanceof Error ? error.message : String(error),
@@ -504,18 +542,26 @@ export class ToolService {
   private async requestPlanReview(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: ToolRequestOptions = {},
   ): Promise<unknown> {
     const waitingToolCall = await this.updateToolCall(toolCall.id, {
       status: "waiting_for_user",
     });
     await this.publishToolCallUpdated(waitingToolCall);
-    return this.plans.presentPlan(
+    if (!options.durableSuspend) {
+      return this.plans.presentPlan(
+        waitingToolCall,
+        this.getAgent(toolCall.agentId),
+        args,
+        options.signal,
+      );
+    }
+    await this.plans.createPlanReview(
       waitingToolCall,
       this.getAgent(toolCall.agentId),
       args,
-      options.signal,
     );
+    throw new ToolExecutionSuspended();
   }
 
   private async enterPlanMode(
@@ -559,7 +605,7 @@ export class ToolService {
   private async requestUserQuestion(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: ToolRequestOptions = {},
   ): Promise<unknown> {
     const now = new Date().toISOString();
     const question: UserQuestionRecord = {
@@ -586,18 +632,9 @@ export class ToolService {
       toolCall: waitingToolCall,
     });
 
-    const resolved = await this.waitForUserQuestion(
-      question.id,
-      options.signal,
-    );
-    return {
-      question: resolved.question,
-      context: resolved.context,
-      recommendation: resolved.recommendation,
-      response: resolved.answer,
-      dismissed: resolved.status === "dismissed",
-      dismissedReason: resolved.dismissedReason,
-    };
+    if (options.durableSuspend) throw new ToolExecutionSuspended();
+    const resolved = await this.waitForUserQuestion(question.id, options.signal);
+    return this.userQuestionResult(resolved);
   }
 
   private waitForUserQuestion(
