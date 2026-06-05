@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { autocompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
+  import { autocompletion, completionStatus, type Completion, type CompletionContext } from "@codemirror/autocomplete";
   import { markdown } from "@codemirror/lang-markdown";
   import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
   import { Compartment, EditorState, Prec } from "@codemirror/state";
@@ -86,6 +86,12 @@
     return true;
   }
 
+  function submitOnEnter(target: EditorView) {
+    // Let the autocomplete keymap handle Enter when a completion popup is open.
+    if (completionStatus(target.state) === "active") return false;
+    return submit();
+  }
+
   function insertAtSelection(text: string) {
     if (!view) return;
     const selection = view.state.selection.main;
@@ -125,6 +131,7 @@
           completionCompartment.of(completionExtensions()),
           Prec.highest(
             keymap.of([
+              { key: "Enter", run: submitOnEnter },
               { key: "Mod-Enter", run: submit },
               { key: "Ctrl-Enter", run: submit },
               indentWithTab,

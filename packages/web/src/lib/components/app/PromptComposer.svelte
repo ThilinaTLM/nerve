@@ -135,7 +135,7 @@
 <form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
   <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
 
-  <div class="composer-surface">
+  <div class="composer-surface" data-mode={mode}>
     <div class="editor-shell">
       <div class="composer-tabs">
         <Popover
@@ -225,20 +225,20 @@
   .composer {
     display: grid;
     gap: 0.55rem;
-    border-top: 1px solid var(--border);
-    background: var(--card);
+    background: transparent;
     padding: 0.65rem;
-    box-shadow: var(--shadow-lg);
   }
 
   .composer-surface {
     position: relative;
     margin-top: 0.55rem;
     overflow: visible;
-    border: 1px solid var(--border);
+    border: 1px solid var(--input);
     border-radius: var(--radius-md);
     background: var(--background);
-    box-shadow: 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent) inset;
+    box-shadow:
+      0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent) inset,
+      var(--shadow-sm);
     transition:
       border-color 120ms ease,
       box-shadow 120ms ease;
@@ -247,6 +247,15 @@
   .composer-surface:focus-within {
     border-color: var(--primary);
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
+  }
+
+  .composer-surface[data-mode="planning"] {
+    border-color: var(--success);
+  }
+
+  .composer-surface[data-mode="planning"]:focus-within {
+    border-color: var(--success);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--success) 35%, transparent);
   }
 
   .editor-shell {

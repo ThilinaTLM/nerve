@@ -245,9 +245,12 @@
     <div bind:this={transcriptEl} class="transcript" aria-live="polite" onscroll={handleTranscriptScroll}>
       {#if timeline.length === 0 && !streamingText && !sending}
         <div class="empty-run">
-          <Sparkles size={28} strokeWidth={1.7} />
-          <p>No messages yet.</p>
-          <span>Write a prompt below to start this agent conversation.</span>
+          <div class="prompt-line">
+            <span class="prompt-sigil">nerve</span>
+            <span class="prompt-arrow">&#10095;</span>
+            <span class="prompt-caret" aria-hidden="true"></span>
+          </div>
+          <span class="prompt-hint">Type below to wake the agent.</span>
         </div>
       {/if}
 
@@ -276,7 +279,7 @@
             <pre>{argsPreview(node.draft)}</pre>
           </article>
         {:else}
-          <ContextMenu items={messageMenu(node.item)} triggerClass="select-text">
+          <ContextMenu items={messageMenu(node.item)} triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}>
             <article class={`transcript-entry ${node.item.role} ${node.item.displayKind === "thinking" ? "thinking-entry" : ""} ${node.item.live ? "streaming" : ""}`}>
               <div class="message-body">
                 {#if node.item.displayKind === "thinking"}
@@ -300,7 +303,6 @@
         <article class="transcript-entry assistant streaming waiting-entry">
           <div class="message-body">
             <div class="message-content streaming-content">
-              <span>Agent is thinking…</span>
               <span class="stream-caret" aria-hidden="true"></span>
             </div>
           </div>
@@ -383,9 +385,19 @@
     border-bottom: 0;
   }
 
+  :global(.user-msg-trigger) {
+    display: block;
+  }
+
   .transcript-entry.user {
-    border-radius: var(--radius-sm);
-    background: color-mix(in oklab, var(--primary) 8%, transparent);
+    width: fit-content;
+    max-width: 70%;
+    margin-left: auto;
+    border: 1px solid color-mix(in oklab, var(--primary) 16%, var(--border));
+    border-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--primary) 12%, var(--card));
+    padding: 0.55rem 0.8rem;
   }
 
 
@@ -425,7 +437,6 @@
     color: var(--foreground);
   }
 
-  .transcript-entry.streaming:not(.thinking-entry),
   .tool-draft-card {
     background: color-mix(in oklab, var(--primary) 4%, transparent);
   }
@@ -516,6 +527,45 @@
   .empty-center :global(svg) {
     color: var(--primary);
     justify-self: center;
+  }
+
+  .prompt-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    letter-spacing: 0.02em;
+  }
+
+  .prompt-sigil {
+    color: var(--muted-foreground);
+  }
+
+  .prompt-arrow {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .prompt-caret {
+    width: 0.55rem;
+    height: 1.2rem;
+    background: var(--primary);
+    display: inline-block;
+    animation: pulse 1.1s steps(1) infinite;
+  }
+
+  .prompt-hint {
+    margin-top: 0.7rem;
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .prompt-caret {
+      animation: none;
+    }
   }
 
   .empty-run p,
