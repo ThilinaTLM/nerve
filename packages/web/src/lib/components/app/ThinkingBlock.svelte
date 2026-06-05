@@ -28,12 +28,19 @@
     margin: 0 0 0.65rem;
     color: color-mix(in oklab, var(--foreground) 82%, var(--muted-foreground));
     font-size: 0.8125rem;
+    font-style: italic;
     line-height: 1.55;
   }
 
   .thinking-block :global(.markdown) {
     color: inherit;
     font-size: inherit;
+  }
+
+  .thinking-block :global(code),
+  .thinking-block :global(pre),
+  .thinking-block :global(.code-block) {
+    font-style: normal;
   }
 
   .thinking-block.live :global(.markdown > :last-child)::after,
