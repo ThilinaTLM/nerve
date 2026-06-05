@@ -436,6 +436,53 @@ describe("parseToolView", () => {
     assert.equal(view.summary, "Done");
   });
 
+  it("parses web_search results", () => {
+    const view = parseToolView(
+      toolCall(
+        "web_search",
+        { query: "nerve agent" },
+        {
+          content:
+            "**Answer:** It searches.\n\n### Result\nhttps://example.test",
+          details: {
+            query: "nerve agent",
+            answer: "It searches.",
+            results: [{ title: "Result", url: "https://example.test" }],
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "web_search");
+    if (view.kind !== "web_search") return;
+    assert.equal(view.answer, "It searches.");
+    assert.equal(view.results.length, 1);
+    assert.equal(view.title, "nerve agent · 1 result");
+  });
+
+  it("parses web_fetch details and preview", () => {
+    const view = parseToolView(
+      toolCall(
+        "web_fetch",
+        { url: "https://example.test" },
+        {
+          content: "# Example\n\nFetched markdown.",
+          details: {
+            url: "https://example.test",
+            status: 200,
+            contentType: "text/html; charset=utf-8",
+            size: 120,
+            converted: true,
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "web_fetch");
+    if (view.kind !== "web_fetch") return;
+    assert.equal(view.status, 200);
+    assert.equal(view.converted, true);
+    assert.match(view.preview ?? "", /Fetched markdown/);
+  });
+
   it("falls back to generic for a malformed result", () => {
     const view = parseToolView(
       toolCall("grep", { pattern: "x" }, "not an object"),

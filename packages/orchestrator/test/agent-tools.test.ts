@@ -11,7 +11,7 @@ import {
 import { activeToolNamesForAgent } from "../src/agent-tool-adapter.js";
 
 describe("agent tool definitions", () => {
-  it("matches Pi core built-in tool names and derives descriptors from definitions", () => {
+  it("matches shared core tool names and derives descriptors from definitions", () => {
     const schemaNames = new Set(coreToolNameSchema.options);
     const definitionNames = new Set(
       coreToolDefinitions.map((tool) => tool.name),
@@ -35,6 +35,8 @@ describe("agent tool definitions", () => {
         "ask_user",
         "todos_set",
         "todos_get",
+        "web_search",
+        "web_fetch",
       ],
     );
 
@@ -50,7 +52,7 @@ describe("agent tool definitions", () => {
     }
   });
 
-  it("uses Pi-compatible default active tools", () => {
+  it("uses expected default active tools", () => {
     const codingTools = [
       "read",
       "bash",
@@ -68,6 +70,8 @@ describe("agent tool definitions", () => {
       "ask_user",
       "todos_set",
       "todos_get",
+      "web_search",
+      "web_fetch",
       "plan_mode_enter",
     ];
     const planningTools = [
@@ -84,6 +88,8 @@ describe("agent tool definitions", () => {
       "ask_user",
       "todos_set",
       "todos_get",
+      "web_search",
+      "web_fetch",
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",

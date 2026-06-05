@@ -14,6 +14,8 @@ import {
   todosResultSchema,
   toolExecutionResultSchema,
   truncationDetailsSchema,
+  webFetchResultDetailsSchema,
+  webSearchResultDetailsSchema,
 } from "@nerve/shared";
 import type { ToolCallRecord } from "../api";
 import type { LiveToolOutput } from "../stores/workbench/state.svelte";
@@ -134,6 +136,25 @@ export type ToolView =
       title?: string;
       summary?: string;
       planPath?: string;
+    }
+  | {
+      kind: "web_search";
+      title?: string;
+      query?: string;
+      answer?: string;
+      results: Array<{ title: string; url: string }>;
+      preview?: string;
+    }
+  | {
+      kind: "web_fetch";
+      title?: string;
+      url?: string;
+      status?: number;
+      contentType?: string;
+      size?: number;
+      savedTo?: string;
+      converted: boolean;
+      preview?: string;
     }
   | { kind: "generic" };
 
@@ -565,6 +586,57 @@ export function parseToolView(
         kind: "plan_mode",
         title: "exited plan mode",
         summary: reason,
+      };
+    }
+
+    case "web_search": {
+      const details = webSearchResultDetailsSchema.safeParse(result?.details);
+      const query = details.success
+        ? details.data.query
+        : stringField(args.query);
+      const results = details.success ? details.data.results : [];
+      const preview = result?.content
+        ? trimTextPreview(result.content, {
+            headLines: 8,
+            tailLines: 2,
+            maxChars: 2_000,
+          }).text
+        : undefined;
+      return {
+        kind: "web_search",
+        title: query
+          ? `${truncateTitle(query)} · ${results.length} result${results.length === 1 ? "" : "s"}`
+          : undefined,
+        query,
+        answer: details.success ? details.data.answer : undefined,
+        results,
+        preview,
+      };
+    }
+
+    case "web_fetch": {
+      const details = webFetchResultDetailsSchema.safeParse(result?.details);
+      const data = details.success ? details.data : undefined;
+      const url = data?.url ?? stringField(args.url);
+      const preview = result?.content
+        ? trimTextPreview(result.content, {
+            headLines: 10,
+            tailLines: 4,
+            maxChars: 4_000,
+          }).text
+        : undefined;
+      return {
+        kind: "web_fetch",
+        title: url
+          ? `${truncateTitle(url)}${data?.status ? ` · ${data.status}` : ""}`
+          : undefined,
+        url,
+        status: data?.status,
+        contentType: data?.contentType,
+        size: data?.size,
+        savedTo: data?.savedTo,
+        converted: data?.converted ?? false,
+        preview,
       };
     }
 

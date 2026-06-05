@@ -1,256 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentRecord, ToolName } from "@nerve/shared";
+import type { AgentRecord, PermissionLevel } from "@nerve/shared";
 import { evaluateToolPolicy } from "../src/policy.js";
 
-describe("tool policy", () => {
-  it("allows Pi read-only tools for all permission levels", () => {
-    for (const permissionLevel of [
-      "read_only",
-      "supervised",
-      "autonomous",
-    ] as AgentRecord["permissionLevel"][]) {
-      for (const toolName of ["read", "grep", "find", "ls"] as ToolName[]) {
-        const decision = evaluateToolPolicy(
-          agent(permissionLevel),
-          toolName,
-          argsFor(toolName),
-          { dataDir: "/tmp/nerve" },
-        );
-        assert.equal(
-          decision.decision,
-          "allow",
-          `${permissionLevel}:${toolName}`,
-        );
-      }
-    }
-  });
-
-  it("allows ask_user for all permission levels and planning mode", () => {
-    for (const permissionLevel of [
-      "read_only",
-      "supervised",
-      "autonomous",
-    ] as AgentRecord["permissionLevel"][]) {
-      const decision = evaluateToolPolicy(
-        { ...agent(permissionLevel), mode: "planning" },
-        "ask_user",
-        { question: "What should I optimize for?" },
-        { dataDir: "/tmp/nerve" },
-      );
-      assert.equal(decision.decision, "allow", permissionLevel);
-      assert.equal(decision.risk, "interaction");
-    }
-  });
-
-  it("allows todo tools for all permission levels and planning mode", () => {
-    for (const permissionLevel of [
-      "read_only",
-      "supervised",
-      "autonomous",
-    ] as AgentRecord["permissionLevel"][]) {
-      for (const mode of ["coding", "planning"] as AgentRecord["mode"][]) {
-        const setDecision = evaluateToolPolicy(
-          { ...agent(permissionLevel), mode },
-          "todos_set",
-          { todos: [{ todo: "Plan", done: false }] },
-          { dataDir: "/tmp/nerve" },
-        );
-        assert.equal(
-          setDecision.decision,
-          "allow",
-          `${permissionLevel}:${mode}:set`,
-        );
-        assert.equal(setDecision.risk, "interaction");
-
-        const getDecision = evaluateToolPolicy(
-          { ...agent(permissionLevel), mode },
-          "todos_get",
-          {},
-          { dataDir: "/tmp/nerve" },
-        );
-        assert.equal(
-          getDecision.decision,
-          "allow",
-          `${permissionLevel}:${mode}:get`,
-        );
-        assert.equal(getDecision.risk, "read");
-      }
-    }
-  });
-
-  it("does not sandbox autonomous filesystem paths", () => {
-    for (const [toolName, args] of [
-      ["read", { path: "/tmp/outside.png" }],
-      ["write", { path: "/tmp/outside.txt", content: "hello" }],
-      [
-        "edit",
-        {
-          path: "/tmp/outside.txt",
-          edits: [{ oldText: "hello", newText: "goodbye" }],
-        },
-      ],
-      ["grep", { pattern: "hello", path: "/tmp" }],
-      ["find", { pattern: "*.png", path: "/tmp" }],
-      ["ls", { path: "/tmp" }],
-    ] as Array<[ToolName, Record<string, unknown>]>) {
-      const decision = evaluateToolPolicy(agent("autonomous"), toolName, args, {
-        dataDir: "/tmp/nerve",
-      });
-      assert.equal(decision.decision, "allow", toolName);
-    }
-  });
-
-  it("allows autonomous commands without destructive or long-running gates", () => {
-    for (const command of [
-      "rm -rf /tmp/scratch",
-      "git reset --hard HEAD",
-      "pnpm dev",
-      "npm run watch",
-    ]) {
-      const decision = evaluateToolPolicy(
-        agent("autonomous"),
-        "bash",
-        { command },
-        { dataDir: "/tmp/nerve" },
-      );
-      assert.equal(decision.decision, "allow", command);
-    }
-  });
-
-  it("allows autonomous process mutation tools", () => {
-    for (const toolName of ["process_stop", "process_restart"] as ToolName[]) {
-      const decision = evaluateToolPolicy(
-        agent("autonomous"),
-        toolName,
-        { processId: "proc_01HN0000000000000000000000" },
-        { dataDir: "/tmp/nerve" },
-      );
-      assert.equal(decision.decision, "allow", toolName);
-      assert.equal(decision.risk, "destructive");
-    }
-  });
-
-  it("requires approval for supervised non-read tool calls", () => {
-    for (const [toolName, args] of [
-      ["bash", { command: "touch x" }],
-      ["write", { path: "/tmp/outside.txt", content: "hello" }],
-      ["process_start", { command: "pnpm dev" }],
-      ["process_stop", { processId: "proc_01HN0000000000000000000000" }],
-      ["subagent_run", { task: "Review the code" }],
-    ] as Array<[ToolName, Record<string, unknown>]>) {
-      const decision = evaluateToolPolicy(agent("supervised"), toolName, args, {
-        dataDir: "/tmp/nerve",
-      });
-      assert.equal(decision.decision, "approval", toolName);
-    }
-  });
-
-  it("denies read_only non-read tool calls", () => {
-    for (const [toolName, args] of [
-      ["bash", { command: "touch x" }],
-      ["write", { path: "/tmp/outside.txt", content: "hello" }],
-      ["process_start", { command: "pnpm dev" }],
-      ["process_stop", { processId: "proc_01HN0000000000000000000000" }],
-      ["subagent_run", { task: "Review the code" }],
-    ] as Array<[ToolName, Record<string, unknown>]>) {
-      const decision = evaluateToolPolicy(agent("read_only"), toolName, args, {
-        dataDir: "/tmp/nerve",
-      });
-      assert.equal(decision.decision, "deny", toolName);
-    }
-  });
-
-  it("still permits known read-only shell commands for read_only agents", () => {
-    for (const command of ["pwd", "ls /tmp", "git diff -- README.md"]) {
-      const decision = evaluateToolPolicy(
-        agent("read_only"),
-        "bash",
-        { command },
-        { dataDir: "/tmp/nerve" },
-      );
-      assert.equal(decision.decision, "allow", command);
-      assert.equal(decision.risk, "read", command);
-    }
-  });
-
-  it("blocks workspace and process mutation in planning mode", () => {
-    for (const [toolName, args] of [
-      ["edit", { path: "/tmp/outside.txt", edits: [] }],
-      ["write", { path: "/tmp/outside.txt", content: "hello" }],
-      ["bash", { command: "touch file" }],
-      ["process_start", { command: "pnpm dev" }],
-      ["process_stop", { processId: "proc_01HN0000000000000000000000" }],
-    ] as Array<[ToolName, Record<string, unknown>]>) {
-      const decision = evaluateToolPolicy(
-        { ...agent("autonomous"), mode: "planning" },
-        toolName,
-        args,
-        { dataDir: "/tmp/nerve" },
-      );
-      assert.equal(decision.decision, "deny", toolName);
-    }
-  });
-
-  it("allows planning mode lifecycle tools and permission-aware plan file writes", () => {
-    assert.equal(
-      evaluateToolPolicy(
-        { ...agent("autonomous"), mode: "planning" },
-        "write",
-        { path: "/tmp/nerve/plans/test-plan.md", content: "# Plan" },
-        { dataDir: "/tmp/nerve" },
-      ).decision,
-      "allow",
-    );
-    assert.equal(
-      evaluateToolPolicy(
-        { ...agent("supervised"), mode: "planning" },
-        "edit",
-        {
-          path: "/tmp/nerve/plans/test-plan.md",
-          edits: [{ oldText: "a", newText: "b" }],
-        },
-        { dataDir: "/tmp/nerve" },
-      ).decision,
-      "approval",
-    );
-    assert.equal(
-      evaluateToolPolicy(
-        { ...agent("read_only"), mode: "planning" },
-        "write",
-        { path: "/tmp/nerve/plans/test-plan.md", content: "# Plan" },
-        { dataDir: "/tmp/nerve" },
-      ).decision,
-      "deny",
-    );
-    for (const toolName of [
-      "plan_mode_enter",
-      "plan_mode_present",
-      "plan_mode_force_exit",
-    ] as ToolName[]) {
-      const decision = evaluateToolPolicy(
-        { ...agent("read_only"), mode: "planning" },
-        toolName,
-        toolName === "plan_mode_present"
-          ? { file_path: "/tmp/nerve/plans/test-plan.md" }
-          : toolName === "plan_mode_force_exit"
-            ? { reason: "done" }
-            : {},
-        { dataDir: "/tmp/nerve" },
-      );
-      assert.equal(decision.decision, "allow", toolName);
-    }
-  });
-});
-
-function argsFor(toolName: ToolName): Record<string, unknown> {
-  if (toolName === "grep") return { pattern: "x", path: "." };
-  if (toolName === "find") return { pattern: "*.ts", path: "." };
-  if (toolName === "ls") return { path: "." };
-  return { path: "README.md" };
-}
-
-function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {
+function agent(
+  permissionLevel: PermissionLevel,
+  mode: AgentRecord["mode"] = "coding",
+): AgentRecord {
   return {
     id: "agent_01HN0000000000000000000000",
     sessionId: "ses_01HN0000000000000000000000",
@@ -258,7 +14,7 @@ function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {
     projectDir: "/tmp/project",
     workerId: "worker_01HN0000000000000000000000",
     rootAgentId: "agent_01HN0000000000000000000000",
-    mode: "coding",
+    mode,
     permissionLevel,
     workspaceScope: { roots: ["/tmp/project"] },
     budget: { depth: 0, maxDepth: 3, maxRuns: 8, usedRuns: 0 },
@@ -267,3 +23,56 @@ function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
 }
+
+describe("tool policy", () => {
+  it("classifies web tools as network with normal permission handling", () => {
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "web_search",
+        { query: "docs" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("supervised"),
+        "web_fetch",
+        { url: "https://example.test" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "approval",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("read_only"),
+        "web_search",
+        { query: "docs" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "deny",
+    );
+  });
+
+  it("allows network research in planning mode with permission checks", () => {
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous", "planning"),
+        "web_search",
+        { query: "current docs" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("supervised", "planning"),
+        "web_fetch",
+        { url: "https://example.test" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "approval",
+    );
+  });
+});

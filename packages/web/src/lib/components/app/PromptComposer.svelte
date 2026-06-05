@@ -187,13 +187,6 @@
         />
       </div>
 
-      {#if pendingApproval}
-        <div class="approval-waiting" aria-live="polite">Waiting for approval to proceed…</div>
-      {:else if pendingPlan}
-        <div class="approval-waiting" aria-live="polite">Waiting for plan review in the transcript…</div>
-      {:else if pendingQuestion}
-        <div class="approval-waiting" aria-live="polite">Waiting for your reply in the transcript…</div>
-      {/if}
       <CodeMirrorComposer
         value={text}
         disabled={editorDisabled}
@@ -257,6 +250,19 @@
   .composer-surface[data-mode="planning"]:focus-within {
     border-color: var(--success);
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--success) 35%, transparent);
+  }
+
+  .composer[data-pending-approval="true"] .composer-surface,
+  .composer[data-pending-question="true"] .composer-surface,
+  .composer[data-pending-plan="true"] .composer-surface {
+    border-color: var(--warning);
+  }
+
+  .composer[data-pending-approval="true"] .composer-surface:focus-within,
+  .composer[data-pending-question="true"] .composer-surface:focus-within,
+  .composer[data-pending-plan="true"] .composer-surface:focus-within {
+    border-color: var(--warning);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--warning) 45%, transparent);
   }
 
   .editor-shell {
@@ -407,22 +413,6 @@
 
   .permission-row.active .permission-row-detail {
     color: color-mix(in oklab, var(--primary) 75%, var(--muted-foreground));
-  }
-
-  .approval-waiting {
-    position: absolute;
-    z-index: 3;
-    top: 0.4rem;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 1px solid var(--accent);
-    border-radius: 999px;
-    background: var(--card);
-    color: var(--primary);
-    padding: 0.12rem 0.55rem;
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    white-space: nowrap;
   }
 
   .editor-shell :global(.composer-editor) {

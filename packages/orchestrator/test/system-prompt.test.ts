@@ -97,22 +97,34 @@ describe("Nerve system prompt", () => {
     const prompt = buildNerveSystemPrompt({
       cwd: "/tmp/project",
       mode: "planning",
-      selectedTools: [
-        "read",
-        "bash",
-        "edit",
-        "write",
-        "plan_mode_present",
-      ],
+      selectedTools: ["read", "bash", "edit", "write", "plan_mode_present"],
       customPrompt: "Custom base prompt.",
       planDir: "/tmp/nerve/plans",
     });
 
     assert.match(prompt, /Custom base prompt\./);
     assert.match(prompt, /\[PLAN MODE ACTIVE\]/);
-    assert.match(prompt, /WRITE and EDIT only plan files inside \/tmp\/nerve\/plans\//);
+    assert.match(
+      prompt,
+      /WRITE and EDIT only plan files inside \/tmp\/nerve\/plans\//,
+    );
     assert.match(prompt, /plan_mode_present using the plan file path/);
     assert.doesNotMatch(prompt, /plan_write/);
+  });
+
+  it("exposes web tools to coding/planning agents but not read-only agents", () => {
+    assert.ok(activeToolNamesForAgent(testAgent()).includes("web_search"));
+    assert.ok(activeToolNamesForAgent(testAgent()).includes("web_fetch"));
+    assert.ok(
+      activeToolNamesForAgent(testAgent({ mode: "planning" })).includes(
+        "web_search",
+      ),
+    );
+    assert.ok(
+      !activeToolNamesForAgent(
+        testAgent({ permissionLevel: "read_only" }),
+      ).includes("web_search"),
+    );
   });
 
   it("does not expose orchestration metadata", () => {
@@ -132,7 +144,7 @@ describe("Nerve system prompt", () => {
   });
 });
 
-function testAgent(): AgentRecord {
+function testAgent(overrides: Partial<AgentRecord> = {}): AgentRecord {
   return {
     id: "agent_01HN0000000000000000000000",
     sessionId: "ses_01HN0000000000000000000000",
@@ -147,5 +159,6 @@ function testAgent(): AgentRecord {
     status: "idle",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
   };
 }

@@ -72,7 +72,26 @@ export const grepMatchSchema = z.object({
 });
 export type GrepMatch = z.infer<typeof grepMatchSchema>;
 
-/** File-tool result envelope (read/write/edit/grep/find/ls/bash). */
+export const webSearchResultDetailsSchema = z.object({
+  query: z.string(),
+  answer: z.string().optional(),
+  results: z.array(z.object({ title: z.string(), url: z.string() })),
+});
+export type WebSearchResultDetails = z.infer<
+  typeof webSearchResultDetailsSchema
+>;
+
+export const webFetchResultDetailsSchema = z.object({
+  url: z.string(),
+  status: z.number(),
+  contentType: z.string(),
+  size: z.number(),
+  savedTo: z.string().optional(),
+  converted: z.boolean(),
+});
+export type WebFetchResultDetails = z.infer<typeof webFetchResultDetailsSchema>;
+
+/** File-tool result envelope (read/write/edit/grep/find/ls/bash/web_fetch/web_search). */
 export const toolExecutionResultSchema = z.object({
   content: z.string().optional(),
   contentBlocks: z.array(toolContentBlockSchema).optional(),

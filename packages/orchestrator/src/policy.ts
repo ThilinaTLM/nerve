@@ -154,6 +154,34 @@ function evaluatePlanningModePolicy(
     };
   }
 
+  if (risk === "network") {
+    if (agent.permissionLevel === "read_only") {
+      return {
+        decision: "deny",
+        risk,
+        reason: "read_only agents cannot run network tool calls.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (agent.permissionLevel === "supervised") {
+      return {
+        decision: "approval",
+        risk,
+        reason: "Supervised agent requires approval for network tool calls.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    return {
+      decision: "allow",
+      risk,
+      reason: "Planning-mode network research tool call is allowed.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
   if (toolName === "edit" || toolName === "write") {
     let targetPath: string;
     try {
@@ -274,6 +302,9 @@ function classifyRisk(
   }
   if (toolName === "process_stop" || toolName === "process_restart") {
     return "destructive";
+  }
+  if (toolName === "web_search" || toolName === "web_fetch") {
+    return "network";
   }
   if (toolName === "bash" && typeof args.command === "string") {
     if (hasDangerousCommandPattern(args.command)) return "destructive";

@@ -6,6 +6,8 @@ import { executeFind } from "./find.js";
 import { executeLs } from "./list.js";
 import { executeRead } from "./read.js";
 import { executeGrep } from "./search.js";
+import { executeWebFetch } from "./web-fetch.js";
+import { executeWebSearch } from "./web-search.js";
 import { executeWrite } from "./write.js";
 
 export async function executeTool(
@@ -28,6 +30,10 @@ export async function executeTool(
       return executeFind(args, context);
     case "ls":
       return executeLs(args, context);
+    case "web_search":
+      return executeWebSearch(args, context);
+    case "web_fetch":
+      return executeWebFetch(args, context);
     case "ask_user":
       throw new Error(
         "ask_user is executed by the orchestrator user-interaction service.",

@@ -29,5 +29,7 @@ describe("public source exports", () => {
     assert.equal(toolRiskForName("ask_user"), "interaction");
     assert.equal(toolRiskForName("todos_set"), "interaction");
     assert.equal(toolRiskForName("todos_get"), "read");
+    assert.equal(toolRiskForName("web_search"), "network");
+    assert.equal(toolRiskForName("web_fetch"), "network");
   });
 });

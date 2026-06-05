@@ -96,6 +96,9 @@ export class ToolService {
     private readonly startProcess: ProcessStarter,
     private readonly getAgent: (agentId: string) => AgentRecord,
     private readonly runSubagent: SubagentRunner,
+    private readonly getApiKey: (
+      provider: string,
+    ) => Promise<string | undefined>,
     private readonly plans: PlanService,
     private readonly setAgentMode: (
       agentId: string,
@@ -542,6 +545,8 @@ export class ToolService {
         return executeTool(toolCall.toolName, args, {
           cwd: toolCall.cwd,
           signal: options.signal,
+          dataDir: this.storage.paths.home,
+          getApiKey: this.getApiKey,
           onUpdate: (update) =>
             this.publishToolExecutionUpdate(toolCall, update, options.runId),
         });

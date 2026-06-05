@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@nerve/shared": "workspace:*",
+    "node-html-markdown": "^2.0.0",
     "typebox": "1.1.38"
   },
   "devDependencies": {

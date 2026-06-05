@@ -62,6 +62,8 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
       "ask_user",
       "todos_set",
       "todos_get",
+      "web_search",
+      "web_fetch",
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",
@@ -84,6 +86,8 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
     "ask_user",
     "todos_set",
     "todos_get",
+    "web_search",
+    "web_fetch",
     "plan_mode_enter",
   ];
 }

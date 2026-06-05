@@ -14,6 +14,8 @@ export type ToolExecutionOutputUpdate = {
 export type ToolExecutionContext = {
   cwd: string;
   signal?: AbortSignal;
+  dataDir?: string;
+  getApiKey?: (provider: string) => Promise<string | undefined>;
   onUpdate?: (update: ToolExecutionOutputUpdate) => void;
 };
 
@@ -63,4 +65,14 @@ export type GrepToolArgs = ToolPathArgs & {
   literal?: unknown;
   context?: unknown;
   limit?: unknown;
+};
+
+export type WebSearchToolArgs = {
+  query?: unknown;
+  max_results?: unknown;
+};
+
+export type WebFetchToolArgs = {
+  url?: unknown;
+  raw?: unknown;
 };

@@ -33,6 +33,13 @@ export function providerOAuthSecretName(provider: string): string {
   return `provider:${provider}:oauth`;
 }
 
+function displayNameForProvider(provider: string): string {
+  const known: Record<string, string> = {
+    tavily: "Tavily",
+  };
+  return known[provider] ?? provider;
+}
+
 export function providerEnvVarName(provider: string): string {
   const known: Record<string, string> = {
     anthropic: "ANTHROPIC_API_KEY",
@@ -40,6 +47,7 @@ export function providerEnvVarName(provider: string): string {
     groq: "GROQ_API_KEY",
     openai: "OPENAI_API_KEY",
     openrouter: "OPENROUTER_API_KEY",
+    tavily: "TAVILY_API_KEY",
     xai: "XAI_API_KEY",
   };
   return (
@@ -151,6 +159,7 @@ export class AuthManager {
     for (const model of models) {
       if (model.provider !== "nerve-faux") providers.add(model.provider);
     }
+    providers.add("tavily");
     for (const provider of oauthProviders.keys()) {
       if (provider === "openai-codex" || provider === "anthropic") {
         providers.add(provider);
@@ -169,7 +178,7 @@ export class AuthManager {
         const credential = await this.getCredential(provider);
         return {
           provider,
-          displayName: oauthProvider?.name ?? provider,
+          displayName: oauthProvider?.name ?? displayNameForProvider(provider),
           supportsApiKey: supportsStoredApiKey(provider),
           supportsOAuth:
             provider === "openai-codex" || provider === "anthropic",

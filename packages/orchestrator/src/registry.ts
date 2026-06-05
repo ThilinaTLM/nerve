@@ -31,11 +31,11 @@ import {
   MessageMirror,
 } from "./agent-runner/index.js";
 import { AgentSuspensionService } from "./agent-suspension-service.js";
+import { completedToolResult } from "./agent-tool-adapter.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
-import { ConversationService } from "./conversation-service.js";
 import { ConversationRuntime } from "./conversation-runtime.js";
-import { completedToolResult } from "./agent-tool-adapter.js";
+import { ConversationService } from "./conversation-service.js";
 import type { EventBus } from "./events.js";
 import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
@@ -208,6 +208,7 @@ export class RuntimeRegistry {
       (request) => this.startProcess(request),
       (agentId) => this.getAgent(agentId),
       (parent, args) => this.agentRunner.runSubagent(parent, args),
+      (provider) => auth.getApiKey(provider),
       this.plans,
       (agentId, mode, reason) =>
         this.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
@@ -638,7 +639,10 @@ export class RuntimeRegistry {
       isError,
       timestamp: Date.now(),
     };
-    const appended = await this.harnessManager.appendAgentMessage(agent, message);
+    const appended = await this.harnessManager.appendAgentMessage(
+      agent,
+      message,
+    );
     await this.appendEntry(
       {
         id: appended.id,
@@ -680,7 +684,10 @@ export class RuntimeRegistry {
       isError: true,
       timestamp: Date.now(),
     };
-    const appended = await this.harnessManager.appendAgentMessage(agent, message);
+    const appended = await this.harnessManager.appendAgentMessage(
+      agent,
+      message,
+    );
     await this.appendEntry(
       {
         id: appended.id,

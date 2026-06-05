@@ -13,6 +13,8 @@ import ProcessToolView from "../components/app/tool-call/ProcessToolView.svelte"
 import ReadToolView from "../components/app/tool-call/ReadToolView.svelte";
 import SubagentRunToolView from "../components/app/tool-call/SubagentRunToolView.svelte";
 import TodoToolView from "../components/app/tool-call/TodoToolView.svelte";
+import WebFetchToolView from "../components/app/tool-call/WebFetchToolView.svelte";
+import WebSearchToolView from "../components/app/tool-call/WebSearchToolView.svelte";
 import WriteToolView from "../components/app/tool-call/WriteToolView.svelte";
 import type { ToolView } from "./tool-result-view";
 
@@ -34,6 +36,8 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   process_logs: ProcessLogsToolView,
   subagent_run: SubagentRunToolView,
   plan_mode: PlanModeToolView,
+  web_search: WebSearchToolView,
+  web_fetch: WebFetchToolView,
   generic: GenericToolView,
 };
 
