@@ -2,6 +2,7 @@
   import Bot from "@lucide/svelte/icons/bot";
   import type { Settings } from "../../../../api";
   import RadioGroup from "$lib/components/ui/radio-group-field";
+  import * as Card from "$lib/components/ui/card";
   import { modeItems, permissionItems } from "../options";
 
   type Props = {
@@ -25,16 +26,15 @@
   }
 </script>
 
-<section class="settings-card app-card" data-section="agents">
-  <div class="card-head">
-    <div class="card-icon"><Bot size={16} strokeWidth={2.2} /></div>
-    <div>
-      <span class="eyebrow">Agents</span>
-      <h2>Default behavior and policy</h2>
-      <p>Defaults apply to newly created root agents and subagents.</p>
-    </div>
-  </div>
-  <div class="defaults-grid">
+<Card.Root size="sm" data-section="agents">
+  <Card.Header>
+    <Card.Title class="flex items-center gap-2">
+      <Bot size={16} strokeWidth={2.2} /> Default behavior and policy
+    </Card.Title>
+    <Card.Description>Defaults apply to newly created root agents and subagents.</Card.Description>
+  </Card.Header>
+  <Card.Content class="grid gap-3">
+    <div class="defaults-grid">
     <div class="control-block app-surface">
       <h3>Root mode</h3>
       <RadioGroup
@@ -81,13 +81,14 @@
     </div>
   </div>
 
-  <div class="permission-table app-surface" role="table" aria-label="Default agent permissions">
-    <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Default policy</span></div>
-    <div role="row"><span>File system read</span><strong>Allowed</strong></div>
-    <div role="row"><span>File system write</span><strong>{writePolicy(settingsDraft.defaultPermissionLevel)}</strong></div>
-    <div role="row">
-      <span>Terminal command execution</span><strong>{commandPolicy(settingsDraft.defaultPermissionLevel)}</strong>
+    <div class="permission-table app-surface" role="table" aria-label="Default agent permissions">
+      <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Default policy</span></div>
+      <div role="row"><span>File system read</span><strong>Allowed</strong></div>
+      <div role="row"><span>File system write</span><strong>{writePolicy(settingsDraft.defaultPermissionLevel)}</strong></div>
+      <div role="row">
+        <span>Terminal command execution</span><strong>{commandPolicy(settingsDraft.defaultPermissionLevel)}</strong>
+      </div>
+      <div role="row"><span>Network access</span><strong>Tool-dependent</strong></div>
     </div>
-    <div role="row"><span>Network access</span><strong>Tool-dependent</strong></div>
-  </div>
-</section>
+  </Card.Content>
+</Card.Root>

@@ -2,6 +2,7 @@
   import KeyRound from "@lucide/svelte/icons/key-round";
   import type { AuthProviderMetadata } from "../../../../api";
   import { Badge } from "$lib/components/ui/badge";
+  import * as Card from "$lib/components/ui/card";
 
   type Props = {
     authProviders?: AuthProviderMetadata[];
@@ -23,19 +24,18 @@
   }
 </script>
 
-<section class="settings-card app-card" data-section="providers">
-  <div class="card-head">
-    <div class="card-icon"><KeyRound size={16} strokeWidth={2.2} /></div>
-    <div>
-      <span class="eyebrow">Providers</span>
-      <h2>Credential status</h2>
-      <p>Credentials are managed from the CLI only. Raw secrets are never rendered in the browser.</p>
-    </div>
-  </div>
-  {#if authProviders.length === 0}
-    <p class="muted">No provider metadata available. Use <code>nerve auth list</code> in the CLI.</p>
-  {:else}
-    <div class="provider-list">
+<Card.Root size="sm" data-section="providers">
+  <Card.Header>
+    <Card.Title class="flex items-center gap-2">
+      <KeyRound size={16} strokeWidth={2.2} /> Credential status
+    </Card.Title>
+    <Card.Description>Credentials are managed from the CLI only. Raw secrets are never rendered in the browser.</Card.Description>
+  </Card.Header>
+  <Card.Content class="grid gap-3">
+    {#if authProviders.length === 0}
+      <p class="muted">No provider metadata available. Use <code>nerve auth list</code> in the CLI.</p>
+    {:else}
+      <div class="provider-list">
       {#each authProviders as provider}
         <article class="provider-row app-surface">
           <div>
@@ -47,6 +47,7 @@
           <code>{provider.configured ? "nerve auth list" : providerCommand(provider)}</code>
         </article>
       {/each}
-    </div>
-  {/if}
-</section>
+      </div>
+    {/if}
+  </Card.Content>
+</Card.Root>

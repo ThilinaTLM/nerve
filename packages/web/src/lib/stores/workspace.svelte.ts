@@ -192,7 +192,7 @@ export async function createConversationForDirectory(dir: string) {
       "/api/sessions",
       {
         projectId: project.id,
-        title: project.name,
+        title: "New Conversation",
         mode: workbenchState.selectedMode,
         permissionLevel: workbenchState.selectedPermissionLevel,
       },

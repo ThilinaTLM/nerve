@@ -195,7 +195,7 @@ function shellStyles(): string {
   return `
     :root {
       color-scheme: dark;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #060913;
       color: #eef2ff;
     }
@@ -246,7 +246,7 @@ function shellStyles(): string {
       padding: 16px;
       background: rgba(127, 29, 29, 0.18);
       color: #fecaca;
-      font: 13px/1.5 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font: 13px/1.5 "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
   `;

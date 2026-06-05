@@ -50,6 +50,15 @@ const languageAliases = new Map<string, HighlightLanguage>([
 
 const supported = new Set<string>(Object.keys(languageLoaders));
 let highlighterPromise: Promise<HighlighterLike> | undefined;
+const highlightCache = new Map<
+  string,
+  string | Promise<string | undefined> | undefined
+>();
+
+export type HighlightCodeResult =
+  | string
+  | Promise<string | undefined>
+  | undefined;
 
 export function normalizeHighlightLanguage(
   language: string | undefined,
@@ -99,4 +108,32 @@ export async function highlightCode(
     },
     defaultColor: false,
   });
+}
+
+function highlightCacheKey(code: string, lang: HighlightLanguage): string {
+  return `${lang}\0${code}`;
+}
+
+export function highlightCodeCached(
+  code: string,
+  language: string | undefined,
+): HighlightCodeResult {
+  const lang = normalizeHighlightLanguage(language);
+  if (!lang) return undefined;
+
+  const key = highlightCacheKey(code, lang);
+  const cached = highlightCache.get(key);
+  if (cached !== undefined || highlightCache.has(key)) return cached;
+
+  const promise = highlightCode(code, lang)
+    .then((result) => {
+      highlightCache.set(key, result);
+      return result;
+    })
+    .catch(() => {
+      highlightCache.delete(key);
+      return undefined;
+    });
+  highlightCache.set(key, promise);
+  return promise;
 }

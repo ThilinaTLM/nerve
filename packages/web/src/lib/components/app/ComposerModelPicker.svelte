@@ -1,0 +1,273 @@
+<script lang="ts">
+  import Check from "@lucide/svelte/icons/check";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
+  import type { AgentRecord, ModelInfo } from "../../api";
+  import Popover from "$lib/components/ui/popover-panel";
+  import { modelKey } from "../../utils/model";
+
+  type ThinkingLevel = AgentRecord["thinkingLevel"];
+
+  type Props = {
+    models?: ModelInfo[];
+    selectedModelKey?: string;
+    thinkingLevel?: ThinkingLevel;
+    disabled?: boolean;
+    onModelChange?: (value: string) => void;
+    onThinkingLevelChange?: (value: ThinkingLevel) => void;
+  };
+
+  let {
+    models = [],
+    selectedModelKey = "",
+    thinkingLevel = "off",
+    disabled = false,
+    onModelChange,
+    onThinkingLevelChange,
+  }: Props = $props();
+
+  let open = $state(false);
+
+  const selectedModel = $derived(models.find((model) => modelKey(model) === selectedModelKey));
+
+  const thinkingLevelDetails: Record<ThinkingLevel, string> = {
+    off: "No reasoning",
+    minimal: "Very brief reasoning",
+    low: "Light reasoning",
+    medium: "Moderate reasoning",
+    high: "Deep reasoning",
+    xhigh: "Maximum reasoning",
+  };
+
+  function thinkingLevelLabel(level: ThinkingLevel): string {
+    return level === "off" ? "Off" : level[0].toUpperCase() + level.slice(1);
+  }
+
+  const thinkingLevels = $derived<ThinkingLevel[]>(
+    selectedModel?.supportedThinkingLevels?.length ? selectedModel.supportedThinkingLevels : ["off"],
+  );
+
+  const hasThinking = $derived(thinkingLevels.length > 1);
+
+  const triggerLabel = $derived(selectedModel?.label ?? "Select model");
+  const triggerSuffix = $derived(
+    hasThinking && thinkingLevel !== "off" ? thinkingLevelLabel(thinkingLevel) : undefined,
+  );
+
+  function selectModel(model: ModelInfo) {
+    const key = modelKey(model);
+    if (key !== selectedModelKey) onModelChange?.(key);
+    open = false;
+  }
+
+  function selectThinking(level: ThinkingLevel) {
+    if (level !== thinkingLevel) onThinkingLevelChange?.(level);
+  }
+</script>
+
+<Popover
+  bind:open
+  class="model-picker-content"
+  triggerClass="composer-tab model-tab"
+  ariaLabel="Model and thinking level"
+  side="top"
+  align="end"
+  sideOffset={9}
+>
+  {#snippet trigger()}
+    <span class="model-tab-inner" class:disabled title={triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}>
+      <span class="model-tab-label">{triggerLabel}</span>
+      {#if triggerSuffix}<span class="model-tab-suffix">({triggerSuffix})</span>{/if}
+      <ChevronDown size={12} strokeWidth={2.2} />
+    </span>
+  {/snippet}
+
+  <div class="model-picker">
+    <div class="model-picker-section">
+      <p class="model-picker-heading">Model</p>
+      {#if models.length === 0}
+        <p class="model-picker-empty">No configured models. Run <code>nerve auth list</code>.</p>
+      {:else}
+        <ul class="model-list">
+          {#each models as model (modelKey(model))}
+            {@const active = modelKey(model) === selectedModelKey}
+            <li>
+              <button type="button" class="model-row" class:active aria-pressed={active} onclick={() => selectModel(model)}>
+                <span class="model-row-text">
+                  <span class="model-row-label">{model.label}</span>
+                  <span class="model-row-detail">{model.provider}</span>
+                </span>
+                {#if active}<Check size={14} strokeWidth={2.4} />{/if}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+
+    {#if hasThinking}
+      <div class="model-picker-section thinking-section">
+        <p class="model-picker-heading">Thinking level</p>
+        <div class="thinking-grid" role="group" aria-label="Thinking level">
+          {#each thinkingLevels as level (level)}
+            {@const active = level === thinkingLevel}
+            <button
+              type="button"
+              class="thinking-chip"
+              class:active
+              aria-pressed={active}
+              title={thinkingLevelDetails[level]}
+              onclick={() => selectThinking(level)}
+            >
+              {thinkingLevelLabel(level)}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  </div>
+</Popover>
+
+<style>
+  .model-tab-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    max-width: clamp(7rem, 22vw, 16rem);
+    color: inherit;
+  }
+
+  .model-tab-inner.disabled {
+    opacity: 0.55;
+  }
+
+  .model-tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .model-tab-suffix {
+    flex: none;
+    color: var(--muted-foreground);
+  }
+
+  .model-picker {
+    display: grid;
+    gap: 0.7rem;
+    padding: 0.7rem;
+  }
+
+  .model-picker-section {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .thinking-section {
+    border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    padding-top: 0.7rem;
+  }
+
+  .model-picker-heading {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .model-picker-empty {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+  }
+
+  .model-picker-empty code {
+    font-family: var(--font-mono);
+  }
+
+  .model-list {
+    display: grid;
+    gap: 0.15rem;
+    margin: 0;
+    max-height: min(48vh, 18rem);
+    overflow-y: auto;
+    padding: 0;
+    list-style: none;
+  }
+
+  .model-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: 100%;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--foreground);
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .model-row:hover {
+    background: var(--accent);
+  }
+
+  .model-row.active {
+    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    color: var(--primary);
+  }
+
+  .model-row-text {
+    display: grid;
+    min-width: 0;
+    gap: 0.05rem;
+  }
+
+  .model-row-label {
+    overflow: hidden;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .model-row-detail {
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: 0.6875rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .thinking-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .thinking-chip {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--input);
+    color: var(--muted-foreground);
+    padding: 0.2rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .thinking-chip:hover {
+    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+    color: var(--foreground);
+  }
+
+  .thinking-chip.active {
+    border-color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 14%, transparent);
+    color: var(--primary);
+  }
+</style>

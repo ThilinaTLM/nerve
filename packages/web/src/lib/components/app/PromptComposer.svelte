@@ -1,6 +1,9 @@
 <script lang="ts">
+  import Lock from "@lucide/svelte/icons/lock";
   import Send from "@lucide/svelte/icons/send";
+  import Shield from "@lucide/svelte/icons/shield";
   import Square from "@lucide/svelte/icons/square";
+  import Zap from "@lucide/svelte/icons/zap";
   import {
     uploadClipboardImage,
     type AgentRecord,
@@ -13,12 +16,11 @@
     type UserQuestionRecord,
   } from "../../api";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
-  import { modelKey } from "../../utils/model";
   import { Button } from "$lib/components/ui/button";
-  import Select, { type SelectItem } from "$lib/components/ui/select-field";
+  import Popover from "$lib/components/ui/popover-panel";
   import ApprovalStrip from "./ApprovalStrip.svelte";
-  import PlanReviewStrip from "./PlanReviewStrip.svelte";
-  import UserQuestionStrip from "./UserQuestionStrip.svelte";
+  import ComposerModelPicker from "./ComposerModelPicker.svelte";
+  import type { Component } from "svelte";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -43,8 +45,6 @@
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     onChange?: (value: string) => void;
     onSubmit?: () => void;
-    onAnswerUserQuestion?: () => void;
-    onDismissUserQuestion?: () => void;
     onAbort?: () => void;
     onModelChange?: (value: string) => void;
     onThinkingLevelChange?: (value: ThinkingLevel) => void;
@@ -52,9 +52,6 @@
     onPermissionChange?: (value: PermissionLevel) => void;
     onGrantApproval?: (id: string) => void;
     onDenyApproval?: (id: string) => void;
-    onAcceptPlanReview?: (id: string) => void;
-    onRequestPlanChanges?: (id: string, feedback: string) => void;
-    onDiscardPlanReview?: (id: string) => void;
   };
 
   let {
@@ -76,8 +73,6 @@
     fileCompletions,
     onChange,
     onSubmit,
-    onAnswerUserQuestion,
-    onDismissUserQuestion,
     onAbort,
     onModelChange,
     onThinkingLevelChange,
@@ -85,154 +80,137 @@
     onPermissionChange,
     onGrantApproval,
     onDenyApproval,
-    onAcceptPlanReview,
-    onRequestPlanChanges,
-    onDiscardPlanReview,
   }: Props = $props();
 
   const pendingApproval = $derived(approvals.length > 0);
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
   const pendingPlan = $derived(Boolean(pendingPlanReview));
-  const blockedForReview = $derived(pendingApproval || pendingPlan);
-  const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !blockedForReview && !pendingQuestion));
-  const canAnswerQuestion = $derived(Boolean(activeSession && live && pendingQuestion && !blockedForReview));
-  const editorDisabled = $derived(blockedForReview || (!pendingQuestion && (sending || !canPrompt)) || (pendingQuestion && !canAnswerQuestion));
-  const submitDisabled = $derived(pendingQuestion ? !canAnswerQuestion : !canPrompt);
+  const blockedForReview = $derived(pendingApproval || pendingQuestion || pendingPlan);
+  const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !blockedForReview));
+  const editorDisabled = $derived(sending || !canPrompt);
+  const submitDisabled = $derived(!canPrompt);
 
   function submitComposer() {
-    if (pendingQuestion && !blockedForReview) onAnswerUserQuestion?.();
-    else if (!blockedForReview) onSubmit?.();
+    if (!blockedForReview) onSubmit?.();
   }
 
   async function pasteImage(file: File): Promise<string> {
     return uploadClipboardImage(file);
   }
-  const modelItems = $derived<SelectItem[]>(models.length
-    ? models.map((model) => ({
-      value: modelKey(model),
-      label: model.label,
-      detail: model.provider,
-    }))
-    : [{ value: "", label: "No configured models", detail: "Run nerve auth list", disabled: true }]);
 
-  const selectedModel = $derived(models.find((model) => modelKey(model) === selectedModelKey));
+  const controlsDisabled = $derived(!activeSession || sending || blockedForReview);
+  const modelDisabled = $derived(controlsDisabled || models.length === 0);
 
-  const thinkingLevelDetails: Record<ThinkingLevel, string> = {
-    off: "No reasoning",
-    minimal: "Very brief reasoning",
-    low: "Light reasoning",
-    medium: "Moderate reasoning",
-    high: "Deep reasoning",
-    xhigh: "Maximum reasoning",
-  };
+  const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
 
-  function thinkingLevelLabel(level: ThinkingLevel): string {
-    return level === "off" ? "Off" : level[0].toUpperCase() + level.slice(1);
+  function toggleMode() {
+    onModeChange?.(mode === "coding" ? "planning" : "coding");
   }
 
-  const thinkingLevels = $derived<ThinkingLevel[]>(
-    selectedModel?.supportedThinkingLevels?.length
-      ? selectedModel.supportedThinkingLevels
-      : ["off"],
-  );
+  type PermissionOption = {
+    value: PermissionLevel;
+    label: string;
+    detail: string;
+    icon: Component;
+  };
 
-  const thinkingItems = $derived<SelectItem[]>(
-    thinkingLevels.map((level) => ({
-      value: level,
-      label: thinkingLevelLabel(level),
-      detail: thinkingLevelDetails[level],
-    })),
-  );
-
-  const modeItems: SelectItem[] = [
-    { value: "coding", label: "Coding", detail: "Implement and modify files" },
-    { value: "planning", label: "Planning", detail: "Read and prepare before edits" },
+  const permissionOptions: PermissionOption[] = [
+    { value: "read_only", label: "Read only", detail: "No writes or mutating commands", icon: Lock },
+    { value: "supervised", label: "Supervised", detail: "Ask before non-read tool calls", icon: Shield },
+    { value: "autonomous", label: "Autonomous", detail: "Allow tool calls without approval", icon: Zap },
   ];
 
-  const permissionItems: SelectItem[] = [
-    { value: "read_only", label: "Read only", detail: "No writes or mutating commands" },
-    { value: "supervised", label: "Supervised", detail: "Ask before non-read tool calls" },
-    { value: "autonomous", label: "Autonomous", detail: "Allow tool calls without approval" },
-  ];
+  const activePermission = $derived(
+    permissionOptions.find((option) => option.value === permissionLevel) ?? permissionOptions[2],
+  );
+
+  let permissionOpen = $state(false);
+
+  function selectPermission(value: PermissionLevel) {
+    if (value !== permissionLevel) onPermissionChange?.(value);
+    permissionOpen = false;
+  }
 </script>
 
 <form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
   <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
-  <PlanReviewStrip planReview={pendingPlanReview} onAccept={onAcceptPlanReview} onRequestChanges={onRequestPlanChanges} onDiscard={onDiscardPlanReview} />
-  <UserQuestionStrip question={pendingUserQuestion} onDismiss={onDismissUserQuestion} />
 
   <div class="composer-surface">
     <div class="editor-shell">
+      <div class="composer-tabs">
+        <Popover
+          bind:open={permissionOpen}
+          class="permission-popover-content"
+          triggerClass="composer-tab permission-tab"
+          ariaLabel="Permission level"
+          side="top"
+          align="start"
+          sideOffset={9}
+        >
+          {#snippet trigger()}
+            {@const Icon = activePermission.icon}
+            <span class="permission-tab-inner" class:disabled={controlsDisabled} title={`Permission: ${activePermission.label}`}>
+              <Icon size={13} strokeWidth={2.2} />
+            </span>
+          {/snippet}
+          <div class="permission-menu">
+            <p class="permission-heading">Permission level</p>
+            <ul class="permission-list">
+              {#each permissionOptions as option (option.value)}
+                {@const ActiveIcon = option.icon}
+                <li>
+                  <button type="button" class="permission-row" class:active={option.value === permissionLevel} aria-pressed={option.value === permissionLevel} onclick={() => selectPermission(option.value)}>
+                    <ActiveIcon size={15} strokeWidth={2.1} />
+                    <span class="permission-row-text">
+                      <span class="permission-row-label">{option.label}</span>
+                      <span class="permission-row-detail">{option.detail}</span>
+                    </span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        </Popover>
+
+        <button type="button" class="composer-tab mode-tab" disabled={controlsDisabled} title={`Mode: ${modeLabel} (click to switch)`} onclick={toggleMode}>
+          {modeLabel}
+        </button>
+
+        <ComposerModelPicker
+          {models}
+          {selectedModelKey}
+          {thinkingLevel}
+          disabled={modelDisabled}
+          {onModelChange}
+          {onThinkingLevelChange}
+        />
+      </div>
+
       {#if pendingApproval}
         <div class="approval-waiting" aria-live="polite">Waiting for approval to proceed…</div>
       {:else if pendingPlan}
-        <div class="approval-waiting" aria-live="polite">Waiting for your plan review…</div>
+        <div class="approval-waiting" aria-live="polite">Waiting for plan review in the transcript…</div>
       {:else if pendingQuestion}
-        <div class="approval-waiting" aria-live="polite">Waiting for your reply…</div>
+        <div class="approval-waiting" aria-live="polite">Waiting for your reply in the transcript…</div>
       {/if}
       <CodeMirrorComposer
         value={text}
         disabled={editorDisabled}
-        placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingPlan ? "Review the plan above before the agent can continue…" : pendingUserQuestion?.placeholder ?? (pendingQuestion ? "Reply to the agent's question…" : "Ask the local Nerve agent…")}
+        placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingPlan ? "Review the plan in the transcript before the agent can continue…" : pendingQuestion ? "Reply in the transcript before the agent can continue…" : "Ask the local Nerve agent…"}
         {slashCompletions}
         {fileCompletions}
         onChange={onChange}
         onSubmit={submitComposer}
         onPasteImage={pasteImage}
       />
-    </div>
 
-    <div class="composer-control-row">
-      <div class="composer-inputs" aria-label="Prompt settings">
-        <Select
-          class="composer-field model-field"
-          triggerClass="composer-select-trigger model-select-trigger"
-          contentClass="composer-select-content"
-          items={modelItems}
-          bind:value={selectedModelKey}
-          ariaLabel="Model"
-          disabled={!activeSession || sending || models.length === 0 || blockedForReview || pendingQuestion}
-          onValueChange={(value) => onModelChange?.(value)}
-        />
-        <Select
-          class="composer-field thinking-field"
-          triggerClass="composer-select-trigger thinking-select-trigger"
-          contentClass="composer-select-content"
-          items={thinkingItems}
-          value={thinkingLevel}
-          ariaLabel="Thinking level"
-          disabled={!activeSession || sending || blockedForReview || pendingQuestion || thinkingItems.length <= 1}
-          onValueChange={(value) => onThinkingLevelChange?.(value as ThinkingLevel)}
-        />
-        <Select
-          class="composer-field mode-field"
-          triggerClass="composer-select-trigger mode-select-trigger"
-          contentClass="composer-select-content"
-          items={modeItems}
-          value={mode}
-          ariaLabel="Mode"
-          disabled={!activeSession || sending || blockedForReview || pendingQuestion}
-          onValueChange={(value) => onModeChange?.(value as Mode)}
-        />
-        <Select
-          class="composer-field access-field"
-          triggerClass="composer-select-trigger access-select-trigger"
-          contentClass="composer-select-content"
-          items={permissionItems}
-          value={permissionLevel}
-          ariaLabel="Access"
-          disabled={!activeSession || sending || blockedForReview || pendingQuestion}
-          onValueChange={(value) => onPermissionChange?.(value as PermissionLevel)}
-        />
-      </div>
-
-      <div class="actions">
+      <div class="composer-send">
         {#if sending && !pendingQuestion}
           <Button variant="secondary" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" title="Stop generation">
             <Square size={13} strokeWidth={2.5} />
           </Button>
         {:else}
-          <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label={pendingQuestion ? "Send reply" : "Send prompt"} title={pendingQuestion ? "Send reply" : "Send prompt"}>
+          <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label="Send prompt" title="Send prompt">
             <Send size={14} strokeWidth={2.4} />
           </Button>
         {/if}
@@ -248,16 +226,18 @@
     display: grid;
     gap: 0.55rem;
     border-top: 1px solid var(--border);
-    background: var(--muted);
+    background: var(--card);
     padding: 0.65rem;
     box-shadow: var(--shadow-lg);
   }
 
   .composer-surface {
-    overflow: hidden;
+    position: relative;
+    margin-top: 0.55rem;
+    overflow: visible;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: var(--input);
+    background: var(--background);
     box-shadow: 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent) inset;
     transition:
       border-color 120ms ease,
@@ -274,18 +254,165 @@
     min-width: 0;
   }
 
+  .composer-tabs {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 0.65rem;
+    right: 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .composer-tabs > :global(*) {
+    pointer-events: auto;
+  }
+
+  .composer-tabs :global(.model-tab) {
+    margin-left: auto;
+  }
+
+  :global(.composer-tab) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    height: 1.55rem;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--card);
+    color: var(--muted-foreground);
+    padding: 0 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition:
+      color 120ms ease,
+      border-color 120ms ease,
+      background 120ms ease;
+  }
+
+  :global(.composer-tab:hover:not(:disabled)) {
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  :global(.composer-tab:disabled) {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  :global(.composer-tab[data-state="open"]) {
+    border-color: var(--primary);
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  :global(.permission-tab) {
+    width: 1.7rem;
+    padding: 0;
+  }
+
+  .permission-tab-inner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .permission-tab-inner.disabled {
+    opacity: 0.6;
+  }
+
+  .permission-menu {
+    display: grid;
+    gap: 0.45rem;
+    padding: 0.6rem;
+  }
+
+  .permission-heading {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .permission-list {
+    display: grid;
+    gap: 0.15rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .permission-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--foreground);
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .permission-row:hover {
+    background: var(--accent);
+  }
+
+  .permission-row.active {
+    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    color: var(--primary);
+  }
+
+  .permission-row-text {
+    display: grid;
+    gap: 0.05rem;
+    min-width: 0;
+  }
+
+  .permission-row-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  .permission-row-detail {
+    color: var(--muted-foreground);
+    font-size: 0.6875rem;
+  }
+
+  .permission-row.active .permission-row-detail {
+    color: color-mix(in oklab, var(--primary) 75%, var(--muted-foreground));
+  }
+
   .approval-waiting {
     position: absolute;
-    z-index: 2;
-    top: 0.45rem;
-    right: 0.55rem;
+    z-index: 3;
+    top: 0.4rem;
+    left: 50%;
+    transform: translateX(-50%);
     border: 1px solid var(--accent);
     border-radius: 999px;
     background: var(--card);
     color: var(--primary);
-    padding: 0.12rem 0.45rem;
+    padding: 0.12rem 0.55rem;
     font-family: var(--font-mono);
     font-size: 0.6875rem;
+    white-space: nowrap;
   }
 
   .editor-shell :global(.composer-editor) {
@@ -298,51 +425,11 @@
     box-shadow: none;
   }
 
-  .composer-control-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.55rem;
-    padding: 0 0.45rem 0.45rem;
-  }
-
-  .composer-inputs {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: 0.35rem;
-  }
-
-  :global(.composer-field) {
-    width: auto;
-    min-width: 0;
-  }
-
-  :global(.model-field) {
-    width: clamp(9rem, 24vw, 18rem);
-  }
-
-  :global(.mode-field) {
-    width: 7rem;
-  }
-
-  :global(.access-field) {
-    width: 8.25rem;
-  }
-
-  :global(.composer-select-trigger) {
-    min-width: 0;
-  }
-
-  :global(.composer-select-content) {
-    min-width: max(var(--bits-select-anchor-width, 12rem), 11rem);
-  }
-
-  .actions {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: end;
+  .composer-send {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    z-index: 4;
   }
 
   :global(.send-button),
@@ -362,19 +449,5 @@
     color: var(--destructive);
     padding: 0.42rem 0.5rem;
     font-size: 0.75rem;
-  }
-
-  @media (max-width: 760px) {
-    .composer-control-row {
-      align-items: end;
-    }
-
-    .composer-inputs {
-      flex-wrap: wrap;
-    }
-
-    :global(.model-field) {
-      width: min(100%, 18rem);
-    }
   }
 </style>

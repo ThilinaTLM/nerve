@@ -38,7 +38,7 @@ export class SessionLifecycleService {
     const session: SessionRecord = {
       id: createId("ses"),
       projectId: project.id,
-      title: request.title ?? `Session in ${project.name}`,
+      title: request.title ?? "New Conversation",
       mode: request.mode ?? this.storage.settings.defaultMode,
       permissionLevel:
         request.permissionLevel ?? this.storage.settings.defaultPermissionLevel,

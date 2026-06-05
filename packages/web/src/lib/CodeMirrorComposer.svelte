@@ -140,7 +140,7 @@
           }),
           EditorView.theme({
             "&": {
-              background: "var(--input)",
+              background: "transparent",
               color: "var(--foreground)",
               maxHeight: "min(40vh, 320px)",
             },
@@ -149,7 +149,7 @@
               fontFamily: "var(--font-mono)",
               fontSize: "0.8125rem",
               lineHeight: "1.5",
-              padding: "9px 10px",
+              padding: "18px 46px 14px 11px",
             },
             ".cm-line": {
               padding: "0 2px",
@@ -161,7 +161,7 @@
               color: "color-mix(in oklab, var(--muted-foreground) 75%, transparent)",
             },
             ".cm-scroller": {
-              minHeight: "38px",
+              minHeight: "92px",
               maxHeight: "min(40vh, 320px)",
               overflow: "auto",
             },

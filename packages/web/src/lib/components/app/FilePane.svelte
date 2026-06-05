@@ -4,7 +4,7 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import { toast } from "svelte-sonner";
-  import { highlightCode } from "../../highlight";
+  import { highlightCodeCached } from "../../highlight";
   import type { FileViewState } from "../../stores/workbench/state.svelte";
   import { extname } from "../../tool-views/lang";
   import { Button } from "$lib/components/ui/button";
@@ -20,8 +20,15 @@
   void _homeDir;
 
   let html = $state<string | undefined>(undefined);
+  let htmlSignature = $state<string | undefined>(undefined);
+  let unavailableSignature = $state<string | undefined>(undefined);
   const file = $derived(view?.content);
   const language = $derived(extname(file?.relativePath ?? view?.path));
+  const codeSignature = $derived(
+    file?.type === "text" && file.text !== undefined
+      ? `${language ?? ""}\0${file.text}`
+      : undefined,
+  );
   const displayPath = $derived(file?.relativePath ?? view?.path ?? "File");
   const imageSrc = $derived(
     file?.type === "image" && file.dataBase64 && file.mimeType
@@ -33,13 +40,33 @@
   );
 
   $effect(() => {
-    let cancelled = false;
-    html = undefined;
-    if (file?.type === "text" && file.text !== undefined) {
-      void highlightCode(file.text, language).then((result) => {
-        if (!cancelled) html = result;
-      });
+    if (file?.type !== "text" || file.text === undefined || !codeSignature) return;
+    const currentSignature = codeSignature;
+    if (htmlSignature === currentSignature || unavailableSignature === currentSignature) return;
+
+    const result = highlightCodeCached(file.text, language);
+    if (typeof result === "string") {
+      html = result;
+      htmlSignature = currentSignature;
+      unavailableSignature = undefined;
+      return;
     }
+    if (!result) {
+      unavailableSignature = currentSignature;
+      return;
+    }
+
+    let cancelled = false;
+    void result.then((highlighted) => {
+      if (cancelled || codeSignature !== currentSignature) return;
+      if (highlighted) {
+        html = highlighted;
+        htmlSignature = currentSignature;
+        unavailableSignature = undefined;
+      } else {
+        unavailableSignature = currentSignature;
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -102,7 +129,7 @@
         <img src={imageSrc} alt={file?.relativePath ?? "File preview"} />
       </div>
     {:else if file?.type === "text"}
-      {#if html}
+      {#if html && htmlSignature === codeSignature}
         <div class="code-view">{@html html}</div>
       {:else}
         <pre class="code-view plain">{file.text}</pre>
@@ -255,6 +282,10 @@
   .code-view :global(code) {
     font-family: var(--font-mono);
     font-size: 0.75rem;
+  }
+
+  .code-view :global(span) {
+    color: var(--shiki-light, inherit);
   }
 
   :global(.dark) .code-view :global(span) {

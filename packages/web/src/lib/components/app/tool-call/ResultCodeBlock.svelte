@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { highlightCode } from "../../../highlight";
+  import { highlightCodeCached } from "../../../highlight";
   import { trimTextPreview } from "../../../utils/text-preview";
 
   type Props = {
@@ -11,13 +11,37 @@
   void _maxHeight;
 
   let html = $state<string | undefined>(undefined);
+  let htmlSignature = $state<string | undefined>(undefined);
+  let unavailableSignature = $state<string | undefined>(undefined);
   const preview = $derived(trimTextPreview(code));
+  const signature = $derived(`${language ?? ""}\0${preview.text}`);
 
   $effect(() => {
+    const currentSignature = signature;
+    if (htmlSignature === currentSignature || unavailableSignature === currentSignature) return;
+
+    const result = highlightCodeCached(preview.text, language);
+    if (typeof result === "string") {
+      html = result;
+      htmlSignature = currentSignature;
+      unavailableSignature = undefined;
+      return;
+    }
+    if (!result) {
+      unavailableSignature = currentSignature;
+      return;
+    }
+
     let cancelled = false;
-    html = undefined;
-    void highlightCode(preview.text, language).then((result) => {
-      if (!cancelled) html = result;
+    void result.then((highlighted) => {
+      if (cancelled || signature !== currentSignature) return;
+      if (highlighted) {
+        html = highlighted;
+        htmlSignature = currentSignature;
+        unavailableSignature = undefined;
+      } else {
+        unavailableSignature = currentSignature;
+      }
     });
     return () => {
       cancelled = true;
@@ -25,7 +49,7 @@
   });
 </script>
 
-{#if html}
+{#if html && htmlSignature === signature}
   <div class="code-block">
     {@html html}
   </div>
@@ -62,6 +86,10 @@
   .code-block :global(code) {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
+  }
+
+  .code-block :global(span) {
+    color: var(--shiki-light, inherit);
   }
 
   :global(.dark) .code-block :global(span) {

@@ -5,13 +5,6 @@ export type RadioItem = {
   disabled?: boolean;
 };
 
-export type SettingsSection =
-  | "general"
-  | "appearance"
-  | "providers"
-  | "agents"
-  | "network";
-
 export const themeItems: RadioItem[] = [
   { value: "system", label: "System", detail: "Follow the operating system" },
   { value: "dark", label: "Dark", detail: "Technical Precision reference" },
@@ -47,16 +40,4 @@ export const permissionItems: RadioItem[] = [
     label: "Autonomous",
     detail: "Allow tool calls without approval",
   },
-];
-
-export const navItems: {
-  value: SettingsSection;
-  label: string;
-  detail: string;
-}[] = [
-  { value: "general", label: "General", detail: "Daemon and storage" },
-  { value: "appearance", label: "Appearance", detail: "Theme surfaces" },
-  { value: "providers", label: "Providers", detail: "Credential status" },
-  { value: "agents", label: "Agents", detail: "Defaults and policy" },
-  { value: "network", label: "Network", detail: "Server binding" },
 ];

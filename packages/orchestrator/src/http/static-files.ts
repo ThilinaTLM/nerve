@@ -25,7 +25,7 @@ export function fallbackHtml(state: OrchestratorState): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>nerve</title>
     <style>
-      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #070a10; color: #eef2ff; }
+      :root { color-scheme: dark; font-family: Geist, ui-sans-serif, system-ui, sans-serif; background: #070a10; color: #eef2ff; }
       body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
       main { width: min(760px, calc(100vw - 48px)); border: 1px solid #243047; border-radius: 24px; padding: 32px; background: linear-gradient(145deg, #111827, #0b1020); box-shadow: 0 30px 100px rgba(0,0,0,.45); }
       .eyebrow { color: #7dd3fc; text-transform: uppercase; letter-spacing: .2em; font-size: 12px; }

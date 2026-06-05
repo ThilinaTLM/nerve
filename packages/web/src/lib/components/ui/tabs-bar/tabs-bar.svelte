@@ -27,7 +27,7 @@
 </script>
 
 <Tabs.Root bind:value class={cn("min-w-0", className)} {onValueChange}>
-	<Tabs.List variant="line" aria-label={ariaLabel} class="w-full justify-start overflow-x-auto">
+	<Tabs.List variant="line" aria-label={ariaLabel} class="w-full justify-start overflow-x-auto overflow-y-hidden">
 		{#each tabs as tab (tab.value)}
 			<Tabs.Trigger value={tab.value} disabled={tab.disabled}>
 				<span>{tab.label}</span>

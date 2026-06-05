@@ -12,6 +12,9 @@ export type ProjectGroup = {
   projects: ProjectRecord[];
   rows: ConversationRow[];
   hiddenRows: number;
+  totalRows: number;
+  /** Display label: folder name, or a disambiguated short path on name clashes. */
+  label: string;
   updatedAt: string;
 };
 
@@ -25,6 +28,13 @@ export const MAX_ROWS_PER_PROJECT = 5;
 
 export function projectKey(project: ProjectRecord): string {
   return project.dir.replace(/[\\/]+$/, "") || project.dir;
+}
+
+/** Last path segment (folder name) of a project directory. */
+export function projectFolderName(dir: string): string {
+  const path = dir.replace(/[\\/]+$/, "");
+  const segments = path.split(/[\\/]/);
+  return segments[segments.length - 1] || path;
 }
 
 export function shortProjectLabel(dir: string, homeDir?: string): string {
@@ -98,10 +108,11 @@ export function buildProjectGroups(options: {
   sessions: SessionRecord[];
   agents: AgentRecord[];
   filter?: string;
+  homeDir?: string;
   maxProjects?: number;
   maxRowsPerProject?: number;
 }): ProjectGroupResult {
-  const { projects, sessions, agents } = options;
+  const { projects, sessions, agents, homeDir } = options;
   const query = options.filter?.trim() ?? "";
   const maxProjects = options.maxProjects ?? MAX_PROJECTS;
   const maxRowsPerProject = options.maxRowsPerProject ?? MAX_ROWS_PER_PROJECT;
@@ -124,6 +135,8 @@ export function buildProjectGroups(options: {
         projects: [project],
         rows: [],
         hiddenRows: 0,
+        totalRows: 0,
+        label: projectFolderName(project.dir),
         updatedAt: project.updatedAt,
       });
     }
@@ -139,6 +152,8 @@ export function buildProjectGroups(options: {
       projects: [project],
       rows: [],
       hiddenRows: 0,
+      totalRows: 0,
+      label: projectFolderName(project.dir),
       updatedAt: project.updatedAt,
     };
     group.rows.push({ session, agent: activeSessionAgent(session, agents) });
@@ -153,12 +168,27 @@ export function buildProjectGroups(options: {
 
   const hiddenProjects = Math.max(0, sorted.length - maxProjects);
 
+  // Folder names are the primary label; fall back to a disambiguated short path
+  // only when two visible projects share the same folder name.
+  const folderNameCounts = new Map<string, number>();
+  for (const group of sorted) {
+    const folder = projectFolderName(group.project.dir);
+    folderNameCounts.set(folder, (folderNameCounts.get(folder) ?? 0) + 1);
+  }
+
   const groups = sorted.slice(0, maxProjects).map((group) => {
     const rows = group.rows.sort((a, b) =>
       b.session.updatedAt.localeCompare(a.session.updatedAt),
     );
+    const folder = projectFolderName(group.project.dir);
+    const label =
+      (folderNameCounts.get(folder) ?? 0) > 1
+        ? shortProjectLabel(group.project.dir, homeDir)
+        : folder;
     return {
       ...group,
+      label,
+      totalRows: rows.length,
       hiddenRows: Math.max(0, rows.length - maxRowsPerProject),
       rows: rows.slice(0, maxRowsPerProject),
     };

@@ -45,8 +45,8 @@
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     onComposerChange?: (value: string) => void;
     onSubmit?: () => void;
-    onAnswerUserQuestion?: () => void;
-    onDismissUserQuestion?: () => void;
+    onAnswerUserQuestion?: (questionId: string, answer: string) => void;
+    onDismissUserQuestion?: (questionId: string) => void;
     onAbort?: () => void;
     onOpenProject?: () => void;
     onNewConversationInProject?: (projectDir: string) => void;
@@ -188,9 +188,25 @@
     return () => cancelScheduledBottomScroll();
   });
 
+  function hidesDraftArgs(toolName?: string): boolean {
+    return toolName === "write" || toolName === "edit";
+  }
+
   function argsPreview(draft: LiveToolCallDraft): string {
-    const text = draft.args ? JSON.stringify(draft.args, null, 2) : draft.argsText.trim() || "Waiting for arguments…";
-    return trimTextPreview(text, { headLines: 18, tailLines: 6, maxChars: 6_000 }).text;
+    if (hidesDraftArgs(draft.toolName)) {
+      const toolName = draft.toolName ?? "tool";
+      return draft.done
+        ? `${toolName} arguments prepared.`
+        : `Preparing ${toolName} arguments…`;
+    }
+    const text = draft.args
+      ? JSON.stringify(draft.args, null, 2)
+      : draft.argsText.trim() || "Waiting for arguments…";
+    return trimTextPreview(text, {
+      headLines: 18,
+      tailLines: 6,
+      maxChars: 6_000,
+    }).text;
   }
 
   async function copyText(text: string, label = "message") {
@@ -237,7 +253,18 @@
 
       {#each timeline as node (node.key)}
         {#if node.kind === "tool"}
-          <ToolCallCard toolCall={node.toolCall} liveOutput={node.liveOutput} {onOpenFile} />
+          <ToolCallCard
+            toolCall={node.toolCall}
+            liveOutput={node.liveOutput}
+            {pendingUserQuestion}
+            {pendingPlanReview}
+            {onOpenFile}
+            {onAnswerUserQuestion}
+            {onDismissUserQuestion}
+            {onAcceptPlanReview}
+            {onRequestPlanChanges}
+            {onDiscardPlanReview}
+          />
         {:else if node.kind === "tool_draft"}
           <article class="tool-draft-card">
             <div class="tool-draft-head">
@@ -253,7 +280,7 @@
             <article class={`transcript-entry ${node.item.role} ${node.item.displayKind === "thinking" ? "thinking-entry" : ""} ${node.item.live ? "streaming" : ""}`}>
               <div class="message-body">
                 {#if node.item.displayKind === "thinking"}
-                  <ThinkingBlock block={{ text: node.item.text, redacted: node.item.redacted }} live={node.item.live && !node.item.done} open={true} />
+                  <ThinkingBlock block={{ text: node.item.text, redacted: node.item.redacted }} live={node.item.live && !node.item.done} />
                 {:else if node.item.text}
                   <div class="message-content">
                     <Markdown text={node.item.text} />
@@ -306,8 +333,6 @@
       {fileCompletions}
       onChange={onComposerChange}
       {onSubmit}
-      {onAnswerUserQuestion}
-      {onDismissUserQuestion}
       {onAbort}
       {onModelChange}
       {onThinkingLevelChange}
@@ -315,9 +340,6 @@
       {onPermissionChange}
       {onGrantApproval}
       {onDenyApproval}
-      {onAcceptPlanReview}
-      {onRequestPlanChanges}
-      {onDiscardPlanReview}
     />
   {:else}
     <div class="empty-center">
@@ -366,9 +388,6 @@
     background: color-mix(in oklab, var(--primary) 8%, transparent);
   }
 
-  .transcript-entry.thinking-entry {
-    background: color-mix(in oklab, var(--sidebar) 38%, transparent);
-  }
 
   .message-body {
     position: relative;
@@ -406,7 +425,7 @@
     color: var(--foreground);
   }
 
-  .transcript-entry.streaming,
+  .transcript-entry.streaming:not(.thinking-entry),
   .tool-draft-card {
     background: color-mix(in oklab, var(--primary) 4%, transparent);
   }

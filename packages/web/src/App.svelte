@@ -28,7 +28,7 @@
   import {
     abortActiveRun,
     acceptPendingPlanReview,
-    answerActiveUserQuestion,
+    answerUserQuestionById,
     closeCenterTab,
     compactActiveSession,
     completeFiles,
@@ -37,7 +37,7 @@
     deleteSessionAndRefresh,
     denyApproval,
     discardPendingPlanReview,
-    dismissActiveUserQuestion,
+    dismissUserQuestionById,
     disconnectWorkbench,
     exportUrl,
     grantApproval,
@@ -248,8 +248,8 @@
                 fileCompletions={completeFiles}
                 onComposerChange={setActiveComposerText}
                 onSubmit={sendPrompt}
-                onAnswerUserQuestion={answerActiveUserQuestion}
-                onDismissUserQuestion={dismissActiveUserQuestion}
+                onAnswerUserQuestion={answerUserQuestionById}
+                onDismissUserQuestion={dismissUserQuestionById}
                 onAbort={abortActiveRun}
                 onOpenProject={openProjectPicker}
                 onNewConversationInProject={newConversationInProject}

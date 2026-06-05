@@ -4,6 +4,7 @@
   import type { Settings } from "../../../../api";
   import { Input } from "$lib/components/ui/input";
   import Switch from "$lib/components/ui/switch-field";
+  import * as Card from "$lib/components/ui/card";
 
   type Props = {
     settingsDraft: Settings;
@@ -26,16 +27,15 @@
   }
 </script>
 
-<section class="settings-card app-card" data-section="network">
-  <div class="card-head">
-    <div class="card-icon"><Server size={16} strokeWidth={2.2} /></div>
-    <div>
-      <span class="eyebrow">Network</span>
-      <h2>Server binding and compaction</h2>
-      <p>Host and port changes apply after daemon restart. Keep local binding unless remote access is required.</p>
-    </div>
-  </div>
-  <div class="server-grid">
+<Card.Root size="sm" data-section="network">
+  <Card.Header>
+    <Card.Title class="flex items-center gap-2">
+      <Server size={16} strokeWidth={2.2} /> Server binding and compaction
+    </Card.Title>
+    <Card.Description>Host and port changes apply after daemon restart. Keep local binding unless remote access is required.</Card.Description>
+  </Card.Header>
+  <Card.Content class="grid gap-3">
+    <div class="server-grid">
     <label>
       Host<Input
         value={settingsDraft.server.host}
@@ -93,5 +93,6 @@
         />
       </label>
     </div>
-  </div>
-</section>
+    </div>
+  </Card.Content>
+</Card.Root>

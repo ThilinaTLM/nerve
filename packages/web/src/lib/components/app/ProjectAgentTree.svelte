@@ -5,22 +5,24 @@
   import Plus from "@lucide/svelte/icons/plus";
   import Search from "@lucide/svelte/icons/search";
   import Trash2 from "@lucide/svelte/icons/trash-2";
-  import { Collapsible } from "bits-ui";
+  import { Collapsible, mergeProps } from "bits-ui";
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
   import AlertDialog from "$lib/components/ui/confirm-dialog";
-  import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import { Input } from "$lib/components/ui/input";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as Sidebar from "$lib/components/ui/sidebar";
   import { StatusDot } from "$lib/components/ui/status-dot";
+  import * as Tooltip from "$lib/components/ui/tooltip";
   import {
     buildProjectGroups,
-    conversationMeta,
-    groupIsActive,
+    type ConversationRow,
+    shortAgentModel,
     shortProjectLabel,
   } from "../../utils/project-tree";
   import { pulseForStatus, statusTone } from "../../utils/status";
+  import { dateTimeLabel } from "../../utils/time";
 
   type DeleteTarget = {
     kind: "project" | "session";
@@ -106,83 +108,134 @@
     ];
   }
 
+  function rowStatus(row: ConversationRow): string {
+    return row.agent?.status ?? "idle";
+  }
+
+  function rowMode(row: ConversationRow): string {
+    return row.agent?.mode ?? row.session.mode;
+  }
+
+  function rowPermission(row: ConversationRow): string {
+    return row.agent?.permissionLevel ?? row.session.permissionLevel;
+  }
+
   const result = $derived.by(() =>
-    buildProjectGroups({ projects, sessions, agents, filter }),
+    buildProjectGroups({ projects, sessions, agents, filter, homeDir }),
   );
   const groups = $derived(result.groups);
   const hiddenProjects = $derived(result.hiddenProjects);
 </script>
 
-<aside class="project-tree">
-  <div class="search-box">
-    <Search size={13} strokeWidth={2.25} aria-hidden="true" />
-    <Input bind:value={filter} size="sm" placeholder="Search projects / conversations" ariaLabel="Search projects or conversations" />
-  </div>
+<Sidebar.Provider>
+  <Tooltip.Provider delayDuration={300} disableHoverableContent>
+    <aside class="project-tree">
+      <div class="search-box">
+        <Search size={13} strokeWidth={2.25} aria-hidden="true" />
+        <Input bind:value={filter} size="sm" placeholder="Search projects / conversations" ariaLabel="Search projects or conversations" />
+      </div>
 
-  <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
-    {#if groups.length === 0}
-      <p class="empty">No projects yet.</p>
-    {/if}
+      <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
+        <Sidebar.Group class="tree-group">
+          <Sidebar.Menu>
+            {#if groups.length === 0}
+              <p class="empty">No projects yet.</p>
+            {/if}
 
-    {#each groups as group}
-      {@const active = groupIsActive(group, selectedProjectId)}
-      <Collapsible.Root class="project-group" open={!collapsed[group.key]} onOpenChange={(open) => (collapsed[group.key] = !open)}>
-        <ContextMenu items={projectMenu(group.project)}>
-          <div class="project-row-wrap" class:active>
-            <Collapsible.Trigger class="project-row app-interactive-row" title={group.project.dir}>
-              <span class="chevron" aria-hidden="true">
-                <ChevronDown size={13} />
-              </span>
-              <span class="project-label">{shortProjectLabel(group.project.dir, homeDir)}</span>
-            </Collapsible.Trigger>
-            <div class="row-actions">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="New conversation"
-                title="New conversation in project"
-                onclick={() => onNewConversationInProject?.(group.project.dir)}
-              >
-                <Plus size={12} strokeWidth={2.25} />
-              </Button>
-            </div>
-          </div>
-        </ContextMenu>
-        <Collapsible.Content class="conversation-rows" hiddenUntilFound>
-          {#if group.rows.length === 0}
-            <p class="empty child">No conversations.</p>
-          {/if}
-          {#each group.rows as row}
-            <ContextMenu items={sessionMenu(group.project, row.session)}>
-              <div class="conversation-row-wrap" class:selected={row.session.id === selectedSessionId}>
-                <button
-                  class="conversation-row app-interactive-row"
-                  type="button"
-                  title={`${row.session.title} · ${row.agent?.status ?? "idle"} · ${conversationMeta(row)} · ${row.session.id}`}
-                  onclick={() => onOpenSession?.(row.session.id)}
-                >
-                  <StatusDot
-                    tone={statusTone(row.agent?.status)}
-                    pulse={pulseForStatus(row.agent?.status)}
-                    size="sm"
-                  />
-                  <span class="conversation-label">{row.session.title}</span>
-                </button>
-              </div>
-            </ContextMenu>
-          {/each}
-          {#if group.hiddenRows > 0}
-            <p class="empty child">+{group.hiddenRows} more…</p>
-          {/if}
-        </Collapsible.Content>
-      </Collapsible.Root>
-    {/each}
+            {#each groups as group (group.key)}
+              <Sidebar.MenuItem>
+                <Collapsible.Root open={!collapsed[group.key]} onOpenChange={(open) => (collapsed[group.key] = !open)}>
+                  <ContextMenu items={projectMenu(group.project)}>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger>
+                        {#snippet child({ props: tip })}
+                          <Collapsible.Trigger>
+                            {#snippet child({ props: trg })}
+                              <Sidebar.MenuButton {...mergeProps(trg, tip)} class="project-button bg-card">
+                                <ChevronDown class="chevron" size={12} aria-hidden="true" />
+                                <span class="project-label">{group.label}</span>
+                              </Sidebar.MenuButton>
+                            {/snippet}
+                          </Collapsible.Trigger>
+                        {/snippet}
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side="right" sideOffset={6} class="nav-tooltip">{group.project.dir}</Tooltip.Content>
+                    </Tooltip.Root>
+                  </ContextMenu>
+                  {#if group.totalRows > 0}
+                    <Sidebar.MenuBadge class="count-badge transition-opacity duration-150 group-hover/menu-item:opacity-0">{group.totalRows}</Sidebar.MenuBadge>
+                  {/if}
+                  <Sidebar.MenuAction
+                    showOnHover
+                    title="New conversation in project"
+                    aria-label="New conversation"
+                    onclick={() => onNewConversationInProject?.(group.project.dir)}
+                  >
+                    <Plus size={12} strokeWidth={2.25} />
+                  </Sidebar.MenuAction>
+                  <Collapsible.Content>
+                    <Sidebar.MenuSub class="conversation-sub me-0 pe-0">
+                      {#if group.rows.length === 0}
+                        <p class="empty child">No conversations.</p>
+                      {/if}
+                      {#each group.rows as row (row.session.id)}
+                        {@const status = rowStatus(row)}
+                        <Sidebar.MenuSubItem>
+                          <ContextMenu items={sessionMenu(group.project, row.session)}>
+                            <Tooltip.Root>
+                              <Tooltip.Trigger>
+                                {#snippet child({ props: tip })}
+                                  <Sidebar.MenuSubButton
+                                    isActive={row.session.id === selectedSessionId}
+                                    class="conversation-button w-full"
+                                  >
+                                    {#snippet child({ props: btn })}
+                                      <button
+                                        {...mergeProps(btn, tip)}
+                                        type="button"
+                                        onclick={() => onOpenSession?.(row.session.id)}
+                                      >
+                                        <StatusDot
+                                          tone={statusTone(status)}
+                                          pulse={pulseForStatus(status)}
+                                          size="sm"
+                                        />
+                                        <span class="conversation-label">{row.session.title}</span>
+                                      </button>
+                                    {/snippet}
+                                  </Sidebar.MenuSubButton>
+                                {/snippet}
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side="right" sideOffset={6} class="nav-tooltip conversation-tooltip">
+                                <span class="tt-title">{row.session.title}</span>
+                                <span class="tt-row"><span class="tt-key">status</span>{status}</span>
+                                <span class="tt-row"><span class="tt-key">mode</span>{rowMode(row)} · {rowPermission(row)}</span>
+                                <span class="tt-row"><span class="tt-key">model</span>{shortAgentModel(row.agent)}</span>
+                                <span class="tt-row"><span class="tt-key">updated</span>{dateTimeLabel(row.session.updatedAt)}</span>
+                                <span class="tt-id">{row.session.id}</span>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          </ContextMenu>
+                        </Sidebar.MenuSubItem>
+                      {/each}
+                      {#if group.hiddenRows > 0}
+                        <p class="empty child">+{group.hiddenRows} more…</p>
+                      {/if}
+                    </Sidebar.MenuSub>
+                  </Collapsible.Content>
+                </Collapsible.Root>
+              </Sidebar.MenuItem>
+            {/each}
 
-    {#if hiddenProjects > 0}
-      <p class="empty">+{hiddenProjects} more projects…</p>
-    {/if}
-  </ScrollArea>
-</aside>
+            {#if hiddenProjects > 0}
+              <p class="empty">+{hiddenProjects} more projects…</p>
+            {/if}
+          </Sidebar.Menu>
+        </Sidebar.Group>
+      </ScrollArea>
+    </aside>
+  </Tooltip.Provider>
+</Sidebar.Provider>
 
 <AlertDialog
   open={!!pendingDelete}
@@ -207,9 +260,14 @@
   }
 
   .empty {
+    margin: 0.5rem;
     color: var(--muted-foreground);
     font-family: var(--font-mono);
     font-size: 0.6875rem;
+  }
+
+  .empty.child {
+    margin-left: 1.2rem;
   }
 
   .search-box {
@@ -241,71 +299,14 @@
     padding: 0.35rem;
   }
 
-  :global(.project-group) {
-    display: grid;
-    gap: 0.08rem;
-  }
-
-  .project-row-wrap,
-  .conversation-row-wrap {
-    position: relative;
-    display: block;
-  }
-
-  :global(.project-row),
-  .conversation-row {
-    position: relative;
-    width: 100%;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--foreground);
-    text-align: left;
-    cursor: pointer;
-  }
-
-  :global(.project-row) {
-    display: grid;
-    grid-template-columns: 0.85rem minmax(0, 1fr);
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.42rem;
-    border-color: color-mix(in oklab, var(--border) 45%, transparent);
-    background: color-mix(in oklab, var(--foreground) 7%, transparent);
-    color: var(--foreground);
-    font-size: 0.8125rem;
-  }
-
-  :global(.project-row:hover),
-  .project-row-wrap.active :global(.project-row) {
-    border-color: color-mix(in oklab, var(--border) 55%, transparent);
-    background: color-mix(in oklab, var(--foreground) 11%, transparent);
-  }
-
-  .conversation-row:hover {
-    border-color: color-mix(in oklab, var(--border) 60%, transparent);
-    background: color-mix(in oklab, var(--accent) 70%, transparent);
-  }
-
-  .conversation-row-wrap.selected .conversation-row {
-    border-color: color-mix(in oklab, var(--border) 60%, transparent);
-    background: var(--accent);
-    font-weight: 500;
-  }
-
-  .project-row-wrap.active :global(.project-label) {
-    color: var(--foreground);
-  }
-
-  :global(.project-row[data-state="closed"] .chevron) {
+  :global([data-sidebar="menu-button"][data-state="closed"]) .chevron {
     transform: rotate(-90deg);
   }
 
   .chevron {
-    display: inline-grid;
-    place-items: center;
-    color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
-    transition: transform 120ms ease;
+    flex: none;
+    color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+    transition: transform 150ms ease;
   }
 
   .project-label,
@@ -317,68 +318,57 @@
   }
 
   .project-label {
-    color: var(--foreground);
     font-size: 0.8125rem;
     font-weight: 600;
+    letter-spacing: -0.005em;
   }
 
-  .row-actions {
-    position: absolute;
-    top: 50%;
-    right: 0.3rem;
-    display: flex;
-    align-items: center;
-    gap: 0.1rem;
-    transform: translateY(-50%);
-    opacity: 0;
-    transition: opacity 120ms ease;
-  }
-
-  .project-row-wrap:hover .row-actions,
-  .project-row-wrap:focus-within .row-actions {
-    opacity: 1;
-  }
-
-  .row-actions :global(.ui-button) {
-    width: 1.4rem;
-    height: 1.4rem;
-    min-width: 0;
-    border: none;
-    background: var(--accent);
-    color: var(--muted-foreground);
-    padding: 0;
-  }
-
-  .row-actions :global(.ui-button:hover) {
-    color: var(--foreground);
-  }
-
-  :global(.conversation-rows) {
-    display: grid;
-    gap: 0.08rem;
-    margin: 0 0 0.35rem;
-    overflow: hidden;
-  }
-
-  .conversation-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.1rem;
-    padding: 0.34rem 0.42rem 0.34rem 0.72rem;
+  /* Count badge sits where the hover "+" action appears; swap them on hover. */
+  :global(.count-badge) {
+    top: 0.35rem;
+    color: color-mix(in oklab, var(--muted-foreground) 90%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
   }
 
   .conversation-label {
     font-size: 0.8125rem;
-    font-weight: 400;
+    font-weight: 450;
   }
 
-  .empty {
-    margin: 0.5rem;
+  /* Styled, non-clipping tooltips (Portal-rendered) */
+  :global(.nav-tooltip) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    max-width: 22rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 
-  .empty.child {
-    margin-left: 1.2rem;
+  :global(.conversation-tooltip) .tt-title {
+    margin-bottom: 0.15rem;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  :global(.conversation-tooltip) .tt-row {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  :global(.conversation-tooltip) .tt-key {
+    min-width: 3.4rem;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  :global(.conversation-tooltip) .tt-id {
+    margin-top: 0.2rem;
+    color: var(--muted-foreground);
   }
 </style>

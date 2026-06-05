@@ -6,7 +6,7 @@
   import remarkRehype from "remark-rehype";
   import rehypeSanitize from "rehype-sanitize";
   import rehypeStringify from "rehype-stringify";
-  import { highlightCode } from "./highlight";
+  import { highlightCodeCached } from "./highlight";
   import { trimTextPreview } from "./utils/text-preview";
 
   type Props = {
@@ -109,7 +109,7 @@
         const language = languageFromClass(className);
         try {
           const code = trimmedCodeText(block);
-          const highlighted = await highlightCode(code, language);
+          const highlighted = await highlightCodeCached(code, language);
           if (highlighted) {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = highlighted;
@@ -151,17 +151,27 @@
     };
   }
 
+  let htmlSource: string | undefined;
+
   $effect(() => {
     const source = text;
+    if (htmlSource === source) return;
     let cancelled = false;
     const rendered = renderMarkdown(source);
     html = wrapTables(wrapPlainCodeBlocks(rendered));
+    htmlSource = source;
     highlightCodeBlocks(rendered)
       .then((highlighted) => {
-        if (!cancelled && source === text) html = wrapTables(highlighted);
+        if (!cancelled && source === text) {
+          html = wrapTables(highlighted);
+          htmlSource = source;
+        }
       })
       .catch(() => {
-        if (!cancelled && source === text) html = wrapTables(wrapPlainCodeBlocks(rendered));
+        if (!cancelled && source === text) {
+          html = wrapTables(wrapPlainCodeBlocks(rendered));
+          htmlSource = source;
+        }
       });
     return () => {
       cancelled = true;
@@ -340,6 +350,14 @@
     font-size: inherit;
     white-space: inherit;
     word-break: inherit;
+  }
+
+  .markdown :global(.code-block span) {
+    color: var(--shiki-light, inherit);
+  }
+
+  :global(.dark) .markdown :global(.code-block span) {
+    color: var(--shiki-dark, inherit);
   }
 
   .markdown :global(blockquote) {

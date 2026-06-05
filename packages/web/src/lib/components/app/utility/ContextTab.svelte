@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Bot from "@lucide/svelte/icons/bot";
   import ScrollText from "@lucide/svelte/icons/scroll-text";
   import type {
     AgentRecord,
@@ -60,28 +59,30 @@
   </Card>
 
   <Card class="gap-0 overflow-hidden p-0">
-    <div class="flex items-center gap-1.5 border-b px-3 py-2 text-xs font-semibold text-foreground">
-      <Bot size={13} strokeWidth={2.2} />Session Agents
-    </div>
-    <div class="flex flex-col gap-1 p-2">
+    <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Session Agents</div>
+    <div class="flex flex-col">
       {#if sessionAgents.length === 0}
-        <p class="px-1 py-1 text-xs text-muted-foreground">No agents in the active session.</p>
+        <p class="px-3 py-2.5 text-xs text-muted-foreground">No agents in the active session.</p>
       {/if}
-      {#each sessionAgents as agent}
+      {#each sessionAgents as agent, i}
         <button
-          class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/60"
+          class="w-full text-left transition-colors hover:bg-muted/60 {i > 0 ? 'border-t' : ''}"
           type="button"
           onclick={() => onSelectAgent?.(agent)}
         >
-          <StatusDot tone={statusTone(agent.status)} pulse={pulseForStatus(agent.status)} />
-          <div class="min-w-0">
-            <div class="text-[13px] font-medium text-foreground">
-              {agent.parentAgentId ? "child" : "root"} · {agent.status}
-            </div>
-            <div class="truncate font-mono text-[11px] text-muted-foreground">
-              {agent.mode} · {agent.permissionLevel} · {agent.id}
-            </div>
-          </div>
+          <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-3 py-2.5">
+            <dt class="font-mono text-[11px] text-muted-foreground">Status</dt>
+            <dd class="flex items-center gap-1.5 truncate font-mono text-[11px] text-foreground">
+              <StatusDot tone={statusTone(agent.status)} pulse={pulseForStatus(agent.status)} />
+              {agent.status}
+            </dd>
+            <dt class="font-mono text-[11px] text-muted-foreground">Mode</dt>
+            <dd class="truncate font-mono text-[11px] text-foreground">{agent.mode}</dd>
+            <dt class="font-mono text-[11px] text-muted-foreground">Permission</dt>
+            <dd class="truncate font-mono text-[11px] text-foreground">{agent.permissionLevel}</dd>
+            <dt class="font-mono text-[11px] text-muted-foreground">Agent</dt>
+            <dd class="truncate font-mono text-[11px] text-foreground" title={agent.id}>{agent.id}</dd>
+          </dl>
         </button>
       {/each}
     </div>

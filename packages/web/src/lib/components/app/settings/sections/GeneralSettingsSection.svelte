@@ -1,6 +1,7 @@
 <script lang="ts">
   import Settings2 from "@lucide/svelte/icons/settings-2";
   import type { StatusResponse } from "../../../../api";
+  import * as Card from "$lib/components/ui/card";
 
   type Props = {
     status?: StatusResponse;
@@ -9,16 +10,15 @@
   let { status }: Props = $props();
 </script>
 
-<section class="settings-card app-card" data-section="general">
-  <div class="card-head">
-    <div class="card-icon"><Settings2 size={16} strokeWidth={2.2} /></div>
-    <div>
-      <span class="eyebrow">General</span>
-      <h2>Daemon state</h2>
-      <p>Read-only runtime metadata from the orchestrator.</p>
-    </div>
-  </div>
-  <div class="stat-grid">
+<Card.Root size="sm" data-section="general">
+  <Card.Header>
+    <Card.Title class="flex items-center gap-2">
+      <Settings2 size={16} strokeWidth={2.2} /> Daemon state
+    </Card.Title>
+    <Card.Description>Read-only runtime metadata from the orchestrator.</Card.Description>
+  </Card.Header>
+  <Card.Content class="grid gap-3">
+    <div class="stat-grid">
     <section class="app-surface"><span>Daemon</span><strong>{status?.daemonId ?? "not loaded"}</strong></section>
     <section class="app-surface"><span>Version</span><strong>{status?.version ?? "—"}</strong></section>
     <section class="app-surface">
@@ -29,5 +29,6 @@
     <section class="wide app-surface">
       <span>SQLite</span><strong title={status?.storage.sqlitePath}>{status?.storage.sqlitePath ?? "—"}</strong>
     </section>
-  </div>
-</section>
+    </div>
+  </Card.Content>
+</Card.Root>

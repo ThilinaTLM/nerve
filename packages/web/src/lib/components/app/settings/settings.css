@@ -8,23 +8,33 @@
 
 .settings-header {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   border-bottom: 1px solid var(--border);
   background: var(--muted);
-  padding: 0.85rem 1rem;
+  padding: 0.6rem 1rem;
 }
 
-.settings-page .heading-block {
-  display: grid;
-  min-width: 0;
-  gap: 0.22rem;
+.settings-page .settings-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--foreground);
 }
 
-.settings-page .breadcrumb,
-.settings-page .eyebrow,
-.settings-page .rail-title,
+.settings-page .settings-title strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.settings-page .settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.42rem;
+}
+
 .settings-page h3 {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
@@ -33,119 +43,17 @@
   text-transform: uppercase;
 }
 
-.settings-page .breadcrumb b {
-  color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
-  font-weight: 400;
-}
-
-.settings-page .breadcrumb em {
-  color: var(--primary);
-  font-style: normal;
-}
-
-.settings-page h1,
-.settings-page h2,
 .settings-page h3,
 .settings-page p {
   margin: 0;
 }
 
-.settings-page h1 {
-  color: var(--foreground);
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.18;
-}
-
-.settings-page .heading-block p,
-.settings-page .card-head p,
 .settings-page .muted {
   color: var(--muted-foreground);
   font-size: 0.8125rem;
   line-height: 1.38;
 }
 
-.settings-page .header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 0.42rem;
-}
-
-.settings-page .settings-grid {
-  display: grid;
-  grid-template-columns: 15rem minmax(0, 1fr);
-  min-height: 0;
-}
-
-.settings-rail {
-  display: grid;
-  align-content: start;
-  gap: 0.25rem;
-  border-right: 1px solid var(--border);
-  background: var(--card);
-  padding: 0.65rem;
-}
-
-.settings-page .rail-title {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.2rem 0.5rem;
-}
-
-.settings-rail button {
-  position: relative;
-  display: grid;
-  width: 100%;
-  gap: 0.12rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted-foreground);
-  padding: 0.48rem 0.55rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.settings-rail button:hover,
-.settings-rail button.active {
-  border-color: color-mix(in oklab, var(--border) 60%, transparent);
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.settings-rail button.active::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 2px;
-  background: var(--primary);
-}
-
-.settings-rail button strong {
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.settings-rail button small {
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-}
-
-.settings-page .rail-status {
-  display: grid;
-  gap: 0.35rem;
-  margin-top: 0.6rem;
-}
-
-.settings-page .rail-status section {
-  display: grid;
-  gap: 0.1rem;
-  padding: 0.45rem;
-}
-
-.settings-page .rail-status span,
 .settings-page .stat-grid span {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
@@ -154,7 +62,6 @@
   text-transform: uppercase;
 }
 
-.settings-page .rail-status strong,
 .settings-page .stat-grid strong {
   overflow: hidden;
   color: var(--foreground);
@@ -182,56 +89,17 @@
   min-width: 0;
 }
 
-.settings-page .settings-card,
-.settings-page .empty-card {
-  min-width: 0;
-}
-
-.settings-page .empty-card {
+.settings-page .settings-loading {
   padding: 3rem 1rem;
 }
 
-.settings-page .empty-card svg {
+.settings-page .settings-loading svg {
   color: var(--primary);
 }
 
-.settings-page .empty-card strong {
+.settings-page .settings-loading strong {
   color: var(--foreground);
   font-size: 1rem;
-}
-
-.settings-page .card-head {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 0.62rem;
-}
-
-.settings-page .card-icon {
-  display: inline-grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  border-radius: var(--radius-sm);
-  background: var(--input);
-  color: var(--primary);
-}
-
-.settings-page .eyebrow {
-  color: var(--primary);
-}
-
-.settings-page h2 {
-  color: var(--foreground);
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.18;
-}
-
-.settings-page h3 {
-  color: var(--muted-foreground);
-  font-weight: 600;
 }
 
 .settings-page .stat-grid,
@@ -372,22 +240,10 @@
 }
 
 @media (max-width: 960px) {
-  .settings-page .settings-header,
-  .settings-page .settings-grid,
   .settings-page .defaults-grid,
   .settings-page .server-grid,
   .settings-page .stat-grid,
   .settings-page .permission-table div {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .settings-page .settings-header {
-    display: grid;
-    align-items: start;
-  }
-
-  .settings-page .settings-rail {
-    border-right: 0;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   }
 }

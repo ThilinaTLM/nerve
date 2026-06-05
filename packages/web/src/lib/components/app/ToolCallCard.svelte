@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ToolCallRecord } from "../../api";
+  import type { PlanReviewRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import type { LiveToolOutput } from "../../stores/workbench/state.svelte";
   import { parseToolView } from "../../tool-views/tool-result-view";
   import { toolViewComponent } from "../../tool-views/registry";
@@ -8,12 +8,38 @@
   type Props = {
     toolCall: ToolCallRecord;
     liveOutput?: LiveToolOutput;
+    pendingUserQuestion?: UserQuestionRecord;
+    pendingPlanReview?: PlanReviewRecord;
     onOpenFile?: (path: string, line?: number) => void;
+    onAnswerUserQuestion?: (questionId: string, answer: string) => void;
+    onDismissUserQuestion?: (questionId: string) => void;
+    onAcceptPlanReview?: (id: string) => void;
+    onRequestPlanChanges?: (id: string, feedback: string) => void;
+    onDiscardPlanReview?: (id: string) => void;
   };
-  let { toolCall, liveOutput, onOpenFile }: Props = $props();
+  let {
+    toolCall,
+    liveOutput,
+    pendingUserQuestion,
+    pendingPlanReview,
+    onOpenFile,
+    onAnswerUserQuestion,
+    onDismissUserQuestion,
+    onAcceptPlanReview,
+    onRequestPlanChanges,
+    onDiscardPlanReview,
+  }: Props = $props();
 
   const view = $derived(parseToolView(toolCall, liveOutput));
   const ToolView = $derived(toolViewComponent(view.kind));
+  const toolQuestion = $derived(
+    pendingUserQuestion?.toolCallId === toolCall.id
+      ? pendingUserQuestion
+      : undefined,
+  );
+  const toolPlanReview = $derived(
+    pendingPlanReview?.toolCallId === toolCall.id ? pendingPlanReview : undefined,
+  );
 
   const statusLabel: Partial<Record<ToolCallRecord["status"], string>> = {
     requested: "requested",
@@ -58,7 +84,18 @@
     <pre class="tool-pre error">{errorPreview}</pre>
   {/if}
 
-  <ToolView {toolCall} {view} {onOpenFile} />
+  <ToolView
+    {toolCall}
+    {view}
+    {onOpenFile}
+    questionRecord={toolQuestion}
+    planReview={toolPlanReview}
+    {onAnswerUserQuestion}
+    {onDismissUserQuestion}
+    {onAcceptPlanReview}
+    {onRequestPlanChanges}
+    {onDiscardPlanReview}
+  />
 </article>
 
 <style>

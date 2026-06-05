@@ -3,6 +3,7 @@
   import type { Settings } from "../../../../api";
   import type { ThemePreference } from "../../../../state/app-state.svelte";
   import RadioGroup from "$lib/components/ui/radio-group-field";
+  import * as Card from "$lib/components/ui/card";
   import { themeItems } from "../options";
 
   type Props = {
@@ -19,20 +20,20 @@
   }
 </script>
 
-<section class="settings-card app-card" data-section="appearance">
-  <div class="card-head">
-    <div class="card-icon"><Monitor size={16} strokeWidth={2.2} /></div>
-    <div>
-      <span class="eyebrow">Appearance</span>
-      <h2>Theme</h2>
-      <p>Dark mode follows the Stitch Technical Precision reference. Light remains as a compatibility fallback.</p>
-    </div>
-  </div>
-  <RadioGroup
-    items={themeItems}
-    value={settingsDraft.ui.theme}
-    orientation="horizontal"
-    ariaLabel="Theme preference"
-    onValueChange={setThemePreference}
-  />
-</section>
+<Card.Root size="sm" data-section="appearance">
+  <Card.Header>
+    <Card.Title class="flex items-center gap-2">
+      <Monitor size={16} strokeWidth={2.2} /> Theme
+    </Card.Title>
+    <Card.Description>Dark mode follows the Stitch Technical Precision reference. Light remains as a compatibility fallback.</Card.Description>
+  </Card.Header>
+  <Card.Content>
+    <RadioGroup
+      items={themeItems}
+      value={settingsDraft.ui.theme}
+      orientation="horizontal"
+      ariaLabel="Theme preference"
+      onValueChange={setThemePreference}
+    />
+  </Card.Content>
+</Card.Root>

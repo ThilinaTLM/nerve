@@ -444,35 +444,19 @@ export async function discardPendingPlanReview(reviewId: string) {
   toast.message("Plan discarded");
 }
 
-export async function answerActiveUserQuestion() {
-  const question = workbenchState.userQuestions.find((candidate) => {
-    if (selection.sessionId && candidate.sessionId === selection.sessionId)
-      return true;
-    return Boolean(
-      selection.agentId && candidate.agentId === selection.agentId,
-    );
-  });
-  if (!question || !selection.sessionId) return;
-  const view = ensureConversationView(selection.sessionId);
-  const answer = view.composerText.trim();
-  if (!answer) return;
-  await answerUserQuestion(question.id, answer);
-  view.composerText = "";
-  composerDraft.text = "";
+export async function answerUserQuestionById(
+  questionId: string,
+  answer: string,
+) {
+  const trimmed = answer.trim();
+  if (!trimmed) return;
+  await answerUserQuestion(questionId, trimmed);
   workbenchState.userQuestions = await getPendingUserQuestions();
   toast.success("Reply sent");
 }
 
-export async function dismissActiveUserQuestion() {
-  const question = workbenchState.userQuestions.find((candidate) => {
-    if (selection.sessionId && candidate.sessionId === selection.sessionId)
-      return true;
-    return Boolean(
-      selection.agentId && candidate.agentId === selection.agentId,
-    );
-  });
-  if (!question) return;
-  await dismissUserQuestionRequest(question.id, "Dismissed from UI.");
+export async function dismissUserQuestionById(questionId: string) {
+  await dismissUserQuestionRequest(questionId, "Dismissed from UI.");
   workbenchState.userQuestions = await getPendingUserQuestions();
   toast.message("Question dismissed");
 }

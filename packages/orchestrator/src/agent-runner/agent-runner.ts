@@ -37,6 +37,7 @@ import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import type { AgentRunStateMap } from "./run-state.js";
 import { SubagentRunner } from "./subagent-runner.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
+import { shouldStreamToolDraftArguments } from "./tool-draft-streaming.js";
 
 export interface AgentRunnerDeps {
   storage: InitializedStorage;
@@ -133,6 +134,7 @@ export class AgentRunner {
     let lastAssistantEntry: SessionEntry | undefined;
     let currentTurnId: string | undefined;
     let currentLiveMessageId: string | undefined;
+    const liveToolDraftNames = new Map<number, string | undefined>();
 
     try {
       const session = this.deps.getSession(agent.sessionId);
@@ -201,6 +203,7 @@ export class AgentRunner {
             currentTurnId,
           );
           currentLiveMessageId = started.liveMessageId;
+          liveToolDraftNames.clear();
           await this.deps.events.publish(
             "conversation.live.message.started",
             started,
@@ -248,9 +251,13 @@ export class AgentRunner {
               kind: "text",
               finalText: update.content,
             });
-            await this.deps.events.publish("conversation.live.content.done", data, {
-              durability: "transient",
-            });
+            await this.deps.events.publish(
+              "conversation.live.content.done",
+              data,
+              {
+                durability: "transient",
+              },
+            );
           } else if (update.type === "thinking_end") {
             const data = this.deps.conversationRuntime.finishContent({
               runId,
@@ -264,14 +271,19 @@ export class AgentRunner {
                 update.contentIndex,
               ),
             });
-            await this.deps.events.publish("conversation.live.content.done", data, {
-              durability: "transient",
-            });
+            await this.deps.events.publish(
+              "conversation.live.content.done",
+              data,
+              {
+                durability: "transient",
+              },
+            );
           } else if (update.type === "toolcall_start") {
             const draft = assistantToolCallDraft(
               update.partial,
               update.contentIndex,
             );
+            liveToolDraftNames.set(update.contentIndex, draft?.name);
             const data = this.deps.conversationRuntime.startToolDraft({
               runId,
               turnId: currentTurnId,
@@ -286,6 +298,15 @@ export class AgentRunner {
               { durability: "transient" },
             );
           } else if (update.type === "toolcall_delta") {
+            const draft = assistantToolCallDraft(
+              update.partial,
+              update.contentIndex,
+            );
+            const toolName =
+              draft?.name ?? liveToolDraftNames.get(update.contentIndex);
+            if (draft?.name)
+              liveToolDraftNames.set(update.contentIndex, draft.name);
+            if (!shouldStreamToolDraftArguments(toolName)) return;
             const data = this.deps.conversationRuntime.applyToolDraftDelta({
               runId,
               turnId: currentTurnId,
@@ -299,6 +320,7 @@ export class AgentRunner {
               { durability: "transient" },
             );
           } else if (update.type === "toolcall_end") {
+            liveToolDraftNames.delete(update.contentIndex);
             const data = this.deps.conversationRuntime.finishToolDraft({
               runId,
               turnId: currentTurnId,
@@ -318,7 +340,9 @@ export class AgentRunner {
         }
         if (event.type === "message_end") {
           const liveMessageId =
-            event.message.role === "assistant" ? currentLiveMessageId : undefined;
+            event.message.role === "assistant"
+              ? currentLiveMessageId
+              : undefined;
           const mirrored =
             await this.deps.messageMirror.mirrorNewHarnessEntries(
               agent,
@@ -348,7 +372,8 @@ export class AgentRunner {
               lastAssistantEntry = entry;
             }
           }
-          if (event.message.role === "assistant") currentLiveMessageId = undefined;
+          if (event.message.role === "assistant")
+            currentLiveMessageId = undefined;
           return;
         }
       });
