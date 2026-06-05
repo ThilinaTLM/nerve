@@ -5,6 +5,7 @@ import type {
   AuthProviderMetadata,
   ClientConfig,
   CompletionItem,
+  FilesystemFileResponse,
   ModelInfo,
   PlanReviewRecord,
   ProcessLogQueryResponse,
@@ -88,7 +89,19 @@ export type ConversationViewState = {
 
 export type CenterTabIdentity =
   | { kind: "conversation"; id: string }
-  | { kind: "process"; id: string };
+  | { kind: "process"; id: string }
+  | { kind: "file"; id: string }
+  | { kind: "settings"; id: "settings" };
+
+export type FileViewState = {
+  id: string;
+  projectId: string;
+  path: string;
+  line?: number;
+  content?: FilesystemFileResponse;
+  loading: boolean;
+  error?: string;
+};
 
 export const workbenchState = $state({
   status: undefined as StatusResponse | undefined,
@@ -109,9 +122,12 @@ export const workbenchState = $state({
   processLogs: undefined as ProcessLogQueryResponse | undefined,
   openConversationTabIds: [] as string[],
   openProcessTabIds: [] as string[],
+  openFileTabIds: [] as string[],
+  settingsTabOpen: false,
   activeConversationTabId: undefined as string | undefined,
   activeCenterTab: undefined as CenterTabIdentity | undefined,
   conversationViews: {} as Record<string, ConversationViewState>,
+  fileViews: {} as Record<string, FileViewState>,
   transcript: [] as TranscriptItem[],
   streamingText: "",
   slashCompletions: [] as CompletionItem[],

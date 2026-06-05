@@ -13,16 +13,26 @@ import {
   currentActiveAgent,
   selectedModelInfo,
 } from "./composer-config.svelte";
+import { activateFallbackCenterTab } from "./workbench/center-tabs.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 
-let navigateToSettings: (() => void) | undefined;
-
-export function setSettingsNavigation(callback: () => void) {
-  navigateToSettings = callback;
+export async function openSettingsPane() {
+  workbenchState.settingsTabOpen = true;
+  workbenchState.activeCenterTab = { kind: "settings", id: "settings" };
+  await loadSettingsPanel();
 }
 
-export function navigateToSettingsPanel() {
-  navigateToSettings?.();
+export async function selectCenterSettingsTab() {
+  workbenchState.settingsTabOpen = true;
+  workbenchState.activeCenterTab = { kind: "settings", id: "settings" };
+  if (!workbenchState.settingsDraft) await loadSettingsPanel();
+}
+
+export function closeSettingsTab() {
+  workbenchState.settingsTabOpen = false;
+  if (workbenchState.activeCenterTab?.kind === "settings") {
+    activateFallbackCenterTab();
+  }
 }
 
 export async function loadSettingsPanel() {

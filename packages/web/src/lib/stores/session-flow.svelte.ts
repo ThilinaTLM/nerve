@@ -13,6 +13,7 @@ import {
   getPendingPlanReviews,
   getPendingUserQuestions,
   getConversationSnapshot,
+  getProcessLogs,
   type ProjectRecord,
   requestPlanChanges,
   type SessionRecord,
@@ -31,7 +32,7 @@ import {
   selectedModel,
   selectedThinkingLevel,
 } from "./composer-config.svelte";
-import { navigateToSettingsPanel } from "./settings.svelte";
+import { openSettingsPane } from "./settings.svelte";
 import {
   filterStoredTabsAgainstSessions,
   loadStoredConversationTabs,
@@ -296,6 +297,14 @@ export async function closeConversationTab(sessionId: string) {
     const processId = workbenchState.openProcessTabIds[0];
     workbenchState.activeCenterTab = { kind: "process", id: processId };
     workbenchState.selectedProcessId = processId;
+    workbenchState.processLogs = await getProcessLogs(processId);
+  } else if (closingActiveCenter && workbenchState.openFileTabIds[0]) {
+    workbenchState.activeCenterTab = {
+      kind: "file",
+      id: workbenchState.openFileTabIds[0],
+    };
+  } else if (closingActiveCenter && workbenchState.settingsTabOpen) {
+    workbenchState.activeCenterTab = { kind: "settings", id: "settings" };
   } else if (closingActiveCenter) {
     workbenchState.activeCenterTab = undefined;
   }
@@ -326,9 +335,21 @@ export async function removeConversationTabs(sessionIds: string[]) {
   }
 
   clearActiveSelection();
-  workbenchState.activeCenterTab = workbenchState.openProcessTabIds[0]
-    ? { kind: "process", id: workbenchState.openProcessTabIds[0] }
-    : undefined;
+  if (workbenchState.openProcessTabIds[0]) {
+    const processId = workbenchState.openProcessTabIds[0];
+    workbenchState.activeCenterTab = { kind: "process", id: processId };
+    workbenchState.selectedProcessId = processId;
+    workbenchState.processLogs = await getProcessLogs(processId);
+  } else if (workbenchState.openFileTabIds[0]) {
+    workbenchState.activeCenterTab = {
+      kind: "file",
+      id: workbenchState.openFileTabIds[0],
+    };
+  } else if (workbenchState.settingsTabOpen) {
+    workbenchState.activeCenterTab = { kind: "settings", id: "settings" };
+  } else {
+    workbenchState.activeCenterTab = undefined;
+  }
   persistConversationTabs();
 }
 
@@ -359,9 +380,12 @@ export async function compactActiveSession() {
 export function clearConversationState() {
   workbenchState.openConversationTabIds = [];
   workbenchState.openProcessTabIds = [];
+  workbenchState.openFileTabIds = [];
+  workbenchState.settingsTabOpen = false;
   workbenchState.activeConversationTabId = undefined;
   workbenchState.activeCenterTab = undefined;
   workbenchState.conversationViews = {};
+  workbenchState.fileViews = {};
   clearActiveSelection();
   persistConversationTabs();
 }
@@ -517,7 +541,7 @@ export async function sendPrompt() {
     usableModelOptions(workbenchState.models, workbenchState.authProviders)
       .length === 0
   ) {
-    navigateToSettingsPanel();
+    void openSettingsPane();
     view.error = "Configure a model provider in Settings before prompting.";
     workbenchState.error = view.error;
     return;

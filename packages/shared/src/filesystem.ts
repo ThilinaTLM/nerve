@@ -37,6 +37,29 @@ export type FilesystemDirectoryQuery = z.infer<
   typeof filesystemDirectoryQuerySchema
 >;
 
+export const filesystemFileQuerySchema = z.object({
+  projectId: z.string().min(1),
+  path: z.string().min(1),
+});
+export type FilesystemFileQuery = z.infer<typeof filesystemFileQuerySchema>;
+
+export const filesystemFileResponseSchema = z.object({
+  projectId: z.string().min(1),
+  path: z.string().min(1),
+  relativePath: z.string(),
+  name: z.string().min(1),
+  size: z.number().nonnegative(),
+  mtimeMs: z.number().nonnegative(),
+  type: z.enum(["text", "image", "binary"]),
+  text: z.string().optional(),
+  dataBase64: z.string().optional(),
+  mimeType: z.string().optional(),
+  truncated: z.boolean(),
+});
+export type FilesystemFileResponse = z.infer<
+  typeof filesystemFileResponseSchema
+>;
+
 export const clipboardImageUploadRequestSchema = z.object({
   name: z.string().optional(),
   type: z.string().min(1),

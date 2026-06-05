@@ -7,6 +7,7 @@ import type {
   ClipboardImageUploadResponse,
   EventEnvelope,
   FilesystemDirectoryResponse,
+  FilesystemFileResponse,
   FilesystemSignal,
   ModelInfo,
   ModelSelection,
@@ -413,6 +414,16 @@ export async function listDirectories(
   );
 }
 
+export async function getFileContent(
+  projectId: string,
+  path: string,
+): Promise<FilesystemFileResponse> {
+  const params = new URLSearchParams({ projectId, path });
+  return apiGet<FilesystemFileResponse>(
+    `/api/filesystem/file?${params.toString()}`,
+  );
+}
+
 export type {
   AgentRecord,
   ClipboardImageUploadResponse,
@@ -420,6 +431,7 @@ export type {
   ConversationSnapshot,
   EventEnvelope,
   FilesystemDirectoryResponse,
+  FilesystemFileResponse,
   FilesystemSignal,
   ProjectRecord,
   SessionEntry,
