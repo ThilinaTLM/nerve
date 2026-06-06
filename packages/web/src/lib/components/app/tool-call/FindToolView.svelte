@@ -1,16 +1,17 @@
 <script lang="ts">
   import type { ToolCallRecord } from "../../../api";
-  import { PREVIEW_LIMITS, type ToolView } from "../../../tool-views/tool-result-view";
+  import { COLLAPSED_LINES, type ToolView } from "../../../tool-views/tool-result-view";
 
   type Props = {
     toolCall: ToolCallRecord;
     view: Extract<ToolView, { kind: "find" }>;
+    expanded?: boolean;
     onOpenFile?: (path: string) => void;
   };
-  let { view, onOpenFile }: Props = $props();
+  let { view, expanded = false, onOpenFile }: Props = $props();
 
-  const preview = $derived(
-    view.paths.slice(0, PREVIEW_LIMITS.LIST_PREVIEW).map((path, index) => ({
+  const visible = $derived(
+    (expanded ? view.paths : view.paths.slice(0, COLLAPSED_LINES)).map((path, index) => ({
       path,
       openPath: view.openPaths[index] ?? path,
     })),
@@ -21,13 +22,10 @@
   <p class="note">No files found.</p>
 {:else}
   <ul class="paths">
-    {#each preview as item (item.path)}
+    {#each visible as item (item.path)}
       <li><button type="button" onclick={() => onOpenFile?.(item.openPath)}>{item.path}</button></li>
     {/each}
   </ul>
-  {#if view.count > preview.length}
-    <p class="note">Showing first {preview.length} of {view.count} files.</p>
-  {/if}
 {/if}
 
 <style>

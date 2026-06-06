@@ -1,24 +1,24 @@
 <script lang="ts">
   import type { ToolCallRecord } from "../../../api";
   import type { ToolView } from "../../../tool-views/tool-result-view";
-  import LogLineList from "./LogLineList.svelte";
+  import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
-  type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "bash" }> };
-  let { toolCall, view }: Props = $props();
+  type Props = {
+    toolCall: ToolCallRecord;
+    view: Extract<ToolView, { kind: "bash" }>;
+    expanded?: boolean;
+  };
+  let { toolCall, view, expanded = false }: Props = $props();
 </script>
 
-{#if view.tailLines.length > 0}
-  <LogLineList lines={view.tailLines} />
+{#if view.output.length > 0}
+  <ToolOutputBlock text={view.output} direction="tail" {expanded} />
 {:else if toolCall.status === "running"}
-  <p class="note live-note">Waiting for command output…</p>
+  <p class="note">Waiting for command output…</p>
 {/if}
 
 {#if view.live}
-  <p class="note live-note">Streaming live output…</p>
-{/if}
-
-{#if view.savedTo}
-  <p class="note">Full output saved to <span class="path">{view.savedTo}</span></p>
+  <p class="note">Streaming live output…</p>
 {/if}
 
 <style>
@@ -26,9 +26,5 @@
     margin: 0;
     font-size: var(--text-xs);
     color: var(--muted-foreground);
-  }
-
-  .path {
-    font-family: var(--font-mono);
   }
 </style>

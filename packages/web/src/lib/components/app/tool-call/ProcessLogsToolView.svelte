@@ -1,19 +1,22 @@
 <script lang="ts">
   import type { ToolCallRecord } from "../../../api";
-  import type { ToolView } from "../../../tool-views/tool-result-view";
+  import { COLLAPSED_LINES, tail, type ToolView } from "../../../tool-views/tool-result-view";
   import LogLineList from "./LogLineList.svelte";
 
-  type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "process_logs" }> };
-  let { view }: Props = $props();
+  type Props = {
+    toolCall: ToolCallRecord;
+    view: Extract<ToolView, { kind: "process_logs" }>;
+    expanded?: boolean;
+  };
+  let { view, expanded = false }: Props = $props();
+
+  const visible = $derived(expanded ? view.events : tail(view.events, COLLAPSED_LINES));
 </script>
 
 {#if view.events.length === 0}
   <p class="note">No log events.</p>
 {:else}
-  <LogLineList events={view.tailEvents} />
-  {#if view.events.length > view.tailEvents.length}
-    <p class="note">Showing latest {view.tailEvents.length} of {view.events.length} events.</p>
-  {/if}
+  <LogLineList events={visible} />
 {/if}
 
 <style>

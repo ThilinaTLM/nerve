@@ -1,15 +1,31 @@
 <script lang="ts">
   import type { ToolCallRecord } from "../../../api";
-  import type { GroupedMatches, ToolView } from "../../../tool-views/tool-result-view";
+  import {
+    COLLAPSED_LINES,
+    type GroupedMatches,
+    type ToolView,
+  } from "../../../tool-views/tool-result-view";
 
   type Props = {
     toolCall: ToolCallRecord;
     view: Extract<ToolView, { kind: "grep" }>;
+    expanded?: boolean;
     onOpenFile?: (path: string, line?: number) => void;
   };
-  let { view, onOpenFile }: Props = $props();
+  let { view, expanded = false, onOpenFile }: Props = $props();
 
-  const shownMatches = $derived(view.previewMatches.reduce((sum, group) => sum + group.matches.length, 0));
+  const visibleGroups = $derived.by(() => {
+    if (expanded) return view.allMatches;
+    const groups: GroupedMatches[] = [];
+    let shown = 0;
+    for (const group of view.allMatches) {
+      if (shown >= COLLAPSED_LINES) break;
+      const slice = group.matches.slice(0, COLLAPSED_LINES - shown);
+      groups.push({ path: group.path, openPath: group.openPath, matches: slice });
+      shown += slice.length;
+    }
+    return groups;
+  });
 </script>
 
 {#snippet matchGroups(groups: GroupedMatches[])}
@@ -32,10 +48,7 @@
 {#if view.matchCount === 0}
   <p class="note">No matches.</p>
 {:else}
-  {@render matchGroups(view.previewMatches)}
-  {#if view.matchCount > shownMatches}
-    <p class="note">Showing first {shownMatches} of {view.matchCount} matches.</p>
-  {/if}
+  {@render matchGroups(visibleGroups)}
 {/if}
 
 <style>

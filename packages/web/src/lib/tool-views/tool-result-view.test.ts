@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "../api";
+import { toolPresentation } from "./tool-presentation";
 import { parseToolView } from "./tool-result-view";
 
 const CWD = "/tmp/project";
@@ -26,6 +27,20 @@ function toolCall(
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
+}
+
+function present(
+  toolName: ToolCallRecord["toolName"],
+  args: unknown,
+  result: unknown,
+  overrides: Partial<ToolCallRecord> = {},
+) {
+  const tc = toolCall(toolName, args, result, overrides);
+  return toolPresentation(parseToolView(tc), tc);
+}
+
+function metaText(meta: { text: string }[]): string[] {
+  return meta.map((item) => item.text);
 }
 
 describe("parseToolView", () => {
@@ -63,7 +78,6 @@ describe("parseToolView", () => {
     assert.equal(view.kind, "read");
     if (view.kind !== "read") return;
     assert.equal(view.image?.dataUrl, "data:image/png;base64,QUJD");
-    assert.equal(view.title, "logo.png · image");
   });
 
   it("uses offset for the line label when reading a range", () => {
@@ -77,7 +91,7 @@ describe("parseToolView", () => {
     assert.equal(view.kind === "read" && view.lineLabel, "lines 10–12");
   });
 
-  it("parses bash exit code, tail, and saved-output path", () => {
+  it("parses bash exit code, combined output, and saved-output path", () => {
     const view = parseToolView(
       toolCall(
         "bash",
@@ -99,12 +113,12 @@ describe("parseToolView", () => {
     if (view.kind !== "bash") return;
     assert.equal(view.command, "make build");
     assert.equal(view.exitCode, 2);
-    assert.deepEqual(view.tailLines, ["line1", "line2", "line3"]);
+    assert.equal(view.output, "line1\nline2\nline3");
     assert.equal(view.savedTo, "/tmp/out.log");
     assert.equal(view.truncated, true);
   });
 
-  it("parses edit diff and replacement count", () => {
+  it("parses edit diff, replacement count, and +/- stats", () => {
     const view = parseToolView(
       toolCall(
         "edit",
@@ -129,7 +143,8 @@ describe("parseToolView", () => {
     if (view.kind !== "edit") return;
     assert.equal(view.replacements, 2);
     assert.equal(view.diff, "@@ -1 +1 @@\n-a\n+b");
-    assert.equal(view.title, "src/x.ts · 2 replacements");
+    assert.equal(view.additions, 1);
+    assert.equal(view.deletions, 1);
   });
 
   it("parses write byte count", () => {
@@ -165,7 +180,7 @@ describe("parseToolView", () => {
     assert.equal(view.allMatches[0]?.matches.length, 2);
   });
 
-  it("truncates long grep preview lines", () => {
+  it("truncates long grep match lines", () => {
     const longLine = `prefix ${"x".repeat(1_000)} suffix`;
     const view = parseToolView(
       toolCall(
@@ -177,10 +192,9 @@ describe("parseToolView", () => {
 
     assert.equal(view.kind, "grep");
     if (view.kind !== "grep") return;
-    const previewText = view.previewMatches[0]?.matches[0]?.text ?? "";
-    assert.ok(previewText.length <= 260);
-    assert.match(previewText, /chars omitted/);
-    assert.equal(view.allMatches[0]?.matches[0]?.text, longLine);
+    const text = view.allMatches[0]?.matches[0]?.text ?? "";
+    assert.ok(text.length <= 260);
+    assert.match(text, /chars omitted/);
   });
 
   it("parses find paths", () => {
@@ -263,7 +277,6 @@ describe("parseToolView", () => {
     if (view.kind !== "todos") return;
     assert.equal(view.completed, 1);
     assert.equal(view.total, 2);
-    assert.equal(view.title, "set todos · 1/2 done");
   });
 
   it("parses empty todos_get", () => {
@@ -319,7 +332,7 @@ describe("parseToolView", () => {
     assert.equal(view.process?.readiness.matched, "http://localhost:3000");
   });
 
-  it("parses process_logs tail", () => {
+  it("parses process_logs events", () => {
     const events = Array.from({ length: 20 }, (_, index) => ({
       seq: index + 1,
       ts: "2026-01-01T00:00:00.000Z",
@@ -354,8 +367,7 @@ describe("parseToolView", () => {
     assert.equal(view.kind, "process_logs");
     if (view.kind !== "process_logs") return;
     assert.equal(view.events.length, 20);
-    assert.equal(view.tailEvents.length, 15);
-    assert.equal(view.tailEvents[0]?.line, "line 6");
+    assert.equal(view.mode, "recent");
   });
 
   it("parses subagent summary and child id", () => {
@@ -401,7 +413,8 @@ describe("parseToolView", () => {
     );
     assert.equal(view.kind, "plan_mode");
     if (view.kind !== "plan_mode") return;
-    assert.equal(view.title, "plan mode entered · /home/tlm/.pi/plans");
+    assert.equal(view.action, "enter");
+    assert.equal(view.planPath, "/home/tlm/.pi/plans");
     assert.equal(view.summary, "Plan mode active.");
   });
 
@@ -419,10 +432,9 @@ describe("parseToolView", () => {
     );
     assert.equal(view.kind, "plan_mode");
     if (view.kind !== "plan_mode") return;
-    assert.equal(
-      view.title,
-      "presented /home/tlm/.pi/plans/feature.md · accepted",
-    );
+    assert.equal(view.action, "present");
+    assert.equal(view.planPath, "/home/tlm/.pi/plans/feature.md");
+    assert.equal(view.outcome, "accepted");
     assert.equal(view.summary, "Looks good");
   });
 
@@ -432,7 +444,7 @@ describe("parseToolView", () => {
     );
     assert.equal(view.kind, "plan_mode");
     if (view.kind !== "plan_mode") return;
-    assert.equal(view.title, "exited plan mode");
+    assert.equal(view.action, "force_exit");
     assert.equal(view.summary, "Done");
   });
 
@@ -456,10 +468,9 @@ describe("parseToolView", () => {
     if (view.kind !== "web_search") return;
     assert.equal(view.answer, "It searches.");
     assert.equal(view.results.length, 1);
-    assert.equal(view.title, "nerve agent · 1 result");
   });
 
-  it("parses web_fetch details and preview", () => {
+  it("parses web_fetch details and content", () => {
     const view = parseToolView(
       toolCall(
         "web_fetch",
@@ -480,7 +491,7 @@ describe("parseToolView", () => {
     if (view.kind !== "web_fetch") return;
     assert.equal(view.status, 200);
     assert.equal(view.converted, true);
-    assert.match(view.preview ?? "", /Fetched markdown/);
+    assert.match(view.content ?? "", /Fetched markdown/);
   });
 
   it("falls back to generic for a malformed result", () => {
@@ -499,5 +510,103 @@ describe("parseToolView", () => {
       }),
     );
     assert.equal(view.kind, "generic");
+  });
+});
+
+describe("toolPresentation", () => {
+  it("puts the file path in the clickable primary arg for read", () => {
+    const p = present(
+      "read",
+      { path: "src/app.ts" },
+      { path: `${CWD}/src/app.ts`, content: "a\nb\nc" },
+    );
+    assert.equal(p.badge, "read");
+    assert.equal(p.primaryArg?.text, "src/app.ts");
+    assert.equal(p.primaryArg?.openPath, `${CWD}/src/app.ts`);
+    assert.deepEqual(metaText(p.meta), ["3 lines"]);
+  });
+
+  it("marks a non-zero bash exit with an error chip and no collapse for short output", () => {
+    const p = present(
+      "bash",
+      { command: "make build" },
+      { content: "line1\nline2", exitCode: 2, details: { signal: null } },
+    );
+    assert.equal(p.primaryArg?.text, "make build");
+    assert.equal(p.primaryArg?.openPath, undefined);
+    assert.ok(p.meta.some((m) => m.text === "exit 2" && m.tone === "error"));
+    assert.equal(p.collapse, undefined);
+  });
+
+  it("computes a tail collapse for long bash output", () => {
+    const output = Array.from({ length: 25 }, (_, i) => `line ${i}`).join("\n");
+    const p = present(
+      "bash",
+      { command: "x" },
+      { content: output, exitCode: 0 },
+    );
+    assert.ok(p.collapse);
+    assert.equal(p.collapse?.hidden, 15);
+    assert.match(p.collapse?.expandLabel ?? "", /earlier lines/);
+  });
+
+  it("emits +/- chips for edit", () => {
+    const p = present(
+      "edit",
+      { path: "x.ts", edits: [{ oldText: "a", newText: "b" }] },
+      {
+        path: `${CWD}/x.ts`,
+        details: { diff: "@@ -1 +1 @@\n-a\n+b", lineEnding: "\n", bom: false },
+      },
+    );
+    assert.ok(p.meta.some((m) => m.text === "+1" && m.tone === "success"));
+    assert.ok(p.meta.some((m) => m.text === "−1" && m.tone === "error"));
+  });
+
+  it("uses the url as an href primary arg for web_fetch", () => {
+    const p = present(
+      "web_fetch",
+      { url: "https://example.test" },
+      {
+        content: "# Example",
+        details: {
+          url: "https://example.test",
+          status: 200,
+          contentType: "text/html",
+          size: 9,
+          converted: true,
+        },
+      },
+    );
+    assert.equal(p.primaryArg?.href, "https://example.test");
+    assert.ok(p.meta.some((m) => m.text === "200" && m.tone === "success"));
+    assert.ok(p.meta.some((m) => m.text === "markdown" && m.tone === "info"));
+  });
+
+  it("shows a resolved chip for an answered ask_user with no primary arg", () => {
+    const p = present(
+      "ask_user",
+      { question: "Which?" },
+      { question: "Which?", response: "B" },
+    );
+    assert.equal(p.primaryArg, undefined);
+    assert.deepEqual(metaText(p.meta), ["answered"]);
+  });
+
+  it("labels the badge as todos and reports progress", () => {
+    const p = present(
+      "todos_set",
+      { todos: [] },
+      {
+        details: {
+          todos: [
+            { todo: "a", done: true },
+            { todo: "b", done: false },
+          ],
+        },
+      },
+    );
+    assert.equal(p.badge, "todos");
+    assert.deepEqual(metaText(p.meta), ["1/2 done"]);
   });
 });

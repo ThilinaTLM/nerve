@@ -1,17 +1,17 @@
 <script lang="ts">
   import type { ToolCallRecord } from "../../../api";
   import type { ToolView } from "../../../tool-views/tool-result-view";
-  import DiffBlock from "./DiffBlock.svelte";
+  import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
   type Props = {
     toolCall: ToolCallRecord;
     view: Extract<ToolView, { kind: "edit" }>;
+    expanded?: boolean;
     onOpenFile?: (path: string) => void;
   };
-  let { view }: Props = $props();
+  let { view, expanded = false }: Props = $props();
 </script>
 
 {#if view.diff}
-  <DiffBlock diff={view.diff} />
+  <ToolOutputBlock text={view.diff} language="diff" {expanded} />
 {/if}
-

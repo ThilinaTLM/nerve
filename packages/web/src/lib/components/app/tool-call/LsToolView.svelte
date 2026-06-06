@@ -3,14 +3,15 @@
   import Folder from "@lucide/svelte/icons/folder";
   import type { FileEntry } from "@nerve/shared";
   import type { ToolCallRecord } from "../../../api";
-  import { PREVIEW_LIMITS, type ToolView } from "../../../tool-views/tool-result-view";
+  import { COLLAPSED_LINES, type ToolView } from "../../../tool-views/tool-result-view";
 
   type Props = {
     toolCall: ToolCallRecord;
     view: Extract<ToolView, { kind: "ls" }>;
+    expanded?: boolean;
     onOpenFile?: (path: string) => void;
   };
-  let { view, onOpenFile }: Props = $props();
+  let { view, expanded = false, onOpenFile }: Props = $props();
 
   type FileEntryView = FileEntry & { openPath?: string };
 
@@ -22,14 +23,14 @@
   }
 
   const sorted = $derived(sortEntries(view.entries));
-  const preview = $derived(sorted.slice(0, PREVIEW_LIMITS.LS_PREVIEW));
+  const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
 </script>
 
 {#if view.total === 0}
   <p class="note">Empty directory.</p>
 {:else}
   <ul class="entries">
-    {#each preview as entry (entry.path)}
+    {#each visible as entry (entry.path)}
       <li>
         {#if entry.kind === "directory"}<Folder size={12} strokeWidth={2} />{:else}<FileIcon size={12} strokeWidth={2} />{/if}
         {#if entry.kind === "file"}
@@ -40,9 +41,6 @@
       </li>
     {/each}
   </ul>
-  {#if view.total > preview.length}
-    <p class="note">Showing first {preview.length} of {view.total} entries.</p>
-  {/if}
 {/if}
 
 <style>

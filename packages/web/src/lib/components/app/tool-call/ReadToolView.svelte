@@ -2,14 +2,15 @@
   import type { ToolCallRecord } from "../../../api";
   import { extname } from "../../../tool-views/lang";
   import type { ToolView } from "../../../tool-views/tool-result-view";
-  import ResultCodeBlock from "./ResultCodeBlock.svelte";
+  import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
   type Props = {
     toolCall: ToolCallRecord;
     view: Extract<ToolView, { kind: "read" }>;
+    expanded?: boolean;
     onOpenFile?: (path: string, line?: number) => void;
   };
-  let { view, onOpenFile }: Props = $props();
+  let { view, expanded = false, onOpenFile }: Props = $props();
 
   const language = $derived(extname(view.relPath));
 </script>
@@ -19,35 +20,10 @@
     <img class="read-thumb" src={view.image.dataUrl} alt={view.relPath ?? "image"} />
   </button>
 {:else if view.content !== undefined && view.content.length > 0}
-  <ResultCodeBlock code={view.content} {language} />
-  {#if view.truncated}
-    <p class="note">
-      Output truncated
-      {#if view.path}
-        — <button type="button" onclick={() => onOpenFile?.(view.path!)}>open the file</button> to read more.
-      {:else}
-        — open the file to read more.
-      {/if}
-    </p>
-  {/if}
+  <ToolOutputBlock text={view.content} {language} {expanded} />
 {/if}
 
 <style>
-  .note button {
-    border: 0;
-    background: transparent;
-    color: var(--primary);
-    cursor: pointer;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    padding: 0;
-    text-align: left;
-  }
-
-  .note button:hover {
-    text-decoration: underline;
-  }
-
   .thumb-button {
     border: 0;
     background: transparent;
@@ -61,11 +37,5 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     object-fit: contain;
-  }
-
-  .note {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
   }
 </style>

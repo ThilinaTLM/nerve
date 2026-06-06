@@ -6,14 +6,15 @@
     code: string;
     language?: string;
     maxHeight?: string;
+    trim?: boolean;
   };
-  let { code, language, maxHeight: _maxHeight = "18rem" }: Props = $props();
+  let { code, language, maxHeight: _maxHeight = "18rem", trim = true }: Props = $props();
   void _maxHeight;
 
   let html = $state<string | undefined>(undefined);
   let htmlSignature = $state<string | undefined>(undefined);
   let unavailableSignature = $state<string | undefined>(undefined);
-  const preview = $derived(trimTextPreview(code));
+  const preview = $derived(trim ? trimTextPreview(code) : { text: code });
   const signature = $derived(`${language ?? ""}\0${preview.text}`);
 
   $effect(() => {

@@ -5,6 +5,7 @@
   type Props = {
     toolCall: ToolCallRecord;
     view: Extract<ToolView, { kind: "web_search" }>;
+    expanded?: boolean;
   };
   let { view }: Props = $props();
 </script>

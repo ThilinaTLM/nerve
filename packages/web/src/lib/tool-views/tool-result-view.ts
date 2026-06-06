@@ -31,7 +31,6 @@ export type GroupedMatches = {
 export type ToolView =
   | {
       kind: "read";
-      title?: string;
       path?: string;
       relPath?: string;
       lineLabel?: string;
@@ -41,28 +40,25 @@ export type ToolView =
     }
   | {
       kind: "bash";
-      title?: string;
       command?: string;
       exitCode?: number;
       signal?: string | null;
-      tailLines: string[];
-      stdout?: string;
-      stderr?: string;
+      output: string;
       savedTo?: string;
       truncated: boolean;
       live?: boolean;
     }
   | {
       kind: "edit";
-      title?: string;
       path?: string;
       relPath?: string;
       replacements: number;
+      additions: number;
+      deletions: number;
       diff?: string;
     }
   | {
       kind: "write";
-      title?: string;
       path?: string;
       relPath?: string;
       bytes?: number;
@@ -70,16 +66,13 @@ export type ToolView =
     }
   | {
       kind: "grep";
-      title?: string;
       pattern?: string;
       matchCount: number;
       fileCount: number;
-      previewMatches: GroupedMatches[];
       allMatches: GroupedMatches[];
     }
   | {
       kind: "find";
-      title?: string;
       pattern?: string;
       paths: string[];
       openPaths: string[];
@@ -87,7 +80,6 @@ export type ToolView =
     }
   | {
       kind: "ls";
-      title?: string;
       path?: string;
       relPath?: string;
       entries: Array<FileEntry & { openPath?: string }>;
@@ -104,64 +96,55 @@ export type ToolView =
     }
   | {
       kind: "todos";
-      title?: string;
       items: TodoItem[];
       completed: number;
       total: number;
     }
   | {
       kind: "process_action";
-      title?: string;
       action: "start" | "stop" | "restart";
       process?: ProcessRecord;
     }
-  | { kind: "process_list"; title?: string; processes: ProcessRecord[] }
+  | { kind: "process_list"; processes: ProcessRecord[] }
   | {
       kind: "process_logs";
-      title?: string;
       process?: ProcessRecord;
       events: ProcessLogEvent[];
-      tailEvents: ProcessLogEvent[];
       mode?: string;
     }
   | {
       kind: "subagent_run";
-      title?: string;
       task?: string;
       childAgentId?: string;
       summary?: string;
     }
   | {
       kind: "plan_mode";
-      title?: string;
+      action: "enter" | "present" | "force_exit";
       summary?: string;
       planPath?: string;
+      outcome?: string;
     }
   | {
       kind: "web_search";
-      title?: string;
       query?: string;
       answer?: string;
       results: Array<{ title: string; url: string }>;
-      preview?: string;
     }
   | {
       kind: "web_fetch";
-      title?: string;
       url?: string;
       status?: number;
       contentType?: string;
       size?: number;
       savedTo?: string;
       converted: boolean;
-      preview?: string;
+      content?: string;
     }
   | { kind: "generic" };
 
-const READ_PREVIEW = 10;
-const LIST_PREVIEW = 10;
-const LS_PREVIEW = 20;
-const LOG_TAIL = 15;
+/** Lines/items shown before the footer "Show more" toggle expands a body. */
+export const COLLAPSED_LINES = 10;
 const TITLE_MAX = 120;
 const GREP_MATCH_TEXT_MAX = 260;
 
@@ -226,7 +209,7 @@ export function imageDataUrl(mimeType: string, data: string): string {
   return `data:${mimeType};base64,${data}`;
 }
 
-function previewGrepMatch(match: GrepMatchView): GrepMatchView {
+function trimMatchText(match: GrepMatchView): GrepMatchView {
   return {
     ...match,
     text: trimTextPreview(match.text, {
@@ -273,6 +256,20 @@ function detailsTruncated(details: unknown): boolean {
   return Boolean(nested.success && nested.data.truncated);
 }
 
+function diffStats(diff: string | undefined): {
+  additions: number;
+  deletions: number;
+} {
+  if (!diff) return { additions: 0, deletions: 0 };
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
+    else if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
+  }
+  return { additions, deletions };
+}
+
 export function parseToolView(
   toolCall: ToolCallRecord,
   liveOutput?: LiveToolOutput,
@@ -292,7 +289,6 @@ export function parseToolView(
       if (imageBlock && imageBlock.type === "image") {
         return {
           kind: "read",
-          title: relPath ? `${relPath} · image` : "image",
           path,
           relPath,
           image: {
@@ -317,7 +313,6 @@ export function parseToolView(
       }
       return {
         kind: "read",
-        title: [relPath, lineLabel].filter(Boolean).join(" · ") || undefined,
         path,
         relPath,
         lineLabel,
@@ -329,20 +324,15 @@ export function parseToolView(
     case "bash": {
       const command = stringField(args.command);
       const details = bashResultDetailsSchema.safeParse(result?.details);
-      const combined = result?.content ?? liveOutput?.text ?? "";
-      const tailLines =
-        combined.length > 0 ? tail(combined.split("\n"), READ_PREVIEW) : [];
+      const output = result?.content ?? liveOutput?.text ?? "";
       return {
         kind: "bash",
-        title: command ? truncateTitle(command) : undefined,
         command,
         exitCode: result?.exitCode,
         signal: details.success
           ? (details.data.signal ?? undefined)
           : undefined,
-        tailLines,
-        stdout: result?.stdout,
-        stderr: result?.stderr,
+        output,
         savedTo: details.success ? details.data.fullOutputPath : undefined,
         truncated: detailsTruncated(result?.details),
         live: !result && Boolean(liveOutput?.text),
@@ -354,15 +344,16 @@ export function parseToolView(
       const relPath = relativePath(path, cwd);
       const edits = Array.isArray(args.edits) ? args.edits.length : 0;
       const details = editResultDetailsSchema.safeParse(result?.details);
+      const diff = details.success ? details.data.diff : undefined;
+      const { additions, deletions } = diffStats(diff);
       return {
         kind: "edit",
-        title: relPath
-          ? `${relPath} · ${edits} replacement${edits === 1 ? "" : "s"}`
-          : undefined,
         path,
         relPath,
         replacements: edits,
-        diff: details.success ? details.data.diff : undefined,
+        additions,
+        deletions,
+        diff,
       };
     }
 
@@ -374,9 +365,6 @@ export function parseToolView(
       const bytes = byteMatch ? Number(byteMatch[1]) : undefined;
       return {
         kind: "write",
-        title: relPath
-          ? `${relPath}${bytes !== undefined ? ` · wrote ${bytes} bytes` : ""}`
-          : undefined,
         path,
         relPath,
         bytes,
@@ -386,31 +374,18 @@ export function parseToolView(
 
     case "grep": {
       const pattern = stringField(args.pattern);
-      const matches = (result?.matches ?? []).map((match) => ({
-        ...match,
-        openPath: resolveToolPath(match.path, cwd) ?? match.path,
-      }));
+      const matches = (result?.matches ?? []).map((match) =>
+        trimMatchText({
+          ...match,
+          openPath: resolveToolPath(match.path, cwd) ?? match.path,
+        }),
+      );
       const all = groupMatchesByFile(matches);
-      const fileCount = all.length;
-      const preview: GroupedMatches[] = [];
-      let shown = 0;
-      for (const group of all) {
-        if (shown >= LIST_PREVIEW) break;
-        const slice = group.matches
-          .slice(0, LIST_PREVIEW - shown)
-          .map(previewGrepMatch);
-        preview.push({ path: group.path, matches: slice });
-        shown += slice.length;
-      }
       return {
         kind: "grep",
-        title: pattern
-          ? `${truncateTitle(pattern)} · ${matches.length} match${matches.length === 1 ? "" : "es"} / ${fileCount} file${fileCount === 1 ? "" : "s"}`
-          : undefined,
         pattern,
         matchCount: matches.length,
-        fileCount,
-        previewMatches: preview,
+        fileCount: all.length,
         allMatches: all,
       };
     }
@@ -424,9 +399,6 @@ export function parseToolView(
       );
       return {
         kind: "find",
-        title: pattern
-          ? `${truncateTitle(pattern)} · ${paths.length} file${paths.length === 1 ? "" : "s"}`
-          : undefined,
         pattern,
         paths,
         openPaths,
@@ -443,7 +415,6 @@ export function parseToolView(
       }));
       return {
         kind: "ls",
-        title: `${relPath} · ${entries.length} entr${entries.length === 1 ? "y" : "ies"}`,
         path,
         relPath,
         entries,
@@ -474,10 +445,8 @@ export function parseToolView(
         : undefined;
       const items = fromResult ?? todoItemsField(args.todos) ?? [];
       const completed = items.filter((item) => item.done).length;
-      const action = toolCall.toolName === "todos_set" ? "set" : "get";
       return {
         kind: "todos",
-        title: `${action} todos · ${completed}/${items.length} done`,
         items,
         completed,
         total: items.length,
@@ -493,14 +462,8 @@ export function parseToolView(
         | "restart";
       const parsed = processActionResultSchema.safeParse(toolCall.result);
       const process = parsed.success ? parsed.data.process : undefined;
-      const label =
-        process?.name ??
-        process?.command ??
-        stringField(args.name) ??
-        stringField(args.command);
       return {
         kind: "process_action",
-        title: label ? truncateTitle(label) : undefined,
         action,
         process,
       };
@@ -511,7 +474,6 @@ export function parseToolView(
       const processes = parsed.success ? parsed.data.processes : [];
       return {
         kind: "process_list",
-        title: `${processes.length} process${processes.length === 1 ? "" : "es"}`,
         processes,
       };
     }
@@ -520,21 +482,10 @@ export function parseToolView(
       const parsed = processLogsResultSchema.safeParse(toolCall.result);
       const data = parsed.success ? parsed.data : undefined;
       const events = data?.events ?? [];
-      const label =
-        data?.process.name ?? data?.process.id ?? stringField(args.name);
       return {
         kind: "process_logs",
-        title:
-          [
-            label,
-            data?.mode,
-            `${events.length} event${events.length === 1 ? "" : "s"}`,
-          ]
-            .filter(Boolean)
-            .join(" · ") || undefined,
         process: data?.process,
         events,
-        tailEvents: tail(events, LOG_TAIL),
         mode: data?.mode,
       };
     }
@@ -545,7 +496,6 @@ export function parseToolView(
       const task = stringField(args.task);
       return {
         kind: "subagent_run",
-        title: task ? truncateTitle(task) : undefined,
         task,
         childAgentId: data?.agent.id,
         summary: data?.summary,
@@ -557,8 +507,9 @@ export function parseToolView(
       const planDir = stringField(resultRecord.planDir);
       return {
         kind: "plan_mode",
-        title: planDir ? `plan mode entered · ${planDir}` : "plan mode entered",
+        action: "enter",
         summary: firstTextBlock(toolCall.result),
+        planPath: planDir,
       };
     }
 
@@ -567,15 +518,15 @@ export function parseToolView(
       const review = asRecord(resultRecord.review);
       const planPath =
         stringField(review.planPath) ?? stringField(args.file_path);
-      const outcome = stringField(resultRecord.outcome);
+      const outcome =
+        stringField(resultRecord.outcome) ?? stringField(review.status);
       return {
         kind: "plan_mode",
-        title: planPath
-          ? `presented ${planPath}${outcome ? ` · ${outcome}` : ""}`
-          : "presented plan",
+        action: "present",
         summary:
           stringField(resultRecord.feedback) ?? firstTextBlock(toolCall.result),
         planPath,
+        outcome,
       };
     }
 
@@ -584,7 +535,7 @@ export function parseToolView(
       const reason = stringField(resultRecord.reason);
       return {
         kind: "plan_mode",
-        title: "exited plan mode",
+        action: "force_exit",
         summary: reason,
       };
     }
@@ -595,22 +546,11 @@ export function parseToolView(
         ? details.data.query
         : stringField(args.query);
       const results = details.success ? details.data.results : [];
-      const preview = result?.content
-        ? trimTextPreview(result.content, {
-            headLines: 8,
-            tailLines: 2,
-            maxChars: 2_000,
-          }).text
-        : undefined;
       return {
         kind: "web_search",
-        title: query
-          ? `${truncateTitle(query)} · ${results.length} result${results.length === 1 ? "" : "s"}`
-          : undefined,
         query,
         answer: details.success ? details.data.answer : undefined,
         results,
-        preview,
       };
     }
 
@@ -618,25 +558,15 @@ export function parseToolView(
       const details = webFetchResultDetailsSchema.safeParse(result?.details);
       const data = details.success ? details.data : undefined;
       const url = data?.url ?? stringField(args.url);
-      const preview = result?.content
-        ? trimTextPreview(result.content, {
-            headLines: 10,
-            tailLines: 4,
-            maxChars: 4_000,
-          }).text
-        : undefined;
       return {
         kind: "web_fetch",
-        title: url
-          ? `${truncateTitle(url)}${data?.status ? ` · ${data.status}` : ""}`
-          : undefined,
         url,
         status: data?.status,
         contentType: data?.contentType,
         size: data?.size,
         savedTo: data?.savedTo,
         converted: data?.converted ?? false,
-        preview,
+        content: result?.content,
       };
     }
 
@@ -644,10 +574,3 @@ export function parseToolView(
       return { kind: "generic" };
   }
 }
-
-export const PREVIEW_LIMITS = {
-  READ_PREVIEW,
-  LIST_PREVIEW,
-  LS_PREVIEW,
-  LOG_TAIL,
-} as const;
