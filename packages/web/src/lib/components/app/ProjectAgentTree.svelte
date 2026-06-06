@@ -137,7 +137,7 @@
 
       <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
         <Sidebar.Group class="tree-group">
-          <Sidebar.Menu>
+          <Sidebar.Menu class="tree-menu">
             {#if groups.length === 0}
               <p class="empty">No projects yet.</p>
             {/if}
@@ -311,12 +311,21 @@
   }
 
   :global(.tree-group),
-  :global(.conversation-sub),
+  :global(.tree-menu),
   :global(.tree-group [data-sidebar="menu-item"]),
   :global(.tree-group [data-sidebar="menu-sub-item"]) {
     width: 100%;
     min-width: 0;
     max-width: 100%;
+  }
+
+  :global(.tree-menu) {
+    padding-inline-end: 0.5rem;
+  }
+
+  :global(.conversation-sub) {
+    width: auto;
+    min-width: 0;
   }
 
   :global([data-sidebar="menu-button"][data-state="closed"]) .chevron {

@@ -2,7 +2,6 @@
   import Clipboard from "@lucide/svelte/icons/clipboard";
   import Copy from "@lucide/svelte/icons/copy";
   import Hammer from "@lucide/svelte/icons/hammer";
-  import Sparkles from "@lucide/svelte/icons/sparkles";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
   import { toast } from "svelte-sonner";
@@ -344,10 +343,13 @@
     />
   {:else}
     <div class="empty-center">
-      <Sparkles size={30} strokeWidth={1.7} />
-      <p>No conversation open.</p>
-      <span>Open a conversation from the left pane or start a new one.</span>
-      <Button variant="secondary" size="sm" onclick={onOpenProject}>New conversation</Button>
+      <div class="prompt-line" aria-label="Nerve prompt">
+        <span class="prompt-sigil">nerve</span>
+        <span class="prompt-arrow">&#10095;</span>
+        <span class="prompt-caret" aria-hidden="true"></span>
+      </div>
+      <span class="prompt-hint">Open a conversation or start a new one.</span>
+      <Button class="empty-action" variant="ghost" size="sm" onclick={onOpenProject}>New conversation</Button>
     </div>
   {/if}
 </section>
@@ -530,21 +532,15 @@
   .empty-center {
     display: grid;
     place-content: center;
-    min-height: 100%;
+    gap: 0.35rem;
+    min-height: 22rem;
     color: var(--muted-foreground);
     text-align: center;
   }
 
-  .empty-run,
   .empty-center {
-    gap: 0.35rem;
-    min-height: 22rem;
-  }
-
-  .empty-run :global(svg),
-  .empty-center :global(svg) {
-    color: var(--primary);
-    justify-self: center;
+    min-height: 100%;
+    padding: 2rem;
   }
 
   .prompt-line {
@@ -586,14 +582,10 @@
     }
   }
 
-  .empty-center p {
-    margin: 0.25rem 0 0;
-    color: var(--foreground);
-  }
-
-  .empty-center :global(.ui-button) {
+  .empty-center :global(.empty-action) {
     justify-self: center;
-    margin-top: 0.45rem;
+    margin-top: 0.6rem;
+    color: var(--muted-foreground);
   }
 
   @keyframes pulse {
