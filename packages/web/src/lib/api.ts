@@ -4,6 +4,7 @@ import type {
   AudioTranscriptionResponse,
   AuthProviderMetadata,
   ClipboardImageUploadResponse,
+  ContextUsage,
   ConversationActiveRunSnapshot,
   ConversationSnapshot,
   EventEnvelope,
@@ -23,6 +24,8 @@ import type {
   SessionTreeNode,
   Settings,
   StatusResponse,
+  SubscriptionUsage,
+  SubscriptionWindow,
   ToolCallRecord,
   UserQuestionRecord,
 } from "@nerve/shared";
@@ -160,6 +163,16 @@ export async function getConversationSnapshot(
   ).conversation;
 }
 
+export async function getSessionContextUsage(
+  sessionId: string,
+): Promise<ContextUsage> {
+  return (
+    await apiGet<{ contextUsage: ContextUsage }>(
+      `/api/sessions/${sessionId}/context-usage`,
+    )
+  ).contextUsage;
+}
+
 export async function getSettings(): Promise<Settings> {
   return apiGet<Settings>("/api/settings");
 }
@@ -173,6 +186,12 @@ export async function updateSettings(
 
 export async function getModels(): Promise<ModelInfo[]> {
   return (await apiGet<{ models: ModelInfo[] }>("/api/models")).models;
+}
+
+export async function getSubscriptionUsage(): Promise<SubscriptionUsage[]> {
+  return (
+    await apiGet<{ usage: SubscriptionUsage[] }>("/api/usage/subscription")
+  ).usage;
 }
 
 export async function updateAgentConfig(
@@ -483,4 +502,7 @@ export type {
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
+  ContextUsage,
+  SubscriptionUsage,
+  SubscriptionWindow,
 };

@@ -12,7 +12,7 @@
 
   let { settingsDraft }: Props = $props();
 
-  function updateNumber(path: "thresholdTokens" | "keepRecentTokens", value: string) {
+  function updateNumber(path: "reserveTokens" | "keepRecentTokens", value: string) {
     const parsed = Number(value);
     if (Number.isFinite(parsed) && parsed > 0) {
       settingsDraft.compaction[path] = Math.floor(parsed);
@@ -71,16 +71,16 @@
     <Switch
       bind:checked={settingsDraft.compaction.auto}
       label="Auto-compact sessions"
-      description="Let the daemon compact long branches when thresholds are reached."
+      description="Let the daemon compact long branches when model-aware thresholds are reached."
     />
     <div class="server-grid">
       <label>
-        Threshold tokens<Input
-          value={String(settingsDraft.compaction.thresholdTokens)}
+        Reserve tokens<Input
+          value={String(settingsDraft.compaction.reserveTokens)}
           type="number"
           size="sm"
-          ariaLabel="Compaction threshold tokens"
-          oninput={(event) => updateNumber("thresholdTokens", (event.currentTarget as HTMLInputElement).value)}
+          ariaLabel="Compaction reserve tokens"
+          oninput={(event) => updateNumber("reserveTokens", (event.currentTarget as HTMLInputElement).value)}
         />
       </label>
       <label>

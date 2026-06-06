@@ -13,6 +13,7 @@ export {
 export {
   calculateContextTokens,
   compact,
+  computeContextUsage,
   DEFAULT_COMPACTION_SETTINGS,
   estimateContextTokens,
   estimateTokens,
@@ -20,6 +21,7 @@ export {
   findTurnStartIndex,
   generateSummary,
   getLastAssistantUsage,
+  getLatestCompactionEntry,
   prepareCompaction,
   serializeConversation,
   shouldCompact,

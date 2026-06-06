@@ -53,9 +53,19 @@ export function createSessionRoutes(state: OrchestratorState): Hono {
   );
   app.get(
     "/sessions/:sessionId/conversation",
-    routeHandler((c) =>
+    routeHandler(async (c) =>
       c.json({
-        conversation: state.registry.getConversationSnapshot(
+        conversation: await state.registry.getConversationSnapshot(
+          c.req.param("sessionId"),
+        ),
+      }),
+    ),
+  );
+  app.get(
+    "/sessions/:sessionId/context-usage",
+    routeHandler(async (c) =>
+      c.json({
+        contextUsage: await state.registry.getContextUsage(
           c.req.param("sessionId"),
         ),
       }),

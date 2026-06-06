@@ -38,6 +38,7 @@ async function main() {
   await state.events.hydrate();
   await state.registry.hydrate();
   await state.registry.rebuildIndex();
+  state.subscriptionUsage.start();
   const app = createApp(state);
 
   const server = serve(
@@ -112,13 +113,11 @@ async function main() {
               sendEvent(event);
             }
             replayReady = true;
-            const sortedPending = pendingLive
-              .splice(0)
-              .sort((a, b) => {
-                const left = (a as { seq?: number }).seq ?? 0;
-                const right = (b as { seq?: number }).seq ?? 0;
-                return left - right;
-              });
+            const sortedPending = pendingLive.splice(0).sort((a, b) => {
+              const left = (a as { seq?: number }).seq ?? 0;
+              const right = (b as { seq?: number }).seq ?? 0;
+              return left - right;
+            });
             for (const event of sortedPending) {
               const seq = (event as { seq?: number }).seq ?? 0;
               if (seq <= maxSentSeq) continue;
@@ -144,6 +143,7 @@ async function main() {
       .publish("daemon.stopped", { daemonId: state.daemonId, signal })
       .catch(() => undefined);
     await rm(storage.paths.daemonPath, { force: true }).catch(() => undefined);
+    state.subscriptionUsage.stop();
     webSockets.close();
     state.index.close();
     server.close(() => process.exit(0));

@@ -1,5 +1,10 @@
-import type { EventEnvelope, SessionEntry, ToolCallRecord } from "../api";
-import { getProcessLogs } from "../api";
+import type {
+  EventEnvelope,
+  SessionEntry,
+  SubscriptionUsage,
+  ToolCallRecord,
+} from "../api";
+import { getProcessLogs, getSessionContextUsage } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
 import {
@@ -30,6 +35,33 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (event.type.startsWith("conversation.")) {
     handleConversationEvent(event);
     return;
+  }
+
+  if (event.type === "usage.subscription.updated") {
+    const usage = event.data as SubscriptionUsage | undefined;
+    if (usage?.provider) {
+      workbenchState.subscriptionUsage = {
+        ...workbenchState.subscriptionUsage,
+        [usage.provider]: usage,
+      };
+    }
+    return;
+  }
+
+  if (
+    event.type === "session.compacted" ||
+    event.type === "session.navigated"
+  ) {
+    const sessionId = sessionIdFromEvent(event);
+    if (sessionId && isOpenSession(sessionId))
+      void refreshSessionView(sessionId);
+  }
+
+  if (event.type === "agent.configured") {
+    const agent = event.data?.agent as { sessionId?: unknown } | undefined;
+    if (typeof agent?.sessionId === "string") {
+      void refreshContextUsage(agent.sessionId);
+    }
   }
 
   if (event.type === "process.log") {
@@ -94,6 +126,11 @@ function handleConversationEvent(
       break;
     case "conversation.entry.appended":
       handleEntryAppended(view, event.data?.entry as SessionEntry | undefined);
+      break;
+    case "conversation.context.updated":
+      view.contextUsage =
+        (event.data?.contextUsage as ConversationViewState["contextUsage"]) ??
+        view.contextUsage;
       break;
     case "conversation.tool_call.updated":
       handleToolCallUpdated(
@@ -445,6 +482,16 @@ function handleToolOutputDelta(
   };
 }
 
+async function refreshContextUsage(sessionId: string): Promise<void> {
+  if (!isOpenSession(sessionId)) return;
+  const contextUsage = await getSessionContextUsage(sessionId).catch(
+    () => undefined,
+  );
+  const view = workbenchState.conversationViews[sessionId];
+  if (!contextUsage || !view) return;
+  view.contextUsage = contextUsage;
+}
+
 function syncActiveView(view: ConversationViewState): void {
   if (!active(view.sessionId)) return;
   workbenchState.transcript = view.transcript;
@@ -463,6 +510,7 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type === "session.navigated" ||
     type === "project.deleted" ||
     type === "agent.created" ||
+    type === "agent.configured" ||
     type === "agent.status_changed" ||
     type.startsWith("agent.subagent_") ||
     type === "project.created" ||

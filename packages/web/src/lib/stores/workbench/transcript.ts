@@ -85,6 +85,7 @@ export function entryToTranscriptItems(entry: SessionEntry): TranscriptItem[] {
       displayKind: "message",
       text: entry.text,
       createdAt: entry.createdAt,
+      usage: entry.usage,
       ...metadata,
     });
   }

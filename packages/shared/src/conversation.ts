@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ContextUsage } from "./models.js";
 import type { SessionEntry, SessionRecord, SessionTree } from "./sessions.js";
 import type { ToolCallRecord } from "./tools.js";
 
@@ -56,6 +57,13 @@ export interface ConversationEntryAppendedData {
   turnId?: string;
   liveMessageId?: string;
   entry: SessionEntry;
+}
+
+export interface ConversationContextUpdatedData {
+  sessionId: string;
+  agentId?: string;
+  runId?: string;
+  contextUsage: ContextUsage;
 }
 
 export interface ConversationToolCallUpdatedData {
@@ -171,6 +179,7 @@ export type ConversationEventData =
   | ConversationRunFailedData
   | ConversationRunSuspendedData
   | ConversationEntryAppendedData
+  | ConversationContextUpdatedData
   | ConversationToolCallUpdatedData
   | ConversationLiveMessageStartedData
   | ConversationLiveContentDeltaData
@@ -247,6 +256,7 @@ export interface ConversationSnapshot {
   tree: SessionTree;
   toolCalls: ToolCallRecord[];
   activeRun?: ConversationActiveRunSnapshot;
+  contextUsage?: ContextUsage;
   cursorSeq: number;
   generatedAt: string;
 }
@@ -257,6 +267,7 @@ export const conversationEventTypes = [
   "conversation.run.failed",
   "conversation.run.suspended",
   "conversation.entry.appended",
+  "conversation.context.updated",
   "conversation.tool_call.updated",
   "conversation.live.message.started",
   "conversation.live.content.delta",

@@ -17,4 +17,5 @@ export * from "./suspensions.js";
 export * from "./tool-results.js";
 export * from "./tools.js";
 export * from "./transcription.js";
+export * from "./usage.js";
 export * from "./workers.js";

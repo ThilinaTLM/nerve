@@ -1,4 +1,8 @@
-import type { AgentRecord, SessionEntry } from "@nerve/shared";
+import type {
+  AgentRecord,
+  SessionEntry,
+  SessionEntryUsage,
+} from "@nerve/shared";
 
 export type AppendEntryInput = {
   id?: string;
@@ -13,6 +17,7 @@ export type AppendEntryInput = {
   text: string;
   summary?: string;
   tokensBefore?: number;
+  usage?: SessionEntryUsage;
   firstKeptEntryId?: string;
   fromEntryId?: string;
   details?: unknown;

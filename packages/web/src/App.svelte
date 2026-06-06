@@ -114,6 +114,10 @@
   const branchDepth = $derived(workbenchSelectors.branchDepth);
   const gitStatus = $derived(workbenchSelectors.gitStatus);
   const pendingApprovalCount = $derived(workbenchSelectors.pendingApprovalCount);
+  const contextUsage = $derived(workbenchSelectors.activeContextUsage);
+  const contextWindow = $derived(workbenchSelectors.activeContextWindow);
+  const cumulativeUsage = $derived(workbenchSelectors.activeSessionUsage);
+  const subscriptionUsage = $derived(workbenchSelectors.activeSubscriptionUsage);
   const selectedProcess = $derived(workbenchSelectors.selectedProcess);
   const activeCenterProcess = $derived(workbenchSelectors.activeCenterProcess);
   const sessionAgents = $derived(workbenchSelectors.sessionAgents);
@@ -344,6 +348,10 @@
     {processes}
     {branchDepth}
     {gitStatus}
+    {contextUsage}
+    {contextWindow}
+    {cumulativeUsage}
+    {subscriptionUsage}
     homeDir={status?.storage.home}
     sidebarCollapsed={layout.sidebarCollapsed}
     utilityCollapsed={layout.utilityCollapsed}

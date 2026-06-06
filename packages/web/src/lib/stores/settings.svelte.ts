@@ -3,6 +3,7 @@ import {
   getAuthProviders,
   getModels,
   getSettings,
+  getSubscriptionUsage,
   updateSettings,
 } from "../api";
 import type { ThemePreference } from "../state/app-state.svelte";
@@ -43,14 +44,18 @@ export function closeSettingsTab() {
 }
 
 export async function loadSettingsPanel() {
-  const [settings, modelList, auth] = await Promise.all([
+  const [settings, modelList, auth, subscriptionUsage] = await Promise.all([
     getSettings(),
     getModels(),
     getAuthProviders(),
+    getSubscriptionUsage().catch(() => []),
   ]);
   workbenchState.settingsDraft = settings;
   workbenchState.models = modelList;
   workbenchState.authProviders = auth;
+  workbenchState.subscriptionUsage = Object.fromEntries(
+    subscriptionUsage.map((usage) => [usage.provider, usage]),
+  );
   workbenchState.selectedMode =
     currentActiveAgent()?.mode ?? settings.defaultMode;
   workbenchState.selectedPermissionLevel =

@@ -1,5 +1,5 @@
 import type { AgentRecord, ModelInfo, ModelSelection } from "../api";
-import { updateAgentConfig } from "../api";
+import { getSessionContextUsage, updateAgentConfig } from "../api";
 import { selection } from "../state/app-state.svelte";
 import { modelKey, parseModelKey } from "../utils/model";
 import { workbenchState } from "./workbench/state.svelte";
@@ -87,6 +87,13 @@ export async function setComposerModel(key: string) {
   workbenchState.agents = workbenchState.agents.map((candidate) =>
     candidate.id === agent.id ? agent : candidate,
   );
+  if (selection.sessionId) {
+    const contextUsage = await getSessionContextUsage(
+      selection.sessionId,
+    ).catch(() => undefined);
+    const view = workbenchState.conversationViews[selection.sessionId];
+    if (contextUsage && view) view.contextUsage = contextUsage;
+  }
 }
 
 export async function setComposerThinkingLevel(

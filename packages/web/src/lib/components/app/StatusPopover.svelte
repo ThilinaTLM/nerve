@@ -5,7 +5,14 @@
   import Radio from "@lucide/svelte/icons/radio";
   import Terminal from "@lucide/svelte/icons/terminal";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import type { AgentRecord, ProcessRecord, ProjectRecord, SessionRecord } from "../../api";
+  import type {
+    AgentRecord,
+    ContextUsage,
+    ProcessRecord,
+    ProjectRecord,
+    SessionRecord,
+  } from "../../api";
+  import { formatTokens } from "../../utils/usage";
   import { Badge } from "$lib/components/ui/badge";
   import Popover from "$lib/components/ui/popover-panel";
   import { StatusDot } from "$lib/components/ui/status-dot";
@@ -20,6 +27,7 @@
     activeAgent?: AgentRecord;
     activeSession?: SessionRecord;
     activeProject?: ProjectRecord;
+    contextUsage?: ContextUsage;
     side?: "top" | "bottom";
   };
 
@@ -32,8 +40,18 @@
     activeAgent,
     activeSession,
     activeProject,
+    contextUsage,
     side = "top",
   }: Props = $props();
+
+  const contextLabel = $derived.by(() => {
+    if (!contextUsage || contextUsage.contextWindow <= 0) return "—";
+    const window = formatTokens(contextUsage.contextWindow);
+    if (contextUsage.tokens == null || contextUsage.percent == null) {
+      return `?/${window}`;
+    }
+    return `${formatTokens(contextUsage.tokens)}/${window} · ${contextUsage.percent.toFixed(1)}%`;
+  });
 
   const activeProcesses = $derived(
     processes.filter((process) => ["starting", "running", "ready", "stopping"].includes(process.status)).length,
@@ -94,6 +112,7 @@
       <div><span>Project</span><strong title={activeProject?.dir}>{activeProject?.name ?? "No project"}</strong></div>
       <div><span>Session</span><strong title={activeSession?.id}>{activeSession?.title ?? "No active session"}</strong></div>
       <div><span>Permission</span><strong>{activeAgent?.permissionLevel ?? activeSession?.permissionLevel ?? "—"}</strong></div>
+      <div><span>Context</span><strong>{contextLabel}</strong></div>
     </div>
 
   </div>

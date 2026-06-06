@@ -39,6 +39,16 @@ export const importSessionRequestSchema = z.object({
 });
 export type ImportSessionRequest = z.infer<typeof importSessionRequestSchema>;
 
+export const sessionEntryUsageSchema = z.object({
+  input: z.number().int().nonnegative(),
+  output: z.number().int().nonnegative(),
+  cacheRead: z.number().int().nonnegative(),
+  cacheWrite: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  cost: z.number().nonnegative(),
+});
+export type SessionEntryUsage = z.infer<typeof sessionEntryUsageSchema>;
+
 export const sessionEntryKindSchema = z.enum([
   "message",
   "compaction",
@@ -60,6 +70,7 @@ export const sessionEntrySchema = z.object({
   text: z.string(),
   summary: z.string().optional(),
   tokensBefore: z.number().int().nonnegative().optional(),
+  usage: sessionEntryUsageSchema.optional(),
   firstKeptEntryId: z.string().startsWith("entry_").optional(),
   fromEntryId: z.string().startsWith("entry_").optional(),
   details: z.unknown().optional(),

@@ -4,6 +4,7 @@ import type {
   AuthProviderMetadata,
   ClientConfig,
   CompletionItem,
+  ContextUsage,
   ConversationActiveRunSnapshot,
   FilesystemFileResponse,
   ModelInfo,
@@ -16,6 +17,7 @@ import type {
   SessionTreeNode,
   Settings,
   StatusResponse,
+  SubscriptionUsage,
   ToolCallRecord,
   UserQuestionRecord,
 } from "../../api";
@@ -36,6 +38,7 @@ export type TranscriptItem = {
   contentIndex?: number;
   toolCallId?: string;
   toolRecordId?: string;
+  usage?: SessionEntry["usage"];
 };
 
 export type LiveToolCallDraft = {
@@ -80,6 +83,7 @@ export type ConversationViewState = {
   streamingText: string;
   live: ConversationLiveState;
   activeRun?: ConversationActiveRunSnapshot;
+  contextUsage?: ContextUsage;
   cursorSeq: number;
   sending: boolean;
   error?: string;
@@ -141,4 +145,5 @@ export const workbenchState = $state({
   settingsDraft: undefined as Settings | undefined,
   authProviders: [] as AuthProviderMetadata[],
   settingsMessage: undefined as string | undefined,
+  subscriptionUsage: {} as Record<string, SubscriptionUsage>,
 });

@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { createId, type DaemonFile, type StatusResponse } from "@nerve/shared";
 import { Hono } from "hono";
 import { AuthManager } from "./auth.js";
@@ -11,6 +12,7 @@ import { mountApiRoutes } from "./routes/index.js";
 import type { SecretProvider } from "./secrets.js";
 import { EncryptedFileSecretProvider } from "./secrets.js";
 import type { InitializedStorage } from "./storage.js";
+import { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
 
 export { isWebSocketAuthorized } from "./http/auth-middleware.js";
 
@@ -28,6 +30,7 @@ export interface OrchestratorState {
   secrets: SecretProvider;
   auth: AuthManager;
   oauthFlows: OAuthFlowManager;
+  subscriptionUsage: SubscriptionUsageService;
 }
 
 export function createOrchestratorState(
@@ -41,6 +44,11 @@ export function createOrchestratorState(
   const secrets = new EncryptedFileSecretProvider(storage.paths.home);
   const auth = new AuthManager(secrets);
   const oauthFlows = new OAuthFlowManager(auth, events);
+  const subscriptionUsage = new SubscriptionUsageService({
+    auth,
+    events,
+    cacheDir: join(storage.paths.home, "cache", "usage"),
+  });
   return {
     daemonId: createId("daemon"),
     startedAt: new Date().toISOString(),
@@ -48,11 +56,18 @@ export function createOrchestratorState(
     port,
     storage,
     events,
-    registry: new RuntimeRegistry(storage, events, index, auth),
+    registry: new RuntimeRegistry(
+      storage,
+      events,
+      index,
+      auth,
+      subscriptionUsage,
+    ),
     index,
     secrets,
     auth,
     oauthFlows,
+    subscriptionUsage,
   };
 }
 

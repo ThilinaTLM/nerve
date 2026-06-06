@@ -23,6 +23,8 @@ export interface AgentModelSelection {
 export interface AgentModelInfo extends AgentModelSelection {
   reasoning: boolean;
   supportedThinkingLevels: ThinkingLevel[];
+  contextWindow: number;
+  maxOutputTokens: number;
 }
 
 export interface AgentPromptInput {
@@ -109,7 +111,14 @@ export function getAgentModelInfo(model: Model<string>): AgentModelInfo {
     supportedThinkingLevels: getSupportedThinkingLevels(
       model,
     ) as ThinkingLevel[],
+    contextWindow: model.contextWindow ?? 0,
+    maxOutputTokens: model.maxTokens ?? 0,
   };
+}
+
+/** Resolve the context window for a model selection (0 when unknown). */
+export function getModelContextWindow(selection?: AgentModelSelection): number {
+  return resolveAgentModelInternal(selection, false).contextWindow ?? 0;
 }
 
 export function clampAgentThinkingLevel(

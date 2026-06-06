@@ -5,6 +5,7 @@ import type {
   Usage,
 } from "@earendil-works/pi-ai";
 import { completeSimple } from "@earendil-works/pi-ai";
+import type { ContextUsage } from "@nerve/shared";
 import type { AgentMessage, AnyModel, ThinkingLevel } from "../../types.js";
 import { CompactionError } from "../errors.js";
 import {
@@ -232,6 +233,63 @@ export function shouldCompact(
 ): boolean {
   if (!settings.enabled) return false;
   return contextTokens > contextWindow - settings.reserveTokens;
+}
+
+/** Return the most recent compaction entry in a branch, if any. */
+export function getLatestCompactionEntry(
+  entries: SessionTreeEntry[],
+): CompactionEntry | undefined {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry.type === "compaction") return entry;
+  }
+  return undefined;
+}
+
+/**
+ * Compute compaction-aware context-window usage.
+ *
+ * Mirrors pi's `AgentSession.getContextUsage()`:
+ * - `contextWindow <= 0` -> usage unknown (`tokens`/`percent` null).
+ * - After the latest compaction, usage is unknown until a fresh, non-aborted
+ *   assistant response provides usage again.
+ * - Otherwise estimate from messages and report a percentage of the window.
+ *
+ * @param messages Reconstructed branch messages (e.g. from `buildSessionContext`).
+ * @param branchEntries Raw branch entries used to detect the compaction boundary.
+ * @param contextWindow The selected model's context window (0 when unknown).
+ */
+export function computeContextUsage(
+  messages: AgentMessage[],
+  branchEntries: SessionTreeEntry[],
+  contextWindow: number,
+): ContextUsage {
+  if (contextWindow <= 0) {
+    return { tokens: null, contextWindow: 0, percent: null };
+  }
+
+  const latestCompaction = getLatestCompactionEntry(branchEntries);
+  if (latestCompaction) {
+    const compactionIndex = branchEntries.lastIndexOf(latestCompaction);
+    let hasPostCompactionUsage = false;
+    for (let i = branchEntries.length - 1; i > compactionIndex; i--) {
+      const entry = branchEntries[i];
+      if (entry.type === "message") {
+        const usage = getAssistantUsage(entry.message as AgentMessage);
+        if (usage) {
+          hasPostCompactionUsage = calculateContextTokens(usage) > 0;
+          break;
+        }
+      }
+    }
+    if (!hasPostCompactionUsage) {
+      return { tokens: null, contextWindow, percent: null };
+    }
+  }
+
+  const estimate = estimateContextTokens(messages);
+  const percent = (estimate.tokens / contextWindow) * 100;
+  return { tokens: estimate.tokens, contextWindow, percent };
 }
 
 const ESTIMATED_IMAGE_CHARS = 4800;

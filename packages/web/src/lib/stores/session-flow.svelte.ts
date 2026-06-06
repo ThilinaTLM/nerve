@@ -211,6 +211,7 @@ export async function refreshSessionView(sessionId: string) {
     view.toolCalls = snapshot.toolCalls;
     view.treeNodes = snapshot.tree.nodes;
     view.activeRun = snapshot.activeRun;
+    view.contextUsage = snapshot.contextUsage;
     view.cursorSeq = snapshot.cursorSeq;
     view.live = activeRunToLegacyLive(snapshot.activeRun);
     view.streamingText = liveTextFromLegacyLive(view.live);

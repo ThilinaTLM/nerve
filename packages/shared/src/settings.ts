@@ -25,7 +25,7 @@ export const settingsSchema = z.object({
   }),
   compaction: z.object({
     auto: z.boolean(),
-    thresholdTokens: z.number().int().positive(),
+    reserveTokens: z.number().int().positive().default(16_384),
     keepRecentTokens: z.number().int().positive(),
   }),
 });
@@ -46,7 +46,7 @@ export const defaultSettings: Settings = {
   },
   compaction: {
     auto: false,
-    thresholdTokens: 80_000,
+    reserveTokens: 16_384,
     keepRecentTokens: 20_000,
   },
 };
@@ -71,7 +71,7 @@ export const updateSettingsRequestSchema = z.object({
   compaction: z
     .object({
       auto: z.boolean().optional(),
-      thresholdTokens: z.number().int().positive().optional(),
+      reserveTokens: z.number().int().positive().optional(),
       keepRecentTokens: z.number().int().positive().optional(),
     })
     .optional(),

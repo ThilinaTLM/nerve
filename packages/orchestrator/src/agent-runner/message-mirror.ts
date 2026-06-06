@@ -3,7 +3,12 @@ import type {
   JsonlSessionStorage,
   SessionTreeEntry,
 } from "@nerve/agent";
-import type { AgentRecord, SessionEntry, SessionRecord } from "@nerve/shared";
+import type {
+  AgentRecord,
+  SessionEntry,
+  SessionEntryUsage,
+  SessionRecord,
+} from "@nerve/shared";
 import type { EventBus } from "../events.js";
 import { deriveSessionTitle } from "../session-operations/index.js";
 
@@ -20,6 +25,7 @@ export interface AppendEntryInput {
   text: string;
   summary?: string;
   tokensBefore?: number;
+  usage?: SessionEntryUsage;
   firstKeptEntryId?: string;
   fromEntryId?: string;
   details?: unknown;
@@ -82,6 +88,7 @@ export class MessageMirror {
           ),
           role,
           text: agentMessageText(entry.message as AgentMessage),
+          usage: extractEntryUsage(entry.message as AgentMessage),
           details: entryDetails(entry.message as AgentMessage),
           createdAt: entry.timestamp,
         },
@@ -148,6 +155,27 @@ function entryDetails(message: AgentMessage): unknown {
     .map((part) => ({ text: part.thinking, redacted: part.redacted }))
     .filter((part) => part.text.length > 0 || part.redacted === true);
   return thinkingBlocks.length > 0 ? { thinkingBlocks } : undefined;
+}
+
+function extractEntryUsage(
+  message: AgentMessage,
+): SessionEntryUsage | undefined {
+  if (message.role !== "assistant") return undefined;
+  if (message.stopReason === "aborted" || message.stopReason === "error") {
+    return undefined;
+  }
+  const usage = message.usage;
+  if (!usage) return undefined;
+  return {
+    input: usage.input,
+    output: usage.output,
+    cacheRead: usage.cacheRead,
+    cacheWrite: usage.cacheWrite,
+    totalTokens:
+      usage.totalTokens ||
+      usage.input + usage.output + usage.cacheRead + usage.cacheWrite,
+    cost: usage.cost?.total ?? 0,
+  };
 }
 
 function toolRecordIdFromDetails(details: unknown): string | undefined {

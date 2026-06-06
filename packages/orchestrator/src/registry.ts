@@ -3,6 +3,7 @@ import { type AgentMessage, listAvailableModels } from "@nerve/agent";
 import type {
   AgentRecord,
   CompactSessionRequest,
+  ContextUsage,
   ConversationSnapshot,
   CreateAgentRequest,
   CreateProjectRequest,
@@ -60,6 +61,7 @@ import {
 } from "./session-operations/index.js";
 import type { InitializedStorage } from "./storage.js";
 import { ToolService } from "./tool-service.js";
+import type { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
 import { WorkerManager } from "./worker-manager.js";
 
 export class RuntimeRegistry {
@@ -96,6 +98,7 @@ export class RuntimeRegistry {
     private readonly events: EventBus,
     private readonly index: IndexStore,
     auth: AuthManager,
+    private readonly subscriptionUsage: SubscriptionUsageService,
   ) {
     this.projectRepository = new ProjectRepository(storage);
     this.sessionRepository = new SessionRepository(storage);
@@ -233,7 +236,13 @@ export class RuntimeRegistry {
       updateSession: (session) => this.updateSession(session),
       messageMirror: this.messageMirror,
       conversationRuntime: this.conversationRuntime,
+      subscriptionUsage: this.subscriptionUsage,
     });
+  }
+
+  /** Current subscription usage snapshots (Anthropic / Codex). */
+  getSubscriptionUsage() {
+    return this.subscriptionUsage.getSnapshots();
   }
 
   async hydrate(): Promise<void> {
@@ -326,8 +335,17 @@ export class RuntimeRegistry {
     return this.sessionLifecycle.getSessionTree(sessionId);
   }
 
-  getConversationSnapshot(sessionId: string): ConversationSnapshot {
+  async getContextUsage(sessionId: string): Promise<ContextUsage> {
+    return this.agentRunner.getContextUsage(sessionId);
+  }
+
+  async getConversationSnapshot(
+    sessionId: string,
+  ): Promise<ConversationSnapshot> {
     const cursorSeq = this.events.latestSeq;
+    const contextUsage = await this.getContextUsage(sessionId).catch(
+      () => undefined,
+    );
     return {
       session: this.getSession(sessionId),
       entries: this.getSessionEntries(sessionId),
@@ -336,6 +354,7 @@ export class RuntimeRegistry {
         .listToolCalls()
         .filter((toolCall) => toolCall.sessionId === sessionId),
       activeRun: this.conversationRuntime.snapshotForSession(sessionId),
+      contextUsage,
       cursorSeq,
       generatedAt: new Date().toISOString(),
     };
@@ -788,6 +807,8 @@ export class RuntimeRegistry {
       reasoning: model.reasoning,
       supportedThinkingLevels: model.supportedThinkingLevels,
       faux: model.provider === "nerve-faux",
+      contextWindow: model.contextWindow,
+      maxOutputTokens: model.maxOutputTokens,
     }));
   }
 

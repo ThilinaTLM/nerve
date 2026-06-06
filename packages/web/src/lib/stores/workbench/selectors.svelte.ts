@@ -359,4 +359,61 @@ export const workbenchSelectors = {
       workbenchState.authProviders,
     );
   },
+  /** Model metadata for the active agent's selected model, if known. */
+  get activeModelInfo() {
+    const model = workbenchState.agents.find(
+      (agent) => agent.id === selection.agentId,
+    )?.model;
+    if (!model) return undefined;
+    return workbenchState.models.find(
+      (candidate) =>
+        candidate.provider === model.provider &&
+        candidate.modelId === model.modelId,
+    );
+  },
+  /** Compaction-aware context usage for the active conversation. */
+  get activeContextUsage() {
+    return activeView()?.contextUsage;
+  },
+  /** The active model's context window (0 when unknown). */
+  get activeContextWindow(): number {
+    return (
+      this.activeModelInfo?.contextWindow ??
+      activeView()?.contextUsage?.contextWindow ??
+      0
+    );
+  },
+  /** Cumulative token + cost totals across the active conversation branch. */
+  get activeSessionUsage(): {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    cost: number;
+  } {
+    const totals = {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0,
+    };
+    for (const item of activeView()?.transcript ?? []) {
+      if (!item.usage) continue;
+      totals.input += item.usage.input;
+      totals.output += item.usage.output;
+      totals.cacheRead += item.usage.cacheRead;
+      totals.cacheWrite += item.usage.cacheWrite;
+      totals.cost += item.usage.cost;
+    }
+    return totals;
+  },
+  /** Subscription usage for the active agent's provider, if available. */
+  get activeSubscriptionUsage() {
+    const provider = workbenchState.agents.find(
+      (agent) => agent.id === selection.agentId,
+    )?.model?.provider;
+    if (!provider) return undefined;
+    return workbenchState.subscriptionUsage[provider];
+  },
 };

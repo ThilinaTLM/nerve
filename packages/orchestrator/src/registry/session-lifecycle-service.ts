@@ -119,6 +119,7 @@ export class SessionLifecycleService {
       text: input.text,
       summary: input.summary,
       tokensBefore: input.tokensBefore,
+      usage: input.usage,
       firstKeptEntryId: input.firstKeptEntryId,
       fromEntryId: input.fromEntryId,
       details: input.details,

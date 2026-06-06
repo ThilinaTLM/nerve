@@ -3,15 +3,19 @@ import {
   AgentHarness,
   AgentToolSuspension,
   buildSessionContext,
+  computeContextUsage,
   convertToLlm,
   estimateContextTokens,
+  getModelContextWindow,
   isAgentToolSuspension,
   NodeExecutionEnv,
   resolveAgentModel,
   Session,
+  shouldCompact,
 } from "@nerve/agent";
 import {
   type AgentRecord,
+  type ContextUsage,
   type CreateAgentRequest,
   createId,
   type ProjectRecord,
@@ -19,15 +23,15 @@ import {
   type SessionEntry,
   type SessionRecord,
 } from "@nerve/shared";
+import type { AgentSuspensionService } from "../agent-suspension-service.js";
 import {
   activeToolNamesForAgent,
   createAgentToolsForAgent,
   toolPromptMetadata,
 } from "../agent-tool-adapter.js";
-import type { AgentSuspensionService } from "../agent-suspension-service.js";
 import type { AuthManager } from "../auth.js";
-import type { ConversationService } from "../conversation-service.js";
 import type { ConversationRuntime } from "../conversation-runtime.js";
+import type { ConversationService } from "../conversation-service.js";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
@@ -36,6 +40,7 @@ import { loadHarnessResources } from "../resource-loader.js";
 import type { CompactionService } from "../session-operations/index.js";
 import type { InitializedStorage } from "../storage.js";
 import type { ToolService } from "../tool-service.js";
+import type { SubscriptionUsageService } from "../usage/subscription-usage-service.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import type { AgentRunStateMap } from "./run-state.js";
 import { SubagentRunner } from "./subagent-runner.js";
@@ -67,6 +72,7 @@ export interface AgentRunnerDeps {
   updateSession: (session: SessionRecord) => Promise<void>;
   messageMirror: MessageMirror;
   conversationRuntime: ConversationRuntime;
+  subscriptionUsage: SubscriptionUsageService;
 }
 
 export class AgentRunner {
@@ -174,6 +180,7 @@ export class AgentRunner {
       );
       const activeToolNames = activeToolNamesForAgent(agent);
       const model = resolveAgentModel(agent.model);
+      this.deps.subscriptionUsage.touchProvider(model.provider);
       const env = new NodeExecutionEnv({ cwd: agent.projectDir });
       const resources = await loadHarnessResources(agent.projectDir);
       const latestAgent = () => this.deps.agents.get(agent.id) ?? agent;
@@ -213,6 +220,12 @@ export class AgentRunner {
       });
 
       harness.subscribe(async (event) => {
+        if (event.type === "after_provider_response") {
+          if (model.provider === "openai-codex") {
+            this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
+          }
+          return;
+        }
         if (event.type === "turn_start") {
           const turn = this.deps.conversationRuntime.startTurn(runId);
           currentTurnId = turn.turnId;
@@ -383,6 +396,7 @@ export class AgentRunner {
                 liveMessageId,
               },
             );
+          let shouldPublishContextUsage = false;
           for (const entry of mirrored) {
             await this.deps.events.publish("conversation.entry.appended", {
               sessionId: agent.sessionId,
@@ -399,7 +413,21 @@ export class AgentRunner {
               );
             } else if (entry.role === "assistant") {
               lastAssistantEntry = entry;
+              if (entry.usage) shouldPublishContextUsage = true;
             }
+          }
+          if (shouldPublishContextUsage) {
+            await this.publishContextUsage(
+              agent.sessionId,
+              agent.id,
+              runId,
+            ).catch((error) => {
+              process.emitWarning(
+                `Context-usage publish failed for ${agent.sessionId}: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+            });
           }
           if (event.message.role === "assistant")
             currentLiveMessageId = undefined;
@@ -474,6 +502,15 @@ export class AgentRunner {
           }`,
         );
       });
+      await this.publishContextUsage(agent.sessionId, agent.id, runId).catch(
+        (error) => {
+          process.emitWarning(
+            `Context-usage publish failed for ${agent.sessionId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        },
+      );
       return assistantEntry;
     } catch (error) {
       const suspensionError = isAgentToolSuspension(error)
@@ -501,13 +538,13 @@ export class AgentRunner {
           toolCallId: toolCall.id,
           providerToolCallId,
           toolName: toolCall.toolName as "ask_user" | "plan_mode_present",
-          remainingToolCalls: (suspensionError.data.remainingToolCalls ?? []).map(
-            (remaining) => ({
-              id: remaining.id,
-              name: remaining.name,
-              arguments: remaining.arguments,
-            }),
-          ),
+          remainingToolCalls: (
+            suspensionError.data.remainingToolCalls ?? []
+          ).map((remaining) => ({
+            id: remaining.id,
+            name: remaining.name,
+            arguments: remaining.arguments,
+          })),
           reason: suspensionError.data.reason,
         });
         if (latest) await this.deps.setAgentStatus(latest, "awaiting_user");
@@ -570,6 +607,36 @@ export class AgentRunner {
     });
   }
 
+  /** Compute compaction-aware context-window usage for a session. */
+  async getContextUsage(sessionId: string): Promise<ContextUsage> {
+    const session = this.deps.getSession(sessionId);
+    const project = this.deps.getProject(session.projectId);
+    const storage = await this.deps.harnessManager.openStorage(
+      session,
+      project.dir,
+    );
+    const branch = await storage.getPathToRoot(await storage.getLeafId());
+    const messages = buildSessionContext(branch).messages;
+    const agent = session.activeAgentId
+      ? this.deps.agents.get(session.activeAgentId)
+      : undefined;
+    const contextWindow = getModelContextWindow(agent?.model);
+    return computeContextUsage(messages, branch, contextWindow);
+  }
+
+  private async publishContextUsage(
+    sessionId: string,
+    agentId: string,
+    runId: string,
+  ): Promise<void> {
+    const contextUsage = await this.getContextUsage(sessionId);
+    await this.deps.events.publish(
+      "conversation.context.updated",
+      { sessionId, agentId, runId, contextUsage },
+      { durability: "transient" },
+    );
+  }
+
   private async maybeAutoCompact(sessionId: string): Promise<void> {
     if (!this.deps.storage.settings.compaction.auto) return;
     const session = this.deps.getSession(sessionId);
@@ -582,11 +649,21 @@ export class AgentRunner {
     const tokens = estimateContextTokens(
       buildSessionContext(branch).messages,
     ).tokens;
-    if (tokens < this.deps.storage.settings.compaction.thresholdTokens) return;
+    const agent = session.activeAgentId
+      ? this.deps.agents.get(session.activeAgentId)
+      : undefined;
+    const contextWindow = getModelContextWindow(agent?.model);
+    if (contextWindow <= 0) return;
+    const settings = {
+      enabled: this.deps.storage.settings.compaction.auto,
+      reserveTokens: this.deps.storage.settings.compaction.reserveTokens,
+      keepRecentTokens: this.deps.storage.settings.compaction.keepRecentTokens,
+    };
+    if (!shouldCompact(tokens, contextWindow, settings)) return;
     await this.deps.compactionService.compactSession(sessionId, {
       instructions:
-        "Automatic compaction after the configured token threshold was exceeded.",
-      keepRecentTokens: this.deps.storage.settings.compaction.keepRecentTokens,
+        "Automatic compaction after the selected model's context threshold was exceeded.",
+      keepRecentTokens: settings.keepRecentTokens,
     });
   }
 }
