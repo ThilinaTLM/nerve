@@ -13,7 +13,6 @@
     setSidebarCollapsed,
     setUtilityCollapsed,
     selection,
-    themeState,
   } from "./lib/state/app-state.svelte";
   import ConversationPane from "./lib/components/app/ConversationPane.svelte";
   import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
@@ -60,7 +59,7 @@
     rejectPendingPlanReview,
     removeProcess,
     restartSelectedProcess,
-    saveSettings,
+    queueSettingsSave,
     selectCenterTab,
     sendPrompt,
     setActiveComposerText,
@@ -105,7 +104,7 @@
   const selectedPermissionLevel = $derived(
     workbenchSelectors.selectedPermissionLevel,
   );
-  const authProviders = $derived(workbenchSelectors.authProviders);
+  const settingsSaveStatus = $derived(workbenchSelectors.settingsSaveStatus);
   const settingsMessage = $derived(workbenchSelectors.settingsMessage);
   const activeProject = $derived(workbenchSelectors.activeProject);
   const activeSession = $derived(workbenchSelectors.activeSession);
@@ -116,7 +115,6 @@
   const pendingApprovalCount = $derived(workbenchSelectors.pendingApprovalCount);
   const contextUsage = $derived(workbenchSelectors.activeContextUsage);
   const contextWindow = $derived(workbenchSelectors.activeContextWindow);
-  const cumulativeUsage = $derived(workbenchSelectors.activeSessionUsage);
   const subscriptionUsage = $derived(workbenchSelectors.activeSubscriptionUsage);
   const selectedProcess = $derived(workbenchSelectors.selectedProcess);
   const activeCenterProcess = $derived(workbenchSelectors.activeCenterProcess);
@@ -240,11 +238,9 @@
               <SettingsPage
                 {status}
                 bind:settingsDraft={workbenchState.settingsDraft}
-                {authProviders}
+                {settingsSaveStatus}
                 {settingsMessage}
-                themePreference={themeState.preference}
-                onLoadSettings={() => void loadSettingsPanel()}
-                onSaveSettings={() => void saveSettings()}
+                onSettingsChange={queueSettingsSave}
                 onThemeChange={setTheme}
               />
             {:else}
@@ -273,6 +269,8 @@
                 mode={selectedMode}
                 permissionLevel={selectedPermissionLevel}
                 {slashCompletions}
+                {contextUsage}
+                {contextWindow}
                 fileCompletions={completeFiles}
                 onComposerChange={setActiveComposerText}
                 onSubmit={sendPrompt}
@@ -348,9 +346,6 @@
     {processes}
     {branchDepth}
     {gitStatus}
-    {contextUsage}
-    {contextWindow}
-    {cumulativeUsage}
     {subscriptionUsage}
     homeDir={status?.storage.home}
     sidebarCollapsed={layout.sidebarCollapsed}

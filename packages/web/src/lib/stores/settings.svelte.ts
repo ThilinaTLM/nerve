@@ -5,6 +5,7 @@ import {
   getSettings,
   getSubscriptionUsage,
   updateSettings,
+  type UpdateSettingsRequest,
 } from "../api";
 import type { ThemePreference } from "../state/app-state.svelte";
 import { applyTheme } from "../state/app-state.svelte";
@@ -22,6 +23,16 @@ import {
   setActiveCenterTab,
 } from "./workbench/center-tabs.svelte";
 import { workbenchState } from "./workbench/state.svelte";
+
+export type SettingsSaveOptions = {
+  immediate?: boolean;
+  debounceMs?: number;
+};
+
+let pendingSettingsPatch: UpdateSettingsRequest | undefined;
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let saveInFlight = false;
+let savedServerSettingsSinceLoad = false;
 
 export async function openSettingsPane() {
   addCenterTab({ kind: "settings", id: "settings" });
@@ -79,24 +90,98 @@ export async function loadSettingsPanel() {
     workbenchState.selectedThinkingLevel,
     selectedModelInfo(),
   );
+  if (!hasPendingSettingsSave()) {
+    savedServerSettingsSinceLoad = false;
+    workbenchState.settingsSaveStatus = "idle";
+    workbenchState.settingsMessage = undefined;
+  }
 }
 
-export async function saveSettings() {
-  if (!workbenchState.settingsDraft) return;
-  workbenchState.settingsMessage = undefined;
+function mergeSettingsPatch(
+  base: UpdateSettingsRequest | undefined,
+  patch: UpdateSettingsRequest,
+): UpdateSettingsRequest {
+  const next: UpdateSettingsRequest = { ...(base ?? {}), ...patch };
+  if (base?.server || patch.server) {
+    next.server = { ...(base?.server ?? {}), ...(patch.server ?? {}) };
+  }
+  if (base?.ui || patch.ui) {
+    next.ui = { ...(base?.ui ?? {}), ...(patch.ui ?? {}) };
+  }
+  if (base?.compaction || patch.compaction) {
+    next.compaction = {
+      ...(base?.compaction ?? {}),
+      ...(patch.compaction ?? {}),
+    };
+  }
+  return next;
+}
+
+function patchTouchesServer(patch: UpdateSettingsRequest | undefined): boolean {
+  return Boolean(patch?.server && Object.keys(patch.server).length > 0);
+}
+
+function clearSaveTimer() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer);
+  saveTimer = undefined;
+}
+
+export function hasPendingSettingsSave(): boolean {
+  return Boolean(pendingSettingsPatch || saveTimer || saveInFlight);
+}
+
+export function queueSettingsSave(
+  patch: UpdateSettingsRequest,
+  options: SettingsSaveOptions = {},
+) {
+  pendingSettingsPatch = mergeSettingsPatch(pendingSettingsPatch, patch);
+  workbenchState.settingsSaveStatus = "dirty";
+  workbenchState.settingsMessage = "Unsaved changes";
+  clearSaveTimer();
+
+  if (options.immediate) {
+    void flushSettingsSave();
+    return;
+  }
+
+  saveTimer = setTimeout(
+    () => void flushSettingsSave(),
+    options.debounceMs ?? 600,
+  );
+}
+
+export async function flushSettingsSave() {
+  clearSaveTimer();
+  if (saveInFlight || !pendingSettingsPatch) return;
+
+  const patch = pendingSettingsPatch;
+  pendingSettingsPatch = undefined;
+  saveInFlight = true;
+  workbenchState.settingsSaveStatus = "saving";
+  workbenchState.settingsMessage = "Saving…";
+
   try {
-    workbenchState.settingsDraft = await updateSettings(
-      workbenchState.settingsDraft,
-    );
-    workbenchState.settingsMessage =
-      "Settings saved. Server host/port changes apply after daemon restart.";
-    toast.success("Settings saved", {
-      description: "Host/port changes apply after daemon restart.",
-    });
+    const saved = await updateSettings(patch);
+    savedServerSettingsSinceLoad ||= patchTouchesServer(patch);
+    if (!pendingSettingsPatch) {
+      workbenchState.settingsDraft = saved;
+      workbenchState.settingsSaveStatus = "saved";
+      workbenchState.settingsMessage = savedServerSettingsSinceLoad
+        ? "Saved — restart the daemon to apply server binding changes."
+        : "Saved";
+    }
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
+    pendingSettingsPatch = mergeSettingsPatch(patch, pendingSettingsPatch ?? {});
+    workbenchState.settingsSaveStatus = "error";
     workbenchState.settingsMessage = message;
     toast.error("Could not save settings", { description: message });
+  } finally {
+    saveInFlight = false;
+    if (pendingSettingsPatch && workbenchState.settingsSaveStatus !== "error") {
+      void flushSettingsSave();
+    }
   }
 }
 

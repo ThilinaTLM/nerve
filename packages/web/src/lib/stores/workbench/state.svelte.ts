@@ -144,6 +144,7 @@ export const workbenchState = $state({
   projectPickerOpen: false,
   settingsDraft: undefined as Settings | undefined,
   authProviders: [] as AuthProviderMetadata[],
+  settingsSaveStatus: "idle" as "idle" | "dirty" | "saving" | "saved" | "error",
   settingsMessage: undefined as string | undefined,
   subscriptionUsage: {} as Record<string, SubscriptionUsage>,
 });

@@ -2,59 +2,159 @@
   display: grid;
   height: 100%;
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: 13.5rem minmax(0, 1fr);
   background: var(--background);
-}
-
-.settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--muted);
-  padding: 0.6rem 1rem;
-}
-
-.settings-page .settings-title {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
   color: var(--foreground);
 }
 
-.settings-page .settings-title strong {
+.settings-sidebar {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border-right: 1px solid var(--border);
+  background: color-mix(in oklab, var(--sidebar) 88%, var(--background));
+  padding: 0.85rem 0.65rem;
+}
+
+.settings-sidebar-title {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0 0.35rem 0.7rem;
+}
+
+.settings-sidebar-title strong {
+  color: var(--foreground);
   font-size: var(--text-sm);
   font-weight: 600;
 }
 
-.settings-page .settings-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 0.42rem;
-}
-
-.settings-page h3 {
+.settings-sidebar-title span,
+.settings-nav small,
+.settings-save-state p,
+.settings-section-header p,
+.settings-copy span,
+.settings-note {
   color: var(--muted-foreground);
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  line-height: 1.38;
 }
 
-.settings-page h3,
+.settings-nav {
+  display: grid;
+  align-content: start;
+  gap: 0.08rem;
+  min-height: 0;
+}
+
+.settings-nav button {
+  display: grid;
+  width: 100%;
+  gap: 0.06rem;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0.18rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  padding: 0.44rem 0.5rem 0.44rem 0.6rem;
+  text-align: left;
+}
+
+.settings-nav button:hover {
+  background: color-mix(in oklab, var(--muted) 54%, transparent);
+  color: var(--foreground);
+}
+
+.settings-nav button.active {
+  border-left-color: var(--primary);
+  background: color-mix(in oklab, var(--accent) 78%, transparent);
+  color: var(--foreground);
+}
+
+.settings-nav span {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.settings-save-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.45rem;
+  border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  padding: 0.7rem 0.35rem 0;
+}
+
+.settings-save-state > span {
+  width: 0.48rem;
+  height: 0.48rem;
+  margin-top: 0.27rem;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+}
+
+.settings-save-state[data-status="dirty"] > span,
+.settings-save-state[data-status="saving"] > span {
+  background: var(--primary);
+}
+
+.settings-save-state[data-status="saved"] > span {
+  background: oklch(0.72 0.16 145);
+}
+
+.settings-save-state[data-status="error"] > span {
+  background: var(--destructive);
+}
+
+.settings-save-state p,
+.settings-page h2,
 .settings-page p {
   margin: 0;
 }
 
-.settings-page .muted {
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  line-height: 1.38;
+.settings-scroll {
+  min-width: 0;
+  min-height: 0;
 }
 
-.settings-page .stat-grid span {
+.settings-viewport {
+  scroll-behavior: smooth;
+  padding: 1.15rem 1.4rem 2.4rem;
+}
+
+.settings-main {
+  display: grid;
+  align-content: start;
+  width: min(100%, 58rem);
+  min-width: 0;
+}
+
+.settings-section {
+  scroll-margin-top: 1rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
+  padding: 1.05rem 0 1.25rem;
+}
+
+.settings-section:first-child {
+  padding-top: 0;
+}
+
+.settings-section-muted {
+  opacity: 0.9;
+}
+
+.settings-section-header {
+  display: grid;
+  gap: 0.22rem;
+  max-width: 44rem;
+  margin-bottom: 0.85rem;
+}
+
+.settings-section-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.36rem;
   color: var(--muted-foreground);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -62,7 +162,135 @@
   text-transform: uppercase;
 }
 
-.settings-page .stat-grid strong {
+.settings-page h2 {
+  color: var(--foreground);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.settings-section-body {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  min-height: 2.75rem;
+  border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+  background: color-mix(in oklab, var(--input) 34%, transparent);
+  padding: 0.72rem 0.8rem;
+}
+
+.settings-row-stacked {
+  display: grid;
+  align-items: start;
+  justify-content: stretch;
+  gap: 0.7rem;
+}
+
+.settings-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.settings-copy strong {
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.settings-control-grid,
+.settings-field-grid,
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.settings-field-grid label {
+  display: grid;
+  gap: 0.28rem;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.settings-field-grid label > span {
+  font-family: var(--font-mono);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.settings-full-switch {
+  width: 100%;
+}
+
+.settings-note {
+  border-left: 2px solid var(--primary);
+  padding-left: 0.65rem;
+}
+
+.permission-table {
+  display: grid;
+  border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+  background: color-mix(in oklab, var(--input) 24%, transparent);
+}
+
+.permission-table div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+}
+
+.permission-table div:last-child {
+  border-bottom: 0;
+}
+
+.permission-table span,
+.permission-table strong {
+  padding: 0.52rem 0.65rem;
+  font-size: var(--text-xs);
+}
+
+.permission-table div:first-child span {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.permission-table strong {
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.stat-grid section {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+  border: 1px solid color-mix(in oklab, var(--border) 54%, transparent);
+  background: color-mix(in oklab, var(--input) 22%, transparent);
+  padding: 0.58rem 0.65rem;
+}
+
+.stat-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.stat-grid span {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stat-grid strong {
   overflow: hidden;
   color: var(--foreground);
   font-family: var(--font-mono);
@@ -72,178 +300,73 @@
   white-space: nowrap;
 }
 
-.settings-scroll {
-  min-height: 0;
-}
-
-.settings-viewport {
-  padding: 0.8rem;
-}
-
-.settings-page .settings-main {
-  display: grid;
-  gap: 1.25rem;
-  width: 100%;
-  max-width: 52rem;
-  margin: 0 auto;
-  min-width: 0;
-}
-
-.settings-page .settings-loading {
+.settings-loading {
   padding: 3rem 1rem;
 }
 
-.settings-page .settings-loading svg {
+.settings-loading svg {
   color: var(--primary);
 }
 
-.settings-page .settings-loading strong {
+.settings-loading strong {
   color: var(--foreground);
   font-size: var(--text-base);
 }
 
-.settings-page .stat-grid,
-.settings-page .defaults-grid,
-.settings-page .server-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
-}
-
-.settings-page .stat-grid section,
-.settings-page .switch-card,
-.settings-page .compaction-card,
-.settings-page .control-block,
-.settings-page .permission-table {
-  padding: 0.55rem;
-}
-
-.settings-page .stat-grid section {
-  display: grid;
-  gap: 0.14rem;
-}
-
-.settings-page .stat-grid .wide {
-  grid-column: 1 / -1;
-}
-
-.settings-page .control-block,
-.settings-page .compaction-card {
-  display: grid;
-  align-content: start;
-  gap: 0.5rem;
-}
-
-.settings-page .compaction-card > div:first-child {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--foreground);
-}
-
-.settings-page label {
-  display: grid;
-  gap: 0.24rem;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  font-weight: 500;
-}
-
-.settings-page .provider-list {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.settings-page .provider-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.45rem;
-  padding: 0.55rem;
-}
-
-.settings-page .provider-row div {
-  display: grid;
-  min-width: 0;
-  gap: 0.1rem;
-}
-
-.settings-page .provider-row strong {
-  color: var(--foreground);
-  font-size: var(--text-sm);
-}
-
-.settings-page .provider-row small,
-.settings-page .provider-row p {
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-}
-
 .settings-page code {
-  overflow: auto;
   border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  border-radius: 0.25rem;
   background: var(--sidebar);
   color: var(--foreground);
-  padding: 0.34rem 0.42rem;
+  padding: 0.2rem 0.34rem;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
 }
 
-.settings-page .provider-row p,
-.settings-page .provider-row code {
-  grid-column: 1 / -1;
+.settings-page :global([data-slot="radio-group"] label) {
+  border-radius: 0.18rem;
+  background: transparent;
+  box-shadow: none;
 }
 
-.settings-page .permission-table {
-  display: grid;
-  padding: 0;
-  overflow: hidden;
+.settings-page :global([data-slot="radio-group"] label:hover) {
+  background: color-mix(in oklab, var(--accent) 48%, transparent);
 }
 
-.settings-page .permission-table div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+.settings-page :global([data-slot="radio-group"] label:has([data-state="checked"])) {
+  background: color-mix(in oklab, var(--accent) 72%, transparent);
 }
 
-.settings-page .permission-table div:last-child {
-  border-bottom: 0;
-}
-
-.settings-page .permission-table span,
-.settings-page .permission-table strong {
-  padding: 0.48rem 0.55rem;
-  font-size: var(--text-xs);
-}
-
-.settings-page .permission-table div:first-child span {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.settings-page .permission-table strong {
-  color: var(--foreground);
-  font-weight: 500;
-}
-
-.settings-page .settings-message {
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--primary);
-  padding: 0.55rem 0.65rem;
-  font-size: var(--text-sm);
+.settings-page :global(input[data-slot="input"]) {
+  border-radius: 0.18rem;
+  box-shadow: none;
 }
 
 @media (max-width: 960px) {
-  .settings-page .defaults-grid,
-  .settings-page .server-grid,
-  .settings-page .stat-grid,
-  .settings-page .permission-table div {
+  .settings-page {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-sidebar {
+    grid-template-rows: auto auto auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .settings-nav {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(8rem, 1fr);
+    overflow-x: auto;
+  }
+
+  .settings-control-grid,
+  .settings-field-grid,
+  .stat-grid,
+  .permission-table div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-row {
+    align-items: stretch;
   }
 }

@@ -5,7 +5,7 @@
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
   import { toast } from "svelte-sonner";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ModelInfo, PlanReviewRecord, ProjectRecord, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
   import type { ConversationLiveState, LiveToolCallDraft, TranscriptItem } from "../../stores/workbench/state.svelte";
   import { buildConversationTimeline } from "../../stores/workbench/timeline";
@@ -37,6 +37,8 @@
     composerText?: string;
     models?: ModelInfo[];
     selectedModelKey?: string;
+    contextUsage?: ContextUsage;
+    contextWindow?: number;
     thinkingLevel?: AgentRecord["thinkingLevel"];
     mode?: AgentRecord["mode"];
     permissionLevel?: AgentRecord["permissionLevel"];
@@ -77,6 +79,8 @@
     composerText = "",
     models = [],
     selectedModelKey = "",
+    contextUsage,
+    contextWindow = 0,
     thinkingLevel = "off",
     mode = "coding",
     permissionLevel = "autonomous",
@@ -326,6 +330,8 @@
       {error}
       {models}
       {selectedModelKey}
+      {contextUsage}
+      {contextWindow}
       {thinkingLevel}
       {mode}
       {permissionLevel}

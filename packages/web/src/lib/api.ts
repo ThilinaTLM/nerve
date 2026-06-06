@@ -24,6 +24,7 @@ import type {
   SessionTreeNode,
   Settings,
   StatusResponse,
+  UpdateSettingsRequest,
   SubscriptionUsage,
   SubscriptionWindow,
   ToolCallRecord,
@@ -52,6 +53,7 @@ export type WorkspaceSnapshot = {
 };
 
 export type SettingsResponse = Settings;
+export type { UpdateSettingsRequest };
 export type ModelOption = ModelInfo;
 
 export type ApprovalWithToolCall = ApprovalRecord & {
@@ -178,7 +180,7 @@ export async function getSettings(): Promise<Settings> {
 }
 
 export async function updateSettings(
-  patch: Partial<Settings>,
+  patch: UpdateSettingsRequest,
 ): Promise<Settings> {
   return (await apiPut<{ settings: Settings }>("/api/settings", patch))
     .settings;

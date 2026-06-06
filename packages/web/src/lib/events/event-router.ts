@@ -14,7 +14,7 @@ import {
   openSession,
   refreshSessionView,
 } from "../stores/session-flow.svelte";
-import { loadSettingsPanel } from "../stores/settings.svelte";
+import { hasPendingSettingsSave, loadSettingsPanel } from "../stores/settings.svelte";
 import type {
   ConversationLiveState,
   ConversationViewState,
@@ -27,6 +27,11 @@ import { loadWorkspaceState } from "../stores/workspace.svelte";
 
 const MAX_LIVE_TOOL_OUTPUT_CHARS = 32_000;
 const MAX_LIVE_TOOL_OUTPUT_CHUNKS = 400;
+const CONTEXT_USAGE_REFRESH_DELAY_MS = 1000;
+const contextUsageRefreshTimers = new Map<
+  string,
+  ReturnType<typeof setTimeout>
+>();
 
 export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (event.seq && event.seq <= workbenchState.lastEventSeq) return;
@@ -84,7 +89,12 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (shouldRefreshWorkspace(event.type)) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     void loadWorkspaceState();
-    if (shouldRefreshSettings(event.type)) void loadSettingsPanel();
+    if (
+      shouldRefreshSettings(event.type) &&
+      !(event.type.startsWith("settings.") && hasPendingSettingsSave())
+    ) {
+      void loadSettingsPanel();
+    }
   }
 }
 
@@ -126,8 +136,10 @@ function handleConversationEvent(
       break;
     case "conversation.entry.appended":
       handleEntryAppended(view, event.data?.entry as SessionEntry | undefined);
+      scheduleContextUsageRefresh(sessionId);
       break;
     case "conversation.context.updated":
+      clearContextUsageRefresh(sessionId);
       view.contextUsage =
         (event.data?.contextUsage as ConversationViewState["contextUsage"]) ??
         view.contextUsage;
@@ -480,6 +492,23 @@ function handleToolOutputDelta(
     ...view.live.toolOutputByToolCallId,
     [toolCallId]: output,
   };
+}
+
+function clearContextUsageRefresh(sessionId: string): void {
+  const timer = contextUsageRefreshTimers.get(sessionId);
+  if (!timer) return;
+  clearTimeout(timer);
+  contextUsageRefreshTimers.delete(sessionId);
+}
+
+function scheduleContextUsageRefresh(sessionId: string): void {
+  if (!isOpenSession(sessionId)) return;
+  clearContextUsageRefresh(sessionId);
+  const timer = setTimeout(() => {
+    contextUsageRefreshTimers.delete(sessionId);
+    void refreshContextUsage(sessionId);
+  }, CONTEXT_USAGE_REFRESH_DELAY_MS);
+  contextUsageRefreshTimers.set(sessionId, timer);
 }
 
 async function refreshContextUsage(sessionId: string): Promise<void> {

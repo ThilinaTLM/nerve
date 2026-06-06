@@ -1,76 +1,106 @@
 <script lang="ts">
-  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-  import Save from "@lucide/svelte/icons/save";
-  import Settings2 from "@lucide/svelte/icons/settings-2";
   import Sparkles from "@lucide/svelte/icons/sparkles";
-  import type { AuthProviderMetadata, Settings, StatusResponse } from "../../api";
+  import type { Settings, StatusResponse, UpdateSettingsRequest } from "../../api";
   import type { ThemePreference } from "../../state/app-state.svelte";
-  import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
   import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";
+  import CompactionSettingsSection from "./settings/sections/CompactionSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
-  import NetworkSettingsSection from "./settings/sections/NetworkSettingsSection.svelte";
-  import ProvidersSettingsSection from "./settings/sections/ProvidersSettingsSection.svelte";
+  import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
   import "./settings/settings.css";
+
+  type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+  type SectionId = "appearance" | "agents" | "server" | "compaction" | "runtime";
+  type SettingsChange = (
+    patch: UpdateSettingsRequest,
+    options?: { immediate?: boolean; debounceMs?: number },
+  ) => void;
 
   type Props = {
     status?: StatusResponse;
     settingsDraft?: Settings;
-    authProviders?: AuthProviderMetadata[];
+    settingsSaveStatus?: SettingsSaveStatus;
     settingsMessage?: string;
-    themePreference?: ThemePreference;
-    onLoadSettings?: () => void;
-    onSaveSettings?: () => void;
+    onSettingsChange?: SettingsChange;
     onThemeChange?: (theme: ThemePreference) => void;
   };
+
+  const sections: { id: SectionId; label: string; detail: string }[] = [
+    { id: "appearance", label: "Appearance", detail: "Theme" },
+    { id: "agents", label: "Agents", detail: "Defaults" },
+    { id: "server", label: "Server", detail: "Binding" },
+    { id: "compaction", label: "Compaction", detail: "Context" },
+    { id: "runtime", label: "Runtime", detail: "Read-only" },
+  ];
 
   let {
     status,
     settingsDraft = $bindable<Settings | undefined>(),
-    authProviders = [],
+    settingsSaveStatus = "idle",
     settingsMessage,
-    themePreference = "system",
-    onLoadSettings,
-    onSaveSettings,
+    onSettingsChange,
     onThemeChange,
   }: Props = $props();
+
+  let activeSection = $state<SectionId>("appearance");
+
+  function scrollToSection(id: SectionId) {
+    activeSection = id;
+    document
+      .getElementById(`settings-${id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function statusText() {
+    if (settingsMessage) return settingsMessage;
+    if (settingsSaveStatus === "saving") return "Saving…";
+    if (settingsSaveStatus === "dirty") return "Unsaved changes";
+    if (settingsSaveStatus === "saved") return "Saved";
+    if (settingsSaveStatus === "error") return "Could not save settings";
+    return "Auto save enabled";
+  }
 </script>
 
 <section class="settings-page">
-  <header class="settings-header">
-    <div class="settings-title">
-      <Settings2 size={16} strokeWidth={2.15} aria-hidden="true" />
+  <aside class="settings-sidebar" aria-label="Settings sections">
+    <div class="settings-sidebar-title">
       <strong>Settings</strong>
+      <span>Auto-saved</span>
     </div>
-    <div class="settings-actions">
-      <Button variant="ghost" size="sm" onclick={onLoadSettings}>
-        <RefreshCw size={13} strokeWidth={2.25} />Refresh
-      </Button>
-      <Button size="sm" onclick={onSaveSettings} disabled={!settingsDraft}>
-        <Save size={13} strokeWidth={2.25} />Save settings
-      </Button>
+    <nav class="settings-nav">
+      {#each sections as section}
+        <button
+          type="button"
+          class:active={activeSection === section.id}
+          onclick={() => scrollToSection(section.id)}
+        >
+          <span>{section.label}</span>
+          <small>{section.detail}</small>
+        </button>
+      {/each}
+    </nav>
+    <div class="settings-save-state" data-status={settingsSaveStatus}>
+      <span></span>
+      <p>{statusText()}</p>
     </div>
-  </header>
+  </aside>
 
   <ScrollArea class="settings-scroll" viewportClass="settings-viewport" type="auto">
     <div class="settings-main">
-      <GeneralSettingsSection {status} />
-
       {#if settingsDraft}
-        <AppearanceSettingsSection {settingsDraft} {onThemeChange} />
-        <ProvidersSettingsSection {authProviders} />
-        <AgentsSettingsSection {settingsDraft} />
-        <NetworkSettingsSection {settingsDraft} />
+        <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
+        <AgentsSettingsSection {settingsDraft} {onSettingsChange} />
+        <ServerSettingsSection {settingsDraft} {onSettingsChange} />
+        <CompactionSettingsSection {settingsDraft} {onSettingsChange} />
+        <GeneralSettingsSection {status} />
       {:else}
         <section class="app-empty-state settings-loading">
           <Sparkles size={28} strokeWidth={1.8} />
           <strong>Settings are loading</strong>
-          <p>Refresh if this takes longer than expected.</p>
+          <p>Use the tab refresh action if this takes longer than expected.</p>
         </section>
       {/if}
-
-      {#if settingsMessage}<p class="settings-message">{settingsMessage}</p>{/if}
     </div>
   </ScrollArea>
 </section>

@@ -8,7 +8,6 @@
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type {
     AgentRecord,
-    ContextUsage,
     ProcessRecord,
     ProjectRecord,
     SessionRecord,
@@ -16,19 +15,10 @@
   } from "../../api";
   import { shortenPath } from "../../utils/path";
   import { Button } from "$lib/components/ui/button";
-  import ContextUsageChip from "./ContextUsageChip.svelte";
   import StatusPopover from "./StatusPopover.svelte";
   import SubscriptionUsageChip from "./SubscriptionUsageChip.svelte";
 
   type GitStatus = { branch: string; dirty: boolean };
-
-  type CumulativeUsage = {
-    input: number;
-    output: number;
-    cacheRead: number;
-    cacheWrite: number;
-    cost: number;
-  };
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -40,9 +30,6 @@
     processes?: ProcessRecord[];
     branchDepth?: number;
     gitStatus?: GitStatus;
-    contextUsage?: ContextUsage;
-    contextWindow?: number;
-    cumulativeUsage?: CumulativeUsage;
     subscriptionUsage?: SubscriptionUsage;
     homeDir?: string;
     sidebarCollapsed?: boolean;
@@ -61,9 +48,6 @@
     processes = [],
     branchDepth = 0,
     gitStatus,
-    contextUsage,
-    contextWindow = 0,
-    cumulativeUsage,
     subscriptionUsage,
     homeDir,
     sidebarCollapsed = false,
@@ -124,8 +108,6 @@
       </span>
     {/if}
 
-    <ContextUsageChip {contextUsage} {contextWindow} cumulative={cumulativeUsage} />
-
     <SubscriptionUsageChip usage={subscriptionUsage} />
 
     <StatusPopover
@@ -134,7 +116,6 @@
       {activeAgent}
       {activeSession}
       {activeProject}
-      {contextUsage}
       {processes}
       {branchDepth}
       {pendingApprovals}

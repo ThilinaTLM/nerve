@@ -12,6 +12,7 @@
     type AgentRecord,
     type ApprovalWithToolCall,
     type CompletionItem,
+    type ContextUsage,
     type ModelInfo,
     type PlanReviewRecord,
     type ProjectRecord,
@@ -23,6 +24,7 @@
   import Popover from "$lib/components/ui/popover-panel";
   import ApprovalStrip from "./ApprovalStrip.svelte";
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
+  import ContextProgressBadge from "./ContextProgressBadge.svelte";
   import type { Component } from "svelte";
 
   type Mode = AgentRecord["mode"];
@@ -41,6 +43,8 @@
     error?: string;
     models?: ModelInfo[];
     selectedModelKey?: string;
+    contextUsage?: ContextUsage;
+    contextWindow?: number;
     thinkingLevel?: ThinkingLevel;
     mode?: Mode;
     permissionLevel?: PermissionLevel;
@@ -69,6 +73,8 @@
     error,
     models = [],
     selectedModelKey = "",
+    contextUsage,
+    contextWindow = 0,
     thinkingLevel = "off",
     mode = "coding",
     permissionLevel = "autonomous",
@@ -299,6 +305,8 @@
           {modeLabel}
         </button>
 
+        <ContextProgressBadge {contextUsage} {contextWindow} />
+
         <ComposerModelPicker
           {models}
           {selectedModelKey}
@@ -425,7 +433,7 @@
     pointer-events: auto;
   }
 
-  .composer-tabs :global(.model-tab) {
+  .composer-tabs :global(.context-usage-tab) {
     margin-left: auto;
   }
 

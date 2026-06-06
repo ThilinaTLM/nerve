@@ -6,7 +6,7 @@ import type {
   SessionRecord,
 } from "../../api";
 import { selection } from "../../state/app-state.svelte";
-import { usableModelOptions } from "../../utils/model";
+import { modelKey, usableModelOptions } from "../../utils/model";
 import { isPathInDirectory } from "../../utils/path";
 import type { CenterTabIdentity, ConversationViewState } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
@@ -180,6 +180,9 @@ export const workbenchSelectors = {
   },
   get authProviders() {
     return workbenchState.authProviders;
+  },
+  get settingsSaveStatus() {
+    return workbenchState.settingsSaveStatus;
   },
   get settingsMessage() {
     return workbenchState.settingsMessage;
@@ -375,13 +378,14 @@ export const workbenchSelectors = {
   get activeContextUsage() {
     return activeView()?.contextUsage;
   },
-  /** The active model's context window (0 when unknown). */
+  /** The active/selected model's context window (0 when unknown). */
   get activeContextWindow(): number {
-    return (
-      this.activeModelInfo?.contextWindow ??
-      activeView()?.contextUsage?.contextWindow ??
-      0
+    const selectedModelInfo = workbenchState.models.find(
+      (model) => modelKey(model) === workbenchState.selectedModelKey,
     );
+    if (selectedModelInfo?.contextWindow) return selectedModelInfo.contextWindow;
+    if (this.activeModelInfo?.contextWindow) return this.activeModelInfo.contextWindow;
+    return activeView()?.contextUsage?.contextWindow ?? 0;
   },
   /** Cumulative token + cost totals across the active conversation branch. */
   get activeSessionUsage(): {
