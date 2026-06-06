@@ -124,11 +124,15 @@ export class EventBus {
     await mkdir(dir, { recursive: true });
     const line = `${JSON.stringify(event)}\n`;
     await appendFile(this.globalEventsPath(), line, "utf8");
-    const sessionId = sessionIdForEvent(event);
-    if (sessionId) {
-      const sessionDir = join(this.dataDir, "sessions", sessionId);
-      await mkdir(sessionDir, { recursive: true });
-      await appendFile(join(sessionDir, "events.jsonl"), line, "utf8");
+    const conversationId = conversationIdForEvent(event);
+    if (conversationId) {
+      const conversationDir = join(
+        this.dataDir,
+        "conversations",
+        conversationId,
+      );
+      await mkdir(conversationDir, { recursive: true });
+      await appendFile(join(conversationDir, "events.jsonl"), line, "utf8");
     }
   }
 
@@ -137,23 +141,27 @@ export class EventBus {
   }
 }
 
-function sessionIdForEvent(event: EventEnvelope): string | undefined {
+function conversationIdForEvent(event: EventEnvelope): string | undefined {
   const data = event.data as Record<string, unknown> | undefined;
   if (!data) return undefined;
-  if (typeof data.sessionId === "string") return data.sessionId;
-  const session = data.session as Record<string, unknown> | undefined;
-  if (typeof session?.id === "string") return session.id;
+  if (typeof data.conversationId === "string") return data.conversationId;
+  const conversation = data.conversation as Record<string, unknown> | undefined;
+  if (typeof conversation?.id === "string") return conversation.id;
   const entry = data.entry as Record<string, unknown> | undefined;
-  if (typeof entry?.sessionId === "string") return entry.sessionId;
+  if (typeof entry?.conversationId === "string") return entry.conversationId;
   const toolCall = data.toolCall as Record<string, unknown> | undefined;
-  if (typeof toolCall?.sessionId === "string") return toolCall.sessionId;
+  if (typeof toolCall?.conversationId === "string")
+    return toolCall.conversationId;
   const agent = data.agent as Record<string, unknown> | undefined;
-  if (typeof agent?.sessionId === "string") return agent.sessionId;
+  if (typeof agent?.conversationId === "string") return agent.conversationId;
   const process = data.process as Record<string, unknown> | undefined;
-  if (typeof process?.sessionId === "string") return process.sessionId;
+  if (typeof process?.conversationId === "string")
+    return process.conversationId;
   const question = data.question as Record<string, unknown> | undefined;
-  if (typeof question?.sessionId === "string") return question.sessionId;
+  if (typeof question?.conversationId === "string")
+    return question.conversationId;
   const planReview = data.planReview as Record<string, unknown> | undefined;
-  if (typeof planReview?.sessionId === "string") return planReview.sessionId;
+  if (typeof planReview?.conversationId === "string")
+    return planReview.conversationId;
   return undefined;
 }

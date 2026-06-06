@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { modeSchema, permissionLevelSchema } from "./settings.js";
 
-export const sessionRecordSchema = z.object({
-  id: z.string().startsWith("ses_"),
+export const conversationRecordSchema = z.object({
+  id: z.string().startsWith("conv_"),
   projectId: z.string().startsWith("proj_"),
   title: z.string().min(1),
   mode: modeSchema,
@@ -12,24 +12,26 @@ export const sessionRecordSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
-export type SessionRecord = z.infer<typeof sessionRecordSchema>;
+export type ConversationRecord = z.infer<typeof conversationRecordSchema>;
 
-export const createSessionRequestSchema = z.object({
+export const createConversationRequestSchema = z.object({
   projectId: z.string().startsWith("proj_"),
   title: z.string().min(1).optional(),
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
 });
-export type CreateSessionRequest = z.infer<typeof createSessionRequestSchema>;
+export type CreateConversationRequest = z.infer<
+  typeof createConversationRequestSchema
+>;
 
-export const importSessionRequestSchema = z.object({
+export const importConversationRequestSchema = z.object({
   project: z
     .object({
       name: z.string().min(1).optional(),
       dir: z.string().min(1),
     })
     .optional(),
-  session: z.object({
+  conversation: z.object({
     title: z.string().min(1).optional(),
     mode: modeSchema.optional(),
     permissionLevel: permissionLevelSchema.optional(),
@@ -37,9 +39,11 @@ export const importSessionRequestSchema = z.object({
   agents: z.array(z.unknown()).default([]),
   entries: z.array(z.unknown()).default([]),
 });
-export type ImportSessionRequest = z.infer<typeof importSessionRequestSchema>;
+export type ImportConversationRequest = z.infer<
+  typeof importConversationRequestSchema
+>;
 
-export const sessionEntryUsageSchema = z.object({
+export const conversationEntryUsageSchema = z.object({
   input: z.number().int().nonnegative(),
   output: z.number().int().nonnegative(),
   cacheRead: z.number().int().nonnegative(),
@@ -47,62 +51,66 @@ export const sessionEntryUsageSchema = z.object({
   totalTokens: z.number().int().nonnegative(),
   cost: z.number().nonnegative(),
 });
-export type SessionEntryUsage = z.infer<typeof sessionEntryUsageSchema>;
+export type ConversationEntryUsage = z.infer<
+  typeof conversationEntryUsageSchema
+>;
 
-export const sessionEntryKindSchema = z.enum([
+export const conversationEntryKindSchema = z.enum([
   "message",
   "compaction",
   "branch_summary",
   "subagent_summary",
 ]);
-export type SessionEntryKind = z.infer<typeof sessionEntryKindSchema>;
+export type ConversationEntryKind = z.infer<typeof conversationEntryKindSchema>;
 
-export const sessionEntrySchema = z.object({
+export const conversationEntrySchema = z.object({
   id: z.string().startsWith("entry_"),
-  sessionId: z.string().startsWith("ses_"),
+  conversationId: z.string().startsWith("conv_"),
   agentId: z.string().startsWith("agent_").optional(),
   runId: z.string().startsWith("run_").optional(),
   turnId: z.string().startsWith("turn_").optional(),
   liveMessageId: z.string().startsWith("msg_").optional(),
   parentEntryId: z.string().startsWith("entry_").optional(),
   role: z.enum(["user", "assistant", "system"]),
-  kind: sessionEntryKindSchema.default("message"),
+  kind: conversationEntryKindSchema.default("message"),
   text: z.string(),
   summary: z.string().optional(),
   tokensBefore: z.number().int().nonnegative().optional(),
-  usage: sessionEntryUsageSchema.optional(),
+  usage: conversationEntryUsageSchema.optional(),
   firstKeptEntryId: z.string().startsWith("entry_").optional(),
   fromEntryId: z.string().startsWith("entry_").optional(),
   details: z.unknown().optional(),
   createdAt: z.string().datetime(),
 });
-export type SessionEntry = z.infer<typeof sessionEntrySchema>;
+export type ConversationEntry = z.infer<typeof conversationEntrySchema>;
 
-export const sessionTreeNodeSchema = z.object({
-  entry: sessionEntrySchema,
+export const conversationTreeNodeSchema = z.object({
+  entry: conversationEntrySchema,
   childEntryIds: z.array(z.string().startsWith("entry_")),
 });
-export type SessionTreeNode = z.infer<typeof sessionTreeNodeSchema>;
+export type ConversationTreeNode = z.infer<typeof conversationTreeNodeSchema>;
 
-export const sessionTreeSchema = z.object({
-  sessionId: z.string().startsWith("ses_"),
+export const conversationTreeSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
   activeEntryId: z.string().startsWith("entry_").optional(),
   rootEntryIds: z.array(z.string().startsWith("entry_")),
-  nodes: z.array(sessionTreeNodeSchema),
+  nodes: z.array(conversationTreeNodeSchema),
 });
-export type SessionTree = z.infer<typeof sessionTreeSchema>;
+export type ConversationTree = z.infer<typeof conversationTreeSchema>;
 
-export const navigateSessionRequestSchema = z.object({
+export const navigateConversationRequestSchema = z.object({
   activeEntryId: z.string().startsWith("entry_").nullable(),
   summarize: z.boolean().optional(),
   summaryInstructions: z.string().optional(),
 });
-export type NavigateSessionRequest = z.infer<
-  typeof navigateSessionRequestSchema
+export type NavigateConversationRequest = z.infer<
+  typeof navigateConversationRequestSchema
 >;
 
-export const compactSessionRequestSchema = z.object({
+export const compactConversationRequestSchema = z.object({
   instructions: z.string().optional(),
   keepRecentTokens: z.number().int().positive().optional(),
 });
-export type CompactSessionRequest = z.infer<typeof compactSessionRequestSchema>;
+export type CompactConversationRequest = z.infer<
+  typeof compactConversationRequestSchema
+>;

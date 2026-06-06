@@ -6,7 +6,11 @@ import type {
   ClipboardImageUploadResponse,
   ContextUsage,
   ConversationActiveRunSnapshot,
+  ConversationEntry,
+  ConversationRecord,
   ConversationSnapshot,
+  ConversationTree,
+  ConversationTreeNode,
   EventEnvelope,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
@@ -18,16 +22,12 @@ import type {
   ProcessLogQueryResponse,
   ProcessRecord,
   ProjectRecord,
-  SessionEntry,
-  SessionRecord,
-  SessionTree,
-  SessionTreeNode,
   Settings,
   StatusResponse,
-  UpdateSettingsRequest,
   SubscriptionUsage,
   SubscriptionWindow,
   ToolCallRecord,
+  UpdateSettingsRequest,
   UserQuestionRecord,
 } from "@nerve/shared";
 
@@ -47,7 +47,7 @@ export type CompletionItem = {
 
 export type WorkspaceSnapshot = {
   projects: ProjectRecord[];
-  sessions: SessionRecord[];
+  conversations: ConversationRecord[];
   agents: AgentRecord[];
   processes: ProcessRecord[];
 };
@@ -156,21 +156,21 @@ export async function getClientConfig(): Promise<ClientConfig> {
 }
 
 export async function getConversationSnapshot(
-  sessionId: string,
+  conversationId: string,
 ): Promise<ConversationSnapshot> {
   return (
-    await apiGet<{ conversation: ConversationSnapshot }>(
-      `/api/sessions/${sessionId}/conversation`,
+    await apiGet<{ snapshot: ConversationSnapshot }>(
+      `/api/conversations/${conversationId}/snapshot`,
     )
-  ).conversation;
+  ).snapshot;
 }
 
-export async function getSessionContextUsage(
-  sessionId: string,
+export async function getConversationContextUsage(
+  conversationId: string,
 ): Promise<ContextUsage> {
   return (
     await apiGet<{ contextUsage: ContextUsage }>(
-      `/api/sessions/${sessionId}/context-usage`,
+      `/api/conversations/${conversationId}/context-usage`,
     )
   ).contextUsage;
 }
@@ -224,16 +224,20 @@ export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
 }
 
 export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
-  const [projectResponse, sessionResponse, agentResponse, processResponse] =
-    await Promise.all([
-      apiGet<{ projects: ProjectRecord[] }>("/api/projects"),
-      apiGet<{ sessions: SessionRecord[] }>("/api/sessions"),
-      apiGet<{ agents: AgentRecord[] }>("/api/agents"),
-      apiGet<{ processes: ProcessRecord[] }>("/api/processes"),
-    ]);
+  const [
+    projectResponse,
+    conversationResponse,
+    agentResponse,
+    processResponse,
+  ] = await Promise.all([
+    apiGet<{ projects: ProjectRecord[] }>("/api/projects"),
+    apiGet<{ conversations: ConversationRecord[] }>("/api/conversations"),
+    apiGet<{ agents: AgentRecord[] }>("/api/agents"),
+    apiGet<{ processes: ProcessRecord[] }>("/api/processes"),
+  ]);
   return {
     projects: projectResponse.projects,
-    sessions: [...sessionResponse.sessions].sort((a, b) =>
+    conversations: [...conversationResponse.conversations].sort((a, b) =>
       b.updatedAt.localeCompare(a.updatedAt),
     ),
     agents: agentResponse.agents,
@@ -241,27 +245,31 @@ export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
   };
 }
 
-export async function getSessionMessages(
-  sessionId: string,
-): Promise<SessionEntry[]> {
+export async function getConversationEntries(
+  conversationId: string,
+): Promise<ConversationEntry[]> {
   return (
-    await apiGet<{ entries: SessionEntry[] }>(
-      `/api/sessions/${sessionId}/messages`,
+    await apiGet<{ entries: ConversationEntry[] }>(
+      `/api/conversations/${conversationId}/entries`,
     )
   ).entries;
 }
 
-export async function getSessionTree(sessionId: string): Promise<SessionTree> {
+export async function getConversationTree(
+  conversationId: string,
+): Promise<ConversationTree> {
   return (
-    await apiGet<{ tree: SessionTree }>(`/api/sessions/${sessionId}/tree`)
+    await apiGet<{ tree: ConversationTree }>(
+      `/api/conversations/${conversationId}/tree`,
+    )
   ).tree;
 }
 
-export async function compactSession(sessionId: string): Promise<{
-  session: SessionRecord;
-  entry: SessionEntry;
+export async function compactConversation(conversationId: string): Promise<{
+  conversation: ConversationRecord;
+  entry: ConversationEntry;
 }> {
-  return apiPost(`/api/sessions/${sessionId}/compact`, {});
+  return apiPost(`/api/conversations/${conversationId}/compact`, {});
 }
 
 async function apiDeleteNoContent(path: string): Promise<void> {
@@ -276,8 +284,10 @@ export async function deleteProject(projectId: string): Promise<void> {
   await apiDeleteNoContent(`/api/projects/${projectId}`);
 }
 
-export async function deleteSession(sessionId: string): Promise<void> {
-  await apiDeleteNoContent(`/api/sessions/${sessionId}`);
+export async function deleteConversation(
+  conversationId: string,
+): Promise<void> {
+  await apiDeleteNoContent(`/api/conversations/${conversationId}`);
 }
 
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
@@ -488,10 +498,10 @@ export type {
   FilesystemFileResponse,
   FilesystemSignal,
   ProjectRecord,
-  SessionEntry,
-  SessionRecord,
-  SessionTree,
-  SessionTreeNode,
+  ConversationEntry,
+  ConversationRecord,
+  ConversationTree,
+  ConversationTreeNode,
   StatusResponse,
   ApprovalRecord,
   ToolCallRecord,

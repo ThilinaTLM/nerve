@@ -5,7 +5,7 @@ export type UtilityTab = "history" | "processes" | "info";
 
 export const selection = $state({
   projectId: undefined as string | undefined,
-  sessionId: undefined as string | undefined,
+  conversationId: undefined as string | undefined,
   agentId: undefined as string | undefined,
   entryId: undefined as string | undefined,
 });
@@ -69,7 +69,7 @@ export function pushEventPreview(serialized: string) {
 
 export function resetSelection() {
   selection.projectId = undefined;
-  selection.sessionId = undefined;
+  selection.conversationId = undefined;
   selection.agentId = undefined;
   selection.entryId = undefined;
 }

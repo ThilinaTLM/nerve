@@ -2,22 +2,22 @@ import type { Message, ToolResultMessage } from "@earendil-works/pi-ai";
 import { type AgentMessage, listAvailableModels } from "@nerve/agent";
 import type {
   AgentRecord,
-  CompactSessionRequest,
+  CompactConversationRequest,
   ContextUsage,
+  ConversationEntry,
+  ConversationRecord,
   ConversationSnapshot,
+  ConversationTree,
   CreateAgentRequest,
+  CreateConversationRequest,
   CreateProjectRequest,
-  CreateSessionRequest,
-  ImportSessionRequest,
+  ImportConversationRequest,
   ModelInfo,
-  NavigateSessionRequest,
+  NavigateConversationRequest,
   PlanReviewStatus,
   ProcessLogQuery,
   ProjectRecord,
   PromptRequest,
-  SessionEntry,
-  SessionRecord,
-  SessionTree,
   StartProcessRequest,
   StopProcessRequest,
   ToolCallRecord,
@@ -35,6 +35,12 @@ import { AgentSuspensionService } from "./agent-suspension-service.js";
 import { completedToolResult } from "./agent-tool-adapter.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
+import {
+  CompactionService,
+  ExportService,
+  ImportService,
+  NavigationService,
+} from "./conversation-operations/index.js";
 import { ConversationRuntime } from "./conversation-runtime.js";
 import { ConversationService } from "./conversation-service.js";
 import type { EventBus } from "./events.js";
@@ -44,21 +50,15 @@ import type { IndexStore } from "./index-store.js";
 import { PlanService } from "./plan-service.js";
 import { ProcessManager } from "./process-manager.js";
 import { AgentLifecycleService } from "./registry/agent-lifecycle-service.js";
+import { ConversationLifecycleService } from "./registry/conversation-lifecycle-service.js";
 import { ProjectLifecycleService } from "./registry/project-lifecycle-service.js";
-import { SessionLifecycleService } from "./registry/session-lifecycle-service.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
 import {
   AgentRepository,
+  ConversationRepository,
   EntryRepository,
   ProjectRepository,
-  SessionRepository,
 } from "./repositories/index.js";
-import {
-  CompactionService,
-  ExportService,
-  ImportService,
-  NavigationService,
-} from "./session-operations/index.js";
 import type { InitializedStorage } from "./storage.js";
 import { ToolService } from "./tool-service.js";
 import type { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
@@ -66,10 +66,10 @@ import { WorkerManager } from "./worker-manager.js";
 
 export class RuntimeRegistry {
   readonly projects = new Map<string, ProjectRecord>();
-  readonly sessions = new Map<string, SessionRecord>();
+  readonly conversations = new Map<string, ConversationRecord>();
   readonly agents = new Map<string, AgentRecord>();
-  readonly entries = new Map<string, SessionEntry[]>();
-  readonly conversations: Map<string, Message[]>;
+  readonly entries = new Map<string, ConversationEntry[]>();
+  readonly agentConversationMessages: Map<string, Message[]>;
   readonly conversationRuntime = new ConversationRuntime();
   readonly runs = new Map<string, AgentRunState>();
   readonly processes: ProcessManager;
@@ -78,7 +78,7 @@ export class RuntimeRegistry {
   readonly suspensions: AgentSuspensionService;
   readonly tools: ToolService;
   private readonly projectRepository: ProjectRepository;
-  private readonly sessionRepository: SessionRepository;
+  private readonly conversationRepository: ConversationRepository;
   private readonly agentRepository: AgentRepository;
   private readonly entryRepository: EntryRepository;
   private readonly harnessManager: HarnessManager;
@@ -90,7 +90,7 @@ export class RuntimeRegistry {
   private readonly messageMirror: MessageMirror;
   private readonly agentRunner: AgentRunner;
   private readonly projectLifecycle: ProjectLifecycleService;
-  private readonly sessionLifecycle: SessionLifecycleService;
+  private readonly conversationLifecycle: ConversationLifecycleService;
   private readonly agentLifecycle: AgentLifecycleService;
 
   constructor(
@@ -101,22 +101,23 @@ export class RuntimeRegistry {
     private readonly subscriptionUsage: SubscriptionUsageService,
   ) {
     this.projectRepository = new ProjectRepository(storage);
-    this.sessionRepository = new SessionRepository(storage);
+    this.conversationRepository = new ConversationRepository(storage);
     this.agentRepository = new AgentRepository(storage);
     this.entryRepository = new EntryRepository(storage);
     this.harnessManager = new HarnessManager(
-      this.sessionRepository,
-      (sessionId) => this.getSession(sessionId),
+      this.conversationRepository,
+      (conversationId) => this.getConversation(conversationId),
       (projectId) => this.getProject(projectId),
     );
     this.conversationService = new ConversationService(
       this.harnessManager,
       this.entryRepository,
     );
-    this.conversations = this.conversationService.agentConversationCache;
+    this.agentConversationMessages =
+      this.conversationService.agentConversationCache;
     this.compactionService = new CompactionService(
       storage,
-      (sessionId) => this.getSession(sessionId),
+      (conversationId) => this.getConversation(conversationId),
       (projectId) => this.getProject(projectId),
       (input, options) => this.appendEntry(input, options),
       this.harnessManager,
@@ -124,35 +125,36 @@ export class RuntimeRegistry {
       events,
     );
     this.navigationService = new NavigationService(
-      (sessionId) => this.getSession(sessionId),
+      (conversationId) => this.getConversation(conversationId),
       (projectId) => this.getProject(projectId),
       this.entries,
-      (session) => this.updateSession(session),
+      (conversation) => this.updateConversation(conversation),
       (input, options) => this.appendEntry(input, options),
       this.harnessManager,
       () => this.rebuildConversations(),
       events,
     );
     this.exportService = new ExportService(
-      (sessionId) => this.getSession(sessionId),
+      (conversationId) => this.getConversation(conversationId),
       (projectId) => this.getProject(projectId),
       () => this.listAgents(),
       this.entries,
     );
     this.importService = new ImportService(
       (request) => this.createProject(request),
-      (request) => this.createSession(request),
+      (request) => this.createConversation(request),
       (request) => this.createAgent(request),
-      (sessionId) => this.getSession(sessionId),
+      (conversationId) => this.getConversation(conversationId),
       (input, options) => this.appendEntry(input, options),
       () => this.rebuildConversations(),
       events,
     );
     this.messageMirror = new MessageMirror({
       entries: this.entries,
-      sessions: this.sessions,
+      conversations: this.conversations,
       appendEntry: (input, options) => this.appendEntry(input, options),
-      updateSession: (session) => this.updateSession(session),
+      updateConversation: (conversation) =>
+        this.updateConversation(conversation),
       events,
     });
     this.processes = new ProcessManager(storage, events, index);
@@ -162,23 +164,23 @@ export class RuntimeRegistry {
       events,
       index,
       this.projects,
-      () => this.listSessions(),
-      (sessionId) => this.removeSession(sessionId),
+      () => this.listConversations(),
+      (conversationId) => this.removeConversation(conversationId),
     );
-    this.sessionLifecycle = new SessionLifecycleService(
+    this.conversationLifecycle = new ConversationLifecycleService(
       storage,
       events,
       index,
-      this.sessions,
+      this.conversations,
       this.entries,
-      this.sessionRepository,
+      this.conversationRepository,
       this.entryRepository,
       this.harnessManager,
       (projectId) => this.getProject(projectId),
       (agentId) => this.removeAgentInternal(agentId),
-      (sessionId) =>
+      (conversationId) =>
         [...this.agents.values()].filter(
-          (candidate) => candidate.sessionId === sessionId,
+          (candidate) => candidate.conversationId === conversationId,
         ),
     );
     this.agentLifecycle = new AgentLifecycleService(
@@ -190,9 +192,9 @@ export class RuntimeRegistry {
       this.agentRepository,
       this.workers,
       this.conversationService,
-      (sessionId) => this.getSession(sessionId),
+      (conversationId) => this.getConversation(conversationId),
       (projectId) => this.getProject(projectId),
-      (session) => this.updateSession(session),
+      (conversation) => this.updateConversation(conversation),
       (agentId) => this.abortAgent(agentId),
     );
     this.plans = new PlanService(
@@ -228,12 +230,13 @@ export class RuntimeRegistry {
       compactionService: this.compactionService,
       runs: this.runs,
       agents: this.agents,
-      getSession: (sessionId) => this.getSession(sessionId),
+      getConversation: (conversationId) => this.getConversation(conversationId),
       getProject: (projectId) => this.getProject(projectId),
       createAgent: (request, options) => this.createAgent(request, options),
       setAgentStatus: (agent, status) => this.setAgentStatus(agent, status),
       appendEntry: (input, options) => this.appendEntry(input, options),
-      updateSession: (session) => this.updateSession(session),
+      updateConversation: (conversation) =>
+        this.updateConversation(conversation),
       messageMirror: this.messageMirror,
       conversationRuntime: this.conversationRuntime,
       subscriptionUsage: this.subscriptionUsage,
@@ -252,7 +255,7 @@ export class RuntimeRegistry {
     await this.plans.hydrate();
     await this.suspensions.hydrate();
     await this.loadProjects();
-    await this.loadSessions();
+    await this.loadConversations();
     await this.loadAgents();
     await this.rebuildConversations();
   }
@@ -260,7 +263,7 @@ export class RuntimeRegistry {
   async rebuildIndex(): Promise<void> {
     this.index.rebuild({
       projects: this.listProjects(),
-      sessions: this.listSessions(),
+      conversations: this.listConversations(),
       agents: this.listAgents(),
       events: await this.events.replayPersistedSince(0),
       processes: this.processes.listProcesses(),
@@ -281,16 +284,18 @@ export class RuntimeRegistry {
     return this.projectLifecycle.getProject(projectId);
   }
 
-  async createSession(request: CreateSessionRequest): Promise<SessionRecord> {
-    return this.sessionLifecycle.createSession(request);
+  async createConversation(
+    request: CreateConversationRequest,
+  ): Promise<ConversationRecord> {
+    return this.conversationLifecycle.createConversation(request);
   }
 
-  listSessions(): SessionRecord[] {
-    return this.sessionLifecycle.listSessions();
+  listConversations(): ConversationRecord[] {
+    return this.conversationLifecycle.listConversations();
   }
 
-  getSession(sessionId: string): SessionRecord {
-    return this.sessionLifecycle.getSession(sessionId);
+  getConversation(conversationId: string): ConversationRecord {
+    return this.conversationLifecycle.getConversation(conversationId);
   }
 
   async createAgent(
@@ -312,8 +317,8 @@ export class RuntimeRegistry {
     return this.agentLifecycle.removeAgentInternal(agentId);
   }
 
-  async removeSession(sessionId: string): Promise<void> {
-    return this.sessionLifecycle.removeSession(sessionId);
+  async removeConversation(conversationId: string): Promise<void> {
+    return this.conversationLifecycle.removeConversation(conversationId);
   }
 
   async removeProject(projectId: string): Promise<void> {
@@ -327,72 +332,73 @@ export class RuntimeRegistry {
     return this.agentLifecycle.configureAgent(agentId, request);
   }
 
-  getSessionEntries(sessionId: string): SessionEntry[] {
-    return this.sessionLifecycle.getSessionEntries(sessionId);
+  getConversationEntries(conversationId: string): ConversationEntry[] {
+    return this.conversationLifecycle.getConversationEntries(conversationId);
   }
 
-  getSessionTree(sessionId: string): SessionTree {
-    return this.sessionLifecycle.getSessionTree(sessionId);
+  getConversationTree(conversationId: string): ConversationTree {
+    return this.conversationLifecycle.getConversationTree(conversationId);
   }
 
-  async getContextUsage(sessionId: string): Promise<ContextUsage> {
-    return this.agentRunner.getContextUsage(sessionId);
+  async getContextUsage(conversationId: string): Promise<ContextUsage> {
+    return this.agentRunner.getContextUsage(conversationId);
   }
 
   async getConversationSnapshot(
-    sessionId: string,
+    conversationId: string,
   ): Promise<ConversationSnapshot> {
     const cursorSeq = this.events.latestSeq;
-    const contextUsage = await this.getContextUsage(sessionId).catch(
+    const contextUsage = await this.getContextUsage(conversationId).catch(
       () => undefined,
     );
     return {
-      session: this.getSession(sessionId),
-      entries: this.getSessionEntries(sessionId),
-      tree: this.getSessionTree(sessionId),
+      conversation: this.getConversation(conversationId),
+      entries: this.getConversationEntries(conversationId),
+      tree: this.getConversationTree(conversationId),
       toolCalls: this.tools
         .listToolCalls()
-        .filter((toolCall) => toolCall.sessionId === sessionId),
-      activeRun: this.conversationRuntime.snapshotForSession(sessionId),
+        .filter((toolCall) => toolCall.conversationId === conversationId),
+      activeRun:
+        this.conversationRuntime.snapshotForConversation(conversationId),
       contextUsage,
       cursorSeq,
       generatedAt: new Date().toISOString(),
     };
   }
 
-  async navigateSession(
-    sessionId: string,
-    request: NavigateSessionRequest,
-  ): Promise<SessionRecord> {
-    return this.navigationService.navigateSession(sessionId, request);
+  async navigateConversation(
+    conversationId: string,
+    request: NavigateConversationRequest,
+  ): Promise<ConversationRecord> {
+    return this.navigationService.navigateConversation(conversationId, request);
   }
 
-  async compactSession(
-    sessionId: string,
-    request: CompactSessionRequest = {},
-  ): Promise<{ session: SessionRecord; entry: SessionEntry }> {
-    return this.compactionService.compactSession(sessionId, request);
+  async compactConversation(
+    conversationId: string,
+    request: CompactConversationRequest = {},
+  ): Promise<{ conversation: ConversationRecord; entry: ConversationEntry }> {
+    return this.compactionService.compactConversation(conversationId, request);
   }
 
-  exportSession(sessionId: string) {
-    return this.exportService.exportSession(sessionId);
+  exportConversation(conversationId: string) {
+    return this.exportService.exportConversation(conversationId);
   }
 
-  exportSessionMarkdown(sessionId: string): string {
-    return this.exportService.exportSessionMarkdown(sessionId);
+  exportConversationMarkdown(conversationId: string): string {
+    return this.exportService.exportConversationMarkdown(conversationId);
   }
 
-  exportSessionHtml(sessionId: string): string {
-    return this.exportService.exportSessionHtml(sessionId);
+  exportConversationHtml(conversationId: string): string {
+    return this.exportService.exportConversationHtml(conversationId);
   }
 
-  async importSession(request: ImportSessionRequest): Promise<{
+  async importConversation(request: ImportConversationRequest): Promise<{
     project: ProjectRecord;
-    session: SessionRecord;
+    conversation: ConversationRecord;
     agents: AgentRecord[];
-    entries: SessionEntry[];
+    entries: ConversationEntry[];
   }> {
-    return this.importService.importSession(request);
+    return this.importService.importConversation(request);
   }
 
   async requestTool(
@@ -624,7 +630,7 @@ export class RuntimeRegistry {
     agentId: string,
     text: string,
     metadata: { runId?: string; turnId?: string } = {},
-  ): Promise<SessionEntry> {
+  ): Promise<ConversationEntry> {
     const agent = this.getAgent(agentId);
     const message: AgentMessage = {
       role: "user",
@@ -638,7 +644,7 @@ export class RuntimeRegistry {
     return this.appendEntry(
       {
         id: appended.id,
-        sessionId: agent.sessionId,
+        conversationId: agent.conversationId,
         agentId: agent.id,
         runId: metadata.runId,
         turnId: metadata.turnId,
@@ -653,7 +659,7 @@ export class RuntimeRegistry {
   private async appendToolResultForToolCall(
     toolCall: ToolCallRecord,
     isError: boolean,
-  ): Promise<SessionEntry> {
+  ): Promise<ConversationEntry> {
     const agent = this.getAgent(toolCall.agentId);
     const result = completedToolResult(toolCall);
     const providerToolCallId =
@@ -674,7 +680,7 @@ export class RuntimeRegistry {
     return this.appendEntry(
       {
         id: appended.id,
-        sessionId: toolCall.sessionId,
+        conversationId: toolCall.conversationId,
         agentId: toolCall.agentId,
         runId: toolCall.runId,
         turnId: toolCall.turnId,
@@ -696,7 +702,7 @@ export class RuntimeRegistry {
   private async appendSkippedToolResult(
     agentId: string,
     remaining: { id: string; name: string },
-  ): Promise<SessionEntry> {
+  ): Promise<ConversationEntry> {
     const agent = this.getAgent(agentId);
     const message: ToolResultMessage = {
       role: "toolResult",
@@ -719,7 +725,7 @@ export class RuntimeRegistry {
     return this.appendEntry(
       {
         id: appended.id,
-        sessionId: agent.sessionId,
+        conversationId: agent.conversationId,
         agentId: agent.id,
         role: "system",
         text: agentMessageText(message),
@@ -736,10 +742,10 @@ export class RuntimeRegistry {
   }
 
   private async publishConversationEntryAppended(
-    entry: SessionEntry,
+    entry: ConversationEntry,
   ): Promise<void> {
     await this.events.publish("conversation.entry.appended", {
-      sessionId: entry.sessionId,
+      conversationId: entry.conversationId,
       agentId: entry.agentId,
       runId: entry.runId,
       turnId: entry.turnId,
@@ -831,23 +837,25 @@ export class RuntimeRegistry {
     await this.agentLifecycle.updateAgent(agent);
   }
 
-  private async updateSession(session: SessionRecord): Promise<void> {
-    await this.sessionLifecycle.updateSession(session);
+  private async updateConversation(
+    conversation: ConversationRecord,
+  ): Promise<void> {
+    await this.conversationLifecycle.updateConversation(conversation);
   }
 
   private async appendEntry(
     input: AppendEntryInput,
     options: AppendEntryOptions = {},
-  ): Promise<SessionEntry> {
-    return this.sessionLifecycle.appendEntry(input, options);
+  ): Promise<ConversationEntry> {
+    return this.conversationLifecycle.appendEntry(input, options);
   }
 
   private async loadProjects(): Promise<void> {
     await this.projectLifecycle.loadProjects();
   }
 
-  private async loadSessions(): Promise<void> {
-    await this.sessionLifecycle.loadSessions();
+  private async loadConversations(): Promise<void> {
+    await this.conversationLifecycle.loadConversations();
   }
 
   private async loadAgents(): Promise<void> {
@@ -857,7 +865,7 @@ export class RuntimeRegistry {
   private async rebuildConversations(): Promise<void> {
     await this.conversationService.rebuildAll(
       this.projects.values(),
-      this.sessions.values(),
+      this.conversations.values(),
       this.agents.values(),
       this.entries,
     );

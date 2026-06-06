@@ -181,12 +181,12 @@ describe("orchestrator server routes", () => {
       const project = await state.registry.createProject({
         dir: state.storage.paths.home,
       });
-      const session = await state.registry.createSession({
+      const conversation = await state.registry.createConversation({
         projectId: project.id,
       });
       const agent = await state.registry.createAgent({
         projectId: project.id,
-        sessionId: session.id,
+        conversationId: conversation.id,
       });
 
       const toolPromise = state.registry.requestTool(agent.id, "ask_user", {
@@ -249,16 +249,16 @@ describe("orchestrator server routes", () => {
       const project = await state.registry.createProject({
         dir: state.storage.paths.home,
       });
-      const session = await state.registry.createSession({
+      const conversation = await state.registry.createConversation({
         projectId: project.id,
       });
       const firstAgent = await state.registry.createAgent({
         projectId: project.id,
-        sessionId: session.id,
+        conversationId: conversation.id,
       });
       const secondAgent = await state.registry.createAgent({
         projectId: project.id,
-        sessionId: session.id,
+        conversationId: conversation.id,
       });
 
       const setResult = await state.registry.requestTool(
@@ -314,12 +314,12 @@ describe("orchestrator server routes", () => {
       const project = await state.registry.createProject({
         dir: storage.paths.home,
       });
-      const session = await state.registry.createSession({
+      const conversation = await state.registry.createConversation({
         projectId: project.id,
       });
       const agent = await state.registry.createAgent({
         projectId: project.id,
-        sessionId: session.id,
+        conversationId: conversation.id,
       });
 
       await state.registry.requestTool(agent.id, "todos_set", {
@@ -350,18 +350,18 @@ describe("orchestrator server routes", () => {
     }
   });
 
-  it("returns representative project, session, agent, and process log responses", async () => {
+  it("returns representative project, conversation, agent, and process log responses", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
     try {
       const project = await state.registry.createProject({
         dir: state.storage.paths.home,
       });
-      const session = await state.registry.createSession({
+      const conversation = await state.registry.createConversation({
         projectId: project.id,
       });
       const agent = await state.registry.createAgent({
         projectId: project.id,
-        sessionId: session.id,
+        conversationId: conversation.id,
       });
 
       const projects = await app.request("/api/projects", { headers });
@@ -371,10 +371,13 @@ describe("orchestrator server routes", () => {
         1,
       );
 
-      const sessions = await app.request("/api/sessions", { headers });
-      assert.equal(sessions.status, 200);
+      const conversations = await app.request("/api/conversations", {
+        headers,
+      });
+      assert.equal(conversations.status, 200);
       assert.equal(
-        ((await sessions.json()) as { sessions: unknown[] }).sessions.length,
+        ((await conversations.json()) as { conversations: unknown[] })
+          .conversations.length,
         1,
       );
 

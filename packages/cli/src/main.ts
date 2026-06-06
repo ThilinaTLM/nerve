@@ -449,17 +449,17 @@ async function commandRun(args: string[]): Promise<void> {
     "/api/projects",
     { dir },
   );
-  const { session } = await apiPost<{ session: { id: string } }>(
-    "/api/sessions",
+  const { conversation } = await apiPost<{ conversation: { id: string } }>(
+    "/api/conversations",
     { projectId: project.id, title: `CLI run: ${project.name}` },
   );
   const { agent } = await apiPost<{ agent: { id: string } }>("/api/agents", {
     projectId: project.id,
-    sessionId: session.id,
+    conversationId: conversation.id,
   });
 
   console.log(`project: ${project.id}`);
-  console.log(`session: ${session.id}`);
+  console.log(`conversation: ${conversation.id}`);
   console.log(`agent: ${agent.id}`);
 
   if (!prompt) {

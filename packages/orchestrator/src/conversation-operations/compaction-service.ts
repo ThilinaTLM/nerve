@@ -1,13 +1,13 @@
 import {
+  type ConversationTreeEntry,
   DEFAULT_COMPACTION_SETTINGS,
   prepareCompaction,
-  type SessionTreeEntry,
 } from "@nerve/agent";
 import type {
-  CompactSessionRequest,
+  CompactConversationRequest,
+  ConversationEntry,
+  ConversationRecord,
   ProjectRecord,
-  SessionEntry,
-  SessionRecord,
 } from "@nerve/shared";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
@@ -15,13 +15,13 @@ import { HttpError } from "../http/errors.js";
 import type { InitializedStorage } from "../storage.js";
 import { buildExtractiveSummary } from "./summary.js";
 
-export interface AppendSessionEntryInput {
+export interface AppendConversationEntryInput {
   id?: string;
-  sessionId: string;
+  conversationId: string;
   agentId?: string;
   parentEntryId?: string | null;
-  role: SessionEntry["role"];
-  kind?: SessionEntry["kind"];
+  role: ConversationEntry["role"];
+  kind?: ConversationEntry["kind"];
   text: string;
   summary?: string;
   tokensBefore?: number;
@@ -31,29 +31,34 @@ export interface AppendSessionEntryInput {
   createdAt?: string;
 }
 
-export type AppendSessionEntry = (
-  input: AppendSessionEntryInput,
+export type AppendConversationEntry = (
+  input: AppendConversationEntryInput,
   options?: { mirrorToHarness?: boolean },
-) => Promise<SessionEntry>;
+) => Promise<ConversationEntry>;
 
 export class CompactionService {
   constructor(
     private readonly storage: InitializedStorage,
-    private readonly getSession: (sessionId: string) => SessionRecord,
+    private readonly getConversation: (
+      conversationId: string,
+    ) => ConversationRecord,
     private readonly getProject: (projectId: string) => ProjectRecord,
-    private readonly appendEntry: AppendSessionEntry,
+    private readonly appendEntry: AppendConversationEntry,
     private readonly harnessManager: HarnessManager,
     private readonly rebuildConversations: () => Promise<void>,
     private readonly events: EventBus,
   ) {}
 
-  async compactSession(
-    sessionId: string,
-    request: CompactSessionRequest = {},
-  ): Promise<{ session: SessionRecord; entry: SessionEntry }> {
-    const session = this.getSession(sessionId);
-    const project = this.getProject(session.projectId);
-    const storage = await this.harnessManager.openStorage(session, project.dir);
+  async compactConversation(
+    conversationId: string,
+    request: CompactConversationRequest = {},
+  ): Promise<{ conversation: ConversationRecord; entry: ConversationEntry }> {
+    const conversation = this.getConversation(conversationId);
+    const project = this.getProject(conversation.projectId);
+    const storage = await this.harnessManager.openStorage(
+      conversation,
+      project.dir,
+    );
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const settings = {
       ...DEFAULT_COMPACTION_SETTINGS,
@@ -76,7 +81,7 @@ export class CompactionService {
     ];
     if (messagesToSummarize.length === 0) {
       const messageEntries = branch.filter(
-        (entry): entry is Extract<SessionTreeEntry, { type: "message" }> =>
+        (entry): entry is Extract<ConversationTreeEntry, { type: "message" }> =>
           entry.type === "message",
       );
       const fallbackKept = messageEntries.at(-1);
@@ -110,7 +115,7 @@ export class CompactionService {
     };
     const entry = await this.appendEntry(
       {
-        sessionId,
+        conversationId,
         role: "system",
         kind: "compaction",
         text: summary,
@@ -132,12 +137,12 @@ export class CompactionService {
       details,
     });
     await this.rebuildConversations();
-    await this.events.publish("session.compacted", {
-      sessionId,
+    await this.events.publish("conversation.compacted", {
+      conversationId,
       entry,
       tokensBefore: preparation.tokensBefore,
       firstKeptEntryId,
     });
-    return { session: this.getSession(sessionId), entry };
+    return { conversation: this.getConversation(conversationId), entry };
   }
 }

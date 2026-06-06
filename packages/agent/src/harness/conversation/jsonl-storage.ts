@@ -1,11 +1,11 @@
 import type { FileSystem } from "../env/types.js";
-import { SessionError } from "../errors.js";
+import { ConversationError } from "../errors.js";
 import { toError } from "../result.js";
 import type {
-  JsonlSessionMetadata,
+  ConversationStorage,
+  ConversationTreeEntry,
+  JsonlConversationMetadata,
   LeafEntry,
-  SessionStorage,
-  SessionTreeEntry,
 } from "./entries.js";
 import { getFileSystemResultOrThrow } from "./repo-utils.js";
 import {
@@ -15,32 +15,32 @@ import {
   updateLabelCache,
 } from "./storage-utils.js";
 
-type JsonlSessionStorageFileSystem = Pick<
+type JsonlConversationStorageFileSystem = Pick<
   FileSystem,
   "readTextFile" | "readTextLines" | "writeFile" | "appendFile"
 >;
 
-interface SessionHeader {
-  type: "session";
+interface ConversationHeader {
+  type: "conversation";
   version: 3;
   id: string;
   timestamp: string;
   cwd: string;
-  parentSession?: string;
+  parentConversation?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function invalidSession(
+function invalidConversation(
   filePath: string,
   message: string,
   cause?: Error,
-): SessionError {
-  return new SessionError(
-    "invalid_session",
-    `Invalid JSONL session file ${filePath}: ${message}`,
+): ConversationError {
+  return new ConversationError(
+    "invalid_conversation",
+    `Invalid JSONL conversation file ${filePath}: ${message}`,
     cause,
   );
 }
@@ -50,54 +50,63 @@ function invalidEntry(
   lineNumber: number,
   message: string,
   cause?: Error,
-): SessionError {
-  return new SessionError(
+): ConversationError {
+  return new ConversationError(
     "invalid_entry",
-    `Invalid JSONL session file ${filePath}: line ${lineNumber} ${message}`,
+    `Invalid JSONL conversation file ${filePath}: line ${lineNumber} ${message}`,
     cause,
   );
 }
 
-function parseHeaderLine(line: string, filePath: string): SessionHeader {
+function parseHeaderLine(line: string, filePath: string): ConversationHeader {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch (error) {
-    throw invalidSession(
+    throw invalidConversation(
       filePath,
-      "first line is not a valid session header",
+      "first line is not a valid conversation header",
       toError(error),
     );
   }
   if (!isRecord(parsed))
-    throw invalidSession(filePath, "first line is not a valid session header");
-  if (parsed.type !== "session")
-    throw invalidSession(filePath, "first line is not a valid session header");
+    throw invalidConversation(
+      filePath,
+      "first line is not a valid conversation header",
+    );
+  if (parsed.type !== "conversation")
+    throw invalidConversation(
+      filePath,
+      "first line is not a valid conversation header",
+    );
   if (parsed.version !== 3)
-    throw invalidSession(filePath, "unsupported session version");
+    throw invalidConversation(filePath, "unsupported conversation version");
   if (typeof parsed.id !== "string" || !parsed.id)
-    throw invalidSession(filePath, "session header is missing id");
+    throw invalidConversation(filePath, "conversation header is missing id");
   if (typeof parsed.timestamp !== "string" || !parsed.timestamp) {
-    throw invalidSession(filePath, "session header is missing timestamp");
+    throw invalidConversation(
+      filePath,
+      "conversation header is missing timestamp",
+    );
   }
   if (typeof parsed.cwd !== "string" || !parsed.cwd)
-    throw invalidSession(filePath, "session header is missing cwd");
+    throw invalidConversation(filePath, "conversation header is missing cwd");
   if (
-    parsed.parentSession !== undefined &&
-    typeof parsed.parentSession !== "string"
+    parsed.parentConversation !== undefined &&
+    typeof parsed.parentConversation !== "string"
   ) {
-    throw invalidSession(
+    throw invalidConversation(
       filePath,
-      "session header parentSession must be a string",
+      "conversation header parentConversation must be a string",
     );
   }
   return {
-    type: "session",
+    type: "conversation",
     version: 3,
     id: parsed.id,
     timestamp: parsed.timestamp,
     cwd: parsed.cwd,
-    parentSession: parsed.parentSession,
+    parentConversation: parsed.parentConversation,
   };
 }
 
@@ -105,7 +114,7 @@ function parseEntryLine(
   line: string,
   filePath: string,
   lineNumber: number,
-): SessionTreeEntry {
+): ConversationTreeEntry {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -118,7 +127,11 @@ function parseEntryLine(
     );
   }
   if (!isRecord(parsed))
-    throw invalidEntry(filePath, lineNumber, "is not a valid session entry");
+    throw invalidEntry(
+      filePath,
+      lineNumber,
+      "is not a valid conversation entry",
+    );
   if (typeof parsed.type !== "string")
     throw invalidEntry(filePath, lineNumber, "is missing entry type");
   if (typeof parsed.id !== "string" || !parsed.id)
@@ -136,59 +149,62 @@ function parseEntryLine(
   ) {
     throw invalidEntry(filePath, lineNumber, "has invalid targetId");
   }
-  return parsed as unknown as SessionTreeEntry;
+  return parsed as unknown as ConversationTreeEntry;
 }
 
-function headerToSessionMetadata(
-  header: SessionHeader,
+function headerToConversationMetadata(
+  header: ConversationHeader,
   path: string,
-): JsonlSessionMetadata {
+): JsonlConversationMetadata {
   return {
     id: header.id,
     createdAt: header.timestamp,
     cwd: header.cwd,
     path,
-    parentSessionPath: header.parentSession,
+    parentConversationPath: header.parentConversation,
   };
 }
 
-export async function loadJsonlSessionMetadata(
-  fs: JsonlSessionStorageFileSystem,
+export async function loadJsonlConversationMetadata(
+  fs: JsonlConversationStorageFileSystem,
   filePath: string,
-): Promise<JsonlSessionMetadata> {
+): Promise<JsonlConversationMetadata> {
   const lines = getFileSystemResultOrThrow(
     await fs.readTextLines(filePath, { maxLines: 1 }),
-    `Failed to read session header ${filePath}`,
+    `Failed to read conversation header ${filePath}`,
   );
   const line = lines[0];
   if (line?.trim())
-    return headerToSessionMetadata(parseHeaderLine(line, filePath), filePath);
-  throw invalidSession(filePath, "missing session header");
+    return headerToConversationMetadata(
+      parseHeaderLine(line, filePath),
+      filePath,
+    );
+  throw invalidConversation(filePath, "missing conversation header");
 }
 
 async function loadJsonlStorage(
-  fs: JsonlSessionStorageFileSystem,
+  fs: JsonlConversationStorageFileSystem,
   filePath: string,
 ): Promise<{
-  header: SessionHeader;
-  entries: SessionTreeEntry[];
+  header: ConversationHeader;
+  entries: ConversationTreeEntry[];
   leafId: string | null;
 }> {
   const content = getFileSystemResultOrThrow(
     await fs.readTextFile(filePath),
-    `Failed to read session ${filePath}`,
+    `Failed to read conversation ${filePath}`,
   );
   const lines = content.split("\n").filter((line) => line.trim());
   if (lines.length === 0) {
-    throw invalidSession(filePath, "missing session header");
+    throw invalidConversation(filePath, "missing conversation header");
   }
 
   const headerLine = lines[0];
   if (!headerLine) {
-    throw invalidSession(filePath, "missing session header");
+    throw invalidConversation(filePath, "missing conversation header");
   }
   const header = parseHeaderLine(headerLine, filePath);
-  const entries: SessionTreeEntry[] = [];
+  const entries: ConversationTreeEntry[] = [];
   let leafId: string | null = null;
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
@@ -200,27 +216,27 @@ async function loadJsonlStorage(
   return { header, entries, leafId };
 }
 
-export class JsonlSessionStorage
-  implements SessionStorage<JsonlSessionMetadata>
+export class JsonlConversationStorage
+  implements ConversationStorage<JsonlConversationMetadata>
 {
-  private readonly fs: JsonlSessionStorageFileSystem;
+  private readonly fs: JsonlConversationStorageFileSystem;
   private readonly filePath: string;
-  private readonly metadata: JsonlSessionMetadata;
-  private entries: SessionTreeEntry[];
-  private byId: Map<string, SessionTreeEntry>;
+  private readonly metadata: JsonlConversationMetadata;
+  private entries: ConversationTreeEntry[];
+  private byId: Map<string, ConversationTreeEntry>;
   private labelsById: Map<string, string>;
   private currentLeafId: string | null;
 
   private constructor(
-    fs: JsonlSessionStorageFileSystem,
+    fs: JsonlConversationStorageFileSystem,
     filePath: string,
-    header: SessionHeader,
-    entries: SessionTreeEntry[],
+    header: ConversationHeader,
+    entries: ConversationTreeEntry[],
     leafId: string | null,
   ) {
     this.fs = fs;
     this.filePath = filePath;
-    this.metadata = headerToSessionMetadata(header, this.filePath);
+    this.metadata = headerToConversationMetadata(header, this.filePath);
     this.entries = entries;
     this.byId = new Map(entries.map((entry) => [entry.id, entry]));
     this.labelsById = buildLabelsById(entries);
@@ -228,11 +244,11 @@ export class JsonlSessionStorage
   }
 
   static async open(
-    fs: JsonlSessionStorageFileSystem,
+    fs: JsonlConversationStorageFileSystem,
     filePath: string,
-  ): Promise<JsonlSessionStorage> {
+  ): Promise<JsonlConversationStorage> {
     const loaded = await loadJsonlStorage(fs, filePath);
-    return new JsonlSessionStorage(
+    return new JsonlConversationStorage(
       fs,
       filePath,
       loaded.header,
@@ -242,37 +258,37 @@ export class JsonlSessionStorage
   }
 
   static async create(
-    fs: JsonlSessionStorageFileSystem,
+    fs: JsonlConversationStorageFileSystem,
     filePath: string,
     options: {
       cwd: string;
-      sessionId: string;
-      parentSessionPath?: string;
+      conversationId: string;
+      parentConversationPath?: string;
     },
-  ): Promise<JsonlSessionStorage> {
-    const header: SessionHeader = {
-      type: "session",
+  ): Promise<JsonlConversationStorage> {
+    const header: ConversationHeader = {
+      type: "conversation",
       version: 3,
-      id: options.sessionId,
+      id: options.conversationId,
       timestamp: new Date().toISOString(),
       cwd: options.cwd,
-      parentSession: options.parentSessionPath,
+      parentConversation: options.parentConversationPath,
     };
     getFileSystemResultOrThrow(
       await fs.writeFile(filePath, `${JSON.stringify(header)}\n`),
-      `Failed to create session ${filePath}`,
+      `Failed to create conversation ${filePath}`,
     );
-    return new JsonlSessionStorage(fs, filePath, header, [], null);
+    return new JsonlConversationStorage(fs, filePath, header, [], null);
   }
 
-  async getMetadata(): Promise<JsonlSessionMetadata> {
+  async getMetadata(): Promise<JsonlConversationMetadata> {
     return this.metadata;
   }
 
   async getLeafId(): Promise<string | null> {
     if (this.currentLeafId !== null && !this.byId.has(this.currentLeafId)) {
-      throw new SessionError(
-        "invalid_session",
+      throw new ConversationError(
+        "invalid_conversation",
         `Entry ${this.currentLeafId} not found`,
       );
     }
@@ -281,7 +297,7 @@ export class JsonlSessionStorage
 
   async setLeafId(leafId: string | null): Promise<void> {
     if (leafId !== null && !this.byId.has(leafId)) {
-      throw new SessionError("not_found", `Entry ${leafId} not found`);
+      throw new ConversationError("not_found", `Entry ${leafId} not found`);
     }
     const entry: LeafEntry = {
       type: "leaf",
@@ -292,7 +308,7 @@ export class JsonlSessionStorage
     };
     getFileSystemResultOrThrow(
       await this.fs.appendFile(this.filePath, `${JSON.stringify(entry)}\n`),
-      `Failed to append session leaf ${entry.id}`,
+      `Failed to append conversation leaf ${entry.id}`,
     );
     this.entries.push(entry);
     this.byId.set(entry.id, entry);
@@ -303,10 +319,10 @@ export class JsonlSessionStorage
     return generateEntryId(this.byId);
   }
 
-  async appendEntry(entry: SessionTreeEntry): Promise<void> {
+  async appendEntry(entry: ConversationTreeEntry): Promise<void> {
     getFileSystemResultOrThrow(
       await this.fs.appendFile(this.filePath, `${JSON.stringify(entry)}\n`),
-      `Failed to append session entry ${entry.id}`,
+      `Failed to append conversation entry ${entry.id}`,
     );
     this.entries.push(entry);
     this.byId.set(entry.id, entry);
@@ -314,15 +330,15 @@ export class JsonlSessionStorage
     this.currentLeafId = leafIdAfterEntry(entry);
   }
 
-  async getEntry(id: string): Promise<SessionTreeEntry | undefined> {
+  async getEntry(id: string): Promise<ConversationTreeEntry | undefined> {
     return this.byId.get(id);
   }
 
-  async findEntries<TType extends SessionTreeEntry["type"]>(
+  async findEntries<TType extends ConversationTreeEntry["type"]>(
     type: TType,
-  ): Promise<Array<Extract<SessionTreeEntry, { type: TType }>>> {
+  ): Promise<Array<Extract<ConversationTreeEntry, { type: TType }>>> {
     return this.entries.filter(
-      (entry): entry is Extract<SessionTreeEntry, { type: TType }> =>
+      (entry): entry is Extract<ConversationTreeEntry, { type: TType }> =>
         entry.type === type,
     );
   }
@@ -331,19 +347,19 @@ export class JsonlSessionStorage
     return this.labelsById.get(id);
   }
 
-  async getPathToRoot(leafId: string | null): Promise<SessionTreeEntry[]> {
+  async getPathToRoot(leafId: string | null): Promise<ConversationTreeEntry[]> {
     if (leafId === null) return [];
-    const path: SessionTreeEntry[] = [];
+    const path: ConversationTreeEntry[] = [];
     let current = this.byId.get(leafId);
     if (!current)
-      throw new SessionError("not_found", `Entry ${leafId} not found`);
+      throw new ConversationError("not_found", `Entry ${leafId} not found`);
     while (current) {
       path.unshift(current);
       if (!current.parentId) break;
       const parent = this.byId.get(current.parentId);
       if (!parent)
-        throw new SessionError(
-          "invalid_session",
+        throw new ConversationError(
+          "invalid_conversation",
           `Entry ${current.parentId} not found`,
         );
       current = parent;
@@ -351,7 +367,7 @@ export class JsonlSessionStorage
     return path;
   }
 
-  async getEntries(): Promise<SessionTreeEntry[]> {
+  async getEntries(): Promise<ConversationTreeEntry[]> {
     return [...this.entries];
   }
 }

@@ -1,11 +1,11 @@
 import type {
   AgentRecord,
+  ConversationEntry,
+  ConversationRecord,
   CreateAgentRequest,
   Mode,
   PermissionLevel,
   PromptRequest,
-  SessionEntry,
-  SessionRecord,
 } from "@nerve/shared";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
@@ -23,10 +23,10 @@ export interface SubagentRunnerDeps {
   runAgentPrompt: (
     agent: AgentRecord,
     request: PromptRequest,
-  ) => Promise<SessionEntry>;
+  ) => Promise<ConversationEntry>;
   appendEntry: AppendEntryFn;
-  getSession: (sessionId: string) => SessionRecord;
-  updateSession: (session: SessionRecord) => Promise<void>;
+  getConversation: (conversationId: string) => ConversationRecord;
+  updateConversation: (conversation: ConversationRecord) => Promise<void>;
 }
 
 export class SubagentRunner {
@@ -44,7 +44,7 @@ export class SubagentRunner {
       this.deps.storage.settings.defaultSubagentPermissionLevel;
     const child = await this.deps.createAgent(
       {
-        sessionId: parent.sessionId,
+        conversationId: parent.conversationId,
         projectId: parent.projectId,
         projectDir: parent.projectDir,
         workerId: parent.workerId,
@@ -75,7 +75,7 @@ export class SubagentRunner {
       });
       const summaryEntry = await this.deps.appendEntry(
         {
-          sessionId: parent.sessionId,
+          conversationId: parent.conversationId,
           agentId: parent.id,
           role: "system",
           kind: "subagent_summary",
@@ -99,8 +99,8 @@ export class SubagentRunner {
       });
       return { agent: child, summary: childEntry.text };
     } finally {
-      await this.deps.updateSession({
-        ...this.deps.getSession(parent.sessionId),
+      await this.deps.updateConversation({
+        ...this.deps.getConversation(parent.conversationId),
         activeAgentId: parent.id,
         updatedAt: new Date().toISOString(),
       });

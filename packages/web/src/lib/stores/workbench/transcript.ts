@@ -1,4 +1,4 @@
-import type { SessionEntry } from "../../api";
+import type { ConversationEntry } from "../../api";
 import type { TranscriptItem } from "./state.svelte";
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
@@ -27,14 +27,14 @@ function thinkingBlocks(
 }
 
 function entryDetails(
-  entry: SessionEntry,
+  entry: ConversationEntry,
 ): Record<string, unknown> | undefined {
   return entry.details && typeof entry.details === "object"
     ? (entry.details as Record<string, unknown>)
     : undefined;
 }
 
-function toolMetadata(entry: SessionEntry): {
+function toolMetadata(entry: ConversationEntry): {
   toolCallId?: string;
   toolRecordId?: string;
 } {
@@ -56,7 +56,9 @@ function toolMetadata(entry: SessionEntry): {
   };
 }
 
-export function entryToTranscriptItems(entry: SessionEntry): TranscriptItem[] {
+export function entryToTranscriptItems(
+  entry: ConversationEntry,
+): TranscriptItem[] {
   const details = entryDetails(entry);
   const metadata = toolMetadata(entry);
   const items: TranscriptItem[] = [];
@@ -94,19 +96,21 @@ export function entryToTranscriptItems(entry: SessionEntry): TranscriptItem[] {
 }
 
 export function entryToTranscriptItem(
-  entry: SessionEntry,
+  entry: ConversationEntry,
 ): TranscriptItem | undefined {
   const items = entryToTranscriptItems(entry);
   return items.find((item) => item.displayKind !== "thinking") ?? items.at(-1);
 }
 
-function shouldIncludeEntry(entry: SessionEntry): boolean {
+function shouldIncludeEntry(entry: ConversationEntry): boolean {
   if (entry.role === "user" || entry.role === "assistant") return true;
   if (entry.kind !== "message") return true;
   const metadata = toolMetadata(entry);
   return Boolean(metadata.toolCallId || metadata.toolRecordId);
 }
 
-export function entriesToTranscript(entries: SessionEntry[]): TranscriptItem[] {
+export function entriesToTranscript(
+  entries: ConversationEntry[],
+): TranscriptItem[] {
   return entries.filter(shouldIncludeEntry).flatMap(entryToTranscriptItems);
 }

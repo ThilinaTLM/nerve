@@ -93,7 +93,7 @@ ${guidelines.map((guideline) => `- ${guideline}`).join("\n")}`;
 
 function formatToolSummary(selectedTools: string[]): string {
   const tools = selectedTools.length > 0 ? selectedTools.join(", ") : "none";
-  return `Tools available in this session include: ${tools}. Use the API-provided tool schemas as the source of truth for arguments and capabilities.`;
+  return `Tools available in this conversation include: ${tools}. Use the API-provided tool schemas as the source of truth for arguments and capabilities.`;
 }
 
 function buildPlanModeInstructions(planDir: string): string {

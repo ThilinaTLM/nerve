@@ -33,11 +33,11 @@
     centerTabsToRightOf,
     closeCenterTab,
     closeCenterTabs,
-    compactActiveSession,
+    compactActiveConversation,
     completeFiles,
     createConversationForDirectory,
     deleteProjectAndRefresh,
-    deleteSessionAndRefresh,
+    deleteConversationAndRefresh,
     denyApproval,
     dismissUserQuestionById,
     disconnectWorkbench,
@@ -47,15 +47,15 @@
     loadSettingsPanel,
     navigateToEntry,
     newConversationInProject,
-    newSession,
+    newConversation,
     openFilePane,
     openProcessTab,
     openSettingsPane,
-    openSession,
+    openConversation,
     pruneStoppedProcesses,
     refreshFilePane,
     refreshProcessLogs,
-    refreshSessionView,
+    refreshConversationView,
     rejectPendingPlanReview,
     removeProcess,
     restartSelectedProcess,
@@ -81,7 +81,7 @@
   const error = $derived(workbenchSelectors.error);
   const sending = $derived(workbenchSelectors.sending);
   const projects = $derived(workbenchSelectors.projects);
-  const sessions = $derived(workbenchSelectors.sessions);
+  const conversations = $derived(workbenchSelectors.conversations);
   const agents = $derived(workbenchSelectors.agents);
   const approvals = $derived(workbenchSelectors.approvals);
   const pendingUserQuestion = $derived(workbenchSelectors.activeUserQuestion);
@@ -107,7 +107,7 @@
   const settingsSaveStatus = $derived(workbenchSelectors.settingsSaveStatus);
   const settingsMessage = $derived(workbenchSelectors.settingsMessage);
   const activeProject = $derived(workbenchSelectors.activeProject);
-  const activeSession = $derived(workbenchSelectors.activeSession);
+  const activeConversation = $derived(workbenchSelectors.activeConversation);
   const activeAgent = $derived(workbenchSelectors.activeAgent);
   const live = $derived(workbenchSelectors.live);
   const branchDepth = $derived(workbenchSelectors.branchDepth);
@@ -118,13 +118,13 @@
   const subscriptionUsage = $derived(workbenchSelectors.activeSubscriptionUsage);
   const selectedProcess = $derived(workbenchSelectors.selectedProcess);
   const activeCenterProcess = $derived(workbenchSelectors.activeCenterProcess);
-  const sessionAgents = $derived(workbenchSelectors.sessionAgents);
+  const conversationAgents = $derived(workbenchSelectors.conversationAgents);
   const usableModels = $derived(workbenchSelectors.usableModels);
 
   function selectAgent(agent: AgentRecord) {
     selection.agentId = agent.id;
     selection.projectId = agent.projectId;
-    selection.sessionId = agent.sessionId;
+    selection.conversationId = agent.conversationId;
     layout.utilityTab = "info";
   }
 
@@ -138,7 +138,7 @@
   }
 
   function refreshCenterTab(tab: CenterTabIdentity) {
-    if (tab.kind === "conversation") void refreshSessionView(tab.id);
+    if (tab.kind === "conversation") void refreshConversationView(tab.id);
     else if (tab.kind === "process") void selectCenterTab(tab);
     else if (tab.kind === "file") void refreshFilePane(tab.id);
     else void loadSettingsPanel();
@@ -195,15 +195,15 @@
             <div class="pane-shell navigator-pane">
               <ProjectAgentTree
                 {projects}
-                {sessions}
+                {conversations}
                 {agents}
                 homeDir={status?.storage.home}
                 selectedProjectId={selection.projectId}
-                selectedSessionId={selection.sessionId}
-                onOpenSession={openSession}
+                selectedConversationId={selection.conversationId}
+                onOpenConversation={openConversation}
                 onNewConversationInProject={newConversationInProject}
                 onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
-                onDeleteSession={(id) => void deleteSessionAndRefresh(id)}
+                onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}
               />
             </div>
           </Pane>
@@ -221,7 +221,7 @@
               onCloseOther={closeOtherCenterTabs}
               onCloseRight={closeCenterTabsRight}
               onCloseLeft={closeCenterTabsLeft}
-              onNewConversation={newSession}
+              onNewConversation={newConversation}
             />
             {#if activeCenterTab?.kind === "process"}
               <ProcessOutputPane
@@ -246,10 +246,10 @@
             {:else}
               <ConversationPane
                 {activeProject}
-                {activeSession}
+                {activeConversation}
                 {activeAgent}
                 {projects}
-                {sessions}
+                {conversations}
                 {agents}
                 homeDir={status?.storage.home}
                 {approvals}
@@ -302,9 +302,9 @@
                 activeTab={layout.utilityTab}
                 {status}
                 {activeProject}
-                {activeSession}
+                {activeConversation}
                 {activeAgent}
-                {sessionAgents}
+                {conversationAgents}
                 {treeNodes}
                 {processes}
                 {selectedProcess}
@@ -319,7 +319,7 @@
                 }}
                 onCompact={() => {
                   layout.utilityTab = "history";
-                  void compactActiveSession();
+                  void compactActiveConversation();
                 }}
                 onOpenProcessOutput={(id) => {
                   layout.utilityTab = "processes";
@@ -338,7 +338,7 @@
 
   <Footerbar
     {activeProject}
-    {activeSession}
+    {activeConversation}
     {activeAgent}
     {connection}
     {live}
@@ -358,7 +358,7 @@
 <ProjectDirectoryPicker
   bind:open={workbenchState.projectPickerOpen}
   {projects}
-  {sessions}
+  {conversations}
   homeDir={status?.storage.home}
   onSelect={(path) => void createConversationForDirectory(path)}
 />

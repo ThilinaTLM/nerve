@@ -40,7 +40,7 @@ export type CreateAgentBudgetRequest = z.infer<
 
 export const agentRecordSchema = z.object({
   id: z.string().startsWith("agent_"),
-  sessionId: z.string().startsWith("ses_"),
+  conversationId: z.string().startsWith("conv_"),
   projectId: z.string().startsWith("proj_"),
   projectDir: z.string().min(1),
   workerId: z.string().startsWith("worker_").optional(),
@@ -64,7 +64,7 @@ export const agentRecordSchema = z.object({
 export type AgentRecord = z.infer<typeof agentRecordSchema>;
 
 export const createAgentRequestSchema = z.object({
-  sessionId: z.string().startsWith("ses_"),
+  conversationId: z.string().startsWith("conv_"),
   projectId: z.string().startsWith("proj_"),
   projectDir: z.string().min(1).optional(),
   workerId: z.string().startsWith("worker_").optional(),

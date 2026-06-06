@@ -1,8 +1,8 @@
-import type { AgentRecord, ProjectRecord, SessionRecord } from "../api";
+import type { AgentRecord, ConversationRecord, ProjectRecord } from "../api";
 import { shortModelLabel } from "./model";
 
 export type ConversationRow = {
-  session: SessionRecord;
+  conversation: ConversationRecord;
   agent?: AgentRecord;
 };
 
@@ -59,8 +59,9 @@ export function shortAgentModel(agent: AgentRecord | undefined): string {
 }
 
 export function conversationMeta(row: ConversationRow): string {
-  const mode = row.agent?.mode ?? row.session.mode;
-  const permission = row.agent?.permissionLevel ?? row.session.permissionLevel;
+  const mode = row.agent?.mode ?? row.conversation.mode;
+  const permission =
+    row.agent?.permissionLevel ?? row.conversation.permissionLevel;
   return `${mode} · ${permission} · ${shortAgentModel(row.agent)}`;
 }
 
@@ -87,32 +88,32 @@ export function projectGroupMatches(
     ) ||
     group.rows.some(
       (row) =>
-        row.session.title.toLowerCase().includes(normalized) ||
-        row.session.id.toLowerCase().includes(normalized),
+        row.conversation.title.toLowerCase().includes(normalized) ||
+        row.conversation.id.toLowerCase().includes(normalized),
     )
   );
 }
 
-export function activeSessionAgent(
-  session: SessionRecord,
+export function activeConversationAgent(
+  conversation: ConversationRecord,
   agents: AgentRecord[],
 ): AgentRecord | undefined {
   return (
-    agents.find((agent) => agent.id === session.activeAgentId) ??
-    agents.find((agent) => agent.sessionId === session.id)
+    agents.find((agent) => agent.id === conversation.activeAgentId) ??
+    agents.find((agent) => agent.conversationId === conversation.id)
   );
 }
 
 export function buildProjectGroups(options: {
   projects: ProjectRecord[];
-  sessions: SessionRecord[];
+  conversations: ConversationRecord[];
   agents: AgentRecord[];
   filter?: string;
   homeDir?: string;
   maxProjects?: number;
   maxRowsPerProject?: number;
 }): ProjectGroupResult {
-  const { projects, sessions, agents, homeDir } = options;
+  const { projects, conversations, agents, homeDir } = options;
   const query = options.filter?.trim() ?? "";
   const maxProjects = options.maxProjects ?? MAX_PROJECTS;
   const maxRowsPerProject = options.maxRowsPerProject ?? MAX_ROWS_PER_PROJECT;
@@ -142,8 +143,8 @@ export function buildProjectGroups(options: {
     }
   }
 
-  for (const session of sessions) {
-    const project = projectById.get(session.projectId);
+  for (const conversation of conversations) {
+    const project = projectById.get(conversation.projectId);
     if (!project) continue;
     const key = projectKey(project);
     const group = byDir.get(key) ?? {
@@ -156,9 +157,12 @@ export function buildProjectGroups(options: {
       label: projectFolderName(project.dir),
       updatedAt: project.updatedAt,
     };
-    group.rows.push({ session, agent: activeSessionAgent(session, agents) });
-    if (session.updatedAt > group.updatedAt)
-      group.updatedAt = session.updatedAt;
+    group.rows.push({
+      conversation,
+      agent: activeConversationAgent(conversation, agents),
+    });
+    if (conversation.updatedAt > group.updatedAt)
+      group.updatedAt = conversation.updatedAt;
     byDir.set(key, group);
   }
 
@@ -178,7 +182,7 @@ export function buildProjectGroups(options: {
 
   const groups = sorted.slice(0, maxProjects).map((group) => {
     const rows = group.rows.sort((a, b) =>
-      b.session.updatedAt.localeCompare(a.session.updatedAt),
+      b.conversation.updatedAt.localeCompare(a.conversation.updatedAt),
     );
     const folder = projectFolderName(group.project.dir);
     const label =

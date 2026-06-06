@@ -1,6 +1,10 @@
 import { completeSimple } from "@earendil-works/pi-ai";
 import type { AgentMessage, AnyModel } from "../../types.js";
-import { BranchSummaryError, SessionError } from "../errors.js";
+import type {
+  Conversation,
+  ConversationTreeEntry,
+} from "../conversation/entries.js";
+import { BranchSummaryError, ConversationError } from "../errors.js";
 import type { BranchSummaryResult } from "../events.js";
 import {
   convertToLlm,
@@ -9,7 +13,6 @@ import {
   createCustomMessage,
 } from "../messages.js";
 import { err, ok, type Result } from "../result.js";
-import type { Session, SessionTreeEntry } from "../session/entries.js";
 import { estimateTokens, SUMMARIZATION_SYSTEM_PROMPT } from "./compaction.js";
 import {
   computeFileLists,
@@ -43,7 +46,7 @@ export interface BranchPreparation {
 /** Entries selected for branch summarization. */
 export interface CollectEntriesResult {
   /** Entries to summarize in chronological order. */
-  entries: SessionTreeEntry[];
+  entries: ConversationTreeEntry[];
   /** Deepest common ancestor between the previous leaf and target entry. */
   commonAncestorId: string | null;
 }
@@ -66,9 +69,9 @@ export interface GenerateBranchSummaryOptions {
   reserveTokens?: number;
 }
 
-/** Collect entries that should be summarized before navigating to a different session tree entry. */
+/** Collect entries that should be summarized before navigating to a different conversation tree entry. */
 export async function collectEntriesForBranchSummary(
-  session: Session,
+  conversation: Conversation,
   oldLeafId: string | null,
   targetId: string,
 ): Promise<CollectEntriesResult> {
@@ -76,9 +79,9 @@ export async function collectEntriesForBranchSummary(
     return { entries: [], commonAncestorId: null };
   }
   const oldPath = new Set(
-    (await session.getBranch(oldLeafId)).map((e) => e.id),
+    (await conversation.getBranch(oldLeafId)).map((e) => e.id),
   );
-  const targetPath = await session.getBranch(targetId);
+  const targetPath = await conversation.getBranch(targetId);
   let commonAncestorId: string | null = null;
   for (let i = targetPath.length - 1; i >= 0; i--) {
     if (oldPath.has(targetPath[i].id)) {
@@ -86,14 +89,17 @@ export async function collectEntriesForBranchSummary(
       break;
     }
   }
-  const entries: SessionTreeEntry[] = [];
+  const entries: ConversationTreeEntry[] = [];
   let current: string | null = oldLeafId;
 
   while (current && current !== commonAncestorId) {
-    const entry = await session.getEntry(current);
+    const entry = await conversation.getEntry(current);
     if (!entry)
-      throw new SessionError("invalid_session", `Entry ${current} not found`);
-    entries.push(entry as SessionTreeEntry);
+      throw new ConversationError(
+        "invalid_conversation",
+        `Entry ${current} not found`,
+      );
+    entries.push(entry as ConversationTreeEntry);
     current = entry.parentId;
   }
   entries.reverse();
@@ -101,7 +107,7 @@ export async function collectEntriesForBranchSummary(
   return { entries, commonAncestorId };
 }
 function getMessageFromEntry(
-  entry: SessionTreeEntry,
+  entry: ConversationTreeEntry,
 ): AgentMessage | undefined {
   switch (entry.type) {
     case "message":
@@ -135,7 +141,7 @@ function getMessageFromEntry(
     case "active_tools_change":
     case "custom":
     case "label":
-    case "session_info":
+    case "conversation_info":
     case "leaf":
       return undefined;
   }
@@ -143,7 +149,7 @@ function getMessageFromEntry(
 
 /** Prepare branch entries for summarization within an optional token budget. */
 export function prepareBranchEntries(
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
   tokenBudget: number = 0,
 ): BranchPreparation {
   const messages: AgentMessage[] = [];
@@ -222,7 +228,7 @@ Keep each section concise. Preserve exact file paths, function names, and error 
 
 /** Generate a summary for abandoned branch entries. */
 export async function generateBranchSummary(
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
   options: GenerateBranchSummaryOptions,
 ): Promise<Result<BranchSummaryResult, BranchSummaryError>> {
   const {

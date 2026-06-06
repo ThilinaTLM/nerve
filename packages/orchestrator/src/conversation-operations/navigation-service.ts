@@ -1,47 +1,51 @@
-import type { SessionTreeEntry } from "@nerve/agent";
+import type { ConversationTreeEntry } from "@nerve/agent";
 import type {
-  NavigateSessionRequest,
+  ConversationEntry,
+  ConversationRecord,
+  NavigateConversationRequest,
   ProjectRecord,
-  SessionEntry,
-  SessionRecord,
 } from "@nerve/shared";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
-import type { AppendSessionEntry } from "./compaction-service.js";
+import type { AppendConversationEntry } from "./compaction-service.js";
 import { buildExtractiveSummary } from "./summary.js";
 
 export class NavigationService {
   constructor(
-    private readonly getSession: (sessionId: string) => SessionRecord,
+    private readonly getConversation: (
+      conversationId: string,
+    ) => ConversationRecord,
     private readonly getProject: (projectId: string) => ProjectRecord,
-    private readonly entriesBySessionId: Map<string, SessionEntry[]>,
-    private readonly updateSession: (session: SessionRecord) => Promise<void>,
-    private readonly appendEntry: AppendSessionEntry,
+    private readonly entriesByConversationId: Map<string, ConversationEntry[]>,
+    private readonly updateConversation: (
+      conversation: ConversationRecord,
+    ) => Promise<void>,
+    private readonly appendEntry: AppendConversationEntry,
     private readonly harnessManager: HarnessManager,
     private readonly rebuildConversations: () => Promise<void>,
     private readonly events: EventBus,
   ) {}
 
-  async navigateSession(
-    sessionId: string,
-    request: NavigateSessionRequest,
-  ): Promise<SessionRecord> {
-    const session = this.getSession(sessionId);
+  async navigateConversation(
+    conversationId: string,
+    request: NavigateConversationRequest,
+  ): Promise<ConversationRecord> {
+    const conversation = this.getConversation(conversationId);
     const activeEntryId = request.activeEntryId ?? undefined;
     if (
       activeEntryId &&
-      !(this.entriesBySessionId.get(session.id) ?? []).some(
+      !(this.entriesByConversationId.get(conversation.id) ?? []).some(
         (entry) => entry.id === activeEntryId,
       )
     ) {
       throw new HttpError(404, "ENTRY_NOT_FOUND", "Entry not found.");
     }
 
-    let summaryEntry: SessionEntry | undefined;
-    if (request.summarize && session.activeEntryId !== activeEntryId) {
+    let summaryEntry: ConversationEntry | undefined;
+    if (request.summarize && conversation.activeEntryId !== activeEntryId) {
       summaryEntry = await this.createBranchSummaryEntry(
-        session,
+        conversation,
         activeEntryId,
         request.summaryInstructions,
       );
@@ -49,15 +53,15 @@ export class NavigationService {
 
     const nextActiveEntryId = summaryEntry?.id ?? activeEntryId;
     const updated = {
-      ...this.getSession(sessionId),
+      ...this.getConversation(conversationId),
       activeEntryId: nextActiveEntryId,
       updatedAt: new Date().toISOString(),
     };
-    await this.updateSession(updated);
+    await this.updateConversation(updated);
     await this.harnessManager.setLeaf(updated, nextActiveEntryId);
     await this.rebuildConversations();
-    await this.events.publish("session.navigated", {
-      sessionId: session.id,
+    await this.events.publish("conversation.navigated", {
+      conversationId: conversation.id,
       activeEntryId: nextActiveEntryId,
       targetEntryId: activeEntryId,
       summaryEntry,
@@ -66,12 +70,15 @@ export class NavigationService {
   }
 
   async createBranchSummaryEntry(
-    session: SessionRecord,
+    conversation: ConversationRecord,
     targetEntryId: string | undefined,
     instructions?: string,
-  ): Promise<SessionEntry | undefined> {
-    const project = this.getProject(session.projectId);
-    const storage = await this.harnessManager.openStorage(session, project.dir);
+  ): Promise<ConversationEntry | undefined> {
+    const project = this.getProject(conversation.projectId);
+    const storage = await this.harnessManager.openStorage(
+      conversation,
+      project.dir,
+    );
     const oldLeafId = await storage.getLeafId();
     if (oldLeafId === (targetEntryId ?? null)) return undefined;
 
@@ -81,7 +88,7 @@ export class NavigationService {
       : [];
     const targetIds = new Set(targetBranch.map((entry) => entry.id));
     const entriesToSummarize = oldBranch.filter(
-      (entry): entry is Extract<SessionTreeEntry, { type: "message" }> =>
+      (entry): entry is Extract<ConversationTreeEntry, { type: "message" }> =>
         !targetIds.has(entry.id) && entry.type === "message",
     );
     if (entriesToSummarize.length === 0) return undefined;
@@ -93,7 +100,7 @@ export class NavigationService {
     });
     const entry = await this.appendEntry(
       {
-        sessionId: session.id,
+        conversationId: conversation.id,
         parentEntryId: targetEntryId ?? null,
         role: "system",
         kind: "branch_summary",
@@ -118,8 +125,8 @@ export class NavigationService {
       summary,
       details: entry.details,
     });
-    await this.events.publish("session.branch_summarized", {
-      sessionId: session.id,
+    await this.events.publish("conversation.branch_summarized", {
+      conversationId: conversation.id,
       fromEntryId: oldLeafId,
       targetEntryId,
       entry,

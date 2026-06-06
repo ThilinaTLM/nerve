@@ -1,9 +1,9 @@
 import type {
   AgentRecord,
+  ConversationRecord,
   FilesystemFileResponse,
   ProcessRecord,
   ProjectRecord,
-  SessionRecord,
 } from "../../api";
 import { selection } from "../../state/app-state.svelte";
 import { modelKey, usableModelOptions } from "../../utils/model";
@@ -14,7 +14,7 @@ import { workbenchState } from "./state.svelte";
 export type ConversationTabModel = {
   kind: "conversation";
   id: string;
-  session: SessionRecord;
+  conversation: ConversationRecord;
   project?: ProjectRecord;
   agent?: AgentRecord;
   active: boolean;
@@ -58,10 +58,10 @@ export type CenterTabModel =
   | SettingsTabModel;
 
 function activeView(): ConversationViewState | undefined {
-  const sessionId =
-    selection.sessionId ?? workbenchState.activeConversationTabId;
-  if (!sessionId) return undefined;
-  return workbenchState.conversationViews[sessionId];
+  const conversationId =
+    selection.conversationId ?? workbenchState.activeConversationTabId;
+  if (!conversationId) return undefined;
+  return workbenchState.conversationViews[conversationId];
 }
 
 function activeTabMatches(
@@ -102,8 +102,8 @@ export const workbenchSelectors = {
   get projects() {
     return workbenchState.projects;
   },
-  get sessions() {
-    return workbenchState.sessions;
+  get conversations() {
+    return workbenchState.conversations;
   },
   get agents() {
     return workbenchState.agents;
@@ -118,18 +118,20 @@ export const workbenchSelectors = {
     return workbenchState.planReviews;
   },
   get activePlanReview() {
-    const sessionId = selection.sessionId;
+    const conversationId = selection.conversationId;
     const agentId = selection.agentId;
     return workbenchState.planReviews.find((review) => {
-      if (sessionId && review.sessionId === sessionId) return true;
+      if (conversationId && review.conversationId === conversationId)
+        return true;
       return Boolean(agentId && review.agentId === agentId);
     });
   },
   get activeUserQuestion() {
-    const sessionId = selection.sessionId;
+    const conversationId = selection.conversationId;
     const agentId = selection.agentId;
     return workbenchState.userQuestions.find((question) => {
-      if (sessionId && question.sessionId === sessionId) return true;
+      if (conversationId && question.conversationId === conversationId)
+        return true;
       return Boolean(agentId && question.agentId === agentId);
     });
   },
@@ -192,9 +194,9 @@ export const workbenchSelectors = {
       (project) => project.id === selection.projectId,
     );
   },
-  get activeSession() {
-    return workbenchState.sessions.find(
-      (session) => session.id === selection.sessionId,
+  get activeConversation() {
+    return workbenchState.conversations.find(
+      (conversation) => conversation.id === selection.conversationId,
     );
   },
   get activeAgent() {
@@ -207,27 +209,27 @@ export const workbenchSelectors = {
   },
   get openConversationTabs(): ConversationTabModel[] {
     const tabs: ConversationTabModel[] = [];
-    for (const sessionId of workbenchState.openConversationTabIds) {
-      const session = workbenchState.sessions.find(
-        (candidate) => candidate.id === sessionId,
+    for (const conversationId of workbenchState.openConversationTabIds) {
+      const conversation = workbenchState.conversations.find(
+        (candidate) => candidate.id === conversationId,
       );
-      if (!session) continue;
+      if (!conversation) continue;
       const project = workbenchState.projects.find(
-        (candidate) => candidate.id === session.projectId,
+        (candidate) => candidate.id === conversation.projectId,
       );
       const agent = workbenchState.agents.find(
         (candidate) =>
-          candidate.id === session.activeAgentId ||
-          candidate.sessionId === session.id,
+          candidate.id === conversation.activeAgentId ||
+          candidate.conversationId === conversation.id,
       );
-      const view = workbenchState.conversationViews[session.id];
+      const view = workbenchState.conversationViews[conversation.id];
       tabs.push({
         kind: "conversation",
-        id: session.id,
-        session,
+        id: conversation.id,
+        conversation,
         project,
         agent,
-        active: activeTabMatches("conversation", session.id),
+        active: activeTabMatches("conversation", conversation.id),
         hasDraft: Boolean(view?.composerText.trim()),
         sending: Boolean(view?.sending || agent?.status === "running"),
         error:
@@ -351,9 +353,9 @@ export const workbenchSelectors = {
       (process) => process.id === workbenchState.selectedProcessId,
     );
   },
-  get sessionAgents() {
+  get conversationAgents() {
     return workbenchState.agents.filter(
-      (agent) => agent.sessionId === selection.sessionId,
+      (agent) => agent.conversationId === selection.conversationId,
     );
   },
   get usableModels() {
@@ -383,12 +385,14 @@ export const workbenchSelectors = {
     const selectedModelInfo = workbenchState.models.find(
       (model) => modelKey(model) === workbenchState.selectedModelKey,
     );
-    if (selectedModelInfo?.contextWindow) return selectedModelInfo.contextWindow;
-    if (this.activeModelInfo?.contextWindow) return this.activeModelInfo.contextWindow;
+    if (selectedModelInfo?.contextWindow)
+      return selectedModelInfo.contextWindow;
+    if (this.activeModelInfo?.contextWindow)
+      return this.activeModelInfo.contextWindow;
     return activeView()?.contextUsage?.contextWindow ?? 0;
   },
   /** Cumulative token + cost totals across the active conversation branch. */
-  get activeSessionUsage(): {
+  get activeConversationUsage(): {
     input: number;
     output: number;
     cacheRead: number;

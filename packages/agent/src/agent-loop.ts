@@ -461,7 +461,11 @@ async function executeToolCallsSequential(
       };
     } else {
       try {
-        const executed = await executePreparedToolCall(preparation, signal, emit);
+        const executed = await executePreparedToolCall(
+          preparation,
+          signal,
+          emit,
+        );
         finalized = await finalizeExecutedToolCall(
           currentContext,
           assistantMessage,
@@ -472,7 +476,9 @@ async function executeToolCallsSequential(
         );
       } catch (error) {
         if (isAgentToolSuspension(error)) {
-          const index = toolCalls.findIndex((candidate) => candidate.id === toolCall.id);
+          const index = toolCalls.findIndex(
+            (candidate) => candidate.id === toolCall.id,
+          );
           throw error.withContext({
             assistantMessage,
             toolCall,

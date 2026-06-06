@@ -108,8 +108,8 @@ export async function selectCenterTab(tab: CenterTabIdentity | undefined) {
   }
   switch (tab.kind) {
     case "conversation": {
-      const { openSession } = await import("../session-flow.svelte");
-      await openSession(tab.id);
+      const { openConversation } = await import("../conversation-flow.svelte");
+      await openConversation(tab.id);
       return;
     }
     case "process": {
@@ -133,7 +133,9 @@ export async function selectCenterTab(tab: CenterTabIdentity | undefined) {
 export async function closeCenterTab(tab: CenterTabIdentity) {
   switch (tab.kind) {
     case "conversation": {
-      const { closeConversationTab } = await import("../session-flow.svelte");
+      const { closeConversationTab } = await import(
+        "../conversation-flow.svelte"
+      );
       await closeConversationTab(tab.id);
       return;
     }

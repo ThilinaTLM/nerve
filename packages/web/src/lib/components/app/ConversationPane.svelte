@@ -5,7 +5,7 @@
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
   import { toast } from "svelte-sonner";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, SessionRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, ConversationRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
   import type { ConversationLiveState, LiveToolCallDraft, TranscriptItem } from "../../stores/workbench/state.svelte";
   import { buildConversationTimeline } from "../../stores/workbench/timeline";
@@ -18,10 +18,10 @@
 
   type Props = {
     activeProject?: ProjectRecord;
-    activeSession?: SessionRecord;
+    activeConversation?: ConversationRecord;
     activeAgent?: AgentRecord;
     projects?: ProjectRecord[];
-    sessions?: SessionRecord[];
+    conversations?: ConversationRecord[];
     agents?: AgentRecord[];
     homeDir?: string;
     approvals?: ApprovalWithToolCall[];
@@ -64,7 +64,7 @@
 
   let {
     activeProject,
-    activeSession,
+    activeConversation,
     activeAgent,
     approvals = [],
     pendingUserQuestion,
@@ -175,14 +175,14 @@
 
   $effect(() => {
     const _signature = scrollSignature;
-    if (activeSession && (sending || hasLiveTimelineNodes)) {
+    if (activeConversation && (sending || hasLiveTimelineNodes)) {
       scheduleBottomScroll({ force: true, smooth: false });
     }
   });
 
   $effect(() => {
-    const _sessionId = activeSession?.id;
-    if (_sessionId) scheduleBottomScroll({ force: true, smooth: false });
+    const _conversationId = activeConversation?.id;
+    if (_conversationId) scheduleBottomScroll({ force: true, smooth: false });
   });
 
   $effect(() => {
@@ -242,7 +242,7 @@
 </script>
 
 <section class="conversation-pane">
-  {#if activeSession}
+  {#if activeConversation}
     <div bind:this={transcriptEl} class="transcript" aria-live="polite" onscroll={handleTranscriptScroll}>
       {#if timeline.length === 0 && !streamingText && !sending}
         <div class="empty-run">
@@ -321,7 +321,7 @@
     <PromptComposer
       text={composerText}
       {activeProject}
-      {activeSession}
+      {activeConversation}
       {approvals}
       {pendingUserQuestion}
       {pendingPlanReview}

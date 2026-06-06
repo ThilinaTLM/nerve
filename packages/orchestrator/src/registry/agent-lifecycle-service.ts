@@ -2,11 +2,11 @@ import { resolve } from "node:path";
 import { clampAgentThinkingLevel } from "@nerve/agent";
 import {
   type AgentRecord,
+  type ConversationRecord,
   type CreateAgentRequest,
-  type Mode,
   createId,
+  type Mode,
   type ProjectRecord,
-  type SessionRecord,
   type UpdateAgentRequest,
 } from "@nerve/shared";
 import type { AgentRunState } from "../agent-runner/index.js";
@@ -43,9 +43,13 @@ export class AgentLifecycleService {
     private readonly agentRepository: AgentRepository,
     private readonly workers: WorkerManager,
     private readonly conversationService: ConversationService,
-    private readonly getSession: (sessionId: string) => SessionRecord,
+    private readonly getConversation: (
+      conversationId: string,
+    ) => ConversationRecord,
     private readonly getProject: (projectId: string) => ProjectRecord,
-    private readonly updateSession: (session: SessionRecord) => Promise<void>,
+    private readonly updateConversation: (
+      conversation: ConversationRecord,
+    ) => Promise<void>,
     private readonly abortAgent: (agentId: string) => Promise<void>,
   ) {}
 
@@ -53,7 +57,7 @@ export class AgentLifecycleService {
     request: CreateAgentRequest,
     options: { allowChildAuthorityExceed?: boolean } = {},
   ): Promise<AgentRecord> {
-    const session = this.getSession(request.sessionId);
+    const conversation = this.getConversation(request.conversationId);
     const project = this.getProject(request.projectId);
     const parent = request.parentAgentId
       ? this.agents.get(request.parentAgentId)
@@ -70,12 +74,12 @@ export class AgentLifecycleService {
     const projectDir = resolve(request.projectDir ?? project.dir);
     const mode =
       request.mode ??
-      (parent ? this.storage.settings.defaultSubagentMode : session.mode);
+      (parent ? this.storage.settings.defaultSubagentMode : conversation.mode);
     const permissionLevel =
       request.permissionLevel ??
       (parent
         ? this.storage.settings.defaultSubagentPermissionLevel
-        : session.permissionLevel);
+        : conversation.permissionLevel);
     const workerId = this.workers.requireWorker(
       request.workerId ?? parent?.workerId,
       "agent",
@@ -91,7 +95,7 @@ export class AgentLifecycleService {
     }
     const agent: AgentRecord = {
       id,
-      sessionId: session.id,
+      conversationId: conversation.id,
       projectId: project.id,
       projectDir,
       workerId,
@@ -113,8 +117,8 @@ export class AgentLifecycleService {
     this.agents.set(agent.id, agent);
     this.index.upsertAgent(agent);
     await this.writeAgent(agent);
-    await this.updateSession({
-      ...session,
+    await this.updateConversation({
+      ...conversation,
       activeAgentId: agent.id,
       updatedAt: now,
     });

@@ -74,15 +74,15 @@ describe("phase 10 hardening helpers", () => {
     state.index.close();
   });
 
-  it("imports and exports inspectable session bundles", async () => {
+  it("imports and exports inspectable conversation bundles", async () => {
     const storage = await initializeStorage(await tempHome());
     const state = createOrchestratorState(storage, "127.0.0.1", 0);
     await state.events.hydrate();
     await state.registry.hydrate();
 
-    const imported = await state.registry.importSession({
+    const imported = await state.registry.importConversation({
       project: { dir: process.cwd(), name: "Imported" },
-      session: {
+      conversation: {
         title: "Imported transcript",
         mode: "coding",
         permissionLevel: "supervised",
@@ -90,7 +90,7 @@ describe("phase 10 hardening helpers", () => {
       entries: [
         {
           id: "entry_01HN0000000000000000000000",
-          sessionId: "ses_01HN0000000000000000000000",
+          conversationId: "conv_01HN0000000000000000000000",
           role: "user",
           kind: "message",
           text: "Please summarize this.",
@@ -98,7 +98,7 @@ describe("phase 10 hardening helpers", () => {
         },
         {
           id: "entry_01HN0000000000000000000001",
-          sessionId: "ses_01HN0000000000000000000000",
+          conversationId: "conv_01HN0000000000000000000000",
           parentEntryId: "entry_01HN0000000000000000000000",
           role: "assistant",
           kind: "message",
@@ -108,9 +108,13 @@ describe("phase 10 hardening helpers", () => {
       ],
     });
 
-    const bundle = state.registry.exportSession(imported.session.id);
-    const markdown = state.registry.exportSessionMarkdown(imported.session.id);
-    const html = state.registry.exportSessionHtml(imported.session.id);
+    const bundle = state.registry.exportConversation(imported.conversation.id);
+    const markdown = state.registry.exportConversationMarkdown(
+      imported.conversation.id,
+    );
+    const html = state.registry.exportConversationHtml(
+      imported.conversation.id,
+    );
 
     assert.equal(bundle.entries.length, 2);
     assert.match(markdown, /Imported transcript/);

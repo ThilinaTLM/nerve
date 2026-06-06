@@ -2,7 +2,8 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   AgentHarness,
   AgentToolSuspension,
-  buildSessionContext,
+  buildConversationContext,
+  Conversation,
   computeContextUsage,
   convertToLlm,
   estimateContextTokens,
@@ -10,18 +11,17 @@ import {
   isAgentToolSuspension,
   NodeExecutionEnv,
   resolveAgentModel,
-  Session,
   shouldCompact,
 } from "@nerve/agent";
 import {
   type AgentRecord,
   type ContextUsage,
+  type ConversationEntry,
+  type ConversationRecord,
   type CreateAgentRequest,
   createId,
   type ProjectRecord,
   type PromptRequest,
-  type SessionEntry,
-  type SessionRecord,
 } from "@nerve/shared";
 import type { AgentSuspensionService } from "../agent-suspension-service.js";
 import {
@@ -30,6 +30,7 @@ import {
   toolPromptMetadata,
 } from "../agent-tool-adapter.js";
 import type { AuthManager } from "../auth.js";
+import type { CompactionService } from "../conversation-operations/index.js";
 import type { ConversationRuntime } from "../conversation-runtime.js";
 import type { ConversationService } from "../conversation-service.js";
 import type { EventBus } from "../events.js";
@@ -37,7 +38,6 @@ import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
 import { planDirForStorageHome } from "../plan-paths.js";
 import { loadHarnessResources } from "../resource-loader.js";
-import type { CompactionService } from "../session-operations/index.js";
 import type { InitializedStorage } from "../storage.js";
 import type { ToolService } from "../tool-service.js";
 import type { SubscriptionUsageService } from "../usage/subscription-usage-service.js";
@@ -58,7 +58,7 @@ export interface AgentRunnerDeps {
   compactionService: CompactionService;
   runs: AgentRunStateMap;
   agents: Map<string, AgentRecord>;
-  getSession: (sessionId: string) => SessionRecord;
+  getConversation: (conversationId: string) => ConversationRecord;
   getProject: (projectId: string) => ProjectRecord;
   createAgent: (
     request: CreateAgentRequest,
@@ -69,7 +69,7 @@ export interface AgentRunnerDeps {
     status: AgentRecord["status"],
   ) => Promise<void>;
   appendEntry: AppendEntryFn;
-  updateSession: (session: SessionRecord) => Promise<void>;
+  updateConversation: (conversation: ConversationRecord) => Promise<void>;
   messageMirror: MessageMirror;
   conversationRuntime: ConversationRuntime;
   subscriptionUsage: SubscriptionUsageService;
@@ -86,8 +86,8 @@ export class AgentRunner {
       createAgent: deps.createAgent,
       runAgentPrompt: (agent, request) => this.runAgentPrompt(agent, request),
       appendEntry: deps.appendEntry,
-      getSession: deps.getSession,
-      updateSession: deps.updateSession,
+      getConversation: deps.getConversation,
+      updateConversation: deps.updateConversation,
     });
   }
 
@@ -155,26 +155,26 @@ export class AgentRunner {
     agent: AgentRecord,
     request: PromptRequest,
     options: { continue?: boolean } = {},
-  ): Promise<SessionEntry> {
+  ): Promise<ConversationEntry> {
     if (this.deps.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
 
     const runId = createId("run");
     let abortRequested = false;
-    let lastAssistantEntry: SessionEntry | undefined;
+    let lastAssistantEntry: ConversationEntry | undefined;
     let currentTurnId: string | undefined;
     let currentLiveMessageId: string | undefined;
     const liveToolDraftNames = new Map<number, string | undefined>();
 
     try {
-      const session = this.deps.getSession(agent.sessionId);
+      const conversation = this.deps.getConversation(agent.conversationId);
       const project = this.deps.getProject(agent.projectId);
       const storage = await this.deps.harnessManager.openStorage(
-        session,
+        conversation,
         project.dir,
       );
-      const harnessSession = new Session(storage);
+      const harnessConversation = new Conversation(storage);
       const initialHarnessEntryIds = new Set(
         (await storage.getEntries()).map((entry) => entry.id),
       );
@@ -198,7 +198,7 @@ export class AgentRunner {
 
       const harness = new AgentHarness({
         env,
-        session: harnessSession,
+        conversation: harnessConversation,
         resources: { skills: resources.skills },
         tools: createAgentToolsForAgent(agent, this.deps.tools, {
           runId,
@@ -399,7 +399,7 @@ export class AgentRunner {
           let shouldPublishContextUsage = false;
           for (const entry of mirrored) {
             await this.deps.events.publish("conversation.entry.appended", {
-              sessionId: agent.sessionId,
+              conversationId: agent.conversationId,
               agentId: agent.id,
               runId,
               turnId: entry.turnId ?? currentTurnId,
@@ -407,8 +407,8 @@ export class AgentRunner {
               entry,
             });
             if (entry.role === "user") {
-              await this.deps.messageMirror.maybeDeriveInitialSessionTitle(
-                session.id,
+              await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
+                conversation.id,
                 entry.text,
               );
             } else if (entry.role === "assistant") {
@@ -418,12 +418,12 @@ export class AgentRunner {
           }
           if (shouldPublishContextUsage) {
             await this.publishContextUsage(
-              agent.sessionId,
+              agent.conversationId,
               agent.id,
               runId,
             ).catch((error) => {
               process.emitWarning(
-                `Context-usage publish failed for ${agent.sessionId}: ${
+                `Context-usage publish failed for ${agent.conversationId}: ${
                   error instanceof Error ? error.message : String(error)
                 }`,
               );
@@ -439,16 +439,16 @@ export class AgentRunner {
       this.deps.conversationRuntime.startRun({
         agentId: agent.id,
         projectId: agent.projectId,
-        sessionId: agent.sessionId,
+        conversationId: agent.conversationId,
         runId,
         startedAt,
       });
       await this.deps.events.publish("conversation.run.started", {
         agentId: agent.id,
         projectId: agent.projectId,
-        sessionId: agent.sessionId,
+        conversationId: agent.conversationId,
         runId,
-        parentEntryId: session.activeEntryId,
+        parentEntryId: conversation.activeEntryId,
         startedAt,
       });
 
@@ -479,7 +479,7 @@ export class AgentRunner {
       if (latest) await this.deps.setAgentStatus(latest, "idle");
       this.deps.runs.delete(agent.id);
       const branch = await storage.getPathToRoot(await storage.getLeafId());
-      const messages = convertToLlm(buildSessionContext(branch).messages);
+      const messages = convertToLlm(buildConversationContext(branch).messages);
       this.deps.conversationService.setForAgent(agent.id, messages);
       const assistantEntry = lastAssistantEntry;
       if (!assistantEntry) {
@@ -490,27 +490,29 @@ export class AgentRunner {
         agentId: agent.id,
         projectId: agent.projectId,
         runId,
-        sessionId: agent.sessionId,
+        conversationId: agent.conversationId,
         finalEntryId: assistantEntry.id,
         completedAt,
       });
       this.deps.conversationRuntime.completeRun(runId);
-      await this.maybeAutoCompact(agent.sessionId).catch((error) => {
+      await this.maybeAutoCompact(agent.conversationId).catch((error) => {
         process.emitWarning(
-          `Auto-compaction failed for ${agent.sessionId}: ${
+          `Auto-compaction failed for ${agent.conversationId}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
       });
-      await this.publishContextUsage(agent.sessionId, agent.id, runId).catch(
-        (error) => {
-          process.emitWarning(
-            `Context-usage publish failed for ${agent.sessionId}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        },
-      );
+      await this.publishContextUsage(
+        agent.conversationId,
+        agent.id,
+        runId,
+      ).catch((error) => {
+        process.emitWarning(
+          `Context-usage publish failed for ${agent.conversationId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
       return assistantEntry;
     } catch (error) {
       const suspensionError = isAgentToolSuspension(error)
@@ -529,7 +531,7 @@ export class AgentRunner {
           suspensionError.data.toolCallId;
         const suspension = await this.deps.suspensions.createSuspension({
           agentId: agent.id,
-          sessionId: agent.sessionId,
+          conversationId: agent.conversationId,
           projectId: agent.projectId,
           runId,
           turnId: currentTurnId,
@@ -553,7 +555,7 @@ export class AgentRunner {
           agentId: agent.id,
           projectId: agent.projectId,
           runId,
-          sessionId: agent.sessionId,
+          conversationId: agent.conversationId,
           suspensionId: suspension.id,
           toolCallId: toolCall.id,
           suspendedAt,
@@ -572,7 +574,7 @@ export class AgentRunner {
         agentId: agent.id,
         projectId: agent.projectId,
         runId,
-        sessionId: agent.sessionId,
+        conversationId: agent.conversationId,
         message: error instanceof Error ? error.message : String(error),
         aborted,
         failedAt: new Date().toISOString(),
@@ -607,50 +609,50 @@ export class AgentRunner {
     });
   }
 
-  /** Compute compaction-aware context-window usage for a session. */
-  async getContextUsage(sessionId: string): Promise<ContextUsage> {
-    const session = this.deps.getSession(sessionId);
-    const project = this.deps.getProject(session.projectId);
+  /** Compute compaction-aware context-window usage for a conversation. */
+  async getContextUsage(conversationId: string): Promise<ContextUsage> {
+    const conversation = this.deps.getConversation(conversationId);
+    const project = this.deps.getProject(conversation.projectId);
     const storage = await this.deps.harnessManager.openStorage(
-      session,
+      conversation,
       project.dir,
     );
     const branch = await storage.getPathToRoot(await storage.getLeafId());
-    const messages = buildSessionContext(branch).messages;
-    const agent = session.activeAgentId
-      ? this.deps.agents.get(session.activeAgentId)
+    const messages = buildConversationContext(branch).messages;
+    const agent = conversation.activeAgentId
+      ? this.deps.agents.get(conversation.activeAgentId)
       : undefined;
     const contextWindow = getModelContextWindow(agent?.model);
     return computeContextUsage(messages, branch, contextWindow);
   }
 
   private async publishContextUsage(
-    sessionId: string,
+    conversationId: string,
     agentId: string,
     runId: string,
   ): Promise<void> {
-    const contextUsage = await this.getContextUsage(sessionId);
+    const contextUsage = await this.getContextUsage(conversationId);
     await this.deps.events.publish(
       "conversation.context.updated",
-      { sessionId, agentId, runId, contextUsage },
+      { conversationId, agentId, runId, contextUsage },
       { durability: "transient" },
     );
   }
 
-  private async maybeAutoCompact(sessionId: string): Promise<void> {
+  private async maybeAutoCompact(conversationId: string): Promise<void> {
     if (!this.deps.storage.settings.compaction.auto) return;
-    const session = this.deps.getSession(sessionId);
-    const project = this.deps.getProject(session.projectId);
+    const conversation = this.deps.getConversation(conversationId);
+    const project = this.deps.getProject(conversation.projectId);
     const storage = await this.deps.harnessManager.openStorage(
-      session,
+      conversation,
       project.dir,
     );
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const tokens = estimateContextTokens(
-      buildSessionContext(branch).messages,
+      buildConversationContext(branch).messages,
     ).tokens;
-    const agent = session.activeAgentId
-      ? this.deps.agents.get(session.activeAgentId)
+    const agent = conversation.activeAgentId
+      ? this.deps.agents.get(conversation.activeAgentId)
       : undefined;
     const contextWindow = getModelContextWindow(agent?.model);
     if (contextWindow <= 0) return;
@@ -660,7 +662,7 @@ export class AgentRunner {
       keepRecentTokens: this.deps.storage.settings.compaction.keepRecentTokens,
     };
     if (!shouldCompact(tokens, contextWindow, settings)) return;
-    await this.deps.compactionService.compactSession(sessionId, {
+    await this.deps.compactionService.compactConversation(conversationId, {
       instructions:
         "Automatic compaction after the selected model's context threshold was exceeded.",
       keepRecentTokens: settings.keepRecentTokens,

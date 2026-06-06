@@ -1,11 +1,11 @@
-import type { SessionTreeEntry } from "./entries.js";
+import type { ConversationTreeEntry } from "./entries.js";
 import { uuidv7 } from "./uuid.js";
 
 export type EntryIdStyle = "jsonl" | "short";
 
 export function updateLabelCache(
   labelsById: Map<string, string>,
-  entry: SessionTreeEntry,
+  entry: ConversationTreeEntry,
 ): void {
   if (entry.type !== "label") return;
   const label = entry.label?.trim();
@@ -17,7 +17,7 @@ export function updateLabelCache(
 }
 
 export function buildLabelsById(
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
 ): Map<string, string> {
   const labelsById = new Map<string, string>();
   for (const entry of entries) {
@@ -26,7 +26,7 @@ export function buildLabelsById(
   return labelsById;
 }
 
-export function leafIdAfterEntry(entry: SessionTreeEntry): string | null {
+export function leafIdAfterEntry(entry: ConversationTreeEntry): string | null {
   return entry.type === "leaf" ? entry.targetId : entry.id;
 }
 

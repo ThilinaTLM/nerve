@@ -3,8 +3,9 @@ import {
   type AgentRecord,
   apiPost,
   type CompletionItem,
+  type ConversationRecord,
+  deleteConversation,
   deleteProject,
-  deleteSession,
   getFileCompletions,
   getPendingApprovals,
   getPendingPlanReviews,
@@ -13,13 +14,15 @@ import {
   getSlashCompletions,
   getWorkspaceSnapshot,
   type ProjectRecord,
-  type SessionRecord,
 } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { composerDraft, selection } from "../state/app-state.svelte";
 import { modelKey } from "../utils/model";
 import { selectedModel, selectedThinkingLevel } from "./composer-config.svelte";
-import { openSession, removeConversationTabs } from "./session-flow.svelte";
+import {
+  openConversation,
+  removeConversationTabs,
+} from "./conversation-flow.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 
 export async function loadWorkspaceState() {
@@ -28,13 +31,15 @@ export async function loadWorkspaceState() {
     queryFn: getWorkspaceSnapshot,
   });
   workbenchState.projects = snapshot.projects;
-  workbenchState.sessions = snapshot.sessions;
+  workbenchState.conversations = snapshot.conversations;
   workbenchState.agents = snapshot.agents;
   workbenchState.processes = snapshot.processes;
-  syncSelectedAgentConfig(snapshot.agents, snapshot.sessions);
-  const sessionIds = new Set(snapshot.sessions.map((session) => session.id));
+  syncSelectedAgentConfig(snapshot.agents, snapshot.conversations);
+  const conversationIds = new Set(
+    snapshot.conversations.map((conversation) => conversation.id),
+  );
   const staleOpenTabIds = workbenchState.openConversationTabIds.filter(
-    (sessionId) => !sessionIds.has(sessionId),
+    (conversationId) => !conversationIds.has(conversationId),
   );
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
   workbenchState.selectedProcessId =
@@ -56,25 +61,28 @@ export async function loadWorkspaceState() {
 
 function syncSelectedAgentConfig(
   agents: AgentRecord[],
-  sessions: SessionRecord[],
+  conversations: ConversationRecord[],
 ): void {
   const activeAgent = selection.agentId
     ? agents.find((agent) => agent.id === selection.agentId)
     : undefined;
   if (activeAgent) {
-    if (activeAgent.model) workbenchState.selectedModelKey = modelKey(activeAgent.model);
+    if (activeAgent.model)
+      workbenchState.selectedModelKey = modelKey(activeAgent.model);
     workbenchState.selectedThinkingLevel = activeAgent.thinkingLevel;
     workbenchState.selectedMode = activeAgent.mode;
     workbenchState.selectedPermissionLevel = activeAgent.permissionLevel;
     return;
   }
 
-  const activeSession = selection.sessionId
-    ? sessions.find((session) => session.id === selection.sessionId)
+  const activeConversation = selection.conversationId
+    ? conversations.find(
+        (conversation) => conversation.id === selection.conversationId,
+      )
     : undefined;
-  if (!activeSession) return;
-  workbenchState.selectedMode = activeSession.mode;
-  workbenchState.selectedPermissionLevel = activeSession.permissionLevel;
+  if (!activeConversation) return;
+  workbenchState.selectedMode = activeConversation.mode;
+  workbenchState.selectedPermissionLevel = activeConversation.permissionLevel;
 }
 
 export async function loadSlashCommands() {
@@ -85,9 +93,9 @@ export async function loadSlashCommands() {
 }
 
 export function exportUrl(kind: "json" | "md" | "html"): string | undefined {
-  if (!selection.sessionId) return undefined;
+  if (!selection.conversationId) return undefined;
   const suffix = kind === "json" ? "export" : `export.${kind}`;
-  return `/api/sessions/${selection.sessionId}/${suffix}`;
+  return `/api/conversations/${selection.conversationId}/${suffix}`;
 }
 
 export function systemPromptUrl(): string | undefined {
@@ -103,7 +111,7 @@ export async function completeFiles(query: string): Promise<CompletionItem[]> {
   });
 }
 
-export function newSession() {
+export function newConversation() {
   workbenchState.projectPickerOpen = true;
 }
 
@@ -115,39 +123,45 @@ function projectDirKey(dir: string): string {
   return dir.replace(/[\\/]+$/, "") || dir;
 }
 
-function isEmptySession(session: SessionRecord): boolean {
-  return !session.activeEntryId;
+function isEmptyConversation(conversation: ConversationRecord): boolean {
+  return !conversation.activeEntryId;
 }
 
-function projectForSession(session: SessionRecord): ProjectRecord | undefined {
+function projectForConversation(
+  conversation: ConversationRecord,
+): ProjectRecord | undefined {
   return workbenchState.projects.find(
-    (project) => project.id === session.projectId,
+    (project) => project.id === conversation.projectId,
   );
 }
 
-function activeEmptySession(): SessionRecord | undefined {
-  const active = workbenchState.sessions.find(
-    (session) => session.id === selection.sessionId,
+function activeEmptyConversation(): ConversationRecord | undefined {
+  const active = workbenchState.conversations.find(
+    (conversation) => conversation.id === selection.conversationId,
   );
-  return active && isEmptySession(active) ? active : undefined;
+  return active && isEmptyConversation(active) ? active : undefined;
 }
 
-function emptySessionForProjectDir(dir: string): SessionRecord | undefined {
+function emptyConversationForProjectDir(
+  dir: string,
+): ConversationRecord | undefined {
   const targetKey = projectDirKey(dir);
   const projectIds = new Set(
     workbenchState.projects
       .filter((project) => projectDirKey(project.dir) === targetKey)
       .map((project) => project.id),
   );
-  return workbenchState.sessions.find(
-    (session) => projectIds.has(session.projectId) && isEmptySession(session),
+  return workbenchState.conversations.find(
+    (conversation) =>
+      projectIds.has(conversation.projectId) &&
+      isEmptyConversation(conversation),
   );
 }
 
 async function handleExistingEmptyConversation(dir: string): Promise<boolean> {
   const targetKey = projectDirKey(dir);
-  const active = activeEmptySession();
-  const activeProject = active ? projectForSession(active) : undefined;
+  const active = activeEmptyConversation();
+  const activeProject = active ? projectForConversation(active) : undefined;
   if (
     active &&
     activeProject &&
@@ -160,11 +174,11 @@ async function handleExistingEmptyConversation(dir: string): Promise<boolean> {
     return true;
   }
 
-  const empty = emptySessionForProjectDir(dir);
+  const empty = emptyConversationForProjectDir(dir);
   if (!empty) return false;
 
-  const project = projectForSession(empty);
-  await openSession(empty.id);
+  const project = projectForConversation(empty);
+  await openConversation(empty.id);
   workbenchState.projectPickerOpen = false;
   toast.message("Opened existing empty conversation", {
     description: project?.dir,
@@ -174,11 +188,11 @@ async function handleExistingEmptyConversation(dir: string): Promise<boolean> {
 
 export async function deleteProjectAndRefresh(projectId: string) {
   try {
-    const sessionIds = workbenchState.sessions
-      .filter((session) => session.projectId === projectId)
-      .map((session) => session.id);
+    const conversationIds = workbenchState.conversations
+      .filter((conversation) => conversation.projectId === projectId)
+      .map((conversation) => conversation.id);
     await deleteProject(projectId);
-    await removeConversationTabs(sessionIds);
+    await removeConversationTabs(conversationIds);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     toast.success("Project removed");
@@ -189,10 +203,10 @@ export async function deleteProjectAndRefresh(projectId: string) {
   }
 }
 
-export async function deleteSessionAndRefresh(sessionId: string) {
+export async function deleteConversationAndRefresh(conversationId: string) {
   try {
-    await deleteSession(sessionId);
-    await removeConversationTabs([sessionId]);
+    await deleteConversation(conversationId);
+    await removeConversationTabs([conversationId]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     toast.success("Conversation removed");
@@ -213,32 +227,31 @@ export async function createConversationForDirectory(dir: string) {
         dir,
       },
     );
-    const { session } = await apiPost<{ session: SessionRecord }>(
-      "/api/sessions",
-      {
-        projectId: project.id,
-        title: "New Conversation",
-        mode: workbenchState.selectedMode,
-        permissionLevel: workbenchState.selectedPermissionLevel,
-      },
-    );
+    const { conversation } = await apiPost<{
+      conversation: ConversationRecord;
+    }>("/api/conversations", {
+      projectId: project.id,
+      title: "New Conversation",
+      mode: workbenchState.selectedMode,
+      permissionLevel: workbenchState.selectedPermissionLevel,
+    });
     const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
       projectId: project.id,
-      sessionId: session.id,
+      conversationId: conversation.id,
       model: selectedModel(),
       thinkingLevel: selectedThinkingLevel(),
       mode: workbenchState.selectedMode,
       permissionLevel: workbenchState.selectedPermissionLevel,
     });
     selection.projectId = project.id;
-    selection.sessionId = session.id;
-    selection.entryId = session.activeEntryId;
+    selection.conversationId = conversation.id;
+    selection.entryId = conversation.activeEntryId;
     selection.agentId = agent.id;
     composerDraft.projectDir = project.dir;
     workbenchState.projectPickerOpen = false;
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    await openSession(session.id);
+    await openConversation(conversation.id);
     toast.success("Project opened", { description: project.dir });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);

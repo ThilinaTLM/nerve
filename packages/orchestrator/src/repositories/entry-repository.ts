@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import {
-  type SessionEntry,
-  type SessionRecord,
-  type SessionTree,
-  sessionEntrySchema,
+  type ConversationEntry,
+  type ConversationRecord,
+  type ConversationTree,
+  conversationEntrySchema,
 } from "@nerve/shared";
 import {
   appendJsonLine,
@@ -14,30 +14,32 @@ import {
 export class EntryRepository {
   constructor(private readonly storage: InitializedStorage) {}
 
-  entriesPath(sessionId: string): string {
+  entriesPath(conversationId: string): string {
     return join(
       this.storage.paths.home,
-      "sessions",
-      sessionId,
+      "conversations",
+      conversationId,
       "entries.jsonl",
     );
   }
 
-  async loadForSession(sessionId: string): Promise<SessionEntry[]> {
+  async loadForConversation(
+    conversationId: string,
+  ): Promise<ConversationEntry[]> {
     const rawEntries = await readJsonLines<unknown>(
-      this.entriesPath(sessionId),
+      this.entriesPath(conversationId),
     ).catch(() => []);
     return rawEntries
-      .map((entry) => sessionEntrySchema.safeParse(entry))
+      .map((entry) => conversationEntrySchema.safeParse(entry))
       .filter((result) => result.success)
       .map((result) => result.data);
   }
 
-  async append(entry: SessionEntry): Promise<void> {
-    await appendJsonLine(this.entriesPath(entry.sessionId), entry, 0o600);
+  async append(entry: ConversationEntry): Promise<void> {
+    await appendJsonLine(this.entriesPath(entry.conversationId), entry, 0o600);
   }
 
-  displayLinkedEntries(entries: SessionEntry[]): SessionEntry[] {
+  displayLinkedEntries(entries: ConversationEntry[]): ConversationEntry[] {
     const allIds = new Set(entries.map((entry) => entry.id));
     let previousVisibleEntryId: string | undefined;
     return entries.map((entry) => {
@@ -52,16 +54,16 @@ export class EntryRepository {
   }
 
   activeBranchEntries(
-    entriesBySessionId: Map<string, SessionEntry[]>,
-    session: SessionRecord,
-  ): SessionEntry[] {
+    entriesByConversationId: Map<string, ConversationEntry[]>,
+    conversation: ConversationRecord,
+  ): ConversationEntry[] {
     const entries = this.displayLinkedEntries(
-      entriesBySessionId.get(session.id) ?? [],
+      entriesByConversationId.get(conversation.id) ?? [],
     );
-    if (!session.activeEntryId) return entries;
+    if (!conversation.activeEntryId) return entries;
     const byId = new Map(entries.map((entry) => [entry.id, entry]));
-    const branch: SessionEntry[] = [];
-    let cursor: string | undefined = session.activeEntryId;
+    const branch: ConversationEntry[] = [];
+    let cursor: string | undefined = conversation.activeEntryId;
     while (cursor) {
       const entry = byId.get(cursor);
       if (!entry) break;
@@ -71,12 +73,12 @@ export class EntryRepository {
     return branch.reverse();
   }
 
-  getSessionTree(
-    entriesBySessionId: Map<string, SessionEntry[]>,
-    session: SessionRecord,
-  ): SessionTree {
+  getConversationTree(
+    entriesByConversationId: Map<string, ConversationEntry[]>,
+    conversation: ConversationRecord,
+  ): ConversationTree {
     const entries = this.displayLinkedEntries(
-      entriesBySessionId.get(session.id) ?? [],
+      entriesByConversationId.get(conversation.id) ?? [],
     );
     const children = new Map<string, string[]>();
     const rootEntryIds: string[] = [];
@@ -90,8 +92,8 @@ export class EntryRepository {
       }
     }
     return {
-      sessionId: session.id,
-      activeEntryId: session.activeEntryId,
+      conversationId: conversation.id,
+      activeEntryId: conversation.activeEntryId,
       rootEntryIds,
       nodes: entries.map((entry) => ({
         entry,

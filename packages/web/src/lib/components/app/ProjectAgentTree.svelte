@@ -7,7 +7,7 @@
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import { Collapsible, mergeProps } from "bits-ui";
   import { toast } from "svelte-sonner";
-  import type { AgentRecord, ProjectRecord, SessionRecord } from "../../api";
+  import type { AgentRecord, ProjectRecord, ConversationRecord } from "../../api";
   import AlertDialog from "$lib/components/ui/confirm-dialog";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import { Input } from "$lib/components/ui/input";
@@ -25,35 +25,35 @@
   import { dateTimeLabel } from "../../utils/time";
 
   type DeleteTarget = {
-    kind: "project" | "session";
+    kind: "project" | "conversation";
     id: string;
     label: string;
   };
 
   type Props = {
     projects?: ProjectRecord[];
-    sessions?: SessionRecord[];
+    conversations?: ConversationRecord[];
     agents?: AgentRecord[];
     homeDir?: string;
     selectedProjectId?: string;
-    selectedSessionId?: string;
-    onOpenSession?: (sessionId: string) => void;
+    selectedConversationId?: string;
+    onOpenConversation?: (conversationId: string) => void;
     onNewConversationInProject?: (projectDir: string) => void;
     onDeleteProject?: (projectId: string) => void;
-    onDeleteSession?: (sessionId: string) => void;
+    onDeleteConversation?: (conversationId: string) => void;
   };
 
   let {
     projects = [],
-    sessions = [],
+    conversations = [],
     agents = [],
     homeDir,
     selectedProjectId,
-    selectedSessionId,
-    onOpenSession,
+    selectedConversationId,
+    onOpenConversation,
     onNewConversationInProject,
     onDeleteProject,
-    onDeleteSession,
+    onDeleteConversation,
   }: Props = $props();
 
   let filter = $state("");
@@ -67,7 +67,7 @@
   function confirmDelete() {
     if (!pendingDelete) return;
     if (pendingDelete.kind === "project") onDeleteProject?.(pendingDelete.id);
-    else onDeleteSession?.(pendingDelete.id);
+    else onDeleteConversation?.(pendingDelete.id);
   }
 
   async function copyToClipboard(text: string, label: string) {
@@ -93,17 +93,17 @@
     ];
   }
 
-  function sessionMenu(project: ProjectRecord, session: SessionRecord): ContextMenuItem[] {
+  function conversationMenu(project: ProjectRecord, conversation: ConversationRecord): ContextMenuItem[] {
     return [
-      { label: "Open conversation", icon: ArrowRight, onSelect: () => onOpenSession?.(session.id) },
+      { label: "Open conversation", icon: ArrowRight, onSelect: () => onOpenConversation?.(conversation.id) },
       { label: "New conversation", icon: Plus, onSelect: () => onNewConversationInProject?.(project.dir) },
       { type: "separator" },
-      { label: "Copy conversation id", icon: Copy, onSelect: () => void copyToClipboard(session.id, "conversation id") },
+      { label: "Copy conversation id", icon: Copy, onSelect: () => void copyToClipboard(conversation.id, "conversation id") },
       {
         label: "Delete conversation",
         icon: Trash2,
         destructive: true,
-        onSelect: () => requestDelete({ kind: "session", id: session.id, label: session.title }),
+        onSelect: () => requestDelete({ kind: "conversation", id: conversation.id, label: conversation.title }),
       },
     ];
   }
@@ -113,15 +113,15 @@
   }
 
   function rowMode(row: ConversationRow): string {
-    return row.agent?.mode ?? row.session.mode;
+    return row.agent?.mode ?? row.conversation.mode;
   }
 
   function rowPermission(row: ConversationRow): string {
-    return row.agent?.permissionLevel ?? row.session.permissionLevel;
+    return row.agent?.permissionLevel ?? row.conversation.permissionLevel;
   }
 
   const result = $derived.by(() =>
-    buildProjectGroups({ projects, sessions, agents, filter, homeDir }),
+    buildProjectGroups({ projects, conversations, agents, filter, homeDir }),
   );
   const groups = $derived(result.groups);
   const hiddenProjects = $derived(result.hiddenProjects);
@@ -178,41 +178,41 @@
                       {#if group.rows.length === 0}
                         <p class="empty child">No conversations.</p>
                       {/if}
-                      {#each group.rows as row (row.session.id)}
+                      {#each group.rows as row (row.conversation.id)}
                         {@const status = rowStatus(row)}
                         <Sidebar.MenuSubItem>
-                          <ContextMenu items={sessionMenu(group.project, row.session)}>
+                          <ContextMenu items={conversationMenu(group.project, row.conversation)}>
                             <Tooltip.Root>
                               <Tooltip.Trigger>
                                 {#snippet child({ props: tip })}
                                   <Sidebar.MenuSubButton
-                                    isActive={row.session.id === selectedSessionId}
+                                    isActive={row.conversation.id === selectedConversationId}
                                     class="conversation-button w-full"
                                   >
                                     {#snippet child({ props: btn })}
                                       <button
                                         {...mergeProps(btn, tip)}
                                         type="button"
-                                        onclick={() => onOpenSession?.(row.session.id)}
+                                        onclick={() => onOpenConversation?.(row.conversation.id)}
                                       >
                                         <StatusDot
                                           tone={statusTone(status)}
                                           pulse={pulseForStatus(status)}
                                           size="sm"
                                         />
-                                        <span class="conversation-label">{row.session.title}</span>
+                                        <span class="conversation-label">{row.conversation.title}</span>
                                       </button>
                                     {/snippet}
                                   </Sidebar.MenuSubButton>
                                 {/snippet}
                               </Tooltip.Trigger>
                               <Tooltip.Content side="right" sideOffset={6} class="nav-tooltip conversation-tooltip">
-                                <span class="tt-title">{row.session.title}</span>
+                                <span class="tt-title">{row.conversation.title}</span>
                                 <span class="tt-row"><span class="tt-key">status</span>{status}</span>
                                 <span class="tt-row"><span class="tt-key">mode</span>{rowMode(row)} · {rowPermission(row)}</span>
                                 <span class="tt-row"><span class="tt-key">model</span>{shortAgentModel(row.agent)}</span>
-                                <span class="tt-row"><span class="tt-key">updated</span>{dateTimeLabel(row.session.updatedAt)}</span>
-                                <span class="tt-id">{row.session.id}</span>
+                                <span class="tt-row"><span class="tt-key">updated</span>{dateTimeLabel(row.conversation.updatedAt)}</span>
+                                <span class="tt-id">{row.conversation.id}</span>
                               </Tooltip.Content>
                             </Tooltip.Root>
                           </ContextMenu>

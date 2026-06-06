@@ -10,7 +10,7 @@
     ContextUsage,
     ProcessRecord,
     ProjectRecord,
-    SessionRecord,
+    ConversationRecord,
   } from "../../api";
   import { formatTokens } from "../../utils/usage";
   import { Badge } from "$lib/components/ui/badge";
@@ -25,7 +25,7 @@
     processes?: ProcessRecord[];
     branchDepth?: number;
     activeAgent?: AgentRecord;
-    activeSession?: SessionRecord;
+    activeConversation?: ConversationRecord;
     activeProject?: ProjectRecord;
     contextUsage?: ContextUsage;
     side?: "top" | "bottom";
@@ -38,7 +38,7 @@
     processes = [],
     branchDepth = 0,
     activeAgent,
-    activeSession,
+    activeConversation,
     activeProject,
     contextUsage,
     side = "top",
@@ -110,8 +110,8 @@
 
     <div class="context-list">
       <div><span>Project</span><strong title={activeProject?.dir}>{activeProject?.name ?? "No project"}</strong></div>
-      <div><span>Session</span><strong title={activeSession?.id}>{activeSession?.title ?? "No active session"}</strong></div>
-      <div><span>Permission</span><strong>{activeAgent?.permissionLevel ?? activeSession?.permissionLevel ?? "—"}</strong></div>
+      <div><span>Conversation</span><strong title={activeConversation?.id}>{activeConversation?.title ?? "No active conversation"}</strong></div>
+      <div><span>Permission</span><strong>{activeAgent?.permissionLevel ?? activeConversation?.permissionLevel ?? "—"}</strong></div>
       <div><span>Context</span><strong>{contextLabel}</strong></div>
     </div>
 

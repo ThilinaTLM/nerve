@@ -47,8 +47,8 @@ function readPathCandidates(path: string): string[] {
   }
   // macOS screenshots sometimes use narrow no-break spaces before AM/PM.
   for (const value of [...variants]) {
-    variants.add(value.replace(/ ([AP]M)(\.[^.\/]+)?$/u, "\u202f$1$2"));
-    variants.add(value.replace(/\u202f([AP]M)(\.[^.\/]+)?$/u, " $1$2"));
+    variants.add(value.replace(/ ([AP]M)(\.[^./]+)?$/u, "\u202f$1$2"));
+    variants.add(value.replace(/\u202f([AP]M)(\.[^./]+)?$/u, " $1$2"));
     variants.add(value.replace(/[’‘]/g, "'"));
     variants.add(value.replace(/'/g, "’"));
   }

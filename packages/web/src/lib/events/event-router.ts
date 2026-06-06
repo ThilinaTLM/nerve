@@ -1,20 +1,23 @@
 import type {
+  ConversationEntry,
   EventEnvelope,
-  SessionEntry,
   SubscriptionUsage,
   ToolCallRecord,
 } from "../api";
-import { getProcessLogs, getSessionContextUsage } from "../api";
+import { getConversationContextUsage, getProcessLogs } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
 import {
   activeRunToLegacyLive,
   ensureConversationView,
   liveTextFromLegacyLive,
-  openSession,
-  refreshSessionView,
-} from "../stores/session-flow.svelte";
-import { hasPendingSettingsSave, loadSettingsPanel } from "../stores/settings.svelte";
+  openConversation,
+  refreshConversationView,
+} from "../stores/conversation-flow.svelte";
+import {
+  hasPendingSettingsSave,
+  loadSettingsPanel,
+} from "../stores/settings.svelte";
 import type {
   ConversationLiveState,
   ConversationViewState,
@@ -37,7 +40,7 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (event.seq && event.seq <= workbenchState.lastEventSeq) return;
   if (event.seq) workbenchState.lastEventSeq = event.seq;
 
-  if (event.type.startsWith("conversation.")) {
+  if (isConversationRuntimeEvent(event.type)) {
     handleConversationEvent(event);
     return;
   }
@@ -54,18 +57,18 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   }
 
   if (
-    event.type === "session.compacted" ||
-    event.type === "session.navigated"
+    event.type === "conversation.compacted" ||
+    event.type === "conversation.navigated"
   ) {
-    const sessionId = sessionIdFromEvent(event);
-    if (sessionId && isOpenSession(sessionId))
-      void refreshSessionView(sessionId);
+    const conversationId = conversationIdFromEvent(event);
+    if (conversationId && isOpenConversation(conversationId))
+      void refreshConversationView(conversationId);
   }
 
   if (event.type === "agent.configured") {
-    const agent = event.data?.agent as { sessionId?: unknown } | undefined;
-    if (typeof agent?.sessionId === "string") {
-      void refreshContextUsage(agent.sessionId);
+    const agent = event.data?.agent as { conversationId?: unknown } | undefined;
+    if (typeof agent?.conversationId === "string") {
+      void refreshContextUsage(agent.conversationId);
     }
   }
 
@@ -98,34 +101,47 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   }
 }
 
-function sessionIdFromEvent(
-  event: EventEnvelope<Record<string, unknown>>,
-): string | undefined {
-  const sessionId = event.data?.sessionId;
-  if (typeof sessionId === "string") return sessionId;
-  const entry = event.data?.entry as { sessionId?: unknown } | undefined;
-  if (typeof entry?.sessionId === "string") return entry.sessionId;
-  const toolCall = event.data?.toolCall as { sessionId?: unknown } | undefined;
-  if (typeof toolCall?.sessionId === "string") return toolCall.sessionId;
-  return undefined;
-}
-
-function isOpenSession(sessionId: string): boolean {
-  return workbenchState.openCenterTabs.some(
-    (tab) => tab.kind === "conversation" && tab.id === sessionId,
+function isConversationRuntimeEvent(type: string): boolean {
+  return (
+    type === "conversation.entry.appended" ||
+    type === "conversation.context.updated" ||
+    type === "conversation.tool_call.updated" ||
+    type.startsWith("conversation.run.") ||
+    type.startsWith("conversation.live.")
   );
 }
 
-function active(sessionId: string): boolean {
-  return selection.sessionId === sessionId;
+function conversationIdFromEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+): string | undefined {
+  const conversationId = event.data?.conversationId;
+  if (typeof conversationId === "string") return conversationId;
+  const entry = event.data?.entry as { conversationId?: unknown } | undefined;
+  if (typeof entry?.conversationId === "string") return entry.conversationId;
+  const toolCall = event.data?.toolCall as
+    | { conversationId?: unknown }
+    | undefined;
+  if (typeof toolCall?.conversationId === "string")
+    return toolCall.conversationId;
+  return undefined;
+}
+
+function isOpenConversation(conversationId: string): boolean {
+  return workbenchState.openCenterTabs.some(
+    (tab) => tab.kind === "conversation" && tab.id === conversationId,
+  );
+}
+
+function active(conversationId: string): boolean {
+  return selection.conversationId === conversationId;
 }
 
 function handleConversationEvent(
   event: EventEnvelope<Record<string, unknown>>,
 ) {
-  const sessionId = sessionIdFromEvent(event);
-  if (!sessionId || !isOpenSession(sessionId)) return;
-  const view = ensureConversationView(sessionId);
+  const conversationId = conversationIdFromEvent(event);
+  if (!conversationId || !isOpenConversation(conversationId)) return;
+  const view = ensureConversationView(conversationId);
   if (event.seq <= view.cursorSeq) return;
   view.cursorSeq = event.seq;
 
@@ -135,11 +151,14 @@ function handleConversationEvent(
       view.error = undefined;
       break;
     case "conversation.entry.appended":
-      handleEntryAppended(view, event.data?.entry as SessionEntry | undefined);
-      scheduleContextUsageRefresh(sessionId);
+      handleEntryAppended(
+        view,
+        event.data?.entry as ConversationEntry | undefined,
+      );
+      scheduleContextUsageRefresh(conversationId);
       break;
     case "conversation.context.updated":
-      clearContextUsageRefresh(sessionId);
+      clearContextUsageRefresh(conversationId);
       view.contextUsage =
         (event.data?.contextUsage as ConversationViewState["contextUsage"]) ??
         view.contextUsage;
@@ -178,8 +197,9 @@ function handleConversationEvent(
       view.live = emptyLiveState();
       view.activeRun = undefined;
       view.error = undefined;
-      void refreshSessionView(sessionId).then(() => {
-        if (selection.sessionId === sessionId) void openSession(sessionId);
+      void refreshConversationView(conversationId).then(() => {
+        if (selection.conversationId === conversationId)
+          void openConversation(conversationId);
       });
       break;
     case "conversation.run.failed":
@@ -231,7 +251,7 @@ function liveTextId(data: Record<string, unknown>): string {
 
 function handleEntryAppended(
   view: ConversationViewState,
-  entry: SessionEntry | undefined,
+  entry: ConversationEntry | undefined,
 ): void {
   if (!entry) return;
   const items = entryToTranscriptItems(entry);
@@ -308,7 +328,7 @@ function handleContentDelta(
   const expected = Number(event.data?.offset ?? current?.text.length ?? 0);
   if (current && current.text.length > expected) return;
   if (current && current.text.length < expected) {
-    void refreshSessionView(view.sessionId);
+    void refreshConversationView(view.conversationId);
     return;
   }
   const kind = event.data?.kind === "thinking" ? "thinking" : "text";
@@ -370,7 +390,7 @@ function upsertToolDraft(
     key,
     runId:
       typeof event.data?.runId === "string" ? event.data.runId : current?.runId,
-    sessionId: view.sessionId,
+    conversationId: view.conversationId,
     contentIndex: Number(
       event.data?.contentIndex ?? current?.contentIndex ?? 0,
     ),
@@ -421,7 +441,7 @@ function handleToolDraftDelta(
   const expected = Number(event.data?.offset ?? current?.argsText.length ?? 0);
   if (current && current.argsText.length > expected) return;
   if (current && current.argsText.length < expected) {
-    void refreshSessionView(view.sessionId);
+    void refreshConversationView(view.conversationId);
     return;
   }
   upsertToolDraft(view, event, {
@@ -476,7 +496,7 @@ function handleToolOutputDelta(
   const expected = Number(event.data?.offset ?? previous?.text.length ?? 0);
   if (previous && previous.text.length > expected) return;
   if (previous && previous.text.length < expected) {
-    void refreshSessionView(view.sessionId);
+    void refreshConversationView(view.conversationId);
     return;
   }
   const updatedAt = new Date().toISOString();
@@ -494,35 +514,35 @@ function handleToolOutputDelta(
   };
 }
 
-function clearContextUsageRefresh(sessionId: string): void {
-  const timer = contextUsageRefreshTimers.get(sessionId);
+function clearContextUsageRefresh(conversationId: string): void {
+  const timer = contextUsageRefreshTimers.get(conversationId);
   if (!timer) return;
   clearTimeout(timer);
-  contextUsageRefreshTimers.delete(sessionId);
+  contextUsageRefreshTimers.delete(conversationId);
 }
 
-function scheduleContextUsageRefresh(sessionId: string): void {
-  if (!isOpenSession(sessionId)) return;
-  clearContextUsageRefresh(sessionId);
+function scheduleContextUsageRefresh(conversationId: string): void {
+  if (!isOpenConversation(conversationId)) return;
+  clearContextUsageRefresh(conversationId);
   const timer = setTimeout(() => {
-    contextUsageRefreshTimers.delete(sessionId);
-    void refreshContextUsage(sessionId);
+    contextUsageRefreshTimers.delete(conversationId);
+    void refreshContextUsage(conversationId);
   }, CONTEXT_USAGE_REFRESH_DELAY_MS);
-  contextUsageRefreshTimers.set(sessionId, timer);
+  contextUsageRefreshTimers.set(conversationId, timer);
 }
 
-async function refreshContextUsage(sessionId: string): Promise<void> {
-  if (!isOpenSession(sessionId)) return;
-  const contextUsage = await getSessionContextUsage(sessionId).catch(
+async function refreshContextUsage(conversationId: string): Promise<void> {
+  if (!isOpenConversation(conversationId)) return;
+  const contextUsage = await getConversationContextUsage(conversationId).catch(
     () => undefined,
   );
-  const view = workbenchState.conversationViews[sessionId];
+  const view = workbenchState.conversationViews[conversationId];
   if (!contextUsage || !view) return;
   view.contextUsage = contextUsage;
 }
 
 function syncActiveView(view: ConversationViewState): void {
-  if (!active(view.sessionId)) return;
+  if (!active(view.conversationId)) return;
   workbenchState.transcript = view.transcript;
   workbenchState.streamingText = view.streamingText;
   workbenchState.sending = view.sending;
@@ -531,12 +551,12 @@ function syncActiveView(view: ConversationViewState): void {
 
 export function shouldRefreshWorkspace(type: string): boolean {
   return (
-    type === "session.created" ||
-    type === "session.updated" ||
-    type === "session.deleted" ||
-    type === "session.compacted" ||
-    type === "session.branch_summarized" ||
-    type === "session.navigated" ||
+    type === "conversation.created" ||
+    type === "conversation.updated" ||
+    type === "conversation.deleted" ||
+    type === "conversation.compacted" ||
+    type === "conversation.branch_summarized" ||
+    type === "conversation.navigated" ||
     type === "project.deleted" ||
     type === "agent.created" ||
     type === "agent.configured" ||

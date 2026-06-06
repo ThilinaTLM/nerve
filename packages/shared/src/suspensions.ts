@@ -25,7 +25,7 @@ export type RemainingToolCall = z.infer<typeof remainingToolCallSchema>;
 export const agentSuspensionRecordSchema = z.object({
   id: z.string().startsWith("susp_"),
   agentId: z.string().startsWith("agent_"),
-  sessionId: z.string().startsWith("ses_"),
+  conversationId: z.string().startsWith("conv_"),
   projectId: z.string().startsWith("proj_"),
   runId: z.string().startsWith("run_"),
   turnId: z.string().startsWith("turn_").optional(),
@@ -42,6 +42,4 @@ export const agentSuspensionRecordSchema = z.object({
   resolvedAt: z.string().datetime().optional(),
   error: z.string().optional(),
 });
-export type AgentSuspensionRecord = z.infer<
-  typeof agentSuspensionRecordSchema
->;
+export type AgentSuspensionRecord = z.infer<typeof agentSuspensionRecordSchema>;

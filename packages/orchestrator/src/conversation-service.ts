@@ -1,10 +1,10 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { buildSessionContext, convertToLlm } from "@nerve/agent";
+import { buildConversationContext, convertToLlm } from "@nerve/agent";
 import type {
   AgentRecord,
+  ConversationEntry,
+  ConversationRecord,
   ProjectRecord,
-  SessionEntry,
-  SessionRecord,
 } from "@nerve/shared";
 import type { HarnessManager } from "./harness-manager.js";
 import type { EntryRepository } from "./repositories/index.js";
@@ -19,29 +19,29 @@ export class ConversationService {
 
   async rebuildAll(
     projects: Iterable<ProjectRecord>,
-    sessions: Iterable<SessionRecord>,
+    conversations: Iterable<ConversationRecord>,
     agents: Iterable<AgentRecord>,
-    entriesBySessionId: Map<string, SessionEntry[]>,
+    entriesByConversationId: Map<string, ConversationEntry[]>,
   ): Promise<void> {
     this.agentConversationCache.clear();
     const projectsById = new Map(
       [...projects].map((project) => [project.id, project]),
     );
-    const sessionMessages = new Map<string, Message[]>();
-    for (const session of sessions) {
-      const project = projectsById.get(session.projectId);
+    const conversationMessages = new Map<string, Message[]>();
+    for (const conversation of conversations) {
+      const project = projectsById.get(conversation.projectId);
       if (!project) continue;
-      const messages = await this.contextMessagesForSession(
-        session,
+      const messages = await this.contextMessagesForConversation(
+        conversation,
         project.dir,
-        entriesBySessionId,
+        entriesByConversationId,
       );
-      sessionMessages.set(session.id, messages);
+      conversationMessages.set(conversation.id, messages);
     }
     for (const agent of agents) {
       this.agentConversationCache.set(
         agent.id,
-        sessionMessages.get(agent.sessionId) ?? [],
+        conversationMessages.get(agent.conversationId) ?? [],
       );
     }
   }
@@ -62,22 +62,22 @@ export class ConversationService {
     this.agentConversationCache.clear();
   }
 
-  async contextMessagesForSession(
-    session: SessionRecord,
+  async contextMessagesForConversation(
+    conversation: ConversationRecord,
     projectDir: string,
-    entriesBySessionId: Map<string, SessionEntry[]>,
+    entriesByConversationId: Map<string, ConversationEntry[]>,
   ): Promise<Message[]> {
     try {
       const storage = await this.harnessManager.openStorage(
-        session,
+        conversation,
         projectDir,
       );
       const branch = await storage.getPathToRoot(await storage.getLeafId());
-      return convertToLlm(buildSessionContext(branch).messages);
+      return convertToLlm(buildConversationContext(branch).messages);
     } catch (error) {
       this.harnessManager.warnMirror(error);
       return this.entryRepository
-        .activeBranchEntries(entriesBySessionId, session)
+        .activeBranchEntries(entriesByConversationId, conversation)
         .filter((entry) => entry.role === "user" || entry.role === "assistant")
         .map((entry) => ({
           role: entry.role,

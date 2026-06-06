@@ -1,10 +1,10 @@
 import { realpath } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
+  type ConversationRecord,
   type CreateProjectRequest,
   createId,
   type ProjectRecord,
-  type SessionRecord,
 } from "@nerve/shared";
 import type { EventBus } from "../events.js";
 import { HttpError } from "../http/errors.js";
@@ -17,8 +17,10 @@ export class ProjectLifecycleService {
     private readonly events: EventBus,
     private readonly index: IndexStore,
     private readonly projects: Map<string, ProjectRecord>,
-    private readonly listSessions: () => SessionRecord[],
-    private readonly removeSession: (sessionId: string) => Promise<void>,
+    private readonly listConversations: () => ConversationRecord[],
+    private readonly removeConversation: (
+      conversationId: string,
+    ) => Promise<void>,
   ) {}
 
   private async canonicalProjectDir(dir: string): Promise<string> {
@@ -81,10 +83,10 @@ export class ProjectLifecycleService {
 
   async removeProject(projectId: string): Promise<void> {
     this.getProject(projectId);
-    for (const session of this.listSessions().filter(
+    for (const conversation of this.listConversations().filter(
       (candidate) => candidate.projectId === projectId,
     )) {
-      await this.removeSession(session.id);
+      await this.removeConversation(conversation.id);
     }
     this.projects.delete(projectId);
     this.index.removeProject(projectId);

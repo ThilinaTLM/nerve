@@ -24,7 +24,7 @@ const dataSubdirs = [
   "auth",
   "keys",
   "projects",
-  "sessions",
+  "conversations",
   "agents",
   "plans",
   "handovers",

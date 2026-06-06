@@ -107,7 +107,7 @@ export class ProcessManager {
       name: request.name,
       workerId: request.workerId,
       projectId: request.projectId,
-      sessionId: request.sessionId,
+      conversationId: request.conversationId,
       agentId: request.agentId,
       cwd: resolve(request.cwd),
       command: request.command,
@@ -200,7 +200,7 @@ export class ProcessManager {
       name: record.name,
       workerId: record.workerId,
       projectId: record.projectId,
-      sessionId: record.sessionId,
+      conversationId: record.conversationId,
       agentId: record.agentId,
       cwd: record.cwd,
       command: record.command,
@@ -311,7 +311,7 @@ export class ProcessManager {
       await this.events.publish("process.log", {
         processId: record.id,
         projectId: record.projectId,
-        sessionId: record.sessionId,
+        conversationId: record.conversationId,
         agentId: record.agentId,
         log: event,
       });

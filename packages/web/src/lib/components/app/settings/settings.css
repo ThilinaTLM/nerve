@@ -332,7 +332,8 @@
   background: color-mix(in oklab, var(--accent) 48%, transparent);
 }
 
-.settings-page :global([data-slot="radio-group"] label:has([data-state="checked"])) {
+.settings-page
+  :global([data-slot="radio-group"] label:has([data-state="checked"])) {
   background: color-mix(in oklab, var(--accent) 72%, transparent);
 }
 

@@ -4,8 +4,8 @@ import {
   getModels,
   getSettings,
   getSubscriptionUsage,
-  updateSettings,
   type UpdateSettingsRequest,
+  updateSettings,
 } from "../api";
 import type { ThemePreference } from "../state/app-state.svelte";
 import { applyTheme } from "../state/app-state.svelte";
@@ -173,7 +173,10 @@ export async function flushSettingsSave() {
     }
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
-    pendingSettingsPatch = mergeSettingsPatch(patch, pendingSettingsPatch ?? {});
+    pendingSettingsPatch = mergeSettingsPatch(
+      patch,
+      pendingSettingsPatch ?? {},
+    );
     workbenchState.settingsSaveStatus = "error";
     workbenchState.settingsMessage = message;
     toast.error("Could not save settings", { description: message });

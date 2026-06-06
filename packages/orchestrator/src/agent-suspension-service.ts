@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import {
   type AgentSuspensionRecord,
   agentSuspensionRecordSchema,
@@ -7,7 +8,6 @@ import {
 import type { EventBus } from "./events.js";
 import type { InitializedStorage } from "./storage.js";
 import { appendJsonLine, readJsonLines } from "./storage.js";
-import { join } from "node:path";
 
 export class AgentSuspensionService {
   readonly suspensions = new Map<string, AgentSuspensionRecord>();
@@ -48,7 +48,10 @@ export class AgentSuspensionService {
   }
 
   async createSuspension(
-    input: Omit<AgentSuspensionRecord, "id" | "status" | "createdAt" | "updatedAt">,
+    input: Omit<
+      AgentSuspensionRecord,
+      "id" | "status" | "createdAt" | "updatedAt"
+    >,
   ): Promise<AgentSuspensionRecord> {
     const existing = this.pendingForToolCall(input.toolCallId);
     if (existing) return existing;
@@ -76,7 +79,9 @@ export class AgentSuspensionService {
       updatedAt: new Date().toISOString(),
     };
     await this.upsertSuspension(updated);
-    await this.events.publish("agent.suspension.updated", { suspension: updated });
+    await this.events.publish("agent.suspension.updated", {
+      suspension: updated,
+    });
     return updated;
   }
 

@@ -25,7 +25,7 @@ export function buildExtractiveSummary(input: ExtractiveSummaryInput): string {
   const sections = [
     `## ${input.title}`,
     "",
-    "Generated locally by the orchestrator from the session branch. Treat this as a context checkpoint, not a new user request.",
+    "Generated locally by the orchestrator from the conversation branch. Treat this as a context checkpoint, not a new user request.",
     "",
   ];
   if (input.instructions?.trim()) {
@@ -55,7 +55,7 @@ export function truncateText(text: string, maxChars: number): string {
   return `${text.slice(0, maxChars)}\n\n[…${text.length - maxChars} more characters truncated]`;
 }
 
-export function deriveSessionTitle(text: string): string {
+export function deriveConversationTitle(text: string): string {
   const firstLine = text.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
   if (!firstLine) return "";
   return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;

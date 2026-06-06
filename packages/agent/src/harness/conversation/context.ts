@@ -5,25 +5,25 @@ import {
   createCompactionSummaryMessage,
   createCustomMessage,
 } from "../messages.js";
-import type { CompactionEntry, SessionTreeEntry } from "./entries.js";
+import type { CompactionEntry, ConversationTreeEntry } from "./entries.js";
 
-export interface SessionContext {
+export interface ConversationContext {
   messages: AgentMessage[];
   thinkingLevel: string;
   model: { provider: string; modelId: string } | null;
   activeToolNames: string[] | null;
 }
 
-export interface SessionState {
+export interface ConversationState {
   thinkingLevel: string;
   model: { provider: string; modelId: string } | null;
   activeToolNames: string[] | null;
   compaction: CompactionEntry | null;
 }
 
-export function extractSessionState(
-  pathEntries: SessionTreeEntry[],
-): SessionState {
+export function extractConversationState(
+  pathEntries: ConversationTreeEntry[],
+): ConversationState {
   let thinkingLevel = "off";
   let model: { provider: string; modelId: string } | null = null;
   let activeToolNames: string[] | null = null;
@@ -49,7 +49,9 @@ export function extractSessionState(
   return { thinkingLevel, model, activeToolNames, compaction };
 }
 
-function messageFromEntry(entry: SessionTreeEntry): AgentMessage | undefined {
+function messageFromEntry(
+  entry: ConversationTreeEntry,
+): AgentMessage | undefined {
   if (entry.type === "message") return entry.message as AgentMessage;
   if (entry.type === "custom_message") {
     return createCustomMessage(
@@ -72,15 +74,15 @@ function messageFromEntry(entry: SessionTreeEntry): AgentMessage | undefined {
 
 function appendContextMessage(
   messages: AgentMessage[],
-  entry: SessionTreeEntry,
+  entry: ConversationTreeEntry,
 ): void {
   const message = messageFromEntry(entry);
   if (message) messages.push(message);
 }
 
 export function buildContextMessages(
-  pathEntries: SessionTreeEntry[],
-  state: SessionState,
+  pathEntries: ConversationTreeEntry[],
+  state: ConversationState,
 ): AgentMessage[] {
   const messages: AgentMessage[] = [];
 
@@ -113,10 +115,10 @@ export function buildContextMessages(
   return messages;
 }
 
-export function buildSessionContext(
-  pathEntries: SessionTreeEntry[],
-): SessionContext {
-  const state = extractSessionState(pathEntries);
+export function buildConversationContext(
+  pathEntries: ConversationTreeEntry[],
+): ConversationContext {
+  const state = extractConversationState(pathEntries);
   return {
     messages: buildContextMessages(pathEntries, state),
     thinkingLevel: state.thinkingLevel,

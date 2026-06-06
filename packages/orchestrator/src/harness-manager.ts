@@ -1,45 +1,50 @@
 import type { Message } from "@earendil-works/pi-ai";
 import {
   type AgentMessage,
-  JsonlSessionStorage,
+  Conversation,
+  JsonlConversationStorage,
   NodeExecutionEnv,
-  Session,
 } from "@nerve/agent";
 import type {
   AgentRecord,
+  ConversationEntry,
+  ConversationRecord,
   ProjectRecord,
-  SessionEntry,
-  SessionRecord,
 } from "@nerve/shared";
-import type { SessionRepository } from "./repositories/index.js";
+import type { ConversationRepository } from "./repositories/index.js";
 import { pathExists } from "./storage.js";
 
 export class HarnessManager {
   constructor(
-    private readonly sessionRepository: SessionRepository,
-    private readonly getSession: (sessionId: string) => SessionRecord,
+    private readonly conversationRepository: ConversationRepository,
+    private readonly getConversation: (
+      conversationId: string,
+    ) => ConversationRecord,
     private readonly getProject: (projectId: string) => ProjectRecord,
   ) {}
 
   async openStorage(
-    session: SessionRecord,
+    conversation: ConversationRecord,
     cwd: string,
-  ): Promise<JsonlSessionStorage> {
-    await this.createSession(session, cwd);
-    return JsonlSessionStorage.open(
+  ): Promise<JsonlConversationStorage> {
+    await this.createConversation(conversation, cwd);
+    return JsonlConversationStorage.open(
       new NodeExecutionEnv({ cwd }),
-      this.sessionPath(session.id),
+      this.conversationPath(conversation.id),
     );
   }
 
-  async createSession(session: SessionRecord, cwd: string): Promise<void> {
+  async createConversation(
+    conversation: ConversationRecord,
+    cwd: string,
+  ): Promise<void> {
     try {
-      const path = this.sessionPath(session.id);
+      const path = this.conversationPath(conversation.id);
       if (await pathExists(path)) return;
       const env = new NodeExecutionEnv({ cwd });
-      await JsonlSessionStorage.create(env, path, {
+      await JsonlConversationStorage.create(env, path, {
         cwd,
-        sessionId: session.id,
+        conversationId: conversation.id,
       });
     } catch (error) {
       this.warnMirror(error);
@@ -50,11 +55,11 @@ export class HarnessManager {
     agent: AgentRecord,
     message: AgentMessage,
   ): Promise<{ id: string; timestamp: string }> {
-    const session = this.getSession(agent.sessionId);
-    const project = this.getProject(session.projectId);
-    const storage = await this.openStorage(session, project.dir);
-    const harnessSession = new Session(storage);
-    const id = await harnessSession.appendMessage(message);
+    const conversation = this.getConversation(agent.conversationId);
+    const project = this.getProject(conversation.projectId);
+    const storage = await this.openStorage(conversation, project.dir);
+    const harnessConversation = new Conversation(storage);
+    const id = await harnessConversation.appendMessage(message);
     const entry = await storage.getEntry(id);
     return {
       id,
@@ -62,15 +67,15 @@ export class HarnessManager {
     };
   }
 
-  async appendEntry(entry: SessionEntry): Promise<void> {
+  async appendEntry(entry: ConversationEntry): Promise<void> {
     if (entry.role === "system") return;
     try {
-      const session = this.getSession(entry.sessionId);
-      const project = this.getProject(session.projectId);
-      await this.createSession(session, project.dir);
-      const storage = await JsonlSessionStorage.open(
+      const conversation = this.getConversation(entry.conversationId);
+      const project = this.getProject(conversation.projectId);
+      await this.createConversation(conversation, project.dir);
+      const storage = await JsonlConversationStorage.open(
         new NodeExecutionEnv({ cwd: project.dir }),
-        this.sessionPath(session.id),
+        this.conversationPath(conversation.id),
       );
       await storage.appendEntry({
         type: "message",
@@ -90,13 +95,13 @@ export class HarnessManager {
 
   async appendSummaryEntry(
     agent: AgentRecord,
-    entry: SessionEntry,
+    entry: ConversationEntry,
     fromId: string,
   ): Promise<void> {
     try {
-      const session = this.getSession(entry.sessionId);
-      const project = this.getProject(session.projectId);
-      const storage = await this.openStorage(session, project.dir);
+      const conversation = this.getConversation(entry.conversationId);
+      const project = this.getProject(conversation.projectId);
+      const storage = await this.openStorage(conversation, project.dir);
       await storage.appendEntry({
         type: "branch_summary",
         id: entry.id,
@@ -113,15 +118,15 @@ export class HarnessManager {
   }
 
   async setLeaf(
-    session: SessionRecord,
+    conversation: ConversationRecord,
     entryId: string | undefined,
   ): Promise<void> {
     try {
-      const project = this.getProject(session.projectId);
-      await this.createSession(session, project.dir);
-      const storage = await JsonlSessionStorage.open(
+      const project = this.getProject(conversation.projectId);
+      await this.createConversation(conversation, project.dir);
+      const storage = await JsonlConversationStorage.open(
         new NodeExecutionEnv({ cwd: project.dir }),
-        this.sessionPath(session.id),
+        this.conversationPath(conversation.id),
       );
       await storage.setLeafId(entryId ?? null);
     } catch (error) {
@@ -131,13 +136,13 @@ export class HarnessManager {
 
   warnMirror(error: unknown): void {
     process.emitWarning(
-      `Failed to update harness JSONL session mirror: ${
+      `Failed to update harness JSONL conversation mirror: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
   }
 
-  sessionPath(sessionId: string): string {
-    return this.sessionRepository.harnessPath(sessionId);
+  conversationPath(conversationId: string): string {
+    return this.conversationRepository.harnessPath(conversationId);
   }
 }

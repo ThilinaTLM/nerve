@@ -5,7 +5,7 @@ import {
   composerDraft,
   loadThemePreference,
 } from "../state/app-state.svelte";
-import { restoreConversationTabs } from "../stores/session-flow.svelte";
+import { restoreConversationTabs } from "../stores/conversation-flow.svelte";
 import { loadSettingsPanel } from "../stores/settings.svelte";
 import { workbenchState } from "../stores/workbench/state.svelte";
 import {

@@ -41,7 +41,13 @@ async function fixture() {
       return currentAgent;
     },
   );
-  return { root, plans, get agent() { return currentAgent; } };
+  return {
+    root,
+    plans,
+    get agent() {
+      return currentAgent;
+    },
+  };
 }
 
 describe("PlanService", () => {
@@ -51,11 +57,9 @@ describe("PlanService", () => {
     await mkdir(fx.plans.planDir(fx.agent), { recursive: true });
     await writeFile(planPath, "# Accepted\n", "utf8");
 
-    const pending = fx.plans.presentPlan(
-      toolCall(planPath),
-      fx.agent,
-      { file_path: planPath },
-    );
+    const pending = fx.plans.presentPlan(toolCall(planPath), fx.agent, {
+      file_path: planPath,
+    });
     let review = fx.plans.listPlanReviews("pending")[0];
     for (let attempt = 0; !review && attempt < 20; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -80,11 +84,9 @@ describe("PlanService", () => {
     await mkdir(fx.plans.planDir(fx.agent), { recursive: true });
     await writeFile(planPath, "# Rejected\n", "utf8");
 
-    const pending = fx.plans.presentPlan(
-      toolCall(planPath),
-      fx.agent,
-      { file_path: planPath },
-    );
+    const pending = fx.plans.presentPlan(toolCall(planPath), fx.agent, {
+      file_path: planPath,
+    });
     let review = fx.plans.listPlanReviews("pending")[0];
     for (let attempt = 0; !review && attempt < 20; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -135,7 +137,7 @@ describe("PlanService", () => {
 function agent(): AgentRecord {
   return {
     id: "agent_01HN0000000000000000000000",
-    sessionId: "ses_01HN0000000000000000000000",
+    conversationId: "conv_01HN0000000000000000000000",
     projectId: "proj_01HN0000000000000000000000",
     projectDir: "/tmp/project",
     workerId: "worker_01HN0000000000000000000000",
@@ -154,7 +156,7 @@ function toolCall(planPath: string): ToolCallRecord {
   return {
     id: "tool_01HN0000000000000000000000",
     agentId: "agent_01HN0000000000000000000000",
-    sessionId: "ses_01HN0000000000000000000000",
+    conversationId: "conv_01HN0000000000000000000000",
     projectId: "proj_01HN0000000000000000000000",
     toolName: "plan_mode_present",
     risk: "interaction",

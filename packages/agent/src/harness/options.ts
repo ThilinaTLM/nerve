@@ -9,8 +9,8 @@ import type {
   QueueMode,
   ThinkingLevel,
 } from "../types.js";
+import type { Conversation } from "./conversation/conversation.js";
 import type { ExecutionEnv } from "./env/types.js";
-import type { Session } from "./session/session.js";
 
 /**
  * Skill loaded from a `SKILL.md` file or provided by an application.
@@ -89,7 +89,7 @@ export interface AgentHarnessOptions<
   TTool extends AgentTool = AgentTool,
 > {
   env: ExecutionEnv;
-  session: Session;
+  conversation: Conversation;
   tools?: TTool[];
   /**
    * Concrete resources available to explicit invocation methods and system-prompt callbacks.
@@ -100,7 +100,7 @@ export interface AgentHarnessOptions<
     | string
     | ((context: {
         env: ExecutionEnv;
-        session: Session;
+        conversation: Conversation;
         model: AnyModel;
         thinkingLevel: ThinkingLevel;
         activeTools: TTool[];

@@ -5,8 +5,8 @@ import {
   computeContextUsage,
   estimateContextTokens,
 } from "../src/harness/compaction/compaction.js";
-import type { SessionTreeEntry } from "../src/harness/session/entries.js";
-import { buildSessionContext } from "../src/harness/session/session.js";
+import { buildConversationContext } from "../src/harness/conversation/conversation.js";
+import type { ConversationTreeEntry } from "../src/harness/conversation/entries.js";
 import type { AgentMessage } from "../src/types.js";
 
 const contextWindow = 200_000;
@@ -50,7 +50,7 @@ function messageEntry(
   id: string,
   message: AgentMessage,
   parentId: string | null = null,
-): SessionTreeEntry {
+): ConversationTreeEntry {
   return { type: "message", id, parentId, timestamp, message };
 }
 
@@ -58,7 +58,7 @@ function compactionEntry(
   id: string,
   firstKeptEntryId: string,
   parentId: string | null = null,
-): SessionTreeEntry {
+): ConversationTreeEntry {
   return {
     type: "compaction",
     id,
@@ -76,7 +76,7 @@ describe("context usage", () => {
       messageEntry("entry_1", user("hello")),
       messageEntry("entry_2", assistant("hi", 200), "entry_1"),
     ];
-    const messages = buildSessionContext(entries).messages;
+    const messages = buildConversationContext(entries).messages;
 
     assert.deepEqual(computeContextUsage(messages, entries, contextWindow), {
       tokens: 200,
@@ -95,7 +95,7 @@ describe("context usage", () => {
       compactionEntry("entry_5", keptUserId, "entry_4"),
       messageEntry("entry_6", user("third"), "entry_5"),
     ];
-    const messages = buildSessionContext(entries).messages;
+    const messages = buildConversationContext(entries).messages;
 
     assert.deepEqual(computeContextUsage(messages, entries, contextWindow), {
       tokens: null,
@@ -115,7 +115,7 @@ describe("context usage", () => {
       messageEntry("entry_6", user("third"), "entry_5"),
       messageEntry("entry_7", assistant("response3", 25_000), "entry_6"),
     ];
-    const messages = buildSessionContext(entries).messages;
+    const messages = buildConversationContext(entries).messages;
 
     assert.deepEqual(computeContextUsage(messages, entries, contextWindow), {
       tokens: 25_000,

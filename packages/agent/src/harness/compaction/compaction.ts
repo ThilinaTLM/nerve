@@ -7,6 +7,11 @@ import type {
 import { completeSimple } from "@earendil-works/pi-ai";
 import type { ContextUsage } from "@nerve/shared";
 import type { AgentMessage, AnyModel, ThinkingLevel } from "../../types.js";
+import { buildConversationContext } from "../conversation/conversation.js";
+import type {
+  CompactionEntry,
+  ConversationTreeEntry,
+} from "../conversation/entries.js";
 import { CompactionError } from "../errors.js";
 import {
   convertToLlm,
@@ -15,8 +20,6 @@ import {
   createCustomMessage,
 } from "../messages.js";
 import { err, ok, type Result } from "../result.js";
-import type { CompactionEntry, SessionTreeEntry } from "../session/entries.js";
-import { buildSessionContext } from "../session/session.js";
 import {
   computeFileLists,
   createFileOps,
@@ -43,7 +46,7 @@ function safeJsonStringify(value: unknown): string {
 
 function extractFileOperations(
   messages: AgentMessage[],
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
   prevCompactionIndex: number,
 ): FileOperations {
   const fileOps = createFileOps();
@@ -66,7 +69,7 @@ function extractFileOperations(
   return fileOps;
 }
 function getMessageFromEntry(
-  entry: SessionTreeEntry,
+  entry: ConversationTreeEntry,
 ): AgentMessage | undefined {
   if (entry.type === "message") {
     return entry.message as AgentMessage;
@@ -98,7 +101,7 @@ function getMessageFromEntry(
 }
 
 function getMessageFromEntryForCompaction(
-  entry: SessionTreeEntry,
+  entry: ConversationTreeEntry,
 ): AgentMessage | undefined {
   if (entry.type === "compaction") {
     return undefined;
@@ -156,9 +159,9 @@ function getAssistantUsage(msg: AgentMessage): Usage | undefined {
   return undefined;
 }
 
-/** Return usage from the last successful assistant message in session entries. */
+/** Return usage from the last successful assistant message in conversation entries. */
 export function getLastAssistantUsage(
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
 ): Usage | undefined {
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i];
@@ -237,7 +240,7 @@ export function shouldCompact(
 
 /** Return the most recent compaction entry in a branch, if any. */
 export function getLatestCompactionEntry(
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
 ): CompactionEntry | undefined {
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i];
@@ -249,19 +252,19 @@ export function getLatestCompactionEntry(
 /**
  * Compute compaction-aware context-window usage.
  *
- * Mirrors pi's `AgentSession.getContextUsage()`:
+ * Mirrors pi's `AgentConversation.getContextUsage()`:
  * - `contextWindow <= 0` -> usage unknown (`tokens`/`percent` null).
  * - After the latest compaction, usage is unknown until a fresh, non-aborted
  *   assistant response provides usage again.
  * - Otherwise estimate from messages and report a percentage of the window.
  *
- * @param messages Reconstructed branch messages (e.g. from `buildSessionContext`).
+ * @param messages Reconstructed branch messages (e.g. from `buildConversationContext`).
  * @param branchEntries Raw branch entries used to detect the compaction boundary.
  * @param contextWindow The selected model's context window (0 when unknown).
  */
 export function computeContextUsage(
   messages: AgentMessage[],
-  branchEntries: SessionTreeEntry[],
+  branchEntries: ConversationTreeEntry[],
   contextWindow: number,
 ): ContextUsage {
   if (contextWindow <= 0) {
@@ -360,7 +363,7 @@ export function estimateTokens(message: AgentMessage): number {
   return 0;
 }
 function findValidCutPoints(
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
   startIndex: number,
   endIndex: number,
 ): number[] {
@@ -392,7 +395,7 @@ function findValidCutPoints(
       case "custom":
       case "custom_message":
       case "label":
-      case "session_info":
+      case "conversation_info":
       case "leaf":
         break;
     }
@@ -405,7 +408,7 @@ function findValidCutPoints(
 
 /** Find the user-visible message that starts the turn containing an entry. */
 export function findTurnStartIndex(
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
   entryIndex: number,
   startIndex: number,
 ): number {
@@ -436,7 +439,7 @@ export interface CutPointResult {
 
 /** Find the compaction cut point that keeps approximately the requested recent-token budget. */
 export function findCutPoint(
-  entries: SessionTreeEntry[],
+  entries: ConversationTreeEntry[],
   startIndex: number,
   endIndex: number,
   keepRecentTokens: number,
@@ -501,7 +504,7 @@ const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize
 Use this EXACT format:
 
 ## Goal
-[What is the user trying to accomplish? Can be multiple items if the session covers different tasks.]
+[What is the user trying to accomplish? Can be multiple items if the conversation covers different tasks.]
 
 ## Constraints & Preferences
 - [Any constraints, preferences, or requirements mentioned by user]
@@ -664,9 +667,9 @@ export interface CompactionPreparation {
   settings: CompactionSettings;
 }
 
-/** Prepare session entries for compaction, or return undefined when compaction is not applicable. */
+/** Prepare conversation entries for compaction, or return undefined when compaction is not applicable. */
 export function prepareCompaction(
-  pathEntries: SessionTreeEntry[],
+  pathEntries: ConversationTreeEntry[],
   settings: CompactionSettings,
 ): Result<CompactionPreparation | undefined, CompactionError> {
   if (
@@ -698,7 +701,7 @@ export function prepareCompaction(
   const boundaryEnd = pathEntries.length;
 
   const tokensBefore = estimateContextTokens(
-    buildSessionContext(pathEntries).messages,
+    buildConversationContext(pathEntries).messages,
   ).tokens;
 
   const cutPoint = findCutPoint(
@@ -711,8 +714,8 @@ export function prepareCompaction(
   if (!firstKeptEntry?.id) {
     return err(
       new CompactionError(
-        "invalid_session",
-        "First kept entry has no UUID - session may need migration",
+        "invalid_conversation",
+        "First kept entry has no UUID - conversation history is invalid",
       ),
     );
   }
@@ -777,7 +780,7 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
 
 export { serializeConversation } from "./utils.js";
 
-/** Generate compaction summary data from prepared session history. */
+/** Generate compaction summary data from prepared conversation history. */
 export async function compact(
   preparation: CompactionPreparation,
   model: AnyModel,
@@ -801,8 +804,8 @@ export async function compact(
   if (!firstKeptEntryId) {
     return err(
       new CompactionError(
-        "invalid_session",
-        "First kept entry has no UUID - session may need migration",
+        "invalid_conversation",
+        "First kept entry has no UUID - conversation history is invalid",
       ),
     );
   }

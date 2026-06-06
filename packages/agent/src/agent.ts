@@ -138,7 +138,7 @@ export interface AgentOptions {
     | undefined;
   steeringMode?: QueueMode;
   followUpMode?: QueueMode;
-  sessionId?: string;
+  conversationId?: string;
   thinkingBudgets?: ThinkingBudgets;
   transport?: Transport;
   maxRetryDelayMs?: number;
@@ -229,8 +229,8 @@ export class Agent {
     | AgentLoopTurnUpdate
     | undefined;
   private activeRun?: ActiveRun;
-  /** Session identifier forwarded to providers for cache-aware backends. */
-  public sessionId?: string;
+  /** Conversation identifier forwarded to providers for cache-aware backends. */
+  public conversationId?: string;
   /** Optional per-level thinking token budgets forwarded to the stream function. */
   public thinkingBudgets?: ThinkingBudgets;
   /** Preferred transport forwarded to the stream function. */
@@ -257,7 +257,7 @@ export class Agent {
     this.followUpQueue = new PendingMessageQueue(
       options.followUpMode ?? "one-at-a-time",
     );
-    this.sessionId = options.sessionId;
+    this.conversationId = options.conversationId;
     this.thinkingBudgets = options.thinkingBudgets;
     this.transport = options.transport ?? "auto";
     this.maxRetryDelayMs = options.maxRetryDelayMs;
@@ -486,7 +486,7 @@ export class Agent {
         this._state.thinkingLevel === "off"
           ? undefined
           : this._state.thinkingLevel,
-      sessionId: this.sessionId,
+      sessionId: this.conversationId,
       onPayload: this.onPayload,
       onResponse: this.onResponse,
       transport: this.transport,

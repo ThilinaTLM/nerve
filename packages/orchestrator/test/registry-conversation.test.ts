@@ -21,59 +21,62 @@ async function tempHome(prefix: string): Promise<string> {
   return root;
 }
 
-async function createState(prefix = "nerve-registry-session-") {
+async function createState(prefix = "nerve-registry-conversation-") {
   const storage = await initializeStorage(await tempHome(prefix));
   const state = createOrchestratorState(storage, "127.0.0.1", 0);
   await state.registry.hydrate();
   return state;
 }
 
-const oldSessionId = "ses_01HN0000000000000000000000";
+const oldConversationId = "conv_01HN0000000000000000000000";
 const oldAgentId = "agent_01HN0000000000000000000000";
 const firstEntryId = "entry_01HN0000000000000000000000";
 const secondEntryId = "entry_01HN0000000000000000000001";
 const createdAt = "2026-01-01T00:00:00.000Z";
 
-describe("RuntimeRegistry session behavior", () => {
-  it("creates projects, sessions, and agents through public APIs", async () => {
+describe("RuntimeRegistry conversation behavior", () => {
+  it("creates projects, conversations, and agents through public APIs", async () => {
     const state = await createState();
     try {
       const project = await state.registry.createProject({
         dir: state.storage.paths.home,
       });
-      const session = await state.registry.createSession({
+      const conversation = await state.registry.createConversation({
         projectId: project.id,
       });
       const agent = await state.registry.createAgent({
         projectId: project.id,
-        sessionId: session.id,
+        conversationId: conversation.id,
       });
 
       assert.equal(state.registry.getProject(project.id).id, project.id);
       assert.equal(
-        state.registry.getSession(session.id).activeAgentId,
+        state.registry.getConversation(conversation.id).activeAgentId,
         agent.id,
       );
-      assert.equal(state.registry.getAgent(agent.id).sessionId, session.id);
+      assert.equal(
+        state.registry.getAgent(agent.id).conversationId,
+        conversation.id,
+      );
     } finally {
       state.index.close();
     }
   });
 
-  it("imports, navigates, exports, and remaps session entries", async () => {
+  it("imports, navigates, exports, and remaps conversation entries", async () => {
     const state = await createState("nerve-registry-import-");
     try {
-      const imported = await state.registry.importSession({
+      const imported = await state.registry.importConversation({
         project: { dir: state.storage.paths.home, name: "Imported Project" },
-        session: {
-          title: "Imported Session",
+        conversation: {
+          title: "Imported Conversation",
           mode: "coding",
           permissionLevel: "supervised",
         },
         agents: [
           {
             id: oldAgentId,
-            sessionId: oldSessionId,
+            conversationId: oldConversationId,
             projectId: "proj_01HN0000000000000000000000",
             projectDir: state.storage.paths.home,
             rootAgentId: oldAgentId,
@@ -89,7 +92,7 @@ describe("RuntimeRegistry session behavior", () => {
         entries: [
           {
             id: firstEntryId,
-            sessionId: oldSessionId,
+            conversationId: oldConversationId,
             agentId: oldAgentId,
             role: "user",
             kind: "message",
@@ -98,7 +101,7 @@ describe("RuntimeRegistry session behavior", () => {
           },
           {
             id: secondEntryId,
-            sessionId: oldSessionId,
+            conversationId: oldConversationId,
             agentId: oldAgentId,
             parentEntryId: firstEntryId,
             role: "assistant",
@@ -110,23 +113,28 @@ describe("RuntimeRegistry session behavior", () => {
       });
 
       assert.equal(imported.entries.length, 2);
-      assert.notEqual(imported.session.id, oldSessionId);
+      assert.notEqual(imported.conversation.id, oldConversationId);
       assert.notEqual(imported.agents[0]?.id, oldAgentId);
       assert.notEqual(imported.entries[0]?.id, firstEntryId);
       assert.equal(imported.entries[1]?.parentEntryId, imported.entries[0]?.id);
-      assert.equal(imported.session.activeEntryId, imported.entries[1]?.id);
+      assert.equal(
+        imported.conversation.activeEntryId,
+        imported.entries[1]?.id,
+      );
 
-      await state.registry.navigateSession(imported.session.id, {
+      await state.registry.navigateConversation(imported.conversation.id, {
         activeEntryId: imported.entries[0]?.id ?? null,
       });
       assert.deepEqual(
         state.registry
-          .getSessionEntries(imported.session.id)
+          .getConversationEntries(imported.conversation.id)
           .map((entry) => entry.text),
         ["Hello"],
       );
 
-      const exported = state.registry.exportSession(imported.session.id);
+      const exported = state.registry.exportConversation(
+        imported.conversation.id,
+      );
       assert.equal(exported.entries.length, 2);
       assert.equal(exported.entries[1]?.parentEntryId, exported.entries[0]?.id);
     } finally {
@@ -136,8 +144,8 @@ describe("RuntimeRegistry session behavior", () => {
 
   it("repairs display parents that point at skipped harness metadata entries", () => {
     const repository = new EntryRepository({} as InitializedStorage);
-    const session = {
-      id: "ses_01HN0000000000000000000001",
+    const conversation = {
+      id: "conv_01HN0000000000000000000001",
       projectId: "proj_01HN0000000000000000000001",
       title: "Missing metadata parent",
       mode: "coding",
@@ -149,7 +157,7 @@ describe("RuntimeRegistry session behavior", () => {
     const entries = [
       {
         id: "entry_01HN0000000000000000000002",
-        sessionId: session.id,
+        conversationId: conversation.id,
         role: "user",
         kind: "message",
         text: "Start",
@@ -157,7 +165,7 @@ describe("RuntimeRegistry session behavior", () => {
       },
       {
         id: "entry_01HN0000000000000000000003",
-        sessionId: session.id,
+        conversationId: conversation.id,
         parentEntryId: "entry_01HN0000000000000000000002",
         role: "system",
         kind: "message",
@@ -166,7 +174,7 @@ describe("RuntimeRegistry session behavior", () => {
       },
       {
         id: "entry_01HN0000000000000000000005",
-        sessionId: session.id,
+        conversationId: conversation.id,
         parentEntryId: "entry_01HN0000000000000000000004",
         role: "assistant",
         kind: "message",
@@ -174,16 +182,19 @@ describe("RuntimeRegistry session behavior", () => {
         createdAt,
       },
     ] as const;
-    const entriesBySessionId = new Map([[session.id, [...entries]]]);
+    const entriesByConversationId = new Map([[conversation.id, [...entries]]]);
 
     assert.deepEqual(
       repository
-        .activeBranchEntries(entriesBySessionId, session)
+        .activeBranchEntries(entriesByConversationId, conversation)
         .map((entry) => entry.text),
       ["Start", "Plan accepted", "Continue after active tools change"],
     );
 
-    const tree = repository.getSessionTree(entriesBySessionId, session);
+    const tree = repository.getConversationTree(
+      entriesByConversationId,
+      conversation,
+    );
     const ids = new Set(tree.nodes.map((node) => node.entry.id));
     assert.equal(
       tree.nodes.every(
@@ -193,8 +204,8 @@ describe("RuntimeRegistry session behavior", () => {
       true,
     );
     assert.equal(
-      tree.nodes.find((node) => node.entry.id === session.activeEntryId)?.entry
-        .parentEntryId,
+      tree.nodes.find((node) => node.entry.id === conversation.activeEntryId)
+        ?.entry.parentEntryId,
       "entry_01HN0000000000000000000003",
     );
   });

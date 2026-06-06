@@ -3,8 +3,8 @@ import {
   type ConversationActiveRunSnapshot,
   type ConversationLiveContentDeltaData,
   type ConversationLiveContentDoneData,
-  type ConversationLiveMessageStartedData,
   type ConversationLiveMessageSnapshot,
+  type ConversationLiveMessageStartedData,
   type ConversationLiveTextBlockSnapshot,
   type ConversationLiveToolDraftBlockSnapshot,
   type ConversationLiveToolDraftDeltaData,
@@ -17,7 +17,7 @@ import {
 } from "@nerve/shared";
 
 export interface StartRunInput {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId: string;
@@ -41,7 +41,9 @@ interface MutableTurn extends ConversationLiveTurnSnapshot {
 }
 
 interface MutableMessage extends ConversationLiveMessageSnapshot {
-  blocks: Array<ConversationLiveTextBlockSnapshot | ConversationLiveToolDraftBlockSnapshot>;
+  blocks: Array<
+    ConversationLiveTextBlockSnapshot | ConversationLiveToolDraftBlockSnapshot
+  >;
 }
 
 const MAX_LIVE_TOOL_OUTPUT_CHARS = 32_000;
@@ -50,8 +52,11 @@ const MAX_LIVE_TOOL_OUTPUT_CHUNKS = 400;
 export class ConversationRuntime {
   private readonly runsByRunId = new Map<string, MutableRun>();
   private readonly runIdByAgentId = new Map<string, string>();
-  private readonly runIdBySessionId = new Map<string, string>();
-  private readonly draftAnchorByProviderToolCallId = new Map<string, ToolAnchor>();
+  private readonly runIdByConversationId = new Map<string, string>();
+  private readonly draftAnchorByProviderToolCallId = new Map<
+    string,
+    ToolAnchor
+  >();
 
   startRun(input: StartRunInput): ConversationActiveRunSnapshot {
     const startedAt = input.startedAt ?? new Date().toISOString();
@@ -59,7 +64,7 @@ export class ConversationRuntime {
       runId: input.runId,
       agentId: input.agentId,
       projectId: input.projectId,
-      sessionId: input.sessionId,
+      conversationId: input.conversationId,
       status: "running",
       startedAt,
       turns: [],
@@ -67,7 +72,7 @@ export class ConversationRuntime {
     };
     this.runsByRunId.set(input.runId, run);
     this.runIdByAgentId.set(input.agentId, input.runId);
-    this.runIdBySessionId.set(input.sessionId, input.runId);
+    this.runIdByConversationId.set(input.conversationId, input.runId);
     return cloneRun(run);
   }
 
@@ -83,12 +88,14 @@ export class ConversationRuntime {
     if (!run) return;
     this.runsByRunId.delete(runId);
     this.runIdByAgentId.delete(run.agentId);
-    this.runIdBySessionId.delete(run.sessionId);
+    this.runIdByConversationId.delete(run.conversationId);
     for (const turn of run.turns) {
       for (const message of turn.messages) {
         for (const block of message.blocks) {
           if (block.kind === "tool_call_draft" && block.providerToolCallId) {
-            this.draftAnchorByProviderToolCallId.delete(block.providerToolCallId);
+            this.draftAnchorByProviderToolCallId.delete(
+              block.providerToolCallId,
+            );
           }
         }
       }
@@ -131,7 +138,7 @@ export class ConversationRuntime {
     };
     turn.messages.push(message);
     return {
-      sessionId: run.sessionId,
+      conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
       runId,
@@ -155,7 +162,7 @@ export class ConversationRuntime {
     const offset = block.text.length;
     block.text += input.delta;
     return {
-      sessionId: run.sessionId,
+      conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
       runId: input.runId,
@@ -184,7 +191,7 @@ export class ConversationRuntime {
     block.done = true;
     block.redacted = input.redacted;
     return {
-      sessionId: run.sessionId,
+      conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
       runId: input.runId,
@@ -208,11 +215,13 @@ export class ConversationRuntime {
   }): ConversationLiveToolDraftStartedData {
     const { run, message } = this.requireMessage(input);
     const block = this.ensureToolDraftBlock(message, input.contentIndex);
-    block.providerToolCallId = input.providerToolCallId ?? block.providerToolCallId;
+    block.providerToolCallId =
+      input.providerToolCallId ?? block.providerToolCallId;
     block.toolName = input.toolName ?? block.toolName;
-    if (block.providerToolCallId) this.rememberToolAnchor(input, block.providerToolCallId);
+    if (block.providerToolCallId)
+      this.rememberToolAnchor(input, block.providerToolCallId);
     return {
-      sessionId: run.sessionId,
+      conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
       runId: input.runId,
@@ -237,7 +246,7 @@ export class ConversationRuntime {
     const offset = block.argsText.length;
     block.argsText += input.delta;
     return {
-      sessionId: run.sessionId,
+      conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
       runId: input.runId,
@@ -267,7 +276,7 @@ export class ConversationRuntime {
     block.done = true;
     this.rememberToolAnchor(input, input.providerToolCallId);
     return {
-      sessionId: run.sessionId,
+      conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
       runId: input.runId,
@@ -282,7 +291,7 @@ export class ConversationRuntime {
   }
 
   applyToolOutputDelta(input: {
-    sessionId: string;
+    conversationId: string;
     agentId: string;
     projectId: string;
     runId?: string;
@@ -312,7 +321,7 @@ export class ConversationRuntime {
       run.toolOutputsByToolCallId[input.toolCallId] = output;
     }
     return {
-      sessionId: input.sessionId,
+      conversationId: input.conversationId,
       agentId: input.agentId,
       projectId: input.projectId,
       runId: input.runId,
@@ -328,19 +337,29 @@ export class ConversationRuntime {
     };
   }
 
-  snapshotForSession(sessionId: string): ConversationActiveRunSnapshot | undefined {
-    const runId = this.runIdBySessionId.get(sessionId);
+  snapshotForConversation(
+    conversationId: string,
+  ): ConversationActiveRunSnapshot | undefined {
+    const runId = this.runIdByConversationId.get(conversationId);
     const run = runId ? this.runsByRunId.get(runId) : undefined;
     return run ? cloneRun(run) : undefined;
   }
 
-  resolveToolAnchor(runId: string, providerToolCallId: string): ToolAnchor | undefined {
+  resolveToolAnchor(
+    runId: string,
+    providerToolCallId: string,
+  ): ToolAnchor | undefined {
     const anchor = this.draftAnchorByProviderToolCallId.get(providerToolCallId);
     return anchor && anchor.runId === runId ? { ...anchor } : undefined;
   }
 
   private rememberToolAnchor(
-    input: { runId: string; turnId: string; liveMessageId: string; contentIndex: number },
+    input: {
+      runId: string;
+      turnId: string;
+      liveMessageId: string;
+      contentIndex: number;
+    },
     providerToolCallId: string,
   ): void {
     this.draftAnchorByProviderToolCallId.set(providerToolCallId, {
@@ -386,7 +405,8 @@ export class ConversationRuntime {
     kind: AgentMessageContentKind,
   ): ConversationLiveTextBlockSnapshot {
     const existing = message.blocks.find(
-      (block) => block.contentIndex === contentIndex && block.kind !== "tool_call_draft",
+      (block) =>
+        block.contentIndex === contentIndex && block.kind !== "tool_call_draft",
     );
     if (existing && existing.kind !== "tool_call_draft") return existing;
     const block: ConversationLiveTextBlockSnapshot = {
@@ -406,7 +426,8 @@ export class ConversationRuntime {
     contentIndex: number,
   ): ConversationLiveToolDraftBlockSnapshot {
     const existing = message.blocks.find(
-      (block) => block.contentIndex === contentIndex && block.kind === "tool_call_draft",
+      (block) =>
+        block.contentIndex === contentIndex && block.kind === "tool_call_draft",
     );
     if (existing?.kind === "tool_call_draft") return existing;
     const block: ConversationLiveToolDraftBlockSnapshot = {

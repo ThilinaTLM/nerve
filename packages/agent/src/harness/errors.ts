@@ -54,7 +54,7 @@ export class ExecutionError extends Error {
 export type CompactionErrorCode =
   | "aborted"
   | "summarization_failed"
-  | "invalid_session"
+  | "invalid_conversation"
   | "unknown";
 
 /** Error returned by compaction helpers. */
@@ -73,7 +73,7 @@ export class CompactionError extends Error {
 export type BranchSummaryErrorCode =
   | "aborted"
   | "summarization_failed"
-  | "invalid_session";
+  | "invalid_conversation";
 
 /** Error returned by branch summarization helpers. */
 export class BranchSummaryError extends Error {
@@ -87,22 +87,22 @@ export class BranchSummaryError extends Error {
   }
 }
 
-export type SessionErrorCode =
+export type ConversationErrorCode =
   | "not_found"
-  | "invalid_session"
+  | "invalid_conversation"
   | "invalid_entry"
   | "invalid_fork_target"
   | "storage"
   | "unknown";
 
-/** Error thrown by session storage, repositories, and session tree operations. */
-export class SessionError extends Error {
-  /** Session subsystem error code. */
-  public code: SessionErrorCode;
+/** Error thrown by conversation storage, repositories, and conversation tree operations. */
+export class ConversationError extends Error {
+  /** Conversation subsystem error code. */
+  public code: ConversationErrorCode;
 
-  constructor(code: SessionErrorCode, message: string, cause?: Error) {
+  constructor(code: ConversationErrorCode, message: string, cause?: Error) {
     super(message, cause === undefined ? undefined : { cause });
-    this.name = "SessionError";
+    this.name = "ConversationError";
     this.code = code;
   }
 }
@@ -111,7 +111,7 @@ export type AgentHarnessErrorCode =
   | "busy"
   | "invalid_state"
   | "invalid_argument"
-  | "session"
+  | "conversation"
   | "hook"
   | "auth"
   | "compaction"

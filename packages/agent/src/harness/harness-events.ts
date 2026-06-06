@@ -3,7 +3,7 @@ import {
   AgentHarnessError,
   BranchSummaryError,
   CompactionError,
-  SessionError,
+  ConversationError,
 } from "./errors.js";
 import type {
   AgentHarnessEvent,
@@ -34,8 +34,8 @@ export function normalizeHarnessError(
 ): AgentHarnessError {
   if (error instanceof AgentHarnessError) return error;
   const cause = toError(error);
-  if (cause instanceof SessionError)
-    return new AgentHarnessError("session", cause.message, cause);
+  if (cause instanceof ConversationError)
+    return new AgentHarnessError("conversation", cause.message, cause);
   if (cause instanceof CompactionError)
     return new AgentHarnessError("compaction", cause.message, cause);
   if (cause instanceof BranchSummaryError)
@@ -106,7 +106,7 @@ export class AgentHarnessEventHub<
 
   async emitBeforeProviderRequest(
     model: AnyModel,
-    sessionId: string,
+    conversationId: string,
     streamOptions: AgentHarnessStreamOptions,
   ): Promise<AgentHarnessStreamOptions> {
     const handlers = this.getHandlers("before_provider_request");
@@ -117,7 +117,7 @@ export class AgentHarnessEventHub<
         const result = (await handler({
           type: "before_provider_request",
           model,
-          sessionId,
+          conversationId,
           streamOptions: cloneStreamOptions(current),
         })) as AgentHarnessEventResultMap["before_provider_request"];
         if (result?.streamOptions) {

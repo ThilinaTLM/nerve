@@ -1,31 +1,31 @@
 import type {
   AgentMessage,
-  JsonlSessionStorage,
-  SessionTreeEntry,
+  ConversationTreeEntry,
+  JsonlConversationStorage,
 } from "@nerve/agent";
 import type {
   AgentRecord,
-  SessionEntry,
-  SessionEntryUsage,
-  SessionRecord,
+  ConversationEntry,
+  ConversationEntryUsage,
+  ConversationRecord,
 } from "@nerve/shared";
+import { deriveConversationTitle } from "../conversation-operations/index.js";
 import type { EventBus } from "../events.js";
-import { deriveSessionTitle } from "../session-operations/index.js";
 
 export interface AppendEntryInput {
   id?: string;
-  sessionId: string;
+  conversationId: string;
   agentId?: string;
   runId?: string;
   turnId?: string;
   liveMessageId?: string;
   parentEntryId?: string | null;
-  role: SessionEntry["role"];
-  kind?: SessionEntry["kind"];
+  role: ConversationEntry["role"];
+  kind?: ConversationEntry["kind"];
   text: string;
   summary?: string;
   tokensBefore?: number;
-  usage?: SessionEntryUsage;
+  usage?: ConversationEntryUsage;
   firstKeptEntryId?: string;
   fromEntryId?: string;
   details?: unknown;
@@ -35,13 +35,13 @@ export interface AppendEntryInput {
 export type AppendEntryFn = (
   input: AppendEntryInput,
   options?: { mirrorToHarness?: boolean },
-) => Promise<SessionEntry>;
+) => Promise<ConversationEntry>;
 
 export interface MessageMirrorDeps {
-  entries: Map<string, SessionEntry[]>;
-  sessions: Map<string, SessionRecord>;
+  entries: Map<string, ConversationEntry[]>;
+  conversations: Map<string, ConversationRecord>;
   appendEntry: AppendEntryFn;
-  updateSession: (session: SessionRecord) => Promise<void>;
+  updateConversation: (conversation: ConversationRecord) => Promise<void>;
   events: EventBus;
 }
 
@@ -50,14 +50,16 @@ export class MessageMirror {
 
   async mirrorNewHarnessEntries(
     agent: AgentRecord,
-    storage: JsonlSessionStorage,
+    storage: JsonlConversationStorage,
     knownEntryIds: Set<string>,
     metadata: { runId?: string; turnId?: string; liveMessageId?: string } = {},
-  ): Promise<SessionEntry[]> {
-    const mirrored: SessionEntry[] = [];
+  ): Promise<ConversationEntry[]> {
+    const mirrored: ConversationEntry[] = [];
     const storageEntries = await storage.getEntries();
     const visibleEntryIds = new Set(
-      (this.deps.entries.get(agent.sessionId) ?? []).map((entry) => entry.id),
+      (this.deps.entries.get(agent.conversationId) ?? []).map(
+        (entry) => entry.id,
+      ),
     );
     for (const entry of storageEntries) {
       if (knownEntryIds.has(entry.id)) continue;
@@ -70,12 +72,12 @@ export class MessageMirror {
       ) {
         continue;
       }
-      const role: SessionEntry["role"] =
+      const role: ConversationEntry["role"] =
         entry.message.role === "toolResult" ? "system" : entry.message.role;
       const uiEntry = await this.deps.appendEntry(
         {
           id: entry.id,
-          sessionId: agent.sessionId,
+          conversationId: agent.conversationId,
           agentId: agent.id,
           runId: metadata.runId,
           turnId: metadata.turnId,
@@ -100,32 +102,32 @@ export class MessageMirror {
     return mirrored;
   }
 
-  async maybeDeriveInitialSessionTitle(
-    sessionId: string,
+  async maybeDeriveInitialConversationTitle(
+    conversationId: string,
     text: string,
   ): Promise<void> {
-    const session = this.deps.sessions.get(sessionId);
-    if (!session) return;
-    const userEntryCount = (this.deps.entries.get(session.id) ?? []).filter(
-      (entry) => entry.role === "user",
-    ).length;
+    const conversation = this.deps.conversations.get(conversationId);
+    if (!conversation) return;
+    const userEntryCount = (
+      this.deps.entries.get(conversation.id) ?? []
+    ).filter((entry) => entry.role === "user").length;
     if (userEntryCount !== 1) return;
-    const title = deriveSessionTitle(text);
-    if (!title || title === session.title) return;
-    await this.deps.updateSession({
-      ...session,
+    const title = deriveConversationTitle(text);
+    if (!title || title === conversation.title) return;
+    await this.deps.updateConversation({
+      ...conversation,
       title,
       updatedAt: new Date().toISOString(),
     });
-    await this.deps.events.publish("session.updated", {
-      session: this.deps.sessions.get(session.id),
+    await this.deps.events.publish("conversation.updated", {
+      conversation: this.deps.conversations.get(conversation.id),
     });
   }
 }
 
 function resolveVisibleParentId(
   parentId: string | null | undefined,
-  storageEntries: SessionTreeEntry[],
+  storageEntries: ConversationTreeEntry[],
   visibleEntryIds: Set<string>,
 ): string | undefined {
   const rawEntriesById = new Map(
@@ -159,7 +161,7 @@ function entryDetails(message: AgentMessage): unknown {
 
 function extractEntryUsage(
   message: AgentMessage,
-): SessionEntryUsage | undefined {
+): ConversationEntryUsage | undefined {
   if (message.role !== "assistant") return undefined;
   if (message.stopReason === "aborted" || message.stopReason === "error") {
     return undefined;

@@ -12,7 +12,10 @@ export async function ensurePlanDir(storageHome: string): Promise<string> {
   return dir;
 }
 
-export function isPathInsidePlanDir(planDir: string, candidatePath: string): boolean {
+export function isPathInsidePlanDir(
+  planDir: string,
+  candidatePath: string,
+): boolean {
   const relativePath = relative(planDir, candidatePath);
   return (
     relativePath === "" ||

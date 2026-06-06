@@ -3,8 +3,8 @@
     AgentRecord,
     ProcessRecord,
     ProjectRecord,
-    SessionRecord,
-    SessionTreeNode,
+    ConversationRecord,
+    ConversationTreeNode,
     StatusResponse,
   } from "../../api";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
@@ -20,10 +20,10 @@
     activeTab?: UtilityTab;
     status?: StatusResponse;
     activeProject?: ProjectRecord;
-    activeSession?: SessionRecord;
+    activeConversation?: ConversationRecord;
     activeAgent?: AgentRecord;
-    sessionAgents?: AgentRecord[];
-    treeNodes?: SessionTreeNode[];
+    conversationAgents?: AgentRecord[];
+    treeNodes?: ConversationTreeNode[];
     processes?: ProcessRecord[];
     selectedProcess?: ProcessRecord;
     homeDir?: string;
@@ -44,9 +44,9 @@
     activeTab = $bindable<UtilityTab>("info"),
     status,
     activeProject,
-    activeSession,
+    activeConversation,
     activeAgent,
-    sessionAgents = [],
+    conversationAgents = [],
     treeNodes = [],
     processes = [],
     selectedProcess,
@@ -86,9 +86,9 @@
       <ContextTab
         {status}
         {activeProject}
-        {activeSession}
+        {activeConversation}
         {activeAgent}
-        {sessionAgents}
+        {conversationAgents}
         {exportUrl}
         {systemPromptUrl}
         {onSelectAgent}
@@ -105,7 +105,7 @@
         {onPruneProcesses}
       />
     {:else}
-      <HistoryTab {activeSession} {treeNodes} {onNavigateToEntry} {onCompact} />
+      <HistoryTab {activeConversation} {treeNodes} {onNavigateToEntry} {onCompact} />
     {/if}
   </ScrollArea>
 </aside>

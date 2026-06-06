@@ -182,7 +182,7 @@ export class ToolService {
     const toolCall: ToolCallRecord = {
       id: createId("tool"),
       agentId: latestAgent.id,
-      sessionId: latestAgent.sessionId,
+      conversationId: latestAgent.conversationId,
       projectId: latestAgent.projectId,
       toolName,
       sourceToolCallId: providerToolCallId,
@@ -203,7 +203,7 @@ export class ToolService {
     await this.events.publish("policy.evaluated", {
       toolCallId: toolCall.id,
       agentId: agent.id,
-      sessionId: agent.sessionId,
+      conversationId: agent.conversationId,
       projectId: agent.projectId,
       toolName,
       risk: evaluation.risk,
@@ -225,7 +225,7 @@ export class ToolService {
         id: createId("approval"),
         toolCallId: toolCall.id,
         agentId: agent.id,
-        sessionId: agent.sessionId,
+        conversationId: agent.conversationId,
         projectId: agent.projectId,
         risk: evaluation.risk,
         reason: evaluation.reason,
@@ -455,7 +455,7 @@ export class ToolService {
             name: typeof args.name === "string" ? args.name : undefined,
             workerId: this.getAgent(toolCall.agentId).workerId,
             projectId: toolCall.projectId,
-            sessionId: toolCall.sessionId,
+            conversationId: toolCall.conversationId,
             agentId: toolCall.agentId,
             cwd: toolCall.cwd,
             command: stringArg(args, "command"),
@@ -567,7 +567,7 @@ export class ToolService {
       contentIndex: toolCall.contentIndex,
       providerToolCallId:
         toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
-      sessionId: toolCall.sessionId,
+      conversationId: toolCall.conversationId,
       projectId: toolCall.projectId,
       toolCallId: toolCall.id,
       toolName: toolCall.toolName,
@@ -652,7 +652,7 @@ export class ToolService {
       id: createId("question"),
       toolCallId: toolCall.id,
       agentId: toolCall.agentId,
-      sessionId: toolCall.sessionId,
+      conversationId: toolCall.conversationId,
       projectId: toolCall.projectId,
       question: stringArg(args, "question"),
       context: optionalStringArg(args.context),
@@ -744,7 +744,7 @@ export class ToolService {
     toolCall: ToolCallRecord,
   ): Promise<void> {
     await this.events.publish("conversation.tool_call.updated", {
-      sessionId: toolCall.sessionId,
+      conversationId: toolCall.conversationId,
       agentId: toolCall.agentId,
       projectId: toolCall.projectId,
       runId: toolCall.runId,

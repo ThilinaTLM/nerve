@@ -15,7 +15,7 @@ function toolCall(
   return {
     id: "tool_01H00000000000000000000000",
     agentId: "agent_01H00000000000000000000000",
-    sessionId: "ses_01H00000000000000000000000",
+    conversationId: "conv_01H00000000000000000000000",
     projectId: "proj_01H0000000000000000000000",
     toolName,
     risk: "read",
@@ -378,7 +378,7 @@ describe("parseToolView", () => {
         {
           agent: {
             id: "agent_02H00000000000000000000000",
-            sessionId: "ses_01H00000000000000000000000",
+            conversationId: "conv_01H00000000000000000000000",
             projectId: "proj_01H0000000000000000000000",
             projectDir: CWD,
             rootAgentId: "agent_01H00000000000000000000000",

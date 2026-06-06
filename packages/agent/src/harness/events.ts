@@ -6,17 +6,17 @@ import type {
   ThinkingLevel,
 } from "../types.js";
 import type {
+  BranchSummaryEntry,
+  CompactionEntry,
+  ConversationTreeEntry,
+} from "./conversation/entries.js";
+import type {
   AgentHarnessResources,
   AgentHarnessStreamOptions,
   AgentHarnessStreamOptionsPatch,
   PromptTemplate,
   Skill,
 } from "./options.js";
-import type {
-  BranchSummaryEntry,
-  CompactionEntry,
-  SessionTreeEntry,
-} from "./session/entries.js";
 
 export type AgentHarnessPhase =
   | "idle"
@@ -25,11 +25,12 @@ export type AgentHarnessPhase =
   | "branch_summary"
   | "retry";
 
-export type PendingSessionWrite = SessionTreeEntry extends infer TEntry
-  ? TEntry extends SessionTreeEntry
-    ? Omit<TEntry, "id" | "parentId" | "timestamp">
-    : never
-  : never;
+export type PendingConversationWrite =
+  ConversationTreeEntry extends infer TEntry
+    ? TEntry extends ConversationTreeEntry
+      ? Omit<TEntry, "id" | "parentId" | "timestamp">
+      : never
+    : never;
 
 export interface QueueUpdateEvent {
   type: "queue_update";
@@ -73,7 +74,7 @@ export interface ContextEvent {
 export interface BeforeProviderRequestEvent {
   type: "before_provider_request";
   model: AnyModel;
-  sessionId: string;
+  conversationId: string;
   streamOptions: AgentHarnessStreamOptions;
 }
 
@@ -106,28 +107,28 @@ export interface ToolResultEvent {
   isError: boolean;
 }
 
-export interface SessionBeforeCompactEvent {
-  type: "session_before_compact";
+export interface ConversationBeforeCompactEvent {
+  type: "conversation_before_compact";
   preparation: CompactionPreparation;
-  branchEntries: SessionTreeEntry[];
+  branchEntries: ConversationTreeEntry[];
   customInstructions?: string;
   signal: AbortSignal;
 }
 
-export interface SessionCompactEvent {
-  type: "session_compact";
+export interface ConversationCompactEvent {
+  type: "conversation_compact";
   compactionEntry: CompactionEntry;
   fromHook: boolean;
 }
 
-export interface SessionBeforeTreeEvent {
-  type: "session_before_tree";
+export interface ConversationBeforeTreeEvent {
+  type: "conversation_before_tree";
   preparation: TreePreparation;
   signal: AbortSignal;
 }
 
-export interface SessionTreeEvent {
-  type: "session_tree";
+export interface ConversationTreeEvent {
+  type: "conversation_tree";
   newLeafId: string | null;
   oldLeafId: string | null;
   summaryEntry?: BranchSummaryEntry;
@@ -180,10 +181,10 @@ export type AgentHarnessOwnEvent<
   | AfterProviderResponseEvent
   | ToolCallEvent
   | ToolResultEvent
-  | SessionBeforeCompactEvent
-  | SessionCompactEvent
-  | SessionBeforeTreeEvent
-  | SessionTreeEvent
+  | ConversationBeforeCompactEvent
+  | ConversationCompactEvent
+  | ConversationBeforeTreeEvent
+  | ConversationTreeEvent
   | ModelUpdateEvent
   | ThinkingLevelUpdateEvent
   | ResourcesUpdateEvent<TSkill, TPromptTemplate>
@@ -223,12 +224,12 @@ export interface ToolResultPatch {
   terminate?: boolean;
 }
 
-export interface SessionBeforeCompactResult {
+export interface ConversationBeforeCompactResult {
   cancel?: boolean;
   compaction?: CompactResult;
 }
 
-export interface SessionBeforeTreeResult {
+export interface ConversationBeforeTreeResult {
   cancel?: boolean;
   summary?: { summary: string; details?: unknown };
   customInstructions?: string;
@@ -244,10 +245,10 @@ export type AgentHarnessEventResultMap = {
   after_provider_response: undefined;
   tool_call: ToolCallResult | undefined;
   tool_result: ToolResultPatch | undefined;
-  session_before_compact: SessionBeforeCompactResult | undefined;
-  session_compact: undefined;
-  session_before_tree: SessionBeforeTreeResult | undefined;
-  session_tree: undefined;
+  conversation_before_compact: ConversationBeforeCompactResult | undefined;
+  conversation_compact: undefined;
+  conversation_before_tree: ConversationBeforeTreeResult | undefined;
+  conversation_tree: undefined;
   model_update: undefined;
   thinking_level_update: undefined;
   resources_update: undefined;
@@ -303,7 +304,7 @@ export interface TreePreparation {
   targetId: string;
   oldLeafId: string | null;
   commonAncestorId: string | null;
-  entriesToSummarize: SessionTreeEntry[];
+  entriesToSummarize: ConversationTreeEntry[];
   userWantsSummary: boolean;
   customInstructions?: string;
   replaceInstructions?: boolean;

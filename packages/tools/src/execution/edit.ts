@@ -116,8 +116,9 @@ function fuzzyFind(
       matches.push({ start, end });
     }
   }
-  if (matches.length === 0) return undefined;
-  return { ...matches[0]!, duplicate: matches.length > 1 };
+  const first = matches[0];
+  if (!first) return undefined;
+  return { ...first, duplicate: matches.length > 1 };
 }
 
 function normalizeForFuzzyMatch(input: string): string {

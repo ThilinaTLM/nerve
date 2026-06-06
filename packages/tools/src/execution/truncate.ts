@@ -24,7 +24,7 @@ export function truncateHead(
   const maxLines = options.maxLines ?? DEFAULT_MAX_LINES;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const lines = input.split("\n");
-  let selected = lines.slice(0, maxLines);
+  const selected = lines.slice(0, maxLines);
   let text = selected.join("\n");
   let omittedLines = Math.max(0, lines.length - selected.length);
   let omittedBytes = 0;
@@ -58,7 +58,7 @@ export function truncateTail(
   const maxLines = options.maxLines ?? DEFAULT_MAX_LINES;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const lines = input.split("\n");
-  let selected = lines.slice(Math.max(0, lines.length - maxLines));
+  const selected = lines.slice(Math.max(0, lines.length - maxLines));
   let text = selected.join("\n");
   let omittedLines = Math.max(0, lines.length - selected.length);
   let omittedBytes = 0;

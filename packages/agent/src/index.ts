@@ -26,15 +26,15 @@ export {
   serializeConversation,
   shouldCompact,
 } from "./harness/compaction/compaction.js";
+export * from "./harness/conversation/conversation.js";
+export * from "./harness/conversation/jsonl-repo.js";
+export * from "./harness/conversation/jsonl-storage.js";
+export * from "./harness/conversation/memory-repo.js";
+export * from "./harness/conversation/repo-utils.js";
+export { uuidv7 } from "./harness/conversation/uuid.js";
 export { NodeExecutionEnv } from "./harness/env/nodejs.js";
 export * from "./harness/messages.js";
 export * from "./harness/prompt-templates.js";
-export * from "./harness/session/jsonl-repo.js";
-export * from "./harness/session/jsonl-storage.js";
-export * from "./harness/session/memory-repo.js";
-export * from "./harness/session/repo-utils.js";
-export * from "./harness/session/session.js";
-export { uuidv7 } from "./harness/session/uuid.js";
 export * from "./harness/skills.js";
 export * from "./harness/system-prompt.js";
 export * from "./harness/types.js";

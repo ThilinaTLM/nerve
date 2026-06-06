@@ -49,7 +49,7 @@
     if (tab.kind === "process") return tab.process?.name ?? tab.process?.command ?? tab.id;
     if (tab.kind === "file") return tab.file?.name ?? tab.relativePath?.split("/").pop() ?? tab.path?.split("/").pop() ?? "File";
     if (tab.kind === "settings") return "Settings";
-    return tab.session.title;
+    return tab.conversation.title;
   }
 
   function tabTitle(tab: CenterTabModel): string {
@@ -62,7 +62,7 @@
     const project = tab.project?.dir
       ? shortProjectLabel(tab.project.dir, homeDir)
       : "Unknown project";
-    return `${tab.session.title} · ${project} · ${tab.session.id}`;
+    return `${tab.conversation.title} · ${project} · ${tab.conversation.id}`;
   }
 
   function statusLabel(tab: CenterTabModel): string | undefined {

@@ -14,7 +14,7 @@ function toolCall(
   return {
     id,
     agentId: "agent_01H00000000000000000000000",
-    sessionId: "ses_01H00000000000000000000000",
+    conversationId: "conv_01H00000000000000000000000",
     projectId: "proj_01H0000000000000000000000",
     toolName,
     sourceToolCallId,
@@ -454,7 +454,7 @@ describe("buildConversationTimeline", () => {
             kind: "tool_call_draft",
             key: "live:run_1:tool-draft:0",
             runId: "run_1",
-            sessionId: "ses_01H00000000000000000000000",
+            conversationId: "conv_01H00000000000000000000000",
             contentIndex: 0,
             providerToolCallId: "provider_call_1",
             toolName: "bash",

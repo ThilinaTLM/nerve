@@ -10,7 +10,7 @@
     AgentRecord,
     ProcessRecord,
     ProjectRecord,
-    SessionRecord,
+    ConversationRecord,
     SubscriptionUsage,
   } from "../../api";
   import { shortenPath } from "../../utils/path";
@@ -22,7 +22,7 @@
 
   type Props = {
     activeProject?: ProjectRecord;
-    activeSession?: SessionRecord;
+    activeConversation?: ConversationRecord;
     activeAgent?: AgentRecord;
     connection?: string;
     live?: boolean;
@@ -40,7 +40,7 @@
 
   let {
     activeProject,
-    activeSession,
+    activeConversation,
     activeAgent,
     connection = "connecting",
     live = false,
@@ -114,7 +114,7 @@
       {connection}
       {live}
       {activeAgent}
-      {activeSession}
+      {activeConversation}
       {activeProject}
       {processes}
       {branchDepth}

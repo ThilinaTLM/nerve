@@ -19,7 +19,7 @@
     type FilesystemDirectoryResponse,
     type FilesystemSignal,
     type ProjectRecord,
-    type SessionRecord,
+    type ConversationRecord,
   } from "../../api";
   import { tildePath } from "../../utils/path";
   import { dateTimeLabel } from "../../utils/time";
@@ -27,7 +27,7 @@
   type Props = {
     open?: boolean;
     projects?: ProjectRecord[];
-    sessions?: SessionRecord[];
+    conversations?: ConversationRecord[];
     homeDir?: string;
     onClose?: () => void;
     onSelect?: (path: string) => void | Promise<void>;
@@ -46,7 +46,7 @@
   let {
     open = $bindable(false),
     projects = [],
-    sessions = [],
+    conversations = [],
     homeDir,
     onClose,
     onSelect,
@@ -126,10 +126,10 @@
 
   const openedProjectKeys = $derived.by(() => new Set(projects.map((project) => pathKey(project.dir))));
 
-  const sessionCounts = $derived.by(() => {
+  const conversationCounts = $derived.by(() => {
     const counts = new Map<string, number>();
-    for (const session of sessions) {
-      counts.set(session.projectId, (counts.get(session.projectId) ?? 0) + 1);
+    for (const conversation of conversations) {
+      counts.set(conversation.projectId, (counts.get(conversation.projectId) ?? 0) + 1);
     }
     return counts;
   });
@@ -166,8 +166,8 @@
     return openedProjectKeys.has(pathKey(path));
   }
 
-  function sessionCountFor(project: ProjectRecord): number {
-    return sessionCounts.get(project.id) ?? 0;
+  function conversationCountFor(project: ProjectRecord): number {
+    return conversationCounts.get(project.id) ?? 0;
   }
 
   async function load(path?: string) {
@@ -334,7 +334,7 @@
                 <FolderOpen size={16} strokeWidth={2.05} aria-hidden="true" />
                 <span class="row-main"><strong>{project.name}</strong></span>
                 <span class="row-meta">
-                  <small>{sessionCountFor(project)} conv · {dateTimeLabel(project.updatedAt)}</small>
+                  <small>{conversationCountFor(project)} conv · {dateTimeLabel(project.updatedAt)}</small>
                   <Badge tone="good" size="xs"><CheckCircle2 size={11} />Opened</Badge>
                 </span>
               </button>

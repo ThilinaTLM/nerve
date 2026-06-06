@@ -34,5 +34,10 @@
     "formatter": {
       "trailingCommas": "none"
     }
+  },
+  "css": {
+    "parser": {
+      "cssModules": true
+    }
   }
 }

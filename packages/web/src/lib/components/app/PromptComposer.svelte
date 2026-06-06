@@ -16,7 +16,7 @@
     type ModelInfo,
     type PlanReviewRecord,
     type ProjectRecord,
-    type SessionRecord,
+    type ConversationRecord,
     type UserQuestionRecord,
   } from "../../api";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
@@ -34,7 +34,7 @@
   type Props = {
     text?: string;
     activeProject?: ProjectRecord;
-    activeSession?: SessionRecord;
+    activeConversation?: ConversationRecord;
     approvals?: ApprovalWithToolCall[];
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
@@ -64,7 +64,7 @@
   let {
     text = "",
     activeProject,
-    activeSession,
+    activeConversation,
     approvals = [],
     pendingUserQuestion,
     pendingPlanReview,
@@ -103,7 +103,7 @@
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
   const pendingPlan = $derived(Boolean(pendingPlanReview));
   const blockedForReview = $derived(pendingApproval || pendingQuestion || pendingPlan);
-  const canPrompt = $derived(Boolean(activeProject && activeSession && live && models.length > 0 && !blockedForReview));
+  const canPrompt = $derived(Boolean(activeProject && activeConversation && live && models.length > 0 && !blockedForReview));
   const editorDisabled = $derived(sending || !canPrompt);
   const submitDisabled = $derived(!canPrompt);
   const supportsAudioRecording = $derived(
@@ -124,8 +124,8 @@
     return uploadClipboardImage(file);
   }
 
-  const controlsDisabled = $derived(!activeSession || sending || blockedForReview);
-  const modeDisabled = $derived(!activeSession);
+  const controlsDisabled = $derived(!activeConversation || sending || blockedForReview);
+  const modeDisabled = $derived(!activeConversation);
   const modelDisabled = $derived(controlsDisabled || models.length === 0);
 
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");

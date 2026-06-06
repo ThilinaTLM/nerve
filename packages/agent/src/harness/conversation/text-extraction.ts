@@ -1,4 +1,4 @@
-import type { SessionTreeEntry } from "./entries.js";
+import type { ConversationTreeEntry } from "./entries.js";
 
 type NavigationText = {
   newLeafId: string | null;
@@ -8,7 +8,7 @@ type NavigationText = {
 type TextLikeContent = string | readonly { type: string; text?: string }[];
 
 export function editorTextForNavigatedEntry(
-  targetEntry: SessionTreeEntry,
+  targetEntry: ConversationTreeEntry,
   targetId: string | null,
 ): NavigationText {
   if (targetEntry.type === "message" && targetEntry.message.role === "user") {

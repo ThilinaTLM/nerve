@@ -2,10 +2,10 @@ import { DatabaseSync } from "node:sqlite";
 import type {
   AgentRecord,
   ApprovalRecord,
+  ConversationRecord,
   EventEnvelope,
   ProcessRecord,
   ProjectRecord,
-  SessionRecord,
   ToolCallRecord,
   UserQuestionRecord,
   WorkerRecord,
@@ -13,7 +13,7 @@ import type {
 
 export interface IndexCounts {
   projects: number;
-  sessions: number;
+  conversations: number;
   agents: number;
   events: number;
   processes: number;
@@ -23,7 +23,7 @@ export interface IndexCounts {
 
 export interface RebuildIndexInput {
   projects: ProjectRecord[];
-  sessions: SessionRecord[];
+  conversations: ConversationRecord[];
   agents: AgentRecord[];
   events: EventEnvelope[];
   processes?: ProcessRecord[];
@@ -33,7 +33,7 @@ export interface RebuildIndexInput {
 
 interface EventRefs {
   projectId?: string;
-  sessionId?: string;
+  conversationId?: string;
   agentId?: string;
   runId?: string;
 }
@@ -63,7 +63,7 @@ export class IndexStore {
           updated_at TEXT NOT NULL,
           json TEXT NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS sessions (
+        CREATE TABLE IF NOT EXISTS conversations (
           id TEXT PRIMARY KEY,
           project_id TEXT NOT NULL,
           title TEXT NOT NULL,
@@ -77,7 +77,7 @@ export class IndexStore {
         );
         CREATE TABLE IF NOT EXISTS agents (
           id TEXT PRIMARY KEY,
-          session_id TEXT NOT NULL,
+          conversation_id TEXT NOT NULL,
           project_id TEXT NOT NULL,
           parent_agent_id TEXT,
           root_agent_id TEXT NOT NULL,
@@ -94,7 +94,7 @@ export class IndexStore {
           ts TEXT NOT NULL,
           type TEXT NOT NULL,
           project_id TEXT,
-          session_id TEXT,
+          conversation_id TEXT,
           agent_id TEXT,
           run_id TEXT,
           json TEXT NOT NULL
@@ -103,7 +103,7 @@ export class IndexStore {
           id TEXT PRIMARY KEY,
           name TEXT,
           project_id TEXT,
-          session_id TEXT,
+          conversation_id TEXT,
           agent_id TEXT,
           cwd TEXT NOT NULL,
           command TEXT NOT NULL,
@@ -134,10 +134,9 @@ export class IndexStore {
           json TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS events_index_type_ts ON events_index(type, ts);
-        CREATE INDEX IF NOT EXISTS events_index_session_seq ON events_index(session_id, seq);
+        CREATE INDEX IF NOT EXISTS events_index_conversation_seq ON events_index(conversation_id, seq);
         CREATE INDEX IF NOT EXISTS events_index_agent_seq ON events_index(agent_id, seq);
       `);
-      this.migrateProcessesTableIfNeeded();
     });
   }
 
@@ -164,11 +163,11 @@ export class IndexStore {
     });
   }
 
-  upsertSession(session: SessionRecord): void {
+  upsertConversation(conversation: ConversationRecord): void {
     this.guard(() => {
       this.db
         .prepare(
-          `INSERT INTO sessions (
+          `INSERT INTO conversations (
              id, project_id, title, mode, permission_level,
              active_agent_id, active_entry_id, created_at, updated_at, json
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -183,16 +182,16 @@ export class IndexStore {
              json = excluded.json`,
         )
         .run(
-          session.id,
-          session.projectId,
-          session.title,
-          session.mode,
-          session.permissionLevel,
-          session.activeAgentId ?? null,
-          session.activeEntryId ?? null,
-          session.createdAt,
-          session.updatedAt,
-          JSON.stringify(session),
+          conversation.id,
+          conversation.projectId,
+          conversation.title,
+          conversation.mode,
+          conversation.permissionLevel,
+          conversation.activeAgentId ?? null,
+          conversation.activeEntryId ?? null,
+          conversation.createdAt,
+          conversation.updatedAt,
+          JSON.stringify(conversation),
         );
     });
   }
@@ -202,11 +201,11 @@ export class IndexStore {
       this.db
         .prepare(
           `INSERT INTO agents (
-             id, session_id, project_id, parent_agent_id, root_agent_id,
+             id, conversation_id, project_id, parent_agent_id, root_agent_id,
              mode, permission_level, status, created_at, updated_at, json
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
-             session_id = excluded.session_id,
+             conversation_id = excluded.conversation_id,
              project_id = excluded.project_id,
              parent_agent_id = excluded.parent_agent_id,
              root_agent_id = excluded.root_agent_id,
@@ -218,7 +217,7 @@ export class IndexStore {
         )
         .run(
           agent.id,
-          agent.sessionId,
+          agent.conversationId,
           agent.projectId,
           agent.parentAgentId ?? null,
           agent.rootAgentId,
@@ -238,9 +237,9 @@ export class IndexStore {
     });
   }
 
-  removeSession(id: string): void {
+  removeConversation(id: string): void {
     this.guard(() => {
-      this.db.prepare(`DELETE FROM sessions WHERE id = ?`).run(id);
+      this.db.prepare(`DELETE FROM conversations WHERE id = ?`).run(id);
     });
   }
 
@@ -255,13 +254,13 @@ export class IndexStore {
       this.db
         .prepare(
           `INSERT INTO processes (
-             id, name, project_id, session_id, agent_id, cwd, command,
+             id, name, project_id, conversation_id, agent_id, cwd, command,
              status, started_at, updated_at, json
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              name = excluded.name,
              project_id = excluded.project_id,
-             session_id = excluded.session_id,
+             conversation_id = excluded.conversation_id,
              agent_id = excluded.agent_id,
              cwd = excluded.cwd,
              command = excluded.command,
@@ -273,7 +272,7 @@ export class IndexStore {
           process.id,
           process.name ?? null,
           process.projectId ?? null,
-          process.sessionId ?? null,
+          process.conversationId ?? null,
           process.agentId ?? null,
           process.cwd,
           process.command,
@@ -359,7 +358,7 @@ export class IndexStore {
       this.db
         .prepare(
           `INSERT OR IGNORE INTO events_index (
-             seq, id, ts, type, project_id, session_id, agent_id, run_id, json
+             seq, id, ts, type, project_id, conversation_id, agent_id, run_id, json
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
@@ -368,7 +367,7 @@ export class IndexStore {
           event.ts,
           event.type,
           refs.projectId ?? null,
-          refs.sessionId ?? null,
+          refs.conversationId ?? null,
           refs.agentId ?? null,
           refs.runId ?? null,
           JSON.stringify(event),
@@ -381,13 +380,14 @@ export class IndexStore {
       this.db.exec("BEGIN IMMEDIATE");
       try {
         this.db.exec(
-          "DELETE FROM user_questions; DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM processes; DELETE FROM workers; DELETE FROM events_index; DELETE FROM agents; DELETE FROM sessions; DELETE FROM projects;",
+          "DELETE FROM user_questions; DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM processes; DELETE FROM workers; DELETE FROM events_index; DELETE FROM agents; DELETE FROM conversations; DELETE FROM projects;",
         );
         for (const question of input.userQuestions ?? [])
           this.upsertUserQuestion(question);
         for (const worker of input.workers ?? []) this.upsertWorker(worker);
         for (const project of input.projects) this.upsertProject(project);
-        for (const session of input.sessions) this.upsertSession(session);
+        for (const conversation of input.conversations)
+          this.upsertConversation(conversation);
         for (const agent of input.agents) this.upsertAgent(agent);
         for (const process of input.processes ?? [])
           this.upsertProcess(process);
@@ -403,7 +403,7 @@ export class IndexStore {
   counts(): IndexCounts {
     return this.guard(() => ({
       projects: this.countTable("projects"),
-      sessions: this.countTable("sessions"),
+      conversations: this.countTable("conversations"),
       agents: this.countTable("agents"),
       events: this.countTable("events_index"),
       processes: this.countTable("processes"),
@@ -414,31 +414,6 @@ export class IndexStore {
 
   close(): void {
     this.db.close();
-  }
-
-  private migrateProcessesTableIfNeeded(): void {
-    const columns = this.db
-      .prepare("PRAGMA table_info(processes)")
-      .all() as Array<{
-      name: string;
-    }>;
-    if (columns.some((column) => column.name === "status")) return;
-    this.db.exec("DROP TABLE IF EXISTS processes");
-    this.db.exec(`
-      CREATE TABLE processes (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        project_id TEXT,
-        session_id TEXT,
-        agent_id TEXT,
-        cwd TEXT NOT NULL,
-        command TEXT NOT NULL,
-        status TEXT NOT NULL,
-        started_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        json TEXT NOT NULL
-      );
-    `);
   }
 
   private countTable(table: string): number {
@@ -465,23 +440,23 @@ function refsForEvent(event: EventEnvelope): EventRefs {
   const refs: EventRefs = {};
   if (!data) return refs;
   copyRef(data, refs, "projectId");
-  copyRef(data, refs, "sessionId");
+  copyRef(data, refs, "conversationId");
   copyRef(data, refs, "agentId");
   copyRef(data, refs, "runId");
   copyNestedRef(data.project, refs, "projectId", "id");
-  copyNestedRef(data.session, refs, "sessionId", "id");
+  copyNestedRef(data.conversation, refs, "conversationId", "id");
   copyNestedRef(data.agent, refs, "agentId", "id");
   copyNestedRef(data.process, refs, "projectId", "projectId");
-  copyNestedRef(data.process, refs, "sessionId", "sessionId");
+  copyNestedRef(data.process, refs, "conversationId", "conversationId");
   copyNestedRef(data.process, refs, "agentId", "agentId");
   copyNestedRef(data.question, refs, "projectId", "projectId");
-  copyNestedRef(data.question, refs, "sessionId", "sessionId");
+  copyNestedRef(data.question, refs, "conversationId", "conversationId");
   copyNestedRef(data.question, refs, "agentId", "agentId");
-  copyNestedRef(data.entry, refs, "sessionId", "sessionId");
+  copyNestedRef(data.entry, refs, "conversationId", "conversationId");
   copyNestedRef(data.entry, refs, "agentId", "agentId");
   copyNestedRef(data.entry, refs, "runId", "runId");
   copyNestedRef(data.toolCall, refs, "projectId", "projectId");
-  copyNestedRef(data.toolCall, refs, "sessionId", "sessionId");
+  copyNestedRef(data.toolCall, refs, "conversationId", "conversationId");
   copyNestedRef(data.toolCall, refs, "agentId", "agentId");
   copyNestedRef(data.toolCall, refs, "runId", "runId");
   return refs;

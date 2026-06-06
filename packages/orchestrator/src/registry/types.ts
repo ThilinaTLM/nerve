@@ -1,23 +1,23 @@
 import type {
   AgentRecord,
-  SessionEntry,
-  SessionEntryUsage,
+  ConversationEntry,
+  ConversationEntryUsage,
 } from "@nerve/shared";
 
 export type AppendEntryInput = {
   id?: string;
-  sessionId: string;
+  conversationId: string;
   agentId?: string;
   runId?: string;
   turnId?: string;
   liveMessageId?: string;
   parentEntryId?: string | null;
-  role: SessionEntry["role"];
-  kind?: SessionEntry["kind"];
+  role: ConversationEntry["role"];
+  kind?: ConversationEntry["kind"];
   text: string;
   summary?: string;
   tokensBefore?: number;
-  usage?: SessionEntryUsage;
+  usage?: ConversationEntryUsage;
   firstKeptEntryId?: string;
   fromEntryId?: string;
   details?: unknown;

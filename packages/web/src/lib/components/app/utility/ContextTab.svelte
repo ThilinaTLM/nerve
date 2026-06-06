@@ -3,7 +3,7 @@
   import type {
     AgentRecord,
     ProjectRecord,
-    SessionRecord,
+    ConversationRecord,
     StatusResponse,
   } from "../../../api";
   import { pulseForStatus, statusTone } from "../../../utils/status";
@@ -14,9 +14,9 @@
   type Props = {
     status?: StatusResponse;
     activeProject?: ProjectRecord;
-    activeSession?: SessionRecord;
+    activeConversation?: ConversationRecord;
     activeAgent?: AgentRecord;
-    sessionAgents?: AgentRecord[];
+    conversationAgents?: AgentRecord[];
     exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
     systemPromptUrl?: () => string | undefined;
     onSelectAgent?: (agent: AgentRecord) => void;
@@ -25,9 +25,9 @@
   let {
     status,
     activeProject,
-    activeSession,
+    activeConversation,
     activeAgent,
-    sessionAgents = [],
+    conversationAgents = [],
     exportUrl,
     systemPromptUrl,
     onSelectAgent,
@@ -38,7 +38,7 @@
   const fields = $derived([
     { label: "Project", value: activeProject?.name },
     { label: "Directory", value: activeProject?.dir },
-    { label: "Session", value: activeSession?.id },
+    { label: "Conversation", value: activeConversation?.id },
     { label: "Agent", value: activeAgent?.id },
     { label: "Daemon", value: status?.daemonId },
     { label: "Data", value: status?.dataDir },
@@ -59,12 +59,12 @@
   </Card>
 
   <Card class="gap-0 overflow-hidden p-0">
-    <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Session Agents</div>
+    <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Conversation Agents</div>
     <div class="flex flex-col">
-      {#if sessionAgents.length === 0}
-        <p class="px-3 py-2.5 text-xs text-muted-foreground">No agents in the active session.</p>
+      {#if conversationAgents.length === 0}
+        <p class="px-3 py-2.5 text-xs text-muted-foreground">No agents in the active conversation.</p>
       {/if}
-      {#each sessionAgents as agent, i}
+      {#each conversationAgents as agent, i}
         <button
           class="w-full text-left transition-colors hover:bg-muted/60 {i > 0 ? 'border-t' : ''}"
           type="button"
@@ -88,7 +88,7 @@
     </div>
   </Card>
 
-  {#if activeSession}
+  {#if activeConversation}
     <Card class="gap-0 overflow-hidden p-0">
       <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Export</div>
       <div class="flex flex-col gap-3 px-3 py-2.5">

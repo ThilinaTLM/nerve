@@ -1,5 +1,5 @@
 import { getProcessLogs } from "../../api";
-import { openSession } from "../session-flow.svelte";
+import { openConversation } from "../conversation-flow.svelte";
 import {
   addCenterTab,
   nextCenterTabAfterClose,
@@ -18,8 +18,8 @@ export async function openProcessTab(processId: string) {
   await selectCenterProcessTab(processId);
 }
 
-export async function selectCenterConversationTab(sessionId: string) {
-  await openSession(sessionId);
+export async function selectCenterConversationTab(conversationId: string) {
+  await openConversation(conversationId);
 }
 
 export async function selectCenterProcessTab(processId: string) {

@@ -48,7 +48,7 @@ describe("Nerve system prompt", () => {
     assert.doesNotMatch(prompt, /inside pi, a coding agent harness/);
     assert.match(
       prompt,
-      /Tools available in this session include: read, bash, edit, write\./,
+      /Tools available in this conversation include: read, bash, edit, write\./,
     );
     assert.match(prompt, /API-provided tool schemas/);
     assert.doesNotMatch(prompt, /Available tools:\n- read:/);
@@ -70,7 +70,7 @@ describe("Nerve system prompt", () => {
 
     assert.match(
       prompt,
-      /Tools available in this session include: read, grep\./,
+      /Tools available in this conversation include: read, grep\./,
     );
     assert.doesNotMatch(prompt, /write/);
     assert.doesNotMatch(prompt, /process_start/);
@@ -147,7 +147,7 @@ describe("Nerve system prompt", () => {
 function testAgent(overrides: Partial<AgentRecord> = {}): AgentRecord {
   return {
     id: "agent_01HN0000000000000000000000",
-    sessionId: "ses_01HN0000000000000000000000",
+    conversationId: "conv_01HN0000000000000000000000",
     projectId: "proj_01HN0000000000000000000000",
     projectDir: "/tmp/project",
     workerId: "worker_01HN0000000000000000000000",

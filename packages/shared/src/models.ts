@@ -31,7 +31,7 @@ export const modelInfoSchema = z.object({
 export type ModelInfo = z.infer<typeof modelInfoSchema>;
 
 /**
- * Per-session context-window usage.
+ * Per-conversation context-window usage.
  *
  * `tokens`/`percent` are `null` when the current usage is unknown (e.g. right
  * after a compaction, until the next assistant response), or when the model's

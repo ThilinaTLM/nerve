@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { EventEnvelope, SessionEntry, ToolCallRecord } from "@nerve/shared";
+import type {
+  ConversationEntry,
+  EventEnvelope,
+  ToolCallRecord,
+} from "@nerve/shared";
 import { HttpError } from "../src/registry.js";
 import { createOrchestratorState } from "../src/server.js";
 import { initializeStorage } from "../src/storage.js";
@@ -29,22 +33,24 @@ async function createState(prefix = "nerve-registry-agent-") {
   return state;
 }
 
-async function createProjectSessionAgent() {
+async function createProjectConversationAgent() {
   const state = await createState();
   const project = await state.registry.createProject({
     dir: state.storage.paths.home,
   });
-  const session = await state.registry.createSession({ projectId: project.id });
+  const conversation = await state.registry.createConversation({
+    projectId: project.id,
+  });
   const agent = await state.registry.createAgent({
     projectId: project.id,
-    sessionId: session.id,
+    conversationId: conversation.id,
   });
-  return { state, project, session, agent };
+  return { state, project, conversation, agent };
 }
 
 describe("RuntimeRegistry agent run state", () => {
   it("rejects a new prompt while an agent is already busy", async () => {
-    const { state, agent } = await createProjectSessionAgent();
+    const { state, agent } = await createProjectConversationAgent();
     try {
       state.registry.runs.set(agent.id, {
         runId: "run_01HN0000000000000000000000",
@@ -65,7 +71,7 @@ describe("RuntimeRegistry agent run state", () => {
   });
 
   it("allows mode-only updates while an agent is running", async () => {
-    const { state, agent } = await createProjectSessionAgent();
+    const { state, agent } = await createProjectConversationAgent();
     let runtimeMode: string | undefined;
     try {
       state.registry.runs.set(agent.id, {
@@ -90,7 +96,7 @@ describe("RuntimeRegistry agent run state", () => {
   });
 
   it("still rejects non-mode config updates while an agent is running", async () => {
-    const { state, agent } = await createProjectSessionAgent();
+    const { state, agent } = await createProjectConversationAgent();
     try {
       state.registry.runs.set(agent.id, {
         runId: "run_01HN0000000000000000000000",
@@ -114,7 +120,7 @@ describe("RuntimeRegistry agent run state", () => {
   });
 
   it("accepts a suspended plan by appending an implementation instruction and continuing", async () => {
-    const { state, agent } = await createProjectSessionAgent();
+    const { state, agent } = await createProjectConversationAgent();
     let continued = false;
     let continuedAtSeq: number | undefined;
     try {
@@ -133,7 +139,9 @@ describe("RuntimeRegistry agent run state", () => {
 
       assert.equal(state.registry.getAgent(agent.id).mode, "coding");
       assert.equal(continued, true);
-      const entries = state.registry.getSessionEntries(agent.sessionId);
+      const entries = state.registry.getConversationEntries(
+        agent.conversationId,
+      );
       const followUp = acceptedPlanFollowUpText(review.planPath);
       assert.ok(
         entries.some(
@@ -162,7 +170,10 @@ describe("RuntimeRegistry agent run state", () => {
 
       assert.ok(completedToolEvent, "completed tool-call event was published");
       assert.ok(toolResultEntryEvent, "tool-result entry event was published");
-      assert.ok(followUpEntryEvent, "accepted-plan user entry event was published");
+      assert.ok(
+        followUpEntryEvent,
+        "accepted-plan user entry event was published",
+      );
       assert.ok(
         completedToolEvent.seq < toolResultEntryEvent.seq,
         "tool result entry is published after tool-call completion",
@@ -172,7 +183,8 @@ describe("RuntimeRegistry agent run state", () => {
         "follow-up user entry is published after tool result",
       );
       assert.ok(
-        continuedAtSeq !== undefined && followUpEntryEvent.seq <= continuedAtSeq,
+        continuedAtSeq !== undefined &&
+          followUpEntryEvent.seq <= continuedAtSeq,
         "follow-up user entry is published before agent continuation",
       );
     } finally {
@@ -181,7 +193,7 @@ describe("RuntimeRegistry agent run state", () => {
   });
 
   it("rejects a suspended plan without changing mode or continuing", async () => {
-    const { state, agent } = await createProjectSessionAgent();
+    const { state, agent } = await createProjectConversationAgent();
     let continued = false;
     try {
       await state.registry.configureAgent(agent.id, { mode: "planning" });
@@ -208,7 +220,7 @@ describe("RuntimeRegistry agent run state", () => {
   });
 
   it("answers a suspended user question by publishing the tool-result entry before continuing", async () => {
-    const { state, agent } = await createProjectSessionAgent();
+    const { state, agent } = await createProjectConversationAgent();
     let continued = false;
     let continuedAtSeq: number | undefined;
     try {
@@ -232,7 +244,7 @@ describe("RuntimeRegistry agent run state", () => {
       assert.ok(question, "pending question was created");
       await state.registry.suspensions.createSuspension({
         agentId: agent.id,
-        sessionId: agent.sessionId,
+        conversationId: agent.conversationId,
         projectId: agent.projectId,
         runId: "run_01HN0000000000000000000000",
         turnId: "turn_01HN0000000000000000000000",
@@ -267,13 +279,17 @@ describe("RuntimeRegistry agent run state", () => {
       });
 
       assert.ok(completedToolEvent, "completed ask_user event was published");
-      assert.ok(toolResultEntryEvent, "ask_user result entry event was published");
+      assert.ok(
+        toolResultEntryEvent,
+        "ask_user result entry event was published",
+      );
       assert.ok(
         completedToolEvent.seq < toolResultEntryEvent.seq,
         "ask_user result entry is published after tool-call completion",
       );
       assert.ok(
-        continuedAtSeq !== undefined && toolResultEntryEvent.seq <= continuedAtSeq,
+        continuedAtSeq !== undefined &&
+          toolResultEntryEvent.seq <= continuedAtSeq,
         "ask_user result entry is published before agent continuation",
       );
     } finally {
@@ -282,7 +298,7 @@ describe("RuntimeRegistry agent run state", () => {
   });
 
   it("treats aborting an idle agent as a no-op", async () => {
-    const { state, agent } = await createProjectSessionAgent();
+    const { state, agent } = await createProjectConversationAgent();
     try {
       await state.registry.abortAgent(agent.id);
       await state.registry.abortAgent(agent.id);
@@ -293,18 +309,19 @@ describe("RuntimeRegistry agent run state", () => {
   });
 
   it("enforces child-agent budget and authority constraints", async () => {
-    const { state, project, session } = await createProjectSessionAgent();
+    const { state, project, conversation } =
+      await createProjectConversationAgent();
     try {
       const exhaustedParent = await state.registry.createAgent({
         projectId: project.id,
-        sessionId: session.id,
+        conversationId: conversation.id,
         budget: { depth: 0, maxDepth: 3, maxRuns: 1, usedRuns: 1 },
       });
       await assert.rejects(
         () =>
           state.registry.createAgent({
             projectId: project.id,
-            sessionId: session.id,
+            conversationId: conversation.id,
             parentAgentId: exhaustedParent.id,
           }),
         (error) =>
@@ -315,7 +332,7 @@ describe("RuntimeRegistry agent run state", () => {
 
       const scopedParent = await state.registry.createAgent({
         projectId: project.id,
-        sessionId: session.id,
+        conversationId: conversation.id,
         mode: "planning",
         permissionLevel: "read_only",
       });
@@ -323,7 +340,7 @@ describe("RuntimeRegistry agent run state", () => {
         () =>
           state.registry.createAgent({
             projectId: project.id,
-            sessionId: session.id,
+            conversationId: conversation.id,
             parentAgentId: scopedParent.id,
             mode: "coding",
             permissionLevel: "supervised",
@@ -368,16 +385,16 @@ function findToolCallEvent(
 
 function findEntryEvent(
   events: EventEnvelope[],
-  predicate: (entry: SessionEntry) => boolean,
+  predicate: (entry: ConversationEntry) => boolean,
 ): EventEnvelope | undefined {
   return events.find((event) => {
     if (event.type !== "conversation.entry.appended") return false;
-    const data = event.data as { entry?: SessionEntry };
+    const data = event.data as { entry?: ConversationEntry };
     return data.entry ? predicate(data.entry) : false;
   });
 }
 
-function detailsRecord(entry: SessionEntry): Record<string, unknown> {
+function detailsRecord(entry: ConversationEntry): Record<string, unknown> {
   return entry.details && typeof entry.details === "object"
     ? (entry.details as Record<string, unknown>)
     : {};
@@ -396,7 +413,7 @@ async function createPendingPlanReviewSuspension(
   const toolCall: ToolCallRecord = {
     id: "tool_01HN0000000000000000000000",
     agentId: agent.id,
-    sessionId: agent.sessionId,
+    conversationId: agent.conversationId,
     projectId: agent.projectId,
     toolName: "plan_mode_present",
     risk: "interaction",
@@ -420,7 +437,7 @@ async function createPendingPlanReviewSuspension(
   });
   const suspension = await state.registry.suspensions.createSuspension({
     agentId: agent.id,
-    sessionId: agent.sessionId,
+    conversationId: agent.conversationId,
     projectId: agent.projectId,
     runId: "run_01HN0000000000000000000000",
     turnId: "turn_01HN0000000000000000000000",

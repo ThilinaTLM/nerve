@@ -4,27 +4,27 @@
   import CornerDownRight from "@lucide/svelte/icons/corner-down-right";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import { toast } from "svelte-sonner";
-  import type { SessionRecord, SessionTreeNode } from "../../../api";
+  import type { ConversationRecord, ConversationTreeNode } from "../../../api";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
 
   type Props = {
-    activeSession?: SessionRecord;
-    treeNodes?: SessionTreeNode[];
+    activeConversation?: ConversationRecord;
+    treeNodes?: ConversationTreeNode[];
     onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
     onCompact?: () => void;
   };
 
   let {
-    activeSession,
+    activeConversation,
     treeNodes = [],
     onNavigateToEntry,
     onCompact,
   }: Props = $props();
 
   type TreeRow = {
-    node: SessionTreeNode;
+    node: ConversationTreeNode;
     depth: number;
     index: number;
   };
@@ -34,19 +34,19 @@
   // genuine branches are indented as a tree.
   const rows = $derived.by<TreeRow[]>(() => {
     const byId = new Map(treeNodes.map((node) => [node.entry.id, node]));
-    const hasParent = (node: SessionTreeNode) =>
+    const hasParent = (node: ConversationTreeNode) =>
       node.entry.parentEntryId !== undefined && byId.has(node.entry.parentEntryId);
     const roots = treeNodes.filter((node) => !hasParent(node));
     const out: TreeRow[] = [];
     const visited = new Set<string>();
     let index = 0;
-    const walk = (node: SessionTreeNode, depth: number) => {
+    const walk = (node: ConversationTreeNode, depth: number) => {
       if (visited.has(node.entry.id)) return;
       visited.add(node.entry.id);
       out.push({ node, depth, index: ++index });
       const children = node.childEntryIds
         .map((id) => byId.get(id))
-        .filter((child): child is SessionTreeNode => Boolean(child));
+        .filter((child): child is ConversationTreeNode => Boolean(child));
       const childDepth = children.length > 1 ? depth + 1 : depth;
       for (const child of children) walk(child, childDepth);
     };
@@ -58,7 +58,7 @@
 
   let confirmCompactOpen = $state(false);
 
-  function entryMenu(node: SessionTreeNode): ContextMenuItem[] {
+  function entryMenu(node: ConversationTreeNode): ContextMenuItem[] {
     return [
       { label: "Jump here", icon: ArrowRight, onSelect: () => onNavigateToEntry?.(node.entry.id) },
       { label: "Jump + summarize from here", icon: Sparkles, onSelect: () => onNavigateToEntry?.(node.entry.id, true) },
@@ -81,10 +81,10 @@
 
 <div class="flex flex-col gap-1 p-2">
   <div class="flex items-center justify-end gap-1.5 pb-1">
-    <Button size="sm" variant="outline" onclick={() => onNavigateToEntry?.(undefined)} disabled={!activeSession}>
+    <Button size="sm" variant="outline" onclick={() => onNavigateToEntry?.(undefined)} disabled={!activeConversation}>
       Root
     </Button>
-    <Button size="sm" variant="outline" onclick={() => (confirmCompactOpen = true)} disabled={!activeSession}>
+    <Button size="sm" variant="outline" onclick={() => (confirmCompactOpen = true)} disabled={!activeConversation}>
       Compact
     </Button>
   </div>
@@ -95,12 +95,12 @@
         <ContextMenu items={entryMenu(row.node)} triggerClass="block w-full min-w-0">
           <button
             class="relative flex w-full items-start gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-muted/60 data-[active=true]:bg-muted/70"
-            data-active={row.node.entry.id === activeSession?.activeEntryId}
+            data-active={row.node.entry.id === activeConversation?.activeEntryId}
             style={`padding-left: ${0.5 + row.depth * 0.95}rem`}
             type="button"
             onclick={() => onNavigateToEntry?.(row.node.entry.id)}
           >
-            {#if row.node.entry.id === activeSession?.activeEntryId}
+            {#if row.node.entry.id === activeConversation?.activeEntryId}
               <span class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary" aria-hidden="true"></span>
             {/if}
             {#if row.depth > 0}

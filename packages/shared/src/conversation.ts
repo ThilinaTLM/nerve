@@ -1,6 +1,10 @@
 import { z } from "zod";
+import type {
+  ConversationEntry,
+  ConversationRecord,
+  ConversationTree,
+} from "./conversations.js";
 import type { ContextUsage } from "./models.js";
-import type { SessionEntry, SessionRecord, SessionTree } from "./sessions.js";
 import type { ToolCallRecord } from "./tools.js";
 
 export const runIdSchema = z.string().startsWith("run_");
@@ -12,7 +16,7 @@ export type AgentMessageContentKind = "text" | "thinking";
 export type RunStatus = "running" | "aborting";
 
 export interface ConversationRunStartedData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   runId: string;
   projectId: string;
@@ -21,7 +25,7 @@ export interface ConversationRunStartedData {
 }
 
 export interface ConversationRunCompletedData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   runId: string;
   projectId: string;
@@ -30,7 +34,7 @@ export interface ConversationRunCompletedData {
 }
 
 export interface ConversationRunFailedData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   runId: string;
   projectId: string;
@@ -40,7 +44,7 @@ export interface ConversationRunFailedData {
 }
 
 export interface ConversationRunSuspendedData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   runId: string;
   projectId: string;
@@ -51,23 +55,23 @@ export interface ConversationRunSuspendedData {
 }
 
 export interface ConversationEntryAppendedData {
-  sessionId: string;
+  conversationId: string;
   agentId?: string;
   runId?: string;
   turnId?: string;
   liveMessageId?: string;
-  entry: SessionEntry;
+  entry: ConversationEntry;
 }
 
 export interface ConversationContextUpdatedData {
-  sessionId: string;
+  conversationId: string;
   agentId?: string;
   runId?: string;
   contextUsage: ContextUsage;
 }
 
 export interface ConversationToolCallUpdatedData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId?: string;
@@ -79,7 +83,7 @@ export interface ConversationToolCallUpdatedData {
 }
 
 export interface ConversationLiveMessageStartedData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId: string;
@@ -90,7 +94,7 @@ export interface ConversationLiveMessageStartedData {
 }
 
 export interface ConversationLiveContentDeltaData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId: string;
@@ -104,7 +108,7 @@ export interface ConversationLiveContentDeltaData {
 }
 
 export interface ConversationLiveContentDoneData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId: string;
@@ -118,7 +122,7 @@ export interface ConversationLiveContentDoneData {
 }
 
 export interface ConversationLiveToolDraftStartedData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId: string;
@@ -131,7 +135,7 @@ export interface ConversationLiveToolDraftStartedData {
 }
 
 export interface ConversationLiveToolDraftDeltaData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId: string;
@@ -144,7 +148,7 @@ export interface ConversationLiveToolDraftDeltaData {
 }
 
 export interface ConversationLiveToolDraftDoneData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId: string;
@@ -158,7 +162,7 @@ export interface ConversationLiveToolDraftDoneData {
 }
 
 export interface ConversationLiveToolOutputDeltaData {
-  sessionId: string;
+  conversationId: string;
   agentId: string;
   projectId: string;
   runId?: string;
@@ -243,7 +247,7 @@ export interface ConversationActiveRunSnapshot {
   runId: string;
   agentId: string;
   projectId: string;
-  sessionId: string;
+  conversationId: string;
   status: RunStatus;
   startedAt: string;
   turns: ConversationLiveTurnSnapshot[];
@@ -251,9 +255,9 @@ export interface ConversationActiveRunSnapshot {
 }
 
 export interface ConversationSnapshot {
-  session: SessionRecord;
-  entries: SessionEntry[];
-  tree: SessionTree;
+  conversation: ConversationRecord;
+  entries: ConversationEntry[];
+  tree: ConversationTree;
   toolCalls: ToolCallRecord[];
   activeRun?: ConversationActiveRunSnapshot;
   contextUsage?: ContextUsage;

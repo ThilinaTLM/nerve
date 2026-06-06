@@ -2,7 +2,7 @@ export type IdPrefix =
   | "daemon"
   | "evt"
   | "proj"
-  | "ses"
+  | "conv"
   | "agent"
   | "run"
   | "turn"

@@ -1,4 +1,4 @@
-import type { SessionRecord } from "../../api";
+import type { ConversationRecord } from "../../api";
 
 const conversationTabsStorageKey = "nerve.conversationTabs.v1";
 const maxStoredTabs = 12;
@@ -24,8 +24,8 @@ function parseStoredTabs(value: string | null): StoredConversationTabs {
   }
 }
 
-function uniqueSessionIds(tabIds: string[]): string[] {
-  return [...new Set(tabIds.filter((id) => id.startsWith("ses_")))].slice(
+function uniqueConversationIds(tabIds: string[]): string[] {
+  return [...new Set(tabIds.filter((id) => id.startsWith("conv_")))].slice(
     0,
     maxStoredTabs,
   );
@@ -37,14 +37,16 @@ export function loadStoredConversationTabs(): StoredConversationTabs {
     localStorage.getItem(conversationTabsStorageKey),
   );
   return {
-    tabIds: uniqueSessionIds(stored.tabIds),
-    activeId: stored.activeId?.startsWith("ses_") ? stored.activeId : undefined,
+    tabIds: uniqueConversationIds(stored.tabIds),
+    activeId: stored.activeId?.startsWith("conv_")
+      ? stored.activeId
+      : undefined,
   };
 }
 
 export function saveConversationTabs(tabIds: string[], activeId?: string) {
   if (typeof localStorage === "undefined") return;
-  const normalized = uniqueSessionIds(tabIds);
+  const normalized = uniqueConversationIds(tabIds);
   const payload: StoredConversationTabs = {
     tabIds: normalized,
     activeId: activeId && normalized.includes(activeId) ? activeId : undefined,
@@ -52,10 +54,12 @@ export function saveConversationTabs(tabIds: string[], activeId?: string) {
   localStorage.setItem(conversationTabsStorageKey, JSON.stringify(payload));
 }
 
-export function filterStoredTabsAgainstSessions(
+export function filterStoredTabsAgainstConversations(
   tabIds: string[],
-  sessions: SessionRecord[],
+  conversations: ConversationRecord[],
 ): string[] {
-  const existing = new Set(sessions.map((session) => session.id));
-  return uniqueSessionIds(tabIds).filter((id) => existing.has(id));
+  const existing = new Set(
+    conversations.map((conversation) => conversation.id),
+  );
+  return uniqueConversationIds(tabIds).filter((id) => existing.has(id));
 }

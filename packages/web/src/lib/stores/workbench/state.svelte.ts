@@ -6,15 +6,15 @@ import type {
   CompletionItem,
   ContextUsage,
   ConversationActiveRunSnapshot,
+  ConversationEntry,
+  ConversationRecord,
+  ConversationTreeNode,
   FilesystemFileResponse,
   ModelInfo,
   PlanReviewRecord,
   ProcessLogQueryResponse,
   ProcessRecord,
   ProjectRecord,
-  SessionEntry,
-  SessionRecord,
-  SessionTreeNode,
   Settings,
   StatusResponse,
   SubscriptionUsage,
@@ -27,7 +27,7 @@ export type TranscriptDisplayKind = "message" | "thinking";
 export type TranscriptItem = {
   id?: string;
   role: "user" | "assistant" | "system";
-  kind?: SessionEntry["kind"];
+  kind?: ConversationEntry["kind"];
   displayKind?: TranscriptDisplayKind;
   text: string;
   createdAt?: string;
@@ -38,14 +38,14 @@ export type TranscriptItem = {
   contentIndex?: number;
   toolCallId?: string;
   toolRecordId?: string;
-  usage?: SessionEntry["usage"];
+  usage?: ConversationEntry["usage"];
 };
 
 export type LiveToolCallDraft = {
   kind: "tool_call_draft";
   key: string;
   runId?: string;
-  sessionId: string;
+  conversationId: string;
   contentIndex: number;
   providerToolCallId?: string;
   toolName?: string;
@@ -76,10 +76,10 @@ export type ConversationLiveState = {
 };
 
 export type ConversationViewState = {
-  sessionId: string;
+  conversationId: string;
   transcript: TranscriptItem[];
   toolCalls: ToolCallRecord[];
-  treeNodes: SessionTreeNode[];
+  treeNodes: ConversationTreeNode[];
   streamingText: string;
   live: ConversationLiveState;
   activeRun?: ConversationActiveRunSnapshot;
@@ -115,9 +115,9 @@ export const workbenchState = $state({
   error: undefined as string | undefined,
   sending: false,
   projects: [] as ProjectRecord[],
-  sessions: [] as SessionRecord[],
+  conversations: [] as ConversationRecord[],
   agents: [] as AgentRecord[],
-  treeNodes: [] as SessionTreeNode[],
+  treeNodes: [] as ConversationTreeNode[],
   approvals: [] as ApprovalWithToolCall[],
   userQuestions: [] as UserQuestionRecord[],
   planReviews: [] as PlanReviewRecord[],

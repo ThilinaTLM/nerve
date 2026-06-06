@@ -4,6 +4,7 @@ import type {
   AnyModel,
   ThinkingLevel,
 } from "../types.js";
+import type { Conversation } from "./conversation/conversation.js";
 import type { ExecutionEnv } from "./env/types.js";
 import type {
   AgentHarnessOptions,
@@ -12,7 +13,6 @@ import type {
   PromptTemplate,
   Skill,
 } from "./options.js";
-import type { Session } from "./session/session.js";
 import { cloneStreamOptions } from "./stream-options.js";
 
 export interface AgentHarnessTurnState<
@@ -23,7 +23,7 @@ export interface AgentHarnessTurnState<
   messages: AgentMessage[];
   resources: AgentHarnessResources<TSkill, TPromptTemplate>;
   streamOptions: AgentHarnessStreamOptions;
-  sessionId: string;
+  conversationId: string;
   systemPrompt: string;
   model: AnyModel;
   thinkingLevel: ThinkingLevel;
@@ -37,7 +37,7 @@ export async function createTurnState<
   TTool extends AgentTool = AgentTool,
 >(options: {
   env: ExecutionEnv;
-  session: Session;
+  conversation: Conversation;
   resources: AgentHarnessResources<TSkill, TPromptTemplate>;
   streamOptions: AgentHarnessStreamOptions;
   systemPrompt: AgentHarnessOptions<
@@ -50,8 +50,8 @@ export async function createTurnState<
   tools: Map<string, TTool>;
   activeToolNames: string[];
 }): Promise<AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>> {
-  const context = await options.session.buildContext();
-  const sessionMetadata = await options.session.getMetadata();
+  const context = await options.conversation.buildContext();
+  const conversationMetadata = await options.conversation.getMetadata();
   const tools = [...options.tools.values()];
   const activeTools = options.activeToolNames
     .map((name) => options.tools.get(name))
@@ -62,7 +62,7 @@ export async function createTurnState<
   } else if (options.systemPrompt) {
     systemPrompt = await options.systemPrompt({
       env: options.env,
-      session: options.session,
+      conversation: options.conversation,
       model: options.model,
       thinkingLevel: options.thinkingLevel,
       activeTools,
@@ -73,7 +73,7 @@ export async function createTurnState<
     messages: context.messages,
     resources: options.resources,
     streamOptions: cloneStreamOptions(options.streamOptions),
-    sessionId: sessionMetadata.id,
+    conversationId: conversationMetadata.id,
     systemPrompt,
     model: options.model,
     thinkingLevel: options.thinkingLevel,

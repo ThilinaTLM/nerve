@@ -181,7 +181,7 @@ describe("agent tool definitions", () => {
 function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {
   return {
     id: "agent_01HN0000000000000000000000",
-    sessionId: "ses_01HN0000000000000000000000",
+    conversationId: "conv_01HN0000000000000000000000",
     projectId: "proj_01HN0000000000000000000000",
     projectDir: "/tmp/project",
     workerId: "worker_01HN0000000000000000000000",

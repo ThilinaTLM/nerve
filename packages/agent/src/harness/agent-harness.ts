@@ -35,6 +35,12 @@ import {
   prepareToolConfiguration,
   validateToolNames,
 } from "./configuration.js";
+import type { Conversation } from "./conversation/conversation.js";
+import { editorTextForNavigatedEntry } from "./conversation/text-extraction.js";
+import {
+  flushPendingConversationWrites as flushHarnessPendingConversationWrites,
+  queueOrWriteMessage,
+} from "./conversation-writes.js";
 import type { ExecutionEnv } from "./env/types.js";
 import { AgentHarnessError } from "./errors.js";
 import type {
@@ -44,7 +50,7 @@ import type {
   AgentHarnessOwnEvent,
   AgentHarnessPhase,
   NavigateTreeResult,
-  PendingSessionWrite,
+  PendingConversationWrite,
 } from "./events.js";
 import {
   AgentHarnessEventHub,
@@ -62,12 +68,6 @@ import type {
 import { formatPromptTemplateInvocation } from "./prompt-templates.js";
 import { toError } from "./result.js";
 import { createFailureMessage, createUserMessage } from "./run/messages.js";
-import type { Session } from "./session/session.js";
-import { editorTextForNavigatedEntry } from "./session/text-extraction.js";
-import {
-  flushPendingSessionWrites as flushHarnessPendingSessionWrites,
-  queueOrWriteMessage,
-} from "./session-writes.js";
 import { formatSkillInvocation } from "./skills.js";
 import { cloneStreamOptions, mergeHeaders } from "./stream-options.js";
 import {
@@ -81,11 +81,11 @@ export class AgentHarness<
   TTool extends AgentTool = AgentTool,
 > {
   readonly env: ExecutionEnv;
-  private session: Session;
+  private conversation: Conversation;
   private phase: AgentHarnessPhase = "idle";
   private runAbortController?: AbortController;
   private runPromise?: Promise<void>;
-  private pendingSessionWrites: PendingSessionWrite[] = [];
+  private pendingConversationWrites: PendingConversationWrite[] = [];
   private model: AnyModel;
   private thinkingLevel: ThinkingLevel;
   private systemPrompt: AgentHarnessOptions<
@@ -107,7 +107,7 @@ export class AgentHarness<
 
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
     this.env = options.env;
-    this.session = options.session;
+    this.conversation = options.conversation;
     this.resources = options.resources ?? {};
     this.streamOptions = cloneStreamOptions(options.streamOptions);
     this.systemPrompt = options.systemPrompt;
@@ -145,12 +145,12 @@ export class AgentHarness<
 
   private async emitBeforeProviderRequest(
     model: AnyModel,
-    sessionId: string,
+    conversationId: string,
     streamOptions: AgentHarnessStreamOptions,
   ): Promise<AgentHarnessStreamOptions> {
     return this.events.emitBeforeProviderRequest(
       model,
-      sessionId,
+      conversationId,
       streamOptions,
     );
   }
@@ -187,7 +187,7 @@ export class AgentHarness<
   > {
     return createAgentHarnessTurnState({
       env: this.env,
-      session: this.session,
+      conversation: this.conversation,
       resources: this.getResources(),
       streamOptions: this.streamOptions,
       systemPrompt: this.systemPrompt,
@@ -221,7 +221,7 @@ export class AgentHarness<
       };
       const requestOptions = await this.emitBeforeProviderRequest(
         model,
-        turnState.sessionId,
+        turnState.conversationId,
         snapshotOptions,
       );
       return streamSimple(model, context, {
@@ -245,7 +245,7 @@ export class AgentHarness<
         },
         reasoning: streamOptions?.reasoning,
         signal: streamOptions?.signal,
-        sessionId: turnState.sessionId,
+        sessionId: turnState.conversationId,
         timeoutMs: requestOptions.timeoutMs,
         transport: requestOptions.transport,
         apiKey: auth?.apiKey,
@@ -318,7 +318,7 @@ export class AgentHarness<
           : undefined;
       },
       prepareNextTurn: async () => {
-        await this.flushPendingSessionWrites();
+        await this.flushPendingConversationWrites();
         const nextTurnState = await this.createTurnState();
         setTurnState(nextTurnState);
         return {
@@ -341,10 +341,10 @@ export class AgentHarness<
     validateToolNames(toolNames, tools);
   }
 
-  private async flushPendingSessionWrites(): Promise<void> {
-    await flushHarnessPendingSessionWrites(
-      this.session,
-      this.pendingSessionWrites,
+  private async flushPendingConversationWrites(): Promise<void> {
+    await flushHarnessPendingConversationWrites(
+      this.conversation,
+      this.pendingConversationWrites,
     );
   }
 
@@ -353,7 +353,7 @@ export class AgentHarness<
     signal?: AbortSignal,
   ): Promise<void> {
     if (event.type === "message_end") {
-      await this.session.appendMessage(event.message);
+      await this.conversation.appendMessage(event.message);
       await this.emitAny(event, signal);
       return;
     }
@@ -364,14 +364,14 @@ export class AgentHarness<
       } catch (error) {
         eventError = error;
       }
-      const hadPendingMutations = this.pendingSessionWrites.length > 0;
-      await this.flushPendingSessionWrites();
+      const hadPendingMutations = this.pendingConversationWrites.length > 0;
+      await this.flushPendingConversationWrites();
       if (eventError) throw eventError;
       await this.emitOwn({ type: "save_point", hadPendingMutations });
       return;
     }
     if (event.type === "agent_end") {
-      await this.flushPendingSessionWrites();
+      await this.flushPendingConversationWrites();
       this.phase = "idle";
       await this.emitAny(event, signal);
       await this.emitOwn(
@@ -489,7 +489,7 @@ export class AgentHarness<
       );
     } finally {
       try {
-        await this.flushPendingSessionWrites();
+        await this.flushPendingConversationWrites();
       } finally {
         this.runAbortController = undefined;
       }
@@ -571,7 +571,10 @@ export class AgentHarness<
         );
         const assistant = [...failureMessages]
           .reverse()
-          .find((message): message is AssistantMessage => message.role === "assistant");
+          .find(
+            (message): message is AssistantMessage =>
+              message.role === "assistant",
+          );
         if (assistant) return assistant;
       } catch (failureError) {
         const cause = new AggregateError(
@@ -583,7 +586,7 @@ export class AgentHarness<
       throw normalizeHarnessError(error, "unknown");
     } finally {
       try {
-        await this.flushPendingSessionWrites();
+        await this.flushPendingConversationWrites();
       } finally {
         this.runAbortController = undefined;
         finishRunPromise();
@@ -662,12 +665,12 @@ export class AgentHarness<
     try {
       await queueOrWriteMessage(
         this.phase,
-        this.pendingSessionWrites,
-        this.session,
+        this.pendingConversationWrites,
+        this.conversation,
         message,
       );
     } catch (error) {
-      throw normalizeHarnessError(error, "session");
+      throw normalizeHarnessError(error, "conversation");
     }
   }
 
@@ -690,7 +693,7 @@ export class AgentHarness<
       const auth = await this.getApiKeyAndHeaders?.(model);
       if (!auth)
         throw new AgentHarnessError("auth", "No auth available for compaction");
-      const branchEntries = await this.session.getBranch();
+      const branchEntries = await this.conversation.getBranch();
       const preparationResult = prepareCompaction(
         branchEntries,
         DEFAULT_COMPACTION_SETTINGS,
@@ -700,7 +703,7 @@ export class AgentHarness<
       if (!preparation)
         throw new AgentHarnessError("compaction", "Nothing to compact");
       const hookResult = await this.emitHook({
-        type: "session_before_compact",
+        type: "conversation_before_compact",
         preparation,
         branchEntries,
         customInstructions,
@@ -722,17 +725,17 @@ export class AgentHarness<
           );
       if (!compactResult.ok) throw compactResult.error;
       const result = compactResult.value;
-      const entryId = await this.session.appendCompaction(
+      const entryId = await this.conversation.appendCompaction(
         result.summary,
         result.firstKeptEntryId,
         result.tokensBefore,
         result.details,
         provided !== undefined,
       );
-      const entry = await this.session.getEntry(entryId);
+      const entry = await this.conversation.getEntry(entryId);
       if (entry?.type === "compaction") {
         await this.emitOwn({
-          type: "session_compact",
+          type: "conversation_compact",
           compactionEntry: entry,
           fromHook: provided !== undefined,
         });
@@ -761,16 +764,20 @@ export class AgentHarness<
       );
     this.phase = "branch_summary";
     try {
-      const oldLeafId = await this.session.getLeafId();
+      const oldLeafId = await this.conversation.getLeafId();
       if (oldLeafId === targetId) return { cancelled: false };
-      const targetEntry = await this.session.getEntry(targetId);
+      const targetEntry = await this.conversation.getEntry(targetId);
       if (!targetEntry)
         throw new AgentHarnessError(
           "invalid_argument",
           `Entry ${targetId} not found`,
         );
       const { entries, commonAncestorId } =
-        await collectEntriesForBranchSummary(this.session, oldLeafId, targetId);
+        await collectEntriesForBranchSummary(
+          this.conversation,
+          oldLeafId,
+          targetId,
+        );
       const preparation = {
         targetId,
         oldLeafId,
@@ -783,7 +790,7 @@ export class AgentHarness<
       };
       const signal = new AbortController().signal;
       const hookResult = await this.emitHook({
-        type: "session_before_tree",
+        type: "conversation_before_tree",
         preparation,
         signal,
       });
@@ -833,7 +840,7 @@ export class AgentHarness<
         targetEntry,
         targetId,
       );
-      const summaryId = await this.session.moveTo(
+      const summaryId = await this.conversation.moveTo(
         newLeafId,
         summaryText
           ? {
@@ -844,12 +851,12 @@ export class AgentHarness<
           : undefined,
       );
       if (summaryId) {
-        const entry = await this.session.getEntry(summaryId);
+        const entry = await this.conversation.getEntry(summaryId);
         if (entry?.type === "branch_summary") summaryEntry = entry;
       }
       await this.emitOwn({
-        type: "session_tree",
-        newLeafId: await this.session.getLeafId(),
+        type: "conversation_tree",
+        newLeafId: await this.conversation.getLeafId(),
         oldLeafId,
         summaryEntry,
         fromHook: hookResult?.summary !== undefined,
@@ -870,9 +877,9 @@ export class AgentHarness<
     try {
       const previousModel = this.model;
       if (this.phase === "idle") {
-        await this.session.appendModelChange(model.provider, model.id);
+        await this.conversation.appendModelChange(model.provider, model.id);
       } else {
-        this.pendingSessionWrites.push({
+        this.pendingConversationWrites.push({
           type: "model_change",
           provider: model.provider,
           modelId: model.id,
@@ -881,7 +888,7 @@ export class AgentHarness<
       this.model = model;
       await this.emitOwn(createModelUpdateEvent(model, previousModel, "set"));
     } catch (error) {
-      throw normalizeHarnessError(error, "session");
+      throw normalizeHarnessError(error, "conversation");
     }
   }
 
@@ -893,9 +900,9 @@ export class AgentHarness<
     try {
       const previousLevel = this.thinkingLevel;
       if (this.phase === "idle") {
-        await this.session.appendThinkingLevelChange(level);
+        await this.conversation.appendThinkingLevelChange(level);
       } else {
-        this.pendingSessionWrites.push({
+        this.pendingConversationWrites.push({
           type: "thinking_level_change",
           thinkingLevel: level,
         });
@@ -903,7 +910,7 @@ export class AgentHarness<
       this.thinkingLevel = level;
       await this.emitOwn(createThinkingLevelUpdateEvent(level, previousLevel));
     } catch (error) {
-      throw normalizeHarnessError(error, "session");
+      throw normalizeHarnessError(error, "conversation");
     }
   }
 
@@ -921,9 +928,9 @@ export class AgentHarness<
         source: "set",
       });
       if (this.phase === "idle") {
-        await this.session.appendActiveToolsChange(next.activeToolNames);
+        await this.conversation.appendActiveToolsChange(next.activeToolNames);
       } else {
-        this.pendingSessionWrites.push({
+        this.pendingConversationWrites.push({
           type: "active_tools_change",
           activeToolNames: [...next.activeToolNames],
         });
@@ -958,9 +965,9 @@ export class AgentHarness<
         source: "set",
       });
       if (this.phase === "idle") {
-        await this.session.appendActiveToolsChange(next.activeToolNames);
+        await this.conversation.appendActiveToolsChange(next.activeToolNames);
       } else {
-        this.pendingSessionWrites.push({
+        this.pendingConversationWrites.push({
           type: "active_tools_change",
           activeToolNames: [...next.activeToolNames],
         });

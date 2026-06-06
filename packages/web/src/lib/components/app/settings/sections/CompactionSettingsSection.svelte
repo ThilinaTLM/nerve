@@ -42,8 +42,8 @@
       <Switch
         class="settings-full-switch"
         bind:checked={settingsDraft.compaction.auto}
-        label="Auto-compact sessions"
-        description="Automatically summarize long session branches when they approach the context limit."
+        label="Auto-compact conversations"
+        description="Automatically summarize long conversation branches when they approach the context limit."
         onCheckedChange={(checked) => {
           settingsDraft.compaction.auto = checked;
           onSettingsChange?.({ compaction: { auto: checked } }, { immediate: true });

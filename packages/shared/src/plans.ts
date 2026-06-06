@@ -20,7 +20,7 @@ export const planReviewRecordSchema = z.object({
   id: z.string().startsWith("plan_review_"),
   toolCallId: z.string().startsWith("tool_"),
   agentId: z.string().startsWith("agent_"),
-  sessionId: z.string().startsWith("ses_"),
+  conversationId: z.string().startsWith("conv_"),
   projectId: z.string().startsWith("proj_"),
   slug: planSlugSchema,
   title: z.string().min(1).optional(),

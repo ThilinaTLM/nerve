@@ -32,7 +32,7 @@ export const storageInfoSchema = z.object({
   counts: z
     .object({
       projects: z.number().int().nonnegative(),
-      sessions: z.number().int().nonnegative(),
+      conversations: z.number().int().nonnegative(),
       agents: z.number().int().nonnegative(),
       events: z.number().int().nonnegative(),
       processes: z.number().int().nonnegative(),

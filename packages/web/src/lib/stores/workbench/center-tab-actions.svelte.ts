@@ -119,9 +119,9 @@ export async function closeCenterTabs(
       targets.has(centerTabKey(workbenchState.activeCenterTab)),
   );
   const selectedConversationWasClosed = Boolean(
-    selection.sessionId &&
+    selection.conversationId &&
       targets.has(
-        centerTabKey({ kind: "conversation", id: selection.sessionId }),
+        centerTabKey({ kind: "conversation", id: selection.conversationId }),
       ),
   );
   const fallback = tabIsInList(fallbackPreferred, remainingTabs)

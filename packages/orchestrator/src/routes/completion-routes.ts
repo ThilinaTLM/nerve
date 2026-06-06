@@ -27,8 +27,8 @@ const slashCompletionItems: CompletionItem[] = [
   },
   {
     label: "/status",
-    detail: "Summarize current session state",
-    info: "Useful before handing off or resuming a durable session.",
+    detail: "Summarize current conversation state",
+    info: "Useful before handing off or resuming a durable conversation.",
     kind: "slash",
   },
   {

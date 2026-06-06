@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   type AgentRecord,
@@ -92,7 +92,9 @@ export class PlanService {
     }
     const content = await readFile(planPath, "utf8");
     if (!content.trim()) {
-      throw new Error("Plan file is empty. Write your plan first, then present it.");
+      throw new Error(
+        "Plan file is empty. Write your plan first, then present it.",
+      );
     }
     if (UNRESOLVED_PLAN_MARKER.test(content)) {
       throw new Error(
@@ -115,7 +117,7 @@ export class PlanService {
       id: createId("plan_review"),
       toolCallId: toolCall.id,
       agentId: agent.id,
-      sessionId: agent.sessionId,
+      conversationId: agent.conversationId,
       projectId: agent.projectId,
       slug,
       title,
@@ -215,7 +217,7 @@ export class PlanService {
     const updated = await this.setAgentMode(agentId, "coding", reason);
     await this.events.publish("plan_review.force_exited", {
       agentId,
-      sessionId: updated.sessionId,
+      conversationId: updated.conversationId,
       projectId: updated.projectId,
       reason,
     });
