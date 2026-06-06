@@ -18,9 +18,23 @@ function dataDir(): string {
     : join(homedir(), ".nerve");
 }
 
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
 async function readDaemonFile(): Promise<DaemonFile> {
-  const raw = await readFile(join(dataDir(), "daemon.json"), "utf8");
-  return daemonFileSchema.parse(JSON.parse(raw));
+  const path = join(dataDir(), "daemon.json");
+  try {
+    const raw = await readFile(path, "utf8");
+    return daemonFileSchema.parse(JSON.parse(raw));
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      throw new Error(
+        `Nerve daemon is not running (missing ${path}). Start it with \`pnpm dev\` or \`nerve daemon\`, then retry this command.`,
+      );
+    }
+    throw error;
+  }
 }
 
 async function readToken(): Promise<string> {
