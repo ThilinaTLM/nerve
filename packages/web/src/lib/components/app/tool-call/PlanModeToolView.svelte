@@ -105,7 +105,7 @@
   .summary {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
   }
 
   .plan-preview {
@@ -116,7 +116,7 @@
     color: var(--foreground);
     padding: 0.6rem;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     line-height: 1.45;
     white-space: pre-wrap;
   }

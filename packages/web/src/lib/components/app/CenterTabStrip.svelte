@@ -296,7 +296,7 @@
     min-width: 0;
     height: 2rem;
     padding: 0 0.3rem 0 0.68rem;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     text-align: left;
   }
 

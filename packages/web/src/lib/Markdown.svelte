@@ -184,7 +184,7 @@
 <style>
   .markdown {
     color: color-mix(in oklab, var(--foreground) 92%, transparent);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     line-height: 1.55;
     overflow-wrap: anywhere;
   }
@@ -285,7 +285,7 @@
     color: var(--foreground);
     padding: 0.08rem 0.28rem;
     font-family: var(--font-mono);
-    font-size: 0.9em;
+    font-size: var(--text-sm);
   }
 
   .markdown :global(.code-block) {
@@ -305,7 +305,7 @@
     padding: 0.26rem 0.52rem;
     color: var(--secondary-foreground);
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -318,7 +318,7 @@
     color: var(--muted-foreground);
     padding: 0.12rem 0.38rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     cursor: pointer;
   }
 
@@ -335,7 +335,7 @@
     background: var(--sidebar) !important;
     margin: 0;
     padding: 0.55rem 0.6rem;
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;
@@ -375,7 +375,7 @@
     min-width: 100%;
     width: max-content;
     border-collapse: collapse;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .markdown :global(th),

@@ -69,8 +69,8 @@
     >
       <StatusDot tone={processTone(process.status)} pulse={processPulse(process.status)} />
       <div class="min-w-0 flex-1">
-        <div class="truncate font-mono text-[12px] text-foreground">{process.command}</div>
-        <div class="truncate text-[11px] text-muted-foreground" title={process.cwd}>
+        <div class="truncate font-mono text-xs text-foreground">{process.command}</div>
+        <div class="truncate text-xs text-muted-foreground" title={process.cwd}>
           {process.name ? `${process.name} · ` : ""}{shortenPath(process.cwd, homeDir)}
         </div>
       </div>
@@ -132,7 +132,7 @@
 
   {#if running.length}
     <div class="flex flex-col gap-1.5">
-      <div class="flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div class="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <StatusDot tone="good" pulse />
         <span>Running</span>
         <span class="font-mono">{running.length}</span>
@@ -145,7 +145,7 @@
 
   {#if stopped.length}
     <div class="flex flex-col gap-1.5">
-      <div class="flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div class="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <StatusDot tone="neutral" />
         <span>Stopped</span>
         <span class="font-mono">{stopped.length}</span>

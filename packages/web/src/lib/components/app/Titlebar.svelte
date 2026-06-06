@@ -83,7 +83,7 @@
   .app-name {
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-size: 1rem;
+    font-size: var(--text-base);
     font-weight: 700;
     letter-spacing: -0.01em;
   }
@@ -109,7 +109,7 @@
     max-width: 18rem;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 500;
   }
 </style>

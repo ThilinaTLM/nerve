@@ -22,7 +22,7 @@
 				danger: "border-destructive/40 bg-destructive/15 text-destructive",
 			},
 			size: {
-				xs: "px-1.5 py-px text-[11px]",
+				xs: "px-1.5 py-px text-xs",
 				sm: "px-2 py-0.5 text-xs",
 			},
 		},

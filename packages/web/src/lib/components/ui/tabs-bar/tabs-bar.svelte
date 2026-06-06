@@ -33,7 +33,7 @@
 				<span>{tab.label}</span>
 				{#if tab.count}
 					<span
-						class="ml-1 inline-flex min-w-4 items-center justify-center rounded-full border border-border px-1 font-mono text-[11px] leading-tight"
+						class="ml-1 inline-flex min-w-4 items-center justify-center rounded-full border border-border px-1 font-mono text-xs leading-tight"
 					>{tab.count}</span>
 				{/if}
 			</Tabs.Trigger>

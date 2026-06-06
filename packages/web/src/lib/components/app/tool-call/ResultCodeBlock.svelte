@@ -67,7 +67,7 @@
     color: var(--sidebar-foreground);
     padding: 0.48rem 0.58rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.4;
   }
 
@@ -85,7 +85,7 @@
 
   .code-block :global(code) {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
   }
 
   .code-block :global(span) {

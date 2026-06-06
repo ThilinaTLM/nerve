@@ -152,7 +152,7 @@
   .file-empty p {
     max-width: 34rem;
     margin: 0;
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
   }
 
   .image-wrap {
@@ -174,7 +174,7 @@
     overflow: auto;
     color: var(--foreground);
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     line-height: 1.5;
     tab-size: 2;
   }
@@ -193,7 +193,7 @@
   .code-view :global(code),
   .code-view code {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .code-view :global(.line),

@@ -130,7 +130,7 @@
   :global(.dialog-title) {
     margin: 0;
     color: var(--foreground);
-    font-size: 1rem;
+    font-size: var(--text-base);
     font-weight: 600;
     line-height: 1.18;
   }
@@ -138,7 +138,7 @@
   :global(.dialog-description) {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   :global(.dialog-close) {

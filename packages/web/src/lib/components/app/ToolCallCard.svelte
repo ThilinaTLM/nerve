@@ -127,14 +127,14 @@
 
   .tool-name {
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 650;
     color: var(--foreground);
   }
 
   .tool-title {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -157,7 +157,7 @@
   }
 
   .tool-status {
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--muted-foreground);
     flex: none;
@@ -185,7 +185,7 @@
     color: var(--sidebar-foreground);
     padding: 0.48rem 0.58rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-word;

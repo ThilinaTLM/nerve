@@ -24,7 +24,7 @@
 <style>
   .note {
     margin: 0;
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
   }
 

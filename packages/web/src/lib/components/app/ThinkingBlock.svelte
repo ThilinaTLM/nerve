@@ -27,7 +27,7 @@
   .thinking-block {
     margin: 0 0 0.65rem;
     color: color-mix(in oklab, var(--foreground) 82%, var(--muted-foreground));
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-style: italic;
     line-height: 1.55;
   }

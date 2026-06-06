@@ -440,7 +440,7 @@
   .message-content {
     min-width: 0;
     color: color-mix(in oklab, var(--foreground) 92%, transparent);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
   }
 
   .streaming-content {
@@ -481,7 +481,7 @@
     gap: 0.45rem;
     min-width: 0;
     color: var(--muted-foreground);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 650;
   }
 
@@ -495,12 +495,12 @@
     color: var(--foreground);
     padding: 0.1rem 0.42rem;
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: var(--text-xs);
   }
 
   .submitted {
     color: var(--success, var(--primary));
-    font-size: 0.68rem;
+    font-size: var(--text-xs);
   }
 
   .tool-draft-card pre {
@@ -512,7 +512,7 @@
     color: var(--sidebar-foreground);
     padding: 0.5rem 0.58rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-word;
@@ -553,7 +553,7 @@
     justify-content: center;
     gap: 0.5rem;
     font-family: var(--font-mono);
-    font-size: 1.1rem;
+    font-size: var(--text-lg);
     letter-spacing: 0.02em;
   }
 
@@ -576,7 +576,7 @@
 
   .prompt-hint {
     margin-top: 0.7rem;
-    font-size: 0.8rem;
+    font-size: var(--text-sm);
     color: var(--muted-foreground);
   }
 

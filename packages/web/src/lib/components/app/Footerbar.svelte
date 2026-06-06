@@ -141,7 +141,7 @@
     background: var(--sidebar);
     color: var(--muted-foreground);
     padding: 0 0.4rem 0 0.3rem;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     user-select: none;
   }
 
@@ -163,7 +163,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
   }
 
   .footer-chip {

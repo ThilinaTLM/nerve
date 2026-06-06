@@ -154,7 +154,7 @@
             ".cm-content": {
               caretColor: "var(--primary)",
               fontFamily: "var(--font-mono)",
-              fontSize: "0.8125rem",
+              fontSize: "var(--text-sm)",
               lineHeight: "1.5",
               padding: "18px 46px 14px 11px",
             },

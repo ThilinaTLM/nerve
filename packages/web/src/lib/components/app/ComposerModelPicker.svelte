@@ -170,7 +170,7 @@
   .model-picker-heading {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -179,7 +179,7 @@
   .model-picker-empty {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .model-picker-empty code {
@@ -229,7 +229,7 @@
 
   .model-row-label {
     overflow: hidden;
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -238,7 +238,7 @@
   .model-row-detail {
     overflow: hidden;
     color: var(--muted-foreground);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -255,7 +255,7 @@
     background: var(--input);
     color: var(--muted-foreground);
     padding: 0.2rem 0.6rem;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 500;
     cursor: pointer;
   }

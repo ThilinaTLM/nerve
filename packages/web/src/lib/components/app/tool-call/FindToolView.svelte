@@ -40,7 +40,7 @@
     background: var(--sidebar);
     color: var(--sidebar-foreground);
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.4;
     overflow: visible;
   }
@@ -61,7 +61,7 @@
 
   .note {
     margin: 0;
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
   }
 </style>

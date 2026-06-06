@@ -42,21 +42,21 @@
   }
 
   .status {
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 600;
     text-transform: capitalize;
   }
 
   .meta {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
   }
 
   .command {
     margin: 0;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
     white-space: pre-wrap;
     word-break: break-word;
@@ -67,7 +67,7 @@
     align-items: center;
     gap: 0.3rem;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     color: var(--info);
   }
 
@@ -77,7 +77,7 @@
 
   .error {
     margin: 0;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     color: var(--destructive);
   }
 </style>

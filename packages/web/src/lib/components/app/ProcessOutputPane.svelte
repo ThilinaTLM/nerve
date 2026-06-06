@@ -42,8 +42,8 @@
       <StatusDot {tone} pulse={processPulse(process.status)} />
       <Terminal class="size-3.5 shrink-0 text-muted-foreground" strokeWidth={2.2} />
       <div class="flex min-w-0 flex-1 items-baseline gap-2">
-        <strong class="truncate text-[13px] font-semibold text-foreground" title={process.command}>{title}</strong>
-        <span class="truncate font-mono text-[11px] text-muted-foreground" title={process.cwd}>
+        <strong class="truncate text-sm font-semibold text-foreground" title={process.command}>{title}</strong>
+        <span class="truncate font-mono text-xs text-muted-foreground" title={process.cwd}>
           {shortenPath(process.cwd, homeDir)} · {readiness}
         </span>
       </div>

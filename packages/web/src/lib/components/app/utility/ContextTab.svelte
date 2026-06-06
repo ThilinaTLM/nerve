@@ -50,8 +50,8 @@
     <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Active Context</div>
     <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-3 py-2.5">
       {#each fields as field}
-        <dt class="font-mono text-[11px] text-muted-foreground">{field.label}</dt>
-        <dd class="truncate font-mono text-[11px] text-foreground" title={field.value}>
+        <dt class="font-mono text-xs text-muted-foreground">{field.label}</dt>
+        <dd class="truncate font-mono text-xs text-foreground" title={field.value}>
           {field.value ?? "—"}
         </dd>
       {/each}
@@ -71,17 +71,17 @@
           onclick={() => onSelectAgent?.(agent)}
         >
           <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-3 py-2.5">
-            <dt class="font-mono text-[11px] text-muted-foreground">Status</dt>
-            <dd class="flex items-center gap-1.5 truncate font-mono text-[11px] text-foreground">
+            <dt class="font-mono text-xs text-muted-foreground">Status</dt>
+            <dd class="flex items-center gap-1.5 truncate font-mono text-xs text-foreground">
               <StatusDot tone={statusTone(agent.status)} pulse={pulseForStatus(agent.status)} />
               {agent.status}
             </dd>
-            <dt class="font-mono text-[11px] text-muted-foreground">Mode</dt>
-            <dd class="truncate font-mono text-[11px] text-foreground">{agent.mode}</dd>
-            <dt class="font-mono text-[11px] text-muted-foreground">Permission</dt>
-            <dd class="truncate font-mono text-[11px] text-foreground">{agent.permissionLevel}</dd>
-            <dt class="font-mono text-[11px] text-muted-foreground">Agent</dt>
-            <dd class="truncate font-mono text-[11px] text-foreground" title={agent.id}>{agent.id}</dd>
+            <dt class="font-mono text-xs text-muted-foreground">Mode</dt>
+            <dd class="truncate font-mono text-xs text-foreground">{agent.mode}</dd>
+            <dt class="font-mono text-xs text-muted-foreground">Permission</dt>
+            <dd class="truncate font-mono text-xs text-foreground">{agent.permissionLevel}</dd>
+            <dt class="font-mono text-xs text-muted-foreground">Agent</dt>
+            <dd class="truncate font-mono text-xs text-foreground" title={agent.id}>{agent.id}</dd>
           </dl>
         </button>
       {/each}
@@ -93,7 +93,7 @@
       <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Export</div>
       <div class="flex flex-col gap-3 px-3 py-2.5">
         <div class="flex flex-col gap-1.5">
-          <span class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Conversation</span>
+          <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conversation</span>
           <div class="flex flex-wrap gap-1.5">
             <Badge href={exportUrl?.("json")} variant="outline" size="sm">JSON</Badge>
             <Badge href={exportUrl?.("md")} variant="outline" size="sm">Markdown</Badge>
@@ -101,7 +101,7 @@
           </div>
         </div>
         <div class="flex flex-col gap-1.5">
-          <span class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">System prompt</span>
+          <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">System prompt</span>
           {#if systemPromptHref}
             <a
               class="inline-flex w-fit items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/60"

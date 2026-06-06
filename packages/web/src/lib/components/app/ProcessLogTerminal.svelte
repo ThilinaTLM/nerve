@@ -45,7 +45,7 @@
     min-width: max-content;
     color: color-mix(in oklab, var(--foreground) 92%, transparent);
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     line-height: 1.45;
     white-space: pre-wrap;
   }

@@ -39,7 +39,7 @@
     color: var(--primary);
     cursor: pointer;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     padding: 0;
     text-align: left;
   }
@@ -65,7 +65,7 @@
 
   .note {
     margin: 0;
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
   }
 </style>

@@ -33,7 +33,7 @@
     background: var(--sidebar);
     color: var(--sidebar-foreground);
     padding: 0.5rem 0.6rem;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     line-height: 1.45;
   }
 
@@ -59,7 +59,7 @@
 
   .result-title {
     color: var(--foreground);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     line-height: 1.35;
   }
@@ -67,13 +67,13 @@
   .result-url {
     color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     overflow-wrap: anywhere;
   }
 
   .note {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
   }
 </style>

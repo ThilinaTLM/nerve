@@ -35,7 +35,7 @@
     border-radius: var(--radius-sm);
     background: var(--sidebar);
     color: var(--sidebar-foreground);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .proc-list li {
@@ -69,7 +69,7 @@
 
   .note {
     margin: 0;
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
   }
 </style>

@@ -111,7 +111,7 @@
     color: var(--muted-foreground);
     padding: 0 0.5rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     font-weight: 600;
   }
 
@@ -145,7 +145,7 @@
   }
 
   header strong {
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
     font-weight: 600;
   }
 
@@ -153,7 +153,7 @@
   .status-grid span,
   .context-list span {
     color: var(--muted-foreground);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .status-grid {
@@ -182,7 +182,7 @@
     overflow: hidden;
     color: var(--foreground);
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;

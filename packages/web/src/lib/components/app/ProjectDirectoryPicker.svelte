@@ -448,7 +448,7 @@
     gap: 0.15rem;
     overflow: hidden;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .crumb {
@@ -517,7 +517,7 @@
   .picker-search :global([data-slot="input"]) {
     padding-left: 2rem;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .picker-error {
@@ -525,7 +525,7 @@
     border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     padding: 0.5rem 0.75rem;
     color: var(--destructive);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .picker-scroll {
@@ -545,7 +545,7 @@
     padding: 0.25rem 0.3rem 0.4rem;
     color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -584,7 +584,7 @@
   .row-main strong {
     display: block;
     overflow: hidden;
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -601,7 +601,7 @@
   .row-meta small {
     color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     white-space: nowrap;
   }
 
@@ -662,12 +662,12 @@
   .empty p {
     margin: 0.3rem 0 0;
     color: var(--foreground);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
   }
 
   .empty span {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
   }
 
   /* Footer */
@@ -695,7 +695,7 @@
     min-width: 0;
     color: var(--foreground);
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -721,7 +721,7 @@
     border-radius: var(--radius-sm);
     background: var(--input);
     padding: 0 0.45rem;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   :global(.hidden-switch) :global(.switch-copy small) {

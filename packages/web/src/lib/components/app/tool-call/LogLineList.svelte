@@ -33,7 +33,7 @@
     color: var(--sidebar-foreground);
     padding: 0.42rem 0.55rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.4;
   }
 

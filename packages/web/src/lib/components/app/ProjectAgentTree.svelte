@@ -266,7 +266,7 @@
     margin: 0.5rem;
     color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
   }
 
   .empty.child {
@@ -340,7 +340,7 @@
   }
 
   .project-label {
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 600;
     letter-spacing: -0.005em;
   }
@@ -350,11 +350,11 @@
     top: 0.35rem;
     color: color-mix(in oklab, var(--muted-foreground) 90%, transparent);
     font-family: var(--font-mono);
-    font-size: 0.625rem;
+    font-size: var(--text-xs);
   }
 
   .conversation-label {
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 450;
   }
 
@@ -365,7 +365,7 @@
     gap: 0.1rem;
     max-width: 22rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.35;
     overflow-wrap: anywhere;
   }
@@ -373,7 +373,7 @@
   :global(.conversation-tooltip) .tt-title {
     margin-bottom: 0.15rem;
     font-family: var(--font-sans);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 600;
   }
 

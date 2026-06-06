@@ -24,7 +24,7 @@
 }
 
 .settings-page .settings-title strong {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
@@ -38,7 +38,7 @@
 .settings-page h3 {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -50,14 +50,14 @@
 
 .settings-page .muted {
   color: var(--muted-foreground);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.38;
 }
 
 .settings-page .stat-grid span {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -66,7 +66,7 @@
   overflow: hidden;
   color: var(--foreground);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -99,7 +99,7 @@
 
 .settings-page .settings-loading strong {
   color: var(--foreground);
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 
 .settings-page .stat-grid,
@@ -145,7 +145,7 @@
   display: grid;
   gap: 0.24rem;
   color: var(--muted-foreground);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 500;
 }
 
@@ -170,13 +170,13 @@
 
 .settings-page .provider-row strong {
   color: var(--foreground);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .settings-page .provider-row small,
 .settings-page .provider-row p {
   color: var(--muted-foreground);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .settings-page code {
@@ -187,7 +187,7 @@
   color: var(--foreground);
   padding: 0.34rem 0.42rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .settings-page .provider-row p,
@@ -214,13 +214,13 @@
 .settings-page .permission-table span,
 .settings-page .permission-table strong {
   padding: 0.48rem 0.55rem;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .settings-page .permission-table div:first-child span {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -236,7 +236,7 @@
   background: var(--accent);
   color: var(--primary);
   padding: 0.55rem 0.65rem;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 960px) {

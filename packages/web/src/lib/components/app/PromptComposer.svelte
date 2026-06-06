@@ -442,7 +442,7 @@
     color: var(--muted-foreground);
     padding: 0 0.6rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
@@ -495,7 +495,7 @@
   .permission-heading {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -540,13 +540,13 @@
   }
 
   .permission-row-label {
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 500;
   }
 
   .permission-row-detail {
     color: var(--muted-foreground);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
   }
 
   .permission-row.active .permission-row-detail {
@@ -604,6 +604,6 @@
     background: color-mix(in oklab, var(--destructive) 16%, transparent);
     color: var(--destructive);
     padding: 0.42rem 0.5rem;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 </style>

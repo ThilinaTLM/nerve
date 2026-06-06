@@ -138,13 +138,13 @@
 
   .head-copy strong {
     color: var(--foreground);
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
     font-weight: 600;
   }
 
   .head-copy span:not(.head-icon) {
     color: var(--muted-foreground);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
   }
 
   .approval-list {
@@ -182,7 +182,7 @@
   .detail-label {
     color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -191,7 +191,7 @@
     overflow: hidden;
     color: var(--primary);
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -201,20 +201,20 @@
     align-items: center;
     gap: 0.4rem;
     color: var(--foreground);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     text-transform: capitalize;
   }
 
   .detail-reason {
     color: var(--muted-foreground);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     line-height: 1.38;
   }
 
   .detail-args summary {
     color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     cursor: pointer;
   }
 
@@ -232,7 +232,7 @@
     color: var(--foreground);
     padding: 0.45rem 0.5rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.38;
     white-space: pre-wrap;
   }

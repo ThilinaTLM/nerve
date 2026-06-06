@@ -32,7 +32,7 @@
   .empty {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
   }
 
   .todo-list {
@@ -49,7 +49,7 @@
     align-items: start;
     gap: 0.45rem;
     color: var(--foreground);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     line-height: 1.45;
   }
 

@@ -25,13 +25,13 @@
 <style>
   .meta {
     margin: 0;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     color: var(--muted-foreground);
   }
 
   .meta-label {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
@@ -45,7 +45,7 @@
 
   .task {
     margin: 0;
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     white-space: pre-wrap;
     word-break: break-word;
   }

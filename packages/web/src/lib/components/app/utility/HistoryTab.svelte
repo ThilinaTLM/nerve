@@ -106,14 +106,14 @@
             {#if row.depth > 0}
               <CornerDownRight class="mt-0.5 size-3 shrink-0 text-muted-foreground/50" strokeWidth={2} />
             {/if}
-            <span class="mt-px font-mono text-[11px] text-muted-foreground/60">
+            <span class="mt-px font-mono text-xs text-muted-foreground/60">
               {String(row.index).padStart(2, "0")}
             </span>
             <div class="min-w-0 flex-1">
-              <div class="text-[12px] font-medium text-foreground">
+              <div class="text-xs font-medium text-foreground">
                 {row.node.entry.role} · {row.node.entry.kind}
               </div>
-              <div class="truncate font-mono text-[11px] text-muted-foreground">
+              <div class="truncate font-mono text-xs text-muted-foreground">
                 {row.node.entry.text.slice(0, 120) || "empty entry"}
               </div>
             </div>

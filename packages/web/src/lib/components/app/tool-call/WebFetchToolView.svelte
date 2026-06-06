@@ -39,7 +39,7 @@
     gap: 0.35rem;
     align-items: center;
     color: var(--muted-foreground);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
   }
 
   .meta span {
@@ -62,7 +62,7 @@
   .note {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
   }
 
   .path {
@@ -78,7 +78,7 @@
     color: var(--sidebar-foreground);
     padding: 0.48rem 0.58rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-word;
