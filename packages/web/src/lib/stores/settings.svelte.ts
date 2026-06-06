@@ -9,7 +9,7 @@ import {
 } from "../api";
 import type { ThemePreference } from "../state/app-state.svelte";
 import { applyTheme } from "../state/app-state.svelte";
-import { modelKey, usableModelOptions } from "../utils/model";
+import { modelKey, scopedUsableModelOptions } from "../utils/model";
 import {
   clampThinkingLevelForModel,
   currentActiveAgent,
@@ -71,7 +71,11 @@ export async function loadSettingsPanel() {
     currentActiveAgent()?.mode ?? settings.defaultMode;
   workbenchState.selectedPermissionLevel =
     currentActiveAgent()?.permissionLevel ?? settings.defaultPermissionLevel;
-  const usable = usableModelOptions(modelList, auth);
+  const usable = scopedUsableModelOptions(
+    modelList,
+    auth,
+    settings.scopedModels,
+  );
   const activeModel = currentActiveAgent()?.model;
   if (
     activeModel &&
@@ -131,11 +135,34 @@ export function hasPendingSettingsSave(): boolean {
   return Boolean(pendingSettingsPatch || saveTimer || saveInFlight);
 }
 
+function reconcileSelectedModelForScope(
+  scopedModels: UpdateSettingsRequest["scopedModels"],
+) {
+  const usable = scopedUsableModelOptions(
+    workbenchState.models,
+    workbenchState.authProviders,
+    scopedModels,
+  );
+  if (
+    usable.some((model) => modelKey(model) === workbenchState.selectedModelKey)
+  ) {
+    return;
+  }
+  workbenchState.selectedModelKey =
+    usable.length > 0 ? modelKey(usable[0]) : "";
+  workbenchState.selectedThinkingLevel = clampThinkingLevelForModel(
+    workbenchState.selectedThinkingLevel,
+    selectedModelInfo(),
+  );
+}
+
 export function queueSettingsSave(
   patch: UpdateSettingsRequest,
   options: SettingsSaveOptions = {},
 ) {
   pendingSettingsPatch = mergeSettingsPatch(pendingSettingsPatch, patch);
+  if ("scopedModels" in patch)
+    reconcileSelectedModelForScope(patch.scopedModels);
   workbenchState.settingsSaveStatus = "dirty";
   workbenchState.settingsMessage = "Unsaved changes";
   clearSaveTimer();

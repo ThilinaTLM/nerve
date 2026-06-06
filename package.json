@@ -17,7 +17,7 @@
     "test": "pnpm -r --if-present test"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.78.0"
+    "@earendil-works/pi-ai": "0.78.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.4",

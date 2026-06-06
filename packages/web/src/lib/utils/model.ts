@@ -27,3 +27,23 @@ export function usableModelOptions(
     (model) => model.faux || configuredProviders.has(model.provider),
   );
 }
+
+export function scopedUsableModelOptions(
+  modelList: ModelInfo[],
+  providers: AuthProviderMetadata[],
+  scopedModels: ModelSelection[] | undefined,
+): ModelInfo[] {
+  const usable = usableModelOptions(modelList, providers);
+  if (!scopedModels?.length) return usable;
+  const scopedKeys = new Set(scopedModels.map(modelKey));
+  return usable.filter((model) => scopedKeys.has(modelKey(model)));
+}
+
+export function authenticatedRealModelOptions(
+  modelList: ModelInfo[],
+  providers: AuthProviderMetadata[],
+): ModelInfo[] {
+  return usableModelOptions(modelList, providers).filter(
+    (model) => !model.faux,
+  );
+}

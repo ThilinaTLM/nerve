@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { modelSelectionSchema } from "./models.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;
@@ -28,6 +29,7 @@ export const settingsSchema = z.object({
     reserveTokens: z.number().int().positive().default(16_384),
     keepRecentTokens: z.number().int().positive(),
   }),
+  scopedModels: z.array(modelSelectionSchema).default([]),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -49,6 +51,7 @@ export const defaultSettings: Settings = {
     reserveTokens: 16_384,
     keepRecentTokens: 20_000,
   },
+  scopedModels: [],
 };
 
 export const updateSettingsRequestSchema = z.object({
@@ -75,5 +78,6 @@ export const updateSettingsRequestSchema = z.object({
       keepRecentTokens: z.number().int().positive().optional(),
     })
     .optional(),
+  scopedModels: z.array(modelSelectionSchema).optional(),
 });
 export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;

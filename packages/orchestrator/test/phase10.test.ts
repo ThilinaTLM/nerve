@@ -25,16 +25,24 @@ async function tempHome(): Promise<string> {
 describe("phase 10 hardening helpers", () => {
   it("persists settings patches without dropping nested defaults", async () => {
     const storage = await initializeStorage(await tempHome());
+    const scopedModels = [
+      { provider: "anthropic", modelId: "claude-opus-4-8" },
+    ];
     const settings = await writeSettings(storage, {
       defaultPermissionLevel: "autonomous",
       server: { allowRemote: true },
+      scopedModels,
     });
 
     assert.equal(settings.defaultPermissionLevel, "autonomous");
     assert.equal(settings.defaultSubagentPermissionLevel, "autonomous");
     assert.equal(settings.server.host, "127.0.0.1");
     assert.equal(settings.server.allowRemote, true);
+    assert.equal(settings.ui.theme, "system");
+    assert.equal(settings.compaction.auto, false);
+    assert.deepEqual(settings.scopedModels, scopedModels);
     assert.equal(storage.settings.server.allowRemote, true);
+    assert.deepEqual(storage.settings.scopedModels, scopedModels);
   });
 
   it("stores provider API keys encrypted behind the secret provider", async () => {

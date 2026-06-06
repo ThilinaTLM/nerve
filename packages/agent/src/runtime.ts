@@ -145,14 +145,28 @@ export function streamAgentPrompt(
   });
 }
 
+const COMPLETE_MODEL_LIST_PROVIDERS = new Set<string>([
+  // Nerve supports Anthropic subscription OAuth, and newer Opus/Sonnet
+  // models sort after older Claude 3.x IDs. Truncating the provider list hides
+  // currently available subscription models such as claude-opus-4-8.
+  "anthropic",
+]);
+
+function visibleModelsForProvider(provider: KnownProvider): Model<never>[] {
+  const models = getModels(provider);
+  return COMPLETE_MODEL_LIST_PROVIDERS.has(provider)
+    ? models
+    : models.slice(0, 8);
+}
+
 export function listAvailableModels(): AgentModelInfo[] {
   const faux = getFauxProvider().models.map((model) =>
     getAgentModelInfo(model),
   );
   const configured = getProviders().flatMap((provider) =>
-    getModels(provider)
-      .slice(0, 8)
-      .map((model) => getAgentModelInfo(model as Model<string>)),
+    visibleModelsForProvider(provider).map((model) =>
+      getAgentModelInfo(model as Model<string>),
+    ),
   );
   return [...faux, ...configured];
 }

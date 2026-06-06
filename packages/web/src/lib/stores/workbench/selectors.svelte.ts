@@ -6,7 +6,7 @@ import type {
   ProjectRecord,
 } from "../../api";
 import { selection } from "../../state/app-state.svelte";
-import { modelKey, usableModelOptions } from "../../utils/model";
+import { modelKey, scopedUsableModelOptions } from "../../utils/model";
 import { isPathInDirectory } from "../../utils/path";
 import type { CenterTabIdentity, ConversationViewState } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
@@ -359,9 +359,10 @@ export const workbenchSelectors = {
     );
   },
   get usableModels() {
-    return usableModelOptions(
+    return scopedUsableModelOptions(
       workbenchState.models,
       workbenchState.authProviders,
+      workbenchState.settingsDraft?.scopedModels,
     );
   },
   /** Model metadata for the active agent's selected model, if known. */

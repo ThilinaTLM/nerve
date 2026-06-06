@@ -238,6 +238,8 @@
               <SettingsPage
                 {status}
                 bind:settingsDraft={workbenchState.settingsDraft}
+                models={workbenchState.models}
+                authProviders={workbenchState.authProviders}
                 {settingsSaveStatus}
                 {settingsMessage}
                 onSettingsChange={queueSettingsSave}

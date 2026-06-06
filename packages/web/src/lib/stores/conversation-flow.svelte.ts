@@ -25,7 +25,7 @@ import {
   resetSelection,
   selection,
 } from "../state/app-state.svelte";
-import { modelKey, usableModelOptions } from "../utils/model";
+import { modelKey, scopedUsableModelOptions } from "../utils/model";
 import {
   agentNeedsComposerUpdate,
   currentActiveAgent,
@@ -519,11 +519,15 @@ export async function sendPrompt() {
     return;
   }
   if (
-    usableModelOptions(workbenchState.models, workbenchState.authProviders)
-      .length === 0
+    scopedUsableModelOptions(
+      workbenchState.models,
+      workbenchState.authProviders,
+      workbenchState.settingsDraft?.scopedModels,
+    ).length === 0
   ) {
     void openSettingsPane();
-    view.error = "Configure a model provider in Settings before prompting.";
+    view.error =
+      "Configure a model provider or adjust Scoped Models in Settings before prompting.";
     workbenchState.error = view.error;
     return;
   }

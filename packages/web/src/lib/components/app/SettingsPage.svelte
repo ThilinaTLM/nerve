@@ -1,17 +1,24 @@
 <script lang="ts">
   import Sparkles from "@lucide/svelte/icons/sparkles";
-  import type { Settings, StatusResponse, UpdateSettingsRequest } from "../../api";
+  import type {
+    AuthProviderMetadata,
+    ModelInfo,
+    Settings,
+    StatusResponse,
+    UpdateSettingsRequest,
+  } from "../../api";
   import type { ThemePreference } from "../../state/app-state.svelte";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
   import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";
   import CompactionSettingsSection from "./settings/sections/CompactionSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
+  import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
   import "./settings/settings.css";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-  type SectionId = "appearance" | "agents" | "server" | "compaction" | "runtime";
+  type SectionId = "appearance" | "agents" | "models" | "server" | "compaction" | "runtime";
   type SettingsChange = (
     patch: UpdateSettingsRequest,
     options?: { immediate?: boolean; debounceMs?: number },
@@ -20,6 +27,8 @@
   type Props = {
     status?: StatusResponse;
     settingsDraft?: Settings;
+    models?: ModelInfo[];
+    authProviders?: AuthProviderMetadata[];
     settingsSaveStatus?: SettingsSaveStatus;
     settingsMessage?: string;
     onSettingsChange?: SettingsChange;
@@ -29,6 +38,7 @@
   const sections: { id: SectionId; label: string; detail: string }[] = [
     { id: "appearance", label: "Appearance", detail: "Theme" },
     { id: "agents", label: "Agents", detail: "Defaults" },
+    { id: "models", label: "Models", detail: "Scope" },
     { id: "server", label: "Server", detail: "Binding" },
     { id: "compaction", label: "Compaction", detail: "Context" },
     { id: "runtime", label: "Runtime", detail: "Read-only" },
@@ -37,6 +47,8 @@
   let {
     status,
     settingsDraft = $bindable<Settings | undefined>(),
+    models = [],
+    authProviders = [],
     settingsSaveStatus = "idle",
     settingsMessage,
     onSettingsChange,
@@ -91,6 +103,7 @@
       {#if settingsDraft}
         <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
         <AgentsSettingsSection {settingsDraft} {onSettingsChange} />
+        <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ServerSettingsSection {settingsDraft} {onSettingsChange} />
         <CompactionSettingsSection {settingsDraft} {onSettingsChange} />
         <GeneralSettingsSection {status} />

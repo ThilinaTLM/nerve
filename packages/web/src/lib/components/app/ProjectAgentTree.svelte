@@ -307,7 +307,7 @@
     width: 100%;
     min-width: 0;
     overflow-x: hidden;
-    padding: 0.35rem;
+    padding: 0.25rem;
   }
 
   :global(.tree-group),
@@ -319,8 +319,12 @@
     max-width: 100%;
   }
 
+  :global(.tree-group) {
+    padding: 0;
+  }
+
   :global(.tree-menu) {
-    padding-inline-end: 0.5rem;
+    padding-inline-end: 0.25rem;
   }
 
   :global(.conversation-sub) {

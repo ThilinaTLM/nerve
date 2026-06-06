@@ -85,7 +85,7 @@
     <div class="model-picker-section">
       <p class="model-picker-heading">Model</p>
       {#if models.length === 0}
-        <p class="model-picker-empty">No configured models. Run <code>nerve auth list</code>.</p>
+        <p class="model-picker-empty">No models available. Configure a provider or adjust Scoped Models in Settings.</p>
       {:else}
         <ul class="model-list">
           {#each models as model (modelKey(model))}
@@ -180,10 +180,6 @@
     margin: 0;
     color: var(--muted-foreground);
     font-size: var(--text-xs);
-  }
-
-  .model-picker-empty code {
-    font-family: var(--font-mono);
   }
 
   .model-list {
