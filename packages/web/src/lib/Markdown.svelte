@@ -279,13 +279,12 @@
 
   .markdown :global(code) {
     display: inline;
-    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    border-radius: 0.25rem;
-    background: var(--input);
+    border-radius: 0.2rem;
+    background: color-mix(in oklab, var(--muted) 60%, transparent);
     color: var(--foreground);
-    padding: 0.08rem 0.28rem;
+    padding: 0 0.25rem;
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: 0.9em;
   }
 
   .markdown :global(.code-block) {
