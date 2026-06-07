@@ -168,13 +168,14 @@
   }
 
   .code-view {
+    --file-code-font-size: var(--text-sm);
     --line-number-width: 2ch;
     counter-reset: code-line;
     margin: 0;
     overflow: auto;
     color: var(--foreground);
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--file-code-font-size);
     line-height: 1.5;
     tab-size: 2;
   }
@@ -193,7 +194,7 @@
   .code-view :global(code),
   .code-view code {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--file-code-font-size);
   }
 
   .code-view :global(.line),
