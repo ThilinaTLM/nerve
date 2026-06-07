@@ -21,6 +21,10 @@ export type WavRecordingResult = {
   mimeType: typeof WAV_MIME_TYPE;
 };
 
+type WavRecordingStopOptions = {
+  maxDurationMs?: number;
+};
+
 export function mergeFloat32Chunks(
   chunks: readonly Float32Array[],
 ): Float32Array {
@@ -69,6 +73,20 @@ export function floatSampleToInt16(sample: number): number {
   return clamped < 0
     ? Math.round(clamped * 0x8000)
     : Math.round(clamped * 0x7fff);
+}
+
+export function truncateSamplesForDuration(
+  samples: Float32Array,
+  sampleRate: number,
+  maxDurationMs?: number,
+): Float32Array {
+  if (!maxDurationMs) return samples;
+  const maxLength = Math.max(
+    1,
+    Math.round((sampleRate * maxDurationMs) / 1000),
+  );
+  if (samples.length <= maxLength) return samples;
+  return samples.slice(0, maxLength);
 }
 
 export function encodePcm16Wav(
@@ -218,13 +236,18 @@ export class PcmWavRecorder {
     }
   }
 
-  async stop(): Promise<WavRecordingResult> {
+  async stop(
+    options: WavRecordingStopOptions = {},
+  ): Promise<WavRecordingResult> {
     if (this.stopped) {
       throw new Error("No recording is in progress.");
     }
 
     this.stopped = true;
-    const durationMs = Math.max(1, Date.now() - this.startedAt);
+    const elapsedMs = Math.max(1, Date.now() - this.startedAt);
+    const durationMs = options.maxDurationMs
+      ? Math.min(elapsedMs, options.maxDurationMs)
+      : elapsedMs;
     const sampleRate = this.audioContext?.sampleRate ?? WAV_TARGET_SAMPLE_RATE;
     const chunks = this.chunks;
     this.chunks = [];
@@ -236,7 +259,12 @@ export class PcmWavRecorder {
     }
 
     const resampled = resampleLinear(mono, sampleRate, WAV_TARGET_SAMPLE_RATE);
-    const wavBytes = encodePcm16Wav(resampled, WAV_TARGET_SAMPLE_RATE);
+    const capped = truncateSamplesForDuration(
+      resampled,
+      WAV_TARGET_SAMPLE_RATE,
+      options.maxDurationMs,
+    );
+    const wavBytes = encodePcm16Wav(capped, WAV_TARGET_SAMPLE_RATE);
     const audioBuffer = new ArrayBuffer(wavBytes.byteLength);
     new Uint8Array(audioBuffer).set(wavBytes);
     return {

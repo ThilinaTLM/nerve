@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
+import { AUDIO_TRANSCRIPTION_MAX_DURATION_MS } from "@nerve/shared";
 import { createApp, createOrchestratorState } from "../src/server.js";
 import { initializeStorage } from "../src/storage.js";
 import {
@@ -141,6 +142,81 @@ describe("audio transcription", () => {
         "CHATGPT_SUBSCRIPTION_AUTH_REQUIRED",
       );
     } finally {
+      state.index.close();
+    }
+  });
+
+  it("rejects audio longer than the 8-minute transcription cap", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    const originalFetch = globalThis.fetch;
+    try {
+      const access = makeJwt({
+        "https://api.openai.com/auth": { chatgpt_account_id: "acc-capture" },
+      });
+      await state.auth.setOAuth("openai-codex", {
+        access,
+        refresh: "refresh-token",
+        expires: Date.now() + 60_000,
+      });
+
+      let fetchCalled = false;
+      globalThis.fetch = (async () => {
+        fetchCalled = true;
+        return Response.json({ text: "should not run" });
+      }) as typeof fetch;
+
+      const response = await app.request("/api/transcription/audio", {
+        method: "POST",
+        headers,
+        body: audioForm("audio/webm", AUDIO_TRANSCRIPTION_MAX_DURATION_MS + 1),
+      });
+      assert.equal(response.status, 413);
+      assert.equal(fetchCalled, false);
+      assert.equal(
+        ((await response.json()) as { error: { code: string } }).error.code,
+        "AUDIO_DURATION_TOO_LONG",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      state.index.close();
+    }
+  });
+
+  it("accepts audio exactly at the 8-minute transcription cap", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    const originalFetch = globalThis.fetch;
+    try {
+      const access = makeJwt({
+        "https://api.openai.com/auth": { chatgpt_account_id: "acc-capture" },
+      });
+      await state.auth.setOAuth("openai-codex", {
+        access,
+        refresh: "refresh-token",
+        expires: Date.now() + 60_000,
+      });
+
+      let capturedForm: FormData | undefined;
+      globalThis.fetch = (async (
+        _input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        capturedForm = init?.body as FormData;
+        return Response.json({ text: "max transcript" });
+      }) as typeof fetch;
+
+      const response = await app.request("/api/transcription/audio", {
+        method: "POST",
+        headers,
+        body: audioForm("audio/webm", AUDIO_TRANSCRIPTION_MAX_DURATION_MS),
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { text: "max transcript" });
+      assert.equal(
+        capturedForm?.get("duration_ms"),
+        String(AUDIO_TRANSCRIPTION_MAX_DURATION_MS),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
       state.index.close();
     }
   });

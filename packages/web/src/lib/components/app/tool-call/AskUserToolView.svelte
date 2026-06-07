@@ -5,6 +5,7 @@
   import X from "@lucide/svelte/icons/x";
   import { onDestroy } from "svelte";
   import type { ToolCallRecord, UserQuestionRecord } from "../../../api";
+  import TranscriptionActivity from "../../../audio/TranscriptionActivity.svelte";
   import { TranscriptionController } from "../../../audio/transcription-controller.svelte";
   import type { ToolView } from "../../../tool-views/tool-result-view";
   import { Button } from "$lib/components/ui/button";
@@ -54,6 +55,22 @@
   const micDisabled = $derived(
     transcription.pending || (!transcription.recording && !pending),
   );
+  const micTitle = $derived(
+    transcription.recording
+      ? `Stop recording (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)})`
+      : transcription.retryAttempt > 0
+        ? `Retrying transcription ${transcription.retryAttempt}/${transcription.maxRetries}…`
+        : transcription.transcribing
+          ? "Transcribing audio…"
+          : "Record voice reply",
+  );
+
+  function formatElapsed(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }
 
   function submitAnswer() {
     if (!pending || !questionRecord || !trimmedAnswer) return;
@@ -100,6 +117,15 @@
           aria-label="Reply to agent question"
         ></textarea>
         {#if supportsAudioRecording}
+          <TranscriptionActivity
+            recording={transcription.recording}
+            transcribing={transcription.transcribing}
+            elapsedMs={transcription.elapsedMs}
+            maxDurationMs={transcription.maxDurationMs}
+            retryAttempt={transcription.retryAttempt}
+            maxRetries={transcription.maxRetries}
+            class="ask-transcription-status"
+          />
           <Button
             variant={transcription.recording ? "destructive" : "ghost"}
             size="icon-sm"
@@ -108,7 +134,7 @@
             disabled={micDisabled}
             onclick={() => transcription.toggle()}
             aria-label={transcription.recording ? "Stop recording" : "Record voice reply"}
-            title={transcription.recording ? "Stop recording" : transcription.transcribing ? "Transcribing audio…" : "Record voice reply"}
+            title={micTitle}
           >
             {#if transcription.transcribing}
               <LoaderCircle size={14} strokeWidth={2.4} class="spin" />

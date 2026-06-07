@@ -4,6 +4,7 @@ import {
   encodePcm16Wav,
   floatSampleToInt16,
   resampleLinear,
+  truncateSamplesForDuration,
   WAV_BITS_PER_SAMPLE,
   WAV_CHANNELS,
   WAV_TARGET_SAMPLE_RATE,
@@ -49,5 +50,20 @@ describe("WAV encoding", () => {
     );
 
     assert.equal(resampled.length, WAV_TARGET_SAMPLE_RATE);
+  });
+
+  it("truncates samples to the requested maximum duration", () => {
+    const samples = new Float32Array(WAV_TARGET_SAMPLE_RATE * 2);
+    const truncated = truncateSamplesForDuration(
+      samples,
+      WAV_TARGET_SAMPLE_RATE,
+      500,
+    );
+
+    assert.equal(truncated.length, WAV_TARGET_SAMPLE_RATE / 2);
+    assert.equal(
+      truncateSamplesForDuration(samples, WAV_TARGET_SAMPLE_RATE, 3000),
+      samples,
+    );
   });
 });

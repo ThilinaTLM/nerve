@@ -18,6 +18,7 @@
     type ConversationRecord,
     type UserQuestionRecord,
   } from "../../api";
+  import TranscriptionActivity from "../../audio/TranscriptionActivity.svelte";
   import { TranscriptionController } from "../../audio/transcription-controller.svelte";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
   import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
@@ -123,7 +124,23 @@
     transcription.pending ||
       (!recording && (!canPrompt || sending || !supportsAudioRecording)),
   );
+  const micTitle = $derived(
+    recording
+      ? `Stop recording (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)})`
+      : transcription.retryAttempt > 0
+        ? `Retrying transcription ${transcription.retryAttempt}/${transcription.maxRetries}…`
+        : transcribing
+          ? "Transcribing audio…"
+          : "Record voice prompt",
+  );
   const displayedError = $derived(error ?? audioError);
+
+  function formatElapsed(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }
 
   function submitComposer() {
     if (!blockedForReview) onSubmit?.();
@@ -251,6 +268,15 @@
       />
 
       <div class="composer-send">
+        <TranscriptionActivity
+          recording={transcription.recording}
+          transcribing={transcription.transcribing}
+          elapsedMs={transcription.elapsedMs}
+          maxDurationMs={transcription.maxDurationMs}
+          retryAttempt={transcription.retryAttempt}
+          maxRetries={transcription.maxRetries}
+          class="composer-transcription-status"
+        />
         <Button
           variant={recording ? "destructive" : "secondary"}
           size="icon-sm"
@@ -259,7 +285,7 @@
           disabled={micDisabled}
           onclick={toggleRecording}
           aria-label={recording ? "Stop recording" : "Record voice prompt"}
-          title={recording ? "Stop recording" : transcribing ? "Transcribing audio…" : "Record voice prompt"}
+          title={micTitle}
         >
           {#if transcribing}
             <LoaderCircle size={14} strokeWidth={2.4} class="spin" />

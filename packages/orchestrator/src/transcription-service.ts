@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { AudioTranscriptionResponse } from "@nerve/shared";
-import { audioTranscriptionResponseSchema } from "@nerve/shared";
+import {
+  AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
+  audioTranscriptionResponseSchema,
+} from "@nerve/shared";
 import type { AuthManager } from "./auth.js";
 import { HttpError } from "./http/errors.js";
 
@@ -129,6 +132,14 @@ export async function transcribeAudioWithChatGptSubscription(
 
   const durationMs =
     input.durationMs ?? estimateDurationMs(input.data.byteLength);
+  if (durationMs > AUDIO_TRANSCRIPTION_MAX_DURATION_MS) {
+    throw new HttpError(
+      413,
+      "AUDIO_DURATION_TOO_LONG",
+      "Audio recordings are limited to 8 minutes.",
+    );
+  }
+
   const audioBuffer = new ArrayBuffer(input.data.byteLength);
   new Uint8Array(audioBuffer).set(input.data);
   const file = new Blob([audioBuffer], { type: normalized.mimeType });

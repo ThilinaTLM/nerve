@@ -1,9 +1,54 @@
-import { transcribeAudio } from "../api";
+import {
+  AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
+  AUDIO_TRANSCRIPTION_MAX_RETRIES,
+} from "@nerve/shared";
+import { ApiRequestError, transcribeAudio } from "../api";
 import { PcmWavRecorder, type WavRecordingResult } from "./wav-recorder";
 
 type TranscriptionControllerOptions = {
   onTranscript: (text: string) => void;
 };
+
+const RETRY_BACKOFF_MS = [500, 1000, 2000] as const;
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function retryDelayMs(retryAttempt: number): number {
+  return RETRY_BACKOFF_MS[retryAttempt - 1] ?? RETRY_BACKOFF_MS.at(-1) ?? 2000;
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Transcription was cancelled.", "AbortError"));
+      return;
+    }
+    const timeout = window.setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        window.clearTimeout(timeout);
+        reject(new DOMException("Transcription was cancelled.", "AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
+
+export function isRetryableTranscriptionError(error: unknown): boolean {
+  if (isAbortError(error)) return false;
+  if (error instanceof ApiRequestError) {
+    if (!error.status) return true;
+    return error.status === 408 || error.status === 429 || error.status >= 500;
+  }
+  return true;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * Reactive controller that captures microphone audio and transcribes it.
@@ -13,9 +58,18 @@ export class TranscriptionController {
   recording = $state(false);
   transcribing = $state(false);
   error = $state<string | undefined>(undefined);
+  elapsedMs = $state(0);
+  retryAttempt = $state(0);
+
+  readonly maxDurationMs = AUDIO_TRANSCRIPTION_MAX_DURATION_MS;
+  readonly maxRetries = AUDIO_TRANSCRIPTION_MAX_RETRIES;
 
   #stoppingRecording = $state(false);
   #recorder: PcmWavRecorder | undefined;
+  #recordingStartedAt = 0;
+  #elapsedTimer: number | undefined;
+  #autoStopTimer: number | undefined;
+  #transcriptionAbort: AbortController | undefined;
   readonly #onTranscript: (text: string) => void;
 
   constructor(options: TranscriptionControllerOptions) {
@@ -40,21 +94,26 @@ export class TranscriptionController {
   }
 
   async start(): Promise<void> {
+    if (this.recording || this.pending) return;
     if (!TranscriptionController.isSupported()) {
       this.error = "Audio recording is not supported in this browser.";
       return;
     }
     this.error = undefined;
+    this.retryAttempt = 0;
+    this.elapsedMs = 0;
     try {
       const recorder = new PcmWavRecorder();
       await recorder.start();
       this.#recorder = recorder;
       this.recording = true;
+      this.#startRecordingTimers();
     } catch (err) {
       await this.#recorder?.cancel();
       this.#recorder = undefined;
+      this.#clearRecordingTimers();
       this.recording = false;
-      this.error = err instanceof Error ? err.message : String(err);
+      this.error = errorMessage(err);
     }
   }
 
@@ -63,34 +122,105 @@ export class TranscriptionController {
     const recorder = this.#recorder;
     this.#stoppingRecording = true;
     this.#recorder = undefined;
+    this.#clearRecordingTimers();
     try {
-      const result = await recorder.stop();
+      const result = await recorder.stop({ maxDurationMs: this.maxDurationMs });
       this.recording = false;
+      this.elapsedMs = result.durationMs;
       await this.#transcribe(result);
     } catch (err) {
       this.recording = false;
-      this.error = err instanceof Error ? err.message : String(err);
+      this.error = errorMessage(err);
     } finally {
       this.#stoppingRecording = false;
     }
   }
 
   async cancel(): Promise<void> {
+    this.#transcriptionAbort?.abort();
     const recorder = this.#recorder;
     this.#recorder = undefined;
+    this.#clearRecordingTimers();
     this.recording = false;
+    this.transcribing = false;
+    this.retryAttempt = 0;
+    this.elapsedMs = 0;
     await recorder?.cancel();
   }
 
+  #startRecordingTimers(): void {
+    this.#clearRecordingTimers();
+    this.#recordingStartedAt = Date.now();
+    this.#updateElapsed();
+    this.#elapsedTimer = window.setInterval(() => this.#updateElapsed(), 250);
+    this.#autoStopTimer = window.setTimeout(() => {
+      if (this.recording) void this.stop();
+    }, this.maxDurationMs);
+  }
+
+  #clearRecordingTimers(): void {
+    if (this.#elapsedTimer) window.clearInterval(this.#elapsedTimer);
+    if (this.#autoStopTimer) window.clearTimeout(this.#autoStopTimer);
+    this.#elapsedTimer = undefined;
+    this.#autoStopTimer = undefined;
+  }
+
+  #updateElapsed(): void {
+    if (!this.#recordingStartedAt) return;
+    this.elapsedMs = Math.min(
+      Math.max(0, Date.now() - this.#recordingStartedAt),
+      this.maxDurationMs,
+    );
+  }
+
   async #transcribe(result: WavRecordingResult): Promise<void> {
+    const abort = new AbortController();
+    this.#transcriptionAbort = abort;
     this.transcribing = true;
     this.error = undefined;
+    this.retryAttempt = 0;
+    let retriesExhausted = false;
+
     try {
-      this.#onTranscript(await transcribeAudio(result.blob, result.durationMs));
+      for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+        if (attempt > 0) {
+          this.retryAttempt = attempt;
+          await sleep(retryDelayMs(attempt), abort.signal);
+        }
+
+        try {
+          const transcript = await transcribeAudio(
+            result.blob,
+            result.durationMs,
+            {
+              signal: abort.signal,
+            },
+          );
+          if (abort.signal.aborted) return;
+          this.#onTranscript(transcript);
+          return;
+        } catch (err) {
+          if (abort.signal.aborted || isAbortError(err)) return;
+          if (
+            attempt >= this.maxRetries ||
+            !isRetryableTranscriptionError(err)
+          ) {
+            retriesExhausted = attempt >= this.maxRetries;
+            throw err;
+          }
+        }
+      }
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
+      if (abort.signal.aborted || isAbortError(err)) return;
+      const message = errorMessage(err);
+      this.error = retriesExhausted
+        ? `Transcription failed after ${this.maxRetries} retries: ${message}`
+        : message;
     } finally {
+      if (this.#transcriptionAbort === abort)
+        this.#transcriptionAbort = undefined;
       this.transcribing = false;
+      this.retryAttempt = 0;
     }
   }
 }

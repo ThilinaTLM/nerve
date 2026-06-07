@@ -78,6 +78,17 @@ export type ApprovalWithToolCall = ApprovalRecord & {
   toolCall?: ToolCallRecord;
 };
 
+export class ApiRequestError extends Error {
+  constructor(
+    readonly status: number | undefined,
+    readonly code: string | undefined,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) throw new Error(await response.text());
@@ -148,9 +159,59 @@ function extensionForAudioType(type: string): string {
   }
 }
 
+type TranscribeAudioOptions = {
+  signal?: AbortSignal;
+};
+
+function parseApiErrorBody(body: string): { code?: string; message?: string } {
+  try {
+    const parsed = JSON.parse(body) as {
+      error?: { code?: unknown; message?: unknown };
+    };
+    return {
+      code:
+        typeof parsed.error?.code === "string" ? parsed.error.code : undefined,
+      message:
+        typeof parsed.error?.message === "string"
+          ? parsed.error.message
+          : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function parseTranscriptionResponse(
+  response: Response,
+): Promise<AudioTranscriptionResponse> {
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    const apiError = parseApiErrorBody(body);
+    throw new ApiRequestError(
+      response.status,
+      apiError.code,
+      apiError.message ||
+        body ||
+        response.statusText ||
+        "Transcription failed.",
+    );
+  }
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    const body = await response.text();
+    throw new ApiRequestError(
+      response.status,
+      undefined,
+      `Expected JSON response from transcription API, received ${contentType || "unknown content type"}. ${body.slice(0, 80)}`,
+    );
+  }
+  return (await response.json()) as AudioTranscriptionResponse;
+}
+
 export async function transcribeAudio(
   audio: Blob,
   durationMs: number,
+  options: TranscribeAudioOptions = {},
 ): Promise<string> {
   const form = new FormData();
   form.append(
@@ -160,11 +221,12 @@ export async function transcribeAudio(
   );
   form.append("durationMs", String(Math.max(1, Math.round(durationMs))));
   return (
-    await parseResponse<AudioTranscriptionResponse>(
+    await parseTranscriptionResponse(
       await fetch("/api/transcription/audio", {
         method: "POST",
         credentials: "same-origin",
         body: form,
+        signal: options.signal,
       }),
     )
   ).text;
