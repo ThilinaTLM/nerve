@@ -1,0 +1,653 @@
+<script lang="ts">
+  import Check from "@lucide/svelte/icons/check";
+  import ExternalLink from "@lucide/svelte/icons/external-link";
+  import FileMinus from "@lucide/svelte/icons/file-minus";
+  import FilePen from "@lucide/svelte/icons/file-pen";
+  import FilePlus from "@lucide/svelte/icons/file-plus";
+  import FileQuestion from "@lucide/svelte/icons/file-question";
+  import GitBranch from "@lucide/svelte/icons/git-branch";
+  import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
+  import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
+  import X from "@lucide/svelte/icons/x";
+  import { toast } from "svelte-sonner";
+  import {
+    commitGitChanges,
+    createGitBranch,
+    createGithubPr,
+    discoverGitRepos,
+    getGitOverview,
+    getGithubStatus,
+    listMyGithubPrs,
+    suggestGitBranchName,
+    suggestGitCommitMessage,
+    syncGitBase,
+    type AgentRecord,
+    type GitFileChange,
+    type GithubChecksSummary,
+    type GithubPr,
+    type GithubStatusResponse,
+    type GitOverviewResponse,
+    type GitRepoSummary,
+    type ProjectRecord,
+  } from "../../../api";
+  import { Badge, type BadgeTone } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import { Card } from "$lib/components/ui/card";
+  import { Checkbox } from "$lib/components/ui/checkbox";
+  import { Input } from "$lib/components/ui/input";
+  import SelectField, { type SelectItem } from "$lib/components/ui/select-field";
+  import { Textarea } from "$lib/components/ui/textarea";
+
+  type Props = {
+    activeProject?: ProjectRecord;
+    activeAgent?: AgentRecord;
+  };
+
+  let { activeProject, activeAgent }: Props = $props();
+
+  let repos = $state<GitRepoSummary[]>([]);
+  let projectIsRepo = $state(true);
+  let selectedRepo = $state(".");
+  let overview = $state<GitOverviewResponse | undefined>(undefined);
+  let github = $state<GithubStatusResponse | undefined>(undefined);
+  let prs = $state<GithubPr[]>([]);
+
+  let loadingOverview = $state(false);
+  let loadingPrs = $state(false);
+  let discoverError = $state<string | undefined>(undefined);
+
+  let branchName = $state("");
+  let branchAlternatives = $state<string[]>([]);
+  let suggestingBranch = $state(false);
+  let creatingBranch = $state(false);
+
+  let commitSubject = $state("");
+  let commitBody = $state("");
+  let stageAll = $state(true);
+  let suggestingCommit = $state(false);
+  let committing = $state(false);
+  let syncing = $state(false);
+
+  let prTitle = $state("");
+  let prBody = $state("");
+  let prDraft = $state(false);
+  let creatingPr = $state(false);
+  let expandedPr = $state<number | undefined>(undefined);
+
+  const repoItems = $derived<SelectItem[]>(
+    repos.map((repo) => ({
+      value: repo.relativePath,
+      label: repo.name,
+      detail:
+        repo.relativePath === "." ? "repository" : repo.relativePath,
+    })),
+  );
+
+  function repoStorageKey(projectId: string): string {
+    return `nerve.git.repo.${projectId}`;
+  }
+
+  function errorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      try {
+        const parsed = JSON.parse(error.message);
+        if (parsed?.error?.message) return String(parsed.error.message);
+      } catch {
+        // not JSON
+      }
+      return error.message;
+    }
+    return String(error);
+  }
+
+  async function loadRepos(project: ProjectRecord) {
+    discoverError = undefined;
+    try {
+      const result = await discoverGitRepos(project.id);
+      repos = result.repos;
+      projectIsRepo = result.projectIsRepo;
+      const stored =
+        typeof localStorage !== "undefined"
+          ? localStorage.getItem(repoStorageKey(project.id))
+          : null;
+      const fallback = result.repos[0]?.relativePath ?? ".";
+      selectedRepo =
+        stored && result.repos.some((r) => r.relativePath === stored)
+          ? stored
+          : fallback;
+      if (result.repos.length > 0) {
+        await Promise.all([loadOverview(), loadGithub()]);
+      } else {
+        overview = undefined;
+        github = undefined;
+        prs = [];
+      }
+    } catch (error) {
+      discoverError = errorMessage(error);
+      repos = [];
+      overview = undefined;
+    }
+  }
+
+  async function loadOverview() {
+    if (!activeProject || repos.length === 0) return;
+    loadingOverview = true;
+    try {
+      overview = await getGitOverview(activeProject.id, selectedRepo);
+      if (!prTitle) {
+        prTitle =
+          overview.recentCommits[0]?.subject ??
+          overview.repo.currentBranch ??
+          "";
+      }
+    } catch (error) {
+      toast.error(`Git overview failed: ${errorMessage(error)}`);
+    } finally {
+      loadingOverview = false;
+    }
+  }
+
+  async function loadGithub() {
+    if (!activeProject || repos.length === 0) return;
+    try {
+      github = await getGithubStatus(activeProject.id, selectedRepo);
+      if (github.authenticated) {
+        await loadPrs();
+      } else {
+        prs = [];
+      }
+    } catch (error) {
+      github = {
+        available: false,
+        authenticated: false,
+        login: null,
+        reason: errorMessage(error),
+      };
+    }
+  }
+
+  async function loadPrs() {
+    if (!activeProject) return;
+    loadingPrs = true;
+    try {
+      prs = (await listMyGithubPrs(activeProject.id, selectedRepo)).prs;
+    } catch (error) {
+      toast.error(`Could not list PRs: ${errorMessage(error)}`);
+    } finally {
+      loadingPrs = false;
+    }
+  }
+
+  function selectRepo(value: string) {
+    selectedRepo = value;
+    if (activeProject && typeof localStorage !== "undefined") {
+      localStorage.setItem(repoStorageKey(activeProject.id), value);
+    }
+    branchName = "";
+    branchAlternatives = [];
+    void loadOverview();
+    void loadGithub();
+  }
+
+  async function onSuggestBranch() {
+    if (!activeProject) return;
+    suggestingBranch = true;
+    try {
+      const result = await suggestGitBranchName(
+        activeProject.id,
+        selectedRepo,
+        activeAgent?.id,
+      );
+      branchName = result.suggestion;
+      branchAlternatives = result.alternatives;
+    } catch (error) {
+      toast.error(`Suggestion failed: ${errorMessage(error)}`);
+    } finally {
+      suggestingBranch = false;
+    }
+  }
+
+  async function onCreateBranch() {
+    if (!activeProject || branchName.trim().length === 0) return;
+    creatingBranch = true;
+    try {
+      await createGitBranch(activeProject.id, selectedRepo, branchName.trim());
+      toast.success(`Created branch ${branchName.trim()}`);
+      branchName = "";
+      branchAlternatives = [];
+      await loadOverview();
+    } catch (error) {
+      toast.error(`Create branch failed: ${errorMessage(error)}`);
+    } finally {
+      creatingBranch = false;
+    }
+  }
+
+  async function onSuggestCommit() {
+    if (!activeProject) return;
+    suggestingCommit = true;
+    try {
+      const result = await suggestGitCommitMessage(
+        activeProject.id,
+        selectedRepo,
+        activeAgent?.id,
+      );
+      commitSubject = result.subject;
+      commitBody = result.body ?? "";
+    } catch (error) {
+      toast.error(`Suggestion failed: ${errorMessage(error)}`);
+    } finally {
+      suggestingCommit = false;
+    }
+  }
+
+  async function onCommit() {
+    if (!activeProject || commitSubject.trim().length === 0) return;
+    committing = true;
+    try {
+      const result = await commitGitChanges(activeProject.id, selectedRepo, {
+        subject: commitSubject.trim(),
+        body: commitBody.trim() || undefined,
+        all: stageAll,
+      });
+      toast.success(`Committed ${result.hash}`);
+      commitSubject = "";
+      commitBody = "";
+      await loadOverview();
+    } catch (error) {
+      toast.error(`Commit failed: ${errorMessage(error)}`);
+    } finally {
+      committing = false;
+    }
+  }
+
+  async function onSyncBase() {
+    if (!activeProject) return;
+    syncing = true;
+    try {
+      const result = await syncGitBase(activeProject.id, selectedRepo);
+      toast.success(`Switched to ${result.repo.currentBranch ?? "base"}`);
+      await loadOverview();
+    } catch (error) {
+      toast.error(`Sync failed: ${errorMessage(error)}`);
+    } finally {
+      syncing = false;
+    }
+  }
+
+  async function onCreatePr() {
+    if (!activeProject || prTitle.trim().length === 0) return;
+    creatingPr = true;
+    try {
+      const result = await createGithubPr(activeProject.id, selectedRepo, {
+        title: prTitle.trim(),
+        body: prBody.trim() || undefined,
+        base: overview?.baseBranch,
+        draft: prDraft,
+      });
+      toast.success(`Opened PR #${result.number}`);
+      prBody = "";
+      await loadPrs();
+    } catch (error) {
+      toast.error(`Create PR failed: ${errorMessage(error)}`);
+    } finally {
+      creatingPr = false;
+    }
+  }
+
+  function fileIcon(file: GitFileChange) {
+    if (file.untracked) return FileQuestion;
+    if (file.index === "A") return FilePlus;
+    if (file.index === "D" || file.worktree === "D") return FileMinus;
+    return FilePen;
+  }
+
+  function fileTone(file: GitFileChange): string {
+    if (file.untracked) return "text-muted-foreground";
+    if (file.index === "A") return "text-success";
+    if (file.index === "D" || file.worktree === "D") return "text-destructive";
+    return "text-info";
+  }
+
+  function checksTone(checks: GithubChecksSummary): BadgeTone {
+    switch (checks.status) {
+      case "passing":
+        return "good";
+      case "failing":
+        return "danger";
+      case "pending":
+        return "warn";
+      default:
+        return "neutral";
+    }
+  }
+
+  const dirtyOverview = $derived(overview && overview.files.length > 0);
+
+  // Reload when the active project changes.
+  let lastProjectId = $state<string | undefined>(undefined);
+  $effect(() => {
+    if (activeProject && activeProject.id !== lastProjectId) {
+      lastProjectId = activeProject.id;
+      void loadRepos(activeProject);
+    } else if (!activeProject) {
+      lastProjectId = undefined;
+      repos = [];
+      overview = undefined;
+    }
+  });
+</script>
+
+<div class="flex flex-col gap-2 p-2">
+  {#if !activeProject}
+    <p class="px-1 py-6 text-center text-xs text-muted-foreground">
+      Select a project to manage its git repositories.
+    </p>
+  {:else if discoverError}
+    <Card class="gap-0 overflow-hidden p-0">
+      <div class="px-3 py-3 text-xs text-destructive">{discoverError}</div>
+    </Card>
+  {:else if repos.length === 0}
+    <p class="px-1 py-6 text-center text-xs text-muted-foreground">
+      No git repositories found in this directory (searched up to 2 levels deep).
+    </p>
+  {:else}
+    {#if !projectIsRepo}
+      <Card class="gap-0 overflow-hidden p-0">
+        <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Repository</div>
+        <div class="px-3 py-2.5">
+          <SelectField
+            items={repoItems}
+            value={selectedRepo}
+            ariaLabel="Select repository"
+            onValueChange={selectRepo}
+          />
+        </div>
+      </Card>
+    {/if}
+
+    <!-- Changes overview -->
+    <Card class="gap-0 overflow-hidden p-0">
+      <div class="flex items-center justify-between border-b px-3 py-2">
+        <span class="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <GitBranch size={13} strokeWidth={2.2} />
+          Changes
+        </span>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          ariaLabel="Refresh"
+          disabled={loadingOverview}
+          onclick={() => void loadOverview()}
+        >
+          <RefreshCw class={loadingOverview ? "animate-spin" : ""} />
+        </Button>
+      </div>
+      {#if overview}
+        <div class="flex flex-wrap items-center gap-1.5 px-3 py-2.5">
+          <Badge tone="accent" size="sm" class="font-mono">
+            {overview.repo.currentBranch ?? "(detached)"}
+          </Badge>
+          {#if overview.onBaseBranch}
+            <Badge tone="neutral" size="sm">base</Badge>
+          {/if}
+          {#if overview.repo.hasUpstream}
+            <Badge tone="neutral" size="sm">↑{overview.repo.ahead ?? 0} ↓{overview.repo.behind ?? 0}</Badge>
+          {/if}
+          {#if overview.insertions || overview.deletions}
+            <span class="font-mono text-xs">
+              <span class="text-success">+{overview.insertions}</span>
+              <span class="text-destructive">−{overview.deletions}</span>
+            </span>
+          {/if}
+        </div>
+        <div class="px-3 pb-1 text-xs text-muted-foreground">
+          {overview.stagedCount} staged · {overview.unstagedCount} unstaged · {overview.untrackedCount} untracked
+        </div>
+        <div class="max-h-48 overflow-y-auto px-3 py-1.5">
+          {#if overview.files.length === 0}
+            <p class="py-2 text-xs text-muted-foreground">Working tree clean.</p>
+          {/if}
+          {#each overview.files as file (file.path)}
+            {@const Icon = fileIcon(file)}
+            <div class="flex items-center gap-2 py-0.5">
+              <Icon size={13} strokeWidth={2.2} class={fileTone(file)} />
+              <span class="truncate font-mono text-xs text-foreground" title={file.path}>
+                {file.path}
+              </span>
+              {#if file.staged}
+                <Check size={12} class="ml-auto shrink-0 text-success" />
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="px-3 py-3 text-xs text-muted-foreground">Loading…</div>
+      {/if}
+    </Card>
+
+    <!-- Branch creation (only on base branch) -->
+    {#if overview?.onBaseBranch}
+      <Card class="gap-0 overflow-hidden p-0">
+        <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">New branch</div>
+        <div class="flex flex-col gap-2 px-3 py-2.5">
+          <div class="flex gap-1.5">
+            <Input bind:value={branchName} placeholder="feature/branch-name" class="h-8 font-mono text-xs" />
+            <Button
+              size="sm"
+              variant="outline"
+              ariaLabel="Suggest branch name"
+              disabled={suggestingBranch}
+              onclick={() => void onSuggestBranch()}
+            >
+              {#if suggestingBranch}
+                <LoaderCircle class="animate-spin" />
+              {:else}
+                <Sparkles />
+              {/if}
+              Suggest
+            </Button>
+          </div>
+          {#if branchAlternatives.length > 0}
+            <div class="flex flex-wrap gap-1.5">
+              {#each branchAlternatives as alt}
+                <button
+                  type="button"
+                  class="rounded-md border px-2 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted/60"
+                  onclick={() => (branchName = alt)}
+                >
+                  {alt}
+                </button>
+              {/each}
+            </div>
+          {/if}
+          <Button
+            size="sm"
+            disabled={creatingBranch || branchName.trim().length === 0}
+            onclick={() => void onCreateBranch()}
+          >
+            <GitBranch />
+            Create branch
+          </Button>
+        </div>
+      </Card>
+    {/if}
+
+    <!-- Commit -->
+    <Card class="gap-0 overflow-hidden p-0">
+      <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Commit</div>
+      <div class="flex flex-col gap-2 px-3 py-2.5">
+        <div class="flex gap-1.5">
+          <Input bind:value={commitSubject} placeholder="Commit subject" class="h-8 text-xs" />
+          <Button
+            size="sm"
+            variant="outline"
+            ariaLabel="Suggest commit message"
+            disabled={suggestingCommit || !dirtyOverview}
+            onclick={() => void onSuggestCommit()}
+          >
+            {#if suggestingCommit}
+              <LoaderCircle class="animate-spin" />
+            {:else}
+              <Sparkles />
+            {/if}
+            Suggest
+          </Button>
+        </div>
+        <Textarea bind:value={commitBody} placeholder="Extended description (optional)" class="min-h-16 text-xs" />
+        <label class="flex items-center gap-2 text-xs text-muted-foreground">
+          <Checkbox bind:checked={stageAll} />
+          Stage all changes
+        </label>
+        <Button
+          size="sm"
+          disabled={committing || commitSubject.trim().length === 0 || !dirtyOverview}
+          onclick={() => void onCommit()}
+        >
+          <GitCommitHorizontal />
+          Commit
+        </Button>
+      </div>
+    </Card>
+
+    <!-- Sync base -->
+    <Card class="gap-0 overflow-hidden p-0">
+      <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Sync base branch</div>
+      <div class="flex flex-col gap-1.5 px-3 py-2.5">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={syncing || dirtyOverview}
+          onclick={() => void onSyncBase()}
+        >
+          {#if syncing}
+            <LoaderCircle class="animate-spin" />
+          {:else}
+            <RefreshCw />
+          {/if}
+          Switch to {overview?.baseBranch ?? "base"} & pull
+        </Button>
+        {#if dirtyOverview}
+          <span class="text-xs text-muted-foreground">Commit or stash changes before syncing.</span>
+        {/if}
+      </div>
+    </Card>
+
+    <!-- GitHub -->
+    <Card class="gap-0 overflow-hidden p-0">
+      <div class="flex items-center justify-between border-b px-3 py-2">
+        <span class="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <GitPullRequest size={13} strokeWidth={2.2} />
+          GitHub
+        </span>
+        {#if github?.authenticated}
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            ariaLabel="Refresh PRs"
+            disabled={loadingPrs}
+            onclick={() => void loadPrs()}
+          >
+            <RefreshCw class={loadingPrs ? "animate-spin" : ""} />
+          </Button>
+        {/if}
+      </div>
+
+      {#if !github}
+        <div class="px-3 py-3 text-xs text-muted-foreground">Checking GitHub CLI…</div>
+      {:else if !github.available}
+        <div class="px-3 py-3 text-xs text-muted-foreground">
+          GitHub CLI (<code class="font-mono">gh</code>) is not installed.
+        </div>
+      {:else if !github.authenticated}
+        <div class="px-3 py-3 text-xs text-muted-foreground">
+          Not authenticated. Run <code class="font-mono">gh auth login</code>.
+        </div>
+      {:else}
+        <div class="flex flex-col gap-2 border-b px-3 py-2.5">
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+            Signed in as <span class="font-mono text-foreground">{github.login}</span>
+          </div>
+          {#if !overview?.onBaseBranch}
+            <Input bind:value={prTitle} placeholder="PR title" class="h-8 text-xs" />
+            <Textarea bind:value={prBody} placeholder="PR description (optional)" class="min-h-16 text-xs" />
+            <label class="flex items-center gap-2 text-xs text-muted-foreground">
+              <Checkbox bind:checked={prDraft} />
+              Create as draft
+            </label>
+            <Button
+              size="sm"
+              disabled={creatingPr || prTitle.trim().length === 0}
+              onclick={() => void onCreatePr()}
+            >
+              <GitPullRequest />
+              Create PR from {overview?.repo.currentBranch ?? "branch"}
+            </Button>
+          {:else}
+            <span class="text-xs text-muted-foreground">
+              Create a branch and commit before opening a PR.
+            </span>
+          {/if}
+        </div>
+
+        <div class="flex flex-col">
+          <div class="px-3 py-2 text-xs font-semibold text-muted-foreground">My open PRs</div>
+          {#if loadingPrs}
+            <div class="px-3 pb-3 text-xs text-muted-foreground">Loading…</div>
+          {:else if prs.length === 0}
+            <div class="px-3 pb-3 text-xs text-muted-foreground">No open PRs by you.</div>
+          {:else}
+            {#each prs as pr (pr.number)}
+              <div class="border-t px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <a
+                    href={pr.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-foreground hover:underline"
+                  >
+                    <span class="font-mono text-muted-foreground">#{pr.number}</span>
+                    <span class="truncate">{pr.title}</span>
+                    <ExternalLink size={11} class="shrink-0 text-muted-foreground" />
+                  </a>
+                  {#if pr.isDraft}
+                    <Badge tone="neutral" size="xs">draft</Badge>
+                  {/if}
+                  <button
+                    type="button"
+                    onclick={() => (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
+                  >
+                    <Badge tone={checksTone(pr.checks)} size="xs">
+                      {#if pr.checks.status === "passing"}
+                        <Check size={11} />
+                      {:else if pr.checks.status === "failing"}
+                        <X size={11} />
+                      {/if}
+                      {pr.checks.status === "none" ? "no checks" : `${pr.checks.passed}/${pr.checks.total}`}
+                    </Badge>
+                  </button>
+                </div>
+                <div class="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                  {pr.baseRefName} ← {pr.headRefName}
+                </div>
+                {#if expandedPr === pr.number && pr.checks.runs.length > 0}
+                  <div class="mt-1.5 flex flex-col gap-1">
+                    {#each pr.checks.runs as run}
+                      <div class="flex items-center gap-1.5 text-[11px]">
+                        <span class="font-mono text-muted-foreground">{run.status}</span>
+                        <span class="truncate text-foreground">{run.name}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          {/if}
+        </div>
+      {/if}
+    </Card>
+  {/if}
+</div>

@@ -11,10 +11,23 @@ import type {
   ConversationSnapshot,
   ConversationTree,
   ConversationTreeNode,
+  CreatePrResponse,
   EventEnvelope,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
   FilesystemSignal,
+  GitBranchSuggestionResponse,
+  GitCommitMessageResponse,
+  GitCommitResponse,
+  GitDiscoveryResponse,
+  GitFileChange,
+  GithubChecksSummary,
+  GithubPr,
+  GithubPrListResponse,
+  GithubStatusResponse,
+  GitMutationResponse,
+  GitOverviewResponse,
+  GitRepoSummary,
   ModelInfo,
   ModelSelection,
   PlanReviewRecord,
@@ -483,6 +496,109 @@ export async function getFileCompletions(
   ).items;
 }
 
+export async function discoverGitRepos(
+  projectId: string,
+): Promise<GitDiscoveryResponse> {
+  return apiGet<GitDiscoveryResponse>(`/api/projects/${projectId}/git/repos`);
+}
+
+export async function getGitOverview(
+  projectId: string,
+  repo: string,
+): Promise<GitOverviewResponse> {
+  const params = new URLSearchParams({ repo });
+  return apiGet<GitOverviewResponse>(
+    `/api/projects/${projectId}/git/overview?${params.toString()}`,
+  );
+}
+
+export async function createGitBranch(
+  projectId: string,
+  repo: string,
+  name: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/branch`, {
+    repo,
+    name,
+  });
+}
+
+export async function commitGitChanges(
+  projectId: string,
+  repo: string,
+  body: { subject: string; body?: string; all: boolean },
+): Promise<GitCommitResponse> {
+  return apiPost<GitCommitResponse>(`/api/projects/${projectId}/git/commit`, {
+    repo,
+    ...body,
+  });
+}
+
+export async function syncGitBase(
+  projectId: string,
+  repo: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${projectId}/git/sync-base`,
+    { repo },
+  );
+}
+
+export async function suggestGitBranchName(
+  projectId: string,
+  repo: string,
+  agentId?: string,
+): Promise<GitBranchSuggestionResponse> {
+  const params = new URLSearchParams({ repo });
+  if (agentId) params.set("agentId", agentId);
+  return apiGet<GitBranchSuggestionResponse>(
+    `/api/projects/${projectId}/git/suggest/branch?${params.toString()}`,
+  );
+}
+
+export async function suggestGitCommitMessage(
+  projectId: string,
+  repo: string,
+  agentId?: string,
+): Promise<GitCommitMessageResponse> {
+  const params = new URLSearchParams({ repo });
+  if (agentId) params.set("agentId", agentId);
+  return apiGet<GitCommitMessageResponse>(
+    `/api/projects/${projectId}/git/suggest/commit?${params.toString()}`,
+  );
+}
+
+export async function getGithubStatus(
+  projectId: string,
+  repo: string,
+): Promise<GithubStatusResponse> {
+  const params = new URLSearchParams({ repo });
+  return apiGet<GithubStatusResponse>(
+    `/api/projects/${projectId}/github/status?${params.toString()}`,
+  );
+}
+
+export async function listMyGithubPrs(
+  projectId: string,
+  repo: string,
+): Promise<GithubPrListResponse> {
+  const params = new URLSearchParams({ repo });
+  return apiGet<GithubPrListResponse>(
+    `/api/projects/${projectId}/github/prs?${params.toString()}`,
+  );
+}
+
+export async function createGithubPr(
+  projectId: string,
+  repo: string,
+  body: { title: string; body?: string; base?: string; draft: boolean },
+): Promise<CreatePrResponse> {
+  return apiPost<CreatePrResponse>(`/api/projects/${projectId}/github/pr`, {
+    repo,
+    ...body,
+  });
+}
+
 export async function uploadClipboardImage(file: File): Promise<string> {
   const response = await apiPost<ClipboardImageUploadResponse>(
     "/api/filesystem/clipboard-image",
@@ -549,4 +665,17 @@ export type {
   ContextUsage,
   SubscriptionUsage,
   SubscriptionWindow,
+  GitRepoSummary,
+  GitDiscoveryResponse,
+  GitOverviewResponse,
+  GitFileChange,
+  GitBranchSuggestionResponse,
+  GitCommitMessageResponse,
+  GitCommitResponse,
+  GitMutationResponse,
+  GithubStatusResponse,
+  GithubPr,
+  GithubPrListResponse,
+  GithubChecksSummary,
+  CreatePrResponse,
 };

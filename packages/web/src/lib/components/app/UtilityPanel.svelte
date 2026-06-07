@@ -12,11 +12,12 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import Tabs, { type TabItem } from "$lib/components/ui/tabs-bar";
   import ContextTab from "./utility/ContextTab.svelte";
+  import GitTab from "./utility/GitTab.svelte";
   import HistoryTab from "./utility/HistoryTab.svelte";
   import ProcessesTab from "./utility/ProcessesTab.svelte";
   import "./utility/utility.css";
 
-  type UtilityTab = "history" | "processes" | "info";
+  type UtilityTab = "history" | "processes" | "info" | "git";
 
   type Props = {
     activeTab?: UtilityTab;
@@ -72,6 +73,7 @@
 
   const tabs = $derived<TabItem[]>([
     { value: "info", label: "Context" },
+    { value: "git", label: "Git" },
     { value: "processes", label: "Processes", count: processes.length },
     { value: "history", label: "History" },
   ]);
@@ -99,6 +101,8 @@
         {systemPromptUrl}
         {onSelectAgent}
       />
+    {:else if activeTab === "git"}
+      <GitTab {activeProject} {activeAgent} />
     {:else if activeTab === "processes"}
       <ProcessesTab
         {processes}

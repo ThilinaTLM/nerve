@@ -44,6 +44,7 @@ import {
 import { ConversationRuntime } from "./conversation-runtime.js";
 import { ConversationService } from "./conversation-service.js";
 import type { EventBus } from "./events.js";
+import { GitService } from "./git/git-service.js";
 import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
 import type { IndexStore } from "./index-store.js";
@@ -62,6 +63,7 @@ import {
 import type { InitializedStorage } from "./storage.js";
 import { ToolService } from "./tool-service.js";
 import type { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
+import { UtilityLlmService } from "./utility-llm-service.js";
 import { WorkerManager } from "./worker-manager.js";
 
 export class RuntimeRegistry {
@@ -77,6 +79,8 @@ export class RuntimeRegistry {
   readonly plans: PlanService;
   readonly suspensions: AgentSuspensionService;
   readonly tools: ToolService;
+  readonly git: GitService;
+  readonly utilityLlm: UtilityLlmService;
   private readonly projectRepository: ProjectRepository;
   private readonly conversationRepository: ConversationRepository;
   private readonly agentRepository: AgentRepository;
@@ -205,6 +209,10 @@ export class RuntimeRegistry {
         this.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
     );
     this.suspensions = new AgentSuspensionService(storage, events);
+    this.git = new GitService((projectId) => this.getProject(projectId));
+    this.utilityLlm = new UtilityLlmService({
+      getApiKey: (provider) => auth.getApiKey(provider),
+    });
     this.tools = new ToolService(
       storage,
       events,
