@@ -57,7 +57,7 @@
   );
   const micTitle = $derived(
     transcription.recording
-      ? `Stop recording (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)})`
+      ? `Stop recording (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)}) — right-click to cancel`
       : transcription.retryAttempt > 0
         ? `Retrying transcription ${transcription.retryAttempt}/${transcription.maxRetries}…`
         : transcription.transcribing
@@ -80,6 +80,12 @@
   function submitQuickReply(phrase: string) {
     if (!pending || !questionRecord) return;
     onAnswerUserQuestion?.(questionRecord.id, phrase);
+  }
+
+  function handleMicContextMenu(event: MouseEvent) {
+    if (!transcription.recording) return;
+    event.preventDefault();
+    void transcription.cancel();
   }
 
   onDestroy(() => {
@@ -117,31 +123,34 @@
           aria-label="Reply to agent question"
         ></textarea>
         {#if supportsAudioRecording}
-          <TranscriptionActivity
-            recording={transcription.recording}
-            transcribing={transcription.transcribing}
-            elapsedMs={transcription.elapsedMs}
-            maxDurationMs={transcription.maxDurationMs}
-            retryAttempt={transcription.retryAttempt}
-            maxRetries={transcription.maxRetries}
-            class="ask-transcription-status"
-          />
-          <Button
-            variant={transcription.recording ? "destructive" : "ghost"}
-            size="icon-sm"
-            class={`reply-mic${transcription.recording ? " recording" : ""}`}
-            type="button"
-            disabled={micDisabled}
-            onclick={() => transcription.toggle()}
-            aria-label={transcription.recording ? "Stop recording" : "Record voice reply"}
-            title={micTitle}
-          >
-            {#if transcription.transcribing}
-              <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
-            {:else}
-              <Mic size={14} strokeWidth={2.4} />
-            {/if}
-          </Button>
+          <div class="reply-voice-controls">
+            <TranscriptionActivity
+              recording={transcription.recording}
+              transcribing={transcription.transcribing}
+              elapsedMs={transcription.elapsedMs}
+              maxDurationMs={transcription.maxDurationMs}
+              retryAttempt={transcription.retryAttempt}
+              maxRetries={transcription.maxRetries}
+              class="ask-transcription-status"
+            />
+            <Button
+              variant={transcription.recording ? "destructive" : "ghost"}
+              size="icon-sm"
+              class={`reply-mic${transcription.recording ? " recording" : ""}`}
+              type="button"
+              disabled={micDisabled}
+              onclick={() => transcription.toggle()}
+              oncontextmenu={handleMicContextMenu}
+              aria-label={transcription.recording ? "Stop recording; right-click to cancel" : "Record voice reply"}
+              title={micTitle}
+            >
+              {#if transcription.transcribing}
+                <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
+              {:else}
+                <Mic size={14} strokeWidth={2.4} />
+              {/if}
+            </Button>
+          </div>
         {/if}
       </div>
       <div class="actions">
@@ -246,10 +255,16 @@
     border-color: var(--primary);
   }
 
-  :global(.reply-mic) {
+  .reply-voice-controls {
     position: absolute;
     right: 0.4rem;
     bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  :global(.reply-mic) {
     border-radius: 999px;
   }
 

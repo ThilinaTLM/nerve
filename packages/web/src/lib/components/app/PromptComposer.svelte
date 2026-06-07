@@ -126,7 +126,7 @@
   );
   const micTitle = $derived(
     recording
-      ? `Stop recording (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)})`
+      ? `Stop recording (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)}) — right-click to cancel`
       : transcription.retryAttempt > 0
         ? `Retrying transcription ${transcription.retryAttempt}/${transcription.maxRetries}…`
         : transcribing
@@ -186,6 +186,12 @@
 
   function toggleRecording() {
     transcription.toggle();
+  }
+
+  function handleMicContextMenu(event: MouseEvent) {
+    if (!recording) return;
+    event.preventDefault();
+    void transcription.cancel();
   }
 
   onDestroy(() => {
@@ -284,7 +290,8 @@
           type="button"
           disabled={micDisabled}
           onclick={toggleRecording}
-          aria-label={recording ? "Stop recording" : "Record voice prompt"}
+          oncontextmenu={handleMicContextMenu}
+          aria-label={recording ? "Stop recording; right-click to cancel" : "Record voice prompt"}
           title={micTitle}
         >
           {#if transcribing}
