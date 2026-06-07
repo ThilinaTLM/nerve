@@ -47,7 +47,7 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.setName("Nerve");
-  app.setAppUserModelId("works.earendil.nerve");
+  app.setAppUserModelId("io.github.thilinatlm.nerve");
   registerDesktopIpc();
 
   app.on("second-instance", () => {

@@ -1,5 +1,7 @@
 {
   "name": "nerve",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.3.0",

@@ -2,11 +2,8 @@
   "name": "@nerve/desktop",
   "version": "0.0.0",
   "description": "UI-first personal AI coding harness.",
-  "author": {
-    "name": "Earendil Works",
-    "email": "maintainers@earendil.works"
-  },
-  "homepage": "https://earendil.works",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "desktopName": "nerve",

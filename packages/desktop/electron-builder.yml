@@ -1,8 +1,8 @@
-appId: works.earendil.nerve
+appId: io.github.thilinatlm.nerve
 productName: Nerve
 executableName: nerve
 artifactName: Nerve-${version}-${arch}.${ext}
-copyright: Copyright © 2026 Earendil Works
+copyright: Copyright © 2026 ThilinaTLM
 
 directories:
   output: release
@@ -25,7 +25,7 @@ linux:
     - deb
   category: Development
   executableName: nerve
-  maintainer: Earendil Works <maintainers@earendil.works>
+  maintainer: ThilinaTLM
   icon: build/icons
   syncDesktopName: true
   desktop:

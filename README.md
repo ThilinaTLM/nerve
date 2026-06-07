@@ -49,4 +49,10 @@ Validate with `pnpm check`; use `pnpm lint` and `pnpm test` when relevant.
 Early development storage schemas are not migrated. After breaking schema changes, use a fresh
 `NERVE_HOME` or delete old local `~/.nerve` data.
 
+## License
+
+Nerve is licensed under the Apache License, Version 2.0.
+
+Copyright © 2026 ThilinaTLM. See `LICENSE` and `NOTICE` for details.
+
 See `DESIGN.md` for the UI design system and `AGENTS.md` for engineering conventions.
