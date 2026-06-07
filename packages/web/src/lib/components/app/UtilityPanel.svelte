@@ -1,4 +1,8 @@
 <script lang="ts">
+  import GitBranch from "@lucide/svelte/icons/git-branch";
+  import History from "@lucide/svelte/icons/history";
+  import Info from "@lucide/svelte/icons/info";
+  import Terminal from "@lucide/svelte/icons/terminal";
   import type {
     AgentRecord,
     ConversationEntry,
@@ -72,10 +76,10 @@
   }: Props = $props();
 
   const tabs = $derived<TabItem[]>([
-    { value: "info", label: "Context" },
-    { value: "git", label: "Git" },
-    { value: "processes", label: "Processes", count: processes.length },
-    { value: "history", label: "History" },
+    { value: "info", label: "Context", icon: Info },
+    { value: "git", label: "Git", icon: GitBranch },
+    { value: "processes", label: "Processes", icon: Terminal, count: processes.length },
+    { value: "history", label: "History", icon: History },
   ]);
 
   function setTab(tab: string) {
