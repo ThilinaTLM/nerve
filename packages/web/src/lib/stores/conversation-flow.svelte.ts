@@ -5,7 +5,6 @@ import {
   answerUserQuestion,
   apiGet,
   apiPost,
-  type ConversationActiveRunSnapshot,
   type ConversationRecord,
   compactConversation,
   discardPlanReview,
@@ -46,10 +45,11 @@ import {
   loadStoredConversationTabs,
   saveConversationTabs,
 } from "./workbench/conversation-tabs";
-import type {
-  ConversationLiveState,
-  ConversationViewState,
-} from "./workbench/state.svelte";
+import {
+  activeRunToLegacyLive,
+  liveTextFromLegacyLive,
+} from "./workbench/live";
+import type { ConversationViewState } from "./workbench/state.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 import { entriesToTranscript } from "./workbench/transcript";
 import { loadWorkspaceState } from "./workspace.svelte";
@@ -72,73 +72,10 @@ export function ensureConversationView(
   return workbenchState.conversationViews[conversationId];
 }
 
-export function activeRunToLegacyLive(
-  activeRun: ConversationActiveRunSnapshot | undefined,
-): ConversationLiveState {
-  if (!activeRun) {
-    return { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
-  }
-  const messages = activeRun.turns.flatMap((turn) =>
-    turn.messages.flatMap((message) =>
-      message.blocks.flatMap((block) => {
-        if (block.kind === "tool_call_draft") return [];
-        return [
-          {
-            id: `live:${message.liveMessageId}:${block.kind}:${block.contentIndex}`,
-            role: "assistant" as const,
-            displayKind:
-              block.kind === "thinking"
-                ? ("thinking" as const)
-                : ("message" as const),
-            text: block.text,
-            createdAt: message.startedAt,
-            contentIndex: block.contentIndex,
-            live: !block.done,
-            done: block.done,
-            redacted: block.redacted,
-          },
-        ];
-      }),
-    ),
-  );
-  const toolDrafts = activeRun.turns.flatMap((turn) =>
-    turn.messages.flatMap((message) =>
-      message.blocks.flatMap((block) => {
-        if (block.kind !== "tool_call_draft") return [];
-        return [
-          {
-            kind: "tool_call_draft" as const,
-            key: `live:${message.liveMessageId}:tool-draft:${block.contentIndex}`,
-            runId: activeRun.runId,
-            conversationId: activeRun.conversationId,
-            contentIndex: block.contentIndex,
-            providerToolCallId: block.providerToolCallId,
-            toolName: block.toolName,
-            argsText: block.argsText,
-            args: block.args,
-            done: block.done,
-            createdAt: message.startedAt,
-            updatedAt: message.startedAt,
-          },
-        ];
-      }),
-    ),
-  );
-  return {
-    runId: activeRun.runId,
-    messages,
-    toolDrafts,
-    toolOutputByToolCallId: activeRun.toolOutputsByToolCallId,
-  };
-}
-
-export function liveTextFromLegacyLive(live: ConversationLiveState): string {
-  return live.messages
-    .filter((item) => item.displayKind !== "thinking")
-    .sort((a, b) => (a.contentIndex ?? 0) - (b.contentIndex ?? 0))
-    .map((item) => item.text)
-    .join("\n");
-}
+export {
+  activeRunToLegacyLive,
+  liveTextFromLegacyLive,
+} from "./workbench/live";
 
 function persistConversationTabs() {
   saveConversationTabs(
@@ -219,7 +156,16 @@ export async function refreshConversationView(conversationId: string) {
     view.activeRun = snapshot.activeRun;
     view.contextUsage = snapshot.contextUsage;
     view.cursorSeq = snapshot.cursorSeq;
-    view.live = activeRunToLegacyLive(snapshot.activeRun);
+    const persistedLiveMessageIds = new Set(
+      snapshot.entries.flatMap((entry) =>
+        entry.role === "assistant" && entry.liveMessageId
+          ? [entry.liveMessageId]
+          : [],
+      ),
+    );
+    view.live = activeRunToLegacyLive(snapshot.activeRun, {
+      excludeLiveMessageIds: persistedLiveMessageIds,
+    });
     view.streamingText = liveTextFromLegacyLive(view.live);
     view.sending = Boolean(snapshot.activeRun);
     if (selection.conversationId === conversationId) {
