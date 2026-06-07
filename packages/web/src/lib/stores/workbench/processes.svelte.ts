@@ -1,4 +1,4 @@
-import { toast } from "svelte-sonner";
+import { notify } from "$lib/notifications/notify.svelte";
 import {
   deleteProcess,
   getProcessLogs,
@@ -27,7 +27,7 @@ export async function stopSelectedProcess(processId: string) {
       workbenchState.selectedProcessId,
     );
   }
-  toast.success("Process stopped");
+  notify.success("Process stopped");
 }
 
 export async function restartSelectedProcess(processId: string) {
@@ -39,7 +39,7 @@ export async function restartSelectedProcess(processId: string) {
   workbenchState.selectedProcessId = restarted.id;
   await loadWorkspaceState();
   workbenchState.processLogs = await getProcessLogs(restarted.id);
-  toast.success("Process restarted", {
+  notify.success("Process restarted", {
     description: restarted.name ?? restarted.id,
   });
 }
@@ -62,14 +62,14 @@ export async function removeProcess(processId: string) {
   await deleteProcess(processId);
   forgetProcess(processId);
   await loadWorkspaceState();
-  toast.success("Process removed");
+  notify.success("Process removed");
 }
 
 export async function pruneStoppedProcesses() {
   const { removed } = await pruneProcesses();
   for (const id of removed) forgetProcess(id);
   await loadWorkspaceState();
-  toast.success(
+  notify.success(
     removed.length === 1
       ? "Removed 1 stopped process"
       : `Removed ${removed.length} stopped processes`,

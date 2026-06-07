@@ -1,8 +1,5 @@
-import {
-  type DesktopNotificationPayload,
-  isDesktopApp,
-  showDesktopNotification,
-} from "$lib/desktop/bridge.svelte";
+import type { DesktopNotificationPayload } from "$lib/desktop/bridge.svelte";
+import { notifyNative } from "$lib/notifications/notify.svelte";
 import type {
   AgentRecord,
   ConversationEntry,
@@ -47,7 +44,7 @@ const contextUsageRefreshTimers = new Map<
 export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (event.seq && event.seq <= workbenchState.lastEventSeq) return;
   if (event.seq) workbenchState.lastEventSeq = event.seq;
-  maybeShowDesktopNotification(event);
+  maybeShowRuntimeNotification(event);
 
   if (isConversationRuntimeEvent(event.type)) {
     handleConversationEvent(event);
@@ -115,18 +112,17 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   }
 }
 
-function maybeShowDesktopNotification(
+function maybeShowRuntimeNotification(
   event: EventEnvelope<Record<string, unknown>>,
 ): void {
-  if (!isDesktopApp() || !isRecentEvent(event)) return;
-  const candidate = desktopNotificationForEvent(event);
+  if (!isRecentEvent(event)) return;
+  const candidate = notificationForEvent(event);
   if (!candidate) return;
-  if (candidate.backgroundOnly && documentIsActive()) return;
 
-  void showDesktopNotification(candidate.payload);
+  notifyNative(candidate.payload, { backgroundOnly: candidate.backgroundOnly });
 }
 
-function desktopNotificationForEvent(
+function notificationForEvent(
   event: EventEnvelope<Record<string, unknown>>,
 ):
   | { payload: DesktopNotificationPayload; backgroundOnly: boolean }
@@ -213,10 +209,6 @@ function desktopNotificationForEvent(
 function isRecentEvent(event: EventEnvelope<Record<string, unknown>>): boolean {
   const ts = Date.parse(event.ts);
   return Number.isFinite(ts) && Date.now() - ts < 60_000;
-}
-
-function documentIsActive(): boolean {
-  return document.visibilityState === "visible" && document.hasFocus();
 }
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {

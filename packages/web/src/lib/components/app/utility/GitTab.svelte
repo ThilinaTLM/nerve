@@ -16,7 +16,7 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import X from "@lucide/svelte/icons/x";
-  import { toast } from "svelte-sonner";
+  import { notify } from "$lib/notifications/notify.svelte";
   import {
     commitGitChanges,
     createGitBranch,
@@ -216,7 +216,7 @@
       }
       lastOverviewFingerprint = fingerprint;
     } catch (error) {
-      if (!silent) toast.error(`Git overview failed: ${errorMessage(error)}`);
+      if (!silent) notify.error(`Git overview failed: ${errorMessage(error)}`);
     } finally {
       if (!silent) loadingOverview = false;
       overviewRequestInFlight = false;
@@ -248,7 +248,7 @@
     try {
       prs = (await listMyGithubPrs(activeProject.id, selectedRepo)).prs;
     } catch (error) {
-      toast.error(`Could not list PRs: ${errorMessage(error)}`);
+      notify.error(`Could not list PRs: ${errorMessage(error)}`);
     } finally {
       loadingPrs = false;
     }
@@ -278,7 +278,7 @@
       branchName = result.suggestion;
       branchAlternatives = result.alternatives;
     } catch (error) {
-      toast.error(`Suggestion failed: ${errorMessage(error)}`);
+      notify.error(`Suggestion failed: ${errorMessage(error)}`);
     } finally {
       suggestingBranch = false;
     }
@@ -289,12 +289,12 @@
     creatingBranch = true;
     try {
       await createGitBranch(activeProject.id, selectedRepo, branchName.trim());
-      toast.success(`Created branch ${branchName.trim()}`);
+      notify.success(`Created branch ${branchName.trim()}`);
       branchName = "";
       branchAlternatives = [];
       invalidateGit(activeProject.id);
     } catch (error) {
-      toast.error(`Create branch failed: ${errorMessage(error)}`);
+      notify.error(`Create branch failed: ${errorMessage(error)}`);
     } finally {
       creatingBranch = false;
     }
@@ -312,7 +312,7 @@
       commitSubject = result.subject;
       commitBody = result.body ?? "";
     } catch (error) {
-      toast.error(`Suggestion failed: ${errorMessage(error)}`);
+      notify.error(`Suggestion failed: ${errorMessage(error)}`);
     } finally {
       suggestingCommit = false;
     }
@@ -327,12 +327,12 @@
         body: commitBody.trim() || undefined,
         all: stageAll,
       });
-      toast.success(`Committed ${result.hash}`);
+      notify.success(`Committed ${result.hash}`);
       commitSubject = "";
       commitBody = "";
       invalidateGit(activeProject.id);
     } catch (error) {
-      toast.error(`Commit failed: ${errorMessage(error)}`);
+      notify.error(`Commit failed: ${errorMessage(error)}`);
     } finally {
       committing = false;
     }
@@ -343,10 +343,10 @@
     syncing = true;
     try {
       const result = await syncGitBase(activeProject.id, selectedRepo);
-      toast.success(`Switched to ${result.repo.currentBranch ?? "base"}`);
+      notify.success(`Switched to ${result.repo.currentBranch ?? "base"}`);
       invalidateGit(activeProject.id);
     } catch (error) {
-      toast.error(`Sync failed: ${errorMessage(error)}`);
+      notify.error(`Sync failed: ${errorMessage(error)}`);
     } finally {
       syncing = false;
     }
@@ -357,10 +357,10 @@
     fetching = true;
     try {
       await fetchGit(activeProject.id, selectedRepo);
-      toast.success("Fetched from remote");
+      notify.success("Fetched from remote");
       invalidateGit(activeProject.id);
     } catch (error) {
-      toast.error(`Fetch failed: ${errorMessage(error)}`);
+      notify.error(`Fetch failed: ${errorMessage(error)}`);
     } finally {
       fetching = false;
     }
@@ -371,10 +371,10 @@
     pulling = true;
     try {
       await pullGit(activeProject.id, selectedRepo);
-      toast.success("Pulled latest changes");
+      notify.success("Pulled latest changes");
       invalidateGit(activeProject.id);
     } catch (error) {
-      toast.error(`Pull failed: ${errorMessage(error)}`);
+      notify.error(`Pull failed: ${errorMessage(error)}`);
     } finally {
       pulling = false;
     }
@@ -385,10 +385,10 @@
     pushing = true;
     try {
       await pushGit(activeProject.id, selectedRepo);
-      toast.success("Pushed to remote");
+      notify.success("Pushed to remote");
       invalidateGit(activeProject.id);
     } catch (error) {
-      toast.error(`Push failed: ${errorMessage(error)}`);
+      notify.error(`Push failed: ${errorMessage(error)}`);
     } finally {
       pushing = false;
     }
@@ -406,7 +406,7 @@
       prTitle = result.title;
       prBody = result.body ?? "";
     } catch (error) {
-      toast.error(`Suggestion failed: ${errorMessage(error)}`);
+      notify.error(`Suggestion failed: ${errorMessage(error)}`);
     } finally {
       suggestingPr = false;
     }
@@ -422,12 +422,12 @@
         base: overview?.baseBranch,
         draft: prDraft,
       });
-      toast.success(`Opened PR #${result.number}`);
+      notify.success(`Opened PR #${result.number}`);
       prBody = "";
       invalidateGit(activeProject.id);
       await loadPrs();
     } catch (error) {
-      toast.error(`Create PR failed: ${errorMessage(error)}`);
+      notify.error(`Create PR failed: ${errorMessage(error)}`);
     } finally {
       creatingPr = false;
     }

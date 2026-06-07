@@ -6,7 +6,7 @@
   import Search from "@lucide/svelte/icons/search";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import { Collapsible, mergeProps } from "bits-ui";
-  import { toast } from "svelte-sonner";
+  import { notify } from "$lib/notifications/notify.svelte";
   import type { AgentRecord, ProjectRecord, ConversationRecord } from "../../api";
   import AlertDialog from "$lib/components/ui/confirm-dialog";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
@@ -73,9 +73,9 @@
   async function copyToClipboard(text: string, label: string) {
     try {
       await navigator.clipboard?.writeText(text);
-      toast.success(`Copied ${label}`);
+      notify.success(`Copied ${label}`);
     } catch {
-      toast.error("Could not copy to clipboard");
+      notify.error("Could not copy to clipboard");
     }
   }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { toast } from "svelte-sonner";
+  import { notify } from "$lib/notifications/notify.svelte";
   import { unified } from "unified";
   import remarkParse from "remark-parse";
   import remarkGfm from "remark-gfm";
@@ -138,9 +138,9 @@
     if (!code) return;
     try {
       await navigator.clipboard?.writeText(code);
-      toast.success("Copied code block");
+      notify.success("Copied code block");
     } catch {
-      toast.error("Could not copy code block");
+      notify.error("Could not copy code block");
     }
   }
 

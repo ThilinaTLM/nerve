@@ -9,7 +9,7 @@
   import Settings from "@lucide/svelte/icons/settings";
   import Terminal from "@lucide/svelte/icons/terminal";
   import X from "@lucide/svelte/icons/x";
-  import { toast } from "svelte-sonner";
+  import { notify } from "$lib/notifications/notify.svelte";
   import type { CenterTabModel } from "../../stores/workbench/selectors.svelte";
   import type { CenterTabIdentity } from "../../stores/workbench/state.svelte";
   import { shortenPath } from "../../utils/path";
@@ -122,9 +122,9 @@
     if (!text) return;
     try {
       await navigator.clipboard?.writeText(text);
-      toast.success(`Copied ${label}`);
+      notify.success(`Copied ${label}`);
     } catch {
-      toast.error("Could not copy to clipboard");
+      notify.error("Could not copy to clipboard");
     }
   }
 

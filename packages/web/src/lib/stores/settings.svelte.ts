@@ -1,4 +1,4 @@
-import { toast } from "svelte-sonner";
+import { notify } from "$lib/notifications/notify.svelte";
 import {
   getAuthProviders,
   getModels,
@@ -219,7 +219,7 @@ export async function flushSettingsSave() {
     );
     workbenchState.settingsSaveStatus = "error";
     workbenchState.settingsMessage = message;
-    toast.error("Could not save settings", { description: message });
+    notify.error("Could not save settings", { description: message });
   } finally {
     saveInFlight = false;
     if (pendingSettingsPatch && workbenchState.settingsSaveStatus !== "error") {

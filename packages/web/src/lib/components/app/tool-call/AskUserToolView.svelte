@@ -4,7 +4,7 @@
   import Send from "@lucide/svelte/icons/send";
   import X from "@lucide/svelte/icons/x";
   import { onDestroy } from "svelte";
-  import { toast } from "svelte-sonner";
+  import { notify } from "$lib/notifications/notify.svelte";
   import type { ToolCallRecord, UserQuestionRecord } from "../../../api";
   import TranscriptionActivity from "../../../audio/TranscriptionActivity.svelte";
   import { TranscriptionController } from "../../../audio/transcription-controller.svelte";
@@ -54,7 +54,7 @@
   const transcription = new TranscriptionController({
     onTranscript: appendTranscript,
     onError: (message) =>
-      toast.error("Voice input failed", { description: message }),
+      notify.error("Voice input failed", { description: message }),
   });
   const supportsAudioRecording = $derived(TranscriptionController.isSupported());
   const micDisabled = $derived(

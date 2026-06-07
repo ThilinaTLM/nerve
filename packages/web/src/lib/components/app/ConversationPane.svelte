@@ -3,7 +3,7 @@
   import Copy from "@lucide/svelte/icons/copy";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
-  import { toast } from "svelte-sonner";
+  import { notify } from "$lib/notifications/notify.svelte";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, ConversationRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
   import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
@@ -197,9 +197,9 @@
   async function copyText(text: string, label = "message") {
     try {
       await navigator.clipboard?.writeText(text);
-      toast.success(`Copied ${label}`);
+      notify.success(`Copied ${label}`);
     } catch {
-      toast.error("Could not copy to clipboard");
+      notify.error("Could not copy to clipboard");
     }
   }
 

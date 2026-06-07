@@ -1,4 +1,4 @@
-import { toast } from "svelte-sonner";
+import { notify } from "$lib/notifications/notify.svelte";
 import { getFileContent } from "../../api";
 import {
   defaultFileDisplayMode,
@@ -32,7 +32,7 @@ async function loadFileView(id: string) {
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.error = message;
-    toast.error("Could not open file", { description: message });
+    notify.error("Could not open file", { description: message });
   } finally {
     view.loading = false;
   }

@@ -32,13 +32,15 @@ declare global {
   }
 }
 
+const initialDesktopBridge = getDesktopBridge();
+
 export const desktopRuntime = $state<{
   isDesktop: boolean;
   platform?: string;
   windowState: DesktopWindowState;
 }>({
-  isDesktop: false,
-  platform: undefined,
+  isDesktop: initialDesktopBridge !== undefined,
+  platform: initialDesktopBridge?.platform,
   windowState: {
     maximized: false,
     focused: true,

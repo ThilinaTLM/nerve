@@ -28,7 +28,7 @@
   import User from "@lucide/svelte/icons/user";
   import Wrench from "@lucide/svelte/icons/wrench";
   import type { Component } from "svelte";
-  import { toast } from "svelte-sonner";
+  import { notify } from "$lib/notifications/notify.svelte";
   import type { ConversationEntry, ConversationRecord, ConversationTreeNode, ToolCallRecord } from "../../../api";
   import { buttonVariants } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
@@ -190,9 +190,9 @@
         onSelect: async () => {
           try {
             await navigator.clipboard?.writeText(node.entry.id);
-            toast.success("Copied entry id");
+            notify.success("Copied entry id");
           } catch {
-            toast.error("Could not copy to clipboard");
+            notify.error("Could not copy to clipboard");
           }
         },
       },

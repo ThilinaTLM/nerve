@@ -1,4 +1,4 @@
-import { toast } from "svelte-sonner";
+import { notify } from "$lib/notifications/notify.svelte";
 import {
   type AgentRecord,
   apiPost,
@@ -136,11 +136,11 @@ export async function deleteProjectAndRefresh(projectId: string) {
     await removeConversationTabs(conversationIds);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    toast.success("Project removed");
+    notify.success("Project removed");
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workbenchState.error = message;
-    toast.error("Could not remove project", { description: message });
+    notify.error("Could not remove project", { description: message });
   }
 }
 
@@ -150,11 +150,11 @@ export async function deleteConversationAndRefresh(conversationId: string) {
     await removeConversationTabs([conversationId]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    toast.success("Conversation removed");
+    notify.success("Conversation removed");
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workbenchState.error = message;
-    toast.error("Could not remove conversation", { description: message });
+    notify.error("Could not remove conversation", { description: message });
   }
 }
 
@@ -173,10 +173,10 @@ export async function createConversationForDirectory(dir: string) {
     ];
     workbenchState.projectPickerOpen = false;
     openPendingConversation(project);
-    toast.success("New conversation ready", { description: project.dir });
+    notify.success("New conversation ready", { description: project.dir });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workbenchState.error = message;
-    toast.error("Could not open project", { description: message });
+    notify.error("Could not open project", { description: message });
   }
 }

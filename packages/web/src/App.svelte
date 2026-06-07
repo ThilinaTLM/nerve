@@ -29,6 +29,7 @@
   import PrPane from "./lib/components/app/PrPane.svelte";
   import ProcessOutputPane from "./lib/components/app/ProcessOutputPane.svelte";
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
+  import BrowserNotificationPrompt from "./lib/notifications/BrowserNotificationPrompt.svelte";
   import ProjectDirectoryPicker from "./lib/components/app/ProjectDirectoryPicker.svelte";
   import SettingsPage from "./lib/components/app/SettingsPage.svelte";
   import Titlebar from "./lib/components/app/Titlebar.svelte";
@@ -91,7 +92,7 @@
     workbenchState,
     type CenterTabIdentity,
   } from "./lib/stores/workbench.svelte";
-
+  import { initializeNotifications } from "./lib/notifications/notify.svelte";
 
   const status = $derived(workbenchSelectors.status);
   const connection = $derived(workbenchSelectors.connection);
@@ -224,6 +225,7 @@
 
   onMount(() => {
     const unsubscribeDesktop = initializeDesktopRuntime();
+    initializeNotifications();
     const startedOnSettings =
       window.location.pathname === "/settings" ||
       window.location.pathname === "/settings/";
@@ -451,6 +453,7 @@
     onToggleSidebar={() => setSidebarCollapsed(!layout.sidebarCollapsed)}
     onToggleUtility={() => setUtilityCollapsed(!layout.utilityCollapsed)}
   />
+  <BrowserNotificationPrompt />
 </main>
 
 <ProjectDirectoryPicker

@@ -1,5 +1,5 @@
 import { deriveConversationTitle } from "@nerve/shared";
-import { toast } from "svelte-sonner";
+import { notify } from "$lib/notifications/notify.svelte";
 import {
   type AgentRecord,
   acceptPlanReview,
@@ -452,7 +452,7 @@ export async function ensureAgent(): Promise<string> {
 export async function grantApproval(approvalId: string) {
   await apiPost(`/api/approvals/${approvalId}/grant`, {});
   workbenchState.approvals = await getPendingApprovals();
-  toast.success("Approval granted");
+  notify.success("Approval granted");
 }
 
 export async function denyApproval(approvalId: string) {
@@ -460,7 +460,7 @@ export async function denyApproval(approvalId: string) {
     note: "Denied from UI.",
   });
   workbenchState.approvals = await getPendingApprovals();
-  toast.message("Approval denied");
+  notify.message("Approval denied");
 }
 
 export async function acceptPendingPlanReview(reviewId: string) {
@@ -469,7 +469,7 @@ export async function acceptPendingPlanReview(reviewId: string) {
   await loadWorkspaceState();
   if (selection.conversationId)
     await refreshConversationView(selection.conversationId);
-  toast.success("Plan accepted");
+  notify.success("Plan accepted");
 }
 
 export async function rejectPendingPlanReview(reviewId: string) {
@@ -478,7 +478,7 @@ export async function rejectPendingPlanReview(reviewId: string) {
   await loadWorkspaceState();
   if (selection.conversationId)
     await refreshConversationView(selection.conversationId);
-  toast.message("Plan rejected");
+  notify.message("Plan rejected");
 }
 
 export async function requestPendingPlanChanges(
@@ -487,13 +487,13 @@ export async function requestPendingPlanChanges(
 ) {
   await requestPlanChanges(reviewId, feedback);
   workbenchState.planReviews = await getPendingPlanReviews();
-  toast.message("Change request sent");
+  notify.message("Change request sent");
 }
 
 export async function discardPendingPlanReview(reviewId: string) {
   await discardPlanReview(reviewId, "Discarded from UI.");
   workbenchState.planReviews = await getPendingPlanReviews();
-  toast.message("Plan discarded");
+  notify.message("Plan discarded");
 }
 
 export async function answerUserQuestionById(
@@ -504,13 +504,13 @@ export async function answerUserQuestionById(
   if (!trimmed) return;
   await answerUserQuestion(questionId, trimmed);
   workbenchState.userQuestions = await getPendingUserQuestions();
-  toast.success("Reply sent");
+  notify.success("Reply sent");
 }
 
 export async function dismissUserQuestionById(questionId: string) {
   await dismissUserQuestionRequest(questionId, "Dismissed from UI.");
   workbenchState.userQuestions = await getPendingUserQuestions();
-  toast.message("Question dismissed");
+  notify.message("Question dismissed");
 }
 
 export async function abortActiveRun() {
@@ -539,7 +539,7 @@ function hasUsableModel(): boolean {
 }
 
 function notifyPromptError(title: string, message: string): void {
-  toast.error(title, { description: message });
+  notify.error(title, { description: message });
 }
 
 function upsertConversationRecord(conversation: ConversationRecord): void {

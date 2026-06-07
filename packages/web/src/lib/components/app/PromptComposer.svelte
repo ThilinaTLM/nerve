@@ -29,7 +29,7 @@
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
   import { onDestroy, type Component } from "svelte";
-  import { toast } from "svelte-sonner";
+  import { notify } from "$lib/notifications/notify.svelte";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -109,7 +109,7 @@
   const transcription = new TranscriptionController({
     onTranscript: appendTranscript,
     onError: (message) =>
-      toast.error("Voice input failed", { description: message }),
+      notify.error("Voice input failed", { description: message }),
   });
   const recording = $derived(transcription.recording);
   const transcribing = $derived(transcription.transcribing);
