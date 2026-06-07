@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AgentRecord } from "../api";
-import { mergeAgentsByUpdatedAt, upsertAgentByUpdatedAt } from "./agent-freshness";
+import {
+  mergeAgentsByUpdatedAt,
+  upsertAgentByUpdatedAt,
+} from "./agent-freshness";
 
 function agent(
   patch: Partial<AgentRecord> & Pick<AgentRecord, "id" | "updatedAt">,

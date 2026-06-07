@@ -57,6 +57,14 @@
     activeAgent?: AgentRecord;
   };
 
+  type LoadOverviewOptions = {
+    silent?: boolean;
+    seedPrTitle?: boolean;
+    onlyIfChanged?: boolean;
+  };
+
+  const GIT_OVERVIEW_AUTO_REFRESH_MS = 4_000;
+
   let { activeProject, activeAgent }: Props = $props();
 
   let repos = $state<GitRepoSummary[]>([]);
@@ -69,6 +77,8 @@
   let loadingOverview = $state(false);
   let loadingPrs = $state(false);
   let discoverError = $state<string | undefined>(undefined);
+  let overviewRequestInFlight = false;
+  let lastOverviewFingerprint: string | undefined;
 
   let branchName = $state("");
   let branchAlternatives = $state<string[]>([]);
@@ -101,6 +111,10 @@
     })),
   );
 
+  const gitMutationInProgress = $derived(
+    creatingBranch || committing || syncing || pushing || pulling || fetching,
+  );
+
   function repoStorageKey(projectId: string): string {
     return `nerve.git.repo.${projectId}`;
   }
@@ -120,6 +134,7 @@
 
   async function loadRepos(project: ProjectRecord) {
     discoverError = undefined;
+    lastOverviewFingerprint = undefined;
     try {
       const result = await discoverGitRepos(project.id);
       repos = result.repos;
@@ -139,29 +154,72 @@
         overview = undefined;
         github = undefined;
         prs = [];
+        lastOverviewFingerprint = undefined;
       }
     } catch (error) {
       discoverError = errorMessage(error);
       repos = [];
       overview = undefined;
+      lastOverviewFingerprint = undefined;
     }
   }
 
-  async function loadOverview() {
-    if (!activeProject || repos.length === 0) return;
-    loadingOverview = true;
+  function overviewFingerprint(next: GitOverviewResponse): string {
+    return JSON.stringify({
+      repo: {
+        currentBranch: next.repo.currentBranch,
+        detached: next.repo.detached,
+        ahead: next.repo.ahead,
+        behind: next.repo.behind,
+        hasUpstream: next.repo.hasUpstream,
+        hasRemote: next.repo.hasRemote,
+        baseBranch: next.repo.baseBranch,
+        onBaseBranch: next.repo.onBaseBranch,
+        mergedToBase: next.repo.mergedToBase,
+      },
+      counts: {
+        staged: next.stagedCount,
+        unstaged: next.unstagedCount,
+        untracked: next.untrackedCount,
+        insertions: next.insertions,
+        deletions: next.deletions,
+      },
+      files: next.files.map((file) => ({
+        path: file.path,
+        renamedFrom: file.renamedFrom,
+        index: file.index,
+        worktree: file.worktree,
+        staged: file.staged,
+        untracked: file.untracked,
+      })),
+      latestCommit: next.recentCommits[0]?.hash ?? null,
+    });
+  }
+
+  async function loadOverview(options: LoadOverviewOptions = {}) {
+    if (!activeProject || repos.length === 0 || overviewRequestInFlight) return;
+    const { silent = false, seedPrTitle = true, onlyIfChanged = false } = options;
+    const projectId = activeProject.id;
+    const repo = selectedRepo;
+    overviewRequestInFlight = true;
+    if (!silent) loadingOverview = true;
     try {
-      overview = await getGitOverview(activeProject.id, selectedRepo);
-      if (!prTitle) {
-        prTitle =
-          overview.recentCommits[0]?.subject ??
-          overview.repo.currentBranch ??
-          "";
+      const next = await getGitOverview(projectId, repo);
+      if (activeProject?.id !== projectId || selectedRepo !== repo) return;
+      const fingerprint = overviewFingerprint(next);
+      if (!onlyIfChanged || fingerprint !== lastOverviewFingerprint) {
+        overview = next;
+        if (seedPrTitle && !prTitle) {
+          prTitle =
+            next.recentCommits[0]?.subject ?? next.repo.currentBranch ?? "";
+        }
       }
+      lastOverviewFingerprint = fingerprint;
     } catch (error) {
-      toast.error(`Git overview failed: ${errorMessage(error)}`);
+      if (!silent) toast.error(`Git overview failed: ${errorMessage(error)}`);
     } finally {
-      loadingOverview = false;
+      if (!silent) loadingOverview = false;
+      overviewRequestInFlight = false;
     }
   }
 
@@ -203,6 +261,7 @@
     }
     branchName = "";
     branchAlternatives = [];
+    lastOverviewFingerprint = undefined;
     void loadOverview();
     void loadGithub();
   }
@@ -403,6 +462,34 @@
 
   const dirtyOverview = $derived(overview && overview.files.length > 0);
 
+  function autoRefreshOverview() {
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState !== "visible"
+    ) {
+      return;
+    }
+    if (overviewRequestInFlight || gitMutationInProgress) return;
+    void loadOverview({
+      silent: true,
+      seedPrTitle: false,
+      onlyIfChanged: true,
+    });
+  }
+
+  // Poll local git state while the Git tab is mounted and visible.
+  $effect(() => {
+    const projectId = activeProject?.id;
+    const repo = selectedRepo;
+    const repoCount = repos.length;
+    if (!projectId || repoCount === 0 || !repo) return;
+    const intervalId = window.setInterval(
+      autoRefreshOverview,
+      GIT_OVERVIEW_AUTO_REFRESH_MS,
+    );
+    return () => window.clearInterval(intervalId);
+  });
+
   // Reload when the active project changes.
   let lastProjectId = $state<string | undefined>(undefined);
   $effect(() => {
@@ -413,6 +500,7 @@
       lastProjectId = undefined;
       repos = [];
       overview = undefined;
+      lastOverviewFingerprint = undefined;
     }
   });
 

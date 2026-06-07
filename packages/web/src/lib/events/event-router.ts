@@ -21,11 +21,11 @@ import {
   openConversation,
   refreshConversationView,
 } from "../stores/conversation-flow.svelte";
-import { refreshGitContext } from "../stores/workbench/git-context.svelte";
 import {
   hasPendingSettingsSave,
   loadSettingsPanel,
 } from "../stores/settings.svelte";
+import { invalidateGit } from "../stores/workbench/git-context.svelte";
 import type {
   ConversationLiveState,
   ConversationViewState,
@@ -366,7 +366,9 @@ function handleConversationEvent(
         if (selection.conversationId === conversationId)
           void openConversation(conversationId);
       });
-      if (active(conversationId)) void refreshGitContext();
+      if (active(conversationId)) {
+        void invalidateGit(stringValue(event.data?.projectId));
+      }
       break;
     case "conversation.run.failed":
       view.sending = false;

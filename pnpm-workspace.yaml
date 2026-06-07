@@ -2,5 +2,7 @@ packages:
   - "packages/*"
 allowBuilds:
   '@google/genai': true
+  electron-winstaller: set this to true or false
   esbuild: true
   protobufjs: true
+  sharp: set this to true or false

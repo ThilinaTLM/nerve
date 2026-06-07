@@ -30,10 +30,7 @@ export async function loadWorkspaceState() {
     queryKey: queryKeys.workspace,
     queryFn: getWorkspaceSnapshot,
   });
-  const agents = mergeAgentsByUpdatedAt(
-    snapshot.agents,
-    workbenchState.agents,
-  );
+  const agents = mergeAgentsByUpdatedAt(snapshot.agents, workbenchState.agents);
   workbenchState.projects = snapshot.projects;
   workbenchState.conversations = snapshot.conversations;
   workbenchState.agents = agents;
