@@ -64,6 +64,18 @@ describe("audio transcription", () => {
       mimeType: "audio/wav",
       extension: "wav",
     });
+    assert.deepEqual(normalizeAudioMimeType("audio/wav; codecs=1"), {
+      mimeType: "audio/wav",
+      extension: "wav",
+    });
+    assert.deepEqual(normalizeAudioMimeType("audio/mpga"), {
+      mimeType: "audio/mpga",
+      extension: "mpga",
+    });
+    assert.deepEqual(normalizeAudioMimeType("audio/ogg;codecs=opus"), {
+      mimeType: "audio/ogg",
+      extension: "ogg",
+    });
     assert.deepEqual(normalizeAudioMimeType("audio/m4a"), {
       mimeType: "audio/mp4",
       extension: "mp4",
@@ -133,7 +145,7 @@ describe("audio transcription", () => {
     }
   });
 
-  it("sends audio to the ChatGPT subscription transcription endpoint", async () => {
+  it("sends WebM audio to the ChatGPT subscription transcription endpoint", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
     const originalFetch = globalThis.fetch;
     try {
@@ -176,6 +188,45 @@ describe("audio transcription", () => {
       assert.ok(file instanceof File);
       assert.equal(file.type, "audio/webm");
       assert.equal(file.name, "whisper.webm");
+    } finally {
+      globalThis.fetch = originalFetch;
+      state.index.close();
+    }
+  });
+
+  it("forwards WAV uploads with a WAV filename and MIME type", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    const originalFetch = globalThis.fetch;
+    try {
+      const access = makeJwt({
+        "https://api.openai.com/auth": { chatgpt_account_id: "acc-capture" },
+      });
+      await state.auth.setOAuth("openai-codex", {
+        access,
+        refresh: "refresh-token",
+        expires: Date.now() + 60_000,
+      });
+
+      let capturedForm: FormData | undefined;
+      globalThis.fetch = (async (
+        _input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        capturedForm = init?.body as FormData;
+        return Response.json({ text: "wav transcript" });
+      }) as typeof fetch;
+
+      const response = await app.request("/api/transcription/audio", {
+        method: "POST",
+        headers,
+        body: audioForm("audio/wav; codecs=1", 2000),
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { text: "wav transcript" });
+      const file = capturedForm?.get("file");
+      assert.ok(file instanceof File);
+      assert.equal(file.type, "audio/wav");
+      assert.equal(file.name, "whisper.wav");
     } finally {
       globalThis.fetch = originalFetch;
       state.index.close();

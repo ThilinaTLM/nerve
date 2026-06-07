@@ -102,12 +102,44 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   );
 }
 
+function extensionForAudioType(type: string): string {
+  const normalized = type.split(";")[0]?.trim().toLowerCase();
+  switch (normalized) {
+    case "audio/wav":
+    case "audio/wave":
+    case "audio/x-wav":
+      return "wav";
+    case "audio/mp4":
+    case "audio/m4a":
+    case "audio/x-m4a":
+      return "mp4";
+    case "audio/mpeg":
+    case "audio/mp3":
+    case "audio/x-mpeg":
+      return "mp3";
+    case "audio/mpga":
+      return "mpga";
+    case "audio/flac":
+    case "audio/x-flac":
+      return "flac";
+    case "audio/ogg":
+    case "audio/oga":
+      return "ogg";
+    default:
+      return "webm";
+  }
+}
+
 export async function transcribeAudio(
   audio: Blob,
   durationMs: number,
 ): Promise<string> {
   const form = new FormData();
-  form.append("file", audio, "composer-recording.webm");
+  form.append(
+    "file",
+    audio,
+    `composer-recording.${extensionForAudioType(audio.type)}`,
+  );
   form.append("durationMs", String(Math.max(1, Math.round(durationMs))));
   return (
     await parseResponse<AudioTranscriptionResponse>(

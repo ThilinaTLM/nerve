@@ -38,9 +38,15 @@ export function normalizeAudioMimeType(
     case "audio/x-wav":
       return { mimeType: "audio/wav", extension: "wav" };
     case "audio/mpeg":
+    case "audio/x-mpeg":
       return { mimeType: "audio/mpeg", extension: "mp3" };
     case "audio/mp3":
       return { mimeType: "audio/mp3", extension: "mp3" };
+    case "audio/mpga":
+      return { mimeType: "audio/mpga", extension: "mpga" };
+    case "audio/ogg":
+    case "audio/oga":
+      return { mimeType: "audio/ogg", extension: "ogg" };
     case "audio/flac":
     case "audio/x-flac":
       return { mimeType: "audio/flac", extension: "flac" };

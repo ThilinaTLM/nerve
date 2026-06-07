@@ -19,13 +19,14 @@
     type ConversationRecord,
     type UserQuestionRecord,
   } from "../../api";
+  import { PcmWavRecorder, type WavRecordingResult } from "../../audio/wav-recorder";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
   import { Button } from "$lib/components/ui/button";
   import Popover from "$lib/components/ui/popover-panel";
   import ApprovalStrip from "./ApprovalStrip.svelte";
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
-  import type { Component } from "svelte";
+  import { onDestroy, type Component } from "svelte";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -94,10 +95,8 @@
   let recording = $state(false);
   let transcribing = $state(false);
   let audioError = $state<string | undefined>();
-  let mediaRecorder: MediaRecorder | undefined;
-  let audioStream: MediaStream | undefined;
-  let recordedChunks: Blob[] = [];
-  let recordingStartedAt = 0;
+  let audioRecorder: PcmWavRecorder | undefined;
+  let stoppingRecording = $state(false);
 
   const pendingApproval = $derived(approvals.length > 0);
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
@@ -106,13 +105,11 @@
   const canPrompt = $derived(Boolean(activeProject && activeConversation && live && models.length > 0 && !blockedForReview));
   const editorDisabled = $derived(sending || !canPrompt);
   const submitDisabled = $derived(!canPrompt);
-  const supportsAudioRecording = $derived(
-    typeof navigator !== "undefined" &&
-      Boolean(navigator.mediaDevices?.getUserMedia) &&
-      typeof MediaRecorder !== "undefined",
-  );
+  const supportsAudioRecording = $derived(PcmWavRecorder.isSupported());
   const micDisabled = $derived(
-    transcribing || (!recording && (!canPrompt || sending || !supportsAudioRecording)),
+    transcribing ||
+      stoppingRecording ||
+      (!recording && (!canPrompt || sending || !supportsAudioRecording)),
   );
   const displayedError = $derived(error ?? audioError);
 
@@ -158,21 +155,6 @@
     permissionOpen = false;
   }
 
-  function preferredRecordingMimeType(): string | undefined {
-    const candidates = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/mp4",
-      "audio/wav",
-    ];
-    return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
-  }
-
-  function stopAudioTracks() {
-    audioStream?.getTracks().forEach((track) => track.stop());
-    audioStream = undefined;
-  }
-
   function appendTranscript(transcript: string) {
     const trimmed = transcript.trim();
     if (!trimmed) return;
@@ -180,25 +162,11 @@
     onChange?.(`${text}${separator}${trimmed}`);
   }
 
-  async function finishRecording(mimeType: string | undefined) {
-    const chunks = recordedChunks;
-    const durationMs = Math.max(1, Date.now() - recordingStartedAt);
-    recordedChunks = [];
-    mediaRecorder = undefined;
-    recording = false;
-    stopAudioTracks();
-
-    if (chunks.length === 0) {
-      audioError = "No audio was captured.";
-      return;
-    }
-
-    const blobType = mimeType || chunks.find((chunk) => chunk.type)?.type || "audio/webm";
-    const audio = new Blob(chunks, { type: blobType });
+  async function transcribeRecording(result: WavRecordingResult) {
     transcribing = true;
     audioError = undefined;
     try {
-      appendTranscript(await transcribeAudio(audio, durationMs));
+      appendTranscript(await transcribeAudio(result.blob, result.durationMs));
     } catch (err) {
       audioError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -213,52 +181,46 @@
     }
     audioError = undefined;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      const mimeType = preferredRecordingMimeType();
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      recordedChunks = [];
-      audioStream = stream;
-      mediaRecorder = recorder;
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) recordedChunks.push(event.data);
-      };
-      recorder.onerror = (event) => {
-        audioError = event.error?.message || "Audio recording failed.";
-        stopAudioTracks();
-        recording = false;
-      };
-      recorder.onstop = () => {
-        void finishRecording(recorder.mimeType || mimeType);
-      };
-      recordingStartedAt = Date.now();
+      const recorder = new PcmWavRecorder();
+      await recorder.start();
+      audioRecorder = recorder;
       recording = true;
-      recorder.start();
     } catch (err) {
-      stopAudioTracks();
-      mediaRecorder = undefined;
+      await audioRecorder?.cancel();
+      audioRecorder = undefined;
       recording = false;
       audioError = err instanceof Error ? err.message : String(err);
     }
   }
 
-  function stopRecording() {
-    if (!mediaRecorder || mediaRecorder.state === "inactive") return;
-    mediaRecorder.stop();
+  async function stopRecording() {
+    if (!audioRecorder || stoppingRecording) return;
+    const recorder = audioRecorder;
+    stoppingRecording = true;
+    audioRecorder = undefined;
+    try {
+      const result = await recorder.stop();
+      recording = false;
+      await transcribeRecording(result);
+    } catch (err) {
+      recording = false;
+      audioError = err instanceof Error ? err.message : String(err);
+    } finally {
+      stoppingRecording = false;
+    }
   }
 
   function toggleRecording() {
     if (recording) {
-      stopRecording();
+      void stopRecording();
     } else {
       void startRecording();
     }
   }
+
+  onDestroy(() => {
+    void audioRecorder?.cancel();
+  });
 </script>
 
 <form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
