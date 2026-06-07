@@ -2,6 +2,7 @@
   import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
   import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
   import Check from "@lucide/svelte/icons/check";
+  import CloudDownload from "@lucide/svelte/icons/cloud-download";
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import FileMinus from "@lucide/svelte/icons/file-minus";
   import FilePen from "@lucide/svelte/icons/file-pen";
@@ -13,7 +14,6 @@
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import RefreshCcw from "@lucide/svelte/icons/refresh-ccw";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-  import RotateCw from "@lucide/svelte/icons/rotate-cw";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import X from "@lucide/svelte/icons/x";
   import { toast } from "svelte-sonner";
@@ -566,7 +566,7 @@
                 {#if fetching}
                   <LoaderCircle class="animate-spin" />
                 {:else}
-                  <RotateCw />
+                  <CloudDownload />
                 {/if}
               </Button>
             {/if}
@@ -619,16 +619,6 @@
               </Button>
             {/if}
           {/if}
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            ariaLabel="Refresh"
-            title="Refresh"
-            disabled={loadingOverview}
-            onclick={() => void loadOverview()}
-          >
-            <RefreshCw class={loadingOverview ? "animate-spin" : ""} />
-          </Button>
         </div>
       </div>
       {#if overview}
