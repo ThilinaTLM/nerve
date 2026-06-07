@@ -32,6 +32,13 @@ const MAX_DISCOVERY_DEPTH = 2;
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next"]);
 const DIFF_CONTEXT_LIMIT = 6_000;
 
+function capDiffContext(diff: string): string {
+  if (diff.length > DIFF_CONTEXT_LIMIT) {
+    return `${diff.slice(0, DIFF_CONTEXT_LIMIT)}\n... (diff truncated)`;
+  }
+  return diff;
+}
+
 export class GitCommandError extends Error {
   constructor(
     readonly command: string,
@@ -196,6 +203,7 @@ export class GitService {
     } catch {
       hasRemote = false;
     }
+    const onBaseBranch = branch.head === baseBranch;
     return {
       relativePath,
       absDir: repoDir,
@@ -208,7 +216,12 @@ export class GitService {
       hasUpstream: branch.upstream !== null,
       hasRemote,
       baseBranch,
-      onBaseBranch: branch.head === baseBranch,
+      onBaseBranch,
+      mergedToBase: await this.mergedToBase(repoDir, baseBranch, {
+        currentBranch: branch.head,
+        detached: branch.detached,
+        onBaseBranch,
+      }),
       dirty: files.length > 0,
       changeCount: files.length,
     };
@@ -339,6 +352,56 @@ export class GitService {
       } catch {
         return false;
       }
+    }
+  }
+
+  private async comparisonBaseRef(
+    repoDir: string,
+    baseBranch: string,
+  ): Promise<string> {
+    for (const candidate of [
+      `refs/remotes/origin/${baseBranch}`,
+      `refs/heads/${baseBranch}`,
+      baseBranch,
+    ]) {
+      try {
+        await this.runGit(repoDir, [
+          "rev-parse",
+          "--verify",
+          "--quiet",
+          `${candidate}^{commit}`,
+        ]);
+        return candidate;
+      } catch {
+        // Try the next possible ref.
+      }
+    }
+    return baseBranch;
+  }
+
+  private async mergedToBase(
+    repoDir: string,
+    baseBranch: string,
+    state: {
+      currentBranch: string | null;
+      detached: boolean;
+      onBaseBranch: boolean;
+    },
+  ): Promise<boolean> {
+    if (state.detached || state.onBaseBranch || !state.currentBranch) {
+      return false;
+    }
+    const baseRef = await this.comparisonBaseRef(repoDir, baseBranch);
+    try {
+      await this.runGit(repoDir, [
+        "merge-base",
+        "--is-ancestor",
+        "HEAD",
+        baseRef,
+      ]);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -541,10 +604,71 @@ export class GitService {
     } catch {
       diff = (await this.runGit(repoDir, ["diff"])).stdout;
     }
-    if (diff.length > DIFF_CONTEXT_LIMIT) {
-      return `${diff.slice(0, DIFF_CONTEXT_LIMIT)}\n... (diff truncated)`;
+    return capDiffContext(diff);
+  }
+
+  /** PR context (capped) for LLM suggestions on committed branch changes. */
+  async prContext(projectId: string, relativePath: string): Promise<string> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const baseBranch = await this.detectBaseBranch(repoDir);
+    const baseRef = await this.comparisonBaseRef(repoDir, baseBranch);
+    const { stdout: currentBranchOut } = await this.runGit(repoDir, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ]);
+    const currentBranch = currentBranchOut.trim() || "HEAD";
+
+    const commits = await this.gitOutputOrEmpty(repoDir, [
+      "log",
+      "--pretty=- %s",
+      `${baseRef}..HEAD`,
+    ]);
+    const stats = await this.gitOutputOrEmpty(repoDir, [
+      "diff",
+      "--stat",
+      `${baseRef}...HEAD`,
+    ]);
+    const files = await this.gitOutputOrEmpty(repoDir, [
+      "diff",
+      "--name-status",
+      `${baseRef}...HEAD`,
+    ]);
+    const diff = await this.gitOutputOrEmpty(repoDir, [
+      "diff",
+      `${baseRef}...HEAD`,
+    ]);
+
+    return [
+      `Current branch: ${currentBranch}`,
+      `Base branch: ${baseBranch}`,
+      `Base ref: ${baseRef}`,
+      "",
+      "Commits since base:",
+      commits.trim() || "(none)",
+      "",
+      "Changed files:",
+      files.trim() || "(none)",
+      "",
+      "Diff stat:",
+      stats.trim() || "(none)",
+      "",
+      "Diff (may be truncated):",
+      "```diff",
+      capDiffContext(diff) || "(no diff available)",
+      "```",
+    ].join("\n");
+  }
+
+  private async gitOutputOrEmpty(
+    repoDir: string,
+    args: string[],
+  ): Promise<string> {
+    try {
+      return (await this.runGit(repoDir, args)).stdout;
+    } catch {
+      return "";
     }
-    return diff;
   }
 
   // --- GitHub via gh ---

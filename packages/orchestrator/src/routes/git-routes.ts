@@ -176,6 +176,25 @@ export function createGitRoutes(state: OrchestratorState): Hono {
   );
 
   app.get(
+    "/projects/:projectId/git/suggest/pr",
+    routeHandler(async (c) => {
+      const projectId = c.req.param("projectId");
+      const repo = repoParam(c.req.query("repo"));
+      const [overview, context] = await Promise.all([
+        state.registry.git.overview(projectId, repo),
+        state.registry.git.prContext(projectId, repo),
+      ]);
+      return c.json(
+        await state.registry.utilityLlm.suggestPrContent({
+          overview,
+          context,
+          model: agentModel(state, c.req.query("agentId")),
+        }),
+      );
+    }),
+  );
+
+  app.get(
     "/projects/:projectId/github/status",
     routeHandler(async (c) =>
       c.json(

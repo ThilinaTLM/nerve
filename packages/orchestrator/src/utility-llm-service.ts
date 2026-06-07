@@ -7,6 +7,7 @@ import type {
   GitBranchSuggestionResponse,
   GitCommitMessageResponse,
   GitOverviewResponse,
+  GitPrSuggestionResponse,
 } from "@nerve/shared";
 
 const SUGGESTION_MAX_TOKENS = 512;
@@ -113,6 +114,28 @@ export class UtilityLlmService {
     const body = lines.slice(1).join("\n").trim();
     return { subject, body: body.length > 0 ? body : undefined };
   }
+
+  async suggestPrContent(options: {
+    overview: GitOverviewResponse;
+    context: string;
+    model?: AgentModelSelection;
+    signal?: AbortSignal;
+  }): Promise<GitPrSuggestionResponse> {
+    const text = await this.complete({
+      system: [
+        "You write concise GitHub pull request titles and descriptions.",
+        'Reply with strict JSON only: {"title": string, "body": string}.',
+        "Title: clear, action-oriented, at most 80 characters, no trailing period.",
+        "Body: Markdown with a short summary and notable changes. Do not invent testing results.",
+      ].join("\n"),
+      prompt: buildPrPrompt(options.overview, options.context),
+      model: options.model,
+      maxTokens: SUGGESTION_MAX_TOKENS,
+      signal: options.signal,
+    });
+
+    return parsePrSuggestion(text, options.overview);
+  }
 }
 
 function buildChangePrompt(
@@ -143,6 +166,63 @@ function buildChangePrompt(
     diff || "(no diff available)",
     "```",
   ].join("\n");
+}
+
+function buildPrPrompt(overview: GitOverviewResponse, context: string): string {
+  return [
+    `Current branch: ${overview.repo.currentBranch ?? "(detached)"}`,
+    `Base branch: ${overview.baseBranch}`,
+    "",
+    "Pull request context:",
+    context,
+  ].join("\n");
+}
+
+function parsePrSuggestion(
+  raw: string,
+  overview: GitOverviewResponse,
+): GitPrSuggestionResponse {
+  const fallback = fallbackPrTitle(overview);
+  try {
+    const parsed = JSON.parse(stripJsonFence(raw)) as {
+      title?: unknown;
+      body?: unknown;
+    };
+    const title =
+      typeof parsed.title === "string" && parsed.title.trim().length > 0
+        ? cleanTitle(parsed.title)
+        : fallback;
+    const body = typeof parsed.body === "string" ? parsed.body.trim() : "";
+    return { title, body: body.length > 0 ? body : undefined };
+  } catch {
+    const lines = raw.trim().split("\n");
+    const title = cleanTitle(lines[0] ?? fallback) || fallback;
+    const body = lines.slice(1).join("\n").trim();
+    return { title, body: body.length > 0 ? body : undefined };
+  }
+}
+
+function stripJsonFence(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+function cleanTitle(raw: string): string {
+  return raw.trim().replace(/\.$/, "").slice(0, 80).trim();
+}
+
+function fallbackPrTitle(overview: GitOverviewResponse): string {
+  const recent = overview.recentCommits[0]?.subject;
+  if (recent && recent.trim().length > 0) return cleanTitle(recent);
+  const branch = overview.repo.currentBranch ?? "Update changes";
+  const words = branch
+    .replace(/^[^/]+\//, "")
+    .replace(/[-_/]+/g, " ")
+    .trim();
+  return cleanTitle(words.charAt(0).toUpperCase() + words.slice(1));
 }
 
 const BRANCH_FALLBACK_PREFIX = "change/";

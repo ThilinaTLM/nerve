@@ -30,6 +30,7 @@
     pushGit,
     suggestGitBranchName,
     suggestGitCommitMessage,
+    suggestGitPr,
     syncGitBase,
     type AgentRecord,
     type GitFileChange,
@@ -87,6 +88,7 @@
   let prTitle = $state("");
   let prBody = $state("");
   let prDraft = $state(false);
+  let suggestingPr = $state(false);
   let creatingPr = $state(false);
   let expandedPr = $state<number | undefined>(undefined);
 
@@ -330,6 +332,24 @@
       toast.error(`Push failed: ${errorMessage(error)}`);
     } finally {
       pushing = false;
+    }
+  }
+
+  async function onSuggestPr() {
+    if (!activeProject) return;
+    suggestingPr = true;
+    try {
+      const result = await suggestGitPr(
+        activeProject.id,
+        selectedRepo,
+        activeAgent?.id,
+      );
+      prTitle = result.title;
+      prBody = result.body ?? "";
+    } catch (error) {
+      toast.error(`Suggestion failed: ${errorMessage(error)}`);
+    } finally {
+      suggestingPr = false;
     }
   }
 
@@ -687,8 +707,42 @@
           <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
             Signed in as <span class="font-mono text-foreground">{github.login}</span>
           </div>
-          {#if !overview?.onBaseBranch}
-            <Input bind:value={prTitle} placeholder="PR title" class="h-8 text-xs" />
+          {#if overview?.repo.mergedToBase}
+            <div class="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              This branch appears to already be merged into
+              <span class="font-mono text-foreground">{overview.baseBranch}</span>.
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={syncing || dirtyOverview}
+              onclick={() => void onSyncBase()}
+            >
+              {#if syncing}
+                <LoaderCircle class="animate-spin" />
+              {:else}
+                <RefreshCcw />
+              {/if}
+              Switch to {overview.baseBranch}
+            </Button>
+          {:else if !overview?.onBaseBranch}
+            <div class="flex gap-1.5">
+              <Input bind:value={prTitle} placeholder="PR title" class="h-8 text-xs" />
+              <Button
+                size="sm"
+                variant="outline"
+                ariaLabel="Suggest PR title and description"
+                disabled={suggestingPr}
+                onclick={() => void onSuggestPr()}
+              >
+                {#if suggestingPr}
+                  <LoaderCircle class="animate-spin" />
+                {:else}
+                  <Sparkles />
+                {/if}
+                Suggest
+              </Button>
+            </div>
             <Textarea bind:value={prBody} placeholder="PR description (optional)" class="min-h-16 text-xs" />
             <label class="flex items-center gap-2 text-xs text-muted-foreground">
               <Checkbox bind:checked={prDraft} />
@@ -700,7 +754,7 @@
               onclick={() => void onCreatePr()}
             >
               <GitPullRequest />
-              Create PR from {overview?.repo.currentBranch ?? "branch"}
+              Create PR
             </Button>
           {:else}
             <span class="text-xs text-muted-foreground">

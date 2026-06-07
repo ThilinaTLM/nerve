@@ -31,6 +31,7 @@ import type {
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
+  GitPrSuggestionResponse,
   GitRepoSummary,
   ModelInfo,
   ModelSelection,
@@ -599,6 +600,18 @@ export async function suggestGitCommitMessage(
   );
 }
 
+export async function suggestGitPr(
+  projectId: string,
+  repo: string,
+  agentId?: string,
+): Promise<GitPrSuggestionResponse> {
+  const params = new URLSearchParams({ repo });
+  if (agentId) params.set("agentId", agentId);
+  return apiGet<GitPrSuggestionResponse>(
+    `/api/projects/${projectId}/git/suggest/pr?${params.toString()}`,
+  );
+}
+
 export async function getGithubStatus(
   projectId: string,
   repo: string,
@@ -725,6 +738,7 @@ export type {
   GitBranchSuggestionResponse,
   GitCommitMessageResponse,
   GitCommitResponse,
+  GitPrSuggestionResponse,
   GitMutationResponse,
   GithubStatusResponse,
   GithubPr,

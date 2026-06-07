@@ -41,6 +41,8 @@ export const gitRepoSummarySchema = z.object({
   baseBranch: z.string(),
   /** True when the current branch is the detected base branch. */
   onBaseBranch: z.boolean(),
+  /** True when current HEAD is already reachable from the detected base branch. */
+  mergedToBase: z.boolean(),
   dirty: z.boolean(),
   changeCount: z.number().int().nonnegative(),
 });
@@ -97,6 +99,14 @@ export const gitCommitMessageResponseSchema = z.object({
 });
 export type GitCommitMessageResponse = z.infer<
   typeof gitCommitMessageResponseSchema
+>;
+
+export const gitPrSuggestionResponseSchema = z.object({
+  title: z.string(),
+  body: z.string().optional(),
+});
+export type GitPrSuggestionResponse = z.infer<
+  typeof gitPrSuggestionResponseSchema
 >;
 
 // --- Request payloads ---

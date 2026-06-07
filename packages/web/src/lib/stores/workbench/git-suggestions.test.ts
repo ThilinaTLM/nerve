@@ -18,6 +18,7 @@ function repo(overrides: Partial<GitRepoSummary> = {}): GitRepoSummary {
     hasRemote: true,
     baseBranch: "main",
     onBaseBranch: true,
+    mergedToBase: false,
     dirty: false,
     changeCount: 0,
     ...overrides,
