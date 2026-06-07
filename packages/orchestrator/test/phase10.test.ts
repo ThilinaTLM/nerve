@@ -39,6 +39,7 @@ describe("phase 10 hardening helpers", () => {
     assert.equal(settings.server.host, "127.0.0.1");
     assert.equal(settings.server.allowRemote, true);
     assert.equal(settings.ui.theme, "system");
+    assert.equal(settings.ui.zoomLevel, 0);
     assert.equal(settings.compaction.auto, false);
     assert.deepEqual(settings.scopedModels, scopedModels);
     assert.equal(storage.settings.server.allowRemote, true);

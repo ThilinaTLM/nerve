@@ -23,6 +23,7 @@ export const settingsSchema = z.object({
   }),
   ui: z.object({
     theme: z.enum(["system", "light", "dark"]),
+    zoomLevel: z.number().int().min(-4).max(4).default(0),
   }),
   compaction: z.object({
     auto: z.boolean(),
@@ -45,6 +46,7 @@ export const defaultSettings: Settings = {
   },
   ui: {
     theme: "system",
+    zoomLevel: 0,
   },
   compaction: {
     auto: false,
@@ -69,6 +71,7 @@ export const updateSettingsRequestSchema = z.object({
   ui: z
     .object({
       theme: z.enum(["system", "light", "dark"]).optional(),
+      zoomLevel: z.number().int().min(-4).max(4).optional(),
     })
     .optional(),
   compaction: z

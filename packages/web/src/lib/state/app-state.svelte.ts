@@ -25,8 +25,16 @@ export const composerDraft = $state({
   projectDir: "",
 });
 
+export const MIN_ZOOM_LEVEL = -4;
+export const MAX_ZOOM_LEVEL = 4;
+export const ZOOM_BASE = 1.2;
+
 export const themeState = $state({
   preference: "system" as ThemePreference,
+});
+
+export const zoomState = $state({
+  level: 0,
 });
 
 // Theme switching is delegated to mode-watcher, which toggles the `.dark` class
@@ -34,6 +42,29 @@ export const themeState = $state({
 export function applyTheme(preference = themeState.preference) {
   themeState.preference = preference;
   setMode(preference);
+}
+
+export function clampZoomLevel(level: number): number {
+  if (!Number.isFinite(level)) return 0;
+  return Math.min(MAX_ZOOM_LEVEL, Math.max(MIN_ZOOM_LEVEL, Math.round(level)));
+}
+
+export function zoomScaleForLevel(level: number): number {
+  return ZOOM_BASE ** clampZoomLevel(level);
+}
+
+export function zoomPercentForLevel(level: number): number {
+  return Math.round(zoomScaleForLevel(level) * 100);
+}
+
+export function applyZoomLevel(level: number) {
+  const next = clampZoomLevel(level);
+  zoomState.level = next;
+  if (typeof document === "undefined") return;
+  document.documentElement.style.setProperty(
+    "--nerve-zoom-scale",
+    zoomScaleForLevel(next).toFixed(4),
+  );
 }
 
 export function loadSidebarCollapsed(): boolean {

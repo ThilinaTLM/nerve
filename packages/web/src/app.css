@@ -240,6 +240,7 @@
   }
   html {
     @apply font-sans;
+    font-size: calc(16px * var(--nerve-zoom-scale, 1));
   }
 
   /* Layout essentials (app shell relies on a full-height, non-scrolling root). */

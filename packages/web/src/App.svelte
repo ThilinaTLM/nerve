@@ -20,6 +20,7 @@
     setSidebarCollapsed,
     setUtilityCollapsed,
     selection,
+    zoomState,
   } from "./lib/state/app-state.svelte";
   import ConversationPane from "./lib/components/app/ConversationPane.svelte";
   import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
@@ -81,6 +82,7 @@
     setComposerPermission,
     setComposerThinkingLevel,
     setTheme,
+    setUiZoomLevel,
     stopSelectedProcess,
     systemPromptUrl,
     toggleFileDisplayMode,
@@ -121,6 +123,7 @@
   const selectedPermissionLevel = $derived(
     workbenchSelectors.selectedPermissionLevel,
   );
+  const settingsDraft = $derived(workbenchSelectors.settingsDraft);
   const settingsSaveStatus = $derived(workbenchSelectors.settingsSaveStatus);
   const settingsMessage = $derived(workbenchSelectors.settingsMessage);
   const activeProject = $derived(workbenchSelectors.activeProject);
@@ -138,6 +141,7 @@
   const activeCenterProcess = $derived(workbenchSelectors.activeCenterProcess);
   const conversationAgents = $derived(workbenchSelectors.conversationAgents);
   const usableModels = $derived(workbenchSelectors.usableModels);
+  const currentZoomLevel = $derived(settingsDraft?.ui.zoomLevel ?? zoomState.level);
 
   function selectAgent(agent: AgentRecord) {
     selection.agentId = agent.id;
@@ -172,6 +176,20 @@
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       workbenchState.error = message;
+    }
+  }
+
+  function handleZoomShortcut(event: KeyboardEvent) {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+    if (event.key === "=" || event.key === "+") {
+      event.preventDefault();
+      setUiZoomLevel(currentZoomLevel + 1);
+    } else if (event.key === "-" || event.key === "_") {
+      event.preventDefault();
+      setUiZoomLevel(currentZoomLevel - 1);
+    } else if (event.key === "0") {
+      event.preventDefault();
+      setUiZoomLevel(0);
     }
   }
 
@@ -215,12 +233,14 @@
     }
     setSidebarCollapsed(loadSidebarCollapsed());
     setUtilityCollapsed(loadUtilityCollapsed());
+    window.addEventListener("keydown", handleZoomShortcut);
 
     void initializeWorkbench().then(() => {
       if (startedOnSettings) void openSettingsPane();
     });
 
     return () => {
+      window.removeEventListener("keydown", handleZoomShortcut);
       unsubscribeDesktop();
       disconnectWorkbench();
     };
@@ -426,8 +446,10 @@
     {gitStatus}
     {subscriptionUsage}
     homeDir={status?.storage.home}
+    zoomLevel={currentZoomLevel}
     sidebarCollapsed={layout.sidebarCollapsed}
     utilityCollapsed={layout.utilityCollapsed}
+    onZoomLevelChange={setUiZoomLevel}
     onToggleSidebar={() => setSidebarCollapsed(!layout.sidebarCollapsed)}
     onToggleUtility={() => setUtilityCollapsed(!layout.utilityCollapsed)}
   />

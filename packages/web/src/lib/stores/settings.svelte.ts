@@ -8,7 +8,11 @@ import {
   updateSettings,
 } from "../api";
 import type { ThemePreference } from "../state/app-state.svelte";
-import { applyTheme } from "../state/app-state.svelte";
+import {
+  applyTheme,
+  applyZoomLevel,
+  clampZoomLevel,
+} from "../state/app-state.svelte";
 import { modelKey, scopedUsableModelOptions } from "../utils/model";
 import {
   clampThinkingLevelForModel,
@@ -70,6 +74,7 @@ export async function loadSettingsPanel() {
     getSubscriptionUsage().catch(() => []),
   ]);
   workbenchState.settingsDraft = settings;
+  applyZoomLevel(settings.ui.zoomLevel);
   workbenchState.models = modelList;
   workbenchState.authProviders = auth;
   workbenchState.subscriptionUsage = Object.fromEntries(
@@ -225,4 +230,13 @@ export async function flushSettingsSave() {
 
 export function setTheme(preference: ThemePreference) {
   applyTheme(preference);
+}
+
+export function setUiZoomLevel(level: number) {
+  const next = clampZoomLevel(level);
+  applyZoomLevel(next);
+  if (workbenchState.settingsDraft) {
+    workbenchState.settingsDraft.ui.zoomLevel = next;
+  }
+  queueSettingsSave({ ui: { zoomLevel: next } });
 }

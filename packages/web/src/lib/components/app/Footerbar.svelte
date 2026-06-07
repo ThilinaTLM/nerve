@@ -17,6 +17,7 @@
   import { Button } from "$lib/components/ui/button";
   import StatusPopover from "./StatusPopover.svelte";
   import SubscriptionUsageChip from "./SubscriptionUsageChip.svelte";
+  import ZoomControl from "./ZoomControl.svelte";
 
   type GitStatus = { branch: string; dirty: boolean };
 
@@ -32,8 +33,10 @@
     gitStatus?: GitStatus;
     subscriptionUsage?: SubscriptionUsage;
     homeDir?: string;
+    zoomLevel?: number;
     sidebarCollapsed?: boolean;
     utilityCollapsed?: boolean;
+    onZoomLevelChange?: (level: number) => void;
     onToggleSidebar?: () => void;
     onToggleUtility?: () => void;
   };
@@ -50,8 +53,10 @@
     gitStatus,
     subscriptionUsage,
     homeDir,
+    zoomLevel = 0,
     sidebarCollapsed = false,
     utilityCollapsed = false,
+    onZoomLevelChange,
     onToggleSidebar,
     onToggleUtility,
   }: Props = $props();
@@ -109,6 +114,8 @@
     {/if}
 
     <SubscriptionUsageChip usage={subscriptionUsage} />
+
+    <ZoomControl {zoomLevel} {onZoomLevelChange} />
 
     <StatusPopover
       {connection}
