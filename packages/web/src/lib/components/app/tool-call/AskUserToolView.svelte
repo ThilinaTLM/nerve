@@ -245,7 +245,7 @@
     border-radius: var(--radius-sm);
     background: var(--background);
     color: var(--foreground);
-    padding: 0.55rem 2.4rem 0.55rem 0.65rem;
+    padding: 0.55rem 2.4rem 2.85rem 0.65rem;
     font: inherit;
     font-size: var(--text-sm);
     line-height: 1.4;
@@ -259,8 +259,8 @@
 
   .reply-voice-controls {
     position: absolute;
-    right: 0.4rem;
-    bottom: 0.4rem;
+    right: 0.55rem;
+    bottom: 0.7rem;
     display: flex;
     align-items: center;
     gap: 0.3rem;
