@@ -1,4 +1,6 @@
 <script lang="ts">
+  import BookOpenText from "@lucide/svelte/icons/book-open-text";
+  import Code2 from "@lucide/svelte/icons/code-2";
   import Copy from "@lucide/svelte/icons/copy";
   import FileText from "@lucide/svelte/icons/file-text";
   import Plus from "@lucide/svelte/icons/plus";
@@ -25,6 +27,7 @@
     onCloseOther?: (tab: TabIdentity) => void;
     onCloseRight?: (tab: TabIdentity) => void;
     onCloseLeft?: (tab: TabIdentity) => void;
+    onToggleFileDisplayMode?: (id: string) => void;
     onNewConversation?: () => void;
   };
 
@@ -37,6 +40,7 @@
     onCloseOther,
     onCloseRight,
     onCloseLeft,
+    onToggleFileDisplayMode,
     onNewConversation,
   }: Props = $props();
 
@@ -89,6 +93,19 @@
       const candidateIdentity = tabIdentity(candidate);
       return candidateIdentity.kind === identity.kind && candidateIdentity.id === identity.id;
     });
+  }
+
+  function fileToggleLabel(tab: CenterTabModel): string {
+    if (tab.kind !== "file") return "";
+    return tab.displayMode === "rendered"
+      ? "Show raw markdown"
+      : "Show rendered markdown";
+  }
+
+  function handleFileDisplayToggle(event: MouseEvent, tab: CenterTabModel) {
+    if (tab.kind !== "file") return;
+    event.stopPropagation();
+    onToggleFileDisplayMode?.(tab.id);
   }
 
   async function copyToClipboard(text: string | undefined, label: string) {
@@ -174,6 +191,32 @@
           class:running={tab.sending}
           class:errored={Boolean(tab.error)}
         >
+          <div class="tab-leading">
+            {#if tab.kind === "conversation" || tab.kind === "pending-conversation" || tab.kind === "process"}
+              <span class="tab-status" title={statusLabel(tab)} aria-hidden="true"></span>
+            {:else if tab.kind === "file"}
+              {#if tab.markdown}
+                <button
+                  type="button"
+                  class="tab-file-toggle"
+                  aria-label={fileToggleLabel(tab)}
+                  title={fileToggleLabel(tab)}
+                  disabled={!onToggleFileDisplayMode}
+                  onclick={(event) => handleFileDisplayToggle(event, tab)}
+                >
+                  {#if tab.displayMode === "rendered"}
+                    <BookOpenText size={12} strokeWidth={2.2} aria-hidden="true" />
+                  {:else}
+                    <Code2 size={12} strokeWidth={2.2} aria-hidden="true" />
+                  {/if}
+                </button>
+              {:else}
+                <span class="tab-kind-icon"><FileText size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+              {/if}
+            {:else if tab.kind === "settings"}
+              <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+            {/if}
+          </div>
           <button
             type="button"
             class="tab-select"
@@ -182,13 +225,8 @@
             title={tabTitle(tab)}
             onclick={() => onSelect?.(tabIdentity(tab))}
           >
-            <span class="tab-status" title={statusLabel(tab)} aria-hidden="true"></span>
             {#if tab.kind === "process"}
               <span class="tab-kind-icon"><Terminal size={12} strokeWidth={2.2} aria-hidden="true" /></span>
-            {:else if tab.kind === "file"}
-              <span class="tab-kind-icon"><FileText size={12} strokeWidth={2.2} aria-hidden="true" /></span>
-            {:else if tab.kind === "settings"}
-              <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
             {/if}
             <span class="tab-title">{tabLabel(tab)}</span>
             {#if (tab.kind === "conversation" || tab.kind === "pending-conversation") && tab.hasDraft}
@@ -256,7 +294,7 @@
     display: inline-grid;
     width: 100%;
     height: 2rem;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     border-right: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
     background: var(--card);
     color: var(--muted-foreground);
@@ -285,7 +323,8 @@
   }
 
   .tab-select,
-  .tab-close {
+  .tab-close,
+  .tab-file-toggle {
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -294,19 +333,28 @@
     cursor: pointer;
   }
 
+  .tab-leading {
+    display: inline-grid;
+    width: 1.42rem;
+    height: 2rem;
+    place-items: center;
+    padding-left: 0.38rem;
+  }
+
   .tab-select {
     display: inline-flex;
     align-items: center;
     gap: 0.42rem;
     min-width: 0;
     height: 2rem;
-    padding: 0 0.3rem 0 0.68rem;
+    padding: 0 0.3rem;
     font-size: var(--text-xs);
     text-align: left;
   }
 
   .tab-select:focus-visible,
-  .tab-close:focus-visible {
+  .tab-close:focus-visible,
+  .tab-file-toggle:focus-visible {
     outline: 1px solid var(--ring);
     outline-offset: -1px;
     z-index: 1;
@@ -318,6 +366,30 @@
     height: 0.42rem;
     border-radius: 999px;
     background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+  }
+
+  .tab-file-toggle {
+    display: inline-grid;
+    width: 1.15rem;
+    height: 1.15rem;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    color: color-mix(in oklab, var(--muted-foreground) 82%, transparent);
+  }
+
+  .center-tab.active .tab-file-toggle,
+  .center-tab:hover .tab-file-toggle {
+    color: currentColor;
+  }
+
+  .tab-file-toggle:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .tab-file-toggle:disabled {
+    cursor: default;
+    opacity: 0.7;
   }
 
   .center-tab.running .tab-status {

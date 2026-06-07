@@ -1,4 +1,10 @@
+import {
+  type DesktopNotificationPayload,
+  isDesktopApp,
+  showDesktopNotification,
+} from "$lib/desktop/bridge.svelte";
 import type {
+  AgentRecord,
   ConversationEntry,
   EventEnvelope,
   SubscriptionUsage,
@@ -7,6 +13,7 @@ import type {
 import { getConversationContextUsage, getProcessLogs } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
+import { upsertAgentByUpdatedAt } from "../stores/agent-freshness";
 import {
   activeRunToLegacyLive,
   ensureConversationView,
@@ -39,6 +46,7 @@ const contextUsageRefreshTimers = new Map<
 export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (event.seq && event.seq <= workbenchState.lastEventSeq) return;
   if (event.seq) workbenchState.lastEventSeq = event.seq;
+  maybeShowDesktopNotification(event);
 
   if (isConversationRuntimeEvent(event.type)) {
     handleConversationEvent(event);
@@ -63,6 +71,11 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
     const conversationId = conversationIdFromEvent(event);
     if (conversationId && isOpenConversation(conversationId))
       void refreshConversationView(conversationId);
+  }
+
+  if (isAgentRecordEvent(event.type)) {
+    const agent = agentRecordFromEvent(event.data?.agent);
+    if (agent) applyAgentRecord(agent);
   }
 
   if (event.type === "agent.configured") {
@@ -101,6 +114,135 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   }
 }
 
+function maybeShowDesktopNotification(
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  if (!isDesktopApp() || !isRecentEvent(event)) return;
+  const candidate = desktopNotificationForEvent(event);
+  if (!candidate) return;
+  if (candidate.backgroundOnly && documentIsActive()) return;
+
+  void showDesktopNotification(candidate.payload);
+}
+
+function desktopNotificationForEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+):
+  | { payload: DesktopNotificationPayload; backgroundOnly: boolean }
+  | undefined {
+  switch (event.type) {
+    case "approval.requested": {
+      const approval = recordValue(event.data?.approval);
+      return {
+        backgroundOnly: false,
+        payload: {
+          title: "Approval requested",
+          body: shortNotificationText(
+            stringValue(approval?.reason) ??
+              "An agent is waiting for tool approval.",
+          ),
+          urgency: "attention",
+        },
+      };
+    }
+    case "user_question.requested": {
+      const question = recordValue(event.data?.question);
+      return {
+        backgroundOnly: false,
+        payload: {
+          title: "Nerve needs your answer",
+          body: shortNotificationText(
+            stringValue(question?.question) ?? "An agent asked a question.",
+          ),
+          urgency: "attention",
+        },
+      };
+    }
+    case "plan_review.requested": {
+      const planReview = recordValue(event.data?.planReview);
+      return {
+        backgroundOnly: false,
+        payload: {
+          title: "Plan ready for review",
+          body: shortNotificationText(
+            stringValue(planReview?.title) ??
+              stringValue(planReview?.summary) ??
+              "An agent submitted a plan for review.",
+          ),
+          urgency: "attention",
+        },
+      };
+    }
+    case "conversation.run.completed":
+      return {
+        backgroundOnly: true,
+        payload: {
+          title: "Agent run completed",
+          body: projectBodyForEvent(event) ?? "Nerve finished a run.",
+        },
+      };
+    case "conversation.run.failed":
+      return {
+        backgroundOnly: true,
+        payload: {
+          title: "Agent run failed",
+          body: shortNotificationText(
+            stringValue(event.data?.message) ??
+              projectBodyForEvent(event) ??
+              "Nerve hit an agent error.",
+          ),
+          urgency: "attention",
+        },
+      };
+    case "conversation.run.suspended":
+      return {
+        backgroundOnly: true,
+        payload: {
+          title: "Agent run suspended",
+          body:
+            projectBodyForEvent(event) ?? "Nerve is waiting before continuing.",
+          urgency: "attention",
+        },
+      };
+    default:
+      return undefined;
+  }
+}
+
+function isRecentEvent(event: EventEnvelope<Record<string, unknown>>): boolean {
+  const ts = Date.parse(event.ts);
+  return Number.isFinite(ts) && Date.now() - ts < 60_000;
+}
+
+function documentIsActive(): boolean {
+  return document.visibilityState === "visible" && document.hasFocus();
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function projectBodyForEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+): string | undefined {
+  const projectId = stringValue(event.data?.projectId);
+  const dir = projectId
+    ? workbenchState.projects.find((project) => project.id === projectId)?.dir
+    : undefined;
+  return dir ? shortNotificationText(dir) : undefined;
+}
+
+function shortNotificationText(value: string): string {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  return singleLine.length <= 180 ? singleLine : `${singleLine.slice(0, 179)}…`;
+}
+
 function isConversationRuntimeEvent(type: string): boolean {
   return (
     type === "conversation.entry.appended" ||
@@ -134,6 +276,28 @@ function isOpenConversation(conversationId: string): boolean {
 
 function active(conversationId: string): boolean {
   return selection.conversationId === conversationId;
+}
+
+function isAgentRecordEvent(type: string): boolean {
+  return (
+    type === "agent.created" ||
+    type === "agent.configured" ||
+    type === "agent.mode_changed" ||
+    type === "agent.status_changed"
+  );
+}
+
+function agentRecordFromEvent(value: unknown): AgentRecord | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const candidate = value as Partial<AgentRecord>;
+  return typeof candidate.id === "string" &&
+    typeof candidate.updatedAt === "string"
+    ? (candidate as AgentRecord)
+    : undefined;
+}
+
+function applyAgentRecord(agent: AgentRecord): void {
+  workbenchState.agents = upsertAgentByUpdatedAt(agent, workbenchState.agents);
 }
 
 function handleConversationEvent(

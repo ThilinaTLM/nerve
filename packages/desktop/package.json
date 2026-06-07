@@ -5,10 +5,10 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && cp src/preload.cjs dist/preload.cjs",
     "check": "tsc -b --pretty false",
-    "start": "electron .",
-    "dev": "pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron ."
+    "start": "node scripts/start-electron.mjs",
+    "dev": "pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && node scripts/start-electron.mjs"
   },
   "dependencies": {
     "@nerve/orchestrator": "workspace:*",

@@ -5,6 +5,13 @@
     PaneGroup,
     Handle as PaneResizer,
   } from "$lib/components/ui/resizable";
+  import {
+    closeDesktopWindow,
+    desktopRuntime,
+    initializeDesktopRuntime,
+    minimizeDesktopWindow,
+    toggleMaximizeDesktopWindow,
+  } from "$lib/desktop/bridge.svelte";
   import type { AgentRecord } from "./lib/api";
   import {
     layout,
@@ -70,6 +77,7 @@
     setTheme,
     stopSelectedProcess,
     systemPromptUrl,
+    toggleFileDisplayMode,
     workbenchSelectors,
     workbenchState,
     type CenterTabIdentity,
@@ -159,6 +167,7 @@
   }
 
   onMount(() => {
+    const unsubscribeDesktop = initializeDesktopRuntime();
     const startedOnSettings =
       window.location.pathname === "/settings" ||
       window.location.pathname === "/settings/";
@@ -173,6 +182,7 @@
     });
 
     return () => {
+      unsubscribeDesktop();
       disconnectWorkbench();
     };
   });
@@ -185,9 +195,14 @@
 <main class="app-frame">
   <Titlebar
     {activeProject}
+    desktop={desktopRuntime.isDesktop}
+    maximized={desktopRuntime.windowState.maximized}
     settingsActive={activeCenterTab?.kind === "settings"}
     onOpenProject={openProjectPicker}
     onOpenSettings={() => void openSettingsPane()}
+    onMinimize={() => void minimizeDesktopWindow()}
+    onToggleMaximize={() => void toggleMaximizeDesktopWindow()}
+    onClose={() => void closeDesktopWindow()}
   />
 
   <div class="workspace-shell">
@@ -223,6 +238,7 @@
               onCloseOther={closeOtherCenterTabs}
               onCloseRight={closeCenterTabsRight}
               onCloseLeft={closeCenterTabsLeft}
+              onToggleFileDisplayMode={toggleFileDisplayMode}
               onNewConversation={newConversation}
             />
             {#if activeCenterTab?.kind === "process"}

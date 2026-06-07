@@ -54,6 +54,14 @@ export function closeSettingsTab() {
   if (closingActive) void selectCenterTab(fallback);
 }
 
+export async function refreshSubscriptionUsage() {
+  const subscriptionUsage = await getSubscriptionUsage();
+  workbenchState.subscriptionUsage = Object.fromEntries(
+    subscriptionUsage.map((usage) => [usage.provider, usage]),
+  );
+  return subscriptionUsage;
+}
+
 export async function loadSettingsPanel() {
   const [settings, modelList, auth, subscriptionUsage] = await Promise.all([
     getSettings(),

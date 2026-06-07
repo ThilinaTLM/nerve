@@ -1,6 +1,10 @@
 import { toast } from "svelte-sonner";
 import { getFileContent } from "../../api";
 import {
+  defaultFileDisplayMode,
+  type FileDisplayMode,
+} from "../../utils/file-display";
+import {
   addCenterTab,
   nextCenterTabAfterClose,
   removeCenterTab,
@@ -69,6 +73,21 @@ export async function refreshActiveFilePane() {
   const active = workbenchState.activeCenterTab;
   if (active?.kind !== "file") return;
   await refreshFilePane(active.id);
+}
+
+export function setFileDisplayMode(id: string, mode: FileDisplayMode) {
+  const view = workbenchState.fileViews[id];
+  if (!view) return;
+  view.displayMode = mode;
+}
+
+export function toggleFileDisplayMode(id: string) {
+  const view = workbenchState.fileViews[id];
+  if (!view) return;
+  const current =
+    view.displayMode ??
+    defaultFileDisplayMode(view.content?.relativePath ?? view.path);
+  view.displayMode = current === "raw" ? "rendered" : "raw";
 }
 
 export function closeFileTab(id: string) {

@@ -244,8 +244,8 @@ export class RuntimeRegistry {
   }
 
   /** Current subscription usage snapshots (Anthropic / Codex). */
-  getSubscriptionUsage() {
-    return this.subscriptionUsage.getSnapshots();
+  async getSubscriptionUsage() {
+    return this.subscriptionUsage.getSnapshots({ refresh: true });
   }
 
   async hydrate(): Promise<void> {

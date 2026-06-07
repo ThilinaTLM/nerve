@@ -1,9 +1,42 @@
-import { app, BrowserWindow, shell } from "electron";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type {
+  BrowserWindow as BrowserWindowType,
+  IpcMainInvokeEvent,
+  NativeImage,
+  Tray as TrayType,
+} from "electron";
 import { ensureDaemon, type ManagedDaemon } from "./daemon.js";
 
-let mainWindow: BrowserWindow | undefined;
+const require = createRequire(import.meta.url);
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  Menu,
+  Notification,
+  nativeImage,
+  shell,
+  Tray,
+} = require("electron") as typeof import("electron");
+
+interface DesktopWindowState {
+  maximized: boolean;
+  focused: boolean;
+}
+
+interface DesktopNotificationPayload {
+  title: string;
+  body?: string;
+  urgency?: "normal" | "attention";
+}
+
+let mainWindow: BrowserWindowType | undefined;
 let managedDaemon: ManagedDaemon | undefined;
+let tray: TrayType | undefined;
 let daemonStopped = false;
+let appQuitting = false;
 let stopDaemonPromise: Promise<void> | undefined;
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -11,32 +44,35 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
+  app.setAppUserModelId("Nerve");
+  registerDesktopIpc();
+
   app.on("second-instance", () => {
-    if (!mainWindow) {
-      void openMainWindow();
-      return;
-    }
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    void showMainWindow();
   });
 
   app
     .whenReady()
-    .then(openMainWindow)
+    .then(async () => {
+      ensureTray();
+      await openMainWindow();
+    })
     .catch((error: unknown) => {
       console.error(error);
-      app.quit();
+      requestQuit();
     });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void openMainWindow();
+    else void showMainWindow();
   });
 
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") app.quit();
+    if (appQuitting && process.platform !== "darwin") app.quit();
   });
 
   app.on("before-quit", (event) => {
+    appQuitting = true;
     if (daemonStopped || !managedDaemon?.owned) return;
 
     event.preventDefault();
@@ -52,12 +88,15 @@ if (!gotSingleInstanceLock) {
       });
   });
 
-  process.on("SIGINT", () => app.quit());
-  process.on("SIGTERM", () => app.quit());
+  process.on("SIGINT", requestQuit);
+  process.on("SIGTERM", requestQuit);
 }
 
 async function openMainWindow(): Promise<void> {
-  if (mainWindow) return;
+  if (mainWindow) {
+    showWindow(mainWindow);
+    return;
+  }
 
   const window = createMainWindow();
   mainWindow = window;
@@ -69,6 +108,7 @@ async function openMainWindow(): Promise<void> {
 
   try {
     managedDaemon ??= await ensureDaemon();
+    updateTrayMenu();
     if (window.isDestroyed()) return;
     await window.loadURL(managedDaemon.url);
   } catch (error) {
@@ -78,26 +118,237 @@ async function openMainWindow(): Promise<void> {
   }
 }
 
-function createMainWindow(): BrowserWindow {
+function createMainWindow(): BrowserWindowType {
   const window = new BrowserWindow({
     width: 1320,
     height: 860,
     minWidth: 960,
     minHeight: 640,
     autoHideMenuBar: true,
+    frame: false,
     title: "Nerve",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: resolvePreloadPath(),
       sandbox: true,
     },
   });
 
+  installWindowLifecycle(window);
   installNavigationGuards(window);
   return window;
 }
 
-function installNavigationGuards(window: BrowserWindow): void {
+function resolvePreloadPath(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "preload.cjs");
+}
+
+function installWindowLifecycle(window: BrowserWindowType): void {
+  window.on("close", (event) => {
+    if (appQuitting || !tray) return;
+    event.preventDefault();
+    hideWindow(window);
+  });
+
+  window.on("maximize", () => sendWindowState(window));
+  window.on("unmaximize", () => sendWindowState(window));
+  window.on("focus", () => sendWindowState(window));
+  window.on("blur", () => sendWindowState(window));
+}
+
+function windowState(window: BrowserWindowType): DesktopWindowState {
+  return {
+    maximized: window.isMaximized(),
+    focused: window.isFocused(),
+  };
+}
+
+function sendWindowState(window: BrowserWindowType): void {
+  if (window.isDestroyed()) return;
+  window.webContents.send("desktop.window.stateChanged", windowState(window));
+}
+
+function registerDesktopIpc(): void {
+  ipcMain.handle("desktop.window.minimize", (event) => {
+    windowFromEvent(event)?.minimize();
+  });
+
+  ipcMain.handle("desktop.window.toggleMaximize", (event) => {
+    const window = windowFromEvent(event);
+    if (!window) return;
+    if (window.isMaximized()) window.unmaximize();
+    else window.maximize();
+    sendWindowState(window);
+  });
+
+  ipcMain.handle("desktop.window.close", (event) => {
+    const window = windowFromEvent(event);
+    if (!window) return;
+    if (tray && !appQuitting) hideWindow(window);
+    else window.close();
+  });
+
+  ipcMain.handle("desktop.window.getState", (event): DesktopWindowState => {
+    const window = windowFromEvent(event);
+    return window
+      ? windowState(window)
+      : {
+          maximized: false,
+          focused: BrowserWindow.getFocusedWindow() !== null,
+        };
+  });
+
+  ipcMain.handle("desktop.notifications.show", (_event, payload) =>
+    showDesktopNotification(payload),
+  );
+}
+
+function windowFromEvent(
+  event: IpcMainInvokeEvent,
+): BrowserWindowType | undefined {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  return window && !window.isDestroyed() ? window : undefined;
+}
+
+function ensureTray(): void {
+  if (tray) return;
+  tray = new Tray(createTrayIcon());
+  tray.setToolTip("Nerve");
+  tray.on("click", () => {
+    void showMainWindow();
+  });
+  updateTrayMenu();
+}
+
+function updateTrayMenu(): void {
+  if (!tray) return;
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "Show Nerve",
+        click: () => {
+          void showMainWindow();
+        },
+      },
+      {
+        label: "Hide to Tray",
+        enabled: Boolean(mainWindow?.isVisible()),
+        click: () => {
+          if (mainWindow) hideWindow(mainWindow);
+        },
+      },
+      {
+        label: "Open in Browser",
+        enabled: Boolean(managedDaemon?.url),
+        click: () => {
+          if (managedDaemon?.url) void shell.openExternal(managedDaemon.url);
+        },
+      },
+      { type: "separator" },
+      { label: "Quit", click: requestQuit },
+    ]),
+  );
+}
+
+async function showMainWindow(): Promise<void> {
+  if (!mainWindow) {
+    await openMainWindow();
+    return;
+  }
+  showWindow(mainWindow);
+}
+
+function showWindow(window: BrowserWindowType): void {
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  updateTrayMenu();
+  sendWindowState(window);
+}
+
+function hideWindow(window: BrowserWindowType): void {
+  window.hide();
+  updateTrayMenu();
+  sendWindowState(window);
+}
+
+function requestQuit(): void {
+  appQuitting = true;
+  app.quit();
+}
+
+function createTrayIcon(): NativeImage {
+  const image = nativeImage.createFromDataURL(
+    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(trayIconSvg())}`,
+  );
+  image.setTemplateImage(process.platform === "darwin");
+  return image;
+}
+
+function trayIconSvg(): string {
+  return `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="32" height="32" rx="7" fill="#111827"/>
+    <g stroke="#f9fafb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 24V8"/>
+      <path d="M23 24V8"/>
+      <path d="M8 8L13.1 13.9"/>
+      <path d="M17.9 18.1L23 24"/>
+      <circle cx="15.5" cy="16" r="3" stroke-width="2"/>
+    </g>
+    <circle cx="8" cy="8" r="2.4" fill="#f9fafb"/>
+    <circle cx="23" cy="24" r="2.4" fill="#f9fafb"/>
+  </svg>`;
+}
+
+function showDesktopNotification(payload: unknown): { shown: boolean } {
+  const notificationPayload = parseNotificationPayload(payload);
+  if (!notificationPayload || !Notification.isSupported()) {
+    return { shown: false };
+  }
+
+  const notification = new Notification({
+    title: notificationPayload.title,
+    body: notificationPayload.body,
+    urgency:
+      notificationPayload.urgency === "attention" ? "critical" : "normal",
+  });
+  notification.on("click", () => {
+    void showMainWindow();
+  });
+  notification.show();
+  return { shown: true };
+}
+
+function parseNotificationPayload(
+  payload: unknown,
+): DesktopNotificationPayload | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const candidate = payload as Record<string, unknown>;
+  if (typeof candidate.title !== "string" || !candidate.title.trim()) {
+    return undefined;
+  }
+  const urgency =
+    candidate.urgency === "attention" || candidate.urgency === "normal"
+      ? candidate.urgency
+      : "normal";
+  return {
+    title: truncateNotificationText(candidate.title, 120),
+    body:
+      typeof candidate.body === "string"
+        ? truncateNotificationText(candidate.body, 280)
+        : undefined,
+    urgency,
+  };
+}
+
+function truncateNotificationText(value: string, maxLength: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength - 1)}…`;
+}
+
+function installNavigationGuards(window: BrowserWindowType): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedDaemonUrl(url)) void window.loadURL(url);
     else openExternallyIfSafe(url);

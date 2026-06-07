@@ -7,8 +7,8 @@ export type RadioItem = {
 
 export const themeItems: RadioItem[] = [
   { value: "system", label: "System", detail: "Follow the operating system" },
-  { value: "dark", label: "Dark", detail: "Technical Precision reference" },
-  { value: "light", label: "Light", detail: "Fallback desktop surfaces" },
+  { value: "dark", label: "Dark", detail: "Dark workbench surfaces" },
+  { value: "light", label: "Light", detail: "Light workbench surfaces" },
 ];
 
 export const modeItems: RadioItem[] = [

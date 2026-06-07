@@ -10,6 +10,7 @@ export async function setAgentStatus(
   const updated = { ...agent, status, updatedAt: new Date().toISOString() };
   await updateAgent(updated);
   await events.publish("agent.status_changed", {
+    agent: updated,
     agentId: updated.id,
     status,
   });

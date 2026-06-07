@@ -1,6 +1,10 @@
 <script lang="ts">
+  import Copy from "@lucide/svelte/icons/copy";
   import Folder from "@lucide/svelte/icons/folder";
+  import Minus from "@lucide/svelte/icons/minus";
   import Settings from "@lucide/svelte/icons/settings";
+  import Square from "@lucide/svelte/icons/square";
+  import X from "@lucide/svelte/icons/x";
   import { Toolbar } from "bits-ui";
   import type { ProjectRecord } from "../../api";
   import { Button } from "$lib/components/ui/button";
@@ -8,21 +12,30 @@
 
   type Props = {
     activeProject?: ProjectRecord;
+    desktop?: boolean;
+    maximized?: boolean;
     settingsActive?: boolean;
     onOpenProject?: () => void;
     onOpenSettings?: () => void;
+    onMinimize?: () => void;
+    onToggleMaximize?: () => void;
+    onClose?: () => void;
   };
 
   let {
     activeProject,
+    desktop = false,
+    maximized = false,
     settingsActive = false,
     onOpenProject,
     onOpenSettings,
+    onMinimize,
+    onToggleMaximize,
+    onClose,
   }: Props = $props();
-
 </script>
 
-<header class="titlebar">
+<header class="titlebar" class:desktop>
   <div class="title-left">
     <span class="brand">
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
@@ -54,6 +67,43 @@
     >
       <Settings size={16} strokeWidth={2.1} />
     </Button>
+    {#if desktop}
+      <span class="window-divider" aria-hidden="true"></span>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="window-control"
+        ariaLabel="Minimize window"
+        title="Minimize"
+        onclick={() => onMinimize?.()}
+      >
+        <Minus size={16} strokeWidth={2.1} />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="window-control"
+        ariaLabel={maximized ? "Restore window" : "Maximize window"}
+        title={maximized ? "Restore" : "Maximize"}
+        onclick={() => onToggleMaximize?.()}
+      >
+        {#if maximized}
+          <Copy size={15} strokeWidth={2.1} />
+        {:else}
+          <Square size={14} strokeWidth={2.1} />
+        {/if}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="window-control close-control"
+        ariaLabel="Close window"
+        title="Close to tray"
+        onclick={() => onClose?.()}
+      >
+        <X size={16} strokeWidth={2.1} />
+      </Button>
+    {/if}
   </Toolbar.Root>
 </header>
 
@@ -70,6 +120,10 @@
     user-select: none;
   }
 
+  .titlebar.desktop {
+    -webkit-app-region: drag;
+  }
+
   .title-left,
   :global(.title-actions) {
     display: flex;
@@ -81,6 +135,7 @@
   :global(.title-actions) {
     flex: none;
     gap: 0.375rem;
+    -webkit-app-region: no-drag;
   }
 
   .brand {
@@ -101,15 +156,21 @@
     height: 1.2rem;
   }
 
-  .divider {
+  .divider,
+  .window-divider {
     width: 1px;
     height: 1.25rem;
     background: var(--border);
   }
 
+  .window-divider {
+    margin: 0 0.125rem;
+  }
+
   :global(.project-button) {
     min-width: 0;
     gap: 0.4rem;
+    -webkit-app-region: no-drag;
   }
 
   :global(.project-button) :global(svg) {
@@ -124,5 +185,15 @@
     white-space: nowrap;
     font-size: var(--text-sm);
     font-weight: 500;
+  }
+
+  :global(.window-control) {
+    -webkit-app-region: no-drag;
+  }
+
+  :global(.close-control:hover),
+  :global(.close-control:focus-visible) {
+    background: var(--destructive);
+    color: var(--destructive-foreground, var(--primary-foreground));
   }
 </style>

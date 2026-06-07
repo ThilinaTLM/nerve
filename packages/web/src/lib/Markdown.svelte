@@ -11,9 +11,10 @@
 
   type Props = {
     text: string;
+    trimCodeBlocks?: boolean;
   };
 
-  let { text }: Props = $props();
+  let { text, trimCodeBlocks = true }: Props = $props();
   let html = $state("");
 
   const markdownProcessor = unified()
@@ -42,8 +43,9 @@
     return className.match(/language-([\w-]+)/)?.[1] ?? "text";
   }
 
-  function trimmedCodeText(block: Element): string {
-    return trimTextPreview(block.textContent ?? "").text;
+  function codeBlockText(block: Element): string {
+    const source = block.textContent ?? "";
+    return trimCodeBlocks ? trimTextPreview(source).text : source;
   }
 
   function clonePreWithTrimmedCode(pre: Element, code: string): Element {
@@ -79,7 +81,7 @@
       const className = block.getAttribute("class") ?? "";
       const language = languageFromClass(className);
       const pre = block.parentElement;
-      if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, trimmedCodeText(block)), language));
+      if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, codeBlockText(block)), language));
     }
     return container.innerHTML;
   }
@@ -108,7 +110,7 @@
         const className = block.getAttribute("class") ?? "";
         const language = languageFromClass(className);
         try {
-          const code = trimmedCodeText(block);
+          const code = codeBlockText(block);
           const highlighted = await highlightCodeCached(code, language);
           if (highlighted) {
             const wrapper = document.createElement("div");
@@ -121,7 +123,7 @@
           // Fall back to the plain pre/code while keeping the Stitch code header.
         }
         const pre = block.parentElement;
-        if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, trimmedCodeText(block)), language));
+        if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, codeBlockText(block)), language));
       }),
     );
     return container.innerHTML;
@@ -155,22 +157,23 @@
 
   $effect(() => {
     const source = text;
-    if (htmlSource === source) return;
+    const signature = `${trimCodeBlocks ? "trim" : "full"}\0${source}`;
+    if (htmlSource === signature) return;
     let cancelled = false;
     const rendered = renderMarkdown(source);
     html = wrapTables(wrapPlainCodeBlocks(rendered));
-    htmlSource = source;
+    htmlSource = signature;
     highlightCodeBlocks(rendered)
       .then((highlighted) => {
         if (!cancelled && source === text) {
           html = wrapTables(highlighted);
-          htmlSource = source;
+          htmlSource = signature;
         }
       })
       .catch(() => {
         if (!cancelled && source === text) {
           html = wrapTables(wrapPlainCodeBlocks(rendered));
-          htmlSource = source;
+          htmlSource = signature;
         }
       });
     return () => {

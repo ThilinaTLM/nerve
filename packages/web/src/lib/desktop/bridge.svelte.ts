@@ -1,0 +1,98 @@
+export interface DesktopWindowState {
+  maximized: boolean;
+  focused: boolean;
+}
+
+export interface DesktopNotificationPayload {
+  title: string;
+  body?: string;
+  urgency?: "normal" | "attention";
+}
+
+export interface NerveDesktopBridge {
+  kind: "electron";
+  platform: string;
+  window: {
+    minimize: () => Promise<void>;
+    toggleMaximize: () => Promise<void>;
+    close: () => Promise<void>;
+    getState: () => Promise<DesktopWindowState>;
+    onStateChange: (
+      listener: (state: DesktopWindowState) => void,
+    ) => () => void;
+  };
+  notifications: {
+    show: (payload: DesktopNotificationPayload) => Promise<{ shown: boolean }>;
+  };
+}
+
+declare global {
+  interface Window {
+    nerveDesktop?: NerveDesktopBridge;
+  }
+}
+
+export const desktopRuntime = $state<{
+  isDesktop: boolean;
+  platform?: string;
+  windowState: DesktopWindowState;
+}>({
+  isDesktop: false,
+  platform: undefined,
+  windowState: {
+    maximized: false,
+    focused: true,
+  },
+});
+
+export function getDesktopBridge(): NerveDesktopBridge | undefined {
+  if (typeof window === "undefined") return undefined;
+  return window.nerveDesktop?.kind === "electron"
+    ? window.nerveDesktop
+    : undefined;
+}
+
+export function isDesktopApp(): boolean {
+  return getDesktopBridge() !== undefined;
+}
+
+export function initializeDesktopRuntime(): () => void {
+  const bridge = getDesktopBridge();
+  desktopRuntime.isDesktop = bridge !== undefined;
+  desktopRuntime.platform = bridge?.platform;
+  if (!bridge) return () => undefined;
+
+  let unsubscribe: () => void = () => undefined;
+  void bridge.window
+    .getState()
+    .then((state) => {
+      desktopRuntime.windowState = state;
+    })
+    .catch(() => undefined);
+
+  unsubscribe = bridge.window.onStateChange((state) => {
+    desktopRuntime.windowState = state;
+  });
+
+  return unsubscribe;
+}
+
+export async function minimizeDesktopWindow(): Promise<void> {
+  await getDesktopBridge()?.window.minimize();
+}
+
+export async function toggleMaximizeDesktopWindow(): Promise<void> {
+  await getDesktopBridge()?.window.toggleMaximize();
+}
+
+export async function closeDesktopWindow(): Promise<void> {
+  await getDesktopBridge()?.window.close();
+}
+
+export async function showDesktopNotification(
+  payload: DesktopNotificationPayload,
+): Promise<{ shown: boolean }> {
+  const bridge = getDesktopBridge();
+  if (!bridge) return { shown: false };
+  return bridge.notifications.show(payload).catch(() => ({ shown: false }));
+}

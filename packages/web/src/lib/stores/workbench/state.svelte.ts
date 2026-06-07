@@ -21,6 +21,7 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
 } from "../../api";
+import type { FileDisplayMode } from "../../utils/file-display";
 
 export type TranscriptDisplayKind = "message" | "thinking";
 
@@ -119,6 +120,7 @@ export type FileViewState = {
   path: string;
   line?: number;
   content?: FilesystemFileResponse;
+  displayMode?: FileDisplayMode;
   loading: boolean;
   error?: string;
 };

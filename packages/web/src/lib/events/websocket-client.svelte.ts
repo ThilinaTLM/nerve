@@ -6,7 +6,10 @@ import {
   loadThemePreference,
 } from "../state/app-state.svelte";
 import { restoreConversationTabs } from "../stores/conversation-flow.svelte";
-import { loadSettingsPanel } from "../stores/settings.svelte";
+import {
+  loadSettingsPanel,
+  refreshSubscriptionUsage,
+} from "../stores/settings.svelte";
 import { workbenchState } from "../stores/workbench/state.svelte";
 import {
   loadSlashCommands,
@@ -19,6 +22,8 @@ let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let reconnectAttempts = 0;
 let intentionallyDisconnected = false;
 let socketGeneration = 0;
+let subscriptionUsagePollTimer: ReturnType<typeof setInterval> | undefined;
+const SUBSCRIPTION_USAGE_POLL_MS = 10_000;
 
 export async function initializeWorkbench(): Promise<void> {
   intentionallyDisconnected = false;
@@ -30,6 +35,7 @@ export async function initializeWorkbench(): Promise<void> {
     await Promise.all([loadWorkspaceState(), loadSlashCommands()]);
     await restoreConversationTabs();
     await loadSettingsPanel();
+    startSubscriptionUsagePolling();
     connectWebsocket(workbenchState.config.wsUrl);
   } catch (caught) {
     workbenchState.error =
@@ -67,6 +73,19 @@ function scheduleReconnect(wsUrl: string) {
     reconnectTimer = undefined;
     if (!intentionallyDisconnected) connectWebsocket(wsUrl);
   }, delay);
+}
+
+function startSubscriptionUsagePolling() {
+  stopSubscriptionUsagePolling();
+  subscriptionUsagePollTimer = setInterval(() => {
+    void refreshSubscriptionUsage().catch(() => undefined);
+  }, SUBSCRIPTION_USAGE_POLL_MS);
+}
+
+function stopSubscriptionUsagePolling() {
+  if (subscriptionUsagePollTimer === undefined) return;
+  clearInterval(subscriptionUsagePollTimer);
+  subscriptionUsagePollTimer = undefined;
 }
 
 function connectWebsocket(wsUrl: string) {
@@ -113,6 +132,7 @@ function connectWebsocket(wsUrl: string) {
 export function disconnectWorkbench() {
   intentionallyDisconnected = true;
   clearReconnectTimer();
+  stopSubscriptionUsagePolling();
   socketGeneration += 1;
   socket?.close();
   socket = undefined;

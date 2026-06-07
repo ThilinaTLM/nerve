@@ -1,11 +1,60 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { SubscriptionUsage } from "@nerve/shared";
+import type { AuthManager } from "../src/auth.js";
+import type { EventBus } from "../src/events.js";
 import { parseAnthropicUsageResponse } from "../src/usage/anthropic-client.js";
 import {
   mergeCodexUsage,
   parseCodexUsageHeaders,
   parseCodexUsageResponse,
 } from "../src/usage/codex-client.js";
+import { SubscriptionUsageService } from "../src/usage/subscription-usage-service.js";
+
+function testUsage(
+  provider: SubscriptionUsage["provider"],
+  usedPercent: number,
+): SubscriptionUsage {
+  return {
+    provider,
+    session: {
+      usedPercent,
+      resetsAt: null,
+      resetAfterSeconds: null,
+      windowMinutes: null,
+    },
+    weekly: null,
+    planType: null,
+    updatedAt: new Date(Date.UTC(2026, 0, 1)).toISOString(),
+  };
+}
+
+function fakeAuth(configuredProviders: SubscriptionUsage["provider"][]) {
+  const configured = new Set<string>(configuredProviders);
+  return {
+    configured,
+    auth: {
+      async credentialType(provider: string) {
+        return configured.has(provider) ? "oauth" : undefined;
+      },
+      async getApiKey(provider: string) {
+        return configured.has(provider) ? `${provider}-token` : undefined;
+      },
+    } as unknown as AuthManager,
+  };
+}
+
+function fakeEvents() {
+  const published: Array<{ type: string; data: unknown }> = [];
+  return {
+    published,
+    events: {
+      async publish(type: string, data: unknown) {
+        published.push({ type, data });
+      },
+    } as unknown as EventBus,
+  };
+}
 
 describe("subscription usage parsing", () => {
   it("maps Anthropic five-hour and seven-day usage", () => {
@@ -88,5 +137,102 @@ describe("subscription usage parsing", () => {
     assert.equal(merged.session?.resetAfterSeconds, 30);
     assert.equal(merged.weekly?.usedPercent, 20);
     assert.equal(merged.planType, "plus");
+  });
+});
+
+describe("subscription usage service", () => {
+  it("refreshes global providers on demand without touchProvider", async () => {
+    const { auth } = fakeAuth(["anthropic", "openai-codex"]);
+    const { events, published } = fakeEvents();
+    let anthropicCalls = 0;
+    let codexCalls = 0;
+    const service = new SubscriptionUsageService({
+      auth,
+      events,
+      cacheDir: "/tmp/nerve-usage-test",
+      fetchAnthropicUsage: async () => {
+        anthropicCalls += 1;
+        return testUsage("anthropic", 11);
+      },
+      fetchCodexUsage: async () => {
+        codexCalls += 1;
+        return testUsage("openai-codex", 22);
+      },
+    });
+
+    const snapshots = await service.getSnapshots({ refresh: true });
+
+    assert.equal(anthropicCalls, 1);
+    assert.equal(codexCalls, 1);
+    assert.deepEqual(snapshots.map((snapshot) => snapshot.provider).sort(), [
+      "anthropic",
+      "openai-codex",
+    ]);
+    assert.equal(published.length, 2);
+  });
+
+  it("debounces upstream refresh attempts per provider for 30 seconds", async () => {
+    const { auth } = fakeAuth(["anthropic", "openai-codex"]);
+    const { events } = fakeEvents();
+    let now = 1_000;
+    let anthropicCalls = 0;
+    let codexCalls = 0;
+    const service = new SubscriptionUsageService({
+      auth,
+      events,
+      cacheDir: "/tmp/nerve-usage-test",
+      now: () => now,
+      fetchAnthropicUsage: async () => {
+        anthropicCalls += 1;
+        return testUsage("anthropic", anthropicCalls);
+      },
+      fetchCodexUsage: async () => {
+        codexCalls += 1;
+        return testUsage("openai-codex", codexCalls);
+      },
+    });
+
+    await service.getSnapshots({ refresh: true });
+    now += 10_000;
+    const debounced = await service.getSnapshots({ refresh: true });
+    now += 20_001;
+    const refreshed = await service.getSnapshots({ refresh: true });
+
+    assert.equal(anthropicCalls, 2);
+    assert.equal(codexCalls, 2);
+    assert.equal(
+      debounced.find((snapshot) => snapshot.provider === "anthropic")?.session
+        ?.usedPercent,
+      1,
+    );
+    assert.equal(
+      refreshed.find((snapshot) => snapshot.provider === "anthropic")?.session
+        ?.usedPercent,
+      2,
+    );
+  });
+
+  it("removes snapshots for providers that no longer have OAuth auth", async () => {
+    const { auth, configured } = fakeAuth(["anthropic", "openai-codex"]);
+    const { events } = fakeEvents();
+    let now = 1_000;
+    const service = new SubscriptionUsageService({
+      auth,
+      events,
+      cacheDir: "/tmp/nerve-usage-test",
+      now: () => now,
+      fetchAnthropicUsage: async () => testUsage("anthropic", 1),
+      fetchCodexUsage: async () => testUsage("openai-codex", 2),
+    });
+
+    await service.getSnapshots({ refresh: true });
+    configured.delete("anthropic");
+    now += 30_001;
+    const snapshots = await service.getSnapshots({ refresh: true });
+
+    assert.deepEqual(
+      snapshots.map((snapshot) => snapshot.provider),
+      ["openai-codex"],
+    );
   });
 });

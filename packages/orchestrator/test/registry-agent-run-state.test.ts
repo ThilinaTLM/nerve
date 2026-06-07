@@ -201,6 +201,7 @@ describe("RuntimeRegistry agent run state", () => {
         state,
         agent.id,
       );
+      const startSeq = state.events.latestSeq;
       setContinueAgentMock(state, async () => {
         continued = true;
       });
@@ -214,6 +215,20 @@ describe("RuntimeRegistry agent run state", () => {
         state.registry.suspensions.getSuspension(suspension.id).status,
         "cancelled",
       );
+      const events = await state.events.replayPersistedSince(startSeq);
+      const statusEvent = events.find(
+        (event) => event.type === "agent.status_changed",
+      );
+      assert.ok(statusEvent, "agent status event was published");
+      const statusData = statusEvent.data as {
+        agent?: { id?: string; status?: string };
+        agentId?: string;
+        status?: string;
+      };
+      assert.equal(statusData.agentId, agent.id);
+      assert.equal(statusData.status, "idle");
+      assert.equal(statusData.agent?.id, agent.id);
+      assert.equal(statusData.agent?.status, "idle");
     } finally {
       state.index.close();
     }

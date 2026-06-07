@@ -6,7 +6,16 @@ import type {
   ProjectRecord,
 } from "../../api";
 import { selection } from "../../state/app-state.svelte";
-import { modelKey, scopedUsableModelOptions } from "../../utils/model";
+import {
+  defaultFileDisplayMode,
+  type FileDisplayMode,
+  isMarkdownPath,
+} from "../../utils/file-display";
+import {
+  modelKey,
+  parseModelKey,
+  scopedUsableModelOptions,
+} from "../../utils/model";
 import { isPathInDirectory } from "../../utils/path";
 import type { CenterTabIdentity, ConversationViewState } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
@@ -50,6 +59,8 @@ export type FileTabModel = {
   file?: FilesystemFileResponse;
   path?: string;
   relativePath?: string;
+  displayMode: FileDisplayMode;
+  markdown: boolean;
   active: boolean;
   sending: boolean;
   error?: string;
@@ -320,12 +331,15 @@ export const workbenchSelectors = {
   get openFileTabs(): FileTabModel[] {
     return workbenchState.openFileTabIds.map((id) => {
       const view = workbenchState.fileViews[id];
+      const displayPath = view?.content?.relativePath ?? view?.path;
       return {
         kind: "file" as const,
         id,
         file: view?.content,
         path: view?.path,
         relativePath: view?.content?.relativePath,
+        displayMode: view?.displayMode ?? defaultFileDisplayMode(displayPath),
+        markdown: isMarkdownPath(displayPath),
         active: activeTabMatches("file", id),
         sending: Boolean(view?.loading),
         error: view?.error,
@@ -479,11 +493,12 @@ export const workbenchSelectors = {
     }
     return totals;
   },
-  /** Subscription usage for the active agent's provider, if available. */
+  /** Subscription usage for the active agent/composer provider, if available. */
   get activeSubscriptionUsage() {
-    const provider = workbenchState.agents.find(
-      (agent) => agent.id === selection.agentId,
-    )?.model?.provider;
+    const provider =
+      workbenchState.agents.find((agent) => agent.id === selection.agentId)
+        ?.model?.provider ??
+      parseModelKey(workbenchState.selectedModelKey)?.provider;
     if (!provider) return undefined;
     return workbenchState.subscriptionUsage[provider];
   },

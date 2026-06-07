@@ -5,76 +5,86 @@ import {
 } from "@nerve/shared";
 import type { AuthManager } from "../auth.js";
 import type { EventBus } from "../events.js";
-import { fetchAnthropicUsage } from "./anthropic-client.js";
+import { fetchAnthropicUsage as defaultFetchAnthropicUsage } from "./anthropic-client.js";
 import {
-  fetchCodexUsage,
+  fetchCodexUsage as defaultFetchCodexUsage,
   mergeCodexUsage,
   parseCodexUsageHeaders,
   writeCodexUsageCache,
 } from "./codex-client.js";
 
-const POLL_INTERVAL_MS = 30_000;
+const MIN_REFRESH_INTERVAL_MS = 30_000;
+const GLOBAL_PROVIDERS: readonly SubscriptionUsageProvider[] = [
+  "anthropic",
+  "openai-codex",
+];
+
+type FetchUsage = (
+  token: string,
+  cacheDir: string,
+) => Promise<SubscriptionUsage | null>;
 
 export interface SubscriptionUsageServiceDeps {
   auth: AuthManager;
   events: EventBus;
   /** Directory for persisted usage caches (e.g. `<dataDir>/cache/usage`). */
   cacheDir: string;
+  fetchAnthropicUsage?: FetchUsage;
+  fetchCodexUsage?: FetchUsage;
+  now?: () => number;
 }
 
 /**
- * Polls provider subscription usage (Anthropic 5h/7d, Codex primary/secondary)
- * for providers that are in active use, and publishes
- * {@link SUBSCRIPTION_USAGE_EVENT} as snapshots refresh.
+ * Manages provider subscription usage (Anthropic 5h/7d, Codex
+ * primary/secondary) for globally supported OAuth providers.
  *
- * A provider becomes "active" once an agent runs with it ({@link touchProvider}).
- * Codex also receives live header updates via {@link applyCodexHeaders}.
+ * Refreshing is request-driven: callers ask for fresh snapshots and the service
+ * debounces upstream provider calls to at most one attempt per provider every
+ * {@link MIN_REFRESH_INTERVAL_MS}. Codex also receives live header updates via
+ * {@link applyCodexHeaders}.
  */
 export class SubscriptionUsageService {
   readonly #deps: SubscriptionUsageServiceDeps;
   readonly #snapshots = new Map<SubscriptionUsageProvider, SubscriptionUsage>();
-  readonly #active = new Set<SubscriptionUsageProvider>();
-  readonly #inFlight = new Set<SubscriptionUsageProvider>();
-  #timer: ReturnType<typeof setInterval> | undefined;
+  readonly #inFlight = new Map<SubscriptionUsageProvider, Promise<void>>();
+  readonly #lastAttemptAt = new Map<SubscriptionUsageProvider, number>();
 
   constructor(deps: SubscriptionUsageServiceDeps) {
     this.#deps = deps;
   }
 
   start(): void {
-    if (this.#timer) return;
-    this.#timer = setInterval(() => {
-      for (const provider of this.#active) {
-        void this.refresh(provider);
-      }
-    }, POLL_INTERVAL_MS);
-    this.#timer.unref?.();
+    // Refreshes are triggered by GET /api/usage/subscription and by agent runs.
   }
 
   stop(): void {
-    if (this.#timer) {
-      clearInterval(this.#timer);
-      this.#timer = undefined;
+    // No background timer to stop.
+  }
+
+  /** Current snapshots, optionally refreshing all globally supported providers. */
+  async getSnapshots(
+    options: { refresh?: boolean } = {},
+  ): Promise<SubscriptionUsage[]> {
+    if (options.refresh) {
+      await Promise.all(
+        GLOBAL_PROVIDERS.map((provider) => this.refreshProvider(provider)),
+      );
     }
+    return this.configuredSnapshots();
   }
 
-  /** Current snapshots for all providers with known usage. */
-  getSnapshots(): SubscriptionUsage[] {
-    return [...this.#snapshots.values()];
-  }
-
-  /** Mark a model provider as active and refresh its usage immediately. */
+  /** Mark a model provider as used and request a debounced refresh. */
   touchProvider(provider: string): void {
-    if (provider !== "anthropic" && provider !== "openai-codex") return;
-    this.#active.add(provider);
-    void this.refresh(provider);
+    if (!isSubscriptionUsageProvider(provider)) return;
+    void this.refreshProvider(provider);
   }
 
   /** Apply a Codex usage snapshot derived from provider response headers. */
   applyCodexHeaders(headers: Record<string, string>): void {
     const parsed = parseCodexUsageHeaders(headers);
     if (!parsed) return;
-    this.#active.add("openai-codex");
+    const now = this.now();
+    this.#lastAttemptAt.set("openai-codex", now);
     const merged = mergeCodexUsage(
       this.#snapshots.get("openai-codex") ?? null,
       parsed,
@@ -86,17 +96,54 @@ export class SubscriptionUsageService {
     });
   }
 
-  private async refresh(provider: SubscriptionUsageProvider): Promise<void> {
-    if (this.#inFlight.has(provider)) return;
-    this.#inFlight.add(provider);
+  private async configuredSnapshots(): Promise<SubscriptionUsage[]> {
+    const snapshots: SubscriptionUsage[] = [];
+    for (const provider of GLOBAL_PROVIDERS) {
+      if ((await this.#deps.auth.credentialType(provider)) !== "oauth") {
+        this.#snapshots.delete(provider);
+        continue;
+      }
+      const snapshot = this.#snapshots.get(provider);
+      if (snapshot) snapshots.push(snapshot);
+    }
+    return snapshots;
+  }
+
+  private refreshProvider(provider: SubscriptionUsageProvider): Promise<void> {
+    const existing = this.#inFlight.get(provider);
+    if (existing) return existing;
+
+    const refresh = this.performRefresh(provider).finally(() => {
+      this.#inFlight.delete(provider);
+    });
+    this.#inFlight.set(provider, refresh);
+    return refresh;
+  }
+
+  private async performRefresh(
+    provider: SubscriptionUsageProvider,
+  ): Promise<void> {
     try {
-      if ((await this.#deps.auth.credentialType(provider)) !== "oauth") return;
+      if ((await this.#deps.auth.credentialType(provider)) !== "oauth") {
+        this.#snapshots.delete(provider);
+        return;
+      }
+      const now = this.now();
+      const lastAttemptAt = this.#lastAttemptAt.get(provider);
+      if (
+        lastAttemptAt !== undefined &&
+        now - lastAttemptAt < MIN_REFRESH_INTERVAL_MS
+      ) {
+        return;
+      }
       const token = await this.#deps.auth.getApiKey(provider);
       if (!token) return;
-      const data =
+      this.#lastAttemptAt.set(provider, now);
+      const fetcher =
         provider === "anthropic"
-          ? await fetchAnthropicUsage(token, this.#deps.cacheDir)
-          : await fetchCodexUsage(token, this.#deps.cacheDir);
+          ? (this.#deps.fetchAnthropicUsage ?? defaultFetchAnthropicUsage)
+          : (this.#deps.fetchCodexUsage ?? defaultFetchCodexUsage);
+      const data = await fetcher(token, this.#deps.cacheDir);
       if (!data) return;
       const previous = this.#snapshots.get(provider);
       this.#snapshots.set(provider, data);
@@ -107,10 +154,18 @@ export class SubscriptionUsageService {
       }
     } catch {
       // transient failure; keep last-known snapshot
-    } finally {
-      this.#inFlight.delete(provider);
     }
   }
+
+  private now(): number {
+    return this.#deps.now?.() ?? Date.now();
+  }
+}
+
+function isSubscriptionUsageProvider(
+  provider: string,
+): provider is SubscriptionUsageProvider {
+  return provider === "anthropic" || provider === "openai-codex";
 }
 
 function hasChanged(a: SubscriptionUsage, b: SubscriptionUsage): boolean {

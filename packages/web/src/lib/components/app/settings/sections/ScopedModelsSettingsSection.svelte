@@ -174,9 +174,9 @@
 
   .scope-reset-button {
     flex: none;
-    border: 1px solid var(--border);
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     border-radius: var(--radius-sm);
-    background: var(--background);
+    background: transparent;
     color: var(--foreground);
     padding: 0.42rem 0.7rem;
     font-size: var(--text-xs);
@@ -185,8 +185,7 @@
   }
 
   .scope-reset-button:hover:not(:disabled) {
-    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-    color: var(--primary);
+    background: color-mix(in oklab, var(--accent) 50%, transparent);
   }
 
   .scope-reset-button:disabled {
@@ -198,13 +197,14 @@
     display: grid;
     max-height: min(42vh, 24rem);
     overflow: auto;
-    border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
-    background: color-mix(in oklab, var(--input) 18%, transparent);
+    border: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+    border-radius: var(--radius-sm);
+    background: transparent;
   }
 
   .scoped-models-provider {
     display: grid;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
   }
 
   .scoped-models-provider:last-child {
@@ -213,14 +213,11 @@
 
   .scoped-models-provider h3 {
     margin: 0;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 46%, transparent);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 38%, transparent);
     color: var(--muted-foreground);
-    font-family: var(--font-mono);
     font-size: var(--text-xs);
     font-weight: 500;
-    letter-spacing: 0.04em;
     padding: 0.52rem 0.65rem;
-    text-transform: uppercase;
   }
 
   .scoped-models-provider-list {
@@ -234,7 +231,7 @@
     gap: 0.8rem;
     width: 100%;
     border: 0;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 38%, transparent);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 30%, transparent);
     background: transparent;
     color: var(--foreground);
     padding: 0.58rem 0.65rem;
@@ -247,11 +244,11 @@
   }
 
   .scoped-model-row:hover {
-    background: var(--accent);
+    background: color-mix(in oklab, var(--accent) 50%, transparent);
   }
 
   .scoped-model-row.selected {
-    background: color-mix(in oklab, var(--primary) 9%, transparent);
+    background: color-mix(in oklab, var(--accent) 35%, transparent);
   }
 
   .scoped-model-row-text {

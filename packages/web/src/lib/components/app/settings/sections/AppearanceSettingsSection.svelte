@@ -31,7 +31,7 @@
     <div class="settings-row settings-row-stacked">
       <div class="settings-copy">
         <strong>Color theme</strong>
-        <span>Dark mode follows the Stitch Technical Precision reference. Light remains a compatibility fallback.</span>
+        <span>Dark is the primary theme; light remains a compatibility fallback.</span>
       </div>
       <RadioGroup
         items={themeItems}

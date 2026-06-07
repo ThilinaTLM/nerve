@@ -18,6 +18,7 @@ import {
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
 import { modelKey } from "../utils/model";
+import { mergeAgentsByUpdatedAt } from "./agent-freshness";
 import {
   openPendingConversation,
   removeConversationTabs,
@@ -29,11 +30,15 @@ export async function loadWorkspaceState() {
     queryKey: queryKeys.workspace,
     queryFn: getWorkspaceSnapshot,
   });
+  const agents = mergeAgentsByUpdatedAt(
+    snapshot.agents,
+    workbenchState.agents,
+  );
   workbenchState.projects = snapshot.projects;
   workbenchState.conversations = snapshot.conversations;
-  workbenchState.agents = snapshot.agents;
+  workbenchState.agents = agents;
   workbenchState.processes = snapshot.processes;
-  syncSelectedAgentConfig(snapshot.agents, snapshot.conversations);
+  syncSelectedAgentConfig(agents, snapshot.conversations);
   const conversationIds = new Set(
     snapshot.conversations.map((conversation) => conversation.id),
   );

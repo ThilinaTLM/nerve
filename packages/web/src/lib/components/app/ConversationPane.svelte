@@ -1,20 +1,19 @@
 <script lang="ts">
   import Clipboard from "@lucide/svelte/icons/clipboard";
   import Copy from "@lucide/svelte/icons/copy";
-  import Hammer from "@lucide/svelte/icons/hammer";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, ConversationRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
-  import type { ConversationLiveState, LiveToolCallDraft, TranscriptItem } from "../../stores/workbench/state.svelte";
+  import type { ConversationLiveState, TranscriptItem } from "../../stores/workbench/state.svelte";
   import { buildConversationTimeline } from "../../stores/workbench/timeline";
-  import { trimTextPreview } from "../../utils/text-preview";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import PromptComposer from "./PromptComposer.svelte";
   import ThinkingBlock from "./ThinkingBlock.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
+  import ToolDraftCard from "./tool-call/ToolDraftCard.svelte";
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -192,27 +191,6 @@
     return () => cancelScheduledBottomScroll();
   });
 
-  function hidesDraftArgs(toolName?: string): boolean {
-    return toolName === "write" || toolName === "edit";
-  }
-
-  function argsPreview(draft: LiveToolCallDraft): string {
-    if (hidesDraftArgs(draft.toolName)) {
-      const toolName = draft.toolName ?? "tool";
-      return draft.done
-        ? `${toolName} arguments prepared.`
-        : `Preparing ${toolName} arguments…`;
-    }
-    const text = draft.args
-      ? JSON.stringify(draft.args, null, 2)
-      : draft.argsText.trim() || "Waiting for arguments…";
-    return trimTextPreview(text, {
-      headLines: 18,
-      tailLines: 6,
-      maxChars: 6_000,
-    }).text;
-  }
-
   async function copyText(text: string, label = "message") {
     try {
       await navigator.clipboard?.writeText(text);
@@ -272,15 +250,7 @@
             {onRejectPlanReview}
           />
         {:else if node.kind === "tool_draft"}
-          <article class="tool-draft-card">
-            <div class="tool-draft-head">
-              <Hammer size={13} strokeWidth={2.2} />
-              <span>Preparing tool call</span>
-              {#if node.draft.toolName}<code>{node.draft.toolName}</code>{/if}
-              {#if node.draft.done}<span class="submitted">submitted</span>{/if}
-            </div>
-            <pre>{argsPreview(node.draft)}</pre>
-          </article>
+          <ToolDraftCard draft={node.draft} />
         {:else}
           <ContextMenu items={messageMenu(node.item)} triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}>
             <article class={`transcript-entry ${node.item.role} ${node.item.displayKind === "thinking" ? "thinking-entry" : ""} ${node.item.live ? "streaming" : ""}`}>
@@ -389,8 +359,7 @@
     overflow-anchor: auto;
   }
 
-  .transcript-entry,
-  .tool-draft-card {
+  .transcript-entry {
     width: 100%;
     padding: 0.75rem;
     border-bottom: 0;
@@ -467,10 +436,6 @@
     color: var(--foreground);
   }
 
-  .tool-draft-card {
-    background: color-mix(in oklab, var(--primary) 4%, transparent);
-  }
-
   .stream-caret {
     display: inline-block;
     width: 0.42rem;
@@ -479,55 +444,6 @@
     margin-top: 0.18rem;
     background: var(--primary);
     animation: pulse 1s steps(2, start) infinite;
-  }
-
-  .tool-draft-card {
-    display: grid;
-    gap: 0.45rem;
-    background: color-mix(in oklab, var(--background) 94%, var(--sidebar));
-  }
-
-  .tool-draft-head {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    min-width: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-    font-weight: 650;
-  }
-
-  .tool-draft-head code {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--sidebar);
-    color: var(--foreground);
-    padding: 0.1rem 0.42rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-  }
-
-  .submitted {
-    color: var(--success, var(--primary));
-    font-size: var(--text-xs);
-  }
-
-  .tool-draft-card pre {
-    margin: 0;
-    overflow: visible;
-    border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--sidebar-foreground);
-    padding: 0.5rem 0.58rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-break: break-word;
   }
 
   .jump-latest {

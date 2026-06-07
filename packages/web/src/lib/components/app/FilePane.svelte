@@ -2,9 +2,11 @@
   import FileText from "@lucide/svelte/icons/file-text";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+  import Markdown from "../../Markdown.svelte";
   import { highlightCodeCached } from "../../highlight";
   import type { FileViewState } from "../../stores/workbench/state.svelte";
   import { extname } from "../../tool-views/lang";
+  import { defaultFileDisplayMode, isMarkdownPath } from "../../utils/file-display";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
 
   type Props = {
@@ -17,9 +19,12 @@
   let htmlSignature = $state<string | undefined>(undefined);
   let unavailableSignature = $state<string | undefined>(undefined);
   const file = $derived(view?.content);
-  const language = $derived(extname(file?.relativePath ?? view?.path));
+  const filePath = $derived(file?.relativePath ?? view?.path);
+  const markdown = $derived(isMarkdownPath(filePath));
+  const displayMode = $derived(view?.displayMode ?? defaultFileDisplayMode(filePath));
+  const language = $derived(extname(filePath));
   const codeSignature = $derived(
-    file?.type === "text" && file.text !== undefined
+    file?.type === "text" && file.text !== undefined && displayMode === "raw"
       ? `${language ?? ""}\0${file.text}`
       : undefined,
   );
@@ -96,7 +101,11 @@
         <img src={imageSrc} alt={file?.relativePath ?? "File preview"} />
       </div>
     {:else if file?.type === "text"}
-      {#if html && htmlSignature === codeSignature}
+      {#if markdown && displayMode === "rendered"}
+        <div class="markdown-view">
+          <Markdown text={file.text ?? ""} trimCodeBlocks={false} />
+        </div>
+      {:else if html && htmlSignature === codeSignature}
         <div class="code-view" style={`--line-number-width: ${lineNumberWidth};`}>{@html html}</div>
       {:else}
         <pre class="code-view plain" style={`--line-number-width: ${lineNumberWidth};`}><code>{#each textLines as line}<span class="code-line">{line}</span>{/each}</code></pre>
@@ -165,6 +174,16 @@
     max-width: 100%;
     max-height: calc(100vh - 7rem);
     object-fit: contain;
+  }
+
+  .markdown-view {
+    max-width: min(100%, 72rem);
+    padding: 0.15rem 0.2rem 4rem;
+  }
+
+  .markdown-view :global(.markdown) {
+    font-size: var(--text-base);
+    line-height: 1.62;
   }
 
   .code-view {
