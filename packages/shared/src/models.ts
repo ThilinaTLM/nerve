@@ -21,6 +21,7 @@ export type ModelSelection = z.infer<typeof modelSelectionSchema>;
 export const modelInfoSchema = z.object({
   provider: z.string(),
   modelId: z.string(),
+  name: z.string(),
   label: z.string(),
   reasoning: z.boolean().default(false),
   supportedThinkingLevels: z.array(thinkingLevelSchema).default(["off"]),

@@ -10,6 +10,7 @@
   } from "../../../../api";
   import {
     authenticatedRealModelOptions,
+    modelDisplayName,
     modelKey,
   } from "../../../../utils/model";
 
@@ -145,7 +146,7 @@
                   onclick={() => toggleModel(model)}
                 >
                   <span class="scoped-model-row-text">
-                    <strong>{model.label}</strong>
+                    <strong>{modelDisplayName(model)}</strong>
                     <span>{model.modelId}</span>
                   </span>
                   <span class="scoped-model-check" aria-hidden="true">

@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AuthProviderMetadata, ModelInfo } from "./api";
-import { scopedUsableModelOptions, usableModelOptions } from "./utils/model";
+import {
+  contextualModelLabel,
+  providerDisplayName,
+  scopedUsableModelOptions,
+  usableModelOptions,
+} from "./utils/model";
 
 const models: ModelInfo[] = [
   {
     provider: "nerve-faux",
     modelId: "faux-fast",
+    name: "Nerve Faux Fast",
     label: "Nerve Faux Fast",
     reasoning: false,
     supportedThinkingLevels: ["off"],
@@ -17,7 +23,8 @@ const models: ModelInfo[] = [
   {
     provider: "anthropic",
     modelId: "claude-opus-4-8",
-    label: "anthropic / claude-opus-4-8",
+    name: "Claude Opus 4.8",
+    label: "Claude Opus 4.8",
     reasoning: true,
     supportedThinkingLevels: ["off", "high"],
     contextWindow: 1_000_000,
@@ -26,7 +33,8 @@ const models: ModelInfo[] = [
   {
     provider: "openai",
     modelId: "gpt-5.2",
-    label: "openai / gpt-5.2",
+    name: "GPT-5.2",
+    label: "GPT-5.2",
     reasoning: true,
     supportedThinkingLevels: ["off", "high"],
     contextWindow: 400_000,
@@ -84,5 +92,41 @@ describe("model option filtering", () => {
       ]),
       [],
     );
+  });
+});
+
+describe("model display labels", () => {
+  it("shows only the readable model name when it is unique", () => {
+    assert.equal(contextualModelLabel(models[2], models), "GPT-5.2");
+  });
+
+  it("qualifies duplicate readable model names with the provider", () => {
+    const duplicateModels: ModelInfo[] = [
+      {
+        ...models[2],
+        provider: "openai",
+        modelId: "gpt-5.5",
+        name: "GPT-5.5",
+        label: "GPT-5.5",
+      },
+      {
+        ...models[2],
+        provider: "openai-codex",
+        modelId: "gpt-5.5",
+        name: "GPT-5.5",
+        label: "GPT-5.5",
+      },
+    ];
+
+    assert.deepEqual(
+      duplicateModels.map((model) =>
+        contextualModelLabel(model, duplicateModels),
+      ),
+      ["OpenAI / GPT-5.5", "OpenAI Codex / GPT-5.5"],
+    );
+  });
+
+  it("title-cases unknown provider ids for fallback display", () => {
+    assert.equal(providerDisplayName("acme-super_ai"), "Acme Super AI");
   });
 });

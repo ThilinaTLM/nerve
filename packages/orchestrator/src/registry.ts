@@ -806,10 +806,8 @@ export class RuntimeRegistry {
     return listAvailableModels().map((model) => ({
       provider: model.provider,
       modelId: model.modelId,
-      label:
-        model.provider === "nerve-faux"
-          ? "Nerve Faux Fast"
-          : `${model.provider} / ${model.modelId}`,
+      name: model.name,
+      label: model.provider === "nerve-faux" ? "Nerve Faux Fast" : model.name,
       reasoning: model.reasoning,
       supportedThinkingLevels: model.supportedThinkingLevels,
       faux: model.provider === "nerve-faux",

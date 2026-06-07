@@ -3,7 +3,7 @@
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import type { AgentRecord, ModelInfo } from "../../api";
   import Popover from "$lib/components/ui/popover-panel";
-  import { modelKey } from "../../utils/model";
+  import { contextualModelLabel, modelKey } from "../../utils/model";
 
   type ThinkingLevel = AgentRecord["thinkingLevel"];
 
@@ -48,7 +48,9 @@
 
   const hasThinking = $derived(thinkingLevels.length > 1);
 
-  const triggerLabel = $derived(selectedModel?.label ?? "Select model");
+  const triggerLabel = $derived(
+    selectedModel ? contextualModelLabel(selectedModel, models) : "Select model",
+  );
   const triggerSuffix = $derived(
     hasThinking && thinkingLevel !== "off" ? thinkingLevelLabel(thinkingLevel) : undefined,
   );
@@ -90,11 +92,11 @@
         <ul class="model-list">
           {#each models as model (modelKey(model))}
             {@const active = modelKey(model) === selectedModelKey}
+            {@const label = contextualModelLabel(model, models)}
             <li>
               <button type="button" class="model-row" class:active aria-pressed={active} onclick={() => selectModel(model)}>
                 <span class="model-row-text">
-                  <span class="model-row-label">{model.label}</span>
-                  <span class="model-row-detail">{model.provider}</span>
+                  <span class="model-row-label">{label}</span>
                 </span>
                 {#if active}<Check size={14} strokeWidth={2.4} />{/if}
               </button>
@@ -227,14 +229,6 @@
     overflow: hidden;
     font-size: var(--text-sm);
     font-weight: 500;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .model-row-detail {
-    overflow: hidden;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
     text-overflow: ellipsis;
     white-space: nowrap;
   }

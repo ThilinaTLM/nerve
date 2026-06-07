@@ -21,6 +21,7 @@ export interface AgentModelSelection {
 }
 
 export interface AgentModelInfo extends AgentModelSelection {
+  name: string;
   reasoning: boolean;
   supportedThinkingLevels: ThinkingLevel[];
   contextWindow: number;
@@ -107,6 +108,7 @@ export function getAgentModelInfo(model: Model<string>): AgentModelInfo {
   return {
     provider: model.provider,
     modelId: model.id,
+    name: model.name || model.id,
     reasoning: model.reasoning,
     supportedThinkingLevels: getSupportedThinkingLevels(
       model,
