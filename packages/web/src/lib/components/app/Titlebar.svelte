@@ -4,6 +4,7 @@
   import { Toolbar } from "bits-ui";
   import type { ProjectRecord } from "../../api";
   import { Button } from "$lib/components/ui/button";
+  import nerveMark from "$lib/assets/nerve-mark.svg?raw";
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -19,12 +20,14 @@
     onOpenSettings,
   }: Props = $props();
 
-  const projectLabel = $derived(activeProject?.name ?? "Open Project");
 </script>
 
 <header class="titlebar">
   <div class="title-left">
-    <span class="app-name">Nerve</span>
+    <span class="brand">
+      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+      <span class="brand-mark" aria-hidden="true">{@html nerveMark}</span>
+    </span>
     <span class="divider" aria-hidden="true"></span>
     <Button
       variant="ghost"
@@ -35,7 +38,7 @@
       onclick={() => onOpenProject?.()}
     >
       <Folder size={14} strokeWidth={2.1} aria-hidden="true" />
-      <span class="project-button-label">{projectLabel}</span>
+      <span class="project-button-label">Open Project</span>
     </Button>
   </div>
 
@@ -80,12 +83,22 @@
     gap: 0.375rem;
   }
 
-  .app-name {
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
     color: var(--foreground);
-    font-family: var(--font-sans);
-    font-size: var(--text-base);
-    font-weight: 700;
-    letter-spacing: -0.01em;
+  }
+
+  .brand-mark {
+    display: inline-flex;
+    flex: none;
+    color: var(--foreground);
+  }
+
+  .brand-mark :global(svg) {
+    width: 1.2rem;
+    height: 1.2rem;
   }
 
   .divider {

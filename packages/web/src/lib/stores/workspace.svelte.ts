@@ -112,7 +112,14 @@ export async function completeFiles(query: string): Promise<CompletionItem[]> {
 }
 
 export function newConversation() {
-  workbenchState.projectPickerOpen = true;
+  const activeProject = workbenchState.projects.find(
+    (project) => project.id === selection.projectId,
+  );
+  if (!activeProject) {
+    workbenchState.projectPickerOpen = true;
+    return;
+  }
+  void createConversationForDirectory(activeProject.dir);
 }
 
 export function newConversationInProject(projectDir: string) {

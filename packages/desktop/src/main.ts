@@ -150,6 +150,20 @@ function createDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
+function nerveMark(): string {
+  return `<svg class="mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 19V5" />
+        <path d="M17 19V5" />
+        <path d="M5 5L9.05 9.72" />
+        <path d="M12.95 14.28L17 19" />
+        <circle cx="11" cy="12" r="2.4" stroke-width="1.7" />
+      </g>
+      <circle cx="5" cy="5" r="1.9" fill="currentColor" />
+      <circle cx="17" cy="19" r="1.9" fill="currentColor" />
+    </svg>`;
+}
+
 function loadingHtml(): string {
   return `<!doctype html>
 <html lang="en">
@@ -161,10 +175,11 @@ function loadingHtml(): string {
   </head>
   <body>
     <main>
-      <div class="orb"></div>
-      <p class="eyebrow">Nerve desktop</p>
-      <h1>Starting local daemon…</h1>
-      <p>Connecting the desktop shell to the local Nerve workbench.</p>
+      <div class="brand">
+        ${nerveMark()}
+        <span class="wordmark">Nerve</span>
+      </div>
+      <p class="status">Starting local daemon…</p>
     </main>
   </body>
 </html>`;
@@ -182,9 +197,11 @@ function errorHtml(error: unknown): string {
   </head>
   <body>
     <main class="error">
-      <p class="eyebrow">Nerve desktop</p>
-      <h1>Could not start Nerve</h1>
-      <p>The local daemon did not become available.</p>
+      <div class="brand">
+        ${nerveMark()}
+        <span class="wordmark">Nerve</span>
+      </div>
+      <p class="status">Could not start the local daemon.</p>
       <pre>${escapeHtml(message)}</pre>
     </main>
   </body>
@@ -192,12 +209,26 @@ function errorHtml(error: unknown): string {
 }
 
 function shellStyles(): string {
+  // Mirrors the shadcn theme tokens from packages/web/src/app.css
+  // so the splash matches the workbench in both light and dark.
   return `
     :root {
-      color-scheme: dark;
+      color-scheme: light dark;
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.147 0.004 49.3);
+      --muted-foreground: oklch(0.547 0.021 43.1);
+      --border: oklch(0.922 0.005 34.3);
+      --destructive: oklch(0.577 0.245 27.325);
       font-family: Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #060913;
-      color: #eef2ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: oklch(0.147 0.004 49.3);
+        --foreground: oklch(0.986 0.002 67.8);
+        --muted-foreground: oklch(0.714 0.014 41.2);
+        --border: oklch(1 0 0 / 10%);
+        --destructive: oklch(0.704 0.191 22.216);
+      }
     }
     * { box-sizing: border-box; }
     body {
@@ -205,50 +236,60 @@ function shellStyles(): string {
       min-height: 100vh;
       display: grid;
       place-items: center;
-      background:
-        radial-gradient(circle at 35% 30%, rgba(56, 189, 248, 0.2), transparent 34rem),
-        radial-gradient(circle at 70% 65%, rgba(129, 140, 248, 0.16), transparent 30rem),
-        #060913;
+      background: var(--background);
+      color: var(--foreground);
     }
     main {
-      width: min(640px, calc(100vw - 48px));
-      border: 1px solid rgba(148, 163, 184, 0.24);
-      border-radius: 28px;
-      padding: 36px;
-      background: linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.94));
-      box-shadow: 0 28px 90px rgba(0, 0, 0, 0.45);
+      width: min(420px, calc(100vw - 48px));
+      display: grid;
+      justify-items: center;
+      gap: 16px;
+      padding: 24px;
+      text-align: center;
     }
-    .orb {
-      width: 44px;
-      height: 44px;
-      border-radius: 999px;
-      margin-bottom: 24px;
-      background: conic-gradient(from 90deg, #38bdf8, #818cf8, #22c55e, #38bdf8);
-      animation: spin 1.8s linear infinite;
-      box-shadow: 0 0 36px rgba(56, 189, 248, 0.32);
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--foreground);
     }
-    .eyebrow {
-      margin: 0 0 10px;
-      color: #7dd3fc;
-      font-size: 12px;
+    .mark {
+      width: 26px;
+      height: 26px;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    .wordmark {
+      font-size: 20px;
       font-weight: 700;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
+      letter-spacing: -0.01em;
     }
-    h1 { margin: 0; font-size: 38px; line-height: 1.1; letter-spacing: -0.04em; }
-    p { color: #b9c4d8; line-height: 1.6; }
+    .status {
+      margin: 0;
+      color: var(--muted-foreground);
+      font-size: 13px;
+      line-height: 1.5;
+    }
     pre {
-      max-height: 300px;
+      width: 100%;
+      max-height: 280px;
+      margin: 4px 0 0;
       overflow: auto;
       white-space: pre-wrap;
-      border: 1px solid rgba(248, 113, 113, 0.35);
-      border-radius: 16px;
-      padding: 16px;
-      background: rgba(127, 29, 29, 0.18);
-      color: #fecaca;
-      font: 13px/1.5 "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      text-align: left;
+      border: 1px solid color-mix(in oklab, var(--destructive) 40%, transparent);
+      border-radius: 10px;
+      padding: 12px;
+      background: color-mix(in oklab, var(--destructive) 10%, transparent);
+      color: var(--destructive);
+      font: 12px/1.5 "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .mark { animation: none; }
+    }
   `;
 }
 

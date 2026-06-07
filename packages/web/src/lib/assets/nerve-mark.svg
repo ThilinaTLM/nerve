@@ -1,0 +1,12 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="nerve-mark-title">
+  <title id="nerve-mark-title">Nerve</title>
+  <g stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 19V5" />
+    <path d="M17 19V5" />
+    <path d="M5 5L9.05 9.72" />
+    <path d="M12.95 14.28L17 19" />
+    <circle cx="11" cy="12" r="2.4" stroke-width="1.7" />
+  </g>
+  <circle cx="5" cy="5" r="1.9" fill="currentColor" />
+  <circle cx="17" cy="19" r="1.9" fill="currentColor" />
+</svg>
