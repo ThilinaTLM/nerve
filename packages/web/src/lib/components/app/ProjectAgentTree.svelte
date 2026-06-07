@@ -151,7 +151,7 @@
                         {#snippet child({ props: tip })}
                           <Collapsible.Trigger>
                             {#snippet child({ props: trg })}
-                              <Sidebar.MenuButton {...mergeProps(trg, tip)} class="project-button bg-card w-full min-w-0">
+                              <Sidebar.MenuButton {...mergeProps(trg, tip)} class="project-button bg-card h-7 w-full min-w-0 px-1.5 py-1">
                                 <ChevronDown class="chevron" size={12} aria-hidden="true" />
                                 <span class="project-label">{group.label}</span>
                               </Sidebar.MenuButton>
@@ -307,7 +307,7 @@
     width: 100%;
     min-width: 0;
     overflow-x: hidden;
-    padding: 0.25rem;
+    padding: 0.25rem 0.25rem 0.25rem 0.45rem;
   }
 
   :global(.tree-group),
