@@ -95,7 +95,6 @@
 
   const status = $derived(workbenchSelectors.status);
   const connection = $derived(workbenchSelectors.connection);
-  const error = $derived(workbenchSelectors.error);
   const sending = $derived(workbenchSelectors.sending);
   const projects = $derived(workbenchSelectors.projects);
   const conversations = $derived(workbenchSelectors.conversations);
@@ -349,7 +348,6 @@
                 liveState={conversationLiveState}
                 {live}
                 {sending}
-                {error}
                 composerText={activeComposerText}
                 {gitSuggestions}
                 onApplyGitSuggestion={applyGitSuggestion}

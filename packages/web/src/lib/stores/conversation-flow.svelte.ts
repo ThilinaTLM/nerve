@@ -538,6 +538,10 @@ function hasUsableModel(): boolean {
   );
 }
 
+function notifyPromptError(title: string, message: string): void {
+  toast.error(title, { description: message });
+}
+
 function upsertConversationRecord(conversation: ConversationRecord): void {
   workbenchState.conversations = [
     conversation,
@@ -560,9 +564,11 @@ async function sendPendingPrompt(
 ): Promise<void> {
   if (!hasUsableModel()) {
     void openSettingsPane();
-    pending.error =
+    const message =
       "Configure a model provider or adjust Scoped Models in Settings before prompting.";
-    workbenchState.error = pending.error;
+    pending.error = message;
+    workbenchState.error = message;
+    notifyPromptError("No usable model configured", message);
     return;
   }
 
@@ -639,6 +645,7 @@ async function sendPendingPrompt(
     }
     workbenchState.error = message;
     workbenchState.sending = false;
+    notifyPromptError("Prompt failed", message);
   }
 }
 
@@ -667,15 +674,19 @@ export async function sendPrompt() {
   }
   if (!selection.projectId || !selection.conversationId || !view) {
     workbenchState.projectPickerOpen = true;
-    workbenchState.error =
+    const message =
       "Select a project directory before starting a conversation.";
+    workbenchState.error = message;
+    notifyPromptError("Select a project directory", message);
     return;
   }
   if (!hasUsableModel()) {
     void openSettingsPane();
-    view.error =
+    const message =
       "Configure a model provider or adjust Scoped Models in Settings before prompting.";
-    workbenchState.error = view.error;
+    view.error = message;
+    workbenchState.error = message;
+    notifyPromptError("No usable model configured", message);
     return;
   }
   view.sending = true;
@@ -701,5 +712,6 @@ export async function sendPrompt() {
     workbenchState.error = message;
     view.sending = false;
     workbenchState.sending = false;
+    notifyPromptError("Prompt failed", message);
   }
 }

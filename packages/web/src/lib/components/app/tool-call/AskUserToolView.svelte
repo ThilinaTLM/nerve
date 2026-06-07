@@ -4,6 +4,7 @@
   import Send from "@lucide/svelte/icons/send";
   import X from "@lucide/svelte/icons/x";
   import { onDestroy } from "svelte";
+  import { toast } from "svelte-sonner";
   import type { ToolCallRecord, UserQuestionRecord } from "../../../api";
   import TranscriptionActivity from "../../../audio/TranscriptionActivity.svelte";
   import { TranscriptionController } from "../../../audio/transcription-controller.svelte";
@@ -50,7 +51,11 @@
     answer = `${answer}${separator}${trimmed}`;
   }
 
-  const transcription = new TranscriptionController({ onTranscript: appendTranscript });
+  const transcription = new TranscriptionController({
+    onTranscript: appendTranscript,
+    onError: (message) =>
+      toast.error("Voice input failed", { description: message }),
+  });
   const supportsAudioRecording = $derived(TranscriptionController.isSupported());
   const micDisabled = $derived(
     transcription.pending || (!transcription.recording && !pending),
@@ -162,9 +167,6 @@
         </Button>
       </div>
     </form>
-    {#if transcription.error}
-      <p class="audio-error">{transcription.error}</p>
-    {/if}
   {:else if view.answer}
     <p class="meta"><span class="meta-label">answer</span> {view.answer}</p>
   {:else if view.dismissed}
@@ -289,11 +291,6 @@
     gap: 0.5rem;
   }
 
-  .audio-error {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--destructive);
-  }
 
   .dismissed {
     margin: 0;

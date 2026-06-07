@@ -34,7 +34,6 @@
     liveState?: ConversationLiveState;
     live?: boolean;
     sending?: boolean;
-    error?: string;
     composerText?: string;
     models?: ModelInfo[];
     selectedModelKey?: string;
@@ -79,7 +78,6 @@
     liveState,
     live = false,
     sending = false,
-    error,
     composerText = "",
     models = [],
     selectedModelKey = "",
@@ -306,7 +304,6 @@
       {pendingPlanReview}
       {live}
       {sending}
-      {error}
       {models}
       {selectedModelKey}
       {contextUsage}

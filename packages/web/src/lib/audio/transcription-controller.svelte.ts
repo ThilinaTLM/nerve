@@ -7,6 +7,7 @@ import { PcmWavRecorder, type WavRecordingResult } from "./wav-recorder";
 
 type TranscriptionControllerOptions = {
   onTranscript: (text: string) => void;
+  onError?: (message: string) => void;
 };
 
 const RETRY_BACKOFF_MS = [500, 1000, 2000] as const;
@@ -71,9 +72,11 @@ export class TranscriptionController {
   #autoStopTimer: number | undefined;
   #transcriptionAbort: AbortController | undefined;
   readonly #onTranscript: (text: string) => void;
+  readonly #onError: ((message: string) => void) | undefined;
 
   constructor(options: TranscriptionControllerOptions) {
     this.#onTranscript = options.onTranscript;
+    this.#onError = options.onError;
   }
 
   static isSupported(): boolean {
@@ -83,6 +86,11 @@ export class TranscriptionController {
   /** True while finishing a recording or transcribing (button should stay busy). */
   get pending(): boolean {
     return this.transcribing || this.#stoppingRecording;
+  }
+
+  #setError(message: string): void {
+    this.error = message;
+    this.#onError?.(message);
   }
 
   toggle(): void {
@@ -96,7 +104,7 @@ export class TranscriptionController {
   async start(): Promise<void> {
     if (this.recording || this.pending) return;
     if (!TranscriptionController.isSupported()) {
-      this.error = "Audio recording is not supported in this browser.";
+      this.#setError("Audio recording is not supported in this browser.");
       return;
     }
     this.error = undefined;
@@ -113,7 +121,7 @@ export class TranscriptionController {
       this.#recorder = undefined;
       this.#clearRecordingTimers();
       this.recording = false;
-      this.error = errorMessage(err);
+      this.#setError(errorMessage(err));
     }
   }
 
@@ -130,7 +138,7 @@ export class TranscriptionController {
       await this.#transcribe(result);
     } catch (err) {
       this.recording = false;
-      this.error = errorMessage(err);
+      this.#setError(errorMessage(err));
     } finally {
       this.#stoppingRecording = false;
     }
@@ -213,9 +221,11 @@ export class TranscriptionController {
     } catch (err) {
       if (abort.signal.aborted || isAbortError(err)) return;
       const message = errorMessage(err);
-      this.error = retriesExhausted
-        ? `Transcription failed after ${this.maxRetries} retries: ${message}`
-        : message;
+      this.#setError(
+        retriesExhausted
+          ? `Transcription failed after ${this.maxRetries} retries: ${message}`
+          : message,
+      );
     } finally {
       if (this.#transcriptionAbort === abort)
         this.#transcriptionAbort = undefined;

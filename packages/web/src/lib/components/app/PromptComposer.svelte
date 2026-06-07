@@ -29,6 +29,7 @@
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
   import { onDestroy, type Component } from "svelte";
+  import { toast } from "svelte-sonner";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -44,7 +45,6 @@
     pendingPlanReview?: PlanReviewRecord;
     live?: boolean;
     sending?: boolean;
-    error?: string;
     models?: ModelInfo[];
     selectedModelKey?: string;
     contextUsage?: ContextUsage;
@@ -77,7 +77,6 @@
     pendingPlanReview,
     live = false,
     sending = false,
-    error,
     models = [],
     selectedModelKey = "",
     contextUsage,
@@ -107,10 +106,13 @@
     onChange?.(`${text}${separator}${trimmed}`);
   }
 
-  const transcription = new TranscriptionController({ onTranscript: appendTranscript });
+  const transcription = new TranscriptionController({
+    onTranscript: appendTranscript,
+    onError: (message) =>
+      toast.error("Voice input failed", { description: message }),
+  });
   const recording = $derived(transcription.recording);
   const transcribing = $derived(transcription.transcribing);
-  const audioError = $derived(transcription.error);
 
   const pendingApproval = $derived(approvals.length > 0);
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
@@ -133,7 +135,6 @@
           ? "Transcribing audio…"
           : "Record voice prompt",
   );
-  const displayedError = $derived(error ?? audioError);
 
   function formatElapsed(ms: number): string {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -313,7 +314,6 @@
     </div>
   </div>
 
-  {#if displayedError}<p class="composer-error">{displayedError}</p>{/if}
 </form>
 
 <style>
@@ -560,13 +560,4 @@
     }
   }
 
-  .composer-error {
-    margin: 0;
-    border: 1px solid color-mix(in oklab, var(--destructive) 16%, transparent);
-    border-radius: var(--radius-sm);
-    background: color-mix(in oklab, var(--destructive) 16%, transparent);
-    color: var(--destructive);
-    padding: 0.42rem 0.5rem;
-    font-size: var(--text-xs);
-  }
 </style>
