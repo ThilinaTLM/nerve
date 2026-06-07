@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type DaemonFile, daemonFileSchema } from "@nerve/shared";
 
@@ -13,6 +13,10 @@ export interface ManagedDaemon {
   url: string;
   owned: boolean;
   stop: () => Promise<void>;
+}
+
+export interface EnsureDaemonOptions {
+  webDistPath?: string;
 }
 
 interface DaemonPaths {
@@ -45,7 +49,9 @@ class OutputBuffer {
   }
 }
 
-export async function ensureDaemon(): Promise<ManagedDaemon> {
+export async function ensureDaemon(
+  options: EnsureDaemonOptions = {},
+): Promise<ManagedDaemon> {
   const paths = resolveDaemonPaths();
   const existing = await findHealthyDaemon(paths);
   if (existing) {
@@ -69,6 +75,7 @@ export async function ensureDaemon(): Promise<ManagedDaemon> {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
       NERVE_HOST: "127.0.0.1",
+      ...(options.webDistPath ? { NERVE_WEB_DIST: options.webDistPath } : {}),
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
@@ -135,8 +142,8 @@ function resolveDaemonPaths(): DaemonPaths {
 }
 
 function resolveOrchestratorMainPath(): string {
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  return resolve(moduleDir, "..", "..", "orchestrator", "dist", "main.js");
+  const resolvedUrl = import.meta.resolve("@nerve/orchestrator/main");
+  return fileURLToPath(resolvedUrl);
 }
 
 async function findHealthyDaemon(

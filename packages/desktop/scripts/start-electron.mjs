@@ -6,7 +6,10 @@ const cwd = fileURLToPath(new URL("..", import.meta.url));
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
-const child = spawn(electronPath, ["."], {
+const electronArgs =
+  process.platform === "linux" ? ["--class=nerve", "."] : ["."];
+
+const child = spawn(electronPath, electronArgs, {
   cwd,
   env,
   stdio: "inherit",

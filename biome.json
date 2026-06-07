@@ -5,6 +5,8 @@
       "**",
       "!**/dist",
       "!**/node_modules",
+      "!packages/desktop/build",
+      "!packages/desktop/release",
       "!**/.svelte-kit",
       "!**/.vite",
       "!**/*.svelte"

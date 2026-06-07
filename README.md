@@ -39,6 +39,9 @@ pnpm install
 pnpm dev        # orchestrator daemon
 pnpm desktop    # desktop shell
 pnpm --filter @nerve/web dev   # web UI (proxies /api + /ws to the daemon)
+pnpm --filter @nerve/desktop package:linux   # Linux AppImage + deb
+make install    # user-space Linux desktop launcher for this checkout
+make uninstall  # remove the user-space Linux desktop launcher
 ```
 
 Validate with `pnpm check`; use `pnpm lint` and `pnpm test` when relevant.

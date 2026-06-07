@@ -1,0 +1,37 @@
+appId: works.earendil.nerve
+productName: Nerve
+executableName: nerve
+artifactName: Nerve-${version}-${arch}.${ext}
+copyright: Copyright © 2026 Earendil Works
+
+directories:
+  output: release
+
+files:
+  - dist/**
+  - build/**
+  - package.json
+
+asarUnpack:
+  - build/**
+
+extraResources:
+  - from: ../web/dist
+    to: web-dist
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+  executableName: nerve
+  maintainer: Earendil Works <maintainers@earendil.works>
+  icon: build/icons
+  syncDesktopName: true
+  desktop:
+    entry:
+      Name: Nerve
+      GenericName: AI coding harness
+      Comment: UI-first personal AI coding harness
+      StartupWMClass: nerve
+      Keywords: AI;Coding;Agent;Developer;Nerve;

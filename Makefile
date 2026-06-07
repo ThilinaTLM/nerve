@@ -2,7 +2,7 @@ PNPM ?= pnpm
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-deps daemon web desktop desktop-fast desktop-build desktop-check
+.PHONY: help dev dev-deps daemon web desktop desktop-fast desktop-build desktop-check install uninstall
 
 help:
 	@printf "Nerve shortcuts:\n"
@@ -13,6 +13,8 @@ help:
 	@printf "  make desktop-fast   Launch Electron using existing build output\n"
 	@printf "  make desktop-build  Build desktop dependencies and Electron main process\n"
 	@printf "  make desktop-check  Type-check the desktop package\n"
+	@printf "  make install        Install a user-space Linux desktop launcher for this checkout\n"
+	@printf "  make uninstall      Remove the user-space Linux desktop launcher\n"
 
 dev: dev-deps
 	$(PNPM) --parallel --stream --filter @nerve/orchestrator --filter @nerve/web dev
@@ -39,3 +41,10 @@ desktop-build:
 
 desktop-check:
 	$(PNPM) --filter @nerve/desktop check
+
+install:
+	$(PNPM) --filter @nerve/desktop icons
+	PNPM="$(PNPM)" node scripts/install-desktop.mjs install
+
+uninstall:
+	PNPM="$(PNPM)" node scripts/install-desktop.mjs uninstall

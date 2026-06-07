@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +18,7 @@ const {
   Menu,
   Notification,
   nativeImage,
+  nativeTheme,
   shell,
   Tray,
 } = require("electron") as typeof import("electron");
@@ -44,7 +46,8 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
-  app.setAppUserModelId("Nerve");
+  app.setName("Nerve");
+  app.setAppUserModelId("works.earendil.nerve");
   registerDesktopIpc();
 
   app.on("second-instance", () => {
@@ -55,6 +58,7 @@ if (!gotSingleInstanceLock) {
     .whenReady()
     .then(async () => {
       ensureTray();
+      nativeTheme.on("updated", updateTrayIcon);
       await openMainWindow();
     })
     .catch((error: unknown) => {
@@ -107,7 +111,9 @@ async function openMainWindow(): Promise<void> {
   await window.loadURL(createDataUrl(loadingHtml()));
 
   try {
-    managedDaemon ??= await ensureDaemon();
+    managedDaemon ??= await ensureDaemon({
+      webDistPath: resolvePackagedWebDistPath(),
+    });
     updateTrayMenu();
     if (window.isDestroyed()) return;
     await window.loadURL(managedDaemon.url);
@@ -127,6 +133,7 @@ function createMainWindow(): BrowserWindowType {
     autoHideMenuBar: true,
     frame: false,
     title: "Nerve",
+    ...(process.platform === "darwin" ? {} : { icon: resolveAppIconPath() }),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -279,26 +286,41 @@ function requestQuit(): void {
 }
 
 function createTrayIcon(): NativeImage {
-  const image = nativeImage.createFromDataURL(
-    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(trayIconSvg())}`,
-  );
+  const image = nativeImage.createFromPath(resolveTrayIconPath());
   image.setTemplateImage(process.platform === "darwin");
   return image;
 }
 
-function trayIconSvg(): string {
-  return `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="32" height="32" rx="7" fill="#111827"/>
-    <g stroke="#f9fafb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M8 24V8"/>
-      <path d="M23 24V8"/>
-      <path d="M8 8L13.1 13.9"/>
-      <path d="M17.9 18.1L23 24"/>
-      <circle cx="15.5" cy="16" r="3" stroke-width="2"/>
-    </g>
-    <circle cx="8" cy="8" r="2.4" fill="#f9fafb"/>
-    <circle cx="23" cy="24" r="2.4" fill="#f9fafb"/>
-  </svg>`;
+function updateTrayIcon(): void {
+  if (!tray) return;
+  tray.setImage(createTrayIcon());
+}
+
+function resolveTrayIconPath(): string {
+  const name =
+    process.platform === "darwin"
+      ? "tray-template.png"
+      : nativeTheme.shouldUseDarkColors
+        ? "tray-dark.png"
+        : "tray-light.png";
+  return resolveDesktopAssetPath("build", "tray", name);
+}
+
+function resolveAppIconPath(): string {
+  return resolveDesktopAssetPath("build", "icons", "512x512.png");
+}
+
+function resolvePackagedWebDistPath(): string | undefined {
+  if (!app.isPackaged) return undefined;
+  return join(process.resourcesPath, "web-dist");
+}
+
+function resolveDesktopAssetPath(...segments: string[]): string {
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const packageRelativePath = join(moduleDir, "..", ...segments);
+  if (existsSync(packageRelativePath)) return packageRelativePath;
+
+  return join(process.resourcesPath, "app.asar.unpacked", ...segments);
 }
 
 function showDesktopNotification(payload: unknown): { shown: boolean } {

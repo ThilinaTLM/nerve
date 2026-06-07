@@ -49,8 +49,7 @@ export async function serveStatic(
   pathname: string,
   state: OrchestratorState,
 ): Promise<Response> {
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  const webDist = resolve(moduleDir, "..", "..", "..", "web", "dist");
+  const webDist = resolveWebDistPath();
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
   const normalizedPath = resolve(webDist, `.${requestedPath}`);
   const finalPath = normalizedPath.startsWith(webDist)
@@ -88,4 +87,12 @@ export async function serveStatic(
       });
     }
   }
+}
+
+function resolveWebDistPath(): string {
+  const explicitPath = process.env.NERVE_WEB_DIST?.trim();
+  if (explicitPath) return resolve(explicitPath);
+
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  return resolve(moduleDir, "..", "..", "..", "web", "dist");
 }

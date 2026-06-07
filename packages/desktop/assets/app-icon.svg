@@ -1,0 +1,20 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="nerve-app-icon-title">
+  <title id="nerve-app-icon-title">Nerve</title>
+  <defs>
+    <linearGradient id="backplate" x1="192" y1="128" x2="832" y2="896" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827" />
+      <stop offset="1" stop-color="#020617" />
+    </linearGradient>
+  </defs>
+  <rect x="80" y="80" width="864" height="864" rx="216" fill="url(#backplate)" />
+  <rect x="94" y="94" width="836" height="836" rx="202" stroke="#F8FAFC" stroke-opacity="0.12" stroke-width="28" />
+  <g stroke="#F8FAFC" stroke-width="86" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M300 736V288" />
+    <path d="M724 736V288" />
+    <path d="M300 288L423 431" />
+    <path d="M601 593L724 736" />
+    <circle cx="512" cy="512" r="86" stroke-width="64" />
+  </g>
+  <circle cx="300" cy="288" r="70" fill="#F8FAFC" />
+  <circle cx="724" cy="736" r="70" fill="#F8FAFC" />
+</svg>
