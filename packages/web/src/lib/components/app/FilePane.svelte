@@ -77,7 +77,7 @@
 </script>
 
 <section class="file-pane">
-  <ScrollArea class="file-scroll" viewportClass="file-viewport" type="auto">
+  <ScrollArea class="file-scroll" viewportClass="file-viewport" type="auto" orientation="both">
     {#if !view}
       <div class="file-empty">
         <FileText size={28} strokeWidth={1.7} />
@@ -106,9 +106,9 @@
           <Markdown text={file.text ?? ""} trimCodeBlocks={false} />
         </div>
       {:else if html && htmlSignature === codeSignature}
-        <div class="code-view" style={`--line-number-width: ${lineNumberWidth};`}>{@html html}</div>
+        <div class="code-view" class:wrap-lines={view?.wrapLines} style={`--line-number-width: ${lineNumberWidth};`}>{@html html}</div>
       {:else}
-        <pre class="code-view plain" style={`--line-number-width: ${lineNumberWidth};`}><code>{#each textLines as line}<span class="code-line">{line}</span>{/each}</code></pre>
+        <pre class="code-view plain" class:wrap-lines={view?.wrapLines} style={`--line-number-width: ${lineNumberWidth};`}><code>{#each textLines as line}<span class="code-line">{line}</span>{/each}</code></pre>
       {/if}
     {:else}
       <div class="file-empty">
@@ -124,11 +124,13 @@
   .file-pane {
     display: grid;
     height: 100%;
+    min-width: 0;
     min-height: 0;
     background: var(--background);
   }
 
   :global(.file-scroll) {
+    min-width: 0;
     min-height: 0;
   }
 
@@ -190,8 +192,9 @@
     --file-code-font-size: var(--text-sm);
     --line-number-width: 2ch;
     counter-reset: code-line;
+    min-width: 100%;
     margin: 0;
-    overflow: auto;
+    overflow: visible;
     color: var(--foreground);
     font-family: var(--font-mono);
     font-size: var(--file-code-font-size);
@@ -199,8 +202,23 @@
     tab-size: 2;
   }
 
+  .code-view:not(.wrap-lines) {
+    width: max-content;
+  }
+
+  .code-view.wrap-lines {
+    width: 100%;
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   .code-view.plain {
     white-space: pre;
+  }
+
+  .code-view.plain.wrap-lines {
+    white-space: pre-wrap;
   }
 
   .code-view :global(pre) {
@@ -210,10 +228,15 @@
     white-space: pre;
   }
 
+  .code-view.wrap-lines :global(pre) {
+    white-space: pre-wrap;
+  }
+
   .code-view :global(code),
   .code-view code {
     font-family: var(--font-mono);
     font-size: var(--file-code-font-size);
+    white-space: inherit;
   }
 
   .code-view :global(.line),
@@ -221,6 +244,14 @@
     display: block;
     min-height: 1.5em;
     padding-right: 1rem;
+  }
+
+  .code-view.wrap-lines :global(.line),
+  .code-view.wrap-lines .code-line {
+    padding-left: calc(var(--line-number-width) + 1rem);
+    overflow-wrap: anywhere;
+    text-indent: calc(-1 * (var(--line-number-width) + 1rem));
+    white-space: pre-wrap;
   }
 
   .code-view :global(.line)::before,

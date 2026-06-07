@@ -124,6 +124,7 @@ export type FileViewState = {
   line?: number;
   content?: FilesystemFileResponse;
   displayMode?: FileDisplayMode;
+  wrapLines?: boolean;
   loading: boolean;
   error?: string;
 };

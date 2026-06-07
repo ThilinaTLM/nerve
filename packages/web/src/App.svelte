@@ -84,6 +84,7 @@
     stopSelectedProcess,
     systemPromptUrl,
     toggleFileDisplayMode,
+    toggleFileLineWrap,
     workbenchSelectors,
     workbenchState,
     type CenterTabIdentity,
@@ -277,6 +278,7 @@
               onCloseRight={closeCenterTabsRight}
               onCloseLeft={closeCenterTabsLeft}
               onToggleFileDisplayMode={toggleFileDisplayMode}
+              onToggleFileLineWrap={toggleFileLineWrap}
               onNewConversation={newConversation}
             />
             {#if activeCenterTab?.kind === "process"}

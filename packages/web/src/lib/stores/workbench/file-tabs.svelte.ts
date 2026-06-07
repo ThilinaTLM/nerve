@@ -90,6 +90,12 @@ export function toggleFileDisplayMode(id: string) {
   view.displayMode = current === "raw" ? "rendered" : "raw";
 }
 
+export function toggleFileLineWrap(id: string) {
+  const view = workbenchState.fileViews[id];
+  if (!view) return;
+  view.wrapLines = !view.wrapLines;
+}
+
 export function closeFileTab(id: string) {
   const tab = { kind: "file" as const, id };
   const closingActive =

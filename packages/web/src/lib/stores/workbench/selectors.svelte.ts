@@ -62,6 +62,7 @@ export type FileTabModel = {
   path?: string;
   relativePath?: string;
   displayMode: FileDisplayMode;
+  wrapLines: boolean;
   markdown: boolean;
   active: boolean;
   sending: boolean;
@@ -354,6 +355,7 @@ export const workbenchSelectors = {
         path: view?.path,
         relativePath: view?.content?.relativePath,
         displayMode: view?.displayMode ?? defaultFileDisplayMode(displayPath),
+        wrapLines: Boolean(view?.wrapLines),
         markdown: isMarkdownPath(displayPath),
         active: activeTabMatches("file", id),
         sending: Boolean(view?.loading),

@@ -29,6 +29,7 @@
     onCloseRight?: (tab: TabIdentity) => void;
     onCloseLeft?: (tab: TabIdentity) => void;
     onToggleFileDisplayMode?: (id: string) => void;
+    onToggleFileLineWrap?: (id: string) => void;
     onNewConversation?: () => void;
   };
 
@@ -42,6 +43,7 @@
     onCloseRight,
     onCloseLeft,
     onToggleFileDisplayMode,
+    onToggleFileLineWrap,
     onNewConversation,
   }: Props = $props();
 
@@ -111,6 +113,11 @@
     onToggleFileDisplayMode?.(tab.id);
   }
 
+  function fileWrapLabel(tab: CenterTabModel): string {
+    if (tab.kind !== "file") return "";
+    return tab.wrapLines ? "Disable line wrap" : "Wrap long lines";
+  }
+
   async function copyToClipboard(text: string | undefined, label: string) {
     if (!text) return;
     try {
@@ -143,6 +150,13 @@
           icon: Copy,
           disabled: !relativePath,
           onSelect: () => void copyToClipboard(relativePath, "relative path"),
+        },
+        { type: "separator" },
+        {
+          label: fileWrapLabel(tab),
+          icon: Code2,
+          disabled: !onToggleFileLineWrap,
+          onSelect: () => onToggleFileLineWrap?.(tab.id),
         },
       );
     }
