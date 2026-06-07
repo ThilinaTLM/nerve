@@ -49,6 +49,7 @@
     if (tab.kind === "process") return tab.process?.name ?? tab.process?.command ?? tab.id;
     if (tab.kind === "file") return tab.file?.name ?? tab.relativePath?.split("/").pop() ?? tab.path?.split("/").pop() ?? "File";
     if (tab.kind === "settings") return "Settings";
+    if (tab.kind === "pending-conversation") return tab.title;
     return tab.conversation.title;
   }
 
@@ -61,7 +62,11 @@
     if (tab.kind === "settings") return "Workbench settings";
     const project = tab.project?.dir
       ? shortProjectLabel(tab.project.dir, homeDir)
-      : "Unknown project";
+      : tab.kind === "pending-conversation"
+        ? shortProjectLabel(tab.projectDir, homeDir)
+        : "Unknown project";
+    if (tab.kind === "pending-conversation")
+      return `${tab.title} · ${project} · created on first send`;
     return `${tab.conversation.title} · ${project} · ${tab.conversation.id}`;
   }
 
@@ -72,7 +77,7 @@
       if (tab.kind === "file") return "Loading file";
       return "Agent running";
     }
-    if (tab.kind === "conversation" && tab.hasDraft) return "Unsaved draft";
+    if ((tab.kind === "conversation" || tab.kind === "pending-conversation") && tab.hasDraft) return "Unsaved draft";
     if (tab.kind === "process") return tab.process?.status ?? "missing";
     if (tab.kind === "file" && tab.file?.truncated) return "Truncated";
     return undefined;
@@ -186,7 +191,7 @@
               <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
             {/if}
             <span class="tab-title">{tabLabel(tab)}</span>
-            {#if tab.kind === "conversation" && tab.hasDraft}
+            {#if (tab.kind === "conversation" || tab.kind === "pending-conversation") && tab.hasDraft}
               <span class="draft-dot" title="Draft" aria-label="Draft"></span>
             {/if}
           </button>

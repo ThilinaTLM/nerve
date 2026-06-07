@@ -1,7 +1,11 @@
 <script lang="ts">
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import Mic from "@lucide/svelte/icons/mic";
   import Send from "@lucide/svelte/icons/send";
   import X from "@lucide/svelte/icons/x";
+  import { onDestroy } from "svelte";
   import type { ToolCallRecord, UserQuestionRecord } from "../../../api";
+  import { TranscriptionController } from "../../../audio/transcription-controller.svelte";
   import type { ToolView } from "../../../tool-views/tool-result-view";
   import { Button } from "$lib/components/ui/button";
 
@@ -20,6 +24,13 @@
     onDismissUserQuestion,
   }: Props = $props();
 
+  const QUICK_REPLIES = [
+    "Yes, go ahead",
+    "I agree",
+    "Can you explain further?",
+    "No, hold on",
+  ];
+
   let answer = $state("");
   const pending = $derived(
     toolCall.status === "waiting_for_user" && questionRecord?.status === "pending",
@@ -31,10 +42,32 @@
   );
   const trimmedAnswer = $derived(answer.trim());
 
+  function appendTranscript(transcript: string) {
+    const trimmed = transcript.trim();
+    if (!trimmed) return;
+    const separator = answer.trim() ? (/[\s\n]$/.test(answer) ? "" : "\n\n") : "";
+    answer = `${answer}${separator}${trimmed}`;
+  }
+
+  const transcription = new TranscriptionController({ onTranscript: appendTranscript });
+  const supportsAudioRecording = $derived(TranscriptionController.isSupported());
+  const micDisabled = $derived(
+    transcription.pending || (!transcription.recording && !pending),
+  );
+
   function submitAnswer() {
     if (!pending || !questionRecord || !trimmedAnswer) return;
     onAnswerUserQuestion?.(questionRecord.id, trimmedAnswer);
   }
+
+  function submitQuickReply(phrase: string) {
+    if (!pending || !questionRecord) return;
+    onAnswerUserQuestion?.(questionRecord.id, phrase);
+  }
+
+  onDestroy(() => {
+    void transcription.cancel();
+  });
 </script>
 
 <div class="ask">
@@ -49,14 +82,42 @@
   {/if}
 
   {#if pending && questionRecord}
-    <form class="reply-card" onsubmit={(event) => { event.preventDefault(); submitAnswer(); }}>
-      <textarea
-        class="reply-input"
-        bind:value={answer}
-        rows="3"
-        placeholder={questionRecord.placeholder ?? "Reply to the agent's question…"}
-        aria-label="Reply to agent question"
-      ></textarea>
+    <div class="quick-replies">
+      {#each QUICK_REPLIES as phrase (phrase)}
+        <button type="button" class="quick-reply" onclick={() => submitQuickReply(phrase)}>
+          {phrase}
+        </button>
+      {/each}
+    </div>
+
+    <form class="reply" onsubmit={(event) => { event.preventDefault(); submitAnswer(); }}>
+      <div class="reply-field">
+        <textarea
+          class="reply-input"
+          bind:value={answer}
+          rows="3"
+          placeholder={questionRecord.placeholder ?? "Reply to the agent's question…"}
+          aria-label="Reply to agent question"
+        ></textarea>
+        {#if supportsAudioRecording}
+          <Button
+            variant={transcription.recording ? "destructive" : "ghost"}
+            size="icon-sm"
+            class={`reply-mic${transcription.recording ? " recording" : ""}`}
+            type="button"
+            disabled={micDisabled}
+            onclick={() => transcription.toggle()}
+            aria-label={transcription.recording ? "Stop recording" : "Record voice reply"}
+            title={transcription.recording ? "Stop recording" : transcription.transcribing ? "Transcribing audio…" : "Record voice reply"}
+          >
+            {#if transcription.transcribing}
+              <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
+            {:else}
+              <Mic size={14} strokeWidth={2.4} />
+            {/if}
+          </Button>
+        {/if}
+      </div>
       <div class="actions">
         <Button size="sm" type="submit" disabled={!trimmedAnswer}>
           <Send size={14} strokeWidth={2.4} />Reply
@@ -66,8 +127,11 @@
         </Button>
       </div>
     </form>
+    {#if transcription.error}
+      <p class="audio-error">{transcription.error}</p>
+    {/if}
   {:else if view.answer}
-    <div class="answer"><span class="answer-label">answer</span><span>{view.answer}</span></div>
+    <p class="meta"><span class="meta-label">answer</span> {view.answer}</p>
   {:else if view.dismissed}
     <p class="dismissed">Dismissed{view.dismissedReason ? `: ${view.dismissedReason}` : ""}</p>
   {/if}
@@ -100,20 +164,51 @@
     margin-right: 0.3rem;
   }
 
-  .reply-card {
+  .quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .quick-reply {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--sidebar);
+    color: var(--muted-foreground);
+    padding: 0.1rem 0.6rem;
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    cursor: pointer;
+    transition:
+      color 120ms ease,
+      border-color 120ms ease,
+      background 120ms ease;
+  }
+
+  .quick-reply:hover {
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .reply {
     display: grid;
     gap: 0.5rem;
-    margin-top: 0.1rem;
+  }
+
+  .reply-field {
+    position: relative;
   }
 
   .reply-input {
+    width: 100%;
     min-height: 4.5rem;
     resize: vertical;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--background);
     color: var(--foreground);
-    padding: 0.55rem 0.65rem;
+    padding: 0.55rem 2.4rem 0.55rem 0.65rem;
     font: inherit;
     font-size: var(--text-sm);
     line-height: 1.4;
@@ -125,6 +220,27 @@
     border-color: var(--primary);
   }
 
+  :global(.reply-mic) {
+    position: absolute;
+    right: 0.4rem;
+    bottom: 0.4rem;
+    border-radius: 999px;
+  }
+
+  :global(.reply-mic.recording) {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent) inset;
+  }
+
+  :global(.spin) {
+    animation: ask-spin 900ms linear infinite;
+  }
+
+  @keyframes ask-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   .actions {
     display: flex;
     justify-content: end;
@@ -132,21 +248,10 @@
     gap: 0.5rem;
   }
 
-  .answer {
-    display: grid;
-    gap: 0.2rem;
-    border: 1px solid color-mix(in oklab, var(--success) 35%, var(--border));
-    border-radius: var(--radius-sm);
-    background: color-mix(in oklab, var(--success) 10%, transparent);
-    padding: 0.45rem 0.6rem;
-  }
-
-  .answer-label {
-    font-family: var(--font-mono);
+  .audio-error {
+    margin: 0;
     font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--success);
+    color: var(--destructive);
   }
 
   .dismissed {

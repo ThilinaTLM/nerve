@@ -20,6 +20,7 @@
     activeProject?: ProjectRecord;
     activeConversation?: ConversationRecord;
     activeAgent?: AgentRecord;
+    pendingConversationActive?: boolean;
     projects?: ProjectRecord[];
     conversations?: ConversationRecord[];
     agents?: AgentRecord[];
@@ -66,6 +67,7 @@
     activeProject,
     activeConversation,
     activeAgent,
+    pendingConversationActive = false,
     approvals = [],
     pendingUserQuestion,
     pendingPlanReview,
@@ -108,6 +110,7 @@
   let followBottom = $state(true);
   let scrollFrame: number | undefined;
 
+  const conversationOpen = $derived(Boolean(activeConversation || pendingConversationActive));
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls, liveState));
   const hasLiveTimelineNodes = $derived(
     timeline.some((node) =>
@@ -175,13 +178,13 @@
 
   $effect(() => {
     const _signature = scrollSignature;
-    if (activeConversation && (sending || hasLiveTimelineNodes)) {
+    if (conversationOpen && (sending || hasLiveTimelineNodes)) {
       scheduleBottomScroll({ force: true, smooth: false });
     }
   });
 
   $effect(() => {
-    const _conversationId = activeConversation?.id;
+    const _conversationId = activeConversation?.id ?? (pendingConversationActive ? "pending" : undefined);
     if (_conversationId) scheduleBottomScroll({ force: true, smooth: false });
   });
 
@@ -242,7 +245,7 @@
 </script>
 
 <section class="conversation-pane">
-  {#if activeConversation}
+  {#if conversationOpen}
     <div bind:this={transcriptEl} class="transcript" aria-live="polite" onscroll={handleTranscriptScroll}>
       {#if timeline.length === 0 && !streamingText && !sending}
         <div class="empty-run">
@@ -322,6 +325,7 @@
       text={composerText}
       {activeProject}
       {activeConversation}
+      {pendingConversationActive}
       {approvals}
       {pendingUserQuestion}
       {pendingPlanReview}

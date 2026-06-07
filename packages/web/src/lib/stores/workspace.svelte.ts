@@ -16,11 +16,10 @@ import {
   type ProjectRecord,
 } from "../api";
 import { queryClient, queryKeys } from "../query";
-import { composerDraft, selection } from "../state/app-state.svelte";
+import { selection } from "../state/app-state.svelte";
 import { modelKey } from "../utils/model";
-import { selectedModel, selectedThinkingLevel } from "./composer-config.svelte";
 import {
-  openConversation,
+  openPendingConversation,
   removeConversationTabs,
 } from "./conversation-flow.svelte";
 import { workbenchState } from "./workbench/state.svelte";
@@ -126,73 +125,6 @@ export function newConversationInProject(projectDir: string) {
   void createConversationForDirectory(projectDir);
 }
 
-function projectDirKey(dir: string): string {
-  return dir.replace(/[\\/]+$/, "") || dir;
-}
-
-function isEmptyConversation(conversation: ConversationRecord): boolean {
-  return !conversation.activeEntryId;
-}
-
-function projectForConversation(
-  conversation: ConversationRecord,
-): ProjectRecord | undefined {
-  return workbenchState.projects.find(
-    (project) => project.id === conversation.projectId,
-  );
-}
-
-function activeEmptyConversation(): ConversationRecord | undefined {
-  const active = workbenchState.conversations.find(
-    (conversation) => conversation.id === selection.conversationId,
-  );
-  return active && isEmptyConversation(active) ? active : undefined;
-}
-
-function emptyConversationForProjectDir(
-  dir: string,
-): ConversationRecord | undefined {
-  const targetKey = projectDirKey(dir);
-  const projectIds = new Set(
-    workbenchState.projects
-      .filter((project) => projectDirKey(project.dir) === targetKey)
-      .map((project) => project.id),
-  );
-  return workbenchState.conversations.find(
-    (conversation) =>
-      projectIds.has(conversation.projectId) &&
-      isEmptyConversation(conversation),
-  );
-}
-
-async function handleExistingEmptyConversation(dir: string): Promise<boolean> {
-  const targetKey = projectDirKey(dir);
-  const active = activeEmptyConversation();
-  const activeProject = active ? projectForConversation(active) : undefined;
-  if (
-    active &&
-    activeProject &&
-    projectDirKey(activeProject.dir) !== targetKey
-  ) {
-    toast.message("Use or delete the empty conversation first", {
-      description:
-        "The active conversation has no messages yet, so Nerve will not create another empty conversation.",
-    });
-    return true;
-  }
-
-  const empty = emptyConversationForProjectDir(dir);
-  if (!empty) return false;
-
-  const project = projectForConversation(empty);
-  await openConversation(empty.id);
-  workbenchState.projectPickerOpen = false;
-  toast.message("Opened existing empty conversation", {
-    description: project?.dir,
-  });
-  return true;
-}
-
 export async function deleteProjectAndRefresh(projectId: string) {
   try {
     const conversationIds = workbenchState.conversations
@@ -227,39 +159,19 @@ export async function deleteConversationAndRefresh(conversationId: string) {
 export async function createConversationForDirectory(dir: string) {
   workbenchState.error = undefined;
   try {
-    if (await handleExistingEmptyConversation(dir)) return;
     const { project } = await apiPost<{ project: ProjectRecord }>(
       "/api/projects",
-      {
-        dir,
-      },
+      { dir },
     );
-    const { conversation } = await apiPost<{
-      conversation: ConversationRecord;
-    }>("/api/conversations", {
-      projectId: project.id,
-      title: "New Conversation",
-      mode: workbenchState.selectedMode,
-      permissionLevel: workbenchState.selectedPermissionLevel,
-    });
-    const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
-      projectId: project.id,
-      conversationId: conversation.id,
-      model: selectedModel(),
-      thinkingLevel: selectedThinkingLevel(),
-      mode: workbenchState.selectedMode,
-      permissionLevel: workbenchState.selectedPermissionLevel,
-    });
-    selection.projectId = project.id;
-    selection.conversationId = conversation.id;
-    selection.entryId = conversation.activeEntryId;
-    selection.agentId = agent.id;
-    composerDraft.projectDir = project.dir;
+    workbenchState.projects = [
+      project,
+      ...workbenchState.projects.filter(
+        (candidate) => candidate.id !== project.id,
+      ),
+    ];
     workbenchState.projectPickerOpen = false;
-    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-    await loadWorkspaceState();
-    await openConversation(conversation.id);
-    toast.success("Project opened", { description: project.dir });
+    openPendingConversation(project);
+    toast.success("New conversation ready", { description: project.dir });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workbenchState.error = message;

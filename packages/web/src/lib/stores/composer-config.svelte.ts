@@ -78,6 +78,14 @@ export async function setComposerModel(key: string) {
     selectedModelInfo(),
   );
   workbenchState.selectedThinkingLevel = thinkingLevel;
+  const pending =
+    workbenchState.activeCenterTab?.kind === "pending-conversation"
+      ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
+      : undefined;
+  if (pending) {
+    pending.selectedModelKey = key;
+    pending.thinkingLevel = thinkingLevel;
+  }
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, {
     model: selectedModel() ?? null,
@@ -101,6 +109,11 @@ export async function setComposerThinkingLevel(
 ) {
   const thinkingLevel = clampThinkingLevelForModel(level, selectedModelInfo());
   workbenchState.selectedThinkingLevel = thinkingLevel;
+  const pending =
+    workbenchState.activeCenterTab?.kind === "pending-conversation"
+      ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
+      : undefined;
+  if (pending) pending.thinkingLevel = thinkingLevel;
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, { thinkingLevel });
   workbenchState.selectedThinkingLevel = agent.thinkingLevel;
@@ -111,6 +124,11 @@ export async function setComposerThinkingLevel(
 
 export async function setComposerMode(mode: AgentRecord["mode"]) {
   workbenchState.selectedMode = mode;
+  const pending =
+    workbenchState.activeCenterTab?.kind === "pending-conversation"
+      ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
+      : undefined;
+  if (pending) pending.mode = mode;
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, { mode });
   workbenchState.agents = workbenchState.agents.map((candidate) =>
@@ -122,6 +140,11 @@ export async function setComposerPermission(
   permissionLevel: AgentRecord["permissionLevel"],
 ) {
   workbenchState.selectedPermissionLevel = permissionLevel;
+  const pending =
+    workbenchState.activeCenterTab?.kind === "pending-conversation"
+      ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
+      : undefined;
+  if (pending) pending.permissionLevel = permissionLevel;
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, { permissionLevel });
   workbenchState.agents = workbenchState.agents.map((candidate) =>

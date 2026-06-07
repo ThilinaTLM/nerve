@@ -112,6 +112,13 @@ export async function selectCenterTab(tab: CenterTabIdentity | undefined) {
       await openConversation(tab.id);
       return;
     }
+    case "pending-conversation": {
+      const { selectPendingConversation } = await import(
+        "../conversation-flow.svelte"
+      );
+      selectPendingConversation(tab.id);
+      return;
+    }
     case "process": {
       const { selectCenterProcessTab } = await import("./process-tabs.svelte");
       await selectCenterProcessTab(tab.id);
@@ -137,6 +144,13 @@ export async function closeCenterTab(tab: CenterTabIdentity) {
         "../conversation-flow.svelte"
       );
       await closeConversationTab(tab.id);
+      return;
+    }
+    case "pending-conversation": {
+      const { closePendingConversationTab } = await import(
+        "../conversation-flow.svelte"
+      );
+      await closePendingConversationTab(tab.id);
       return;
     }
     case "process": {

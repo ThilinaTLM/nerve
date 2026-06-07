@@ -91,8 +91,24 @@ export type ConversationViewState = {
   loading: boolean;
 };
 
+export type PendingConversationState = {
+  id: string;
+  projectId: string;
+  projectDir: string;
+  title: "New Conversation";
+  composerText: string;
+  selectedModelKey: string;
+  thinkingLevel: AgentRecord["thinkingLevel"];
+  mode: AgentRecord["mode"];
+  permissionLevel: AgentRecord["permissionLevel"];
+  sending: boolean;
+  error?: string;
+  createdAt: string;
+};
+
 export type CenterTabIdentity =
   | { kind: "conversation"; id: string }
+  | { kind: "pending-conversation"; id: string }
   | { kind: "process"; id: string }
   | { kind: "file"; id: string }
   | { kind: "settings"; id: "settings" };
@@ -132,6 +148,7 @@ export const workbenchState = $state({
   activeConversationTabId: undefined as string | undefined,
   activeCenterTab: undefined as CenterTabIdentity | undefined,
   conversationViews: {} as Record<string, ConversationViewState>,
+  pendingConversations: {} as Record<string, PendingConversationState>,
   fileViews: {} as Record<string, FileViewState>,
   transcript: [] as TranscriptItem[],
   streamingText: "",

@@ -123,21 +123,25 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    min-height: 1.4rem;
-    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    border-radius: 999px;
-    background: var(--input);
+    height: 100%;
     color: var(--muted-foreground);
-    padding: 0 0.5rem;
+    padding: 0 0.6rem;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     font-weight: 600;
   }
 
+  :global(.status-trigger-wrap) {
+    height: 100%;
+  }
+
+  :global(.status-trigger-wrap:hover),
+  :global(.status-trigger-wrap[data-state="open"]) {
+    background: var(--accent);
+  }
+
   :global(.status-trigger-wrap:hover) .status-trigger,
   :global(.status-trigger-wrap[data-state="open"]) .status-trigger {
-    border-color: var(--border);
-    background: var(--accent);
     color: var(--foreground);
   }
 

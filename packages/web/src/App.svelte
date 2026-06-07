@@ -109,6 +109,7 @@
   const activeProject = $derived(workbenchSelectors.activeProject);
   const activeConversation = $derived(workbenchSelectors.activeConversation);
   const activeAgent = $derived(workbenchSelectors.activeAgent);
+  const pendingConversationActive = $derived(workbenchSelectors.pendingConversationActive);
   const live = $derived(workbenchSelectors.live);
   const branchDepth = $derived(workbenchSelectors.branchDepth);
   const gitStatus = $derived(workbenchSelectors.gitStatus);
@@ -139,6 +140,7 @@
 
   function refreshCenterTab(tab: CenterTabIdentity) {
     if (tab.kind === "conversation") void refreshConversationView(tab.id);
+    else if (tab.kind === "pending-conversation") void selectCenterTab(tab);
     else if (tab.kind === "process") void selectCenterTab(tab);
     else if (tab.kind === "file") void refreshFilePane(tab.id);
     else void loadSettingsPanel();
@@ -250,6 +252,7 @@
                 {activeProject}
                 {activeConversation}
                 {activeAgent}
+                {pendingConversationActive}
                 {projects}
                 {conversations}
                 {agents}
@@ -308,6 +311,7 @@
                 {activeAgent}
                 {conversationAgents}
                 {treeNodes}
+                {toolCalls}
                 {processes}
                 {selectedProcess}
                 homeDir={status?.storage.home}
@@ -318,6 +322,13 @@
                 onNavigateToEntry={(entryId, summarize) => {
                   layout.utilityTab = "history";
                   void navigateToEntry(entryId, summarize);
+                }}
+                onEditEntry={(entry) => {
+                  layout.utilityTab = "history";
+                  void (async () => {
+                    await navigateToEntry(entry.parentEntryId);
+                    setActiveComposerText(entry.text);
+                  })();
                 }}
                 onCompact={() => {
                   layout.utilityTab = "history";

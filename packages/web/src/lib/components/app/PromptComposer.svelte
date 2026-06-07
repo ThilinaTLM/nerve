@@ -7,7 +7,6 @@
   import Square from "@lucide/svelte/icons/square";
   import Zap from "@lucide/svelte/icons/zap";
   import {
-    transcribeAudio,
     uploadClipboardImage,
     type AgentRecord,
     type ApprovalWithToolCall,
@@ -19,7 +18,7 @@
     type ConversationRecord,
     type UserQuestionRecord,
   } from "../../api";
-  import { PcmWavRecorder, type WavRecordingResult } from "../../audio/wav-recorder";
+  import { TranscriptionController } from "../../audio/transcription-controller.svelte";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
   import { Button } from "$lib/components/ui/button";
   import Popover from "$lib/components/ui/popover-panel";
@@ -36,6 +35,7 @@
     text?: string;
     activeProject?: ProjectRecord;
     activeConversation?: ConversationRecord;
+    pendingConversationActive?: boolean;
     approvals?: ApprovalWithToolCall[];
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
@@ -66,6 +66,7 @@
     text = "",
     activeProject,
     activeConversation,
+    pendingConversationActive = false,
     approvals = [],
     pendingUserQuestion,
     pendingPlanReview,
@@ -92,23 +93,28 @@
     onDenyApproval,
   }: Props = $props();
 
-  let recording = $state(false);
-  let transcribing = $state(false);
-  let audioError = $state<string | undefined>();
-  let audioRecorder: PcmWavRecorder | undefined;
-  let stoppingRecording = $state(false);
+  function appendTranscript(transcript: string) {
+    const trimmed = transcript.trim();
+    if (!trimmed) return;
+    const separator = text.trim() ? (/[\s\n]$/.test(text) ? "" : "\n\n") : "";
+    onChange?.(`${text}${separator}${trimmed}`);
+  }
+
+  const transcription = new TranscriptionController({ onTranscript: appendTranscript });
+  const recording = $derived(transcription.recording);
+  const transcribing = $derived(transcription.transcribing);
+  const audioError = $derived(transcription.error);
 
   const pendingApproval = $derived(approvals.length > 0);
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
   const pendingPlan = $derived(Boolean(pendingPlanReview));
   const blockedForReview = $derived(pendingApproval || pendingQuestion || pendingPlan);
-  const canPrompt = $derived(Boolean(activeProject && activeConversation && live && models.length > 0 && !blockedForReview));
+  const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && live && models.length > 0 && !blockedForReview));
   const editorDisabled = $derived(sending || !canPrompt);
   const submitDisabled = $derived(!canPrompt);
-  const supportsAudioRecording = $derived(PcmWavRecorder.isSupported());
+  const supportsAudioRecording = $derived(TranscriptionController.isSupported());
   const micDisabled = $derived(
-    transcribing ||
-      stoppingRecording ||
+    transcription.pending ||
       (!recording && (!canPrompt || sending || !supportsAudioRecording)),
   );
   const displayedError = $derived(error ?? audioError);
@@ -121,8 +127,8 @@
     return uploadClipboardImage(file);
   }
 
-  const controlsDisabled = $derived(!activeConversation || sending || blockedForReview);
-  const modeDisabled = $derived(!activeConversation);
+  const controlsDisabled = $derived(!(activeConversation || pendingConversationActive) || sending || blockedForReview);
+  const modeDisabled = $derived(!(activeConversation || pendingConversationActive));
   const modelDisabled = $derived(controlsDisabled || models.length === 0);
 
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
@@ -155,71 +161,12 @@
     permissionOpen = false;
   }
 
-  function appendTranscript(transcript: string) {
-    const trimmed = transcript.trim();
-    if (!trimmed) return;
-    const separator = text.trim() ? (/[\s\n]$/.test(text) ? "" : "\n\n") : "";
-    onChange?.(`${text}${separator}${trimmed}`);
-  }
-
-  async function transcribeRecording(result: WavRecordingResult) {
-    transcribing = true;
-    audioError = undefined;
-    try {
-      appendTranscript(await transcribeAudio(result.blob, result.durationMs));
-    } catch (err) {
-      audioError = err instanceof Error ? err.message : String(err);
-    } finally {
-      transcribing = false;
-    }
-  }
-
-  async function startRecording() {
-    if (!supportsAudioRecording) {
-      audioError = "Audio recording is not supported in this browser.";
-      return;
-    }
-    audioError = undefined;
-    try {
-      const recorder = new PcmWavRecorder();
-      await recorder.start();
-      audioRecorder = recorder;
-      recording = true;
-    } catch (err) {
-      await audioRecorder?.cancel();
-      audioRecorder = undefined;
-      recording = false;
-      audioError = err instanceof Error ? err.message : String(err);
-    }
-  }
-
-  async function stopRecording() {
-    if (!audioRecorder || stoppingRecording) return;
-    const recorder = audioRecorder;
-    stoppingRecording = true;
-    audioRecorder = undefined;
-    try {
-      const result = await recorder.stop();
-      recording = false;
-      await transcribeRecording(result);
-    } catch (err) {
-      recording = false;
-      audioError = err instanceof Error ? err.message : String(err);
-    } finally {
-      stoppingRecording = false;
-    }
-  }
-
   function toggleRecording() {
-    if (recording) {
-      void stopRecording();
-    } else {
-      void startRecording();
-    }
+    transcription.toggle();
   }
 
   onDestroy(() => {
-    void audioRecorder?.cancel();
+    void transcription.cancel();
   });
 </script>
 

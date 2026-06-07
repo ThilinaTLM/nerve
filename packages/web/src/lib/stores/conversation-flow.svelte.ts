@@ -1,3 +1,4 @@
+import { deriveConversationTitle } from "@nerve/shared";
 import { toast } from "svelte-sonner";
 import {
   type AgentRecord,
@@ -7,6 +8,7 @@ import {
   apiPost,
   type ConversationRecord,
   compactConversation,
+  deleteConversation,
   discardPlanReview,
   dismissUserQuestion as dismissUserQuestionRequest,
   getConversationSnapshot,
@@ -36,6 +38,7 @@ import {
   addCenterTab,
   nextCenterTabAfterClose,
   removeCenterTab,
+  replaceCenterTab,
   replaceOpenCenterTabs,
   selectCenterTab,
   setActiveCenterTab,
@@ -49,7 +52,10 @@ import {
   activeRunToLegacyLive,
   liveTextFromLegacyLive,
 } from "./workbench/live";
-import type { ConversationViewState } from "./workbench/state.svelte";
+import type {
+  ConversationViewState,
+  PendingConversationState,
+} from "./workbench/state.svelte";
 import { workbenchState } from "./workbench/state.svelte";
 import { entriesToTranscript } from "./workbench/transcript";
 import { loadWorkspaceState } from "./workspace.svelte";
@@ -87,6 +93,27 @@ function persistConversationTabs() {
 function addConversationTab(conversationId: string) {
   addCenterTab({ kind: "conversation", id: conversationId });
   ensureConversationView(conversationId);
+}
+
+let pendingConversationCounter = 0;
+
+function createPendingConversationId(): string {
+  pendingConversationCounter += 1;
+  return `pending_${Date.now().toString(36)}_${pendingConversationCounter.toString(36)}`;
+}
+
+function activePendingConversation(): PendingConversationState | undefined {
+  const active = workbenchState.activeCenterTab;
+  if (active?.kind !== "pending-conversation") return undefined;
+  return workbenchState.pendingConversations[active.id];
+}
+
+function clearTranscriptState() {
+  workbenchState.treeNodes = [];
+  workbenchState.transcript = [];
+  workbenchState.streamingText = "";
+  workbenchState.sending = false;
+  workbenchState.error = undefined;
 }
 
 function agentForConversation(
@@ -137,11 +164,7 @@ async function applyActiveConversationSelection(
 function clearActiveSelection() {
   resetSelection();
   workbenchState.activeConversationTabId = undefined;
-  workbenchState.treeNodes = [];
-  workbenchState.transcript = [];
-  workbenchState.streamingText = "";
-  workbenchState.sending = false;
-  workbenchState.error = undefined;
+  clearTranscriptState();
   composerDraft.text = "";
 }
 
@@ -178,6 +201,42 @@ export async function refreshConversationView(conversationId: string) {
   } finally {
     view.loading = false;
   }
+}
+
+export function openPendingConversation(project: ProjectRecord) {
+  const id = createPendingConversationId();
+  workbenchState.pendingConversations[id] = {
+    id,
+    projectId: project.id,
+    projectDir: project.dir,
+    title: "New Conversation",
+    composerText: "",
+    selectedModelKey: workbenchState.selectedModelKey,
+    thinkingLevel: workbenchState.selectedThinkingLevel,
+    mode: workbenchState.selectedMode,
+    permissionLevel: workbenchState.selectedPermissionLevel,
+    sending: false,
+    createdAt: new Date().toISOString(),
+  };
+  addCenterTab({ kind: "pending-conversation", id });
+  selectPendingConversation(id);
+}
+
+export function selectPendingConversation(pendingId: string) {
+  const pending = workbenchState.pendingConversations[pendingId];
+  if (!pending) return;
+  setActiveCenterTab({ kind: "pending-conversation", id: pending.id });
+  workbenchState.activeConversationTabId = undefined;
+  resetSelection();
+  selection.projectId = pending.projectId;
+  composerDraft.projectDir = pending.projectDir;
+  workbenchState.selectedModelKey = pending.selectedModelKey;
+  workbenchState.selectedThinkingLevel = pending.thinkingLevel;
+  workbenchState.selectedMode = pending.mode;
+  workbenchState.selectedPermissionLevel = pending.permissionLevel;
+  clearTranscriptState();
+  workbenchState.sending = pending.sending;
+  workbenchState.error = pending.error;
 }
 
 export async function openConversation(conversationId: string) {
@@ -220,6 +279,11 @@ export async function restoreConversationTabs() {
 }
 
 export function setActiveComposerText(value: string) {
+  const pending = activePendingConversation();
+  if (pending) {
+    pending.composerText = value;
+    return;
+  }
   if (!selection.conversationId) {
     composerDraft.text = value;
     return;
@@ -255,6 +319,23 @@ export async function closeConversationTab(conversationId: string) {
   if (closingActiveCenter) {
     await selectCenterTab(fallback);
   }
+}
+
+export async function closePendingConversationTab(pendingId: string) {
+  const pending = workbenchState.pendingConversations[pendingId];
+  if (!pending) return;
+  const tab = { kind: "pending-conversation" as const, id: pendingId };
+  const fallback = nextCenterTabAfterClose(tab);
+  const closingActiveCenter =
+    workbenchState.activeCenterTab?.kind === "pending-conversation" &&
+    workbenchState.activeCenterTab.id === pendingId;
+  removeCenterTab(tab);
+  delete workbenchState.pendingConversations[pendingId];
+  if (closingActiveCenter) {
+    clearActiveSelection();
+    await selectCenterTab(fallback);
+  }
+  persistConversationTabs();
 }
 
 export async function removeConversationTabs(conversationIds: string[]) {
@@ -317,6 +398,7 @@ export function clearConversationState() {
   workbenchState.activeConversationTabId = undefined;
   workbenchState.activeCenterTab = undefined;
   workbenchState.conversationViews = {};
+  workbenchState.pendingConversations = {};
   workbenchState.fileViews = {};
   clearActiveSelection();
   persistConversationTabs();
@@ -446,16 +528,141 @@ export async function abortActiveRun() {
   workbenchState.streamingText = "";
 }
 
+function hasUsableModel(): boolean {
+  return (
+    scopedUsableModelOptions(
+      workbenchState.models,
+      workbenchState.authProviders,
+      workbenchState.settingsDraft?.scopedModels,
+    ).length > 0
+  );
+}
+
+function upsertConversationRecord(conversation: ConversationRecord): void {
+  workbenchState.conversations = [
+    conversation,
+    ...workbenchState.conversations.filter(
+      (candidate) => candidate.id !== conversation.id,
+    ),
+  ];
+}
+
+function upsertAgentRecord(agent: AgentRecord): void {
+  workbenchState.agents = [
+    agent,
+    ...workbenchState.agents.filter((candidate) => candidate.id !== agent.id),
+  ];
+}
+
+async function sendPendingPrompt(
+  pending: PendingConversationState,
+  text: string,
+): Promise<void> {
+  if (!hasUsableModel()) {
+    void openSettingsPane();
+    pending.error =
+      "Configure a model provider or adjust Scoped Models in Settings before prompting.";
+    workbenchState.error = pending.error;
+    return;
+  }
+
+  pending.selectedModelKey = workbenchState.selectedModelKey;
+  pending.thinkingLevel = selectedThinkingLevel();
+  pending.mode = workbenchState.selectedMode;
+  pending.permissionLevel = workbenchState.selectedPermissionLevel;
+  pending.sending = true;
+  pending.error = undefined;
+  workbenchState.sending = true;
+  workbenchState.error = undefined;
+  workbenchState.streamingText = "";
+
+  let view: ConversationViewState | undefined;
+  let createdConversationId: string | undefined;
+  try {
+    const { conversation } = await apiPost<{
+      conversation: ConversationRecord;
+    }>("/api/conversations", {
+      projectId: pending.projectId,
+      title: deriveConversationTitle(text),
+      mode: pending.mode,
+      permissionLevel: pending.permissionLevel,
+    });
+    createdConversationId = conversation.id;
+    const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
+      projectId: pending.projectId,
+      conversationId: conversation.id,
+      model: selectedModel(),
+      thinkingLevel: pending.thinkingLevel,
+      mode: pending.mode,
+      permissionLevel: pending.permissionLevel,
+    });
+
+    upsertConversationRecord(conversation);
+    upsertAgentRecord(agent);
+    replaceCenterTab(
+      { kind: "pending-conversation", id: pending.id },
+      { kind: "conversation", id: conversation.id },
+    );
+    delete workbenchState.pendingConversations[pending.id];
+    workbenchState.activeConversationTabId = conversation.id;
+    selection.projectId = conversation.projectId;
+    selection.conversationId = conversation.id;
+    selection.entryId = conversation.activeEntryId;
+    selection.agentId = agent.id;
+    composerDraft.projectDir = pending.projectDir;
+    view = ensureConversationView(conversation.id);
+    view.sending = true;
+    view.error = undefined;
+    view.streamingText = "";
+    view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
+    view.transcript = [{ role: "user", text, optimistic: true }];
+    view.composerText = "";
+    workbenchState.transcript = view.transcript;
+    workbenchState.treeNodes = [];
+    workbenchState.streamingText = "";
+    workbenchState.error = undefined;
+    composerDraft.text = "";
+    persistConversationTabs();
+    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+    await loadWorkspaceState();
+    await apiPost(`/api/agents/${agent.id}/prompt`, { text });
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    if (view) {
+      view.error = message;
+      view.sending = false;
+    } else {
+      if (createdConversationId)
+        await deleteConversation(createdConversationId).catch(() => undefined);
+      pending.error = message;
+      pending.sending = false;
+    }
+    workbenchState.error = message;
+    workbenchState.sending = false;
+  }
+}
+
 export async function sendPrompt() {
+  const pending = activePendingConversation();
   const view = selection.conversationId
     ? ensureConversationView(selection.conversationId)
     : undefined;
-  const text = (view?.composerText ?? composerDraft.text).trim();
-  if (!text || view?.sending || workbenchState.sending) return;
+  const text = (
+    pending?.composerText ??
+    view?.composerText ??
+    composerDraft.text
+  ).trim();
+  if (!text || pending?.sending || view?.sending || workbenchState.sending)
+    return;
   if (text === "/abort") {
+    if (pending) pending.composerText = "";
     if (view) view.composerText = "";
     composerDraft.text = "";
     await abortActiveRun();
+    return;
+  }
+  if (pending) {
+    await sendPendingPrompt(pending, text);
     return;
   }
   if (!selection.projectId || !selection.conversationId || !view) {
@@ -464,13 +671,7 @@ export async function sendPrompt() {
       "Select a project directory before starting a conversation.";
     return;
   }
-  if (
-    scopedUsableModelOptions(
-      workbenchState.models,
-      workbenchState.authProviders,
-      workbenchState.settingsDraft?.scopedModels,
-    ).length === 0
-  ) {
+  if (!hasUsableModel()) {
     void openSettingsPane();
     view.error =
       "Configure a model provider or adjust Scoped Models in Settings before prompting.";

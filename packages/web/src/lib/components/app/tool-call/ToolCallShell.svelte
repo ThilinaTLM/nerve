@@ -9,7 +9,6 @@
     toolCall: ToolCallRecord;
     presentation: ToolPresentation;
     bodyMode?: "output" | "interactive";
-    pending?: boolean;
     expanded?: boolean;
     onOpenFile?: (path: string, line?: number) => void;
     children?: Snippet;
@@ -18,7 +17,6 @@
     toolCall,
     presentation,
     bodyMode = "output",
-    pending = false,
     expanded = $bindable(false),
     onOpenFile,
     children,
@@ -32,10 +30,9 @@
       ? trimTextPreview(toolCall.error, { headLines: 18, tailLines: 6, maxChars: 6_000 }).text
       : "",
   );
-  const attention = $derived(pending && bodyMode === "interactive");
 </script>
 
-<article class={`tool-card status-${toolCall.status}`} class:attention>
+<article class={`tool-card status-${toolCall.status}`}>
   <div class="tool-header">
     <StatusDot tone={presentation.dotTone} pulse={presentation.dotPulse} size="xs" />
     <span class="badge">{presentation.badge}</span>
@@ -82,13 +79,6 @@
     gap: 0.4rem;
     width: 100%;
     padding: 0.6rem 0.75rem;
-  }
-
-  .tool-card.attention {
-    border-radius: var(--radius-md);
-    outline: 1.5px solid color-mix(in oklab, var(--warning) 55%, transparent);
-    outline-offset: -1.5px;
-    background: color-mix(in oklab, var(--warning) 5%, transparent);
   }
 
   /* Inline flow so a long arg wraps flush to the left edge (no hanging indent). */

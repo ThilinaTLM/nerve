@@ -124,6 +124,10 @@ export async function closeCenterTabs(
         centerTabKey({ kind: "conversation", id: selection.conversationId }),
       ),
   );
+  const activePendingWasClosed = Boolean(
+    workbenchState.activeCenterTab?.kind === "pending-conversation" &&
+      targets.has(centerTabKey(workbenchState.activeCenterTab)),
+  );
   const fallback = tabIsInList(fallbackPreferred, remainingTabs)
     ? fallbackPreferred
     : nearestRemainingTab(originalTabs, remainingTabs, closingIndices);
@@ -135,6 +139,8 @@ export async function closeCenterTabs(
     if (tab.kind === "file") delete workbenchState.fileViews[tab.id];
     if (tab.kind === "conversation")
       delete workbenchState.conversationViews[tab.id];
+    if (tab.kind === "pending-conversation")
+      delete workbenchState.pendingConversations[tab.id];
   }
 
   if (
@@ -168,7 +174,11 @@ export async function closeCenterTabs(
         : remainingConversationIds[0];
   }
 
-  if (selectedConversationWasClosed && fallback?.kind !== "conversation") {
+  if (
+    (selectedConversationWasClosed || activePendingWasClosed) &&
+    fallback?.kind !== "conversation" &&
+    fallback?.kind !== "pending-conversation"
+  ) {
     resetConversationSelection();
   }
 

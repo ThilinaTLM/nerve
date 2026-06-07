@@ -39,8 +39,6 @@
       ? "interactive"
       : "output",
   );
-  const pending = $derived(toolCall.status === "waiting_for_user");
-
   const toolQuestion = $derived(
     pendingUserQuestion?.toolCallId === toolCall.id ? pendingUserQuestion : undefined,
   );
@@ -49,7 +47,7 @@
   );
 </script>
 
-<ToolCallShell {toolCall} {presentation} {bodyMode} {pending} {onOpenFile} bind:expanded>
+<ToolCallShell {toolCall} {presentation} {bodyMode} {onOpenFile} bind:expanded>
   <ToolView
     {toolCall}
     {view}

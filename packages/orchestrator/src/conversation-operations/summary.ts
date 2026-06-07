@@ -4,6 +4,8 @@ import {
   serializeConversation,
 } from "@nerve/agent";
 
+export { deriveConversationTitle } from "@nerve/shared";
+
 export interface ExtractiveSummaryInput {
   title: string;
   messages: AgentMessage[];
@@ -53,10 +55,4 @@ export function buildExtractiveSummary(input: ExtractiveSummaryInput): string {
 export function truncateText(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars)}\n\n[…${text.length - maxChars} more characters truncated]`;
-}
-
-export function deriveConversationTitle(text: string): string {
-  const firstLine = text.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
-  if (!firstLine) return "";
-  return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
 }

@@ -143,15 +143,15 @@
 <style>
   .footerbar {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0;
     height: 1.75rem;
     min-width: 0;
     border-top: 1px solid var(--border);
     background: var(--sidebar);
     color: var(--muted-foreground);
-    padding: 0 0.4rem 0 0.3rem;
+    padding: 0;
     font-size: var(--text-xs);
     user-select: none;
   }
@@ -159,13 +159,27 @@
   .footer-group {
     display: flex;
     align-items: center;
+    height: 100%;
     min-width: 0;
     gap: 0.4rem;
+    padding-left: 0.15rem;
   }
 
   .footer-right {
     flex: none;
-    gap: 0.55rem;
+    gap: 0;
+    padding-left: 0;
+  }
+
+  .footer-right > :global(*) {
+    display: inline-flex;
+    align-items: center;
+    height: 100%;
+    border-left: 1px solid var(--border);
+  }
+
+  .footer-right > :global(*:first-child) {
+    border-left: 0;
   }
 
   .footer-path {
@@ -182,6 +196,8 @@
     align-items: center;
     flex: none;
     gap: 0.3rem;
+    height: 100%;
+    padding: 0 0.6rem;
   }
 
   .footer-chip :global(svg) {

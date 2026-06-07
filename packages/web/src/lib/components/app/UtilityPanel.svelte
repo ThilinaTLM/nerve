@@ -1,11 +1,13 @@
 <script lang="ts">
   import type {
     AgentRecord,
+    ConversationEntry,
     ProcessRecord,
     ProjectRecord,
     ConversationRecord,
     ConversationTreeNode,
     StatusResponse,
+    ToolCallRecord,
   } from "../../api";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import Tabs, { type TabItem } from "$lib/components/ui/tabs-bar";
@@ -24,6 +26,7 @@
     activeAgent?: AgentRecord;
     conversationAgents?: AgentRecord[];
     treeNodes?: ConversationTreeNode[];
+    toolCalls?: ToolCallRecord[];
     processes?: ProcessRecord[];
     selectedProcess?: ProcessRecord;
     homeDir?: string;
@@ -32,6 +35,7 @@
     onTabChange?: (tab: UtilityTab) => void;
     onSelectAgent?: (agent: AgentRecord) => void;
     onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
+    onEditEntry?: (entry: ConversationEntry) => void;
     onCompact?: () => void;
     onOpenProcessOutput?: (id: string) => void;
     onStopProcess?: (id: string) => void;
@@ -48,6 +52,7 @@
     activeAgent,
     conversationAgents = [],
     treeNodes = [],
+    toolCalls = [],
     processes = [],
     selectedProcess,
     homeDir,
@@ -56,6 +61,7 @@
     onTabChange,
     onSelectAgent,
     onNavigateToEntry,
+    onEditEntry,
     onCompact,
     onOpenProcessOutput,
     onStopProcess,
@@ -105,7 +111,7 @@
         {onPruneProcesses}
       />
     {:else}
-      <HistoryTab {activeConversation} {treeNodes} {onNavigateToEntry} {onCompact} />
+      <HistoryTab {activeConversation} {treeNodes} {toolCalls} {onNavigateToEntry} {onEditEntry} {onCompact} />
     {/if}
   </ScrollArea>
 </aside>

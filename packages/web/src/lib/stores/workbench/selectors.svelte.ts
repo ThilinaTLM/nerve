@@ -23,6 +23,18 @@ export type ConversationTabModel = {
   error?: string;
 };
 
+export type PendingConversationTabModel = {
+  kind: "pending-conversation";
+  id: string;
+  title: "New Conversation";
+  project?: ProjectRecord;
+  projectDir: string;
+  active: boolean;
+  hasDraft: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type ProcessTabModel = {
   kind: "process";
   id: string;
@@ -53,6 +65,7 @@ export type SettingsTabModel = {
 
 export type CenterTabModel =
   | ConversationTabModel
+  | PendingConversationTabModel
   | ProcessTabModel
   | FileTabModel
   | SettingsTabModel;
@@ -62,6 +75,12 @@ function activeView(): ConversationViewState | undefined {
     selection.conversationId ?? workbenchState.activeConversationTabId;
   if (!conversationId) return undefined;
   return workbenchState.conversationViews[conversationId];
+}
+
+function activePendingConversation() {
+  const active = workbenchState.activeCenterTab;
+  if (active?.kind !== "pending-conversation") return undefined;
+  return workbenchState.pendingConversations[active.id];
 }
 
 function activeTabMatches(
@@ -94,10 +113,16 @@ export const workbenchSelectors = {
     return workbenchState.connection;
   },
   get error() {
-    return activeView()?.error ?? workbenchState.error;
+    return (
+      activePendingConversation()?.error ??
+      activeView()?.error ??
+      workbenchState.error
+    );
   },
   get sending() {
-    return activeView()?.sending ?? false;
+    return (
+      activePendingConversation()?.sending ?? activeView()?.sending ?? false
+    );
   },
   get projects() {
     return workbenchState.projects;
@@ -160,7 +185,11 @@ export const workbenchSelectors = {
     return activeView()?.live;
   },
   get activeComposerText() {
-    return activeView()?.composerText ?? "";
+    return (
+      activePendingConversation()?.composerText ??
+      activeView()?.composerText ??
+      ""
+    );
   },
   get slashCompletions() {
     return workbenchState.slashCompletions;
@@ -190,9 +219,15 @@ export const workbenchSelectors = {
     return workbenchState.settingsMessage;
   },
   get activeProject() {
-    return workbenchState.projects.find(
-      (project) => project.id === selection.projectId,
-    );
+    const pending = activePendingConversation();
+    const projectId = pending?.projectId ?? selection.projectId;
+    return workbenchState.projects.find((project) => project.id === projectId);
+  },
+  get activePendingConversation() {
+    return activePendingConversation();
+  },
+  get pendingConversationActive() {
+    return Boolean(activePendingConversation());
   },
   get activeConversation() {
     return workbenchState.conversations.find(
@@ -235,6 +270,28 @@ export const workbenchSelectors = {
         error:
           view?.error ??
           (agent?.status === "error" ? "Agent error" : undefined),
+      });
+    }
+    return tabs;
+  },
+  get openPendingConversationTabs(): PendingConversationTabModel[] {
+    const tabs: PendingConversationTabModel[] = [];
+    for (const tab of workbenchState.openCenterTabs) {
+      if (tab.kind !== "pending-conversation") continue;
+      const pending = workbenchState.pendingConversations[tab.id];
+      if (!pending) continue;
+      tabs.push({
+        kind: "pending-conversation",
+        id: pending.id,
+        title: pending.title,
+        project: workbenchState.projects.find(
+          (candidate) => candidate.id === pending.projectId,
+        ),
+        projectDir: pending.projectDir,
+        active: activeTabMatches("pending-conversation", pending.id),
+        hasDraft: Boolean(pending.composerText.trim()),
+        sending: pending.sending,
+        error: pending.error,
       });
     }
     return tabs;
@@ -293,6 +350,11 @@ export const workbenchSelectors = {
     for (const tab of workbenchState.openCenterTabs) {
       if (tab.kind === "conversation") {
         const model = this.openConversationTabs.find(
+          (candidate) => candidate.id === tab.id,
+        );
+        if (model) models.push(model);
+      } else if (tab.kind === "pending-conversation") {
+        const model = this.openPendingConversationTabs.find(
           (candidate) => candidate.id === tab.id,
         );
         if (model) models.push(model);
