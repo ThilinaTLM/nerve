@@ -3,6 +3,7 @@
   import Code2 from "@lucide/svelte/icons/code-2";
   import Copy from "@lucide/svelte/icons/copy";
   import FileText from "@lucide/svelte/icons/file-text";
+  import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
   import Plus from "@lucide/svelte/icons/plus";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Settings from "@lucide/svelte/icons/settings";
@@ -52,6 +53,7 @@
   function tabLabel(tab: CenterTabModel): string {
     if (tab.kind === "process") return tab.process?.name ?? tab.process?.command ?? tab.id;
     if (tab.kind === "file") return tab.file?.name ?? tab.relativePath?.split("/").pop() ?? tab.path?.split("/").pop() ?? "File";
+    if (tab.kind === "pr") return `#${tab.number}`;
     if (tab.kind === "settings") return "Settings";
     if (tab.kind === "pending-conversation") return tab.title;
     return tab.conversation.title;
@@ -63,6 +65,7 @@
       return `${tab.process.name ?? tab.process.command} · ${tab.process.status} · ${shortenPath(tab.process.cwd, homeDir)} · ${tab.process.id}`;
     }
     if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
+    if (tab.kind === "pr") return tab.title ? `#${tab.number} ${tab.title}` : `Pull request #${tab.number}`;
     if (tab.kind === "settings") return "Workbench settings";
     const project = tab.project?.dir
       ? shortProjectLabel(tab.project.dir, homeDir)
@@ -213,6 +216,8 @@
               {:else}
                 <span class="tab-kind-icon"><FileText size={12} strokeWidth={2.2} aria-hidden="true" /></span>
               {/if}
+            {:else if tab.kind === "pr"}
+              <span class="tab-kind-icon"><GitPullRequest size={12} strokeWidth={2.2} aria-hidden="true" /></span>
             {:else if tab.kind === "settings"}
               <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
             {/if}

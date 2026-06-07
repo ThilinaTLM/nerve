@@ -2,6 +2,7 @@ import type {
   AgentRecord,
   ConversationRecord,
   FilesystemFileResponse,
+  GithubChecksSummary,
   ProcessRecord,
   ProjectRecord,
 } from "../../api";
@@ -17,6 +18,7 @@ import {
   scopedUsableModelOptions,
 } from "../../utils/model";
 import { isPathInDirectory } from "../../utils/path";
+import { buildGitSuggestions, type GitSuggestion } from "./git-context.svelte";
 import type { CenterTabIdentity, ConversationViewState } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
 
@@ -74,11 +76,24 @@ export type SettingsTabModel = {
   error?: string;
 };
 
+export type PrTabModel = {
+  kind: "pr";
+  id: string;
+  number: number;
+  title?: string;
+  checksStatus?: GithubChecksSummary["status"];
+  isDraft?: boolean;
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type CenterTabModel =
   | ConversationTabModel
   | PendingConversationTabModel
   | ProcessTabModel
   | FileTabModel
+  | PrTabModel
   | SettingsTabModel;
 
 function activeView(): ConversationViewState | undefined {
@@ -346,6 +361,22 @@ export const workbenchSelectors = {
       };
     });
   },
+  get openPrTabs(): PrTabModel[] {
+    return workbenchState.openPrTabIds.map((id) => {
+      const view = workbenchState.prViews[id];
+      return {
+        kind: "pr" as const,
+        id,
+        number: view?.number ?? 0,
+        title: view?.detail?.title,
+        checksStatus: view?.detail?.checks.status,
+        isDraft: view?.detail?.isDraft,
+        active: activeTabMatches("pr", id),
+        sending: Boolean(view?.loading),
+        error: view?.error,
+      };
+    });
+  },
   get openSettingsTabs(): SettingsTabModel[] {
     return workbenchState.settingsTabOpen
       ? [
@@ -382,6 +413,11 @@ export const workbenchSelectors = {
           (candidate) => candidate.id === tab.id,
         );
         if (model) models.push(model);
+      } else if (tab.kind === "pr") {
+        const model = this.openPrTabs.find(
+          (candidate) => candidate.id === tab.id,
+        );
+        if (model) models.push(model);
       } else {
         models.push(...this.openSettingsTabs);
       }
@@ -400,6 +436,17 @@ export const workbenchSelectors = {
     const active = workbenchState.activeCenterTab;
     if (active?.kind !== "file") return undefined;
     return workbenchState.fileViews[active.id];
+  },
+  get activeCenterPrView() {
+    const active = workbenchState.activeCenterTab;
+    if (active?.kind !== "pr") return undefined;
+    return workbenchState.prViews[active.id];
+  },
+  get gitSuggestions(): GitSuggestion[] {
+    const ctx = workbenchState.gitContext;
+    const projectId = this.activeProject?.id;
+    if (!ctx || !projectId || ctx.projectId !== projectId) return [];
+    return buildGitSuggestions(ctx);
   },
   get live() {
     return workbenchState.connection === "live";

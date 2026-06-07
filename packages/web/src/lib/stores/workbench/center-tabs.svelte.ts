@@ -24,6 +24,9 @@ function syncLegacyTabFields() {
   workbenchState.openFileTabIds = workbenchState.openCenterTabs
     .filter((tab) => tab.kind === "file")
     .map((tab) => tab.id);
+  workbenchState.openPrTabIds = workbenchState.openCenterTabs
+    .filter((tab) => tab.kind === "pr")
+    .map((tab) => tab.id);
   workbenchState.settingsTabOpen = workbenchState.openCenterTabs.some(
     (tab) => tab.kind === "settings",
   );
@@ -129,6 +132,11 @@ export async function selectCenterTab(tab: CenterTabIdentity | undefined) {
       await selectCenterFileTab(tab.id);
       return;
     }
+    case "pr": {
+      const { selectCenterPrTab } = await import("./pr-tabs.svelte");
+      await selectCenterPrTab(tab.id);
+      return;
+    }
     case "settings": {
       const { selectCenterSettingsTab } = await import("../settings.svelte");
       await selectCenterSettingsTab();
@@ -161,6 +169,11 @@ export async function closeCenterTab(tab: CenterTabIdentity) {
     case "file": {
       const { closeFileTab } = await import("./file-tabs.svelte");
       closeFileTab(tab.id);
+      return;
+    }
+    case "pr": {
+      const { closePrTab } = await import("./pr-tabs.svelte");
+      closePrTab(tab.id);
       return;
     }
     case "settings": {

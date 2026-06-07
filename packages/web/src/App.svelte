@@ -12,7 +12,7 @@
     minimizeDesktopWindow,
     toggleMaximizeDesktopWindow,
   } from "$lib/desktop/bridge.svelte";
-  import type { AgentRecord } from "./lib/api";
+  import { checkoutGithubPr, type AgentRecord } from "./lib/api";
   import {
     layout,
     loadSidebarCollapsed,
@@ -25,6 +25,7 @@
   import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
   import FilePane from "./lib/components/app/FilePane.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";
+  import PrPane from "./lib/components/app/PrPane.svelte";
   import ProcessOutputPane from "./lib/components/app/ProcessOutputPane.svelte";
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
   import ProjectDirectoryPicker from "./lib/components/app/ProjectDirectoryPicker.svelte";
@@ -51,16 +52,21 @@
     exportUrl,
     grantApproval,
     initializeWorkbench,
+    invalidateGit,
+    clearGitContext,
+    refreshGitContext,
     loadSettingsPanel,
     navigateToEntry,
     newConversationInProject,
     newConversation,
     openFilePane,
+    openPrPane,
     openProcessTab,
     openSettingsPane,
     openConversation,
     pruneStoppedProcesses,
     refreshFilePane,
+    refreshPrPane,
     refreshProcessLogs,
     refreshConversationView,
     rejectPendingPlanReview,
@@ -105,6 +111,8 @@
   const centerTabs = $derived(workbenchSelectors.centerTabs);
   const activeCenterTab = $derived(workbenchSelectors.activeCenterTab);
   const activeCenterFileView = $derived(workbenchSelectors.activeCenterFileView);
+  const activeCenterPrView = $derived(workbenchSelectors.activeCenterPrView);
+  const gitSuggestions = $derived(workbenchSelectors.gitSuggestions);
   const slashCompletions = $derived(workbenchSelectors.slashCompletions);
   const selectedModelKey = $derived(workbenchSelectors.selectedModelKey);
   const selectedThinkingLevel = $derived(workbenchSelectors.selectedThinkingLevel);
@@ -146,11 +154,32 @@
     void openFilePane({ projectId: activeProject.id, path, line });
   }
 
+  function applyGitSuggestion(suggestion: { prompt: string }) {
+    const current = activeComposerText.trim();
+    setActiveComposerText(
+      current ? `${activeComposerText}\n\n${suggestion.prompt}` : suggestion.prompt,
+    );
+  }
+
+  async function checkoutActivePr() {
+    const view = activeCenterPrView;
+    if (!view) return;
+    try {
+      await checkoutGithubPr(view.projectId, view.repo, view.number);
+      invalidateGit(view.projectId);
+      void refreshPrPane(view.id);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      workbenchState.error = message;
+    }
+  }
+
   function refreshCenterTab(tab: CenterTabIdentity) {
     if (tab.kind === "conversation") void refreshConversationView(tab.id);
     else if (tab.kind === "pending-conversation") void selectCenterTab(tab);
     else if (tab.kind === "process") void selectCenterTab(tab);
     else if (tab.kind === "file") void refreshFilePane(tab.id);
+    else if (tab.kind === "pr") void refreshPrPane(tab.id);
     else void loadSettingsPanel();
   }
 
@@ -165,6 +194,15 @@
   function closeCenterTabsLeft(tab: CenterTabIdentity) {
     void closeCenterTabs(centerTabsToLeftOf(tab), tab);
   }
+
+  let lastGitProjectId: string | undefined;
+  $effect(() => {
+    const projectId = activeProject?.id;
+    if (projectId === lastGitProjectId) return;
+    lastGitProjectId = projectId;
+    if (projectId) void refreshGitContext(projectId);
+    else clearGitContext();
+  });
 
   onMount(() => {
     const unsubscribeDesktop = initializeDesktopRuntime();
@@ -252,6 +290,13 @@
               />
             {:else if activeCenterTab?.kind === "file"}
               <FilePane view={activeCenterFileView} />
+            {:else if activeCenterTab?.kind === "pr"}
+              <PrPane
+                view={activeCenterPrView}
+                onRefresh={() => activeCenterPrView && void refreshPrPane(activeCenterPrView.id)}
+                onCheckout={() => void checkoutActivePr()}
+                onOpenExternal={() => activeCenterPrView?.detail && window.open(activeCenterPrView.detail.url, "_blank", "noopener")}
+              />
             {:else if activeCenterTab?.kind === "settings"}
               <SettingsPage
                 {status}
@@ -284,6 +329,8 @@
                 {sending}
                 {error}
                 composerText={activeComposerText}
+                {gitSuggestions}
+                onApplyGitSuggestion={applyGitSuggestion}
                 models={usableModels}
                 {selectedModelKey}
                 thinkingLevel={selectedThinkingLevel}

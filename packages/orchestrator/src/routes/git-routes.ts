@@ -3,11 +3,25 @@ import {
   commitRequestSchema,
   createBranchRequestSchema,
   createPrRequestSchema,
+  gitRemoteOpRequestSchema,
   syncBaseRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
+import { HttpError } from "../http/errors.js";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";
+
+function prNumberParam(value: string | undefined): number {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new HttpError(
+      400,
+      "GH_INVALID_PR_NUMBER",
+      "Invalid pull request number.",
+    );
+  }
+  return number;
+}
 
 function repoParam(value: string | undefined): string {
   return value && value.length > 0 ? value : ".";
@@ -87,6 +101,42 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     }),
   );
 
+  app.post(
+    "/projects/:projectId/git/push",
+    routeHandler(async (c) => {
+      const body = gitRemoteOpRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json(
+        await state.registry.git.push(c.req.param("projectId"), body.repo),
+      );
+    }),
+  );
+
+  app.post(
+    "/projects/:projectId/git/pull",
+    routeHandler(async (c) => {
+      const body = gitRemoteOpRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json(
+        await state.registry.git.pull(c.req.param("projectId"), body.repo),
+      );
+    }),
+  );
+
+  app.post(
+    "/projects/:projectId/git/fetch",
+    routeHandler(async (c) => {
+      const body = gitRemoteOpRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json(
+        await state.registry.git.fetch(c.req.param("projectId"), body.repo),
+      );
+    }),
+  );
+
   app.get(
     "/projects/:projectId/git/suggest/branch",
     routeHandler(async (c) => {
@@ -160,6 +210,35 @@ export function createGitRoutes(state: OrchestratorState): Hono {
           base: body.base,
           draft: body.draft,
         }),
+      );
+    }),
+  );
+
+  app.get(
+    "/projects/:projectId/github/pr/:number",
+    routeHandler(async (c) =>
+      c.json(
+        await state.registry.git.prDetail(
+          c.req.param("projectId"),
+          repoParam(c.req.query("repo")),
+          prNumberParam(c.req.param("number")),
+        ),
+      ),
+    ),
+  );
+
+  app.post(
+    "/projects/:projectId/github/pr/:number/checkout",
+    routeHandler(async (c) => {
+      const body = gitRemoteOpRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json(
+        await state.registry.git.checkoutPr(
+          c.req.param("projectId"),
+          body.repo,
+          prNumberParam(c.req.param("number")),
+        ),
       );
     }),
   );

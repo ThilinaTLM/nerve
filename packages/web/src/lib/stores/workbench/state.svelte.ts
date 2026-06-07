@@ -10,6 +10,8 @@ import type {
   ConversationRecord,
   ConversationTreeNode,
   FilesystemFileResponse,
+  GithubPrDetail,
+  GitRepoSummary,
   ModelInfo,
   PlanReviewRecord,
   ProcessLogQueryResponse,
@@ -112,6 +114,7 @@ export type CenterTabIdentity =
   | { kind: "pending-conversation"; id: string }
   | { kind: "process"; id: string }
   | { kind: "file"; id: string }
+  | { kind: "pr"; id: string }
   | { kind: "settings"; id: "settings" };
 
 export type FileViewState = {
@@ -123,6 +126,26 @@ export type FileViewState = {
   displayMode?: FileDisplayMode;
   loading: boolean;
   error?: string;
+};
+
+export type PrViewState = {
+  /** `${projectId}:${encodeURIComponent(repo)}:${number}` */
+  id: string;
+  projectId: string;
+  /** Relative repo path ("." for the project root). */
+  repo: string;
+  number: number;
+  detail?: GithubPrDetail;
+  loading: boolean;
+  error?: string;
+};
+
+export type GitContext = {
+  projectId: string;
+  projectIsRepo: boolean;
+  repos: GitRepoSummary[];
+  github?: { available: boolean; authenticated: boolean };
+  loadedAt: number;
 };
 
 export const workbenchState = $state({
@@ -146,12 +169,16 @@ export const workbenchState = $state({
   openConversationTabIds: [] as string[],
   openProcessTabIds: [] as string[],
   openFileTabIds: [] as string[],
+  openPrTabIds: [] as string[],
   settingsTabOpen: false,
   activeConversationTabId: undefined as string | undefined,
   activeCenterTab: undefined as CenterTabIdentity | undefined,
   conversationViews: {} as Record<string, ConversationViewState>,
   pendingConversations: {} as Record<string, PendingConversationState>,
   fileViews: {} as Record<string, FileViewState>,
+  prViews: {} as Record<string, PrViewState>,
+  gitContext: undefined as GitContext | undefined,
+  gitRefreshToken: 0,
   transcript: [] as TranscriptItem[],
   streamingText: "",
   slashCompletions: [] as CompletionItem[],

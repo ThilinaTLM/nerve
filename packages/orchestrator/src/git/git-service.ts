@@ -9,6 +9,10 @@ import type {
   GitDiscoveryResponse,
   GithubChecksSummary,
   GithubPr,
+  GithubPrCheckoutResponse,
+  GithubPrCommit,
+  GithubPrDetail,
+  GithubPrFile,
   GithubPrListResponse,
   GithubStatusResponse,
   GitMutationResponse,
@@ -184,6 +188,14 @@ export class GitService {
       "--branch",
     ]);
     const { branch, files } = parsePorcelainV2(stdout);
+    const baseBranch = await this.detectBaseBranch(repoDir);
+    let hasRemote = false;
+    try {
+      hasRemote =
+        (await this.runGit(repoDir, ["remote"])).stdout.trim().length > 0;
+    } catch {
+      hasRemote = false;
+    }
     return {
       relativePath,
       absDir: repoDir,
@@ -194,6 +206,9 @@ export class GitService {
       ahead: branch.upstream ? (branch.ahead ?? 0) : null,
       behind: branch.upstream ? (branch.behind ?? 0) : null,
       hasUpstream: branch.upstream !== null,
+      hasRemote,
+      baseBranch,
+      onBaseBranch: branch.head === baseBranch,
       dirty: files.length > 0,
       changeCount: files.length,
     };
@@ -236,12 +251,10 @@ export class GitService {
       (await this.runGit(repoDir, ["diff", "--staged", "--shortstat"])).stdout,
     );
 
-    const baseBranch = await this.detectBaseBranch(repoDir);
-
     return {
       repo,
-      baseBranch,
-      onBaseBranch: repo.currentBranch === baseBranch,
+      baseBranch: repo.baseBranch,
+      onBaseBranch: repo.onBaseBranch,
       files,
       stagedCount,
       unstagedCount,
@@ -418,6 +431,84 @@ export class GitService {
     if (hasUpstream) {
       await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
     }
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async push(
+    projectId: string,
+    relativePath: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const { stdout: branchOut } = await this.runGit(repoDir, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ]);
+    const branch = branchOut.trim();
+    if (!branch || branch === "HEAD") {
+      throw new HttpError(
+        409,
+        "GIT_DETACHED_HEAD",
+        "Cannot push from a detached HEAD. Check out a branch first.",
+      );
+    }
+    const args = (await this.hasUpstream(repoDir))
+      ? ["push"]
+      : ["push", "-u", "origin", branch];
+    await this.mapGit(() => this.runGit(repoDir, args));
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async pull(
+    projectId: string,
+    relativePath: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    if (!(await this.hasUpstream(repoDir))) {
+      throw new HttpError(
+        409,
+        "GIT_NO_UPSTREAM",
+        "Current branch has no upstream to pull from.",
+      );
+    }
+    const { files } = parsePorcelainV2(
+      (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
+    );
+    if (files.length > 0) {
+      throw new HttpError(
+        409,
+        "GIT_DIRTY_WORKTREE",
+        "Working tree has uncommitted changes. Commit or stash them before pulling.",
+      );
+    }
+    await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async fetch(
+    projectId: string,
+    relativePath: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    await this.mapGit(() => this.runGit(repoDir, ["fetch", "--prune"]));
     return {
       repo: await this.summarizeRepo(
         repoDir,
@@ -604,6 +695,111 @@ export class GitService {
     return {
       url,
       number: numberMatch ? Number(numberMatch[1]) : 0,
+    };
+  }
+
+  async prDetail(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrDetail> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const { stdout } = await this.mapGh(() =>
+      this.runGh(repoDir, [
+        "pr",
+        "view",
+        String(number),
+        "--json",
+        "number,title,url,state,isDraft,headRefName,baseRefName,updatedAt,createdAt,body,author,additions,deletions,changedFiles,files,commits,mergeable,reviewDecision",
+      ]),
+    );
+    const raw = JSON.parse(stdout || "{}") as {
+      number: number;
+      title: string;
+      url: string;
+      state: string;
+      isDraft: boolean;
+      headRefName: string;
+      baseRefName: string;
+      updatedAt: string;
+      createdAt: string;
+      body?: string | null;
+      author?: { login?: string } | null;
+      additions?: number;
+      deletions?: number;
+      changedFiles?: number;
+      mergeable?: string | null;
+      reviewDecision?: string | null;
+      files?: Array<{ path: string; additions?: number; deletions?: number }>;
+      commits?: Array<{
+        oid: string;
+        messageHeadline?: string;
+        authoredDate?: string;
+        authors?: Array<{ name?: string }>;
+      }>;
+    };
+    const checks = await this.prChecks(repoDir, number);
+    const files: GithubPrFile[] = (raw.files ?? []).map((file) => ({
+      path: file.path,
+      additions: file.additions ?? 0,
+      deletions: file.deletions ?? 0,
+    }));
+    const commits: GithubPrCommit[] = (raw.commits ?? []).map((commit) => ({
+      oid: commit.oid,
+      abbrev: commit.oid.slice(0, 7),
+      messageHeadline: commit.messageHeadline ?? "",
+      authoredDate: commit.authoredDate,
+      authorName: commit.authors?.[0]?.name,
+    }));
+    return {
+      number: raw.number,
+      title: raw.title,
+      url: raw.url,
+      state: raw.state,
+      isDraft: raw.isDraft,
+      headRefName: raw.headRefName,
+      baseRefName: raw.baseRefName,
+      updatedAt: raw.updatedAt,
+      createdAt: raw.createdAt,
+      body: raw.body ?? "",
+      author: raw.author?.login ?? null,
+      additions: raw.additions ?? 0,
+      deletions: raw.deletions ?? 0,
+      changedFiles: raw.changedFiles ?? files.length,
+      mergeable: raw.mergeable ?? null,
+      reviewDecision: raw.reviewDecision ?? null,
+      files,
+      commits,
+      checks,
+    };
+  }
+
+  async checkoutPr(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrCheckoutResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const { files } = parsePorcelainV2(
+      (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
+    );
+    if (files.length > 0) {
+      throw new HttpError(
+        409,
+        "GIT_DIRTY_WORKTREE",
+        "Working tree has uncommitted changes. Commit or stash them before checking out a PR.",
+      );
+    }
+    await this.mapGh(() =>
+      this.runGh(repoDir, ["pr", "checkout", String(number)]),
+    );
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+      number,
     };
   }
 

@@ -35,6 +35,12 @@ export const gitRepoSummarySchema = z.object({
   /** Commits behind upstream; null when there is no upstream. */
   behind: z.number().int().nullable(),
   hasUpstream: z.boolean(),
+  /** True when at least one remote is configured (`git remote`). */
+  hasRemote: z.boolean(),
+  /** Detected base branch (origin/HEAD, else main/master/develop). */
+  baseBranch: z.string(),
+  /** True when the current branch is the detected base branch. */
+  onBaseBranch: z.boolean(),
   dirty: z.boolean(),
   changeCount: z.number().int().nonnegative(),
 });
@@ -115,6 +121,12 @@ export const syncBaseRequestSchema = z.object({
 });
 export type SyncBaseRequest = z.infer<typeof syncBaseRequestSchema>;
 
+/** Generic remote operation (push / pull / fetch) on the current branch. */
+export const gitRemoteOpRequestSchema = z.object({
+  repo: z.string().default("."),
+});
+export type GitRemoteOpRequest = z.infer<typeof gitRemoteOpRequestSchema>;
+
 export const gitCommitResponseSchema = z.object({
   repo: gitRepoSummarySchema,
   hash: z.string(),
@@ -186,3 +198,41 @@ export const createPrResponseSchema = z.object({
   url: z.string(),
 });
 export type CreatePrResponse = z.infer<typeof createPrResponseSchema>;
+
+export const githubPrFileSchema = z.object({
+  path: z.string(),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+});
+export type GithubPrFile = z.infer<typeof githubPrFileSchema>;
+
+export const githubPrCommitSchema = z.object({
+  oid: z.string(),
+  abbrev: z.string(),
+  messageHeadline: z.string(),
+  authoredDate: z.string().optional(),
+  authorName: z.string().optional(),
+});
+export type GithubPrCommit = z.infer<typeof githubPrCommitSchema>;
+
+export const githubPrDetailSchema = githubPrSchema.extend({
+  body: z.string(),
+  author: z.string().nullable(),
+  createdAt: z.string(),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  changedFiles: z.number().int().nonnegative(),
+  mergeable: z.string().nullable(),
+  reviewDecision: z.string().nullable(),
+  files: z.array(githubPrFileSchema),
+  commits: z.array(githubPrCommitSchema),
+});
+export type GithubPrDetail = z.infer<typeof githubPrDetailSchema>;
+
+export const githubPrCheckoutResponseSchema = z.object({
+  repo: gitRepoSummarySchema,
+  number: z.number().int(),
+});
+export type GithubPrCheckoutResponse = z.infer<
+  typeof githubPrCheckoutResponseSchema
+>;

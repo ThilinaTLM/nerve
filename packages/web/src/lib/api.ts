@@ -23,6 +23,10 @@ import type {
   GitFileChange,
   GithubChecksSummary,
   GithubPr,
+  GithubPrCheckoutResponse,
+  GithubPrCommit,
+  GithubPrDetail,
+  GithubPrFile,
   GithubPrListResponse,
   GithubStatusResponse,
   GitMutationResponse,
@@ -544,6 +548,33 @@ export async function syncGitBase(
   );
 }
 
+export async function pushGit(
+  projectId: string,
+  repo: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/push`, {
+    repo,
+  });
+}
+
+export async function pullGit(
+  projectId: string,
+  repo: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/pull`, {
+    repo,
+  });
+}
+
+export async function fetchGit(
+  projectId: string,
+  repo: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/fetch`, {
+    repo,
+  });
+}
+
 export async function suggestGitBranchName(
   projectId: string,
   repo: string,
@@ -597,6 +628,28 @@ export async function createGithubPr(
     repo,
     ...body,
   });
+}
+
+export async function getGithubPr(
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrDetail> {
+  const params = new URLSearchParams({ repo });
+  return apiGet<GithubPrDetail>(
+    `/api/projects/${projectId}/github/pr/${number}?${params.toString()}`,
+  );
+}
+
+export async function checkoutGithubPr(
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrCheckoutResponse> {
+  return apiPost<GithubPrCheckoutResponse>(
+    `/api/projects/${projectId}/github/pr/${number}/checkout`,
+    { repo },
+  );
 }
 
 export async function uploadClipboardImage(file: File): Promise<string> {
@@ -677,5 +730,9 @@ export type {
   GithubPr,
   GithubPrListResponse,
   GithubChecksSummary,
+  GithubPrDetail,
+  GithubPrFile,
+  GithubPrCommit,
+  GithubPrCheckoutResponse,
   CreatePrResponse,
 };

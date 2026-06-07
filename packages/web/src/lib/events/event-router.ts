@@ -21,6 +21,7 @@ import {
   openConversation,
   refreshConversationView,
 } from "../stores/conversation-flow.svelte";
+import { refreshGitContext } from "../stores/workbench/git-context.svelte";
 import {
   hasPendingSettingsSave,
   loadSettingsPanel,
@@ -365,6 +366,7 @@ function handleConversationEvent(
         if (selection.conversationId === conversationId)
           void openConversation(conversationId);
       });
+      if (active(conversationId)) void refreshGitContext();
       break;
     case "conversation.run.failed":
       view.sending = false;

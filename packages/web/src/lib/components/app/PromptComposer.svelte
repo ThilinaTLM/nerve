@@ -20,9 +20,11 @@
   } from "../../api";
   import { TranscriptionController } from "../../audio/transcription-controller.svelte";
   import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
+  import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
   import { Button } from "$lib/components/ui/button";
   import Popover from "$lib/components/ui/popover-panel";
   import ApprovalStrip from "./ApprovalStrip.svelte";
+  import GitFollowupSuggestions from "./GitFollowupSuggestions.svelte";
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
   import { onDestroy, type Component } from "svelte";
@@ -51,6 +53,8 @@
     permissionLevel?: PermissionLevel;
     slashCompletions?: CompletionItem[];
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
+    gitSuggestions?: GitSuggestion[];
+    onApplyGitSuggestion?: (suggestion: GitSuggestion) => void;
     onChange?: (value: string) => void;
     onSubmit?: () => void;
     onAbort?: () => void;
@@ -82,6 +86,8 @@
     permissionLevel = "autonomous",
     slashCompletions = [],
     fileCompletions,
+    gitSuggestions = [],
+    onApplyGitSuggestion,
     onChange,
     onSubmit,
     onAbort,
@@ -172,6 +178,13 @@
 
 <form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
   <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
+
+  {#if gitSuggestions.length > 0 && !blockedForReview && !sending && canPrompt}
+    <GitFollowupSuggestions
+      suggestions={gitSuggestions}
+      onApply={onApplyGitSuggestion}
+    />
+  {/if}
 
   <div class="composer-surface" data-mode={mode}>
     <div class="editor-shell">

@@ -6,6 +6,7 @@
   import { toast } from "svelte-sonner";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, ConversationRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
+  import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
   import type { ConversationLiveState, TranscriptItem } from "../../stores/workbench/state.svelte";
   import { buildConversationTimeline } from "../../stores/workbench/timeline";
   import { Button } from "$lib/components/ui/button";
@@ -44,6 +45,8 @@
     permissionLevel?: AgentRecord["permissionLevel"];
     slashCompletions?: CompletionItem[];
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
+    gitSuggestions?: GitSuggestion[];
+    onApplyGitSuggestion?: (suggestion: GitSuggestion) => void;
     onComposerChange?: (value: string) => void;
     onSubmit?: () => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
@@ -87,6 +90,8 @@
     permissionLevel = "autonomous",
     slashCompletions = [],
     fileCompletions,
+    gitSuggestions = [],
+    onApplyGitSuggestion,
     onComposerChange,
     onSubmit,
     onAnswerUserQuestion,
@@ -311,6 +316,8 @@
       {permissionLevel}
       {slashCompletions}
       {fileCompletions}
+      {gitSuggestions}
+      {onApplyGitSuggestion}
       onChange={onComposerChange}
       {onSubmit}
       {onAbort}

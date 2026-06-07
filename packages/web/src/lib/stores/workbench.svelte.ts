@@ -6,6 +6,8 @@ export * from "./settings.svelte";
 export * from "./workbench/center-tab-actions.svelte";
 export * from "./workbench/center-tabs.svelte";
 export * from "./workbench/file-tabs.svelte";
+export * from "./workbench/git-context.svelte";
+export * from "./workbench/pr-tabs.svelte";
 export * from "./workbench/process-tabs.svelte";
 export * from "./workbench/processes.svelte";
 export * from "./workbench/selectors.svelte";

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
+  import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
   import Check from "@lucide/svelte/icons/check";
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import FileMinus from "@lucide/svelte/icons/file-minus";
@@ -9,7 +11,9 @@
   import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
   import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import RefreshCcw from "@lucide/svelte/icons/refresh-ccw";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import RotateCw from "@lucide/svelte/icons/rotate-cw";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import X from "@lucide/svelte/icons/x";
   import { toast } from "svelte-sonner";
@@ -18,9 +22,12 @@
     createGitBranch,
     createGithubPr,
     discoverGitRepos,
+    fetchGit,
     getGitOverview,
     getGithubStatus,
     listMyGithubPrs,
+    pullGit,
+    pushGit,
     suggestGitBranchName,
     suggestGitCommitMessage,
     syncGitBase,
@@ -40,6 +47,9 @@
   import { Input } from "$lib/components/ui/input";
   import SelectField, { type SelectItem } from "$lib/components/ui/select-field";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { invalidateGit } from "../../../stores/workbench/git-context.svelte";
+  import { openPrPane } from "../../../stores/workbench/pr-tabs.svelte";
+  import { workbenchState } from "../../../stores/workbench/state.svelte";
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -70,6 +80,9 @@
   let suggestingCommit = $state(false);
   let committing = $state(false);
   let syncing = $state(false);
+  let pushing = $state(false);
+  let pulling = $state(false);
+  let fetching = $state(false);
 
   let prTitle = $state("");
   let prBody = $state("");
@@ -218,7 +231,7 @@
       toast.success(`Created branch ${branchName.trim()}`);
       branchName = "";
       branchAlternatives = [];
-      await loadOverview();
+      invalidateGit(activeProject.id);
     } catch (error) {
       toast.error(`Create branch failed: ${errorMessage(error)}`);
     } finally {
@@ -256,7 +269,7 @@
       toast.success(`Committed ${result.hash}`);
       commitSubject = "";
       commitBody = "";
-      await loadOverview();
+      invalidateGit(activeProject.id);
     } catch (error) {
       toast.error(`Commit failed: ${errorMessage(error)}`);
     } finally {
@@ -270,11 +283,53 @@
     try {
       const result = await syncGitBase(activeProject.id, selectedRepo);
       toast.success(`Switched to ${result.repo.currentBranch ?? "base"}`);
-      await loadOverview();
+      invalidateGit(activeProject.id);
     } catch (error) {
       toast.error(`Sync failed: ${errorMessage(error)}`);
     } finally {
       syncing = false;
+    }
+  }
+
+  async function onFetch() {
+    if (!activeProject) return;
+    fetching = true;
+    try {
+      await fetchGit(activeProject.id, selectedRepo);
+      toast.success("Fetched from remote");
+      invalidateGit(activeProject.id);
+    } catch (error) {
+      toast.error(`Fetch failed: ${errorMessage(error)}`);
+    } finally {
+      fetching = false;
+    }
+  }
+
+  async function onPull() {
+    if (!activeProject) return;
+    pulling = true;
+    try {
+      await pullGit(activeProject.id, selectedRepo);
+      toast.success("Pulled latest changes");
+      invalidateGit(activeProject.id);
+    } catch (error) {
+      toast.error(`Pull failed: ${errorMessage(error)}`);
+    } finally {
+      pulling = false;
+    }
+  }
+
+  async function onPush() {
+    if (!activeProject) return;
+    pushing = true;
+    try {
+      await pushGit(activeProject.id, selectedRepo);
+      toast.success("Pushed to remote");
+      invalidateGit(activeProject.id);
+    } catch (error) {
+      toast.error(`Push failed: ${errorMessage(error)}`);
+    } finally {
+      pushing = false;
     }
   }
 
@@ -290,6 +345,7 @@
       });
       toast.success(`Opened PR #${result.number}`);
       prBody = "";
+      invalidateGit(activeProject.id);
       await loadPrs();
     } catch (error) {
       toast.error(`Create PR failed: ${errorMessage(error)}`);
@@ -339,6 +395,18 @@
       overview = undefined;
     }
   });
+
+  // Reload when an external git mutation (e.g. PR checkout) invalidates state.
+  let lastGitRefreshToken = workbenchState.gitRefreshToken;
+  $effect(() => {
+    const token = workbenchState.gitRefreshToken;
+    if (token === lastGitRefreshToken) return;
+    lastGitRefreshToken = token;
+    if (activeProject && repos.length > 0) {
+      void loadOverview();
+      void loadGithub();
+    }
+  });
 </script>
 
 <div class="flex flex-col gap-2 p-2">
@@ -376,15 +444,84 @@
           <GitBranch size={13} strokeWidth={2.2} />
           Changes
         </span>
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          ariaLabel="Refresh"
-          disabled={loadingOverview}
-          onclick={() => void loadOverview()}
-        >
-          <RefreshCw class={loadingOverview ? "animate-spin" : ""} />
-        </Button>
+        <div class="flex items-center gap-0.5">
+          {#if overview}
+            {#if overview.repo.hasRemote}
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                ariaLabel="Fetch"
+                title="Fetch from remote"
+                disabled={fetching}
+                onclick={() => void onFetch()}
+              >
+                {#if fetching}
+                  <LoaderCircle class="animate-spin" />
+                {:else}
+                  <RotateCw />
+                {/if}
+              </Button>
+            {/if}
+            {#if overview.repo.hasUpstream && (overview.repo.behind ?? 0) > 0}
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                ariaLabel="Pull"
+                title={`Pull ${overview.repo.behind} commit(s)`}
+                disabled={pulling || dirtyOverview}
+                onclick={() => void onPull()}
+              >
+                {#if pulling}
+                  <LoaderCircle class="animate-spin" />
+                {:else}
+                  <ArrowDownToLine />
+                {/if}
+              </Button>
+            {/if}
+            {#if !overview.repo.detached && ((overview.repo.ahead ?? 0) > 0 || !overview.repo.hasUpstream)}
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                ariaLabel="Push"
+                title={overview.repo.hasUpstream ? `Push ${overview.repo.ahead} commit(s)` : "Push and set upstream"}
+                disabled={pushing}
+                onclick={() => void onPush()}
+              >
+                {#if pushing}
+                  <LoaderCircle class="animate-spin" />
+                {:else}
+                  <ArrowUpFromLine />
+                {/if}
+              </Button>
+            {/if}
+            {#if !overview.onBaseBranch}
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                ariaLabel="Switch to base branch and pull"
+                title={`Switch to ${overview.baseBranch} & pull`}
+                disabled={syncing || dirtyOverview}
+                onclick={() => void onSyncBase()}
+              >
+                {#if syncing}
+                  <LoaderCircle class="animate-spin" />
+                {:else}
+                  <RefreshCcw />
+                {/if}
+              </Button>
+            {/if}
+          {/if}
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            ariaLabel="Refresh"
+            title="Refresh"
+            disabled={loadingOverview}
+            onclick={() => void loadOverview()}
+          >
+            <RefreshCw class={loadingOverview ? "animate-spin" : ""} />
+          </Button>
+        </div>
       </div>
       {#if overview}
         <div class="flex flex-wrap items-center gap-1.5 px-3 py-2.5">
@@ -429,8 +566,8 @@
       {/if}
     </Card>
 
-    <!-- Branch creation (only on base branch) -->
-    {#if overview?.onBaseBranch}
+    <!-- Branch creation (always available) -->
+    {#if overview}
       <Card class="gap-0 overflow-hidden p-0">
         <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">New branch</div>
         <div class="flex flex-col gap-2 px-3 py-2.5">
@@ -476,7 +613,8 @@
       </Card>
     {/if}
 
-    <!-- Commit -->
+    <!-- Commit (only when there are changes) -->
+    {#if dirtyOverview}
     <Card class="gap-0 overflow-hidden p-0">
       <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Commit</div>
       <div class="flex flex-col gap-2 px-3 py-2.5">
@@ -504,7 +642,7 @@
         </label>
         <Button
           size="sm"
-          disabled={committing || commitSubject.trim().length === 0 || !dirtyOverview}
+          disabled={committing || commitSubject.trim().length === 0}
           onclick={() => void onCommit()}
         >
           <GitCommitHorizontal />
@@ -512,29 +650,7 @@
         </Button>
       </div>
     </Card>
-
-    <!-- Sync base -->
-    <Card class="gap-0 overflow-hidden p-0">
-      <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Sync base branch</div>
-      <div class="flex flex-col gap-1.5 px-3 py-2.5">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={syncing || dirtyOverview}
-          onclick={() => void onSyncBase()}
-        >
-          {#if syncing}
-            <LoaderCircle class="animate-spin" />
-          {:else}
-            <RefreshCw />
-          {/if}
-          Switch to {overview?.baseBranch ?? "base"} & pull
-        </Button>
-        {#if dirtyOverview}
-          <span class="text-xs text-muted-foreground">Commit or stash changes before syncing.</span>
-        {/if}
-      </div>
-    </Card>
+    {/if}
 
     <!-- GitHub -->
     <Card class="gap-0 overflow-hidden p-0">
@@ -603,15 +719,29 @@
             {#each prs as pr (pr.number)}
               <div class="border-t px-3 py-2">
                 <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-foreground hover:underline"
+                    onclick={() =>
+                      activeProject &&
+                      void openPrPane({
+                        projectId: activeProject.id,
+                        repo: selectedRepo,
+                        number: pr.number,
+                      })}
+                  >
+                    <span class="font-mono text-muted-foreground">#{pr.number}</span>
+                    <span class="truncate">{pr.title}</span>
+                  </button>
                   <a
                     href={pr.url}
                     target="_blank"
                     rel="noreferrer"
-                    class="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-foreground hover:underline"
+                    class="shrink-0 text-muted-foreground hover:text-foreground"
+                    title="Open in browser"
+                    aria-label="Open in browser"
                   >
-                    <span class="font-mono text-muted-foreground">#{pr.number}</span>
-                    <span class="truncate">{pr.title}</span>
-                    <ExternalLink size={11} class="shrink-0 text-muted-foreground" />
+                    <ExternalLink size={12} />
                   </a>
                   {#if pr.isDraft}
                     <Badge tone="neutral" size="xs">draft</Badge>
