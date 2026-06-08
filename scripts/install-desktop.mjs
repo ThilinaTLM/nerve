@@ -333,10 +333,20 @@ function refreshLinuxDesktopCaches(paths) {
   runLinuxCommandIfAvailable("update-desktop-database", [
     paths.applicationsDir,
   ]);
+  runLinuxCommandIfAvailable("xdg-desktop-menu", [
+    "forceupdate",
+    "--mode",
+    "user",
+  ]);
   runLinuxCommandIfAvailable("gtk-update-icon-cache", [
     "-q",
     "-t",
     paths.hicolorDir,
+  ]);
+  runLinuxCommandIfAvailable("xdg-icon-resource", [
+    "forceupdate",
+    "--mode",
+    "user",
   ]);
 }
 
