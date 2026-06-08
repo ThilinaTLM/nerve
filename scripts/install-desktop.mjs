@@ -85,7 +85,7 @@ Name=Nerve
 GenericName=AI coding harness
 Comment=UI-first personal AI coding harness.
 Exec=${desktopExecQuote(paths.launcherPath)}
-TryExec=${desktopExecQuote(paths.launcherPath)}
+TryExec=${desktopStringValue(paths.launcherPath)}
 Icon=nerve
 Terminal=false
 Categories=Development;
@@ -321,6 +321,14 @@ function desktopExecQuote(value) {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
+function desktopStringValue(value) {
+  return value
+    .replaceAll("\\", "\\\\")
+    .replaceAll("\n", "\\n")
+    .replaceAll("\r", "\\r")
+    .replaceAll("\t", "\\t");
+}
+
 function cmdQuote(value) {
   return `"${value.replaceAll("%", "%%").replaceAll('"', '""')}"`;
 }
@@ -338,6 +346,8 @@ function refreshLinuxDesktopCaches(paths) {
     "--mode",
     "user",
   ]);
+  runLinuxCommandIfAvailable("kbuildsycoca6", ["--noincremental"]);
+  runLinuxCommandIfAvailable("kbuildsycoca5", ["--noincremental"]);
   runLinuxCommandIfAvailable("gtk-update-icon-cache", [
     "-q",
     "-t",
