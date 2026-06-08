@@ -1,20 +1,12 @@
 PNPM ?= pnpm
+NODE ?= node
 
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-deps daemon web desktop desktop-fast desktop-build desktop-check install uninstall
 
 help:
-	@printf "Nerve shortcuts:\n"
-	@printf "  make dev            Build internal deps, then start daemon and web UI dev servers\n"
-	@printf "  make daemon         Build internal deps, then start the orchestrator daemon in dev mode\n"
-	@printf "  make web            Build internal deps, then start the Svelte web UI dev server\n"
-	@printf "  make desktop        Build web/orchestrator/desktop and launch Electron\n"
-	@printf "  make desktop-fast   Launch Electron using existing build output\n"
-	@printf "  make desktop-build  Build desktop dependencies and Electron main process\n"
-	@printf "  make desktop-check  Type-check the desktop package\n"
-	@printf "  make install        Install a user-space Linux desktop launcher for this checkout\n"
-	@printf "  make uninstall      Remove the user-space Linux desktop launcher\n"
+	@$(NODE) scripts/make-help.mjs
 
 dev: dev-deps
 	$(PNPM) --parallel --stream --filter @nerve/orchestrator --filter @nerve/web dev
@@ -44,7 +36,7 @@ desktop-check:
 
 install:
 	$(PNPM) --filter @nerve/desktop icons
-	PNPM="$(PNPM)" node scripts/install-desktop.mjs install
+	$(NODE) scripts/install-desktop.mjs install --pnpm "$(PNPM)"
 
 uninstall:
-	PNPM="$(PNPM)" node scripts/install-desktop.mjs uninstall
+	$(NODE) scripts/install-desktop.mjs uninstall --pnpm "$(PNPM)"

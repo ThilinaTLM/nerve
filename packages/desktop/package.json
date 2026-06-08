@@ -10,7 +10,7 @@
   "main": "dist/main.js",
   "scripts": {
     "icons": "node scripts/generate-icons.mjs",
-    "build": "pnpm run icons && tsc -b && cp src/preload.cjs dist/preload.cjs",
+    "build": "pnpm run icons && tsc -b && node scripts/copy-preload.mjs",
     "check": "tsc -b --pretty false",
     "start": "node scripts/start-electron.mjs",
     "dev": "pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && node scripts/start-electron.mjs",
