@@ -3,7 +3,7 @@ NODE ?= node
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-deps daemon web desktop desktop-fast desktop-build desktop-check install uninstall
+.PHONY: help dev dev-deps cli daemon serve web desktop desktop-fast desktop-build desktop-check install uninstall
 
 help:
 	@$(NODE) scripts/make-help.mjs
@@ -14,8 +14,14 @@ dev: dev-deps
 dev-deps:
 	$(PNPM) --filter @nerve/shared --filter @nerve/agent --filter @nerve/tools build
 
+cli: dev-deps
+	$(PNPM) --filter @nerve/cli dev --
+
 daemon: dev-deps
 	$(PNPM) --filter @nerve/orchestrator dev
+
+serve: dev-deps
+	$(PNPM) --filter @nerve/cli dev -- serve --open
 
 web: dev-deps
 	$(PNPM) --filter @nerve/web dev

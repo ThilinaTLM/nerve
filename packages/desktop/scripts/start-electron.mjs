@@ -6,8 +6,11 @@ const cwd = fileURLToPath(new URL("..", import.meta.url));
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
+const forwardedArgs = process.argv.slice(2);
 const electronArgs =
-  process.platform === "linux" ? ["--class=nerve", "."] : ["."];
+  process.platform === "linux"
+    ? ["--class=nerve", ".", ...forwardedArgs]
+    : [".", ...forwardedArgs];
 
 const child = spawn(electronPath, electronArgs, {
   cwd,

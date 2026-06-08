@@ -30,7 +30,7 @@ async function readDaemonFile(): Promise<DaemonFile> {
   } catch (error) {
     if (isErrnoException(error) && error.code === "ENOENT") {
       throw new Error(
-        `Nerve daemon is not running (missing ${path}). Start it with \`pnpm dev\` or \`nerve daemon\`, then retry this command.`,
+        `Nerve daemon is not running (missing ${path}). Start it with \`nerve daemon\` or \`nerve serve\`, then retry this command.`,
       );
     }
     throw error;
@@ -43,11 +43,52 @@ async function readToken(): Promise<string> {
   ).trim();
 }
 
-async function apiGet<T>(path: string): Promise<T> {
+interface DaemonConnection {
+  url: string;
+  token: string;
+}
+
+function readEnvValue(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value && value.length > 0 ? value : undefined;
+}
+
+async function readDaemonConnection(): Promise<DaemonConnection> {
+  const explicitUrl = readEnvValue("NERVE_DAEMON_URL");
+  const explicitToken = readEnvValue("NERVE_DAEMON_TOKEN");
+
+  if (explicitUrl) {
+    if (!explicitToken) {
+      throw new Error(
+        "NERVE_DAEMON_TOKEN is required when NERVE_DAEMON_URL is set.",
+      );
+    }
+    new URL(explicitUrl);
+    return { url: explicitUrl, token: explicitToken };
+  }
+
   const daemon = await readDaemonFile();
-  const token = await readToken();
-  const response = await fetch(`${daemon.url}${path}`, {
-    headers: { authorization: `Bearer ${token}` },
+  return {
+    url: localConnectUrl(daemon.url),
+    token: explicitToken ?? (await readToken()),
+  };
+}
+
+function localConnectUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  if (
+    url.protocol === "http:" &&
+    (url.hostname === "0.0.0.0" || url.hostname === "::")
+  ) {
+    url.hostname = "127.0.0.1";
+  }
+  return url.origin;
+}
+
+async function apiGet<T>(path: string): Promise<T> {
+  const connection = await readDaemonConnection();
+  const response = await fetch(`${connection.url}${path}`, {
+    headers: { authorization: `Bearer ${connection.token}` },
   });
   if (!response.ok)
     throw new Error(
@@ -57,12 +98,11 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const daemon = await readDaemonFile();
-  const token = await readToken();
-  const response = await fetch(`${daemon.url}${path}`, {
+  const connection = await readDaemonConnection();
+  const response = await fetch(`${connection.url}${path}`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${token}`,
+      authorization: `Bearer ${connection.token}`,
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
@@ -75,12 +115,11 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function apiPut<T>(path: string, body: unknown): Promise<T> {
-  const daemon = await readDaemonFile();
-  const token = await readToken();
-  const response = await fetch(`${daemon.url}${path}`, {
+  const connection = await readDaemonConnection();
+  const response = await fetch(`${connection.url}${path}`, {
     method: "PUT",
     headers: {
-      authorization: `Bearer ${token}`,
+      authorization: `Bearer ${connection.token}`,
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
@@ -93,11 +132,10 @@ async function apiPut<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function apiDelete<T>(path: string): Promise<T> {
-  const daemon = await readDaemonFile();
-  const token = await readToken();
-  const response = await fetch(`${daemon.url}${path}`, {
+  const connection = await readDaemonConnection();
+  const response = await fetch(`${connection.url}${path}`, {
     method: "DELETE",
-    headers: { authorization: `Bearer ${token}` },
+    headers: { authorization: `Bearer ${connection.token}` },
   });
   if (!response.ok)
     throw new Error(
@@ -127,9 +165,9 @@ function openUrl(url: string): void {
 }
 
 async function commandUi(args: string[]): Promise<void> {
-  const daemon = await readDaemonFile();
-  console.log(daemon.url);
-  if (args.includes("--open")) openUrl(daemon.url);
+  const connection = await readDaemonConnection();
+  console.log(connection.url);
+  if (args.includes("--open")) openUrl(connection.url);
 }
 
 function delay(ms: number): Promise<void> {
@@ -487,12 +525,11 @@ async function commandRun(args: string[]): Promise<void> {
 }
 
 async function streamPrompt(agentId: string, prompt: string): Promise<void> {
-  const daemon = await readDaemonFile();
-  const token = await readToken();
-  const wsUrl = new URL(daemon.url);
+  const connection = await readDaemonConnection();
+  const wsUrl = new URL(connection.url);
   wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
   wsUrl.pathname = "/ws";
-  wsUrl.searchParams.set("token", token);
+  wsUrl.searchParams.set("token", connection.token);
 
   await new Promise<void>((resolve, reject) => {
     const socket = new WebSocket(wsUrl);
@@ -540,11 +577,36 @@ async function streamPrompt(agentId: string, prompt: string): Promise<void> {
   });
 }
 
+async function commandServe(args: string[]): Promise<void> {
+  if (args.includes("--open")) void openUiWhenReady();
+  await import("@nerve/orchestrator/main");
+}
+
+async function openUiWhenReady(): Promise<void> {
+  for (let attempt = 0; attempt < 150; attempt++) {
+    try {
+      const connection = await readDaemonConnection();
+      const response = await fetch(`${connection.url}/api/status`, {
+        headers: { authorization: `Bearer ${connection.token}` },
+      });
+      if (response.ok) {
+        openUrl(connection.url);
+        return;
+      }
+    } catch {
+      // The daemon may not have written daemon.json yet.
+    }
+    await delay(200);
+  }
+  console.error("Timed out waiting to open the Nerve Web UI.");
+}
+
 function printHelp(): void {
   console.log(`nerve
 
 Usage:
   nerve daemon [--host 127.0.0.1] [--port 3747] [--allow-remote]
+  nerve serve [--host 127.0.0.1] [--port 3747] [--open] [--allow-remote]
   nerve status
   nerve ui [--open]
   nerve run [dir] [prompt...]
@@ -558,6 +620,8 @@ Environment:
   NERVE_HOST   Override daemon host
   NERVE_PORT   Override daemon port
   NERVE_ALLOW_REMOTE=1   Allow non-loopback daemon bind addresses
+  NERVE_DAEMON_URL     Connect CLI commands to an explicit daemon URL
+  NERVE_DAEMON_TOKEN   Bearer token for NERVE_DAEMON_URL or local daemon override
 `);
 }
 
@@ -568,6 +632,10 @@ async function main(): Promise<void> {
 
   if (command === "daemon") {
     await import("@nerve/orchestrator/main");
+    return;
+  }
+  if (command === "serve") {
+    await commandServe(args);
     return;
   }
   if (command === "status") {

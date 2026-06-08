@@ -9,14 +9,24 @@ const readinessTimeoutMs = 15_000;
 const healthCheckTimeoutMs = 1500;
 const shutdownTimeoutMs = 5000;
 
+export type DaemonMode = "local" | "remote";
+
 export interface ManagedDaemon {
   url: string;
   owned: boolean;
+  mode: DaemonMode;
+  token?: string;
   stop: () => Promise<void>;
 }
 
 export interface EnsureDaemonOptions {
   webDistPath?: string;
+  mode?: DaemonMode;
+  remoteUrl?: string;
+  token?: string;
+  host?: string;
+  port?: number;
+  allowRemote?: boolean;
 }
 
 interface DaemonPaths {
@@ -28,6 +38,12 @@ interface DaemonPaths {
 interface ChildExit {
   code: number | null;
   signal: NodeJS.Signals | null;
+}
+
+interface HealthyDaemon {
+  daemon: DaemonFile;
+  url: string;
+  token: string;
 }
 
 class OutputBuffer {
@@ -52,12 +68,47 @@ class OutputBuffer {
 export async function ensureDaemon(
   options: EnsureDaemonOptions = {},
 ): Promise<ManagedDaemon> {
+  if (options.mode === "remote" || options.remoteUrl) {
+    return connectRemoteDaemon(options);
+  }
+  return ensureLocalDaemon(options);
+}
+
+async function connectRemoteDaemon(
+  options: EnsureDaemonOptions,
+): Promise<ManagedDaemon> {
+  if (!options.remoteUrl) {
+    throw new Error("Missing remote daemon URL. Use --connect <url>.");
+  }
+  const url = normalizeRemoteDaemonUrl(options.remoteUrl);
+  const token = options.token?.trim() || process.env.NERVE_DAEMON_TOKEN?.trim();
+  if (!token) {
+    throw new Error(
+      "Missing remote daemon token. Use --token <token> or NERVE_DAEMON_TOKEN.",
+    );
+  }
+
+  await assertHealthy(url, token, "remote Nerve daemon");
+  return {
+    url,
+    token,
+    owned: false,
+    mode: "remote",
+    stop: async () => undefined,
+  };
+}
+
+async function ensureLocalDaemon(
+  options: EnsureDaemonOptions,
+): Promise<ManagedDaemon> {
   const paths = resolveDaemonPaths();
   const existing = await findHealthyDaemon(paths);
   if (existing) {
     return {
       url: existing.url,
+      token: existing.token,
       owned: false,
+      mode: "local",
       stop: async () => undefined,
     };
   }
@@ -74,7 +125,9 @@ export async function ensureDaemon(
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
-      NERVE_HOST: "127.0.0.1",
+      NERVE_HOST: options.host ?? process.env.NERVE_HOST ?? "127.0.0.1",
+      ...(options.port ? { NERVE_PORT: String(options.port) } : {}),
+      ...(options.allowRemote ? { NERVE_ALLOW_REMOTE: "1" } : {}),
       ...(options.webDistPath ? { NERVE_WEB_DIST: options.webDistPath } : {}),
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -117,7 +170,9 @@ export async function ensureDaemon(
     if (daemon) {
       return {
         url: daemon.url,
+        token: daemon.token,
         owned: true,
+        mode: "local",
         stop: () => stopOwnedChild(child, () => childExit !== undefined),
       };
     }
@@ -148,15 +203,18 @@ function resolveOrchestratorMainPath(): string {
 
 async function findHealthyDaemon(
   paths: DaemonPaths,
-): Promise<DaemonFile | undefined> {
+): Promise<HealthyDaemon | undefined> {
   const daemon = await readDaemonFile(paths.daemonPath);
-  if (!daemon || !isLoopbackUrl(daemon.url)) return undefined;
+  if (!daemon) return undefined;
+
+  const url = localConnectUrl(daemon.url);
+  if (!url) return undefined;
 
   const token = await readToken(paths.localTokenPath);
   if (!token) return undefined;
 
-  const healthy = await isHealthy(daemon.url, token);
-  return healthy ? daemon : undefined;
+  const healthy = await isHealthy(url, token);
+  return healthy ? { daemon, url, token } : undefined;
 }
 
 async function readDaemonFile(path: string): Promise<DaemonFile | undefined> {
@@ -178,6 +236,15 @@ async function readToken(path: string): Promise<string | undefined> {
   }
 }
 
+async function assertHealthy(
+  daemonUrl: string,
+  token: string,
+  label: string,
+): Promise<void> {
+  if (await isHealthy(daemonUrl, token)) return;
+  throw new Error(`Could not connect to ${label} at ${daemonUrl}.`);
+}
+
 async function isHealthy(daemonUrl: string, token: string): Promise<boolean> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), healthCheckTimeoutMs);
@@ -194,19 +261,24 @@ async function isHealthy(daemonUrl: string, token: string): Promise<boolean> {
   }
 }
 
-function isLoopbackUrl(rawUrl: string): boolean {
+function normalizeRemoteDaemonUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Remote daemon URL must use http:// or https://.");
+  }
+  return url.origin;
+}
+
+function localConnectUrl(rawUrl: string): string | undefined {
   try {
     const url = new URL(rawUrl);
-    if (url.protocol !== "http:") return false;
-    const hostname = url.hostname.toLowerCase();
-    return (
-      hostname === "localhost" ||
-      hostname === "::1" ||
-      hostname === "[::1]" ||
-      hostname.startsWith("127.")
-    );
+    if (url.protocol !== "http:") return undefined;
+    if (url.hostname === "0.0.0.0" || url.hostname === "::") {
+      url.hostname = "127.0.0.1";
+    }
+    return url.origin;
   } catch {
-    return false;
+    return undefined;
   }
 }
 

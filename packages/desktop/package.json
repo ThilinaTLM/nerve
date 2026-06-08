@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
-  "desktopName": "nerve",
+  "desktopName": "nerve-desktop",
   "main": "dist/main.js",
   "scripts": {
     "icons": "node scripts/generate-icons.mjs",

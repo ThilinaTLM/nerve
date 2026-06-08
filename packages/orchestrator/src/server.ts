@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { createId, type DaemonFile, type StatusResponse } from "@nerve/shared";
 import { Hono } from "hono";
 import { AuthManager } from "./auth.js";
@@ -104,7 +105,13 @@ export function createApp(state: OrchestratorState): Hono {
   app.use("/api/*", createApiAuthMiddleware(state.storage.localToken));
   mountApiRoutes(app, state);
 
-  app.get("*", async (c) => serveStatic(new URL(c.req.url).pathname, state));
+  app.get("*", async (c) =>
+    serveStatic(
+      new URL(c.req.url).pathname,
+      state,
+      getConnInfo(c).remote.address,
+    ),
+  );
 
   return app;
 }

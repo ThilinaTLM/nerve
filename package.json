@@ -11,9 +11,12 @@
   "scripts": {
     "build": "pnpm -r build",
     "check": "pnpm -r check",
+    "cli": "pnpm --filter @nerve/cli dev --",
+    "daemon": "pnpm --filter @nerve/orchestrator dev",
     "desktop": "pnpm --filter @nerve/desktop dev",
     "dev": "pnpm --filter @nerve/orchestrator dev",
     "debug:agent-tools": "tsx scripts/debug-agent-tools.ts",
+    "serve": "pnpm --filter @nerve/cli dev -- serve",
     "format": "biome format --write .",
     "lint": "biome check .",
     "test": "pnpm -r --if-present test"

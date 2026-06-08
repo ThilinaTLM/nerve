@@ -19,6 +19,7 @@ const {
   Notification,
   nativeImage,
   nativeTheme,
+  session,
   shell,
   Tray,
 } = require("electron") as typeof import("electron");
@@ -33,6 +34,17 @@ interface DesktopNotificationPayload {
   body?: string;
   urgency?: "normal" | "attention";
 }
+
+interface DesktopCliOptions {
+  mode?: "local" | "remote";
+  remoteUrl?: string;
+  token?: string;
+  host?: string;
+  port?: number;
+  allowRemote?: boolean;
+}
+
+const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 
 let mainWindow: BrowserWindowType | undefined;
 let managedDaemon: ManagedDaemon | undefined;
@@ -96,6 +108,82 @@ if (!gotSingleInstanceLock) {
   process.on("SIGTERM", requestQuit);
 }
 
+function parseDesktopOptions(args: string[]): DesktopCliOptions {
+  const options: DesktopCliOptions = {};
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg || arg === "." || arg === "--") continue;
+
+    if (arg === "--local") {
+      options.mode = "local";
+      continue;
+    }
+    if (arg === "--allow-remote") {
+      options.allowRemote = true;
+      continue;
+    }
+    if (arg === "--connect") {
+      const value = args[index + 1];
+      if (!value) throw new Error("Missing value for --connect.");
+      options.remoteUrl = value;
+      options.mode = "remote";
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--connect=")) {
+      options.remoteUrl = arg.slice("--connect=".length);
+      options.mode = "remote";
+      continue;
+    }
+    if (arg === "--token") {
+      const value = args[index + 1];
+      if (!value) throw new Error("Missing value for --token.");
+      options.token = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--token=")) {
+      options.token = arg.slice("--token=".length);
+      continue;
+    }
+    if (arg === "--host") {
+      const value = args[index + 1];
+      if (!value) throw new Error("Missing value for --host.");
+      options.host = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--host=")) {
+      options.host = arg.slice("--host=".length);
+      continue;
+    }
+    if (arg === "--port") {
+      const value = args[index + 1];
+      if (!value) throw new Error("Missing value for --port.");
+      options.port = parsePort(value);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--port=")) {
+      options.port = parsePort(arg.slice("--port=".length));
+    }
+  }
+
+  if (options.mode === "local" && options.remoteUrl) {
+    throw new Error("Use either --local or --connect, not both.");
+  }
+  return options;
+}
+
+function parsePort(value: string): number {
+  const port = Number(value);
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
+    throw new Error(`Invalid port: ${value}`);
+  }
+  return port;
+}
+
 async function openMainWindow(): Promise<void> {
   if (mainWindow) {
     showWindow(mainWindow);
@@ -113,7 +201,9 @@ async function openMainWindow(): Promise<void> {
   try {
     managedDaemon ??= await ensureDaemon({
       webDistPath: resolvePackagedWebDistPath(),
+      ...desktopOptions,
     });
+    await installDaemonCookie(managedDaemon);
     updateTrayMenu();
     if (window.isDestroyed()) return;
     await window.loadURL(managedDaemon.url);
@@ -246,6 +336,10 @@ function updateTrayMenu(): void {
         },
       },
       {
+        label: daemonTargetLabel(),
+        enabled: false,
+      },
+      {
         label: "Open in Browser",
         enabled: Boolean(managedDaemon?.url),
         click: () => {
@@ -283,6 +377,28 @@ function hideWindow(window: BrowserWindowType): void {
 function requestQuit(): void {
   appQuitting = true;
   app.quit();
+}
+
+function daemonTargetLabel(): string {
+  if (!managedDaemon) return "Daemon: starting";
+  if (managedDaemon.mode === "remote")
+    return `Remote daemon: ${managedDaemon.url}`;
+  return managedDaemon.owned ? "Local daemon: owned" : "Local daemon: existing";
+}
+
+async function installDaemonCookie(daemon: ManagedDaemon): Promise<void> {
+  if (!daemon.token) return;
+  const url = new URL(daemon.url);
+  await session.defaultSession.cookies.set({
+    url: url.origin,
+    name: "nerve_token",
+    value: daemon.token,
+    path: "/",
+    httpOnly: true,
+    secure: url.protocol === "https:",
+    sameSite: "strict",
+    expirationDate: Math.floor(Date.now() / 1000) + 31_536_000,
+  });
 }
 
 function createTrayIcon(): NativeImage {

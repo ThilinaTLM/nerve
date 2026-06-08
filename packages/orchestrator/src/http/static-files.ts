@@ -48,6 +48,7 @@ export function fallbackHtml(state: OrchestratorState): string {
 export async function serveStatic(
   pathname: string,
   state: OrchestratorState,
+  clientAddress?: string,
 ): Promise<Response> {
   const webDist = resolveWebDistPath();
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
@@ -59,11 +60,11 @@ export async function serveStatic(
   try {
     const contents = await readFile(finalPath);
     return new Response(contents, {
-      headers: {
-        "content-type":
-          contentTypes[extname(finalPath)] ?? "application/octet-stream",
-        "set-cookie": cookieHeader(state.storage.localToken),
-      },
+      headers: staticResponseHeaders(
+        contentTypes[extname(finalPath)] ?? "application/octet-stream",
+        state,
+        clientAddress,
+      ),
     });
   } catch {
     if (pathname.includes("."))
@@ -73,20 +74,52 @@ export async function serveStatic(
     try {
       const contents = await readFile(indexPath);
       return new Response(contents, {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "set-cookie": cookieHeader(state.storage.localToken),
-        },
+        headers: staticResponseHeaders(
+          "text/html; charset=utf-8",
+          state,
+          clientAddress,
+        ),
       });
     } catch {
       return new Response(fallbackHtml(state), {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "set-cookie": cookieHeader(state.storage.localToken),
-        },
+        headers: staticResponseHeaders(
+          "text/html; charset=utf-8",
+          state,
+          clientAddress,
+        ),
       });
     }
   }
+}
+
+function staticResponseHeaders(
+  contentType: string,
+  state: OrchestratorState,
+  clientAddress?: string,
+): HeadersInit {
+  const headers: Record<string, string> = { "content-type": contentType };
+  if (shouldIssueLocalUiCookie(state, clientAddress)) {
+    headers["set-cookie"] = cookieHeader(state.storage.localToken);
+  }
+  return headers;
+}
+
+function shouldIssueLocalUiCookie(
+  state: OrchestratorState,
+  clientAddress?: string,
+): boolean {
+  return isLoopbackHost(state.host) || isLoopbackHost(clientAddress ?? "");
+}
+
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized.startsWith("127.") ||
+    normalized.startsWith("::ffff:127.")
+  );
 }
 
 function resolveWebDistPath(): string {

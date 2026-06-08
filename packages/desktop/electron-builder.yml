@@ -1,7 +1,7 @@
 appId: io.github.thilinatlm.nerve
 productName: Nerve
-executableName: nerve
-artifactName: Nerve-${version}-${arch}.${ext}
+executableName: nerve-desktop
+artifactName: Nerve-Desktop-${version}-${arch}.${ext}
 copyright: Copyright © 2026 ThilinaTLM
 
 directories:
@@ -24,7 +24,7 @@ linux:
     - AppImage
     - deb
   category: Development
-  executableName: nerve
+  executableName: nerve-desktop
   maintainer: ThilinaTLM
   icon: build/icons
   syncDesktopName: true
