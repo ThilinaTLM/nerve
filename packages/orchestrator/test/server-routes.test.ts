@@ -26,6 +26,7 @@ async function createAuthenticatedApp() {
     await tempHome("nerve-server-routes-"),
   );
   const state = createOrchestratorState(storage, "127.0.0.1", 0);
+  await state.logger.hydrate();
   await state.registry.hydrate();
   const app = createApp(state);
   const headers = { authorization: `Bearer ${storage.localToken}` };
@@ -33,6 +34,46 @@ async function createAuthenticatedApp() {
 }
 
 describe("orchestrator server routes", () => {
+  it("accepts and queries application logs", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const writeResponse = await app.request("/api/logs/client", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({
+          logs: [
+            {
+              level: "error",
+              component: "test-client",
+              message: "client exploded",
+              context: { token: "secret" },
+            },
+          ],
+        }),
+      });
+      assert.equal(writeResponse.status, 200);
+
+      const readResponse = await app.request("/api/logs?level=error", {
+        headers,
+      });
+      assert.equal(readResponse.status, 200);
+      const body = (await readResponse.json()) as {
+        logs: Array<{
+          source: string;
+          component: string;
+          context?: Record<string, unknown>;
+        }>;
+      };
+      assert.ok(
+        body.logs.some(
+          (log) => log.source === "web" && log.component === "test-client",
+        ),
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("requires local auth for core API routes", async () => {
     const { app, state } = await createAuthenticatedApp();
     try {

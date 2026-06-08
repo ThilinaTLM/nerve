@@ -22,6 +22,7 @@ import type {
 } from "./conversation-runtime.js";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
+import type { ApplicationLogger } from "./logging.js";
 import { ensurePlanDir } from "./plan-paths.js";
 import type { PlanService } from "./plan-service.js";
 import { evaluateToolPolicy } from "./policy.js";
@@ -106,6 +107,7 @@ export class ToolService {
       reason: string,
     ) => Promise<AgentRecord>,
     private readonly conversationRuntime: ConversationRuntime,
+    private readonly logger?: ApplicationLogger,
   ) {}
 
   async hydrate(): Promise<void> {
@@ -210,6 +212,19 @@ export class ToolService {
       decision: evaluation.decision,
       reason: evaluation.reason,
     });
+    await this.logger?.info("Tool policy evaluated", {
+      toolCallId: toolCall.id,
+      agentId: agent.id,
+      conversationId: agent.conversationId,
+      projectId: agent.projectId,
+      runId: toolCall.runId,
+      context: {
+        toolName,
+        risk: evaluation.risk,
+        decision: evaluation.decision,
+        reason: evaluation.reason,
+      },
+    });
 
     if (evaluation.decision === "deny") {
       const denied = await this.updateToolCall(toolCall.id, {
@@ -217,6 +232,14 @@ export class ToolService {
         error: evaluation.reason,
       });
       await this.publishToolCallUpdated(denied);
+      await this.logger?.warn("Tool denied by policy", {
+        toolCallId: denied.id,
+        agentId: denied.agentId,
+        conversationId: denied.conversationId,
+        projectId: denied.projectId,
+        runId: denied.runId,
+        context: { toolName: denied.toolName, reason: evaluation.reason },
+      });
       return { toolCall: denied };
     }
 
@@ -241,6 +264,14 @@ export class ToolService {
       await this.events.publish("approval.requested", {
         approval,
         toolCall: pending,
+      });
+      await this.logger?.info("Tool approval requested", {
+        toolCallId: pending.id,
+        agentId: pending.agentId,
+        conversationId: pending.conversationId,
+        projectId: pending.projectId,
+        runId: pending.runId,
+        context: { toolName: pending.toolName, risk: pending.risk },
       });
       return { toolCall: pending, approval };
     }
@@ -422,6 +453,15 @@ export class ToolService {
       status: "running",
     });
     await this.publishToolCallUpdated(toolCall);
+    const started = performance.now();
+    await this.logger?.info("Tool execution started", {
+      toolCallId: toolCall.id,
+      agentId: toolCall.agentId,
+      conversationId: toolCall.conversationId,
+      projectId: toolCall.projectId,
+      runId: toolCall.runId,
+      context: { toolName: toolCall.toolName, risk: toolCall.risk },
+    });
     try {
       const args = { ...(toolCall.args as Record<string, unknown>) };
       const result = await this.executeToolCall(toolCall, args, options);
@@ -431,14 +471,44 @@ export class ToolService {
         error: undefined,
       });
       await this.publishToolCallUpdated(completed);
+      await this.logger?.info("Tool execution completed", {
+        toolCallId: completed.id,
+        agentId: completed.agentId,
+        conversationId: completed.conversationId,
+        projectId: completed.projectId,
+        runId: completed.runId,
+        durationMs: Math.round(performance.now() - started),
+        context: { toolName: completed.toolName },
+      });
       return completed;
     } catch (error) {
-      if (isToolExecutionSuspended(error)) return this.getToolCall(toolCall.id);
+      if (isToolExecutionSuspended(error)) {
+        await this.logger?.info("Tool execution suspended", {
+          toolCallId: toolCall.id,
+          agentId: toolCall.agentId,
+          conversationId: toolCall.conversationId,
+          projectId: toolCall.projectId,
+          runId: toolCall.runId,
+          durationMs: Math.round(performance.now() - started),
+          context: { toolName: toolCall.toolName },
+        });
+        return this.getToolCall(toolCall.id);
+      }
       const failed = await this.updateToolCall(toolCall.id, {
         status: "error",
         error: error instanceof Error ? error.message : String(error),
       });
       await this.publishToolCallUpdated(failed);
+      await this.logger?.error("Tool execution failed", {
+        toolCallId: failed.id,
+        agentId: failed.agentId,
+        conversationId: failed.conversationId,
+        projectId: failed.projectId,
+        runId: failed.runId,
+        durationMs: Math.round(performance.now() - started),
+        context: { toolName: failed.toolName },
+        error,
+      });
       return failed;
     }
   }

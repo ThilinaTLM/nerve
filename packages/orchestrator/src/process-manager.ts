@@ -14,6 +14,7 @@ import {
 } from "@nerve/shared";
 import type { EventBus } from "./events.js";
 import type { IndexStore } from "./index-store.js";
+import type { ApplicationLogger } from "./logging.js";
 import {
   appendJsonLine,
   atomicWriteJson,
@@ -41,6 +42,7 @@ export class ProcessManager {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
+    private readonly logger?: ApplicationLogger,
   ) {}
 
   async hydrate(): Promise<void> {
@@ -127,6 +129,13 @@ export class ProcessManager {
 
     await this.upsertProcess(record);
     await this.events.publish("process.created", { process: record });
+    await this.logger?.info("Process created", {
+      processId: record.id,
+      projectId: record.projectId,
+      conversationId: record.conversationId,
+      agentId: record.agentId,
+      context: { name: record.name, cwd: record.cwd, command: record.command },
+    });
 
     const child = spawn(request.command, {
       cwd: record.cwd,
@@ -162,6 +171,13 @@ export class ProcessManager {
       process: this.getProcess(record.id),
       pid: child.pid,
     });
+    await this.logger?.info("Process started", {
+      processId: record.id,
+      projectId: record.projectId,
+      conversationId: record.conversationId,
+      agentId: record.agentId,
+      context: { pid: child.pid },
+    });
 
     await this.waitForReadiness(record.id);
     return this.getProcess(record.id);
@@ -180,6 +196,13 @@ export class ProcessManager {
     await this.events.publish("process.stop_requested", {
       processId: record.id,
       signal: request.signal ?? "SIGTERM",
+    });
+    await this.logger?.info("Process stop requested", {
+      processId: record.id,
+      projectId: record.projectId,
+      conversationId: record.conversationId,
+      agentId: record.agentId,
+      context: { signal: request.signal ?? "SIGTERM" },
     });
 
     const stopped = new Promise<void>((resolveStop) => {
@@ -223,6 +246,12 @@ export class ProcessManager {
     this.index.deleteProcess(record.id);
     await rm(this.processDir(record.id), { recursive: true, force: true });
     await this.events.publish("process.removed", { processId: record.id });
+    await this.logger?.info("Process removed", {
+      processId: record.id,
+      projectId: record.projectId,
+      conversationId: record.conversationId,
+      agentId: record.agentId,
+    });
   }
 
   async pruneProcesses(): Promise<string[]> {
@@ -343,6 +372,13 @@ export class ProcessManager {
       },
     });
     await this.events.publish("process.ready", { process: ready, matched });
+    await this.logger?.info("Process ready", {
+      processId: ready.id,
+      projectId: ready.projectId,
+      conversationId: ready.conversationId,
+      agentId: ready.agentId,
+      context: { matched },
+    });
   }
 
   private async waitForReadiness(processId: string): Promise<void> {
@@ -377,6 +413,13 @@ export class ProcessManager {
       readiness: { ...record.readiness, outcome: "timeout" },
     });
     await this.events.publish("process.ready_timeout", { process: updated });
+    await this.logger?.warn("Process readiness timed out", {
+      processId: updated.id,
+      projectId: updated.projectId,
+      conversationId: updated.conversationId,
+      agentId: updated.agentId,
+      context: { timeoutMs: updated.readiness.timeoutMs },
+    });
   }
 
   private async markProcessExited(
@@ -406,6 +449,16 @@ export class ProcessManager {
     });
     this.managed.delete(processId);
     await this.events.publish("process.exited", { process: updated });
+    await this.logger?.[status === "error" ? "error" : "info"](
+      "Process exited",
+      {
+        processId: updated.id,
+        projectId: updated.projectId,
+        conversationId: updated.conversationId,
+        agentId: updated.agentId,
+        context: { exitCode, signal, status },
+      },
+    );
   }
 
   private async markProcessError(
@@ -419,6 +472,13 @@ export class ProcessManager {
       error: message,
     });
     await this.events.publish("process.error", { process: updated, message });
+    await this.logger?.error("Process error", {
+      processId: updated.id,
+      projectId: updated.projectId,
+      conversationId: updated.conversationId,
+      agentId: updated.agentId,
+      context: { message },
+    });
   }
 
   private async updateProcess(

@@ -1,5 +1,6 @@
 <script lang="ts">
   import GitBranch from "@lucide/svelte/icons/git-branch";
+  import FileSearch from "@lucide/svelte/icons/file-search";
   import History from "@lucide/svelte/icons/history";
   import Info from "@lucide/svelte/icons/info";
   import Terminal from "@lucide/svelte/icons/terminal";
@@ -18,10 +19,11 @@
   import ContextTab from "./utility/ContextTab.svelte";
   import GitTab from "./utility/GitTab.svelte";
   import HistoryTab from "./utility/HistoryTab.svelte";
+  import LogsTab from "./utility/LogsTab.svelte";
   import ProcessesTab from "./utility/ProcessesTab.svelte";
   import "./utility/utility.css";
 
-  type UtilityTab = "history" | "processes" | "info" | "git";
+  type UtilityTab = "history" | "processes" | "info" | "git" | "logs";
 
   type Props = {
     activeTab?: UtilityTab;
@@ -79,6 +81,7 @@
     { value: "info", label: "Context", icon: Info },
     { value: "git", label: "Git", icon: GitBranch },
     { value: "processes", label: "Processes", icon: Terminal, count: processes.length },
+    { value: "logs", label: "Logs", icon: FileSearch },
     { value: "history", label: "History", icon: History },
   ]);
 
@@ -118,6 +121,8 @@
         {onRemoveProcess}
         {onPruneProcesses}
       />
+    {:else if activeTab === "logs"}
+      <LogsTab />
     {:else}
       <HistoryTab {activeConversation} {treeNodes} {toolCalls} {onNavigateToEntry} {onEditEntry} {onCompact} />
     {/if}

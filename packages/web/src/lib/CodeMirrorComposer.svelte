@@ -6,6 +6,7 @@
   import { Compartment, EditorState, Prec } from "@codemirror/state";
   import { EditorView, keymap, placeholder as placeholderExtension, type ViewUpdate } from "@codemirror/view";
   import type { CompletionItem } from "./api";
+  import { clientLog } from "./logging/client-logger";
 
   type Props = {
     value: string;
@@ -113,7 +114,9 @@
     void Promise.all(files.map((file) => onPasteImage(file)))
       .then((paths) => insertAtSelection(paths.join("\n")))
       .catch((error: unknown) => {
-        console.error("Failed to paste clipboard image", error);
+        clientLog("error", "composer", "Failed to paste clipboard image", {
+          error,
+        });
       });
     return true;
   }

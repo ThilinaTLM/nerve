@@ -16,7 +16,8 @@ export type IdPrefix =
   | "plan_review"
   | "susp"
   | "worker"
-  | "authflow";
+  | "authflow"
+  | "log";
 
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

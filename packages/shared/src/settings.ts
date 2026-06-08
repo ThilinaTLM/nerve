@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { applicationLogLevelSchema } from "./logs.js";
 import { modelSelectionSchema } from "./models.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
@@ -30,6 +31,11 @@ export const settingsSchema = z.object({
     reserveTokens: z.number().int().positive().default(16_384),
     keepRecentTokens: z.number().int().positive(),
   }),
+  logging: z.object({
+    level: applicationLogLevelSchema.default("info"),
+    retentionDays: z.number().int().positive().default(14),
+    maxBufferedLogs: z.number().int().positive().default(2000),
+  }),
   scopedModels: z.array(modelSelectionSchema).default([]),
 });
 export type Settings = z.infer<typeof settingsSchema>;
@@ -52,6 +58,11 @@ export const defaultSettings: Settings = {
     auto: false,
     reserveTokens: 16_384,
     keepRecentTokens: 20_000,
+  },
+  logging: {
+    level: "info",
+    retentionDays: 14,
+    maxBufferedLogs: 2000,
   },
   scopedModels: [],
 };
@@ -79,6 +90,13 @@ export const updateSettingsRequestSchema = z.object({
       auto: z.boolean().optional(),
       reserveTokens: z.number().int().positive().optional(),
       keepRecentTokens: z.number().int().positive().optional(),
+    })
+    .optional(),
+  logging: z
+    .object({
+      level: applicationLogLevelSchema.optional(),
+      retentionDays: z.number().int().positive().optional(),
+      maxBufferedLogs: z.number().int().positive().optional(),
     })
     .optional(),
   scopedModels: z.array(modelSelectionSchema).optional(),

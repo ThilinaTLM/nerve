@@ -1,5 +1,6 @@
 import type { EventEnvelope } from "../api";
 import { getClientConfig } from "../api";
+import { clientLog, installClientLogging } from "../logging/client-logger";
 import {
   applyTheme,
   composerDraft,
@@ -28,6 +29,7 @@ const SUBSCRIPTION_USAGE_POLL_MS = 10_000;
 export async function initializeWorkbench(): Promise<void> {
   intentionallyDisconnected = false;
   try {
+    installClientLogging();
     applyTheme(loadThemePreference());
     workbenchState.config = await getClientConfig();
     workbenchState.status = workbenchState.config.status;
@@ -36,11 +38,15 @@ export async function initializeWorkbench(): Promise<void> {
     await restoreConversationTabs();
     await loadSettingsPanel();
     startSubscriptionUsagePolling();
+    clientLog("info", "workbench", "Workbench initialized");
     connectWebsocket(workbenchState.config.wsUrl);
   } catch (caught) {
     workbenchState.error =
       caught instanceof Error ? caught.message : String(caught);
     workbenchState.connection = "error";
+    clientLog("error", "workbench", "Workbench initialization failed", {
+      error: caught,
+    });
   }
 }
 
@@ -106,6 +112,9 @@ function connectWebsocket(wsUrl: string) {
     if (generation !== socketGeneration) return;
     reconnectAttempts = 0;
     workbenchState.connection = "live";
+    clientLog("info", "websocket", "WebSocket connected", {
+      context: { since: workbenchState.lastEventSeq },
+    });
   });
   nextSocket.addEventListener("message", (message) => {
     if (generation !== socketGeneration) return;
@@ -121,11 +130,13 @@ function connectWebsocket(wsUrl: string) {
       workbenchState.connection = "closed";
       return;
     }
+    clientLog("warn", "websocket", "WebSocket closed; reconnect scheduled");
     scheduleReconnect(wsUrl);
   });
   nextSocket.addEventListener("error", () => {
     if (generation !== socketGeneration) return;
     workbenchState.connection = "error";
+    clientLog("error", "websocket", "WebSocket error");
   });
 }
 

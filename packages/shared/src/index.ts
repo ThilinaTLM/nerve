@@ -9,6 +9,7 @@ export * from "./core.js";
 export * from "./events.js";
 export * from "./filesystem.js";
 export * from "./git.js";
+export * from "./logs.js";
 export * from "./models.js";
 export * from "./plans.js";
 export * from "./processes.js";

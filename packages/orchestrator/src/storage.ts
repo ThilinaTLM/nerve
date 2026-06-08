@@ -192,6 +192,7 @@ export async function writeSettings(
       ...storage.settings.compaction,
       ...(patch.compaction ?? {}),
     },
+    logging: { ...storage.settings.logging, ...(patch.logging ?? {}) },
   });
   await atomicWriteJson(storage.paths.configPath, next, 0o600);
   storage.settings = next;

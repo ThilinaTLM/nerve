@@ -48,6 +48,7 @@ import { GitService } from "./git/git-service.js";
 import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
 import type { IndexStore } from "./index-store.js";
+import type { ApplicationLogger } from "./logging.js";
 import { PlanService } from "./plan-service.js";
 import { ProcessManager } from "./process-manager.js";
 import { AgentLifecycleService } from "./registry/agent-lifecycle-service.js";
@@ -103,6 +104,7 @@ export class RuntimeRegistry {
     private readonly index: IndexStore,
     auth: AuthManager,
     private readonly subscriptionUsage: SubscriptionUsageService,
+    logger: ApplicationLogger,
   ) {
     this.projectRepository = new ProjectRepository(storage);
     this.conversationRepository = new ConversationRepository(storage);
@@ -161,7 +163,12 @@ export class RuntimeRegistry {
         this.updateConversation(conversation),
       events,
     });
-    this.processes = new ProcessManager(storage, events, index);
+    this.processes = new ProcessManager(
+      storage,
+      events,
+      index,
+      logger.child({ component: "process" }),
+    );
     this.workers = new WorkerManager(storage, events, index);
     this.projectLifecycle = new ProjectLifecycleService(
       this.projectRepository,
@@ -226,6 +233,7 @@ export class RuntimeRegistry {
       (agentId, mode, reason) =>
         this.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
       this.conversationRuntime,
+      logger.child({ component: "tool" }),
     );
     this.agentRunner = new AgentRunner({
       storage,
@@ -248,6 +256,7 @@ export class RuntimeRegistry {
       messageMirror: this.messageMirror,
       conversationRuntime: this.conversationRuntime,
       subscriptionUsage: this.subscriptionUsage,
+      logger: logger.child({ component: "agent-runner" }),
     });
   }
 

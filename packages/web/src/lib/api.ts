@@ -1,5 +1,8 @@
 import type {
   AgentRecord,
+  ApplicationLogLevel,
+  ApplicationLogQueryResponse,
+  ApplicationLogSource,
   ApprovalRecord,
   AudioTranscriptionResponse,
   AuthProviderMetadata,
@@ -48,6 +51,7 @@ import type {
   UpdateSettingsRequest,
   UserQuestionRecord,
 } from "@nerve/shared";
+import { logApiFailure } from "./logging/client-logger";
 
 export type ClientConfig = {
   url: string;
@@ -71,7 +75,12 @@ export type WorkspaceSnapshot = {
 };
 
 export type SettingsResponse = Settings;
-export type { UpdateSettingsRequest };
+export type {
+  ApplicationLogLevel,
+  ApplicationLogQueryResponse,
+  ApplicationLogSource,
+  UpdateSettingsRequest,
+};
 export type ModelOption = ModelInfo;
 
 export type ApprovalWithToolCall = ApprovalRecord & {
@@ -101,8 +110,30 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function fetchJson<T>(
+  path: string,
+  init: RequestInit & { method?: string } = {},
+): Promise<T> {
+  const started = performance.now();
+  const method = init.method ?? "GET";
+  let response: Response | undefined;
+  try {
+    response = await fetch(path, { credentials: "same-origin", ...init });
+    return await parseResponse<T>(response);
+  } catch (error) {
+    logApiFailure(
+      method,
+      path,
+      response?.status,
+      Math.round(performance.now() - started),
+      error,
+    );
+    throw error;
+  }
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
-  return parseResponse<T>(await fetch(path, { credentials: "same-origin" }));
+  return fetchJson<T>(path);
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -121,14 +152,11 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  return parseResponse<T>(
-    await fetch(path, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  );
+  return fetchJson<T>(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 function extensionForAudioType(type: string): string {
@@ -233,34 +261,23 @@ export async function transcribeAudio(
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
-  return parseResponse<T>(
-    await fetch(path, {
-      method: "PUT",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  );
+  return fetchJson<T>(path, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  return parseResponse<T>(
-    await fetch(path, {
-      method: "PATCH",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  );
+  return fetchJson<T>(path, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
-  return parseResponse<T>(
-    await fetch(path, {
-      method: "DELETE",
-      credentials: "same-origin",
-    }),
-  );
+  return fetchJson<T>(path, { method: "DELETE" });
 }
 
 export async function getClientConfig(): Promise<ClientConfig> {
@@ -405,6 +422,27 @@ export async function deleteConversation(
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
   return (await apiGet<{ items: CompletionItem[] }>("/api/completions/slash"))
     .items;
+}
+
+export async function getApplicationLogs(
+  query: {
+    level?: ApplicationLogLevel;
+    source?: ApplicationLogSource;
+    component?: string;
+    contains?: string;
+    sinceSeq?: number;
+    limit?: number;
+  } = {},
+): Promise<ApplicationLogQueryResponse> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && String(value).length > 0) {
+      params.set(key, String(value));
+    }
+  }
+  return apiGet<ApplicationLogQueryResponse>(
+    `/api/logs${params.size ? `?${params.toString()}` : ""}`,
+  );
 }
 
 export async function getProcessLogs(

@@ -9,6 +9,7 @@ import type {
   Tray as TrayType,
 } from "electron";
 import { ensureDaemon, type ManagedDaemon } from "./daemon.js";
+import { desktopLog } from "./logging.js";
 
 const require = createRequire(import.meta.url);
 const {
@@ -69,11 +70,13 @@ if (!gotSingleInstanceLock) {
   app
     .whenReady()
     .then(async () => {
+      void desktopLog("info", "app", "Electron app ready");
       ensureTray();
       nativeTheme.on("updated", updateTrayIcon);
       await openMainWindow();
     })
     .catch((error: unknown) => {
+      void desktopLog("error", "app", "Failed during app startup", { error });
       console.error(error);
       requestQuit();
     });
@@ -96,6 +99,9 @@ if (!gotSingleInstanceLock) {
     stopDaemonPromise = managedDaemon
       .stop()
       .catch((error: unknown) => {
+        void desktopLog("error", "daemon", "Failed to stop Nerve daemon", {
+          error,
+        });
         console.error("Failed to stop Nerve daemon", error);
       })
       .finally(() => {
@@ -191,6 +197,7 @@ async function openMainWindow(): Promise<void> {
   }
 
   const window = createMainWindow();
+  void desktopLog("info", "window", "Opening main window");
   mainWindow = window;
   window.on("closed", () => {
     if (mainWindow === window) mainWindow = undefined;
@@ -203,11 +210,21 @@ async function openMainWindow(): Promise<void> {
       webDistPath: resolvePackagedWebDistPath(),
       ...desktopOptions,
     });
+    void desktopLog("info", "daemon", "Daemon connection established", {
+      context: {
+        url: managedDaemon.url,
+        mode: managedDaemon.mode,
+        owned: managedDaemon.owned,
+      },
+    });
     await installDaemonCookie(managedDaemon);
     updateTrayMenu();
     if (window.isDestroyed()) return;
     await window.loadURL(managedDaemon.url);
   } catch (error) {
+    void desktopLog("error", "daemon", "Failed to open Nerve daemon", {
+      error,
+    });
     console.error(error);
     if (!window.isDestroyed())
       await window.loadURL(createDataUrl(errorHtml(error)));

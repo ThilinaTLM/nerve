@@ -35,9 +35,21 @@ async function main() {
     readArg("--port") ?? process.env.NERVE_PORT ?? storage.settings.server.port,
   );
   const state = createOrchestratorState(storage, host, port);
+  await state.logger.hydrate();
+  await state.logger.pruneRetention();
+  await state.logger.info("Daemon storage initialized", {
+    context: { dataDir: storage.paths.home, host, port },
+  });
   await state.events.hydrate();
+  await state.logger.info("Event log hydrated", {
+    context: { latestSeq: state.events.latestSeq },
+  });
   await state.registry.hydrate();
+  await state.logger.info("Registry hydrated");
   await state.registry.rebuildIndex();
+  await state.logger.info("Index rebuilt", {
+    context: { ...state.index.counts() },
+  });
   state.subscriptionUsage.start();
   const app = createApp(state);
 
@@ -58,10 +70,13 @@ async function main() {
         port: state.port,
         dataDir: storage.paths.home,
       });
-      console.log(
-        `nerve daemon listening on http://${state.host}:${state.port}`,
-      );
-      console.log(`data dir: ${storage.paths.home}`);
+      await state.logger.info("Daemon listening", {
+        context: {
+          url: `http://${state.host}:${state.port}`,
+          dataDir: storage.paths.home,
+          pid: process.pid,
+        },
+      });
     },
   );
 
@@ -138,7 +153,9 @@ async function main() {
   });
 
   const shutdown = async (signal: NodeJS.Signals) => {
-    console.log(`received ${signal}, stopping nerve daemon`);
+    await state.logger.info("Daemon shutdown requested", {
+      context: { signal },
+    });
     await state.events
       .publish("daemon.stopped", { daemonId: state.daemonId, signal })
       .catch(() => undefined);

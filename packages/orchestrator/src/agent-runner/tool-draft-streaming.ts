@@ -1,5 +1,7 @@
+const nonStreamingToolDrafts = new Set(["write", "edit"]);
+
 export function shouldStreamToolDraftArguments(
   toolName: string | undefined,
 ): boolean {
-  return Boolean(toolName);
+  return Boolean(toolName && !nonStreamingToolDrafts.has(toolName));
 }

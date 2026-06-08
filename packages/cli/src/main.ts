@@ -5,6 +5,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
+  type ApplicationLogLevel,
+  type ApplicationLogQueryResponse,
+  type ApplicationLogSource,
   type AuthProviderMetadata,
   type DaemonFile,
   daemonFileSchema,
@@ -163,6 +166,15 @@ function openUrl(url: string): void {
   const child = spawn(command, args, { stdio: "ignore", detached: true });
   child.unref();
 }
+
+type LogsCommandOptions = {
+  level?: ApplicationLogLevel;
+  source?: ApplicationLogSource;
+  component?: string;
+  contains?: string;
+  limit?: number;
+  follow?: boolean;
+};
 
 async function commandUi(args: string[]): Promise<void> {
   const connection = await readDaemonConnection();
@@ -577,6 +589,79 @@ async function streamPrompt(agentId: string, prompt: string): Promise<void> {
   });
 }
 
+function readOption(args: string[], name: string): string | undefined {
+  const inline = args.find((arg) => arg.startsWith(`${name}=`));
+  if (inline) return inline.slice(name.length + 1);
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
+function parseLogsOptions(args: string[]): LogsCommandOptions {
+  const limitValue = readOption(args, "--limit");
+  const level = readOption(args, "--level") as ApplicationLogLevel | undefined;
+  const source = readOption(args, "--source") as
+    | ApplicationLogSource
+    | undefined;
+  return {
+    level,
+    source,
+    component: readOption(args, "--component"),
+    contains: readOption(args, "--contains"),
+    limit: limitValue ? Number(limitValue) : undefined,
+    follow: args.includes("--follow") || args.includes("-f"),
+  };
+}
+
+async function fetchLogs(
+  options: LogsCommandOptions,
+  sinceSeq?: number,
+): Promise<ApplicationLogQueryResponse> {
+  const params = new URLSearchParams();
+  if (options.level) params.set("level", options.level);
+  if (options.source) params.set("source", options.source);
+  if (options.component) params.set("component", options.component);
+  if (options.contains) params.set("contains", options.contains);
+  if (options.limit) params.set("limit", String(options.limit));
+  if (sinceSeq !== undefined) params.set("sinceSeq", String(sinceSeq));
+  return apiGet<ApplicationLogQueryResponse>(
+    `/api/logs${params.size ? `?${params.toString()}` : ""}`,
+  );
+}
+
+function printLogRecords(response: ApplicationLogQueryResponse): void {
+  for (const log of response.logs) {
+    const refs = [
+      log.requestId,
+      log.projectId,
+      log.conversationId,
+      log.agentId,
+      log.runId,
+      log.toolCallId,
+      log.processId,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    console.log(
+      `${log.ts} ${log.level.toUpperCase().padEnd(5)} ${log.source}/${log.component} ${log.message}${refs ? ` [${refs}]` : ""}`,
+    );
+    if (log.error?.stack) console.log(log.error.stack);
+  }
+}
+
+async function commandLogs(args: string[]): Promise<void> {
+  const options = parseLogsOptions(args);
+  let response = await fetchLogs(options);
+  printLogRecords(response);
+  if (!options.follow) return;
+  let cursor = response.nextCursor;
+  while (true) {
+    await delay(1000);
+    response = await fetchLogs(options, cursor);
+    printLogRecords(response);
+    cursor = response.nextCursor;
+  }
+}
+
 async function commandServe(args: string[]): Promise<void> {
   if (args.includes("--open")) void openUiWhenReady();
   await import("@nerve/orchestrator/main");
@@ -609,6 +694,7 @@ Usage:
   nerve serve [--host 127.0.0.1] [--port 3747] [--open] [--allow-remote]
   nerve status
   nerve ui [--open]
+  nerve logs [--level info] [--source orchestrator] [--limit 100] [--follow]
   nerve run [dir] [prompt...]
   nerve auth list
   nerve auth login <provider>
@@ -644,6 +730,10 @@ async function main(): Promise<void> {
   }
   if (command === "ui") {
     await commandUi(args);
+    return;
+  }
+  if (command === "logs") {
+    await commandLogs(args);
     return;
   }
   if (command === "run") {

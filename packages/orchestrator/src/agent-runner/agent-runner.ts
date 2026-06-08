@@ -36,6 +36,7 @@ import type { ConversationService } from "../conversation-service.js";
 import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
+import type { ApplicationLogger } from "../logging.js";
 import { planDirForStorageHome } from "../plan-paths.js";
 import { loadHarnessResources } from "../resource-loader.js";
 import type { InitializedStorage } from "../storage.js";
@@ -73,6 +74,7 @@ export interface AgentRunnerDeps {
   messageMirror: MessageMirror;
   conversationRuntime: ConversationRuntime;
   subscriptionUsage: SubscriptionUsageService;
+  logger: ApplicationLogger;
 }
 
 export class AgentRunner {
@@ -161,6 +163,7 @@ export class AgentRunner {
     }
 
     const runId = createId("run");
+    const runStartedAt = performance.now();
     let abortRequested = false;
     let lastAssistantEntry: ConversationEntry | undefined;
     let currentTurnId: string | undefined;
@@ -168,6 +171,13 @@ export class AgentRunner {
     const liveToolDraftNames = new Map<number, string | undefined>();
 
     try {
+      await this.deps.logger.info("Agent run preparing", {
+        agentId: agent.id,
+        conversationId: agent.conversationId,
+        projectId: agent.projectId,
+        runId,
+        context: { behavior: request.behavior, continue: options.continue },
+      });
       const conversation = this.deps.getConversation(agent.conversationId);
       const project = this.deps.getProject(agent.projectId);
       const storage = await this.deps.harnessManager.openStorage(
@@ -451,6 +461,17 @@ export class AgentRunner {
         parentEntryId: conversation.activeEntryId,
         startedAt,
       });
+      await this.deps.logger.info("Agent run started", {
+        agentId: agent.id,
+        conversationId: agent.conversationId,
+        projectId: agent.projectId,
+        runId,
+        context: {
+          parentEntryId: conversation.activeEntryId,
+          model: model.id,
+          provider: model.provider,
+        },
+      });
 
       this.deps.runs.set(agent.id, {
         runId,
@@ -493,6 +514,14 @@ export class AgentRunner {
         conversationId: agent.conversationId,
         finalEntryId: assistantEntry.id,
         completedAt,
+      });
+      await this.deps.logger.info("Agent run completed", {
+        agentId: agent.id,
+        conversationId: agent.conversationId,
+        projectId: agent.projectId,
+        runId,
+        durationMs: Math.round(performance.now() - runStartedAt),
+        context: { finalEntryId: assistantEntry.id },
       });
       this.deps.conversationRuntime.completeRun(runId);
       await this.maybeAutoCompact(agent.conversationId).catch((error) => {
@@ -561,6 +590,18 @@ export class AgentRunner {
           suspendedAt,
           reason: suspensionError.data.reason,
         });
+        await this.deps.logger.info("Agent run suspended", {
+          agentId: agent.id,
+          conversationId: agent.conversationId,
+          projectId: agent.projectId,
+          runId,
+          toolCallId: toolCall.id,
+          durationMs: Math.round(performance.now() - runStartedAt),
+          context: {
+            suspensionId: suspension.id,
+            reason: suspensionError.data.reason,
+          },
+        });
         this.deps.conversationRuntime.completeRun(runId);
         if (lastAssistantEntry) return lastAssistantEntry;
         throw new Error("Agent run suspended without an assistant entry.");
@@ -579,6 +620,18 @@ export class AgentRunner {
         aborted,
         failedAt: new Date().toISOString(),
       });
+      await this.deps.logger[aborted ? "warn" : "error"](
+        aborted ? "Agent run aborted" : "Agent run failed",
+        {
+          agentId: agent.id,
+          conversationId: agent.conversationId,
+          projectId: agent.projectId,
+          runId,
+          durationMs: Math.round(performance.now() - runStartedAt),
+          context: { aborted },
+          error,
+        },
+      );
       this.deps.conversationRuntime.failRun(runId);
       throw error;
     }

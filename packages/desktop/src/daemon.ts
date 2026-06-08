@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type DaemonFile, daemonFileSchema } from "@nerve/shared";
+import { desktopLog } from "./logging.js";
 
 const readinessTimeoutMs = 15_000;
 const healthCheckTimeoutMs = 1500;
@@ -69,8 +70,12 @@ export async function ensureDaemon(
   options: EnsureDaemonOptions = {},
 ): Promise<ManagedDaemon> {
   if (options.mode === "remote" || options.remoteUrl) {
+    void desktopLog("info", "daemon", "Connecting to remote daemon", {
+      context: { url: options.remoteUrl },
+    });
     return connectRemoteDaemon(options);
   }
+  void desktopLog("info", "daemon", "Ensuring local daemon");
   return ensureLocalDaemon(options);
 }
 
@@ -104,6 +109,9 @@ async function ensureLocalDaemon(
   const paths = resolveDaemonPaths();
   const existing = await findHealthyDaemon(paths);
   if (existing) {
+    void desktopLog("info", "daemon", "Using existing healthy local daemon", {
+      context: { url: existing.url },
+    });
     return {
       url: existing.url,
       token: existing.token,
@@ -121,6 +129,9 @@ async function ensureLocalDaemon(
   });
 
   const output = new OutputBuffer();
+  void desktopLog("info", "daemon", "Starting owned local daemon", {
+    context: { orchestratorMain },
+  });
   const child = spawn(process.execPath, [orchestratorMain], {
     env: {
       ...process.env,
@@ -168,6 +179,9 @@ async function ensureLocalDaemon(
 
     const daemon = await findHealthyDaemon(paths);
     if (daemon) {
+      void desktopLog("info", "daemon", "Owned local daemon became ready", {
+        context: { url: daemon.url },
+      });
       return {
         url: daemon.url,
         token: daemon.token,
@@ -180,10 +194,15 @@ async function ensureLocalDaemon(
   }
 
   await stopOwnedChild(child, () => childExit !== undefined);
-  throw daemonStartupError(
+  const error = daemonStartupError(
     `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
     output,
   );
+  void desktopLog("error", "daemon", "Owned local daemon startup timed out", {
+    error,
+    context: { output: output.tail() },
+  });
+  throw error;
 }
 
 function resolveDaemonPaths(): DaemonPaths {
