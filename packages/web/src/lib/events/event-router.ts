@@ -4,6 +4,7 @@ import type {
   AgentRecord,
   ConversationEntry,
   EventEnvelope,
+  QueuedPromptRecord,
   SubscriptionUsage,
   ToolCallRecord,
 } from "../api";
@@ -241,6 +242,7 @@ function isConversationRuntimeEvent(type: string): boolean {
     type === "conversation.entry.appended" ||
     type === "conversation.context.updated" ||
     type === "conversation.tool_call.updated" ||
+    type.startsWith("conversation.prompt.") ||
     type.startsWith("conversation.run.") ||
     type.startsWith("conversation.live.")
   );
@@ -305,6 +307,7 @@ function handleConversationEvent(
   switch (event.type) {
     case "conversation.run.started":
       view.sending = true;
+      view.queuedPrompts = [];
       view.error = undefined;
       break;
     case "conversation.entry.appended":
@@ -319,6 +322,19 @@ function handleConversationEvent(
       view.contextUsage =
         (event.data?.contextUsage as ConversationViewState["contextUsage"]) ??
         view.contextUsage;
+      break;
+    case "conversation.prompt.queued":
+      upsertQueuedPrompt(
+        view,
+        event.data?.queuedPrompt as QueuedPromptRecord | undefined,
+      );
+      break;
+    case "conversation.prompt.dequeued":
+    case "conversation.prompt.cancelled":
+      removeQueuedPrompt(
+        view,
+        event.data?.queuedPrompt as QueuedPromptRecord | undefined,
+      );
       break;
     case "conversation.tool_call.updated":
       handleToolCallUpdated(
@@ -353,6 +369,7 @@ function handleConversationEvent(
       view.streamingText = "";
       view.live = emptyLiveState();
       view.activeRun = undefined;
+      view.queuedPrompts = [];
       view.error = undefined;
       void refreshConversationView(conversationId).then(() => {
         if (selection.conversationId === conversationId)
@@ -367,6 +384,7 @@ function handleConversationEvent(
       view.streamingText = "";
       view.live = emptyLiveState();
       view.activeRun = undefined;
+      view.queuedPrompts = [];
       view.error = event.data?.aborted
         ? undefined
         : String(event.data?.message ?? "Agent error");
@@ -376,11 +394,38 @@ function handleConversationEvent(
       view.streamingText = "";
       view.live = emptyLiveState();
       view.activeRun = undefined;
+      view.queuedPrompts = [];
       view.error = undefined;
       break;
   }
 
   syncActiveView(view);
+}
+
+function upsertQueuedPrompt(
+  view: ConversationViewState,
+  queuedPrompt: QueuedPromptRecord | undefined,
+): void {
+  if (!queuedPrompt) return;
+  const index = view.queuedPrompts.findIndex(
+    (candidate) => candidate.id === queuedPrompt.id,
+  );
+  view.queuedPrompts =
+    index === -1
+      ? [...view.queuedPrompts, queuedPrompt]
+      : view.queuedPrompts.map((candidate) =>
+          candidate.id === queuedPrompt.id ? queuedPrompt : candidate,
+        );
+}
+
+function removeQueuedPrompt(
+  view: ConversationViewState,
+  queuedPrompt: QueuedPromptRecord | undefined,
+): void {
+  if (!queuedPrompt) return;
+  view.queuedPrompts = view.queuedPrompts.filter(
+    (candidate) => candidate.id !== queuedPrompt.id,
+  );
 }
 
 function emptyLiveState(runId?: string): ConversationLiveState {

@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld("nerveDesktop", {
   window: {
     minimize: () => ipcRenderer.invoke("desktop.window.minimize"),
     toggleMaximize: () => ipcRenderer.invoke("desktop.window.toggleMaximize"),
-    close: () => ipcRenderer.invoke("desktop.window.close"),
+    close: (options) => ipcRenderer.invoke("desktop.window.close", options),
     getState: () => ipcRenderer.invoke("desktop.window.getState"),
     onStateChange: (listener) => {
       const handler = (_event, state) => {
@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld("nerveDesktop", {
         ipcRenderer.off("desktop.window.stateChanged", handler);
       };
     },
+  },
+  settings: {
+    setCloseToTray: (closeToTray) =>
+      ipcRenderer.invoke("desktop.settings.setCloseToTray", closeToTray),
   },
   notifications: {
     show: (payload) =>

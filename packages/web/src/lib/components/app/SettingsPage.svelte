@@ -12,13 +12,14 @@
   import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
   import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";
   import CompactionSettingsSection from "./settings/sections/CompactionSettingsSection.svelte";
+  import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
   import "./settings/settings.css";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-  type SectionId = "appearance" | "agents" | "models" | "server" | "compaction" | "runtime";
+  type SectionId = "appearance" | "desktop" | "agents" | "models" | "server" | "compaction" | "runtime";
   type SettingsChange = (
     patch: UpdateSettingsRequest,
     options?: { immediate?: boolean; debounceMs?: number },
@@ -37,6 +38,7 @@
 
   const sections: { id: SectionId; label: string; detail: string }[] = [
     { id: "appearance", label: "Appearance", detail: "Theme" },
+    { id: "desktop", label: "Desktop", detail: "Window" },
     { id: "agents", label: "Agents", detail: "Defaults" },
     { id: "models", label: "Models", detail: "Scope" },
     { id: "server", label: "Server", detail: "Binding" },
@@ -102,6 +104,7 @@
     <div class="settings-main">
       {#if settingsDraft}
         <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
+        <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
         <AgentsSettingsSection {settingsDraft} {onSettingsChange} />
         <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ServerSettingsSection {settingsDraft} {onSettingsChange} />

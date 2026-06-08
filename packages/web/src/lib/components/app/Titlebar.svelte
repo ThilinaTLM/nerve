@@ -14,6 +14,7 @@
     activeProject?: ProjectRecord;
     desktop?: boolean;
     maximized?: boolean;
+    closeToTray?: boolean;
     settingsActive?: boolean;
     onOpenProject?: () => void;
     onOpenSettings?: () => void;
@@ -26,6 +27,7 @@
     activeProject,
     desktop = false,
     maximized = false,
+    closeToTray = true,
     settingsActive = false,
     onOpenProject,
     onOpenSettings,
@@ -97,8 +99,8 @@
         variant="ghost"
         size="icon-sm"
         class="window-control close-control"
-        ariaLabel="Close window"
-        title="Close to tray"
+        ariaLabel={closeToTray ? "Close window to tray" : "Close Nerve"}
+        title={closeToTray ? "Close to tray" : "Close Nerve"}
         onclick={() => onClose?.()}
       >
         <X size={16} strokeWidth={2.1} />

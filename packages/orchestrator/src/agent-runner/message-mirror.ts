@@ -156,7 +156,13 @@ function entryDetails(message: AgentMessage): unknown {
     .filter((part) => part.type === "thinking")
     .map((part) => ({ text: part.thinking, redacted: part.redacted }))
     .filter((part) => part.text.length > 0 || part.redacted === true);
-  return thinkingBlocks.length > 0 ? { thinkingBlocks } : undefined;
+  const details: Record<string, unknown> = {};
+  if (thinkingBlocks.length > 0) details.thinkingBlocks = thinkingBlocks;
+  if (message.stopReason === "aborted" || message.stopReason === "error") {
+    details.stopReason = message.stopReason;
+    details.errorMessage = message.errorMessage;
+  }
+  return Object.keys(details).length > 0 ? details : undefined;
 }
 
 function extractEntryUsage(

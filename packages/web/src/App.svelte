@@ -10,6 +10,7 @@
     desktopRuntime,
     initializeDesktopRuntime,
     minimizeDesktopWindow,
+    syncDesktopCloseToTray,
     toggleMaximizeDesktopWindow,
   } from "$lib/desktop/bridge.svelte";
   import { checkoutGithubPr, type AgentRecord } from "./lib/api";
@@ -110,6 +111,7 @@
   const toolCalls = $derived(workbenchSelectors.toolCalls);
   const streamingText = $derived(workbenchSelectors.streamingText);
   const conversationLiveState = $derived(workbenchSelectors.conversationLiveState);
+  const queuedPrompts = $derived(workbenchSelectors.queuedPrompts);
   const activeComposerText = $derived(workbenchSelectors.activeComposerText);
   const centerTabs = $derived(workbenchSelectors.centerTabs);
   const activeCenterTab = $derived(workbenchSelectors.activeCenterTab);
@@ -214,6 +216,14 @@
     void closeCenterTabs(centerTabsToLeftOf(tab), tab);
   }
 
+  let lastSyncedCloseToTray: boolean | undefined;
+  $effect(() => {
+    const value = settingsDraft?.desktop.closeToTray;
+    if (!desktopRuntime.isDesktop || value === undefined || value === lastSyncedCloseToTray) return;
+    lastSyncedCloseToTray = value;
+    void syncDesktopCloseToTray(value);
+  });
+
   let lastGitProjectId: string | undefined;
   $effect(() => {
     const projectId = activeProject?.id;
@@ -257,12 +267,13 @@
     {activeProject}
     desktop={desktopRuntime.isDesktop}
     maximized={desktopRuntime.windowState.maximized}
+    closeToTray={settingsDraft?.desktop.closeToTray ?? true}
     settingsActive={activeCenterTab?.kind === "settings"}
     onOpenProject={openProjectPicker}
     onOpenSettings={() => void openSettingsPane()}
     onMinimize={() => void minimizeDesktopWindow()}
     onToggleMaximize={() => void toggleMaximizeDesktopWindow()}
-    onClose={() => void closeDesktopWindow()}
+    onClose={() => void closeDesktopWindow({ closeToTray: settingsDraft?.desktop.closeToTray ?? true })}
   />
 
   <div class="workspace-shell">
@@ -348,6 +359,7 @@
                 {toolCalls}
                 {streamingText}
                 liveState={conversationLiveState}
+                {queuedPrompts}
                 {live}
                 {sending}
                 composerText={activeComposerText}

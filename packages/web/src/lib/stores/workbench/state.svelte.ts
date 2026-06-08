@@ -17,6 +17,7 @@ import type {
   ProcessLogQueryResponse,
   ProcessRecord,
   ProjectRecord,
+  QueuedPromptRecord,
   Settings,
   StatusResponse,
   SubscriptionUsage,
@@ -86,6 +87,7 @@ export type ConversationViewState = {
   streamingText: string;
   live: ConversationLiveState;
   activeRun?: ConversationActiveRunSnapshot;
+  queuedPrompts: QueuedPromptRecord[];
   contextUsage?: ContextUsage;
   cursorSeq: number;
   sending: boolean;

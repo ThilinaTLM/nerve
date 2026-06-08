@@ -26,6 +26,9 @@ export const settingsSchema = z.object({
     theme: z.enum(["system", "light", "dark"]),
     zoomLevel: z.number().int().min(-4).max(4).default(0),
   }),
+  desktop: z.object({
+    closeToTray: z.boolean().default(true),
+  }),
   compaction: z.object({
     auto: z.boolean(),
     reserveTokens: z.number().int().positive().default(16_384),
@@ -35,6 +38,11 @@ export const settingsSchema = z.object({
     level: applicationLogLevelSchema.default("info"),
     retentionDays: z.number().int().positive().default(14),
     maxBufferedLogs: z.number().int().positive().default(2000),
+  }),
+  retry: z.object({
+    enabled: z.boolean().default(true),
+    maxRetries: z.number().int().nonnegative().default(3),
+    baseDelayMs: z.number().int().positive().default(2000),
   }),
   scopedModels: z.array(modelSelectionSchema).default([]),
 });
@@ -54,6 +62,9 @@ export const defaultSettings: Settings = {
     theme: "system",
     zoomLevel: 0,
   },
+  desktop: {
+    closeToTray: true,
+  },
   compaction: {
     auto: false,
     reserveTokens: 16_384,
@@ -63,6 +74,11 @@ export const defaultSettings: Settings = {
     level: "info",
     retentionDays: 14,
     maxBufferedLogs: 2000,
+  },
+  retry: {
+    enabled: true,
+    maxRetries: 3,
+    baseDelayMs: 2000,
   },
   scopedModels: [],
 };
@@ -85,6 +101,11 @@ export const updateSettingsRequestSchema = z.object({
       zoomLevel: z.number().int().min(-4).max(4).optional(),
     })
     .optional(),
+  desktop: z
+    .object({
+      closeToTray: z.boolean().optional(),
+    })
+    .optional(),
   compaction: z
     .object({
       auto: z.boolean().optional(),
@@ -97,6 +118,13 @@ export const updateSettingsRequestSchema = z.object({
       level: applicationLogLevelSchema.optional(),
       retentionDays: z.number().int().positive().optional(),
       maxBufferedLogs: z.number().int().positive().optional(),
+    })
+    .optional(),
+  retry: z
+    .object({
+      enabled: z.boolean().optional(),
+      maxRetries: z.number().int().nonnegative().optional(),
+      baseDelayMs: z.number().int().positive().optional(),
     })
     .optional(),
   scopedModels: z.array(modelSelectionSchema).optional(),

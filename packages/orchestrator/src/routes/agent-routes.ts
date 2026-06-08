@@ -60,6 +60,27 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
       return c.json({ ok: true }, 202);
     }),
   );
+  app.get(
+    "/agents/:agentId/prompt-queue",
+    routeHandler(async (c) =>
+      c.json({
+        queuedPrompts: await state.registry.listQueuedPrompts(
+          c.req.param("agentId"),
+        ),
+      }),
+    ),
+  );
+  app.delete(
+    "/agents/:agentId/prompt-queue/:queuedPromptId",
+    routeHandler(async (c) =>
+      c.json({
+        queuedPrompt: await state.registry.cancelQueuedPrompt(
+          c.req.param("agentId"),
+          c.req.param("queuedPromptId"),
+        ),
+      }),
+    ),
+  );
   app.post(
     "/agents/:agentId/tools",
     routeHandler(async (c) => {

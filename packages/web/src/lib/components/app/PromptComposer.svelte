@@ -118,8 +118,8 @@
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
   const pendingPlan = $derived(Boolean(pendingPlanReview));
   const blockedForReview = $derived(pendingApproval || pendingQuestion || pendingPlan);
-  const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && live && models.length > 0 && !blockedForReview));
-  const editorDisabled = $derived(sending || !canPrompt);
+  const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview));
+  const editorDisabled = $derived(!canPrompt);
   const submitDisabled = $derived(!canPrompt);
   const supportsAudioRecording = $derived(TranscriptionController.isSupported());
   const micDisabled = $derived(
@@ -266,7 +266,7 @@
       <CodeMirrorComposer
         value={text}
         disabled={editorDisabled}
-        placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingPlan ? "Review the plan in the transcript before the agent can continue…" : pendingQuestion ? "Reply in the transcript before the agent can continue…" : "Ask the local Nerve agent…"}
+        placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingPlan ? "Review the plan in the transcript before the agent can continue…" : pendingQuestion ? "Reply in the transcript before the agent can continue…" : sending ? "Queue a prompt for the next agent turn…" : "Ask the local Nerve agent…"}
         {slashCompletions}
         {fileCompletions}
         onChange={onChange}
@@ -305,11 +305,10 @@
           <Button variant="secondary" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" title="Stop generation">
             <Square size={13} strokeWidth={2.5} />
           </Button>
-        {:else}
-          <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label="Send prompt" title="Send prompt">
-            <Send size={14} strokeWidth={2.4} />
-          </Button>
         {/if}
+        <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label={sending ? "Queue prompt" : "Send prompt"} title={sending ? "Queue prompt for the next agent turn" : "Send prompt"}>
+          <Send size={14} strokeWidth={2.4} />
+        </Button>
       </div>
     </div>
   </div>

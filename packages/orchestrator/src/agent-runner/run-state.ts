@@ -5,8 +5,16 @@ export interface AgentRunState {
   runId: string;
   abort: () => void;
   messages: Message[];
-  steer?: (text: string, options?: PromptRequest) => Promise<void>;
-  followUp?: (text: string, options?: PromptRequest) => Promise<void>;
+  steer?: (
+    text: string,
+    options?: PromptRequest,
+    queuedPromptId?: string,
+  ) => Promise<void>;
+  followUp?: (
+    text: string,
+    options?: PromptRequest,
+    queuedPromptId?: string,
+  ) => Promise<void>;
   updateAgentRuntimeConfig?: (agent: AgentRecord) => Promise<void>;
 }
 

@@ -15,11 +15,14 @@ export interface NerveDesktopBridge {
   window: {
     minimize: () => Promise<void>;
     toggleMaximize: () => Promise<void>;
-    close: () => Promise<void>;
+    close: (options?: { closeToTray?: boolean }) => Promise<void>;
     getState: () => Promise<DesktopWindowState>;
     onStateChange: (
       listener: (state: DesktopWindowState) => void,
     ) => () => void;
+  };
+  settings: {
+    setCloseToTray: (closeToTray: boolean) => Promise<void>;
   };
   notifications: {
     show: (payload: DesktopNotificationPayload) => Promise<{ shown: boolean }>;
@@ -87,8 +90,16 @@ export async function toggleMaximizeDesktopWindow(): Promise<void> {
   await getDesktopBridge()?.window.toggleMaximize();
 }
 
-export async function closeDesktopWindow(): Promise<void> {
-  await getDesktopBridge()?.window.close();
+export async function closeDesktopWindow(options?: {
+  closeToTray?: boolean;
+}): Promise<void> {
+  await getDesktopBridge()?.window.close(options);
+}
+
+export async function syncDesktopCloseToTray(
+  closeToTray: boolean,
+): Promise<void> {
+  await getDesktopBridge()?.settings.setCloseToTray(closeToTray);
 }
 
 export async function showDesktopNotification(

@@ -125,6 +125,9 @@ function mergeSettingsPatch(
   if (base?.ui || patch.ui) {
     next.ui = { ...(base?.ui ?? {}), ...(patch.ui ?? {}) };
   }
+  if (base?.desktop || patch.desktop) {
+    next.desktop = { ...(base?.desktop ?? {}), ...(patch.desktop ?? {}) };
+  }
   if (base?.compaction || patch.compaction) {
     next.compaction = {
       ...(base?.compaction ?? {}),

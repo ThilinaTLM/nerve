@@ -14,6 +14,7 @@ import {
   type ConversationLiveToolOutputSnapshot,
   type ConversationLiveTurnSnapshot,
   createId,
+  type QueuedPromptRecord,
 } from "@nerve/shared";
 
 export interface StartRunInput {
@@ -69,6 +70,7 @@ export class ConversationRuntime {
       startedAt,
       turns: [],
       toolOutputsByToolCallId: {},
+      queuedPrompts: [],
     };
     this.runsByRunId.set(input.runId, run);
     this.runIdByAgentId.set(input.agentId, input.runId);
@@ -80,6 +82,33 @@ export class ConversationRuntime {
     const run = this.runsByRunId.get(runId);
     if (!run) return undefined;
     run.status = "aborting";
+    return cloneRun(run);
+  }
+
+  queuePrompt(
+    runId: string,
+    queuedPrompt: QueuedPromptRecord,
+  ): ConversationActiveRunSnapshot | undefined {
+    const run = this.runsByRunId.get(runId);
+    if (!run) return undefined;
+    const index = run.queuedPrompts.findIndex(
+      (candidate) => candidate.id === queuedPrompt.id,
+    );
+    if (index === -1) run.queuedPrompts.push(queuedPrompt);
+    else run.queuedPrompts[index] = queuedPrompt;
+    return cloneRun(run);
+  }
+
+  removeQueuedPrompt(
+    runId: string | undefined,
+    queuedPromptId: string,
+  ): ConversationActiveRunSnapshot | undefined {
+    if (!runId) return undefined;
+    const run = this.runsByRunId.get(runId);
+    if (!run) return undefined;
+    run.queuedPrompts = run.queuedPrompts.filter(
+      (candidate) => candidate.id !== queuedPromptId,
+    );
     return cloneRun(run);
   }
 
@@ -453,6 +482,7 @@ function cloneRun(run: MutableRun): ConversationActiveRunSnapshot {
         { ...output, chunks: output.chunks.map((chunk) => ({ ...chunk })) },
       ]),
     ),
+    queuedPrompts: run.queuedPrompts.map((prompt) => ({ ...prompt })),
   };
 }
 

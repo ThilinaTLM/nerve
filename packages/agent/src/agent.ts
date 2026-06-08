@@ -543,15 +543,23 @@ export class Agent {
     error: unknown,
     aborted: boolean,
   ): Promise<void> {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     const failureMessage = {
       role: "assistant",
-      content: [{ type: "text", text: "" }],
+      content: [
+        {
+          type: "text",
+          text: aborted
+            ? "Agent run aborted."
+            : `Agent run failed: ${errorMessage}`,
+        },
+      ],
       api: this._state.model.api,
       provider: this._state.model.provider,
       model: this._state.model.id,
       usage: EMPTY_USAGE,
       stopReason: aborted ? "aborted" : "error",
-      errorMessage: error instanceof Error ? error.message : String(error),
+      errorMessage,
       timestamp: Date.now(),
     } satisfies AgentMessage;
     await this.processEvents({

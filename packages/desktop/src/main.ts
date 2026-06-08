@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { type Settings, settingsSchema } from "@nerve/shared";
 import type {
   BrowserWindow as BrowserWindowType,
   IpcMainInvokeEvent,
@@ -52,6 +53,7 @@ let managedDaemon: ManagedDaemon | undefined;
 let tray: TrayType | undefined;
 let daemonStopped = false;
 let appQuitting = false;
+let closeToTray = true;
 let stopDaemonPromise: Promise<void> | undefined;
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -218,6 +220,7 @@ async function openMainWindow(): Promise<void> {
       },
     });
     await installDaemonCookie(managedDaemon);
+    await refreshDesktopSettingsFromDaemon(managedDaemon);
     updateTrayMenu();
     if (window.isDestroyed()) return;
     await window.loadURL(managedDaemon.url);
@@ -260,9 +263,9 @@ function resolvePreloadPath(): string {
 
 function installWindowLifecycle(window: BrowserWindowType): void {
   window.on("close", (event) => {
-    if (appQuitting || !tray) return;
+    if (appQuitting) return;
     event.preventDefault();
-    hideWindow(window);
+    closeWindowOrQuit(window);
   });
 
   window.on("maximize", () => sendWindowState(window));
@@ -296,11 +299,19 @@ function registerDesktopIpc(): void {
     sendWindowState(window);
   });
 
-  ipcMain.handle("desktop.window.close", (event) => {
+  ipcMain.handle("desktop.window.close", (event, options) => {
     const window = windowFromEvent(event);
     if (!window) return;
-    if (tray && !appQuitting) hideWindow(window);
-    else window.close();
+    updateCloseToTrayOption(options);
+    closeWindowOrQuit(window);
+  });
+
+  ipcMain.handle("desktop.settings.setCloseToTray", (_event, value) => {
+    if (typeof value !== "boolean") {
+      throw new Error("desktop.settings.setCloseToTray expects a boolean.");
+    }
+    closeToTray = value;
+    return { closeToTray };
   });
 
   ipcMain.handle("desktop.window.getState", (event): DesktopWindowState => {
@@ -391,6 +402,20 @@ function hideWindow(window: BrowserWindowType): void {
   sendWindowState(window);
 }
 
+function closeWindowOrQuit(window: BrowserWindowType): void {
+  if (closeToTray && tray && !appQuitting) {
+    hideWindow(window);
+    return;
+  }
+  requestQuit();
+}
+
+function updateCloseToTrayOption(options: unknown): void {
+  if (!options || typeof options !== "object") return;
+  const value = (options as { closeToTray?: unknown }).closeToTray;
+  if (typeof value === "boolean") closeToTray = value;
+}
+
 function requestQuit(): void {
   appQuitting = true;
   app.quit();
@@ -401,6 +426,34 @@ function daemonTargetLabel(): string {
   if (managedDaemon.mode === "remote")
     return `Remote daemon: ${managedDaemon.url}`;
   return managedDaemon.owned ? "Local daemon: owned" : "Local daemon: existing";
+}
+
+async function refreshDesktopSettingsFromDaemon(
+  daemon: ManagedDaemon,
+): Promise<void> {
+  try {
+    const settings = await fetchDaemonSettings(daemon);
+    closeToTray = settings.desktop.closeToTray;
+    void desktopLog("info", "settings", "Loaded desktop settings", {
+      context: { closeToTray },
+    });
+  } catch (error) {
+    void desktopLog("warn", "settings", "Could not load desktop settings", {
+      error,
+    });
+  }
+}
+
+async function fetchDaemonSettings(daemon: ManagedDaemon): Promise<Settings> {
+  const headers: Record<string, string> = {};
+  if (daemon.token) headers.authorization = `Bearer ${daemon.token}`;
+  const response = await fetch(new URL("/api/settings", daemon.url), {
+    headers,
+  });
+  if (!response.ok) {
+    throw new Error(`Settings request failed with status ${response.status}.`);
+  }
+  return settingsSchema.parse(await response.json());
 }
 
 async function installDaemonCookie(daemon: ManagedDaemon): Promise<void> {

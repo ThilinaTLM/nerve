@@ -21,14 +21,22 @@ export function createFailureMessage(
   error: unknown,
   aborted: boolean,
 ): AssistantMessage {
+  const errorMessage = error instanceof Error ? error.message : String(error);
   return {
     role: "assistant",
-    content: [{ type: "text", text: "" }],
+    content: [
+      {
+        type: "text",
+        text: aborted
+          ? "Agent run aborted."
+          : `Agent run failed: ${errorMessage}`,
+      },
+    ],
     api: model.api,
     provider: model.provider,
     model: model.id,
     stopReason: aborted ? "aborted" : "error",
-    errorMessage: error instanceof Error ? error.message : String(error),
+    errorMessage,
     timestamp: Date.now(),
     usage: {
       input: 0,

@@ -17,7 +17,8 @@ export type IdPrefix =
   | "susp"
   | "worker"
   | "authflow"
-  | "log";
+  | "log"
+  | "promptq";
 
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

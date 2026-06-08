@@ -1,10 +1,11 @@
 <script lang="ts">
   import Clipboard from "@lucide/svelte/icons/clipboard";
   import Copy from "@lucide/svelte/icons/copy";
+  import ListPlus from "@lucide/svelte/icons/list-plus";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
   import { notify } from "$lib/notifications/notify.svelte";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, ConversationRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, QueuedPromptRecord, ConversationRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
   import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
   import type { ConversationLiveState, TranscriptItem } from "../../stores/workbench/state.svelte";
@@ -32,6 +33,7 @@
     toolCalls?: ToolCallRecord[];
     streamingText?: string;
     liveState?: ConversationLiveState;
+    queuedPrompts?: QueuedPromptRecord[];
     live?: boolean;
     sending?: boolean;
     composerText?: string;
@@ -76,6 +78,7 @@
     toolCalls = [],
     streamingText = "",
     liveState,
+    queuedPrompts = [],
     live = false,
     sending = false,
     composerText = "",
@@ -287,6 +290,18 @@
         </article>
       {/if}
 
+      {#if queuedPrompts.length > 0}
+        <div class="queued-prompts" aria-label="Queued prompts">
+          {#each queuedPrompts as queuedPrompt (queuedPrompt.id)}
+            <div class="queued-prompt">
+              <ListPlus size={14} strokeWidth={2.2} />
+              <span class="queued-label">Queued</span>
+              <span class="queued-text">{queuedPrompt.text}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
       <div bind:this={bottomEl} class="transcript-bottom" aria-hidden="true"></div>
     </div>
 
@@ -361,6 +376,38 @@
   .transcript-bottom {
     height: 1px;
     overflow-anchor: auto;
+  }
+
+  .queued-prompts {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0.5rem 0 0.75rem;
+  }
+
+  .queued-prompt {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-self: end;
+    max-width: min(42rem, 82%);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--muted);
+    color: var(--muted-foreground);
+    padding: 0.45rem 0.65rem;
+    font-size: var(--text-xs);
+  }
+
+  .queued-label {
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .queued-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .transcript-entry {

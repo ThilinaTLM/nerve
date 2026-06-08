@@ -40,10 +40,18 @@ describe("phase 10 hardening helpers", () => {
     assert.equal(settings.server.allowRemote, true);
     assert.equal(settings.ui.theme, "system");
     assert.equal(settings.ui.zoomLevel, 0);
+    assert.equal(settings.desktop.closeToTray, true);
     assert.equal(settings.compaction.auto, false);
     assert.deepEqual(settings.scopedModels, scopedModels);
     assert.equal(storage.settings.server.allowRemote, true);
     assert.deepEqual(storage.settings.scopedModels, scopedModels);
+
+    const desktopSettings = await writeSettings(storage, {
+      desktop: { closeToTray: false },
+    });
+    assert.equal(desktopSettings.desktop.closeToTray, false);
+    assert.equal(desktopSettings.server.allowRemote, true);
+    assert.deepEqual(desktopSettings.scopedModels, scopedModels);
   });
 
   it("stores provider API keys encrypted behind the secret provider", async () => {

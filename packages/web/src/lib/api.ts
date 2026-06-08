@@ -43,6 +43,7 @@ import type {
   ProcessLogQueryResponse,
   ProcessRecord,
   ProjectRecord,
+  QueuedPromptRecord,
   Settings,
   StatusResponse,
   SubscriptionUsage,
@@ -79,6 +80,7 @@ export type {
   ApplicationLogLevel,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
+  QueuedPromptRecord,
   UpdateSettingsRequest,
 };
 export type ModelOption = ModelInfo;

@@ -38,6 +38,7 @@ import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
 import type { ApplicationLogger } from "../logging.js";
 import { planDirForStorageHome } from "../plan-paths.js";
+import type { PromptQueueRepository } from "../repositories/index.js";
 import { loadHarnessResources } from "../resource-loader.js";
 import type { InitializedStorage } from "../storage.js";
 import type { ToolService } from "../tool-service.js";
@@ -75,6 +76,7 @@ export interface AgentRunnerDeps {
   conversationRuntime: ConversationRuntime;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
+  promptQueue: PromptQueueRepository;
 }
 
 export class AgentRunner {
@@ -105,15 +107,50 @@ export class AgentRunner {
     }
     const activeRun = this.deps.runs.get(agent.id);
     if (activeRun) {
-      if (request.behavior === "steer" && activeRun.steer) {
-        await activeRun.steer(request.text, request);
-        return;
+      const behavior = request.behavior ?? "steer";
+      if (behavior === "reject-if-busy") {
+        throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
       }
-      if (request.behavior === "follow-up" && activeRun.followUp) {
-        await activeRun.followUp(request.text, request);
-        return;
+      const callback =
+        behavior === "follow-up" ? activeRun.followUp : activeRun.steer;
+      if (!callback) {
+        throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
       }
-      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+      const queuedPrompt = await this.deps.promptQueue.enqueue({
+        agentId: agent.id,
+        conversationId: agent.conversationId,
+        projectId: agent.projectId,
+        runId: activeRun.runId,
+        behavior,
+        text: request.text,
+        images: request.images,
+      });
+      this.deps.conversationRuntime.queuePrompt(activeRun.runId, queuedPrompt);
+      await this.deps.events.publish("conversation.prompt.queued", {
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        projectId: agent.projectId,
+        runId: activeRun.runId,
+        queuedPrompt,
+      });
+      try {
+        await callback(request.text, request, queuedPrompt.id);
+        const accepted = await this.deps.promptQueue.markAccepted(
+          queuedPrompt.id,
+          agent.id,
+          activeRun.runId,
+        );
+        if (accepted)
+          this.deps.conversationRuntime.queuePrompt(activeRun.runId, accepted);
+      } catch (error) {
+        await this.deps.promptQueue.markFailed(
+          queuedPrompt.id,
+          agent.id,
+          error instanceof Error ? error.message : String(error),
+        );
+        throw error;
+      }
+      return;
     }
     void this.runAgentPrompt(agent, request).catch(() => undefined);
   }
@@ -417,6 +454,7 @@ export class AgentRunner {
               entry,
             });
             if (entry.role === "user") {
+              await this.maybeMarkQueuedPromptDelivered(agent, runId, entry);
               await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
                 conversation.id,
                 entry.text,
@@ -491,13 +529,15 @@ export class AgentRunner {
       });
       await this.deps.setAgentStatus(agent, "running");
 
-      if (options.continue) {
-        await harness.continue();
-      } else {
-        await harness.prompt(request.text, { images: request.images });
-      }
+      const runAssistant = await this.runHarnessWithRetries({
+        harness,
+        conversation: harnessConversation,
+        request,
+        continue: options.continue === true,
+        runId,
+        agent,
+      });
       const latest = this.deps.agents.get(agent.id);
-      if (latest) await this.deps.setAgentStatus(latest, "idle");
       this.deps.runs.delete(agent.id);
       const branch = await storage.getPathToRoot(await storage.getLeafId());
       const messages = convertToLlm(buildConversationContext(branch).messages);
@@ -506,6 +546,38 @@ export class AgentRunner {
       if (!assistantEntry) {
         throw new Error("Agent run completed without an assistant entry.");
       }
+      if (
+        runAssistant.stopReason === "error" ||
+        runAssistant.stopReason === "aborted"
+      ) {
+        const aborted = runAssistant.stopReason === "aborted" || abortRequested;
+        if (latest)
+          await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
+        await this.deps.events.publish("conversation.run.failed", {
+          agentId: agent.id,
+          projectId: agent.projectId,
+          runId,
+          conversationId: agent.conversationId,
+          message: runAssistant.errorMessage ?? "Agent run failed.",
+          aborted,
+          failedAt: new Date().toISOString(),
+        });
+        await this.deps.logger.warn("Agent run failed", {
+          agentId: agent.id,
+          conversationId: agent.conversationId,
+          projectId: agent.projectId,
+          runId,
+          durationMs: Math.round(performance.now() - runStartedAt),
+          context: {
+            finalEntryId: assistantEntry.id,
+            stopReason: runAssistant.stopReason,
+            errorMessage: runAssistant.errorMessage,
+          },
+        });
+        this.deps.conversationRuntime.failRun(runId);
+        return assistantEntry;
+      }
+      if (latest) await this.deps.setAgentStatus(latest, "idle");
       const completedAt = new Date().toISOString();
       await this.deps.events.publish("conversation.run.completed", {
         agentId: agent.id,
@@ -637,6 +709,85 @@ export class AgentRunner {
     }
   }
 
+  private async runHarnessWithRetries(input: {
+    harness: AgentHarness;
+    conversation: Conversation;
+    request: PromptRequest;
+    continue: boolean;
+    runId: string;
+    agent: AgentRecord;
+  }): Promise<AssistantMessage> {
+    const settings = this.deps.storage.settings.retry;
+    let attempt = 0;
+    let continueRun = input.continue;
+    while (true) {
+      const assistant = continueRun
+        ? await input.harness.continue()
+        : await input.harness.prompt(input.request.text, {
+            images: input.request.images,
+          });
+      if (
+        assistant.stopReason !== "error" ||
+        !isRetryableAssistantError(assistant) ||
+        !settings.enabled ||
+        attempt >= settings.maxRetries
+      ) {
+        return assistant;
+      }
+      attempt += 1;
+      await this.deps.logger.warn("Retrying transient agent error", {
+        agentId: input.agent.id,
+        conversationId: input.agent.conversationId,
+        projectId: input.agent.projectId,
+        runId: input.runId,
+        context: {
+          attempt,
+          maxRetries: settings.maxRetries,
+          errorMessage: assistant.errorMessage,
+        },
+      });
+      const leafId = await input.conversation.getLeafId();
+      const leaf = leafId
+        ? await input.conversation.getEntry(leafId)
+        : undefined;
+      if (leaf?.parentId !== undefined)
+        await input.conversation.moveTo(leaf.parentId);
+      await delay(settings.baseDelayMs * 2 ** (attempt - 1));
+      continueRun = true;
+    }
+  }
+
+  private async maybeMarkQueuedPromptDelivered(
+    agent: AgentRecord,
+    runId: string,
+    entry: ConversationEntry,
+  ): Promise<void> {
+    const queuedPrompt = (await this.deps.promptQueue.pendingForAgent(agent.id))
+      .filter(
+        (candidate) =>
+          candidate.runId === runId &&
+          (candidate.status === "accepted" || candidate.status === "queued") &&
+          candidate.text === entry.text,
+      )
+      .at(0);
+    if (!queuedPrompt) return;
+    const delivered = await this.deps.promptQueue.markDelivered(
+      queuedPrompt.id,
+      agent.id,
+      entry.id,
+    );
+    if (!delivered) return;
+    this.deps.conversationRuntime.removeQueuedPrompt(runId, delivered.id);
+    await this.deps.events.publish("conversation.prompt.dequeued", {
+      conversationId: agent.conversationId,
+      agentId: agent.id,
+      projectId: agent.projectId,
+      runId,
+      queuedPrompt: delivered,
+      entryId: entry.id,
+    });
+  }
+
   private suspensionFromWaitingToolCall(
     agent: AgentRecord,
     runId: string,
@@ -721,6 +872,25 @@ export class AgentRunner {
       keepRecentTokens: settings.keepRecentTokens,
     });
   }
+}
+
+function isRetryableAssistantError(message: AssistantMessage): boolean {
+  if (message.stopReason !== "error" || !message.errorMessage) return false;
+  const error = message.errorMessage;
+  if (
+    /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|available balance|insufficient_quota|out of budget|quota exceeded|billing|context.?length|context.?window|maximum context|too many tokens/i.test(
+      error,
+    )
+  ) {
+    return false;
+  }
+  return /overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|network.?error|connection.?error|connection.?refused|connection.?lost|websocket.?closed|websocket.?error|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|stream ended before message_stop|http2 request did not get a response|timed? out|timeout|terminated|retry delay/i.test(
+    error,
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function assistantContentRedacted(

@@ -70,6 +70,7 @@ export function ensureConversationView(
     treeNodes: [],
     streamingText: "",
     live: { messages: [], toolDrafts: [], toolOutputByToolCallId: {} },
+    queuedPrompts: [],
     cursorSeq: 0,
     sending: false,
     composerText: "",
@@ -177,6 +178,7 @@ export async function refreshConversationView(conversationId: string) {
     view.toolCalls = snapshot.toolCalls;
     view.treeNodes = snapshot.tree.nodes;
     view.activeRun = snapshot.activeRun;
+    view.queuedPrompts = snapshot.activeRun?.queuedPrompts ?? [];
     view.contextUsage = snapshot.contextUsage;
     view.cursorSeq = snapshot.cursorSeq;
     const persistedLiveMessageIds = new Set(
@@ -523,6 +525,7 @@ export async function abortActiveRun() {
     view.sending = false;
     view.streamingText = "";
     view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
+    view.queuedPrompts = [];
   }
   workbenchState.sending = false;
   workbenchState.streamingText = "";
@@ -659,8 +662,7 @@ export async function sendPrompt() {
     view?.composerText ??
     composerDraft.text
   ).trim();
-  if (!text || pending?.sending || view?.sending || workbenchState.sending)
-    return;
+  if (!text || pending?.sending) return;
   if (text === "/abort") {
     if (pending) pending.composerText = "";
     if (view) view.composerText = "";
@@ -689,29 +691,41 @@ export async function sendPrompt() {
     notifyPromptError("No usable model configured", message);
     return;
   }
-  view.sending = true;
+  const queueWhileRunning = Boolean(view.sending || workbenchState.sending);
   view.error = undefined;
-  view.streamingText = "";
-  view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
-  workbenchState.sending = true;
   workbenchState.error = undefined;
-  workbenchState.streamingText = "";
+  if (!queueWhileRunning) {
+    view.sending = true;
+    view.streamingText = "";
+    view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
+    workbenchState.sending = true;
+    workbenchState.streamingText = "";
+  }
   try {
     const agentId = await ensureAgent();
+    view.composerText = "";
+    composerDraft.text = "";
+    if (queueWhileRunning) {
+      await apiPost(`/api/agents/${agentId}/prompt`, {
+        text,
+        behavior: "steer",
+      });
+      return;
+    }
     view.transcript = [
       ...view.transcript,
       { role: "user", text, optimistic: true },
     ];
     workbenchState.transcript = view.transcript;
-    view.composerText = "";
-    composerDraft.text = "";
     await apiPost(`/api/agents/${agentId}/prompt`, { text });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.error = message;
     workbenchState.error = message;
-    view.sending = false;
-    workbenchState.sending = false;
+    if (!queueWhileRunning) {
+      view.sending = false;
+      workbenchState.sending = false;
+    }
     notifyPromptError("Prompt failed", message);
   }
 }

@@ -188,11 +188,13 @@ export async function writeSettings(
     ...patch,
     server: { ...storage.settings.server, ...(patch.server ?? {}) },
     ui: { ...storage.settings.ui, ...(patch.ui ?? {}) },
+    desktop: { ...storage.settings.desktop, ...(patch.desktop ?? {}) },
     compaction: {
       ...storage.settings.compaction,
       ...(patch.compaction ?? {}),
     },
     logging: { ...storage.settings.logging, ...(patch.logging ?? {}) },
+    retry: { ...storage.settings.retry, ...(patch.retry ?? {}) },
   });
   await atomicWriteJson(storage.paths.configPath, next, 0o600);
   storage.settings = next;

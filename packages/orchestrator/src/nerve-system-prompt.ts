@@ -78,6 +78,18 @@ function defaultPrompt(options: {
       "If the user asks for a plan or the task needs research before edits, call plan_mode_enter first.",
     );
   }
+  addGuideline(
+    "Continue working until the user's task is complete or a blocking user decision is required.",
+  );
+  addGuideline(
+    "After each tool result, decide the next concrete action; do not stop with only 'I'll continue' prose.",
+  );
+  addGuideline(
+    "If missing input prevents progress, ask a specific question with ask_user instead of silently ending.",
+  );
+  addGuideline(
+    "Before the final response, summarize completed work and any remaining limitations.",
+  );
   addGuideline("Be concise in your responses");
   addGuideline("Show file paths clearly when working with files");
 

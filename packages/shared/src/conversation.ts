@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { QueuedPromptRecord } from "./agents.js";
 import type {
   ConversationEntry,
   ConversationRecord,
@@ -52,6 +53,31 @@ export interface ConversationRunSuspendedData {
   toolCallId: string;
   suspendedAt: string;
   reason: string;
+}
+
+export interface ConversationPromptQueuedData {
+  conversationId: string;
+  agentId: string;
+  projectId: string;
+  runId?: string;
+  queuedPrompt: QueuedPromptRecord;
+}
+
+export interface ConversationPromptDequeuedData {
+  conversationId: string;
+  agentId: string;
+  projectId: string;
+  runId?: string;
+  queuedPrompt: QueuedPromptRecord;
+  entryId?: string;
+}
+
+export interface ConversationPromptCancelledData {
+  conversationId: string;
+  agentId: string;
+  projectId: string;
+  runId?: string;
+  queuedPrompt: QueuedPromptRecord;
 }
 
 export interface ConversationEntryAppendedData {
@@ -182,6 +208,9 @@ export type ConversationEventData =
   | ConversationRunCompletedData
   | ConversationRunFailedData
   | ConversationRunSuspendedData
+  | ConversationPromptQueuedData
+  | ConversationPromptDequeuedData
+  | ConversationPromptCancelledData
   | ConversationEntryAppendedData
   | ConversationContextUpdatedData
   | ConversationToolCallUpdatedData
@@ -252,6 +281,7 @@ export interface ConversationActiveRunSnapshot {
   startedAt: string;
   turns: ConversationLiveTurnSnapshot[];
   toolOutputsByToolCallId: Record<string, ConversationLiveToolOutputSnapshot>;
+  queuedPrompts: QueuedPromptRecord[];
 }
 
 export interface ConversationSnapshot {
@@ -270,6 +300,9 @@ export const conversationEventTypes = [
   "conversation.run.completed",
   "conversation.run.failed",
   "conversation.run.suspended",
+  "conversation.prompt.queued",
+  "conversation.prompt.dequeued",
+  "conversation.prompt.cancelled",
   "conversation.entry.appended",
   "conversation.context.updated",
   "conversation.tool_call.updated",

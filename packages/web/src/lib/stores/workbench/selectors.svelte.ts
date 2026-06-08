@@ -211,6 +211,9 @@ export const workbenchSelectors = {
   get conversationLiveState() {
     return activeView()?.live;
   },
+  get queuedPrompts() {
+    return activeView()?.queuedPrompts ?? [];
+  },
   get activeComposerText() {
     return (
       activePendingConversation()?.composerText ??

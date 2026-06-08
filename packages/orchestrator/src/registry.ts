@@ -60,6 +60,7 @@ import {
   ConversationRepository,
   EntryRepository,
   ProjectRepository,
+  PromptQueueRepository,
 } from "./repositories/index.js";
 import type { InitializedStorage } from "./storage.js";
 import { ToolService } from "./tool-service.js";
@@ -86,6 +87,7 @@ export class RuntimeRegistry {
   private readonly conversationRepository: ConversationRepository;
   private readonly agentRepository: AgentRepository;
   private readonly entryRepository: EntryRepository;
+  private readonly promptQueueRepository: PromptQueueRepository;
   private readonly harnessManager: HarnessManager;
   private readonly conversationService: ConversationService;
   private readonly compactionService: CompactionService;
@@ -110,6 +112,7 @@ export class RuntimeRegistry {
     this.conversationRepository = new ConversationRepository(storage);
     this.agentRepository = new AgentRepository(storage);
     this.entryRepository = new EntryRepository(storage);
+    this.promptQueueRepository = new PromptQueueRepository(storage);
     this.harnessManager = new HarnessManager(
       this.conversationRepository,
       (conversationId) => this.getConversation(conversationId),
@@ -257,6 +260,7 @@ export class RuntimeRegistry {
       conversationRuntime: this.conversationRuntime,
       subscriptionUsage: this.subscriptionUsage,
       logger: logger.child({ component: "agent-runner" }),
+      promptQueue: this.promptQueueRepository,
     });
   }
 
@@ -831,6 +835,40 @@ export class RuntimeRegistry {
       contextWindow: model.contextWindow,
       maxOutputTokens: model.maxOutputTokens,
     }));
+  }
+
+  async listQueuedPrompts(agentId: string) {
+    this.getAgent(agentId);
+    return this.promptQueueRepository.pendingForAgent(agentId);
+  }
+
+  async cancelQueuedPrompt(agentId: string, queuedPromptId: string) {
+    const agent = this.getAgent(agentId);
+    const cancelled = await this.promptQueueRepository.cancel(
+      queuedPromptId,
+      agentId,
+    );
+    if (!cancelled) {
+      throw new HttpError(
+        404,
+        "QUEUED_PROMPT_NOT_FOUND",
+        "Queued prompt not found.",
+      );
+    }
+    if (cancelled.status === "cancelled") {
+      this.conversationRuntime.removeQueuedPrompt(
+        cancelled.runId,
+        cancelled.id,
+      );
+      await this.events.publish("conversation.prompt.cancelled", {
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        projectId: agent.projectId,
+        runId: cancelled.runId,
+        queuedPrompt: cancelled,
+      });
+    }
+    return cancelled;
   }
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
