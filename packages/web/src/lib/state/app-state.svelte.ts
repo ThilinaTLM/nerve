@@ -1,7 +1,7 @@
 import { setMode, userPrefersMode } from "mode-watcher";
 
 export type ThemePreference = "system" | "light" | "dark";
-export type UtilityTab = "history" | "processes" | "info" | "git" | "logs";
+export type UtilityTab = "history" | "processes" | "info" | "git";
 
 export const selection = $state({
   projectId: undefined as string | undefined,

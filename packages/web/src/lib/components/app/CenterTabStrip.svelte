@@ -4,6 +4,7 @@
   import Copy from "@lucide/svelte/icons/copy";
   import FileText from "@lucide/svelte/icons/file-text";
   import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+  import Logs from "@lucide/svelte/icons/logs";
   import Plus from "@lucide/svelte/icons/plus";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Settings from "@lucide/svelte/icons/settings";
@@ -49,6 +50,7 @@
 
   function tabIdentity(tab: CenterTabModel): TabIdentity {
     if (tab.kind === "settings") return { kind: "settings", id: "settings" };
+    if (tab.kind === "logs") return { kind: "logs", id: "logs" };
     return { kind: tab.kind, id: tab.id };
   }
 
@@ -57,6 +59,7 @@
     if (tab.kind === "file") return tab.file?.name ?? tab.relativePath?.split("/").pop() ?? tab.path?.split("/").pop() ?? "File";
     if (tab.kind === "pr") return `#${tab.number}`;
     if (tab.kind === "settings") return "Settings";
+    if (tab.kind === "logs") return "Nerve Logs";
     if (tab.kind === "pending-conversation") return tab.title;
     return tab.conversation.title;
   }
@@ -69,6 +72,7 @@
     if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
     if (tab.kind === "pr") return tab.title ? `#${tab.number} ${tab.title}` : `Pull request #${tab.number}`;
     if (tab.kind === "settings") return "Workbench settings";
+    if (tab.kind === "logs") return "Nerve application logs";
     const project = tab.project?.dir
       ? shortProjectLabel(tab.project.dir, homeDir)
       : tab.kind === "pending-conversation"
@@ -234,6 +238,8 @@
               <span class="tab-kind-icon"><GitPullRequest size={12} strokeWidth={2.2} aria-hidden="true" /></span>
             {:else if tab.kind === "settings"}
               <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+            {:else if tab.kind === "logs"}
+              <span class="tab-kind-icon"><Logs size={12} strokeWidth={2.2} aria-hidden="true" /></span>
             {/if}
           </div>
           <button

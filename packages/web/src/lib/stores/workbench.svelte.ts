@@ -2,6 +2,7 @@ export * from "../events/event-router";
 export * from "../events/websocket-client.svelte";
 export * from "./composer-config.svelte";
 export * from "./conversation-flow.svelte";
+export * from "./logs.svelte";
 export * from "./settings.svelte";
 export * from "./workbench/center-tab-actions.svelte";
 export * from "./workbench/center-tabs.svelte";

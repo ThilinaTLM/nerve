@@ -27,6 +27,7 @@
   import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
   import FilePane from "./lib/components/app/FilePane.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";
+  import NerveLogsPane from "./lib/components/app/NerveLogsPane.svelte";
   import PrPane from "./lib/components/app/PrPane.svelte";
   import ProcessOutputPane from "./lib/components/app/ProcessOutputPane.svelte";
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
@@ -63,6 +64,7 @@
     newConversationInProject,
     newConversation,
     openFilePane,
+    openLogsPane,
     openPrPane,
     openProcessTab,
     openSettingsPane,
@@ -269,7 +271,9 @@
     maximized={desktopRuntime.windowState.maximized}
     closeToTray={settingsDraft?.desktop.closeToTray ?? true}
     settingsActive={activeCenterTab?.kind === "settings"}
+    logsActive={activeCenterTab?.kind === "logs"}
     onOpenProject={openProjectPicker}
+    onOpenLogs={() => openLogsPane()}
     onOpenSettings={() => void openSettingsPane()}
     onMinimize={() => void minimizeDesktopWindow()}
     onToggleMaximize={() => void toggleMaximizeDesktopWindow()}
@@ -342,6 +346,8 @@
                 onSettingsChange={queueSettingsSave}
                 onThemeChange={setTheme}
               />
+            {:else if activeCenterTab?.kind === "logs"}
+              <NerveLogsPane />
             {:else}
               <ConversationPane
                 {activeProject}

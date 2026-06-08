@@ -117,7 +117,8 @@ export type CenterTabIdentity =
   | { kind: "process"; id: string }
   | { kind: "file"; id: string }
   | { kind: "pr"; id: string }
-  | { kind: "settings"; id: "settings" };
+  | { kind: "settings"; id: "settings" }
+  | { kind: "logs"; id: "logs" };
 
 export type FileViewState = {
   id: string;
@@ -174,6 +175,7 @@ export const workbenchState = $state({
   openFileTabIds: [] as string[],
   openPrTabIds: [] as string[],
   settingsTabOpen: false,
+  logsTabOpen: false,
   activeConversationTabId: undefined as string | undefined,
   activeCenterTab: undefined as CenterTabIdentity | undefined,
   conversationViews: {} as Record<string, ConversationViewState>,

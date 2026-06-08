@@ -30,6 +30,9 @@ function syncLegacyTabFields() {
   workbenchState.settingsTabOpen = workbenchState.openCenterTabs.some(
     (tab) => tab.kind === "settings",
   );
+  workbenchState.logsTabOpen = workbenchState.openCenterTabs.some(
+    (tab) => tab.kind === "logs",
+  );
 }
 
 export function replaceOpenCenterTabs(tabs: CenterTabIdentity[]) {
@@ -142,6 +145,11 @@ export async function selectCenterTab(tab: CenterTabIdentity | undefined) {
       await selectCenterSettingsTab();
       return;
     }
+    case "logs": {
+      const { selectCenterLogsTab } = await import("../logs.svelte");
+      selectCenterLogsTab();
+      return;
+    }
   }
 }
 
@@ -179,6 +187,11 @@ export async function closeCenterTab(tab: CenterTabIdentity) {
     case "settings": {
       const { closeSettingsTab } = await import("../settings.svelte");
       closeSettingsTab();
+      return;
+    }
+    case "logs": {
+      const { closeLogsTab } = await import("../logs.svelte");
+      closeLogsTab();
       return;
     }
   }

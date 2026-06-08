@@ -77,6 +77,14 @@ export type SettingsTabModel = {
   error?: string;
 };
 
+export type LogsTabModel = {
+  kind: "logs";
+  id: "logs";
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type PrTabModel = {
   kind: "pr";
   id: string;
@@ -95,7 +103,8 @@ export type CenterTabModel =
   | ProcessTabModel
   | FileTabModel
   | PrTabModel
-  | SettingsTabModel;
+  | SettingsTabModel
+  | LogsTabModel;
 
 function activeView(): ConversationViewState | undefined {
   const conversationId =
@@ -395,6 +404,18 @@ export const workbenchSelectors = {
         ]
       : [];
   },
+  get openLogsTabs(): LogsTabModel[] {
+    return workbenchState.logsTabOpen
+      ? [
+          {
+            kind: "logs" as const,
+            id: "logs" as const,
+            active: activeTabMatches("logs", "logs"),
+            sending: false,
+          },
+        ]
+      : [];
+  },
   get centerTabs(): CenterTabModel[] {
     const models: CenterTabModel[] = [];
     for (const tab of workbenchState.openCenterTabs) {
@@ -423,8 +444,10 @@ export const workbenchSelectors = {
           (candidate) => candidate.id === tab.id,
         );
         if (model) models.push(model);
-      } else {
+      } else if (tab.kind === "settings") {
         models.push(...this.openSettingsTabs);
+      } else {
+        models.push(...this.openLogsTabs);
       }
     }
     return models;

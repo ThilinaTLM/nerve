@@ -1,6 +1,7 @@
 <script lang="ts">
   import Copy from "@lucide/svelte/icons/copy";
   import Folder from "@lucide/svelte/icons/folder";
+  import Logs from "@lucide/svelte/icons/logs";
   import Minus from "@lucide/svelte/icons/minus";
   import Settings from "@lucide/svelte/icons/settings";
   import Square from "@lucide/svelte/icons/square";
@@ -16,7 +17,9 @@
     maximized?: boolean;
     closeToTray?: boolean;
     settingsActive?: boolean;
+    logsActive?: boolean;
     onOpenProject?: () => void;
+    onOpenLogs?: () => void;
     onOpenSettings?: () => void;
     onMinimize?: () => void;
     onToggleMaximize?: () => void;
@@ -29,7 +32,9 @@
     maximized = false,
     closeToTray = true,
     settingsActive = false,
+    logsActive = false,
     onOpenProject,
+    onOpenLogs,
     onOpenSettings,
     onMinimize,
     onToggleMaximize,
@@ -58,6 +63,17 @@
   </div>
 
   <Toolbar.Root class="title-actions" aria-label="Application actions">
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      ariaLabel="Open Nerve logs"
+      title="Open Nerve logs"
+      active={logsActive}
+      pressed={logsActive}
+      onclick={() => onOpenLogs?.()}
+    >
+      <Logs size={16} strokeWidth={2.1} />
+    </Button>
     <Button
       variant="ghost"
       size="icon-sm"

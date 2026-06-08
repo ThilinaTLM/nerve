@@ -2,6 +2,8 @@
   import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
   import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
   import Check from "@lucide/svelte/icons/check";
+  import ChevronLeft from "@lucide/svelte/icons/chevron-left";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import CloudDownload from "@lucide/svelte/icons/cloud-download";
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import FileMinus from "@lucide/svelte/icons/file-minus";
@@ -46,8 +48,8 @@
   import { Card } from "$lib/components/ui/card";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
-  import SelectField, { type SelectItem } from "$lib/components/ui/select-field";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { cn } from "$lib/utils.js";
   import { invalidateGit } from "../../../stores/workbench/git-context.svelte";
   import { openPrPane } from "../../../stores/workbench/pr-tabs.svelte";
   import { workbenchState } from "../../../stores/workbench/state.svelte";
@@ -102,18 +104,30 @@
   let creatingPr = $state(false);
   let expandedPr = $state<number | undefined>(undefined);
 
-  const repoItems = $derived<SelectItem[]>(
-    repos.map((repo) => ({
-      value: repo.relativePath,
-      label: repo.name,
-      detail:
-        repo.relativePath === "." ? "repository" : repo.relativePath,
-    })),
-  );
-
   const gitMutationInProgress = $derived(
     creatingBranch || committing || syncing || pushing || pulling || fetching,
   );
+
+  let repoCarousel = $state<HTMLDivElement | null>(null);
+
+  function scrollRepos(direction: 1 | -1) {
+    if (!repoCarousel) return;
+    repoCarousel.scrollBy({
+      left: direction * repoCarousel.clientWidth * 0.85,
+      behavior: "smooth",
+    });
+  }
+
+  // Keep the selected repo card centered in the carousel.
+  $effect(() => {
+    const target = selectedRepo;
+    const carousel = repoCarousel;
+    if (!carousel) return;
+    const card = carousel.querySelector<HTMLElement>(
+      `[data-repo="${CSS.escape(target)}"]`,
+    );
+    card?.scrollIntoView({ inline: "center", block: "nearest" });
+  });
 
   function repoStorageKey(projectId: string): string {
     return `nerve.git.repo.${projectId}`;
@@ -130,6 +144,42 @@
       return error.message;
     }
     return String(error);
+  }
+
+  function mergeRepoSummary(next: GitRepoSummary) {
+    repos = repos.map((repo) =>
+      repo.relativePath === next.relativePath ? next : repo,
+    );
+  }
+
+  function repoBranchLabel(repo: GitRepoSummary): string {
+    return repo.currentBranch ?? "(detached)";
+  }
+
+  function repoPathLabel(repo: GitRepoSummary): string {
+    return repo.relativePath === "." ? "project root" : repo.relativePath;
+  }
+
+  function repoStatusLabel(repo: GitRepoSummary): string {
+    if (!repo.dirty) return "clean";
+    return `${repo.changeCount} ${repo.changeCount === 1 ? "change" : "changes"}`;
+  }
+
+  function repoStatusTone(repo: GitRepoSummary): BadgeTone {
+    return repo.dirty ? "warn" : "good";
+  }
+
+  function repoSyncLabel(repo: GitRepoSummary): string {
+    if (!repo.hasRemote) return "local";
+    if (!repo.hasUpstream) return "no upstream";
+    return `↑${repo.ahead ?? 0} ↓${repo.behind ?? 0}`;
+  }
+
+  function repoSyncTone(repo: GitRepoSummary): BadgeTone {
+    if (!repo.hasRemote || !repo.hasUpstream) return "neutral";
+    if ((repo.behind ?? 0) > 0) return "warn";
+    if ((repo.ahead ?? 0) > 0) return "accent";
+    return "neutral";
   }
 
   async function loadRepos(project: ProjectRecord) {
@@ -206,6 +256,7 @@
     try {
       const next = await getGitOverview(projectId, repo);
       if (activeProject?.id !== projectId || selectedRepo !== repo) return;
+      mergeRepoSummary(next.repo);
       const fingerprint = overviewFingerprint(next);
       if (!onlyIfChanged || fingerprint !== lastOverviewFingerprint) {
         overview = next;
@@ -288,7 +339,12 @@
     if (!activeProject || branchName.trim().length === 0) return;
     creatingBranch = true;
     try {
-      await createGitBranch(activeProject.id, selectedRepo, branchName.trim());
+      const result = await createGitBranch(
+        activeProject.id,
+        selectedRepo,
+        branchName.trim(),
+      );
+      mergeRepoSummary(result.repo);
       notify.success(`Created branch ${branchName.trim()}`);
       branchName = "";
       branchAlternatives = [];
@@ -327,6 +383,7 @@
         body: commitBody.trim() || undefined,
         all: stageAll,
       });
+      mergeRepoSummary(result.repo);
       notify.success(`Committed ${result.hash}`);
       commitSubject = "";
       commitBody = "";
@@ -343,6 +400,7 @@
     syncing = true;
     try {
       const result = await syncGitBase(activeProject.id, selectedRepo);
+      mergeRepoSummary(result.repo);
       notify.success(`Switched to ${result.repo.currentBranch ?? "base"}`);
       invalidateGit(activeProject.id);
     } catch (error) {
@@ -356,7 +414,8 @@
     if (!activeProject) return;
     fetching = true;
     try {
-      await fetchGit(activeProject.id, selectedRepo);
+      const result = await fetchGit(activeProject.id, selectedRepo);
+      mergeRepoSummary(result.repo);
       notify.success("Fetched from remote");
       invalidateGit(activeProject.id);
     } catch (error) {
@@ -370,7 +429,8 @@
     if (!activeProject) return;
     pulling = true;
     try {
-      await pullGit(activeProject.id, selectedRepo);
+      const result = await pullGit(activeProject.id, selectedRepo);
+      mergeRepoSummary(result.repo);
       notify.success("Pulled latest changes");
       invalidateGit(activeProject.id);
     } catch (error) {
@@ -384,7 +444,8 @@
     if (!activeProject) return;
     pushing = true;
     try {
-      await pushGit(activeProject.id, selectedRepo);
+      const result = await pushGit(activeProject.id, selectedRepo);
+      mergeRepoSummary(result.repo);
       notify.success("Pushed to remote");
       invalidateGit(activeProject.id);
     } catch (error) {
@@ -533,14 +594,83 @@
   {:else}
     {#if !projectIsRepo}
       <Card class="gap-0 overflow-hidden p-0">
-        <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Repository</div>
-        <div class="px-3 py-2.5">
-          <SelectField
-            items={repoItems}
-            value={selectedRepo}
-            ariaLabel="Select repository"
-            onValueChange={selectRepo}
-          />
+        <div class="flex items-center justify-between border-b px-3 py-2">
+          <span class="text-xs font-semibold text-foreground">Repository</span>
+          <div class="flex items-center gap-1">
+            <span class="mr-1 text-[11px] text-muted-foreground">
+              {repos.length} {repos.length === 1 ? "repo" : "repos"}
+            </span>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              ariaLabel="Scroll to previous repositories"
+              onclick={() => scrollRepos(-1)}
+            >
+              <ChevronLeft />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              ariaLabel="Scroll to next repositories"
+              onclick={() => scrollRepos(1)}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+        </div>
+        <div
+          bind:this={repoCarousel}
+          role="radiogroup"
+          aria-label="Select repository"
+          class="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {#each repos as repo (repo.relativePath)}
+            {@const active = repo.relativePath === selectedRepo}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={active}
+              data-repo={repo.relativePath}
+              onclick={() => selectRepo(repo.relativePath)}
+              class={cn(
+                "flex w-[85%] shrink-0 snap-center flex-col gap-1.5 rounded-md border px-2.5 py-2 text-left transition-colors",
+                active
+                  ? "border-primary/50 bg-accent"
+                  : "border-border hover:bg-muted/50",
+              )}
+            >
+              <div class="flex min-w-0 items-center gap-2">
+                {#if active}
+                  <Check size={13} strokeWidth={2.4} class="shrink-0 text-primary" />
+                {/if}
+                <span class="truncate text-sm font-medium text-foreground">
+                  {repo.name}
+                </span>
+                <Badge tone={repoStatusTone(repo)} size="xs" class="ml-auto shrink-0">
+                  {repoStatusLabel(repo)}
+                </Badge>
+              </div>
+              <div class="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span class="truncate">{repoPathLabel(repo)}</span>
+                <span class="shrink-0">·</span>
+                <GitBranch size={11} strokeWidth={2.2} class="shrink-0" />
+                <span class="truncate font-mono text-foreground">
+                  {repoBranchLabel(repo)}
+                </span>
+              </div>
+              <div class="flex flex-wrap items-center gap-1">
+                <Badge tone={repoSyncTone(repo)} size="xs">
+                  {repoSyncLabel(repo)}
+                </Badge>
+                {#if repo.onBaseBranch}
+                  <Badge tone="neutral" size="xs">base</Badge>
+                {/if}
+                {#if repo.detached}
+                  <Badge tone="warn" size="xs">detached</Badge>
+                {/if}
+              </div>
+            </button>
+          {/each}
         </div>
       </Card>
     {/if}
