@@ -29,8 +29,11 @@ await Promise.all(
   }),
 );
 
-await writeTrayVariant("tray-light", "#111827");
-await writeTrayVariant("tray-dark", "#F8FAFC");
+// Monochrome tray variants keyed to the shadcn stone `--foreground` token:
+// light menubars use the light-theme foreground (near-black), dark menubars
+// use the dark-theme foreground (near-white); template is pure black for macOS.
+await writeTrayVariant("tray-light", "#0c0a09");
+await writeTrayVariant("tray-dark", "#fbfaf9");
 await writeTrayVariant("tray-template", "#000000");
 
 async function writeTrayVariant(name, color) {

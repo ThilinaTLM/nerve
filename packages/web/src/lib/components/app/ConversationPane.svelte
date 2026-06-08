@@ -365,6 +365,8 @@
 
   .transcript-entry {
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     padding: 0.75rem;
     border-bottom: 0;
   }

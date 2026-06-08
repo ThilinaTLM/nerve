@@ -186,6 +186,8 @@
 
 <style>
   .markdown {
+    min-width: 0;
+    max-width: 100%;
     color: color-mix(in oklab, var(--foreground) 92%, transparent);
     font-size: var(--text-sm);
     line-height: 1.55;
@@ -369,13 +371,16 @@
   }
 
   .markdown :global(.table-scroll) {
+    min-width: 0;
     max-width: 100%;
     overflow-x: auto;
   }
 
   .markdown :global(table) {
-    min-width: 100%;
-    width: max-content;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: var(--text-xs);
   }
@@ -385,6 +390,10 @@
     border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     padding: 0.45rem 0.55rem;
     text-align: left;
+    vertical-align: top;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .markdown :global(th) {
