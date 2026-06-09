@@ -305,9 +305,7 @@ export function toolPresentation(
 
     case "ask_user": {
       const meta: MetaItem[] = [];
-      if (view.answer) meta.push({ text: "answered", tone: "success" });
-      else if (view.dismissed)
-        meta.push({ text: "dismissed", tone: "warning" });
+      if (view.dismissed) meta.push({ text: "dismissed", tone: "warning" });
       return { ...base, meta };
     }
 

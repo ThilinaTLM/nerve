@@ -628,14 +628,14 @@ describe("toolPresentation", () => {
     assert.ok(p.meta.some((m) => m.text === "markdown" && m.tone === "info"));
   });
 
-  it("shows a resolved chip for an answered ask_user with no primary arg", () => {
+  it("shows no footer chip for an answered ask_user with no primary arg", () => {
     const p = present(
       "ask_user",
       { question: "Which?" },
       { question: "Which?", response: "B" },
     );
     assert.equal(p.primaryArg, undefined);
-    assert.deepEqual(metaText(p.meta), ["answered"]);
+    assert.deepEqual(metaText(p.meta), []);
   });
 
   it("labels the badge as todos and reports progress", () => {

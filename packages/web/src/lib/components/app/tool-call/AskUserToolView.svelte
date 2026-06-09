@@ -168,7 +168,7 @@
       </div>
     </form>
   {:else if view.answer}
-    <p class="meta"><span class="meta-label">answer</span> {view.answer}</p>
+    <p class="meta answer"><span class="meta-label">answer</span> <span class="answer-text">{view.answer}</span></p>
   {:else if view.dismissed}
     <p class="dismissed">Dismissed{view.dismissedReason ? `: ${view.dismissedReason}` : ""}</p>
   {/if}
@@ -199,6 +199,10 @@
     letter-spacing: 0.04em;
     color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
     margin-right: 0.3rem;
+  }
+
+  .answer-text {
+    color: var(--success);
   }
 
   .quick-replies {
