@@ -693,20 +693,6 @@ function createDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
-function nerveMark(): string {
-  return `<svg class="mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <g stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M5 19V5" />
-        <path d="M17 19V5" />
-        <path d="M5 5L9.05 9.72" />
-        <path d="M12.95 14.28L17 19" />
-        <circle cx="11" cy="12" r="2.4" stroke-width="1.7" />
-      </g>
-      <circle cx="5" cy="5" r="1.9" fill="currentColor" />
-      <circle cx="17" cy="19" r="1.9" fill="currentColor" />
-    </svg>`;
-}
-
 function loadingHtml(): string {
   return `<!doctype html>
 <html lang="en">
@@ -717,11 +703,8 @@ function loadingHtml(): string {
     <style>${shellStyles()}</style>
   </head>
   <body>
-    <main>
-      <div class="brand">
-        ${nerveMark()}
-        <span class="wordmark">Nerve</span>
-      </div>
+    <main class="loading" aria-live="polite" aria-label="Starting Nerve">
+      <div class="spinner" aria-hidden="true"></div>
       <p class="status">Starting local daemon…</p>
     </main>
   </body>
@@ -740,10 +723,7 @@ function errorHtml(error: unknown): string {
   </head>
   <body>
     <main class="error">
-      <div class="brand">
-        ${nerveMark()}
-        <span class="wordmark">Nerve</span>
-      </div>
+      <h1 class="error-title">Startup error</h1>
       <p class="status">Could not start the local daemon.</p>
       <pre>${escapeHtml(message)}</pre>
     </main>
@@ -790,20 +770,22 @@ function shellStyles(): string {
       padding: 24px;
       text-align: center;
     }
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
+    .loading {
+      gap: 14px;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--border);
+      border-top-color: var(--foreground);
+      border-radius: 999px;
+      animation: spin 0.9s linear infinite;
+    }
+    .error-title {
+      margin: 0;
       color: var(--foreground);
-    }
-    .mark {
-      width: 26px;
-      height: 26px;
-      animation: pulse 1.8s ease-in-out infinite;
-    }
-    .wordmark {
       font-size: 20px;
-      font-weight: 700;
+      font-weight: 600;
       letter-spacing: -0.01em;
     }
     .status {
@@ -826,12 +808,11 @@ function shellStyles(): string {
       color: var(--destructive);
       font: 12px/1.5 "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.45; }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .mark { animation: none; }
+      .spinner { animation: none; }
     }
   `;
 }
