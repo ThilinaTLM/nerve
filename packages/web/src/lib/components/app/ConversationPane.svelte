@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ArrowDown from "@lucide/svelte/icons/arrow-down";
   import Clipboard from "@lucide/svelte/icons/clipboard";
   import Copy from "@lucide/svelte/icons/copy";
   import ListPlus from "@lucide/svelte/icons/list-plus";
@@ -113,9 +114,17 @@
   }: Props = $props();
 
   let transcriptEl = $state<HTMLDivElement>();
+  let transcriptContentEl = $state<HTMLDivElement>();
   let bottomEl = $state<HTMLDivElement>();
   let followBottom = $state(true);
   let scrollFrame: number | undefined;
+  let userScrollIntent = false;
+  let userScrollIntentTimer: ReturnType<typeof setTimeout> | undefined;
+  let pointerScrollActive = false;
+
+  const BOTTOM_THRESHOLD_PX = 24;
+  const USER_SCROLL_AWAY_THRESHOLD_PX = 100;
+  const USER_SCROLL_INTENT_TIMEOUT_MS = 350;
 
   const conversationOpen = $derived(Boolean(activeConversation || pendingConversationActive));
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls, liveState));
@@ -140,13 +149,37 @@
       .join("|"),
   );
 
-  function nearBottom(el: HTMLElement): boolean {
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+  function distanceFromBottom(el: HTMLElement): number {
+    return Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
+  }
+
+  function clearUserScrollIntentTimer() {
+    if (userScrollIntentTimer === undefined) return;
+    clearTimeout(userScrollIntentTimer);
+    userScrollIntentTimer = undefined;
+  }
+
+  function markUserScrollIntent() {
+    userScrollIntent = true;
+    clearUserScrollIntentTimer();
+    userScrollIntentTimer = setTimeout(() => {
+      userScrollIntent = false;
+      userScrollIntentTimer = undefined;
+    }, USER_SCROLL_INTENT_TIMEOUT_MS);
   }
 
   function handleTranscriptScroll() {
     if (!transcriptEl) return;
-    followBottom = nearBottom(transcriptEl);
+
+    const distance = distanceFromBottom(transcriptEl);
+    if (distance <= BOTTOM_THRESHOLD_PX) {
+      followBottom = true;
+      return;
+    }
+
+    if (userScrollIntent && distance >= USER_SCROLL_AWAY_THRESHOLD_PX) {
+      followBottom = false;
+    }
   }
 
   function prefersReducedMotion(): boolean {
@@ -185,8 +218,11 @@
 
   $effect(() => {
     const _signature = scrollSignature;
-    if (conversationOpen && (sending || hasLiveTimelineNodes)) {
-      scheduleBottomScroll({ force: true, smooth: false });
+    const _queuedPromptSignature = queuedPrompts.map((prompt) => `${prompt.id}:${prompt.text.length}`).join("|");
+    const _sending = sending;
+    const _streamingTextLength = streamingText.length;
+    if (conversationOpen && followBottom) {
+      scheduleBottomScroll({ smooth: false });
     }
   });
 
@@ -196,7 +232,56 @@
   });
 
   $effect(() => {
-    return () => cancelScheduledBottomScroll();
+    const el = transcriptContentEl;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      scheduleBottomScroll({ smooth: false });
+    });
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  });
+
+  $effect(() => {
+    const el = transcriptEl;
+    if (!el) return;
+
+    const handlePointerDown = () => {
+      pointerScrollActive = true;
+      markUserScrollIntent();
+    };
+    const handlePointerMove = () => {
+      if (pointerScrollActive) markUserScrollIntent();
+    };
+    const handlePointerEnd = () => {
+      pointerScrollActive = false;
+    };
+
+    el.addEventListener("wheel", markUserScrollIntent, { passive: true });
+    el.addEventListener("touchstart", markUserScrollIntent, { passive: true });
+    el.addEventListener("touchmove", markUserScrollIntent, { passive: true });
+    el.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    el.addEventListener("pointermove", handlePointerMove, { passive: true });
+    el.addEventListener("pointerup", handlePointerEnd, { passive: true });
+    el.addEventListener("pointerleave", handlePointerEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener("wheel", markUserScrollIntent);
+      el.removeEventListener("touchstart", markUserScrollIntent);
+      el.removeEventListener("touchmove", markUserScrollIntent);
+      el.removeEventListener("pointerdown", handlePointerDown);
+      el.removeEventListener("pointermove", handlePointerMove);
+      el.removeEventListener("pointerup", handlePointerEnd);
+      el.removeEventListener("pointerleave", handlePointerEnd);
+    };
+  });
+
+  $effect(() => {
+    return () => {
+      cancelScheduledBottomScroll();
+      clearUserScrollIntentTimer();
+    };
   });
 
   async function copyText(text: string, label = "message") {
@@ -232,7 +317,15 @@
 
 <section class="conversation-pane">
   {#if conversationOpen}
-    <div bind:this={transcriptEl} class="transcript" aria-live="polite" onscroll={handleTranscriptScroll}>
+    <div
+      bind:this={transcriptEl}
+      class="transcript"
+      role="log"
+      aria-label="Conversation transcript"
+      aria-live="polite"
+      onscroll={handleTranscriptScroll}
+    >
+      <div bind:this={transcriptContentEl} class="transcript-content">
       {#if timeline.length === 0 && !streamingText && !sending}
         <div class="empty-run">
           <div class="prompt-line">
@@ -304,11 +397,16 @@
         </div>
       {/if}
 
-      <div bind:this={bottomEl} class="transcript-bottom" aria-hidden="true"></div>
+        <div bind:this={bottomEl} class="transcript-bottom" aria-hidden="true"></div>
+      </div>
     </div>
 
-    {#if sending && !followBottom}
-      <Button class="jump-latest" variant="secondary" size="sm" onclick={() => scheduleBottomScroll({ force: true, smooth: true })}>Jump to latest</Button>
+    {#if !followBottom}
+      <div class="scroll-bottom-button-wrap">
+        <Button class="rounded-full" variant="secondary" size="icon-sm" ariaLabel="Scroll to latest" title="Scroll to latest" onclick={() => scheduleBottomScroll({ force: true, smooth: false })}>
+          <ArrowDown size={16} strokeWidth={2.4} />
+        </Button>
+      </div>
     {/if}
 
     <PromptComposer
@@ -367,18 +465,32 @@
   }
 
   .transcript {
-    display: grid;
-    align-content: start;
-    gap: 0.1rem;
     min-height: 0;
     overflow: auto;
     overflow-anchor: none;
     padding: 0.75rem 0.75rem 1.1rem;
   }
 
+  .transcript-content {
+    display: grid;
+    align-content: start;
+    gap: 0.1rem;
+    min-height: 100%;
+    min-width: 0;
+  }
+
   .transcript-bottom {
     height: 1px;
     overflow-anchor: auto;
+  }
+
+  .scroll-bottom-button-wrap {
+    position: absolute;
+    right: 1.15rem;
+    bottom: 5.2rem;
+    z-index: 4;
+    border-radius: 999px;
+    box-shadow: 0 0.35rem 1rem color-mix(in oklab, var(--background) 45%, transparent);
   }
 
   .queued-prompts {
@@ -500,14 +612,6 @@
     margin-top: 0.18rem;
     background: var(--primary);
     animation: pulse 1s steps(2, start) infinite;
-  }
-
-  .jump-latest {
-    position: absolute;
-    right: 1.1rem;
-    bottom: 5.6rem;
-    z-index: 4;
-    box-shadow: 0 0.4rem 1.2rem color-mix(in oklab, var(--background) 45%, transparent);
   }
 
   .empty-run,
