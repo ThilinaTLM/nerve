@@ -18,6 +18,17 @@ contextBridge.exposeInMainWorld("nerveDesktop", {
       };
     },
   },
+  app: {
+    onQuitStarted: (listener) => {
+      const handler = () => {
+        listener();
+      };
+      ipcRenderer.on("desktop.app.quitStarted", handler);
+      return () => {
+        ipcRenderer.off("desktop.app.quitStarted", handler);
+      };
+    },
+  },
   settings: {
     setCloseToTray: (closeToTray) =>
       ipcRenderer.invoke("desktop.settings.setCloseToTray", closeToTray),

@@ -1,6 +1,7 @@
 <script lang="ts">
   import Copy from "@lucide/svelte/icons/copy";
   import Folder from "@lucide/svelte/icons/folder";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Logs from "@lucide/svelte/icons/logs";
   import Minus from "@lucide/svelte/icons/minus";
   import Settings from "@lucide/svelte/icons/settings";
@@ -16,6 +17,7 @@
     desktop?: boolean;
     maximized?: boolean;
     closeToTray?: boolean;
+    quitting?: boolean;
     settingsActive?: boolean;
     logsActive?: boolean;
     onOpenProject?: () => void;
@@ -31,6 +33,7 @@
     desktop = false,
     maximized = false,
     closeToTray = true,
+    quitting = false,
     settingsActive = false,
     logsActive = false,
     onOpenProject,
@@ -93,6 +96,7 @@
         class="window-control"
         ariaLabel="Minimize window"
         title="Minimize"
+        disabled={quitting}
         onclick={() => onMinimize?.()}
       >
         <Minus size={16} strokeWidth={2.1} />
@@ -103,6 +107,7 @@
         class="window-control"
         ariaLabel={maximized ? "Restore window" : "Maximize window"}
         title={maximized ? "Restore" : "Maximize"}
+        disabled={quitting}
         onclick={() => onToggleMaximize?.()}
       >
         {#if maximized}
@@ -115,11 +120,16 @@
         variant="ghost"
         size="icon-sm"
         class="window-control close-control"
-        ariaLabel={closeToTray ? "Close window to tray" : "Close Nerve"}
-        title={closeToTray ? "Close to tray" : "Close Nerve"}
+        ariaLabel={quitting ? "Closing Nerve" : closeToTray ? "Close window to tray" : "Close Nerve"}
+        title={quitting ? "Closing Nerve…" : closeToTray ? "Close to tray" : "Close Nerve"}
+        disabled={quitting}
         onclick={() => onClose?.()}
       >
-        <X size={16} strokeWidth={2.1} />
+        {#if quitting}
+          <LoaderCircle class="animate-spin" size={16} strokeWidth={2.1} />
+        {:else}
+          <X size={16} strokeWidth={2.1} />
+        {/if}
       </Button>
     {/if}
   </Toolbar.Root>

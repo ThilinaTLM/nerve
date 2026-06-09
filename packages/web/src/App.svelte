@@ -147,6 +147,8 @@
   const conversationAgents = $derived(workbenchSelectors.conversationAgents);
   const usableModels = $derived(workbenchSelectors.usableModels);
   const currentZoomLevel = $derived(settingsDraft?.ui.zoomLevel ?? zoomState.level);
+  let desktopQuitRequested = $state(false);
+  const desktopQuitting = $derived(desktopRuntime.quitting || desktopQuitRequested);
 
   function selectAgent(agent: AgentRecord) {
     selection.agentId = agent.id;
@@ -223,6 +225,23 @@
     void closeCenterTabs(centerTabsToLeftOf(tab), tab);
   }
 
+  async function handleDesktopClose() {
+    const closeToTray = settingsDraft?.desktop.closeToTray ?? true;
+    if (!closeToTray) {
+      desktopQuitRequested = true;
+      desktopRuntime.quitting = true;
+    }
+    try {
+      await closeDesktopWindow({ closeToTray });
+    } catch (caught) {
+      if (!closeToTray) {
+        desktopQuitRequested = false;
+        desktopRuntime.quitting = false;
+      }
+      workbenchState.error = caught instanceof Error ? caught.message : String(caught);
+    }
+  }
+
   let lastSyncedCloseToTray: boolean | undefined;
   $effect(() => {
     const value = settingsDraft?.desktop.closeToTray;
@@ -275,6 +294,7 @@
     desktop={desktopRuntime.isDesktop}
     maximized={desktopRuntime.windowState.maximized}
     closeToTray={settingsDraft?.desktop.closeToTray ?? true}
+    quitting={desktopQuitting}
     settingsActive={activeCenterTab?.kind === "settings"}
     logsActive={activeCenterTab?.kind === "logs"}
     onOpenProject={openProjectPicker}
@@ -282,7 +302,7 @@
     onOpenSettings={() => void openSettingsPane()}
     onMinimize={() => void minimizeDesktopWindow()}
     onToggleMaximize={() => void toggleMaximizeDesktopWindow()}
-    onClose={() => void closeDesktopWindow({ closeToTray: settingsDraft?.desktop.closeToTray ?? true })}
+    onClose={() => void handleDesktopClose()}
   />
 
   <div class="workspace-shell">
@@ -478,6 +498,16 @@
     onToggleUtility={() => setUtilityCollapsed(!layout.utilityCollapsed)}
   />
   <BrowserNotificationPrompt />
+
+  {#if desktopRuntime.isDesktop && desktopQuitting}
+    <div class="shutdown-overlay" role="status" aria-live="polite">
+      <div class="shutdown-card">
+        <div class="shutdown-spinner" aria-hidden="true"></div>
+        <strong>Closing Nerve…</strong>
+        <span>Stopping the local daemon safely.</span>
+      </div>
+    </div>
+  {/if}
 </main>
 
 <ProjectDirectoryPicker
@@ -496,6 +526,7 @@
     min-width: 0;
     min-height: 0;
     grid-template-rows: 3rem minmax(0, 1fr) 1.75rem;
+    position: relative;
     overflow: hidden;
     background: var(--background);
     color: var(--foreground);
@@ -530,6 +561,49 @@
 
   .utility-shell {
     background: var(--sidebar);
+  }
+
+  .shutdown-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    background: color-mix(in oklab, var(--background) 72%, transparent);
+    backdrop-filter: blur(10px);
+  }
+
+  .shutdown-card {
+    display: grid;
+    justify-items: center;
+    gap: 0.45rem;
+    min-width: 16rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--card);
+    padding: 1.25rem 1.5rem;
+    color: var(--foreground);
+    box-shadow: var(--shadow-md);
+  }
+
+  .shutdown-card span {
+    color: var(--muted-foreground);
+    font-size: var(--text-sm);
+  }
+
+  .shutdown-spinner {
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 2px solid var(--muted);
+    border-top-color: var(--primary);
+    border-radius: 999px;
+    animation: shutdown-spin 800ms linear infinite;
+  }
+
+  @keyframes shutdown-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   @media (max-width: 980px) {

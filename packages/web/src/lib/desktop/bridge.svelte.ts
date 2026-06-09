@@ -24,6 +24,9 @@ export interface NerveDesktopBridge {
   settings: {
     setCloseToTray: (closeToTray: boolean) => Promise<void>;
   };
+  app: {
+    onQuitStarted: (listener: () => void) => () => void;
+  };
   notifications: {
     show: (payload: DesktopNotificationPayload) => Promise<{ shown: boolean }>;
   };
@@ -40,10 +43,12 @@ const initialDesktopBridge = getDesktopBridge();
 export const desktopRuntime = $state<{
   isDesktop: boolean;
   platform?: string;
+  quitting: boolean;
   windowState: DesktopWindowState;
 }>({
   isDesktop: initialDesktopBridge !== undefined,
   platform: initialDesktopBridge?.platform,
+  quitting: false,
   windowState: {
     maximized: false,
     focused: true,
@@ -67,7 +72,8 @@ export function initializeDesktopRuntime(): () => void {
   desktopRuntime.platform = bridge?.platform;
   if (!bridge) return () => undefined;
 
-  let unsubscribe: () => void = () => undefined;
+  let unsubscribeWindowState: () => void = () => undefined;
+  let unsubscribeQuitStarted: () => void = () => undefined;
   void bridge.window
     .getState()
     .then((state) => {
@@ -75,11 +81,17 @@ export function initializeDesktopRuntime(): () => void {
     })
     .catch(() => undefined);
 
-  unsubscribe = bridge.window.onStateChange((state) => {
+  unsubscribeWindowState = bridge.window.onStateChange((state) => {
     desktopRuntime.windowState = state;
   });
+  unsubscribeQuitStarted = bridge.app.onQuitStarted(() => {
+    desktopRuntime.quitting = true;
+  });
 
-  return unsubscribe;
+  return () => {
+    unsubscribeWindowState();
+    unsubscribeQuitStarted();
+  };
 }
 
 export async function minimizeDesktopWindow(): Promise<void> {

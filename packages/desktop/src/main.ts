@@ -37,6 +37,20 @@ interface DesktopNotificationPayload {
   urgency?: "normal" | "attention";
 }
 
+type QuitSource =
+  | "startup-error"
+  | "titlebar-close"
+  | "native-window-close"
+  | "tray-quit"
+  | "signal"
+  | "unknown";
+
+interface QuitOptions {
+  source?: QuitSource;
+  hideWindows?: boolean;
+  signal?: NodeJS.Signals;
+}
+
 interface DesktopCliOptions {
   mode?: "local" | "remote";
   remoteUrl?: string;
@@ -80,7 +94,7 @@ if (!gotSingleInstanceLock) {
     .catch((error: unknown) => {
       void desktopLog("error", "app", "Failed during app startup", { error });
       console.error(error);
-      requestQuit();
+      requestQuit({ source: "startup-error" });
     });
 
   app.on("activate", () => {
@@ -93,27 +107,51 @@ if (!gotSingleInstanceLock) {
   });
 
   app.on("before-quit", (event) => {
+    const startedAt = Date.now();
     appQuitting = true;
+    notifyQuitStarted();
+    void desktopLog("info", "app", "Electron before-quit received", {
+      context: {
+        daemonOwned: managedDaemon?.owned ?? false,
+        daemonStopped,
+        stopInProgress: stopDaemonPromise !== undefined,
+      },
+    });
     if (daemonStopped || !managedDaemon?.owned) return;
 
     event.preventDefault();
     if (stopDaemonPromise) return;
+    void desktopLog("info", "daemon", "Stopping owned daemon before quit");
     stopDaemonPromise = managedDaemon
       .stop()
+      .then(() => {
+        void desktopLog("info", "daemon", "Owned daemon stopped", {
+          durationMs: Date.now() - startedAt,
+        });
+      })
       .catch((error: unknown) => {
         void desktopLog("error", "daemon", "Failed to stop Nerve daemon", {
           error,
+          durationMs: Date.now() - startedAt,
         });
         console.error("Failed to stop Nerve daemon", error);
       })
       .finally(() => {
         daemonStopped = true;
+        void desktopLog(
+          "info",
+          "app",
+          "Retrying Electron quit after daemon stop",
+          {
+            durationMs: Date.now() - startedAt,
+          },
+        );
         app.quit();
       });
   });
 
-  process.on("SIGINT", requestQuit);
-  process.on("SIGTERM", requestQuit);
+  process.on("SIGINT", (signal) => requestQuit({ source: "signal", signal }));
+  process.on("SIGTERM", (signal) => requestQuit({ source: "signal", signal }));
 }
 
 function parseDesktopOptions(args: string[]): DesktopCliOptions {
@@ -265,7 +303,7 @@ function installWindowLifecycle(window: BrowserWindowType): void {
   window.on("close", (event) => {
     if (appQuitting) return;
     event.preventDefault();
-    closeWindowOrQuit(window);
+    closeWindowOrQuit(window, "native-window-close");
   });
 
   window.on("maximize", () => sendWindowState(window));
@@ -300,10 +338,15 @@ function registerDesktopIpc(): void {
   });
 
   ipcMain.handle("desktop.window.close", (event, options) => {
+    const startedAt = Date.now();
     const window = windowFromEvent(event);
     if (!window) return;
     updateCloseToTrayOption(options);
-    closeWindowOrQuit(window);
+    void desktopLog("info", "window", "Desktop close requested", {
+      durationMs: Date.now() - startedAt,
+      context: { closeToTray },
+    });
+    closeWindowOrQuit(window, "titlebar-close");
   });
 
   ipcMain.handle("desktop.settings.setCloseToTray", (_event, value) => {
@@ -375,7 +418,10 @@ function updateTrayMenu(): void {
         },
       },
       { type: "separator" },
-      { label: "Quit", click: requestQuit },
+      {
+        label: "Quit",
+        click: () => requestQuit({ source: "tray-quit", hideWindows: true }),
+      },
     ]),
   );
 }
@@ -402,12 +448,24 @@ function hideWindow(window: BrowserWindowType): void {
   sendWindowState(window);
 }
 
-function closeWindowOrQuit(window: BrowserWindowType): void {
+function closeWindowOrQuit(
+  window: BrowserWindowType,
+  source: QuitSource = "unknown",
+): void {
+  const startedAt = Date.now();
   if (closeToTray && tray && !appQuitting) {
     hideWindow(window);
+    void desktopLog("info", "window", "Window hidden to tray", {
+      durationMs: Date.now() - startedAt,
+      context: { source },
+    });
     return;
   }
-  requestQuit();
+  void desktopLog("info", "window", "Window close is quitting app", {
+    durationMs: Date.now() - startedAt,
+    context: { source },
+  });
+  requestQuit({ source, hideWindows: true });
 }
 
 function updateCloseToTrayOption(options: unknown): void {
@@ -416,9 +474,35 @@ function updateCloseToTrayOption(options: unknown): void {
   if (typeof value === "boolean") closeToTray = value;
 }
 
-function requestQuit(): void {
+function requestQuit(options: QuitOptions = {}): void {
+  const startedAt = Date.now();
   appQuitting = true;
+  notifyQuitStarted();
+  if (options.hideWindows) hideAllWindowsForQuit();
+  void desktopLog("info", "app", "Electron quit requested", {
+    durationMs: Date.now() - startedAt,
+    context: {
+      source: options.source ?? "unknown",
+      signal: options.signal,
+      hideWindows: options.hideWindows ?? false,
+      daemonOwned: managedDaemon?.owned ?? false,
+    },
+  });
   app.quit();
+}
+
+function notifyQuitStarted(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) continue;
+    window.webContents.send("desktop.app.quitStarted");
+  }
+}
+
+function hideAllWindowsForQuit(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed() && window.isVisible()) window.hide();
+  }
+  updateTrayMenu();
 }
 
 function daemonTargetLabel(): string {

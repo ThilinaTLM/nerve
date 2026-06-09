@@ -81,6 +81,7 @@ async function main() {
   );
 
   const webSockets = new WebSocketServer({ noServer: true });
+  let shuttingDown = false;
 
   server.on("upgrade", (request, socket, head) => {
     const url = new URL(request.url ?? "/", `http://${host}:${state.port}`);
@@ -153,22 +154,58 @@ async function main() {
   });
 
   const shutdown = async (signal: NodeJS.Signals) => {
-    await state.logger.info("Daemon shutdown requested", {
-      context: { signal },
-    });
+    if (shuttingDown) return;
+    shuttingDown = true;
+    const startedAt = Date.now();
+    const forceExitTimer = setTimeout(() => process.exit(0), 2000);
+    forceExitTimer.unref();
+
+    await state.logger
+      .info("Daemon shutdown requested", {
+        context: { signal },
+      })
+      .catch(() => undefined);
     await state.events
       .publish("daemon.stopped", { daemonId: state.daemonId, signal })
       .catch(() => undefined);
+    await state.logger
+      .info("Daemon stopped event published", {
+        durationMs: Date.now() - startedAt,
+      })
+      .catch(() => undefined);
     await rm(storage.paths.daemonPath, { force: true }).catch(() => undefined);
+    await state.logger
+      .info("Daemon file removed", { durationMs: Date.now() - startedAt })
+      .catch(() => undefined);
     state.subscriptionUsage.stop();
+    closeWebSocketClients(webSockets);
     webSockets.close();
     state.index.close();
+    await state.logger
+      .info("Daemon resources closed; closing HTTP server", {
+        durationMs: Date.now() - startedAt,
+      })
+      .catch(() => undefined);
     server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 2000).unref();
   };
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+}
+
+function closeWebSocketClients(webSockets: WebSocketServer): void {
+  for (const client of webSockets.clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.close(1001, "Daemon shutting down");
+    } else if (client.readyState !== WebSocket.CLOSED) {
+      client.terminate();
+    }
+  }
+  setTimeout(() => {
+    for (const client of webSockets.clients) {
+      if (client.readyState !== WebSocket.CLOSED) client.terminate();
+    }
+  }, 500).unref();
 }
 
 function isLoopbackHost(host: string): boolean {

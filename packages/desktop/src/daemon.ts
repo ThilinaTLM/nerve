@@ -305,8 +305,14 @@ async function stopOwnedChild(
   child: ChildProcess,
   hasExited: () => boolean,
 ): Promise<void> {
-  if (hasExited()) return;
+  if (hasExited()) {
+    void desktopLog("info", "daemon", "Owned child already exited before stop");
+    return;
+  }
 
+  const startedAt = Date.now();
+  let forced = false;
+  let fallbackResolved = false;
   await new Promise<void>((resolveStop) => {
     let settled = false;
     const finish = () => {
@@ -317,12 +323,22 @@ async function stopOwnedChild(
       resolveStop();
     };
     const forceTimer = setTimeout(() => {
-      if (!hasExited()) child.kill("SIGKILL");
+      if (!hasExited()) {
+        forced = true;
+        child.kill("SIGKILL");
+      }
     }, shutdownTimeoutMs);
-    const resolveTimer = setTimeout(finish, shutdownTimeoutMs + 1000);
+    const resolveTimer = setTimeout(() => {
+      fallbackResolved = true;
+      finish();
+    }, shutdownTimeoutMs + 1000);
 
     child.once("exit", finish);
     if (!child.kill("SIGTERM")) finish();
+  });
+  void desktopLog("info", "daemon", "Owned child stop completed", {
+    durationMs: Date.now() - startedAt,
+    context: { forced, fallbackResolved, exited: hasExited() },
   });
 }
 
