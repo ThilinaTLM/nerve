@@ -25,11 +25,11 @@ export function fallbackHtml(state: OrchestratorState): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>nerve</title>
     <style>
-      :root { color-scheme: dark; font-family: Geist, ui-sans-serif, system-ui, sans-serif; background: #070a10; color: #eef2ff; }
+      :root { color-scheme: dark; --font-sans: Geist, ui-sans-serif, system-ui, sans-serif; --text-xs: 0.75rem; --text-5xl: 3rem; font-family: var(--font-sans); background: #070a10; color: #eef2ff; }
       body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
       main { width: min(760px, calc(100vw - 48px)); border: 1px solid #243047; border-radius: 24px; padding: 32px; background: linear-gradient(145deg, #111827, #0b1020); box-shadow: 0 30px 100px rgba(0,0,0,.45); }
-      .eyebrow { color: #7dd3fc; text-transform: uppercase; letter-spacing: .2em; font-size: 12px; }
-      h1 { font-size: 44px; margin: 12px 0; }
+      .eyebrow { color: #7dd3fc; text-transform: uppercase; letter-spacing: .2em; font-size: var(--text-xs); }
+      h1 { font-size: var(--text-5xl); margin: 12px 0; }
       p { color: #b9c4d8; line-height: 1.6; }
       code { background: #020617; border: 1px solid #243047; border-radius: 8px; padding: 3px 7px; }
     </style>

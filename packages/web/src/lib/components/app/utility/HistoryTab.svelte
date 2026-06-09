@@ -294,7 +294,7 @@
           >
             <GitBranch class="size-4" strokeWidth={2} />
           </span>
-          <span class="font-mono text-[10px] tabular-nums text-muted-foreground/50">00</span>
+          <span class="font-mono text-xs tabular-nums text-muted-foreground/50">00</span>
           <span class="shrink-0 text-xs font-medium text-foreground">Start of conversation</span>
           <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">New branch from beginning</span>
         </button>
@@ -318,7 +318,7 @@
               <span class={`flex size-5 shrink-0 items-center justify-center ${TONE_TEXT[desc.tone]}`}>
                 <Icon class="size-4" strokeWidth={2} />
               </span>
-              <span class="font-mono text-[10px] tabular-nums text-muted-foreground/50">
+              <span class="font-mono text-xs tabular-nums text-muted-foreground/50">
                 {String(row.index).padStart(2, "0")}
               </span>
               <span class="shrink-0 text-xs font-medium text-foreground">{desc.label}</span>
@@ -332,10 +332,10 @@
                 {@const BadgeIcon = ICONS[badge.icon]}
                 <span class={`flex shrink-0 items-center gap-0.5 ${TONE_TEXT[badge.tone]}`} title={badge.title ?? badge.label}>
                   <BadgeIcon class="size-3" strokeWidth={2} />
-                  {#if badge.label}<span class="text-[10px]">{badge.label}</span>{/if}
+                  {#if badge.label}<span class="text-xs">{badge.label}</span>{/if}
                 </span>
               {/each}
-              <span class="shrink-0 font-mono text-[10px] text-muted-foreground/50">
+              <span class="shrink-0 font-mono text-xs text-muted-foreground/50">
                 {relativeTimeLabel(row.node.entry.createdAt)}
               </span>
             </button>

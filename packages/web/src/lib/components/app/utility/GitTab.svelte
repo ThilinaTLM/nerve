@@ -597,7 +597,7 @@
         <div class="flex items-center justify-between border-b px-3 py-2">
           <span class="text-xs font-semibold text-foreground">Repository</span>
           <div class="flex items-center gap-1">
-            <span class="mr-1 text-[11px] text-muted-foreground">
+            <span class="mr-1 text-xs text-muted-foreground">
               {repos.length} {repos.length === 1 ? "repo" : "repos"}
             </span>
             <Button
@@ -650,7 +650,7 @@
                   {repoStatusLabel(repo)}
                 </Badge>
               </div>
-              <div class="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+              <div class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                 <span class="truncate">{repoPathLabel(repo)}</span>
                 <span class="shrink-0">·</span>
                 <GitBranch size={11} strokeWidth={2.2} class="shrink-0" />
@@ -1022,13 +1022,13 @@
                     </Badge>
                   </button>
                 </div>
-                <div class="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                <div class="mt-0.5 font-mono text-xs text-muted-foreground">
                   {pr.baseRefName} ← {pr.headRefName}
                 </div>
                 {#if expandedPr === pr.number && pr.checks.runs.length > 0}
                   <div class="mt-1.5 flex flex-col gap-1">
                     {#each pr.checks.runs as run}
-                      <div class="flex items-center gap-1.5 text-[11px]">
+                      <div class="flex items-center gap-1.5 text-xs">
                         <span class="font-mono text-muted-foreground">{run.status}</span>
                         <span class="truncate text-foreground">{run.name}</span>
                       </div>

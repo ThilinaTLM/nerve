@@ -318,7 +318,7 @@
     padding: 0.05rem 0.25rem;
     color: var(--muted-foreground);
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: var(--text-xs);
   }
 
   .duration {

@@ -424,7 +424,7 @@
 
   .conversation-label {
     font-size: var(--text-sm);
-    font-weight: 450;
+    font-weight: 400;
   }
 
   /* Styled, non-clipping tooltips (Portal-rendered) */

@@ -289,7 +289,7 @@
     color: var(--foreground);
     padding: 0 0.25rem;
     font-family: var(--font-mono);
-    font-size: 0.9em;
+    font-size: var(--text-sm);
   }
 
   .markdown :global(.code-block) {

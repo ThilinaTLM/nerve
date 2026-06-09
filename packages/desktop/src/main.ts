@@ -742,7 +742,12 @@ function shellStyles(): string {
       --muted-foreground: oklch(0.547 0.021 43.1);
       --border: oklch(0.922 0.005 34.3);
       --destructive: oklch(0.577 0.245 27.325);
-      font-family: Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-sans: Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --text-xs: 0.75rem;
+      --text-sm: 0.875rem;
+      --text-xl: 1.25rem;
+      font-family: var(--font-sans);
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -784,14 +789,14 @@ function shellStyles(): string {
     .error-title {
       margin: 0;
       color: var(--foreground);
-      font-size: 20px;
+      font-size: var(--text-xl);
       font-weight: 600;
       letter-spacing: -0.01em;
     }
     .status {
       margin: 0;
       color: var(--muted-foreground);
-      font-size: 13px;
+      font-size: var(--text-sm);
       line-height: 1.5;
     }
     pre {
@@ -806,7 +811,9 @@ function shellStyles(): string {
       padding: 12px;
       background: color-mix(in oklab, var(--destructive) 10%, transparent);
       color: var(--destructive);
-      font: 12px/1.5 "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      line-height: 1.5;
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
