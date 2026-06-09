@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import FileText from "@lucide/svelte/icons/file-text";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
@@ -18,15 +19,24 @@
   let html = $state<string | undefined>(undefined);
   let htmlSignature = $state<string | undefined>(undefined);
   let unavailableSignature = $state<string | undefined>(undefined);
+  let viewportRef = $state<HTMLElement | null>(null);
+  let scrolledSignature = $state<string | undefined>(undefined);
   const file = $derived(view?.content);
   const filePath = $derived(file?.relativePath ?? view?.path);
   const markdown = $derived(isMarkdownPath(filePath));
-  const displayMode = $derived(view?.displayMode ?? defaultFileDisplayMode(filePath));
+  const lineStart = $derived(file?.lineStart ?? 1);
+  const targetLine = $derived(view?.line ?? file?.targetLine);
+  const displayMode = $derived(
+    view?.displayMode ?? (targetLine ? "raw" : defaultFileDisplayMode(filePath)),
+  );
   const language = $derived(extname(filePath));
   const codeSignature = $derived(
     file?.type === "text" && file.text !== undefined && displayMode === "raw"
       ? `${language ?? ""}\0${file.text}`
       : undefined,
+  );
+  const annotatedCodeSignature = $derived(
+    codeSignature ? `${codeSignature}\0${lineStart}\0${targetLine ?? ""}` : undefined,
   );
   const imageSrc = $derived(
     file?.type === "image" && file.dataBase64 && file.mimeType
@@ -36,20 +46,35 @@
   const textLines = $derived(
     file?.type === "text" && file.text !== undefined ? file.text.split("\n") : [],
   );
-  const lineNumberWidth = $derived(`${Math.max(2, String(textLines.length || 1).length)}ch`);
+  const lastLineNumber = $derived(lineStart + Math.max(0, textLines.length - 1));
+  const lineNumberWidth = $derived(`${Math.max(2, String(lastLineNumber).length)}ch`);
+  const codeViewStyle = $derived(`--line-number-width: ${lineNumberWidth}; counter-reset: code-line ${lineStart - 1};`);
 
-  function withCompactHighlightedLines(highlighted: string): string {
-    return highlighted.replaceAll(/<\/span>\r?\n<span class="line">/g, "</span><span class=\"line\">");
+  function annotateHighlightedLines(
+    highlighted: string,
+    startLine: number,
+    selectedLine: number | undefined,
+  ): string {
+    let index = 0;
+    return highlighted
+      .replaceAll(/<\/span>\r?\n<span class="line">/g, "</span><span class=\"line\">")
+      .replaceAll(/<span class="line"/g, () => {
+        const line = startLine + index;
+        index += 1;
+        const classes = line === selectedLine ? "line file-target-line" : "line";
+        return `<span class="${classes}" data-file-line="${line}"`;
+      });
   }
 
   $effect(() => {
     if (file?.type !== "text" || file.text === undefined || !codeSignature) return;
-    const currentSignature = codeSignature;
+    const currentSignature = annotatedCodeSignature;
+    if (!currentSignature) return;
     if (htmlSignature === currentSignature || unavailableSignature === currentSignature) return;
 
     const result = highlightCodeCached(file.text, language);
     if (typeof result === "string") {
-      html = withCompactHighlightedLines(result);
+      html = annotateHighlightedLines(result, lineStart, targetLine);
       htmlSignature = currentSignature;
       unavailableSignature = undefined;
       return;
@@ -61,9 +86,9 @@
 
     let cancelled = false;
     void result.then((highlighted) => {
-      if (cancelled || codeSignature !== currentSignature) return;
+      if (cancelled || annotatedCodeSignature !== currentSignature) return;
       if (highlighted) {
-        html = withCompactHighlightedLines(highlighted);
+        html = annotateHighlightedLines(highlighted, lineStart, targetLine);
         htmlSignature = currentSignature;
         unavailableSignature = undefined;
       } else {
@@ -74,10 +99,23 @@
       cancelled = true;
     };
   });
+
+  $effect(() => {
+    if (!viewportRef || file?.type !== "text" || !targetLine) return;
+    const signature = `${file.path}:${lineStart}:${targetLine}:${displayMode}:${htmlSignature ?? codeSignature ?? textLines.length}`;
+    if (scrolledSignature === signature) return;
+
+    void tick().then(() => {
+      const target = viewportRef?.querySelector<HTMLElement>(`[data-file-line="${targetLine}"]`);
+      if (!target) return;
+      target.scrollIntoView({ block: "center", inline: "nearest" });
+      scrolledSignature = signature;
+    });
+  });
 </script>
 
 <section class="file-pane">
-  <ScrollArea class="file-scroll" viewportClass="file-viewport" type="auto" orientation="both">
+  <ScrollArea bind:viewportRef class="file-scroll" viewportClass="file-viewport" type="auto" orientation="both">
     {#if !view}
       <div class="file-empty">
         <FileText size={28} strokeWidth={1.7} />
@@ -105,10 +143,10 @@
         <div class="markdown-view">
           <Markdown text={file.text ?? ""} trimCodeBlocks={false} />
         </div>
-      {:else if html && htmlSignature === codeSignature}
-        <div class="code-view" class:wrap-lines={view?.wrapLines} style={`--line-number-width: ${lineNumberWidth};`}>{@html html}</div>
+      {:else if html && htmlSignature === annotatedCodeSignature}
+        <div class="code-view" class:wrap-lines={view?.wrapLines} style={codeViewStyle}>{@html html}</div>
       {:else}
-        <pre class="code-view plain" class:wrap-lines={view?.wrapLines} style={`--line-number-width: ${lineNumberWidth};`}><code>{#each textLines as line}<span class="code-line">{line}</span>{/each}</code></pre>
+        <pre class="code-view plain" class:wrap-lines={view?.wrapLines} style={codeViewStyle}><code>{#each textLines as line, index}{@const lineNumber = lineStart + index}<span class={lineNumber === targetLine ? "code-line file-target-line" : "code-line"} data-file-line={lineNumber}>{line}</span>{/each}</code></pre>
       {/if}
     {:else}
       <div class="file-empty">
@@ -267,6 +305,19 @@
     color: color-mix(in oklab, var(--muted-foreground) 58%, transparent);
     text-align: right;
     user-select: none;
+  }
+
+  .code-view :global(.file-target-line),
+  .code-line.file-target-line {
+    border-radius: calc(var(--radius-sm) * 0.75);
+    background: color-mix(in oklab, var(--warning) 18%, transparent);
+    box-shadow: inset 0.2rem 0 0 color-mix(in oklab, var(--warning) 72%, transparent);
+  }
+
+  .code-view :global(.file-target-line)::before,
+  .code-line.file-target-line::before {
+    background: color-mix(in oklab, var(--warning) 18%, var(--background));
+    color: var(--foreground);
   }
 
   .code-view :global(span) {

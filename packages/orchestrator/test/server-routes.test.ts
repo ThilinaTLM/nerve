@@ -190,6 +190,42 @@ describe("orchestrator server routes", () => {
     }
   });
 
+  it("returns a line-aware preview window for large text files", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const projectRoot = await tempHome("nerve-fs-large-project-");
+      const filePath = join(projectRoot, "large.txt");
+      const targetLine = 12_000;
+      const lines = Array.from({ length: 15_000 }, (_, index) => {
+        const line = index + 1;
+        const marker = line === targetLine ? " TARGET-LINE" : "";
+        return `line ${line.toString().padStart(5, "0")}${marker} ${"x".repeat(90)}`;
+      });
+      await writeFile(filePath, `${lines.join("\n")}\n`);
+      const project = await state.registry.createProject({ dir: projectRoot });
+
+      const response = await app.request(
+        `/api/filesystem/file?projectId=${encodeURIComponent(project.id)}&path=large.txt&line=${targetLine}`,
+        { headers },
+      );
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+        lineStart?: number;
+        targetLine?: number;
+        text?: string;
+        truncated: boolean;
+      };
+      assert.equal(body.truncated, true);
+      assert.equal(body.targetLine, targetLine);
+      assert.ok((body.lineStart ?? 0) > 1);
+      assert.ok((body.lineStart ?? Number.MAX_SAFE_INTEGER) <= targetLine);
+      assert.match(body.text ?? "", /line 12000 TARGET-LINE/);
+      assert.doesNotMatch(body.text ?? "", /line 00001/);
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("saves pasted clipboard images to the temp nerve directory", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
     let filePath: string | undefined;

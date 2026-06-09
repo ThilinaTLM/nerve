@@ -180,6 +180,33 @@ describe("parseToolView", () => {
     assert.equal(view.allMatches[0]?.matches.length, 2);
   });
 
+  it("resolves grep match links against the search root", () => {
+    const view = parseToolView(
+      toolCall(
+        "grep",
+        { path: "packages/web/src", pattern: "setActiveComposerText" },
+        {
+          path: `${CWD}/packages/web/src`,
+          matches: [
+            { path: "App.svelte", line: 163, text: "void openFilePane();" },
+          ],
+        },
+      ),
+    );
+
+    assert.equal(view.kind, "grep");
+    if (view.kind !== "grep") return;
+    assert.equal(view.allMatches[0]?.path, "App.svelte");
+    assert.equal(
+      view.allMatches[0]?.openPath,
+      `${CWD}/packages/web/src/App.svelte`,
+    );
+    assert.equal(
+      view.allMatches[0]?.matches[0]?.openPath,
+      `${CWD}/packages/web/src/App.svelte`,
+    );
+  });
+
   it("truncates long grep match lines", () => {
     const longLine = `prefix ${"x".repeat(1_000)} suffix`;
     const view = parseToolView(
@@ -211,6 +238,24 @@ describe("parseToolView", () => {
       ),
     );
     assert.equal(view.kind === "find" && view.count, 2);
+  });
+
+  it("resolves find result links against the search root", () => {
+    const view = parseToolView(
+      toolCall(
+        "find",
+        { path: "packages/web/src", pattern: "*.svelte" },
+        {
+          path: `${CWD}/packages/web/src`,
+          entries: [{ path: "App.svelte", kind: "file" }],
+        },
+      ),
+    );
+
+    assert.equal(view.kind, "find");
+    if (view.kind !== "find") return;
+    assert.equal(view.paths[0], "App.svelte");
+    assert.equal(view.openPaths[0], `${CWD}/packages/web/src/App.svelte`);
   });
 
   it("parses ls entries", () => {

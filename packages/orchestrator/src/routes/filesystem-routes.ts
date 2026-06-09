@@ -1,3 +1,4 @@
+import { createReadStream } from "node:fs";
 import {
   access,
   mkdir,
@@ -17,6 +18,7 @@ import {
   relative,
   resolve,
 } from "node:path";
+import { createInterface } from "node:readline";
 import {
   clipboardImageUploadRequestSchema,
   type FilesystemSignal,
@@ -170,6 +172,8 @@ async function directoryListing(path: string | undefined, showHidden = false) {
 
 const maxTextBytes = 1024 * 1024;
 const maxImageBytes = 5 * 1024 * 1024;
+const lineWindowBefore = 200;
+const lineWindowAfter = 800;
 
 const imageMimeByExtension = new Map([
   [".png", "image/png"],
@@ -244,6 +248,38 @@ function looksTextual(buffer: Buffer): boolean {
   return buffer.toString("utf8").includes("�") === false;
 }
 
+async function readTextLineWindow(
+  path: string,
+  targetLine: number,
+): Promise<{ text: string; lineStart: number }> {
+  const startLine = Math.max(1, targetLine - lineWindowBefore);
+  const endLine = targetLine + lineWindowAfter;
+  const lines: string[] = [];
+  let lineStart = startLine;
+  let bytes = 0;
+  let lineNumber = 0;
+
+  const reader = createInterface({
+    input: createReadStream(path, { encoding: "utf8" }),
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of reader) {
+    lineNumber += 1;
+    if (lineNumber < startLine) continue;
+    if (lineNumber > endLine) break;
+
+    const lineBytes = Buffer.byteLength(line) + 1;
+    if (lines.length > 0 && bytes + lineBytes > maxTextBytes) break;
+
+    if (lines.length === 0) lineStart = lineNumber;
+    lines.push(line);
+    bytes += lineBytes;
+  }
+
+  return { text: lines.join("\n"), lineStart };
+}
+
 async function fileContent(state: OrchestratorState, input: unknown) {
   const query = filesystemFileQuerySchema.parse(input);
   const project = state.registry.getProject(query.projectId);
@@ -294,6 +330,10 @@ async function fileContent(state: OrchestratorState, input: unknown) {
   const truncated = info.size > maxTextBytes;
   const textChunk = truncated ? chunk.subarray(0, maxTextBytes) : chunk;
   const textual = textExtensions.has(ext) || looksTextual(textChunk);
+  const lineWindow =
+    textual && truncated && query.line
+      ? await readTextLineWindow(target, query.line)
+      : undefined;
 
   return {
     projectId: query.projectId,
@@ -304,7 +344,11 @@ async function fileContent(state: OrchestratorState, input: unknown) {
     mtimeMs: info.mtimeMs,
     type: textual ? ("text" as const) : ("binary" as const),
     binary: !textual,
-    text: textual ? textChunk.toString("utf8") : undefined,
+    text: textual
+      ? (lineWindow?.text ?? textChunk.toString("utf8"))
+      : undefined,
+    lineStart: textual ? (lineWindow?.lineStart ?? 1) : undefined,
+    targetLine: textual ? query.line : undefined,
     truncated,
   };
 }

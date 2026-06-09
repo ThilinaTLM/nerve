@@ -56,6 +56,8 @@ export const filesystemFileResponseSchema = z.object({
   text: z.string().optional(),
   dataBase64: z.string().optional(),
   mimeType: z.string().optional(),
+  lineStart: z.number().int().positive().optional(),
+  targetLine: z.number().int().positive().optional(),
   truncated: z.boolean(),
 });
 export type FilesystemFileResponse = z.infer<

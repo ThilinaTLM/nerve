@@ -374,10 +374,14 @@ export function parseToolView(
 
     case "grep": {
       const pattern = stringField(args.pattern);
+      const searchRoot =
+        resolveToolPath(result?.path, cwd) ??
+        resolveToolPath(stringField(args.path) ?? ".", cwd) ??
+        cwd;
       const matches = (result?.matches ?? []).map((match) =>
         trimMatchText({
           ...match,
-          openPath: resolveToolPath(match.path, cwd) ?? match.path,
+          openPath: resolveToolPath(match.path, searchRoot) ?? match.path,
         }),
       );
       const all = groupMatchesByFile(matches);
@@ -393,9 +397,13 @@ export function parseToolView(
     case "find": {
       const pattern = stringField(args.pattern);
       const entries = result?.entries ?? [];
+      const searchRoot =
+        resolveToolPath(result?.path, cwd) ??
+        resolveToolPath(stringField(args.path) ?? ".", cwd) ??
+        cwd;
       const paths = entries.map((entry) => entry.path);
       const openPaths = entries.map(
-        (entry) => resolveToolPath(entry.path, cwd) ?? entry.path,
+        (entry) => resolveToolPath(entry.path, searchRoot) ?? entry.path,
       );
       return {
         kind: "find",
