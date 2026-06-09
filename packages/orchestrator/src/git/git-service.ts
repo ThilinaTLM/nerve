@@ -4,8 +4,8 @@ import { readdir } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import type {
-  CreatePrResponse,
-  GitCommitResponse,
+  GitBranchListResponse,
+  GitBranchSummary,
   GitDiscoveryResponse,
   GithubChecksSummary,
   GithubPr,
@@ -30,15 +30,6 @@ const COMMAND_TIMEOUT_MS = 20_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
 const MAX_DISCOVERY_DEPTH = 2;
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next"]);
-const DIFF_CONTEXT_LIMIT = 6_000;
-
-function capDiffContext(diff: string): string {
-  if (diff.length > DIFF_CONTEXT_LIMIT) {
-    return `${diff.slice(0, DIFF_CONTEXT_LIMIT)}\n... (diff truncated)`;
-  }
-  return diff;
-}
-
 export class GitCommandError extends Error {
   constructor(
     readonly command: string,
@@ -302,6 +293,45 @@ export class GitService {
     }
   }
 
+  async listBranches(
+    projectId: string,
+    relativePath: string,
+  ): Promise<GitBranchListResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const { stdout } = await this.runGit(repoDir, [
+      "for-each-ref",
+      "--format=%(refname)%00%(refname:short)%00%(upstream:short)%00%(HEAD)",
+      "refs/heads",
+      "refs/remotes",
+    ]);
+    const branches = stdout
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line): GitBranchSummary | null => {
+        const [refname, shortName, upstream, head] = line.split("\u0000");
+        if (!refname || !shortName) return null;
+        if (
+          refname.startsWith("refs/remotes/") &&
+          shortName.endsWith("/HEAD")
+        ) {
+          return null;
+        }
+        return {
+          name: shortName,
+          current: head === "*",
+          remote: refname.startsWith("refs/remotes/"),
+          upstream: upstream && upstream.length > 0 ? upstream : null,
+        };
+      })
+      .filter((branch): branch is GitBranchSummary => branch !== null)
+      .sort((a, b) => {
+        if (a.current !== b.current) return a.current ? -1 : 1;
+        if (a.remote !== b.remote) return a.remote ? 1 : -1;
+        return a.name.localeCompare(b.name);
+      });
+    return { branches };
+  }
+
   async detectBaseBranch(repoDir: string): Promise<string> {
     try {
       const { stdout } = await this.runGit(repoDir, [
@@ -432,67 +462,148 @@ export class GitService {
     };
   }
 
-  async commit(
+  async switchBranch(
     projectId: string,
     relativePath: string,
-    options: { subject: string; body?: string; all: boolean },
-  ): Promise<GitCommitResponse> {
+    name: string,
+  ): Promise<GitMutationResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
-    if (options.all) {
-      await this.mapGit(() => this.runGit(repoDir, ["add", "-A"]));
-    }
-    const { stdout: staged } = await this.runGit(repoDir, [
-      "diff",
-      "--staged",
-      "--name-only",
-    ]);
-    if (staged.trim().length === 0) {
+    const branches = await this.listBranches(projectId, relativePath);
+    const target = branches.branches.find((branch) => branch.name === name);
+    if (!target) {
       throw new HttpError(
-        409,
-        "GIT_NOTHING_TO_COMMIT",
-        "There are no staged changes to commit.",
+        404,
+        "GIT_BRANCH_NOT_FOUND",
+        `Branch '${name}' was not found.`,
       );
     }
-    const args = ["commit", "-m", options.subject];
-    if (options.body && options.body.trim().length > 0) {
-      args.push("-m", options.body);
-    }
+    const args = target.remote ? ["switch", "--track", name] : ["switch", name];
     await this.mapGit(() => this.runGit(repoDir, args));
-    const { stdout: hash } = await this.runGit(repoDir, [
-      "rev-parse",
-      "--short",
-      "HEAD",
-    ]);
     return {
       repo: await this.summarizeRepo(
         repoDir,
         relativePath,
         this.repoName(projectId, relativePath),
       ),
-      hash: hash.trim(),
     };
   }
 
-  async syncBase(
+  async stageFile(
+    projectId: string,
+    relativePath: string,
+    path: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    await this.mapGit(() => this.runGit(repoDir, ["add", "--", path]));
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async unstageFile(
+    projectId: string,
+    relativePath: string,
+    path: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    await this.mapGit(() =>
+      this.runGit(repoDir, ["restore", "--staged", "--", path]),
+    );
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async discardFile(
+    projectId: string,
+    relativePath: string,
+    path: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const before = parsePorcelainV2(
+      (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
+    ).files.find((file) => file.path === path || file.renamedFrom === path);
+
+    try {
+      await this.runGit(repoDir, ["restore", "--staged", "--", path]);
+    } catch {
+      // The path may not be staged; continue with worktree cleanup.
+    }
+    if (!before?.untracked) {
+      try {
+        await this.runGit(repoDir, ["restore", "--worktree", "--", path]);
+      } catch {
+        // Newly-added or deleted paths may require git clean instead.
+      }
+    }
+    await this.mapGit(() => this.runGit(repoDir, ["clean", "-f", "--", path]));
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async syncBranch(
     projectId: string,
     relativePath: string,
   ): Promise<GitMutationResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const { files } = parsePorcelainV2(
-      (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
+    const repo = await this.summarizeRepo(
+      repoDir,
+      relativePath,
+      this.repoName(projectId, relativePath),
     );
-    if (files.length > 0) {
+    if (repo.detached || !repo.currentBranch) {
       throw new HttpError(
         409,
-        "GIT_DIRTY_WORKTREE",
-        "Working tree has uncommitted changes. Commit or stash them before syncing.",
+        "GIT_DETACHED_HEAD",
+        "Cannot sync a detached HEAD. Check out a branch first.",
       );
     }
-    const baseBranch = await this.detectBaseBranch(repoDir);
-    await this.mapGit(() => this.runGit(repoDir, ["switch", baseBranch]));
-    const hasUpstream = await this.hasUpstream(repoDir);
-    if (hasUpstream) {
-      await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
+    if (!repo.hasRemote) {
+      throw new HttpError(
+        409,
+        "GIT_NO_REMOTE",
+        "This repository does not have a remote configured.",
+      );
+    }
+    if (!repo.hasUpstream) {
+      await this.mapGit(() =>
+        this.runGit(repoDir, [
+          "push",
+          "-u",
+          "origin",
+          repo.currentBranch ?? "",
+        ]),
+      );
+    } else {
+      if ((repo.behind ?? 0) > 0) {
+        const { files } = parsePorcelainV2(
+          (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
+        );
+        if (files.length > 0) {
+          throw new HttpError(
+            409,
+            "GIT_DIRTY_WORKTREE",
+            "Working tree has uncommitted changes. Commit or stash them before syncing.",
+          );
+        }
+        await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
+      }
+      if ((repo.ahead ?? 0) > 0) {
+        await this.mapGit(() => this.runGit(repoDir, ["push"]));
+      }
     }
     return {
       repo: await this.summarizeRepo(
@@ -595,82 +706,6 @@ export class GitService {
     }
   }
 
-  /** Diff context (capped) for LLM suggestions. */
-  async diffContext(projectId: string, relativePath: string): Promise<string> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    let diff = "";
-    try {
-      diff = (await this.runGit(repoDir, ["diff", "HEAD"])).stdout;
-    } catch {
-      diff = (await this.runGit(repoDir, ["diff"])).stdout;
-    }
-    return capDiffContext(diff);
-  }
-
-  /** PR context (capped) for LLM suggestions on committed branch changes. */
-  async prContext(projectId: string, relativePath: string): Promise<string> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const baseBranch = await this.detectBaseBranch(repoDir);
-    const baseRef = await this.comparisonBaseRef(repoDir, baseBranch);
-    const { stdout: currentBranchOut } = await this.runGit(repoDir, [
-      "rev-parse",
-      "--abbrev-ref",
-      "HEAD",
-    ]);
-    const currentBranch = currentBranchOut.trim() || "HEAD";
-
-    const commits = await this.gitOutputOrEmpty(repoDir, [
-      "log",
-      "--pretty=- %s",
-      `${baseRef}..HEAD`,
-    ]);
-    const stats = await this.gitOutputOrEmpty(repoDir, [
-      "diff",
-      "--stat",
-      `${baseRef}...HEAD`,
-    ]);
-    const files = await this.gitOutputOrEmpty(repoDir, [
-      "diff",
-      "--name-status",
-      `${baseRef}...HEAD`,
-    ]);
-    const diff = await this.gitOutputOrEmpty(repoDir, [
-      "diff",
-      `${baseRef}...HEAD`,
-    ]);
-
-    return [
-      `Current branch: ${currentBranch}`,
-      `Base branch: ${baseBranch}`,
-      `Base ref: ${baseRef}`,
-      "",
-      "Commits since base:",
-      commits.trim() || "(none)",
-      "",
-      "Changed files:",
-      files.trim() || "(none)",
-      "",
-      "Diff stat:",
-      stats.trim() || "(none)",
-      "",
-      "Diff (may be truncated):",
-      "```diff",
-      capDiffContext(diff) || "(no diff available)",
-      "```",
-    ].join("\n");
-  }
-
-  private async gitOutputOrEmpty(
-    repoDir: string,
-    args: string[],
-  ): Promise<string> {
-    try {
-      return (await this.runGit(repoDir, args)).stdout;
-    } catch {
-      return "";
-    }
-  }
-
   // --- GitHub via gh ---
 
   async githubStatus(
@@ -714,7 +749,7 @@ export class GitService {
     }
   }
 
-  async listMyPrs(
+  async listOpenPrs(
     projectId: string,
     relativePath: string,
   ): Promise<GithubPrListResponse> {
@@ -723,10 +758,10 @@ export class GitService {
       this.runGh(repoDir, [
         "pr",
         "list",
-        "--author",
-        "@me",
         "--state",
         "open",
+        "--limit",
+        "50",
         "--json",
         "number,title,url,state,isDraft,headRefName,baseRefName,updatedAt",
       ]),
@@ -788,38 +823,6 @@ export class GitService {
         runs: [],
       };
     }
-  }
-
-  async createPr(
-    projectId: string,
-    relativePath: string,
-    options: { title: string; body?: string; base?: string; draft: boolean },
-  ): Promise<CreatePrResponse> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    if (!(await this.hasUpstream(repoDir))) {
-      const { stdout: branch } = await this.runGit(repoDir, [
-        "rev-parse",
-        "--abbrev-ref",
-        "HEAD",
-      ]);
-      await this.mapGit(() =>
-        this.runGit(repoDir, ["push", "-u", "origin", branch.trim()]),
-      );
-    }
-    const args = ["pr", "create", "--title", options.title];
-    args.push(
-      "--body",
-      options.body && options.body.length > 0 ? options.body : "",
-    );
-    if (options.base) args.push("--base", options.base);
-    if (options.draft) args.push("--draft");
-    const { stdout } = await this.mapGh(() => this.runGh(repoDir, args));
-    const url = stdout.trim().split("\n").pop() ?? "";
-    const numberMatch = url.match(/\/pull\/(\d+)/);
-    return {
-      url,
-      number: numberMatch ? Number(numberMatch[1]) : 0,
-    };
   }
 
   async prDetail(

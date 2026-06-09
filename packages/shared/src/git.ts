@@ -85,29 +85,19 @@ export const gitOverviewResponseSchema = z.object({
 });
 export type GitOverviewResponse = z.infer<typeof gitOverviewResponseSchema>;
 
-export const gitBranchSuggestionResponseSchema = z.object({
-  suggestion: z.string(),
-  alternatives: z.array(z.string()),
+export const gitBranchSummarySchema = z.object({
+  /** Branch display/ref name, e.g. `main` or `origin/main`. */
+  name: z.string(),
+  current: z.boolean(),
+  remote: z.boolean(),
+  upstream: z.string().nullable(),
 });
-export type GitBranchSuggestionResponse = z.infer<
-  typeof gitBranchSuggestionResponseSchema
->;
+export type GitBranchSummary = z.infer<typeof gitBranchSummarySchema>;
 
-export const gitCommitMessageResponseSchema = z.object({
-  subject: z.string(),
-  body: z.string().optional(),
+export const gitBranchListResponseSchema = z.object({
+  branches: z.array(gitBranchSummarySchema),
 });
-export type GitCommitMessageResponse = z.infer<
-  typeof gitCommitMessageResponseSchema
->;
-
-export const gitPrSuggestionResponseSchema = z.object({
-  title: z.string(),
-  body: z.string().optional(),
-});
-export type GitPrSuggestionResponse = z.infer<
-  typeof gitPrSuggestionResponseSchema
->;
+export type GitBranchListResponse = z.infer<typeof gitBranchListResponseSchema>;
 
 // --- Request payloads ---
 
@@ -117,19 +107,11 @@ export const createBranchRequestSchema = z.object({
 });
 export type CreateBranchRequest = z.infer<typeof createBranchRequestSchema>;
 
-export const commitRequestSchema = z.object({
+export const switchBranchRequestSchema = z.object({
   repo: z.string().default("."),
-  subject: z.string().min(1),
-  body: z.string().optional(),
-  /** Stage all tracked + untracked changes before committing (default true). */
-  all: z.boolean().default(true),
+  name: z.string().min(1),
 });
-export type CommitRequest = z.infer<typeof commitRequestSchema>;
-
-export const syncBaseRequestSchema = z.object({
-  repo: z.string().default("."),
-});
-export type SyncBaseRequest = z.infer<typeof syncBaseRequestSchema>;
+export type SwitchBranchRequest = z.infer<typeof switchBranchRequestSchema>;
 
 /** Generic remote operation (push / pull / fetch) on the current branch. */
 export const gitRemoteOpRequestSchema = z.object({
@@ -137,11 +119,11 @@ export const gitRemoteOpRequestSchema = z.object({
 });
 export type GitRemoteOpRequest = z.infer<typeof gitRemoteOpRequestSchema>;
 
-export const gitCommitResponseSchema = z.object({
-  repo: gitRepoSummarySchema,
-  hash: z.string(),
+export const gitFileActionRequestSchema = z.object({
+  repo: z.string().default("."),
+  path: z.string().min(1),
 });
-export type GitCommitResponse = z.infer<typeof gitCommitResponseSchema>;
+export type GitFileActionRequest = z.infer<typeof gitFileActionRequestSchema>;
 
 export const gitMutationResponseSchema = z.object({
   repo: gitRepoSummarySchema,
@@ -193,21 +175,6 @@ export const githubPrListResponseSchema = z.object({
   prs: z.array(githubPrSchema),
 });
 export type GithubPrListResponse = z.infer<typeof githubPrListResponseSchema>;
-
-export const createPrRequestSchema = z.object({
-  repo: z.string().default("."),
-  title: z.string().min(1),
-  body: z.string().optional(),
-  base: z.string().optional(),
-  draft: z.boolean().default(false),
-});
-export type CreatePrRequest = z.infer<typeof createPrRequestSchema>;
-
-export const createPrResponseSchema = z.object({
-  number: z.number().int(),
-  url: z.string(),
-});
-export type CreatePrResponse = z.infer<typeof createPrResponseSchema>;
 
 export const githubPrFileSchema = z.object({
   path: z.string(),

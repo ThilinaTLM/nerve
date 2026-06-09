@@ -67,7 +67,6 @@ import {
 import type { InitializedStorage } from "./storage.js";
 import { ToolService } from "./tool-service.js";
 import type { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
-import { UtilityLlmService } from "./utility-llm-service.js";
 import { WorkerManager } from "./worker-manager.js";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
@@ -91,13 +90,15 @@ function runStatusDetails(value: unknown):
     state: record.state,
     retryable: record.retryable,
     failedEntryId:
-      typeof record.failedEntryId === "string" ? record.failedEntryId : undefined,
+      typeof record.failedEntryId === "string"
+        ? record.failedEntryId
+        : undefined,
   };
 }
 
-function runFailureDetails(value: unknown):
-  | { stopReason?: unknown; errorMessage?: string }
-  | undefined {
+function runFailureDetails(
+  value: unknown,
+): { stopReason?: unknown; errorMessage?: string } | undefined {
   const record = recordValue(value);
   if (!record) return undefined;
   return {
@@ -121,7 +122,6 @@ export class RuntimeRegistry {
   readonly suspensions: AgentSuspensionService;
   readonly tools: ToolService;
   readonly git: GitService;
-  readonly utilityLlm: UtilityLlmService;
   private readonly projectRepository: ProjectRepository;
   private readonly conversationRepository: ConversationRepository;
   private readonly agentRepository: AgentRepository;
@@ -259,9 +259,6 @@ export class RuntimeRegistry {
     );
     this.suspensions = new AgentSuspensionService(storage, events);
     this.git = new GitService((projectId) => this.getProject(projectId));
-    this.utilityLlm = new UtilityLlmService({
-      getApiKey: (provider) => auth.getApiKey(provider),
-    });
     this.tools = new ToolService(
       storage,
       events,
@@ -1052,7 +1049,9 @@ export class RuntimeRegistry {
         "Entry is not a retry-exhausted status entry.",
       );
     }
-    const failedEntry = entries.find((entry) => entry.id === details.failedEntryId);
+    const failedEntry = entries.find(
+      (entry) => entry.id === details.failedEntryId,
+    );
     const failedDetails = runFailureDetails(failedEntry?.details);
     if (
       !failedEntry ||
@@ -1066,7 +1065,10 @@ export class RuntimeRegistry {
         "Retry status does not reference a valid failed assistant entry.",
       );
     }
-    await this.agentRunner.continueFromFailedTurn(agent.id, details.failedEntryId);
+    await this.agentRunner.continueFromFailedTurn(
+      agent.id,
+      details.failedEntryId,
+    );
   }
 
   private async setAgentStatus(

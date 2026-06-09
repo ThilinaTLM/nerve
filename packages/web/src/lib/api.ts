@@ -14,14 +14,12 @@ import type {
   ConversationSnapshot,
   ConversationTree,
   ConversationTreeNode,
-  CreatePrResponse,
   EventEnvelope,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
   FilesystemSignal,
-  GitBranchSuggestionResponse,
-  GitCommitMessageResponse,
-  GitCommitResponse,
+  GitBranchListResponse,
+  GitBranchSummary,
   GitDiscoveryResponse,
   GitFileChange,
   GithubChecksSummary,
@@ -34,7 +32,6 @@ import type {
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
-  GitPrSuggestionResponse,
   GitRepoSummary,
   ModelInfo,
   ModelSelection,
@@ -630,6 +627,16 @@ export async function getGitOverview(
   );
 }
 
+export async function listGitBranches(
+  projectId: string,
+  repo: string,
+): Promise<GitBranchListResponse> {
+  const params = new URLSearchParams({ repo });
+  return apiGet<GitBranchListResponse>(
+    `/api/projects/${projectId}/git/branches?${params.toString()}`,
+  );
+}
+
 export async function createGitBranch(
   projectId: string,
   repo: string,
@@ -641,25 +648,24 @@ export async function createGitBranch(
   });
 }
 
-export async function commitGitChanges(
+export async function switchGitBranch(
   projectId: string,
   repo: string,
-  body: { subject: string; body?: string; all: boolean },
-): Promise<GitCommitResponse> {
-  return apiPost<GitCommitResponse>(`/api/projects/${projectId}/git/commit`, {
-    repo,
-    ...body,
-  });
+  name: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${projectId}/git/switch-branch`,
+    { repo, name },
+  );
 }
 
-export async function syncGitBase(
+export async function syncGitBranch(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${projectId}/git/sync-base`,
-    { repo },
-  );
+  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/sync`, {
+    repo,
+  });
 }
 
 export async function pushGit(
@@ -689,39 +695,36 @@ export async function fetchGit(
   });
 }
 
-export async function suggestGitBranchName(
+export async function stageGitFile(
   projectId: string,
   repo: string,
-  agentId?: string,
-): Promise<GitBranchSuggestionResponse> {
-  const params = new URLSearchParams({ repo });
-  if (agentId) params.set("agentId", agentId);
-  return apiGet<GitBranchSuggestionResponse>(
-    `/api/projects/${projectId}/git/suggest/branch?${params.toString()}`,
+  path: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${projectId}/git/stage-file`,
+    { repo, path },
   );
 }
 
-export async function suggestGitCommitMessage(
+export async function unstageGitFile(
   projectId: string,
   repo: string,
-  agentId?: string,
-): Promise<GitCommitMessageResponse> {
-  const params = new URLSearchParams({ repo });
-  if (agentId) params.set("agentId", agentId);
-  return apiGet<GitCommitMessageResponse>(
-    `/api/projects/${projectId}/git/suggest/commit?${params.toString()}`,
+  path: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${projectId}/git/unstage-file`,
+    { repo, path },
   );
 }
 
-export async function suggestGitPr(
+export async function discardGitFile(
   projectId: string,
   repo: string,
-  agentId?: string,
-): Promise<GitPrSuggestionResponse> {
-  const params = new URLSearchParams({ repo });
-  if (agentId) params.set("agentId", agentId);
-  return apiGet<GitPrSuggestionResponse>(
-    `/api/projects/${projectId}/git/suggest/pr?${params.toString()}`,
+  path: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${projectId}/git/discard-file`,
+    { repo, path },
   );
 }
 
@@ -735,7 +738,7 @@ export async function getGithubStatus(
   );
 }
 
-export async function listMyGithubPrs(
+export async function listGithubPrs(
   projectId: string,
   repo: string,
 ): Promise<GithubPrListResponse> {
@@ -743,17 +746,6 @@ export async function listMyGithubPrs(
   return apiGet<GithubPrListResponse>(
     `/api/projects/${projectId}/github/prs?${params.toString()}`,
   );
-}
-
-export async function createGithubPr(
-  projectId: string,
-  repo: string,
-  body: { title: string; body?: string; base?: string; draft: boolean },
-): Promise<CreatePrResponse> {
-  return apiPost<CreatePrResponse>(`/api/projects/${projectId}/github/pr`, {
-    repo,
-    ...body,
-  });
 }
 
 export async function getGithubPr(
@@ -849,10 +841,8 @@ export type {
   GitDiscoveryResponse,
   GitOverviewResponse,
   GitFileChange,
-  GitBranchSuggestionResponse,
-  GitCommitMessageResponse,
-  GitCommitResponse,
-  GitPrSuggestionResponse,
+  GitBranchSummary,
+  GitBranchListResponse,
   GitMutationResponse,
   GithubStatusResponse,
   GithubPr,
@@ -862,5 +852,4 @@ export type {
   GithubPrFile,
   GithubPrCommit,
   GithubPrCheckoutResponse,
-  CreatePrResponse,
 };

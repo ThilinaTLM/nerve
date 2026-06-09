@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  gitBranchListResponseSchema,
   gitDiscoveryResponseSchema,
+  gitFileActionRequestSchema,
   githubPrListResponseSchema,
   githubStatusResponseSchema,
   gitOverviewResponseSchema,
+  switchBranchRequestSchema,
 } from "../src/git.js";
 
 describe("git schemas", () => {
@@ -72,6 +75,34 @@ describe("git schemas", () => {
       recentCommits: [{ hash: "abc123", subject: "init", relativeDate: "1d" }],
     });
     assert.equal(parsed.files[0].index, "M");
+  });
+
+  it("parses a branch list response", () => {
+    const parsed = gitBranchListResponseSchema.parse({
+      branches: [
+        { name: "main", current: true, remote: false, upstream: "origin/main" },
+        {
+          name: "origin/feature/x",
+          current: false,
+          remote: true,
+          upstream: null,
+        },
+      ],
+    });
+    assert.equal(parsed.branches[0].current, true);
+  });
+
+  it("parses branch and file action requests", () => {
+    const branch = switchBranchRequestSchema.parse({
+      repo: "app",
+      name: "feature/x",
+    });
+    const file = gitFileActionRequestSchema.parse({
+      repo: "app",
+      path: "src/a.ts",
+    });
+    assert.equal(branch.name, "feature/x");
+    assert.equal(file.path, "src/a.ts");
   });
 
   it("parses a github status response", () => {

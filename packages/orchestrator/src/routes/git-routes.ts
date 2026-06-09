@@ -1,10 +1,8 @@
-import type { AgentModelSelection } from "@nerve/agent";
 import {
-  commitRequestSchema,
   createBranchRequestSchema,
-  createPrRequestSchema,
+  gitFileActionRequestSchema,
   gitRemoteOpRequestSchema,
-  syncBaseRequestSchema,
+  switchBranchRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { HttpError } from "../http/errors.js";
@@ -25,18 +23,6 @@ function prNumberParam(value: string | undefined): number {
 
 function repoParam(value: string | undefined): string {
   return value && value.length > 0 ? value : ".";
-}
-
-function agentModel(
-  state: OrchestratorState,
-  agentId: string | undefined,
-): AgentModelSelection | undefined {
-  if (!agentId) return undefined;
-  try {
-    return state.registry.getAgent(agentId).model;
-  } catch {
-    return undefined;
-  }
 }
 
 export function createGitRoutes(state: OrchestratorState): Hono {
@@ -61,6 +47,18 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     ),
   );
 
+  app.get(
+    "/projects/:projectId/git/branches",
+    routeHandler(async (c) =>
+      c.json(
+        await state.registry.git.listBranches(
+          c.req.param("projectId"),
+          repoParam(c.req.query("repo")),
+        ),
+      ),
+    ),
+  );
+
   app.post(
     "/projects/:projectId/git/branch",
     routeHandler(async (c) => {
@@ -76,27 +74,72 @@ export function createGitRoutes(state: OrchestratorState): Hono {
   );
 
   app.post(
-    "/projects/:projectId/git/commit",
+    "/projects/:projectId/git/switch-branch",
     routeHandler(async (c) => {
-      const body = commitRequestSchema.parse(await c.req.json());
+      const body = switchBranchRequestSchema.parse(await c.req.json());
       return c.json(
-        await state.registry.git.commit(c.req.param("projectId"), body.repo, {
-          subject: body.subject,
-          body: body.body,
-          all: body.all,
-        }),
+        await state.registry.git.switchBranch(
+          c.req.param("projectId"),
+          body.repo,
+          body.name,
+        ),
       );
     }),
   );
 
   app.post(
-    "/projects/:projectId/git/sync-base",
+    "/projects/:projectId/git/stage-file",
     routeHandler(async (c) => {
-      const body = syncBaseRequestSchema.parse(
+      const body = gitFileActionRequestSchema.parse(await c.req.json());
+      return c.json(
+        await state.registry.git.stageFile(
+          c.req.param("projectId"),
+          body.repo,
+          body.path,
+        ),
+      );
+    }),
+  );
+
+  app.post(
+    "/projects/:projectId/git/unstage-file",
+    routeHandler(async (c) => {
+      const body = gitFileActionRequestSchema.parse(await c.req.json());
+      return c.json(
+        await state.registry.git.unstageFile(
+          c.req.param("projectId"),
+          body.repo,
+          body.path,
+        ),
+      );
+    }),
+  );
+
+  app.post(
+    "/projects/:projectId/git/discard-file",
+    routeHandler(async (c) => {
+      const body = gitFileActionRequestSchema.parse(await c.req.json());
+      return c.json(
+        await state.registry.git.discardFile(
+          c.req.param("projectId"),
+          body.repo,
+          body.path,
+        ),
+      );
+    }),
+  );
+
+  app.post(
+    "/projects/:projectId/git/sync",
+    routeHandler(async (c) => {
+      const body = gitRemoteOpRequestSchema.parse(
         await c.req.json().catch(() => ({})),
       );
       return c.json(
-        await state.registry.git.syncBase(c.req.param("projectId"), body.repo),
+        await state.registry.git.syncBranch(
+          c.req.param("projectId"),
+          body.repo,
+        ),
       );
     }),
   );
@@ -138,63 +181,6 @@ export function createGitRoutes(state: OrchestratorState): Hono {
   );
 
   app.get(
-    "/projects/:projectId/git/suggest/branch",
-    routeHandler(async (c) => {
-      const projectId = c.req.param("projectId");
-      const repo = repoParam(c.req.query("repo"));
-      const [overview, diff] = await Promise.all([
-        state.registry.git.overview(projectId, repo),
-        state.registry.git.diffContext(projectId, repo),
-      ]);
-      return c.json(
-        await state.registry.utilityLlm.suggestBranchName({
-          overview,
-          diff,
-          model: agentModel(state, c.req.query("agentId")),
-        }),
-      );
-    }),
-  );
-
-  app.get(
-    "/projects/:projectId/git/suggest/commit",
-    routeHandler(async (c) => {
-      const projectId = c.req.param("projectId");
-      const repo = repoParam(c.req.query("repo"));
-      const [overview, diff] = await Promise.all([
-        state.registry.git.overview(projectId, repo),
-        state.registry.git.diffContext(projectId, repo),
-      ]);
-      return c.json(
-        await state.registry.utilityLlm.suggestCommitMessage({
-          overview,
-          diff,
-          model: agentModel(state, c.req.query("agentId")),
-        }),
-      );
-    }),
-  );
-
-  app.get(
-    "/projects/:projectId/git/suggest/pr",
-    routeHandler(async (c) => {
-      const projectId = c.req.param("projectId");
-      const repo = repoParam(c.req.query("repo"));
-      const [overview, context] = await Promise.all([
-        state.registry.git.overview(projectId, repo),
-        state.registry.git.prContext(projectId, repo),
-      ]);
-      return c.json(
-        await state.registry.utilityLlm.suggestPrContent({
-          overview,
-          context,
-          model: agentModel(state, c.req.query("agentId")),
-        }),
-      );
-    }),
-  );
-
-  app.get(
     "/projects/:projectId/github/status",
     routeHandler(async (c) =>
       c.json(
@@ -210,27 +196,12 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     "/projects/:projectId/github/prs",
     routeHandler(async (c) =>
       c.json(
-        await state.registry.git.listMyPrs(
+        await state.registry.git.listOpenPrs(
           c.req.param("projectId"),
           repoParam(c.req.query("repo")),
         ),
       ),
     ),
-  );
-
-  app.post(
-    "/projects/:projectId/github/pr",
-    routeHandler(async (c) => {
-      const body = createPrRequestSchema.parse(await c.req.json());
-      return c.json(
-        await state.registry.git.createPr(c.req.param("projectId"), body.repo, {
-          title: body.title,
-          body: body.body,
-          base: body.base,
-          draft: body.draft,
-        }),
-      );
-    }),
   );
 
   app.get(
