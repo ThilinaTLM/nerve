@@ -3,6 +3,7 @@ import type {
   ConversationLiveState,
   LiveToolCallDraft,
   LiveToolOutput,
+  RunStatusNotice,
   TranscriptItem,
 } from "./state.svelte";
 
@@ -14,7 +15,8 @@ export type TimelineItem =
       toolCall: ToolCallRecord;
       liveOutput?: LiveToolOutput;
     }
-  | { kind: "tool_draft"; key: string; draft: LiveToolCallDraft };
+  | { kind: "tool_draft"; key: string; draft: LiveToolCallDraft }
+  | { kind: "run_status"; key: string; notice: RunStatusNotice };
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 
@@ -63,6 +65,13 @@ function contentIndexOf(item: TranscriptItem | LiveToolCallDraft): number {
     : Number.MAX_SAFE_INTEGER;
 }
 
+function runStatusTimelineKey(
+  notice: RunStatusNotice,
+  fallback: string,
+): string {
+  return notice.runId ? `run-status:${notice.runId}` : fallback;
+}
+
 /**
  * Merge persisted branch entries, live assistant content, tool-call drafts, and
  * live/unanchored tool records into one renderer-facing conversation timeline.
@@ -86,8 +95,41 @@ export function buildConversationTimeline(
   );
   const consumedToolCallIds = new Set<string>();
 
+  const hiddenEntryIds = new Set(live?.hiddenEntryIds ?? []);
+  if (live?.runStatus?.failedEntryId) {
+    hiddenEntryIds.add(live.runStatus.failedEntryId);
+  }
+  const hiddenFailedRunIds = new Set<string>();
+  for (const item of transcript) {
+    if (item.runStatus?.failedEntryId) hiddenEntryIds.add(item.runStatus.failedEntryId);
+    if (item.runStatus?.runId) hiddenFailedRunIds.add(item.runStatus.runId);
+  }
+  if (live?.runStatus?.runId) hiddenFailedRunIds.add(live.runStatus.runId);
+  const itemHidden = (item: TranscriptItem) =>
+    Boolean(
+      (item.id &&
+        [...hiddenEntryIds].some(
+          (entryId) => item.id === entryId || item.id?.startsWith(`${entryId}:`),
+        )) ||
+        (item.role === "assistant" &&
+          item.stopReason === "error" &&
+          Boolean(item.runId && hiddenFailedRunIds.has(item.runId))),
+    );
+
   transcript.forEach((item, index) => {
     if (isToolCallPlaceholder(item)) return;
+    if (item.runStatus) {
+      items.push({
+        kind: "run_status",
+        key: runStatusTimelineKey(
+          item.runStatus,
+          item.id ?? `run-status-${index}`,
+        ),
+        notice: item.runStatus,
+      });
+      return;
+    }
+    if (itemHidden(item)) return;
 
     const toolCall = item.toolRecordId
       ? toolCallsById.get(item.toolRecordId)
@@ -111,6 +153,12 @@ export function buildConversationTimeline(
       item,
     });
   });
+
+  const statusRunIds = new Set(
+    items.flatMap((node) =>
+      node.kind === "run_status" && node.notice.runId ? [node.notice.runId] : [],
+    ),
+  );
 
   const liveNodes = [
     ...(live?.messages ?? []).map((item) => ({
@@ -160,6 +208,17 @@ export function buildConversationTimeline(
       kind: "tool_draft",
       key: node.draft.key,
       draft: node.draft,
+    });
+  }
+
+  if (live?.runStatus && !statusRunIds.has(live.runStatus.runId ?? "")) {
+    items.push({
+      kind: "run_status",
+      key: runStatusTimelineKey(
+        live.runStatus,
+        `live:run-status:${live.runStatus.runId ?? live.runId ?? "active"}`,
+      ),
+      notice: live.runStatus,
     });
   }
 

@@ -13,6 +13,7 @@ import {
   type ConversationLiveToolOutputDeltaData,
   type ConversationLiveToolOutputSnapshot,
   type ConversationLiveTurnSnapshot,
+  type ConversationRunRetrySnapshot,
   createId,
   type QueuedPromptRecord,
 } from "@nerve/shared";
@@ -82,6 +83,25 @@ export class ConversationRuntime {
     const run = this.runsByRunId.get(runId);
     if (!run) return undefined;
     run.status = "aborting";
+    return cloneRun(run);
+  }
+
+  markRetrying(
+    runId: string,
+    retry: ConversationRunRetrySnapshot,
+  ): ConversationActiveRunSnapshot | undefined {
+    const run = this.runsByRunId.get(runId);
+    if (!run) return undefined;
+    run.status = "retrying";
+    run.retry = { ...retry };
+    return cloneRun(run);
+  }
+
+  clearRetry(runId: string): ConversationActiveRunSnapshot | undefined {
+    const run = this.runsByRunId.get(runId);
+    if (!run) return undefined;
+    if (run.status === "retrying") run.status = "running";
+    run.retry = undefined;
     return cloneRun(run);
   }
 
@@ -483,6 +503,7 @@ function cloneRun(run: MutableRun): ConversationActiveRunSnapshot {
       ]),
     ),
     queuedPrompts: run.queuedPrompts.map((prompt) => ({ ...prompt })),
+    retry: run.retry ? { ...run.retry } : undefined,
   };
 }
 

@@ -47,6 +47,7 @@
     closeCenterTabs,
     compactActiveConversation,
     completeFiles,
+    continueFromFailure,
     createConversationForDirectory,
     deleteProjectAndRefresh,
     deleteConversationAndRefresh,
@@ -428,6 +429,7 @@
                 onDenyApproval={(id) => void denyApproval(id)}
                 onAcceptPlanReview={(id) => void acceptPendingPlanReview(id)}
                 onRejectPlanReview={(id) => void rejectPendingPlanReview(id)}
+                onContinueFromFailure={(id) => void continueFromFailure(id)}
               />
             {/if}
           </div>

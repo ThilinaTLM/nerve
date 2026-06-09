@@ -60,8 +60,24 @@ export const conversationEntryKindSchema = z.enum([
   "compaction",
   "branch_summary",
   "subagent_summary",
+  "run_status",
 ]);
 export type ConversationEntryKind = z.infer<typeof conversationEntryKindSchema>;
+
+export type ConversationRunStatusState = "retrying" | "retry_exhausted";
+
+export interface ConversationRunStatusDetails {
+  type: "agent_run_retry_status";
+  state: ConversationRunStatusState;
+  runId: string;
+  failedEntryId?: string;
+  attempt?: number;
+  maxRetries?: number;
+  delayMs?: number;
+  retryAt?: string;
+  errorMessage?: string;
+  retryable?: boolean;
+}
 
 export const conversationEntrySchema = z.object({
   id: z.string().startsWith("entry_"),

@@ -78,6 +78,18 @@ export function activeRunToLegacyLive(
     messages,
     toolDrafts,
     toolOutputByToolCallId: activeRun.toolOutputsByToolCallId,
+    runStatus: activeRun.retry
+      ? {
+          conversationId: activeRun.conversationId,
+          agentId: activeRun.agentId,
+          runId: activeRun.runId,
+          state: "retrying",
+          ...activeRun.retry,
+        }
+      : undefined,
+    hiddenEntryIds: activeRun.retry?.failedEntryId
+      ? [activeRun.retry.failedEntryId]
+      : undefined,
   };
 }
 

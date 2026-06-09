@@ -515,6 +515,27 @@ export async function dismissUserQuestionById(questionId: string) {
   notify.message("Question dismissed");
 }
 
+export async function continueFromFailure(statusEntryId: string) {
+  if (!selection.agentId || !selection.conversationId) return;
+  const view = ensureConversationView(selection.conversationId);
+  view.sending = true;
+  view.error = undefined;
+  workbenchState.sending = true;
+  workbenchState.error = undefined;
+  try {
+    await apiPost(`/api/agents/${selection.agentId}/continue-from-failure`, {
+      statusEntryId,
+    });
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    view.sending = false;
+    workbenchState.sending = false;
+    view.error = message;
+    workbenchState.error = message;
+    notify.error("Continue failed", { description: message });
+  }
+}
+
 export async function abortActiveRun() {
   if (!selection.agentId) return;
   const view = selection.conversationId

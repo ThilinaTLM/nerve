@@ -97,6 +97,26 @@ describe("activeRunToLegacyLive", () => {
     );
     assert.deepEqual(live.toolDrafts, []);
   });
+
+  it("maps active run retry snapshots to live run status", () => {
+    const live = activeRunToLegacyLive(
+      activeRun({
+        status: "retrying",
+        retry: {
+          attempt: 2,
+          maxRetries: 3,
+          delayMs: 4000,
+          retryAt: "2026-01-01T00:00:04.000Z",
+          errorMessage: "timeout",
+          failedEntryId: "entry_failed",
+        },
+      }),
+    );
+
+    assert.equal(live.runStatus?.state, "retrying");
+    assert.equal(live.runStatus?.attempt, 2);
+    assert.equal(live.runStatus?.failedEntryId, "entry_failed");
+  });
 });
 
 describe("liveTextFromLegacyLive", () => {

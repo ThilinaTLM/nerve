@@ -1,5 +1,5 @@
 import type { ConversationEntry } from "../../api";
-import type { TranscriptItem } from "./state.svelte";
+import type { RunStatusNotice, TranscriptItem } from "./state.svelte";
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 
@@ -56,23 +56,70 @@ function toolMetadata(entry: ConversationEntry): {
   };
 }
 
+function runStatusNotice(entry: ConversationEntry): RunStatusNotice | undefined {
+  if (entry.kind !== "run_status") return undefined;
+  const details = entryDetails(entry);
+  if (details?.type !== "agent_run_retry_status") return undefined;
+  const state = details.state;
+  if (state !== "retrying" && state !== "retry_exhausted") return undefined;
+  return {
+    entryId: entry.id,
+    conversationId: entry.conversationId,
+    agentId: stringValue(entry.agentId),
+    runId: stringValue(details.runId) ?? entry.runId,
+    state,
+    failedEntryId: stringValue(details.failedEntryId),
+    attempt: typeof details.attempt === "number" ? details.attempt : undefined,
+    maxRetries:
+      typeof details.maxRetries === "number" ? details.maxRetries : undefined,
+    delayMs: typeof details.delayMs === "number" ? details.delayMs : undefined,
+    retryAt: stringValue(details.retryAt),
+    errorMessage: stringValue(details.errorMessage),
+    retryable: details.retryable === true,
+    createdAt: entry.createdAt,
+  };
+}
+
 export function entryToTranscriptItems(
   entry: ConversationEntry,
 ): TranscriptItem[] {
+  const status = runStatusNotice(entry);
+  if (status) {
+    return [
+      {
+        id: entry.id,
+        role: "system",
+        kind: entry.kind,
+        displayKind: "message",
+        text: entry.text,
+        createdAt: entry.createdAt,
+        runStatus: status,
+      },
+    ];
+  }
+
   const details = entryDetails(entry);
   const metadata = toolMetadata(entry);
+  const stopReason =
+    details?.stopReason === "error" || details?.stopReason === "aborted"
+      ? details.stopReason
+      : undefined;
+  const errorMessage = stringValue(details?.errorMessage);
   const items: TranscriptItem[] = [];
   const blocks = thinkingBlocks(details?.thinkingBlocks);
 
   for (const [index, block] of blocks.entries()) {
     items.push({
       id: `${entry.id}:thinking:${index}`,
+      runId: entry.runId,
       role: "assistant",
       kind: entry.kind,
       displayKind: "thinking",
       text: block.text,
       redacted: block.redacted,
       createdAt: entry.createdAt,
+      stopReason,
+      errorMessage,
     });
   }
 
@@ -82,12 +129,15 @@ export function entryToTranscriptItems(
   if (!isToolOnlyAssistantPlaceholder || entry.role !== "assistant") {
     items.push({
       id: entry.id,
+      runId: entry.runId,
       role: entry.role,
       kind: entry.kind,
       displayKind: "message",
       text: entry.text,
       createdAt: entry.createdAt,
       usage: entry.usage,
+      stopReason,
+      errorMessage,
       ...metadata,
     });
   }

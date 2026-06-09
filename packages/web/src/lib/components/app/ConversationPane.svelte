@@ -17,6 +17,7 @@
   import ThinkingBlock from "./ThinkingBlock.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
   import ToolDraftCard from "./tool-call/ToolDraftCard.svelte";
+  import RunStatusCard from "./RunStatusCard.svelte";
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -66,6 +67,7 @@
     onDenyApproval?: (id: string) => void;
     onAcceptPlanReview?: (id: string) => void;
     onRejectPlanReview?: (id: string) => void;
+    onContinueFromFailure?: (statusEntryId: string) => void;
   };
 
   let {
@@ -111,6 +113,7 @@
     onDenyApproval,
     onAcceptPlanReview,
     onRejectPlanReview,
+    onContinueFromFailure,
   }: Props = $props();
 
   let transcriptEl = $state<HTMLDivElement>();
@@ -130,11 +133,16 @@
 
   const conversationOpen = $derived(Boolean(activeConversation || pendingConversationActive));
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls, liveState));
+  const lastTimelineKey = $derived(timeline.at(-1)?.key);
   const hasLiveTimelineNodes = $derived(
     timeline.some((node) =>
       node.kind === "message"
         ? Boolean(node.item.live)
-        : node.kind === "tool_draft" || node.toolCall.status === "running",
+        : node.kind === "tool_draft"
+          ? true
+          : node.kind === "tool"
+            ? node.toolCall.status === "running"
+            : node.notice.state === "retrying",
     ),
   );
   const scrollSignature = $derived(
@@ -145,6 +153,9 @@
         }
         if (node.kind === "tool_draft") {
           return `${node.key}:${node.draft.argsText.length}:${node.draft.done ? "done" : "live"}`;
+        }
+        if (node.kind === "run_status") {
+          return `${node.key}:${node.notice.state}:${node.notice.attempt ?? 0}:${node.notice.errorMessage?.length ?? 0}`;
         }
         return `${node.key}:${node.toolCall.status}:${node.liveOutput?.text.length ?? 0}`;
       })
@@ -369,6 +380,13 @@
           />
         {:else if node.kind === "tool_draft"}
           <ToolDraftCard draft={node.draft} />
+        {:else if node.kind === "run_status"}
+          <RunStatusCard
+            notice={node.notice}
+            isLast={node.key === lastTimelineKey}
+            {sending}
+            {onContinueFromFailure}
+          />
         {:else}
           <ContextMenu items={messageMenu(node.item)} triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}>
             <article class={`transcript-entry ${node.item.role} ${node.item.displayKind === "thinking" ? "thinking-entry" : ""} ${node.item.live ? "streaming" : ""}`}>

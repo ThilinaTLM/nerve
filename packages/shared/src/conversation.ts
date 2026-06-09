@@ -14,7 +14,7 @@ export const liveMessageIdSchema = z.string().startsWith("msg_");
 export const contentBlockIdSchema = z.string().startsWith("block_");
 
 export type AgentMessageContentKind = "text" | "thinking";
-export type RunStatus = "running" | "aborting";
+export type RunStatus = "running" | "retrying" | "aborting";
 
 export interface ConversationRunStartedData {
   conversationId: string;
@@ -53,6 +53,19 @@ export interface ConversationRunSuspendedData {
   toolCallId: string;
   suspendedAt: string;
   reason: string;
+}
+
+export interface ConversationRunRetryingData {
+  conversationId: string;
+  agentId: string;
+  runId: string;
+  projectId: string;
+  attempt: number;
+  maxRetries: number;
+  delayMs: number;
+  retryAt: string;
+  errorMessage?: string;
+  failedEntryId?: string;
 }
 
 export interface ConversationPromptQueuedData {
@@ -208,6 +221,7 @@ export type ConversationEventData =
   | ConversationRunCompletedData
   | ConversationRunFailedData
   | ConversationRunSuspendedData
+  | ConversationRunRetryingData
   | ConversationPromptQueuedData
   | ConversationPromptDequeuedData
   | ConversationPromptCancelledData
@@ -272,6 +286,15 @@ export interface ConversationLiveToolOutputSnapshot {
   updatedAt: string;
 }
 
+export interface ConversationRunRetrySnapshot {
+  attempt: number;
+  maxRetries: number;
+  delayMs: number;
+  retryAt: string;
+  errorMessage?: string;
+  failedEntryId?: string;
+}
+
 export interface ConversationActiveRunSnapshot {
   runId: string;
   agentId: string;
@@ -282,6 +305,7 @@ export interface ConversationActiveRunSnapshot {
   turns: ConversationLiveTurnSnapshot[];
   toolOutputsByToolCallId: Record<string, ConversationLiveToolOutputSnapshot>;
   queuedPrompts: QueuedPromptRecord[];
+  retry?: ConversationRunRetrySnapshot;
 }
 
 export interface ConversationSnapshot {
@@ -300,6 +324,7 @@ export const conversationEventTypes = [
   "conversation.run.completed",
   "conversation.run.failed",
   "conversation.run.suspended",
+  "conversation.run.retrying",
   "conversation.prompt.queued",
   "conversation.prompt.dequeued",
   "conversation.prompt.cancelled",

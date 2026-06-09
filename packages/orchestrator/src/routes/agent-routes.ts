@@ -1,4 +1,5 @@
 import {
+  continueFromFailureRequestSchema,
   createAgentRequestSchema,
   executeToolRequestSchema,
   promptRequestSchema,
@@ -93,6 +94,18 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
       return c.json(result, result.approval ? 202 : 200);
     }),
   );
+  app.post(
+    "/agents/:agentId/continue-from-failure",
+    routeHandler(async (c) => {
+      const body = continueFromFailureRequestSchema.parse(await c.req.json());
+      await state.registry.continueFromFailedTurn(
+        c.req.param("agentId"),
+        body.statusEntryId,
+      );
+      return c.json({ ok: true }, 202);
+    }),
+  );
+
   app.post(
     "/agents/:agentId/abort",
     routeHandler(async (c) => {

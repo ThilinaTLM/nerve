@@ -101,6 +101,13 @@ export const promptRequestSchema = z.object({
 });
 export type PromptRequest = z.infer<typeof promptRequestSchema>;
 
+export const continueFromFailureRequestSchema = z.object({
+  statusEntryId: z.string().startsWith("entry_"),
+});
+export type ContinueFromFailureRequest = z.infer<
+  typeof continueFromFailureRequestSchema
+>;
+
 export const queuedPromptStatusSchema = z.enum([
   "queued",
   "accepted",

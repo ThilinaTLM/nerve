@@ -504,4 +504,163 @@ describe("buildConversationTimeline", () => {
       assert.equal(timeline[1].liveOutput?.text, "hello\n");
     }
   });
+
+  it("appends live retry status and suppresses the referenced failed assistant", () => {
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Go" },
+        { id: "entry_failed", role: "assistant", text: "Agent run failed" },
+      ],
+      [],
+      liveState({
+        runStatus: {
+          state: "retrying",
+          runId: "run_01H00000000000000000000000",
+          failedEntryId: "entry_failed",
+          attempt: 1,
+          maxRetries: 3,
+        },
+      }),
+    );
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "run-status:run_01H00000000000000000000000",
+    ]);
+    assert.equal(timeline[1]?.kind, "run_status");
+  });
+
+  it("keeps retry-failed assistant hidden while the next attempt streams", () => {
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Go" },
+        { id: "entry_failed", role: "assistant", text: "Agent run failed" },
+      ],
+      [],
+      liveState({
+        hiddenEntryIds: ["entry_failed"],
+        messages: [
+          {
+            id: "live:msg_1:text:0",
+            role: "assistant",
+            displayKind: "message",
+            text: "Retry response",
+            live: true,
+          },
+        ],
+      }),
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user", "live:msg_1:text:0"]);
+  });
+
+  it("renders persisted run status entries as status timeline nodes", () => {
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Go" },
+        {
+          id: "entry_status",
+          role: "system",
+          text: "Model request failed after 3 retries.",
+          kind: "run_status",
+          runStatus: {
+            entryId: "entry_status",
+            runId: "run_retry",
+            state: "retry_exhausted",
+            failedEntryId: "entry_failed",
+            retryable: true,
+          },
+        },
+      ],
+      [],
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user", "run-status:run_retry"]);
+    assert.equal(timeline[1]?.kind, "run_status");
+  });
+
+  it("keeps one status node when live and persisted retry state share a run", () => {
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Go" },
+        {
+          id: "entry_status",
+          role: "system",
+          text: "Model request failed after 3 retries.",
+          kind: "run_status",
+          runStatus: {
+            entryId: "entry_status",
+            runId: "run_retry",
+            state: "retry_exhausted",
+            failedEntryId: "entry_failed",
+            retryable: true,
+          },
+        },
+      ],
+      [],
+      liveState({
+        runId: "run_retry",
+        runStatus: {
+          runId: "run_retry",
+          state: "retrying",
+          attempt: 3,
+          maxRetries: 3,
+        },
+      }),
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user", "run-status:run_retry"]);
+    assert.equal(
+      timeline.filter((item) => item.kind === "run_status").length,
+      1,
+    );
+  });
+
+  it("hides persisted failed assistant and thinking from exhausted retry runs", () => {
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Go" },
+        {
+          id: "entry_failed_1:thinking:0",
+          runId: "run_retry",
+          role: "assistant",
+          displayKind: "thinking",
+          text: "Partial thinking from failed stream",
+          stopReason: "error",
+        },
+        {
+          id: "entry_failed_1",
+          runId: "run_retry",
+          role: "assistant",
+          text: "Agent run failed",
+          stopReason: "error",
+        },
+        {
+          id: "entry_failed_3:thinking:0",
+          runId: "run_retry",
+          role: "assistant",
+          displayKind: "thinking",
+          text: "More partial thinking",
+          stopReason: "error",
+        },
+        { id: "entry_failed_3", runId: "run_retry", role: "assistant", text: "Agent run failed", stopReason: "error" },
+        {
+          id: "entry_status",
+          role: "system",
+          text: "Model request failed after 3 retries.",
+          kind: "run_status",
+          runStatus: {
+            entryId: "entry_status",
+            runId: "run_retry",
+            state: "retry_exhausted",
+            failedEntryId: "entry_failed_3",
+            retryable: true,
+          },
+        },
+      ],
+      [],
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user", "run-status:run_retry"]);
+  });
 });

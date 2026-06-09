@@ -28,8 +28,25 @@ import type { FileDisplayMode } from "../../utils/file-display";
 
 export type TranscriptDisplayKind = "message" | "thinking";
 
+export type RunStatusNotice = {
+  entryId?: string;
+  conversationId?: string;
+  agentId?: string;
+  runId?: string;
+  state: "retrying" | "retry_exhausted";
+  failedEntryId?: string;
+  attempt?: number;
+  maxRetries?: number;
+  delayMs?: number;
+  retryAt?: string;
+  errorMessage?: string;
+  retryable?: boolean;
+  createdAt?: string;
+};
+
 export type TranscriptItem = {
   id?: string;
+  runId?: string;
   role: "user" | "assistant" | "system";
   kind?: ConversationEntry["kind"];
   displayKind?: TranscriptDisplayKind;
@@ -43,6 +60,9 @@ export type TranscriptItem = {
   toolCallId?: string;
   toolRecordId?: string;
   usage?: ConversationEntry["usage"];
+  stopReason?: "error" | "aborted";
+  errorMessage?: string;
+  runStatus?: RunStatusNotice;
 };
 
 export type LiveToolCallDraft = {
@@ -77,6 +97,8 @@ export type ConversationLiveState = {
   messages: TranscriptItem[];
   toolDrafts: LiveToolCallDraft[];
   toolOutputByToolCallId: Record<string, LiveToolOutput>;
+  runStatus?: RunStatusNotice;
+  hiddenEntryIds?: string[];
 };
 
 export type ConversationViewState = {

@@ -18,6 +18,7 @@ import {
   type ContextUsage,
   type ConversationEntry,
   type ConversationRecord,
+  type ConversationRunStatusDetails,
   type CreateAgentRequest,
   createId,
   type ProjectRecord,
@@ -164,6 +165,45 @@ export class AgentRunner {
     void this.runAgentPrompt(
       agent,
       { text: "Continue after resolved tool result." },
+      { continue: true },
+    ).catch(() => undefined);
+  }
+
+  async continueFromFailedTurn(
+    agentId: string,
+    failedEntryId: string,
+  ): Promise<void> {
+    const agent = this.deps.agents.get(agentId);
+    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    if (this.deps.runs.has(agent.id)) {
+      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+    }
+    const conversation = this.deps.getConversation(agent.conversationId);
+    const project = this.deps.getProject(agent.projectId);
+    const storage = await this.deps.harnessManager.openStorage(
+      conversation,
+      project.dir,
+    );
+    const failedEntry = await storage.getEntry(failedEntryId);
+    const failedMessage =
+      failedEntry?.type === "message" ? failedEntry.message : undefined;
+    if (
+      !failedEntry ||
+      failedEntry.type !== "message" ||
+      failedMessage?.role !== "assistant" ||
+      failedMessage.stopReason !== "error" ||
+      failedEntry.parentId === null
+    ) {
+      throw new HttpError(
+        400,
+        "INVALID_FAILED_ENTRY",
+        "Failed entry is not a retryable assistant failure.",
+      );
+    }
+    await new Conversation(storage).moveTo(failedEntry.parentId);
+    void this.runAgentPrompt(
+      agent,
+      { text: "Continue from failed model request." },
       { continue: true },
     ).catch(() => undefined);
   }
@@ -553,6 +593,14 @@ export class AgentRunner {
         const aborted = runAssistant.stopReason === "aborted" || abortRequested;
         if (latest)
           await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
+        if (!aborted) {
+          await this.maybeAppendRetryExhaustedStatus(
+            agent,
+            runId,
+            assistantEntry,
+            runAssistant,
+          );
+        }
         await this.deps.events.publish("conversation.run.failed", {
           agentId: agent.id,
           projectId: agent.projectId,
@@ -709,6 +757,52 @@ export class AgentRunner {
     }
   }
 
+  private async maybeAppendRetryExhaustedStatus(
+    agent: AgentRecord,
+    runId: string,
+    assistantEntry: ConversationEntry,
+    assistant: AssistantMessage,
+  ): Promise<void> {
+    const settings = this.deps.storage.settings.retry;
+    if (
+      !settings.enabled ||
+      settings.maxRetries <= 0 ||
+      !isRetryableAssistantError(assistant)
+    ) {
+      return;
+    }
+    const details = {
+      type: "agent_run_retry_status",
+      state: "retry_exhausted",
+      runId,
+      failedEntryId: assistantEntry.id,
+      attempt: settings.maxRetries,
+      maxRetries: settings.maxRetries,
+      errorMessage: assistant.errorMessage,
+      retryable: true,
+    } satisfies ConversationRunStatusDetails;
+    const statusEntry = await this.deps.appendEntry(
+      {
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        runId,
+        parentEntryId: assistantEntry.id,
+        role: "system",
+        kind: "run_status",
+        text: `Model request failed after ${settings.maxRetries} ${settings.maxRetries === 1 ? "retry" : "retries"}.`,
+        details,
+      },
+      { mirrorToHarness: false },
+    );
+    await this.deps.events.publish("conversation.entry.appended", {
+      conversationId: agent.conversationId,
+      agentId: agent.id,
+      projectId: agent.projectId,
+      runId,
+      entry: statusEntry,
+    });
+  }
+
   private async runHarnessWithRetries(input: {
     harness: AgentHarness;
     conversation: Conversation;
@@ -735,6 +829,29 @@ export class AgentRunner {
         return assistant;
       }
       attempt += 1;
+      const delayMs = settings.baseDelayMs * 2 ** (attempt - 1);
+      const retryAt = new Date(Date.now() + delayMs).toISOString();
+      const leafId = await input.conversation.getLeafId();
+      const leaf = leafId
+        ? await input.conversation.getEntry(leafId)
+        : undefined;
+      const failedEntryId = leaf?.type === "message" ? leaf.id : undefined;
+      const retry = {
+        attempt,
+        maxRetries: settings.maxRetries,
+        delayMs,
+        retryAt,
+        errorMessage: assistant.errorMessage,
+        failedEntryId,
+      };
+      this.deps.conversationRuntime.markRetrying(input.runId, retry);
+      await this.deps.events.publish("conversation.run.retrying", {
+        agentId: input.agent.id,
+        conversationId: input.agent.conversationId,
+        projectId: input.agent.projectId,
+        runId: input.runId,
+        ...retry,
+      });
       await this.deps.logger.warn("Retrying transient agent error", {
         agentId: input.agent.id,
         conversationId: input.agent.conversationId,
@@ -746,13 +863,10 @@ export class AgentRunner {
           errorMessage: assistant.errorMessage,
         },
       });
-      const leafId = await input.conversation.getLeafId();
-      const leaf = leafId
-        ? await input.conversation.getEntry(leafId)
-        : undefined;
       if (leaf?.parentId !== undefined)
         await input.conversation.moveTo(leaf.parentId);
-      await delay(settings.baseDelayMs * 2 ** (attempt - 1));
+      await delay(delayMs);
+      this.deps.conversationRuntime.clearRetry(input.runId);
       continueRun = true;
     }
   }

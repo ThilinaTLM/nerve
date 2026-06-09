@@ -342,8 +342,13 @@ function handleConversationEvent(
         event.data?.toolCall as ToolCallRecord | undefined,
       );
       break;
+    case "conversation.run.retrying":
+      handleRunRetrying(view, event);
+      break;
     case "conversation.live.message.started":
       ensureLiveState(view, String(event.data?.runId ?? ""));
+      view.live.runStatus = undefined;
+      removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = true;
       break;
     case "conversation.live.content.delta":
@@ -365,6 +370,7 @@ function handleConversationEvent(
       handleToolOutputDelta(view, event);
       break;
     case "conversation.run.completed":
+      removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = false;
       view.streamingText = "";
       view.live = emptyLiveState();
@@ -380,6 +386,7 @@ function handleConversationEvent(
       }
       break;
     case "conversation.run.failed":
+      removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = false;
       view.streamingText = "";
       view.live = emptyLiveState();
@@ -390,6 +397,7 @@ function handleConversationEvent(
         : String(event.data?.message ?? "Agent error");
       break;
     case "conversation.run.suspended":
+      removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = false;
       view.streamingText = "";
       view.live = emptyLiveState();
@@ -432,6 +440,74 @@ function emptyLiveState(runId?: string): ConversationLiveState {
   return { runId, messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
 }
 
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function liveRunStatusId(runId: string): string {
+  return `live:run-status:${runId || "active"}`;
+}
+
+function removeLiveRunStatusTranscriptItem(
+  view: ConversationViewState,
+  runId?: string,
+): void {
+  view.transcript = view.transcript.filter((item) => {
+    if (!item.runStatus || item.runStatus.state !== "retrying") return true;
+    return Boolean(runId && item.runStatus.runId !== runId);
+  });
+}
+
+function handleRunRetrying(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  const runId = String(event.data?.runId ?? "");
+  const live = ensureLiveState(view, runId);
+  const retry = {
+    attempt: numberValue(event.data?.attempt) ?? 0,
+    maxRetries: numberValue(event.data?.maxRetries) ?? 0,
+    delayMs: numberValue(event.data?.delayMs) ?? 0,
+    retryAt: stringValue(event.data?.retryAt) ?? new Date().toISOString(),
+    errorMessage: stringValue(event.data?.errorMessage),
+    failedEntryId: stringValue(event.data?.failedEntryId),
+  };
+  const notice = {
+    conversationId: stringValue(event.data?.conversationId),
+    agentId: stringValue(event.data?.agentId),
+    runId,
+    state: "retrying" as const,
+    ...retry,
+  };
+  live.runStatus = notice;
+  if (retry.failedEntryId) {
+    live.hiddenEntryIds = Array.from(
+      new Set([...(live.hiddenEntryIds ?? []), retry.failedEntryId]),
+    );
+  }
+  removeLiveRunStatusTranscriptItem(view, runId);
+  view.transcript = [
+    ...view.transcript,
+    {
+      id: liveRunStatusId(runId),
+      role: "system",
+      kind: "run_status",
+      displayKind: "message",
+      text: "Retrying model request…",
+      live: true,
+      createdAt: event.ts,
+      runStatus: notice,
+    },
+  ];
+  if (view.activeRun && view.activeRun.runId === runId) {
+    view.activeRun = { ...view.activeRun, status: "retrying", retry };
+  }
+  view.sending = true;
+  view.error = undefined;
+}
+
 function ensureLiveState(
   view: ConversationViewState,
   runId?: string,
@@ -459,6 +535,9 @@ function handleEntryAppended(
   entry: ConversationEntry | undefined,
 ): void {
   if (!entry) return;
+  if (entry.kind === "run_status") {
+    removeLiveRunStatusTranscriptItem(view, entry.runId);
+  }
   const items = entryToTranscriptItems(entry);
   const ids = new Set(items.map((item) => item.id).filter(Boolean));
   view.transcript = [
