@@ -24,7 +24,7 @@ export const settingsSchema = z.object({
   }),
   ui: z.object({
     theme: z.enum(["system", "light", "dark"]),
-    zoomLevel: z.number().int().min(-4).max(4).default(0),
+    zoomLevel: z.number().int().min(-8).max(8).default(0),
   }),
   desktop: z.object({
     closeToTray: z.boolean().default(true),
@@ -98,7 +98,7 @@ export const updateSettingsRequestSchema = z.object({
   ui: z
     .object({
       theme: z.enum(["system", "light", "dark"]).optional(),
-      zoomLevel: z.number().int().min(-4).max(4).optional(),
+      zoomLevel: z.number().int().min(-8).max(8).optional(),
     })
     .optional(),
   desktop: z

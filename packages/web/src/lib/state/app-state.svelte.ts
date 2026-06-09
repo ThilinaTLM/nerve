@@ -25,9 +25,9 @@ export const composerDraft = $state({
   projectDir: "",
 });
 
-export const MIN_ZOOM_LEVEL = -4;
-export const MAX_ZOOM_LEVEL = 4;
-export const ZOOM_BASE = 1.2;
+export const MIN_ZOOM_LEVEL = -8;
+export const MAX_ZOOM_LEVEL = 8;
+export const ZOOM_BASE = 1.1;
 
 export const themeState = $state({
   preference: "system" as ThemePreference,

@@ -120,6 +120,7 @@
   const queuedPrompts = $derived(workbenchSelectors.queuedPrompts);
   const activeComposerText = $derived(workbenchSelectors.activeComposerText);
   const centerTabs = $derived(workbenchSelectors.centerTabs);
+  const openConversationTabIds = $derived(workbenchSelectors.openConversationTabIds);
   const activeCenterTab = $derived(workbenchSelectors.activeCenterTab);
   const activeCenterFileView = $derived(workbenchSelectors.activeCenterFileView);
   const activeCenterPrView = $derived(workbenchSelectors.activeCenterPrView);
@@ -323,6 +324,7 @@
                 homeDir={status?.storage.home}
                 selectedProjectId={selection.projectId}
                 selectedConversationId={selection.conversationId}
+                {openConversationTabIds}
                 onOpenConversation={openConversation}
                 onNewConversationInProject={newConversationInProject}
                 onDeleteProject={(id) => void deleteProjectAndRefresh(id)}

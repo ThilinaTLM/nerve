@@ -101,7 +101,8 @@ export function buildConversationTimeline(
   }
   const hiddenFailedRunIds = new Set<string>();
   for (const item of transcript) {
-    if (item.runStatus?.failedEntryId) hiddenEntryIds.add(item.runStatus.failedEntryId);
+    if (item.runStatus?.failedEntryId)
+      hiddenEntryIds.add(item.runStatus.failedEntryId);
     if (item.runStatus?.runId) hiddenFailedRunIds.add(item.runStatus.runId);
   }
   if (live?.runStatus?.runId) hiddenFailedRunIds.add(live.runStatus.runId);
@@ -109,7 +110,8 @@ export function buildConversationTimeline(
     Boolean(
       (item.id &&
         [...hiddenEntryIds].some(
-          (entryId) => item.id === entryId || item.id?.startsWith(`${entryId}:`),
+          (entryId) =>
+            item.id === entryId || item.id?.startsWith(`${entryId}:`),
         )) ||
         (item.role === "assistant" &&
           item.stopReason === "error" &&
@@ -156,7 +158,9 @@ export function buildConversationTimeline(
 
   const statusRunIds = new Set(
     items.flatMap((node) =>
-      node.kind === "run_status" && node.notice.runId ? [node.notice.runId] : [],
+      node.kind === "run_status" && node.notice.runId
+        ? [node.notice.runId]
+        : [],
     ),
   );
 

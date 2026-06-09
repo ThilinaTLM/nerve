@@ -56,7 +56,9 @@ function toolMetadata(entry: ConversationEntry): {
   };
 }
 
-function runStatusNotice(entry: ConversationEntry): RunStatusNotice | undefined {
+function runStatusNotice(
+  entry: ConversationEntry,
+): RunStatusNotice | undefined {
   if (entry.kind !== "run_status") return undefined;
   const details = entryDetails(entry);
   if (details?.type !== "agent_run_retry_status") return undefined;

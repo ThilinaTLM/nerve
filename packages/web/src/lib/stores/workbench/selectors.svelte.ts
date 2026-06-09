@@ -416,6 +416,13 @@ export const workbenchSelectors = {
         ]
       : [];
   },
+  get openConversationTabIds(): Set<string> {
+    const ids = new Set<string>();
+    for (const tab of workbenchState.openCenterTabs) {
+      if (tab.kind === "conversation") ids.add(tab.id);
+    }
+    return ids;
+  },
   get centerTabs(): CenterTabModel[] {
     const models: CenterTabModel[] = [];
     for (const tab of workbenchState.openCenterTabs) {

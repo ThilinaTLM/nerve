@@ -643,7 +643,13 @@ describe("buildConversationTimeline", () => {
           text: "More partial thinking",
           stopReason: "error",
         },
-        { id: "entry_failed_3", runId: "run_retry", role: "assistant", text: "Agent run failed", stopReason: "error" },
+        {
+          id: "entry_failed_3",
+          runId: "run_retry",
+          role: "assistant",
+          text: "Agent run failed",
+          stopReason: "error",
+        },
         {
           id: "entry_status",
           role: "system",

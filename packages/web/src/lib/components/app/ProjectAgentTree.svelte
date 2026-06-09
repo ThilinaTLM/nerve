@@ -45,6 +45,7 @@
     homeDir?: string;
     selectedProjectId?: string;
     selectedConversationId?: string;
+    openConversationTabIds?: Set<string>;
     onOpenConversation?: (conversationId: string) => void;
     onNewConversationInProject?: (projectDir: string) => void;
     onDeleteProject?: (projectId: string) => void;
@@ -59,6 +60,7 @@
     homeDir,
     selectedProjectId,
     selectedConversationId,
+    openConversationTabIds,
     onOpenConversation,
     onNewConversationInProject,
     onDeleteProject,
@@ -198,6 +200,9 @@
                               <Sidebar.MenuButton {...mergeProps(trg, tip)} class="project-button bg-card h-7 w-full min-w-0 px-1.5 py-1">
                                 <ChevronDown class="chevron" size={12} aria-hidden="true" />
                                 <span class="project-label">{group.label}</span>
+                                {#if group.totalRows > 0}
+                                  <span class="project-count">({group.totalRows})</span>
+                                {/if}
                               </Sidebar.MenuButton>
                             {/snippet}
                           </Collapsible.Trigger>
@@ -206,11 +211,8 @@
                       <Tooltip.Content side="right" sideOffset={6} class="nav-tooltip">{group.project.dir}</Tooltip.Content>
                     </Tooltip.Root>
                   </ContextMenu>
-                  {#if group.totalRows > 0}
-                    <Sidebar.MenuBadge class="count-badge transition-opacity duration-150 group-hover/menu-item:opacity-0">{group.totalRows}</Sidebar.MenuBadge>
-                  {/if}
                   <Sidebar.MenuAction
-                    showOnHover
+                    class="project-action"
                     title="New conversation in project"
                     aria-label="New conversation"
                     onclick={() => onNewConversationInProject?.(group.project.dir)}
@@ -218,12 +220,13 @@
                     <Plus size={12} strokeWidth={2.25} />
                   </Sidebar.MenuAction>
                   <Collapsible.Content>
-                    <Sidebar.MenuSub class="conversation-sub me-0 pe-0">
+                    <Sidebar.MenuSub class="conversation-sub me-0 gap-0 py-0 pe-0">
                       {#if group.rows.length === 0}
                         <p class="empty child">No conversations.</p>
                       {/if}
                       {#each group.rows as row (row.conversation.id)}
                         {@const status = rowStatus(row)}
+                        {@const isOpen = openConversationTabIds?.has(row.conversation.id) ?? false}
                         <Sidebar.MenuSubItem>
                           <ContextMenu items={conversationMenu(group.project, row.conversation)}>
                             <Tooltip.Root>
@@ -231,6 +234,7 @@
                                 {#snippet child({ props: tip })}
                                   <Sidebar.MenuSubButton
                                     isActive={row.conversation.id === selectedConversationId}
+                                    size="sm"
                                     class="conversation-button w-full"
                                   >
                                     {#snippet child({ props: btn })}
@@ -240,8 +244,10 @@
                                         onclick={() => onOpenConversation?.(row.conversation.id)}
                                       >
                                         <StatusDot
+                                          class="conversation-status"
                                           tone={agentActivityTone(status)}
                                           pulse={agentActivityPulse(status)}
+                                          variant={isOpen ? "solid" : "outline"}
                                           size="sm"
                                         />
                                         <span class="conversation-label">{row.conversation.title}</span>
@@ -386,6 +392,67 @@
   :global(.conversation-sub) {
     width: auto;
     min-width: 0;
+    gap: 0;
+    padding-block: 0.05rem;
+    padding-inline-start: 0.25rem;
+    padding-inline-end: 0;
+  }
+
+  :global(.conversation-button) {
+    position: relative;
+    height: 1.35rem;
+    min-height: 1.35rem;
+    gap: 0.35rem;
+    border-radius: 0;
+    background: transparent !important;
+    color: var(--muted-foreground);
+    padding-block: 0;
+    padding-inline: 0.6rem 0.35rem;
+    overflow: visible;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: color 120ms ease;
+  }
+
+  /* Status indicator sits centered on the vertical guide line. */
+  :global(.conversation-status) {
+    position: absolute;
+    left: -0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  :global(.conversation-button:hover),
+  :global(.conversation-button:active),
+  :global(.conversation-button[data-active="true"]) {
+    background: transparent !important;
+    box-shadow: none;
+  }
+
+  :global(.conversation-button:hover) {
+    color: var(--sidebar-foreground);
+  }
+
+  :global(.conversation-button:hover) .conversation-label {
+    color: var(--sidebar-foreground);
+  }
+
+  :global(.conversation-button[data-active="true"]) {
+    color: var(--foreground);
+  }
+
+  :global(.conversation-button[data-active="true"]) .conversation-label {
+    color: var(--foreground);
+  }
+
+  :global(.conversation-button:hover .conversation-status),
+  :global(.conversation-button[data-active="true"] .conversation-status) {
+    background-color: currentColor;
+  }
+
+  :global(.conversation-button:focus-visible) {
+    outline: 1px solid color-mix(in oklab, var(--ring) 60%, transparent);
+    outline-offset: -1px;
   }
 
   :global([data-sidebar="menu-button"][data-state="closed"]) .chevron {
@@ -414,16 +481,26 @@
     letter-spacing: -0.005em;
   }
 
-  /* Count badge sits where the hover "+" action appears; swap them on hover. */
-  :global(.count-badge) {
-    top: 0.35rem;
+  .project-count {
+    flex: none;
+    margin-inline-start: -0.25rem;
     color: color-mix(in oklab, var(--muted-foreground) 90%, transparent);
     font-family: var(--font-mono);
     font-size: var(--text-xs);
+    font-weight: 400;
+  }
+
+  /* Keep the "+" action vertically centered within the project label row. */
+  :global(.project-button) {
+    padding-inline-end: 1.6rem;
+  }
+
+  /* Vertically center within the h-7 (1.75rem) project label row. */
+  :global(.project-action) {
+    top: 0.25rem;
   }
 
   .conversation-label {
-    font-size: var(--text-sm);
     font-weight: 400;
   }
 

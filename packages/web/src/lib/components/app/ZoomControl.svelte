@@ -54,8 +54,8 @@
   <div class="zoom-card">
     <header>
       <div>
-        <strong>Workbench zoom</strong>
-        <span>VS Code-style zoom level {zoomLevelLabel}</span>
+        <strong>Zoom</strong>
+        <span>Zoom level {zoomLevelLabel}</span>
       </div>
       <span class="zoom-percent">{zoomPercent}%</span>
     </header>
@@ -101,7 +101,7 @@
         max={MAX_ZOOM_LEVEL}
         step="1"
         value={clampedZoomLevel}
-        aria-label="Workbench zoom level"
+        aria-label="Zoom level"
         oninput={handleRangeInput}
       />
       <span class="zoom-range-labels" aria-hidden="true">
