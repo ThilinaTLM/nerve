@@ -115,8 +115,10 @@
 
   let transcriptEl = $state<HTMLDivElement>();
   let transcriptContentEl = $state<HTMLDivElement>();
+  let composerWrapEl = $state<HTMLDivElement>();
   let bottomEl = $state<HTMLDivElement>();
   let followBottom = $state(true);
+  let composerHeight = $state(0);
   let scrollFrame: number | undefined;
   let userScrollIntent = false;
   let userScrollIntentTimer: ReturnType<typeof setTimeout> | undefined;
@@ -238,6 +240,21 @@
     const observer = new ResizeObserver(() => {
       scheduleBottomScroll({ smooth: false });
     });
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  });
+
+  $effect(() => {
+    const el = composerWrapEl;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const updateComposerHeight = () => {
+      composerHeight = el.offsetHeight;
+    };
+    updateComposerHeight();
+
+    const observer = new ResizeObserver(updateComposerHeight);
     observer.observe(el);
 
     return () => observer.disconnect();
@@ -401,46 +418,48 @@
       </div>
     </div>
 
-    {#if !followBottom}
-      <div class="scroll-bottom-button-wrap">
+    {#if !followBottom && composerHeight > 0}
+      <div class="scroll-bottom-button-wrap" style={`bottom: ${composerHeight + 8}px;`}>
         <Button class="rounded-full" variant="secondary" size="icon-sm" ariaLabel="Scroll to latest" title="Scroll to latest" onclick={() => scheduleBottomScroll({ force: true, smooth: false })}>
           <ArrowDown size={16} strokeWidth={2.4} />
         </Button>
       </div>
     {/if}
 
-    <PromptComposer
-      text={composerText}
-      {activeProject}
-      {activeConversation}
-      {pendingConversationActive}
-      {approvals}
-      {pendingUserQuestion}
-      {pendingPlanReview}
-      {live}
-      {sending}
-      {models}
-      {selectedModelKey}
-      {contextUsage}
-      {contextWindow}
-      {thinkingLevel}
-      {mode}
-      {permissionLevel}
-      {slashCompletions}
-      {fileCompletions}
-      {gitSuggestions}
-      {onSendGitSuggestion}
-      {onDraftGitSuggestion}
-      onChange={onComposerChange}
-      {onSubmit}
-      {onAbort}
-      {onModelChange}
-      {onThinkingLevelChange}
-      {onModeChange}
-      {onPermissionChange}
-      {onGrantApproval}
-      {onDenyApproval}
-    />
+    <div bind:this={composerWrapEl} class="composer-wrap">
+      <PromptComposer
+        text={composerText}
+        {activeProject}
+        {activeConversation}
+        {pendingConversationActive}
+        {approvals}
+        {pendingUserQuestion}
+        {pendingPlanReview}
+        {live}
+        {sending}
+        {models}
+        {selectedModelKey}
+        {contextUsage}
+        {contextWindow}
+        {thinkingLevel}
+        {mode}
+        {permissionLevel}
+        {slashCompletions}
+        {fileCompletions}
+        {gitSuggestions}
+        {onSendGitSuggestion}
+        {onDraftGitSuggestion}
+        onChange={onComposerChange}
+        {onSubmit}
+        {onAbort}
+        {onModelChange}
+        {onThinkingLevelChange}
+        {onModeChange}
+        {onPermissionChange}
+        {onGrantApproval}
+        {onDenyApproval}
+      />
+    </div>
   {:else}
     <div class="empty-center">
       <div class="prompt-line" aria-label="Nerve prompt">
@@ -471,6 +490,10 @@
     padding: 0.75rem 0.75rem 1.1rem;
   }
 
+  .composer-wrap {
+    min-width: 0;
+  }
+
   .transcript-content {
     display: grid;
     align-content: start;
@@ -487,7 +510,6 @@
   .scroll-bottom-button-wrap {
     position: absolute;
     right: 1.15rem;
-    bottom: 5.2rem;
     z-index: 4;
     border-radius: 999px;
     box-shadow: 0 0.35rem 1rem color-mix(in oklab, var(--background) 45%, transparent);
