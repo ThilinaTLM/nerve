@@ -14,6 +14,9 @@ const queue: ClientLog[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let installed = false;
 let flushing = false;
+let flushRetryDelayMs = 1_000;
+const NORMAL_FLUSH_DELAY_MS = 500;
+const MAX_FLUSH_RETRY_DELAY_MS = 10_000;
 
 export function installClientLogging(): void {
   if (installed || typeof window === "undefined") return;
@@ -77,18 +80,19 @@ export function logApiFailure(
   );
 }
 
-function scheduleFlush(): void {
+function scheduleFlush(delayMs = NORMAL_FLUSH_DELAY_MS): void {
   if (flushTimer !== undefined) return;
   flushTimer = setTimeout(() => {
     flushTimer = undefined;
     void flushLogs();
-  }, 500);
+  }, delayMs);
 }
 
 async function flushLogs(): Promise<void> {
   if (flushing || queue.length === 0) return;
   flushing = true;
   const logs = queue.splice(0, 50);
+  let nextDelayMs = NORMAL_FLUSH_DELAY_MS;
   try {
     const response = await fetch("/api/logs/client", {
       method: "POST",
@@ -98,13 +102,19 @@ async function flushLogs(): Promise<void> {
     });
     if (!response.ok)
       throw new Error(`${response.status} ${response.statusText}`);
+    flushRetryDelayMs = 1_000;
   } catch (error) {
     queue.unshift(...logs);
     if (queue.length > 200) queue.splice(0, queue.length - 200);
+    nextDelayMs = flushRetryDelayMs;
+    flushRetryDelayMs = Math.min(
+      flushRetryDelayMs * 2,
+      MAX_FLUSH_RETRY_DELAY_MS,
+    );
     console.warn("Failed to submit Nerve client logs", error);
   } finally {
     flushing = false;
-    if (queue.length > 0) scheduleFlush();
+    if (queue.length > 0) scheduleFlush(nextDelayMs);
   }
 }
 

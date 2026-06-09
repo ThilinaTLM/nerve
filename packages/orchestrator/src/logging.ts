@@ -302,7 +302,27 @@ export function serializeError(error: unknown): ApplicationLogRecord["error"] {
       cause: error.cause === undefined ? undefined : String(error.cause),
     };
   }
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (typeof record.message === "string") {
+      return {
+        name: typeof record.name === "string" ? record.name : undefined,
+        message: record.message,
+        stack: typeof record.stack === "string" ? record.stack : undefined,
+        cause: record.cause === undefined ? undefined : String(record.cause),
+      };
+    }
+    return { message: safeStringify(error) };
+  }
   return { message: String(error) };
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }
 
 export function sanitizeContext(

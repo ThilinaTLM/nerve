@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { ApplicationLogger } from "../src/logging.js";
+import { ApplicationLogger, serializeError } from "../src/logging.js";
 
 const roots: string[] = [];
 
@@ -43,6 +43,28 @@ describe("ApplicationLogger", () => {
       apiKey: "[Redacted]",
     });
     assert.equal(response.logs[1].error?.message, "kaput");
+  });
+
+  it("preserves client-serialized error details", () => {
+    assert.deepEqual(
+      serializeError({
+        name: "TypeError",
+        message: "fetch failed",
+        stack: "at fetch",
+      }),
+      {
+        name: "TypeError",
+        message: "fetch failed",
+        stack: "at fetch",
+        cause: undefined,
+      },
+    );
+  });
+
+  it("stringifies non-error objects", () => {
+    assert.deepEqual(serializeError({ reason: "bad" }), {
+      message: '{"reason":"bad"}',
+    });
   });
 
   it("filters by level and cursor", async () => {

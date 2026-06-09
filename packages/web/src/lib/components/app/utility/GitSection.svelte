@@ -25,7 +25,7 @@
 </script>
 
 <section class="border-b last:border-b-0">
-  <div class="flex items-center gap-1 bg-muted/40 px-2 py-1.5">
+  <div class="flex items-center gap-1 bg-muted/40 px-2 py-1 mb-2">
     <button
       type="button"
       class="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 py-0.5 text-left text-xs font-medium text-foreground transition-colors hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"

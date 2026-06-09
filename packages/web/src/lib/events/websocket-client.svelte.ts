@@ -25,14 +25,19 @@ let intentionallyDisconnected = false;
 let socketGeneration = 0;
 let subscriptionUsagePollTimer: ReturnType<typeof setInterval> | undefined;
 const SUBSCRIPTION_USAGE_POLL_MS = 10_000;
+const STARTUP_RETRY_DELAYS_MS = [250, 500, 1_000, 1_500, 2_500, 4_000, 5_000];
 
 export async function initializeWorkbench(): Promise<void> {
   intentionallyDisconnected = false;
   try {
     installClientLogging();
     applyTheme(loadThemePreference());
-    workbenchState.config = await getClientConfig();
+    workbenchState.config = await retryDuringStartup(
+      "load client config",
+      getClientConfig,
+    );
     workbenchState.status = workbenchState.config.status;
+    workbenchState.error = undefined;
     composerDraft.projectDir = workbenchState.config.status.storage.home;
     await Promise.all([loadWorkspaceState(), loadSlashCommands()]);
     await restoreConversationTabs();
@@ -48,6 +53,35 @@ export async function initializeWorkbench(): Promise<void> {
       error: caught,
     });
   }
+}
+
+async function retryDuringStartup<T>(
+  label: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  for (const [attempt, delayMs] of STARTUP_RETRY_DELAYS_MS.entries()) {
+    try {
+      return await operation();
+    } catch (caught) {
+      if (intentionallyDisconnected) throw caught;
+      workbenchState.connection = "connecting";
+      workbenchState.error = `Waiting for Nerve daemon to start (${errorMessage(caught)})`;
+      clientLog("warn", "workbench", "Workbench initialization retrying", {
+        context: { label, attempt: attempt + 1, delayMs },
+        error: caught,
+      });
+      await delay(delayMs);
+    }
+  }
+  return await operation();
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function resolveWebsocketUrl(wsUrl: string): URL {

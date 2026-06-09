@@ -44,7 +44,7 @@
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
   import { Input } from "$lib/components/ui/input";
   import * as Popover from "$lib/components/ui/popover";
-  import SelectField from "$lib/components/ui/select-field";
+  import { ToggleGroup, ToggleGroupItem } from "$lib/components/ui/toggle-group";
   import { cn } from "$lib/utils.js";
   import { invalidateGit } from "../../../stores/workbench/git-context.svelte";
   import { openPrPane } from "../../../stores/workbench/pr-tabs.svelte";
@@ -63,29 +63,59 @@
 
   const GIT_OVERVIEW_AUTO_REFRESH_MS = 4_000;
   const GITHUB_CHECKS_POLL_MS = 10_000;
+  const MAX_CHANGE_PATH_LENGTH = 48;
 
   let { activeProject }: Props = $props();
 
+  type FileMutation = { path: string; action: "stage" | "unstage" | "discard" };
+
+  type RepoState = {
+    overview?: GitOverviewResponse;
+    github?: GithubStatusResponse;
+    prs: GithubPr[];
+    branches: GitBranchSummary[];
+    loadingOverview: boolean;
+    loadingPrs: boolean;
+    loadingBranches: boolean;
+    fetching: boolean;
+    syncing: boolean;
+    switchingBranch?: string;
+    creatingBranch: boolean;
+    fileMutation?: FileMutation;
+    bulkMutation?: "stage-all" | "unstage-all";
+    lastOverviewFingerprint?: string;
+    overviewRequestInFlight: boolean;
+    loaded: boolean;
+  };
+
+  function createRepoState(): RepoState {
+    return {
+      overview: undefined,
+      github: undefined,
+      prs: [],
+      branches: [],
+      loadingOverview: false,
+      loadingPrs: false,
+      loadingBranches: false,
+      fetching: false,
+      syncing: false,
+      switchingBranch: undefined,
+      creatingBranch: false,
+      fileMutation: undefined,
+      bulkMutation: undefined,
+      lastOverviewFingerprint: undefined,
+      overviewRequestInFlight: false,
+      loaded: false,
+    };
+  }
+
   let repos = $state<GitRepoSummary[]>([]);
   let selectedRepo = $state(".");
-  let overview = $state<GitOverviewResponse | undefined>(undefined);
-  let github = $state<GithubStatusResponse | undefined>(undefined);
-  let prs = $state<GithubPr[]>([]);
-  let branches = $state<GitBranchSummary[]>([]);
-
-  let loadingOverview = $state(false);
-  let loadingPrs = $state(false);
-  let loadingBranches = $state(false);
+  // Per-repo state cache so switching repositories never discards already-loaded
+  // or in-flight state. Background operations write to their own repo entry and
+  // keep running even while another repo is on screen.
+  let repoStates = $state<Record<string, RepoState>>({});
   let discoverError = $state<string | undefined>(undefined);
-  let overviewRequestInFlight = false;
-  let lastOverviewFingerprint: string | undefined;
-
-  let fetching = $state(false);
-  let syncing = $state(false);
-  let switchingBranch = $state<string | undefined>(undefined);
-  let creatingBranch = $state(false);
-  let fileMutation = $state<{ path: string; action: "stage" | "unstage" | "discard" } | undefined>(undefined);
-  let bulkMutation = $state<"stage-all" | "unstage-all" | undefined>(undefined);
 
   let repoSectionOpen = $state(true);
   let changesSectionOpen = $state(true);
@@ -94,25 +124,41 @@
   let branchFilter = $state("");
   let newBranchName = $state("");
   let expandedPr = $state<number | undefined>(undefined);
-  let discardCandidate = $state<GitFileChange | undefined>(undefined);
+  let discardCandidate = $state<{ repo: string; file: GitFileChange } | undefined>(undefined);
   let discardDialogOpen = $state(false);
 
-  const gitMutationInProgress = $derived(
-    fetching ||
-      syncing ||
-      creatingBranch ||
-      Boolean(switchingBranch) ||
-      Boolean(fileMutation) ||
-      Boolean(bulkMutation),
-  );
+  function repoState(repo: string): RepoState {
+    if (!repoStates[repo]) {
+      repoStates[repo] = createRepoState();
+    }
+    return repoStates[repo];
+  }
 
-  const repoItems = $derived(
-    repos.map((repo) => ({
-      value: repo.relativePath,
-      label: repo.name,
-      detail: repoPathLabel(repo),
-    })),
-  );
+  function repoMutationInProgress(state: RepoState): boolean {
+    return (
+      state.fetching ||
+      state.syncing ||
+      state.creatingBranch ||
+      Boolean(state.switchingBranch) ||
+      Boolean(state.fileMutation) ||
+      Boolean(state.bulkMutation)
+    );
+  }
+
+  const current = $derived(repoStates[selectedRepo]);
+  const overview = $derived(current?.overview);
+  const github = $derived(current?.github);
+  const prs = $derived(current?.prs ?? []);
+  const branches = $derived(current?.branches ?? []);
+  const loadingOverview = $derived(current?.loadingOverview ?? false);
+  const loadingPrs = $derived(current?.loadingPrs ?? false);
+  const loadingBranches = $derived(current?.loadingBranches ?? false);
+  const fetching = $derived(current?.fetching ?? false);
+  const syncing = $derived(current?.syncing ?? false);
+  const switchingBranch = $derived(current?.switchingBranch);
+  const creatingBranch = $derived(current?.creatingBranch ?? false);
+  const fileMutation = $derived(current?.fileMutation);
+  const bulkMutation = $derived(current?.bulkMutation);
 
   const stagedFiles = $derived(overview?.files.filter((file) => file.staged) ?? []);
   const unstagedFiles = $derived(
@@ -156,8 +202,9 @@
     repos = repos.map((repo) =>
       repo.relativePath === next.relativePath ? next : repo,
     );
-    if (overview?.repo.relativePath === next.relativePath) {
-      overview = { ...overview, repo: next };
+    const state = repoStates[next.relativePath];
+    if (state?.overview && state.overview.repo.relativePath === next.relativePath) {
+      state.overview = { ...state.overview, repo: next };
     }
   }
 
@@ -195,6 +242,30 @@
       default:
         return group;
     }
+  }
+
+  function shortenPath(path: string): string {
+    if (path.length <= MAX_CHANGE_PATH_LENGTH) return path;
+
+    const segments = path.split("/");
+    if (segments.length <= 2) {
+      const available = Math.max(8, MAX_CHANGE_PATH_LENGTH - 3);
+      const headLength = Math.ceil(available / 2);
+      const tailLength = Math.floor(available / 2);
+      return `${path.slice(0, headLength)}...${path.slice(-tailLength)}`;
+    }
+
+    const prefix = segments[0];
+    const suffixParts = [segments.at(-1) ?? ""];
+    for (let index = segments.length - 2; index > 0; index -= 1) {
+      const candidateParts = [segments[index], ...suffixParts];
+      const candidate = `${prefix}/.../${candidateParts.join("/")}`;
+      if (candidate.length > MAX_CHANGE_PATH_LENGTH && suffixParts.length > 1) break;
+      suffixParts.unshift(segments[index]);
+      if (candidate.length >= MAX_CHANGE_PATH_LENGTH) break;
+    }
+
+    return `${prefix}/.../${suffixParts.join("/")}`;
   }
 
   function splitPath(path: string): { dir: string; base: string } {
@@ -250,10 +321,11 @@
 
   async function loadRepos(project: ProjectRecord) {
     discoverError = undefined;
-    lastOverviewFingerprint = undefined;
     try {
       const result = await discoverGitRepos(project.id);
+      if (activeProject?.id !== project.id) return;
       repos = result.repos;
+      repoStates = {};
       const stored =
         typeof localStorage !== "undefined"
           ? localStorage.getItem(repoStorageKey(project.id))
@@ -263,187 +335,203 @@
         stored && result.repos.some((repo) => repo.relativePath === stored)
           ? stored
           : fallback;
-      branches = [];
       if (result.repos.length > 0) {
-        await Promise.all([loadOverview(), loadGithub()]);
-      } else {
-        overview = undefined;
-        github = undefined;
-        prs = [];
+        for (const repo of result.repos) repoState(repo.relativePath);
+        await Promise.all([loadOverview(selectedRepo), loadGithub(selectedRepo)]);
       }
     } catch (error) {
       discoverError = errorMessage(error);
       repos = [];
-      overview = undefined;
-      github = undefined;
-      prs = [];
-      branches = [];
+      repoStates = {};
     }
   }
 
-  async function loadOverview(options: LoadOverviewOptions = {}) {
-    if (!activeProject || repos.length === 0 || overviewRequestInFlight) return;
+  async function loadOverview(repo: string, options: LoadOverviewOptions = {}) {
+    if (!activeProject) return;
+    const state = repoState(repo);
+    if (state.overviewRequestInFlight) return;
     const { silent = false, onlyIfChanged = false } = options;
     const projectId = activeProject.id;
-    const repo = selectedRepo;
-    overviewRequestInFlight = true;
-    if (!silent) loadingOverview = true;
+    state.overviewRequestInFlight = true;
+    if (!silent) state.loadingOverview = true;
     try {
       const next = await getGitOverview(projectId, repo);
-      if (activeProject?.id !== projectId || selectedRepo !== repo) return;
+      if (activeProject?.id !== projectId) return;
       mergeRepoSummary(next.repo);
       const fingerprint = overviewFingerprint(next);
-      if (!onlyIfChanged || fingerprint !== lastOverviewFingerprint) {
-        overview = next;
+      if (!onlyIfChanged || fingerprint !== state.lastOverviewFingerprint) {
+        state.overview = next;
       }
-      lastOverviewFingerprint = fingerprint;
+      state.lastOverviewFingerprint = fingerprint;
+      state.loaded = true;
     } catch (error) {
       if (!silent) notify.error(`Git overview failed: ${errorMessage(error)}`);
     } finally {
-      if (!silent) loadingOverview = false;
-      overviewRequestInFlight = false;
+      if (!silent) state.loadingOverview = false;
+      state.overviewRequestInFlight = false;
     }
   }
 
-  async function loadBranches() {
-    if (!activeProject || repos.length === 0) return;
+  async function loadBranches(repo: string) {
+    if (!activeProject) return;
+    const state = repoState(repo);
     const projectId = activeProject.id;
-    const repo = selectedRepo;
-    loadingBranches = true;
+    state.loadingBranches = true;
     try {
       const result = await listGitBranches(projectId, repo);
-      if (activeProject?.id !== projectId || selectedRepo !== repo) return;
-      branches = result.branches;
+      if (activeProject?.id !== projectId) return;
+      state.branches = result.branches;
     } catch (error) {
       notify.error(`Could not list branches: ${errorMessage(error)}`);
     } finally {
-      loadingBranches = false;
+      state.loadingBranches = false;
     }
   }
 
-  async function loadGithub() {
-    if (!activeProject || repos.length === 0) return;
+  async function loadGithub(repo: string) {
+    if (!activeProject) return;
+    const state = repoState(repo);
     try {
-      github = await getGithubStatus(activeProject.id, selectedRepo);
-      if (github.authenticated) {
-        await loadPrs();
+      const status = await getGithubStatus(activeProject.id, repo);
+      state.github = status;
+      if (status.authenticated) {
+        await loadPrs(repo);
       } else {
-        prs = [];
+        state.prs = [];
       }
     } catch (error) {
-      github = {
+      state.github = {
         available: false,
         authenticated: false,
         login: null,
         reason: errorMessage(error),
       };
-      prs = [];
+      state.prs = [];
     }
   }
 
-  async function loadPrs(silent = false) {
+  async function loadPrs(repo: string, silent = false) {
     if (!activeProject) return;
-    if (!silent) loadingPrs = true;
+    const state = repoState(repo);
+    if (!silent) state.loadingPrs = true;
     try {
-      prs = (await listGithubPrs(activeProject.id, selectedRepo)).prs;
+      state.prs = (await listGithubPrs(activeProject.id, repo)).prs;
     } catch (error) {
       if (!silent) notify.error(`Could not list PRs: ${errorMessage(error)}`);
     } finally {
-      if (!silent) loadingPrs = false;
+      if (!silent) state.loadingPrs = false;
     }
   }
 
   function selectRepo(value: string) {
+    if (value === selectedRepo) return;
     selectedRepo = value;
     if (activeProject && typeof localStorage !== "undefined") {
       localStorage.setItem(repoStorageKey(activeProject.id), value);
     }
     branchFilter = "";
     newBranchName = "";
-    branches = [];
-    lastOverviewFingerprint = undefined;
-    void loadOverview();
-    void loadGithub();
+    expandedPr = undefined;
+    const state = repoState(value);
+    if (!state.loaded) {
+      // First visit: load fresh state for this repo.
+      void loadOverview(value);
+      void loadGithub(value);
+    } else if (!repoMutationInProgress(state)) {
+      // Cached state is shown instantly; quietly refresh in the background
+      // without discarding what we already have.
+      void loadOverview(value, { silent: true, onlyIfChanged: true });
+      if (state.github?.authenticated) void loadPrs(value, true);
+    }
   }
 
-  async function onFetch() {
+  async function onFetch(repo: string) {
     if (!activeProject) return;
-    fetching = true;
+    const state = repoState(repo);
+    state.fetching = true;
     try {
-      const result = await fetchGit(activeProject.id, selectedRepo);
+      const result = await fetchGit(activeProject.id, repo);
       mergeRepoSummary(result.repo);
       notify.success("Fetched from remote");
       invalidateGit(activeProject.id);
-      await loadOverview();
-      if (github?.authenticated) await loadPrs(true);
+      await loadOverview(repo);
+      if (state.github?.authenticated) await loadPrs(repo, true);
     } catch (error) {
       notify.error(`Fetch failed: ${errorMessage(error)}`);
     } finally {
-      fetching = false;
+      state.fetching = false;
     }
   }
 
-  async function onSync() {
+  async function onSync(repo: string) {
     if (!activeProject) return;
-    syncing = true;
+    const state = repoState(repo);
+    state.syncing = true;
     try {
-      const result = await syncGitBranch(activeProject.id, selectedRepo);
+      const result = await syncGitBranch(activeProject.id, repo);
       mergeRepoSummary(result.repo);
       notify.success("Branch synced");
       invalidateGit(activeProject.id);
-      await loadOverview();
-      if (github?.authenticated) await loadPrs(true);
+      await loadOverview(repo);
+      if (state.github?.authenticated) await loadPrs(repo, true);
     } catch (error) {
       notify.error(`Sync failed: ${errorMessage(error)}`);
     } finally {
-      syncing = false;
+      state.syncing = false;
     }
   }
 
-  async function onSwitchBranch(branch: GitBranchSummary) {
+  async function onSwitchBranch(repo: string, branch: GitBranchSummary) {
     if (!activeProject || branch.current) return;
-    switchingBranch = branch.name;
+    const state = repoState(repo);
+    state.switchingBranch = branch.name;
     try {
-      const result = await switchGitBranch(activeProject.id, selectedRepo, branch.name);
+      const result = await switchGitBranch(activeProject.id, repo, branch.name);
       mergeRepoSummary(result.repo);
       branchPopoverOpen = false;
       branchFilter = "";
       newBranchName = "";
-      branches = [];
+      state.branches = [];
       notify.success(`Switched to ${result.repo.currentBranch ?? branch.name}`);
       invalidateGit(activeProject.id);
-      await Promise.all([loadOverview(), loadGithub()]);
+      await Promise.all([loadOverview(repo), loadGithub(repo)]);
     } catch (error) {
       notify.error(`Switch branch failed: ${errorMessage(error)}`);
     } finally {
-      switchingBranch = undefined;
+      state.switchingBranch = undefined;
     }
   }
 
-  async function onCreateBranch() {
+  async function onCreateBranch(repo: string) {
     if (!activeProject || newBranchName.trim().length === 0) return;
     const name = newBranchName.trim();
-    creatingBranch = true;
+    const state = repoState(repo);
+    state.creatingBranch = true;
     try {
-      const result = await createGitBranch(activeProject.id, selectedRepo, name);
+      const result = await createGitBranch(activeProject.id, repo, name);
       mergeRepoSummary(result.repo);
       branchPopoverOpen = false;
       branchFilter = "";
       newBranchName = "";
-      branches = [];
+      state.branches = [];
       notify.success(`Created branch ${name}`);
       invalidateGit(activeProject.id);
-      await Promise.all([loadOverview(), loadGithub()]);
+      await Promise.all([loadOverview(repo), loadGithub(repo)]);
     } catch (error) {
       notify.error(`Create branch failed: ${errorMessage(error)}`);
     } finally {
-      creatingBranch = false;
+      state.creatingBranch = false;
     }
   }
 
-  async function mutateFile(file: GitFileChange, action: "stage" | "unstage" | "discard") {
+  async function mutateFile(
+    repo: string,
+    file: GitFileChange,
+    action: "stage" | "unstage" | "discard",
+  ) {
     if (!activeProject) return;
-    fileMutation = { path: file.path, action };
+    const state = repoState(repo);
+    state.fileMutation = { path: file.path, action };
     try {
       const fn =
         action === "stage"
@@ -451,47 +539,52 @@
           : action === "unstage"
             ? unstageGitFile
             : discardGitFile;
-      const result = await fn(activeProject.id, selectedRepo, file.path);
+      const result = await fn(activeProject.id, repo, file.path);
       mergeRepoSummary(result.repo);
       invalidateGit(activeProject.id);
-      await loadOverview();
+      await loadOverview(repo);
     } catch (error) {
       notify.error(`${action[0].toUpperCase()}${action.slice(1)} failed: ${errorMessage(error)}`);
     } finally {
-      fileMutation = undefined;
+      state.fileMutation = undefined;
     }
   }
 
-  async function bulkStage(action: "stage-all" | "unstage-all") {
+  async function bulkStage(repo: string, action: "stage-all" | "unstage-all") {
     if (!activeProject) return;
-    const targets = action === "stage-all" ? unstagedFiles : stagedFiles;
+    const state = repoState(repo);
+    const files = state.overview?.files ?? [];
+    const targets =
+      action === "stage-all"
+        ? files.filter((file) => file.untracked || file.worktree !== " ")
+        : files.filter((file) => file.staged);
     if (targets.length === 0) return;
     const fn = action === "stage-all" ? stageGitFile : unstageGitFile;
-    bulkMutation = action;
+    state.bulkMutation = action;
     try {
       for (const file of targets) {
-        await fn(activeProject.id, selectedRepo, file.path);
+        await fn(activeProject.id, repo, file.path);
       }
       invalidateGit(activeProject.id);
-      await loadOverview();
+      await loadOverview(repo);
     } catch (error) {
       notify.error(
         `${action === "stage-all" ? "Stage all" : "Unstage all"} failed: ${errorMessage(error)}`,
       );
     } finally {
-      bulkMutation = undefined;
+      state.bulkMutation = undefined;
     }
   }
 
   function requestDiscard(file: GitFileChange) {
-    discardCandidate = file;
+    discardCandidate = { repo: selectedRepo, file };
     discardDialogOpen = true;
   }
 
   function confirmDiscard() {
-    const file = discardCandidate;
+    const candidate = discardCandidate;
     discardCandidate = undefined;
-    if (file) void mutateFile(file, "discard");
+    if (candidate) void mutateFile(candidate.repo, candidate.file, "discard");
   }
 
   function autoRefreshOverview() {
@@ -501,8 +594,9 @@
     ) {
       return;
     }
-    if (overviewRequestInFlight || gitMutationInProgress) return;
-    void loadOverview({ silent: true, onlyIfChanged: true });
+    const state = repoStates[selectedRepo];
+    if (!state || state.overviewRequestInFlight || repoMutationInProgress(state)) return;
+    void loadOverview(selectedRepo, { silent: true, onlyIfChanged: true });
   }
 
   $effect(() => {
@@ -519,14 +613,15 @@
 
   $effect(() => {
     if (!branchPopoverOpen || !activeProject || repos.length === 0) return;
-    void loadBranches();
+    void loadBranches(selectedRepo);
   });
 
   $effect(() => {
     if (!activeProject || repos.length === 0 || !github?.authenticated || !hasPendingChecks) return;
+    const repo = selectedRepo;
     const intervalId = window.setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      void loadPrs(true);
+      void loadPrs(repo, true);
     }, GITHUB_CHECKS_POLL_MS);
     return () => window.clearInterval(intervalId);
   });
@@ -539,11 +634,7 @@
     } else if (!activeProject) {
       lastProjectId = undefined;
       repos = [];
-      overview = undefined;
-      github = undefined;
-      prs = [];
-      branches = [];
-      lastOverviewFingerprint = undefined;
+      repoStates = {};
     }
   });
 
@@ -553,14 +644,14 @@
     if (token === lastGitRefreshToken) return;
     lastGitRefreshToken = token;
     if (activeProject && repos.length > 0) {
-      void loadOverview();
-      void loadGithub();
+      void loadOverview(selectedRepo);
+      void loadGithub(selectedRepo);
     }
   });
 </script>
 
 {#snippet changeRow(file: GitFileChange, group: "staged" | "unstaged")}
-  {@const parts = splitPath(file.path)}
+  {@const parts = splitPath(shortenPath(file.path))}
   {@const busy = fileMutation?.path === file.path}
   <div class="group flex items-center gap-2 rounded-sm px-1.5 py-0.5 hover:bg-muted/50">
     <span
@@ -582,7 +673,7 @@
           ariaLabel={`Unstage ${file.path}`}
           title="Unstage"
           disabled={busy}
-          onclick={() => void mutateFile(file, "unstage")}
+          onclick={() => void mutateFile(selectedRepo, file, "unstage")}
         >
           {#if busy && fileMutation?.action === "unstage"}
             <LoaderCircle class="animate-spin" />
@@ -597,7 +688,7 @@
           ariaLabel={`Stage ${file.path}`}
           title="Stage"
           disabled={busy}
-          onclick={() => void mutateFile(file, "stage")}
+          onclick={() => void mutateFile(selectedRepo, file, "stage")}
         >
           {#if busy && fileMutation?.action === "stage"}
             <LoaderCircle class="animate-spin" />
@@ -640,46 +731,31 @@
   {:else}
     <Card class="gap-0 overflow-hidden p-0">
       <GitSection title="Repo & Branch" icon={GitBranch} bind:open={repoSectionOpen}>
-        {#snippet actions()}
-          {#if overview?.repo.hasRemote}
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              ariaLabel="Fetch"
-              title="Fetch from remote"
-              disabled={fetching}
-              onclick={() => void onFetch()}
-            >
-              {#if fetching}
-                <LoaderCircle class="animate-spin" />
-              {:else}
-                <CloudDownload />
-              {/if}
-            </Button>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              ariaLabel="Sync branch"
-              title="Sync current branch with upstream"
-              disabled={syncing || overview.repo.detached}
-              onclick={() => void onSync()}
-            >
-              <RefreshCw class={syncing ? "animate-spin" : ""} />
-            </Button>
-          {/if}
-        {/snippet}
-
         {#if overview}
           {@const repo = overview.repo}
           <div class="flex flex-col gap-2">
             {#if repos.length > 1}
-              <SelectField
-                items={repoItems}
-                bind:value={selectedRepo}
-                ariaLabel="Select repository"
-                placeholder="Select repository"
-                onValueChange={selectRepo}
-              />
+              <ToggleGroup
+                type="single"
+                value={selectedRepo}
+                variant="outline"
+                size="sm"
+                class="flex-wrap"
+                onValueChange={(value) => {
+                  if (value) selectRepo(value);
+                }}
+              >
+                {#each repos as repo (repo.relativePath)}
+                  <ToggleGroupItem
+                    value={repo.relativePath}
+                    aria-label={`Switch to ${repo.name}`}
+                    title={repoPathLabel(repo)}
+                    class="font-mono text-xs"
+                  >
+                    {repo.name}
+                  </ToggleGroupItem>
+                {/each}
+              </ToggleGroup>
             {/if}
 
             <div class="flex items-center gap-2">
@@ -694,7 +770,7 @@
                   <span class="truncate font-mono">{repo.currentBranch ?? "(detached)"}</span>
                   <ChevronDown size={12} strokeWidth={2.2} class="shrink-0 text-muted-foreground" />
                 </Popover.Trigger>
-                <Popover.Content align="start" collisionPadding={8} class="w-[260px] gap-3 p-3">
+                <Popover.Content align="start" collisionPadding={8} class="w-[min(360px,calc(100vw-2rem))] gap-3 p-3">
                   <div class="flex flex-col gap-0.5">
                     <div class="text-xs font-medium text-foreground">Switch branch</div>
                     <div class="text-xs text-muted-foreground">
@@ -718,7 +794,7 @@
                           type="button"
                           class="flex w-full items-center gap-2 border-b px-2.5 py-1.5 text-left text-xs last:border-b-0 hover:bg-muted/60 disabled:opacity-60"
                           disabled={branch.current || switchingBranch === branch.name}
-                          onclick={() => void onSwitchBranch(branch)}
+                          onclick={() => void onSwitchBranch(selectedRepo, branch)}
                         >
                           {#if switchingBranch === branch.name}
                             <LoaderCircle size={13} class="animate-spin text-muted-foreground" />
@@ -742,7 +818,7 @@
                       <Button
                         size="sm"
                         disabled={creatingBranch || newBranchName.trim().length === 0}
-                        onclick={() => void onCreateBranch()}
+                        onclick={() => void onCreateBranch(selectedRepo)}
                       >
                         {#if creatingBranch}
                           <LoaderCircle class="animate-spin" />
@@ -756,6 +832,23 @@
                 </Popover.Content>
               </Popover.Root>
 
+              {#if repo.hasRemote}
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  ariaLabel="Fetch"
+                  title="Fetch from remote"
+                  disabled={fetching}
+                  onclick={() => void onFetch(selectedRepo)}
+                >
+                  {#if fetching}
+                    <LoaderCircle class="animate-spin" />
+                  {:else}
+                    <CloudDownload />
+                  {/if}
+                </Button>
+              {/if}
+
               <div class="flex min-w-0 items-center gap-1 text-xs">
                 {#if !repo.hasRemote}
                   <span class="text-muted-foreground">local only</span>
@@ -767,14 +860,40 @@
                   </span>
                 {:else}
                   {#if (repo.ahead ?? 0) > 0}
-                    <span class="flex items-center gap-0.5 font-mono text-info">
-                      <ArrowUp size={12} strokeWidth={2.4} />{repo.ahead}
-                    </span>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      class="gap-0.5 px-1.5 font-mono text-info"
+                      title="Sync current branch with upstream"
+                      ariaLabel={`Sync branch (${repo.ahead} commits to push)`}
+                      disabled={syncing || repo.detached}
+                      onclick={() => void onSync(selectedRepo)}
+                    >
+                      {#if syncing}
+                        <LoaderCircle class="animate-spin" />
+                      {:else}
+                        <ArrowUp strokeWidth={2.4} />
+                      {/if}
+                      {repo.ahead}
+                    </Button>
                   {/if}
                   {#if (repo.behind ?? 0) > 0}
-                    <span class="flex items-center gap-0.5 font-mono text-warning">
-                      <ArrowDown size={12} strokeWidth={2.4} />{repo.behind}
-                    </span>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      class="gap-0.5 px-1.5 font-mono text-warning"
+                      title="Sync current branch with upstream"
+                      ariaLabel={`Sync branch (${repo.behind} commits to pull)`}
+                      disabled={syncing || repo.detached}
+                      onclick={() => void onSync(selectedRepo)}
+                    >
+                      {#if syncing}
+                        <LoaderCircle class="animate-spin" />
+                      {:else}
+                        <ArrowDown strokeWidth={2.4} />
+                      {/if}
+                      {repo.behind}
+                    </Button>
                   {/if}
                 {/if}
                 {#if repo.detached}
@@ -814,7 +933,7 @@
                       ariaLabel="Unstage all"
                       title="Unstage all"
                       disabled={Boolean(bulkMutation) || Boolean(fileMutation)}
-                      onclick={() => void bulkStage("unstage-all")}
+                      onclick={() => void bulkStage(selectedRepo, "unstage-all")}
                     >
                       {#if bulkMutation === "unstage-all"}
                         <LoaderCircle class="animate-spin" />
@@ -839,7 +958,7 @@
                       ariaLabel="Stage all"
                       title="Stage all"
                       disabled={Boolean(bulkMutation) || Boolean(fileMutation)}
-                      onclick={() => void bulkStage("stage-all")}
+                      onclick={() => void bulkStage(selectedRepo, "stage-all")}
                     >
                       {#if bulkMutation === "stage-all"}
                         <LoaderCircle class="animate-spin" />
@@ -871,7 +990,7 @@
               ariaLabel="Refresh PRs"
               title={`Refresh PRs · signed in as ${github.login ?? "unknown"}`}
               disabled={loadingPrs}
-              onclick={() => void loadPrs()}
+              onclick={() => void loadPrs(selectedRepo)}
             >
               <RefreshCw class={loadingPrs ? "animate-spin" : ""} />
             </Button>
@@ -973,7 +1092,7 @@
   bind:open={discardDialogOpen}
   title="Discard change?"
   description={discardCandidate
-    ? `This will permanently discard all uncommitted changes for ${discardCandidate.path}.`
+    ? `This will permanently discard all uncommitted changes for ${discardCandidate.file.path}.`
     : "This will permanently discard this uncommitted change."}
   confirmLabel="Discard"
   destructive
