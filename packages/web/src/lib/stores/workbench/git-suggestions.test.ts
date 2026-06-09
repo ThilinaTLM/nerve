@@ -65,7 +65,7 @@ describe("buildGitSuggestions", () => {
     assert.deepEqual(ids(ctx([dirtyFeature])), ["commit", "open-pr"]);
   });
 
-  it("offers push (not commit) for a clean repo with unpushed commits", () => {
+  it("offers open-pr (not push) for a clean feature branch with unpushed commits", () => {
     const unpushed = repo({
       currentBranch: "feature/x",
       onBaseBranch: false,
@@ -74,7 +74,7 @@ describe("buildGitSuggestions", () => {
     const result = buildGitSuggestions(ctx([unpushed]));
     assert.deepEqual(
       result.map((s) => s.id),
-      ["open-pr", "push"],
+      ["open-pr"],
     );
     assert.equal(result.find((s) => s.id === "open-pr")?.label, "Create a PR");
   });
@@ -104,10 +104,25 @@ describe("buildGitSuggestions", () => {
     });
     const result = buildGitSuggestions(ctx([a, b]));
     const openPr = result.find((s) => s.id === "open-pr");
-    const push = result.find((s) => s.id === "push");
     assert.equal(openPr?.label, "Create PRs");
     assert.match(openPr?.prompt ?? "", /api, web/);
-    assert.match(push?.prompt ?? "", /api, web/);
+  });
+
+  it("does not offer open-pr or push for a clean base branch with committed changes", () => {
+    const committedOnBase = repo({
+      ahead: 2,
+    });
+    assert.deepEqual(ids(ctx([committedOnBase])), []);
+  });
+
+  it("offers open-pr for an already-pushed feature branch with unmerged commits", () => {
+    const pushedFeature = repo({
+      currentBranch: "feature/x",
+      onBaseBranch: false,
+      ahead: 0,
+      mergedToBase: false,
+    });
+    assert.deepEqual(ids(ctx([pushedFeature])), ["open-pr"]);
   });
 
   it("scopes the commit prompt across multiple dirty repos", () => {

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
   import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
   import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
   import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
@@ -19,7 +18,6 @@
     commit: GitCommitHorizontal,
     "commit-branch": GitBranchPlus,
     "open-pr": GitPullRequest,
-    push: ArrowUpFromLine,
   };
 </script>
 

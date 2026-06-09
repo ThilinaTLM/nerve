@@ -2,7 +2,7 @@ import type { GitRepoSummary } from "../../api";
 import type { GitContext } from "./state.svelte";
 
 export type GitSuggestion = {
-  id: "commit" | "commit-branch" | "open-pr" | "push";
+  id: "commit" | "commit-branch" | "open-pr";
   label: string;
   prompt: string;
 };
@@ -32,9 +32,15 @@ function uniqueRepos(repos: GitRepoSummary[]): GitRepoSummary[] {
 export function buildGitSuggestions(ctx: GitContext): GitSuggestion[] {
   const repos = ctx.repos;
   const changed = repos.filter((r) => r.dirty);
-  const unpushed = repos.filter((r) => !r.dirty && (r.ahead ?? 0) > 0);
   const onBaseChanged = changed.filter((r) => r.onBaseBranch);
-  const prRepos = uniqueRepos([...changed, ...unpushed]);
+  const prBranchRepos = repos.filter(
+    (r) =>
+      !r.detached &&
+      r.currentBranch !== null &&
+      !r.onBaseBranch &&
+      !r.mergedToBase,
+  );
+  const prRepos = uniqueRepos([...changed, ...prBranchRepos]);
   const ghReady = Boolean(ctx.github?.available && ctx.github?.authenticated);
 
   const suggestions: GitSuggestion[] = [];
@@ -78,17 +84,6 @@ export function buildGitSuggestions(ctx: GitContext): GitSuggestion[] {
       id: "open-pr",
       label: prRepos.length > 1 ? "Create PRs" : "Create a PR",
       prompt: `${steps}${suffix}`,
-    });
-  }
-
-  if (unpushed.length > 0 && changed.length === 0) {
-    suggestions.push({
-      id: "push",
-      label: "Push changes",
-      prompt:
-        unpushed.length > 1
-          ? `Push the committed changes to origin for each repository with unpushed commits${scope(unpushed)}.`
-          : "Push the committed changes on the current branch to origin (set upstream if needed).",
     });
   }
 
