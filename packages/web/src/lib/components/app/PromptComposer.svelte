@@ -55,7 +55,8 @@
     slashCompletions?: CompletionItem[];
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     gitSuggestions?: GitSuggestion[];
-    onApplyGitSuggestion?: (suggestion: GitSuggestion) => void;
+    onSendGitSuggestion?: (suggestion: GitSuggestion) => void;
+    onDraftGitSuggestion?: (suggestion: GitSuggestion) => void;
     onChange?: (value: string) => void;
     onSubmit?: () => void;
     onAbort?: () => void;
@@ -87,7 +88,8 @@
     slashCompletions = [],
     fileCompletions,
     gitSuggestions = [],
-    onApplyGitSuggestion,
+    onSendGitSuggestion,
+    onDraftGitSuggestion,
     onChange,
     onSubmit,
     onAbort,
@@ -206,7 +208,8 @@
   {#if gitSuggestions.length > 0 && !blockedForReview && !sending && canPrompt}
     <GitFollowupSuggestions
       suggestions={gitSuggestions}
-      onApply={onApplyGitSuggestion}
+      onSend={onSendGitSuggestion}
+      onDraft={onDraftGitSuggestion}
     />
   {/if}
 

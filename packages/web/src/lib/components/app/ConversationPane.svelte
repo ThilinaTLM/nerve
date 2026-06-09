@@ -47,7 +47,8 @@
     slashCompletions?: CompletionItem[];
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     gitSuggestions?: GitSuggestion[];
-    onApplyGitSuggestion?: (suggestion: GitSuggestion) => void;
+    onSendGitSuggestion?: (suggestion: GitSuggestion) => void;
+    onDraftGitSuggestion?: (suggestion: GitSuggestion) => void;
     onComposerChange?: (value: string) => void;
     onSubmit?: () => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
@@ -92,7 +93,8 @@
     slashCompletions = [],
     fileCompletions,
     gitSuggestions = [],
-    onApplyGitSuggestion,
+    onSendGitSuggestion,
+    onDraftGitSuggestion,
     onComposerChange,
     onSubmit,
     onAnswerUserQuestion,
@@ -329,7 +331,8 @@
       {slashCompletions}
       {fileCompletions}
       {gitSuggestions}
-      {onApplyGitSuggestion}
+      {onSendGitSuggestion}
+      {onDraftGitSuggestion}
       onChange={onComposerChange}
       {onSubmit}
       {onAbort}

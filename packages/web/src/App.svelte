@@ -80,6 +80,7 @@
     queueSettingsSave,
     selectCenterTab,
     sendPrompt,
+    sendPromptText,
     setActiveComposerText,
     setComposerMode,
     setComposerModel,
@@ -168,6 +169,10 @@
     setActiveComposerText(
       current ? `${activeComposerText}\n\n${suggestion.prompt}` : suggestion.prompt,
     );
+  }
+
+  function sendGitSuggestion(suggestion: { prompt: string }) {
+    void sendPromptText(suggestion.prompt, { clearComposer: false });
   }
 
   async function checkoutActivePr() {
@@ -370,7 +375,8 @@
                 {sending}
                 composerText={activeComposerText}
                 {gitSuggestions}
-                onApplyGitSuggestion={applyGitSuggestion}
+                onSendGitSuggestion={sendGitSuggestion}
+                onDraftGitSuggestion={applyGitSuggestion}
                 models={usableModels}
                 {selectedModelKey}
                 thinkingLevel={selectedThinkingLevel}

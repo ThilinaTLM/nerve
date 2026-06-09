@@ -9,10 +9,11 @@
   type Props = {
     suggestions?: GitSuggestion[];
     disabled?: boolean;
-    onApply?: (suggestion: GitSuggestion) => void;
+    onSend?: (suggestion: GitSuggestion) => void;
+    onDraft?: (suggestion: GitSuggestion) => void;
   };
 
-  let { suggestions = [], disabled = false, onApply }: Props = $props();
+  let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
 
   const icons: Record<GitSuggestion["id"], Component> = {
     commit: GitCommitHorizontal,
@@ -30,8 +31,13 @@
         type="button"
         class="git-suggestion-chip"
         {disabled}
-        title={suggestion.prompt}
-        onclick={() => onApply?.(suggestion)}
+        title={`Click to send. Right-click to insert into composer.\n\n${suggestion.prompt}`}
+        aria-label={`${suggestion.label}. Click to send. Right-click to insert into composer.`}
+        onclick={() => onSend?.(suggestion)}
+        oncontextmenu={(event) => {
+          event.preventDefault();
+          onDraft?.(suggestion);
+        }}
       >
         <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
         <span>{suggestion.label}</span>

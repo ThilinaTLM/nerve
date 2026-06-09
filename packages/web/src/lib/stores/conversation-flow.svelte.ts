@@ -561,10 +561,17 @@ function upsertAgentRecord(agent: AgentRecord): void {
   ];
 }
 
+type SendPromptTextOptions = {
+  clearComposer?: boolean;
+};
+
 async function sendPendingPrompt(
   pending: PendingConversationState,
   text: string,
+  options: SendPromptTextOptions = {},
 ): Promise<void> {
+  const clearComposer = options.clearComposer ?? true;
+
   if (!hasUsableModel()) {
     void openSettingsPane();
     const message =
@@ -612,25 +619,26 @@ async function sendPendingPrompt(
       { kind: "pending-conversation", id: pending.id },
       { kind: "conversation", id: conversation.id },
     );
-    delete workbenchState.pendingConversations[pending.id];
     workbenchState.activeConversationTabId = conversation.id;
     selection.projectId = conversation.projectId;
     selection.conversationId = conversation.id;
     selection.entryId = conversation.activeEntryId;
     selection.agentId = agent.id;
     composerDraft.projectDir = pending.projectDir;
+    const preservedComposerText = clearComposer ? "" : pending.composerText;
+    delete workbenchState.pendingConversations[pending.id];
     view = ensureConversationView(conversation.id);
     view.sending = true;
     view.error = undefined;
     view.streamingText = "";
     view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
     view.transcript = [{ role: "user", text, optimistic: true }];
-    view.composerText = "";
+    view.composerText = preservedComposerText;
     workbenchState.transcript = view.transcript;
     workbenchState.treeNodes = [];
     workbenchState.streamingText = "";
     workbenchState.error = undefined;
-    composerDraft.text = "";
+    if (clearComposer) composerDraft.text = "";
     persistConversationTabs();
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
@@ -652,26 +660,19 @@ async function sendPendingPrompt(
   }
 }
 
-export async function sendPrompt() {
+export async function sendPromptText(
+  rawText: string,
+  options: SendPromptTextOptions = {},
+) {
+  const clearComposer = options.clearComposer ?? true;
   const pending = activePendingConversation();
   const view = selection.conversationId
     ? ensureConversationView(selection.conversationId)
     : undefined;
-  const text = (
-    pending?.composerText ??
-    view?.composerText ??
-    composerDraft.text
-  ).trim();
+  const text = rawText.trim();
   if (!text || pending?.sending) return;
-  if (text === "/abort") {
-    if (pending) pending.composerText = "";
-    if (view) view.composerText = "";
-    composerDraft.text = "";
-    await abortActiveRun();
-    return;
-  }
   if (pending) {
-    await sendPendingPrompt(pending, text);
+    await sendPendingPrompt(pending, text, { clearComposer });
     return;
   }
   if (!selection.projectId || !selection.conversationId || !view) {
@@ -703,8 +704,10 @@ export async function sendPrompt() {
   }
   try {
     const agentId = await ensureAgent();
-    view.composerText = "";
-    composerDraft.text = "";
+    if (clearComposer) {
+      view.composerText = "";
+      composerDraft.text = "";
+    }
     if (queueWhileRunning) {
       await apiPost(`/api/agents/${agentId}/prompt`, {
         text,
@@ -728,4 +731,25 @@ export async function sendPrompt() {
     }
     notifyPromptError("Prompt failed", message);
   }
+}
+
+export async function sendPrompt() {
+  const pending = activePendingConversation();
+  const view = selection.conversationId
+    ? ensureConversationView(selection.conversationId)
+    : undefined;
+  const text = (
+    pending?.composerText ??
+    view?.composerText ??
+    composerDraft.text
+  ).trim();
+  if (!text || pending?.sending) return;
+  if (text === "/abort") {
+    if (pending) pending.composerText = "";
+    if (view) view.composerText = "";
+    composerDraft.text = "";
+    await abortActiveRun();
+    return;
+  }
+  await sendPromptText(text, { clearComposer: true });
 }
