@@ -33,6 +33,14 @@ describe("find and grep executors", () => {
     });
   });
 
+  it("rejects missing find paths with actionable errors", async () => {
+    const project = await createTempProject();
+    await assert.rejects(
+      executeFind({ path: "missing", pattern: "*.ts" }, { cwd: project.root }),
+      /find path not found: "missing"/,
+    );
+  });
+
   it("uses fd fast path with file-only semantics", async () => {
     const project = await createTempProject();
     const bin = join(project.root, "bin");
@@ -90,6 +98,56 @@ if (!fileOnly) console.log(root + "/src");
     });
   });
 
+  it("searches multiple grep paths with fallback implementation", async () => {
+    const project = await createTempProject();
+    const bin = join(project.root, "empty-bin");
+    await mkdir(bin);
+    await project.write("a.ts", "needle in root\n");
+    await project.write("nested/b.ts", "needle in nested\n");
+    await project.write("ignored/c.ts", "needle ignored\n");
+
+    await withPath(bin, async () => {
+      const result = await executeGrep(
+        { paths: ["a.ts", "nested"], pattern: "needle", limit: 10 },
+        { cwd: project.root },
+      );
+      assert.equal(result.path, project.root);
+      assert.deepEqual(result.matches, [
+        { path: "a.ts", line: 1, text: "needle in root" },
+        { path: "nested/b.ts", line: 1, text: "needle in nested" },
+      ]);
+    });
+  });
+
+  it("rejects space-separated grep path strings with actionable guidance", async () => {
+    const project = await createTempProject();
+    await assert.rejects(
+      executeGrep(
+        { path: "a.ts b.ts", pattern: "needle" },
+        { cwd: project.root },
+      ),
+      /grep path not found: "a\.ts b\.ts".*multiple paths as 'paths'/,
+    );
+  });
+
+  it("greps a single file with fallback implementation", async () => {
+    const project = await createTempProject();
+    const bin = join(project.root, "empty-bin");
+    await mkdir(bin);
+    await project.write("src/file.ts", "needle here\n");
+
+    await withPath(bin, async () => {
+      const result = await executeGrep(
+        { path: "src/file.ts", pattern: "needle" },
+        { cwd: project.root },
+      );
+      assert.equal(result.path, join(project.root, "src"));
+      assert.deepEqual(result.matches, [
+        { path: "file.ts", line: 1, text: "needle here" },
+      ]);
+    });
+  });
+
   it("parses rg fast-path output into relative matches", async () => {
     const project = await createTempProject();
     const bin = join(project.root, "bin");
@@ -112,6 +170,33 @@ console.log(root + "/other.ts:4:another needle");
       );
       assert.deepEqual(result.matches, [
         { path: "src/file.ts", line: 2, text: "needle here" },
+      ]);
+    });
+  });
+
+  it("greps a single file with rg fast path", async () => {
+    const project = await createTempProject();
+    const bin = join(project.root, "bin");
+    await mkdir(bin);
+    await project.write("src/file.ts", "needle here\n");
+    await writeExecutable(
+      bin,
+      "rg",
+      `
+const target = process.argv.at(-1);
+if (!process.argv.includes("--with-filename")) process.exit(2);
+console.log(target + ":1:needle here");
+`,
+    );
+
+    await withPath(bin, async () => {
+      const result = await executeGrep(
+        { path: "src/file.ts", pattern: "needle" },
+        { cwd: project.root },
+      );
+      assert.equal(result.path, join(project.root, "src"));
+      assert.deepEqual(result.matches, [
+        { path: "file.ts", line: 1, text: "needle here" },
       ]);
     });
   });

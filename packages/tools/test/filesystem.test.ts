@@ -82,10 +82,15 @@ describe("filesystem executors", () => {
     assert.equal(result.contentBlocks?.[0]?.type, "text");
   });
 
-  it("rejects missing read paths", async () => {
+  it("rejects invalid and missing read paths with actionable errors", async () => {
+    const project = await createTempProject();
     await assert.rejects(
       executeRead({}, { cwd: process.cwd() }),
       /path.*non-empty string/,
+    );
+    await assert.rejects(
+      executeRead({ path: "missing.txt" }, { cwd: project.root }),
+      /read path not found: "missing\.txt"/,
     );
   });
 
@@ -105,6 +110,14 @@ describe("filesystem executors", () => {
     );
     assert.equal(second.content, "Wrote 2 bytes.");
     assert.equal(await readFile(first.path ?? "", "utf8"), "ok");
+  });
+
+  it("rejects missing ls paths with actionable errors", async () => {
+    const project = await createTempProject();
+    await assert.rejects(
+      executeLs({ path: "missing" }, { cwd: project.root }),
+      /ls path not found: "missing"/,
+    );
   });
 
   it("lists directory entries in case-insensitive order with kinds and limits", async () => {

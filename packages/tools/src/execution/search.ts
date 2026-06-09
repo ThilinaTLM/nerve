@@ -4,8 +4,12 @@ import { relative } from "node:path";
 import { promisify } from "node:util";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import { numberArg } from "./common.js";
-import { resolveToolPath } from "./path.js";
-import { globToRegExp, walkFiles } from "./search-utils.js";
+import {
+  globToRegExp,
+  resolveSearchScope,
+  type SearchScope,
+  walkFiles,
+} from "./search-utils.js";
 import { truncateHead, truncateLine } from "./truncate.js";
 
 const execFileAsync = promisify(execFile);
@@ -19,13 +23,13 @@ export async function executeGrep(
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {
     throw new Error("Tool argument 'pattern' must be a non-empty string.");
   }
-  const root = resolveToolPath(context.cwd, args.path ?? ".");
+  const scope = await resolveSearchScope(context.cwd, args, "grep");
   const limit = Math.min(numberArg(args.limit, 100), 2000);
-  const rg = await runRg(args, root, limit).catch(() => undefined);
-  const matches = rg ?? (await fallbackGrep(args, root, limit));
+  const rg = await runRg(args, scope, limit).catch(() => undefined);
+  const matches = rg ?? (await fallbackGrep(args, scope, limit));
   const formatted = formatMatches(matches, limit);
   return {
-    path: root,
+    path: scope.displayRoot,
     matches: matches.slice(0, limit),
     content: formatted.content,
     contentBlocks: [{ type: "text", text: formatted.content }],
@@ -35,10 +39,15 @@ export async function executeGrep(
 
 async function runRg(
   args: Record<string, unknown>,
-  root: string,
+  scope: SearchScope,
   limit: number,
 ): Promise<GrepMatch[]> {
-  const rgArgs = ["--line-number", "--color=never", "--hidden"];
+  const rgArgs = [
+    "--line-number",
+    "--color=never",
+    "--hidden",
+    "--with-filename",
+  ];
   if (args.ignoreCase) rgArgs.push("--ignore-case");
   if (args.literal) rgArgs.push("--fixed-strings");
   if (typeof args.glob === "string" && args.glob.length > 0) {
@@ -46,7 +55,7 @@ async function runRg(
   }
   const contextLines = numberArg(args.context, 0);
   if (contextLines > 0) rgArgs.push("--context", String(contextLines));
-  rgArgs.push("--", String(args.pattern), root);
+  rgArgs.push("--", String(args.pattern), ...scope.roots);
   const { stdout } = await execFileAsync("rg", rgArgs, {
     timeout: 30_000,
     maxBuffer: 1024 * 1024 * 4,
@@ -57,7 +66,9 @@ async function runRg(
     const match = /^(.*?):(\d+):(.*)$/.exec(line);
     if (!match) continue;
     matches.push({
-      path: relative(root, match[1] ?? "") || (match[1] ?? ""),
+      path:
+        relative(scope.displayRoot, match[1] ?? "").replaceAll("\\", "/") ||
+        (match[1] ?? ""),
       line: Number(match[2]),
       text: match[3] ?? "",
     });
@@ -68,7 +79,7 @@ async function runRg(
 
 async function fallbackGrep(
   args: Record<string, unknown>,
-  root: string,
+  scope: SearchScope,
   limit: number,
 ): Promise<GrepMatch[]> {
   const matches: GrepMatch[] = [];
@@ -81,29 +92,37 @@ async function fallbackGrep(
   const needle = ignoreCase ? pattern.toLowerCase() : pattern;
   const glob =
     typeof args.glob === "string" ? globToRegExp(args.glob) : undefined;
-  await walkFiles(
-    root,
-    root,
-    limit,
-    async (absolutePath, relativePath) => {
-      if (glob && !glob.test(relativePath)) return;
-      const info = await stat(absolutePath);
-      if (info.size > 1024 * 1024) return;
-      const content = await readFile(absolutePath, "utf8").catch(
-        () => undefined,
-      );
-      if (content === undefined) return;
-      const lines = content.split(/\r?\n/);
-      for (const [index, line] of lines.entries()) {
-        const haystack = ignoreCase ? line.toLowerCase() : line;
-        if (regex ? regex.test(line) : haystack.includes(needle)) {
-          matches.push({ path: relativePath, line: index + 1, text: line });
-          if (matches.length >= limit) return;
+
+  for (const root of scope.roots) {
+    await walkFiles(
+      scope.displayRoot,
+      root,
+      limit,
+      async (absolutePath, relativePath) => {
+        if (glob && !glob.test(relativePath)) return;
+        const info = await stat(absolutePath);
+        if (info.size > 1024 * 1024) return;
+        const content = await readFile(absolutePath, "utf8").catch(
+          () => undefined,
+        );
+        if (content === undefined) return;
+        const lines = content.split(/\r?\n/);
+        for (const [index, line] of lines.entries()) {
+          const haystack = ignoreCase ? line.toLowerCase() : line;
+          if (regex ? regex.test(line) : haystack.includes(needle)) {
+            matches.push({
+              path: relativePath.replaceAll("\\", "/"),
+              line: index + 1,
+              text: line,
+            });
+            if (matches.length >= limit) return;
+          }
         }
-      }
-    },
-    () => matches.length >= limit,
-  );
+      },
+      () => matches.length >= limit,
+    );
+    if (matches.length >= limit) break;
+  }
   return matches;
 }
 

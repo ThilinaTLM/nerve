@@ -121,7 +121,14 @@ const grepParameters = Type.Object(
     }),
     path: Type.Optional(
       Type.String({
-        description: "Directory or file to search (default: current directory)",
+        description:
+          "Single directory or file to search (default: current directory)",
+      }),
+    ),
+    paths: Type.Optional(
+      Type.Array(Type.String({ description: "Directory or file to search" }), {
+        description:
+          "Multiple directories/files to search. Use this instead of a space-separated path string.",
       }),
     ),
     glob: Type.Optional(
@@ -442,6 +449,11 @@ export const coreToolDefinitions = [
     description:
       "Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore when using ripgrep.",
     promptSnippet: "Search file contents for patterns (respects .gitignore)",
+    promptGuidelines: [
+      "Use grep.paths when searching multiple files or directories; use grep.path only for one file or directory.",
+      "Do not pass multiple paths as one space-separated grep.path string.",
+      "Use grep.glob to filter searched files by pattern.",
+    ],
     parameters: grepParameters,
     executionMode: "parallel",
   },

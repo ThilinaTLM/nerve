@@ -1,9 +1,14 @@
 import { execFile } from "node:child_process";
+import { stat } from "node:fs/promises";
 import { relative } from "node:path";
 import { promisify } from "node:util";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import { numberArg } from "./common.js";
-import { resolveToolPath } from "./path.js";
+import {
+  isErrnoException,
+  pathNotFoundMessage,
+  resolveToolPath,
+} from "./path.js";
 import { globToRegExp, walkFiles } from "./search-utils.js";
 import { truncateHead } from "./truncate.js";
 
@@ -16,7 +21,14 @@ export async function executeFind(
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {
     throw new Error("Tool argument 'pattern' must be a non-empty string.");
   }
-  const root = resolveToolPath(context.cwd, args.path ?? ".");
+  const input = args.path ?? ".";
+  const root = resolveToolPath(context.cwd, input);
+  await stat(root).catch((error: unknown) => {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      throw new Error(pathNotFoundMessage("find", input, root));
+    }
+    throw error;
+  });
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
   const fd = await runFd(args.pattern, root, limit).catch(() => undefined);
   const paths = fd ?? (await fallbackFind(root, args.pattern, limit));

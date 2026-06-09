@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import { numberArg } from "./common.js";
-import { resolveReadPath } from "./path.js";
+import {
+  isErrnoException,
+  pathNotFoundMessage,
+  resolveReadPath,
+} from "./path.js";
 import { DEFAULT_MAX_LINES, formatSize, truncateHead } from "./truncate.js";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -41,7 +45,12 @@ export async function executeRead(
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = await resolveReadPath(context.cwd, args.path);
-  const buffer = await readFile(path);
+  const buffer = await readFile(path).catch((error: unknown) => {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      throw new Error(pathNotFoundMessage("read", args.path, path));
+    }
+    throw error;
+  });
   const mimeType = detectSupportedImageMimeType(buffer);
 
   if (mimeType) {

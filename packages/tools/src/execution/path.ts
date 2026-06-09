@@ -24,6 +24,21 @@ export function resolveToolPath(cwd: string, input: unknown): string {
   return resolveToCwd(cwd, input);
 }
 
+export function isErrnoException(
+  error: unknown,
+): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
+export function pathNotFoundMessage(
+  toolName: string,
+  input: unknown,
+  resolvedPath: string,
+): string {
+  const label = typeof input === "string" ? JSON.stringify(input) : "path";
+  return `${toolName} path not found: ${label} (resolved to ${resolvedPath}).`;
+}
+
 export async function resolveReadPath(
   cwd: string,
   input: unknown,

@@ -1,15 +1,25 @@
 import { readdir, stat } from "node:fs/promises";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import { numberArg } from "./common.js";
-import { resolveToolPath } from "./path.js";
+import {
+  isErrnoException,
+  pathNotFoundMessage,
+  resolveToolPath,
+} from "./path.js";
 import { truncateHead } from "./truncate.js";
 
 export async function executeLs(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
-  const root = resolveToolPath(context.cwd, args.path ?? ".");
-  const info = await stat(root);
+  const input = args.path ?? ".";
+  const root = resolveToolPath(context.cwd, input);
+  const info = await stat(root).catch((error: unknown) => {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      throw new Error(pathNotFoundMessage("ls", input, root));
+    }
+    throw error;
+  });
   if (!info.isDirectory()) throw new Error("ls path is not a directory.");
 
   const limit = Math.min(numberArg(args.limit, 500), 5000);
