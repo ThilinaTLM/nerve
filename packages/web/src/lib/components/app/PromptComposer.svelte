@@ -124,7 +124,7 @@
   const supportsAudioRecording = $derived(TranscriptionController.isSupported());
   const micDisabled = $derived(
     transcription.pending ||
-      (!recording && (!canPrompt || sending || !supportsAudioRecording)),
+      (!recording && (!canPrompt || !supportsAudioRecording)),
   );
   const micTitle = $derived(
     recording

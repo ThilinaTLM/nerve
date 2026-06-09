@@ -131,7 +131,28 @@ export async function writeTextFileIfMissing(
   if (mode !== undefined) await chmod(path, mode);
 }
 
+const appendJsonLineQueues = new Map<string, Promise<void>>();
+
 export async function appendJsonLine(
+  path: string,
+  value: unknown,
+  mode?: number,
+): Promise<void> {
+  const previous = appendJsonLineQueues.get(path) ?? Promise.resolve();
+  const queued = previous
+    .catch(() => undefined)
+    .then(() => appendJsonLineDirect(path, value, mode));
+  appendJsonLineQueues.set(path, queued);
+  try {
+    await queued;
+  } finally {
+    if (appendJsonLineQueues.get(path) === queued) {
+      appendJsonLineQueues.delete(path);
+    }
+  }
+}
+
+async function appendJsonLineDirect(
   path: string,
   value: unknown,
   mode?: number,
