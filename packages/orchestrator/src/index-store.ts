@@ -28,6 +28,8 @@ export interface RebuildIndexInput {
   events: EventEnvelope[];
   processes?: ProcessRecord[];
   workers?: WorkerRecord[];
+  toolCalls?: ToolCallRecord[];
+  approvals?: ApprovalRecord[];
   userQuestions?: UserQuestionRecord[];
 }
 
@@ -352,6 +354,24 @@ export class IndexStore {
     });
   }
 
+  deleteToolCall(id: string): void {
+    this.guard(() => {
+      this.db.prepare("DELETE FROM tool_calls WHERE id = ?").run(id);
+    });
+  }
+
+  deleteApproval(id: string): void {
+    this.guard(() => {
+      this.db.prepare("DELETE FROM approvals WHERE id = ?").run(id);
+    });
+  }
+
+  deleteUserQuestion(id: string): void {
+    this.guard(() => {
+      this.db.prepare("DELETE FROM user_questions WHERE id = ?").run(id);
+    });
+  }
+
   insertEvent(event: EventEnvelope): void {
     this.guard(() => {
       const refs = refsForEvent(event);
@@ -384,6 +404,10 @@ export class IndexStore {
         );
         for (const question of input.userQuestions ?? [])
           this.upsertUserQuestion(question);
+        for (const approval of input.approvals ?? [])
+          this.upsertApproval(approval);
+        for (const toolCall of input.toolCalls ?? [])
+          this.upsertToolCall(toolCall);
         for (const worker of input.workers ?? []) this.upsertWorker(worker);
         for (const project of input.projects) this.upsertProject(project);
         for (const conversation of input.conversations)

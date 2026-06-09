@@ -8,7 +8,7 @@ import {
   applicationLogRecordSchema,
   createId,
 } from "@nerve/shared";
-import { appendJsonLine, readJsonLines } from "./storage.js";
+import { appendJsonLine, readJsonLines, rewriteJsonLines } from "./storage.js";
 
 export type ApplicationLogContext = Partial<
   Pick<
@@ -191,6 +191,31 @@ export class ApplicationLogger {
     }
     const allNextCursor = logs.at(-1)?.seq ?? this.root.#seq;
     return { logs: logs.slice(-limit), nextCursor: allNextCursor };
+  }
+
+  async removeLogsForConversations(
+    conversationIds: Iterable<string>,
+  ): Promise<void> {
+    if (this.root !== this)
+      return this.root.removeLogsForConversations(conversationIds);
+    const conversations = new Set(conversationIds);
+    if (conversations.size === 0) return;
+    this.#buffer = this.#buffer.filter(
+      (log) => !log.conversationId || !conversations.has(log.conversationId),
+    );
+    for (const file of await this.applicationLogFiles()) {
+      const path = join(this.logsDir(), file);
+      const logs = await readJsonLines<unknown>(path).catch(() => []);
+      const kept = logs
+        .map((value) => applicationLogRecordSchema.safeParse(value))
+        .filter((result) => result.success)
+        .map((result) => result.data)
+        .filter(
+          (log) =>
+            !log.conversationId || !conversations.has(log.conversationId),
+        );
+      await rewriteJsonLines(path, kept, 0o600);
+    }
   }
 
   private async write(

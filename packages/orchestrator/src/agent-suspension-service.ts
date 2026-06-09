@@ -7,7 +7,7 @@ import {
 } from "@nerve/shared";
 import type { EventBus } from "./events.js";
 import type { InitializedStorage } from "./storage.js";
-import { appendJsonLine, readJsonLines } from "./storage.js";
+import { appendJsonLine, readJsonLines, rewriteJsonLines } from "./storage.js";
 
 export class AgentSuspensionService {
   readonly suspensions = new Map<string, AgentSuspensionRecord>();
@@ -45,6 +45,23 @@ export class AgentSuspensionService {
     const suspension = this.suspensions.get(id);
     if (!suspension) throw new Error("Agent suspension not found.");
     return suspension;
+  }
+
+  async removeSuspensionsForConversations(
+    conversationIds: Iterable<string>,
+  ): Promise<void> {
+    const conversations = new Set(conversationIds);
+    if (conversations.size === 0) return;
+    for (const [id, suspension] of this.suspensions) {
+      if (conversations.has(suspension.conversationId)) {
+        this.suspensions.delete(id);
+      }
+    }
+    await rewriteJsonLines(
+      this.suspensionsPath(),
+      this.listSuspensions(),
+      0o600,
+    );
   }
 
   async createSuspension(

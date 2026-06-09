@@ -43,6 +43,7 @@ import type {
   ProcessLogQueryResponse,
   ProcessRecord,
   ProjectRecord,
+  PruneProjectConversationsResponse,
   QueuedPromptRecord,
   Settings,
   StatusResponse,
@@ -419,6 +420,16 @@ export async function deleteConversation(
   conversationId: string,
 ): Promise<void> {
   await apiDeleteNoContent(`/api/conversations/${conversationId}`);
+}
+
+export async function pruneProjectConversations(
+  projectId: string,
+  olderThanDays = 7,
+): Promise<PruneProjectConversationsResponse> {
+  return apiPost<PruneProjectConversationsResponse>(
+    `/api/projects/${projectId}/conversations/prune`,
+    { olderThanDays },
+  );
 }
 
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
@@ -814,6 +825,7 @@ export type {
   FilesystemFileResponse,
   FilesystemSignal,
   ProjectRecord,
+  PruneProjectConversationsResponse,
   ConversationEntry,
   ConversationRecord,
   ConversationTree,

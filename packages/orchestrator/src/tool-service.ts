@@ -28,7 +28,7 @@ import type { PlanService } from "./plan-service.js";
 import { evaluateToolPolicy } from "./policy.js";
 import type { ProcessManager } from "./process-manager.js";
 import type { InitializedStorage } from "./storage.js";
-import { appendJsonLine, readJsonLines } from "./storage.js";
+import { appendJsonLine, readJsonLines, rewriteJsonLines } from "./storage.js";
 
 export interface ToolExecutionResponse {
   toolCall: ToolCallRecord;
@@ -165,6 +165,47 @@ export class ToolService {
     return [...this.userQuestions.values()]
       .filter((question) => !status || question.status === status)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async removeRecordsForConversations(
+    conversationIds: Iterable<string>,
+    agentIds: Iterable<string> = [],
+  ): Promise<void> {
+    const conversations = new Set(conversationIds);
+    if (conversations.size === 0) return;
+    const agents = new Set(agentIds);
+    for (const toolCall of this.toolCalls.values()) {
+      if (conversations.has(toolCall.conversationId))
+        agents.add(toolCall.agentId);
+    }
+    for (const [id, toolCall] of this.toolCalls) {
+      if (conversations.has(toolCall.conversationId)) {
+        this.toolCalls.delete(id);
+        this.index.deleteToolCall(id);
+      }
+    }
+    for (const [id, approval] of this.approvals) {
+      if (conversations.has(approval.conversationId)) {
+        this.approvals.delete(id);
+        this.index.deleteApproval(id);
+      }
+    }
+    for (const [id, question] of this.userQuestions) {
+      if (conversations.has(question.conversationId)) {
+        this.userQuestions.delete(id);
+        this.index.deleteUserQuestion(id);
+      }
+    }
+    for (const agentId of agents) this.todoLists.delete(agentId);
+    await Promise.all([
+      rewriteJsonLines(this.toolCallsPath(), this.listToolCalls(), 0o600),
+      rewriteJsonLines(this.approvalsPath(), this.listApprovals(), 0o600),
+      rewriteJsonLines(
+        this.userQuestionsPath(),
+        this.listUserQuestions(),
+        0o600,
+      ),
+    ]);
   }
 
   async requestTool(

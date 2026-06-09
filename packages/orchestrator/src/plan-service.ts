@@ -17,7 +17,12 @@ import {
   resolvePlanPath,
 } from "./plan-paths.js";
 import type { InitializedStorage } from "./storage.js";
-import { appendJsonLine, pathExists, readJsonLines } from "./storage.js";
+import {
+  appendJsonLine,
+  pathExists,
+  readJsonLines,
+  rewriteJsonLines,
+} from "./storage.js";
 
 export type PlanReviewResult = {
   review: PlanReviewRecord;
@@ -59,6 +64,21 @@ export class PlanService {
     return [...this.planReviews.values()]
       .filter((review) => !status || review.status === status)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async removeReviewsForConversations(
+    conversationIds: Iterable<string>,
+  ): Promise<void> {
+    const conversations = new Set(conversationIds);
+    if (conversations.size === 0) return;
+    for (const [id, review] of this.planReviews) {
+      if (conversations.has(review.conversationId)) this.planReviews.delete(id);
+    }
+    await rewriteJsonLines(
+      this.planReviewsPath(),
+      this.listPlanReviews(),
+      0o600,
+    );
   }
 
   planDir(_agent: AgentRecord): string {

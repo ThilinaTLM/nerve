@@ -18,6 +18,8 @@ import type {
   ProcessLogQuery,
   ProjectRecord,
   PromptRequest,
+  PruneProjectConversationsRequest,
+  PruneProjectConversationsResponse,
   StartProcessRequest,
   StopProcessRequest,
   ToolCallRecord,
@@ -106,7 +108,7 @@ export class RuntimeRegistry {
     private readonly index: IndexStore,
     auth: AuthManager,
     private readonly subscriptionUsage: SubscriptionUsageService,
-    logger: ApplicationLogger,
+    private readonly logger: ApplicationLogger,
   ) {
     this.projectRepository = new ProjectRepository(storage);
     this.conversationRepository = new ConversationRepository(storage);
@@ -289,6 +291,8 @@ export class RuntimeRegistry {
       events: await this.events.replayPersistedSince(0),
       processes: this.processes.listProcesses(),
       workers: this.workers.listWorkers(),
+      toolCalls: this.tools.listToolCalls(),
+      approvals: this.tools.listApprovals(),
       userQuestions: this.tools.listUserQuestions(),
     });
   }
@@ -344,6 +348,105 @@ export class RuntimeRegistry {
 
   async removeProject(projectId: string): Promise<void> {
     return this.projectLifecycle.removeProject(projectId);
+  }
+
+  async pruneProjectConversations(
+    projectId: string,
+    request: PruneProjectConversationsRequest = { olderThanDays: 7 },
+  ): Promise<PruneProjectConversationsResponse> {
+    this.getProject(projectId);
+    const olderThanDays = request.olderThanDays ?? 7;
+    const cutoffMs = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
+    const cutoff = new Date(cutoffMs).toISOString();
+    const candidates = this.listConversations().filter((conversation) => {
+      const updatedAt = Date.parse(conversation.updatedAt);
+      return (
+        conversation.projectId === projectId &&
+        Number.isFinite(updatedAt) &&
+        updatedAt < cutoffMs
+      );
+    });
+    const candidateIds = candidates.map((conversation) => conversation.id);
+    const activeProcessConversationIds = new Set(
+      this.processes
+        .activeProcessesForConversations(candidateIds)
+        .map((process) => process.conversationId)
+        .filter((conversationId): conversationId is string =>
+          Boolean(conversationId),
+        ),
+    );
+    const agentsByConversationId = new Map<string, AgentRecord[]>();
+    for (const agent of this.agents.values()) {
+      if (!candidateIds.includes(agent.conversationId)) continue;
+      const agents = agentsByConversationId.get(agent.conversationId) ?? [];
+      agents.push(agent);
+      agentsByConversationId.set(agent.conversationId, agents);
+    }
+
+    const prunedConversationIds: string[] = [];
+    const prunedAgentIds: string[] = [];
+    const skipped: PruneProjectConversationsResponse["skipped"] = [];
+    for (const conversation of candidates) {
+      const agents = agentsByConversationId.get(conversation.id) ?? [];
+      if (
+        agents.some(
+          (agent) =>
+            agent.status === "running" || agent.status === "awaiting_user",
+        )
+      ) {
+        skipped.push({
+          conversationId: conversation.id,
+          reason: "active_agent",
+        });
+        continue;
+      }
+      if (activeProcessConversationIds.has(conversation.id)) {
+        skipped.push({
+          conversationId: conversation.id,
+          reason: "active_process",
+        });
+        continue;
+      }
+      prunedConversationIds.push(conversation.id);
+      prunedAgentIds.push(...agents.map((agent) => agent.id));
+    }
+
+    const prunedProcessIds =
+      await this.processes.removeInactiveProcessesForConversations(
+        prunedConversationIds,
+      );
+    await this.tools.removeRecordsForConversations(
+      prunedConversationIds,
+      prunedAgentIds,
+    );
+    await this.plans.removeReviewsForConversations(prunedConversationIds);
+    await this.suspensions.removeSuspensionsForConversations(
+      prunedConversationIds,
+    );
+    for (const conversationId of prunedConversationIds) {
+      await this.removeConversation(conversationId);
+    }
+    await Promise.all(
+      prunedConversationIds.map((conversationId) =>
+        this.conversationRepository
+          .remove(conversationId)
+          .catch(() => undefined),
+      ),
+    );
+    await this.events.removeEventsForConversations(prunedConversationIds);
+    await this.logger.removeLogsForConversations(prunedConversationIds);
+    await this.rebuildIndex();
+
+    const response: PruneProjectConversationsResponse = {
+      projectId,
+      olderThanDays,
+      cutoff,
+      prunedConversationIds,
+      prunedProcessIds,
+      skipped,
+    };
+    await this.events.publish("project.conversations.pruned", response);
+    return response;
   }
 
   async configureAgent(

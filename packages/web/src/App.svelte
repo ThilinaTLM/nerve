@@ -70,6 +70,7 @@
     openSettingsPane,
     openConversation,
     pruneStoppedProcesses,
+    pruneProjectConversationsAndRefresh,
     refreshFilePane,
     refreshPrPane,
     refreshProcessLogs,
@@ -321,6 +322,7 @@
                 onNewConversationInProject={newConversationInProject}
                 onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
                 onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}
+                onPruneProjectConversations={(id) => void pruneProjectConversationsAndRefresh(id)}
               />
             </div>
           </Pane>

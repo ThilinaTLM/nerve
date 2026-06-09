@@ -6,7 +6,7 @@
     ConversationRecord,
     StatusResponse,
   } from "../../../api";
-  import { pulseForStatus, statusTone } from "../../../utils/status";
+  import { agentActivityPulse, agentActivityTone } from "../../../utils/status";
   import { Badge } from "$lib/components/ui/badge";
   import { Card } from "$lib/components/ui/card";
   import { StatusDot } from "$lib/components/ui/status-dot";
@@ -73,7 +73,7 @@
           <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-3 py-2.5">
             <dt class="font-mono text-xs text-muted-foreground">Status</dt>
             <dd class="flex items-center gap-1.5 truncate font-mono text-xs text-foreground">
-              <StatusDot tone={statusTone(agent.status)} pulse={pulseForStatus(agent.status)} />
+              <StatusDot tone={agentActivityTone(agent.status)} pulse={agentActivityPulse(agent.status)} />
               {agent.status}
             </dd>
             <dt class="font-mono text-xs text-muted-foreground">Mode</dt>

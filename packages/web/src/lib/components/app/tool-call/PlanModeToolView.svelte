@@ -53,11 +53,9 @@
   const label = $derived(
     pendingReview
       ? "Plan ready for review"
-      : accepted
-        ? "Plan accepted"
-        : rejected
-          ? "Plan rejected"
-          : "Plan review resolved",
+      : rejected
+        ? "Plan rejected"
+        : undefined,
   );
   const preview = $derived(
     trimTextPreview(displayedReview?.content ?? "", {
@@ -74,18 +72,30 @@
 
 {#if showPlanCard && displayedReview}
   <div class="plan-review" aria-label="Plan review">
-    <p class="plan-label">{label}</p>
+    {#if label}
+      <p class="plan-label">{label}</p>
+    {/if}
 
     {#if preview.trim()}
       <pre class="plan-preview">{preview}</pre>
     {/if}
 
     <div class="plan-actions">
-      <Button size="sm" disabled={!pendingReview} onclick={() => planReview && onAcceptPlanReview?.(planReview.id)}>
+      <Button
+        size="sm"
+        variant={accepted ? "success" : "default"}
+        disabled={!pendingReview}
+        onclick={() => planReview && onAcceptPlanReview?.(planReview.id)}
+      >
         {#if accepted}<Check size={14} strokeWidth={2.4} />{/if}
-        Accept Plan &amp; Implement
+        Accept &amp; Implement
       </Button>
-      <Button size="sm" variant="secondary" disabled={!pendingReview} onclick={() => planReview && onRejectPlanReview?.(planReview.id)}>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={!pendingReview}
+        onclick={() => planReview && onRejectPlanReview?.(planReview.id)}
+      >
         {#if rejected}<Check size={14} strokeWidth={2.4} />{/if}
         Reject Plan
       </Button>

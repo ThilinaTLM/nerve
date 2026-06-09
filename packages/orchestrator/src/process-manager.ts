@@ -54,7 +54,7 @@ export class ProcessManager {
         ).catch(() => undefined),
       );
       if (!parsed.success) continue;
-      const record = isActiveStatus(parsed.data.status)
+      const record = isActiveProcessStatus(parsed.data.status)
         ? {
             ...parsed.data,
             status: "orphaned" as const,
@@ -189,7 +189,7 @@ export class ProcessManager {
   ): Promise<ProcessRecord> {
     const record = this.getProcess(processId);
     const managed = this.managed.get(record.id);
-    if (!managed?.child || !isActiveStatus(record.status)) return record;
+    if (!managed?.child || !isActiveProcessStatus(record.status)) return record;
 
     managed.stopping = true;
     await this.updateProcess(record.id, { status: "stopping" });
@@ -218,7 +218,7 @@ export class ProcessManager {
 
   async restartProcess(processId: string): Promise<ProcessRecord> {
     const record = this.getProcess(processId);
-    if (isActiveStatus(record.status)) await this.stopProcess(processId);
+    if (isActiveProcessStatus(record.status)) await this.stopProcess(processId);
     return this.startProcess({
       name: record.name,
       workerId: record.workerId,
@@ -236,7 +236,7 @@ export class ProcessManager {
 
   async removeProcess(processId: string): Promise<void> {
     const record = this.getProcess(processId);
-    if (isActiveStatus(record.status)) {
+    if (isActiveProcessStatus(record.status)) {
       throw new Error("Stop the process before removing it.");
     }
     const managed = this.managed.get(record.id);
@@ -257,7 +257,41 @@ export class ProcessManager {
   async pruneProcesses(): Promise<string[]> {
     const removed: string[] = [];
     for (const record of this.listProcesses()) {
-      if (isActiveStatus(record.status)) continue;
+      if (isActiveProcessStatus(record.status)) continue;
+      try {
+        await this.removeProcess(record.id);
+        removed.push(record.id);
+      } catch {
+        // Best-effort: skip processes that can't be removed right now.
+      }
+    }
+    return removed;
+  }
+
+  activeProcessesForConversations(
+    conversationIds: Iterable<string>,
+  ): ProcessRecord[] {
+    const conversations = new Set(conversationIds);
+    if (conversations.size === 0) return [];
+    return this.listProcesses().filter(
+      (record) =>
+        record.conversationId !== undefined &&
+        conversations.has(record.conversationId) &&
+        isActiveProcessStatus(record.status),
+    );
+  }
+
+  async removeInactiveProcessesForConversations(
+    conversationIds: Iterable<string>,
+  ): Promise<string[]> {
+    const conversations = new Set(conversationIds);
+    if (conversations.size === 0) return [];
+    const removed: string[] = [];
+    for (const record of this.listProcesses()) {
+      if (!record.conversationId || !conversations.has(record.conversationId)) {
+        continue;
+      }
+      if (isActiveProcessStatus(record.status)) continue;
       try {
         await this.removeProcess(record.id);
         removed.push(record.id);
@@ -540,7 +574,9 @@ function terminateProcess(child: ChildProcess, signal: NodeJS.Signals): void {
   child.kill(signal);
 }
 
-function isActiveStatus(status: ProcessRecord["status"]): boolean {
+export function isActiveProcessStatus(
+  status: ProcessRecord["status"],
+): boolean {
   return (
     status === "starting" ||
     status === "running" ||

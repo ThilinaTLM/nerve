@@ -152,6 +152,25 @@ export async function appendJsonLine(
   }
 }
 
+export async function rewriteJsonLines(
+  path: string,
+  values: unknown[],
+  mode?: number,
+): Promise<void> {
+  const previous = appendJsonLineQueues.get(path) ?? Promise.resolve();
+  const queued = previous
+    .catch(() => undefined)
+    .then(() => rewriteJsonLinesDirect(path, values, mode));
+  appendJsonLineQueues.set(path, queued);
+  try {
+    await queued;
+  } finally {
+    if (appendJsonLineQueues.get(path) === queued) {
+      appendJsonLineQueues.delete(path);
+    }
+  }
+}
+
 async function appendJsonLineDirect(
   path: string,
   value: unknown,
@@ -162,6 +181,19 @@ async function appendJsonLineDirect(
     mode,
     encoding: "utf8",
   });
+  if (mode !== undefined) await chmod(path, mode).catch(() => undefined);
+}
+
+async function rewriteJsonLinesDirect(
+  path: string,
+  values: unknown[],
+  mode?: number,
+): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const tempPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+  const text = values.map((value) => JSON.stringify(value)).join("\n");
+  await writeFile(tempPath, text ? `${text}\n` : "", { mode });
+  await rename(tempPath, path);
   if (mode !== undefined) await chmod(path, mode).catch(() => undefined);
 }
 

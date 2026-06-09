@@ -21,7 +21,7 @@
     shortAgentModel,
     shortProjectLabel,
   } from "../../utils/project-tree";
-  import { pulseForStatus, statusTone } from "../../utils/status";
+  import { agentActivityPulse, agentActivityTone } from "../../utils/status";
   import { dateTimeLabel } from "../../utils/time";
 
   type DeleteTarget = {
@@ -29,6 +29,14 @@
     id: string;
     label: string;
   };
+
+  type PruneTarget = {
+    id: string;
+    label: string;
+    eligibleCount: number;
+  };
+
+  const pruneConversationDays = 7;
 
   type Props = {
     projects?: ProjectRecord[];
@@ -41,6 +49,7 @@
     onNewConversationInProject?: (projectDir: string) => void;
     onDeleteProject?: (projectId: string) => void;
     onDeleteConversation?: (conversationId: string) => void;
+    onPruneProjectConversations?: (projectId: string) => void;
   };
 
   let {
@@ -54,20 +63,47 @@
     onNewConversationInProject,
     onDeleteProject,
     onDeleteConversation,
+    onPruneProjectConversations,
   }: Props = $props();
 
   let filter = $state("");
   let collapsed = $state<Record<string, boolean>>({});
   let pendingDelete = $state<DeleteTarget | undefined>(undefined);
+  let pendingPrune = $state<PruneTarget | undefined>(undefined);
 
   function requestDelete(target: DeleteTarget) {
     pendingDelete = target;
+  }
+
+  function requestPrune(project: ProjectRecord) {
+    pendingPrune = {
+      id: project.id,
+      label: shortProjectLabel(project.dir, homeDir),
+      eligibleCount: pruneEligibleCount(project.id),
+    };
   }
 
   function confirmDelete() {
     if (!pendingDelete) return;
     if (pendingDelete.kind === "project") onDeleteProject?.(pendingDelete.id);
     else onDeleteConversation?.(pendingDelete.id);
+  }
+
+  function confirmPrune() {
+    if (!pendingPrune) return;
+    onPruneProjectConversations?.(pendingPrune.id);
+  }
+
+  function pruneEligibleCount(projectId: string): number {
+    const cutoff = Date.now() - pruneConversationDays * 24 * 60 * 60 * 1000;
+    return conversations.filter((conversation) => {
+      const updatedAt = Date.parse(conversation.updatedAt);
+      return (
+        conversation.projectId === projectId &&
+        Number.isFinite(updatedAt) &&
+        updatedAt < cutoff
+      );
+    }).length;
   }
 
   async function copyToClipboard(text: string, label: string) {
@@ -80,10 +116,18 @@
   }
 
   function projectMenu(project: ProjectRecord): ContextMenuItem[] {
+    const eligibleCount = pruneEligibleCount(project.id);
     return [
       { label: "New conversation", icon: Plus, onSelect: () => onNewConversationInProject?.(project.dir) },
       { type: "separator" },
       { label: "Copy path", icon: Copy, onSelect: () => void copyToClipboard(project.dir, "path") },
+      {
+        label: "Prune Conversations",
+        icon: Trash2,
+        destructive: true,
+        disabled: eligibleCount === 0,
+        onSelect: () => requestPrune(project),
+      },
       {
         label: "Delete project",
         icon: Trash2,
@@ -196,8 +240,8 @@
                                         onclick={() => onOpenConversation?.(row.conversation.id)}
                                       >
                                         <StatusDot
-                                          tone={statusTone(status)}
-                                          pulse={pulseForStatus(status)}
+                                          tone={agentActivityTone(status)}
+                                          pulse={agentActivityPulse(status)}
                                           size="sm"
                                         />
                                         <span class="conversation-label">{row.conversation.title}</span>
@@ -247,6 +291,18 @@
   destructive
   onConfirm={confirmDelete}
   onOpenChange={(open) => { if (!open) pendingDelete = undefined; }}
+/>
+
+<AlertDialog
+  open={!!pendingPrune}
+  title="Prune old conversations?"
+  description={pendingPrune
+    ? `This permanently removes ${pendingPrune.eligibleCount} conversation${pendingPrune.eligibleCount === 1 ? "" : "s"} in “${pendingPrune.label}” last updated more than ${pruneConversationDays} days ago. Active conversations and active processes are skipped.`
+    : ""}
+  confirmLabel="Prune"
+  destructive
+  onConfirm={confirmPrune}
+  onOpenChange={(open) => { if (!open) pendingPrune = undefined; }}
 />
 
 <style>

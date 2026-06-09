@@ -1,4 +1,7 @@
-import { createProjectRequestSchema } from "@nerve/shared";
+import {
+  createProjectRequestSchema,
+  pruneProjectConversationsRequestSchema,
+} from "@nerve/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";
@@ -21,6 +24,20 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
         project: state.registry.getProject(c.req.param("projectId")),
       }),
     ),
+  );
+  app.post(
+    "/:projectId/conversations/prune",
+    routeHandler(async (c) => {
+      const body = pruneProjectConversationsRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json(
+        await state.registry.pruneProjectConversations(
+          c.req.param("projectId"),
+          body,
+        ),
+      );
+    }),
   );
   app.delete(
     "/:projectId",

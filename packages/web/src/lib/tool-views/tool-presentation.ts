@@ -311,7 +311,7 @@ export function toolPresentation(
 
     case "plan_mode": {
       const meta: MetaItem[] = [];
-      if (view.outcome)
+      if (view.outcome && view.outcome !== "accepted")
         meta.push({ text: view.outcome, tone: outcomeTone(view.outcome) });
       return {
         ...base,

@@ -10,6 +10,7 @@
   import Settings from "@lucide/svelte/icons/settings";
   import Terminal from "@lucide/svelte/icons/terminal";
   import X from "@lucide/svelte/icons/x";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import { notify } from "$lib/notifications/notify.svelte";
   import type { CenterTabModel } from "../../stores/workbench/selectors.svelte";
   import type { CenterTabIdentity } from "../../stores/workbench/state.svelte";
@@ -17,6 +18,7 @@
   import { shortProjectLabel } from "../../utils/project-tree";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import { agentActivityPulse, agentActivityTone } from "../../utils/status";
 
   type TabIdentity = CenterTabIdentity;
 
@@ -85,6 +87,7 @@
 
   function statusLabel(tab: CenterTabModel): string | undefined {
     if (tab.error) return tab.error;
+    if (tab.kind === "conversation" && tab.agent?.status === "awaiting_user") return "Needs user action";
     if (tab.sending) {
       if (tab.kind === "process") return "Process active";
       if (tab.kind === "file") return "Loading file";
@@ -94,6 +97,10 @@
     if (tab.kind === "process") return tab.process?.status ?? "missing";
     if (tab.kind === "file" && tab.file?.truncated) return "Truncated";
     return undefined;
+  }
+
+  function agentStatus(tab: CenterTabModel): string | undefined {
+    return tab.kind === "conversation" ? tab.agent?.status : undefined;
   }
 
   function tabIndex(tab: CenterTabModel): number {
@@ -213,7 +220,14 @@
           class:errored={Boolean(tab.error)}
         >
           <div class="tab-leading">
-            {#if tab.kind === "conversation" || tab.kind === "pending-conversation" || tab.kind === "process"}
+            {#if tab.kind === "conversation" || tab.kind === "pending-conversation"}
+              <StatusDot
+                class="tab-agent-status"
+                tone={agentActivityTone(agentStatus(tab), tab.sending)}
+                pulse={agentActivityPulse(agentStatus(tab), tab.sending)}
+                label={statusLabel(tab)}
+              />
+            {:else if tab.kind === "process"}
               <span class="tab-status" title={statusLabel(tab)} aria-hidden="true"></span>
             {:else if tab.kind === "file"}
               {#if tab.markdown}

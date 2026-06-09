@@ -14,6 +14,7 @@ import {
   getSlashCompletions,
   getWorkspaceSnapshot,
   type ProjectRecord,
+  pruneProjectConversations,
 } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
@@ -155,6 +156,32 @@ export async function deleteConversationAndRefresh(conversationId: string) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workbenchState.error = message;
     notify.error("Could not remove conversation", { description: message });
+  }
+}
+
+export async function pruneProjectConversationsAndRefresh(projectId: string) {
+  try {
+    const result = await pruneProjectConversations(projectId, 7);
+    await removeConversationTabs(result.prunedConversationIds);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+    await loadWorkspaceState();
+    const pruned = result.prunedConversationIds.length;
+    const skipped = result.skipped.length;
+    notify.success(
+      pruned === 1 ? "Pruned 1 conversation" : `Pruned ${pruned} conversations`,
+      skipped > 0
+        ? {
+            description:
+              skipped === 1
+                ? "Skipped 1 active conversation"
+                : `Skipped ${skipped} active conversations`,
+          }
+        : {},
+    );
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    workbenchState.error = message;
+    notify.error("Could not prune conversations", { description: message });
   }
 }
 

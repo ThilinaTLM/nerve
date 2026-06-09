@@ -27,6 +27,26 @@ export function statusTone(status: string | undefined): StatusTone {
   return "neutral";
 }
 
+// Agent activity indicators intentionally collapse all non-active states to
+// neutral so conversation dots only call attention to running work or pending
+// user action.
+export function agentActivityTone(
+  status: string | undefined,
+  active = false,
+): StatusTone {
+  if (status === "awaiting_user") return "warn";
+  if (status === "running" || active) return "running";
+  return "neutral";
+}
+
+export function agentActivityPulse(
+  status: string | undefined,
+  active = false,
+): boolean {
+  if (status === "awaiting_user") return false;
+  return status === "running" || active;
+}
+
 // Process-specific tone mapping. Unlike `statusTone`, a clean stop/exit reads
 // as muted (neutral) rather than "good" (green), which is misleading for a
 // process that is no longer running.

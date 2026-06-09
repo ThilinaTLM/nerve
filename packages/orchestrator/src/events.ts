@@ -7,7 +7,7 @@ import {
   eventEnvelopeSchema,
 } from "@nerve/shared";
 import type { IndexStore } from "./index-store.js";
-import { readJsonLines } from "./storage.js";
+import { readJsonLines, rewriteJsonLines } from "./storage.js";
 
 export interface PublishEventOptions {
   durability?: EventDurability;
@@ -112,6 +112,24 @@ export class EventBus {
       .filter((result) => result.success && result.data.seq > seq)
       .map((result) => result.data as EventEnvelope)
       .sort((a, b) => a.seq - b.seq);
+  }
+
+  async removeEventsForConversations(
+    conversationIds: Iterable<string>,
+  ): Promise<void> {
+    const conversations = new Set(conversationIds);
+    if (conversations.size === 0) return;
+    const keep = (event: EventEnvelope) => {
+      const conversationId = conversationIdForEvent(event);
+      return !conversationId || !conversations.has(conversationId);
+    };
+    this.#events = this.#events.filter(keep);
+    const persisted = await this.replayPersistedSince(0);
+    await rewriteJsonLines(
+      this.globalEventsPath(),
+      persisted.filter(keep),
+      0o600,
+    );
   }
 
   subscribe(listener: (event: EventEnvelope) => void): () => void {

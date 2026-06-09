@@ -88,6 +88,42 @@ describe("orchestrator server routes", () => {
     }
   });
 
+  it("prunes old project conversations through the API", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const oldConversation = await state.registry.createConversation({
+        projectId: project.id,
+      });
+      state.registry.conversations.set(oldConversation.id, {
+        ...oldConversation,
+        updatedAt: "2000-01-01T00:00:00.000Z",
+      });
+
+      const response = await app.request(
+        `/api/projects/${project.id}/conversations/prune`,
+        {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ olderThanDays: 7 }),
+        },
+      );
+
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+        prunedConversationIds: string[];
+        skipped: unknown[];
+      };
+      assert.deepEqual(body.prunedConversationIds, [oldConversation.id]);
+      assert.deepEqual(body.skipped, []);
+      assert.throws(() => state.registry.getConversation(oldConversation.id));
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("returns directory listings with shallow project signals and hidden filtering", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
     try {
