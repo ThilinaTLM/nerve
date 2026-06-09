@@ -1,38 +1,129 @@
 import { discoverGitRepos, getGithubStatus } from "../../api";
 import { selection } from "../../state/app-state.svelte";
-import { workbenchState } from "./state.svelte";
+import {
+  gitContextFingerprint,
+  shouldRefreshGitContextOnFocus,
+} from "./git-context-helpers";
+import { type GitContext, workbenchState } from "./state.svelte";
 
+export {
+  gitContextFingerprint,
+  shouldRefreshGitContextOnFocus,
+} from "./git-context-helpers";
 export { buildGitSuggestions, type GitSuggestion } from "./git-suggestions";
 
-const inFlight = new Set<string>();
+const GIT_CONTEXT_AUTO_REFRESH_MS = 10_000;
+const GIT_CONTEXT_FOCUS_STALE_MS = 5_000;
+const GIT_CONTEXT_MIN_REFRESH_MS = 2_000;
 
-export async function refreshGitContext(projectId?: string): Promise<void> {
+type GitContextRefreshReason = "project" | "invalidate" | "poll" | "focus";
+
+type GitContextRefreshOptions = {
+  force?: boolean;
+  reason?: GitContextRefreshReason;
+};
+
+const inFlight = new Set<string>();
+let autoRefreshInterval: number | undefined;
+let pendingRefreshTimer: number | undefined;
+let lastRefreshStartedAt = 0;
+
+function hiddenForPolling(
+  reason: GitContextRefreshReason | undefined,
+): boolean {
+  return (
+    reason === "poll" &&
+    typeof document !== "undefined" &&
+    document.visibilityState !== "visible"
+  );
+}
+
+function clearPendingRefresh(): void {
+  if (pendingRefreshTimer === undefined || typeof window === "undefined")
+    return;
+  window.clearTimeout(pendingRefreshTimer);
+  pendingRefreshTimer = undefined;
+}
+
+function scheduleRefresh(
+  projectId: string,
+  options: GitContextRefreshOptions,
+  delayMs: number,
+): void {
+  if (pendingRefreshTimer !== undefined || typeof window === "undefined")
+    return;
+  pendingRefreshTimer = window.setTimeout(() => {
+    pendingRefreshTimer = undefined;
+    void refreshGitContext(projectId, { ...options, force: false });
+  }, delayMs);
+}
+
+function applyGitContext(next: GitContext): void {
+  const current = workbenchState.gitContext;
+  const changed =
+    !current ||
+    current.projectId !== next.projectId ||
+    gitContextFingerprint(current) !== gitContextFingerprint(next);
+
+  if (changed) {
+    workbenchState.gitContext = next;
+  } else {
+    workbenchState.gitContext = { ...current, loadedAt: next.loadedAt };
+  }
+}
+
+async function loadGitContext(projectId: string): Promise<GitContext> {
+  const discovery = await discoverGitRepos(projectId);
+  let github: { available: boolean; authenticated: boolean } | undefined;
+  try {
+    const status = await getGithubStatus(
+      projectId,
+      discovery.repos[0]?.relativePath ?? ".",
+    );
+    github = {
+      available: status.available,
+      authenticated: status.authenticated,
+    };
+  } catch {
+    github = undefined;
+  }
+  return {
+    projectId,
+    projectIsRepo: discovery.projectIsRepo,
+    repos: discovery.repos,
+    github,
+    loadedAt: Date.now(),
+  };
+}
+
+export async function refreshGitContext(
+  projectId?: string,
+  options: GitContextRefreshOptions = {},
+): Promise<void> {
   const id = projectId ?? selection.projectId;
-  if (!id) return;
-  if (inFlight.has(id)) return;
+  if (!id || hiddenForPolling(options.reason)) return;
+
+  if (options.force) clearPendingRefresh();
+
+  const now = Date.now();
+  const elapsed = now - lastRefreshStartedAt;
+  if (
+    !options.force &&
+    lastRefreshStartedAt > 0 &&
+    elapsed < GIT_CONTEXT_MIN_REFRESH_MS
+  ) {
+    scheduleRefresh(id, options, GIT_CONTEXT_MIN_REFRESH_MS - elapsed);
+    return;
+  }
+
+  if (inFlight.has(id)) {
+    if (options.force) scheduleRefresh(id, options, GIT_CONTEXT_MIN_REFRESH_MS);
+    return;
+  }
+  lastRefreshStartedAt = now;
   inFlight.add(id);
   try {
-    const discovery = await discoverGitRepos(id);
-    let github: { available: boolean; authenticated: boolean } | undefined;
-    try {
-      const status = await getGithubStatus(
-        id,
-        discovery.repos[0]?.relativePath ?? ".",
-      );
-      github = {
-        available: status.available,
-        authenticated: status.authenticated,
-      };
-    } catch {
-      github = undefined;
-    }
-    workbenchState.gitContext = {
-      projectId: id,
-      projectIsRepo: discovery.projectIsRepo,
-      repos: discovery.repos,
-      github,
-      loadedAt: Date.now(),
-    };
+    applyGitContext(await loadGitContext(id));
   } catch {
     // Discovery failed (not a repo, permissions, etc.) — drop context so no
     // suggestions are shown rather than surfacing an error.
@@ -45,7 +136,61 @@ export async function refreshGitContext(projectId?: string): Promise<void> {
 }
 
 export function clearGitContext(): void {
+  clearPendingRefresh();
   workbenchState.gitContext = undefined;
+}
+
+function refreshIfStale(): void {
+  if (
+    typeof document !== "undefined" &&
+    document.visibilityState !== "visible"
+  ) {
+    return;
+  }
+
+  const projectId = selection.projectId;
+  if (
+    shouldRefreshGitContextOnFocus(
+      workbenchState.gitContext,
+      projectId,
+      Date.now(),
+      GIT_CONTEXT_FOCUS_STALE_MS,
+    )
+  ) {
+    void refreshGitContext(projectId, {
+      reason: "focus",
+      force: workbenchState.gitContext?.projectId !== projectId,
+    });
+  }
+}
+
+export function startGitContextAutoRefresh(): () => void {
+  if (typeof window === "undefined") return stopGitContextAutoRefresh;
+  if (autoRefreshInterval !== undefined) return stopGitContextAutoRefresh;
+
+  autoRefreshInterval = window.setInterval(() => {
+    void refreshGitContext(selection.projectId, { reason: "poll" });
+  }, GIT_CONTEXT_AUTO_REFRESH_MS);
+
+  window.addEventListener("focus", refreshIfStale);
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", refreshIfStale);
+  }
+
+  return stopGitContextAutoRefresh;
+}
+
+export function stopGitContextAutoRefresh(): void {
+  if (typeof window === "undefined") return;
+  if (autoRefreshInterval !== undefined) {
+    window.clearInterval(autoRefreshInterval);
+    autoRefreshInterval = undefined;
+  }
+  clearPendingRefresh();
+  window.removeEventListener("focus", refreshIfStale);
+  if (typeof document !== "undefined") {
+    document.removeEventListener("visibilitychange", refreshIfStale);
+  }
 }
 
 /**
@@ -55,5 +200,5 @@ export function clearGitContext(): void {
  */
 export function invalidateGit(projectId?: string): void {
   workbenchState.gitRefreshToken += 1;
-  void refreshGitContext(projectId);
+  void refreshGitContext(projectId, { reason: "invalidate", force: true });
 }

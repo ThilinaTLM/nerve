@@ -59,6 +59,7 @@
     invalidateGit,
     clearGitContext,
     refreshGitContext,
+    startGitContextAutoRefresh,
     loadSettingsPanel,
     navigateToEntry,
     newConversationInProject,
@@ -256,12 +257,14 @@
     const projectId = activeProject?.id;
     if (projectId === lastGitProjectId) return;
     lastGitProjectId = projectId;
-    if (projectId) void refreshGitContext(projectId);
+    if (projectId)
+      void refreshGitContext(projectId, { reason: "project", force: true });
     else clearGitContext();
   });
 
   onMount(() => {
     const unsubscribeDesktop = initializeDesktopRuntime();
+    const stopGitContextAutoRefresh = startGitContextAutoRefresh();
     initializeNotifications();
     const startedOnSettings =
       window.location.pathname === "/settings" ||
@@ -280,6 +283,7 @@
     return () => {
       window.removeEventListener("keydown", handleZoomShortcut);
       unsubscribeDesktop();
+      stopGitContextAutoRefresh();
       disconnectWorkbench();
     };
   });
