@@ -5,7 +5,7 @@
  * - Abbreviates intermediate segments to their first character.
  * - Keeps the final segment (the leaf) in full.
  *
- * e.g. `/home/tlm/Projects/90events` with home `/home/tlm` → `~/P/90events`
+ * e.g. `/home/user/Projects/example-app` with home `/home/user` → `~/P/example-app`
  */
 export function shortenPath(dir?: string, home?: string): string {
   if (!dir) return "";
@@ -59,7 +59,7 @@ export function isPathInDirectory(candidate?: string, root?: string): boolean {
  * Collapse a leading home directory to `~` while keeping every path segment
  * intact (unlike {@link shortenPath}, which abbreviates intermediate segments).
  *
- * e.g. `/home/tlm/Projects/nerve` with home `/home/tlm` → `~/Projects/nerve`
+ * e.g. `/home/user/Projects/nerve` with home `/home/user` → `~/Projects/nerve`
  */
 export function tildePath(dir?: string, home?: string): string {
   if (!dir) return "";

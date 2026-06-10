@@ -4,7 +4,6 @@
   "description": "UI-first personal AI coding harness.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
-  "private": true,
   "type": "module",
   "desktopName": "nerve-desktop",
   "main": "dist/main.js",

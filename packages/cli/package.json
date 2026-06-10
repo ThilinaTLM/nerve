@@ -3,7 +3,6 @@
   "version": "0.0.0",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
-  "private": true,
   "type": "module",
   "bin": {
     "nerve": "./dist/main.js"

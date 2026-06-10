@@ -85,7 +85,7 @@ describe("deriveConversationTitle", () => {
   it("falls back to file review for code/path-only prompts", () => {
     assert.equal(
       deriveConversationTitle(
-        "/home/tlm/Projects/pi/nerve/packages/web/src/App.svelte\n```ts\nconst x = 1;\n```",
+        "/home/user/Projects/nerve/packages/web/src/App.svelte\n```ts\nconst x = 1;\n```",
       ),
       "File Review",
     );

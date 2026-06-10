@@ -451,7 +451,7 @@ describe("parseToolView", () => {
         {},
         {
           mode: "planning",
-          planDir: "/home/tlm/.pi/plans",
+          planDir: "/home/user/.nerve/plans",
           contentBlocks: [{ type: "text", text: "Plan mode active." }],
         },
       ),
@@ -459,7 +459,7 @@ describe("parseToolView", () => {
     assert.equal(view.kind, "plan_mode");
     if (view.kind !== "plan_mode") return;
     assert.equal(view.action, "enter");
-    assert.equal(view.planPath, "/home/tlm/.pi/plans");
+    assert.equal(view.planPath, "/home/user/.nerve/plans");
     assert.equal(view.summary, "Plan mode active.");
   });
 
@@ -467,9 +467,9 @@ describe("parseToolView", () => {
     const view = parseToolView(
       toolCall(
         "plan_mode_present",
-        { file_path: "/home/tlm/.pi/plans/feature.md" },
+        { file_path: "/home/user/.nerve/plans/feature.md" },
         {
-          review: { planPath: "/home/tlm/.pi/plans/feature.md" },
+          review: { planPath: "/home/user/.nerve/plans/feature.md" },
           outcome: "accepted",
           feedback: "Looks good",
         },
@@ -478,7 +478,7 @@ describe("parseToolView", () => {
     assert.equal(view.kind, "plan_mode");
     if (view.kind !== "plan_mode") return;
     assert.equal(view.action, "present");
-    assert.equal(view.planPath, "/home/tlm/.pi/plans/feature.md");
+    assert.equal(view.planPath, "/home/user/.nerve/plans/feature.md");
     assert.equal(view.outcome, "accepted");
     assert.equal(view.summary, "Looks good");
   });
