@@ -59,6 +59,8 @@ export type TranscriptItem = {
   contentIndex?: number;
   toolCallId?: string;
   toolRecordId?: string;
+  toolName?: string;
+  isToolError?: boolean;
   usage?: ConversationEntry["usage"];
   stopReason?: "error" | "aborted";
   errorMessage?: string;

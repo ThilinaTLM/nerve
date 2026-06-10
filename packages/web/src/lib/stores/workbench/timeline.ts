@@ -16,6 +16,12 @@ export type TimelineItem =
       liveOutput?: LiveToolOutput;
     }
   | { kind: "tool_draft"; key: string; draft: LiveToolCallDraft }
+  | {
+      kind: "tool_result_error";
+      key: string;
+      toolName: string;
+      error: string;
+    }
   | { kind: "run_status"; key: string; notice: RunStatusNotice };
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
@@ -146,6 +152,16 @@ export function buildConversationTimeline(
         liveOutput: liveOutputFor(live, toolCall.id),
       });
       consumedToolCallIds.add(toolCall.id);
+      return;
+    }
+
+    if (item.role === "system" && item.isToolError && item.toolName) {
+      items.push({
+        kind: "tool_result_error",
+        key: item.id ?? `tool-result-error-${index}`,
+        toolName: item.toolName,
+        error: item.text,
+      });
       return;
     }
 

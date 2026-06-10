@@ -39,6 +39,7 @@
       ? "interactive"
       : "output",
   );
+  const showBody = $derived(toolCall.status !== "error" && toolCall.status !== "denied");
   const toolQuestion = $derived(
     pendingUserQuestion?.toolCallId === toolCall.id ? pendingUserQuestion : undefined,
   );
@@ -48,16 +49,18 @@
 </script>
 
 <ToolCallShell {toolCall} {presentation} {bodyMode} {onOpenFile} bind:expanded>
-  <ToolView
-    {toolCall}
-    {view}
-    {expanded}
-    {onOpenFile}
-    questionRecord={toolQuestion}
-    planReview={toolPlanReview}
-    {onAnswerUserQuestion}
-    {onDismissUserQuestion}
-    {onAcceptPlanReview}
-    {onRejectPlanReview}
-  />
+  {#if showBody}
+    <ToolView
+      {toolCall}
+      {view}
+      {expanded}
+      {onOpenFile}
+      questionRecord={toolQuestion}
+      planReview={toolPlanReview}
+      {onAnswerUserQuestion}
+      {onDismissUserQuestion}
+      {onAcceptPlanReview}
+      {onRejectPlanReview}
+    />
+  {/if}
 </ToolCallShell>

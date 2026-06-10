@@ -608,6 +608,17 @@ describe("toolPresentation", () => {
     assert.ok(p.meta.some((m) => m.text === "−1" && m.tone === "error"));
   });
 
+  it("marks errored edit calls with danger status", () => {
+    const p = present(
+      "edit",
+      { path: "x.ts", edits: [{ oldText: "a", newText: "b", note: "bad" }] },
+      undefined,
+      { status: "error", error: "Validation failed." },
+    );
+    assert.equal(p.dotTone, "danger");
+    assert.equal(p.primaryArg?.text, "x.ts");
+  });
+
   it("uses the url as an href primary arg for web_fetch", () => {
     const p = present(
       "web_fetch",

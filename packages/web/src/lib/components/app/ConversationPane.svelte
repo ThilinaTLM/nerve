@@ -17,6 +17,7 @@
   import ThinkingBlock from "./ThinkingBlock.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
   import ToolDraftCard from "./tool-call/ToolDraftCard.svelte";
+  import ToolResultErrorCard from "./tool-call/ToolResultErrorCard.svelte";
   import RunStatusCard from "./RunStatusCard.svelte";
 
   type Props = {
@@ -142,7 +143,9 @@
           ? true
           : node.kind === "tool"
             ? node.toolCall.status === "running"
-            : node.notice.state === "retrying",
+            : node.kind === "run_status"
+              ? node.notice.state === "retrying"
+              : false,
     ),
   );
   const scrollSignature = $derived(
@@ -156,6 +159,9 @@
         }
         if (node.kind === "run_status") {
           return `${node.key}:${node.notice.state}:${node.notice.attempt ?? 0}:${node.notice.errorMessage?.length ?? 0}`;
+        }
+        if (node.kind === "tool_result_error") {
+          return `${node.key}:${node.toolName}:${node.error.length}`;
         }
         return `${node.key}:${node.toolCall.status}:${node.liveOutput?.text.length ?? 0}`;
       })
@@ -380,6 +386,8 @@
           />
         {:else if node.kind === "tool_draft"}
           <ToolDraftCard draft={node.draft} />
+        {:else if node.kind === "tool_result_error"}
+          <ToolResultErrorCard toolName={node.toolName} error={node.error} />
         {:else if node.kind === "run_status"}
           <RunStatusCard
             notice={node.notice}

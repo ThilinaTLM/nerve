@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   AgentRecord,
   ApprovalRecord,
@@ -15,6 +15,7 @@ import {
   allToolDescriptors,
   executeTool,
   type ToolExecutionOutputUpdate,
+  toolRiskForName,
 } from "@nerve/tools";
 import type {
   ConversationRuntime,
@@ -35,7 +36,7 @@ export interface ToolExecutionResponse {
   approval?: ApprovalRecord;
 }
 
-type ToolRequestOptions = {
+export type ToolRequestOptions = {
   signal?: AbortSignal;
   sourceToolCallId?: string;
   providerToolCallId?: string;
@@ -363,6 +364,73 @@ export class ToolService {
       waiters.add(settle);
       options.signal?.addEventListener("abort", onAbort, { once: true });
     });
+  }
+
+  findToolCallByProviderToolCallId(
+    providerToolCallId: string | undefined,
+  ): ToolCallRecord | undefined {
+    if (!providerToolCallId) return undefined;
+    return [...this.toolCalls.values()].find(
+      (toolCall) =>
+        toolCall.providerToolCallId === providerToolCallId ||
+        toolCall.sourceToolCallId === providerToolCallId,
+    );
+  }
+
+  async recordProviderToolCallError(
+    agent: AgentRecord,
+    toolName: ToolName,
+    args: Record<string, unknown>,
+    errorMessage: string,
+    options: ToolRequestOptions = {},
+  ): Promise<ToolCallRecord> {
+    const providerToolCallId =
+      options.providerToolCallId ?? options.sourceToolCallId;
+    const existing = this.findToolCallByProviderToolCallId(providerToolCallId);
+    if (existing) return existing;
+
+    const now = new Date().toISOString();
+    const latestAgent = this.getAgent(agent.id);
+    const anchor = options.anchor;
+    const cwd =
+      typeof args.cwd === "string" && args.cwd.trim().length > 0
+        ? resolve(latestAgent.projectDir, args.cwd)
+        : resolve(latestAgent.projectDir);
+    const toolCall: ToolCallRecord = {
+      id: createId("tool"),
+      agentId: latestAgent.id,
+      conversationId: latestAgent.conversationId,
+      projectId: latestAgent.projectId,
+      toolName,
+      sourceToolCallId: providerToolCallId,
+      providerToolCallId,
+      runId: options.runId ?? anchor?.runId,
+      turnId: options.turnId ?? anchor?.turnId,
+      liveMessageId: options.liveMessageId ?? anchor?.liveMessageId,
+      contentIndex: options.contentIndex ?? anchor?.contentIndex,
+      risk: toolRiskForName(toolName),
+      args,
+      cwd,
+      status: "error",
+      error: errorMessage,
+      result: {
+        content: errorMessage,
+        contentBlocks: [{ type: "text", text: errorMessage }],
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.upsertToolCall(toolCall);
+    await this.publishToolCallUpdated(toolCall);
+    await this.logger?.warn("Tool call failed before execution", {
+      toolCallId: toolCall.id,
+      agentId: toolCall.agentId,
+      conversationId: toolCall.conversationId,
+      projectId: toolCall.projectId,
+      runId: toolCall.runId,
+      context: { toolName, providerToolCallId },
+    });
+    return toolCall;
   }
 
   async grantApproval(

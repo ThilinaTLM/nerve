@@ -130,6 +130,60 @@ describe("buildConversationTimeline", () => {
     );
   });
 
+  it("anchors errored validation tool cards at matching tool-result entries", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Edit file" },
+      {
+        id: "entry_result",
+        role: "system",
+        text: "Validation failed for tool edit.",
+        toolCallId: "provider_call_1",
+        toolName: "edit",
+        isToolError: true,
+      },
+    ];
+    const toolCalls = [
+      toolCall(
+        "tool_error",
+        "2026-01-01T00:00:01.000Z",
+        "edit",
+        "provider_call_1",
+        {
+          status: "error",
+          error: "Validation failed for tool edit.",
+        },
+      ),
+    ];
+
+    const timeline = buildConversationTimeline(transcript, toolCalls);
+
+    assert.deepEqual(keys(timeline), ["entry_user", "tool_error"]);
+    assert.equal(timeline[1]?.kind, "tool");
+  });
+
+  it("renders unmatched historical tool-result errors as fallback error cards", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Edit file" },
+      {
+        id: "entry_result",
+        role: "system",
+        text: "Validation failed for tool edit.",
+        toolCallId: "provider_call_1",
+        toolName: "edit",
+        isToolError: true,
+      },
+    ];
+
+    const timeline = buildConversationTimeline(transcript, []);
+
+    assert.deepEqual(keys(timeline), ["entry_user", "entry_result"]);
+    assert.equal(timeline[1]?.kind, "tool_result_error");
+    if (timeline[1]?.kind === "tool_result_error") {
+      assert.equal(timeline[1].toolName, "edit");
+      assert.equal(timeline[1].error, "Validation failed for tool edit.");
+    }
+  });
+
   it("keeps accepted plan tool cards before the follow-up implementation instruction", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Create a plan" },

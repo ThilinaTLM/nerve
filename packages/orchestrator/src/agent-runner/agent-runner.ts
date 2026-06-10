@@ -23,6 +23,8 @@ import {
   createId,
   type ProjectRecord,
   type PromptRequest,
+  type ToolName,
+  toolNameSchema,
 } from "@nerve/shared";
 import type { AgentSuspensionService } from "../agent-suspension-service.js";
 import {
@@ -246,6 +248,10 @@ export class AgentRunner {
     let currentTurnId: string | undefined;
     let currentLiveMessageId: string | undefined;
     const liveToolDraftNames = new Map<number, string | undefined>();
+    const pendingProviderToolCalls = new Map<
+      string,
+      { toolName: string; args: Record<string, unknown> }
+    >();
 
     try {
       await this.deps.logger.info("Agent run preparing", {
@@ -317,6 +323,57 @@ export class AgentRunner {
           const turn = this.deps.conversationRuntime.startTurn(runId);
           currentTurnId = turn.turnId;
           currentLiveMessageId = undefined;
+          pendingProviderToolCalls.clear();
+          return;
+        }
+        if (event.type === "tool_execution_start") {
+          pendingProviderToolCalls.set(event.toolCallId, {
+            toolName: event.toolName,
+            args: recordFromUnknown(event.args),
+          });
+          return;
+        }
+        if (event.type === "tool_execution_end") {
+          const started = pendingProviderToolCalls.get(event.toolCallId);
+          pendingProviderToolCalls.delete(event.toolCallId);
+          if (!event.isError) return;
+          if (
+            this.deps.tools.findToolCallByProviderToolCallId(event.toolCallId)
+          ) {
+            return;
+          }
+          const parsedToolName = toolNameSchema.safeParse(event.toolName);
+          if (!parsedToolName.success) {
+            await this.deps.logger.warn(
+              "Unknown tool call failed before execution",
+              {
+                agentId: agent.id,
+                conversationId: agent.conversationId,
+                projectId: agent.projectId,
+                runId,
+                context: {
+                  toolName: event.toolName,
+                  providerToolCallId: event.toolCallId,
+                },
+              },
+            );
+            return;
+          }
+          await this.deps.tools.recordProviderToolCallError(
+            agent,
+            parsedToolName.data as ToolName,
+            started?.args ?? {},
+            errorTextFromToolResult(event.result, event.toolName),
+            {
+              sourceToolCallId: event.toolCallId,
+              providerToolCallId: event.toolCallId,
+              runId,
+              anchor: this.deps.conversationRuntime.resolveToolAnchor(
+                runId,
+                event.toolCallId,
+              ),
+            },
+          );
           return;
         }
         if (
@@ -986,6 +1043,27 @@ export class AgentRunner {
       keepRecentTokens: settings.keepRecentTokens,
     });
   }
+}
+
+function recordFromUnknown(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function errorTextFromToolResult(result: unknown, toolName: string): string {
+  const record = recordFromUnknown(result);
+  const content = Array.isArray(record.content) ? record.content : [];
+  const text = content
+    .map((part) => {
+      const partRecord = recordFromUnknown(part);
+      return partRecord.type === "text" && typeof partRecord.text === "string"
+        ? partRecord.text
+        : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+  return text.trim() || `Tool ${toolName} failed before execution.`;
 }
 
 function isRetryableAssistantError(message: AssistantMessage): boolean {

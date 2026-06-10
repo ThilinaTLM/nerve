@@ -37,6 +37,8 @@ function entryDetails(
 function toolMetadata(entry: ConversationEntry): {
   toolCallId?: string;
   toolRecordId?: string;
+  toolName?: string;
+  isToolError?: boolean;
 } {
   const details = entryDetails(entry);
   const nestedDetails =
@@ -53,6 +55,8 @@ function toolMetadata(entry: ConversationEntry): {
     toolRecordId:
       startsWithToolPrefix(details?.toolRecordId) ??
       startsWithToolPrefix(nestedToolCall?.id),
+    toolName: stringValue(details?.toolName),
+    isToolError: details?.isError === true,
   };
 }
 

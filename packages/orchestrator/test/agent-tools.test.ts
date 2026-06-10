@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { AgentRecord } from "@nerve/shared";
-import { coreToolNameSchema } from "@nerve/shared";
+import { coreToolNameSchema, defaultSettings } from "@nerve/shared";
 import {
   allToolDefinitions,
   coreToolDefinitionByName,
@@ -9,6 +12,8 @@ import {
   coreToolDescriptors,
 } from "@nerve/tools";
 import { activeToolNamesForAgent } from "../src/agent-tool-adapter.js";
+import { storagePaths } from "../src/storage.js";
+import { ToolService } from "../src/tool-service.js";
 
 describe("agent tool definitions", () => {
   it("matches shared core tool names and derives descriptors from definitions", () => {
@@ -175,6 +180,73 @@ describe("agent tool definitions", () => {
       path: "src/file.ts",
       edits: [{ oldText: "old", newText: "new" }],
     });
+  });
+
+  it("records pre-execution provider tool-call errors as terminal tool records", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-error-"));
+    const events: Array<{ type: string; data: unknown }> = [];
+    const testAgent = agent("autonomous");
+    const service = new ToolService(
+      {
+        paths: storagePaths(home),
+        settings: defaultSettings,
+        localToken: "test",
+      },
+      {
+        publish: async (type: string, data: unknown) =>
+          events.push({ type, data }),
+      } as never,
+      { upsertToolCall: () => undefined } as never,
+      {} as never,
+      async () => {
+        throw new Error("not used");
+      },
+      () => testAgent,
+      async () => {
+        throw new Error("not used");
+      },
+      async () => undefined,
+      {} as never,
+      async () => testAgent,
+      {} as never,
+    );
+
+    const toolCall = await service.recordProviderToolCallError(
+      testAgent,
+      "edit",
+      {
+        path: "src/file.ts",
+        edits: [{ oldText: "a", newText: "b", note: "bad" }],
+      },
+      "Validation failed for tool edit.",
+      {
+        providerToolCallId: "provider_call_1",
+        sourceToolCallId: "provider_call_1",
+        runId: "run_01H00000000000000000000000",
+      },
+    );
+
+    assert.equal(toolCall.status, "error");
+    assert.equal(toolCall.sourceToolCallId, "provider_call_1");
+    assert.equal(toolCall.providerToolCallId, "provider_call_1");
+    assert.equal(toolCall.error, "Validation failed for tool edit.");
+    assert.deepEqual(toolCall.args, {
+      path: "src/file.ts",
+      edits: [{ oldText: "a", newText: "b", note: "bad" }],
+    });
+    assert.equal(
+      service.findToolCallByProviderToolCallId("provider_call_1")?.id,
+      toolCall.id,
+    );
+    assert.ok(
+      events.some((event) => event.type === "conversation.tool_call.updated"),
+    );
+
+    const rawLog = await readFile(
+      join(home, "logs", "tool-calls.jsonl"),
+      "utf8",
+    );
+    assert.match(rawLog, /Validation failed for tool edit/);
   });
 });
 
