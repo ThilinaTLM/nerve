@@ -12,9 +12,10 @@
     "build": "pnpm run icons && tsc -b && node scripts/copy-preload.mjs",
     "check": "tsc -b --pretty false",
     "start": "node scripts/start-electron.mjs",
-    "dev": "pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && node scripts/start-electron.mjs",
-    "build:package": "pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron-builder",
-    "package:linux": "pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron-builder --linux AppImage deb"
+    "build:deps": "pnpm --filter @nerve/shared --filter @nerve/agent --filter @nerve/tools build",
+    "dev": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && node scripts/start-electron.mjs",
+    "build:package": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron-builder",
+    "package:linux": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron-builder --linux AppImage deb"
   },
   "dependencies": {
     "@nerve/orchestrator": "workspace:*",

@@ -32,7 +32,7 @@ desktop:
 desktop-fast:
 	$(PNPM) --filter @nerve/desktop start
 
-desktop-build:
+desktop-build: dev-deps
 	$(PNPM) --filter @nerve/web build
 	$(PNPM) --filter @nerve/orchestrator build
 	$(PNPM) --filter @nerve/desktop build
