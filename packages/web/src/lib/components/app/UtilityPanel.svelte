@@ -50,7 +50,7 @@
   };
 
   let {
-    activeTab = $bindable<UtilityTab>("info"),
+    activeTab = $bindable<UtilityTab>("git"),
     status,
     activeProject,
     activeConversation,
@@ -76,10 +76,10 @@
   }: Props = $props();
 
   const tabs = $derived<TabItem[]>([
-    { value: "info", label: "Context", icon: Info },
     { value: "git", label: "Git", icon: GitBranch },
     { value: "processes", label: "Processes", icon: Terminal, count: processes.length },
     { value: "history", label: "History", icon: History },
+    { value: "info", label: "Context", icon: Info },
   ]);
 
   function setTab(tab: string) {
