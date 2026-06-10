@@ -17,6 +17,7 @@ export type IdPrefix =
   | "susp"
   | "worker"
   | "authflow"
+  | "credkey"
   | "log"
   | "promptq";
 

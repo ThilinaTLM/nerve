@@ -14,12 +14,13 @@
   import CompactionSettingsSection from "./settings/sections/CompactionSettingsSection.svelte";
   import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
+  import ProvidersSettingsSection from "./settings/sections/ProvidersSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
   import "./settings/settings.css";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-  type SectionId = "appearance" | "desktop" | "agents" | "models" | "server" | "compaction" | "runtime";
+  type SectionId = "appearance" | "desktop" | "agents" | "providers" | "models" | "server" | "compaction" | "runtime";
   type SettingsChange = (
     patch: UpdateSettingsRequest,
     options?: { immediate?: boolean; debounceMs?: number },
@@ -40,6 +41,7 @@
     { id: "appearance", label: "Appearance", detail: "Theme" },
     { id: "desktop", label: "Desktop", detail: "Window" },
     { id: "agents", label: "Agents", detail: "Defaults" },
+    { id: "providers", label: "Providers", detail: "Auth" },
     { id: "models", label: "Models", detail: "Scope" },
     { id: "server", label: "Server", detail: "Binding" },
     { id: "compaction", label: "Compaction", detail: "Context" },
@@ -106,6 +108,7 @@
         <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
         <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
         <AgentsSettingsSection {settingsDraft} {onSettingsChange} />
+        <ProvidersSettingsSection {authProviders} />
         <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ServerSettingsSection {settingsDraft} {onSettingsChange} />
         <CompactionSettingsSection {settingsDraft} {onSettingsChange} />

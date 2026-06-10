@@ -3,6 +3,7 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import { createId, type DaemonFile, type StatusResponse } from "@nerve/shared";
 import { Hono } from "hono";
 import { AuthManager } from "./auth.js";
+import { CredentialKeyService } from "./credential-crypto.js";
 import { EventBus } from "./events.js";
 import { createApiAuthMiddleware } from "./http/auth-middleware.js";
 import {
@@ -36,6 +37,7 @@ export interface OrchestratorState {
   index: IndexStore;
   secrets: SecretProvider;
   auth: AuthManager;
+  credentialKey: CredentialKeyService;
   oauthFlows: OAuthFlowManager;
   subscriptionUsage: SubscriptionUsageService;
 }
@@ -58,6 +60,7 @@ export function createOrchestratorState(
   });
   const secrets = new EncryptedFileSecretProvider(storage.paths.home);
   const auth = new AuthManager(secrets);
+  const credentialKey = new CredentialKeyService();
   const oauthFlows = new OAuthFlowManager(auth, events);
   const subscriptionUsage = new SubscriptionUsageService({
     auth,
@@ -83,6 +86,7 @@ export function createOrchestratorState(
     index,
     secrets,
     auth,
+    credentialKey,
     oauthFlows,
     subscriptionUsage,
   };

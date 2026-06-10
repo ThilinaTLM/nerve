@@ -23,10 +23,32 @@ export const authProviderMetadataSchema = z.object({
 });
 export type AuthProviderMetadata = z.infer<typeof authProviderMetadataSchema>;
 
-export const setProviderApiKeyRequestSchema = z.object({
-  provider: z.string().min(1),
-  apiKey: z.string().min(1),
+export const encryptedSecretEnvelopeSchema = z.object({
+  keyId: z.string().min(1),
+  encryptedKey: z.string().min(1), // base64 RSA-OAEP(aesKey)
+  iv: z.string().min(1), // base64 (12 bytes)
+  ciphertext: z.string().min(1), // base64 AES-GCM(secret)||tag
 });
+export type EncryptedSecretEnvelope = z.infer<
+  typeof encryptedSecretEnvelopeSchema
+>;
+
+export const credentialKeyResponseSchema = z.object({
+  keyId: z.string().min(1),
+  algorithm: z.literal("RSA-OAEP-256+A256GCM"),
+  publicKey: z.string().min(1), // base64 SPKI DER
+});
+export type CredentialKeyResponse = z.infer<typeof credentialKeyResponseSchema>;
+
+export const setProviderApiKeyRequestSchema = z
+  .object({
+    provider: z.string().min(1),
+    apiKey: z.string().min(1).optional(),
+    encryptedApiKey: encryptedSecretEnvelopeSchema.optional(),
+  })
+  .refine((value) => Boolean(value.apiKey) !== Boolean(value.encryptedApiKey), {
+    message: "Provide exactly one of apiKey or encryptedApiKey.",
+  });
 export type SetProviderApiKeyRequest = z.infer<
   typeof setProviderApiKeyRequestSchema
 >;

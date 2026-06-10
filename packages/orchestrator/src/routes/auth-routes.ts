@@ -4,7 +4,6 @@ import {
   startOAuthFlowRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
-import { requireBearerAuth } from "../http/auth-middleware.js";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";
 
@@ -18,28 +17,25 @@ export function createAuthRoutes(state: OrchestratorState): Hono {
       ),
     }),
   );
+  app.get("/auth/credential-key", (c) =>
+    c.json(state.credentialKey.getPublicKey()),
+  );
   app.post(
     "/auth/oauth/flows",
     routeHandler(async (c) => {
-      const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
-      if (authError) return authError;
       const body = startOAuthFlowRequestSchema.parse(await c.req.json());
       return c.json({ flow: state.oauthFlows.start(body.provider) });
     }),
   );
   app.get(
     "/auth/oauth/flows/:flowId",
-    routeHandler((c) => {
-      const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
-      if (authError) return authError;
-      return c.json({ flow: state.oauthFlows.get(c.req.param("flowId")) });
-    }),
+    routeHandler((c) =>
+      c.json({ flow: state.oauthFlows.get(c.req.param("flowId")) }),
+    ),
   );
   app.post(
     "/auth/oauth/flows/:flowId/respond",
     routeHandler(async (c) => {
-      const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
-      if (authError) return authError;
       const body = respondOAuthFlowRequestSchema.parse(await c.req.json());
       return c.json({
         flow: await state.oauthFlows.respond(c.req.param("flowId"), body),
@@ -48,17 +44,13 @@ export function createAuthRoutes(state: OrchestratorState): Hono {
   );
   app.post(
     "/auth/oauth/flows/:flowId/cancel",
-    routeHandler(async (c) => {
-      const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
-      if (authError) return authError;
-      return c.json({
+    routeHandler(async (c) =>
+      c.json({
         flow: await state.oauthFlows.cancel(c.req.param("flowId")),
-      });
-    }),
+      }),
+    ),
   );
   app.delete("/auth/providers/:provider", async (c) => {
-    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
-    if (authError) return authError;
     const provider = c.req.param("provider");
     await state.auth.deleteCredential(provider);
     await state.events.publish("auth.credential_deleted", { provider });
@@ -66,8 +58,6 @@ export function createAuthRoutes(state: OrchestratorState): Hono {
     return c.json({ ok: true });
   });
   app.get("/provider-keys", async (c) => {
-    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
-    if (authError) return authError;
     const providers = await state.auth.listProviderMetadata(
       state.registry.listModels(),
     );
@@ -84,10 +74,14 @@ export function createAuthRoutes(state: OrchestratorState): Hono {
   app.put(
     "/provider-keys",
     routeHandler(async (c) => {
-      const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
-      if (authError) return authError;
       const body = setProviderApiKeyRequestSchema.parse(await c.req.json());
-      await state.auth.setApiKey(body.provider, body.apiKey);
+      const apiKey = body.encryptedApiKey
+        ? state.credentialKey.decryptEnvelope(body.encryptedApiKey)
+        : body.apiKey;
+      if (!apiKey) {
+        throw new Error("Missing API key.");
+      }
+      await state.auth.setApiKey(body.provider, apiKey);
       await state.events.publish("secrets.provider_key_set", {
         provider: body.provider,
       });
@@ -98,8 +92,6 @@ export function createAuthRoutes(state: OrchestratorState): Hono {
     }),
   );
   app.delete("/provider-keys/:provider", async (c) => {
-    const authError = requireBearerAuth(c.req.raw, state.storage.localToken);
-    if (authError) return authError;
     const provider = c.req.param("provider");
     await state.auth.deleteCredential(provider);
     await state.events.publish("secrets.provider_key_deleted", { provider });
