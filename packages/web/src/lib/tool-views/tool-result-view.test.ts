@@ -649,6 +649,33 @@ describe("toolPresentation", () => {
     assert.deepEqual(metaText(p.meta), []);
   });
 
+  it("shows no footer chip for a dismissed ask_user", () => {
+    const p = present(
+      "ask_user",
+      { question: "Which?" },
+      { question: "Which?", dismissed: true, dismissedReason: "aborted" },
+    );
+    assert.equal(p.primaryArg, undefined);
+    assert.deepEqual(metaText(p.meta), []);
+  });
+
+  it("shows no footer chip for a rejected plan_mode_present", () => {
+    const p = present(
+      "plan_mode_present",
+      { file_path: "/home/user/.nerve/plans/feature.md" },
+      {
+        review: {
+          planPath: "/home/user/.nerve/plans/feature.md",
+          status: "changes_requested",
+        },
+        outcome: "changes_requested",
+      },
+    );
+    assert.equal(p.badge, "plan_mode_present");
+    assert.equal(p.primaryArg?.text, "/home/user/.nerve/plans/feature.md");
+    assert.deepEqual(metaText(p.meta), []);
+  });
+
   it("labels the badge as todos and reports progress", () => {
     const p = present(
       "todos_set",

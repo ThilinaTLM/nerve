@@ -50,13 +50,6 @@
   const rejected = $derived(
     reviewStatus === "changes_requested" || reviewStatus === "discarded",
   );
-  const label = $derived(
-    pendingReview
-      ? "Plan ready for review"
-      : rejected
-        ? "Plan rejected"
-        : undefined,
-  );
   const preview = $derived(
     trimTextPreview(displayedReview?.content ?? "", {
       headLines: 8,
@@ -72,10 +65,6 @@
 
 {#if showPlanCard && displayedReview}
   <div class="plan-review" aria-label="Plan review">
-    {#if label}
-      <p class="plan-label">{label}</p>
-    {/if}
-
     {#if preview.trim()}
       <pre class="plan-preview">{preview}</pre>
     {/if}
@@ -111,7 +100,6 @@
     gap: 0.55rem;
   }
 
-  .plan-label,
   .summary {
     margin: 0;
     color: var(--muted-foreground);

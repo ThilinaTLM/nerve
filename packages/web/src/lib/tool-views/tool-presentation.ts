@@ -303,25 +303,18 @@ export function toolPresentation(
       };
     }
 
-    case "ask_user": {
-      const meta: MetaItem[] = [];
-      if (view.dismissed) meta.push({ text: "dismissed", tone: "warning" });
-      return { ...base, meta };
-    }
+    case "ask_user":
+      return { ...base, meta: [] };
 
-    case "plan_mode": {
-      const meta: MetaItem[] = [];
-      if (view.outcome && view.outcome !== "accepted")
-        meta.push({ text: view.outcome, tone: outcomeTone(view.outcome) });
+    case "plan_mode":
       return {
         ...base,
         badge: `plan_mode_${view.action}`,
         primaryArg: view.planPath
           ? { text: view.planPath, openPath: view.planPath }
           : undefined,
-        meta,
+        meta: [],
       };
-    }
 
     default:
       return base;
@@ -341,13 +334,4 @@ function toneFromDot(tone: StatusTone): MetaTone {
     default:
       return "default";
   }
-}
-
-function outcomeTone(outcome: string): MetaTone {
-  if (outcome === "accepted") return "success";
-  if (outcome === "changes_requested" || outcome === "changes requested") {
-    return "warning";
-  }
-  if (outcome === "discarded") return "default";
-  return "default";
 }
