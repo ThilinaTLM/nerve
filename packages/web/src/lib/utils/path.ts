@@ -10,13 +10,13 @@
 export function shortenPath(dir?: string, home?: string): string {
   if (!dir) return "";
 
-  let rest = dir.replace(/\/+$/, "");
+  let rest = normalizeDisplayPath(dir);
   let prefix = "";
 
-  const normalizedHome = home?.replace(/\/+$/, "");
+  const normalizedHome = home ? normalizeDisplayPath(home) : undefined;
   if (
     normalizedHome &&
-    (rest === normalizedHome || rest.startsWith(`${normalizedHome}/`))
+    (pathsEqual(rest, normalizedHome) || pathStartsWith(rest, normalizedHome))
   ) {
     rest = rest.slice(normalizedHome.length);
     prefix = "~";
@@ -37,8 +37,23 @@ export function shortenPath(dir?: string, home?: string): string {
   return [...head, leaf].join("/");
 }
 
-function stripTrailingSlashes(path: string): string {
-  return path.replace(/\/+$/, "") || path;
+function normalizeDisplayPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "") || path;
+}
+
+function comparablePath(path: string): string {
+  const normalized = normalizeDisplayPath(path);
+  return /^[A-Za-z]:\//.test(normalized)
+    ? normalized.toLowerCase()
+    : normalized;
+}
+
+function pathsEqual(left: string, right: string): boolean {
+  return comparablePath(left) === comparablePath(right);
+}
+
+function pathStartsWith(candidate: string, root: string): boolean {
+  return comparablePath(candidate).startsWith(`${comparablePath(root)}/`);
 }
 
 /**
@@ -47,11 +62,11 @@ function stripTrailingSlashes(path: string): string {
  */
 export function isPathInDirectory(candidate?: string, root?: string): boolean {
   if (!candidate || !root) return false;
-  const normalizedCandidate = stripTrailingSlashes(candidate);
-  const normalizedRoot = stripTrailingSlashes(root);
+  const normalizedCandidate = normalizeDisplayPath(candidate);
+  const normalizedRoot = normalizeDisplayPath(root);
   return (
-    normalizedCandidate === normalizedRoot ||
-    normalizedCandidate.startsWith(`${normalizedRoot}/`)
+    pathsEqual(normalizedCandidate, normalizedRoot) ||
+    pathStartsWith(normalizedCandidate, normalizedRoot)
   );
 }
 
@@ -64,11 +79,11 @@ export function isPathInDirectory(candidate?: string, root?: string): boolean {
 export function tildePath(dir?: string, home?: string): string {
   if (!dir) return "";
 
-  const rest = dir.replace(/\/+$/, "");
-  const normalizedHome = home?.replace(/\/+$/, "");
+  const rest = normalizeDisplayPath(dir);
+  const normalizedHome = home ? normalizeDisplayPath(home) : undefined;
 
-  if (normalizedHome && rest === normalizedHome) return "~";
-  if (normalizedHome && rest.startsWith(`${normalizedHome}/`)) {
+  if (normalizedHome && pathsEqual(rest, normalizedHome)) return "~";
+  if (normalizedHome && pathStartsWith(rest, normalizedHome)) {
     return `~${rest.slice(normalizedHome.length)}`;
   }
   return rest || dir || "/";

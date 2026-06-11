@@ -2,6 +2,7 @@ import { parse } from "yaml";
 import type { ExecutionEnv, FileInfo } from "./env/types.js";
 import type { PromptTemplate } from "./options.js";
 import { type Result, toError } from "./result.js";
+import { basenameEnvPath } from "./utils/env-path.js";
 
 export type PromptTemplateDiagnosticCode =
   | "file_info_failed"
@@ -244,12 +245,6 @@ function parseFrontmatter<T extends Record<string, unknown>>(
   } catch (error) {
     return { ok: false, error: toError(error) };
   }
-}
-
-function basenameEnvPath(path: string): string {
-  const normalized = path.replace(/\/+$/, "");
-  const slashIndex = normalized.lastIndexOf("/");
-  return slashIndex === -1 ? normalized : normalized.slice(slashIndex + 1);
 }
 
 /** Parse an argument string using simple shell-style single and double quotes. */

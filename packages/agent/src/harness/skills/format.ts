@@ -1,4 +1,5 @@
 import type { Skill } from "../options.js";
+import { dirnameEnvPath } from "../utils/env-path.js";
 
 /** Format a skill invocation prompt, optionally appending additional user instructions. */
 export function formatSkillInvocation(
@@ -36,12 +37,6 @@ export function formatSkillsForSystemPrompt(skills: Skill[]): string {
 
   lines.push("</available_skills>");
   return lines.join("\n");
-}
-
-function dirnameEnvPath(path: string): string {
-  const normalized = path.replace(/\/+$/, "");
-  const slashIndex = normalized.lastIndexOf("/");
-  return slashIndex <= 0 ? "/" : normalized.slice(0, slashIndex);
 }
 
 function escapeXml(value: string): string {
