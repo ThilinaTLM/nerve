@@ -42,6 +42,13 @@
   const recommendation = $derived(
     questionRecord?.recommendation ?? view.recommendation,
   );
+  const submittedAnswer = $derived(questionRecord?.answer ?? view.answer);
+  const dismissed = $derived(
+    questionRecord?.status === "dismissed" || view.dismissed,
+  );
+  const dismissedReason = $derived(
+    questionRecord?.dismissedReason ?? view.dismissedReason,
+  );
   const trimmedAnswer = $derived(answer.trim());
 
   function appendTranscript(transcript: string) {
@@ -167,6 +174,10 @@
         </Button>
       </div>
     </form>
+  {:else if submittedAnswer}
+    <p class="meta answer"><span class="meta-label">answer</span> {submittedAnswer}</p>
+  {:else if dismissed}
+    <p class="meta"><span class="meta-label">dismissed</span> {dismissedReason ?? "No answer provided"}</p>
   {/if}
 </div>
 
@@ -186,6 +197,11 @@
     margin: 0;
     font-size: var(--text-sm);
     color: var(--muted-foreground);
+  }
+
+  .answer {
+    white-space: pre-wrap;
+    color: var(--foreground);
   }
 
   .meta-label {
