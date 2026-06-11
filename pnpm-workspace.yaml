@@ -1,5 +1,7 @@
 packages:
   - "packages/*"
+patchedDependencies:
+  '@earendil-works/pi-ai@0.79.1': patches/@earendil-works__pi-ai@0.79.1.patch
 allowBuilds:
   '@google/genai': true
   electron-winstaller: true
