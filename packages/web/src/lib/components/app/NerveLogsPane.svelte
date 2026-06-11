@@ -33,7 +33,7 @@
 
   const expanded = new SvelteSet<string>();
 
-  const rows = $derived(logs?.logs ?? []);
+  const rows = $derived([...(logs?.logs ?? [])].reverse());
   const filtersActive = $derived(
     level !== "all" || source !== "all" || component.trim() !== "" || contains.trim() !== "",
   );
