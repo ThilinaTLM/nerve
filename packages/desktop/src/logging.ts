@@ -51,5 +51,35 @@ function serializeError(error: unknown): ApplicationLogRecord["error"] {
   if (error instanceof Error) {
     return { name: error.name, message: error.message, stack: error.stack };
   }
+  if (typeof error === "string") {
+    return { message: error };
+  }
+  if (error && typeof error === "object") {
+    const pretty = safeStringify(error);
+    const message =
+      typeof (error as { message?: unknown }).message === "string"
+        ? (error as { message: string }).message
+        : pretty.split("\n", 1)[0];
+    return { message, stack: pretty };
+  }
   return { message: String(error) };
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    const seen = new WeakSet<object>();
+    return JSON.stringify(
+      value,
+      (_key, val) => {
+        if (val && typeof val === "object") {
+          if (seen.has(val as object)) return "[Circular]";
+          seen.add(val as object);
+        }
+        return val;
+      },
+      2,
+    );
+  } catch {
+    return String(value);
+  }
 }

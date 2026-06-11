@@ -1,14 +1,18 @@
 <script lang="ts">
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import Copy from "@lucide/svelte/icons/copy";
+  import FilterX from "@lucide/svelte/icons/filter-x";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Search from "@lucide/svelte/icons/search";
+  import Tag from "@lucide/svelte/icons/tag";
+  import X from "@lucide/svelte/icons/x";
+  import { SvelteSet } from "svelte/reactivity";
   import type {
     ApplicationLogLevel,
     ApplicationLogQueryResponse,
     ApplicationLogSource,
   } from "$lib/api";
   import { getApplicationLogs } from "$lib/api";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
@@ -27,7 +31,43 @@
   let loading = $state(false);
   let error = $state<string | undefined>();
 
+  const expanded = new SvelteSet<string>();
+
   const rows = $derived(logs?.logs ?? []);
+  const filtersActive = $derived(
+    level !== "all" || source !== "all" || component.trim() !== "" || contains.trim() !== "",
+  );
+
+  type LogRow = ApplicationLogQueryResponse["logs"][number];
+
+  function refs(log: LogRow): string[] {
+    return [
+      log.requestId,
+      log.projectId,
+      log.conversationId,
+      log.agentId,
+      log.runId,
+      log.toolCallId,
+      log.processId,
+    ].filter((value): value is string => Boolean(value));
+  }
+
+  function contextEntries(log: LogRow): Array<[string, string]> {
+    if (!log.context) return [];
+    return Object.entries(log.context).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value : JSON.stringify(value),
+    ]);
+  }
+
+  function hasDetail(log: LogRow): boolean {
+    return Boolean(log.error) || contextEntries(log).length > 0 || refs(log).length > 0;
+  }
+
+  function toggle(id: string): void {
+    if (expanded.has(id)) expanded.delete(id);
+    else expanded.add(id);
+  }
 
   async function refresh() {
     loading = true;
@@ -47,23 +87,18 @@
     }
   }
 
+  function clearFilters() {
+    level = "all";
+    source = "all";
+    component = "";
+    contains = "";
+  }
+
   function copyLogs() {
     const text = rows
       .map((log) => `${log.ts} ${log.level.toUpperCase()} ${log.source}/${log.component} ${log.message}`)
       .join("\n");
     void navigator.clipboard?.writeText(text);
-  }
-
-  function refs(log: ApplicationLogQueryResponse["logs"][number]): string[] {
-    return [
-      log.requestId,
-      log.projectId,
-      log.conversationId,
-      log.agentId,
-      log.runId,
-      log.toolCallId,
-      log.processId,
-    ].filter((value): value is string => Boolean(value));
   }
 
   $effect(() => {
@@ -75,17 +110,28 @@
   <header class="logs-toolbar">
     <div class="toolbar-line">
       <div class="segmented" role="group" aria-label="Log level filter">
-        {#each levels as option}
-          <button type="button" class:active={level === option} onclick={() => (level = option)}>{option}</button>
+        {#each levels as option (option)}
+          <button type="button" class:active={level === option} onclick={() => (level = option)}>
+            {#if option !== "all"}
+              <StatusDot size="xs" tone={logLevelTone(option)} />
+            {/if}
+            {option}
+          </button>
         {/each}
       </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <div class="segmented" role="group" aria-label="Log source filter">
-        {#each sources as option}
+        {#each sources as option (option)}
           <button type="button" class:active={source === option} onclick={() => (source = option)}>{option}</button>
         {/each}
       </div>
       <div class="toolbar-actions">
+        <span class="result-count">{rows.length} {rows.length === 1 ? "entry" : "entries"}</span>
+        {#if filtersActive}
+          <Button size="sm" variant="ghost" onclick={clearFilters}>
+            <FilterX size={13} />Clear
+          </Button>
+        {/if}
         <Button size="sm" variant="secondary" onclick={refresh} disabled={loading}>
           <RefreshCw size={13} class={loading ? "animate-spin" : ""} />{loading ? "Loading" : "Refresh"}
         </Button>
@@ -95,11 +141,24 @@
       </div>
     </div>
     <div class="toolbar-line search-line">
-      <label class="search-field">
+      <label class="field search-field">
         <Search size={13} aria-hidden="true" />
         <Input bind:value={contains} placeholder="Search messages" />
+        {#if contains}
+          <button type="button" class="field-clear" aria-label="Clear search" onclick={() => (contains = "")}>
+            <X size={12} />
+          </button>
+        {/if}
       </label>
-      <Input bind:value={component} placeholder="Component filter" />
+      <label class="field component-field">
+        <Tag size={13} aria-hidden="true" />
+        <Input bind:value={component} placeholder="Component filter" />
+        {#if component}
+          <button type="button" class="field-clear" aria-label="Clear component filter" onclick={() => (component = "")}>
+            <X size={12} />
+          </button>
+        {/if}
+      </label>
     </div>
   </header>
 
@@ -112,26 +171,51 @@
       {#if rows.length === 0 && !loading}
         <div class="empty">No application logs match these filters.</div>
       {/if}
-      {#each rows as log}
-        <article class={`log-row ${log.level}`}>
-          <div class="log-line">
+      {#each rows as log (log.id)}
+        {@const detail = hasDetail(log)}
+        {@const open = expanded.has(log.id)}
+        <article class={`log-row ${log.level}`} class:open>
+          <div class="log-line" data-detail={detail ? "" : undefined}>
+            {#if detail}
+              <button
+                type="button"
+                class="caret"
+                aria-expanded={open}
+                aria-label={open ? "Collapse details" : "Expand details"}
+                onclick={() => toggle(log.id)}
+              >
+                <ChevronRight size={13} />
+              </button>
+            {:else}
+              <span class="caret" aria-hidden="true"></span>
+            {/if}
             <span class="time">{timeLabel(log.ts)}</span>
-            <Badge size="xs" tone={logLevelTone(log.level)}>
-              <StatusDot size="xs" tone={logLevelTone(log.level)} />{log.level}
-            </Badge>
-            <span class="source">{log.source}/{log.component}</span>
-            <span class="message">{log.message}</span>
+            <span class={`level ${log.level}`}>{log.level}</span>
+            <span class="source" title={`${log.source}/${log.component}`}>{log.source}/{log.component}</span>
+            <span class="message" title={log.message}>{log.message}</span>
             {#if log.durationMs !== undefined}
-              <code class="duration">{log.durationMs}ms</code>
+              <span class="duration">{log.durationMs}ms</span>
             {/if}
           </div>
-          {#if refs(log).length > 0}
-            <div class="refs">
-              {#each refs(log) as ref}<code>{ref}</code>{/each}
+          {#if detail && open}
+            <div class="log-detail">
+              {#if refs(log).length > 0}
+                <div class="refs">
+                  {#each refs(log) as ref (ref)}<code>{ref}</code>{/each}
+                </div>
+              {/if}
+              {#if contextEntries(log).length > 0}
+                <dl class="context">
+                  {#each contextEntries(log) as [key, value] (key)}
+                    <dt>{key}</dt>
+                    <dd>{value}</dd>
+                  {/each}
+                </dl>
+              {/if}
+              {#if log.error}
+                <pre class="error-block">{log.error.stack ?? log.error.message}</pre>
+              {/if}
             </div>
-          {/if}
-          {#if log.error}
-            <pre>{log.error.stack ?? log.error.message}</pre>
           {/if}
         </article>
       {/each}
@@ -174,6 +258,9 @@
   }
 
   .segmented button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--background);
@@ -182,16 +269,21 @@
     font-size: var(--text-xs);
     text-transform: capitalize;
     cursor: pointer;
+    transition:
+      color 0.12s ease,
+      background 0.12s ease,
+      border-color 0.12s ease;
   }
 
   .segmented button:hover {
     color: var(--foreground);
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
   }
 
   .segmented button.active {
     border-color: var(--primary);
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--primary) 12%, var(--background));
+    color: var(--primary-foreground);
+    background: var(--primary);
   }
 
   .toolbar-divider {
@@ -203,25 +295,56 @@
 
   .toolbar-actions {
     display: flex;
+    align-items: center;
     gap: 0.4rem;
     margin-left: auto;
+  }
+
+  .result-count {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
   }
 
   .search-line {
     flex-wrap: nowrap;
   }
 
-  .search-field {
+  .field {
     display: grid;
-    flex: 1 1 60%;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.4rem;
     color: var(--muted-foreground);
   }
 
+  .search-field {
+    flex: 1 1 60%;
+  }
+
+  .component-field {
+    flex: 1 1 30%;
+  }
+
   .search-line :global(input) {
     flex: 1 1 0;
+  }
+
+  .field-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    padding: 0.1rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .field-clear:hover {
+    color: var(--foreground);
+    background: var(--accent);
   }
 
   .logs-error {
@@ -255,15 +378,17 @@
   }
 
   .log-row {
-    display: grid;
-    gap: 0.25rem;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
     border-left: 2px solid transparent;
-    padding: 0.3rem 0.75rem;
+    font-family: var(--font-mono);
   }
 
   .log-row:hover {
-    background: color-mix(in oklab, var(--accent) 45%, transparent);
+    background: color-mix(in oklab, var(--accent) 40%, transparent);
+  }
+
+  .log-row.open {
+    background: color-mix(in oklab, var(--accent) 30%, transparent);
   }
 
   .log-row.warn {
@@ -275,41 +400,106 @@
   }
 
   .log-line {
-    display: flex;
+    display: grid;
+    grid-template-columns:
+      1rem
+      [time] 7rem
+      [level] 4rem
+      [source] minmax(6rem, 12rem)
+      [message] minmax(0, 1fr)
+      [meta] auto;
     align-items: baseline;
     gap: 0.5rem;
-    min-width: 0;
+    padding: 0.18rem 0.6rem 0.18rem 0.15rem;
+    line-height: 1.5;
+  }
+
+  .caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: 1rem;
+    height: 1rem;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .caret:hover {
+    color: var(--foreground);
+  }
+
+  .log-row.open .caret :global(svg) {
+    transform: rotate(90deg);
+  }
+
+  .caret :global(svg) {
+    transition: transform 0.12s ease;
   }
 
   .time {
-    flex: none;
-    font-family: var(--font-mono);
     font-size: var(--text-xs);
-    color: var(--success);
+    color: var(--muted-foreground);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .level {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--muted-foreground);
+  }
+
+  .level.info {
+    color: var(--foreground);
+  }
+
+  .level.warn {
+    color: var(--warning);
+  }
+
+  .level.error {
+    color: var(--destructive);
   }
 
   .source {
-    flex: none;
     color: var(--muted-foreground);
     font-size: var(--text-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .message {
-    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     color: var(--foreground);
     font-size: var(--text-sm);
-    line-height: 1.3;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .duration {
+    justify-self: end;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .log-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.1rem 0.6rem 0.5rem 8.65rem;
   }
 
   .refs {
     display: flex;
     flex-wrap: wrap;
     gap: 0.3rem;
-    padding-left: 0.25rem;
   }
 
   code {
@@ -321,21 +511,38 @@
     font-size: var(--text-xs);
   }
 
-  .duration {
-    flex: none;
-    align-self: center;
+  .context {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.1rem 0.6rem;
+    margin: 0;
   }
 
-  pre {
-    max-height: 12rem;
+  .context dt {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .context dd {
+    margin: 0;
+    color: var(--foreground);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .error-block {
+    max-height: 14rem;
     overflow: auto;
-    margin: 0.1rem 0 0;
-    border-radius: var(--radius-md);
-    background: var(--sidebar);
-    padding: 0.5rem;
-    color: var(--destructive);
+    margin: 0;
+    border-left: 2px solid color-mix(in oklab, var(--destructive) 60%, transparent);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--destructive) 6%, transparent);
+    padding: 0.4rem 0.6rem;
+    color: color-mix(in oklab, var(--destructive) 85%, var(--foreground));
     font-family: var(--font-mono);
     font-size: var(--text-xs);
+    line-height: 1.45;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 </style>
