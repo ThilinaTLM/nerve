@@ -1,4 +1,5 @@
 import {
+  createPinnedCommandRequestSchema,
   createProjectRequestSchema,
   pruneProjectConversationsRequestSchema,
 } from "@nerve/shared";
@@ -37,6 +38,41 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
           body,
         ),
       );
+    }),
+  );
+  app.get(
+    "/:projectId/pinned-commands",
+    routeHandler(async (c) =>
+      c.json({
+        commands: await state.registry.listPinnedCommands(
+          c.req.param("projectId"),
+        ),
+      }),
+    ),
+  );
+  app.post(
+    "/:projectId/pinned-commands",
+    routeHandler(async (c) => {
+      const body = createPinnedCommandRequestSchema.parse(await c.req.json());
+      return c.json(
+        {
+          command: await state.registry.createPinnedCommand(
+            c.req.param("projectId"),
+            body,
+          ),
+        },
+        201,
+      );
+    }),
+  );
+  app.delete(
+    "/:projectId/pinned-commands/:commandId",
+    routeHandler(async (c) => {
+      await state.registry.removePinnedCommand(
+        c.req.param("projectId"),
+        c.req.param("commandId"),
+      );
+      return c.body(null, 204);
     }),
   );
   app.delete(

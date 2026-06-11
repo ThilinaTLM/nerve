@@ -11,6 +11,7 @@ export * from "./filesystem.js";
 export * from "./git.js";
 export * from "./logs.js";
 export * from "./models.js";
+export * from "./pinned-commands.js";
 export * from "./plans.js";
 export * from "./processes.js";
 export * from "./projects.js";

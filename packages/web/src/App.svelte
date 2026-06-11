@@ -80,6 +80,7 @@
     rejectPendingPlanReview,
     removeProcess,
     restartSelectedProcess,
+    runProcessCommand,
     queueSettingsSave,
     selectCenterTab,
     sendPrompt,
@@ -648,6 +649,13 @@
                 onRestartProcess={(id) => void restartSelectedProcess(id)}
                 onRemoveProcess={(id) => void removeProcess(id)}
                 onPruneProcesses={() => void pruneStoppedProcesses()}
+                onRunCommand={(input) => {
+                  layout.utilityTab = "processes";
+                  void (async () => {
+                    const process = await runProcessCommand(input);
+                    await openProcessTab(process.id);
+                  })();
+                }}
               />
             </div>
           </Pane>

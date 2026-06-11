@@ -10,6 +10,7 @@ import type {
   ConversationTree,
   CreateAgentRequest,
   CreateConversationRequest,
+  CreatePinnedCommandRequest,
   CreateProjectRequest,
   ImportConversationRequest,
   ModelInfo,
@@ -55,12 +56,14 @@ import { PlanService } from "./plan-service.js";
 import { ProcessManager } from "./process-manager.js";
 import { AgentLifecycleService } from "./registry/agent-lifecycle-service.js";
 import { ConversationLifecycleService } from "./registry/conversation-lifecycle-service.js";
+import { PinnedCommandService } from "./registry/pinned-command-service.js";
 import { ProjectLifecycleService } from "./registry/project-lifecycle-service.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
 import {
   AgentRepository,
   ConversationRepository,
   EntryRepository,
+  PinnedCommandRepository,
   ProjectRepository,
   PromptQueueRepository,
 } from "./repositories/index.js";
@@ -123,6 +126,8 @@ export class RuntimeRegistry {
   readonly tools: ToolService;
   readonly git: GitService;
   private readonly projectRepository: ProjectRepository;
+  private readonly pinnedCommandRepository: PinnedCommandRepository;
+  private readonly pinnedCommands: PinnedCommandService;
   private readonly conversationRepository: ConversationRepository;
   private readonly agentRepository: AgentRepository;
   private readonly entryRepository: EntryRepository;
@@ -148,6 +153,11 @@ export class RuntimeRegistry {
     private readonly logger: ApplicationLogger,
   ) {
     this.projectRepository = new ProjectRepository(storage);
+    this.pinnedCommandRepository = new PinnedCommandRepository(storage);
+    this.pinnedCommands = new PinnedCommandService(
+      this.pinnedCommandRepository,
+      (projectId) => this.getProject(projectId),
+    );
     this.conversationRepository = new ConversationRepository(storage);
     this.agentRepository = new AgentRepository(storage);
     this.entryRepository = new EntryRepository(storage);
@@ -934,6 +944,18 @@ export class RuntimeRegistry {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  listPinnedCommands(projectId: string) {
+    return this.pinnedCommands.list(projectId);
+  }
+
+  createPinnedCommand(projectId: string, request: CreatePinnedCommandRequest) {
+    return this.pinnedCommands.create(projectId, request);
+  }
+
+  removePinnedCommand(projectId: string, commandId: string) {
+    return this.pinnedCommands.remove(projectId, commandId);
   }
 
   startProcess(request: StartProcessRequest) {

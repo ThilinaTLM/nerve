@@ -47,6 +47,12 @@
     onRestartProcess?: (id: string) => void;
     onRemoveProcess?: (id: string) => void;
     onPruneProcesses?: () => void;
+    onRunCommand?: (input: {
+      projectId: string;
+      cwd: string;
+      command: string;
+      name?: string;
+    }) => void;
   };
 
   let {
@@ -73,6 +79,7 @@
     onRestartProcess,
     onRemoveProcess,
     onPruneProcesses,
+    onRunCommand,
   }: Props = $props();
 
   const ACTIVE_PROCESS_STATUSES = new Set(["starting", "running", "ready", "stopping"]);
@@ -114,6 +121,7 @@
       <GitTab {activeProject} {activeAgent} />
     {:else if activeTab === "processes"}
       <ProcessesTab
+        {activeProject}
         {processes}
         {selectedProcess}
         {homeDir}
@@ -122,6 +130,7 @@
         {onRestartProcess}
         {onRemoveProcess}
         {onPruneProcesses}
+        {onRunCommand}
       />
     {:else}
       <HistoryTab {activeConversation} {treeNodes} {toolCalls} {onNavigateToEntry} {onEditEntry} {onCompact} />

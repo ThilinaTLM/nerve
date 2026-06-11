@@ -19,7 +19,8 @@ export type IdPrefix =
   | "authflow"
   | "credkey"
   | "log"
-  | "promptq";
+  | "promptq"
+  | "pin";
 
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

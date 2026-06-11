@@ -4,6 +4,7 @@ import {
   getProcessLogs,
   pruneProcesses,
   restartProcess,
+  startProcess,
   stopProcess,
 } from "../../api";
 import { loadWorkspaceState } from "../workspace.svelte";
@@ -74,6 +75,19 @@ export async function pruneStoppedProcesses() {
       ? "Removed 1 stopped process"
       : `Removed ${removed.length} stopped processes`,
   );
+}
+
+export async function runProcessCommand(input: {
+  projectId: string;
+  cwd: string;
+  command: string;
+  name?: string;
+}) {
+  const process = await startProcess(input);
+  await loadWorkspaceState();
+  await selectProcess(process.id);
+  notify.success("Command started", { description: input.command });
+  return process;
 }
 
 export async function refreshProcessLogs() {

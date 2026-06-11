@@ -14,6 +14,7 @@ import type {
   ConversationSnapshot,
   ConversationTree,
   ConversationTreeNode,
+  CreatePinnedCommandRequest,
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
   EventEnvelope,
@@ -38,6 +39,7 @@ import type {
   ModelInfo,
   ModelSelection,
   OAuthFlowInfo,
+  PinnedCommand,
   PlanReviewRecord,
   ProcessLogEvent,
   ProcessLogQueryResponse,
@@ -47,6 +49,7 @@ import type {
   QueuedPromptRecord,
   RespondOAuthFlowRequest,
   Settings,
+  StartProcessRequest,
   StatusResponse,
   SubscriptionUsage,
   SubscriptionWindow,
@@ -528,6 +531,44 @@ export async function getProcessLogs(
   );
 }
 
+export async function startProcess(
+  body: StartProcessRequest,
+): Promise<ProcessRecord> {
+  return (await apiPost<{ process: ProcessRecord }>("/api/processes", body))
+    .process;
+}
+
+export async function getPinnedCommands(
+  projectId: string,
+): Promise<PinnedCommand[]> {
+  return (
+    await apiGet<{ commands: PinnedCommand[] }>(
+      `/api/projects/${projectId}/pinned-commands`,
+    )
+  ).commands;
+}
+
+export async function createPinnedCommand(
+  projectId: string,
+  body: CreatePinnedCommandRequest,
+): Promise<PinnedCommand> {
+  return (
+    await apiPost<{ command: PinnedCommand }>(
+      `/api/projects/${projectId}/pinned-commands`,
+      body,
+    )
+  ).command;
+}
+
+export async function deletePinnedCommand(
+  projectId: string,
+  commandId: string,
+): Promise<void> {
+  await apiDeleteNoContent(
+    `/api/projects/${projectId}/pinned-commands/${commandId}`,
+  );
+}
+
 export async function stopProcess(processId: string): Promise<ProcessRecord> {
   return (
     await apiPost<{ process: ProcessRecord }>(
@@ -893,6 +934,9 @@ export type {
   ProcessRecord,
   ProcessLogEvent,
   ProcessLogQueryResponse,
+  StartProcessRequest,
+  PinnedCommand,
+  CreatePinnedCommandRequest,
   Settings,
   AuthProviderMetadata,
   CredentialKeyResponse,
