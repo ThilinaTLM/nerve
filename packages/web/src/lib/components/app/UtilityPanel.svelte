@@ -75,9 +75,14 @@
     onPruneProcesses,
   }: Props = $props();
 
+  const ACTIVE_PROCESS_STATUSES = new Set(["starting", "running", "ready", "stopping"]);
+  const runningProcessCount = $derived(
+    processes.filter((process) => ACTIVE_PROCESS_STATUSES.has(process.status)).length,
+  );
+
   const tabs = $derived<TabItem[]>([
     { value: "git", label: "Git", icon: GitBranch },
-    { value: "processes", label: "Processes", icon: Terminal, count: processes.length },
+    { value: "processes", label: "Processes", icon: Terminal, count: runningProcessCount },
     { value: "history", label: "History", icon: History },
     { value: "info", label: "Context", icon: Info },
   ]);
