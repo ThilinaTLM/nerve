@@ -8,7 +8,9 @@ export function expandToolPathInput(input: string): string {
   let path = input.trim().replace(UNICODE_SPACES, " ").normalize("NFC");
   if (path.startsWith("@")) path = path.slice(1);
   if (path === "~") return homedir();
-  if (path.startsWith("~/")) return resolve(homedir(), path.slice(2));
+  if (path.startsWith("~/") || path.startsWith("~\\")) {
+    return resolve(homedir(), path.slice(2));
+  }
   return path;
 }
 

@@ -38,9 +38,20 @@ export function projectFolderName(dir: string): string {
 }
 
 export function shortProjectLabel(dir: string, homeDir?: string): string {
-  let path = dir.replace(/[\\/]+$/, "");
-  if (homeDir && (path === homeDir || path.startsWith(`${homeDir}/`))) {
-    path = `~${path.slice(homeDir.length)}`;
+  let path = dir.replace(/\\/g, "/").replace(/\/+$/, "");
+  const homePath = homeDir?.replace(/\\/g, "/").replace(/\/+$/, "");
+  const comparablePath = /^[A-Za-z]:\//.test(path) ? path.toLowerCase() : path;
+  const comparableHome =
+    homePath && /^[A-Za-z]:\//.test(homePath)
+      ? homePath.toLowerCase()
+      : homePath;
+  if (
+    homePath &&
+    comparableHome &&
+    (comparablePath === comparableHome ||
+      comparablePath.startsWith(`${comparableHome}/`))
+  ) {
+    path = `~${path.slice(homePath.length)}`;
   }
   const segments = path.split("/");
   return segments

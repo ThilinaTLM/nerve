@@ -23,7 +23,7 @@ const extensionLanguage: Record<string, string> = {
 /** Map a file path to a highlight language understood by `highlightCode`. */
 export function extname(path: string | undefined): string | undefined {
   if (!path) return undefined;
-  const base = path.split("/").pop() ?? path;
+  const base = path.split(/[\\/]/).pop() ?? path;
   const dot = base.lastIndexOf(".");
   if (dot <= 0) return undefined;
   const ext = base.slice(dot + 1).toLowerCase();

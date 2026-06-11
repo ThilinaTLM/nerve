@@ -7,7 +7,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import {
   basename,
   dirname,
@@ -142,7 +142,7 @@ async function saveClipboardImage(input: unknown) {
 }
 
 async function directoryListing(path: string | undefined, showHidden = false) {
-  const target = resolve(path?.trim() || process.env.HOME || tmpdir());
+  const target = resolve(path?.trim() || homedir() || tmpdir());
   const info = await stat(target);
   if (!info.isDirectory()) {
     throw new Error(`${target} is not a directory.`);

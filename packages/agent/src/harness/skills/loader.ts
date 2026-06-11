@@ -1,6 +1,12 @@
 import ignore from "ignore";
 import type { ExecutionEnv, FileInfo } from "../env/types.js";
 import type { Skill } from "../options.js";
+import {
+  basenameEnvPath,
+  dirnameEnvPath,
+  joinEnvPath,
+  relativeEnvPath,
+} from "../utils/env-path.js";
 import { parseFrontmatter, type SkillFrontmatter } from "./parser.js";
 import { validateDescription, validateName } from "./validation.js";
 
@@ -351,29 +357,4 @@ async function resolveKind(
   return target.value.kind === "file" || target.value.kind === "directory"
     ? target.value.kind
     : undefined;
-}
-
-function joinEnvPath(base: string, child: string): string {
-  return `${base.replace(/\/+$/, "")}/${child.replace(/^\/+/, "")}`;
-}
-
-function dirnameEnvPath(path: string): string {
-  const normalized = path.replace(/\/+$/, "");
-  const slashIndex = normalized.lastIndexOf("/");
-  return slashIndex <= 0 ? "/" : normalized.slice(0, slashIndex);
-}
-
-function basenameEnvPath(path: string): string {
-  const normalized = path.replace(/\/+$/, "");
-  const slashIndex = normalized.lastIndexOf("/");
-  return slashIndex === -1 ? normalized : normalized.slice(slashIndex + 1);
-}
-
-function relativeEnvPath(root: string, path: string): string {
-  const normalizedRoot = root.replace(/\/+$/, "");
-  const normalizedPath = path.replace(/\/+$/, "");
-  if (normalizedPath === normalizedRoot) return "";
-  return normalizedPath.startsWith(`${normalizedRoot}/`)
-    ? normalizedPath.slice(normalizedRoot.length + 1)
-    : normalizedPath.replace(/^\/+/, "");
 }
