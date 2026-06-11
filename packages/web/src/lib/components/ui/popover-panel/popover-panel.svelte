@@ -8,6 +8,8 @@
     children?: Snippet;
     open?: boolean;
     ariaLabel?: string;
+    triggerTitle?: string;
+    triggerAriaKeyShortcuts?: string;
     class?: string;
     triggerClass?: string;
     side?: "top" | "right" | "bottom" | "left";
@@ -23,6 +25,8 @@
     children,
     open = $bindable(false),
     ariaLabel,
+    triggerTitle,
+    triggerAriaKeyShortcuts,
     class: className = "",
     triggerClass = "",
     side = "bottom",
@@ -40,7 +44,7 @@
 </script>
 
 <PopoverPrimitive.Root bind:open onOpenChange={handleOpenChange}>
-  <PopoverPrimitive.Trigger class={cn("popover-trigger", triggerClass)} aria-label={ariaLabel}>
+  <PopoverPrimitive.Trigger class={cn("popover-trigger", triggerClass)} aria-label={ariaLabel} title={triggerTitle} aria-keyshortcuts={triggerAriaKeyShortcuts}>
     {@render trigger?.()}
   </PopoverPrimitive.Trigger>
   <PopoverPrimitive.Portal>

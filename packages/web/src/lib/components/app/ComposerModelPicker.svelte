@@ -12,6 +12,7 @@
     selectedModelKey?: string;
     thinkingLevel?: ThinkingLevel;
     disabled?: boolean;
+    shortcutLabel?: string;
     onModelChange?: (value: string) => void;
     onThinkingLevelChange?: (value: ThinkingLevel) => void;
   };
@@ -21,6 +22,7 @@
     selectedModelKey = "",
     thinkingLevel = "off",
     disabled = false,
+    shortcutLabel,
     onModelChange,
     onThinkingLevelChange,
   }: Props = $props();
@@ -54,6 +56,9 @@
   const triggerSuffix = $derived(
     hasThinking && thinkingLevel !== "off" ? thinkingLevelLabel(thinkingLevel) : undefined,
   );
+  const triggerTitle = $derived(
+    `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${shortcutLabel ? ` · Cycle thinking ${shortcutLabel}` : ""}`,
+  );
 
   function selectModel(model: ModelInfo) {
     const key = modelKey(model);
@@ -71,12 +76,13 @@
   class="model-picker-content"
   triggerClass="composer-tab model-tab"
   ariaLabel="Model and thinking level"
+  triggerTitle={triggerTitle}
   side="top"
   align="end"
   sideOffset={9}
 >
   {#snippet trigger()}
-    <span class="model-tab-inner" class:disabled title={triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}>
+    <span class="model-tab-inner" class:disabled>
       <span class="model-tab-label">{triggerLabel}</span>
       {#if triggerSuffix}<span class="model-tab-suffix">({triggerSuffix})</span>{/if}
       <ChevronDown size={12} strokeWidth={2.2} />

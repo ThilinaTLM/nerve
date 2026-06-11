@@ -44,6 +44,9 @@
     selectedModelKey?: string;
     contextUsage?: ContextUsage;
     contextWindow?: number;
+    composerFocusToken?: number;
+    composerEscapeToken?: number;
+    micShortcutToken?: number;
     thinkingLevel?: AgentRecord["thinkingLevel"];
     mode?: AgentRecord["mode"];
     permissionLevel?: AgentRecord["permissionLevel"];
@@ -91,6 +94,9 @@
     selectedModelKey = "",
     contextUsage,
     contextWindow = 0,
+    composerFocusToken = 0,
+    composerEscapeToken = 0,
+    micShortcutToken = 0,
     thinkingLevel = "off",
     mode = "coding",
     permissionLevel = "autonomous",
@@ -467,6 +473,9 @@
         {selectedModelKey}
         {contextUsage}
         {contextWindow}
+        focusToken={composerFocusToken}
+        {composerEscapeToken}
+        {micShortcutToken}
         {thinkingLevel}
         {mode}
         {permissionLevel}

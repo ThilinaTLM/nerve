@@ -30,6 +30,10 @@
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
   import { onDestroy, type Component } from "svelte";
   import { notify } from "$lib/notifications/notify.svelte";
+  import {
+    getShortcutAriaLabel,
+    getShortcutLabel,
+  } from "$lib/shortcuts/registry";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -49,6 +53,9 @@
     selectedModelKey?: string;
     contextUsage?: ContextUsage;
     contextWindow?: number;
+    focusToken?: number;
+    composerEscapeToken?: number;
+    micShortcutToken?: number;
     thinkingLevel?: ThinkingLevel;
     mode?: Mode;
     permissionLevel?: PermissionLevel;
@@ -82,6 +89,9 @@
     selectedModelKey = "",
     contextUsage,
     contextWindow = 0,
+    focusToken = 0,
+    composerEscapeToken = 0,
+    micShortcutToken = 0,
     thinkingLevel = "off",
     mode = "coding",
     permissionLevel = "autonomous",
@@ -100,6 +110,22 @@
     onGrantApproval,
     onDenyApproval,
   }: Props = $props();
+
+  let editorFocusToken = $state(0);
+  let lastFocusToken = 0;
+  let lastComposerEscapeToken = 0;
+  let lastMicShortcutToken = 0;
+
+  const micShortcut = getShortcutLabel("composer.toggleMic");
+  const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
+  const cancelMicShortcut = getShortcutLabel("composer.cancelMic");
+  const modeShortcut = getShortcutLabel("composer.toggleMode");
+  const modeShortcutAria = getShortcutAriaLabel("composer.toggleMode");
+  const permissionShortcut = getShortcutLabel("composer.cyclePermission");
+  const permissionShortcutAria = getShortcutAriaLabel("composer.cyclePermission");
+  const thinkingShortcut = getShortcutLabel("composer.cycleThinking");
+  const stopShortcut = getShortcutLabel("composer.stopRun");
+  const stopShortcutAria = getShortcutAriaLabel("composer.stopRun");
 
   function appendTranscript(transcript: string) {
     const trimmed = transcript.trim();
@@ -130,12 +156,14 @@
   );
   const micTitle = $derived(
     recording
-      ? `Stop recording (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)}) — right-click to cancel`
+      ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — ${cancelMicShortcut ?? "Esc"} to cancel; right-click to cancel (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)})`
       : transcription.retryAttempt > 0
         ? `Retrying transcription ${transcription.retryAttempt}/${transcription.maxRetries}…`
         : transcribing
           ? "Transcribing audio…"
-          : "Record voice prompt",
+          : micShortcut
+            ? `Record voice prompt (${micShortcut})`
+            : "Record voice prompt",
   );
 
   function formatElapsed(ms: number): string {
@@ -188,8 +216,33 @@
   }
 
   function toggleRecording() {
+    if (micDisabled) return;
     transcription.toggle();
   }
+
+  function cancelRecordingShortcut() {
+    if (!recording) return false;
+    void transcription.cancel();
+    return true;
+  }
+
+  $effect(() => {
+    if (focusToken === lastFocusToken) return;
+    lastFocusToken = focusToken;
+    editorFocusToken += 1;
+  });
+
+  $effect(() => {
+    if (composerEscapeToken === lastComposerEscapeToken) return;
+    lastComposerEscapeToken = composerEscapeToken;
+    if (!cancelRecordingShortcut()) editorFocusToken += 1;
+  });
+
+  $effect(() => {
+    if (micShortcutToken === lastMicShortcutToken) return;
+    lastMicShortcutToken = micShortcutToken;
+    toggleRecording();
+  });
 
   function handleMicContextMenu(event: MouseEvent) {
     if (!recording) return;
@@ -221,13 +274,15 @@
           class="permission-popover-content"
           triggerClass="composer-tab permission-tab"
           ariaLabel="Permission level"
+          triggerTitle={permissionShortcut ? `Permission: ${activePermission.label} (${permissionShortcut})` : `Permission: ${activePermission.label}`}
+          triggerAriaKeyShortcuts={permissionShortcutAria}
           side="top"
           align="start"
           sideOffset={9}
         >
           {#snippet trigger()}
             {@const Icon = activePermission.icon}
-            <span class="permission-tab-inner" class:disabled={controlsDisabled} title={`Permission: ${activePermission.label}`}>
+            <span class="permission-tab-inner" class:disabled={controlsDisabled}>
               <Icon size={13} strokeWidth={2.2} />
             </span>
           {/snippet}
@@ -250,7 +305,7 @@
           </div>
         </Popover>
 
-        <button type="button" class="composer-tab mode-tab" disabled={modeDisabled} title={`Mode: ${modeLabel} (click to switch)`} onclick={toggleMode}>
+        <button type="button" class="composer-tab mode-tab" disabled={modeDisabled} title={modeShortcut ? `Mode: ${modeLabel} (${modeShortcut})` : `Mode: ${modeLabel} (click to switch)`} aria-keyshortcuts={modeShortcutAria} onclick={toggleMode}>
           {modeLabel}
         </button>
 
@@ -263,6 +318,7 @@
           disabled={modelDisabled}
           {onModelChange}
           {onThinkingLevelChange}
+          shortcutLabel={thinkingShortcut}
         />
       </div>
 
@@ -272,6 +328,7 @@
         placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingPlan ? "Review the plan in the transcript before the agent can continue…" : pendingQuestion ? "Reply in the transcript before the agent can continue…" : sending ? "Queue a prompt for the next agent turn…" : "Ask the local Nerve agent…"}
         {slashCompletions}
         {fileCompletions}
+        focusToken={editorFocusToken}
         onChange={onChange}
         onSubmit={submitComposer}
         onPasteImage={pasteImage}
@@ -296,6 +353,7 @@
           onclick={toggleRecording}
           oncontextmenu={handleMicContextMenu}
           aria-label={recording ? "Stop recording; right-click to cancel" : "Record voice prompt"}
+          aria-keyshortcuts={micShortcutAria}
           title={micTitle}
         >
           {#if transcribing}
@@ -305,7 +363,7 @@
           {/if}
         </Button>
         {#if sending && !pendingQuestion}
-          <Button variant="secondary" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" title="Stop generation">
+          <Button variant="secondary" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" aria-keyshortcuts={stopShortcutAria} title={stopShortcut ? `Stop generation (${stopShortcut})` : "Stop generation"}>
             <Square size={13} strokeWidth={2.5} />
           </Button>
         {/if}

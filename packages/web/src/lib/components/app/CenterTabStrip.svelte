@@ -19,6 +19,10 @@
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import { agentActivityPulse, agentActivityTone } from "../../utils/status";
+  import {
+    getShortcutAriaLabel,
+    getShortcutLabel,
+  } from "$lib/shortcuts/registry";
 
   type TabIdentity = CenterTabIdentity;
 
@@ -49,6 +53,12 @@
     onToggleFileLineWrap,
     onNewConversation,
   }: Props = $props();
+
+  const newConversationShortcut = getShortcutLabel("conversation.new");
+  const newConversationShortcutAria = getShortcutAriaLabel("conversation.new");
+  const refreshShortcut = getShortcutLabel("pane.refresh");
+  const closeShortcut = getShortcutLabel("pane.close");
+  const closeOthersShortcut = getShortcutLabel("pane.closeOthers");
 
   function tabIdentity(tab: CenterTabModel): TabIdentity {
     if (tab.kind === "settings") return { kind: "settings", id: "settings" };
@@ -175,16 +185,18 @@
     items.push({
       label: "Refresh",
       icon: RefreshCw,
+      shortcut: refreshShortcut,
       disabled: !onRefresh,
       onSelect: () => onRefresh?.(identity),
     });
 
     items.push(
       { type: "separator" },
-      { label: "Close Pane", icon: X, onSelect: () => onClose?.(identity) },
+      { label: "Close Pane", icon: X, shortcut: closeShortcut, onSelect: () => onClose?.(identity) },
       {
         label: "Close Other Panes",
         icon: X,
+        shortcut: closeOthersShortcut,
         disabled: tabs.length <= 1 || !onCloseOther,
         onSelect: () => onCloseOther?.(identity),
       },
@@ -291,7 +303,8 @@
       variant="ghost"
       size="icon-sm"
       ariaLabel="New conversation"
-      title="New conversation"
+      aria-keyshortcuts={newConversationShortcutAria}
+      title={newConversationShortcut ? `New conversation (${newConversationShortcut})` : "New conversation"}
       onclick={onNewConversation}
     >
       <Plus size={13} strokeWidth={2.25} />

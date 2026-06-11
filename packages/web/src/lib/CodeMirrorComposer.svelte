@@ -12,6 +12,7 @@
     value: string;
     placeholder?: string;
     disabled?: boolean;
+    focusToken?: number;
     slashCompletions?: CompletionItem[];
     fileCompletions?: (query: string) => Promise<CompletionItem[]>;
     onChange?: (value: string) => void;
@@ -23,6 +24,7 @@
     value,
     placeholder = "Ask the local Nerve agent…",
     disabled = false,
+    focusToken = 0,
     slashCompletions = [],
     fileCompletions,
     onChange,
@@ -33,6 +35,7 @@
   let host: HTMLDivElement;
   let view: EditorView | undefined;
   let editorValue = $state(value);
+  let lastFocusToken = 0;
   const editableCompartment = new Compartment();
   const completionCompartment = new Compartment();
   const placeholderCompartment = new Compartment();
@@ -223,6 +226,12 @@
     view.dispatch({
       effects: placeholderCompartment.reconfigure(placeholderExtension(placeholder)),
     });
+  });
+
+  $effect(() => {
+    if (!view || disabled || focusToken === lastFocusToken) return;
+    lastFocusToken = focusToken;
+    view.focus();
   });
 
   $effect(() => {

@@ -100,6 +100,11 @@
     type CenterTabIdentity,
   } from "./lib/stores/workbench.svelte";
   import { initializeNotifications } from "./lib/notifications/notify.svelte";
+  import { isEditableTarget, matchesShortcut } from "./lib/shortcuts/keyboard";
+  import {
+    DEFAULT_SHORTCUTS,
+    type ShortcutCommandId,
+  } from "./lib/shortcuts/registry";
 
   const status = $derived(workbenchSelectors.status);
   const connection = $derived(workbenchSelectors.connection);
@@ -152,6 +157,10 @@
   const usableModels = $derived(workbenchSelectors.usableModels);
   const currentZoomLevel = $derived(settingsDraft?.ui.zoomLevel ?? zoomState.level);
   let desktopQuitRequested = $state(false);
+  let projectSearchFocusToken = $state(0);
+  let composerFocusToken = $state(0);
+  let composerEscapeToken = $state(0);
+  let micShortcutToken = $state(0);
   const desktopQuitting = $derived(desktopRuntime.quitting || desktopQuitRequested);
 
   function selectAgent(agent: AgentRecord) {
@@ -194,17 +203,171 @@
     }
   }
 
-  function handleZoomShortcut(event: KeyboardEvent) {
-    if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+  function handleZoomShortcut(event: KeyboardEvent): boolean {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey) return false;
     if (event.key === "=" || event.key === "+") {
       event.preventDefault();
       setUiZoomLevel(currentZoomLevel + 1);
-    } else if (event.key === "-" || event.key === "_") {
+      return true;
+    }
+    if (event.key === "-" || event.key === "_") {
       event.preventDefault();
       setUiZoomLevel(currentZoomLevel - 1);
-    } else if (event.key === "0") {
+      return true;
+    }
+    if (event.key === "0") {
       event.preventDefault();
       setUiZoomLevel(0);
+      return true;
+    }
+    return false;
+  }
+
+  function centerTabIdentity(tab: { kind: CenterTabIdentity["kind"]; id: string }): CenterTabIdentity {
+    if (tab.kind === "settings") return { kind: "settings", id: "settings" };
+    if (tab.kind === "logs") return { kind: "logs", id: "logs" };
+    return { kind: tab.kind, id: tab.id } as CenterTabIdentity;
+  }
+
+  function activeCenterTabIndex(): number {
+    if (!activeCenterTab) return -1;
+    return centerTabs.findIndex(
+      (tab) => tab.kind === activeCenterTab.kind && tab.id === activeCenterTab.id,
+    );
+  }
+
+  function selectRelativeCenterTab(delta: number): boolean {
+    if (centerTabs.length === 0) return false;
+    const currentIndex = activeCenterTabIndex();
+    const startIndex = currentIndex === -1 ? 0 : currentIndex;
+    const nextIndex = (startIndex + delta + centerTabs.length) % centerTabs.length;
+    void selectCenterTab(centerTabIdentity(centerTabs[nextIndex]));
+    return true;
+  }
+
+  function selectCenterTabByIndex(index: number): boolean {
+    const tab = centerTabs[index];
+    if (!tab) return false;
+    void selectCenterTab(centerTabIdentity(tab));
+    return true;
+  }
+
+  function hasConversationComposer(): boolean {
+    return Boolean(activeConversation || pendingConversationActive);
+  }
+
+  function cyclePermissionLevel(): boolean {
+    if (!hasConversationComposer()) return false;
+    const order: NonNullable<typeof selectedPermissionLevel>[] = [
+      "read_only",
+      "supervised",
+      "autonomous",
+    ];
+    const currentIndex = order.indexOf(selectedPermissionLevel);
+    const next = order[(currentIndex + 1) % order.length] ?? order[0];
+    void setComposerPermission(next);
+    return true;
+  }
+
+  function cycleThinkingLevel(): boolean {
+    if (!hasConversationComposer()) return false;
+    const selectedModel = usableModels.find((model) => {
+      const key = `${model.provider}:${model.modelId}`;
+      return key === selectedModelKey;
+    });
+    const levels = selectedModel?.supportedThinkingLevels?.length
+      ? selectedModel.supportedThinkingLevels
+      : ["off" as const];
+    const currentIndex = levels.indexOf(selectedThinkingLevel);
+    const next = levels[(currentIndex + 1) % levels.length] ?? levels[0] ?? "off";
+    void setComposerThinkingLevel(next);
+    return true;
+  }
+
+  function toggleComposerModeShortcut(): boolean {
+    if (!hasConversationComposer()) return false;
+    void setComposerMode(selectedMode === "coding" ? "planning" : "coding");
+    return true;
+  }
+
+  function focusProjectSearchShortcut(): boolean {
+    if (layout.sidebarCollapsed) setSidebarCollapsed(false);
+    projectSearchFocusToken += 1;
+    return true;
+  }
+
+  function runShortcutCommand(id: ShortcutCommandId): boolean {
+    if (id.startsWith("pane.focusByIndex.")) {
+      const index = Number(id.split(".").at(-1)) - 1;
+      return Number.isInteger(index) && selectCenterTabByIndex(index);
+    }
+
+    switch (id) {
+      case "conversation.new":
+        newConversation();
+        return true;
+      case "conversation.newFromProject":
+        openProjectPicker();
+        return true;
+      case "pane.close":
+        if (!activeCenterTab) return false;
+        void closeCenterTab(activeCenterTab);
+        return true;
+      case "pane.closeOthers":
+        if (!activeCenterTab) return false;
+        void closeCenterTabs(centerTabsExcept(activeCenterTab), activeCenterTab);
+        return true;
+      case "pane.refresh":
+        if (!activeCenterTab) return false;
+        refreshCenterTab(activeCenterTab);
+        return true;
+      case "pane.previous":
+        return selectRelativeCenterTab(-1);
+      case "pane.next":
+        return selectRelativeCenterTab(1);
+      case "projectSearch.focus":
+        return focusProjectSearchShortcut();
+      case "composer.focus":
+      case "composer.cancelMic":
+        if (!hasConversationComposer()) return false;
+        composerEscapeToken += 1;
+        return true;
+      case "composer.stopRun":
+        if (!sending && !live) return false;
+        void abortActiveRun();
+        return true;
+      case "composer.toggleMic":
+        if (!hasConversationComposer()) return false;
+        micShortcutToken += 1;
+        return true;
+      case "composer.toggleMode":
+        return toggleComposerModeShortcut();
+      case "composer.cyclePermission":
+        return cyclePermissionLevel();
+      case "composer.cycleThinking":
+        return cycleThinkingLevel();
+      case "zoom.in":
+      case "zoom.out":
+      case "zoom.reset":
+      case "composer.send":
+        return false;
+    }
+    return false;
+  }
+
+  function handleWorkbenchShortcut(event: KeyboardEvent) {
+    if (handleZoomShortcut(event)) return;
+
+    const command = DEFAULT_SHORTCUTS.find((candidate) =>
+      matchesShortcut(event, candidate.defaultBinding),
+    );
+    if (!command) return;
+    if (isEditableTarget(event.target) && !command.allowInEditable) return;
+
+    const handled = runShortcutCommand(command.id);
+    if (!handled) return;
+    if (command.id !== "composer.focus" && command.id !== "composer.cancelMic") {
+      event.preventDefault();
     }
   }
 
@@ -276,14 +439,14 @@
     }
     setSidebarCollapsed(loadSidebarCollapsed());
     setUtilityCollapsed(loadUtilityCollapsed());
-    window.addEventListener("keydown", handleZoomShortcut);
+    window.addEventListener("keydown", handleWorkbenchShortcut, { capture: true });
 
     void initializeWorkbench().then(() => {
       if (startedOnSettings) void openSettingsPane();
     });
 
     return () => {
-      window.removeEventListener("keydown", handleZoomShortcut);
+      window.removeEventListener("keydown", handleWorkbenchShortcut, { capture: true });
       unsubscribeDesktop();
       stopGitContextAutoRefresh();
       disconnectWorkbench();
@@ -325,6 +488,7 @@
                 selectedProjectId={selection.projectId}
                 selectedConversationId={selection.conversationId}
                 {openConversationTabIds}
+                searchFocusToken={projectSearchFocusToken}
                 onOpenConversation={openConversation}
                 onNewConversationInProject={newConversationInProject}
                 onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
@@ -414,6 +578,9 @@
                 {slashCompletions}
                 {contextUsage}
                 {contextWindow}
+                {composerFocusToken}
+                {composerEscapeToken}
+                {micShortcutToken}
                 fileCompletions={completeFiles}
                 onComposerChange={setActiveComposerText}
                 onSubmit={sendPrompt}

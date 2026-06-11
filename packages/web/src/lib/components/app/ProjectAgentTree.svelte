@@ -23,6 +23,10 @@
   } from "../../utils/project-tree";
   import { agentActivityPulse, agentActivityTone } from "../../utils/status";
   import { dateTimeLabel } from "../../utils/time";
+  import {
+    getShortcutAriaLabel,
+    getShortcutLabel,
+  } from "$lib/shortcuts/registry";
 
   type DeleteTarget = {
     kind: "project" | "conversation";
@@ -46,6 +50,7 @@
     selectedProjectId?: string;
     selectedConversationId?: string;
     openConversationTabIds?: Set<string>;
+    searchFocusToken?: number;
     onOpenConversation?: (conversationId: string) => void;
     onNewConversationInProject?: (projectDir: string) => void;
     onDeleteProject?: (projectId: string) => void;
@@ -61,6 +66,7 @@
     selectedProjectId,
     selectedConversationId,
     openConversationTabIds,
+    searchFocusToken = 0,
     onOpenConversation,
     onNewConversationInProject,
     onDeleteProject,
@@ -69,9 +75,22 @@
   }: Props = $props();
 
   let filter = $state("");
+  let searchInputEl = $state<HTMLInputElement | null>(null);
+  let lastSearchFocusToken = 0;
   let collapsed = $state<Record<string, boolean>>({});
   let pendingDelete = $state<DeleteTarget | undefined>(undefined);
   let pendingPrune = $state<PruneTarget | undefined>(undefined);
+
+  const searchShortcut = getShortcutLabel("projectSearch.focus");
+  const searchShortcutAria = getShortcutAriaLabel("projectSearch.focus");
+  const newConversationShortcut = getShortcutLabel("conversation.new");
+
+  $effect(() => {
+    if (searchFocusToken === lastSearchFocusToken) return;
+    lastSearchFocusToken = searchFocusToken;
+    searchInputEl?.focus();
+    searchInputEl?.select();
+  });
 
   function requestDelete(target: DeleteTarget) {
     pendingDelete = target;
@@ -120,7 +139,7 @@
   function projectMenu(project: ProjectRecord): ContextMenuItem[] {
     const eligibleCount = pruneEligibleCount(project.id);
     return [
-      { label: "New conversation", icon: Plus, onSelect: () => onNewConversationInProject?.(project.dir) },
+      { label: "New conversation", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
       { type: "separator" },
       { label: "Copy path", icon: Copy, onSelect: () => void copyToClipboard(project.dir, "path") },
       {
@@ -142,7 +161,7 @@
   function conversationMenu(project: ProjectRecord, conversation: ConversationRecord): ContextMenuItem[] {
     return [
       { label: "Open conversation", icon: ArrowRight, onSelect: () => onOpenConversation?.(conversation.id) },
-      { label: "New conversation", icon: Plus, onSelect: () => onNewConversationInProject?.(project.dir) },
+      { label: "New conversation", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
       { type: "separator" },
       { label: "Copy conversation id", icon: Copy, onSelect: () => void copyToClipboard(conversation.id, "conversation id") },
       {
@@ -178,7 +197,15 @@
     <aside class="project-tree">
       <div class="search-box">
         <Search size={13} strokeWidth={2.25} aria-hidden="true" />
-        <Input bind:value={filter} size="sm" placeholder="Search projects / conversations" ariaLabel="Search projects or conversations" />
+        <Input
+          bind:ref={searchInputEl}
+          bind:value={filter}
+          size="sm"
+          placeholder="Search projects / conversations"
+          ariaLabel="Search projects or conversations"
+          aria-keyshortcuts={searchShortcutAria}
+          title={searchShortcut ? `Search projects / conversations (${searchShortcut})` : "Search projects / conversations"}
+        />
       </div>
 
       <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
