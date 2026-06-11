@@ -174,12 +174,12 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.0
         version: 6.43.0
-      '@fontsource/geist':
-        specifier: ^5.2.9
-        version: 5.2.9
       '@fontsource/iosevka':
         specifier: ^5.2.5
         version: 5.2.5
+      '@fontsource/outfit':
+        specifier: ^5.2.6
+        version: 5.2.8
       '@nerve/shared':
         specifier: workspace:*
         version: link:../shared
@@ -692,11 +692,11 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@fontsource/geist@5.2.9':
-    resolution: {integrity: sha512-6QMur8g+3/9Uvfv/5chLJGBc9bYVzWijFrWEl0uZnitxp6wEPqKCJd9/GBlOk4dg/QSe96a3TUKEgmscFpE+4g==}
-
   '@fontsource/iosevka@5.2.5':
     resolution: {integrity: sha512-Zv/UHJodDug1LcnWv2u2+GPp3oWP3U6Xp16cJOsqqZQNsCu8sA/ttT331N0NypxBZ+7c8szlSRlYDcy9liZ8pw==}
+
+  '@fontsource/outfit@5.2.8':
+    resolution: {integrity: sha512-rXC6g0MqD7cOBjht0bMqc43qM6lRqDLML9KXsmg9uykz0wLQhy8Z/ajrMG6iyoT3NJR+MYgU+OEHp7uHoTb+Yw==}
 
   '@google/genai@1.52.0':
     resolution: {integrity: sha512-gwSvbpiN/17O9TbsqSsE/OzZcpv5Fo4RQjdngGgogtuB9RsyJ8ZHhX5KjHj1bp5N9snN2eK8LDGXSaWW2hof8Q==}
@@ -3900,9 +3900,9 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@fontsource/geist@5.2.9': {}
-
   '@fontsource/iosevka@5.2.5': {}
+
+  '@fontsource/outfit@5.2.8': {}
 
   '@google/genai@1.52.0':
     dependencies:

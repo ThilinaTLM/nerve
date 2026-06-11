@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Bot from "@lucide/svelte/icons/bot";
+  import Download from "@lucide/svelte/icons/download";
+  import Layers from "@lucide/svelte/icons/layers";
   import ScrollText from "@lucide/svelte/icons/scroll-text";
   import type {
     AgentRecord,
@@ -8,8 +11,8 @@
   } from "../../../api";
   import { agentActivityPulse, agentActivityTone } from "../../../utils/status";
   import { Badge } from "$lib/components/ui/badge";
-  import { Card } from "$lib/components/ui/card";
   import { StatusDot } from "$lib/components/ui/status-dot";
+  import PanelSection from "./PanelSection.svelte";
 
   type Props = {
     status?: StatusResponse;
@@ -35,6 +38,10 @@
 
   const systemPromptHref = $derived(systemPromptUrl?.());
 
+  let activeContextOpen = $state(true);
+  let agentsOpen = $state(true);
+  let exportOpen = $state(true);
+
   const fields = $derived([
     { label: "Project", value: activeProject?.name },
     { label: "Directory", value: activeProject?.dir },
@@ -46,9 +53,8 @@
 </script>
 
 <div class="flex flex-col gap-2 p-2">
-  <Card class="gap-0 overflow-hidden p-0">
-    <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Active Context</div>
-    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-3 py-2.5">
+  <PanelSection title="Active Context" icon={Layers} bind:open={activeContextOpen}>
+    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
       {#each fields as field}
         <dt class="font-mono text-xs text-muted-foreground">{field.label}</dt>
         <dd class="truncate font-mono text-xs text-foreground" title={field.value}>
@@ -56,11 +62,10 @@
         </dd>
       {/each}
     </dl>
-  </Card>
+  </PanelSection>
 
-  <Card class="gap-0 overflow-hidden p-0">
-    <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Conversation Agents</div>
-    <div class="flex flex-col">
+  <PanelSection title="Conversation Agents" icon={Bot} bind:open={agentsOpen}>
+    <div class="-mx-3 -my-2.5 flex flex-col">
       {#if conversationAgents.length === 0}
         <p class="px-3 py-2.5 text-xs text-muted-foreground">No agents in the active conversation.</p>
       {/if}
@@ -86,12 +91,11 @@
         </button>
       {/each}
     </div>
-  </Card>
+  </PanelSection>
 
   {#if activeConversation}
-    <Card class="gap-0 overflow-hidden p-0">
-      <div class="border-b px-3 py-2 text-xs font-semibold text-foreground">Export</div>
-      <div class="flex flex-col gap-3 px-3 py-2.5">
+    <PanelSection title="Export" icon={Download} bind:open={exportOpen}>
+      <div class="flex flex-col gap-3">
         <div class="flex flex-col gap-1.5">
           <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conversation</span>
           <div class="flex flex-wrap gap-1.5">
@@ -115,6 +119,6 @@
           {/if}
         </div>
       </div>
-    </Card>
+    </PanelSection>
   {/if}
 </div>

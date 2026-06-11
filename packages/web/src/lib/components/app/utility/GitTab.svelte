@@ -49,7 +49,7 @@
   import { invalidateGit } from "../../../stores/workbench/git-context.svelte";
   import { openPrPane } from "../../../stores/workbench/pr-tabs.svelte";
   import { workbenchState } from "../../../stores/workbench/state.svelte";
-  import GitSection from "./GitSection.svelte";
+  import PanelSection from "./PanelSection.svelte";
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -729,8 +729,8 @@
       No git repositories found in this directory (searched up to 2 levels deep).
     </p>
   {:else}
-    <Card class="gap-0 overflow-hidden p-0">
-      <GitSection title="Repo & Branch" icon={GitBranch} bind:open={repoSectionOpen}>
+    <div class="flex flex-col gap-2">
+      <PanelSection title="Repo & Branch" icon={GitBranch} bind:open={repoSectionOpen}>
         {#if overview}
           {@const repo = overview.repo}
           <div class="flex flex-col gap-2">
@@ -905,9 +905,9 @@
         {:else}
           <div class="py-1 text-xs text-muted-foreground">Loading…</div>
         {/if}
-      </GitSection>
+      </PanelSection>
 
-      <GitSection title="Changes" icon={FilePen} bind:open={changesSectionOpen}>
+      <PanelSection title="Changes" icon={FilePen} bind:open={changesSectionOpen}>
         {#snippet meta()}
           {#if overview}
             <span>{overview.stagedCount} staged</span>
@@ -979,9 +979,9 @@
         {:else}
           <div class="py-1 text-xs text-muted-foreground">Loading…</div>
         {/if}
-      </GitSection>
+      </PanelSection>
 
-      <GitSection title="PRs (GitHub)" icon={GitPullRequest} bind:open={prsSectionOpen}>
+      <PanelSection title="PRs (GitHub)" icon={GitPullRequest} bind:open={prsSectionOpen}>
         {#snippet actions()}
           {#if github?.authenticated}
             <Button
@@ -1083,8 +1083,8 @@
             {/each}
           </div>
         {/if}
-      </GitSection>
-    </Card>
+      </PanelSection>
+    </div>
   {/if}
 </div>
 

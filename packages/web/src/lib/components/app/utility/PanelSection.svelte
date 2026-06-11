@@ -2,15 +2,18 @@
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import type { Component, Snippet } from "svelte";
+  import { cn } from "$lib/utils.js";
 
   type Props = {
     title: string;
-    icon: Component;
+    icon?: Component;
     open?: boolean;
     /** Inline meta rendered before the action buttons (e.g. counts). */
     meta?: Snippet;
     /** Icon-only action buttons rendered on the right of the header. */
     actions?: Snippet;
+    /** Notified after the header toggles; use for externally controlled open state. */
+    onOpenChange?: (open: boolean) => void;
     children: Snippet;
   };
 
@@ -20,24 +23,32 @@
     open = $bindable(true),
     meta,
     actions,
+    onOpenChange,
     children,
   }: Props = $props();
+
+  function toggle() {
+    open = !open;
+    onOpenChange?.(open);
+  }
 </script>
 
-<section class="border-b last:border-b-0">
-  <div class="flex items-center gap-1 bg-muted/40 px-2 py-1 mb-2">
+<section class="overflow-hidden rounded-lg border bg-card">
+  <div class={cn("flex items-center gap-1 px-2 py-1.5", open && "border-b")}>
     <button
       type="button"
-      class="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 py-0.5 text-left text-xs font-medium text-foreground transition-colors hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      class="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 py-0.5 text-left text-xs font-semibold text-foreground transition-colors hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       aria-expanded={open}
-      onclick={() => (open = !open)}
+      onclick={toggle}
     >
       {#if open}
-        <ChevronDown size={13} strokeWidth={2.2} class="text-muted-foreground" />
+        <ChevronDown size={13} strokeWidth={2.2} class="shrink-0 text-muted-foreground" />
       {:else}
-        <ChevronRight size={13} strokeWidth={2.2} class="text-muted-foreground" />
+        <ChevronRight size={13} strokeWidth={2.2} class="shrink-0 text-muted-foreground" />
       {/if}
-      <Icon size={13} strokeWidth={2.2} class="text-muted-foreground" />
+      {#if Icon}
+        <Icon size={13} strokeWidth={2.2} class="shrink-0 text-muted-foreground" />
+      {/if}
       <span class="truncate">{title}</span>
     </button>
     {#if meta}
@@ -52,7 +63,7 @@
     {/if}
   </div>
   {#if open}
-    <div class="px-3 pb-2.5">
+    <div class="px-3 py-2.5">
       {@render children()}
     </div>
   {/if}
