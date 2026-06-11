@@ -1,9 +1,11 @@
 <script lang="ts">
+  import Copy from "@lucide/svelte/icons/copy";
   import Pin from "@lucide/svelte/icons/pin";
   import Play from "@lucide/svelte/icons/play";
   import Plus from "@lucide/svelte/icons/plus";
   import RotateCw from "@lucide/svelte/icons/rotate-cw";
   import Square from "@lucide/svelte/icons/square";
+  import Terminal from "@lucide/svelte/icons/terminal";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import {
     createPinnedCommand,
@@ -19,6 +21,9 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
+  import ContextMenu, {
+    type ContextMenuItem,
+  } from "$lib/components/ui/context-menu-list";
   import { Input } from "$lib/components/ui/input";
   import * as Popover from "$lib/components/ui/popover";
   import { StatusDot } from "$lib/components/ui/status-dot";
@@ -63,7 +68,7 @@
 
   let pinnedSectionOpen = $state(true);
   let runningSectionOpen = $state(true);
-  let stoppedSectionOpen = $state(true);
+  let stoppedSectionOpen = $state(false);
   let confirmPruneOpen = $state(false);
 
   let pinned = $state<PinnedCommand[]>([]);
@@ -95,6 +100,73 @@
 
   function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+  }
+
+  async function copyToClipboard(text: string, label: string) {
+    try {
+      await navigator.clipboard?.writeText(text);
+      notify.success(`Copied ${label}`);
+    } catch {
+      notify.error("Could not copy to clipboard");
+    }
+  }
+
+  async function pinFromProcess(process: ProcessRecord) {
+    if (!activeProject) return;
+    try {
+      const created = await createPinnedCommand(activeProject.id, {
+        command: process.command,
+        label: process.name,
+        cwd: process.cwd === activeProject.dir ? undefined : process.cwd,
+      });
+      pinned = [...pinned, created];
+      pinnedSectionOpen = true;
+      notify.success("Command pinned");
+    } catch (error) {
+      notify.error(`Could not pin command: ${errorMessage(error)}`);
+    }
+  }
+
+  function processMenu(process: ProcessRecord): ContextMenuItem[] {
+    const shared: ContextMenuItem[] = [
+      {
+        label: "Open output",
+        icon: Terminal,
+        onSelect: () => onOpenProcessOutput?.(process.id),
+      },
+      { label: "Pin command", icon: Pin, onSelect: () => void pinFromProcess(process) },
+      {
+        label: "Copy command",
+        icon: Copy,
+        onSelect: () => void copyToClipboard(process.command, "command"),
+      },
+      { type: "separator" },
+    ];
+    if (isActive(process)) {
+      return [
+        ...shared,
+        {
+          label: "Stop process",
+          icon: Square,
+          destructive: true,
+          onSelect: () => onStopProcess?.(process.id),
+        },
+      ];
+    }
+    return [
+      ...shared,
+      {
+        label: "Restart process",
+        icon: RotateCw,
+        onSelect: () => onRestartProcess?.(process.id),
+      },
+      {
+        label: "Remove process",
+        icon: Trash2,
+        destructive: true,
+        onSelect: () => onRemoveProcess?.(process.id),
+      },
+    ];
   }
 
   function stopPropagation(event: MouseEvent) {
@@ -161,6 +233,7 @@
 {/snippet}
 
 {#snippet processRow(process: ProcessRecord)}
+  <ContextMenu items={processMenu(process)} triggerClass="process-context-trigger">
   <div
     class="group/row flex items-center gap-1 rounded-md border bg-card pr-1.5 transition-colors hover:border-ring/40 data-[active=true]:border-primary/60 data-[active=true]:bg-muted/40"
     data-active={process.id === selectedProcess?.id}
@@ -247,6 +320,7 @@
       {/if}
     </div>
   </div>
+  </ContextMenu>
 {/snippet}
 
 {#snippet pinnedRow(command: PinnedCommand)}
@@ -418,6 +492,13 @@
 />
 
 <style>
+  /* ContextMenu trigger wrappers must not break the flex/card row layout. */
+  :global(.process-context-trigger) {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
   :global(.nav-tooltip) {
     flex-direction: column;
     align-items: flex-start;
