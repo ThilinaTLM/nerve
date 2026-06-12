@@ -5,6 +5,7 @@
   import Plus from "@lucide/svelte/icons/plus";
   import Search from "@lucide/svelte/icons/search";
   import Trash2 from "@lucide/svelte/icons/trash-2";
+  import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
   import type { AgentRecord, ProjectRecord, ConversationRecord } from "../../api";
   import { Button } from "$lib/components/ui/button";
@@ -129,7 +130,7 @@
 
   async function copyToClipboard(text: string, label: string) {
     try {
-      await navigator.clipboard?.writeText(text);
+      await writeClipboardText(text);
       notify.success(`Copied ${label}`);
     } catch {
       notify.error("Could not copy to clipboard");

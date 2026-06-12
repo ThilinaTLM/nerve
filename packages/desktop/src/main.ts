@@ -16,6 +16,7 @@ const require = createRequire(import.meta.url);
 const {
   app,
   BrowserWindow,
+  clipboard,
   ipcMain,
   Menu,
   Notification,
@@ -61,6 +62,10 @@ interface DesktopCliOptions {
 }
 
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
+const electronOzonePlatform = parseElectronOzonePlatform(
+  process.env.NERVE_ELECTRON_OZONE_PLATFORM,
+);
+applyElectronOzonePlatform(electronOzonePlatform);
 
 let mainWindow: BrowserWindowType | undefined;
 let managedDaemon: ManagedDaemon | undefined;
@@ -230,6 +235,33 @@ function parsePort(value: string): number {
   return port;
 }
 
+type ElectronOzonePlatform = "x11" | "wayland" | "auto";
+
+function parseElectronOzonePlatform(
+  value: string | undefined,
+): ElectronOzonePlatform | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (
+    normalized === "x11" ||
+    normalized === "wayland" ||
+    normalized === "auto"
+  ) {
+    return normalized;
+  }
+  console.warn(
+    `Ignoring invalid NERVE_ELECTRON_OZONE_PLATFORM=${JSON.stringify(value)}. Expected x11, wayland, or auto.`,
+  );
+  return undefined;
+}
+
+function applyElectronOzonePlatform(
+  platform: ElectronOzonePlatform | undefined,
+): void {
+  if (process.platform !== "linux" || !platform) return;
+  app.commandLine.appendSwitch("ozone-platform", platform);
+}
+
 async function openMainWindow(): Promise<void> {
   if (mainWindow) {
     showWindow(mainWindow);
@@ -370,6 +402,14 @@ function registerDesktopIpc(): void {
   ipcMain.handle("desktop.notifications.show", (_event, payload) =>
     showDesktopNotification(payload),
   );
+
+  ipcMain.handle("desktop.clipboard.writeText", (_event, text) => {
+    if (typeof text !== "string") {
+      throw new Error("desktop.clipboard.writeText expects a string.");
+    }
+    clipboard.writeText(text);
+    return { ok: true };
+  });
 }
 
 function windowFromEvent(

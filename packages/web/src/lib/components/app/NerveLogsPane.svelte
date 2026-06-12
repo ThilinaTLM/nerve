@@ -7,6 +7,7 @@
   import Tag from "@lucide/svelte/icons/tag";
   import X from "@lucide/svelte/icons/x";
   import { SvelteSet } from "svelte/reactivity";
+  import { writeClipboardText } from "$lib/clipboard";
   import type {
     ApplicationLogLevel,
     ApplicationLogQueryResponse,
@@ -98,7 +99,7 @@
     const text = rows
       .map((log) => `${log.ts} ${log.level.toUpperCase()} ${log.source}/${log.component} ${log.message}`)
       .join("\n");
-    void navigator.clipboard?.writeText(text);
+    void writeClipboardText(text).catch(() => undefined);
   }
 
   $effect(() => {

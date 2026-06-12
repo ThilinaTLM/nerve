@@ -37,4 +37,8 @@ contextBridge.exposeInMainWorld("nerveDesktop", {
     show: (payload) =>
       ipcRenderer.invoke("desktop.notifications.show", payload),
   },
+  clipboard: {
+    writeText: (text) =>
+      ipcRenderer.invoke("desktop.clipboard.writeText", text),
+  },
 });

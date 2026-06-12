@@ -11,6 +11,7 @@
   import Terminal from "@lucide/svelte/icons/terminal";
   import X from "@lucide/svelte/icons/x";
   import { StatusDot } from "$lib/components/ui/status-dot";
+  import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
   import type { CenterTabModel } from "../../stores/workbench/selectors.svelte";
   import type { CenterTabIdentity } from "../../stores/workbench/state.svelte";
@@ -142,7 +143,7 @@
   async function copyToClipboard(text: string | undefined, label: string) {
     if (!text) return;
     try {
-      await navigator.clipboard?.writeText(text);
+      await writeClipboardText(text);
       notify.success(`Copied ${label}`);
     } catch {
       notify.error("Could not copy to clipboard");

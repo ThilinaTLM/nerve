@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
   import { unified } from "unified";
   import remarkParse from "remark-parse";
@@ -144,7 +145,7 @@
       const code = button.closest(".code-block")?.querySelector("pre code")?.textContent ?? "";
       if (!code) return;
       try {
-        await navigator.clipboard?.writeText(code);
+        await writeClipboardText(code);
         notify.success("Copied code block");
       } catch {
         notify.error("Could not copy code block");

@@ -7,10 +7,33 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
 const forwardedArgs = process.argv.slice(2);
+const ozonePlatform = parseElectronOzonePlatform(
+  process.env.NERVE_ELECTRON_OZONE_PLATFORM,
+);
+const linuxSwitches = [
+  "--class=nerve",
+  ...(ozonePlatform ? [`--ozone-platform=${ozonePlatform}`] : []),
+];
 const electronArgs =
   process.platform === "linux"
-    ? ["--class=nerve", ".", ...forwardedArgs]
+    ? [...linuxSwitches, ".", ...forwardedArgs]
     : [".", ...forwardedArgs];
+
+function parseElectronOzonePlatform(value) {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (
+    normalized === "x11" ||
+    normalized === "wayland" ||
+    normalized === "auto"
+  ) {
+    return normalized;
+  }
+  console.warn(
+    `Ignoring invalid NERVE_ELECTRON_OZONE_PLATFORM=${JSON.stringify(value)}. Expected x11, wayland, or auto.`,
+  );
+  return undefined;
+}
 
 const child = spawn(electronPath, electronArgs, {
   cwd,

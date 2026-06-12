@@ -5,6 +5,7 @@
   import ListPlus from "@lucide/svelte/icons/list-plus";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
+  import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, QueuedPromptRecord, ConversationRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
@@ -326,7 +327,7 @@
 
   async function copyText(text: string, label = "message") {
     try {
-      await navigator.clipboard?.writeText(text);
+      await writeClipboardText(text);
       notify.success(`Copied ${label}`);
     } catch {
       notify.error("Could not copy to clipboard");

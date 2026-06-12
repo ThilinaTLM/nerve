@@ -26,6 +26,16 @@ pnpm check
 pnpm test
 ```
 
+### Linux Wayland desktop troubleshooting
+
+Electron may emit Chromium/Ozone Wayland messages such as `Frame latency is negative` or `Invalid state when trying to start drag`. If native Wayland also causes copy/drag freezes on your desktop environment, run the desktop shell through XWayland:
+
+```sh
+NERVE_ELECTRON_OZONE_PLATFORM=x11 make desktop
+```
+
+Supported values are `x11`, `wayland`, and `auto`. Leave it unset for Electron's default platform selection.
+
 ## License
 
 Apache-2.0. See `LICENSE` and `NOTICE`.

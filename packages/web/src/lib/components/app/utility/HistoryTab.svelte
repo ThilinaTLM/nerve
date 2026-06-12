@@ -28,6 +28,7 @@
   import User from "@lucide/svelte/icons/user";
   import Wrench from "@lucide/svelte/icons/wrench";
   import type { Component } from "svelte";
+  import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
   import type { ConversationEntry, ConversationRecord, ConversationTreeNode, ToolCallRecord } from "../../../api";
   import { buttonVariants } from "$lib/components/ui/button";
@@ -189,7 +190,7 @@
         icon: Copy,
         onSelect: async () => {
           try {
-            await navigator.clipboard?.writeText(node.entry.id);
+            await writeClipboardText(node.entry.id);
             notify.success("Copied entry id");
           } catch {
             notify.error("Could not copy to clipboard");

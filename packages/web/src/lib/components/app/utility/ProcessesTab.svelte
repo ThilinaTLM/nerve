@@ -15,6 +15,7 @@
     type ProcessRecord,
     type ProjectRecord,
   } from "../../../api";
+  import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
   import { dateTimeLabel } from "../../../utils/time";
   import { processPulse, processTone } from "../../../utils/status";
@@ -104,7 +105,7 @@
 
   async function copyToClipboard(text: string, label: string) {
     try {
-      await navigator.clipboard?.writeText(text);
+      await writeClipboardText(text);
       notify.success(`Copied ${label}`);
     } catch {
       notify.error("Could not copy to clipboard");

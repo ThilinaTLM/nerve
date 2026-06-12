@@ -30,6 +30,9 @@ export interface NerveDesktopBridge {
   notifications: {
     show: (payload: DesktopNotificationPayload) => Promise<{ shown: boolean }>;
   };
+  clipboard: {
+    writeText: (text: string) => Promise<{ ok: true }>;
+  };
 }
 
 declare global {
