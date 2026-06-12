@@ -1,6 +1,8 @@
 import type {
   AgentRecord,
   ApplicationLogLevel,
+  ApplicationLogPruneRequest,
+  ApplicationLogPruneResponse,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
   ApprovalRecord,
@@ -84,6 +86,8 @@ export type WorkspaceSnapshot = {
 export type SettingsResponse = Settings;
 export type {
   ApplicationLogLevel,
+  ApplicationLogPruneRequest,
+  ApplicationLogPruneResponse,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
   QueuedPromptRecord,
@@ -520,6 +524,12 @@ export async function getApplicationLogs(
   return apiGet<ApplicationLogQueryResponse>(
     `/api/logs${params.size ? `?${params.toString()}` : ""}`,
   );
+}
+
+export async function pruneApplicationLogs(
+  request: ApplicationLogPruneRequest,
+): Promise<ApplicationLogPruneResponse> {
+  return apiPost<ApplicationLogPruneResponse>("/api/logs/prune", request);
 }
 
 export async function getProcessLogs(

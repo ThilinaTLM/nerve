@@ -2,6 +2,7 @@
   import ArrowDown from "@lucide/svelte/icons/arrow-down";
   import Clipboard from "@lucide/svelte/icons/clipboard";
   import Copy from "@lucide/svelte/icons/copy";
+  import Folder from "@lucide/svelte/icons/folder";
   import ListPlus from "@lucide/svelte/icons/list-plus";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
@@ -11,6 +12,7 @@
   import Markdown from "../../Markdown.svelte";
   import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
   import type { ConversationLiveState, TranscriptItem } from "../../stores/workbench/state.svelte";
+  import { shortProjectLabel } from "../../utils/project-tree";
   import { buildConversationTimeline } from "../../stores/workbench/timeline";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
@@ -79,6 +81,7 @@
     activeProject,
     activeConversation,
     activeAgent,
+    homeDir,
     pendingConversationActive = false,
     approvals = [],
     pendingUserQuestion,
@@ -140,6 +143,7 @@
   const USER_SCROLL_INTENT_TIMEOUT_MS = 350;
 
   const conversationOpen = $derived(Boolean(activeConversation || pendingConversationActive));
+  const activeProjectLabel = $derived(activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined);
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls, liveState));
   const lastTimelineKey = $derived(timeline.at(-1)?.key);
   const hasLiveTimelineNodes = $derived(
@@ -375,6 +379,13 @@
             <span class="prompt-caret" aria-hidden="true"></span>
           </div>
           <span class="prompt-hint">Type below to wake the agent.</span>
+          {#if activeProjectLabel}
+            <div class="prompt-project" title={activeProject?.dir} aria-label={`Conversation will be created in project ${activeProject?.dir}`}>
+              <Folder size={13} strokeWidth={2.2} aria-hidden="true" />
+              <span class="prompt-project-label">Project:</span>
+              <span class="prompt-project-path">{activeProjectLabel}</span>
+            </div>
+          {/if}
         </div>
       {/if}
 
@@ -504,7 +515,7 @@
         <span class="prompt-caret" aria-hidden="true"></span>
       </div>
       <span class="prompt-hint">Open a conversation or start a new one.</span>
-      <Button class="empty-action" variant="ghost" size="sm" onclick={onOpenProject}>New conversation</Button>
+      <Button class="empty-action" variant="ghost" size="sm" onclick={onOpenProject}>New chat</Button>
     </div>
   {/if}
 </section>
@@ -718,6 +729,35 @@
     margin-top: 0.7rem;
     font-size: var(--text-sm);
     color: var(--muted-foreground);
+  }
+
+  .prompt-project {
+    display: inline-flex;
+    align-items: center;
+    justify-self: center;
+    max-width: min(28rem, 86vw);
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--muted);
+    padding: 0.25rem 0.55rem;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .prompt-project-label {
+    flex: 0 0 auto;
+    color: var(--muted-foreground);
+  }
+
+  .prompt-project-path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--foreground);
+    font-family: var(--font-mono);
   }
 
   @media (prefers-reduced-motion: reduce) {

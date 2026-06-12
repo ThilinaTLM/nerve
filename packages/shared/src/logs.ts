@@ -72,6 +72,22 @@ export type ApplicationLogQueryResponse = z.infer<
   typeof applicationLogQueryResponseSchema
 >;
 
+export const applicationLogPruneRequestSchema = applicationLogQuerySchema.omit({
+  limit: true,
+  sinceSeq: true,
+});
+export type ApplicationLogPruneRequest = z.infer<
+  typeof applicationLogPruneRequestSchema
+>;
+
+export const applicationLogPruneResponseSchema = z.object({
+  pruned: z.number().int().nonnegative(),
+  remaining: z.number().int().nonnegative(),
+});
+export type ApplicationLogPruneResponse = z.infer<
+  typeof applicationLogPruneResponseSchema
+>;
+
 export const clientApplicationLogRequestSchema = z.object({
   logs: z
     .array(

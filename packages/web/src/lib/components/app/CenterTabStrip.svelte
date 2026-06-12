@@ -303,9 +303,9 @@
     <Button
       variant="ghost"
       size="icon-sm"
-      ariaLabel="New conversation"
+      ariaLabel="New chat"
       aria-keyshortcuts={newConversationShortcutAria}
-      title={newConversationShortcut ? `New conversation (${newConversationShortcut})` : "New conversation"}
+      title={newConversationShortcut ? `New chat (${newConversationShortcut})` : "New chat"}
       onclick={onNewConversation}
     >
       <Plus size={13} strokeWidth={2.25} />

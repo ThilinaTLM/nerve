@@ -154,7 +154,7 @@
 
   function projectMenu(project: ProjectRecord): ContextMenuItem[] {
     return [
-      { label: "New conversation", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
+      { label: "New chat", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
       { type: "separator" },
       { label: "Copy path", icon: Copy, onSelect: () => void copyToClipboard(project.dir, "path") },
       {
@@ -165,7 +165,7 @@
         onSelect: () => requestPrune(project),
       },
       {
-        label: "Delete project",
+        label: "Remove project",
         icon: Trash2,
         destructive: true,
         onSelect: () => requestDelete({ kind: "project", id: project.id, label: shortProjectLabel(project.dir, homeDir) }),
@@ -176,7 +176,7 @@
   function conversationMenu(project: ProjectRecord, conversation: ConversationRecord): ContextMenuItem[] {
     return [
       { label: "Open conversation", icon: ArrowRight, onSelect: () => onOpenConversation?.(conversation.id) },
-      { label: "New conversation", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
+      { label: "New chat", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
       { type: "separator" },
       { label: "Copy conversation id", icon: Copy, onSelect: () => void copyToClipboard(conversation.id, "conversation id") },
       {
@@ -245,8 +245,8 @@
                 <Button
                   size="icon-xs"
                   variant="ghost"
-                  title="New conversation in project"
-                  ariaLabel="New conversation"
+                  title="New chat in project"
+                  ariaLabel="New chat"
                   onclick={() => onNewConversationInProject?.(group.project.dir)}
                 >
                   <Plus />
@@ -312,11 +312,13 @@
 
 <AlertDialog
   open={!!pendingDelete}
-  title={pendingDelete?.kind === "project" ? "Delete project?" : "Delete conversation?"}
+  title={pendingDelete?.kind === "project" ? "Remove project?" : "Delete conversation?"}
   description={pendingDelete
-    ? `This permanently removes “${pendingDelete.label}”${pendingDelete.kind === "project" ? " and all its conversations." : "."}`
+    ? pendingDelete.kind === "project"
+      ? `This removes “${pendingDelete.label}” from Nerve and deletes its Nerve conversations. Files on disk are not deleted.`
+      : `This permanently removes “${pendingDelete.label}”.`
     : ""}
-  confirmLabel="Delete"
+  confirmLabel={pendingDelete?.kind === "project" ? "Remove" : "Delete"}
   destructive
   onConfirm={confirmDelete}
   onOpenChange={(open) => { if (!open) pendingDelete = undefined; }}

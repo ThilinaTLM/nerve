@@ -69,6 +69,28 @@ describe("orchestrator server routes", () => {
           (log) => log.source === "web" && log.component === "test-client",
         ),
       );
+
+      const pruneResponse = await app.request("/api/logs/prune", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ source: "web", component: "test-client" }),
+      });
+      assert.equal(pruneResponse.status, 200);
+      const pruneBody = (await pruneResponse.json()) as {
+        pruned: number;
+        remaining: number;
+      };
+      assert.equal(pruneBody.pruned, 1);
+
+      const afterPruneResponse = await app.request(
+        "/api/logs?source=web&component=test-client",
+        { headers },
+      );
+      assert.equal(afterPruneResponse.status, 200);
+      const afterPrune = (await afterPruneResponse.json()) as {
+        logs: Array<{ source: string; component: string }>;
+      };
+      assert.equal(afterPrune.logs.length, 0);
     } finally {
       state.index.close();
     }

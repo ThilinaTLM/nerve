@@ -49,13 +49,13 @@ const paneIndexCommands = Array.from({ length: 9 }, (_, index) => {
 export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
   {
     id: "conversation.new",
-    label: "New conversation",
+    label: "New chat",
     category: "Conversation",
     defaultBinding: { key: "n", mod: true },
   },
   {
     id: "conversation.newFromProject",
-    label: "New conversation from project",
+    label: "New chat from project",
     category: "Conversation",
     defaultBinding: { key: "n", mod: true, shift: true },
   },

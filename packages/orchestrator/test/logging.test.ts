@@ -86,4 +86,49 @@ describe("ApplicationLogger", () => {
     const since = await logger.query({ sinceSeq: warn.logs[0].seq });
     assert.equal(since.logs.length, 0);
   });
+
+  it("prunes all application logs", async () => {
+    const home = await tempHome();
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      level: "debug",
+      mirrorToConsole: false,
+    });
+    await logger.hydrate();
+    await logger.info("first");
+    await logger.error("second");
+
+    const response = await logger.prune();
+    assert.deepEqual(response, { pruned: 2, remaining: 0 });
+    assert.equal((await logger.query({ limit: 10 })).logs.length, 0);
+
+    await logger.warn("after prune");
+    const after = await logger.query({ limit: 10 });
+    assert.equal(after.logs.length, 1);
+    assert.ok(after.logs[0].seq > 2);
+  });
+
+  it("prunes filtered application logs and preserves non-matches", async () => {
+    const home = await tempHome();
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      level: "debug",
+      mirrorToConsole: false,
+    });
+    await logger.hydrate();
+    await logger.info("keep me", { context: { tag: "alpha" } });
+    await logger.warn("drop me", { context: { tag: "beta" } });
+    await logger.warn("keep warning", { context: { tag: "alpha" } });
+
+    const response = await logger.prune({ level: "warn", contains: "beta" });
+    assert.deepEqual(response, { pruned: 1, remaining: 2 });
+
+    const remaining = await logger.query({ limit: 10 });
+    assert.deepEqual(
+      remaining.logs.map((log) => log.message),
+      ["keep me", "keep warning"],
+    );
+  });
 });

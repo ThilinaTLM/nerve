@@ -206,7 +206,7 @@ export async function createConversationForDirectory(dir: string) {
     ];
     workbenchState.projectPickerOpen = false;
     openPendingConversation(project);
-    notify.success("New conversation ready", { description: project.dir });
+    notify.success("New chat ready", { description: project.dir });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workbenchState.error = message;

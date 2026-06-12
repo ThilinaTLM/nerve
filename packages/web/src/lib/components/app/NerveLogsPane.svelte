@@ -5,16 +5,19 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Search from "@lucide/svelte/icons/search";
   import Tag from "@lucide/svelte/icons/tag";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
   import X from "@lucide/svelte/icons/x";
   import { SvelteSet } from "svelte/reactivity";
   import { writeClipboardText } from "$lib/clipboard";
   import type {
     ApplicationLogLevel,
+    ApplicationLogPruneRequest,
     ApplicationLogQueryResponse,
     ApplicationLogSource,
   } from "$lib/api";
-  import { getApplicationLogs } from "$lib/api";
+  import { getApplicationLogs, pruneApplicationLogs } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
+  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
   import { Input } from "$lib/components/ui/input";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { StatusDot } from "$lib/components/ui/status-dot";
@@ -30,13 +33,21 @@
   let component = $state("");
   let contains = $state("");
   let loading = $state(false);
+  let pruning = $state(false);
+  let confirmPruneOpen = $state(false);
   let error = $state<string | undefined>();
+  let notice = $state<string | undefined>();
 
   const expanded = new SvelteSet<string>();
 
   const rows = $derived([...(logs?.logs ?? [])].reverse());
   const filtersActive = $derived(
     level !== "all" || source !== "all" || component.trim() !== "" || contains.trim() !== "",
+  );
+  const pruneDescription = $derived(
+    filtersActive
+      ? "This removes stored Nerve application logs matching the current filters. New request logs may appear immediately after pruning."
+      : "This removes stored Nerve application logs. New request logs may appear immediately after pruning.",
   );
 
   type LogRow = ApplicationLogQueryResponse["logs"][number];
@@ -95,6 +106,31 @@
     contains = "";
   }
 
+  function currentPruneRequest(): ApplicationLogPruneRequest {
+    return {
+      level: level === "all" ? undefined : level,
+      source: source === "all" ? undefined : source,
+      component: component.trim() || undefined,
+      contains: contains.trim() || undefined,
+    };
+  }
+
+  async function pruneLogs() {
+    pruning = true;
+    error = undefined;
+    notice = undefined;
+    try {
+      const response = await pruneApplicationLogs(currentPruneRequest());
+      expanded.clear();
+      notice = `Pruned ${response.pruned} ${response.pruned === 1 ? "log entry" : "log entries"}.`;
+      await refresh();
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : String(caught);
+    } finally {
+      pruning = false;
+    }
+  }
+
   function copyLogs() {
     const text = rows
       .map((log) => `${log.ts} ${log.level.toUpperCase()} ${log.source}/${log.component} ${log.message}`)
@@ -133,11 +169,14 @@
             <FilterX size={13} />Clear
           </Button>
         {/if}
-        <Button size="sm" variant="secondary" onclick={refresh} disabled={loading}>
+        <Button size="sm" variant="secondary" onclick={refresh} disabled={loading || pruning}>
           <RefreshCw size={13} class={loading ? "animate-spin" : ""} />{loading ? "Loading" : "Refresh"}
         </Button>
-        <Button size="sm" variant="ghost" onclick={copyLogs} disabled={rows.length === 0}>
+        <Button size="sm" variant="ghost" onclick={copyLogs} disabled={rows.length === 0 || pruning}>
           <Copy size={13} />Copy
+        </Button>
+        <Button size="sm" variant="destructive" onclick={() => (confirmPruneOpen = true)} disabled={loading || pruning}>
+          <Trash2 size={13} />{pruning ? "Pruning" : "Prune"}
         </Button>
       </div>
     </div>
@@ -165,6 +204,9 @@
 
   {#if error}
     <div class="logs-error">{error}</div>
+  {/if}
+  {#if notice}
+    <div class="logs-notice">{notice}</div>
   {/if}
 
   <ScrollArea class="logs-scroll" type="auto">
@@ -223,6 +265,15 @@
     </div>
   </ScrollArea>
 </section>
+
+<ConfirmDialog
+  bind:open={confirmPruneOpen}
+  title={filtersActive ? "Prune filtered logs?" : "Prune all logs?"}
+  description={pruneDescription}
+  confirmLabel={filtersActive ? "Prune filtered logs" : "Prune all logs"}
+  destructive
+  onConfirm={() => void pruneLogs()}
+/>
 
 <style>
   .logs-pane {
@@ -348,7 +399,8 @@
     background: var(--accent);
   }
 
-  .logs-error {
+  .logs-error,
+  .logs-notice {
     margin: 0.6rem 0.75rem 0;
     border: 1px solid color-mix(in oklab, var(--destructive) 35%, var(--border));
     border-radius: var(--radius-md);
@@ -356,6 +408,12 @@
     color: var(--destructive);
     background: color-mix(in oklab, var(--destructive) 8%, var(--card));
     font-size: var(--text-sm);
+  }
+
+  .logs-notice {
+    border-color: color-mix(in oklab, var(--success) 35%, var(--border));
+    color: var(--success);
+    background: color-mix(in oklab, var(--success) 8%, var(--card));
   }
 
   :global(.logs-scroll) {

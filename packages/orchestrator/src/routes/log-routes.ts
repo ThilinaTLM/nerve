@@ -1,4 +1,5 @@
 import {
+  applicationLogPruneRequestSchema,
   applicationLogQuerySchema,
   clientApplicationLogRequestSchema,
 } from "@nerve/shared";
@@ -30,6 +31,14 @@ export function createLogRoutes(state: OrchestratorState): Hono {
         workerId: c.req.query("workerId"),
       });
       return c.json(await state.logger.query(query));
+    }),
+  );
+
+  app.post(
+    "/logs/prune",
+    routeHandler(async (c) => {
+      const body = applicationLogPruneRequestSchema.parse(await c.req.json());
+      return c.json(await state.logger.prune(body));
     }),
   );
 

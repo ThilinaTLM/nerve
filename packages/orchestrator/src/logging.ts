@@ -2,6 +2,8 @@ import { mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type ApplicationLogLevel,
+  type ApplicationLogPruneRequest,
+  type ApplicationLogPruneResponse,
   type ApplicationLogQuery,
   type ApplicationLogRecord,
   type ApplicationLogSource,
@@ -193,6 +195,38 @@ export class ApplicationLogger {
     return { logs: logs.slice(-limit), nextCursor: allNextCursor };
   }
 
+  async prune(
+    query: ApplicationLogPruneRequest = {},
+  ): Promise<ApplicationLogPruneResponse> {
+    if (this.root !== this) return this.root.prune(query);
+    if (!hasPruneFilter(query)) {
+      const logs = await this.readAllLogs();
+      for (const file of await this.applicationLogFiles()) {
+        await rm(join(this.logsDir(), file), { force: true }).catch(
+          () => undefined,
+        );
+      }
+      this.#buffer = [];
+      return { pruned: logs.length, remaining: 0 };
+    }
+
+    let pruned = 0;
+    let remaining = 0;
+    this.#buffer = this.#buffer.filter((log) => !matchesLogPrune(log, query));
+    for (const file of await this.applicationLogFiles()) {
+      const path = join(this.logsDir(), file);
+      const parsed = (await readJsonLines<unknown>(path).catch(() => []))
+        .map((value) => applicationLogRecordSchema.safeParse(value))
+        .filter((result) => result.success)
+        .map((result) => result.data);
+      const kept = parsed.filter((log) => !matchesLogPrune(log, query));
+      pruned += parsed.length - kept.length;
+      remaining += kept.length;
+      await rewriteJsonLines(path, kept, 0o600);
+    }
+    return { pruned, remaining };
+  }
+
   async removeLogsForConversations(
     conversationIds: Iterable<string>,
   ): Promise<void> {
@@ -371,6 +405,41 @@ function pickLogRefs(context: ApplicationLogContext) {
     processId: context.processId,
     workerId: context.workerId,
   };
+}
+
+function hasPruneFilter(query: ApplicationLogPruneRequest): boolean {
+  return Object.values(query).some(
+    (value) => value !== undefined && value !== "",
+  );
+}
+
+function matchesLogPrune(
+  log: ApplicationLogRecord,
+  query: ApplicationLogPruneRequest,
+): boolean {
+  if (query.level && log.level !== query.level) return false;
+  if (query.source && log.source !== query.source) return false;
+  if (query.component && log.component !== query.component) return false;
+  for (const key of [
+    "requestId",
+    "projectId",
+    "conversationId",
+    "agentId",
+    "runId",
+    "toolCallId",
+    "processId",
+    "workerId",
+  ] as const) {
+    const value = query[key];
+    if (value && log[key] !== value) return false;
+  }
+  if (
+    query.contains &&
+    !JSON.stringify(log).toLowerCase().includes(query.contains.toLowerCase())
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function dateFromApplicationLogFile(file: string): Date | undefined {

@@ -76,7 +76,7 @@
 
   :global(.dialog-content) {
     position: fixed;
-    z-index: 51;
+    z-index: 50;
     top: 7vh;
     left: 50%;
     display: grid;
