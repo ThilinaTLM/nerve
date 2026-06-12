@@ -7,11 +7,17 @@
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
-  import type { AgentRecord, ProjectRecord, ConversationRecord } from "../../api";
+  import type {
+    AgentRecord,
+    ProjectRecord,
+    ConversationRecord,
+    PruneProjectConversationsRequest,
+  } from "../../api";
   import { Button } from "$lib/components/ui/button";
   import AlertDialog from "$lib/components/ui/confirm-dialog";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import { Input } from "$lib/components/ui/input";
+  import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import * as Tooltip from "$lib/components/ui/tooltip";
@@ -38,10 +44,7 @@
   type PruneTarget = {
     id: string;
     label: string;
-    eligibleCount: number;
   };
-
-  const pruneConversationDays = 7;
 
   type Props = {
     projects?: ProjectRecord[];
@@ -56,7 +59,10 @@
     onNewConversationInProject?: (projectDir: string) => void;
     onDeleteProject?: (projectId: string) => void;
     onDeleteConversation?: (conversationId: string) => void;
-    onPruneProjectConversations?: (projectId: string) => void;
+    onPruneProjectConversations?: (
+      projectId: string,
+      request: PruneProjectConversationsRequest,
+    ) => void;
   };
 
   let {
@@ -101,7 +107,6 @@
     pendingPrune = {
       id: project.id,
       label: shortProjectLabel(project.dir, homeDir),
-      eligibleCount: pruneEligibleCount(project.id),
     };
   }
 
@@ -111,13 +116,19 @@
     else onDeleteConversation?.(pendingDelete.id);
   }
 
-  function confirmPrune() {
+  function confirmPrune(request: PruneProjectConversationsRequest) {
     if (!pendingPrune) return;
-    onPruneProjectConversations?.(pendingPrune.id);
+    onPruneProjectConversations?.(pendingPrune.id, request);
   }
 
-  function pruneEligibleCount(projectId: string): number {
-    const cutoff = Date.now() - pruneConversationDays * 24 * 60 * 60 * 1000;
+  function projectConversationCount(projectId: string): number {
+    return conversations.filter(
+      (conversation) => conversation.projectId === projectId,
+    ).length;
+  }
+
+  function ageEligibleCount(projectId: string, days: number): number {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     return conversations.filter((conversation) => {
       const updatedAt = Date.parse(conversation.updatedAt);
       return (
@@ -126,6 +137,10 @@
         updatedAt < cutoff
       );
     }).length;
+  }
+
+  function keepEligibleCount(projectId: string, keep: number): number {
+    return Math.max(0, projectConversationCount(projectId) - keep);
   }
 
   async function copyToClipboard(text: string, label: string) {
@@ -138,16 +153,15 @@
   }
 
   function projectMenu(project: ProjectRecord): ContextMenuItem[] {
-    const eligibleCount = pruneEligibleCount(project.id);
     return [
       { label: "New conversation", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
       { type: "separator" },
       { label: "Copy path", icon: Copy, onSelect: () => void copyToClipboard(project.dir, "path") },
       {
-        label: "Prune Conversations",
+        label: "Clean up",
         icon: Trash2,
         destructive: true,
-        disabled: eligibleCount === 0,
+        disabled: projectConversationCount(project.id) === 0,
         onSelect: () => requestPrune(project),
       },
       {
@@ -281,7 +295,7 @@
                   </ContextMenu>
                 {/each}
                 {#if group.hiddenRows > 0}
-                  <p class="empty child">+{group.hiddenRows} more…</p>
+                  <p class="empty child">+{group.hiddenRows} more</p>
                 {/if}
               </div>
             </PanelSection>
@@ -289,7 +303,7 @@
         {/each}
 
         {#if hiddenProjects > 0}
-          <p class="empty">+{hiddenProjects} more projects…</p>
+          <p class="empty">+{hiddenProjects} more projects</p>
         {/if}
       </div>
     </ScrollArea>
@@ -308,14 +322,12 @@
   onOpenChange={(open) => { if (!open) pendingDelete = undefined; }}
 />
 
-<AlertDialog
+<PruneConversationsDialog
   open={!!pendingPrune}
-  title="Prune old conversations?"
-  description={pendingPrune
-    ? `This permanently removes ${pendingPrune.eligibleCount} conversation${pendingPrune.eligibleCount === 1 ? "" : "s"} in “${pendingPrune.label}” last updated more than ${pruneConversationDays} days ago. Active conversations and active processes are skipped.`
-    : ""}
-  confirmLabel="Prune"
-  destructive
+  projectLabel={pendingPrune?.label ?? ""}
+  totalCount={pendingPrune ? projectConversationCount(pendingPrune.id) : 0}
+  ageEligible={(days) => (pendingPrune ? ageEligibleCount(pendingPrune.id, days) : 0)}
+  keepEligible={(keep) => (pendingPrune ? keepEligibleCount(pendingPrune.id, keep) : 0)}
   onConfirm={confirmPrune}
   onOpenChange={(open) => { if (!open) pendingPrune = undefined; }}
 />

@@ -45,6 +45,7 @@ import type {
   ProcessLogQueryResponse,
   ProcessRecord,
   ProjectRecord,
+  PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
   QueuedPromptRecord,
   RespondOAuthFlowRequest,
@@ -487,11 +488,11 @@ export async function deleteConversation(
 
 export async function pruneProjectConversations(
   projectId: string,
-  olderThanDays = 7,
+  request: PruneProjectConversationsRequest,
 ): Promise<PruneProjectConversationsResponse> {
   return apiPost<PruneProjectConversationsResponse>(
     `/api/projects/${projectId}/conversations/prune`,
-    { olderThanDays },
+    request,
   );
 }
 
@@ -921,6 +922,7 @@ export type {
   FilesystemFileResponse,
   FilesystemSignal,
   ProjectRecord,
+  PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
   ConversationEntry,
   ConversationRecord,

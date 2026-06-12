@@ -153,9 +153,10 @@ describe("RuntimeRegistry conversation behavior", () => {
 
       const result = await state.registry.pruneProjectConversations(
         project.id,
-        { olderThanDays: 7 },
+        { strategy: "olderThanDays", olderThanDays: 7 },
       );
 
+      assert.equal(result.strategy, "olderThanDays");
       assert.deepEqual(result.prunedConversationIds, [oldConversation.id]);
       assert.deepEqual(result.prunedProcessIds, [inactiveProcess.id]);
       assert.deepEqual(result.skipped, []);
@@ -232,7 +233,7 @@ describe("RuntimeRegistry conversation behavior", () => {
 
       const result = await state.registry.pruneProjectConversations(
         project.id,
-        { olderThanDays: 7 },
+        { strategy: "olderThanDays", olderThanDays: 7 },
       );
 
       assert.deepEqual(result.prunedConversationIds, []);
@@ -259,6 +260,47 @@ describe("RuntimeRegistry conversation behavior", () => {
         state.registry.processes.getProcess(activeProcess.id).id,
         activeProcess.id,
       );
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("keeps the most recent conversations when pruning by count", async () => {
+    const state = await createState("nerve-registry-prune-keep-");
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const oldest = await state.registry.createConversation({
+        projectId: project.id,
+        title: "Oldest",
+      });
+      const middle = await state.registry.createConversation({
+        projectId: project.id,
+        title: "Middle",
+      });
+      const newest = await state.registry.createConversation({
+        projectId: project.id,
+        title: "Newest",
+      });
+      ageConversation(state, oldest, "2020-01-01T00:00:00.000Z");
+      ageConversation(state, middle, "2020-06-01T00:00:00.000Z");
+      ageConversation(state, newest, "2021-01-01T00:00:00.000Z");
+
+      const result = await state.registry.pruneProjectConversations(
+        project.id,
+        { strategy: "keepLatest", keepLatest: 1 },
+      );
+
+      assert.equal(result.strategy, "keepLatest");
+      assert.deepEqual(
+        result.prunedConversationIds.sort(),
+        [middle.id, oldest.id].sort(),
+      );
+      assert.deepEqual(result.skipped, []);
+      assert.equal(state.registry.getConversation(newest.id).id, newest.id);
+      assert.throws(() => state.registry.getConversation(oldest.id));
+      assert.throws(() => state.registry.getConversation(middle.id));
     } finally {
       state.index.close();
     }

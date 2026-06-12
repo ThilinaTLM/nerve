@@ -396,20 +396,27 @@ export class RuntimeRegistry {
 
   async pruneProjectConversations(
     projectId: string,
-    request: PruneProjectConversationsRequest = { olderThanDays: 7 },
+    request: PruneProjectConversationsRequest = {
+      strategy: "olderThanDays",
+      olderThanDays: 7,
+    },
   ): Promise<PruneProjectConversationsResponse> {
     this.getProject(projectId);
-    const olderThanDays = request.olderThanDays ?? 7;
-    const cutoffMs = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
-    const cutoff = new Date(cutoffMs).toISOString();
-    const candidates = this.listConversations().filter((conversation) => {
-      const updatedAt = Date.parse(conversation.updatedAt);
-      return (
-        conversation.projectId === projectId &&
-        Number.isFinite(updatedAt) &&
-        updatedAt < cutoffMs
-      );
-    });
+    const projectConversations = this.listConversations().filter(
+      (conversation) => conversation.projectId === projectId,
+    );
+    let candidates: ConversationRecord[];
+    if (request.strategy === "olderThanDays") {
+      const cutoffMs = Date.now() - request.olderThanDays * 24 * 60 * 60 * 1000;
+      candidates = projectConversations.filter((conversation) => {
+        const updatedAt = Date.parse(conversation.updatedAt);
+        return Number.isFinite(updatedAt) && updatedAt < cutoffMs;
+      });
+    } else {
+      candidates = [...projectConversations]
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+        .slice(request.keepLatest);
+    }
     const candidateIds = candidates.map((conversation) => conversation.id);
     const activeProcessConversationIds = new Set(
       this.processes
@@ -483,8 +490,7 @@ export class RuntimeRegistry {
 
     const response: PruneProjectConversationsResponse = {
       projectId,
-      olderThanDays,
-      cutoff,
+      strategy: request.strategy,
       prunedConversationIds,
       prunedProcessIds,
       skipped,

@@ -216,7 +216,7 @@
       <DropdownMenu.Content align="end" class="w-48">
         <DropdownMenu.Item disabled={!activeConversation} onSelect={() => (confirmCompactOpen = true)}>
           <FoldVertical />
-          <span>Compact context…</span>
+          <span>Compact context</span>
         </DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Root>

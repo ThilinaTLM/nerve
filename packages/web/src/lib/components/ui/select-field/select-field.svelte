@@ -14,7 +14,7 @@
 	let {
 		items = [],
 		value = $bindable(""),
-		placeholder = "Select…",
+		placeholder = "Select",
 		disabled = false,
 		ariaLabel,
 		class: className,

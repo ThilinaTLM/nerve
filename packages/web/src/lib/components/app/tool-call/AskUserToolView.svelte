@@ -131,7 +131,7 @@
           class="reply-input"
           bind:value={answer}
           rows="3"
-          placeholder={questionRecord.placeholder ?? "Reply to the agent's question…"}
+          placeholder={questionRecord.placeholder ?? "Reply to the agent's question"}
           aria-label="Reply to agent question"
         ></textarea>
         {#if supportsAudioRecording}

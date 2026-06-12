@@ -14,6 +14,7 @@ import {
   getSlashCompletions,
   getWorkspaceSnapshot,
   type ProjectRecord,
+  type PruneProjectConversationsRequest,
   pruneProjectConversations,
 } from "../api";
 import { queryClient, queryKeys } from "../query";
@@ -159,16 +160,21 @@ export async function deleteConversationAndRefresh(conversationId: string) {
   }
 }
 
-export async function pruneProjectConversationsAndRefresh(projectId: string) {
+export async function pruneProjectConversationsAndRefresh(
+  projectId: string,
+  request: PruneProjectConversationsRequest,
+) {
   try {
-    const result = await pruneProjectConversations(projectId, 7);
+    const result = await pruneProjectConversations(projectId, request);
     await removeConversationTabs(result.prunedConversationIds);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     const pruned = result.prunedConversationIds.length;
     const skipped = result.skipped.length;
     notify.success(
-      pruned === 1 ? "Pruned 1 conversation" : `Pruned ${pruned} conversations`,
+      pruned === 1
+        ? "Cleaned up 1 conversation"
+        : `Cleaned up ${pruned} conversations`,
       skipped > 0
         ? {
             description:
@@ -181,7 +187,7 @@ export async function pruneProjectConversationsAndRefresh(projectId: string) {
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workbenchState.error = message;
-    notify.error("Could not prune conversations", { description: message });
+    notify.error("Could not clean up conversations", { description: message });
   }
 }
 

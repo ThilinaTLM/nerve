@@ -22,7 +22,7 @@
 
   let {
     value,
-    placeholder = "Ask the local Nerve agent…",
+    placeholder = "Ask the local Nerve agent",
     disabled = false,
     focusToken = 0,
     slashCompletions = [],

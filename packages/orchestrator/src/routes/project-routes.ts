@@ -30,7 +30,7 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
     "/:projectId/conversations/prune",
     routeHandler(async (c) => {
       const body = pruneProjectConversationsRequestSchema.parse(
-        await c.req.json().catch(() => ({})),
+        await c.req.json(),
       );
       return c.json(
         await state.registry.pruneProjectConversations(

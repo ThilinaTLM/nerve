@@ -494,7 +494,7 @@
                 onNewConversationInProject={newConversationInProject}
                 onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
                 onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}
-                onPruneProjectConversations={(id) => void pruneProjectConversationsAndRefresh(id)}
+                onPruneProjectConversations={(id, request) => void pruneProjectConversationsAndRefresh(id, request)}
               />
             </div>
           </Pane>

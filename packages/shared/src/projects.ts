@@ -15,9 +15,22 @@ export const createProjectRequestSchema = z.object({
 });
 export type CreateProjectRequest = z.infer<typeof createProjectRequestSchema>;
 
-export const pruneProjectConversationsRequestSchema = z.object({
-  olderThanDays: z.number().int().positive().max(3650).default(7),
-});
+export const pruneStrategySchema = z.enum(["olderThanDays", "keepLatest"]);
+export type PruneStrategy = z.infer<typeof pruneStrategySchema>;
+
+export const pruneProjectConversationsRequestSchema = z.discriminatedUnion(
+  "strategy",
+  [
+    z.object({
+      strategy: z.literal("olderThanDays"),
+      olderThanDays: z.number().int().positive().max(3650),
+    }),
+    z.object({
+      strategy: z.literal("keepLatest"),
+      keepLatest: z.number().int().nonnegative().max(10000),
+    }),
+  ],
+);
 export type PruneProjectConversationsRequest = z.infer<
   typeof pruneProjectConversationsRequestSchema
 >;
@@ -32,8 +45,7 @@ export type PruneProjectConversationSkippedReason = z.infer<
 
 export const pruneProjectConversationsResponseSchema = z.object({
   projectId: z.string().startsWith("proj_"),
-  olderThanDays: z.number().int().positive(),
-  cutoff: z.string().datetime(),
+  strategy: pruneStrategySchema,
   prunedConversationIds: z.array(z.string().startsWith("conv_")),
   prunedProcessIds: z.array(z.string().startsWith("proc_")),
   skipped: z.array(

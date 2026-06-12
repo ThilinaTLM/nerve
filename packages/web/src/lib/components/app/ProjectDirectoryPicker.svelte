@@ -313,7 +313,7 @@
       <Input
         bind:value={query}
         oninput={() => (selectedIndex = -1)}
-        placeholder="Filter folders or paste a path…"
+        placeholder="Filter folders or paste a path"
         disabled={loading}
         size="sm"
         ariaLabel="Filter folders or enter a path"

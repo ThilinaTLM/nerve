@@ -325,7 +325,7 @@
       <CodeMirrorComposer
         value={text}
         disabled={editorDisabled}
-        placeholder={pendingApproval ? "Approval required before the agent can continue…" : pendingPlan ? "Review the plan in the transcript before the agent can continue…" : pendingQuestion ? "Reply in the transcript before the agent can continue…" : sending ? "Queue a prompt for the next agent turn…" : "Ask the local Nerve agent…"}
+        placeholder={pendingApproval ? "Approval required before the agent can continue" : pendingPlan ? "Review the plan in the transcript before the agent can continue" : pendingQuestion ? "Reply in the transcript before the agent can continue" : sending ? "Queue a prompt for the next agent turn" : "Ask the local Nerve agent"}
         {slashCompletions}
         {fileCompletions}
         focusToken={editorFocusToken}

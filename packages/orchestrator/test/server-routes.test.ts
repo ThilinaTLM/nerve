@@ -107,7 +107,10 @@ describe("orchestrator server routes", () => {
         {
           method: "POST",
           headers: { ...headers, "content-type": "application/json" },
-          body: JSON.stringify({ olderThanDays: 7 }),
+          body: JSON.stringify({
+            strategy: "olderThanDays",
+            olderThanDays: 7,
+          }),
         },
       );
 
@@ -119,6 +122,52 @@ describe("orchestrator server routes", () => {
       assert.deepEqual(body.prunedConversationIds, [oldConversation.id]);
       assert.deepEqual(body.skipped, []);
       assert.throws(() => state.registry.getConversation(oldConversation.id));
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("prunes project conversations by keep-latest count through the API", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const older = await state.registry.createConversation({
+        projectId: project.id,
+      });
+      const newer = await state.registry.createConversation({
+        projectId: project.id,
+      });
+      state.registry.conversations.set(older.id, {
+        ...older,
+        updatedAt: "2000-01-01T00:00:00.000Z",
+      });
+      state.registry.conversations.set(newer.id, {
+        ...newer,
+        updatedAt: "2020-01-01T00:00:00.000Z",
+      });
+
+      const response = await app.request(
+        `/api/projects/${project.id}/conversations/prune`,
+        {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ strategy: "keepLatest", keepLatest: 1 }),
+        },
+      );
+
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+        strategy: string;
+        prunedConversationIds: string[];
+        skipped: unknown[];
+      };
+      assert.equal(body.strategy, "keepLatest");
+      assert.deepEqual(body.prunedConversationIds, [older.id]);
+      assert.deepEqual(body.skipped, []);
+      assert.throws(() => state.registry.getConversation(older.id));
+      assert.equal(state.registry.getConversation(newer.id).id, newer.id);
     } finally {
       state.index.close();
     }
