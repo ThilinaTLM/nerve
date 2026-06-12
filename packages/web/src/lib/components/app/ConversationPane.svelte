@@ -514,11 +514,6 @@
                   </div>
                 {/if}
               </div>
-              {#if node.item.text}
-                <Button class="copy-btn" variant="ghost" size="icon-sm" ariaLabel="Copy message" title="Copy message" onclick={() => void copyText(node.item.text)}>
-                  <Clipboard size={12} strokeWidth={2.2} />
-                </Button>
-              {/if}
             </article>
           </ContextMenu>
         {/if}
@@ -716,32 +711,6 @@
     overflow: hidden;
   }
 
-  .transcript-entry :global(.copy-btn) {
-    position: absolute;
-    top: 0.35rem;
-    right: 0.35rem;
-    opacity: 0;
-    transition: opacity 0.12s ease;
-    background: color-mix(in oklab, var(--background) 65%, transparent);
-    backdrop-filter: blur(3px);
-    color: var(--muted-foreground);
-  }
-
-  /* User bubbles are small and right-aligned: float the copy action just
-     outside the bubble on the left so it never overlaps the text. */
-  .transcript-entry.user :global(.copy-btn) {
-    top: 50%;
-    right: 100%;
-    margin-right: 0.4rem;
-    transform: translateY(-50%);
-    background: transparent;
-    backdrop-filter: none;
-  }
-
-  .transcript-entry:hover :global(.copy-btn),
-  .transcript-entry :global(.copy-btn:focus-visible) {
-    opacity: 1;
-  }
 
   .message-content {
     min-width: 0;
