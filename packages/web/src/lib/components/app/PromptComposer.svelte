@@ -112,9 +112,9 @@
   }: Props = $props();
 
   let editorFocusToken = $state(0);
-  let lastFocusToken = 0;
-  let lastComposerEscapeToken = 0;
-  let lastMicShortcutToken = 0;
+  let lastFocusToken = focusToken;
+  let lastComposerEscapeToken = composerEscapeToken;
+  let lastMicShortcutToken = micShortcutToken;
 
   const micShortcut = getShortcutLabel("composer.toggleMic");
   const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");

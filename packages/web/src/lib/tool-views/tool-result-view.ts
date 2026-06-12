@@ -19,6 +19,10 @@ import {
 } from "@nerve/shared";
 import type { ToolCallRecord } from "../api";
 import type { LiveToolOutput } from "../stores/workbench/state.svelte";
+import {
+  relativePathForDisplay,
+  resolveDisplayPath,
+} from "../utils/path-links";
 import { trimTextPreview } from "../utils/text-preview";
 
 export type GrepMatchView = GrepMatch & { openPath?: string };
@@ -190,8 +194,7 @@ export function relativePath(
 ): string | undefined {
   if (!path) return undefined;
   if (path === cwd) return ".";
-  const prefix = cwd.endsWith("/") ? cwd : `${cwd}/`;
-  return path.startsWith(prefix) ? path.slice(prefix.length) : path;
+  return relativePathForDisplay(path, cwd);
 }
 
 export function tail<T>(items: T[], count: number): T[] {
@@ -244,8 +247,7 @@ function resolveToolPath(
   cwd: string,
 ): string | undefined {
   if (!path) return undefined;
-  if (path.startsWith("/")) return path;
-  return `${cwd.replace(/\/$/, "")}/${path}`;
+  return resolveDisplayPath(path, cwd);
 }
 
 function detailsTruncated(details: unknown): boolean {

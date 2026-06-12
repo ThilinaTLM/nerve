@@ -409,7 +409,7 @@
                   <ThinkingBlock block={{ text: node.item.text, redacted: node.item.redacted }} live={node.item.live && !node.item.done} />
                 {:else if node.item.text}
                   <div class="message-content">
-                    <Markdown text={node.item.text} trimCodeBlocks={node.item.role !== "assistant"} />
+                    <Markdown text={node.item.text} trimCodeBlocks={node.item.role !== "assistant"} linkBasePath={activeProject?.dir} {onOpenFile} />
                     {#if node.item.live && !node.item.done}<span class="stream-caret" aria-hidden="true"></span>{/if}
                   </div>
                 {/if}

@@ -7,14 +7,21 @@
   import rehypeSanitize from "rehype-sanitize";
   import rehypeStringify from "rehype-stringify";
   import { highlightCodeCached } from "./highlight";
+  import {
+    parseLocalFileHref,
+    resolveDisplayPath,
+    splitPathLineSuffix,
+  } from "./utils/path-links";
   import { trimTextPreview } from "./utils/text-preview";
 
   type Props = {
     text: string;
     trimCodeBlocks?: boolean;
+    linkBasePath?: string;
+    onOpenFile?: (path: string, line?: number) => void;
   };
 
-  let { text, trimCodeBlocks = true }: Props = $props();
+  let { text, trimCodeBlocks = true, linkBasePath, onOpenFile }: Props = $props();
   let html = $state("");
 
   const markdownProcessor = unified()
@@ -133,15 +140,28 @@
     const target = event.target;
     if (!(target instanceof Element)) return;
     const button = target.closest<HTMLButtonElement>("button[data-copy-code]");
-    if (!button) return;
-    const code = button.closest(".code-block")?.querySelector("pre code")?.textContent ?? "";
-    if (!code) return;
-    try {
-      await navigator.clipboard?.writeText(code);
-      notify.success("Copied code block");
-    } catch {
-      notify.error("Could not copy code block");
+    if (button) {
+      const code = button.closest(".code-block")?.querySelector("pre code")?.textContent ?? "";
+      if (!code) return;
+      try {
+        await navigator.clipboard?.writeText(code);
+        notify.success("Copied code block");
+      } catch {
+        notify.error("Could not copy code block");
+      }
+      return;
     }
+
+    if (!onOpenFile) return;
+    const anchor = target.closest<HTMLAnchorElement>("a[href]");
+    const href = anchor?.getAttribute("href");
+    if (!href) return;
+    const parsed = parseLocalFileHref(href);
+    if (!parsed) return;
+    const split = splitPathLineSuffix(parsed);
+    const path = linkBasePath ? (resolveDisplayPath(split.path, linkBasePath) ?? split.path) : split.path;
+    event.preventDefault();
+    onOpenFile(path, split.line);
   }
 
   function copyButtonHandler(node: HTMLDivElement) {

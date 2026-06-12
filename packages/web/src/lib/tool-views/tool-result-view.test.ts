@@ -44,6 +44,39 @@ function metaText(meta: { text: string }[]): string[] {
 }
 
 describe("parseToolView", () => {
+  it("resolves relative read paths against Windows cwd", () => {
+    const view = parseToolView(
+      toolCall(
+        "read",
+        { path: "src/App.svelte" },
+        { path: "src/App.svelte", content: "hello" },
+        { cwd: "C:\\Users\\me\\repo" },
+      ),
+    );
+
+    assert.equal(view.kind, "read");
+    if (view.kind !== "read") return;
+    assert.equal(view.path, "C:\\Users\\me\\repo\\src\\App.svelte");
+    assert.equal(view.relPath, "src/App.svelte");
+  });
+
+  it("does not prefix absolute Windows read paths", () => {
+    const absolutePath = "C:\\Users\\me\\repo\\src\\App.svelte";
+    const view = parseToolView(
+      toolCall(
+        "read",
+        { path: absolutePath },
+        { path: absolutePath, content: "hello" },
+        { cwd: "C:\\Users\\me\\repo" },
+      ),
+    );
+
+    assert.equal(view.kind, "read");
+    if (view.kind !== "read") return;
+    assert.equal(view.path, absolutePath);
+    assert.equal(view.relPath, "src/App.svelte");
+  });
+
   it("parses a text read with relative path and line count", () => {
     const view = parseToolView(
       toolCall(
@@ -180,6 +213,33 @@ describe("parseToolView", () => {
     assert.equal(view.allMatches[0]?.matches.length, 2);
   });
 
+  it("resolves grep match links against a Windows search root", () => {
+    const view = parseToolView(
+      toolCall(
+        "grep",
+        { path: "src", pattern: "setActiveComposerText" },
+        {
+          path: "C:\\Users\\me\\repo\\src",
+          matches: [
+            { path: "App.svelte", line: 163, text: "void openFilePane();" },
+          ],
+        },
+        { cwd: "C:\\Users\\me\\repo" },
+      ),
+    );
+
+    assert.equal(view.kind, "grep");
+    if (view.kind !== "grep") return;
+    assert.equal(
+      view.allMatches[0]?.openPath,
+      "C:\\Users\\me\\repo\\src\\App.svelte",
+    );
+    assert.equal(
+      view.allMatches[0]?.matches[0]?.openPath,
+      "C:\\Users\\me\\repo\\src\\App.svelte",
+    );
+  });
+
   it("resolves grep match links against the search root", () => {
     const view = parseToolView(
       toolCall(
@@ -238,6 +298,24 @@ describe("parseToolView", () => {
       ),
     );
     assert.equal(view.kind === "find" && view.count, 2);
+  });
+
+  it("resolves find result links against a Windows search root", () => {
+    const view = parseToolView(
+      toolCall(
+        "find",
+        { path: "src", pattern: "*.svelte" },
+        {
+          path: "C:\\Users\\me\\repo\\src",
+          entries: [{ path: "App.svelte", kind: "file" }],
+        },
+        { cwd: "C:\\Users\\me\\repo" },
+      ),
+    );
+
+    assert.equal(view.kind, "find");
+    if (view.kind !== "find") return;
+    assert.equal(view.openPaths[0], "C:\\Users\\me\\repo\\src\\App.svelte");
   });
 
   it("resolves find result links against the search root", () => {

@@ -17,6 +17,7 @@ import {
   parse,
   relative,
   resolve,
+  win32,
 } from "node:path";
 import { createInterface } from "node:readline";
 import {
@@ -227,9 +228,44 @@ function isInside(root: string, candidate: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
+export function normalizeIncomingFilePath(
+  root: string,
+  rawPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  let path = rawPath.trim();
+
+  if (path.toLowerCase().startsWith("file://")) {
+    try {
+      const url = new URL(path);
+      const decoded = decodeURIComponent(url.pathname);
+      path = url.hostname ? `//${url.hostname}${decoded}` : decoded;
+      path = path.replace(/^\/([A-Za-z]:\/)/, "$1");
+    } catch {
+      // Leave malformed file URLs to the normal resolver/stat error path.
+    }
+  }
+
+  if (platform === "win32") {
+    const msys = path.match(/^\/([A-Za-z])(?:\/|$)(.*)$/);
+    const wsl = path.match(/^\/mnt\/([A-Za-z])(?:\/|$)(.*)$/);
+    const drive = wsl ?? msys;
+    if (drive) {
+      const [, letter, rest = ""] = drive;
+      path = `${letter?.toUpperCase()}:/${rest}`;
+    }
+
+    if (!path.startsWith("//")) path = path.replaceAll("/", "\\");
+  }
+
+  const pathApi = platform === "win32" ? win32 : { isAbsolute, resolve };
+  return pathApi.isAbsolute(path)
+    ? pathApi.resolve(path)
+    : pathApi.resolve(root, path);
+}
+
 function resolveProjectFile(root: string, rawPath: string): string {
-  const path = rawPath.trim();
-  return isAbsolute(path) ? resolve(path) : resolve(root, path);
+  return normalizeIncomingFilePath(root, rawPath);
 }
 
 async function readFileChunk(path: string, bytes: number): Promise<Buffer> {
