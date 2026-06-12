@@ -1,17 +1,25 @@
 <script lang="ts">
   import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Copy from "@lucide/svelte/icons/copy";
   import Folder from "@lucide/svelte/icons/folder";
+  import FolderClock from "@lucide/svelte/icons/folder-clock";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
   import GitBranch from "@lucide/svelte/icons/git-branch";
+  import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
   import MoveUp from "@lucide/svelte/icons/move-up";
   import PackageIcon from "@lucide/svelte/icons/package";
+  import Plus from "@lucide/svelte/icons/plus";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Search from "@lucide/svelte/icons/search";
   import Terminal from "@lucide/svelte/icons/terminal";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import { writeClipboardText } from "$lib/clipboard";
+  import { notify } from "$lib/notifications/notify.svelte";
   import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
+  import { Button, buttonVariants } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { Input } from "$lib/components/ui/input";
   import Switch from "$lib/components/ui/switch-field";
   import {
@@ -21,8 +29,14 @@
     type ProjectRecord,
     type ConversationRecord,
   } from "../../api";
-  import { tildePath } from "../../utils/path";
-  import { dateTimeLabel } from "../../utils/time";
+  import {
+    looksLikePath,
+    pathBreadcrumbs,
+    pathKey,
+    tildePath,
+    type PathCrumb,
+  } from "../../utils/path";
+  import { dateTimeLabel, relativeTimeLabel } from "../../utils/time";
 
   type Props = {
     open?: boolean;
@@ -31,6 +45,7 @@
     homeDir?: string;
     onClose?: () => void;
     onSelect?: (path: string) => void | Promise<void>;
+    onForget?: (projectId: string) => void;
   };
 
   type SignalMeta = {
@@ -41,7 +56,9 @@
   };
 
   type FilesystemEntry = FilesystemDirectoryResponse["entries"][number];
-  type Crumb = { label: string; path: string };
+  type NavItem =
+    | { kind: "recent"; id: string; path: string; project: ProjectRecord }
+    | { kind: "folder"; id: string; path: string; entry: FilesystemEntry };
 
   let {
     open = $bindable(false),
@@ -50,6 +67,7 @@
     homeDir,
     onClose,
     onSelect,
+    onForget,
   }: Props = $props();
 
   let query = $state("");
@@ -71,11 +89,6 @@
     go: { label: "Go", title: "Go module", icon: Terminal },
   };
 
-  function pathKey(path: string): string {
-    const trimmed = path.trim().replace(/[\\/]+$/, "") || path.trim();
-    return trimmed.toLowerCase();
-  }
-
   function leafName(path: string | undefined): string {
     if (!path) return "";
     const normalized = path.replace(/[\\/]+$/, "");
@@ -87,41 +100,15 @@
     return [...new Set(signals ?? [])];
   }
 
-  function looksLikePath(value: string): boolean {
-    const v = value.trim();
-    return v.startsWith("/") || v.startsWith("~") || v.includes("/");
-  }
-
   function expandHome(value: string): string {
     const v = value.trim();
-    if (homeDir && (v === "~" || v.startsWith("~/"))) return `${homeDir}${v.slice(1)}`;
+    if (!homeDir) return v;
+    if (v === "~") return homeDir;
+    if (v.startsWith("~/") || v.startsWith("~\\")) {
+      const sep = homeDir.includes("\\") ? "\\" : "/";
+      return `${homeDir.replace(/[\\/]+$/, "")}${sep}${v.slice(2)}`;
+    }
     return v;
-  }
-
-  function breadcrumbFor(path: string | undefined, home?: string): Crumb[] {
-    if (!path) return [];
-    const norm = path.replace(/\/+$/, "");
-    const normHome = home?.replace(/\/+$/, "");
-    const crumbs: Crumb[] = [];
-    let base = "";
-    let rest = norm;
-
-    if (normHome && (norm === normHome || norm.startsWith(`${normHome}/`))) {
-      crumbs.push({ label: "~", path: normHome });
-      base = normHome;
-      rest = norm.slice(normHome.length);
-    } else {
-      crumbs.push({ label: "/", path: "/" });
-      base = "";
-      rest = norm;
-    }
-
-    let acc = base;
-    for (const part of rest.split("/").filter(Boolean)) {
-      acc = `${acc}/${part}`;
-      crumbs.push({ label: part, path: acc });
-    }
-    return crumbs;
   }
 
   const openedProjectKeys = $derived.by(() => new Set(projects.map((project) => pathKey(project.dir))));
@@ -155,12 +142,35 @@
     return entries.filter((entry) => entry.name.toLowerCase().includes(lower));
   });
 
-  const selectedEntry = $derived<FilesystemEntry | undefined>(
-    selectedIndex >= 0 ? filteredEntries[selectedIndex] : undefined,
+  const showRecent = $derived(recentProjects.length > 0 && !query.trim());
+
+  const navItems = $derived.by<NavItem[]>(() => {
+    const items: NavItem[] = [];
+    if (showRecent) {
+      for (const project of recentProjects) {
+        items.push({ kind: "recent", id: `recent:${project.id}`, path: project.dir, project });
+      }
+    }
+    for (const entry of filteredEntries) {
+      items.push({ kind: "folder", id: `folder:${entry.path}`, path: entry.path, entry });
+    }
+    return items;
+  });
+
+  const recentCount = $derived(showRecent ? recentProjects.length : 0);
+
+  const selectedItem = $derived<NavItem | undefined>(
+    selectedIndex >= 0 ? navItems[selectedIndex] : undefined,
   );
-  const openTargetPath = $derived(selectedEntry?.path ?? listing?.path ?? "");
-  const openTargetSignals = $derived(uniqueSignals(selectedEntry?.signals ?? listing?.signals));
-  const crumbs = $derived(breadcrumbFor(listing?.path, homeDir));
+  const selectedFolder = $derived<FilesystemEntry | undefined>(
+    selectedItem?.kind === "folder" ? selectedItem.entry : undefined,
+  );
+  const openTargetPath = $derived(selectedItem?.path ?? listing?.path ?? "");
+  const openTargetSignals = $derived(
+    uniqueSignals(selectedFolder?.signals ?? (selectedItem ? [] : listing?.signals)),
+  );
+  const activeDescendant = $derived(selectedItem?.id);
+  const crumbs = $derived<PathCrumb[]>(pathBreadcrumbs(listing?.path, homeDir));
 
   function isOpened(path: string): boolean {
     return openedProjectKeys.has(pathKey(path));
@@ -207,7 +217,7 @@
       void load(expandHome(q));
       return;
     }
-    const first = filteredEntries[0];
+    const first = navItems.find((item) => item.kind === "folder");
     if (first) void load(first.path);
   }
 
@@ -217,10 +227,33 @@
     await onSelect?.(path);
   }
 
+  /** Commit a nav item: recents open immediately, folders drill in. */
+  function activateItem(item: NavItem) {
+    if (item.kind === "recent") void onSelect?.(item.path);
+    else void load(item.path);
+  }
+
+  function handleRowKeydown(event: KeyboardEvent, index: number, item: NavItem) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectedIndex = index;
+      activateItem(item);
+    }
+  }
+
+  async function copyPath(path: string) {
+    try {
+      await writeClipboardText(path);
+      notify.success("Path copied");
+    } catch {
+      notify.error("Could not copy to clipboard");
+    }
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null;
     const inInput = target?.tagName === "INPUT";
-    const count = filteredEntries.length;
+    const count = navItems.length;
 
     switch (event.key) {
       case "ArrowDown":
@@ -238,18 +271,18 @@
         }
         break;
       case "ArrowRight":
-        if (!inInput && selectedEntry) {
+        if (!inInput && selectedFolder) {
           event.preventDefault();
-          void load(selectedEntry.path);
+          void load(selectedFolder.path);
         }
         break;
       case "Enter":
         if (event.metaKey || event.ctrlKey) {
           event.preventDefault();
           void openTarget();
-        } else if (!inInput && selectedEntry) {
+        } else if (!inInput && selectedItem) {
           event.preventDefault();
-          void load(selectedEntry.path);
+          activateItem(selectedItem);
         }
         break;
       case "ArrowLeft":
@@ -284,30 +317,31 @@
   class="project-picker-dialog"
   onOpenChange={handleOpenChange}
 >
-  {#snippet headerActions()}
-    <nav class="crumbs" aria-label="Current location">
-      {#each crumbs as crumb, i}
-        {#if i > 0}<span class="crumb-sep" aria-hidden="true">/</span>{/if}
-        {#if i === crumbs.length - 1}
-          <span class="crumb current" title={crumb.path}>{crumb.label}</span>
-        {:else}
-          <button class="crumb app-interactive-row" type="button" title={crumb.path} disabled={loading} onclick={() => void load(crumb.path)}>
-            {crumb.label}
-          </button>
-        {/if}
-      {/each}
-    </nav>
-    <div class="crumb-tools">
-      <Button variant="ghost" size="icon-sm" disabled={!listing?.parent || loading} title="Parent directory" onclick={() => void load(listing?.parent)}>
-        <MoveUp size={14} strokeWidth={2.2} />
-      </Button>
-      <Button variant="ghost" size="icon-sm" disabled={loading} title="Refresh" onclick={reloadCurrent}>
-        <RefreshCw size={14} strokeWidth={2.2} />
-      </Button>
-    </div>
-  {/snippet}
-
   <div class="picker-body" role="presentation" onkeydown={handleKeydown}>
+    <div class="path-bar">
+      <nav class="crumbs" aria-label="Current location">
+        {#each crumbs as crumb, i}
+          {#if i > 0}<ChevronRight class="crumb-sep" size={13} strokeWidth={2.2} aria-hidden="true" />{/if}
+          {#if i === crumbs.length - 1}
+            <span class="crumb current" title={crumb.path}>{crumb.label}</span>
+          {:else}
+            <button class="crumb app-interactive-row" type="button" title={crumb.path} disabled={loading} onclick={() => void load(crumb.path)}>
+              {crumb.label}
+            </button>
+          {/if}
+        {/each}
+      </nav>
+      <div class="path-tools">
+        <Button variant="ghost" size="icon-sm" disabled={!listing?.parent || loading} title="Parent directory" ariaLabel="Parent directory" onclick={() => void load(listing?.parent)}>
+          <MoveUp size={14} strokeWidth={2.2} />
+        </Button>
+        <Button variant="ghost" size="icon-sm" disabled={loading} title="Refresh" ariaLabel="Refresh" onclick={reloadCurrent}>
+          <RefreshCw size={14} strokeWidth={2.2} />
+        </Button>
+        <span class="path-tools-sep" aria-hidden="true"></span>
+        <Switch bind:checked={showHidden} label="Hidden" class="hidden-switch" />
+      </div>
+    </div>
     <form class="picker-search" onsubmit={handleSubmit}>
       <Search size={14} strokeWidth={2.2} aria-hidden="true" />
       <Input
@@ -325,19 +359,65 @@
     {/if}
 
     <div class="picker-scroll" bind:this={listEl}>
-      {#if recentProjects.length && !query.trim()}
+      {#if showRecent}
         <section class="group">
           <header class="group-head"><span>Recent</span></header>
-          <div class="rows" role="list" aria-label="Recent projects">
-            {#each recentProjects as project}
-              <button class="row app-interactive-row" type="button" title={project.dir} onclick={() => void onSelect?.(project.dir)}>
-                <FolderOpen size={16} strokeWidth={2.05} aria-hidden="true" />
-                <span class="row-main"><strong>{project.name}</strong></span>
-                <span class="row-meta">
-                  <small>{conversationCountFor(project)} conv · {dateTimeLabel(project.updatedAt)}</small>
-                  <Badge tone="good" size="xs"><CheckCircle2 size={11} />Opened</Badge>
+          <div class="rows" role="listbox" aria-label="Recent projects" tabindex={-1} aria-activedescendant={selectedItem?.kind === "recent" ? activeDescendant : undefined}>
+            {#each recentProjects as project, ri}
+              {@const idx = ri}
+              <div
+                id={`recent:${project.id}`}
+                class="row recent-row app-interactive-row"
+                class:selected={selectedIndex === idx}
+                role="option"
+                aria-selected={selectedIndex === idx}
+                tabindex="-1"
+                title={`${project.dir}\n${dateTimeLabel(project.updatedAt)}`}
+                onclick={() => (selectedIndex = idx)}
+                ondblclick={() => void onSelect?.(project.dir)}
+                onkeydown={(e) => handleRowKeydown(e, idx, { kind: "recent", id: `recent:${project.id}`, path: project.dir, project })}
+              >
+                <FolderClock size={16} strokeWidth={2.05} aria-hidden="true" />
+                <span class="row-main">
+                  <span class="row-title">
+                    <strong>{project.name}</strong>
+                    <small class="row-sub">{conversationCountFor(project)} chats · {relativeTimeLabel(project.updatedAt)}</small>
+                  </span>
+                  <small class="row-path">{tildePath(project.dir, homeDir)}</small>
                 </span>
-              </button>
+                <span class="row-actions">
+                  <button class="row-open" type="button" title="Open project" onclick={(e) => { e.stopPropagation(); void onSelect?.(project.dir); }}>
+                    <FolderOpen size={13} strokeWidth={2.2} />Open
+                  </button>
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger
+                      class={buttonVariants({ variant: "ghost", size: "icon-xs" })}
+                      title="Project actions"
+                      aria-label="Project actions"
+                      onclick={(e: MouseEvent) => e.stopPropagation()}
+                    >
+                      <MoreHorizontal size={15} strokeWidth={2} />
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Content align="end" class="w-44">
+                      <DropdownMenu.Item onSelect={() => void onSelect?.(project.dir)}>
+                        <Plus />
+                        <span>New chat</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item onSelect={() => void copyPath(project.dir)}>
+                        <Copy />
+                        <span>Copy path</span>
+                      </DropdownMenu.Item>
+                      {#if onForget}
+                        <DropdownMenu.Separator />
+                        <DropdownMenu.Item variant="destructive" onSelect={() => onForget?.(project.id)}>
+                          <Trash2 />
+                          <span>Forget project</span>
+                        </DropdownMenu.Item>
+                      {/if}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Root>
+                </span>
+              </div>
             {/each}
           </div>
         </section>
@@ -346,7 +426,7 @@
       <section class="group">
         <header class="group-head">
           <span>Folders</span>
-          {#if loading}<Badge size="xs">Loading…</Badge>{/if}
+          {#if !loading && filteredEntries.length}<span class="group-count">{filteredEntries.length}</span>{/if}
         </header>
 
         {#if loading}
@@ -356,18 +436,20 @@
             {/each}
           </div>
         {:else if filteredEntries.length}
-          <div class="rows" role="listbox" aria-label="Folders">
-            {#each filteredEntries as entry, i}
-              <button
-                class="row app-interactive-row"
-                class:selected={selectedIndex === i}
-                type="button"
+          <div class="rows" role="listbox" aria-label="Folders" tabindex={-1} aria-activedescendant={selectedItem?.kind === "folder" ? activeDescendant : undefined}>
+            {#each filteredEntries as entry, fi}
+              {@const idx = recentCount + fi}
+              <div
+                id={`folder:${entry.path}`}
+                class="row folder-row app-interactive-row"
+                class:selected={selectedIndex === idx}
                 role="option"
-                aria-selected={selectedIndex === i}
-                data-index={i}
+                aria-selected={selectedIndex === idx}
+                tabindex="-1"
                 title={entry.path}
-                onclick={() => (selectedIndex = i)}
+                onclick={() => (selectedIndex = idx)}
                 ondblclick={() => void load(entry.path)}
+                onkeydown={(e) => handleRowKeydown(e, idx, { kind: "folder", id: `folder:${entry.path}`, path: entry.path, entry })}
               >
                 <Folder size={15} strokeWidth={2.1} aria-hidden="true" />
                 <span class="row-main"><strong>{entry.name}</strong></span>
@@ -382,9 +464,14 @@
                       <Icon size={11} strokeWidth={2.2} />{meta.label}
                     </Badge>
                   {/each}
-                  <ChevronRight class="row-chevron" size={15} strokeWidth={2.2} aria-hidden="true" />
+                  <button class="row-open" type="button" title="Open as project" onclick={(e) => { e.stopPropagation(); void onSelect?.(entry.path); }}>
+                    <FolderOpen size={13} strokeWidth={2.2} />Open
+                  </button>
+                  <button class="row-drill" type="button" title="Open folder" aria-label="Open folder" onclick={(e) => { e.stopPropagation(); void load(entry.path); }}>
+                    <ChevronRight size={15} strokeWidth={2.2} aria-hidden="true" />
+                  </button>
                 </span>
-              </button>
+              </div>
             {/each}
           </div>
         {:else}
@@ -413,7 +500,9 @@
       </span>
     </div>
     <div class="footer-actions">
-      <Switch bind:checked={showHidden} label="Hidden" class="hidden-switch" />
+      <span class="footer-hint" aria-hidden="true">
+        <kbd>↑↓</kbd> move <kbd>→</kbd> open folder <kbd>⏎</kbd> open <kbd>⌫</kbd> up
+      </span>
       <Button size="sm" disabled={!openTargetPath || loading} onclick={() => void openTarget()}>
         <FolderOpen size={14} strokeWidth={2.2} />
         {openTargetPath ? `Open ${leafName(openTargetPath)}` : "Open"}
@@ -432,11 +521,26 @@
     gap: 0.6rem;
   }
 
-  :global(.project-picker-dialog .dialog-header-actions) {
-    flex: 1;
-    flex-wrap: nowrap;
-    justify-content: flex-end;
+  /* Path bar */
+  .path-bar {
+    display: flex;
+    align-items: center;
     gap: 0.5rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    padding: 0.45rem 0.6rem 0.45rem 0.75rem;
+  }
+
+  .path-tools {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .path-tools-sep {
+    width: 1px;
+    height: 1.1rem;
+    background: color-mix(in oklab, var(--border) 70%, transparent);
   }
 
   /* Breadcrumb */
@@ -478,14 +582,9 @@
     cursor: default;
   }
 
-  .crumb-sep {
-    color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
-  }
-
-  .crumb-tools {
-    display: flex;
+  .crumbs :global(.crumb-sep) {
     flex: none;
-    gap: 0.3rem;
+    color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
   }
 
   /* Body */
@@ -550,6 +649,12 @@
     text-transform: uppercase;
   }
 
+  .group-count {
+    margin-left: auto;
+    color: var(--muted-foreground);
+    font-variant-numeric: tabular-nums;
+  }
+
   .rows {
     display: grid;
     gap: 0.12rem;
@@ -574,15 +679,28 @@
   }
 
   .row > :global(svg) {
+    flex: none;
+    color: var(--muted-foreground);
+  }
+
+  .recent-row > :global(svg) {
     color: var(--primary);
   }
 
   .row-main {
+    display: grid;
     min-width: 0;
+    gap: 0.05rem;
+  }
+
+  .row-title {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 0.45rem;
   }
 
   .row-main strong {
-    display: block;
     overflow: hidden;
     font-size: var(--text-sm);
     font-weight: 500;
@@ -590,25 +708,79 @@
     white-space: nowrap;
   }
 
-  .row-meta,
-  .row-badges {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.4rem;
-  }
-
-  .row-meta small {
+  .row-sub {
+    flex: none;
     color: var(--muted-foreground);
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     white-space: nowrap;
   }
 
-  .row :global(.row-chevron) {
+  .row-path {
+    overflow: hidden;
     color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row-badges,
+  .row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+
+  /* Inline row actions */
+  .row-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card);
+    padding: 0.1rem 0.4rem;
+    color: var(--foreground);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
     opacity: 0;
-    transition: opacity 120ms ease;
+    transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+  }
+
+  .row-open:hover {
+    border-color: var(--primary);
+    background: var(--accent);
+  }
+
+  .row-drill {
+    display: inline-grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    padding: 0.15rem;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+  }
+
+  .row-drill:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .row:hover .row-open,
+  .row.selected .row-open,
+  .row:hover .row-drill,
+  .row.selected .row-drill,
+  .row-open:focus-visible,
+  .row-drill:focus-visible {
+    opacity: 1;
   }
 
   .row:hover,
@@ -617,11 +789,6 @@
     border-color: var(--border);
     background: var(--accent);
     outline: none;
-  }
-
-  .row:hover :global(.row-chevron),
-  .row.selected :global(.row-chevron) {
-    opacity: 1;
   }
 
   .row.selected::before {
@@ -711,7 +878,25 @@
     display: flex;
     flex: none;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
+  }
+
+  .footer-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+  }
+
+  .footer-hint kbd {
+    border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+    border-radius: var(--radius-sm);
+    background: var(--input);
+    padding: 0 0.3rem;
+    font-family: var(--font-mono);
+    line-height: 1.4;
   }
 
   :global(.hidden-switch) {
@@ -738,7 +923,11 @@
       max-width: 7rem;
     }
 
-    .footer-actions :global(.hidden-switch) :global(.switch-copy) {
+    .footer-hint {
+      display: none;
+    }
+
+    .path-tools :global(.hidden-switch) :global(.switch-copy) {
       display: none;
     }
   }

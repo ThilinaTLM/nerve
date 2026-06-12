@@ -24,7 +24,7 @@ export type ProjectGroupResult = {
 };
 
 export const MAX_PROJECTS = 5;
-export const MAX_ROWS_PER_PROJECT = 8;
+export const MAX_ROWS_PER_PROJECT = 5;
 
 export function projectKey(project: ProjectRecord): string {
   return project.dir.replace(/[\\/]+$/, "") || project.dir;

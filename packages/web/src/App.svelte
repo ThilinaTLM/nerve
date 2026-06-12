@@ -701,6 +701,7 @@
   {conversations}
   homeDir={status?.storage.home}
   onSelect={(path) => void createConversationForDirectory(path)}
+  onForget={(id) => void deleteProjectAndRefresh(id)}
 />
 
 <style>

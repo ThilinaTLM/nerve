@@ -88,3 +88,115 @@ export function tildePath(dir?: string, home?: string): string {
   }
   return rest || dir || "/";
 }
+
+/**
+ * Stable, case-correct key for a filesystem path. Drive-letter (Windows) paths
+ * are lower-cased for case-insensitive matching; POSIX paths stay case-sensitive.
+ */
+export function pathKey(path: string): string {
+  return comparablePath(path);
+}
+
+/** True when two paths refer to the same location (platform-aware casing). */
+export function samePath(a: string, b: string): boolean {
+  return comparablePath(a) === comparablePath(b);
+}
+
+/**
+ * Heuristic: does this user-typed value look like a filesystem path (to be
+ * navigated) rather than a fuzzy filter term? Recognizes POSIX, `~`, Windows
+ * drive (`C:\`, `C:/`), UNC (`\\server`), and `file://` inputs.
+ */
+export function looksLikePath(value: string): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  return (
+    v.startsWith("/") ||
+    v.startsWith("~") ||
+    v.startsWith("\\\\") ||
+    /^[A-Za-z]:[\\/]?/.test(v) ||
+    v.includes("/") ||
+    v.includes("\\") ||
+    v.toLowerCase().startsWith("file://")
+  );
+}
+
+export type PathCrumb = { label: string; path: string };
+
+function detectSeparator(path: string): "/" | "\\" {
+  if (/^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\")) {
+    return path.includes("\\") ? "\\" : "/";
+  }
+  return "/";
+}
+
+function joinWithSeparator(
+  base: string,
+  part: string,
+  sep: "/" | "\\",
+): string {
+  return base.endsWith(sep) ? `${base}${part}` : `${base}${sep}${part}`;
+}
+
+function pathRoot(
+  raw: string,
+  sep: "/" | "\\",
+): { label: string; path: string } | undefined {
+  const drive = raw.match(/^([A-Za-z]:)[\\/]/);
+  if (drive) {
+    const letter = drive[1] ?? "";
+    return { label: letter, path: `${letter}${sep}` };
+  }
+  const unc = raw.match(/^[\\/]{2}([^\\/]+)[\\/]+([^\\/]+)/);
+  if (unc) {
+    const root = `${sep}${sep}${unc[1]}${sep}${unc[2]}`;
+    return { label: root, path: root };
+  }
+  if (raw.startsWith("/")) return { label: "/", path: "/" };
+  return undefined;
+}
+
+/**
+ * Build clickable breadcrumbs for a native directory path, preserving the
+ * platform separator so each crumb's `path` remains a valid native target.
+ * Collapses a leading home directory to a `~` crumb. Works for POSIX, Windows
+ * drive, and UNC paths.
+ */
+export function pathBreadcrumbs(path?: string, home?: string): PathCrumb[] {
+  if (!path) return [];
+  const raw = path.trim();
+  if (!raw) return [];
+
+  const sep = detectSeparator(raw);
+  const normRaw = normalizeDisplayPath(raw);
+  const crumbs: PathCrumb[] = [];
+  let base: string;
+  let rest: string;
+
+  const normalizedHome = home ? normalizeDisplayPath(home) : undefined;
+  if (
+    normalizedHome &&
+    (pathsEqual(normRaw, normalizedHome) ||
+      pathStartsWith(normRaw, normalizedHome))
+  ) {
+    base = home?.replace(/[\\/]+$/, "") || (home ?? "~");
+    crumbs.push({ label: "~", path: base });
+    rest = normRaw.slice(normalizedHome.length);
+  } else {
+    const root = pathRoot(raw, sep);
+    if (root) {
+      base = root.path;
+      crumbs.push({ label: root.label, path: root.path });
+      rest = normRaw.slice(normalizeDisplayPath(root.path).length);
+    } else {
+      base = "";
+      rest = normRaw;
+    }
+  }
+
+  for (const part of rest.split("/").filter(Boolean)) {
+    base = base ? joinWithSeparator(base, part, sep) : part;
+    crumbs.push({ label: part, path: base });
+  }
+  return crumbs;
+}
