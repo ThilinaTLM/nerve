@@ -65,6 +65,8 @@ export function ensureConversationView(
 ): ConversationViewState {
   workbenchState.conversationViews[conversationId] ??= {
     conversationId,
+    activeEntryId: undefined,
+    activeEntryIds: [],
     transcript: [],
     toolCalls: [],
     treeNodes: [],
@@ -174,6 +176,8 @@ export async function refreshConversationView(conversationId: string) {
   view.loading = true;
   try {
     const snapshot = await getConversationSnapshot(conversationId);
+    view.activeEntryId = snapshot.tree.activeEntryId;
+    view.activeEntryIds = snapshot.activeEntryIds;
     view.transcript = entriesToTranscript(snapshot.entries);
     view.toolCalls = snapshot.toolCalls;
     view.treeNodes = snapshot.tree.nodes;
@@ -181,6 +185,10 @@ export async function refreshConversationView(conversationId: string) {
     view.queuedPrompts = snapshot.activeRun?.queuedPrompts ?? [];
     view.contextUsage = snapshot.contextUsage;
     view.cursorSeq = snapshot.cursorSeq;
+    workbenchState.conversations = workbenchState.conversations.map(
+      (candidate) =>
+        candidate.id === conversationId ? snapshot.conversation : candidate,
+    );
     const persistedLiveMessageIds = new Set(
       snapshot.entries.flatMap((entry) =>
         entry.role === "assistant" && entry.liveMessageId

@@ -311,6 +311,7 @@ export interface ConversationActiveRunSnapshot {
 export interface ConversationSnapshot {
   conversation: ConversationRecord;
   entries: ConversationEntry[];
+  activeEntryIds: string[];
   tree: ConversationTree;
   toolCalls: ToolCallRecord[];
   activeRun?: ConversationActiveRunSnapshot;

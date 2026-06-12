@@ -14,6 +14,7 @@ export type TimelineItem =
       key: string;
       toolCall: ToolCallRecord;
       liveOutput?: LiveToolOutput;
+      anchorEntryId?: string;
     }
   | { kind: "tool_draft"; key: string; draft: LiveToolCallDraft }
   | {
@@ -150,6 +151,7 @@ export function buildConversationTimeline(
         key: toolCall.id,
         toolCall,
         liveOutput: liveOutputFor(live, toolCall.id),
+        anchorEntryId: item.id,
       });
       consumedToolCallIds.add(toolCall.id);
       return;

@@ -105,6 +105,8 @@ export type ConversationLiveState = {
 
 export type ConversationViewState = {
   conversationId: string;
+  activeEntryId?: string;
+  activeEntryIds: string[];
   transcript: TranscriptItem[];
   toolCalls: ToolCallRecord[];
   treeNodes: ConversationTreeNode[];

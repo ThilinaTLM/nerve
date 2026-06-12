@@ -1,14 +1,17 @@
 <script lang="ts">
   import ArrowDown from "@lucide/svelte/icons/arrow-down";
+  import ArrowRight from "@lucide/svelte/icons/arrow-right";
   import Clipboard from "@lucide/svelte/icons/clipboard";
   import Copy from "@lucide/svelte/icons/copy";
   import Folder from "@lucide/svelte/icons/folder";
+  import GitBranch from "@lucide/svelte/icons/git-branch";
   import ListPlus from "@lucide/svelte/icons/list-plus";
+  import Pencil from "@lucide/svelte/icons/pencil";
   import TextQuote from "@lucide/svelte/icons/text-quote";
   import { tick } from "svelte";
   import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ModelInfo, PlanReviewRecord, ProjectRecord, QueuedPromptRecord, ConversationRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ConversationEntry, ConversationRecord, ConversationTreeNode, ModelInfo, PlanReviewRecord, ProjectRecord, QueuedPromptRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
   import Markdown from "../../Markdown.svelte";
   import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
   import type { ConversationLiveState, TranscriptItem } from "../../stores/workbench/state.svelte";
@@ -37,6 +40,7 @@
     pendingPlanReview?: PlanReviewRecord;
     transcript?: TranscriptItem[];
     toolCalls?: ToolCallRecord[];
+    treeNodes?: ConversationTreeNode[];
     streamingText?: string;
     liveState?: ConversationLiveState;
     queuedPrompts?: QueuedPromptRecord[];
@@ -75,6 +79,9 @@
     onAcceptPlanReview?: (id: string) => void;
     onRejectPlanReview?: (id: string) => void;
     onContinueFromFailure?: (statusEntryId: string) => void;
+    onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
+    onEditEntry?: (entry: ConversationEntry) => void;
+    onOpenHistory?: () => void;
   };
 
   let {
@@ -88,6 +95,7 @@
     pendingPlanReview,
     transcript = [],
     toolCalls = [],
+    treeNodes = [],
     streamingText = "",
     liveState,
     queuedPrompts = [],
@@ -125,6 +133,9 @@
     onAcceptPlanReview,
     onRejectPlanReview,
     onContinueFromFailure,
+    onNavigateToEntry,
+    onEditEntry,
+    onOpenHistory,
   }: Props = $props();
 
   let transcriptEl = $state<HTMLDivElement>();
@@ -145,6 +156,14 @@
   const conversationOpen = $derived(Boolean(activeConversation || pendingConversationActive));
   const activeProjectLabel = $derived(activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined);
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls, liveState));
+  const treeEntriesById = $derived(
+    new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
+  );
+  const parentEntryIdById = $derived(
+    new Map(
+      treeNodes.map((node) => [node.entry.id, node.entry.parentEntryId]),
+    ),
+  );
   const lastTimelineKey = $derived(timeline.at(-1)?.key);
   const hasLiveTimelineNodes = $derived(
     timeline.some((node) =>
@@ -347,14 +366,81 @@
     onComposerChange?.(`${prefix}${quoted}\n\n`);
   }
 
+  function baseEntryId(id: string | undefined): string | undefined {
+    if (!id) return undefined;
+    return id.split(":thinking:")[0];
+  }
+
+  function parentEntryIdFor(id: string | undefined): string | undefined {
+    const baseId = baseEntryId(id);
+    return baseId ? parentEntryIdById.get(baseId) : undefined;
+  }
+
+  function entryForTranscriptItem(item: TranscriptItem): ConversationEntry | undefined {
+    const id = baseEntryId(item.id);
+    return id ? treeEntriesById.get(id) : undefined;
+  }
+
+  function navigateFromItem(item: TranscriptItem) {
+    const id = baseEntryId(item.id);
+    if (id) onNavigateToEntry?.(id);
+  }
+
+  function navigateBeforeItem(item: TranscriptItem) {
+    onNavigateToEntry?.(parentEntryIdFor(item.id));
+  }
+
+  function editItem(item: TranscriptItem) {
+    const entry = entryForTranscriptItem(item);
+    if (entry) onEditEntry?.(entry);
+  }
+
   function messageMenu(item: TranscriptItem): ContextMenuItem[] {
-    const items: ContextMenuItem[] = [
+    const entryId = baseEntryId(item.id);
+    const canBranch = Boolean(entryId && treeEntriesById.has(entryId));
+    const entry = entryForTranscriptItem(item);
+    const items: ContextMenuItem[] = [];
+
+    if (canBranch) {
+      items.push(
+        { label: "Continue from here", icon: ArrowRight, onSelect: () => navigateFromItem(item) },
+        { label: "Fork from before this message", icon: GitBranch, onSelect: () => navigateBeforeItem(item) },
+      );
+      if (entry?.role === "user") {
+        items.push({ label: "Edit & resend", icon: Pencil, onSelect: () => editItem(item) });
+      }
+      items.push({ type: "separator" });
+    }
+
+    items.push(
       { label: "Copy text", icon: Clipboard, onSelect: () => void copyText(item.text) },
       { label: "Quote in composer", icon: TextQuote, onSelect: () => quoteInComposer(item.text) },
-    ];
+    );
     if (item.id) {
       items.push({ type: "separator" });
       items.push({ label: "Copy message id", icon: Copy, onSelect: () => void copyText(item.id ?? "", "message id") });
+    }
+    if (onOpenHistory) {
+      items.push({ type: "separator" });
+      items.push({ label: "Show branch history", icon: GitBranch, onSelect: onOpenHistory });
+    }
+    return items;
+  }
+
+  function toolMenu(anchorEntryId: string | undefined, toolCall: ToolCallRecord): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+    if (anchorEntryId) {
+      items.push({
+        label: "Continue after this tool result",
+        icon: ArrowRight,
+        onSelect: () => onNavigateToEntry?.(anchorEntryId),
+      });
+      items.push({ type: "separator" });
+    }
+    items.push({ label: "Copy tool id", icon: Copy, onSelect: () => void copyText(toolCall.id, "tool id") });
+    if (onOpenHistory) {
+      items.push({ type: "separator" });
+      items.push({ label: "Show branch history", icon: GitBranch, onSelect: onOpenHistory });
     }
     return items;
   }
@@ -391,17 +477,19 @@
 
       {#each timeline as node (node.key)}
         {#if node.kind === "tool"}
-          <ToolCallCard
-            toolCall={node.toolCall}
-            liveOutput={node.liveOutput}
-            {pendingUserQuestion}
-            {pendingPlanReview}
-            {onOpenFile}
-            {onAnswerUserQuestion}
-            {onDismissUserQuestion}
-            {onAcceptPlanReview}
-            {onRejectPlanReview}
-          />
+          <ContextMenu items={toolMenu(node.anchorEntryId, node.toolCall)} triggerClass="block min-w-0">
+            <ToolCallCard
+              toolCall={node.toolCall}
+              liveOutput={node.liveOutput}
+              {pendingUserQuestion}
+              {pendingPlanReview}
+              {onOpenFile}
+              {onAnswerUserQuestion}
+              {onDismissUserQuestion}
+              {onAcceptPlanReview}
+              {onRejectPlanReview}
+            />
+          </ContextMenu>
         {:else if node.kind === "tool_draft"}
           <ToolDraftCard draft={node.draft} />
         {:else if node.kind === "tool_result_error"}

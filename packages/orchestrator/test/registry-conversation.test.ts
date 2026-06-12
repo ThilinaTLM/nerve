@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import {
+  type ConversationEntry,
   type ConversationRecord,
   createId,
   type ProcessRecord,
@@ -46,6 +47,22 @@ function ageConversation(
   state.registry.conversations.set(conversation.id, aged);
   state.index.upsertConversation(aged);
   return aged;
+}
+
+function appendRegistryEntry(
+  state: Awaited<ReturnType<typeof createState>>,
+  input: {
+    conversationId: string;
+    parentEntryId?: string | null;
+    role: ConversationEntry["role"];
+    text: string;
+  },
+): Promise<ConversationEntry> {
+  return (
+    state.registry as unknown as {
+      appendEntry: (input: typeof input) => Promise<ConversationEntry>;
+    }
+  ).appendEntry(input);
 }
 
 async function addProcessRecord(
@@ -380,6 +397,73 @@ describe("RuntimeRegistry conversation behavior", () => {
       );
       assert.equal(exported.entries.length, 2);
       assert.equal(exported.entries[1]?.parentEntryId, exported.entries[0]?.id);
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("projects the active branch after forking from the middle", async () => {
+    const state = await createState("nerve-registry-branch-projection-");
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const conversation = await state.registry.createConversation({
+        projectId: project.id,
+        title: "Branch projection",
+      });
+
+      const first = await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "A",
+      });
+      const second = await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "assistant",
+        text: "B",
+      });
+      const abandoned = await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "C",
+      });
+
+      await state.registry.navigateConversation(conversation.id, {
+        activeEntryId: second.id,
+      });
+      const forked = await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "D",
+      });
+
+      assert.deepEqual(
+        state.registry
+          .getConversationEntries(conversation.id)
+          .map((entry) => entry.text),
+        ["A", "B", "D"],
+      );
+      assert.deepEqual(
+        await state.registry
+          .getConversationSnapshot(conversation.id)
+          .then((snapshot) => snapshot.activeEntryIds),
+        [first.id, second.id, forked.id],
+      );
+
+      const tree = state.registry.getConversationTree(conversation.id);
+      assert.deepEqual(
+        tree.nodes.find((node) => node.entry.id === second.id)?.childEntryIds,
+        [abandoned.id, forked.id],
+      );
+
+      await state.registry.navigateConversation(conversation.id, {
+        activeEntryId: null,
+      });
+      assert.deepEqual(
+        state.registry.getConversationEntries(conversation.id),
+        [],
+      );
     } finally {
       state.index.close();
     }

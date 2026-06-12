@@ -311,10 +311,14 @@ function handleConversationEvent(
       view.error = undefined;
       break;
     case "conversation.entry.appended":
-      handleEntryAppended(
-        view,
-        event.data?.entry as ConversationEntry | undefined,
-      );
+      if (
+        !handleEntryAppended(
+          view,
+          event.data?.entry as ConversationEntry | undefined,
+        )
+      ) {
+        void refreshConversationView(conversationId);
+      }
       scheduleContextUsageRefresh(conversationId);
       break;
     case "conversation.context.updated":
@@ -460,6 +464,73 @@ function removeLiveRunStatusTranscriptItem(
   });
 }
 
+function entryBelongsToActiveBranch(
+  view: ConversationViewState,
+  entry: ConversationEntry,
+): boolean {
+  const existingIndex = view.activeEntryIds.indexOf(entry.id);
+  if (existingIndex !== -1) return true;
+  const activeLeafId = view.activeEntryId ?? view.activeEntryIds.at(-1);
+  if (activeLeafId) return entry.parentEntryId === activeLeafId;
+  return view.activeEntryIds.length === 0 && !entry.parentEntryId;
+}
+
+function updateActiveBranchPath(
+  view: ConversationViewState,
+  entry: ConversationEntry,
+): void {
+  const existingIndex = view.activeEntryIds.indexOf(entry.id);
+  if (existingIndex !== -1) {
+    view.activeEntryIds = view.activeEntryIds.slice(0, existingIndex + 1);
+  } else {
+    view.activeEntryIds = [...view.activeEntryIds, entry.id];
+  }
+  view.activeEntryId = entry.id;
+}
+
+function updateConversationActiveEntryId(
+  conversationId: string,
+  entryId: string,
+): void {
+  workbenchState.conversations = workbenchState.conversations.map(
+    (conversation) =>
+      conversation.id === conversationId
+        ? {
+            ...conversation,
+            activeEntryId: entryId,
+            updatedAt: new Date().toISOString(),
+          }
+        : conversation,
+  );
+}
+
+function updateTreeNodesForEntry(
+  view: ConversationViewState,
+  entry: ConversationEntry,
+): void {
+  const existing = view.treeNodes.find((node) => node.entry.id === entry.id);
+  if (existing) {
+    view.treeNodes = view.treeNodes.map((node) =>
+      node.entry.id === entry.id ? { ...node, entry } : node,
+    );
+    return;
+  }
+
+  view.treeNodes = [
+    ...view.treeNodes.map((node) =>
+      entry.parentEntryId && node.entry.id === entry.parentEntryId
+        ? {
+            ...node,
+            childEntryIds: Array.from(
+              new Set([...node.childEntryIds, entry.id]),
+            ),
+          }
+        : node,
+    ),
+    { entry, childEntryIds: [] },
+  ];
+}
+
 function handleRunRetrying(
   view: ConversationViewState,
   event: EventEnvelope<Record<string, unknown>>,
@@ -533,8 +604,15 @@ function liveTextId(data: Record<string, unknown>): string {
 function handleEntryAppended(
   view: ConversationViewState,
   entry: ConversationEntry | undefined,
-): void {
-  if (!entry) return;
+): boolean {
+  if (!entry) return true;
+  if (!entryBelongsToActiveBranch(view, entry)) return false;
+
+  updateActiveBranchPath(view, entry);
+  updateTreeNodesForEntry(view, entry);
+  updateConversationActiveEntryId(view.conversationId, entry.id);
+  if (active(view.conversationId)) selection.entryId = entry.id;
+
   if (entry.kind === "run_status") {
     removeLiveRunStatusTranscriptItem(view, entry.runId);
   }
@@ -558,6 +636,7 @@ function handleEntryAppended(
     );
     view.streamingText = liveTextFromLegacyLive(view.live);
   }
+  return true;
 }
 
 function handleToolCallUpdated(
@@ -827,6 +906,7 @@ async function refreshContextUsage(conversationId: string): Promise<void> {
 
 function syncActiveView(view: ConversationViewState): void {
   if (!active(view.conversationId)) return;
+  workbenchState.treeNodes = view.treeNodes;
   workbenchState.transcript = view.transcript;
   workbenchState.streamingText = view.streamingText;
   workbenchState.sending = view.sending;

@@ -60,17 +60,16 @@ export class EntryRepository {
     const entries = this.displayLinkedEntries(
       entriesByConversationId.get(conversation.id) ?? [],
     );
-    if (!conversation.activeEntryId) return entries;
-    const byId = new Map(entries.map((entry) => [entry.id, entry]));
-    const branch: ConversationEntry[] = [];
-    let cursor: string | undefined = conversation.activeEntryId;
-    while (cursor) {
-      const entry = byId.get(cursor);
-      if (!entry) break;
-      branch.push(entry);
-      cursor = entry.parentEntryId;
-    }
-    return branch.reverse();
+    return activeBranchFromEntries(entries, conversation.activeEntryId);
+  }
+
+  activeBranchEntryIds(
+    entriesByConversationId: Map<string, ConversationEntry[]>,
+    conversation: ConversationRecord,
+  ): string[] {
+    return this.activeBranchEntries(entriesByConversationId, conversation).map(
+      (entry) => entry.id,
+    );
   }
 
   getConversationTree(
@@ -101,4 +100,21 @@ export class EntryRepository {
       })),
     };
   }
+}
+
+export function activeBranchFromEntries(
+  entries: ConversationEntry[],
+  activeEntryId: string | undefined,
+): ConversationEntry[] {
+  if (!activeEntryId) return [];
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const branch: ConversationEntry[] = [];
+  let cursor: string | undefined = activeEntryId;
+  while (cursor) {
+    const entry = byId.get(cursor);
+    if (!entry) break;
+    branch.push(entry);
+    cursor = entry.parentEntryId;
+  }
+  return branch.reverse();
 }

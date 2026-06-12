@@ -128,6 +128,10 @@ describe("buildConversationTimeline", () => {
       timeline.map((item) => item.kind),
       ["message", "tool", "message"],
     );
+    assert.equal(timeline[1]?.kind, "tool");
+    if (timeline[1]?.kind === "tool") {
+      assert.equal(timeline[1].anchorEntryId, "entry_result");
+    }
   });
 
   it("anchors errored validation tool cards at matching tool-result entries", () => {
@@ -159,6 +163,9 @@ describe("buildConversationTimeline", () => {
 
     assert.deepEqual(keys(timeline), ["entry_user", "tool_error"]);
     assert.equal(timeline[1]?.kind, "tool");
+    if (timeline[1]?.kind === "tool") {
+      assert.equal(timeline[1].anchorEntryId, "entry_result");
+    }
   });
 
   it("renders unmatched historical tool-result errors as fallback error cards", () => {
@@ -301,6 +308,10 @@ describe("buildConversationTimeline", () => {
       "tool_error",
       "entry_assistant",
     ]);
+    assert.equal(timeline[1]?.kind, "tool");
+    if (timeline[1]?.kind === "tool") {
+      assert.equal(timeline[1].anchorEntryId, "entry_error_result");
+    }
   });
 
   it("preserves anchored branch order for multiple tool calls", () => {

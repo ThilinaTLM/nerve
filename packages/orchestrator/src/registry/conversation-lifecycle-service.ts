@@ -95,6 +95,14 @@ export class ConversationLifecycleService {
     return this.entryRepository.activeBranchEntries(this.entries, conversation);
   }
 
+  getConversationActiveEntryIds(conversationId: string): string[] {
+    const conversation = this.getConversation(conversationId);
+    return this.entryRepository.activeBranchEntryIds(
+      this.entries,
+      conversation,
+    );
+  }
+
   getConversationTree(conversationId: string): ConversationTree {
     const conversation = this.getConversation(conversationId);
     return this.entryRepository.getConversationTree(this.entries, conversation);

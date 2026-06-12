@@ -111,6 +111,27 @@ function runFailureDetails(
   };
 }
 
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function toolRecordIdsFromEntries(entries: ConversationEntry[]): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of entries) {
+    const details = recordValue(entry.details);
+    if (!details) continue;
+    for (const value of [details.toolRecordId, details.toolCallId]) {
+      const id = stringValue(value);
+      if (id) ids.add(id);
+    }
+    const nestedDetails = recordValue(details.details);
+    const nestedToolCall = recordValue(nestedDetails?.toolCall);
+    const nestedId = stringValue(nestedToolCall?.id);
+    if (nestedId) ids.add(nestedId);
+  }
+  return ids;
+}
+
 export class RuntimeRegistry {
   readonly projects = new Map<string, ProjectRecord>();
   readonly conversations = new Map<string, ConversationRecord>();
@@ -510,6 +531,12 @@ export class RuntimeRegistry {
     return this.conversationLifecycle.getConversationEntries(conversationId);
   }
 
+  getConversationActiveEntryIds(conversationId: string): string[] {
+    return this.conversationLifecycle.getConversationActiveEntryIds(
+      conversationId,
+    );
+  }
+
   getConversationTree(conversationId: string): ConversationTree {
     return this.conversationLifecycle.getConversationTree(conversationId);
   }
@@ -525,15 +552,21 @@ export class RuntimeRegistry {
     const contextUsage = await this.getContextUsage(conversationId).catch(
       () => undefined,
     );
+    const entries = this.getConversationEntries(conversationId);
+    const activeEntryIds = entries.map((entry) => entry.id);
+    const activeRun =
+      this.conversationRuntime.snapshotForConversation(conversationId);
     return {
       conversation: this.getConversation(conversationId),
-      entries: this.getConversationEntries(conversationId),
+      entries,
+      activeEntryIds,
       tree: this.getConversationTree(conversationId),
-      toolCalls: this.tools
-        .listToolCalls()
-        .filter((toolCall) => toolCall.conversationId === conversationId),
-      activeRun:
-        this.conversationRuntime.snapshotForConversation(conversationId),
+      toolCalls: this.activeBranchToolCalls(
+        conversationId,
+        entries,
+        activeRun?.runId,
+      ),
+      activeRun,
       contextUsage,
       cursorSeq,
       generatedAt: new Date().toISOString(),
@@ -1097,6 +1130,31 @@ export class RuntimeRegistry {
       agent.id,
       details.failedEntryId,
     );
+  }
+
+  private activeBranchToolCalls(
+    conversationId: string,
+    entries: ConversationEntry[],
+    activeRunId: string | undefined,
+  ): ToolCallRecord[] {
+    const runIds = new Set(
+      entries.flatMap((entry) => (entry.runId ? [entry.runId] : [])),
+    );
+    const toolIds = toolRecordIdsFromEntries(entries);
+    return this.tools.listToolCalls().filter((toolCall) => {
+      if (toolCall.conversationId !== conversationId) return false;
+      if (activeRunId && toolCall.runId === activeRunId) return true;
+      if (toolCall.runId && runIds.has(toolCall.runId)) return true;
+      if (toolIds.has(toolCall.id)) return true;
+      if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
+        return true;
+      if (
+        toolCall.providerToolCallId &&
+        toolIds.has(toolCall.providerToolCallId)
+      )
+        return true;
+      return false;
+    });
   }
 
   private async setAgentStatus(

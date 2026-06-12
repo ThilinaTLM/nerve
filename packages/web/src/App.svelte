@@ -23,6 +23,7 @@
     selection,
     zoomState,
   } from "./lib/state/app-state.svelte";
+  import ConversationHistoryDialog from "./lib/components/app/ConversationHistoryDialog.svelte";
   import ConversationPane from "./lib/components/app/ConversationPane.svelte";
   import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
   import FilePane from "./lib/components/app/FilePane.svelte";
@@ -162,7 +163,22 @@
   let composerFocusToken = $state(0);
   let composerEscapeToken = $state(0);
   let micShortcutToken = $state(0);
+  let historyDialogOpen = $state(false);
   const desktopQuitting = $derived(desktopRuntime.quitting || desktopQuitRequested);
+
+  async function jumpToConversationEntry(
+    entryId: string | undefined,
+    summarize = false,
+  ) {
+    await navigateToEntry(entryId, summarize);
+    composerFocusToken += 1;
+  }
+
+  async function editConversationEntry(entry: { parentEntryId?: string; text: string }) {
+    await navigateToEntry(entry.parentEntryId);
+    setActiveComposerText(entry.text);
+    composerFocusToken += 1;
+  }
 
   function selectAgent(agent: AgentRecord) {
     selection.agentId = agent.id;
@@ -562,6 +578,7 @@
                 {pendingPlanReview}
                 {transcript}
                 {toolCalls}
+                {treeNodes}
                 {streamingText}
                 liveState={conversationLiveState}
                 {queuedPrompts}
@@ -600,6 +617,13 @@
                 onAcceptPlanReview={(id) => void acceptPendingPlanReview(id)}
                 onRejectPlanReview={(id) => void rejectPendingPlanReview(id)}
                 onContinueFromFailure={(id) => void continueFromFailure(id)}
+                onNavigateToEntry={(entryId, summarize) => {
+                  void jumpToConversationEntry(entryId, summarize);
+                }}
+                onEditEntry={(entry) => {
+                  void editConversationEntry(entry);
+                }}
+                onOpenHistory={() => (historyDialogOpen = true)}
               />
             {/if}
           </div>
@@ -617,8 +641,6 @@
                 {activeConversation}
                 {activeAgent}
                 {conversationAgents}
-                {treeNodes}
-                {toolCalls}
                 {processes}
                 {selectedProcess}
                 homeDir={status?.storage.home}
@@ -626,21 +648,6 @@
                 {systemPromptUrl}
                 onTabChange={(tab) => (layout.utilityTab = tab)}
                 onSelectAgent={selectAgent}
-                onNavigateToEntry={(entryId, summarize) => {
-                  layout.utilityTab = "history";
-                  void navigateToEntry(entryId, summarize);
-                }}
-                onEditEntry={(entry) => {
-                  layout.utilityTab = "history";
-                  void (async () => {
-                    await navigateToEntry(entry.parentEntryId);
-                    setActiveComposerText(entry.text);
-                  })();
-                }}
-                onCompact={() => {
-                  layout.utilityTab = "history";
-                  void compactActiveConversation();
-                }}
                 onOpenProcessOutput={(id) => {
                   layout.utilityTab = "processes";
                   void openProcessTab(id);
@@ -702,6 +709,20 @@
   homeDir={status?.storage.home}
   onSelect={(path) => void createConversationForDirectory(path)}
   onForget={(id) => void deleteProjectAndRefresh(id)}
+/>
+
+<ConversationHistoryDialog
+  bind:open={historyDialogOpen}
+  {activeConversation}
+  {treeNodes}
+  {toolCalls}
+  onNavigateToEntry={(entryId, summarize) => {
+    void jumpToConversationEntry(entryId, summarize);
+  }}
+  onEditEntry={(entry) => {
+    void editConversationEntry(entry);
+  }}
+  onCompact={() => void compactActiveConversation()}
 />
 
 <style>

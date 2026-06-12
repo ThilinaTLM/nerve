@@ -1,27 +1,22 @@
 <script lang="ts">
   import GitBranch from "@lucide/svelte/icons/git-branch";
-  import History from "@lucide/svelte/icons/history";
   import Info from "@lucide/svelte/icons/info";
   import Terminal from "@lucide/svelte/icons/terminal";
   import type {
     AgentRecord,
-    ConversationEntry,
+    ConversationRecord,
     ProcessRecord,
     ProjectRecord,
-    ConversationRecord,
-    ConversationTreeNode,
     StatusResponse,
-    ToolCallRecord,
   } from "../../api";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import Tabs, { type TabItem } from "$lib/components/ui/tabs-bar";
   import ContextTab from "./utility/ContextTab.svelte";
   import GitTab from "./utility/GitTab.svelte";
-  import HistoryTab from "./utility/HistoryTab.svelte";
   import ProcessesTab from "./utility/ProcessesTab.svelte";
   import "./utility/utility.css";
 
-  type UtilityTab = "history" | "processes" | "info" | "git";
+  type UtilityTab = "processes" | "info" | "git";
 
   type Props = {
     activeTab?: UtilityTab;
@@ -30,8 +25,6 @@
     activeConversation?: ConversationRecord;
     activeAgent?: AgentRecord;
     conversationAgents?: AgentRecord[];
-    treeNodes?: ConversationTreeNode[];
-    toolCalls?: ToolCallRecord[];
     processes?: ProcessRecord[];
     selectedProcess?: ProcessRecord;
     homeDir?: string;
@@ -39,9 +32,6 @@
     systemPromptUrl?: () => string | undefined;
     onTabChange?: (tab: UtilityTab) => void;
     onSelectAgent?: (agent: AgentRecord) => void;
-    onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
-    onEditEntry?: (entry: ConversationEntry) => void;
-    onCompact?: () => void;
     onOpenProcessOutput?: (id: string) => void;
     onStopProcess?: (id: string) => void;
     onRestartProcess?: (id: string) => void;
@@ -62,8 +52,6 @@
     activeConversation,
     activeAgent,
     conversationAgents = [],
-    treeNodes = [],
-    toolCalls = [],
     processes = [],
     selectedProcess,
     homeDir,
@@ -71,9 +59,6 @@
     systemPromptUrl,
     onTabChange,
     onSelectAgent,
-    onNavigateToEntry,
-    onEditEntry,
-    onCompact,
     onOpenProcessOutput,
     onStopProcess,
     onRestartProcess,
@@ -90,7 +75,6 @@
   const tabs = $derived<TabItem[]>([
     { value: "git", label: "Git", icon: GitBranch },
     { value: "processes", label: "Processes", icon: Terminal, count: runningProcessCount },
-    { value: "history", label: "History", icon: History },
     { value: "info", label: "Context", icon: Info },
   ]);
 
@@ -132,8 +116,6 @@
         {onPruneProcesses}
         {onRunCommand}
       />
-    {:else}
-      <HistoryTab {activeConversation} {treeNodes} {toolCalls} {onNavigateToEntry} {onEditEntry} {onCompact} />
     {/if}
   </ScrollArea>
 </aside>
