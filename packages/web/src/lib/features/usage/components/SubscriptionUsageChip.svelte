@@ -1,13 +1,13 @@
 <script lang="ts">
-  import type { SubscriptionUsage, SubscriptionWindow } from "../../api";
+  import type { SubscriptionUsage, SubscriptionWindow } from "$lib/api";
   import {
     formatResetAfterSeconds,
     formatResetAt,
     usageTone,
-  } from "../../utils/usage";
+  } from "$lib/utils/usage";
   import Popover from "$lib/components/ui/popover-panel";
   import { StatusDot } from "$lib/components/ui/status-dot";
-  import type { StatusTone } from "../../utils/status";
+  import type { StatusTone } from "$lib/utils/status";
 
   type Props = {
     usage?: SubscriptionUsage;

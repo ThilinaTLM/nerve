@@ -16,7 +16,7 @@
   import { shortenPath } from "../../utils/path";
   import { Button } from "$lib/components/ui/button";
   import StatusPopover from "./StatusPopover.svelte";
-  import SubscriptionUsageChip from "./SubscriptionUsageChip.svelte";
+  import SubscriptionUsageChip from "$lib/features/usage/components/SubscriptionUsageChip.svelte";
   import ZoomControl from "./ZoomControl.svelte";
 
   type GitStatus = { branch: string; dirty: boolean };

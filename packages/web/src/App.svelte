@@ -26,7 +26,7 @@
   import ConversationHistoryDialog from "./lib/features/conversations/components/ConversationHistoryDialog.svelte";
   import ConversationPane from "./lib/features/conversations/components/ConversationPane.svelte";
   import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
-  import FilePane from "./lib/components/app/FilePane.svelte";
+  import FilePane from "./lib/features/filesystem/components/FilePane.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";
   import NerveLogsPane from "./lib/features/logs/components/NerveLogsPane.svelte";
   import PrPane from "./lib/features/git/components/PrPane.svelte";

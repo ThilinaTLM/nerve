@@ -3,11 +3,11 @@
   import FileText from "@lucide/svelte/icons/file-text";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import Markdown from "../../Markdown.svelte";
-  import { highlightCodeCached } from "../../highlight";
-  import type { FileViewState } from "../../stores/workbench/state.svelte";
+  import Markdown from "$lib/Markdown.svelte";
+  import { highlightCodeCached } from "$lib/highlight";
+  import type { FileViewState } from "$lib/stores/workbench/state.svelte";
   import { extname } from "$lib/features/tools/views/lang";
-  import { defaultFileDisplayMode, isMarkdownPath } from "../../utils/file-display";
+  import { defaultFileDisplayMode, isMarkdownPath } from "$lib/utils/file-display";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
 
   type Props = {
