@@ -1,8 +1,9 @@
-import type {
-  AgentRecord,
-  ConversationEntry,
-  ConversationRecord,
-  ProjectRecord,
+import {
+  type AgentRecord,
+  type ConversationEntry,
+  type ConversationRecord,
+  escapeHtml,
+  type ProjectRecord,
 } from "@nerve/shared";
 
 export interface ExportedConversationBundle {
@@ -103,12 +104,4 @@ body{font-family:Geist,ui-sans-serif,system-ui,sans-serif;line-height:1.5;max-wi
 ${body}
 </body>
 </html>`;
-}
-
-export function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
