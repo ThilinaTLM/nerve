@@ -21,9 +21,9 @@
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import PromptComposer from "./PromptComposer.svelte";
   import ThinkingBlock from "./ThinkingBlock.svelte";
-  import ToolCallCard from "./ToolCallCard.svelte";
-  import ToolDraftCard from "./tool-call/ToolDraftCard.svelte";
-  import ToolResultErrorCard from "./tool-call/ToolResultErrorCard.svelte";
+  import ToolCallCard from "$lib/features/tools/components/ToolCallCard.svelte";
+  import ToolDraftCard from "$lib/features/tools/components/tool-call/ToolDraftCard.svelte";
+  import ToolResultErrorCard from "$lib/features/tools/components/tool-call/ToolResultErrorCard.svelte";
   import RunStatusCard from "./RunStatusCard.svelte";
 
   type Props = {

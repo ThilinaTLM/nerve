@@ -6,7 +6,7 @@
   import Markdown from "../../Markdown.svelte";
   import { highlightCodeCached } from "../../highlight";
   import type { FileViewState } from "../../stores/workbench/state.svelte";
-  import { extname } from "../../tool-views/lang";
+  import { extname } from "$lib/features/tools/views/lang";
   import { defaultFileDisplayMode, isMarkdownPath } from "../../utils/file-display";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
 
