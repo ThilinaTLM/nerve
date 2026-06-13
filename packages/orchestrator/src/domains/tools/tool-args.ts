@@ -1,4 +1,4 @@
-import type { ProcessManager } from "../../process-manager.js";
+import type { ProcessManager } from "../processes/process-manager.js";
 
 export function stringArg(args: Record<string, unknown>, name: string): string {
   const value = args[name];

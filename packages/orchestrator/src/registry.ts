@@ -57,7 +57,10 @@ import {
   EntryRepository,
 } from "./domains/conversations/index.js";
 import { HumanInputResolutionService } from "./domains/human-input/index.js";
-import { PinnedCommandRepository } from "./domains/pinned-commands/index.js";
+import {
+  PinnedCommandRepository,
+  PinnedCommandService,
+} from "./domains/pinned-commands/index.js";
 import {
   ProjectLifecycleService,
   ProjectRepository,
@@ -71,12 +74,11 @@ import type { IndexStore } from "./infrastructure/index-store/index.js";
 import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
 import { PlanService } from "./domains/plans/plan-service.js";
-import { ProcessManager } from "./process-manager.js";
-import { PinnedCommandService } from "./registry/pinned-command-service.js";
+import { ProcessManager } from "./domains/processes/process-manager.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
 import { ToolService } from "./tool-service.js";
 import type { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
-import { WorkerManager } from "./worker-manager.js";
+import { WorkerManager } from "./domains/workers/worker-manager.js";
 
 export class RuntimeRegistry {
   readonly projects = new Map<string, ProjectRecord>();

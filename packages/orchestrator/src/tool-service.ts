@@ -31,7 +31,7 @@ import type { IndexStore } from "./infrastructure/index-store/index.js";
 import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
 import type { PlanService } from "./domains/plans/plan-service.js";
-import type { ProcessManager } from "./process-manager.js";
+import type { ProcessManager } from "./domains/processes/process-manager.js";
 
 export interface ToolExecutionResponse {
   toolCall: ToolCallRecord;

@@ -13,15 +13,15 @@ import {
   type AgentProcessRun,
   launchAgentProcess as launchLocalAgentProcess,
 } from "./agent-process.js";
-import type { EventBus } from "./infrastructure/events/index.js";
-import type { IndexStore } from "./infrastructure/index-store/index.js";
+import type { EventBus } from "../../infrastructure/events/index.js";
+import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
   atomicWriteJson,
   type InitializedStorage,
   listChildDirs,
   readJsonFile,
-} from "./infrastructure/storage/index.js";
-import type { ProcessManager } from "./process-manager.js";
+} from "../../infrastructure/storage/index.js";
+import type { ProcessManager } from "../processes/process-manager.js";
 
 export class WorkerManager {
   readonly workers = new Map<string, WorkerRecord>();

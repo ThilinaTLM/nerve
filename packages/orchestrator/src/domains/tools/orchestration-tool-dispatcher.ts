@@ -5,7 +5,7 @@ import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import { ensurePlanDir } from "../plans/plan-paths.js";
 import type { PlanService } from "../plans/plan-service.js";
-import type { ProcessManager } from "../../process-manager.js";
+import type { ProcessManager } from "../processes/process-manager.js";
 import type {
   ProcessStarter,
   SubagentRunner,

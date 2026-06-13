@@ -17,11 +17,11 @@ import {
   ProcessRepository,
   spawnManagedProcess,
   terminateProcess,
-} from "./domains/processes/index.js";
-import type { EventBus } from "./infrastructure/events/index.js";
-import type { IndexStore } from "./infrastructure/index-store/index.js";
-import type { InitializedStorage } from "./infrastructure/storage/index.js";
-import type { ApplicationLogger } from "./logging.js";
+} from "./index.js";
+import type { EventBus } from "../../infrastructure/events/index.js";
+import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { ApplicationLogger } from "../../logging.js";
 
 interface ManagedProcess {
   child?: ChildProcess;
@@ -465,4 +465,4 @@ export class ProcessManager {
   }
 }
 
-export { isActiveProcessStatus } from "./domains/processes/index.js";
+export { isActiveProcessStatus } from "./index.js";

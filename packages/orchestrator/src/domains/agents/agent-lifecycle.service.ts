@@ -19,7 +19,7 @@ import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { AgentStatus } from "../../registry/types.js";
-import type { WorkerManager } from "../../worker-manager.js";
+import type { WorkerManager } from "../workers/worker-manager.js";
 import type { AgentRepository } from "./agent.repository.js";
 
 function isModeOnlyUpdate(
