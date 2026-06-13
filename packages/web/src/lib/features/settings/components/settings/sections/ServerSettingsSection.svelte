@@ -1,6 +1,6 @@
 <script lang="ts">
   import Server from "@lucide/svelte/icons/server";
-  import type { Settings, UpdateSettingsRequest } from "../../../../api";
+  import type { Settings, UpdateSettingsRequest } from "$lib/api";
   import { Input } from "$lib/components/ui/input";
   import Switch from "$lib/components/ui/switch-field";
 

@@ -7,12 +7,12 @@
     ModelSelection,
     Settings,
     UpdateSettingsRequest,
-  } from "../../../../api";
+  } from "$lib/api";
   import {
     authenticatedRealModelOptions,
     modelDisplayName,
     modelKey,
-  } from "../../../../utils/model";
+  } from "$lib/utils/model";
 
   type SettingsChange = (
     patch: UpdateSettingsRequest,

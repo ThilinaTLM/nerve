@@ -1,6 +1,6 @@
 <script lang="ts">
   import AppWindow from "@lucide/svelte/icons/app-window";
-  import type { Settings, UpdateSettingsRequest } from "../../../../api";
+  import type { Settings, UpdateSettingsRequest } from "$lib/api";
   import Switch from "$lib/components/ui/switch-field";
 
   type SettingsChange = (

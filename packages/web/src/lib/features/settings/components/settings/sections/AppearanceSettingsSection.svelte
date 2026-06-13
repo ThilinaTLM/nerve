@@ -1,7 +1,7 @@
 <script lang="ts">
   import Monitor from "@lucide/svelte/icons/monitor";
-  import type { Settings, UpdateSettingsRequest } from "../../../../api";
-  import type { ThemePreference } from "../../../../state/app-state.svelte";
+  import type { Settings, UpdateSettingsRequest } from "$lib/api";
+  import type { ThemePreference } from "$lib/state/app-state.svelte";
   import RadioGroup from "$lib/components/ui/radio-group-field";
   import { themeItems } from "../options";
 

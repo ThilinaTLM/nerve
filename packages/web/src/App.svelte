@@ -34,7 +34,7 @@
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
   import BrowserNotificationPrompt from "./lib/notifications/BrowserNotificationPrompt.svelte";
   import ProjectDirectoryPicker from "./lib/components/app/ProjectDirectoryPicker.svelte";
-  import SettingsPage from "./lib/components/app/SettingsPage.svelte";
+  import SettingsPage from "./lib/features/settings/components/SettingsPage.svelte";
   import Titlebar from "./lib/components/app/Titlebar.svelte";
   import UtilityPanel from "./lib/components/app/UtilityPanel.svelte";
   import {

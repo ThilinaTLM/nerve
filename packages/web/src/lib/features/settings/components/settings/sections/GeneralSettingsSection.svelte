@@ -1,6 +1,6 @@
 <script lang="ts">
   import Activity from "@lucide/svelte/icons/activity";
-  import type { StatusResponse } from "../../../../api";
+  import type { StatusResponse } from "$lib/api";
 
   type Props = {
     status?: StatusResponse;

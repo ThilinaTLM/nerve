@@ -4,7 +4,7 @@
   import Loader from "@lucide/svelte/icons/loader-circle";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import type { AuthProviderMetadata, OAuthFlowInfo } from "../../../../api";
+  import type { AuthProviderMetadata, OAuthFlowInfo } from "$lib/api";
   import {
     cancelOAuthFlow,
     getCredentialKey,
@@ -12,8 +12,8 @@
     respondOAuthFlow,
     setProviderApiKey,
     startOAuthFlow,
-  } from "../../../../api";
-  import { encryptApiKey } from "../../../../utils/credential-crypto";
+  } from "$lib/api";
+  import { encryptApiKey } from "$lib/utils/credential-crypto";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";

@@ -4,9 +4,9 @@
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import type { AuthProviderMetadata } from "../../../../api";
-  import { deleteProviderCredential } from "../../../../api";
-  import { loadSettingsPanel } from "../../../../stores/settings.svelte";
+  import type { AuthProviderMetadata } from "$lib/api";
+  import { deleteProviderCredential } from "$lib/api";
+  import { loadSettingsPanel } from "$lib/stores/settings.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
