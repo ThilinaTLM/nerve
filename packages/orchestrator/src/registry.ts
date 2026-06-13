@@ -37,12 +37,7 @@ import {
   QueuedPromptService,
   RetryContinuationService,
 } from "./domains/agents/index.js";
-import {
-  AgentRunner,
-  type AgentRunState,
-  MessageMirror,
-} from "./domains/agents/run/index.js";
-import { ConversationRuntime } from "./domains/conversations/conversation-runtime.js";
+import { AgentRunner, MessageMirror } from "./domains/agents/run/index.js";
 import { ConversationService } from "./domains/conversations/conversation-service.js";
 import { HarnessManager } from "./domains/conversations/harness-manager.js";
 import {
@@ -79,15 +74,20 @@ import type { IndexStore } from "./infrastructure/index-store/index.js";
 import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
+import { RuntimeState } from "./runtime/runtime-state.js";
 
 export class RuntimeRegistry {
-  readonly projects = new Map<string, ProjectRecord>();
-  readonly conversations = new Map<string, ConversationRecord>();
-  readonly agents = new Map<string, AgentRecord>();
-  readonly entries = new Map<string, ConversationEntry[]>();
-  readonly agentConversationMessages: Map<string, Message[]>;
-  readonly conversationRuntime = new ConversationRuntime();
-  readonly runs = new Map<string, AgentRunState>();
+  private readonly state = new RuntimeState();
+  readonly projects = this.state.projects;
+  readonly conversations = this.state.conversations;
+  readonly agents = this.state.agents;
+  readonly entries = this.state.entries;
+  readonly conversationRuntime = this.state.conversationRuntime;
+  readonly runs = this.state.runs;
+
+  get agentConversationMessages(): Map<string, Message[]> {
+    return this.state.agentConversationMessages;
+  }
   readonly processes: ProcessManager;
   readonly workers: WorkerManager;
   readonly plans: PlanService;
@@ -145,8 +145,9 @@ export class RuntimeRegistry {
       this.harnessManager,
       this.entryRepository,
     );
-    this.agentConversationMessages =
-      this.conversationService.agentConversationCache;
+    this.state.useAgentConversationMessages(
+      this.conversationService.agentConversationCache,
+    );
     this.compactionService = new CompactionService(
       storage,
       (conversationId) => this.getConversation(conversationId),
