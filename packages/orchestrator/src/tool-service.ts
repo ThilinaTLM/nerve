@@ -15,7 +15,7 @@ import { allToolDescriptors, toolRiskForName } from "@nerve/tools";
 import type {
   ConversationRuntime,
   ToolAnchor,
-} from "./conversation-runtime.js";
+} from "./domains/conversations/conversation-runtime.js";
 import {
   ApprovalRepository,
   evaluateToolPolicy,

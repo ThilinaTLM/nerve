@@ -10,7 +10,7 @@ import type {
 import { agentMessageText } from "../../agent-runner/index.js";
 import type { AgentSuspensionService } from "../../agent-suspension-service.js";
 import { completedToolResult } from "../../agent-tool-adapter.js";
-import type { HarnessManager } from "../../harness-manager.js";
+import type { HarnessManager } from "../conversations/harness-manager.js";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { PlanService } from "../plans/plan-service.js";

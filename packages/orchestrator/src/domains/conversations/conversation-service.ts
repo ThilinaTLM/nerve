@@ -6,7 +6,7 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "@nerve/shared";
-import type { EntryRepository } from "./domains/conversations/index.js";
+import type { EntryRepository } from "./index.js";
 import type { HarnessManager } from "./harness-manager.js";
 
 export class ConversationService {

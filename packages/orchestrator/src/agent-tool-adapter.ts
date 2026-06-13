@@ -6,7 +6,7 @@ import {
 } from "@nerve/agent";
 import type { AgentRecord, ToolCallRecord, ToolName } from "@nerve/shared";
 import { allToolDefinitions, type CoreToolDefinition } from "@nerve/tools";
-import type { ToolAnchor } from "./conversation-runtime.js";
+import type { ToolAnchor } from "./domains/conversations/conversation-runtime.js";
 import type { ToolService } from "./tool-service.js";
 
 export type AgentToolPromptMetadata = {

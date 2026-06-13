@@ -1,5 +1,5 @@
 import type { AgentRecord, Mode, PermissionLevel } from "@nerve/shared";
-import { HttpError } from "../http/errors.js";
+import { HttpError } from "../../http/errors.js";
 
 export function assertChildAuthority(
   parent: AgentRecord,

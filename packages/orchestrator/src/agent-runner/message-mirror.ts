@@ -9,7 +9,7 @@ import type {
   ConversationEntryUsage,
   ConversationRecord,
 } from "@nerve/shared";
-import { deriveConversationTitle } from "../conversation-operations/index.js";
+import { deriveConversationTitle } from "../domains/conversations/operations/index.js";
 import type { EventBus } from "../infrastructure/events/index.js";
 
 export interface AppendEntryInput {

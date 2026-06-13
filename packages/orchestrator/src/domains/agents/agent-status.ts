@@ -1,5 +1,5 @@
 import type { AgentRecord } from "@nerve/shared";
-import type { EventBus } from "../infrastructure/events/index.js";
+import type { EventBus } from "../../infrastructure/events/index.js";
 
 export async function setAgentStatus(
   agent: AgentRecord,

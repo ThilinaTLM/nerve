@@ -33,11 +33,11 @@ import {
   toolPromptMetadata,
 } from "../agent-tool-adapter.js";
 import type { AuthManager } from "../auth.js";
-import type { CompactionService } from "../conversation-operations/index.js";
-import type { ConversationRuntime } from "../conversation-runtime.js";
-import type { ConversationService } from "../conversation-service.js";
+import type { CompactionService } from "../domains/conversations/operations/index.js";
+import type { ConversationRuntime } from "../domains/conversations/conversation-runtime.js";
+import type { ConversationService } from "../domains/conversations/conversation-service.js";
 import type { PromptQueueRepository } from "../domains/agents/index.js";
-import type { HarnessManager } from "../harness-manager.js";
+import type { HarnessManager } from "../domains/conversations/harness-manager.js";
 import { HttpError } from "../http/errors.js";
 import type { EventBus } from "../infrastructure/events/index.js";
 import type { InitializedStorage } from "../infrastructure/storage/index.js";

@@ -40,9 +40,9 @@ import {
   ExportService,
   ImportService,
   NavigationService,
-} from "./conversation-operations/index.js";
-import { ConversationRuntime } from "./conversation-runtime.js";
-import { ConversationService } from "./conversation-service.js";
+} from "./domains/conversations/operations/index.js";
+import { ConversationRuntime } from "./domains/conversations/conversation-runtime.js";
+import { ConversationService } from "./domains/conversations/conversation-service.js";
 import {
   AgentLifecycleService,
   AgentRepository,
@@ -67,7 +67,7 @@ import {
   PruneProjectConversationsService,
 } from "./domains/projects/index.js";
 import { GitService } from "./domains/git/git-service.js";
-import { HarnessManager } from "./harness-manager.js";
+import { HarnessManager } from "./domains/conversations/harness-manager.js";
 import { HttpError } from "./http/errors.js";
 import type { EventBus } from "./infrastructure/events/index.js";
 import type { IndexStore } from "./infrastructure/index-store/index.js";

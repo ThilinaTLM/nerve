@@ -10,9 +10,9 @@ import type {
   ProjectRecord,
 } from "@nerve/shared";
 import type { HarnessManager } from "../harness-manager.js";
-import { HttpError } from "../http/errors.js";
-import type { EventBus } from "../infrastructure/events/index.js";
-import type { InitializedStorage } from "../infrastructure/storage/index.js";
+import { HttpError } from "../../../http/errors.js";
+import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
 import { buildExtractiveSummary } from "./summary.js";
 
 export interface AppendConversationEntryInput {

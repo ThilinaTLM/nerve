@@ -1,6 +1,6 @@
 import type { AgentRecord, Mode, ToolCallRecord } from "@nerve/shared";
 import { executeTool, type ToolExecutionOutputUpdate } from "@nerve/tools";
-import type { ConversationRuntime } from "../../conversation-runtime.js";
+import type { ConversationRuntime } from "../conversations/conversation-runtime.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import { ensurePlanDir } from "../plans/plan-paths.js";

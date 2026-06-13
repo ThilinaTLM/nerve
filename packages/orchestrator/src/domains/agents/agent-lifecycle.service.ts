@@ -10,10 +10,10 @@ import {
   type UpdateAgentRequest,
 } from "@nerve/shared";
 import type { AgentRunState } from "../../agent-runner/index.js";
-import { assertChildAuthority } from "../../agents/agent-authority.js";
-import { agentBudget } from "../../agents/agent-budget.js";
-import { setAgentStatus as setAgentStatusHelper } from "../../agents/agent-status.js";
-import type { ConversationService } from "../../conversation-service.js";
+import { assertChildAuthority } from "./agent-authority.js";
+import { agentBudget } from "./agent-budget.js";
+import { setAgentStatus as setAgentStatusHelper } from "./agent-status.js";
+import type { ConversationService } from "../conversations/conversation-service.js";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";

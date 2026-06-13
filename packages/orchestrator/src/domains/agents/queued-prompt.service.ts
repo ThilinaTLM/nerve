@@ -1,5 +1,5 @@
 import type { AgentRecord, QueuedPromptRecord } from "@nerve/shared";
-import type { ConversationRuntime } from "../../conversation-runtime.js";
+import type { ConversationRuntime } from "../conversations/conversation-runtime.js";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { PromptQueueRepository } from "./prompt-queue.repository.js";
