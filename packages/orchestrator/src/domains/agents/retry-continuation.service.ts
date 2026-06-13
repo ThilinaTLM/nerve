@@ -1,10 +1,9 @@
-import type { AgentRecord, ConversationEntry } from "@nerve/shared";
+import type { ConversationEntry } from "@nerve/shared";
 import { HttpError } from "../../http/errors.js";
-import type { AgentRunState } from "./run/index.js";
+import type { RuntimeState } from "../../runtime/runtime-state.js";
 
 export interface RetryContinuationServiceDeps {
-  agents: Map<string, AgentRecord>;
-  runs: Map<string, AgentRunState>;
+  state: RuntimeState;
   getConversationEntries(conversationId: string): ConversationEntry[];
   continueFromFailedTurn(agentId: string, failedEntryId: string): Promise<void>;
 }
@@ -16,9 +15,8 @@ export class RetryContinuationService {
     agentId: string,
     statusEntryId: string,
   ): Promise<void> {
-    const agent = this.deps.agents.get(agentId);
-    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    if (this.deps.runs.has(agent.id)) {
+    const agent = this.deps.state.getAgent(agentId);
+    if (this.deps.state.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
     const entries = this.deps.getConversationEntries(agent.conversationId);

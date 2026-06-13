@@ -21,7 +21,6 @@ import {
   type ConversationRunStatusDetails,
   type CreateAgentRequest,
   createId,
-  type ProjectRecord,
   type PromptRequest,
   type ToolName,
   toolNameSchema,
@@ -32,7 +31,7 @@ import type { EventBus } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
 import type { ApplicationLogger } from "../../../logging.js";
 import { loadHarnessResources } from "../../../resource-loader.js";
-import type { ConversationRuntime } from "../../conversations/conversation-runtime.js";
+import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import type { ConversationService } from "../../conversations/conversation-service.js";
 import type { HarnessManager } from "../../conversations/harness-manager.js";
 import type { CompactionService } from "../../conversations/operations/index.js";
@@ -47,7 +46,6 @@ import type { SubscriptionUsageService } from "../../usage/subscription-usage-se
 import type { AgentSuspensionService } from "../agent-suspension.service.js";
 import type { PromptQueueRepository } from "../prompt-queue.repository.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
-import type { AgentRunStateMap } from "./run-state.js";
 import { SubagentRunner } from "./subagent-runner.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
 import { shouldStreamToolDraftArguments } from "./tool-draft-streaming.js";
@@ -61,10 +59,7 @@ export interface AgentRunnerDeps {
   harnessManager: HarnessManager;
   conversationService: ConversationService;
   compactionService: CompactionService;
-  runs: AgentRunStateMap;
-  agents: Map<string, AgentRecord>;
-  getConversation: (conversationId: string) => ConversationRecord;
-  getProject: (projectId: string) => ProjectRecord;
+  state: RuntimeState;
   createAgent: (
     request: CreateAgentRequest,
     options?: { allowChildAuthorityExceed?: boolean },
@@ -76,7 +71,6 @@ export interface AgentRunnerDeps {
   appendEntry: AppendEntryFn;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
   messageMirror: MessageMirror;
-  conversationRuntime: ConversationRuntime;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   promptQueue: PromptQueueRepository;
@@ -93,13 +87,14 @@ export class AgentRunner {
       createAgent: deps.createAgent,
       runAgentPrompt: (agent, request) => this.runAgentPrompt(agent, request),
       appendEntry: deps.appendEntry,
-      getConversation: deps.getConversation,
+      getConversation: (conversationId) =>
+        deps.state.getConversation(conversationId),
       updateConversation: deps.updateConversation,
     });
   }
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
-    const agent = this.deps.agents.get(agentId);
+    const agent = this.deps.state.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
     if (agent.status === "awaiting_user") {
       throw new HttpError(
@@ -108,7 +103,7 @@ export class AgentRunner {
         "Agent is awaiting a human-in-the-loop tool response.",
       );
     }
-    const activeRun = this.deps.runs.get(agent.id);
+    const activeRun = this.deps.state.runs.get(agent.id);
     if (activeRun) {
       const behavior = request.behavior ?? "steer";
       if (behavior === "reject-if-busy") {
@@ -128,7 +123,10 @@ export class AgentRunner {
         text: request.text,
         images: request.images,
       });
-      this.deps.conversationRuntime.queuePrompt(activeRun.runId, queuedPrompt);
+      this.deps.state.conversationRuntime.queuePrompt(
+        activeRun.runId,
+        queuedPrompt,
+      );
       await this.deps.events.publish("conversation.prompt.queued", {
         conversationId: agent.conversationId,
         agentId: agent.id,
@@ -144,7 +142,10 @@ export class AgentRunner {
           activeRun.runId,
         );
         if (accepted)
-          this.deps.conversationRuntime.queuePrompt(activeRun.runId, accepted);
+          this.deps.state.conversationRuntime.queuePrompt(
+            activeRun.runId,
+            accepted,
+          );
       } catch (error) {
         await this.deps.promptQueue.markFailed(
           queuedPrompt.id,
@@ -159,9 +160,9 @@ export class AgentRunner {
   }
 
   async continueAgent(agentId: string): Promise<void> {
-    const agent = this.deps.agents.get(agentId);
+    const agent = this.deps.state.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    if (this.deps.runs.has(agent.id)) {
+    if (this.deps.state.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
     void this.runAgentPrompt(
@@ -175,13 +176,13 @@ export class AgentRunner {
     agentId: string,
     failedEntryId: string,
   ): Promise<void> {
-    const agent = this.deps.agents.get(agentId);
+    const agent = this.deps.state.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    if (this.deps.runs.has(agent.id)) {
+    if (this.deps.state.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
-    const conversation = this.deps.getConversation(agent.conversationId);
-    const project = this.deps.getProject(agent.projectId);
+    const conversation = this.deps.state.getConversation(agent.conversationId);
+    const project = this.deps.state.getProject(agent.projectId);
     const storage = await this.deps.harnessManager.openStorage(
       conversation,
       project.dir,
@@ -211,12 +212,12 @@ export class AgentRunner {
   }
 
   async abortAgent(agentId: string): Promise<void> {
-    const agent = this.deps.agents.get(agentId);
+    const agent = this.deps.state.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    for (const child of this.deps.agents.values()) {
+    for (const child of this.deps.state.agents.values()) {
       if (child.parentAgentId === agent.id) await this.abortAgent(child.id);
     }
-    const run = this.deps.runs.get(agentId);
+    const run = this.deps.state.runs.get(agentId);
     if (!run) return;
     run.abort();
     await this.deps.events.publish("agent.abort_requested", {
@@ -237,7 +238,7 @@ export class AgentRunner {
     request: PromptRequest,
     options: { continue?: boolean } = {},
   ): Promise<ConversationEntry> {
-    if (this.deps.runs.has(agent.id)) {
+    if (this.deps.state.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
     }
 
@@ -261,8 +262,10 @@ export class AgentRunner {
         runId,
         context: { behavior: request.behavior, continue: options.continue },
       });
-      const conversation = this.deps.getConversation(agent.conversationId);
-      const project = this.deps.getProject(agent.projectId);
+      const conversation = this.deps.state.getConversation(
+        agent.conversationId,
+      );
+      const project = this.deps.state.getProject(agent.projectId);
       const storage = await this.deps.harnessManager.openStorage(
         conversation,
         project.dir,
@@ -276,7 +279,7 @@ export class AgentRunner {
       this.deps.subscriptionUsage.touchProvider(model.provider);
       const env = new NodeExecutionEnv({ cwd: agent.projectDir });
       const resources = await loadHarnessResources(agent.projectDir);
-      const latestAgent = () => this.deps.agents.get(agent.id) ?? agent;
+      const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
       const composeLatestSystemPrompt = () => {
         const currentAgent = latestAgent();
         const currentActiveToolNames = activeToolNamesForAgent(currentAgent);
@@ -296,7 +299,7 @@ export class AgentRunner {
         tools: createAgentToolsForAgent(agent, this.deps.tools, {
           runId,
           resolveToolAnchor: (providerToolCallId) =>
-            this.deps.conversationRuntime.resolveToolAnchor(
+            this.deps.state.conversationRuntime.resolveToolAnchor(
               runId,
               providerToolCallId,
             ),
@@ -320,7 +323,7 @@ export class AgentRunner {
           return;
         }
         if (event.type === "turn_start") {
-          const turn = this.deps.conversationRuntime.startTurn(runId);
+          const turn = this.deps.state.conversationRuntime.startTurn(runId);
           currentTurnId = turn.turnId;
           currentLiveMessageId = undefined;
           pendingProviderToolCalls.clear();
@@ -368,7 +371,7 @@ export class AgentRunner {
               sourceToolCallId: event.toolCallId,
               providerToolCallId: event.toolCallId,
               runId,
-              anchor: this.deps.conversationRuntime.resolveToolAnchor(
+              anchor: this.deps.state.conversationRuntime.resolveToolAnchor(
                 runId,
                 event.toolCallId,
               ),
@@ -381,13 +384,14 @@ export class AgentRunner {
           event.message.role === "assistant"
         ) {
           if (!currentTurnId) {
-            const turn = this.deps.conversationRuntime.startTurn(runId);
+            const turn = this.deps.state.conversationRuntime.startTurn(runId);
             currentTurnId = turn.turnId;
           }
-          const started = this.deps.conversationRuntime.startAssistantMessage(
-            runId,
-            currentTurnId,
-          );
+          const started =
+            this.deps.state.conversationRuntime.startAssistantMessage(
+              runId,
+              currentTurnId,
+            );
           currentLiveMessageId = started.liveMessageId;
           liveToolDraftNames.clear();
           await this.deps.events.publish(
@@ -401,7 +405,7 @@ export class AgentRunner {
           if (!currentTurnId || !currentLiveMessageId) return;
           const update = event.assistantMessageEvent;
           if (update.type === "text_delta") {
-            const data = this.deps.conversationRuntime.applyContentDelta({
+            const data = this.deps.state.conversationRuntime.applyContentDelta({
               runId,
               turnId: currentTurnId,
               liveMessageId: currentLiveMessageId,
@@ -415,7 +419,7 @@ export class AgentRunner {
               { durability: "transient" },
             );
           } else if (update.type === "thinking_delta") {
-            const data = this.deps.conversationRuntime.applyContentDelta({
+            const data = this.deps.state.conversationRuntime.applyContentDelta({
               runId,
               turnId: currentTurnId,
               liveMessageId: currentLiveMessageId,
@@ -429,7 +433,7 @@ export class AgentRunner {
               { durability: "transient" },
             );
           } else if (update.type === "text_end") {
-            const data = this.deps.conversationRuntime.finishContent({
+            const data = this.deps.state.conversationRuntime.finishContent({
               runId,
               turnId: currentTurnId,
               liveMessageId: currentLiveMessageId,
@@ -445,7 +449,7 @@ export class AgentRunner {
               },
             );
           } else if (update.type === "thinking_end") {
-            const data = this.deps.conversationRuntime.finishContent({
+            const data = this.deps.state.conversationRuntime.finishContent({
               runId,
               turnId: currentTurnId,
               liveMessageId: currentLiveMessageId,
@@ -470,7 +474,7 @@ export class AgentRunner {
               update.contentIndex,
             );
             liveToolDraftNames.set(update.contentIndex, draft?.name);
-            const data = this.deps.conversationRuntime.startToolDraft({
+            const data = this.deps.state.conversationRuntime.startToolDraft({
               runId,
               turnId: currentTurnId,
               liveMessageId: currentLiveMessageId,
@@ -493,13 +497,14 @@ export class AgentRunner {
             if (draft?.name)
               liveToolDraftNames.set(update.contentIndex, draft.name);
             if (!shouldStreamToolDraftArguments(toolName)) return;
-            const data = this.deps.conversationRuntime.applyToolDraftDelta({
-              runId,
-              turnId: currentTurnId,
-              liveMessageId: currentLiveMessageId,
-              contentIndex: update.contentIndex,
-              delta: update.delta,
-            });
+            const data =
+              this.deps.state.conversationRuntime.applyToolDraftDelta({
+                runId,
+                turnId: currentTurnId,
+                liveMessageId: currentLiveMessageId,
+                contentIndex: update.contentIndex,
+                delta: update.delta,
+              });
             await this.deps.events.publish(
               "conversation.live.tool_draft.delta",
               data,
@@ -507,7 +512,7 @@ export class AgentRunner {
             );
           } else if (update.type === "toolcall_end") {
             liveToolDraftNames.delete(update.contentIndex);
-            const data = this.deps.conversationRuntime.finishToolDraft({
+            const data = this.deps.state.conversationRuntime.finishToolDraft({
               runId,
               turnId: currentTurnId,
               liveMessageId: currentLiveMessageId,
@@ -581,7 +586,7 @@ export class AgentRunner {
       });
 
       const startedAt = new Date().toISOString();
-      this.deps.conversationRuntime.startRun({
+      this.deps.state.conversationRuntime.startRun({
         agentId: agent.id,
         projectId: agent.projectId,
         conversationId: agent.conversationId,
@@ -608,11 +613,11 @@ export class AgentRunner {
         },
       });
 
-      this.deps.runs.set(agent.id, {
+      this.deps.state.runs.set(agent.id, {
         runId,
         abort: () => {
           abortRequested = true;
-          this.deps.conversationRuntime.markAborting(runId);
+          this.deps.state.conversationRuntime.markAborting(runId);
           void harness.abort();
         },
         messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
@@ -634,8 +639,8 @@ export class AgentRunner {
         runId,
         agent,
       });
-      const latest = this.deps.agents.get(agent.id);
-      this.deps.runs.delete(agent.id);
+      const latest = this.deps.state.agents.get(agent.id);
+      this.deps.state.runs.delete(agent.id);
       const branch = await storage.getPathToRoot(await storage.getLeafId());
       const messages = convertToLlm(buildConversationContext(branch).messages);
       this.deps.conversationService.setForAgent(agent.id, messages);
@@ -679,7 +684,7 @@ export class AgentRunner {
             errorMessage: runAssistant.errorMessage,
           },
         });
-        this.deps.conversationRuntime.failRun(runId);
+        this.deps.state.conversationRuntime.failRun(runId);
         return assistantEntry;
       }
       if (latest) await this.deps.setAgentStatus(latest, "idle");
@@ -700,7 +705,7 @@ export class AgentRunner {
         durationMs: Math.round(performance.now() - runStartedAt),
         context: { finalEntryId: assistantEntry.id },
       });
-      this.deps.conversationRuntime.completeRun(runId);
+      this.deps.state.conversationRuntime.completeRun(runId);
       await this.maybeAutoCompact(agent.conversationId).catch((error) => {
         process.emitWarning(
           `Auto-compaction failed for ${agent.conversationId}: ${
@@ -725,8 +730,8 @@ export class AgentRunner {
         ? error
         : this.suspensionFromWaitingToolCall(agent, runId, error);
       if (suspensionError) {
-        this.deps.runs.delete(agent.id);
-        const latest = this.deps.agents.get(agent.id);
+        this.deps.state.runs.delete(agent.id);
+        const latest = this.deps.state.agents.get(agent.id);
         const toolCall = this.deps.tools.getToolCall(
           suspensionError.data.toolCallId,
         );
@@ -779,13 +784,13 @@ export class AgentRunner {
             reason: suspensionError.data.reason,
           },
         });
-        this.deps.conversationRuntime.completeRun(runId);
+        this.deps.state.conversationRuntime.completeRun(runId);
         if (lastAssistantEntry) return lastAssistantEntry;
         throw new Error("Agent run suspended without an assistant entry.");
       }
-      this.deps.runs.delete(agent.id);
+      this.deps.state.runs.delete(agent.id);
       const aborted = abortRequested;
-      const latest = this.deps.agents.get(agent.id);
+      const latest = this.deps.state.agents.get(agent.id);
       if (latest)
         await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
       await this.deps.events.publish("conversation.run.failed", {
@@ -809,7 +814,7 @@ export class AgentRunner {
           error,
         },
       );
-      this.deps.conversationRuntime.failRun(runId);
+      this.deps.state.conversationRuntime.failRun(runId);
       throw error;
     }
   }
@@ -901,7 +906,7 @@ export class AgentRunner {
         errorMessage: assistant.errorMessage,
         failedEntryId,
       };
-      this.deps.conversationRuntime.markRetrying(input.runId, retry);
+      this.deps.state.conversationRuntime.markRetrying(input.runId, retry);
       await this.deps.events.publish("conversation.run.retrying", {
         agentId: input.agent.id,
         conversationId: input.agent.conversationId,
@@ -923,7 +928,7 @@ export class AgentRunner {
       if (leaf?.parentId !== undefined)
         await input.conversation.moveTo(leaf.parentId);
       await delay(delayMs);
-      this.deps.conversationRuntime.clearRetry(input.runId);
+      this.deps.state.conversationRuntime.clearRetry(input.runId);
       continueRun = true;
     }
   }
@@ -948,7 +953,7 @@ export class AgentRunner {
       entry.id,
     );
     if (!delivered) return;
-    this.deps.conversationRuntime.removeQueuedPrompt(runId, delivered.id);
+    this.deps.state.conversationRuntime.removeQueuedPrompt(runId, delivered.id);
     await this.deps.events.publish("conversation.prompt.dequeued", {
       conversationId: agent.conversationId,
       agentId: agent.id,
@@ -986,8 +991,8 @@ export class AgentRunner {
 
   /** Compute compaction-aware context-window usage for a conversation. */
   async getContextUsage(conversationId: string): Promise<ContextUsage> {
-    const conversation = this.deps.getConversation(conversationId);
-    const project = this.deps.getProject(conversation.projectId);
+    const conversation = this.deps.state.getConversation(conversationId);
+    const project = this.deps.state.getProject(conversation.projectId);
     const storage = await this.deps.harnessManager.openStorage(
       conversation,
       project.dir,
@@ -995,7 +1000,7 @@ export class AgentRunner {
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const messages = buildConversationContext(branch).messages;
     const agent = conversation.activeAgentId
-      ? this.deps.agents.get(conversation.activeAgentId)
+      ? this.deps.state.agents.get(conversation.activeAgentId)
       : undefined;
     const contextWindow = getModelContextWindow(agent?.model);
     return computeContextUsage(messages, branch, contextWindow);
@@ -1016,8 +1021,8 @@ export class AgentRunner {
 
   private async maybeAutoCompact(conversationId: string): Promise<void> {
     if (!this.deps.storage.settings.compaction.auto) return;
-    const conversation = this.deps.getConversation(conversationId);
-    const project = this.deps.getProject(conversation.projectId);
+    const conversation = this.deps.state.getConversation(conversationId);
+    const project = this.deps.state.getProject(conversation.projectId);
     const storage = await this.deps.harnessManager.openStorage(
       conversation,
       project.dir,
@@ -1027,7 +1032,7 @@ export class AgentRunner {
       buildConversationContext(branch).messages,
     ).tokens;
     const agent = conversation.activeAgentId
-      ? this.deps.agents.get(conversation.activeAgentId)
+      ? this.deps.state.agents.get(conversation.activeAgentId)
       : undefined;
     const contextWindow = getModelContextWindow(agent?.model);
     if (contextWindow <= 0) return;

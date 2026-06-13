@@ -1,14 +1,13 @@
 import { realpath } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
-  type ConversationRecord,
   type CreateProjectRequest,
   createId,
   type ProjectRecord,
 } from "@nerve/shared";
-import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ProjectRepository } from "./project.repository.js";
 
 export class ProjectLifecycleService {
@@ -16,8 +15,7 @@ export class ProjectLifecycleService {
     private readonly projectRepository: ProjectRepository,
     private readonly events: EventBus,
     private readonly index: IndexStore,
-    private readonly projects: Map<string, ProjectRecord>,
-    private readonly listConversations: () => ConversationRecord[],
+    private readonly state: RuntimeState,
     private readonly removeConversation: (
       conversationId: string,
     ) => Promise<void>,
@@ -41,7 +39,7 @@ export class ProjectLifecycleService {
     dir: string,
   ): Promise<ProjectRecord | undefined> {
     const key = this.projectDirKey(dir);
-    for (const project of this.projects.values()) {
+    for (const project of this.state.projects.values()) {
       const projectDir = await this.canonicalProjectDir(project.dir);
       if (this.projectDirKey(projectDir) === key) return project;
     }
@@ -61,7 +59,7 @@ export class ProjectLifecycleService {
       createdAt: now,
       updatedAt: now,
     };
-    this.projects.set(project.id, project);
+    this.state.projects.set(project.id, project);
     this.index.upsertProject(project);
     await this.projectRepository.write(project);
     await this.events.publish("project.created", { project });
@@ -69,26 +67,21 @@ export class ProjectLifecycleService {
   }
 
   listProjects(): ProjectRecord[] {
-    return [...this.projects.values()].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt),
-    );
+    return this.state.listProjects();
   }
 
   getProject(projectId: string): ProjectRecord {
-    const project = this.projects.get(projectId);
-    if (!project)
-      throw new HttpError(404, "PROJECT_NOT_FOUND", "Project not found.");
-    return project;
+    return this.state.getProject(projectId);
   }
 
   async removeProject(projectId: string): Promise<void> {
     this.getProject(projectId);
-    for (const conversation of this.listConversations().filter(
-      (candidate) => candidate.projectId === projectId,
-    )) {
+    for (const conversation of this.state
+      .listConversations()
+      .filter((candidate) => candidate.projectId === projectId)) {
       await this.removeConversation(conversation.id);
     }
-    this.projects.delete(projectId);
+    this.state.projects.delete(projectId);
     this.index.removeProject(projectId);
     await this.projectRepository.remove(projectId);
     await this.events.publish("project.deleted", { projectId });
@@ -96,7 +89,7 @@ export class ProjectLifecycleService {
 
   async loadProjects(): Promise<void> {
     for (const project of await this.projectRepository.loadAll()) {
-      this.projects.set(project.id, project);
+      this.state.projects.set(project.id, project);
       this.index.upsertProject(project);
     }
   }

@@ -2,11 +2,9 @@ import { resolve } from "node:path";
 import { clampAgentThinkingLevel } from "@nerve/agent";
 import {
   type AgentRecord,
-  type ConversationRecord,
   type CreateAgentRequest,
   createId,
   type Mode,
-  type ProjectRecord,
   type UpdateAgentRequest,
 } from "@nerve/shared";
 import { HttpError } from "../../http/errors.js";
@@ -14,13 +12,13 @@ import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { AgentStatus } from "../../registry/types.js";
+import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ConversationService } from "../conversations/conversation-service.js";
 import type { WorkerManager } from "../workers/worker-manager.js";
 import type { AgentRepository } from "./agent.repository.js";
 import { assertChildAuthority } from "./agent-authority.js";
 import { agentBudget } from "./agent-budget.js";
 import { setAgentStatus as setAgentStatusHelper } from "./agent-status.js";
-import type { AgentRunState } from "./run/index.js";
 
 function isModeOnlyUpdate(
   request: UpdateAgentRequest,
@@ -38,17 +36,12 @@ export class AgentLifecycleService {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
-    private readonly agents: Map<string, AgentRecord>,
-    private readonly runs: Map<string, AgentRunState>,
+    private readonly state: RuntimeState,
     private readonly agentRepository: AgentRepository,
     private readonly workers: WorkerManager,
     private readonly conversationService: ConversationService,
-    private readonly getConversation: (
-      conversationId: string,
-    ) => ConversationRecord,
-    private readonly getProject: (projectId: string) => ProjectRecord,
     private readonly updateConversation: (
-      conversation: ConversationRecord,
+      conversation: ReturnType<RuntimeState["getConversation"]>,
     ) => Promise<void>,
     private readonly abortAgent: (agentId: string) => Promise<void>,
   ) {}
@@ -57,10 +50,10 @@ export class AgentLifecycleService {
     request: CreateAgentRequest,
     options: { allowChildAuthorityExceed?: boolean } = {},
   ): Promise<AgentRecord> {
-    const conversation = this.getConversation(request.conversationId);
-    const project = this.getProject(request.projectId);
+    const conversation = this.state.getConversation(request.conversationId);
+    const project = this.state.getProject(request.projectId);
     const parent = request.parentAgentId
-      ? this.agents.get(request.parentAgentId)
+      ? this.state.agents.get(request.parentAgentId)
       : undefined;
     if (request.parentAgentId && !parent)
       throw new HttpError(
@@ -114,7 +107,7 @@ export class AgentLifecycleService {
       createdAt: now,
       updatedAt: now,
     };
-    this.agents.set(agent.id, agent);
+    this.state.agents.set(agent.id, agent);
     this.index.upsertAgent(agent);
     await this.writeAgent(agent);
     await this.updateConversation({
@@ -127,28 +120,24 @@ export class AgentLifecycleService {
   }
 
   listAgents(): AgentRecord[] {
-    return [...this.agents.values()].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt),
-    );
+    return this.state.listAgents();
   }
 
   getAgent(agentId: string): AgentRecord {
-    const agent = this.agents.get(agentId);
-    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    return agent;
+    return this.state.getAgent(agentId);
   }
 
   async removeAgentInternal(agentId: string): Promise<void> {
-    if (!this.agents.has(agentId)) return;
-    if (this.runs.has(agentId)) await this.abortAgent(agentId);
-    for (const child of [...this.agents.values()].filter(
+    if (!this.state.agents.has(agentId)) return;
+    if (this.state.runs.has(agentId)) await this.abortAgent(agentId);
+    for (const child of [...this.state.agents.values()].filter(
       (candidate) => candidate.parentAgentId === agentId,
     )) {
       await this.removeAgentInternal(child.id);
     }
-    this.agents.delete(agentId);
+    this.state.agents.delete(agentId);
     this.conversationService.deleteAgent(agentId);
-    this.runs.delete(agentId);
+    this.state.runs.delete(agentId);
     this.index.removeAgent(agentId);
     await this.agentRepository.remove(agentId);
   }
@@ -158,7 +147,7 @@ export class AgentLifecycleService {
     request: UpdateAgentRequest,
   ): Promise<AgentRecord> {
     const agent = this.getAgent(agentId);
-    if (this.runs.has(agent.id)) {
+    if (this.state.runs.has(agent.id)) {
       if (isModeOnlyUpdate(request)) {
         return this.setAgentModeInternal(
           agent.id,
@@ -198,7 +187,7 @@ export class AgentLifecycleService {
       updatedAt: new Date().toISOString(),
     };
     await this.updateAgent(updated);
-    await this.runs.get(agentId)?.updateAgentRuntimeConfig?.(updated);
+    await this.state.runs.get(agentId)?.updateAgentRuntimeConfig?.(updated);
     await this.events.publish("agent.mode_changed", {
       agent: updated,
       previousMode: agent.mode,
@@ -218,7 +207,7 @@ export class AgentLifecycleService {
   }
 
   async updateAgent(agent: AgentRecord): Promise<void> {
-    this.agents.set(agent.id, agent);
+    this.state.agents.set(agent.id, agent);
     this.index.upsertAgent(agent);
     await this.writeAgent(agent);
   }
@@ -239,7 +228,7 @@ export class AgentLifecycleService {
                 : parsedAgent.updatedAt,
             }
           : parsedAgent;
-      this.agents.set(agent.id, agent);
+      this.state.agents.set(agent.id, agent);
       this.index.upsertAgent(agent);
       if (needsStatusRecovery || needsWorkerBackfill)
         await this.writeAgent(agent);

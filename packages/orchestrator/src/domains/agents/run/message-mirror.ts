@@ -10,6 +10,7 @@ import type {
   ConversationRecord,
 } from "@nerve/shared";
 import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import { deriveConversationTitle } from "../../conversations/operations/index.js";
 
 export interface AppendEntryInput {
@@ -38,8 +39,7 @@ export type AppendEntryFn = (
 ) => Promise<ConversationEntry>;
 
 export interface MessageMirrorDeps {
-  entries: Map<string, ConversationEntry[]>;
-  conversations: Map<string, ConversationRecord>;
+  state: RuntimeState;
   appendEntry: AppendEntryFn;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
   events: EventBus;
@@ -57,9 +57,9 @@ export class MessageMirror {
     const mirrored: ConversationEntry[] = [];
     const storageEntries = await storage.getEntries();
     const visibleEntryIds = new Set(
-      (this.deps.entries.get(agent.conversationId) ?? []).map(
-        (entry) => entry.id,
-      ),
+      this.deps.state
+        .getConversationEntries(agent.conversationId)
+        .map((entry) => entry.id),
     );
     for (const entry of storageEntries) {
       if (knownEntryIds.has(entry.id)) continue;
@@ -106,11 +106,11 @@ export class MessageMirror {
     conversationId: string,
     text: string,
   ): Promise<void> {
-    const conversation = this.deps.conversations.get(conversationId);
+    const conversation = this.deps.state.conversations.get(conversationId);
     if (!conversation) return;
-    const userEntryCount = (
-      this.deps.entries.get(conversation.id) ?? []
-    ).filter((entry) => entry.role === "user").length;
+    const userEntryCount = this.deps.state
+      .getConversationEntries(conversation.id)
+      .filter((entry) => entry.role === "user").length;
     if (userEntryCount !== 1) return;
     const title = deriveConversationTitle(text);
     if (!title || title === conversation.title) return;
@@ -120,7 +120,7 @@ export class MessageMirror {
       updatedAt: new Date().toISOString(),
     });
     await this.deps.events.publish("conversation.updated", {
-      conversation: this.deps.conversations.get(conversation.id),
+      conversation: this.deps.state.conversations.get(conversation.id),
     });
   }
 }

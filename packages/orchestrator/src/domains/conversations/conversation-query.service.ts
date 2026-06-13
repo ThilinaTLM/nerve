@@ -1,13 +1,12 @@
 import type {
   ContextUsage,
   ConversationEntry,
-  ConversationRecord,
   ConversationSnapshot,
   ConversationTree,
   ToolCallRecord,
 } from "@nerve/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
-import type { ConversationRuntime } from "./conversation-runtime.js";
+import type { RuntimeState } from "../../runtime/runtime-state.js";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
@@ -40,8 +39,7 @@ export function toolRecordIdsFromEntries(
 
 export interface ConversationQueryServiceDeps {
   events: EventBus;
-  conversationRuntime: ConversationRuntime;
-  getConversation: (conversationId: string) => ConversationRecord;
+  state: RuntimeState;
   getConversationEntries: (conversationId: string) => ConversationEntry[];
   getConversationTree: (conversationId: string) => ConversationTree;
   getContextUsage: (conversationId: string) => Promise<ContextUsage>;
@@ -61,9 +59,11 @@ export class ConversationQueryService {
     const entries = this.deps.getConversationEntries(conversationId);
     const activeEntryIds = entries.map((entry) => entry.id);
     const activeRun =
-      this.deps.conversationRuntime.snapshotForConversation(conversationId);
+      this.deps.state.conversationRuntime.snapshotForConversation(
+        conversationId,
+      );
     return {
-      conversation: this.deps.getConversation(conversationId),
+      conversation: this.deps.state.getConversation(conversationId),
       entries,
       activeEntryIds,
       tree: this.deps.getConversationTree(conversationId),

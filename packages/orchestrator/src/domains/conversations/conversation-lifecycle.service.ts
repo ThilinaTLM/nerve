@@ -4,9 +4,7 @@ import {
   type ConversationTree,
   type CreateConversationRequest,
   createId,
-  type ProjectRecord,
 } from "@nerve/shared";
-import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
@@ -14,6 +12,7 @@ import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../../registry/types.js";
+import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
 import type { HarnessManager } from "./harness-manager.js";
@@ -23,22 +22,17 @@ export class ConversationLifecycleService {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
-    private readonly conversations: Map<string, ConversationRecord>,
-    private readonly entries: Map<string, ConversationEntry[]>,
+    private readonly state: RuntimeState,
     private readonly conversationRepository: ConversationRepository,
     private readonly entryRepository: EntryRepository,
     private readonly harnessManager: HarnessManager,
-    private readonly getProject: (projectId: string) => ProjectRecord,
     private readonly removeAgent: (agentId: string) => Promise<void>,
-    private readonly agentsForConversation: (
-      conversationId: string,
-    ) => { id: string }[],
   ) {}
 
   async createConversation(
     request: CreateConversationRequest,
   ): Promise<ConversationRecord> {
-    const project = this.getProject(request.projectId);
+    const project = this.state.getProject(request.projectId);
     const now = new Date().toISOString();
     const conversation: ConversationRecord = {
       id: createId("conv"),
@@ -50,9 +44,9 @@ export class ConversationLifecycleService {
       createdAt: now,
       updatedAt: now,
     };
-    this.conversations.set(conversation.id, conversation);
+    this.state.conversations.set(conversation.id, conversation);
     this.index.upsertConversation(conversation);
-    this.entries.set(conversation.id, []);
+    this.state.entries.set(conversation.id, []);
     await this.writeConversation(conversation);
     await this.harnessManager.createConversation(conversation, project.dir);
     await this.events.publish("conversation.created", { conversation });
@@ -60,29 +54,22 @@ export class ConversationLifecycleService {
   }
 
   listConversations(): ConversationRecord[] {
-    return [...this.conversations.values()].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt),
-    );
+    return this.state.listConversations();
   }
 
   getConversation(conversationId: string): ConversationRecord {
-    const conversation = this.conversations.get(conversationId);
-    if (!conversation)
-      throw new HttpError(
-        404,
-        "CONVERSATION_NOT_FOUND",
-        "Conversation not found.",
-      );
-    return conversation;
+    return this.state.getConversation(conversationId);
   }
 
   async removeConversation(conversationId: string): Promise<void> {
     const conversation = this.getConversation(conversationId);
-    for (const agent of this.agentsForConversation(conversationId)) {
+    for (const agent of [...this.state.agents.values()].filter(
+      (candidate) => candidate.conversationId === conversationId,
+    )) {
       await this.removeAgent(agent.id);
     }
-    this.conversations.delete(conversationId);
-    this.entries.delete(conversationId);
+    this.state.conversations.delete(conversationId);
+    this.state.entries.delete(conversationId);
     this.index.removeConversation(conversationId);
     await this.conversationRepository.remove(conversationId);
     await this.events.publish("conversation.deleted", {
@@ -93,24 +80,30 @@ export class ConversationLifecycleService {
 
   getConversationEntries(conversationId: string): ConversationEntry[] {
     const conversation = this.getConversation(conversationId);
-    return this.entryRepository.activeBranchEntries(this.entries, conversation);
+    return this.entryRepository.activeBranchEntries(
+      this.state.entries,
+      conversation,
+    );
   }
 
   getConversationActiveEntryIds(conversationId: string): string[] {
     const conversation = this.getConversation(conversationId);
     return this.entryRepository.activeBranchEntryIds(
-      this.entries,
+      this.state.entries,
       conversation,
     );
   }
 
   getConversationTree(conversationId: string): ConversationTree {
     const conversation = this.getConversation(conversationId);
-    return this.entryRepository.getConversationTree(this.entries, conversation);
+    return this.entryRepository.getConversationTree(
+      this.state.entries,
+      conversation,
+    );
   }
 
   async updateConversation(conversation: ConversationRecord): Promise<void> {
-    this.conversations.set(conversation.id, conversation);
+    this.state.conversations.set(conversation.id, conversation);
     this.index.upsertConversation(conversation);
     await this.writeConversation(conversation);
   }
@@ -142,9 +135,9 @@ export class ConversationLifecycleService {
       details: input.details,
       createdAt: input.createdAt ?? new Date().toISOString(),
     };
-    const entries = this.entries.get(input.conversationId) ?? [];
+    const entries = this.state.entries.get(input.conversationId) ?? [];
     entries.push(entry);
-    this.entries.set(input.conversationId, entries);
+    this.state.entries.set(input.conversationId, entries);
     await this.entryRepository.append(entry);
     await this.updateConversation({
       ...conversation,
@@ -158,9 +151,9 @@ export class ConversationLifecycleService {
 
   async loadConversations(): Promise<void> {
     for (const conversation of await this.conversationRepository.loadAll()) {
-      this.conversations.set(conversation.id, conversation);
+      this.state.conversations.set(conversation.id, conversation);
       this.index.upsertConversation(conversation);
-      this.entries.set(
+      this.state.entries.set(
         conversation.id,
         await this.entryRepository.loadForConversation(conversation.id),
       );

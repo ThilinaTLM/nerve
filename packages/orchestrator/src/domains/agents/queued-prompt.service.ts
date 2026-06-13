@@ -1,21 +1,20 @@
-import type { AgentRecord, QueuedPromptRecord } from "@nerve/shared";
+import type { QueuedPromptRecord } from "@nerve/shared";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
-import type { ConversationRuntime } from "../conversations/conversation-runtime.js";
+import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { PromptQueueRepository } from "./prompt-queue.repository.js";
 
 export interface QueuedPromptServiceDeps {
   promptQueueRepository: PromptQueueRepository;
-  conversationRuntime: ConversationRuntime;
+  state: RuntimeState;
   events: EventBus;
-  getAgent(agentId: string): AgentRecord;
 }
 
 export class QueuedPromptService {
   constructor(private readonly deps: QueuedPromptServiceDeps) {}
 
   async listQueuedPrompts(agentId: string): Promise<QueuedPromptRecord[]> {
-    this.deps.getAgent(agentId);
+    this.deps.state.getAgent(agentId);
     return this.deps.promptQueueRepository.pendingForAgent(agentId);
   }
 
@@ -23,7 +22,7 @@ export class QueuedPromptService {
     agentId: string,
     queuedPromptId: string,
   ): Promise<QueuedPromptRecord> {
-    const agent = this.deps.getAgent(agentId);
+    const agent = this.deps.state.getAgent(agentId);
     const cancelled = await this.deps.promptQueueRepository.cancel(
       queuedPromptId,
       agentId,
@@ -36,7 +35,7 @@ export class QueuedPromptService {
       );
     }
     if (cancelled.status === "cancelled") {
-      this.deps.conversationRuntime.removeQueuedPrompt(
+      this.deps.state.conversationRuntime.removeQueuedPrompt(
         cancelled.runId,
         cancelled.id,
       );
