@@ -3,9 +3,9 @@
   import RotateCw from "@lucide/svelte/icons/rotate-cw";
   import Square from "@lucide/svelte/icons/square";
   import Terminal from "@lucide/svelte/icons/terminal";
-  import type { ProcessLogQueryResponse, ProcessRecord } from "../../api";
-  import { shortenPath } from "../../utils/path";
-  import { processPulse, processTone } from "../../utils/status";
+  import type { ProcessLogQueryResponse, ProcessRecord } from "$lib/api";
+  import { shortenPath } from "$lib/utils/path";
+  import { processPulse, processTone } from "$lib/utils/status";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { StatusDot } from "$lib/components/ui/status-dot";

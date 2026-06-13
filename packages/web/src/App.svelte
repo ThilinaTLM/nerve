@@ -28,9 +28,9 @@
   import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
   import FilePane from "./lib/components/app/FilePane.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";
-  import NerveLogsPane from "./lib/components/app/NerveLogsPane.svelte";
+  import NerveLogsPane from "./lib/features/logs/components/NerveLogsPane.svelte";
   import PrPane from "./lib/components/app/PrPane.svelte";
-  import ProcessOutputPane from "./lib/components/app/ProcessOutputPane.svelte";
+  import ProcessOutputPane from "./lib/features/processes/components/ProcessOutputPane.svelte";
   import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
   import BrowserNotificationPrompt from "./lib/notifications/BrowserNotificationPrompt.svelte";
   import ProjectDirectoryPicker from "./lib/components/app/ProjectDirectoryPicker.svelte";
