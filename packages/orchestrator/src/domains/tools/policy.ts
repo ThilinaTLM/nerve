@@ -9,7 +9,7 @@ import {
   isPathInsidePlanDir,
   planDirForStorageHome,
   resolvePlanPath,
-} from "../../plan-paths.js";
+} from "../plans/plan-paths.js";
 
 export type PolicyDecision = "allow" | "approval" | "deny";
 

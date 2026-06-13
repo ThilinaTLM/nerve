@@ -3,8 +3,8 @@ import {
   type SubscriptionUsage,
   type SubscriptionUsageProvider,
 } from "@nerve/shared";
-import type { AuthManager } from "../auth.js";
-import type { EventBus } from "../infrastructure/events/index.js";
+import type { AuthManager } from "../../auth.js";
+import type { EventBus } from "../../infrastructure/events/index.js";
 import { fetchAnthropicUsage as defaultFetchAnthropicUsage } from "./anthropic-client.js";
 import {
   fetchCodexUsage as defaultFetchCodexUsage,

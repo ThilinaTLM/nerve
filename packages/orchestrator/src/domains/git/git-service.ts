@@ -21,7 +21,7 @@ import type {
   GitRepoSummary,
   ProjectRecord,
 } from "@nerve/shared";
-import { HttpError } from "../http/errors.js";
+import { HttpError } from "../../http/errors.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";
 
 const execFileAsync = promisify(execFile);

@@ -3,13 +3,13 @@ import { describe, it } from "node:test";
 import type { SubscriptionUsage } from "@nerve/shared";
 import type { AuthManager } from "../src/auth.js";
 import type { EventBus } from "../src/infrastructure/events/index.js";
-import { parseAnthropicUsageResponse } from "../src/usage/anthropic-client.js";
+import { parseAnthropicUsageResponse } from "../src/domains/usage/anthropic-client.js";
 import {
   mergeCodexUsage,
   parseCodexUsageHeaders,
   parseCodexUsageResponse,
-} from "../src/usage/codex-client.js";
-import { SubscriptionUsageService } from "../src/usage/subscription-usage-service.js";
+} from "../src/domains/usage/codex-client.js";
+import { SubscriptionUsageService } from "../src/domains/usage/subscription-usage-service.js";
 
 function testUsage(
   provider: SubscriptionUsage["provider"],

@@ -63,19 +63,19 @@ import {
   ProjectRepository,
   PruneProjectConversationsService,
 } from "./domains/projects/index.js";
-import { GitService } from "./git/git-service.js";
+import { GitService } from "./domains/git/git-service.js";
 import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
 import type { EventBus } from "./infrastructure/events/index.js";
 import type { IndexStore } from "./infrastructure/index-store/index.js";
 import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
-import { PlanService } from "./plan-service.js";
+import { PlanService } from "./domains/plans/plan-service.js";
 import { ProcessManager } from "./process-manager.js";
 import { PinnedCommandService } from "./registry/pinned-command-service.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
 import { ToolService } from "./tool-service.js";
-import type { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
+import type { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "./worker-manager.js";
 
 export class RuntimeRegistry {

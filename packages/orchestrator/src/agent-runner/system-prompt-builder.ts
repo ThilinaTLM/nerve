@@ -4,7 +4,7 @@ import {
   toolPromptMetadata,
 } from "../agent-tool-adapter.js";
 import { buildNerveSystemPrompt } from "../nerve-system-prompt.js";
-import { planDirForStorageHome } from "../plan-paths.js";
+import { planDirForStorageHome } from "../domains/plans/plan-paths.js";
 import { loadHarnessResources } from "../resource-loader.js";
 
 /**

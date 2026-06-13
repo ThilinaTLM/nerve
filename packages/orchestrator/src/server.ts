@@ -19,7 +19,7 @@ import { RuntimeRegistry } from "./registry.js";
 import { mountApiRoutes } from "./routes/index.js";
 import type { SecretProvider } from "./secrets.js";
 import { EncryptedFileSecretProvider } from "./secrets.js";
-import { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
+import { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
 
 export { isWebSocketAuthorized } from "./http/auth-middleware.js";
 

@@ -30,7 +30,7 @@ import type { EventBus } from "./infrastructure/events/index.js";
 import type { IndexStore } from "./infrastructure/index-store/index.js";
 import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
-import type { PlanService } from "./plan-service.js";
+import type { PlanService } from "./domains/plans/plan-service.js";
 import type { ProcessManager } from "./process-manager.js";
 
 export interface ToolExecutionResponse {

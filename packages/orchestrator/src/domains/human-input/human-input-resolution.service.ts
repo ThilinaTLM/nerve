@@ -13,7 +13,7 @@ import { completedToolResult } from "../../agent-tool-adapter.js";
 import type { HarnessManager } from "../../harness-manager.js";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
-import type { PlanService } from "../../plan-service.js";
+import type { PlanService } from "../plans/plan-service.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
