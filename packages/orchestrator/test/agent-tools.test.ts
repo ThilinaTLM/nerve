@@ -12,8 +12,8 @@ import {
   coreToolDescriptors,
 } from "@nerve/tools";
 import { activeToolNamesForAgent } from "../src/domains/tools/agent-tool-adapter.js";
-import { storagePaths } from "../src/infrastructure/storage/index.js";
 import { ToolService } from "../src/domains/tools/tool-service.js";
+import { storagePaths } from "../src/infrastructure/storage/index.js";
 
 describe("agent tool definitions", () => {
   it("matches shared core tool names and derives descriptors from definitions", () => {

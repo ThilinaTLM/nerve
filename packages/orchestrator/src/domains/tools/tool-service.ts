@@ -12,10 +12,16 @@ import type {
 } from "@nerve/shared";
 import { createId } from "@nerve/shared";
 import { allToolDescriptors, toolRiskForName } from "@nerve/tools";
+import type { EventBus } from "../../infrastructure/events/index.js";
+import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { ApplicationLogger } from "../../logging.js";
 import type {
   ConversationRuntime,
   ToolAnchor,
 } from "../conversations/conversation-runtime.js";
+import type { PlanService } from "../plans/plan-service.js";
+import type { ProcessManager } from "../processes/process-manager.js";
 import {
   ApprovalRepository,
   evaluateToolPolicy,
@@ -26,12 +32,6 @@ import {
 import { InteractionSessionService } from "./interaction-session.service.js";
 import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
-import type { IndexStore } from "../../infrastructure/index-store/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../../logging.js";
-import type { PlanService } from "../plans/plan-service.js";
-import type { ProcessManager } from "../processes/process-manager.js";
 
 export interface ToolExecutionResponse {
   toolCall: ToolCallRecord;

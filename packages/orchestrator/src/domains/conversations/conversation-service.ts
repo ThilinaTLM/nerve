@@ -6,8 +6,8 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "@nerve/shared";
-import type { EntryRepository } from "./index.js";
 import type { HarnessManager } from "./harness-manager.js";
+import type { EntryRepository } from "./index.js";
 
 export class ConversationService {
   readonly agentConversationCache = new Map<string, Message[]>();

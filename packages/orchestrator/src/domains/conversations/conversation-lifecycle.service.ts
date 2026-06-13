@@ -6,7 +6,6 @@ import {
   createId,
   type ProjectRecord,
 } from "@nerve/shared";
-import type { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
@@ -17,6 +16,7 @@ import type {
 } from "../../registry/types.js";
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
+import type { HarnessManager } from "./harness-manager.js";
 
 export class ConversationLifecycleService {
   constructor(

@@ -6,8 +6,8 @@ import type {
   ConversationTree,
   ToolCallRecord,
 } from "@nerve/shared";
-import type { ConversationRuntime } from "./conversation-runtime.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
+import type { ConversationRuntime } from "./conversation-runtime.js";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"

@@ -1,8 +1,8 @@
 import type { ToolCallRecord } from "@nerve/shared";
 import type { ApplicationLogger } from "../../logging.js";
-import type { ToolRequestOptions } from "./tool-service.js";
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";
+import type { ToolRequestOptions } from "./tool-service.js";
 
 export interface ToolExecutorDeps {
   getToolCall(id: string): ToolCallRecord;

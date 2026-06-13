@@ -1,16 +1,11 @@
 import type { AgentRecord, Mode, ToolCallRecord } from "@nerve/shared";
 import { executeTool, type ToolExecutionOutputUpdate } from "@nerve/tools";
-import type { ConversationRuntime } from "../conversations/conversation-runtime.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { ConversationRuntime } from "../conversations/conversation-runtime.js";
 import { ensurePlanDir } from "../plans/plan-paths.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { ProcessManager } from "../processes/process-manager.js";
-import type {
-  ProcessStarter,
-  SubagentRunner,
-  ToolRequestOptions,
-} from "./tool-service.js";
 import type { InteractionSessionService } from "./interaction-session.service.js";
 import type { TodoStateService } from "./todo-state.service.js";
 import { todoItemsArg, todosResult } from "./todo-state.service.js";
@@ -23,6 +18,11 @@ import {
   stringRecordArg,
 } from "./tool-args.js";
 import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
+import type {
+  ProcessStarter,
+  SubagentRunner,
+  ToolRequestOptions,
+} from "./tool-service.js";
 
 export interface OrchestrationToolDispatcherDeps {
   storage: InitializedStorage;

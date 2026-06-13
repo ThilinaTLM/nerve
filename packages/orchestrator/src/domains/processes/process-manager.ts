@@ -10,6 +10,10 @@ import {
   type StartProcessRequest,
   type StopProcessRequest,
 } from "@nerve/shared";
+import type { EventBus } from "../../infrastructure/events/index.js";
+import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { ApplicationLogger } from "../../logging.js";
 import {
   isActiveProcessStatus,
   ProcessLogService,
@@ -18,10 +22,6 @@ import {
   spawnManagedProcess,
   terminateProcess,
 } from "./index.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
-import type { IndexStore } from "../../infrastructure/index-store/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../../logging.js";
 
 interface ManagedProcess {
   child?: ChildProcess;

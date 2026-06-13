@@ -9,18 +9,18 @@ import {
   type ProjectRecord,
   type UpdateAgentRequest,
 } from "@nerve/shared";
-import type { AgentRunState } from "./run/index.js";
-import { assertChildAuthority } from "./agent-authority.js";
-import { agentBudget } from "./agent-budget.js";
-import { setAgentStatus as setAgentStatusHelper } from "./agent-status.js";
-import type { ConversationService } from "../conversations/conversation-service.js";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { AgentStatus } from "../../registry/types.js";
+import type { ConversationService } from "../conversations/conversation-service.js";
 import type { WorkerManager } from "../workers/worker-manager.js";
 import type { AgentRepository } from "./agent.repository.js";
+import { assertChildAuthority } from "./agent-authority.js";
+import { agentBudget } from "./agent-budget.js";
+import { setAgentStatus as setAgentStatusHelper } from "./agent-status.js";
+import type { AgentRunState } from "./run/index.js";
 
 function isModeOnlyUpdate(
   request: UpdateAgentRequest,

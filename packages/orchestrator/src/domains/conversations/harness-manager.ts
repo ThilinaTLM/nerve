@@ -11,8 +11,8 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "@nerve/shared";
-import type { ConversationRepository } from "./index.js";
 import { pathExists } from "../../infrastructure/storage/index.js";
+import type { ConversationRepository } from "./index.js";
 
 export class HarnessManager {
   constructor(

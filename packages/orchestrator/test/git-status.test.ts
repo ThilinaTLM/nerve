@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { summarizeChecks } from "../src/domains/git/git-service.js";
-import { parsePorcelainV2, parseShortstat } from "../src/domains/git/git-status.js";
+import {
+  parsePorcelainV2,
+  parseShortstat,
+} from "../src/domains/git/git-status.js";
 
 describe("parsePorcelainV2", () => {
   it("parses branch headers with upstream and ahead/behind", () => {

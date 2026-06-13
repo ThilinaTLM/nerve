@@ -4,6 +4,7 @@ import { createId, type DaemonFile, type StatusResponse } from "@nerve/shared";
 import { Hono } from "hono";
 import { AuthManager } from "./auth.js";
 import { CredentialKeyService } from "./credential-crypto.js";
+import { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
 import { createApiAuthMiddleware } from "./http/auth-middleware.js";
 import {
   clearRequestContext,
@@ -19,7 +20,6 @@ import { RuntimeRegistry } from "./registry.js";
 import { mountApiRoutes } from "./routes/index.js";
 import type { SecretProvider } from "./secrets.js";
 import { EncryptedFileSecretProvider } from "./secrets.js";
-import { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
 
 export { isWebSocketAuthorized } from "./http/auth-middleware.js";
 

@@ -1,6 +1,6 @@
 import type { AgentRecord, ConversationEntry } from "@nerve/shared";
-import type { AgentRunState } from "./run/index.js";
 import { HttpError } from "../../http/errors.js";
+import type { AgentRunState } from "./run/index.js";
 
 export interface RetryContinuationServiceDeps {
   agents: Map<string, AgentRecord>;

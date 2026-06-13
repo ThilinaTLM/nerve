@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { SubscriptionUsage } from "@nerve/shared";
 import type { AuthManager } from "../src/auth.js";
-import type { EventBus } from "../src/infrastructure/events/index.js";
 import { parseAnthropicUsageResponse } from "../src/domains/usage/anthropic-client.js";
 import {
   mergeCodexUsage,
@@ -10,6 +9,7 @@ import {
   parseCodexUsageResponse,
 } from "../src/domains/usage/codex-client.js";
 import { SubscriptionUsageService } from "../src/domains/usage/subscription-usage-service.js";
+import type { EventBus } from "../src/infrastructure/events/index.js";
 
 function testUsage(
   provider: SubscriptionUsage["provider"],

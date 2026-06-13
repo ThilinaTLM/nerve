@@ -27,22 +27,9 @@ import type {
   UpdateAgentRequest,
   UserQuestionStatus,
 } from "@nerve/shared";
-import {
-  AgentRunner,
-  type AgentRunState,
-  MessageMirror,
-} from "./domains/agents/run/index.js";
-import { AgentSuspensionService } from "./domains/agents/agent-suspension.service.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
-import {
-  CompactionService,
-  ExportService,
-  ImportService,
-  NavigationService,
-} from "./domains/conversations/operations/index.js";
-import { ConversationRuntime } from "./domains/conversations/conversation-runtime.js";
-import { ConversationService } from "./domains/conversations/conversation-service.js";
+import { AgentSuspensionService } from "./domains/agents/agent-suspension.service.js";
 import {
   AgentLifecycleService,
   AgentRepository,
@@ -51,34 +38,47 @@ import {
   RetryContinuationService,
 } from "./domains/agents/index.js";
 import {
+  AgentRunner,
+  type AgentRunState,
+  MessageMirror,
+} from "./domains/agents/run/index.js";
+import { ConversationRuntime } from "./domains/conversations/conversation-runtime.js";
+import { ConversationService } from "./domains/conversations/conversation-service.js";
+import { HarnessManager } from "./domains/conversations/harness-manager.js";
+import {
   ConversationLifecycleService,
   ConversationQueryService,
   ConversationRepository,
   EntryRepository,
 } from "./domains/conversations/index.js";
+import {
+  CompactionService,
+  ExportService,
+  ImportService,
+  NavigationService,
+} from "./domains/conversations/operations/index.js";
+import { GitService } from "./domains/git/git-service.js";
 import { HumanInputResolutionService } from "./domains/human-input/index.js";
 import {
   PinnedCommandRepository,
   PinnedCommandService,
 } from "./domains/pinned-commands/index.js";
+import { PlanService } from "./domains/plans/plan-service.js";
+import { ProcessManager } from "./domains/processes/process-manager.js";
 import {
   ProjectLifecycleService,
   ProjectRepository,
   PruneProjectConversationsService,
 } from "./domains/projects/index.js";
-import { GitService } from "./domains/git/git-service.js";
-import { HarnessManager } from "./domains/conversations/harness-manager.js";
+import { ToolService } from "./domains/tools/tool-service.js";
+import type { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
+import { WorkerManager } from "./domains/workers/worker-manager.js";
 import { HttpError } from "./http/errors.js";
 import type { EventBus } from "./infrastructure/events/index.js";
 import type { IndexStore } from "./infrastructure/index-store/index.js";
 import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
-import { PlanService } from "./domains/plans/plan-service.js";
-import { ProcessManager } from "./domains/processes/process-manager.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
-import { ToolService } from "./domains/tools/tool-service.js";
-import type { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
-import { WorkerManager } from "./domains/workers/worker-manager.js";
 
 export class RuntimeRegistry {
   readonly projects = new Map<string, ProjectRecord>();

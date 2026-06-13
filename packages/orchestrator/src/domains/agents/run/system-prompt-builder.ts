@@ -1,11 +1,11 @@
 import type { AgentRecord } from "@nerve/shared";
+import { buildNerveSystemPrompt } from "../../../nerve-system-prompt.js";
+import { loadHarnessResources } from "../../../resource-loader.js";
+import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {
   activeToolNamesForAgent,
   toolPromptMetadata,
 } from "../../tools/agent-tool-adapter.js";
-import { buildNerveSystemPrompt } from "../../../nerve-system-prompt.js";
-import { planDirForStorageHome } from "../../plans/plan-paths.js";
-import { loadHarnessResources } from "../../../resource-loader.js";
 
 /**
  * Rebuild the system prompt for an agent using the exact same inputs the
