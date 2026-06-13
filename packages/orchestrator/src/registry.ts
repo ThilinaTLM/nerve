@@ -31,8 +31,8 @@ import {
   AgentRunner,
   type AgentRunState,
   MessageMirror,
-} from "./agent-runner/index.js";
-import { AgentSuspensionService } from "./agent-suspension-service.js";
+} from "./domains/agents/run/index.js";
+import { AgentSuspensionService } from "./domains/agents/agent-suspension.service.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
 import {
@@ -76,7 +76,7 @@ import type { ApplicationLogger } from "./logging.js";
 import { PlanService } from "./domains/plans/plan-service.js";
 import { ProcessManager } from "./domains/processes/process-manager.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
-import { ToolService } from "./tool-service.js";
+import { ToolService } from "./domains/tools/tool-service.js";
 import type { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "./domains/workers/worker-manager.js";
 

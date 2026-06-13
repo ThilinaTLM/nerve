@@ -1,5 +1,5 @@
 import type { AgentRecord, ConversationEntry } from "@nerve/shared";
-import type { AgentRunState } from "../../agent-runner/index.js";
+import type { AgentRunState } from "./run/index.js";
 import { HttpError } from "../../http/errors.js";
 
 export interface RetryContinuationServiceDeps {

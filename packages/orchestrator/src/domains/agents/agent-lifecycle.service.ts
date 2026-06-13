@@ -9,7 +9,7 @@ import {
   type ProjectRecord,
   type UpdateAgentRequest,
 } from "@nerve/shared";
-import type { AgentRunState } from "../../agent-runner/index.js";
+import type { AgentRunState } from "./run/index.js";
 import { assertChildAuthority } from "./agent-authority.js";
 import { agentBudget } from "./agent-budget.js";
 import { setAgentStatus as setAgentStatusHelper } from "./agent-status.js";

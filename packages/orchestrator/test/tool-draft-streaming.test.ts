@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { shouldStreamToolDraftArguments } from "../src/agent-runner/tool-draft-streaming.js";
+import { shouldStreamToolDraftArguments } from "../src/domains/agents/run/tool-draft-streaming.js";
 
 describe("tool draft argument streaming policy", () => {
   it("does not stream large write/edit tool arguments", () => {

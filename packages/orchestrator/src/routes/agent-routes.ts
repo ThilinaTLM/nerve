@@ -6,7 +6,7 @@ import {
   updateAgentRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
-import { buildAgentSystemPrompt } from "../agent-runner/system-prompt-builder.js";
+import { buildAgentSystemPrompt } from "../domains/agents/run/system-prompt-builder.js";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";
 

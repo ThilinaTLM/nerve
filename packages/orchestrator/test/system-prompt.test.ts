@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import type { AgentRecord } from "@nerve/shared";
-import { composeAgentSystemPrompt } from "../src/agent-runner/system-prompt-builder.js";
+import { composeAgentSystemPrompt } from "../src/domains/agents/run/system-prompt-builder.js";
 import {
   activeToolNamesForAgent,
   toolPromptMetadata,
-} from "../src/agent-tool-adapter.js";
+} from "../src/domains/tools/agent-tool-adapter.js";
 import { buildNerveSystemPrompt } from "../src/nerve-system-prompt.js";
 import { loadHarnessResources } from "../src/resource-loader.js";
 

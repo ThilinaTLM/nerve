@@ -7,9 +7,9 @@ import type {
   PermissionLevel,
   PromptRequest,
 } from "@nerve/shared";
-import type { HarnessManager } from "../domains/conversations/harness-manager.js";
-import type { EventBus } from "../infrastructure/events/index.js";
-import type { InitializedStorage } from "../infrastructure/storage/index.js";
+import type { HarnessManager } from "../../conversations/harness-manager.js";
+import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
 import type { AppendEntryFn } from "./message-mirror.js";
 
 export interface SubagentRunnerDeps {

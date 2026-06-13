@@ -9,7 +9,7 @@ import { createApp, createOrchestratorState } from "../src/server.js";
 import {
   chatGptAccountIdFromAccessToken,
   normalizeAudioMimeType,
-} from "../src/transcription-service.js";
+} from "../src/domains/transcription/transcription.service.js";
 
 const roots: string[] = [];
 

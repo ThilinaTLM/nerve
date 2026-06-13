@@ -7,9 +7,9 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
 } from "@nerve/shared";
-import { agentMessageText } from "../../agent-runner/index.js";
-import type { AgentSuspensionService } from "../../agent-suspension-service.js";
-import { completedToolResult } from "../../agent-tool-adapter.js";
+import { agentMessageText } from "../agents/run/index.js";
+import type { AgentSuspensionService } from "../agents/agent-suspension.service.js";
+import { completedToolResult } from "../tools/agent-tool-adapter.js";
 import type { HarnessManager } from "../conversations/harness-manager.js";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
@@ -18,7 +18,7 @@ import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../../registry/types.js";
-import type { ToolService } from "../../tool-service.js";
+import type { ToolService } from "../tools/tool-service.js";
 
 export interface HumanInputResolutionDeps {
   events: EventBus;

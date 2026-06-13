@@ -10,7 +10,7 @@ import type {
   ProcessStarter,
   SubagentRunner,
   ToolRequestOptions,
-} from "../../tool-service.js";
+} from "./tool-service.js";
 import type { InteractionSessionService } from "./interaction-session.service.js";
 import type { TodoStateService } from "./todo-state.service.js";
 import { todoItemsArg, todosResult } from "./todo-state.service.js";

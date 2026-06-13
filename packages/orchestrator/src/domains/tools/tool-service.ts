@@ -15,23 +15,23 @@ import { allToolDescriptors, toolRiskForName } from "@nerve/tools";
 import type {
   ConversationRuntime,
   ToolAnchor,
-} from "./domains/conversations/conversation-runtime.js";
+} from "../conversations/conversation-runtime.js";
 import {
   ApprovalRepository,
   evaluateToolPolicy,
   TodoStateService,
   ToolCallRepository,
   UserQuestionRepository,
-} from "./domains/tools/index.js";
-import { InteractionSessionService } from "./domains/tools/interaction-session.service.js";
-import { OrchestrationToolDispatcher } from "./domains/tools/orchestration-tool-dispatcher.js";
-import { ToolExecutorService } from "./domains/tools/tool-executor.service.js";
-import type { EventBus } from "./infrastructure/events/index.js";
-import type { IndexStore } from "./infrastructure/index-store/index.js";
-import type { InitializedStorage } from "./infrastructure/storage/index.js";
-import type { ApplicationLogger } from "./logging.js";
-import type { PlanService } from "./domains/plans/plan-service.js";
-import type { ProcessManager } from "./domains/processes/process-manager.js";
+} from "./index.js";
+import { InteractionSessionService } from "./interaction-session.service.js";
+import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
+import { ToolExecutorService } from "./tool-executor.service.js";
+import type { EventBus } from "../../infrastructure/events/index.js";
+import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { ApplicationLogger } from "../../logging.js";
+import type { PlanService } from "../plans/plan-service.js";
+import type { ProcessManager } from "../processes/process-manager.js";
 
 export interface ToolExecutionResponse {
   toolCall: ToolCallRecord;

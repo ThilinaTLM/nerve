@@ -1,7 +1,7 @@
 import type { ToolCallRecord, UserQuestionRecord } from "@nerve/shared";
 import { createId } from "@nerve/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
-import type { ToolRequestOptions } from "../../tool-service.js";
+import type { ToolRequestOptions } from "./tool-service.js";
 import { optionalStringArg, stringArg } from "./tool-args.js";
 import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
 import type { UserQuestionRepository } from "./user-question.repository.js";

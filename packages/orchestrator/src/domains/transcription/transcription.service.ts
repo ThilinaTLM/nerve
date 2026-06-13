@@ -4,8 +4,8 @@ import {
   AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
   audioTranscriptionResponseSchema,
 } from "@nerve/shared";
-import type { AuthManager } from "./auth.js";
-import { HttpError } from "./http/errors.js";
+import type { AuthManager } from "../../auth.js";
+import { HttpError } from "../../http/errors.js";
 
 const CHATGPT_TRANSCRIBE_URL = "https://chatgpt.com/backend-api/transcribe";
 const OPENAI_CODEX_PROVIDER = "openai-codex";

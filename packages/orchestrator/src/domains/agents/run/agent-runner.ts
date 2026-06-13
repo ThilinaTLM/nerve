@@ -26,26 +26,26 @@ import {
   type ToolName,
   toolNameSchema,
 } from "@nerve/shared";
-import type { AgentSuspensionService } from "../agent-suspension-service.js";
+import type { AgentSuspensionService } from "../agent-suspension.service.js";
 import {
   activeToolNamesForAgent,
   createAgentToolsForAgent,
   toolPromptMetadata,
-} from "../agent-tool-adapter.js";
-import type { AuthManager } from "../auth.js";
-import type { CompactionService } from "../domains/conversations/operations/index.js";
-import type { ConversationRuntime } from "../domains/conversations/conversation-runtime.js";
-import type { ConversationService } from "../domains/conversations/conversation-service.js";
-import type { PromptQueueRepository } from "../domains/agents/index.js";
-import type { HarnessManager } from "../domains/conversations/harness-manager.js";
-import { HttpError } from "../http/errors.js";
-import type { EventBus } from "../infrastructure/events/index.js";
-import type { InitializedStorage } from "../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../logging.js";
-import { planDirForStorageHome } from "../domains/plans/plan-paths.js";
-import { loadHarnessResources } from "../resource-loader.js";
-import type { ToolService } from "../tool-service.js";
-import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
+} from "../../tools/agent-tool-adapter.js";
+import type { AuthManager } from "../../../auth.js";
+import type { CompactionService } from "../../conversations/operations/index.js";
+import type { ConversationRuntime } from "../../conversations/conversation-runtime.js";
+import type { ConversationService } from "../../conversations/conversation-service.js";
+import type { PromptQueueRepository } from "../prompt-queue.repository.js";
+import type { HarnessManager } from "../../conversations/harness-manager.js";
+import { HttpError } from "../../../http/errors.js";
+import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
+import type { ApplicationLogger } from "../../../logging.js";
+import { planDirForStorageHome } from "../../plans/plan-paths.js";
+import { loadHarnessResources } from "../../../resource-loader.js";
+import type { ToolService } from "../../tools/tool-service.js";
+import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import type { AgentRunStateMap } from "./run-state.js";
 import { SubagentRunner } from "./subagent-runner.js";
