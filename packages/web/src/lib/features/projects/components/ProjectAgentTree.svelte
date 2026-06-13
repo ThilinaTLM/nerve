@@ -12,7 +12,7 @@
     ProjectRecord,
     ConversationRecord,
     PruneProjectConversationsRequest,
-  } from "../../api";
+  } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import AlertDialog from "$lib/components/ui/confirm-dialog";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
@@ -21,15 +21,15 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import * as Tooltip from "$lib/components/ui/tooltip";
-  import PanelSection from "./utility/PanelSection.svelte";
+  import PanelSection from "$lib/components/app/utility/PanelSection.svelte";
   import {
     buildProjectGroups,
     type ConversationRow,
     shortAgentModel,
     shortProjectLabel,
-  } from "../../utils/project-tree";
-  import { agentActivityPulse, agentActivityTone } from "../../utils/status";
-  import { dateTimeLabel } from "../../utils/time";
+  } from "$lib/utils/project-tree";
+  import { agentActivityPulse, agentActivityTone } from "$lib/utils/status";
+  import { dateTimeLabel } from "$lib/utils/time";
   import {
     getShortcutAriaLabel,
     getShortcutLabel,

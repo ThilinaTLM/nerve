@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { PruneProjectConversationsRequest } from "../../api";
+  import type { PruneProjectConversationsRequest } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";
   import RadioGroupField, {

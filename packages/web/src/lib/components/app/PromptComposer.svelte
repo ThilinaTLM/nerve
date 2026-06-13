@@ -25,7 +25,7 @@
   import { Button } from "$lib/components/ui/button";
   import Popover from "$lib/components/ui/popover-panel";
   import ApprovalStrip from "./ApprovalStrip.svelte";
-  import GitFollowupSuggestions from "./GitFollowupSuggestions.svelte";
+  import GitFollowupSuggestions from "$lib/features/git/components/GitFollowupSuggestions.svelte";
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
   import { onDestroy, type Component } from "svelte";

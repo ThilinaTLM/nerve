@@ -7,9 +7,9 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import X from "@lucide/svelte/icons/x";
-  import type { GithubChecksSummary } from "../../api";
-  import Markdown from "../../Markdown.svelte";
-  import type { PrViewState } from "../../stores/workbench/state.svelte";
+  import type { GithubChecksSummary } from "$lib/api";
+  import Markdown from "$lib/Markdown.svelte";
+  import type { PrViewState } from "$lib/stores/workbench/state.svelte";
   import { Badge, type BadgeTone } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";

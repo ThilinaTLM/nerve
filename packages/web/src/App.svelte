@@ -29,11 +29,11 @@
   import FilePane from "./lib/components/app/FilePane.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";
   import NerveLogsPane from "./lib/features/logs/components/NerveLogsPane.svelte";
-  import PrPane from "./lib/components/app/PrPane.svelte";
+  import PrPane from "./lib/features/git/components/PrPane.svelte";
   import ProcessOutputPane from "./lib/features/processes/components/ProcessOutputPane.svelte";
-  import ProjectAgentTree from "./lib/components/app/ProjectAgentTree.svelte";
+  import ProjectAgentTree from "./lib/features/projects/components/ProjectAgentTree.svelte";
   import BrowserNotificationPrompt from "./lib/notifications/BrowserNotificationPrompt.svelte";
-  import ProjectDirectoryPicker from "./lib/components/app/ProjectDirectoryPicker.svelte";
+  import ProjectDirectoryPicker from "./lib/features/projects/components/ProjectDirectoryPicker.svelte";
   import SettingsPage from "./lib/features/settings/components/SettingsPage.svelte";
   import Titlebar from "./lib/components/app/Titlebar.svelte";
   import UtilityPanel from "./lib/components/app/UtilityPanel.svelte";

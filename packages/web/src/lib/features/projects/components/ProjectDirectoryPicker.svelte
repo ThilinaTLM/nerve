@@ -28,15 +28,15 @@
     type FilesystemSignal,
     type ProjectRecord,
     type ConversationRecord,
-  } from "../../api";
+  } from "$lib/api";
   import {
     looksLikePath,
     pathBreadcrumbs,
     pathKey,
     tildePath,
     type PathCrumb,
-  } from "../../utils/path";
-  import { dateTimeLabel, relativeTimeLabel } from "../../utils/time";
+  } from "$lib/utils/path";
+  import { dateTimeLabel, relativeTimeLabel } from "$lib/utils/time";
 
   type Props = {
     open?: boolean;
