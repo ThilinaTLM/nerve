@@ -1,11 +1,8 @@
 <script lang="ts">
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
-  import Lock from "@lucide/svelte/icons/lock";
   import Mic from "@lucide/svelte/icons/mic";
   import Send from "@lucide/svelte/icons/send";
-  import Shield from "@lucide/svelte/icons/shield";
   import Square from "@lucide/svelte/icons/square";
-  import Zap from "@lucide/svelte/icons/zap";
   import {
     uploadClipboardImage,
     type AgentRecord,
@@ -23,12 +20,10 @@
   import CodeMirrorComposer from "$lib/CodeMirrorComposer.svelte";
   import type { GitSuggestion } from "$lib/stores/workbench/git-context.svelte";
   import { Button } from "$lib/components/ui/button";
-  import Popover from "$lib/components/ui/popover-panel";
   import ApprovalStrip from "./ApprovalStrip.svelte";
   import GitFollowupSuggestions from "$lib/features/git/components/GitFollowupSuggestions.svelte";
-  import ComposerModelPicker from "./ComposerModelPicker.svelte";
-  import ContextProgressBadge from "./ContextProgressBadge.svelte";
-  import { onDestroy, type Component } from "svelte";
+  import ComposerToolbar from "./ComposerToolbar.svelte";
+  import { onDestroy } from "svelte";
   import { notify } from "$lib/notifications/notify.svelte";
   import {
     getShortcutAriaLabel,
@@ -187,34 +182,6 @@
 
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
 
-  function toggleMode() {
-    onModeChange?.(mode === "coding" ? "planning" : "coding");
-  }
-
-  type PermissionOption = {
-    value: PermissionLevel;
-    label: string;
-    detail: string;
-    icon: Component;
-  };
-
-  const permissionOptions: PermissionOption[] = [
-    { value: "read_only", label: "Read only", detail: "No writes or mutating commands", icon: Lock },
-    { value: "supervised", label: "Supervised", detail: "Ask before non-read tool calls", icon: Shield },
-    { value: "autonomous", label: "Autonomous", detail: "Allow tool calls without approval", icon: Zap },
-  ];
-
-  const activePermission = $derived(
-    permissionOptions.find((option) => option.value === permissionLevel) ?? permissionOptions[2],
-  );
-
-  let permissionOpen = $state(false);
-
-  function selectPermission(value: PermissionLevel) {
-    if (value !== permissionLevel) onPermissionChange?.(value);
-    permissionOpen = false;
-  }
-
   function toggleRecording() {
     if (micDisabled) return;
     transcription.toggle();
@@ -268,59 +235,28 @@
 
   <div class="composer-surface" data-mode={mode}>
     <div class="editor-shell">
-      <div class="composer-tabs">
-        <Popover
-          bind:open={permissionOpen}
-          class="permission-popover-content"
-          triggerClass="composer-tab permission-tab"
-          ariaLabel="Permission level"
-          triggerTitle={permissionShortcut ? `Permission: ${activePermission.label} (${permissionShortcut})` : `Permission: ${activePermission.label}`}
-          triggerAriaKeyShortcuts={permissionShortcutAria}
-          side="top"
-          align="start"
-          sideOffset={9}
-        >
-          {#snippet trigger()}
-            {@const Icon = activePermission.icon}
-            <span class="permission-tab-inner" class:disabled={controlsDisabled}>
-              <Icon size={13} strokeWidth={2.2} />
-            </span>
-          {/snippet}
-          <div class="permission-menu">
-            <p class="permission-heading">Permission level</p>
-            <ul class="permission-list">
-              {#each permissionOptions as option (option.value)}
-                {@const ActiveIcon = option.icon}
-                <li>
-                  <button type="button" class="permission-row" class:active={option.value === permissionLevel} aria-pressed={option.value === permissionLevel} onclick={() => selectPermission(option.value)}>
-                    <ActiveIcon size={15} strokeWidth={2.1} />
-                    <span class="permission-row-text">
-                      <span class="permission-row-label">{option.label}</span>
-                      <span class="permission-row-detail">{option.detail}</span>
-                    </span>
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          </div>
-        </Popover>
-
-        <button type="button" class="composer-tab mode-tab" disabled={modeDisabled} title={modeShortcut ? `Mode: ${modeLabel} (${modeShortcut})` : `Mode: ${modeLabel} (click to switch)`} aria-keyshortcuts={modeShortcutAria} onclick={toggleMode}>
-          {modeLabel}
-        </button>
-
-        <ContextProgressBadge {contextUsage} {contextWindow} />
-
-        <ComposerModelPicker
-          {models}
-          {selectedModelKey}
-          {thinkingLevel}
-          disabled={modelDisabled}
-          {onModelChange}
-          {onThinkingLevelChange}
-          shortcutLabel={thinkingShortcut}
-        />
-      </div>
+      <ComposerToolbar
+        {controlsDisabled}
+        {modeDisabled}
+        {modelDisabled}
+        {mode}
+        {permissionLevel}
+        {modeLabel}
+        {permissionShortcut}
+        {permissionShortcutAria}
+        {modeShortcut}
+        {modeShortcutAria}
+        {thinkingShortcut}
+        {contextUsage}
+        {contextWindow}
+        {models}
+        {selectedModelKey}
+        {thinkingLevel}
+        {onModeChange}
+        {onModelChange}
+        {onThinkingLevelChange}
+        {onPermissionChange}
+      />
 
       <CodeMirrorComposer
         value={text}
@@ -431,150 +367,6 @@
     min-width: 0;
   }
 
-  .composer-tabs {
-    position: absolute;
-    z-index: 4;
-    top: 0;
-    left: 0.65rem;
-    right: 0.65rem;
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    transform: translateY(-50%);
-    pointer-events: none;
-  }
-
-  .composer-tabs > :global(*) {
-    pointer-events: auto;
-  }
-
-  .composer-tabs :global(.context-usage-tab) {
-    margin-left: auto;
-  }
-
-  :global(.composer-tab) {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.25rem;
-    height: 1.55rem;
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--card);
-    color: var(--muted-foreground);
-    padding: 0 0.6rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-    box-shadow: var(--shadow-sm);
-    transition:
-      color 120ms ease,
-      border-color 120ms ease,
-      background 120ms ease;
-  }
-
-  :global(.composer-tab:hover:not(:disabled)) {
-    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
-    background: var(--accent);
-    color: var(--foreground);
-  }
-
-  :global(.composer-tab:disabled) {
-    opacity: 0.55;
-    cursor: default;
-  }
-
-  :global(.composer-tab[data-state="open"]) {
-    border-color: var(--primary);
-    background: var(--accent);
-    color: var(--foreground);
-  }
-
-  :global(.permission-tab) {
-    width: 1.7rem;
-    padding: 0;
-  }
-
-  .permission-tab-inner {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .permission-tab-inner.disabled {
-    opacity: 0.6;
-  }
-
-  .permission-menu {
-    display: grid;
-    gap: 0.45rem;
-    padding: 0.6rem;
-  }
-
-  .permission-heading {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .permission-list {
-    display: grid;
-    gap: 0.15rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .permission-row {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    width: 100%;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--foreground);
-    padding: 0.4rem 0.5rem;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .permission-row:hover {
-    background: var(--accent);
-  }
-
-  .permission-row.active {
-    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-    background: color-mix(in oklab, var(--primary) 12%, transparent);
-    color: var(--primary);
-  }
-
-  .permission-row-text {
-    display: grid;
-    gap: 0.05rem;
-    min-width: 0;
-  }
-
-  .permission-row-label {
-    font-size: var(--text-sm);
-    font-weight: 500;
-  }
-
-  .permission-row-detail {
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
-
-  .permission-row.active .permission-row-detail {
-    color: color-mix(in oklab, var(--primary) 75%, var(--muted-foreground));
-  }
 
   .editor-shell :global(.composer-editor) {
     border: 0;
