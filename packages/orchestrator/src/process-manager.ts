@@ -1,5 +1,5 @@
-import { type ChildProcess, spawn } from "node:child_process";
-import { appendFile, mkdir, rm } from "node:fs/promises";
+import type { ChildProcess } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   createId,
@@ -7,22 +7,21 @@ import {
   type ProcessLogQuery,
   type ProcessLogQueryResponse,
   type ProcessRecord,
-  processLogEventSchema,
-  processRecordSchema,
   type StartProcessRequest,
   type StopProcessRequest,
 } from "@nerve/shared";
-import type { EventBus } from "./events.js";
-import type { IndexStore } from "./index-store.js";
-import type { ApplicationLogger } from "./logging.js";
 import {
-  appendJsonLine,
-  atomicWriteJson,
-  type InitializedStorage,
-  listChildDirs,
-  readJsonFile,
-  readJsonLines,
-} from "./storage.js";
+  isActiveProcessStatus,
+  ProcessLogService,
+  ProcessReadinessService,
+  ProcessRepository,
+  spawnManagedProcess,
+  terminateProcess,
+} from "./domains/processes/index.js";
+import type { EventBus } from "./infrastructure/events/index.js";
+import type { IndexStore } from "./infrastructure/index-store/index.js";
+import type { InitializedStorage } from "./infrastructure/storage/index.js";
+import type { ApplicationLogger } from "./logging.js";
 
 interface ManagedProcess {
   child?: ChildProcess;
@@ -32,39 +31,28 @@ interface ManagedProcess {
   readinessPattern?: RegExp;
 }
 
-const urlPattern = /https?:\/\/[^\s)'"]+/i;
-
 export class ProcessManager {
   readonly processes = new Map<string, ProcessRecord>();
   private readonly managed = new Map<string, ManagedProcess>();
+  private readonly processRepository: ProcessRepository;
+  private readonly processLogs: ProcessLogService;
+  private readonly processReadiness = new ProcessReadinessService();
 
   constructor(
-    private readonly storage: InitializedStorage,
+    storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
     private readonly logger?: ApplicationLogger,
-  ) {}
+  ) {
+    this.processRepository = new ProcessRepository(storage);
+    this.processLogs = new ProcessLogService(events);
+  }
 
   async hydrate(): Promise<void> {
-    const root = join(this.storage.paths.home, "proc");
-    for (const processId of await listChildDirs(root)) {
-      const parsed = processRecordSchema.safeParse(
-        await readJsonFile<unknown>(
-          join(root, processId, "process.json"),
-        ).catch(() => undefined),
-      );
-      if (!parsed.success) continue;
-      const record = isActiveProcessStatus(parsed.data.status)
-        ? {
-            ...parsed.data,
-            status: "orphaned" as const,
-            error: "Process supervision was lost after daemon restart.",
-            updatedAt: new Date().toISOString(),
-          }
-        : parsed.data;
+    for (const record of await this.processRepository.hydrate()) {
       this.processes.set(record.id, record);
       this.index.upsertProcess(record);
-      if (record !== parsed.data) await this.writeProcess(record);
+      await this.processRepository.write(record);
     }
   }
 
@@ -95,15 +83,7 @@ export class ProcessManager {
     const dir = this.processDir(id);
     await mkdir(dir, { recursive: true, mode: 0o755 });
 
-    const readiness = {
-      readyOnUrl: request.readyOnUrl,
-      readyPattern: request.readyPattern,
-      timeoutMs: request.readyTimeoutMs ?? 3000,
-      outcome:
-        request.readyOnUrl || request.readyPattern
-          ? ("pending" as const)
-          : ("none" as const),
-    };
+    const readiness = this.processReadiness.buildReadiness(request);
     const record: ProcessRecord = {
       id,
       name: request.name,
@@ -123,9 +103,9 @@ export class ProcessManager {
       restartedFromProcessId: request.restartedFromProcessId,
     };
 
-    const readinessPattern = request.readyPattern
-      ? new RegExp(request.readyPattern, "i")
-      : undefined;
+    const readinessPattern = this.processReadiness.compilePattern(
+      request.readyPattern,
+    );
 
     await this.upsertProcess(record);
     await this.events.publish("process.created", { process: record });
@@ -137,17 +117,14 @@ export class ProcessManager {
       context: { name: record.name, cwd: record.cwd, command: record.command },
     });
 
-    const child = spawn(request.command, {
+    const child = spawnManagedProcess(request.command, {
       cwd: record.cwd,
-      shell: true,
-      env: { ...process.env, ...(request.env ?? {}) },
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: process.platform !== "win32",
+      env: request.env,
     });
 
     const managed: ManagedProcess = {
       child,
-      logSeq: await this.latestLogSeq(record.logsPath),
+      logSeq: await this.processLogs.latestLogSeq(record.logsPath),
       stopping: false,
       readinessPattern,
     };
@@ -244,7 +221,7 @@ export class ProcessManager {
     this.managed.delete(record.id);
     this.processes.delete(record.id);
     this.index.deleteProcess(record.id);
-    await rm(this.processDir(record.id), { recursive: true, force: true });
+    await this.processRepository.remove(record.id);
     await this.events.publish("process.removed", { processId: record.id });
     await this.logger?.info("Process removed", {
       processId: record.id,
@@ -306,48 +283,7 @@ export class ProcessManager {
     processId: string,
     query: ProcessLogQuery = {},
   ): Promise<ProcessLogQueryResponse> {
-    const process = this.getProcess(processId);
-    const mode = query.mode ?? "recent";
-    const limit = query.limit ?? 100;
-    const contextLines = query.contextLines ?? 2;
-    const allEvents = await this.readLogEvents(process.logsPath);
-    let events = allEvents;
-
-    if (mode === "since_cursor") {
-      events = events.filter((event) => event.seq > (query.sinceSeq ?? 0));
-    } else if (mode === "errors") {
-      events = events.filter((event) => event.level === "error");
-    } else if (mode === "warnings") {
-      events = events.filter((event) => event.level === "warn");
-    } else if (mode === "first_failure") {
-      const index = allEvents.findIndex((event) => event.level === "error");
-      events =
-        index >= 0
-          ? allEvents.slice(
-              Math.max(0, index - contextLines),
-              index + contextLines + 1,
-            )
-          : [];
-    }
-
-    if (query.contains) {
-      const contains = query.contains.toLowerCase();
-      events = events.filter((event) =>
-        event.line.toLowerCase().includes(contains),
-      );
-    }
-    if (query.regex) {
-      const matcher = new RegExp(query.regex, "i");
-      events = events.filter((event) => matcher.test(event.line));
-    }
-    if (mode !== "first_failure") events = events.slice(-limit);
-
-    return {
-      process,
-      events,
-      nextCursor: allEvents.at(-1)?.seq ?? 0,
-      mode,
-    };
+    return this.processLogs.queryLogs(this.getProcess(processId), query);
   }
 
   private async captureOutput(
@@ -358,28 +294,13 @@ export class ProcessManager {
     const record = this.processes.get(processId);
     const managed = this.managed.get(processId);
     if (!record || !managed) return;
-    const text = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk;
-    const path = stream === "stdout" ? record.stdoutPath : record.stderrPath;
-    await appendFile(path, text, "utf8");
-    for (const line of splitLines(text)) {
-      managed.logSeq += 1;
-      const event: ProcessLogEvent = {
-        seq: managed.logSeq,
-        ts: new Date().toISOString(),
-        stream,
-        level: classifyLogLevel(stream, line),
-        line,
-      };
-      await appendJsonLine(record.logsPath, event, 0o600);
-      await this.events.publish("process.log", {
-        processId: record.id,
-        projectId: record.projectId,
-        conversationId: record.conversationId,
-        agentId: record.agentId,
-        log: event,
-      });
-      await this.checkReadiness(record.id, event);
-    }
+    await this.processLogs.captureOutput(
+      record,
+      managed,
+      stream,
+      chunk,
+      async (event) => this.checkReadiness(record.id, event),
+    );
   }
 
   private async checkReadiness(
@@ -389,11 +310,11 @@ export class ProcessManager {
     const record = this.processes.get(processId);
     const managed = this.managed.get(processId);
     if (!record || !managed || record.readiness.outcome !== "pending") return;
-    const url = record.readiness.readyOnUrl
-      ? log.line.match(urlPattern)?.[0]
-      : undefined;
-    const pattern = managed.readinessPattern?.exec(log.line)?.[0];
-    const matched = url ?? pattern;
+    const matched = this.processReadiness.match(
+      record,
+      managed.readinessPattern,
+      log,
+    );
     if (!matched) return;
     if (managed.readinessTimer) clearTimeout(managed.readinessTimer);
     const ready = await this.updateProcess(processId, {
@@ -536,71 +457,12 @@ export class ProcessManager {
   }
 
   private async writeProcess(record: ProcessRecord): Promise<void> {
-    await atomicWriteJson(
-      join(this.processDir(record.id), "process.json"),
-      record,
-      0o600,
-    );
-  }
-
-  private async latestLogSeq(logsPath: string): Promise<number> {
-    const events = await this.readLogEvents(logsPath);
-    return events.at(-1)?.seq ?? 0;
-  }
-
-  private async readLogEvents(logsPath: string): Promise<ProcessLogEvent[]> {
-    const values = await readJsonLines<unknown>(logsPath).catch(() => []);
-    return values
-      .map((value) => processLogEventSchema.safeParse(value))
-      .filter((result) => result.success)
-      .map((result) => result.data)
-      .sort((a, b) => a.seq - b.seq);
+    await this.processRepository.write(record);
   }
 
   private processDir(processId: string): string {
-    return join(this.storage.paths.home, "proc", processId);
+    return this.processRepository.processDir(processId);
   }
 }
 
-function terminateProcess(child: ChildProcess, signal: NodeJS.Signals): void {
-  if (child.pid && process.platform !== "win32") {
-    try {
-      process.kill(-child.pid, signal);
-      return;
-    } catch {
-      // Fall back to signaling the direct child below.
-    }
-  }
-  child.kill(signal);
-}
-
-export function isActiveProcessStatus(
-  status: ProcessRecord["status"],
-): boolean {
-  return (
-    status === "starting" ||
-    status === "running" ||
-    status === "ready" ||
-    status === "stopping"
-  );
-}
-
-function splitLines(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0);
-}
-
-function classifyLogLevel(
-  stream: "stdout" | "stderr",
-  line: string,
-): ProcessLogEvent["level"] {
-  if (/\b(warn|warning)\b/i.test(line)) return "warn";
-  if (
-    stream === "stderr" ||
-    /\b(error|failed|failure|exception|fatal)\b/i.test(line)
-  )
-    return "error";
-  return "info";
-}
+export { isActiveProcessStatus } from "./domains/processes/index.js";

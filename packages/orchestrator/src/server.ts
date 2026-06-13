@@ -4,21 +4,21 @@ import { createId, type DaemonFile, type StatusResponse } from "@nerve/shared";
 import { Hono } from "hono";
 import { AuthManager } from "./auth.js";
 import { CredentialKeyService } from "./credential-crypto.js";
-import { EventBus } from "./events.js";
 import { createApiAuthMiddleware } from "./http/auth-middleware.js";
 import {
   clearRequestContext,
   setRequestContext,
 } from "./http/request-context.js";
 import { serveStatic } from "./http/static-files.js";
-import { IndexStore } from "./index-store.js";
+import { EventBus } from "./infrastructure/events/index.js";
+import { IndexStore } from "./infrastructure/index-store/index.js";
+import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import { ApplicationLogger } from "./logging.js";
 import { OAuthFlowManager } from "./oauth-flow.js";
 import { RuntimeRegistry } from "./registry.js";
 import { mountApiRoutes } from "./routes/index.js";
 import type { SecretProvider } from "./secrets.js";
 import { EncryptedFileSecretProvider } from "./secrets.js";
-import type { InitializedStorage } from "./storage.js";
 import { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
 
 export { isWebSocketAuthorized } from "./http/auth-middleware.js";

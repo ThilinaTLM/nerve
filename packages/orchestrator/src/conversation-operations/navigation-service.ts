@@ -5,9 +5,9 @@ import type {
   NavigateConversationRequest,
   ProjectRecord,
 } from "@nerve/shared";
-import type { EventBus } from "../events.js";
 import type { HarnessManager } from "../harness-manager.js";
 import { HttpError } from "../http/errors.js";
+import type { EventBus } from "../infrastructure/events/index.js";
 import type { AppendConversationEntry } from "./compaction-service.js";
 import { buildExtractiveSummary } from "./summary.js";
 

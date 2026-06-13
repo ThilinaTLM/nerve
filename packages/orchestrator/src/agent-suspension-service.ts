@@ -5,9 +5,13 @@ import {
   createId,
   type SuspensionStatus,
 } from "@nerve/shared";
-import type { EventBus } from "./events.js";
-import type { InitializedStorage } from "./storage.js";
-import { appendJsonLine, readJsonLines, rewriteJsonLines } from "./storage.js";
+import type { EventBus } from "./infrastructure/events/index.js";
+import type { InitializedStorage } from "./infrastructure/storage/index.js";
+import {
+  appendJsonLine,
+  readJsonLines,
+  rewriteJsonLines,
+} from "./infrastructure/storage/index.js";
 
 export class AgentSuspensionService {
   readonly suspensions = new Map<string, AgentSuspensionRecord>();

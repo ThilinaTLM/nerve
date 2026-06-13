@@ -14,8 +14,8 @@ import type {
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
 } from "@nerve/shared";
+import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import { createApp, createOrchestratorState } from "../src/server.js";
-import { initializeStorage } from "../src/storage.js";
 
 const roots: string[] = [];
 

@@ -8,9 +8,9 @@ import type {
   EventEnvelope,
   ToolCallRecord,
 } from "@nerve/shared";
+import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import { HttpError } from "../src/registry.js";
 import { createOrchestratorState } from "../src/server.js";
-import { initializeStorage } from "../src/storage.js";
 
 const roots: string[] = [];
 

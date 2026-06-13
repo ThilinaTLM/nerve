@@ -9,20 +9,20 @@ import {
   planReviewRecordSchema,
   type ToolCallRecord,
 } from "@nerve/shared";
-import type { EventBus } from "./events.js";
+import type { EventBus } from "./infrastructure/events/index.js";
+import type { InitializedStorage } from "./infrastructure/storage/index.js";
+import {
+  appendJsonLine,
+  pathExists,
+  readJsonLines,
+  rewriteJsonLines,
+} from "./infrastructure/storage/index.js";
 import {
   isPathInsidePlanDir,
   planDirForStorageHome,
   planSlugFromPath,
   resolvePlanPath,
 } from "./plan-paths.js";
-import type { InitializedStorage } from "./storage.js";
-import {
-  appendJsonLine,
-  pathExists,
-  readJsonLines,
-  rewriteJsonLines,
-} from "./storage.js";
 
 export type PlanReviewResult = {
   review: PlanReviewRecord;

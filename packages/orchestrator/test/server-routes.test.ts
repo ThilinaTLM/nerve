@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
+import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import { createApp, createOrchestratorState } from "../src/server.js";
-import { initializeStorage } from "../src/storage.js";
 
 const roots: string[] = [];
 

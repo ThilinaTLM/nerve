@@ -10,7 +10,11 @@ import {
   applicationLogRecordSchema,
   createId,
 } from "@nerve/shared";
-import { appendJsonLine, readJsonLines, rewriteJsonLines } from "./storage.js";
+import {
+  appendJsonLine,
+  readJsonLines,
+  rewriteJsonLines,
+} from "./infrastructure/storage/index.js";
 
 export type ApplicationLogContext = Partial<
   Pick<

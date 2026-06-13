@@ -4,8 +4,8 @@ import {
   type PinnedCommand,
   type ProjectRecord,
 } from "@nerve/shared";
+import type { PinnedCommandRepository } from "../domains/pinned-commands/index.js";
 import { HttpError } from "../http/errors.js";
-import type { PinnedCommandRepository } from "../repositories/index.js";
 
 export class PinnedCommandService {
   constructor(

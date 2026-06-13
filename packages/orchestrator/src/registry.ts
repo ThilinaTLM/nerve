@@ -46,28 +46,34 @@ import {
 } from "./conversation-operations/index.js";
 import { ConversationRuntime } from "./conversation-runtime.js";
 import { ConversationService } from "./conversation-service.js";
-import type { EventBus } from "./events.js";
+import {
+  AgentLifecycleService,
+  AgentRepository,
+  PromptQueueRepository,
+} from "./domains/agents/index.js";
+import {
+  ConversationLifecycleService,
+  ConversationQueryService,
+  ConversationRepository,
+  EntryRepository,
+} from "./domains/conversations/index.js";
+import { PinnedCommandRepository } from "./domains/pinned-commands/index.js";
+import {
+  ProjectLifecycleService,
+  ProjectRepository,
+  PruneProjectConversationsService,
+} from "./domains/projects/index.js";
 import { GitService } from "./git/git-service.js";
 import { HarnessManager } from "./harness-manager.js";
 import { HttpError } from "./http/errors.js";
-import type { IndexStore } from "./index-store.js";
+import type { EventBus } from "./infrastructure/events/index.js";
+import type { IndexStore } from "./infrastructure/index-store/index.js";
+import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
 import { PlanService } from "./plan-service.js";
 import { ProcessManager } from "./process-manager.js";
-import { AgentLifecycleService } from "./registry/agent-lifecycle-service.js";
-import { ConversationLifecycleService } from "./registry/conversation-lifecycle-service.js";
 import { PinnedCommandService } from "./registry/pinned-command-service.js";
-import { ProjectLifecycleService } from "./registry/project-lifecycle-service.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
-import {
-  AgentRepository,
-  ConversationRepository,
-  EntryRepository,
-  PinnedCommandRepository,
-  ProjectRepository,
-  PromptQueueRepository,
-} from "./repositories/index.js";
-import type { InitializedStorage } from "./storage.js";
 import { ToolService } from "./tool-service.js";
 import type { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
 import { WorkerManager } from "./worker-manager.js";
@@ -111,27 +117,6 @@ function runFailureDetails(
   };
 }
 
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function toolRecordIdsFromEntries(entries: ConversationEntry[]): Set<string> {
-  const ids = new Set<string>();
-  for (const entry of entries) {
-    const details = recordValue(entry.details);
-    if (!details) continue;
-    for (const value of [details.toolRecordId, details.toolCallId]) {
-      const id = stringValue(value);
-      if (id) ids.add(id);
-    }
-    const nestedDetails = recordValue(details.details);
-    const nestedToolCall = recordValue(nestedDetails?.toolCall);
-    const nestedId = stringValue(nestedToolCall?.id);
-    if (nestedId) ids.add(nestedId);
-  }
-  return ids;
-}
-
 export class RuntimeRegistry {
   readonly projects = new Map<string, ProjectRecord>();
   readonly conversations = new Map<string, ConversationRecord>();
@@ -163,7 +148,9 @@ export class RuntimeRegistry {
   private readonly agentRunner: AgentRunner;
   private readonly projectLifecycle: ProjectLifecycleService;
   private readonly conversationLifecycle: ConversationLifecycleService;
+  private readonly conversationQuery: ConversationQueryService;
   private readonly agentLifecycle: AgentLifecycleService;
+  private readonly pruneConversations: PruneProjectConversationsService;
 
   constructor(
     storage: InitializedStorage,
@@ -171,7 +158,7 @@ export class RuntimeRegistry {
     private readonly index: IndexStore,
     auth: AuthManager,
     private readonly subscriptionUsage: SubscriptionUsageService,
-    private readonly logger: ApplicationLogger,
+    logger: ApplicationLogger,
   ) {
     this.projectRepository = new ProjectRepository(storage);
     this.pinnedCommandRepository = new PinnedCommandRepository(storage);
@@ -267,6 +254,17 @@ export class RuntimeRegistry {
           (candidate) => candidate.conversationId === conversationId,
         ),
     );
+    this.conversationQuery = new ConversationQueryService({
+      events,
+      conversationRuntime: this.conversationRuntime,
+      getConversation: (conversationId) => this.getConversation(conversationId),
+      getConversationEntries: (conversationId) =>
+        this.getConversationEntries(conversationId),
+      getConversationTree: (conversationId) =>
+        this.getConversationTree(conversationId),
+      getContextUsage: (conversationId) => this.getContextUsage(conversationId),
+      listToolCalls: () => this.tools.listToolCalls(),
+    });
     this.agentLifecycle = new AgentLifecycleService(
       storage,
       events,
@@ -328,6 +326,21 @@ export class RuntimeRegistry {
       subscriptionUsage: this.subscriptionUsage,
       logger: logger.child({ component: "agent-runner" }),
       promptQueue: this.promptQueueRepository,
+    });
+    this.pruneConversations = new PruneProjectConversationsService({
+      getProject: (projectId) => this.getProject(projectId),
+      listConversations: () => this.listConversations(),
+      agents: this.agents,
+      processes: this.processes,
+      tools: this.tools,
+      plans: this.plans,
+      suspensions: this.suspensions,
+      conversationRepository: this.conversationRepository,
+      removeConversation: (conversationId) =>
+        this.removeConversation(conversationId),
+      rebuildIndex: () => this.rebuildIndex(),
+      events,
+      logger,
     });
   }
 
@@ -422,102 +435,10 @@ export class RuntimeRegistry {
       olderThanDays: 7,
     },
   ): Promise<PruneProjectConversationsResponse> {
-    this.getProject(projectId);
-    const projectConversations = this.listConversations().filter(
-      (conversation) => conversation.projectId === projectId,
-    );
-    let candidates: ConversationRecord[];
-    if (request.strategy === "olderThanDays") {
-      const cutoffMs = Date.now() - request.olderThanDays * 24 * 60 * 60 * 1000;
-      candidates = projectConversations.filter((conversation) => {
-        const updatedAt = Date.parse(conversation.updatedAt);
-        return Number.isFinite(updatedAt) && updatedAt < cutoffMs;
-      });
-    } else {
-      candidates = [...projectConversations]
-        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-        .slice(request.keepLatest);
-    }
-    const candidateIds = candidates.map((conversation) => conversation.id);
-    const activeProcessConversationIds = new Set(
-      this.processes
-        .activeProcessesForConversations(candidateIds)
-        .map((process) => process.conversationId)
-        .filter((conversationId): conversationId is string =>
-          Boolean(conversationId),
-        ),
-    );
-    const agentsByConversationId = new Map<string, AgentRecord[]>();
-    for (const agent of this.agents.values()) {
-      if (!candidateIds.includes(agent.conversationId)) continue;
-      const agents = agentsByConversationId.get(agent.conversationId) ?? [];
-      agents.push(agent);
-      agentsByConversationId.set(agent.conversationId, agents);
-    }
-
-    const prunedConversationIds: string[] = [];
-    const prunedAgentIds: string[] = [];
-    const skipped: PruneProjectConversationsResponse["skipped"] = [];
-    for (const conversation of candidates) {
-      const agents = agentsByConversationId.get(conversation.id) ?? [];
-      if (
-        agents.some(
-          (agent) =>
-            agent.status === "running" || agent.status === "awaiting_user",
-        )
-      ) {
-        skipped.push({
-          conversationId: conversation.id,
-          reason: "active_agent",
-        });
-        continue;
-      }
-      if (activeProcessConversationIds.has(conversation.id)) {
-        skipped.push({
-          conversationId: conversation.id,
-          reason: "active_process",
-        });
-        continue;
-      }
-      prunedConversationIds.push(conversation.id);
-      prunedAgentIds.push(...agents.map((agent) => agent.id));
-    }
-
-    const prunedProcessIds =
-      await this.processes.removeInactiveProcessesForConversations(
-        prunedConversationIds,
-      );
-    await this.tools.removeRecordsForConversations(
-      prunedConversationIds,
-      prunedAgentIds,
-    );
-    await this.plans.removeReviewsForConversations(prunedConversationIds);
-    await this.suspensions.removeSuspensionsForConversations(
-      prunedConversationIds,
-    );
-    for (const conversationId of prunedConversationIds) {
-      await this.removeConversation(conversationId);
-    }
-    await Promise.all(
-      prunedConversationIds.map((conversationId) =>
-        this.conversationRepository
-          .remove(conversationId)
-          .catch(() => undefined),
-      ),
-    );
-    await this.events.removeEventsForConversations(prunedConversationIds);
-    await this.logger.removeLogsForConversations(prunedConversationIds);
-    await this.rebuildIndex();
-
-    const response: PruneProjectConversationsResponse = {
+    return this.pruneConversations.pruneProjectConversations(
       projectId,
-      strategy: request.strategy,
-      prunedConversationIds,
-      prunedProcessIds,
-      skipped,
-    };
-    await this.events.publish("project.conversations.pruned", response);
-    return response;
+      request,
+    );
   }
 
   async configureAgent(
@@ -548,29 +469,7 @@ export class RuntimeRegistry {
   async getConversationSnapshot(
     conversationId: string,
   ): Promise<ConversationSnapshot> {
-    const cursorSeq = this.events.latestSeq;
-    const contextUsage = await this.getContextUsage(conversationId).catch(
-      () => undefined,
-    );
-    const entries = this.getConversationEntries(conversationId);
-    const activeEntryIds = entries.map((entry) => entry.id);
-    const activeRun =
-      this.conversationRuntime.snapshotForConversation(conversationId);
-    return {
-      conversation: this.getConversation(conversationId),
-      entries,
-      activeEntryIds,
-      tree: this.getConversationTree(conversationId),
-      toolCalls: this.activeBranchToolCalls(
-        conversationId,
-        entries,
-        activeRun?.runId,
-      ),
-      activeRun,
-      contextUsage,
-      cursorSeq,
-      generatedAt: new Date().toISOString(),
-    };
+    return this.conversationQuery.getConversationSnapshot(conversationId);
   }
 
   async navigateConversation(
@@ -1130,31 +1029,6 @@ export class RuntimeRegistry {
       agent.id,
       details.failedEntryId,
     );
-  }
-
-  private activeBranchToolCalls(
-    conversationId: string,
-    entries: ConversationEntry[],
-    activeRunId: string | undefined,
-  ): ToolCallRecord[] {
-    const runIds = new Set(
-      entries.flatMap((entry) => (entry.runId ? [entry.runId] : [])),
-    );
-    const toolIds = toolRecordIdsFromEntries(entries);
-    return this.tools.listToolCalls().filter((toolCall) => {
-      if (toolCall.conversationId !== conversationId) return false;
-      if (activeRunId && toolCall.runId === activeRunId) return true;
-      if (toolCall.runId && runIds.has(toolCall.runId)) return true;
-      if (toolIds.has(toolCall.id)) return true;
-      if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
-        return true;
-      if (
-        toolCall.providerToolCallId &&
-        toolIds.has(toolCall.providerToolCallId)
-      )
-        return true;
-      return false;
-    });
   }
 
   private async setAgentStatus(

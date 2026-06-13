@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deriveConversationTitle } from "../src/conversation-title.js";
+import { deriveConversationTitle } from "../src/domains/conversations/title.js";
 
 describe("deriveConversationTitle", () => {
   it("uses the first readable sentence", () => {

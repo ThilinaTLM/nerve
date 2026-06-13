@@ -9,13 +9,13 @@ import {
   createId,
   type ProcessRecord,
 } from "@nerve/shared";
-import { EntryRepository } from "../src/repositories/index.js";
-import { createOrchestratorState } from "../src/server.js";
+import { EntryRepository } from "../src/domains/conversations/index.js";
 import {
   type InitializedStorage,
   initializeStorage,
   pathExists,
-} from "../src/storage.js";
+} from "../src/infrastructure/storage/index.js";
+import { createOrchestratorState } from "../src/server.js";
 
 const roots: string[] = [];
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { SubscriptionUsage } from "@nerve/shared";
 import type { AuthManager } from "../src/auth.js";
-import type { EventBus } from "../src/events.js";
+import type { EventBus } from "../src/infrastructure/events/index.js";
 import { parseAnthropicUsageResponse } from "../src/usage/anthropic-client.js";
 import {
   mergeCodexUsage,

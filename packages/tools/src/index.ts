@@ -3,9 +3,9 @@ import {
   allToolDescriptorsFromDefinitions,
   coreToolDescriptorsFromDefinitions,
   coreToolRiskForName,
-} from "./definitions.js";
+} from "./catalog/index.js";
 
-export * from "./definitions.js";
+export * from "./catalog/index.js";
 export { executeTool, resolveToolPath } from "./execution/index.js";
 export {
   hasDangerousCommandPattern,

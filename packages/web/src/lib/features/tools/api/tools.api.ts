@@ -1,0 +1,116 @@
+import type {
+  ApprovalRecord,
+  PlanReviewRecord,
+  ToolCallRecord,
+  UserQuestionRecord,
+} from "@nerve/shared";
+import { apiGet, apiPost } from "../../../shared/api/client";
+
+export type ApprovalWithToolCall = ApprovalRecord & {
+  toolCall?: ToolCallRecord;
+};
+
+export async function getToolCalls(): Promise<ToolCallRecord[]> {
+  return (await apiGet<{ toolCalls: ToolCallRecord[] }>("/api/tool-calls"))
+    .toolCalls;
+}
+
+export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
+  const [{ approvals }, { toolCalls }] = await Promise.all([
+    apiGet<{ approvals: ApprovalRecord[] }>("/api/approvals?status=pending"),
+    apiGet<{ toolCalls: ToolCallRecord[] }>("/api/tool-calls"),
+  ]);
+  const byId = new Map(toolCalls.map((toolCall) => [toolCall.id, toolCall]));
+  return approvals.map((approval) => ({
+    ...approval,
+    toolCall: byId.get(approval.toolCallId),
+  }));
+}
+
+export async function getPendingUserQuestions(): Promise<UserQuestionRecord[]> {
+  return (
+    await apiGet<{ questions: UserQuestionRecord[] }>(
+      "/api/user-questions?status=pending",
+    )
+  ).questions;
+}
+
+export async function getPendingPlanReviews(): Promise<PlanReviewRecord[]> {
+  return (
+    await apiGet<{ planReviews: PlanReviewRecord[] }>(
+      "/api/plan-reviews?status=pending",
+    )
+  ).planReviews;
+}
+
+export async function acceptPlanReview(
+  reviewId: string,
+  feedback?: string,
+): Promise<PlanReviewRecord> {
+  return (
+    await apiPost<{ planReview: PlanReviewRecord }>(
+      `/api/plan-reviews/${reviewId}/accept`,
+      { feedback },
+    )
+  ).planReview;
+}
+
+export async function rejectPlanReview(
+  reviewId: string,
+  feedback?: string,
+): Promise<PlanReviewRecord> {
+  return (
+    await apiPost<{ planReview: PlanReviewRecord }>(
+      `/api/plan-reviews/${reviewId}/reject`,
+      { feedback },
+    )
+  ).planReview;
+}
+
+export async function requestPlanChanges(
+  reviewId: string,
+  feedback?: string,
+): Promise<PlanReviewRecord> {
+  return (
+    await apiPost<{ planReview: PlanReviewRecord }>(
+      `/api/plan-reviews/${reviewId}/request-changes`,
+      { feedback },
+    )
+  ).planReview;
+}
+
+export async function discardPlanReview(
+  reviewId: string,
+  feedback?: string,
+): Promise<PlanReviewRecord> {
+  return (
+    await apiPost<{ planReview: PlanReviewRecord }>(
+      `/api/plan-reviews/${reviewId}/discard`,
+      { feedback },
+    )
+  ).planReview;
+}
+
+export async function answerUserQuestion(
+  questionId: string,
+  answer: string,
+): Promise<UserQuestionRecord> {
+  return (
+    await apiPost<{ question: UserQuestionRecord }>(
+      `/api/user-questions/${questionId}/answer`,
+      { answer },
+    )
+  ).question;
+}
+
+export async function dismissUserQuestion(
+  questionId: string,
+  reason?: string,
+): Promise<UserQuestionRecord> {
+  return (
+    await apiPost<{ question: UserQuestionRecord }>(
+      `/api/user-questions/${questionId}/dismiss`,
+      { reason },
+    )
+  ).question;
+}

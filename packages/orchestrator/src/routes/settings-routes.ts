@@ -1,8 +1,8 @@
 import { updateSettingsRequestSchema } from "@nerve/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
+import { writeSettings } from "../infrastructure/storage/index.js";
 import type { OrchestratorState } from "../server.js";
-import { writeSettings } from "../storage.js";
 
 export function createSettingsRoutes(state: OrchestratorState): Hono {
   const app = new Hono();

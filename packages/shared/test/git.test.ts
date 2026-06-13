@@ -8,7 +8,7 @@ import {
   githubStatusResponseSchema,
   gitOverviewResponseSchema,
   switchBranchRequestSchema,
-} from "../src/git.js";
+} from "../src/domains/git/git.schema.js";
 
 describe("git schemas", () => {
   it("parses a discovery response", () => {

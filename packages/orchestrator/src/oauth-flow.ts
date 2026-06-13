@@ -13,7 +13,7 @@ import {
   type RespondOAuthFlowRequest,
 } from "@nerve/shared";
 import type { AuthManager } from "./auth.js";
-import type { EventBus } from "./events.js";
+import type { EventBus } from "./infrastructure/events/index.js";
 import { HttpError } from "./registry.js";
 
 type PendingResponse = {

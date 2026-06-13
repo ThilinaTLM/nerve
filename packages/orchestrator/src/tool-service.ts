@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import type {
   AgentRecord,
   ApprovalRecord,
@@ -21,15 +21,22 @@ import type {
   ConversationRuntime,
   ToolAnchor,
 } from "./conversation-runtime.js";
-import type { EventBus } from "./events.js";
-import type { IndexStore } from "./index-store.js";
+import {
+  ApprovalRepository,
+  evaluateToolPolicy,
+  TodoStateService,
+  ToolCallRepository,
+  todoItemsArg,
+  todosResult,
+  UserQuestionRepository,
+} from "./domains/tools/index.js";
+import type { EventBus } from "./infrastructure/events/index.js";
+import type { IndexStore } from "./infrastructure/index-store/index.js";
+import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
 import { ensurePlanDir } from "./plan-paths.js";
 import type { PlanService } from "./plan-service.js";
-import { evaluateToolPolicy } from "./policy.js";
 import type { ProcessManager } from "./process-manager.js";
-import type { InitializedStorage } from "./storage.js";
-import { appendJsonLine, readJsonLines, rewriteJsonLines } from "./storage.js";
 
 export interface ToolExecutionResponse {
   toolCall: ToolCallRecord;
@@ -62,8 +69,6 @@ export type ProcessStarter = (
   request: StartProcessRequest,
 ) => Promise<ProcessRecord>;
 
-type TodoItem = { todo: string; done: boolean };
-
 class ToolExecutionSuspended extends Error {
   constructor() {
     super("Tool execution suspended waiting for user input.");
@@ -77,10 +82,13 @@ function isToolExecutionSuspended(
 }
 
 export class ToolService {
-  readonly toolCalls = new Map<string, ToolCallRecord>();
-  readonly approvals = new Map<string, ApprovalRecord>();
-  readonly userQuestions = new Map<string, UserQuestionRecord>();
-  private readonly todoLists = new Map<string, TodoItem[]>();
+  readonly toolCalls: Map<string, ToolCallRecord>;
+  readonly approvals: Map<string, ApprovalRecord>;
+  readonly userQuestions: Map<string, UserQuestionRecord>;
+  private readonly toolCallRepository: ToolCallRepository;
+  private readonly approvalRepository: ApprovalRepository;
+  private readonly userQuestionRepository: UserQuestionRepository;
+  private readonly todoState = new TodoStateService();
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
@@ -93,7 +101,7 @@ export class ToolService {
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
-    private readonly index: IndexStore,
+    index: IndexStore,
     private readonly processes: ProcessManager,
     private readonly startProcess: ProcessStarter,
     private readonly getAgent: (agentId: string) => AgentRecord,
@@ -109,41 +117,20 @@ export class ToolService {
     ) => Promise<AgentRecord>,
     private readonly conversationRuntime: ConversationRuntime,
     private readonly logger?: ApplicationLogger,
-  ) {}
-
-  async hydrate(): Promise<void> {
-    const toolCalls = await this.readLatestToolCalls();
-    for (const toolCall of toolCalls) {
-      this.toolCalls.set(toolCall.id, toolCall);
-      this.index.upsertToolCall(toolCall);
-    }
-    this.hydrateTodoListsFromToolCalls(toolCalls);
-    for (const approval of await this.readLatestApprovals()) {
-      this.approvals.set(approval.id, approval);
-      this.index.upsertApproval(approval);
-    }
-    for (const question of await this.readLatestUserQuestions()) {
-      this.userQuestions.set(question.id, question);
-      this.index.upsertUserQuestion(question);
-    }
+  ) {
+    this.toolCallRepository = new ToolCallRepository(storage, index);
+    this.approvalRepository = new ApprovalRepository(storage, index);
+    this.userQuestionRepository = new UserQuestionRepository(storage, index);
+    this.toolCalls = this.toolCallRepository.records;
+    this.approvals = this.approvalRepository.records;
+    this.userQuestions = this.userQuestionRepository.records;
   }
 
-  private hydrateTodoListsFromToolCalls(toolCalls: ToolCallRecord[]): void {
-    const completedTodoSets = toolCalls
-      .filter(
-        (toolCall) =>
-          toolCall.toolName === "todos_set" && toolCall.status === "completed",
-      )
-      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
-
-    for (const toolCall of completedTodoSets) {
-      const resultRecord = recordFromUnknown(toolCall.result);
-      const details = recordFromUnknown(resultRecord.details);
-      const items =
-        parseTodoItems(details.todos) ??
-        parseTodoItems(recordFromUnknown(toolCall.args).todos);
-      if (items) this.todoLists.set(toolCall.agentId, items);
-    }
+  async hydrate(): Promise<void> {
+    const toolCalls = await this.toolCallRepository.hydrate();
+    this.todoState.hydrateFromToolCalls(toolCalls);
+    await this.approvalRepository.hydrate();
+    await this.userQuestionRepository.hydrate();
   }
 
   listTools() {
@@ -151,21 +138,15 @@ export class ToolService {
   }
 
   listToolCalls(): ToolCallRecord[] {
-    return [...this.toolCalls.values()].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    );
+    return this.toolCallRepository.list();
   }
 
   listApprovals(status?: ApprovalRecord["status"]): ApprovalRecord[] {
-    return [...this.approvals.values()]
-      .filter((approval) => !status || approval.status === status)
-      .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+    return this.approvalRepository.list(status);
   }
 
   listUserQuestions(status?: UserQuestionStatus): UserQuestionRecord[] {
-    return [...this.userQuestions.values()]
-      .filter((question) => !status || question.status === status)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return this.userQuestionRepository.list(status);
   }
 
   async removeRecordsForConversations(
@@ -179,34 +160,12 @@ export class ToolService {
       if (conversations.has(toolCall.conversationId))
         agents.add(toolCall.agentId);
     }
-    for (const [id, toolCall] of this.toolCalls) {
-      if (conversations.has(toolCall.conversationId)) {
-        this.toolCalls.delete(id);
-        this.index.deleteToolCall(id);
-      }
-    }
-    for (const [id, approval] of this.approvals) {
-      if (conversations.has(approval.conversationId)) {
-        this.approvals.delete(id);
-        this.index.deleteApproval(id);
-      }
-    }
-    for (const [id, question] of this.userQuestions) {
-      if (conversations.has(question.conversationId)) {
-        this.userQuestions.delete(id);
-        this.index.deleteUserQuestion(id);
-      }
-    }
-    for (const agentId of agents) this.todoLists.delete(agentId);
     await Promise.all([
-      rewriteJsonLines(this.toolCallsPath(), this.listToolCalls(), 0o600),
-      rewriteJsonLines(this.approvalsPath(), this.listApprovals(), 0o600),
-      rewriteJsonLines(
-        this.userQuestionsPath(),
-        this.listUserQuestions(),
-        0o600,
-      ),
+      this.toolCallRepository.removeForConversations(conversations),
+      this.approvalRepository.removeForConversations(conversations),
+      this.userQuestionRepository.removeForConversations(conversations),
     ]);
+    for (const agentId of agents) this.todoState.delete(agentId);
   }
 
   async requestTool(
@@ -370,11 +329,7 @@ export class ToolService {
     providerToolCallId: string | undefined,
   ): ToolCallRecord | undefined {
     if (!providerToolCallId) return undefined;
-    return [...this.toolCalls.values()].find(
-      (toolCall) =>
-        toolCall.providerToolCallId === providerToolCallId ||
-        toolCall.sourceToolCallId === providerToolCallId,
-    );
+    return this.toolCallRepository.findByProviderToolCallId(providerToolCallId);
   }
 
   async recordProviderToolCallError(
@@ -533,25 +488,15 @@ export class ToolService {
   }
 
   getToolCall(toolCallId: string): ToolCallRecord {
-    const toolCall = this.toolCalls.get(toolCallId);
-    if (!toolCall) throw new Error("Tool call not found.");
-    return toolCall;
+    return this.toolCallRepository.get(toolCallId);
   }
 
   private getPendingApproval(approvalId: string): ApprovalRecord {
-    const approval = this.approvals.get(approvalId);
-    if (!approval) throw new Error("Approval not found.");
-    if (approval.status !== "pending")
-      throw new Error("Approval is already resolved.");
-    return approval;
+    return this.approvalRepository.getPending(approvalId);
   }
 
   private getPendingUserQuestion(questionId: string): UserQuestionRecord {
-    const question = this.userQuestions.get(questionId);
-    if (!question) throw new Error("User question not found.");
-    if (question.status !== "pending")
-      throw new Error("User question is already resolved.");
-    return question;
+    return this.userQuestionRepository.getPending(questionId);
   }
 
   private async executeAllowedTool(
@@ -708,11 +653,11 @@ export class ToolService {
         return this.requestUserQuestion(toolCall, args, options);
       case "todos_set": {
         const items = todoItemsArg(args);
-        this.todoLists.set(toolCall.agentId, cloneTodos(items));
+        this.todoState.set(toolCall.agentId, items);
         return todosResult(items);
       }
       case "todos_get":
-        return todosResult(this.todoLists.get(toolCall.agentId) ?? []);
+        return todosResult(this.todoState.get(toolCall.agentId));
       case "plan_mode_enter":
         return this.enterPlanMode(toolCall, args);
       case "plan_mode_present":
@@ -888,7 +833,7 @@ export class ToolService {
         signal?.removeEventListener("abort", onAbort);
       };
 
-      const current = this.userQuestions.get(questionId);
+      const current = this.userQuestionRepository.get(questionId);
       if (current && current.status !== "pending") {
         resolve(current);
         return;
@@ -937,9 +882,7 @@ export class ToolService {
   }
 
   private async upsertToolCall(toolCall: ToolCallRecord): Promise<void> {
-    this.toolCalls.set(toolCall.id, toolCall);
-    this.index.upsertToolCall(toolCall);
-    await appendJsonLine(this.toolCallsPath(), toolCall, 0o600);
+    await this.toolCallRepository.upsert(toolCall);
   }
 
   private notifyWaiters(toolCall: ToolCallRecord): void {
@@ -957,54 +900,13 @@ export class ToolService {
   }
 
   private async upsertApproval(approval: ApprovalRecord): Promise<void> {
-    this.approvals.set(approval.id, approval);
-    this.index.upsertApproval(approval);
-    await appendJsonLine(this.approvalsPath(), approval, 0o600);
+    await this.approvalRepository.upsert(approval);
   }
 
   private async upsertUserQuestion(
     question: UserQuestionRecord,
   ): Promise<void> {
-    this.userQuestions.set(question.id, question);
-    this.index.upsertUserQuestion(question);
-    await appendJsonLine(this.userQuestionsPath(), question, 0o600);
-  }
-
-  private async readLatestToolCalls(): Promise<ToolCallRecord[]> {
-    const values = await readJsonLines<ToolCallRecord>(
-      this.toolCallsPath(),
-    ).catch(() => []);
-    return latestById(values);
-  }
-
-  private async readLatestApprovals(): Promise<ApprovalRecord[]> {
-    const values = await readJsonLines<ApprovalRecord>(
-      this.approvalsPath(),
-    ).catch(() => []);
-    return latestById(values);
-  }
-
-  private async readLatestUserQuestions(): Promise<UserQuestionRecord[]> {
-    const values = await readJsonLines<UserQuestionRecord>(
-      this.userQuestionsPath(),
-    ).catch(() => []);
-    return latestById(values);
-  }
-
-  private toolCallsPath(): string {
-    return join(this.storage.paths.home, "logs", "tool-calls.jsonl");
-  }
-
-  private approvalsPath(): string {
-    return join(this.storage.paths.home, "approvals", "approvals.jsonl");
-  }
-
-  private userQuestionsPath(): string {
-    return join(
-      this.storage.paths.home,
-      "user-questions",
-      "user-questions.jsonl",
-    );
+    await this.userQuestionRepository.upsert(question);
   }
 }
 
@@ -1014,55 +916,6 @@ function isTerminalToolCall(toolCall: ToolCallRecord): boolean {
     toolCall.status === "denied" ||
     toolCall.status === "error"
   );
-}
-
-function latestById<T extends { id: string }>(values: T[]): T[] {
-  const byId = new Map<string, T>();
-  for (const value of values) byId.set(value.id, value);
-  return [...byId.values()];
-}
-
-function todoItemsArg(args: Record<string, unknown>): TodoItem[] {
-  const items = parseTodoItems(args.todos);
-  if (!items) {
-    throw new Error("Tool argument 'todos' must be an array of todo items.");
-  }
-  return items;
-}
-
-function parseTodoItems(value: unknown): TodoItem[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const items: TodoItem[] = [];
-  for (const item of value) {
-    if (!item || typeof item !== "object") return undefined;
-    const record = item as Record<string, unknown>;
-    if (typeof record.todo !== "string" || typeof record.done !== "boolean") {
-      return undefined;
-    }
-    items.push({ todo: record.todo, done: record.done });
-  }
-  return items;
-}
-
-function cloneTodos(items: TodoItem[]): TodoItem[] {
-  return items.map((item) => ({ ...item }));
-}
-
-function todosResult(items: TodoItem[]): {
-  contentBlocks: Array<{ type: "text"; text: string }>;
-  details: { todos: TodoItem[] };
-} {
-  const snapshot = cloneTodos(items);
-  return {
-    contentBlocks: [{ type: "text", text: JSON.stringify(snapshot, null, 2) }],
-    details: { todos: snapshot },
-  };
-}
-
-function recordFromUnknown(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
 }
 
 function stringArg(args: Record<string, unknown>, name: string): string {

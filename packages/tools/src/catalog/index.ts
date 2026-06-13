@@ -1,0 +1,50 @@
+import type { CoreToolName } from "@nerve/shared";
+import { filesystemToolDefinitions } from "./core/filesystem.tools.js";
+import { interactionToolDefinitions } from "./core/interaction.tools.js";
+import { shellToolDefinitions } from "./core/shell.tools.js";
+import { webToolDefinitions } from "./core/web.tools.js";
+import { planModeToolDefinitions } from "./orchestration/plan-mode.tools.js";
+import { processToolDefinitions } from "./orchestration/process.tools.js";
+import { subagentToolDefinitions } from "./orchestration/subagent.tools.js";
+import type { CoreToolDefinition } from "./types.js";
+
+export * from "./core/filesystem.tools.js";
+export * from "./core/interaction.tools.js";
+export * from "./core/shell.tools.js";
+export * from "./core/web.tools.js";
+export * from "./descriptors.js";
+export * from "./orchestration/plan-mode.tools.js";
+export * from "./orchestration/process.tools.js";
+export * from "./orchestration/subagent.tools.js";
+export * from "./risk.js";
+export * from "./types.js";
+
+const [readToolDefinition, ...remainingFilesystemToolDefinitions] =
+  filesystemToolDefinitions as CoreToolDefinition[];
+
+export const coreToolDefinitions: CoreToolDefinition[] = [
+  ...(readToolDefinition ? [readToolDefinition] : []),
+  ...shellToolDefinitions,
+  ...remainingFilesystemToolDefinitions,
+  ...interactionToolDefinitions,
+  ...webToolDefinitions,
+];
+
+export const orchestrationToolDefinitions: CoreToolDefinition[] = [
+  ...processToolDefinitions,
+  ...subagentToolDefinitions,
+  ...planModeToolDefinitions,
+];
+
+export const allToolDefinitions: CoreToolDefinition[] = [
+  ...coreToolDefinitions,
+  ...orchestrationToolDefinitions,
+];
+
+export function coreToolDefinitionByName(
+  name: CoreToolName,
+): CoreToolDefinition {
+  const definition = coreToolDefinitions.find((tool) => tool.name === name);
+  if (!definition) throw new Error(`Unknown core tool: ${name}`);
+  return definition;
+}

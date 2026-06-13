@@ -3,12 +3,15 @@ import type { AddressInfo } from "node:net";
 import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
 import {
+  initializeStorage,
+  writeDaemonFile,
+} from "./infrastructure/storage/index.js";
+import {
   createApp,
   createOrchestratorState,
   isWebSocketAuthorized,
   toDaemonFile,
 } from "./server.js";
-import { initializeStorage, writeDaemonFile } from "./storage.js";
 
 function readArg(name: string): string | undefined {
   const prefix = `${name}=`;

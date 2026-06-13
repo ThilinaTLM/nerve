@@ -4,7 +4,7 @@ import {
   truncateHead,
   truncateLine,
   truncateTail,
-} from "../src/execution/truncate.js";
+} from "../src/execution/common/truncate.js";
 
 describe("PI-style truncation helpers", () => {
   it("truncates head output by line count", () => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AgentRecord, PermissionLevel } from "@nerve/shared";
-import { evaluateToolPolicy } from "../src/policy.js";
+import { evaluateToolPolicy } from "../src/domains/tools/policy.js";
 
 function agent(
   permissionLevel: PermissionLevel,

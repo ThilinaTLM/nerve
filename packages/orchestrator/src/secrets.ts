@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { pathExists } from "./storage.js";
+import { pathExists } from "./infrastructure/storage/index.js";
 
 export interface SecretProvider {
   get(name: string): Promise<string | undefined>;

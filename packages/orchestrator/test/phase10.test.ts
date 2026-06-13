@@ -3,10 +3,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { after, describe, it } from "node:test";
+import {
+  initializeStorage,
+  writeSettings,
+} from "../src/infrastructure/storage/index.js";
 import { providerEnvVar } from "../src/registry.js";
 import { EncryptedFileSecretProvider } from "../src/secrets.js";
 import { createOrchestratorState } from "../src/server.js";
-import { initializeStorage, writeSettings } from "../src/storage.js";
 
 const roots: string[] = [];
 
