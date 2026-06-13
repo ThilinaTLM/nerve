@@ -4,9 +4,9 @@
     ConversationRecord,
     ConversationTreeNode,
     ToolCallRecord,
-  } from "../../api";
+  } from "$lib/api";
   import Dialog from "$lib/components/ui/dialog-shell";
-  import HistoryTab from "./utility/HistoryTab.svelte";
+  import HistoryTab from "$lib/components/app/utility/HistoryTab.svelte";
 
   type Props = {
     open?: boolean;

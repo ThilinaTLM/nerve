@@ -23,8 +23,8 @@
     selection,
     zoomState,
   } from "./lib/state/app-state.svelte";
-  import ConversationHistoryDialog from "./lib/components/app/ConversationHistoryDialog.svelte";
-  import ConversationPane from "./lib/components/app/ConversationPane.svelte";
+  import ConversationHistoryDialog from "./lib/features/conversations/components/ConversationHistoryDialog.svelte";
+  import ConversationPane from "./lib/features/conversations/components/ConversationPane.svelte";
   import CenterTabStrip from "./lib/components/app/CenterTabStrip.svelte";
   import FilePane from "./lib/components/app/FilePane.svelte";
   import Footerbar from "./lib/components/app/Footerbar.svelte";

@@ -11,12 +11,12 @@
   import { tick } from "svelte";
   import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
-  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ConversationEntry, ConversationRecord, ConversationTreeNode, ModelInfo, PlanReviewRecord, ProjectRecord, QueuedPromptRecord, ToolCallRecord, UserQuestionRecord } from "../../api";
-  import Markdown from "../../Markdown.svelte";
-  import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
-  import type { ConversationLiveState, TranscriptItem } from "../../stores/workbench/state.svelte";
-  import { shortProjectLabel } from "../../utils/project-tree";
-  import { buildConversationTimeline } from "../../stores/workbench/timeline";
+  import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ConversationEntry, ConversationRecord, ConversationTreeNode, ModelInfo, PlanReviewRecord, ProjectRecord, QueuedPromptRecord, ToolCallRecord, UserQuestionRecord } from "$lib/api";
+  import Markdown from "$lib/Markdown.svelte";
+  import type { GitSuggestion } from "$lib/stores/workbench/git-context.svelte";
+  import type { ConversationLiveState, TranscriptItem } from "$lib/stores/workbench/state.svelte";
+  import { shortProjectLabel } from "$lib/utils/project-tree";
+  import { buildConversationTimeline } from "$lib/stores/workbench/timeline";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import PromptComposer from "./PromptComposer.svelte";

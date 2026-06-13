@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Markdown from "../../Markdown.svelte";
+  import Markdown from "$lib/Markdown.svelte";
 
   type ThinkingBlockItem = {
     text: string;

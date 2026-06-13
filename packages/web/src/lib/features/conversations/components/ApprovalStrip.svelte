@@ -2,7 +2,7 @@
   import Check from "@lucide/svelte/icons/check";
   import Gavel from "@lucide/svelte/icons/gavel";
   import X from "@lucide/svelte/icons/x";
-  import type { ApprovalWithToolCall } from "../../api";
+  import type { ApprovalWithToolCall } from "$lib/api";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { StatusDot } from "$lib/components/ui/status-dot";

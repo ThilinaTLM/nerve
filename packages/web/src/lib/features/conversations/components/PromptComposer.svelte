@@ -17,11 +17,11 @@
     type ProjectRecord,
     type ConversationRecord,
     type UserQuestionRecord,
-  } from "../../api";
-  import TranscriptionActivity from "../../audio/TranscriptionActivity.svelte";
-  import { TranscriptionController } from "../../audio/transcription-controller.svelte";
-  import CodeMirrorComposer from "../../CodeMirrorComposer.svelte";
-  import type { GitSuggestion } from "../../stores/workbench/git-context.svelte";
+  } from "$lib/api";
+  import TranscriptionActivity from "$lib/audio/TranscriptionActivity.svelte";
+  import { TranscriptionController } from "$lib/audio/transcription-controller.svelte";
+  import CodeMirrorComposer from "$lib/CodeMirrorComposer.svelte";
+  import type { GitSuggestion } from "$lib/stores/workbench/git-context.svelte";
   import { Button } from "$lib/components/ui/button";
   import Popover from "$lib/components/ui/popover-panel";
   import ApprovalStrip from "./ApprovalStrip.svelte";
