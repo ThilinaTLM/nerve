@@ -1,4 +1,8 @@
 import {
+  type VoiceInputTarget,
+  voiceInputSession,
+} from "../../audio/voice-input-session.svelte";
+import {
   composerDraft,
   resetSelection,
   selection,
@@ -131,6 +135,16 @@ export async function closeCenterTabs(
   const fallback = tabIsInList(fallbackPreferred, remainingTabs)
     ? fallbackPreferred
     : nearestRemainingTab(originalTabs, remainingTabs, closingIndices);
+
+  const voiceTargets: VoiceInputTarget[] = [];
+  for (const tab of originalTabs) {
+    if (!targets.has(centerTabKey(tab))) continue;
+    if (tab.kind === "conversation")
+      voiceTargets.push({ kind: "conversation", id: tab.id });
+    if (tab.kind === "pending-conversation")
+      voiceTargets.push({ kind: "pending-conversation", id: tab.id });
+  }
+  await voiceInputSession.cancelIfTargets(voiceTargets);
 
   replaceOpenCenterTabs(remainingTabs);
 

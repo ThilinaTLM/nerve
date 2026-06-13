@@ -3,11 +3,14 @@
   import Mic from "@lucide/svelte/icons/mic";
   import Send from "@lucide/svelte/icons/send";
   import X from "@lucide/svelte/icons/x";
-  import { onDestroy } from "svelte";
   import { notify } from "$lib/notifications/notify.svelte";
   import type { ToolCallRecord, UserQuestionRecord } from "$lib/api";
   import TranscriptionActivity from "$lib/audio/TranscriptionActivity.svelte";
-  import { TranscriptionController } from "$lib/audio/transcription-controller.svelte";
+  import {
+    voiceInputSession,
+    type VoiceInputTarget,
+  } from "$lib/audio/voice-input-session.svelte";
+  import { appendTranscriptText } from "$lib/audio/voice-input-target";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
   import { Button } from "$lib/components/ui/button";
 
@@ -51,31 +54,52 @@
   );
   const trimmedAnswer = $derived(answer.trim());
 
-  function appendTranscript(transcript: string) {
-    const trimmed = transcript.trim();
-    if (!trimmed) return;
-    const separator = answer.trim() ? (/[\s\n]$/.test(answer) ? "" : "\n\n") : "";
-    answer = `${answer}${separator}${trimmed}`;
-  }
-
-  const transcription = new TranscriptionController({
-    onTranscript: appendTranscript,
-    onError: (message) =>
-      notify.error("Voice input failed", { description: message }),
+  const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
+    const id = questionRecord?.id ?? toolCall.id;
+    return id ? { kind: "ask-user", id } : undefined;
   });
-  const supportsAudioRecording = $derived(TranscriptionController.isSupported());
+  const recording = $derived(
+    Boolean(voiceTarget && voiceInputSession.isTargetActive(voiceTarget) && voiceInputSession.recording),
+  );
+  const transcribing = $derived(
+    Boolean(voiceTarget && voiceInputSession.isTargetActive(voiceTarget) && voiceInputSession.transcribing),
+  );
+  const voiceBusyElsewhere = $derived(
+    Boolean(voiceTarget && voiceInputSession.isBusyForOtherTarget(voiceTarget)),
+  );
+  const supportsAudioRecording = $derived(voiceInputSession.isSupported());
   const micDisabled = $derived(
-    transcription.pending || (!transcription.recording && !pending),
+    !voiceTarget ||
+      voiceInputSession.pending ||
+      (!recording && (!pending || voiceBusyElsewhere)),
   );
   const micTitle = $derived(
-    transcription.recording
-      ? `Stop recording (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)}) — right-click to cancel`
-      : transcription.retryAttempt > 0
-        ? `Retrying transcription ${transcription.retryAttempt}/${transcription.maxRetries}…`
-        : transcription.transcribing
-          ? "Transcribing audio…"
-          : "Record voice reply",
+    recording
+      ? `Stop recording (${formatElapsed(voiceInputSession.elapsedMs)} / ${formatElapsed(voiceInputSession.maxDurationMs)}) — right-click to cancel`
+      : voiceBusyElsewhere
+        ? "Voice recording is active elsewhere"
+        : voiceInputSession.retryAttempt > 0 && voiceTarget && voiceInputSession.isTargetActive(voiceTarget)
+          ? `Retrying transcription ${voiceInputSession.retryAttempt}/${voiceInputSession.maxRetries}…`
+          : transcribing
+            ? "Transcribing audio…"
+            : "Record voice reply",
   );
+
+  $effect(() => {
+    const target = voiceTarget;
+    if (!target) return;
+    const unregister = voiceInputSession.registerTargetHandlers(target, {
+      appendTranscript: (transcript) => {
+        answer = appendTranscriptText(answer, transcript);
+      },
+      onError: (message) =>
+        notify.error("Voice input failed", { description: message }),
+    });
+    return () => {
+      unregister();
+      void voiceInputSession.cancelIfTarget(target);
+    };
+  });
 
   function formatElapsed(ms: number): string {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -94,15 +118,16 @@
     onAnswerUserQuestion?.(questionRecord.id, phrase);
   }
 
-  function handleMicContextMenu(event: MouseEvent) {
-    if (!transcription.recording) return;
-    event.preventDefault();
-    void transcription.cancel();
+  function toggleRecording() {
+    if (micDisabled || !voiceTarget) return;
+    void voiceInputSession.toggle(voiceTarget);
   }
 
-  onDestroy(() => {
-    void transcription.cancel();
-  });
+  function handleMicContextMenu(event: MouseEvent) {
+    if (!recording || !voiceTarget) return;
+    event.preventDefault();
+    void voiceInputSession.cancel(voiceTarget);
+  }
 </script>
 
 <div class="ask">
@@ -137,26 +162,26 @@
         {#if supportsAudioRecording}
           <div class="reply-voice-controls">
             <TranscriptionActivity
-              recording={transcription.recording}
-              transcribing={transcription.transcribing}
-              elapsedMs={transcription.elapsedMs}
-              maxDurationMs={transcription.maxDurationMs}
-              retryAttempt={transcription.retryAttempt}
-              maxRetries={transcription.maxRetries}
+              {recording}
+              {transcribing}
+              elapsedMs={voiceInputSession.elapsedMs}
+              maxDurationMs={voiceInputSession.maxDurationMs}
+              retryAttempt={voiceTarget && voiceInputSession.isTargetActive(voiceTarget) ? voiceInputSession.retryAttempt : 0}
+              maxRetries={voiceInputSession.maxRetries}
               class="ask-transcription-status"
             />
             <Button
-              variant={transcription.recording ? "destructive" : "ghost"}
+              variant={recording ? "destructive" : "ghost"}
               size="icon-sm"
-              class={`reply-mic${transcription.recording ? " recording" : ""}`}
+              class={`reply-mic${recording ? " recording" : ""}`}
               type="button"
               disabled={micDisabled}
-              onclick={() => transcription.toggle()}
+              onclick={toggleRecording}
               oncontextmenu={handleMicContextMenu}
-              aria-label={transcription.recording ? "Stop recording; right-click to cancel" : "Record voice reply"}
+              aria-label={recording ? "Stop recording; right-click to cancel" : "Record voice reply"}
               title={micTitle}
             >
-              {#if transcription.transcribing}
+              {#if transcribing}
                 <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
               {:else}
                 <Mic size={14} strokeWidth={2.4} />

@@ -1,4 +1,5 @@
 import { apiGet, type ConversationRecord } from "../../api";
+import { voiceInputSession } from "../../audio/voice-input-session.svelte";
 import { selection } from "../../state/app-state.svelte";
 import {
   nextCenterTabAfterClose,
@@ -70,6 +71,10 @@ export async function closeConversationTab(conversationId: string) {
   const fallback = nextCenterTabAfterClose(tab);
   const nextIds = currentIds.filter((id) => id !== conversationId);
   const nextConversationId = nextIds[closingIndex] ?? nextIds[closingIndex - 1];
+  await voiceInputSession.cancelIfTarget({
+    kind: "conversation",
+    id: conversationId,
+  });
   removeCenterTab(tab);
   delete workbenchState.conversationViews[conversationId];
 
@@ -100,6 +105,10 @@ export async function closePendingConversationTab(pendingId: string) {
   const closingActiveCenter =
     workbenchState.activeCenterTab?.kind === "pending-conversation" &&
     workbenchState.activeCenterTab.id === pendingId;
+  await voiceInputSession.cancelIfTarget({
+    kind: "pending-conversation",
+    id: pendingId,
+  });
   removeCenterTab(tab);
   delete workbenchState.pendingConversations[pendingId];
   if (closingActiveCenter) {
@@ -114,6 +123,9 @@ export async function removeConversationTabs(conversationIds: string[]) {
   const activeRemoved = selection.conversationId
     ? removing.has(selection.conversationId)
     : false;
+  await voiceInputSession.cancelIfTargets(
+    conversationIds.map((id) => ({ kind: "conversation", id })),
+  );
   replaceOpenCenterTabs(
     workbenchState.openCenterTabs.filter(
       (tab) => tab.kind !== "conversation" || !removing.has(tab.id),

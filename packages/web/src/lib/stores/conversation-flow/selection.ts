@@ -5,6 +5,7 @@ import {
   getConversationSnapshot,
   type ProjectRecord,
 } from "../../api";
+import { voiceInputSession } from "../../audio/voice-input-session.svelte";
 import { composerDraft, selection } from "../../state/app-state.svelte";
 import { modelKey } from "../../utils/model";
 import { replaceOpenCenterTabs } from "../workbench/center-tabs.svelte";
@@ -108,6 +109,7 @@ export async function refreshConversationView(conversationId: string) {
 }
 
 export function clearConversationState() {
+  void voiceInputSession.cancel();
   replaceOpenCenterTabs([]);
   workbenchState.activeConversationTabId = undefined;
   workbenchState.activeCenterTab = undefined;

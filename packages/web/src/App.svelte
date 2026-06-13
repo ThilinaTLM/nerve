@@ -141,6 +141,7 @@
   const activeProject = $derived(workbenchSelectors.activeProject);
   const activeConversation = $derived(workbenchSelectors.activeConversation);
   const activeAgent = $derived(workbenchSelectors.activeAgent);
+  const activePendingConversation = $derived(workbenchSelectors.activePendingConversation);
   const pendingConversationActive = $derived(workbenchSelectors.pendingConversationActive);
   const live = $derived(workbenchSelectors.live);
   const branchDepth = $derived(workbenchSelectors.branchDepth);
@@ -435,6 +436,7 @@
                 {activeProject}
                 {activeConversation}
                 {activeAgent}
+                {activePendingConversation}
                 {pendingConversationActive}
                 {projects}
                 {conversations}

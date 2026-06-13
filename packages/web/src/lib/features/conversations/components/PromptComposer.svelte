@@ -16,19 +16,21 @@
     type UserQuestionRecord,
   } from "$lib/api";
   import TranscriptionActivity from "$lib/audio/TranscriptionActivity.svelte";
-  import { TranscriptionController } from "$lib/audio/transcription-controller.svelte";
+  import {
+    voiceInputSession,
+    type VoiceInputTarget,
+  } from "$lib/audio/voice-input-session.svelte";
   import CodeMirrorComposer from "$lib/CodeMirrorComposer.svelte";
   import type { GitSuggestion } from "$lib/stores/workbench/git-context.svelte";
   import { Button } from "$lib/components/ui/button";
   import ApprovalStrip from "./ApprovalStrip.svelte";
   import GitFollowupSuggestions from "$lib/features/git/components/GitFollowupSuggestions.svelte";
   import ComposerToolbar from "./ComposerToolbar.svelte";
-  import { onDestroy } from "svelte";
-  import { notify } from "$lib/notifications/notify.svelte";
   import {
     getShortcutAriaLabel,
     getShortcutLabel,
   } from "$lib/shortcuts/registry";
+  import type { PendingConversationState } from "$lib/stores/workbench/state.svelte";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -38,6 +40,7 @@
     text?: string;
     activeProject?: ProjectRecord;
     activeConversation?: ConversationRecord;
+    activePendingConversation?: PendingConversationState;
     pendingConversationActive?: boolean;
     approvals?: ApprovalWithToolCall[];
     pendingUserQuestion?: UserQuestionRecord;
@@ -74,6 +77,7 @@
     text = "",
     activeProject,
     activeConversation,
+    activePendingConversation,
     pendingConversationActive = false,
     approvals = [],
     pendingUserQuestion,
@@ -122,20 +126,21 @@
   const stopShortcut = getShortcutLabel("composer.stopRun");
   const stopShortcutAria = getShortcutAriaLabel("composer.stopRun");
 
-  function appendTranscript(transcript: string) {
-    const trimmed = transcript.trim();
-    if (!trimmed) return;
-    const separator = text.trim() ? (/[\s\n]$/.test(text) ? "" : "\n\n") : "";
-    onChange?.(`${text}${separator}${trimmed}`);
-  }
-
-  const transcription = new TranscriptionController({
-    onTranscript: appendTranscript,
-    onError: (message) =>
-      notify.error("Voice input failed", { description: message }),
+  const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
+    if (activeConversation) return { kind: "conversation", id: activeConversation.id };
+    if (activePendingConversation)
+      return { kind: "pending-conversation", id: activePendingConversation.id };
+    return undefined;
   });
-  const recording = $derived(transcription.recording);
-  const transcribing = $derived(transcription.transcribing);
+  const recording = $derived(
+    Boolean(voiceTarget && voiceInputSession.isTargetActive(voiceTarget) && voiceInputSession.recording),
+  );
+  const transcribing = $derived(
+    Boolean(voiceTarget && voiceInputSession.isTargetActive(voiceTarget) && voiceInputSession.transcribing),
+  );
+  const voiceBusyElsewhere = $derived(
+    Boolean(voiceTarget && voiceInputSession.isBusyForOtherTarget(voiceTarget)),
+  );
 
   const pendingApproval = $derived(approvals.length > 0);
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
@@ -144,21 +149,24 @@
   const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview));
   const editorDisabled = $derived(!canPrompt);
   const submitDisabled = $derived(!canPrompt);
-  const supportsAudioRecording = $derived(TranscriptionController.isSupported());
+  const supportsAudioRecording = $derived(voiceInputSession.isSupported());
   const micDisabled = $derived(
-    transcription.pending ||
-      (!recording && (!canPrompt || !supportsAudioRecording)),
+    !voiceTarget ||
+      voiceInputSession.pending ||
+      (!recording && (!canPrompt || !supportsAudioRecording || voiceBusyElsewhere)),
   );
   const micTitle = $derived(
     recording
-      ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — ${cancelMicShortcut ?? "Esc"} to cancel; right-click to cancel (${formatElapsed(transcription.elapsedMs)} / ${formatElapsed(transcription.maxDurationMs)})`
-      : transcription.retryAttempt > 0
-        ? `Retrying transcription ${transcription.retryAttempt}/${transcription.maxRetries}…`
-        : transcribing
-          ? "Transcribing audio…"
-          : micShortcut
-            ? `Record voice prompt (${micShortcut})`
-            : "Record voice prompt",
+      ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — ${cancelMicShortcut ?? "Esc"} to cancel; right-click to cancel (${formatElapsed(voiceInputSession.elapsedMs)} / ${formatElapsed(voiceInputSession.maxDurationMs)})`
+      : voiceBusyElsewhere
+        ? "Voice recording is active in another conversation"
+        : voiceInputSession.retryAttempt > 0 && voiceTarget && voiceInputSession.isTargetActive(voiceTarget)
+          ? `Retrying transcription ${voiceInputSession.retryAttempt}/${voiceInputSession.maxRetries}…`
+          : transcribing
+            ? "Transcribing audio…"
+            : micShortcut
+              ? `Record voice prompt (${micShortcut})`
+              : "Record voice prompt",
   );
 
   function formatElapsed(ms: number): string {
@@ -183,13 +191,13 @@
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
 
   function toggleRecording() {
-    if (micDisabled) return;
-    transcription.toggle();
+    if (micDisabled || !voiceTarget) return;
+    void voiceInputSession.toggle(voiceTarget);
   }
 
   function cancelRecordingShortcut() {
-    if (!recording) return false;
-    void transcription.cancel();
+    if (!recording || !voiceTarget) return false;
+    void voiceInputSession.cancel(voiceTarget);
     return true;
   }
 
@@ -212,14 +220,10 @@
   });
 
   function handleMicContextMenu(event: MouseEvent) {
-    if (!recording) return;
+    if (!recording || !voiceTarget) return;
     event.preventDefault();
-    void transcription.cancel();
+    void voiceInputSession.cancel(voiceTarget);
   }
-
-  onDestroy(() => {
-    void transcription.cancel();
-  });
 </script>
 
 <form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
@@ -272,12 +276,12 @@
 
       <div class="composer-send">
         <TranscriptionActivity
-          recording={transcription.recording}
-          transcribing={transcription.transcribing}
-          elapsedMs={transcription.elapsedMs}
-          maxDurationMs={transcription.maxDurationMs}
-          retryAttempt={transcription.retryAttempt}
-          maxRetries={transcription.maxRetries}
+          {recording}
+          {transcribing}
+          elapsedMs={voiceInputSession.elapsedMs}
+          maxDurationMs={voiceInputSession.maxDurationMs}
+          retryAttempt={voiceTarget && voiceInputSession.isTargetActive(voiceTarget) ? voiceInputSession.retryAttempt : 0}
+          maxRetries={voiceInputSession.maxRetries}
           class="composer-transcription-status"
         />
         <Button

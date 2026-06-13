@@ -4,7 +4,7 @@
   import { notify } from "$lib/notifications/notify.svelte";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ConversationEntry, ConversationRecord, ConversationTreeNode, ModelInfo, PlanReviewRecord, ProjectRecord, QueuedPromptRecord, ToolCallRecord, UserQuestionRecord } from "$lib/api";
   import type { GitSuggestion } from "$lib/stores/workbench/git-context.svelte";
-  import type { ConversationLiveState, TranscriptItem } from "$lib/stores/workbench/state.svelte";
+  import type { ConversationLiveState, PendingConversationState, TranscriptItem } from "$lib/stores/workbench/state.svelte";
   import { shortProjectLabel } from "$lib/utils/project-tree";
   import { buildConversationTimeline } from "$lib/stores/workbench/timeline";
   import { Button } from "$lib/components/ui/button";
@@ -17,6 +17,7 @@
     activeProject?: ProjectRecord;
     activeConversation?: ConversationRecord;
     activeAgent?: AgentRecord;
+    activePendingConversation?: PendingConversationState;
     pendingConversationActive?: boolean;
     projects?: ProjectRecord[];
     conversations?: ConversationRecord[];
@@ -75,6 +76,7 @@
     activeProject,
     activeConversation,
     activeAgent,
+    activePendingConversation,
     homeDir,
     pendingConversationActive = false,
     approvals = [],
@@ -273,6 +275,7 @@
         text={composerText}
         {activeProject}
         {activeConversation}
+        {activePendingConversation}
         {pendingConversationActive}
         {approvals}
         {pendingUserQuestion}
