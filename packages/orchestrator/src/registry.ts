@@ -1,5 +1,5 @@
-import type { Message, ToolResultMessage } from "@earendil-works/pi-ai";
-import { type AgentMessage, listAvailableModels } from "@nerve/agent";
+import type { Message } from "@earendil-works/pi-ai";
+import { listAvailableModels } from "@nerve/agent";
 import type {
   AgentRecord,
   CompactConversationRequest,
@@ -23,7 +23,6 @@ import type {
   PruneProjectConversationsResponse,
   StartProcessRequest,
   StopProcessRequest,
-  ToolCallRecord,
   ToolName,
   UpdateAgentRequest,
   UserQuestionStatus,
@@ -31,11 +30,9 @@ import type {
 import {
   AgentRunner,
   type AgentRunState,
-  agentMessageText,
   MessageMirror,
 } from "./agent-runner/index.js";
 import { AgentSuspensionService } from "./agent-suspension-service.js";
-import { completedToolResult } from "./agent-tool-adapter.js";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
 import {
@@ -50,6 +47,8 @@ import {
   AgentLifecycleService,
   AgentRepository,
   PromptQueueRepository,
+  QueuedPromptService,
+  RetryContinuationService,
 } from "./domains/agents/index.js";
 import {
   ConversationLifecycleService,
@@ -57,6 +56,7 @@ import {
   ConversationRepository,
   EntryRepository,
 } from "./domains/conversations/index.js";
+import { HumanInputResolutionService } from "./domains/human-input/index.js";
 import { PinnedCommandRepository } from "./domains/pinned-commands/index.js";
 import {
   ProjectLifecycleService,
@@ -77,45 +77,6 @@ import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
 import { ToolService } from "./tool-service.js";
 import type { SubscriptionUsageService } from "./usage/subscription-usage-service.js";
 import { WorkerManager } from "./worker-manager.js";
-
-function recordValue(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function runStatusDetails(value: unknown):
-  | {
-      type?: unknown;
-      state?: unknown;
-      retryable?: unknown;
-      failedEntryId?: string;
-    }
-  | undefined {
-  const record = recordValue(value);
-  if (!record) return undefined;
-  return {
-    type: record.type,
-    state: record.state,
-    retryable: record.retryable,
-    failedEntryId:
-      typeof record.failedEntryId === "string"
-        ? record.failedEntryId
-        : undefined,
-  };
-}
-
-function runFailureDetails(
-  value: unknown,
-): { stopReason?: unknown; errorMessage?: string } | undefined {
-  const record = recordValue(value);
-  if (!record) return undefined;
-  return {
-    stopReason: record.stopReason,
-    errorMessage:
-      typeof record.errorMessage === "string" ? record.errorMessage : undefined,
-  };
-}
 
 export class RuntimeRegistry {
   readonly projects = new Map<string, ProjectRecord>();
@@ -150,6 +111,9 @@ export class RuntimeRegistry {
   private readonly conversationLifecycle: ConversationLifecycleService;
   private readonly conversationQuery: ConversationQueryService;
   private readonly agentLifecycle: AgentLifecycleService;
+  private readonly humanInput: HumanInputResolutionService;
+  private readonly queuedPrompts: QueuedPromptService;
+  private readonly retryContinuation: RetryContinuationService;
   private readonly pruneConversations: PruneProjectConversationsService;
 
   constructor(
@@ -326,6 +290,31 @@ export class RuntimeRegistry {
       subscriptionUsage: this.subscriptionUsage,
       logger: logger.child({ component: "agent-runner" }),
       promptQueue: this.promptQueueRepository,
+    });
+    this.humanInput = new HumanInputResolutionService({
+      events,
+      tools: this.tools,
+      plans: this.plans,
+      suspensions: this.suspensions,
+      continueAgent: (agentId) => this.agentRunner.continueAgent(agentId),
+      getAgent: (agentId) => this.getAgent(agentId),
+      setAgentStatus: (agent, status) => this.setAgentStatus(agent, status),
+      appendEntry: (input, options) => this.appendEntry(input, options),
+      harnessManager: this.harnessManager,
+    });
+    this.queuedPrompts = new QueuedPromptService({
+      promptQueueRepository: this.promptQueueRepository,
+      conversationRuntime: this.conversationRuntime,
+      events,
+      getAgent: (agentId) => this.getAgent(agentId),
+    });
+    this.retryContinuation = new RetryContinuationService({
+      agents: this.agents,
+      runs: this.runs,
+      getConversationEntries: (conversationId) =>
+        this.getConversationEntries(conversationId),
+      continueFromFailedTurn: (agentId, failedEntryId) =>
+        this.agentRunner.continueFromFailedTurn(agentId, failedEntryId),
     });
     this.pruneConversations = new PruneProjectConversationsService({
       getProject: (projectId) => this.getProject(projectId),
@@ -548,316 +537,27 @@ export class RuntimeRegistry {
   }
 
   async acceptPlanReview(reviewId: string, feedback?: string) {
-    try {
-      const review = await this.plans.acceptPlanReview(reviewId, feedback);
-      await this.resolveSuspensionForToolCall(
-        review.toolCallId,
-        this.plans.planReviewResult(review),
-        {
-          continueAgent: true,
-          followUpUserMessage: acceptedPlanFollowUp(review.planPath),
-          finalSuspensionStatus: "resumed",
-        },
-      );
-      return review;
-    } catch (error) {
-      throw new HttpError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+    return this.humanInput.acceptPlanReview(reviewId, feedback);
   }
 
   async rejectPlanReview(reviewId: string, feedback?: string) {
-    try {
-      const review = await this.plans.rejectPlanReview(reviewId, feedback);
-      await this.resolveSuspensionForToolCall(
-        review.toolCallId,
-        this.plans.planReviewResult(review),
-        {
-          continueAgent: false,
-          finalSuspensionStatus: "cancelled",
-        },
-      );
-      return review;
-    } catch (error) {
-      throw new HttpError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+    return this.humanInput.rejectPlanReview(reviewId, feedback);
   }
 
   async requestPlanChanges(reviewId: string, feedback?: string) {
-    try {
-      const review = await this.plans.requestPlanChanges(reviewId, feedback);
-      await this.resolveSuspensionForToolCall(
-        review.toolCallId,
-        this.plans.planReviewResult(review),
-        { continueAgent: true, finalSuspensionStatus: "resumed" },
-      );
-      return review;
-    } catch (error) {
-      throw new HttpError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+    return this.humanInput.requestPlanChanges(reviewId, feedback);
   }
 
   async discardPlanReview(reviewId: string, feedback?: string) {
-    try {
-      const review = await this.plans.discardPlanReview(reviewId, feedback);
-      await this.resolveSuspensionForToolCall(
-        review.toolCallId,
-        this.plans.planReviewResult(review),
-        { continueAgent: true, finalSuspensionStatus: "resumed" },
-      );
-      return review;
-    } catch (error) {
-      throw new HttpError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+    return this.humanInput.discardPlanReview(reviewId, feedback);
   }
 
   async answerUserQuestion(questionId: string, answer: string) {
-    try {
-      const question = await this.tools.answerUserQuestion(questionId, answer);
-      await this.resolveSuspensionForToolCall(
-        question.toolCallId,
-        this.tools.userQuestionResult(question),
-        { continueAgent: true, finalSuspensionStatus: "resumed" },
-      );
-      return question;
-    } catch (error) {
-      throw new HttpError(
-        404,
-        "USER_QUESTION_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+    return this.humanInput.answerUserQuestion(questionId, answer);
   }
 
   async dismissUserQuestion(questionId: string, reason?: string) {
-    try {
-      const question = await this.tools.dismissUserQuestion(questionId, reason);
-      await this.resolveSuspensionForToolCall(
-        question.toolCallId,
-        this.tools.userQuestionResult(question),
-        { continueAgent: true, finalSuspensionStatus: "resumed" },
-      );
-      return question;
-    } catch (error) {
-      throw new HttpError(
-        404,
-        "USER_QUESTION_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  }
-
-  private async resolveSuspensionForToolCall(
-    toolCallId: string,
-    result: unknown,
-    options: {
-      continueAgent: boolean;
-      followUpUserMessage?: string;
-      finalSuspensionStatus: "resumed" | "cancelled";
-    },
-  ): Promise<void> {
-    const toolCall = this.tools.getToolCall(toolCallId);
-    const suspension =
-      this.suspensions.pendingForToolCall(toolCallId) ??
-      (toolCall.runId
-        ? await this.waitForSuspensionForToolCall(toolCallId, 1500)
-        : undefined);
-    if (!suspension) {
-      if (toolCall.status === "waiting_for_user") {
-        await this.tools.completeToolCall(toolCallId, result);
-      }
-      return;
-    }
-    await this.suspensions.updateSuspension(suspension.id, {
-      status: "resuming",
-    });
-    const completed = await this.tools.completeToolCall(toolCallId, result);
-    const toolResultEntry = await this.appendToolResultForToolCall(
-      completed,
-      false,
-    );
-    await this.publishConversationEntryAppended(toolResultEntry);
-    for (const remaining of suspension.remainingToolCalls) {
-      const skippedEntry = await this.appendSkippedToolResult(
-        suspension.agentId,
-        remaining,
-      );
-      await this.publishConversationEntryAppended(skippedEntry);
-    }
-    if (options.followUpUserMessage) {
-      const instructionEntry = await this.appendUserInstructionForAgent(
-        suspension.agentId,
-        options.followUpUserMessage,
-        { runId: suspension.runId, turnId: suspension.turnId },
-      );
-      await this.publishConversationEntryAppended(instructionEntry);
-    }
-    await this.suspensions.updateSuspension(suspension.id, {
-      status: options.finalSuspensionStatus,
-      resolvedAt: new Date().toISOString(),
-    });
-    if (options.continueAgent) {
-      await this.agentRunner.continueAgent(suspension.agentId);
-      return;
-    }
-    const latest = this.agents.get(suspension.agentId);
-    if (latest) await this.setAgentStatus(latest, "idle");
-  }
-
-  private async waitForSuspensionForToolCall(
-    toolCallId: string,
-    timeoutMs: number,
-  ) {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const suspension = this.suspensions.pendingForToolCall(toolCallId);
-      if (suspension) return suspension;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    return this.suspensions.pendingForToolCall(toolCallId);
-  }
-
-  private async appendUserInstructionForAgent(
-    agentId: string,
-    text: string,
-    metadata: { runId?: string; turnId?: string } = {},
-  ): Promise<ConversationEntry> {
-    const agent = this.getAgent(agentId);
-    const message: AgentMessage = {
-      role: "user",
-      content: text,
-      timestamp: Date.now(),
-    };
-    const appended = await this.harnessManager.appendAgentMessage(
-      agent,
-      message,
-    );
-    return this.appendEntry(
-      {
-        id: appended.id,
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        runId: metadata.runId,
-        turnId: metadata.turnId,
-        role: "user",
-        text,
-        createdAt: appended.timestamp,
-      },
-      { mirrorToHarness: false },
-    );
-  }
-
-  private async appendToolResultForToolCall(
-    toolCall: ToolCallRecord,
-    isError: boolean,
-  ): Promise<ConversationEntry> {
-    const agent = this.getAgent(toolCall.agentId);
-    const result = completedToolResult(toolCall);
-    const providerToolCallId =
-      toolCall.providerToolCallId ?? toolCall.sourceToolCallId ?? toolCall.id;
-    const message: ToolResultMessage = {
-      role: "toolResult",
-      toolCallId: providerToolCallId,
-      toolName: toolCall.toolName,
-      content: result.content,
-      details: result.details,
-      isError,
-      timestamp: Date.now(),
-    };
-    const appended = await this.harnessManager.appendAgentMessage(
-      agent,
-      message,
-    );
-    return this.appendEntry(
-      {
-        id: appended.id,
-        conversationId: toolCall.conversationId,
-        agentId: toolCall.agentId,
-        runId: toolCall.runId,
-        turnId: toolCall.turnId,
-        role: "system",
-        text: agentMessageText(message),
-        details: {
-          toolCallId: message.toolCallId,
-          toolName: message.toolName,
-          isError: message.isError,
-          toolRecordId: toolCall.id,
-          details: message.details,
-        },
-        createdAt: appended.timestamp,
-      },
-      { mirrorToHarness: false },
-    );
-  }
-
-  private async appendSkippedToolResult(
-    agentId: string,
-    remaining: { id: string; name: string },
-  ): Promise<ConversationEntry> {
-    const agent = this.getAgent(agentId);
-    const message: ToolResultMessage = {
-      role: "toolResult",
-      toolCallId: remaining.id,
-      toolName: remaining.name,
-      content: [
-        {
-          type: "text",
-          text: "Tool call was not executed because the agent suspended for user input. Re-issue this tool call if it is still needed after the user response.",
-        },
-      ],
-      details: { skippedForHumanInput: true },
-      isError: true,
-      timestamp: Date.now(),
-    };
-    const appended = await this.harnessManager.appendAgentMessage(
-      agent,
-      message,
-    );
-    return this.appendEntry(
-      {
-        id: appended.id,
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        role: "system",
-        text: agentMessageText(message),
-        details: {
-          toolCallId: message.toolCallId,
-          toolName: message.toolName,
-          isError: message.isError,
-          details: message.details,
-        },
-        createdAt: appended.timestamp,
-      },
-      { mirrorToHarness: false },
-    );
-  }
-
-  private async publishConversationEntryAppended(
-    entry: ConversationEntry,
-  ): Promise<void> {
-    await this.events.publish("conversation.entry.appended", {
-      conversationId: entry.conversationId,
-      agentId: entry.agentId,
-      runId: entry.runId,
-      turnId: entry.turnId,
-      liveMessageId: entry.liveMessageId,
-      entry,
-    });
+    return this.humanInput.dismissUserQuestion(questionId, reason);
   }
 
   listProcesses() {
@@ -935,37 +635,11 @@ export class RuntimeRegistry {
   }
 
   async listQueuedPrompts(agentId: string) {
-    this.getAgent(agentId);
-    return this.promptQueueRepository.pendingForAgent(agentId);
+    return this.queuedPrompts.listQueuedPrompts(agentId);
   }
 
   async cancelQueuedPrompt(agentId: string, queuedPromptId: string) {
-    const agent = this.getAgent(agentId);
-    const cancelled = await this.promptQueueRepository.cancel(
-      queuedPromptId,
-      agentId,
-    );
-    if (!cancelled) {
-      throw new HttpError(
-        404,
-        "QUEUED_PROMPT_NOT_FOUND",
-        "Queued prompt not found.",
-      );
-    }
-    if (cancelled.status === "cancelled") {
-      this.conversationRuntime.removeQueuedPrompt(
-        cancelled.runId,
-        cancelled.id,
-      );
-      await this.events.publish("conversation.prompt.cancelled", {
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId: cancelled.runId,
-        queuedPrompt: cancelled,
-      });
-    }
-    return cancelled;
+    return this.queuedPrompts.cancelQueuedPrompt(agentId, queuedPromptId);
   }
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
@@ -980,55 +654,7 @@ export class RuntimeRegistry {
     agentId: string,
     statusEntryId: string,
   ): Promise<void> {
-    const agent = this.agents.get(agentId);
-    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    if (this.runs.has(agent.id)) {
-      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
-    }
-    const entries = this.getConversationEntries(agent.conversationId);
-    const statusEntry = entries.at(-1);
-    if (!statusEntry || statusEntry.id !== statusEntryId) {
-      throw new HttpError(
-        400,
-        "RETRY_STATUS_NOT_AT_BRANCH_TAIL",
-        "Retry status is no longer at the end of the active conversation branch.",
-      );
-    }
-    const details = runStatusDetails(statusEntry.details);
-    if (
-      statusEntry.role !== "system" ||
-      statusEntry.kind !== "run_status" ||
-      details?.type !== "agent_run_retry_status" ||
-      details.state !== "retry_exhausted" ||
-      details.retryable !== true ||
-      !details.failedEntryId
-    ) {
-      throw new HttpError(
-        400,
-        "INVALID_RETRY_STATUS",
-        "Entry is not a retry-exhausted status entry.",
-      );
-    }
-    const failedEntry = entries.find(
-      (entry) => entry.id === details.failedEntryId,
-    );
-    const failedDetails = runFailureDetails(failedEntry?.details);
-    if (
-      !failedEntry ||
-      failedEntry.role !== "assistant" ||
-      failedDetails?.stopReason !== "error" ||
-      !failedDetails.errorMessage
-    ) {
-      throw new HttpError(
-        400,
-        "INVALID_FAILED_ENTRY",
-        "Retry status does not reference a valid failed assistant entry.",
-      );
-    }
-    await this.agentRunner.continueFromFailedTurn(
-      agent.id,
-      details.failedEntryId,
-    );
+    await this.retryContinuation.continueFromFailedTurn(agentId, statusEntryId);
   }
 
   private async setAgentStatus(
@@ -1078,10 +704,6 @@ export class RuntimeRegistry {
 }
 
 export { errorResponse, HttpError } from "./http/errors.js";
-
-function acceptedPlanFollowUp(planPath: string): string {
-  return `The user accepted the plan at ${planPath}. Proceed with the implementation using that plan as the source of truth.`;
-}
 
 export function providerSecretName(provider: string): string {
   return providerApiKeySecretName(provider);

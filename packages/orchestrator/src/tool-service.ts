@@ -11,12 +11,7 @@ import type {
   UserQuestionStatus,
 } from "@nerve/shared";
 import { createId } from "@nerve/shared";
-import {
-  allToolDescriptors,
-  executeTool,
-  type ToolExecutionOutputUpdate,
-  toolRiskForName,
-} from "@nerve/tools";
+import { allToolDescriptors, toolRiskForName } from "@nerve/tools";
 import type {
   ConversationRuntime,
   ToolAnchor,
@@ -26,15 +21,15 @@ import {
   evaluateToolPolicy,
   TodoStateService,
   ToolCallRepository,
-  todoItemsArg,
-  todosResult,
   UserQuestionRepository,
 } from "./domains/tools/index.js";
+import { InteractionSessionService } from "./domains/tools/interaction-session.service.js";
+import { OrchestrationToolDispatcher } from "./domains/tools/orchestration-tool-dispatcher.js";
+import { ToolExecutorService } from "./domains/tools/tool-executor.service.js";
 import type { EventBus } from "./infrastructure/events/index.js";
 import type { IndexStore } from "./infrastructure/index-store/index.js";
 import type { InitializedStorage } from "./infrastructure/storage/index.js";
 import type { ApplicationLogger } from "./logging.js";
-import { ensurePlanDir } from "./plan-paths.js";
 import type { PlanService } from "./plan-service.js";
 import type { ProcessManager } from "./process-manager.js";
 
@@ -69,18 +64,6 @@ export type ProcessStarter = (
   request: StartProcessRequest,
 ) => Promise<ProcessRecord>;
 
-class ToolExecutionSuspended extends Error {
-  constructor() {
-    super("Tool execution suspended waiting for user input.");
-  }
-}
-
-function isToolExecutionSuspended(
-  error: unknown,
-): error is ToolExecutionSuspended {
-  return error instanceof ToolExecutionSuspended;
-}
-
 export class ToolService {
   readonly toolCalls: Map<string, ToolCallRecord>;
   readonly approvals: Map<string, ApprovalRecord>;
@@ -89,13 +72,12 @@ export class ToolService {
   private readonly approvalRepository: ApprovalRepository;
   private readonly userQuestionRepository: UserQuestionRepository;
   private readonly todoState = new TodoStateService();
+  private readonly interactionSessions: InteractionSessionService;
+  private readonly dispatcher: OrchestrationToolDispatcher;
+  private readonly executor: ToolExecutorService;
   private readonly waiters = new Map<
     string,
     Set<(toolCall: ToolCallRecord) => void>
-  >();
-  private readonly userQuestionWaiters = new Map<
-    string,
-    Set<(question: UserQuestionRecord) => void>
   >();
 
   constructor(
@@ -124,6 +106,38 @@ export class ToolService {
     this.toolCalls = this.toolCallRepository.records;
     this.approvals = this.approvalRepository.records;
     this.userQuestions = this.userQuestionRepository.records;
+    this.interactionSessions = new InteractionSessionService({
+      userQuestionRepository: this.userQuestionRepository,
+      events: this.events,
+      updateToolCall: (id, patch) => this.updateToolCall(id, patch),
+      publishToolCallUpdated: (toolCall) =>
+        this.publishToolCallUpdated(toolCall),
+    });
+    this.dispatcher = new OrchestrationToolDispatcher({
+      storage: this.storage,
+      events: this.events,
+      processes: this.processes,
+      startProcess: this.startProcess,
+      getAgent: this.getAgent,
+      runSubagent: this.runSubagent,
+      getApiKey: this.getApiKey,
+      plans: this.plans,
+      setAgentMode: this.setAgentMode,
+      conversationRuntime: this.conversationRuntime,
+      todoState: this.todoState,
+      interactionSessions: this.interactionSessions,
+      updateToolCall: (id, patch) => this.updateToolCall(id, patch),
+      publishToolCallUpdated: (toolCall) =>
+        this.publishToolCallUpdated(toolCall),
+    });
+    this.executor = new ToolExecutorService({
+      getToolCall: (id) => this.getToolCall(id),
+      updateToolCall: (id, patch) => this.updateToolCall(id, patch),
+      publishToolCallUpdated: (toolCall) =>
+        this.publishToolCallUpdated(toolCall),
+      dispatcher: this.dispatcher,
+      logger: this.logger,
+    });
   }
 
   async hydrate(): Promise<void> {
@@ -277,7 +291,9 @@ export class ToolService {
       return { toolCall: pending, approval };
     }
 
-    return { toolCall: await this.executeAllowedTool(toolCall.id, options) };
+    return {
+      toolCall: await this.executor.executeAllowedTool(toolCall.id, options),
+    };
   }
 
   async requestToolAndWait(
@@ -401,7 +417,7 @@ export class ToolService {
     await this.upsertApproval(granted);
     await this.events.publish("approval.granted", { approval: granted, note });
     const toolCall = this.getToolCall(granted.toolCallId);
-    return this.executeAllowedTool(toolCall.id);
+    return this.executor.executeAllowedTool(toolCall.id);
   }
 
   async denyApproval(
@@ -431,47 +447,18 @@ export class ToolService {
     questionId: string,
     answer: string,
   ): Promise<UserQuestionRecord> {
-    const question = this.getPendingUserQuestion(questionId);
-    const updated: UserQuestionRecord = {
-      ...question,
-      status: "answered",
-      answer,
-      resolvedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await this.upsertUserQuestion(updated);
-    await this.events.publish("user_question.answered", { question: updated });
-    this.notifyUserQuestionWaiters(updated);
-    return updated;
+    return this.interactionSessions.answerUserQuestion(questionId, answer);
   }
 
   async dismissUserQuestion(
     questionId: string,
     reason?: string,
   ): Promise<UserQuestionRecord> {
-    const question = this.getPendingUserQuestion(questionId);
-    const updated: UserQuestionRecord = {
-      ...question,
-      status: "dismissed",
-      dismissedReason: reason ?? "Dismissed by user.",
-      resolvedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await this.upsertUserQuestion(updated);
-    await this.events.publish("user_question.dismissed", { question: updated });
-    this.notifyUserQuestionWaiters(updated);
-    return updated;
+    return this.interactionSessions.dismissUserQuestion(questionId, reason);
   }
 
   userQuestionResult(question: UserQuestionRecord): Record<string, unknown> {
-    return {
-      question: question.question,
-      context: question.context,
-      recommendation: question.recommendation,
-      response: question.answer,
-      dismissed: question.status === "dismissed",
-      dismissedReason: question.dismissedReason,
-    };
+    return this.interactionSessions.userQuestionResult(question);
   }
 
   async completeToolCall(
@@ -493,360 +480,6 @@ export class ToolService {
 
   private getPendingApproval(approvalId: string): ApprovalRecord {
     return this.approvalRepository.getPending(approvalId);
-  }
-
-  private getPendingUserQuestion(questionId: string): UserQuestionRecord {
-    return this.userQuestionRepository.getPending(questionId);
-  }
-
-  private async executeAllowedTool(
-    toolCallId: string,
-    options: ToolRequestOptions = {},
-  ): Promise<ToolCallRecord> {
-    const toolCall = await this.updateToolCall(toolCallId, {
-      status: "running",
-    });
-    await this.publishToolCallUpdated(toolCall);
-    const started = performance.now();
-    await this.logger?.info("Tool execution started", {
-      toolCallId: toolCall.id,
-      agentId: toolCall.agentId,
-      conversationId: toolCall.conversationId,
-      projectId: toolCall.projectId,
-      runId: toolCall.runId,
-      context: { toolName: toolCall.toolName, risk: toolCall.risk },
-    });
-    try {
-      const args = { ...(toolCall.args as Record<string, unknown>) };
-      const result = await this.executeToolCall(toolCall, args, options);
-      const completed = await this.updateToolCall(toolCall.id, {
-        status: "completed",
-        result,
-        error: undefined,
-      });
-      await this.publishToolCallUpdated(completed);
-      await this.logger?.info("Tool execution completed", {
-        toolCallId: completed.id,
-        agentId: completed.agentId,
-        conversationId: completed.conversationId,
-        projectId: completed.projectId,
-        runId: completed.runId,
-        durationMs: Math.round(performance.now() - started),
-        context: { toolName: completed.toolName },
-      });
-      return completed;
-    } catch (error) {
-      if (isToolExecutionSuspended(error)) {
-        await this.logger?.info("Tool execution suspended", {
-          toolCallId: toolCall.id,
-          agentId: toolCall.agentId,
-          conversationId: toolCall.conversationId,
-          projectId: toolCall.projectId,
-          runId: toolCall.runId,
-          durationMs: Math.round(performance.now() - started),
-          context: { toolName: toolCall.toolName },
-        });
-        return this.getToolCall(toolCall.id);
-      }
-      const failed = await this.updateToolCall(toolCall.id, {
-        status: "error",
-        error: error instanceof Error ? error.message : String(error),
-      });
-      await this.publishToolCallUpdated(failed);
-      await this.logger?.error("Tool execution failed", {
-        toolCallId: failed.id,
-        agentId: failed.agentId,
-        conversationId: failed.conversationId,
-        projectId: failed.projectId,
-        runId: failed.runId,
-        durationMs: Math.round(performance.now() - started),
-        context: { toolName: failed.toolName },
-        error,
-      });
-      return failed;
-    }
-  }
-
-  private async executeToolCall(
-    toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
-    options: ToolRequestOptions = {},
-  ): Promise<unknown> {
-    switch (toolCall.toolName) {
-      case "process_start":
-        return {
-          process: await this.startProcess({
-            name: typeof args.name === "string" ? args.name : undefined,
-            workerId: this.getAgent(toolCall.agentId).workerId,
-            projectId: toolCall.projectId,
-            conversationId: toolCall.conversationId,
-            agentId: toolCall.agentId,
-            cwd: toolCall.cwd,
-            command: stringArg(args, "command"),
-            env: stringRecordArg(args.env),
-            readyOnUrl: Boolean(args.readyOnUrl),
-            readyPattern:
-              typeof args.readyPattern === "string"
-                ? args.readyPattern
-                : undefined,
-            readyTimeoutMs:
-              typeof args.readyTimeoutMs === "number"
-                ? args.readyTimeoutMs
-                : undefined,
-          }),
-        };
-      case "process_stop":
-        return {
-          process: await this.processes.stopProcess(
-            processIdArg(args, this.processes, toolCall.projectId),
-            {
-              signal:
-                args.signal === "SIGINT" ||
-                args.signal === "SIGKILL" ||
-                args.signal === "SIGTERM"
-                  ? args.signal
-                  : undefined,
-              timeoutMs:
-                typeof args.timeoutMs === "number" ? args.timeoutMs : undefined,
-            },
-          ),
-        };
-      case "process_restart":
-        return {
-          process: await this.processes.restartProcess(
-            processIdArg(args, this.processes, toolCall.projectId),
-          ),
-        };
-      case "process_list":
-        return {
-          processes: this.processes
-            .listProcesses()
-            .filter((process) => process.projectId === toolCall.projectId),
-        };
-      case "process_logs":
-        return this.processes.queryLogs(
-          processIdArg(args, this.processes, toolCall.projectId),
-          {
-            mode:
-              args.mode === "errors" ||
-              args.mode === "warnings" ||
-              args.mode === "since_cursor" ||
-              args.mode === "first_failure" ||
-              args.mode === "recent"
-                ? args.mode
-                : undefined,
-            sinceSeq:
-              typeof args.sinceSeq === "number" ? args.sinceSeq : undefined,
-            contains:
-              typeof args.contains === "string" ? args.contains : undefined,
-            regex: typeof args.regex === "string" ? args.regex : undefined,
-            contextLines:
-              typeof args.contextLines === "number"
-                ? args.contextLines
-                : undefined,
-            limit: typeof args.limit === "number" ? args.limit : undefined,
-          },
-        );
-      case "subagent_run":
-        return this.runSubagent(this.getAgent(toolCall.agentId), args);
-      case "ask_user":
-        return this.requestUserQuestion(toolCall, args, options);
-      case "todos_set": {
-        const items = todoItemsArg(args);
-        this.todoState.set(toolCall.agentId, items);
-        return todosResult(items);
-      }
-      case "todos_get":
-        return todosResult(this.todoState.get(toolCall.agentId));
-      case "plan_mode_enter":
-        return this.enterPlanMode(toolCall, args);
-      case "plan_mode_present":
-        return this.requestPlanReview(toolCall, args, options);
-      case "plan_mode_force_exit":
-        return this.forceExitPlanMode(toolCall, args);
-      default:
-        if (toolCall.toolName === "bash") delete args.cwd;
-        return executeTool(toolCall.toolName, args, {
-          cwd: toolCall.cwd,
-          signal: options.signal,
-          dataDir: this.storage.paths.home,
-          getApiKey: this.getApiKey,
-          onUpdate: (update) =>
-            this.publishToolExecutionUpdate(toolCall, update, options.runId),
-        });
-    }
-  }
-
-  private publishToolExecutionUpdate(
-    toolCall: ToolCallRecord,
-    update: ToolExecutionOutputUpdate,
-    runId?: string,
-  ): void {
-    if (update.kind !== "output" || update.chunk.length === 0) return;
-    const data = this.conversationRuntime.applyToolOutputDelta({
-      agentId: toolCall.agentId,
-      runId: runId ?? toolCall.runId,
-      turnId: toolCall.turnId,
-      liveMessageId: toolCall.liveMessageId,
-      contentIndex: toolCall.contentIndex,
-      providerToolCallId:
-        toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
-      conversationId: toolCall.conversationId,
-      projectId: toolCall.projectId,
-      toolCallId: toolCall.id,
-      toolName: toolCall.toolName,
-      stream: update.stream,
-      delta: update.chunk,
-    });
-    void this.events.publish("conversation.live.tool_output.delta", data, {
-      durability: "transient",
-    });
-  }
-
-  private async requestPlanReview(
-    toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
-    options: ToolRequestOptions = {},
-  ): Promise<unknown> {
-    const waitingToolCall = await this.updateToolCall(toolCall.id, {
-      status: "waiting_for_user",
-    });
-    await this.publishToolCallUpdated(waitingToolCall);
-    if (!options.durableSuspend) {
-      return this.plans.presentPlan(
-        waitingToolCall,
-        this.getAgent(toolCall.agentId),
-        args,
-        options.signal,
-      );
-    }
-    await this.plans.createPlanReview(
-      waitingToolCall,
-      this.getAgent(toolCall.agentId),
-      args,
-    );
-    throw new ToolExecutionSuspended();
-  }
-
-  private async enterPlanMode(
-    toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
-    const agent = this.getAgent(toolCall.agentId);
-    const reason =
-      optionalStringArg(args.reason) ?? "Agent entered planning mode.";
-    const updated =
-      agent.mode === "planning"
-        ? agent
-        : await this.setAgentMode(agent.id, "planning", reason);
-    await ensurePlanDir(this.storage.paths.home);
-    return {
-      mode: updated.mode,
-      planDir: this.plans.planDir(updated),
-      alreadyPlanning: agent.mode === "planning",
-      contentBlocks: [
-        {
-          type: "text",
-          text: `Plan mode active. Plans are saved to ${this.plans.planDir(updated)}/<feature-name>.md. Use write/edit only inside that directory, then call plan_mode_present with the plan file path when ready.`,
-        },
-      ],
-    };
-  }
-
-  private async forceExitPlanMode(
-    toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
-    const reason =
-      optionalStringArg(args.reason) ?? "Agent exited planning mode.";
-    const updated = await this.plans.forceExitAgentPlanning(
-      toolCall.agentId,
-      reason,
-    );
-    return { mode: updated.mode, reason };
-  }
-
-  private async requestUserQuestion(
-    toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
-    options: ToolRequestOptions = {},
-  ): Promise<unknown> {
-    const now = new Date().toISOString();
-    const question: UserQuestionRecord = {
-      id: createId("question"),
-      toolCallId: toolCall.id,
-      agentId: toolCall.agentId,
-      conversationId: toolCall.conversationId,
-      projectId: toolCall.projectId,
-      question: stringArg(args, "question"),
-      context: optionalStringArg(args.context),
-      recommendation: optionalStringArg(args.recommendation),
-      placeholder: optionalStringArg(args.placeholder),
-      status: "pending",
-      requestedAt: now,
-      updatedAt: now,
-    };
-    await this.upsertUserQuestion(question);
-    const waitingToolCall = await this.updateToolCall(toolCall.id, {
-      status: "waiting_for_user",
-    });
-    await this.publishToolCallUpdated(waitingToolCall);
-    await this.events.publish("user_question.requested", {
-      question,
-      toolCall: waitingToolCall,
-    });
-
-    if (options.durableSuspend) throw new ToolExecutionSuspended();
-    const resolved = await this.waitForUserQuestion(
-      question.id,
-      options.signal,
-    );
-    return this.userQuestionResult(resolved);
-  }
-
-  private waitForUserQuestion(
-    questionId: string,
-    signal?: AbortSignal,
-  ): Promise<UserQuestionRecord> {
-    if (signal?.aborted) {
-      void this.dismissUserQuestion(questionId, "Agent run aborted.").catch(
-        () => undefined,
-      );
-    }
-
-    return new Promise<UserQuestionRecord>((resolve) => {
-      const settle = (question: UserQuestionRecord) => {
-        if (question.status === "pending") return;
-        cleanup();
-        resolve(question);
-      };
-      const onAbort = () => {
-        void this.dismissUserQuestion(questionId, "Agent run aborted.").catch(
-          () => undefined,
-        );
-      };
-      const cleanup = () => {
-        const waiters = this.userQuestionWaiters.get(questionId);
-        waiters?.delete(settle);
-        if (waiters && waiters.size === 0)
-          this.userQuestionWaiters.delete(questionId);
-        signal?.removeEventListener("abort", onAbort);
-      };
-
-      const current = this.userQuestionRepository.get(questionId);
-      if (current && current.status !== "pending") {
-        resolve(current);
-        return;
-      }
-
-      let waiters = this.userQuestionWaiters.get(questionId);
-      if (!waiters) {
-        waiters = new Set();
-        this.userQuestionWaiters.set(questionId, waiters);
-      }
-      waiters.add(settle);
-      signal?.addEventListener("abort", onAbort, { once: true });
-    });
   }
 
   private async updateToolCall(
@@ -892,21 +525,8 @@ export class ToolService {
     for (const waiter of waiters) waiter(toolCall);
   }
 
-  private notifyUserQuestionWaiters(question: UserQuestionRecord): void {
-    const waiters = this.userQuestionWaiters.get(question.id);
-    if (!waiters) return;
-    this.userQuestionWaiters.delete(question.id);
-    for (const waiter of waiters) waiter(question);
-  }
-
   private async upsertApproval(approval: ApprovalRecord): Promise<void> {
     await this.approvalRepository.upsert(approval);
-  }
-
-  private async upsertUserQuestion(
-    question: UserQuestionRecord,
-  ): Promise<void> {
-    await this.userQuestionRepository.upsert(question);
   }
 }
 
@@ -916,53 +536,4 @@ function isTerminalToolCall(toolCall: ToolCallRecord): boolean {
     toolCall.status === "denied" ||
     toolCall.status === "error"
   );
-}
-
-function stringArg(args: Record<string, unknown>, name: string): string {
-  const value = args[name];
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`Tool argument '${name}' must be a non-empty string.`);
-  }
-  return value;
-}
-
-function optionalStringArg(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : undefined;
-}
-
-function stringRecordArg(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const output: Record<string, string> = {};
-  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof raw === "string") output[key] = raw;
-  }
-  return output;
-}
-
-function processIdArg(
-  args: Record<string, unknown>,
-  processes: ProcessManager,
-  projectId: string,
-): string {
-  let processId: string | undefined;
-  if (typeof args.processId === "string" && args.processId.trim()) {
-    processId = args.processId;
-  } else if (typeof args.name === "string" && args.name.trim()) {
-    processId = processes
-      .listProcesses()
-      .find(
-        (process) =>
-          process.name === args.name && process.projectId === projectId,
-      )?.id;
-  }
-  if (!processId) {
-    throw new Error("Tool argument 'processId' or 'name' is required.");
-  }
-  const process = processes.getProcess(processId);
-  if (process.projectId !== projectId) {
-    throw new Error("Process is outside this agent's project scope.");
-  }
-  return process.id;
 }
