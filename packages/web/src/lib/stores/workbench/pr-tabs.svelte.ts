@@ -23,7 +23,7 @@ function addPrTab(id: string) {
 
 async function loadPrView(id: string) {
   const view = workbenchState.prViews[id];
-  if (!view) return;
+  if (!view || view.loading) return;
   view.loading = true;
   view.error = undefined;
   try {

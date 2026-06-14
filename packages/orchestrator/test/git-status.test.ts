@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { summarizeChecks } from "../src/domains/git/git-service.js";
+import {
+  parseGithubChecks,
+  summarizeChecks,
+} from "../src/domains/git/git-service.js";
 import {
   parsePorcelainV2,
   parseShortstat,
@@ -122,5 +125,24 @@ describe("summarizeChecks", () => {
     const summary = summarizeChecks([]);
     assert.equal(summary.status, "none");
     assert.equal(summary.total, 0);
+  });
+
+  it("parses pending check JSON captured from gh stdout", () => {
+    const summary = parseGithubChecks(
+      JSON.stringify([
+        { name: "build", state: "PENDING", link: "https://example.test" },
+      ]),
+    );
+    assert.equal(summary.status, "pending");
+    assert.equal(summary.pending, 1);
+    assert.equal(summary.runs[0].url, "https://example.test");
+  });
+
+  it("parses failing check JSON captured from gh stdout", () => {
+    const summary = parseGithubChecks(
+      JSON.stringify([{ name: "test", state: "FAILURE" }]),
+    );
+    assert.equal(summary.status, "failing");
+    assert.equal(summary.failed, 1);
   });
 });

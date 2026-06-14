@@ -4,10 +4,12 @@
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
   import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import X from "@lucide/svelte/icons/x";
   import type { GithubChecksSummary } from "$lib/api";
+  import { isGithubChecksPending } from "$lib/features/git/checks";
   import Markdown from "$lib/Markdown.svelte";
   import type { PrViewState } from "$lib/stores/workbench/state.svelte";
   import { Badge, type BadgeTone } from "$lib/components/ui/badge";
@@ -21,9 +23,12 @@
     onOpenExternal?: () => void;
   };
 
+  const PR_CHECKS_POLL_MS = 10_000;
+
   let { view, onRefresh, onCheckout, onOpenExternal }: Props = $props();
 
   const detail = $derived(view?.detail);
+  const checksPending = $derived(isGithubChecksPending(detail?.checks));
 
   function checksTone(checks: GithubChecksSummary): BadgeTone {
     switch (checks.status) {
@@ -84,6 +89,21 @@
       onCheckout?.();
     }
   }
+
+  $effect(() => {
+    const viewId = view?.id;
+    const pending = checksPending;
+    if (!viewId || !pending || !onRefresh) return;
+
+    const refreshPendingPr = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      onRefresh();
+    };
+
+    refreshPendingPr();
+    const intervalId = window.setInterval(refreshPendingPr, PR_CHECKS_POLL_MS);
+    return () => window.clearInterval(intervalId);
+  });
 </script>
 
 <section class="pr-pane">
@@ -120,6 +140,8 @@
               <Check size={11} />
             {:else if detail.checks.status === "failing"}
               <X size={11} />
+            {:else if detail.checks.status === "pending"}
+              <LoaderCircle class="spin" size={11} />
             {/if}
             {detail.checks.status === "none"
               ? "no checks"

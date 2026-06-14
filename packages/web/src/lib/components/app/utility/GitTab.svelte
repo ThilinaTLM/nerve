@@ -46,6 +46,7 @@
   import * as Popover from "$lib/components/ui/popover";
   import { ToggleGroup, ToggleGroupItem } from "$lib/components/ui/toggle-group";
   import { cn } from "$lib/utils.js";
+  import { hasPendingPrChecks } from "$lib/features/git/checks";
   import { invalidateGit } from "../../../stores/workbench/git-context.svelte";
   import { openPrPane } from "../../../stores/workbench/pr-tabs.svelte";
   import { workbenchState } from "../../../stores/workbench/state.svelte";
@@ -77,6 +78,7 @@
     loadingOverview: boolean;
     loadingPrs: boolean;
     loadingBranches: boolean;
+    prsRequestInFlight: boolean;
     fetching: boolean;
     syncing: boolean;
     switchingBranch?: string;
@@ -97,6 +99,7 @@
       loadingOverview: false,
       loadingPrs: false,
       loadingBranches: false,
+      prsRequestInFlight: false,
       fetching: false,
       syncing: false,
       switchingBranch: undefined,
@@ -165,7 +168,7 @@
     overview?.files.filter((file) => file.untracked || file.worktree !== " ") ?? [],
   );
   const currentBranchName = $derived(overview?.repo.currentBranch ?? null);
-  const hasPendingChecks = $derived(prs.some((pr) => pr.checks.status === "pending"));
+  const hasPendingChecks = $derived(hasPendingPrChecks(prs));
   const filteredBranches = $derived(
     branches.filter((branch) =>
       branch.name.toLowerCase().includes(branchFilter.trim().toLowerCase()),
@@ -413,13 +416,19 @@
   async function loadPrs(repo: string, silent = false) {
     if (!activeProject) return;
     const state = repoState(repo);
+    if (state.prsRequestInFlight) return;
+    const projectId = activeProject.id;
+    state.prsRequestInFlight = true;
     if (!silent) state.loadingPrs = true;
     try {
-      state.prs = (await listGithubPrs(activeProject.id, repo)).prs;
+      const result = await listGithubPrs(projectId, repo);
+      if (activeProject?.id !== projectId) return;
+      state.prs = result.prs;
     } catch (error) {
       if (!silent) notify.error(`Could not list PRs: ${errorMessage(error)}`);
     } finally {
       if (!silent) state.loadingPrs = false;
+      state.prsRequestInFlight = false;
     }
   }
 
@@ -617,12 +626,20 @@
   });
 
   $effect(() => {
-    if (!activeProject || repos.length === 0 || !github?.authenticated || !hasPendingChecks) return;
+    const projectId = activeProject?.id;
     const repo = selectedRepo;
-    const intervalId = window.setInterval(() => {
+    const repoCount = repos.length;
+    const authenticated = github?.authenticated;
+    const pendingChecks = hasPendingChecks;
+    if (!projectId || repoCount === 0 || !repo || !authenticated || !pendingChecks) return;
+
+    const refreshPendingPrs = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       void loadPrs(repo, true);
-    }, GITHUB_CHECKS_POLL_MS);
+    };
+
+    refreshPendingPrs();
+    const intervalId = window.setInterval(refreshPendingPrs, GITHUB_CHECKS_POLL_MS);
     return () => window.clearInterval(intervalId);
   });
 

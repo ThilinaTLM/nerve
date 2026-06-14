@@ -35,6 +35,7 @@ export class GitCommandError extends Error {
     readonly command: string,
     readonly code: number | null,
     readonly stderr: string,
+    readonly stdout = "",
   ) {
     super(stderr.trim() || `${command} failed`);
     this.name = "GitCommandError";
@@ -67,7 +68,7 @@ export class GitService {
       return { stdout, stderr };
     } catch (error) {
       const err = error as NodeJS.ErrnoException & {
-        stdout?: string;
+        stdout?: string | Buffer;
         stderr?: string;
         code?: number | string;
       };
@@ -79,6 +80,7 @@ export class GitService {
         `${bin} ${args[0] ?? ""}`,
         code,
         err.stderr ?? err.message,
+        err.stdout?.toString() ?? "",
       );
     }
   }
@@ -807,21 +809,16 @@ export class GitService {
         "--json",
         "name,state,link",
       ]);
-      const raw = JSON.parse(stdout || "[]") as Array<{
-        name: string;
-        state: string;
-        link?: string;
-      }>;
-      return summarizeChecks(raw);
-    } catch {
-      return {
-        status: "none",
-        total: 0,
-        passed: 0,
-        failed: 0,
-        pending: 0,
-        runs: [],
-      };
+      return parseGithubChecks(stdout);
+    } catch (error) {
+      if (error instanceof GitCommandError && error.stdout.trim().length > 0) {
+        try {
+          return parseGithubChecks(error.stdout);
+        } catch {
+          // Fall through to the no-checks fallback below.
+        }
+      }
+      return noChecksSummary();
     }
   }
 
@@ -956,8 +953,26 @@ export class GitService {
   }
 }
 
+type GithubCheckRunRaw = { name: string; state: string; link?: string };
+
+function noChecksSummary(): GithubChecksSummary {
+  return {
+    status: "none",
+    total: 0,
+    passed: 0,
+    failed: 0,
+    pending: 0,
+    runs: [],
+  };
+}
+
+export function parseGithubChecks(stdout: string): GithubChecksSummary {
+  const raw = JSON.parse(stdout || "[]") as GithubCheckRunRaw[];
+  return summarizeChecks(raw);
+}
+
 export function summarizeChecks(
-  runs: Array<{ name: string; state: string; link?: string }>,
+  runs: GithubCheckRunRaw[],
 ): GithubChecksSummary {
   let passed = 0;
   let failed = 0;
