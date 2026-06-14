@@ -10,6 +10,7 @@ export type TruncationResult = {
   omittedLines: number;
   omittedBytes: number;
   direction: TruncationDirection;
+  partialLine?: boolean;
 };
 
 type TruncateOptions = {
@@ -29,17 +30,19 @@ export function truncateHead(
   let omittedLines = Math.max(0, lines.length - selected.length);
   let omittedBytes = 0;
 
-  while (byteLength(text) > maxBytes && selected.length > 0) {
+  while (byteLength(text) > maxBytes && selected.length > 1) {
     const removed = selected.pop() ?? "";
     omittedLines += 1;
     omittedBytes += byteLength(removed) + 1;
     text = selected.join("\n");
   }
 
+  let partialLine = false;
   if (byteLength(text) > maxBytes) {
     const truncated = truncateUtf8Bytes(text, maxBytes);
     omittedBytes += byteLength(text) - byteLength(truncated);
     text = truncated;
+    partialLine = true;
   }
 
   return {
@@ -48,6 +51,7 @@ export function truncateHead(
     omittedLines,
     omittedBytes,
     direction: "head",
+    partialLine: partialLine || undefined,
   };
 }
 
@@ -116,9 +120,15 @@ export function formatSize(bytes: number): string {
 }
 
 function truncateUtf8Bytes(input: string, maxBytes: number): string {
+  if (maxBytes <= 0) return "";
   const bytes = Buffer.from(input, "utf8");
   if (bytes.length <= maxBytes) return input;
-  return bytes.subarray(0, maxBytes).toString("utf8");
+
+  let end = maxBytes;
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) {
+    end -= 1;
+  }
+  return bytes.subarray(0, end).toString("utf8");
 }
 
 function byteLength(input: string): number {

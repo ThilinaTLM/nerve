@@ -2,8 +2,10 @@ import { readFile } from "node:fs/promises";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import {
+  DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
+  type TruncationResult,
   truncateHead,
 } from "../common/truncate.js";
 import {
@@ -80,30 +82,49 @@ export async function executeRead(
     const start = Math.max(0, offset - 1);
     const selected = lines.slice(start, start + limit).join("\n");
     const remaining = Math.max(0, lines.length - (start + limit));
-    const output =
-      remaining > 0
-        ? `${selected}\n\n[...${remaining} more lines. Continue with offset ${offset + limit}.]`
-        : selected;
+    const truncated = truncateHead(selected, {
+      maxLines: limit,
+      maxBytes: DEFAULT_MAX_BYTES,
+    });
+    const messages: string[] = [];
+    if (truncated.truncated) {
+      messages.push(formatSelectedRangeTruncation(truncated));
+    }
+    if (remaining > 0) {
+      messages.push(
+        truncated.truncated
+          ? `[...${remaining} more lines remain after the requested range. Narrow this read range before continuing past it.]`
+          : `[...${remaining} more lines. Continue with offset ${offset + limit}.]`,
+      );
+    }
+    const output = [truncated.text, ...messages]
+      .filter((part) => part.length > 0)
+      .join("\n\n");
+    const wasTruncated = truncated.truncated || remaining > 0;
     return {
       path,
       content: output,
       contentBlocks: [{ type: "text", text: output }],
-      details:
-        remaining > 0
-          ? {
-              truncation: {
-                omittedLines: remaining,
-                nextOffset: offset + limit,
-              },
-            }
-          : undefined,
+      details: wasTruncated
+        ? {
+            truncation: {
+              ...truncated,
+              truncated: true,
+              omittedLines: truncated.omittedLines + remaining,
+              nextOffset:
+                !truncated.truncated && remaining > 0
+                  ? offset + limit
+                  : undefined,
+            },
+          }
+        : undefined,
     };
   }
 
   const truncated = truncateHead(content);
   let output = truncated.text;
   if (truncated.truncated) {
-    output += `\n\n[...output truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(50 * 1024)}. Continue reading with offset ${countLines(truncated.text) + 1}.]`;
+    output += `\n\n[...output truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.${formatContinuationGuidance(truncated)}]`;
   }
   return {
     path,
@@ -116,4 +137,32 @@ export async function executeRead(
 function countLines(text: string): number {
   if (text.length === 0) return 0;
   return text.split("\n").length;
+}
+
+function formatSelectedRangeTruncation(truncation: TruncationResult): string {
+  const omissions = formatOmissions(truncation);
+  const guidance = truncation.partialLine
+    ? " The output ended within an overlong line; line offsets cannot continue within that line."
+    : "";
+  return `[...selected output truncated to ${formatSize(DEFAULT_MAX_BYTES)}${omissions}.${guidance}]`;
+}
+
+function formatContinuationGuidance(truncation: TruncationResult): string {
+  if (truncation.partialLine) {
+    return " The output ended within an overlong line; line offsets cannot continue within that line.";
+  }
+  return ` Continue reading with offset ${countLines(truncation.text) + 1}.`;
+}
+
+function formatOmissions(truncation: TruncationResult): string {
+  const parts: string[] = [];
+  if (truncation.omittedLines > 0) {
+    parts.push(
+      `${truncation.omittedLines} omitted line${truncation.omittedLines === 1 ? "" : "s"}`,
+    );
+  }
+  if (truncation.omittedBytes > 0) {
+    parts.push(`${formatSize(truncation.omittedBytes)} omitted`);
+  }
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }

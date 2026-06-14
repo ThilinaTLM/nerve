@@ -170,7 +170,7 @@ export const filesystemToolDefinitions = [
     name: "read",
     label: "read",
     description:
-      "Read file contents. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, supports offset and limit to continue through large files.",
+      "Read file contents. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, supports offset and limit to continue through large files. Text output is capped to a safe byte budget, so overlong lines may be truncated.",
     promptSnippet: "Read file contents, including image files as attachments",
     promptGuidelines: ["Use read to examine files instead of cat or sed."],
     parameters: readParameters,

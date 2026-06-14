@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { DEFAULT_MAX_BYTES } from "../src/execution/common/truncate.js";
 import {
   executeLs,
   executeRead,
@@ -80,6 +81,48 @@ describe("filesystem executors", () => {
     assert.match(result.content ?? "", /^line 1\nline 2/);
     assert.match(result.content ?? "", /output truncated/);
     assert.equal(result.contentBlocks?.[0]?.type, "text");
+  });
+
+  it("caps default reads of huge single-line text files", async () => {
+    const project = await createTempProject();
+    await project.write("minified.json", "a".repeat(DEFAULT_MAX_BYTES * 3));
+
+    const result = await executeRead(
+      { path: "minified.json" },
+      { cwd: project.root },
+    );
+
+    assert.match(result.content ?? "", /^aaaa/);
+    assert.match(result.content ?? "", /output truncated/);
+    assert.match(result.content ?? "", /overlong line/);
+    assert.ok(
+      Buffer.byteLength(result.content ?? "", "utf8") <
+        DEFAULT_MAX_BYTES + 1000,
+    );
+    assert.equal(result.contentBlocks?.[0]?.type, "text");
+  });
+
+  it("caps explicit line-window reads of huge single-line text files", async () => {
+    const project = await createTempProject();
+    await project.write("bundle.css", "b".repeat(DEFAULT_MAX_BYTES * 3));
+
+    const result = await executeRead(
+      { path: "bundle.css", offset: 1, limit: 1 },
+      { cwd: project.root },
+    );
+
+    assert.match(result.content ?? "", /^bbbb/);
+    assert.match(result.content ?? "", /selected output truncated/);
+    assert.match(result.content ?? "", /overlong line/);
+    assert.ok(
+      Buffer.byteLength(result.content ?? "", "utf8") <
+        DEFAULT_MAX_BYTES + 1000,
+    );
+    assert.equal(
+      (result.details as { truncation?: { nextOffset?: number } } | undefined)
+        ?.truncation?.nextOffset,
+      undefined,
+    );
   });
 
   it("rejects invalid and missing read paths with actionable errors", async () => {
