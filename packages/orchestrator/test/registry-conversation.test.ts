@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -106,6 +106,59 @@ const secondEntryId = "entry_01HN0000000000000000000001";
 const createdAt = "2026-01-01T00:00:00.000Z";
 
 describe("RuntimeRegistry conversation behavior", () => {
+  it("expands legacy auto-truncated conversation titles on hydrate", async () => {
+    const storage = await initializeStorage(
+      await tempHome("nerve-registry-title-repair-"),
+    );
+    const conversationDir = join(
+      storage.paths.home,
+      "conversations",
+      oldConversationId,
+    );
+    await mkdir(conversationDir, { recursive: true });
+    const text =
+      "Build a focused onboarding screen that explains projects, conversations, agents, and local tool permissions without overwhelming first-time users.";
+    const conversation: ConversationRecord = {
+      id: oldConversationId,
+      projectId: "proj_01HN0000000000000000000000",
+      title: "Build a focused onboarding screen that explains projects…",
+      mode: "coding",
+      permissionLevel: "autonomous",
+      activeEntryId: firstEntryId,
+      createdAt,
+      updatedAt: createdAt,
+    };
+    const entry: ConversationEntry = {
+      id: firstEntryId,
+      conversationId: oldConversationId,
+      role: "user",
+      kind: "message",
+      text,
+      createdAt,
+    };
+    await writeFile(
+      join(conversationDir, "conversation.json"),
+      `${JSON.stringify(conversation)}\n`,
+    );
+    await writeFile(
+      join(conversationDir, "entries.jsonl"),
+      `${JSON.stringify(entry)}\n`,
+    );
+
+    const state = createOrchestratorState(storage, "127.0.0.1", 0);
+    await state.registry.hydrate();
+
+    const repaired = state.registry.getConversation(oldConversationId);
+    assert.equal(repaired.title, text);
+    assert.equal(repaired.updatedAt, createdAt);
+
+    const persisted = JSON.parse(
+      await readFile(join(conversationDir, "conversation.json"), "utf8"),
+    ) as ConversationRecord;
+    assert.equal(persisted.title, text);
+    assert.equal(persisted.updatedAt, createdAt);
+  });
+
   it("creates projects, conversations, and agents through public APIs", async () => {
     const state = await createState();
     try {

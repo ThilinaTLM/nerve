@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deriveConversationTitle } from "../src/domains/conversations/title.js";
+import {
+  deriveConversationTitle,
+  expandTruncatedConversationTitle,
+} from "../src/domains/conversations/title.js";
 
 describe("deriveConversationTitle", () => {
   it("uses the first readable sentence", () => {
@@ -41,7 +44,7 @@ describe("deriveConversationTitle", () => {
           "What do you think? The preparing tool call make it hard to identify which tool call it is.",
         ].join("\n"),
       ),
-      "Show similar UI for write and edit tool calls and show the number…",
+      "Show similar UI for write and edit tool calls and show the number of lines generated at realtime until the tool call being completed generated.",
     );
   });
 
@@ -66,12 +69,32 @@ describe("deriveConversationTitle", () => {
     );
   });
 
-  it("truncates long readable prompts cleanly", () => {
+  it("keeps the full constructed title sentence for long readable prompts", () => {
     assert.equal(
       deriveConversationTitle(
         "Build a focused onboarding screen that explains projects, conversations, agents, and local tool permissions without overwhelming first-time users.",
       ),
-      "Build a focused onboarding screen that explains projects…",
+      "Build a focused onboarding screen that explains projects, conversations, agents, and local tool permissions without overwhelming first-time users.",
+    );
+  });
+
+  it("expands legacy auto-truncated titles from the first user message", () => {
+    assert.equal(
+      expandTruncatedConversationTitle(
+        "Build a focused onboarding screen that explains projects…",
+        "Build a focused onboarding screen that explains projects, conversations, agents, and local tool permissions without overwhelming first-time users.",
+      ),
+      "Build a focused onboarding screen that explains projects, conversations, agents, and local tool permissions without overwhelming first-time users.",
+    );
+  });
+
+  it("does not expand ellipsis titles that do not match the derived title stem", () => {
+    assert.equal(
+      expandTruncatedConversationTitle(
+        "Custom imported title…",
+        "Build a focused onboarding screen that explains projects, conversations, agents, and local tool permissions without overwhelming first-time users.",
+      ),
+      undefined,
     );
   });
 

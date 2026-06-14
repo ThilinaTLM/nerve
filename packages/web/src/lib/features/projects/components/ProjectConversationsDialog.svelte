@@ -89,7 +89,7 @@
         {:else}
           <VirtualList
             items={rows}
-            itemHeight={32}
+            itemHeight={48}
             keyFn={(row) => row.conversation.id}
             class="conversations-virtual-list"
           >
@@ -100,6 +100,7 @@
                 isActive={item.conversation.id === selectedConversationId}
                 menuItems={buildMenu?.(item.conversation) ?? []}
                 onOpenConversation={openAndClose}
+                titleMode="expanded"
               />
             {/snippet}
           </VirtualList>
@@ -111,6 +112,7 @@
 
 <style>
   :global(.project-conversations-dialog) {
+    width: min(880px, calc(100vw - 32px));
     height: min(640px, calc(100vh - 96px));
     max-height: calc(100vh - 96px);
   }

@@ -2,7 +2,6 @@ const DEFAULT_CONVERSATION_TITLE = "New Conversation";
 const IMAGE_REVIEW_TITLE = "Image Review";
 const FILE_REVIEW_TITLE = "File Review";
 const LINK_REVIEW_TITLE = "Link Review";
-const MAX_TITLE_LENGTH = 68;
 const MIN_READABLE_CHARS = 3;
 
 const COMMON_FILE_EXTENSIONS = [
@@ -203,7 +202,7 @@ function scoreCandidate(candidate: string, index: number): number {
   if (words < 3) return Number.NEGATIVE_INFINITY;
 
   let score = Math.min(words, 12) * 2;
-  if (words > 16) score -= (words - 16) * 1.5;
+  if (words > 16) score -= (words - 16) * 0.5;
 
   if (
     /\b(?:improve|fix|update|change|edit|review|redesign|test|build|add|remove|show|generate|write|create|make|debug|investigate|explain|compare|refactor|implement)\b/iu.test(
@@ -245,14 +244,6 @@ function firstSentence(text: string): string {
   return (match?.[1] ?? text).trim();
 }
 
-function truncateTitle(title: string): string {
-  if (title.length <= MAX_TITLE_LENGTH) return title;
-  const prefix = title.slice(0, MAX_TITLE_LENGTH - 1);
-  const lastSpace = prefix.lastIndexOf(" ");
-  const cut = lastSpace >= 36 ? prefix.slice(0, lastSpace) : prefix;
-  return `${cut.replace(/[\s,;:.-]+$/u, "")}…`;
-}
-
 function finalClean(title: string): string {
   const cleaned = title
     .replace(/^[\s:;,.!?\-–—]+/u, "")
@@ -287,7 +278,7 @@ function fallbackTitle(text: string): string {
 
 export function deriveConversationTitle(text: string): string {
   const candidates = candidateFragments(text)
-    .map((candidate) => finalClean(truncateTitle(firstSentence(candidate))))
+    .map((candidate) => finalClean(firstSentence(candidate)))
     .filter((candidate) => readableCharCount(candidate) >= MIN_READABLE_CHARS);
 
   let best = "";
@@ -301,4 +292,23 @@ export function deriveConversationTitle(text: string): string {
   });
 
   return best || fallbackTitle(text);
+}
+
+export function expandTruncatedConversationTitle(
+  existingTitle: string,
+  firstUserText: string,
+): string | undefined {
+  const existing = existingTitle.trim();
+  if (!/(?:…|\.\.\.)$/u.test(existing)) return undefined;
+
+  const expanded = deriveConversationTitle(firstUserText);
+  if (expanded.length <= existing.length) return undefined;
+
+  const stem = existing
+    .replace(/\s*(?:…|\.\.\.)$/u, "")
+    .replace(/[\s,;:.-]+$/u, "")
+    .trim();
+  if (readableCharCount(stem) < MIN_READABLE_CHARS) return undefined;
+
+  return expanded.startsWith(stem) ? expanded : undefined;
 }

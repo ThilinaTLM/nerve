@@ -4,6 +4,7 @@ import {
   type ConversationTree,
   type CreateConversationRequest,
   createId,
+  expandTruncatedConversationTitle,
 } from "@nerve/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
@@ -150,13 +151,22 @@ export class ConversationLifecycleService {
   }
 
   async loadConversations(): Promise<void> {
-    for (const conversation of await this.conversationRepository.loadAll()) {
+    for (const storedConversation of await this.conversationRepository.loadAll()) {
+      const entries = await this.entryRepository.loadForConversation(
+        storedConversation.id,
+      );
+      const expandedTitle = expandTruncatedConversationTitle(
+        storedConversation.title,
+        entries.find((entry) => entry.role === "user")?.text ?? "",
+      );
+      const conversation = expandedTitle
+        ? { ...storedConversation, title: expandedTitle }
+        : storedConversation;
+
       this.state.conversations.set(conversation.id, conversation);
       this.index.upsertConversation(conversation);
-      this.state.entries.set(
-        conversation.id,
-        await this.entryRepository.loadForConversation(conversation.id),
-      );
+      this.state.entries.set(conversation.id, entries);
+      if (expandedTitle) await this.writeConversation(conversation);
     }
   }
 
