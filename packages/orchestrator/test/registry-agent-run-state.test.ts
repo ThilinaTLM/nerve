@@ -323,6 +323,41 @@ describe("RuntimeRegistry agent run state", () => {
     }
   });
 
+  it("waits for running child agents before aborting the parent run", async () => {
+    const { state, project, conversation, agent } =
+      await createProjectConversationAgent();
+    const events: string[] = [];
+    try {
+      const child = await state.registry.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        parentAgentId: agent.id,
+      });
+      state.registry.runs.set(child.id, {
+        runId: "run_01HN0000000000000000000001",
+        abort: async () => {
+          events.push("child:start");
+          await Promise.resolve();
+          events.push("child:done");
+        },
+        messages: [],
+      });
+      state.registry.runs.set(agent.id, {
+        runId: "run_01HN0000000000000000000002",
+        abort: () => {
+          events.push("parent");
+        },
+        messages: [],
+      });
+
+      await state.registry.abortAgent(agent.id);
+
+      assert.deepEqual(events, ["child:start", "child:done", "parent"]);
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("enforces child-agent budget and authority constraints", async () => {
     const { state, project, conversation } =
       await createProjectConversationAgent();

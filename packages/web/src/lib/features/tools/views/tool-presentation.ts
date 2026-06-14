@@ -1,7 +1,11 @@
 import type { ToolCallRecord } from "$lib/api";
 import type { StatusTone } from "$lib/components/ui/status-dot";
 import { processTone } from "./process";
-import { COLLAPSED_LINES, type ToolView } from "./tool-result-view";
+import {
+  aggregateExploreTasks,
+  COLLAPSED_LINES,
+  type ToolView,
+} from "./tool-result-view";
 
 export type MetaTone = "default" | "success" | "warning" | "error" | "info";
 
@@ -91,6 +95,12 @@ function statusDot(
     view.kind === "bash" &&
     view.exitCode !== undefined &&
     view.exitCode !== 0
+  ) {
+    return { tone: "danger", pulse: false };
+  }
+  if (
+    view.kind === "explore" &&
+    aggregateExploreTasks(view).summary.failed > 0
   ) {
     return { tone: "danger", pulse: false };
   }
@@ -293,19 +303,41 @@ export function toolPresentation(
       };
 
     case "explore": {
+      const { summary } = aggregateExploreTasks(view);
       const count = view.reports.length;
       const fileCount = view.reports.filter(
         (report) => report.reportPath,
       ).length;
       const meta: MetaItem[] = [];
-      if (count > 0) meta.push({ text: plural(count, "report", "s") });
-      if (fileCount > 0) meta.push({ text: plural(fileCount, "file", "s") });
+      if (summary.done) {
+        if (count > 0)
+          meta.push({ text: plural(count, "report", "s"), tone: "success" });
+        if (fileCount > 0) meta.push({ text: plural(fileCount, "file", "s") });
+      } else if (summary.total > 0) {
+        meta.push({
+          text: `${summary.completed}/${summary.total} agents`,
+          tone: "info",
+        });
+      }
+      if (summary.failed > 0)
+        meta.push({ text: `${summary.failed} failed`, tone: "error" });
+      const models = [
+        ...new Set(view.reports.map((report) => report.model).filter(Boolean)),
+      ];
+      if (models.length === 1 && models[0]) {
+        meta.push({ text: basename(models[0]) });
+      }
+      const turns = view.reports.reduce(
+        (sum, report) => sum + (report.usage?.turns ?? 0),
+        0,
+      );
+      if (turns > 0) meta.push({ text: plural(turns, "turn") });
       return {
         ...base,
         primaryArg: view.task
           ? { text: view.task }
-          : count > 1
-            ? { text: `${count} explore tasks` }
+          : summary.total > 1
+            ? { text: `${summary.total} explore agents` }
             : undefined,
         meta,
       };

@@ -74,9 +74,28 @@ export type ExploreRunResult = {
     agentId: string;
     task: string;
     label?: string;
+    status?: "completed" | "failed" | "aborted";
     report: string;
-    reportPath: string;
+    reportPath?: string;
     summaryPreview?: string;
+    usage?: {
+      input: number;
+      output: number;
+      cacheRead: number;
+      cacheWrite: number;
+      totalTokens: number;
+      cost: number;
+      turns: number;
+    };
+    model?: string;
+    stopReason?: string;
+    errorMessage?: string;
+    steps?: Array<{
+      type: "tool_call" | "tool_result" | "assistant";
+      toolName?: string;
+      message: string;
+      timestamp?: string;
+    }>;
   }>;
   contentBlocks?: Array<{ type: "text"; text: string }>;
 };
@@ -84,7 +103,10 @@ export type ExploreRunResult = {
 export type ExploreRunner = (
   parent: AgentRecord,
   args: Record<string, unknown>,
-  options?: { onProgress?: (update: ExploreProgressUpdate) => void },
+  options?: {
+    onProgress?: (update: ExploreProgressUpdate) => void;
+    signal?: AbortSignal;
+  },
 ) => Promise<ExploreRunResult>;
 
 export type ProcessStarter = (

@@ -11,8 +11,14 @@ import {
   coreToolDefinitions,
   coreToolDescriptors,
 } from "@nerve/tools";
-import { exploreTasksArg } from "../src/domains/agents/run/subagent-runner.js";
-import { activeToolNamesForAgent } from "../src/domains/tools/agent-tool-adapter.js";
+import {
+  exploreRunPlanArg,
+  exploreSystemPrompt,
+} from "../src/domains/agents/run/subagent-runner.js";
+import {
+  activeToolNamesForAgent,
+  activeToolNamesForExploreAgent,
+} from "../src/domains/tools/agent-tool-adapter.js";
 import { ToolService } from "../src/domains/tools/tool-service.js";
 import { storagePaths } from "../src/infrastructure/storage/index.js";
 
@@ -161,28 +167,166 @@ describe("agent tool definitions", () => {
     );
   });
 
-  it("normalizes explore task arguments", () => {
-    assert.deepEqual(exploreTasksArg({ task: "Map auth", label: "auth" }), [
-      { task: "Map auth", label: "auth", context: undefined },
-    ]);
-    assert.deepEqual(
-      exploreTasksArg({
-        tasks: [
-          { task: "Map auth" },
-          { task: "Map tools", context: "Focus on dispatch" },
-        ],
-      }),
-      [
-        { task: "Map auth", label: undefined, context: undefined },
-        { task: "Map tools", label: undefined, context: "Focus on dispatch" },
-      ],
+  it("defines explore as a parallel read-only delegation tool with required context", () => {
+    const explore = allToolDefinitions.find((tool) => tool.name === "explore");
+    assert.ok(explore);
+    assert.equal(explore.executionMode, "parallel");
+    assert.ok(explore.description.includes("context"));
+    assert.ok(explore.description.includes("split_rationale"));
+    assert.ok(
+      explore.promptGuidelines?.some((line) =>
+        line.includes("quick grep/find/read"),
+      ),
     );
-    assert.throws(() => exploreTasksArg({}), /exactly one/);
+  });
+
+  it("uses a restricted tool allowlist for explore child agents", () => {
+    assert.deepEqual(activeToolNamesForExploreAgent(), [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "process_list",
+      "process_logs",
+    ]);
+  });
+
+  it("normalizes single explore run plans", () => {
+    assert.deepEqual(
+      exploreRunPlanArg({
+        task: "Map how OAuth credentials are stored and retrieved.",
+        context:
+          "I checked auth routes and storage initialization. Need the detailed credential repository flow and encryption boundary.",
+        label: "auth storage",
+      }),
+      {
+        mode: "single",
+        context:
+          "I checked auth routes and storage initialization. Need the detailed credential repository flow and encryption boundary.",
+        tasks: [
+          {
+            task: "Map how OAuth credentials are stored and retrieved.",
+            label: "auth storage",
+          },
+        ],
+      },
+    );
+  });
+
+  it("normalizes parallel explore run plans", () => {
+    const plan = exploreRunPlanArg({
+      context:
+        "I checked agent-runner and subagent-runner at a high level. Need independent mapping of abort and child lifecycle details.",
+      split_rationale:
+        "The abort route and child lifecycle are independent areas, and two agents are sufficient for this investigation.",
+      tasks: [
+        {
+          task: "Map parent abort routing and AgentRunner abort behavior.",
+          label: "parent abort",
+        },
+        {
+          task: "Map explore child creation, run registration, and cleanup.",
+          label: "child lifecycle",
+        },
+      ],
+    });
+    assert.equal(plan.mode, "parallel");
+    assert.equal(plan.tasks.length, 2);
+    assert.equal(plan.splitRationale?.includes("independent"), true);
+  });
+
+  it("rejects invalid explore run plans with helpful errors", () => {
+    const context =
+      "I checked likely files with grep/read and need focused follow-up mapping.";
+    const split_rationale =
+      "The two investigations are independent enough to split, and two agents match the two ownership areas.";
+    assert.throws(() => exploreRunPlanArg({}), /exactly one/);
     assert.throws(
       () =>
-        exploreTasksArg({ task: "Map auth", tasks: [{ task: "Map tools" }] }),
+        exploreRunPlanArg({
+          task: "Map authentication flow details.",
+          tasks: [{ task: "Map tool execution flow details." }],
+          context,
+        }),
       /exactly one/,
     );
+    assert.throws(
+      () => exploreRunPlanArg({ task: "Map authentication flow details." }),
+      /context/,
+    );
+    assert.throws(
+      () =>
+        exploreRunPlanArg({
+          task: "Map authentication flow details.",
+          context: "too short",
+        }),
+      /context/,
+    );
+    assert.throws(
+      () => exploreRunPlanArg({ task: "Map auth", context }),
+      /too vague/,
+    );
+    assert.throws(
+      () =>
+        exploreRunPlanArg({
+          tasks: [{ task: "Map authentication flow details." }],
+          context,
+          split_rationale,
+        }),
+      /at least 2/,
+    );
+    assert.throws(
+      () =>
+        exploreRunPlanArg({
+          tasks: Array.from({ length: 6 }, (_, index) => ({
+            task: `Map subsystem ${index} integration details thoroughly.`,
+          })),
+          context,
+          split_rationale,
+        }),
+      /at most 5/,
+    );
+    assert.throws(
+      () =>
+        exploreRunPlanArg({
+          tasks: [
+            { task: "Map parent abort routing and AgentRunner behavior." },
+            { task: "Map child lifecycle cleanup and run registration." },
+          ],
+          context,
+        }),
+      /split_rationale/,
+    );
+    assert.throws(
+      () =>
+        exploreRunPlanArg({
+          tasks: [
+            { task: "Map parent abort routing and AgentRunner behavior." },
+            { task: "Map child lifecycle cleanup and run registration." },
+          ],
+          context,
+          split_rationale: "too short",
+        }),
+      /split_rationale/,
+    );
+    assert.throws(
+      () =>
+        exploreRunPlanArg({
+          tasks: [
+            { task: "Map parent abort routing and AgentRunner behavior." },
+            { task: "map   parent abort routing and agEntrunner behavior." },
+          ],
+          context,
+          split_rationale,
+        }),
+      /distinct/,
+    );
+  });
+
+  it("documents explore child-agent prompt constraints", () => {
+    const prompt = exploreSystemPrompt();
+    assert.ok(prompt.includes("Start with grep/find/ls"));
+    assert.ok(prompt.includes("Do not ask the user questions"));
   });
 
   it("defines ask_user as a sequential free-text interaction tool", () => {

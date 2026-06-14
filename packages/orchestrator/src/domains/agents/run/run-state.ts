@@ -3,7 +3,7 @@ import type { AgentRecord, PromptRequest } from "@nerve/shared";
 
 export interface AgentRunState {
   runId: string;
-  abort: () => void;
+  abort: () => void | Promise<void>;
   messages: Message[];
   steer?: (
     text: string,

@@ -123,13 +123,38 @@ export const processLogsResultSchema = processLogQueryResponseSchema;
 export type ProcessLogsResult = z.infer<typeof processLogsResultSchema>;
 
 /** Result of explore. */
+export const exploreUsageStatsSchema = z.object({
+  input: z.number().nonnegative().default(0),
+  output: z.number().nonnegative().default(0),
+  cacheRead: z.number().nonnegative().default(0),
+  cacheWrite: z.number().nonnegative().default(0),
+  totalTokens: z.number().nonnegative().default(0),
+  cost: z.number().nonnegative().default(0),
+  turns: z.number().int().nonnegative().default(0),
+});
+export type ExploreUsageStatsPayload = z.infer<typeof exploreUsageStatsSchema>;
+
+export const exploreStepSchema = z.object({
+  type: z.enum(["tool_call", "tool_result", "assistant"]),
+  toolName: z.string().optional(),
+  message: z.string(),
+  timestamp: z.string().datetime().optional(),
+});
+export type ExploreStepPayload = z.infer<typeof exploreStepSchema>;
+
 export const exploreReportSchema = z.object({
   agentId: z.string().startsWith("agent_"),
   task: z.string(),
   label: z.string().optional(),
+  status: z.enum(["completed", "failed", "aborted"]).default("completed"),
   report: z.string(),
-  reportPath: z.string().min(1),
+  reportPath: z.string().min(1).optional(),
   summaryPreview: z.string().optional(),
+  usage: exploreUsageStatsSchema.optional(),
+  model: z.string().optional(),
+  stopReason: z.string().optional(),
+  errorMessage: z.string().optional(),
+  steps: z.array(exploreStepSchema).optional(),
 });
 export type ExploreReportPayload = z.infer<typeof exploreReportSchema>;
 

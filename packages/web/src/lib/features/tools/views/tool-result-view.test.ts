@@ -1,8 +1,23 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { exploreResultSchema } from "@nerve/shared";
 import type { ToolCallRecord } from "$lib/api";
 import { toolPresentation } from "./tool-presentation";
-import { parseToolView } from "./tool-result-view";
+import { aggregateExploreTasks, parseToolView } from "./tool-result-view";
+
+function exploreUpdate(
+  phase: string,
+  message: string,
+  extra: Record<string, unknown> = {},
+): string {
+  return JSON.stringify({
+    type: "explore_progress",
+    timestamp: "2026-01-01T00:00:00.000Z",
+    phase,
+    message,
+    ...extra,
+  });
+}
 
 const CWD = "/tmp/project";
 
@@ -503,9 +518,29 @@ describe("parseToolView", () => {
             {
               agentId: "agent_02H00000000000000000000000",
               task: "Investigate the bug",
+              status: "completed",
               report: "Found the off-by-one.",
               reportPath: "/home/me/.nerve/explore-reports/report.md",
               summaryPreview: "Found the off-by-one.",
+              usage: {
+                input: 10,
+                output: 20,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 30,
+                cost: 0.001,
+                turns: 1,
+              },
+              model: "anthropic/claude-sonnet-4",
+              stopReason: "stop",
+              steps: [
+                {
+                  type: "tool_call",
+                  toolName: "grep",
+                  message: "grep auth",
+                  timestamp: "2026-01-01T00:00:00.000Z",
+                },
+              ],
             },
           ],
         },
@@ -520,6 +555,49 @@ describe("parseToolView", () => {
       "/home/me/.nerve/explore-reports/report.md",
     );
     assert.equal(view.reports[0]?.summaryPreview, "Found the off-by-one.");
+    assert.equal(view.reports[0]?.status, "completed");
+    assert.equal(view.reports[0]?.usage?.input, 10);
+    assert.equal(view.reports[0]?.model, "anthropic/claude-sonnet-4");
+    assert.equal(view.reports[0]?.stopReason, "stop");
+    assert.equal(view.reports[0]?.steps?.[0]?.toolName, "grep");
+  });
+
+  it("accepts enriched explore result payloads", () => {
+    const parsed = exploreResultSchema.safeParse({
+      reports: [
+        {
+          agentId: "agent_02H00000000000000000000000",
+          task: "Map failure behavior.",
+          status: "failed",
+          report: "Explore failed.",
+          reportPath: "/home/me/.nerve/explore-reports/failure.md",
+          summaryPreview: "Explore failed.",
+          usage: {
+            input: 10,
+            output: 5,
+            cacheRead: 1,
+            cacheWrite: 0,
+            totalTokens: 16,
+            cost: 0.01,
+            turns: 2,
+          },
+          model: "provider/model",
+          stopReason: "error",
+          errorMessage: "boom",
+          steps: [
+            {
+              type: "assistant",
+              message: "Assistant response started.",
+              timestamp: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        },
+      ],
+    });
+    assert.equal(parsed.success, true);
+    if (!parsed.success) return;
+    assert.equal(parsed.data.reports[0]?.status, "failed");
+    assert.equal(parsed.data.reports[0]?.errorMessage, "boom");
   });
 
   it("parses explore live progress JSONL with plain-text fallback", () => {
@@ -548,6 +626,120 @@ describe("parseToolView", () => {
     assert.equal(view.liveUpdates[0]?.message, "grep completed");
     assert.equal(view.liveUpdates[0]?.label, "api");
     assert.equal(view.liveLog, "legacy line");
+  });
+
+  it("aggregates explore tasks mid-flight with denoised actions", () => {
+    const view = parseToolView(
+      toolCall(
+        "explore",
+        { task: "Investigate" },
+        { reports: [] },
+        {
+          status: "running",
+        },
+      ),
+      {
+        chunks: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        text: [
+          exploreUpdate("queued", "Starting 2 explore agents.", {
+            taskCount: 2,
+          }),
+          exploreUpdate("started", "Explore 1/2 started", {
+            taskIndex: 0,
+            taskCount: 2,
+            label: "api",
+          }),
+          exploreUpdate("tool_call", "read server.ts", {
+            taskIndex: 0,
+            taskCount: 2,
+            label: "api",
+          }),
+          exploreUpdate("assistant", "Assistant response started.", {
+            taskIndex: 0,
+            taskCount: 2,
+            label: "api",
+          }),
+          exploreUpdate("started", "Explore 2/2 started", {
+            taskIndex: 1,
+            taskCount: 2,
+            label: "web",
+          }),
+        ].join("\n"),
+      },
+    );
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    const { tasks, summary } = aggregateExploreTasks(view);
+    assert.equal(summary.total, 2);
+    assert.equal(summary.completed, 0);
+    assert.equal(summary.done, false);
+    assert.equal(tasks.length, 2);
+    // Task 0: prefers the concrete tool action over the "assistant" noise line.
+    assert.equal(tasks[0]?.status, "running");
+    assert.equal(tasks[0]?.currentAction, "read server.ts");
+    assert.equal(tasks[0]?.currentActionMono, true);
+    assert.equal(tasks[0]?.actionCount, 1);
+    assert.equal(tasks[0]?.label, "api");
+    // Task 1: started but no tool action yet.
+    assert.equal(tasks[1]?.status, "running");
+    assert.equal(tasks[1]?.currentAction, "Starting…");
+  });
+
+  it("aggregates explore tasks with mixed completed and failed results", () => {
+    const view = parseToolView(
+      toolCall(
+        "explore",
+        {},
+        {
+          reports: [
+            {
+              agentId: "agent_02H00000000000000000000000",
+              task: "Task A",
+              label: "alpha",
+              status: "completed",
+              report: "done",
+              reportPath: "/home/me/.nerve/explore-reports/a.md",
+              summaryPreview: "Summary A",
+            },
+            {
+              agentId: "agent_03H00000000000000000000000",
+              task: "Task B",
+              label: "beta",
+              status: "failed",
+              report: "failed",
+              reportPath: "/home/me/.nerve/explore-reports/b.md",
+              summaryPreview: "Failure B",
+              errorMessage: "boom",
+            },
+          ],
+        },
+      ),
+      {
+        chunks: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        text: "",
+      },
+    );
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    const { tasks, summary } = aggregateExploreTasks(view);
+    assert.equal(summary.total, 2);
+    assert.equal(summary.completed, 1);
+    assert.equal(summary.failed, 1);
+    assert.equal(summary.done, true);
+    assert.equal(tasks[0]?.status, "completed");
+    assert.equal(
+      tasks[0]?.report?.reportPath,
+      "/home/me/.nerve/explore-reports/a.md",
+    );
+    assert.equal(tasks[0]?.label, "alpha");
+    assert.equal(tasks[1]?.status, "failed");
+    assert.equal(tasks[1]?.error, "boom");
+    assert.equal(
+      tasks[1]?.report?.reportPath,
+      "/home/me/.nerve/explore-reports/b.md",
+    );
   });
 
   it("parses plan_mode_enter", () => {

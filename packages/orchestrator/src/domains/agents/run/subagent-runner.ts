@@ -12,6 +12,8 @@ import type {
   AgentRecord,
   ConversationRecord,
   CreateAgentRequest,
+  ExploreStepPayload,
+  ExploreUsageStatsPayload,
   Mode,
   ModelSelection,
   PermissionLevel,
@@ -30,7 +32,7 @@ import { loadHarnessResources } from "../../../resource-loader.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import type { HarnessManager } from "../../conversations/harness-manager.js";
 import {
-  activeToolNamesForAgent,
+  activeToolNamesForExploreAgent,
   createAgentToolsForAgent,
 } from "../../tools/agent-tool-adapter.js";
 import type {
@@ -61,27 +63,56 @@ export interface SubagentRunSpec {
   taskIndex?: number;
   taskCount?: number;
   onProgress?: (update: ExploreProgressUpdate) => void;
+  signal?: AbortSignal;
 }
+
+export type ExploreStatus = "completed" | "failed" | "aborted";
 
 export interface SubagentRunOutput {
   agent: AgentRecord;
+  status: ExploreStatus;
   report: string;
+  usage?: ExploreUsageStatsPayload;
+  model?: string;
+  stopReason?: string;
+  errorMessage?: string;
+  steps?: ExploreStepPayload[];
 }
+
+export type ExploreMode = "single" | "parallel";
 
 export interface ExploreTask {
   task: string;
-  context?: string;
   label?: string;
+}
+
+export interface ExploreRunPlan {
+  mode: ExploreMode;
+  context: string;
+  splitRationale?: string;
+  tasks: ExploreTask[];
 }
 
 export interface ExploreReport {
   agentId: string;
   task: string;
   label?: string;
+  status: ExploreStatus;
   report: string;
-  reportPath: string;
+  reportPath?: string;
   summaryPreview?: string;
+  usage?: ExploreUsageStatsPayload;
+  model?: string;
+  stopReason?: string;
+  errorMessage?: string;
+  steps?: ExploreStepPayload[];
 }
+
+const EXPLORE_CONTEXT_MIN_LENGTH = 40;
+const EXPLORE_TASK_MIN_LENGTH = 15;
+const EXPLORE_SPLIT_RATIONALE_MIN_LENGTH = 40;
+const EXPLORE_MAX_PARALLEL_TASKS = 5;
+const EXPLORE_MAX_RECORDED_STEPS = 50;
 
 export interface SubagentRunnerDeps {
   storage: InitializedStorage;
@@ -111,20 +142,29 @@ export class SubagentRunner {
   async runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
-    options: { onProgress?: (update: ExploreProgressUpdate) => void } = {},
+    options: {
+      onProgress?: (update: ExploreProgressUpdate) => void;
+      signal?: AbortSignal;
+    } = {},
   ): Promise<{
     reports: ExploreReport[];
     contentBlocks: [{ type: "text"; text: string }];
   }> {
-    const tasks = exploreTasksArg(args);
+    const plan = exploreRunPlanArg(args);
+    const tasks = plan.tasks;
     const batchId = createId("run");
+    throwIfAborted(options.signal);
     publishExploreProgress(options.onProgress, {
       taskCount: tasks.length,
       phase: "queued",
-      message: `Starting ${tasks.length} explore ${tasks.length === 1 ? "agent" : "agents"}.`,
+      message:
+        plan.mode === "single"
+          ? "Starting 1 explore agent."
+          : `Starting ${tasks.length} parallel explore agents.`,
     });
-    const reports = await Promise.all(
+    const settledReports = await Promise.allSettled(
       tasks.map(async (task, index) => {
+        throwIfAborted(options.signal);
         publishExploreProgress(options.onProgress, {
           taskIndex: index,
           taskCount: tasks.length,
@@ -140,7 +180,7 @@ export class SubagentRunner {
           workerId: parent.workerId,
           mode: "coding",
           permissionLevel: "read_only",
-          prompt: exploreUserPrompt(task),
+          prompt: exploreUserPrompt(task, plan),
           systemPrompt: exploreSystemPrompt(),
           historyMode: "fresh",
           model: this.deps.storage.settings.exploreAgent.model,
@@ -151,11 +191,13 @@ export class SubagentRunner {
           taskIndex: index,
           taskCount: tasks.length,
           onProgress: options.onProgress,
+          signal: options.signal,
         });
         const reportPath = await this.writeExploreReport({
           batchId,
           task,
           index,
+          plan,
           output,
         });
         publishExploreProgress(options.onProgress, {
@@ -163,19 +205,37 @@ export class SubagentRunner {
           taskIndex: index,
           taskCount: tasks.length,
           label: task.label,
-          phase: "completed",
-          message: `Report written: ${reportPath}`,
+          phase: output.status === "completed" ? "completed" : "failed",
+          message:
+            output.status === "completed"
+              ? `Report written: ${reportPath}`
+              : `Failure report written: ${reportPath}`,
         });
         return {
           agentId: output.agent.id,
           task: task.task,
           label: task.label,
+          status: output.status,
           report: output.report,
           reportPath,
           summaryPreview: summaryPreview(output.report),
+          usage: output.usage,
+          model: output.model,
+          stopReason: output.stopReason,
+          errorMessage: output.errorMessage,
+          steps: output.steps,
         };
       }),
     );
+    const reports: ExploreReport[] = [];
+    for (const result of settledReports) {
+      if (result.status === "rejected") {
+        if (options.signal?.aborted) throw abortError();
+        throw result.reason;
+      }
+      reports.push(result.value);
+    }
+    if (options.signal?.aborted) throw abortError();
 
     const summary = formatExploreReports(reports);
     await this.deps.events.publish("agent.explore_completed", {
@@ -222,7 +282,19 @@ export class SubagentRunner {
     });
 
     const runId = createId("run");
+    const steps: ExploreStepPayload[] = [];
+    let usage = emptyExploreUsage();
+    let modelId: string | undefined;
+    let stopReason: string | undefined;
+    let errorMessage: string | undefined;
+    let abortRequested = false;
+    let removeSignalListener: (() => void) | undefined;
+    let resolveStopped: () => void = () => undefined;
+    const stopped = new Promise<void>((resolve) => {
+      resolveStopped = resolve;
+    });
     try {
+      throwIfAborted(spec.signal);
       await this.deps.setAgentStatus(child, "running");
       const storage = await this.openChildStorage(child, spec.historyMode);
       const conversation = new Conversation(storage);
@@ -230,7 +302,7 @@ export class SubagentRunner {
       this.deps.subscriptionUsage.touchProvider(model.provider);
       const env = new NodeExecutionEnv({ cwd: child.projectDir });
       const resources = await loadHarnessResources(child.projectDir);
-      const activeToolNames = activeToolNamesForAgent(child);
+      const activeToolNames = activeToolNamesForExploreAgent();
       const harness = new AgentHarness({
         env,
         conversation,
@@ -238,6 +310,7 @@ export class SubagentRunner {
         tools: createAgentToolsForAgent(child, this.deps.tools, {
           runId,
           hidden: true,
+          allowedToolNames: activeToolNames,
         }),
         activeToolNames,
         model,
@@ -251,10 +324,78 @@ export class SubagentRunner {
       });
       harness.subscribe((event) => {
         const update = exploreProgressFromHarnessEvent(event, child, spec);
-        if (update) publishExploreProgress(spec.onProgress, update);
+        if (update) {
+          publishExploreProgress(spec.onProgress, update);
+          if (
+            update.phase === "tool_call" ||
+            update.phase === "tool_result" ||
+            update.phase === "assistant"
+          ) {
+            pushExploreStep(steps, {
+              type: update.phase === "assistant" ? "assistant" : update.phase,
+              toolName: toolNameFromHarnessEvent(event),
+              message: update.message,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+        const record = asRecord(event);
+        if (
+          record?.type === "message_end" &&
+          messageRole(record.message) === "assistant"
+        ) {
+          const metadata = exploreAssistantMetadata(
+            record.message as AssistantMessage,
+          );
+          if (metadata.usage) usage = addExploreUsage(usage, metadata.usage);
+          if (metadata.model) modelId = metadata.model;
+          if (metadata.stopReason) stopReason = metadata.stopReason;
+          if (metadata.errorMessage) errorMessage = metadata.errorMessage;
+        }
       });
+      let abortPromise: Promise<unknown> | undefined;
+      const abortRun = async () => {
+        abortRequested = true;
+        abortPromise ??= harness.abort();
+        await abortPromise;
+      };
+      const onSignalAbort = () => {
+        void abortRun();
+      };
+      if (spec.signal) {
+        spec.signal.addEventListener("abort", onSignalAbort, { once: true });
+        removeSignalListener = () =>
+          spec.signal?.removeEventListener("abort", onSignalAbort);
+      }
+      this.deps.state.runs.set(child.id, {
+        runId,
+        abort: async () => {
+          try {
+            await abortRun();
+          } finally {
+            await stopped;
+          }
+        },
+        messages: [],
+      });
+      throwIfAborted(spec.signal);
       const assistant = await harness.prompt(spec.prompt);
+      if (usage.turns === 0) {
+        const metadata = exploreAssistantMetadata(assistant);
+        if (metadata.usage) usage = addExploreUsage(usage, metadata.usage);
+        if (metadata.model) modelId = metadata.model;
+        if (metadata.stopReason) stopReason = metadata.stopReason;
+        if (metadata.errorMessage) errorMessage = metadata.errorMessage;
+      }
+      if (abortRequested || assistant.stopReason === "aborted") {
+        throw abortError();
+      }
       const report = assistantMessageText(assistant).trim();
+      if (assistant.stopReason === "error") {
+        throw new Error(
+          errorMessage ?? report ?? "Explore agent stopped with an error.",
+        );
+      }
       if (!report) throw new Error("Explore agent completed without a report.");
       await this.deps.setAgentStatus(child, "idle");
       await this.deps.events.publish("agent.subagent_completed", {
@@ -271,17 +412,33 @@ export class SubagentRunner {
         phase: "assistant",
         message: "Final report received.",
       });
-      return { agent: child, report };
+      return {
+        agent: child,
+        status: "completed",
+        report,
+        usage: usage.turns > 0 ? usage : undefined,
+        model: modelId,
+        stopReason,
+        errorMessage,
+        steps,
+      };
     } catch (error) {
+      const aborted = abortRequested || spec.signal?.aborted === true;
       const latest = this.deps.state.agents.get(child.id) ?? child;
-      await this.deps.setAgentStatus(latest, "error").catch(() => undefined);
+      await this.deps
+        .setAgentStatus(latest, aborted ? "aborted" : "error")
+        .catch(() => undefined);
       publishExploreProgress(spec.onProgress, {
         agentId: child.id,
         taskIndex: spec.taskIndex,
         taskCount: spec.taskCount,
         label: spec.label,
         phase: "failed",
-        message: error instanceof Error ? error.message : String(error),
+        message: aborted
+          ? "Agent run aborted."
+          : error instanceof Error
+            ? error.message
+            : String(error),
       });
       await this.deps.logger.warn("Subagent run failed", {
         agentId: child.id,
@@ -290,22 +447,42 @@ export class SubagentRunner {
         runId,
         context: {
           kind: spec.kind,
+          aborted,
           error: error instanceof Error ? error.message : String(error),
         },
       });
-      throw error;
+      if (aborted) throw abortError();
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        agent: child,
+        status: "failed",
+        report: formatExploreFailureReport(message),
+        usage: usage.turns > 0 ? usage : undefined,
+        model: modelId,
+        stopReason,
+        errorMessage: errorMessage ?? message,
+        steps,
+      };
     } finally {
-      await this.deps.updateConversation({
-        ...this.deps.getConversation(spec.parent.conversationId),
-        activeAgentId: spec.parent.id,
-        updatedAt: new Date().toISOString(),
-      });
+      removeSignalListener?.();
+      const currentRun = this.deps.state.runs.get(child.id);
+      if (currentRun?.runId === runId) this.deps.state.runs.delete(child.id);
+      try {
+        await this.deps.updateConversation({
+          ...this.deps.getConversation(spec.parent.conversationId),
+          activeAgentId: spec.parent.id,
+          updatedAt: new Date().toISOString(),
+        });
+      } finally {
+        resolveStopped();
+      }
     }
   }
 
   private async writeExploreReport(input: {
     batchId: string;
     task: ExploreTask;
+    plan: ExploreRunPlan;
     index: number;
     output: SubagentRunOutput;
   }): Promise<string> {
@@ -324,7 +501,7 @@ export class SubagentRunner {
     const reportPath = join(dir, fileName);
     await writeFile(
       reportPath,
-      formatExploreReportFile(input.task, input.output),
+      formatExploreReportFile(input.task, input.plan, input.output),
       {
         encoding: "utf8",
         mode: 0o600,
@@ -363,36 +540,73 @@ export class SubagentRunner {
   }
 }
 
-export function exploreTasksArg(args: Record<string, unknown>): ExploreTask[] {
+export function exploreRunPlanArg(
+  args: Record<string, unknown>,
+): ExploreRunPlan {
   const hasTask = typeof args.task === "string" && args.task.trim().length > 0;
   const hasTasks = Array.isArray(args.tasks);
   if (hasTask === hasTasks) {
     throw new Error("Explore requires exactly one of 'task' or 'tasks'.");
   }
-  if (hasTask) {
-    return [
-      {
-        task: String(args.task).trim(),
-        context: optionalString(args.context),
-        label: optionalString(args.label),
-      },
-    ];
+
+  const context = optionalString(args.context);
+  if (!context || context.length < EXPLORE_CONTEXT_MIN_LENGTH) {
+    throw new Error(
+      "Explore requires context summarizing the parent agent's initial grep/find/read work, what it found, and what remains unclear.",
+    );
   }
+
+  if (hasTask) {
+    const task = String(args.task).trim();
+    validateExploreTask(task, "Task");
+    return {
+      mode: "single",
+      context,
+      tasks: [{ task, label: optionalString(args.label) }],
+    };
+  }
+
   const tasks = args.tasks as unknown[];
-  if (tasks.length === 0) throw new Error("Explore tasks cannot be empty.");
-  return tasks.map((item, index) => {
+  if (tasks.length < 2) {
+    throw new Error(
+      "Parallel explore requires at least 2 tasks. Use 'task' for single-agent exploration.",
+    );
+  }
+  if (tasks.length > EXPLORE_MAX_PARALLEL_TASKS) {
+    throw new Error(
+      `Explore supports at most ${EXPLORE_MAX_PARALLEL_TASKS} parallel tasks.`,
+    );
+  }
+
+  const splitRationale = optionalString(args.split_rationale);
+  if (
+    !splitRationale ||
+    splitRationale.length < EXPLORE_SPLIT_RATIONALE_MIN_LENGTH
+  ) {
+    throw new Error(
+      "Parallel explore requires split_rationale explaining why the tasks are independent and why this is the right number of sub-agents.",
+    );
+  }
+
+  const normalized = tasks.map((item, index) => {
     if (!item || typeof item !== "object") {
       throw new Error(`Explore task ${index + 1} must be an object.`);
     }
     const record = item as Record<string, unknown>;
     const task = optionalString(record.task);
     if (!task) throw new Error(`Explore task ${index + 1} requires 'task'.`);
-    return {
-      task,
-      context: optionalString(record.context),
-      label: optionalString(record.label),
-    };
+    validateExploreTask(task, `Task ${index + 1}`);
+    return { task, label: optionalString(record.label) };
   });
+
+  const dedupeKeys = normalized.map((task) =>
+    normalizeTaskForDedupe(task.task),
+  );
+  if (new Set(dedupeKeys).size !== dedupeKeys.length) {
+    throw new Error("Parallel explore tasks must be distinct.");
+  }
+
+  return { mode: "parallel", context, splitRationale, tasks: normalized };
 }
 
 function optionalString(value: unknown): string | undefined {
@@ -401,16 +615,41 @@ function optionalString(value: unknown): string | undefined {
     : undefined;
 }
 
-function exploreUserPrompt(task: ExploreTask): string {
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw abortError();
+}
+
+function abortError(): Error {
+  const error = new Error("Agent run aborted.");
+  error.name = "AbortError";
+  return error;
+}
+
+function validateExploreTask(task: string, label: string): void {
+  if (task.trim().length < EXPLORE_TASK_MIN_LENGTH) {
+    throw new Error(
+      `${label} is too vague. Make it specific enough for a child agent to investigate independently.`,
+    );
+  }
+}
+
+function normalizeTaskForDedupe(task: string): string {
+  return task.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function exploreUserPrompt(task: ExploreTask, plan: ExploreRunPlan): string {
   return [
     task.label ? `Exploration label: ${task.label}` : undefined,
+    "Parent agent context:",
+    plan.context,
+    plan.splitRationale
+      ? ["", "Parallel split rationale:", plan.splitRationale].join("\n")
+      : undefined,
+    "",
     "Exploration task:",
     task.task,
-    task.context
-      ? ["", "Additional context:", task.context].join("\n")
-      : undefined,
   ]
-    .filter(Boolean)
+    .filter((line) => line !== undefined)
     .join("\n");
 }
 
@@ -486,12 +725,6 @@ function summarizeToolCall(
       return `inspect process logs${stringValue(args.mode) ? ` (${stringValue(args.mode)})` : ""}`;
     case "process_list":
       return "list managed processes";
-    case "ask_user":
-      return "asked for clarification";
-    case "todos_set":
-      return "updated local explore checklist";
-    case "todos_get":
-      return "read local explore checklist";
     default:
       return `ran ${toolName}`;
   }
@@ -539,6 +772,82 @@ function stringValue(value: unknown): string | undefined {
     : undefined;
 }
 
+function numberValue(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function emptyExploreUsage(): ExploreUsageStatsPayload {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: 0,
+    turns: 0,
+  };
+}
+
+function addExploreUsage(
+  a: ExploreUsageStatsPayload,
+  b: ExploreUsageStatsPayload,
+): ExploreUsageStatsPayload {
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    cacheRead: a.cacheRead + b.cacheRead,
+    cacheWrite: a.cacheWrite + b.cacheWrite,
+    totalTokens: Math.max(a.totalTokens, b.totalTokens),
+    cost: a.cost + b.cost,
+    turns: a.turns + b.turns,
+  };
+}
+
+function pushExploreStep(
+  steps: ExploreStepPayload[],
+  step: ExploreStepPayload,
+): void {
+  steps.push(step);
+  if (steps.length > EXPLORE_MAX_RECORDED_STEPS) steps.shift();
+}
+
+function toolNameFromHarnessEvent(event: unknown): string | undefined {
+  return stringValue(asRecord(event)?.toolName);
+}
+
+function exploreAssistantMetadata(message: AssistantMessage): {
+  usage?: ExploreUsageStatsPayload;
+  model?: string;
+  stopReason?: string;
+  errorMessage?: string;
+} {
+  const usageRecord = asRecord((message as { usage?: unknown }).usage);
+  const cost = asRecord(usageRecord?.cost);
+  return {
+    usage: usageRecord
+      ? {
+          input: numberValue(usageRecord.input),
+          output: numberValue(usageRecord.output),
+          cacheRead: numberValue(usageRecord.cacheRead),
+          cacheWrite: numberValue(usageRecord.cacheWrite),
+          totalTokens:
+            numberValue(usageRecord.totalTokens) ||
+            numberValue(usageRecord.input) +
+              numberValue(usageRecord.output) +
+              numberValue(usageRecord.cacheRead) +
+              numberValue(usageRecord.cacheWrite),
+          cost: numberValue(cost?.total),
+          turns: 1,
+        }
+      : undefined,
+    model: stringValue((message as { model?: unknown }).model),
+    stopReason: stringValue((message as { stopReason?: unknown }).stopReason),
+    errorMessage: stringValue(
+      (message as { errorMessage?: unknown }).errorMessage,
+    ),
+  };
+}
+
 function quoteValue(value: unknown): string {
   const text = stringValue(value);
   return text ? JSON.stringify(truncateInline(text, 80)) : "pattern";
@@ -580,6 +889,7 @@ function safeReportFileName(
 
 function formatExploreReportFile(
   task: ExploreTask,
+  plan: ExploreRunPlan,
   output: SubagentRunOutput,
 ): string {
   return [
@@ -587,8 +897,17 @@ function formatExploreReportFile(
     "",
     `- Child agent: \`${output.agent.id}\``,
     `- Created: ${new Date().toISOString()}`,
+    `- Mode: ${plan.mode}`,
+    `- Status: ${output.status}`,
+    output.model ? `- Model: ${output.model}` : undefined,
+    output.stopReason ? `- Stop reason: ${output.stopReason}` : undefined,
+    output.errorMessage ? `- Error: ${output.errorMessage}` : undefined,
+    output.usage ? `- Usage: ${formatExploreUsage(output.usage)}` : undefined,
     `- Task: ${task.task}`,
-    task.context ? `- Context: ${task.context}` : undefined,
+    `- Context: ${plan.context}`,
+    plan.splitRationale
+      ? `- Split rationale: ${plan.splitRationale}`
+      : undefined,
     "",
     "---",
     "",
@@ -597,6 +916,40 @@ function formatExploreReportFile(
   ]
     .filter((line) => line !== undefined)
     .join("\n");
+}
+
+function formatExploreUsage(usage: ExploreUsageStatsPayload): string {
+  const parts: string[] = [];
+  if (usage.turns)
+    parts.push(`${usage.turns} turn${usage.turns === 1 ? "" : "s"}`);
+  if (usage.input) parts.push(`input ${usage.input}`);
+  if (usage.output) parts.push(`output ${usage.output}`);
+  if (usage.cacheRead) parts.push(`cache read ${usage.cacheRead}`);
+  if (usage.cacheWrite) parts.push(`cache write ${usage.cacheWrite}`);
+  if (usage.totalTokens) parts.push(`context ${usage.totalTokens}`);
+  if (usage.cost) parts.push(`$${usage.cost.toFixed(4)}`);
+  return parts.join(", ") || "none";
+}
+
+function formatExploreFailureReport(errorMessage: string): string {
+  return [
+    "# Findings",
+    "",
+    "## Summary",
+    "- Explore agent failed before producing a successful report.",
+    "",
+    "## Relevant files",
+    "- None identified before failure.",
+    "",
+    "## Architecture notes",
+    "- Not available because the child agent run failed.",
+    "",
+    "## Evidence",
+    `- Error: ${errorMessage}`,
+    "",
+    "## Open questions / risks",
+    "- Re-run the focused exploration or inspect the child conversation for partial progress.",
+  ].join("\n");
 }
 
 function summaryPreview(report: string): string {
@@ -618,11 +971,15 @@ function truncateInline(text: string, maxChars: number): string {
 export function exploreSystemPrompt(): string {
   return [
     "You are an Explore Agent specialized in reading and mapping codebases for a parent coding agent.",
-    "Your job is to investigate the requested area thoroughly using only read-only tools.",
-    "Do not edit files, write files, run shell commands, start processes, stop processes, or change runtime state.",
-    "Prefer targeted read, grep, find, and ls calls. Gather concrete evidence from file paths, symbols, and nearby code.",
-    "Stay scoped to the requested project and working directory. If the task is broad, sample intelligently and call out gaps.",
-    "Do not ask the user questions unless absolutely blocked; make reasonable assumptions and state them.",
+    "Your job is to investigate the assigned area thoroughly using only the read-only tools made available to you.",
+    "You cannot edit files, write files, run shell commands, start processes, stop processes, ask the user questions, or change runtime state.",
+    "Strategy:",
+    "1. Start with grep/find/ls to locate relevant code quickly.",
+    "2. Read targeted sections, not entire files, unless the file is small and central.",
+    "3. Follow imports, references, call sites, tests, and schema definitions to understand connections.",
+    "4. Gather concrete evidence from file paths, symbols, and nearby code.",
+    "5. Stay scoped to the assigned task; if the task is broad, sample intelligently and call out gaps.",
+    "6. Do not ask the user questions; make reasonable assumptions and state them.",
     "Return a concise but useful report in exactly this markdown structure:",
     "",
     "# Findings",
@@ -673,6 +1030,7 @@ function formatExploreReports(reports: ExploreReport[]): string {
         `# Explore report ${index + 1}: ${report.label ?? report.task}`,
         "",
         `Child agent: ${report.agentId}`,
+        `Status: ${report.status}`,
         "",
         report.report,
       ].join("\n"),

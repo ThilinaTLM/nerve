@@ -122,6 +122,7 @@ export class OrchestrationToolDispatcher {
           {
             onProgress: (message) =>
               this.publishExploreProgress(toolCall, message, options.runId),
+            signal: options.signal,
           },
         );
       case "ask_user":

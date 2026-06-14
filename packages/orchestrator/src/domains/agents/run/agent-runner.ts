@@ -49,7 +49,7 @@ import type { SubscriptionUsageService } from "../../usage/subscription-usage-se
 import type { AgentSuspensionService } from "../agent-suspension.service.js";
 import type { PromptQueueRepository } from "../prompt-queue.repository.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
-import { SubagentRunner } from "./subagent-runner.js";
+import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
 import { shouldStreamToolDraftArguments } from "./tool-draft-streaming.js";
 
@@ -222,31 +222,28 @@ export class AgentRunner {
   async abortAgent(agentId: string): Promise<void> {
     const agent = this.deps.state.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
-    for (const child of this.deps.state.agents.values()) {
-      if (child.parentAgentId === agent.id) await this.abortAgent(child.id);
-    }
+    const children = [...this.deps.state.agents.values()].filter(
+      (child) => child.parentAgentId === agent.id,
+    );
+    await Promise.all(children.map((child) => this.abortAgent(child.id)));
     const run = this.deps.state.runs.get(agentId);
     if (!run) return;
-    run.abort();
     await this.deps.events.publish("agent.abort_requested", {
       agentId,
       runId: run.runId,
     });
+    await run.abort();
   }
 
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
-    options: { onProgress?: (update: ExploreProgressUpdate) => void } = {},
+    options: {
+      onProgress?: (update: ExploreProgressUpdate) => void;
+      signal?: AbortSignal;
+    } = {},
   ): Promise<{
-    reports: Array<{
-      agentId: string;
-      task: string;
-      label?: string;
-      report: string;
-      reportPath: string;
-      summaryPreview?: string;
-    }>;
+    reports: ExploreReport[];
     contentBlocks: [{ type: "text"; text: string }];
   }> {
     return this.subagents.runExplore(parent, args, options);
@@ -634,10 +631,10 @@ export class AgentRunner {
 
       this.deps.state.runs.set(agent.id, {
         runId,
-        abort: () => {
+        abort: async () => {
           abortRequested = true;
           this.deps.state.conversationRuntime.markAborting(runId);
-          void harness.abort();
+          await harness.abort();
         },
         messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
         steer: (text, options) =>

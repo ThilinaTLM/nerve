@@ -22,11 +22,21 @@ export function createAgentToolsForAgent(
     runId?: string;
     resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
     hidden?: boolean;
+    allowedToolNames?: ToolName[];
   } = {},
 ): AgentTool[] {
-  return allToolDefinitions.map((definition) =>
-    wrapCoreToolDefinition(definition, agent, tools, options),
-  );
+  const allowed = options.allowedToolNames
+    ? new Set(options.allowedToolNames)
+    : undefined;
+  return allToolDefinitions
+    .filter((definition) => !allowed || allowed.has(definition.name))
+    .map((definition) =>
+      wrapCoreToolDefinition(definition, agent, tools, options),
+    );
+}
+
+export function activeToolNamesForExploreAgent(): ToolName[] {
+  return ["read", "grep", "find", "ls", "process_list", "process_logs"];
 }
 
 export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
@@ -124,6 +134,7 @@ function wrapCoreToolDefinition(
     runId?: string;
     resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
     hidden?: boolean;
+    allowedToolNames?: ToolName[];
   },
 ): AgentTool {
   return {
