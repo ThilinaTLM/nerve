@@ -115,6 +115,32 @@ export function activeConversationAgent(
   );
 }
 
+export function buildConversationRows(options: {
+  conversations: ConversationRecord[];
+  agents: AgentRecord[];
+  projectIds: Iterable<string>;
+  filter?: string;
+}): ConversationRow[] {
+  const { conversations, agents } = options;
+  const projectIds = new Set(options.projectIds);
+  const query = options.filter?.trim().toLowerCase() ?? "";
+  return conversations
+    .filter((conversation) => projectIds.has(conversation.projectId))
+    .filter(
+      (conversation) =>
+        !query ||
+        conversation.title.toLowerCase().includes(query) ||
+        conversation.id.toLowerCase().includes(query),
+    )
+    .map((conversation) => ({
+      conversation,
+      agent: activeConversationAgent(conversation, agents),
+    }))
+    .sort((a, b) =>
+      b.conversation.updatedAt.localeCompare(a.conversation.updatedAt),
+    );
+}
+
 export function buildProjectGroups(options: {
   projects: ProjectRecord[];
   conversations: ConversationRecord[];

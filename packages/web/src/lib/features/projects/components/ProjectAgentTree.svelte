@@ -17,6 +17,7 @@
   import AlertDialog from "$lib/components/ui/confirm-dialog";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import { Input } from "$lib/components/ui/input";
+  import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as Tooltip from "$lib/components/ui/tooltip";
@@ -24,6 +25,7 @@
   import {
     buildProjectGroups,
     shortProjectLabel,
+    type ProjectGroup,
   } from "$lib/utils/project-tree";
   import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
   import {
@@ -83,6 +85,7 @@
   let collapsed = $state<Record<string, boolean>>({});
   let pendingDelete = $state<DeleteTarget | undefined>(undefined);
   let pendingPrune = $state<PruneTarget | undefined>(undefined);
+  let pendingConversations = $state<ProjectGroup | undefined>(undefined);
 
   const searchShortcut = getShortcutLabel("projectSearch.focus");
   const searchShortcutAria = getShortcutAriaLabel("projectSearch.focus");
@@ -251,7 +254,11 @@
                   />
                 {/each}
                 {#if group.hiddenRows > 0}
-                  <p class="empty child">+{group.hiddenRows} more</p>
+                  <button
+                    type="button"
+                    class="more-button"
+                    onclick={() => (pendingConversations = group)}
+                  >+{group.hiddenRows} more</button>
                 {/if}
               </div>
             </PanelSection>
@@ -279,6 +286,25 @@
   onConfirm={confirmDelete}
   onOpenChange={(open) => { if (!open) pendingDelete = undefined; }}
 />
+
+{#if pendingConversations}
+  <ProjectConversationsDialog
+    open={!!pendingConversations}
+    projectLabel={pendingConversations.label}
+    project={pendingConversations.project}
+    projectIds={pendingConversations.projects.map((project) => project.id)}
+    {conversations}
+    {agents}
+    {selectedConversationId}
+    {openConversationTabIds}
+    {onOpenConversation}
+    buildMenu={(conversation) =>
+      pendingConversations
+        ? conversationMenu(pendingConversations.project, conversation)
+        : []}
+    onOpenChange={(open) => { if (!open) pendingConversations = undefined; }}
+  />
+{/if}
 
 <PruneConversationsDialog
   open={!!pendingPrune}
@@ -312,6 +338,32 @@
 
   .empty.child {
     margin: 0.2rem 0.1rem 0.1rem;
+  }
+
+  .more-button {
+    display: block;
+    width: fit-content;
+    margin: 0.2rem 0.1rem 0.1rem;
+    border-radius: var(--radius-sm);
+    padding: 0.1rem 0.35rem;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-align: start;
+    cursor: pointer;
+    transition:
+      color 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .more-button:hover {
+    background: color-mix(in oklab, var(--muted) 60%, transparent);
+    color: var(--foreground);
+  }
+
+  .more-button:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ring) 60%, transparent);
   }
 
   .search-box {
