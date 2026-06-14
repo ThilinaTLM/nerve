@@ -90,13 +90,6 @@
     go: { label: "Go", title: "Go module", icon: Terminal },
   };
 
-  function leafName(path: string | undefined): string {
-    if (!path) return "";
-    const normalized = path.replace(/[\\/]+$/, "");
-    const parts = normalized.split(/[\\/]/).filter(Boolean);
-    return parts.at(-1) ?? (normalized || path);
-  }
-
   function uniqueSignals(signals: FilesystemSignal[] | undefined): FilesystemSignal[] {
     return [...new Set(signals ?? [])];
   }
@@ -465,9 +458,6 @@
                       <Icon size={11} strokeWidth={2.2} />{meta.label}
                     </Badge>
                   {/each}
-                  <button class="row-open" type="button" title="Open as project" onclick={(e) => { e.stopPropagation(); void onSelect?.(entry.path); }}>
-                    <FolderOpen size={13} strokeWidth={2.2} />Open
-                  </button>
                   <button class="row-drill" type="button" title="Open folder" aria-label="Open folder" onclick={(e) => { e.stopPropagation(); void load(entry.path); }}>
                     <ChevronRight size={15} strokeWidth={2.2} aria-hidden="true" />
                   </button>
@@ -501,12 +491,15 @@
       </span>
     </div>
     <div class="footer-actions">
-      <span class="footer-hint" aria-hidden="true">
-        <kbd>↑↓</kbd> move <kbd>→</kbd> open folder <kbd>⏎</kbd> open <kbd>⌫</kbd> up
-      </span>
-      <Button size="sm" disabled={!openTargetPath || loading} onclick={() => void openTarget()}>
+      <Button
+        class="footer-open-button"
+        size="sm"
+        disabled={!openTargetPath || loading}
+        title={openTargetPath ? `Open ${openTargetPath}` : "Open"}
+        onclick={() => void openTarget()}
+      >
         <FolderOpen size={14} strokeWidth={2.2} />
-        {openTargetPath ? `Open ${leafName(openTargetPath)}` : "Open"}
+        Open
       </Button>
     </div>
   {/snippet}
@@ -882,24 +875,6 @@
     gap: 0.6rem;
   }
 
-  .footer-hint {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-    white-space: nowrap;
-  }
-
-  .footer-hint kbd {
-    border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-    border-radius: var(--radius-sm);
-    background: var(--input);
-    padding: 0 0.3rem;
-    font-family: var(--font-mono);
-    line-height: 1.4;
-  }
-
   :global(.hidden-switch) {
     height: 1.75rem;
     gap: 0.45rem;
@@ -922,10 +897,6 @@
 
     .crumb {
       max-width: 7rem;
-    }
-
-    .footer-hint {
-      display: none;
     }
 
     .path-tools :global(.hidden-switch) :global(.switch-copy) {
