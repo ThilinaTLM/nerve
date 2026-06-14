@@ -54,8 +54,8 @@ export async function executeTool(
       throw new Error(
         `${name} is executed by the orchestrator process manager.`,
       );
-    case "subagent_run":
-      // Subagents require runtime/conversation authority checks owned by orchestrator.
+    case "explore":
+      // Explore agents require runtime/conversation authority checks owned by orchestrator.
       throw new Error(`${name} is executed by the orchestrator agent runtime.`);
     case "plan_mode_enter":
     case "plan_mode_present":

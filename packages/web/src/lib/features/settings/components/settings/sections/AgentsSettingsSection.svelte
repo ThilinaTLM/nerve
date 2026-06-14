@@ -35,7 +35,7 @@
   <header class="settings-section-header">
     <div class="settings-section-kicker"><Bot size={14} strokeWidth={2.1} /> Agents</div>
     <h2>Default behavior and policy</h2>
-    <p>Defaults apply to newly created root agents and subagents.</p>
+    <p>Defaults apply to newly created top-level agents.</p>
   </header>
   <div class="settings-section-body">
     <div class="settings-control-grid">
@@ -71,38 +71,7 @@
           }}
         />
       </div>
-      <div class="settings-row settings-row-stacked">
-        <div class="settings-copy">
-          <strong>Subagent mode</strong>
-          <span>The starting workflow for agents spawned by another agent.</span>
-        </div>
-        <RadioGroup
-          items={modeItems}
-          value={settingsDraft.defaultSubagentMode}
-          ariaLabel="Default subagent mode"
-          onValueChange={(value) => {
-            const next = value as Settings["defaultSubagentMode"];
-            settingsDraft.defaultSubagentMode = next;
-            onSettingsChange?.({ defaultSubagentMode: next }, { immediate: true });
-          }}
-        />
-      </div>
-      <div class="settings-row settings-row-stacked">
-        <div class="settings-copy">
-          <strong>Subagent permission</strong>
-          <span>The approval policy for spawned agents.</span>
-        </div>
-        <RadioGroup
-          items={permissionItems}
-          value={settingsDraft.defaultSubagentPermissionLevel}
-          ariaLabel="Default subagent permission"
-          onValueChange={(value) => {
-            const next = value as Settings["defaultSubagentPermissionLevel"];
-            settingsDraft.defaultSubagentPermissionLevel = next;
-            onSettingsChange?.({ defaultSubagentPermissionLevel: next }, { immediate: true });
-          }}
-        />
-      </div>
+
     </div>
 
     <div class="permission-table" role="table" aria-label="Default agent permissions">

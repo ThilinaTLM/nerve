@@ -41,7 +41,10 @@ import {
   createAgentToolsForAgent,
   toolPromptMetadata,
 } from "../../tools/agent-tool-adapter.js";
-import type { ToolService } from "../../tools/tool-service.js";
+import type {
+  ExploreProgressUpdate,
+  ToolService,
+} from "../../tools/tool-service.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import type { AgentSuspensionService } from "../agent-suspension.service.js";
 import type { PromptQueueRepository } from "../prompt-queue.repository.js";
@@ -83,13 +86,18 @@ export class AgentRunner {
     this.subagents = new SubagentRunner({
       storage: deps.storage,
       events: deps.events,
+      auth: deps.auth,
+      tools: deps.tools,
       harnessManager: deps.harnessManager,
+      state: deps.state,
       createAgent: deps.createAgent,
-      runAgentPrompt: (agent, request) => this.runAgentPrompt(agent, request),
+      setAgentStatus: deps.setAgentStatus,
       appendEntry: deps.appendEntry,
       getConversation: (conversationId) =>
         deps.state.getConversation(conversationId),
       updateConversation: deps.updateConversation,
+      subscriptionUsage: deps.subscriptionUsage,
+      logger: deps.logger.child({ component: "subagent-runner" }),
     });
   }
 
@@ -226,11 +234,22 @@ export class AgentRunner {
     });
   }
 
-  runSubagent(
+  runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
-  ): Promise<{ agent: AgentRecord; summary: string }> {
-    return this.subagents.runSubagent(parent, args);
+    options: { onProgress?: (update: ExploreProgressUpdate) => void } = {},
+  ): Promise<{
+    reports: Array<{
+      agentId: string;
+      task: string;
+      label?: string;
+      report: string;
+      reportPath: string;
+      summaryPreview?: string;
+    }>;
+    contentBlocks: [{ type: "text"; text: string }];
+  }> {
+    return this.subagents.runExplore(parent, args, options);
   }
 
   async runAgentPrompt(

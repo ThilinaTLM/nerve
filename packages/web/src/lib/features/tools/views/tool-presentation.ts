@@ -292,13 +292,21 @@ export function toolPresentation(
         meta: [{ text: plural(view.processes.length, "process", "es") }],
       };
 
-    case "subagent_run": {
+    case "explore": {
+      const count = view.reports.length;
+      const fileCount = view.reports.filter(
+        (report) => report.reportPath,
+      ).length;
       const meta: MetaItem[] = [];
-      if (view.childAgentId)
-        meta.push({ text: `child ${view.childAgentId}`, mono: true });
+      if (count > 0) meta.push({ text: plural(count, "report", "s") });
+      if (fileCount > 0) meta.push({ text: plural(fileCount, "file", "s") });
       return {
         ...base,
-        primaryArg: view.task ? { text: view.task } : undefined,
+        primaryArg: view.task
+          ? { text: view.task }
+          : count > 1
+            ? { text: `${count} explore tasks` }
+            : undefined,
         meta,
       };
     }

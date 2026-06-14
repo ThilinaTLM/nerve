@@ -45,7 +45,7 @@ export type HistoryNodeType =
   | "human_loop"
   | "compaction"
   | "branch_summary"
-  | "subagent_summary"
+  | "explore_report"
   | "system";
 
 export type HistoryNodeBadge = {
@@ -86,7 +86,7 @@ const TOOL_ICONS: Record<string, HistoryIconName> = {
   process_restart: "cpu",
   process_list: "cpu",
   process_logs: "cpu",
-  subagent_run: "bot",
+  explore: "search",
   ask_user: "message-circle-question",
   plan_mode_enter: "clipboard-list",
   plan_mode_present: "clipboard-check",
@@ -194,11 +194,11 @@ export function classifyHistoryEntry(
       badges,
     };
   }
-  if (entry.kind === "subagent_summary") {
+  if (entry.kind === "explore_report") {
     return {
-      type: "subagent_summary",
-      icon: "bot",
-      label: "Subagent",
+      type: "explore_report",
+      icon: "search",
+      label: "Explore",
       preview: trimPreview(entry.summary || entry.text),
       tone: "info",
       mono: false,

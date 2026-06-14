@@ -75,4 +75,43 @@ describe("tool policy", () => {
       "approval",
     );
   });
+
+  it("handles explore as a bounded agent-spawn tool", () => {
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "explore",
+        { task: "map the API" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("supervised"),
+        "explore",
+        { task: "map the API" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "approval",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("read_only"),
+        "explore",
+        { task: "map the API" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "deny",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous", "planning"),
+        "explore",
+        { task: "map the API" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "allow",
+    );
+  });
 });

@@ -19,8 +19,9 @@ import {
 } from "./tool-args.js";
 import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
 import type {
+  ExploreProgressUpdate,
+  ExploreRunner,
   ProcessStarter,
-  SubagentRunner,
   ToolRequestOptions,
 } from "./tool-service.js";
 
@@ -30,7 +31,7 @@ export interface OrchestrationToolDispatcherDeps {
   processes: ProcessManager;
   startProcess: ProcessStarter;
   getAgent(agentId: string): AgentRecord;
-  runSubagent: SubagentRunner;
+  runExplore: ExploreRunner;
   getApiKey(provider: string): Promise<string | undefined>;
   plans: PlanService;
   setAgentMode(
@@ -114,10 +115,14 @@ export class OrchestrationToolDispatcher {
             limit: optionalFiniteNumberArg(args.limit),
           },
         );
-      case "subagent_run":
-        return this.deps.runSubagent(
+      case "explore":
+        return this.deps.runExplore(
           this.deps.getAgent(toolCall.agentId),
           args,
+          {
+            onProgress: (message) =>
+              this.publishExploreProgress(toolCall, message, options.runId),
+          },
         );
       case "ask_user":
         return this.deps.interactionSessions.requestUserQuestion(
@@ -149,6 +154,31 @@ export class OrchestrationToolDispatcher {
             this.publishToolExecutionUpdate(toolCall, update, options.runId),
         });
     }
+  }
+
+  private publishExploreProgress(
+    toolCall: ToolCallRecord,
+    update: ExploreProgressUpdate,
+    runId?: string,
+  ): void {
+    const data = this.deps.conversationRuntime.applyToolOutputDelta({
+      agentId: toolCall.agentId,
+      runId: runId ?? toolCall.runId,
+      turnId: toolCall.turnId,
+      liveMessageId: toolCall.liveMessageId,
+      contentIndex: toolCall.contentIndex,
+      providerToolCallId:
+        toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
+      conversationId: toolCall.conversationId,
+      projectId: toolCall.projectId,
+      toolCallId: toolCall.id,
+      toolName: toolCall.toolName,
+      stream: "stdout",
+      delta: `${JSON.stringify(update)}\n`,
+    });
+    void this.deps.events.publish("conversation.live.tool_output.delta", data, {
+      durability: "transient",
+    });
   }
 
   private publishToolExecutionUpdate(

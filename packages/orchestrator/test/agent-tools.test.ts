@@ -11,6 +11,7 @@ import {
   coreToolDefinitions,
   coreToolDescriptors,
 } from "@nerve/tools";
+import { exploreTasksArg } from "../src/domains/agents/run/subagent-runner.js";
 import { activeToolNamesForAgent } from "../src/domains/tools/agent-tool-adapter.js";
 import { ToolService } from "../src/domains/tools/tool-service.js";
 import { storagePaths } from "../src/infrastructure/storage/index.js";
@@ -71,7 +72,7 @@ describe("agent tool definitions", () => {
       "process_restart",
       "process_list",
       "process_logs",
-      "subagent_run",
+      "explore",
       "ask_user",
       "todos_set",
       "todos_get",
@@ -89,7 +90,7 @@ describe("agent tool definitions", () => {
       "ls",
       "process_list",
       "process_logs",
-      "subagent_run",
+      "explore",
       "ask_user",
       "todos_set",
       "todos_get",
@@ -143,7 +144,7 @@ describe("agent tool definitions", () => {
         .filter(
           (name) =>
             name.startsWith("process_") ||
-            name === "subagent_run" ||
+            name === "explore" ||
             name.startsWith("plan_"),
         ),
       [
@@ -152,11 +153,35 @@ describe("agent tool definitions", () => {
         "process_restart",
         "process_list",
         "process_logs",
-        "subagent_run",
+        "explore",
         "plan_mode_enter",
         "plan_mode_present",
         "plan_mode_force_exit",
       ],
+    );
+  });
+
+  it("normalizes explore task arguments", () => {
+    assert.deepEqual(exploreTasksArg({ task: "Map auth", label: "auth" }), [
+      { task: "Map auth", label: "auth", context: undefined },
+    ]);
+    assert.deepEqual(
+      exploreTasksArg({
+        tasks: [
+          { task: "Map auth" },
+          { task: "Map tools", context: "Focus on dispatch" },
+        ],
+      }),
+      [
+        { task: "Map auth", label: undefined, context: undefined },
+        { task: "Map tools", label: undefined, context: "Focus on dispatch" },
+      ],
+    );
+    assert.throws(() => exploreTasksArg({}), /exactly one/);
+    assert.throws(
+      () =>
+        exploreTasksArg({ task: "Map auth", tasks: [{ task: "Map tools" }] }),
+      /exactly one/,
     );
   });
 

@@ -157,9 +157,9 @@ describe("executeTool dispatch", () => {
     }
   });
 
-  it("rejects subagent execution because it is orchestrator-owned", async () => {
+  it("rejects explore execution because it is orchestrator-owned", async () => {
     await assert.rejects(
-      executeTool("subagent_run", {}, { cwd: process.cwd() }),
+      executeTool("explore", {}, { cwd: process.cwd() }),
       /orchestrator agent runtime/,
     );
   });

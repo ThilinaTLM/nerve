@@ -49,6 +49,7 @@ export const agentRecordSchema = z.object({
   mode: modeSchema,
   permissionLevel: permissionLevelSchema,
   workspaceScope: workspaceScopeSchema,
+  systemPrompt: z.string().min(1).optional(),
   budget: agentBudgetSchema.default({
     depth: 0,
     maxDepth: 3,
@@ -73,6 +74,7 @@ export const createAgentRequestSchema = z.object({
   mode: modeSchema.optional(),
   permissionLevel: permissionLevelSchema.optional(),
   workspaceScope: workspaceScopeSchema.optional(),
+  systemPrompt: z.string().min(1).optional(),
   budget: createAgentBudgetRequestSchema.optional(),
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema.optional(),

@@ -41,6 +41,7 @@ export function composeAgentSystemPrompt(
   resources: Awaited<ReturnType<typeof loadHarnessResources>>,
   options: { planDir?: string } = {},
 ): string {
+  if (agent.systemPrompt) return agent.systemPrompt;
   return buildNerveSystemPrompt({
     cwd: agent.projectDir,
     mode: agent.mode,

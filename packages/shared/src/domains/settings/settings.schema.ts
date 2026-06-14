@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/index.js";
-import { modelSelectionSchema } from "../models/index.js";
+import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;
@@ -15,8 +15,10 @@ export type PermissionLevel = z.infer<typeof permissionLevelSchema>;
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
-  defaultSubagentMode: modeSchema,
-  defaultSubagentPermissionLevel: permissionLevelSchema,
+  exploreAgent: z.object({
+    model: modelSelectionSchema.optional(),
+    thinkingLevel: thinkingLevelSchema.default("off"),
+  }),
   server: z.object({
     host: z.string().default("127.0.0.1"),
     port: z.number().int().positive().default(3747),
@@ -51,8 +53,9 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
   defaultMode: "coding",
   defaultPermissionLevel: "autonomous",
-  defaultSubagentMode: "planning",
-  defaultSubagentPermissionLevel: "autonomous",
+  exploreAgent: {
+    thinkingLevel: "off",
+  },
   server: {
     host: "127.0.0.1",
     port: 3747,
@@ -86,8 +89,12 @@ export const defaultSettings: Settings = {
 export const updateSettingsRequestSchema = z.object({
   defaultMode: modeSchema.optional(),
   defaultPermissionLevel: permissionLevelSchema.optional(),
-  defaultSubagentMode: modeSchema.optional(),
-  defaultSubagentPermissionLevel: permissionLevelSchema.optional(),
+  exploreAgent: z
+    .object({
+      model: modelSelectionSchema.nullable().optional(),
+      thinkingLevel: thinkingLevelSchema.optional(),
+    })
+    .optional(),
   server: z
     .object({
       host: z.string().optional(),

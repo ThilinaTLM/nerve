@@ -32,8 +32,10 @@ function isModeOnlyUpdate(
 }
 
 export class AgentLifecycleService {
+  private readonly childReservationQueues = new Map<string, Promise<void>>();
+
   constructor(
-    private readonly storage: InitializedStorage,
+    _storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
     private readonly state: RuntimeState,
@@ -65,26 +67,21 @@ export class AgentLifecycleService {
     const now = new Date().toISOString();
     const id = createId("agent");
     const projectDir = resolve(request.projectDir ?? project.dir);
-    const mode =
-      request.mode ??
-      (parent ? this.storage.settings.defaultSubagentMode : conversation.mode);
+    const mode = request.mode ?? (parent ? parent.mode : conversation.mode);
     const permissionLevel =
       request.permissionLevel ??
-      (parent
-        ? this.storage.settings.defaultSubagentPermissionLevel
-        : conversation.permissionLevel);
+      (parent ? parent.permissionLevel : conversation.permissionLevel);
     const workerId = this.workers.requireWorker(
       request.workerId ?? parent?.workerId,
       "agent",
     ).id;
     if (parent) {
-      assertChildAuthority(
-        parent,
+      await this.reserveChildRunWithAuthority(
+        parent.id,
         mode,
         permissionLevel,
         Boolean(options.allowChildAuthorityExceed),
       );
-      await this.reserveChildRun(parent);
     }
     const agent: AgentRecord = {
       id,
@@ -97,6 +94,7 @@ export class AgentLifecycleService {
       mode,
       permissionLevel,
       workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
+      systemPrompt: request.systemPrompt,
       budget: agentBudget(parent, request.budget),
       model: request.model,
       thinkingLevel: clampAgentThinkingLevel(
@@ -232,6 +230,36 @@ export class AgentLifecycleService {
       this.index.upsertAgent(agent);
       if (needsStatusRecovery || needsWorkerBackfill)
         await this.writeAgent(agent);
+    }
+  }
+
+  private async reserveChildRunWithAuthority(
+    parentId: string,
+    mode: Mode,
+    permissionLevel: AgentRecord["permissionLevel"],
+    allowAuthorityExceed: boolean,
+  ): Promise<void> {
+    const previous =
+      this.childReservationQueues.get(parentId) ?? Promise.resolve();
+    const queued = previous
+      .catch(() => undefined)
+      .then(async () => {
+        const latest = this.getAgent(parentId);
+        assertChildAuthority(
+          latest,
+          mode,
+          permissionLevel,
+          allowAuthorityExceed,
+        );
+        await this.reserveChildRun(latest);
+      });
+    this.childReservationQueues.set(parentId, queued);
+    try {
+      await queued;
+    } finally {
+      if (this.childReservationQueues.get(parentId) === queued) {
+        this.childReservationQueues.delete(parentId);
+      }
     }
   }
 

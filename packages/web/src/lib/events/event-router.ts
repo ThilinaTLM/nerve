@@ -644,6 +644,12 @@ function handleToolCallUpdated(
   toolCall: ToolCallRecord | undefined,
 ): void {
   if (!toolCall) return;
+  if (toolCall.hidden) {
+    view.toolCalls = view.toolCalls.filter(
+      (candidate) => candidate.id !== toolCall.id,
+    );
+    return;
+  }
   const index = view.toolCalls.findIndex(
     (candidate) => candidate.id === toolCall.id,
   );
@@ -926,6 +932,7 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type === "agent.configured" ||
     type === "agent.status_changed" ||
     type.startsWith("agent.subagent_") ||
+    type.startsWith("agent.explore_") ||
     type === "project.created" ||
     type.startsWith("approval.") ||
     type.startsWith("user_question.") ||

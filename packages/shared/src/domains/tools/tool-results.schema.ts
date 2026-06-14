@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { agentRecordSchema } from "../agents/index.js";
 import {
   processLogQueryResponseSchema,
   processRecordSchema,
@@ -123,12 +122,22 @@ export type ProcessListResult = z.infer<typeof processListResultSchema>;
 export const processLogsResultSchema = processLogQueryResponseSchema;
 export type ProcessLogsResult = z.infer<typeof processLogsResultSchema>;
 
-/** Result of subagent_run. */
-export const subagentRunResultSchema = z.object({
-  agent: agentRecordSchema,
-  summary: z.string(),
+/** Result of explore. */
+export const exploreReportSchema = z.object({
+  agentId: z.string().startsWith("agent_"),
+  task: z.string(),
+  label: z.string().optional(),
+  report: z.string(),
+  reportPath: z.string().min(1),
+  summaryPreview: z.string().optional(),
 });
-export type SubagentRunResultPayload = z.infer<typeof subagentRunResultSchema>;
+export type ExploreReportPayload = z.infer<typeof exploreReportSchema>;
+
+export const exploreResultSchema = z.object({
+  reports: z.array(exploreReportSchema),
+  contentBlocks: z.array(toolContentBlockSchema).optional(),
+});
+export type ExploreResultPayload = z.infer<typeof exploreResultSchema>;
 
 /** Result of ask_user (resolved question). */
 export const askUserResultSchema = z.object({

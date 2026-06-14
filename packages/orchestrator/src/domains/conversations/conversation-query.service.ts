@@ -90,6 +90,7 @@ export class ConversationQueryService {
     const toolIds = toolRecordIdsFromEntries(entries);
     return this.deps.listToolCalls().filter((toolCall) => {
       if (toolCall.conversationId !== conversationId) return false;
+      if (toolCall.hidden) return false;
       if (activeRunId && toolCall.runId === activeRunId) return true;
       if (toolCall.runId && runIds.has(toolCall.runId)) return true;
       if (toolIds.has(toolCall.id)) return true;

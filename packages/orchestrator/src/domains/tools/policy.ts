@@ -234,21 +234,12 @@ function evaluatePlanningModePolicy(
     };
   }
 
-  if (toolName === "subagent_run") {
-    if (args.mode === "coding") {
-      return {
-        decision: "deny",
-        risk,
-        reason: "Planning mode cannot spawn coding subagents.",
-        normalizedArgs,
-        cwd,
-      };
-    }
+  if (toolName === "explore") {
     if (agent.permissionLevel === "read_only") {
       return {
         decision: "deny",
         risk,
-        reason: "read_only agents cannot spawn subagents.",
+        reason: "read_only agents cannot spawn explore agents.",
         normalizedArgs,
         cwd,
       };
@@ -257,7 +248,7 @@ function evaluatePlanningModePolicy(
       return {
         decision: "approval",
         risk,
-        reason: "Supervised agent requires approval for planning subagents.",
+        reason: "Supervised agent requires approval for explore agents.",
         normalizedArgs,
         cwd,
       };
@@ -265,7 +256,8 @@ function evaluatePlanningModePolicy(
     return {
       decision: "allow",
       risk,
-      reason: "Planning-mode subagent investigation is allowed.",
+      reason:
+        "Planning-mode explore agents are allowed because they are forced read-only.",
       normalizedArgs,
       cwd,
     };

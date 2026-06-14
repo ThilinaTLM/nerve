@@ -18,7 +18,7 @@ const toolRisks: Record<ToolName, ToolRisk> = {
   process_restart: "destructive",
   process_list: "read",
   process_logs: "read",
-  subagent_run: "agent_spawn",
+  explore: "agent_spawn",
   plan_mode_enter: "interaction",
   plan_mode_present: "interaction",
   plan_mode_force_exit: "interaction",

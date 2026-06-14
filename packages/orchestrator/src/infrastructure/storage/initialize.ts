@@ -75,12 +75,22 @@ export async function writeSettings(
   storage: InitializedStorage,
   patch: UpdateSettingsRequest,
 ): Promise<Settings> {
+  const exploreAgentPatch = patch.exploreAgent
+    ? {
+        ...patch.exploreAgent,
+        ...(patch.exploreAgent.model === null ? { model: undefined } : {}),
+      }
+    : undefined;
   const next = settingsSchema.parse({
     ...storage.settings,
     ...patch,
     server: { ...storage.settings.server, ...(patch.server ?? {}) },
     ui: { ...storage.settings.ui, ...(patch.ui ?? {}) },
     desktop: { ...storage.settings.desktop, ...(patch.desktop ?? {}) },
+    exploreAgent: {
+      ...storage.settings.exploreAgent,
+      ...(exploreAgentPatch ?? {}),
+    },
     compaction: {
       ...storage.settings.compaction,
       ...(patch.compaction ?? {}),

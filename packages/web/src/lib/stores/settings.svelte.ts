@@ -128,6 +128,12 @@ function mergeSettingsPatch(
   if (base?.desktop || patch.desktop) {
     next.desktop = { ...(base?.desktop ?? {}), ...(patch.desktop ?? {}) };
   }
+  if (base?.exploreAgent || patch.exploreAgent) {
+    next.exploreAgent = {
+      ...(base?.exploreAgent ?? {}),
+      ...(patch.exploreAgent ?? {}),
+    };
+  }
   if (base?.compaction || patch.compaction) {
     next.compaction = {
       ...(base?.compaction ?? {}),

@@ -48,17 +48,44 @@ export type ToolRequestOptions = {
   contentIndex?: number;
   anchor?: ToolAnchor;
   durableSuspend?: boolean;
+  hidden?: boolean;
 };
 
-export type SubagentRunResult = {
-  agent: AgentRecord;
-  summary: string;
+export type ExploreProgressUpdate = {
+  type: "explore_progress";
+  timestamp: string;
+  agentId?: string;
+  taskIndex?: number;
+  taskCount?: number;
+  label?: string;
+  phase:
+    | "queued"
+    | "started"
+    | "tool_call"
+    | "tool_result"
+    | "assistant"
+    | "completed"
+    | "failed";
+  message: string;
 };
 
-export type SubagentRunner = (
+export type ExploreRunResult = {
+  reports: Array<{
+    agentId: string;
+    task: string;
+    label?: string;
+    report: string;
+    reportPath: string;
+    summaryPreview?: string;
+  }>;
+  contentBlocks?: Array<{ type: "text"; text: string }>;
+};
+
+export type ExploreRunner = (
   parent: AgentRecord,
   args: Record<string, unknown>,
-) => Promise<SubagentRunResult>;
+  options?: { onProgress?: (update: ExploreProgressUpdate) => void },
+) => Promise<ExploreRunResult>;
 
 export type ProcessStarter = (
   request: StartProcessRequest,
@@ -87,7 +114,7 @@ export class ToolService {
     private readonly processes: ProcessManager,
     private readonly startProcess: ProcessStarter,
     private readonly getAgent: (agentId: string) => AgentRecord,
-    private readonly runSubagent: SubagentRunner,
+    private readonly runExplore: ExploreRunner,
     private readonly getApiKey: (
       provider: string,
     ) => Promise<string | undefined>,
@@ -119,7 +146,7 @@ export class ToolService {
       processes: this.processes,
       startProcess: this.startProcess,
       getAgent: this.getAgent,
-      runSubagent: this.runSubagent,
+      runExplore: this.runExplore,
       getApiKey: this.getApiKey,
       plans: this.plans,
       setAgentMode: this.setAgentMode,
@@ -212,6 +239,7 @@ export class ToolService {
       args: evaluation.normalizedArgs,
       cwd: evaluation.cwd,
       status: "requested",
+      hidden: options.hidden === true ? true : undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -383,6 +411,7 @@ export class ToolService {
       args,
       cwd,
       status: "error",
+      hidden: options.hidden === true ? true : undefined,
       error: errorMessage,
       result: {
         content: errorMessage,

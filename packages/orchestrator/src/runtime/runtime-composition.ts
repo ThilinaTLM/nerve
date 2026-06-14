@@ -271,9 +271,10 @@ export function composeRuntime(
         request,
       ),
     getAgent,
-    // Tool execution can spawn subagents; the closure is only invoked after
+    // Tool execution can spawn explore agents; the closure is only invoked after
     // composition completes, so reading services.agentRunner here is safe.
-    (parent, args) => services.agentRunner.runSubagent(parent, args),
+    (parent, args, options) =>
+      services.agentRunner.runExplore(parent, args, options),
     (provider) => auth.getApiKey(provider),
     services.plans,
     (agentId, mode, reason) =>

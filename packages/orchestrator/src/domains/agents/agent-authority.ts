@@ -28,7 +28,7 @@ export function assertChildAuthority(
     throw new HttpError(
       403,
       "SUBAGENT_AUTHORITY_EXCEEDED",
-      "Child agent authority cannot exceed parent authority without an approved subagent_run tool call.",
+      "Child agent authority cannot exceed parent authority without an approved agent-spawn tool call.",
     );
   }
 }

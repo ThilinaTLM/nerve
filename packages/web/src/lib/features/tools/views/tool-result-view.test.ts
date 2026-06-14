@@ -493,33 +493,61 @@ describe("parseToolView", () => {
     assert.equal(view.mode, "recent");
   });
 
-  it("parses subagent summary and child id", () => {
+  it("parses explore reports", () => {
     const view = parseToolView(
       toolCall(
-        "subagent_run",
+        "explore",
         { task: "Investigate the bug" },
         {
-          agent: {
-            id: "agent_02H00000000000000000000000",
-            conversationId: "conv_01H00000000000000000000000",
-            projectId: "proj_01H0000000000000000000000",
-            projectDir: CWD,
-            rootAgentId: "agent_01H00000000000000000000000",
-            mode: "coding",
-            permissionLevel: "read_only",
-            workspaceScope: { roots: [CWD] },
-            status: "idle",
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-          },
-          summary: "Found the off-by-one.",
+          reports: [
+            {
+              agentId: "agent_02H00000000000000000000000",
+              task: "Investigate the bug",
+              report: "Found the off-by-one.",
+              reportPath: "/home/me/.nerve/explore-reports/report.md",
+              summaryPreview: "Found the off-by-one.",
+            },
+          ],
         },
       ),
     );
-    assert.equal(view.kind, "subagent_run");
-    if (view.kind !== "subagent_run") return;
-    assert.equal(view.summary, "Found the off-by-one.");
-    assert.equal(view.childAgentId, "agent_02H00000000000000000000000");
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    assert.equal(view.reports[0]?.report, "Found the off-by-one.");
+    assert.equal(view.reports[0]?.agentId, "agent_02H00000000000000000000000");
+    assert.equal(
+      view.reports[0]?.reportPath,
+      "/home/me/.nerve/explore-reports/report.md",
+    );
+    assert.equal(view.reports[0]?.summaryPreview, "Found the off-by-one.");
+  });
+
+  it("parses explore live progress JSONL with plain-text fallback", () => {
+    const view = parseToolView(
+      toolCall("explore", { task: "Investigate" }, { reports: [] }),
+      {
+        chunks: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        text: [
+          JSON.stringify({
+            type: "explore_progress",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            phase: "tool_call",
+            message: "grep completed",
+            taskIndex: 0,
+            taskCount: 2,
+            label: "api",
+          }),
+          "legacy line",
+        ].join("\n"),
+      },
+    );
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    assert.equal(view.liveUpdates.length, 1);
+    assert.equal(view.liveUpdates[0]?.message, "grep completed");
+    assert.equal(view.liveUpdates[0]?.label, "api");
+    assert.equal(view.liveLog, "legacy line");
   });
 
   it("parses plan_mode_enter", () => {

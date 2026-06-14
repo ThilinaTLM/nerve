@@ -18,7 +18,7 @@ describe("tool draft argument streaming policy", () => {
       "read",
       "grep",
       "process_logs",
-      "subagent_run",
+      "explore",
     ]) {
       assert.equal(shouldStreamToolDraftArguments(toolName), true, toolName);
     }

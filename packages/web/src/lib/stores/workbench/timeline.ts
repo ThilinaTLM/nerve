@@ -91,7 +91,9 @@ export function buildConversationTimeline(
   live?: ConversationLiveState,
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
-  const orderedToolCalls = [...toolCalls].sort(byCreatedAtAscending);
+  const orderedToolCalls = toolCalls
+    .filter((toolCall) => !toolCall.hidden)
+    .sort(byCreatedAtAscending);
   const toolCallsById = new Map(
     orderedToolCalls.map((toolCall) => [toolCall.id, toolCall]),
   );

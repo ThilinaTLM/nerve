@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
@@ -61,7 +62,7 @@ export async function atomicWriteJson(
   mode?: number,
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const tempPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+  const tempPath = `${path}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
   await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, { mode });
   await rename(tempPath, path);
   if (mode !== undefined) await chmod(path, mode);
@@ -137,7 +138,7 @@ async function rewriteJsonLinesDirect(
   mode?: number,
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const tempPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+  const tempPath = `${path}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
   const text = values.map((value) => JSON.stringify(value)).join("\n");
   await writeFile(tempPath, text ? `${text}\n` : "", { mode });
   await rename(tempPath, path);

@@ -1,7 +1,9 @@
 import {
   askUserResultSchema,
   bashResultDetailsSchema,
+  type ExploreReportPayload,
   editResultDetailsSchema,
+  exploreResultSchema,
   type FileEntry,
   type GrepMatch,
   type ProcessLogEvent,
@@ -9,7 +11,6 @@ import {
   processActionResultSchema,
   processListResultSchema,
   processLogsResultSchema,
-  subagentRunResultSchema,
   type TodoItem,
   todosResultSchema,
   toolExecutionResultSchema,
@@ -30,6 +31,24 @@ export type GroupedMatches = {
   path: string;
   openPath?: string;
   matches: GrepMatchView[];
+};
+
+export type ExploreProgressView = {
+  type: "explore_progress";
+  timestamp: string;
+  agentId?: string;
+  taskIndex?: number;
+  taskCount?: number;
+  label?: string;
+  phase:
+    | "queued"
+    | "started"
+    | "tool_call"
+    | "tool_result"
+    | "assistant"
+    | "completed"
+    | "failed";
+  message: string;
 };
 
 export type ToolView =
@@ -117,10 +136,11 @@ export type ToolView =
       mode?: string;
     }
   | {
-      kind: "subagent_run";
+      kind: "explore";
       task?: string;
-      childAgentId?: string;
-      summary?: string;
+      reports: ExploreReportPayload[];
+      liveUpdates: ExploreProgressView[];
+      liveLog?: string;
     }
   | {
       kind: "plan_mode";
@@ -256,6 +276,50 @@ function detailsTruncated(details: unknown): boolean {
   if (direct.success && direct.data.truncated) return true;
   const nested = truncationDetailsSchema.safeParse(record.truncation);
   return Boolean(nested.success && nested.data.truncated);
+}
+
+function parseExploreProgressLog(text: string | undefined): {
+  updates: ExploreProgressView[];
+  fallback?: string;
+} {
+  if (!text) return { updates: [] };
+  const updates: ExploreProgressView[] = [];
+  const fallbackLines: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      const record = asRecord(parsed);
+      if (
+        record.type === "explore_progress" &&
+        typeof record.timestamp === "string" &&
+        typeof record.phase === "string" &&
+        typeof record.message === "string"
+      ) {
+        updates.push({
+          type: "explore_progress",
+          timestamp: record.timestamp,
+          agentId: stringField(record.agentId),
+          taskIndex:
+            typeof record.taskIndex === "number" ? record.taskIndex : undefined,
+          taskCount:
+            typeof record.taskCount === "number" ? record.taskCount : undefined,
+          label: stringField(record.label),
+          phase: record.phase as ExploreProgressView["phase"],
+          message: record.message,
+        });
+        continue;
+      }
+    } catch {
+      // Fall back to plain log rendering for older in-flight output.
+    }
+    fallbackLines.push(line);
+  }
+  return {
+    updates,
+    fallback: fallbackLines.length > 0 ? fallbackLines.join("\n") : undefined,
+  };
 }
 
 function diffStats(diff: string | undefined): {
@@ -500,15 +564,17 @@ export function parseToolView(
       };
     }
 
-    case "subagent_run": {
-      const parsed = subagentRunResultSchema.safeParse(toolCall.result);
+    case "explore": {
+      const parsed = exploreResultSchema.safeParse(toolCall.result);
       const data = parsed.success ? parsed.data : undefined;
       const task = stringField(args.task);
+      const liveProgress = parseExploreProgressLog(liveOutput?.text);
       return {
-        kind: "subagent_run",
+        kind: "explore",
         task,
-        childAgentId: data?.agent.id,
-        summary: data?.summary,
+        reports: data?.reports ?? [],
+        liveUpdates: liveProgress.updates,
+        liveLog: liveProgress.fallback,
       };
     }
 

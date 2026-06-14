@@ -21,6 +21,7 @@ export function createAgentToolsForAgent(
   options: {
     runId?: string;
     resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
+    hidden?: boolean;
   } = {},
 ): AgentTool[] {
   return allToolDefinitions.map((definition) =>
@@ -58,7 +59,7 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
       "ls",
       "process_list",
       "process_logs",
-      "subagent_run",
+      "explore",
       "ask_user",
       "todos_set",
       "todos_get",
@@ -82,7 +83,7 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
     "process_restart",
     "process_list",
     "process_logs",
-    "subagent_run",
+    "explore",
     "ask_user",
     "todos_set",
     "todos_get",
@@ -122,6 +123,7 @@ function wrapCoreToolDefinition(
   options: {
     runId?: string;
     resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
+    hidden?: boolean;
   },
 ): AgentTool {
   return {
@@ -143,6 +145,7 @@ function wrapCoreToolDefinition(
           runId: options.runId,
           anchor: options.resolveToolAnchor?.(sourceToolCallId),
           durableSuspend: true,
+          hidden: options.hidden === true ? true : undefined,
         },
       );
       if (toolCall.status === "completed") return completedToolResult(toolCall);

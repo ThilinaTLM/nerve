@@ -2,6 +2,7 @@ import type { Component } from "svelte";
 import AskUserToolView from "$lib/features/tools/components/tool-call/AskUserToolView.svelte";
 import BashToolView from "$lib/features/tools/components/tool-call/BashToolView.svelte";
 import EditToolView from "$lib/features/tools/components/tool-call/EditToolView.svelte";
+import ExploreToolView from "$lib/features/tools/components/tool-call/ExploreToolView.svelte";
 import FindToolView from "$lib/features/tools/components/tool-call/FindToolView.svelte";
 import GenericToolView from "$lib/features/tools/components/tool-call/GenericToolView.svelte";
 import GrepToolView from "$lib/features/tools/components/tool-call/GrepToolView.svelte";
@@ -11,7 +12,6 @@ import ProcessListToolView from "$lib/features/tools/components/tool-call/Proces
 import ProcessLogsToolView from "$lib/features/tools/components/tool-call/ProcessLogsToolView.svelte";
 import ProcessToolView from "$lib/features/tools/components/tool-call/ProcessToolView.svelte";
 import ReadToolView from "$lib/features/tools/components/tool-call/ReadToolView.svelte";
-import SubagentRunToolView from "$lib/features/tools/components/tool-call/SubagentRunToolView.svelte";
 import TodoToolView from "$lib/features/tools/components/tool-call/TodoToolView.svelte";
 import WebFetchToolView from "$lib/features/tools/components/tool-call/WebFetchToolView.svelte";
 import WebSearchToolView from "$lib/features/tools/components/tool-call/WebSearchToolView.svelte";
@@ -34,7 +34,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   process_action: ProcessToolView,
   process_list: ProcessListToolView,
   process_logs: ProcessLogsToolView,
-  subagent_run: SubagentRunToolView,
+  explore: ExploreToolView,
   plan_mode: PlanModeToolView,
   web_search: WebSearchToolView,
   web_fetch: WebFetchToolView,
