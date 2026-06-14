@@ -147,6 +147,11 @@
       return [
         ...shared,
         {
+          label: "Restart process",
+          icon: RotateCw,
+          onSelect: () => onRestartProcess?.(process.id),
+        },
+        {
           label: "Stop process",
           icon: Square,
           destructive: true,
@@ -278,6 +283,19 @@
     </Tooltip.Root>
     <div class="flex shrink-0 items-center gap-0.5">
       {#if isActive(process)}
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          ariaLabel="Restart process"
+          title="Restart process"
+          class="text-muted-foreground hover:text-foreground"
+          onclick={(event) => {
+            stopPropagation(event);
+            onRestartProcess?.(process.id);
+          }}
+        >
+          <RotateCw size={12} strokeWidth={2.3} />
+        </Button>
         <Button
           size="icon-xs"
           variant="ghost"
