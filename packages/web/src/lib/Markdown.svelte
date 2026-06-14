@@ -64,20 +64,15 @@
     return clone;
   }
 
-  function wrapCodeBlock(pre: Element, language: string): Element {
+  function wrapCodeBlock(pre: Element): Element {
     const shell = document.createElement("div");
     shell.className = "code-block";
-    const header = document.createElement("div");
-    header.className = "code-block-header";
-    const label = document.createElement("span");
-    label.textContent = language || "text";
     const button = document.createElement("button");
     button.type = "button";
     button.className = "code-copy";
     button.dataset.copyCode = "";
     button.textContent = "Copy";
-    header.append(label, button);
-    shell.append(header, pre);
+    shell.append(button, pre);
     return shell;
   }
 
@@ -86,10 +81,8 @@
     const container = document.createElement("div");
     container.innerHTML = safeHtml;
     for (const block of Array.from(container.querySelectorAll("pre > code"))) {
-      const className = block.getAttribute("class") ?? "";
-      const language = languageFromClass(className);
       const pre = block.parentElement;
-      if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, codeBlockText(block)), language));
+      if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, codeBlockText(block))));
     }
     return container.innerHTML;
   }
@@ -124,14 +117,14 @@
             const wrapper = document.createElement("div");
             wrapper.innerHTML = highlighted;
             const highlightedPre = wrapper.firstElementChild;
-            if (highlightedPre) block.parentElement?.replaceWith(wrapCodeBlock(highlightedPre, language));
+            if (highlightedPre) block.parentElement?.replaceWith(wrapCodeBlock(highlightedPre));
             return;
           }
         } catch {
           // Fall back to the plain pre/code while keeping the Stitch code header.
         }
         const pre = block.parentElement;
-        if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, codeBlockText(block)), language));
+        if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, codeBlockText(block))));
       }),
     );
     return container.innerHTML;
@@ -314,29 +307,19 @@
   }
 
   .markdown :global(.code-block) {
+    position: relative;
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--sidebar);
   }
 
-  .markdown :global(.code-block-header) {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    border-bottom: 1px solid var(--border);
-    background: var(--secondary);
-    padding: 0.26rem 0.52rem;
-    color: var(--secondary-foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
   .markdown :global(.code-copy) {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    z-index: 1;
+    opacity: 0;
     border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
     border-radius: 0.25rem;
     background: var(--input);
@@ -345,6 +328,12 @@
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     cursor: pointer;
+    transition: opacity 0.12s ease;
+  }
+
+  .markdown :global(.code-block:hover .code-copy),
+  .markdown :global(.code-copy:focus-visible) {
+    opacity: 1;
   }
 
   .markdown :global(.code-copy:hover) {
