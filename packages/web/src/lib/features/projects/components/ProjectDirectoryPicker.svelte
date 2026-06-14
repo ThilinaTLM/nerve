@@ -33,6 +33,7 @@
     looksLikePath,
     pathBreadcrumbs,
     pathKey,
+    shortenPath,
     tildePath,
     type PathCrumb,
   } from "$lib/utils/path";
@@ -488,7 +489,7 @@
   {#snippet footer()}
     <div class="footer-path" title={openTargetPath}>
       <FolderOpen size={14} strokeWidth={2.1} aria-hidden="true" />
-      <span class="footer-path-text">{openTargetPath ? tildePath(openTargetPath, homeDir) : "—"}</span>
+      <span class="footer-path-text">{openTargetPath ? shortenPath(openTargetPath, homeDir) : "—"}</span>
       <span class="footer-signals">
         {#each openTargetSignals as signal}
           {@const meta = signalMeta[signal]}
