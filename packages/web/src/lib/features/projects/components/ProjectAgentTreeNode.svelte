@@ -70,7 +70,8 @@
 </ContextMenu>
 
 <style>
-  :global(.conversation-context-trigger) {
+  :global(.conversation-context-trigger),
+  :global(.conversation-context-trigger [data-slot="tooltip-trigger"]) {
     display: block;
     width: 100%;
     min-width: 0;
@@ -119,6 +120,7 @@
 
   .conversation-label {
     display: block;
+    flex: 1 1 0;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;

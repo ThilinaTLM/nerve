@@ -109,7 +109,7 @@
       {#if settingsDraft}
         <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
         <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
-        <AgentsSettingsSection {settingsDraft} {onSettingsChange} />
+        <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ProvidersSettingsSection {authProviders} />
         <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />

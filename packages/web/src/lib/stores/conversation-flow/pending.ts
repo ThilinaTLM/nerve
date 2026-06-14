@@ -4,6 +4,7 @@ import {
   resetSelection,
   selection,
 } from "../../state/app-state.svelte";
+import { resolveNewAgentComposerSelection } from "../agent-selection-defaults";
 import {
   addCenterTab,
   setActiveCenterTab,
@@ -13,16 +14,28 @@ import { clearTranscriptState, createPendingConversationId } from "./state";
 
 export function openPendingConversation(project: ProjectRecord) {
   const id = createPendingConversationId();
+  const defaults = workbenchState.settingsDraft
+    ? resolveNewAgentComposerSelection(
+        workbenchState.settingsDraft,
+        workbenchState.models,
+        workbenchState.authProviders,
+      )
+    : {
+        selectedModelKey: workbenchState.selectedModelKey,
+        selectedThinkingLevel: workbenchState.selectedThinkingLevel,
+        selectedMode: workbenchState.selectedMode,
+        selectedPermissionLevel: workbenchState.selectedPermissionLevel,
+      };
   workbenchState.pendingConversations[id] = {
     id,
     projectId: project.id,
     projectDir: project.dir,
     title: "New Conversation",
     composerText: "",
-    selectedModelKey: workbenchState.selectedModelKey,
-    thinkingLevel: workbenchState.selectedThinkingLevel,
-    mode: workbenchState.selectedMode,
-    permissionLevel: workbenchState.selectedPermissionLevel,
+    selectedModelKey: defaults.selectedModelKey,
+    thinkingLevel: defaults.selectedThinkingLevel,
+    mode: defaults.selectedMode,
+    permissionLevel: defaults.selectedPermissionLevel,
     sending: false,
     createdAt: new Date().toISOString(),
   };

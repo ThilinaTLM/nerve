@@ -35,13 +35,19 @@ export class ConversationLifecycleService {
   ): Promise<ConversationRecord> {
     const project = this.state.getProject(request.projectId);
     const now = new Date().toISOString();
+    const defaultSelection = this.storage.settings.rememberLastAgentSelection
+      ? this.storage.settings.lastAgentSelection
+      : {
+          mode: this.storage.settings.defaultMode,
+          permissionLevel: this.storage.settings.defaultPermissionLevel,
+        };
     const conversation: ConversationRecord = {
       id: createId("conv"),
       projectId: project.id,
       title: request.title ?? "New Conversation",
-      mode: request.mode ?? this.storage.settings.defaultMode,
+      mode: request.mode ?? defaultSelection.mode,
       permissionLevel:
-        request.permissionLevel ?? this.storage.settings.defaultPermissionLevel,
+        request.permissionLevel ?? defaultSelection.permissionLevel,
       createdAt: now,
       updatedAt: now,
     };

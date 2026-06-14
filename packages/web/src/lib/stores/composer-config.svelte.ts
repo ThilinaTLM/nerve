@@ -1,17 +1,13 @@
-import type { AgentRecord, ModelInfo, ModelSelection } from "../api";
+import type { AgentRecord, ModelInfo, ModelSelection, Settings } from "../api";
 import { getConversationContextUsage, updateAgentConfig } from "../api";
 import { selection } from "../state/app-state.svelte";
 import { modelKey, parseModelKey } from "../utils/model";
+import {
+  clampThinkingLevelForModel,
+  supportedThinkingLevelsForModel,
+} from "./agent-selection-defaults";
+import { queueSettingsSave } from "./settings.svelte";
 import { workbenchState } from "./workbench/state.svelte";
-
-const THINKING_LEVEL_ORDER: AgentRecord["thinkingLevel"][] = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-];
 
 export function currentActiveAgent(): AgentRecord | undefined {
   return workbenchState.agents.find((agent) => agent.id === selection.agentId);
@@ -27,41 +23,22 @@ export function selectedModelInfo(): ModelInfo | undefined {
   );
 }
 
-export function supportedThinkingLevelsForModel(
-  model: ModelInfo | undefined,
-): AgentRecord["thinkingLevel"][] {
-  return model?.supportedThinkingLevels?.length
-    ? model.supportedThinkingLevels
-    : ["off"];
-}
+export { clampThinkingLevelForModel, supportedThinkingLevelsForModel };
 
 export function supportedThinkingLevelsForSelectedModel(): AgentRecord["thinkingLevel"][] {
   return supportedThinkingLevelsForModel(selectedModelInfo());
 }
 
-export function clampThinkingLevelForModel(
-  level: AgentRecord["thinkingLevel"],
-  model: ModelInfo | undefined,
-): AgentRecord["thinkingLevel"] {
-  const supported = supportedThinkingLevelsForModel(model);
-  if (supported.includes(level)) return level;
+type LastAgentSelectionPatch = Partial<Settings["lastAgentSelection"]>;
 
-  const requestedIndex = THINKING_LEVEL_ORDER.indexOf(level);
-  if (requestedIndex === -1) return supported[0] ?? "off";
-
-  for (
-    let index = requestedIndex;
-    index < THINKING_LEVEL_ORDER.length;
-    index++
-  ) {
-    const candidate = THINKING_LEVEL_ORDER[index];
-    if (supported.includes(candidate)) return candidate;
-  }
-  for (let index = requestedIndex - 1; index >= 0; index--) {
-    const candidate = THINKING_LEVEL_ORDER[index];
-    if (supported.includes(candidate)) return candidate;
-  }
-  return supported[0] ?? "off";
+function rememberLastAgentSelection(patch: LastAgentSelectionPatch): void {
+  const settings = workbenchState.settingsDraft;
+  if (!settings?.rememberLastAgentSelection) return;
+  settings.lastAgentSelection = {
+    ...settings.lastAgentSelection,
+    ...patch,
+  };
+  queueSettingsSave({ lastAgentSelection: patch }, { immediate: true });
 }
 
 export function selectedThinkingLevel(): AgentRecord["thinkingLevel"] {
@@ -86,9 +63,14 @@ export async function setComposerModel(key: string) {
     pending.selectedModelKey = key;
     pending.thinkingLevel = thinkingLevel;
   }
+  const model = selectedModel();
+  rememberLastAgentSelection({
+    ...(model ? { model } : {}),
+    thinkingLevel,
+  });
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, {
-    model: selectedModel() ?? null,
+    model: model ?? null,
     thinkingLevel,
   });
   workbenchState.selectedThinkingLevel = agent.thinkingLevel;
@@ -114,6 +96,7 @@ export async function setComposerThinkingLevel(
       ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
       : undefined;
   if (pending) pending.thinkingLevel = thinkingLevel;
+  rememberLastAgentSelection({ thinkingLevel });
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, { thinkingLevel });
   workbenchState.selectedThinkingLevel = agent.thinkingLevel;
@@ -129,6 +112,7 @@ export async function setComposerMode(mode: AgentRecord["mode"]) {
       ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
       : undefined;
   if (pending) pending.mode = mode;
+  rememberLastAgentSelection({ mode });
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, { mode });
   workbenchState.agents = workbenchState.agents.map((candidate) =>
@@ -145,6 +129,7 @@ export async function setComposerPermission(
       ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
       : undefined;
   if (pending) pending.permissionLevel = permissionLevel;
+  rememberLastAgentSelection({ permissionLevel });
   if (!selection.agentId) return;
   const agent = await updateAgentConfig(selection.agentId, { permissionLevel });
   workbenchState.agents = workbenchState.agents.map((candidate) =>

@@ -113,7 +113,7 @@ function buildPlanModeInstructions(planDir: string): string {
 You are in plan mode — a research and planning mode with guarded writes.
 
 Restrictions:
-- Use read-only research tools: read files, grep/find/ls, web search/fetch when available, and planning-safe bash commands.
+- Use read-only research tools: read files, grep/find/ls, explore, web search/fetch when available and planning-safe bash commands.
 - WRITE and EDIT only plan files inside ${planDir}/.
 - NO code modifications outside the plans directory.
 - Do not run mutating package scripts, long-running dev servers, deployments, or destructive commands.

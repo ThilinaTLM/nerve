@@ -75,6 +75,20 @@ export async function writeSettings(
   storage: InitializedStorage,
   patch: UpdateSettingsRequest,
 ): Promise<Settings> {
+  const defaultModelPatch =
+    patch.defaultModel === null
+      ? { defaultModel: undefined }
+      : "defaultModel" in patch
+        ? { defaultModel: patch.defaultModel }
+        : {};
+  const lastAgentSelectionPatch = patch.lastAgentSelection
+    ? {
+        ...patch.lastAgentSelection,
+        ...(patch.lastAgentSelection.model === null
+          ? { model: undefined }
+          : {}),
+      }
+    : undefined;
   const exploreAgentPatch = patch.exploreAgent
     ? {
         ...patch.exploreAgent,
@@ -84,9 +98,14 @@ export async function writeSettings(
   const next = settingsSchema.parse({
     ...storage.settings,
     ...patch,
+    ...defaultModelPatch,
     server: { ...storage.settings.server, ...(patch.server ?? {}) },
     ui: { ...storage.settings.ui, ...(patch.ui ?? {}) },
     desktop: { ...storage.settings.desktop, ...(patch.desktop ?? {}) },
+    lastAgentSelection: {
+      ...storage.settings.lastAgentSelection,
+      ...(lastAgentSelectionPatch ?? {}),
+    },
     exploreAgent: {
       ...storage.settings.exploreAgent,
       ...(exploreAgentPatch ?? {}),

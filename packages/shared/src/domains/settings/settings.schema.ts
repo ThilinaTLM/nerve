@@ -12,9 +12,27 @@ export const permissionLevelSchema = z.enum([
 ]);
 export type PermissionLevel = z.infer<typeof permissionLevelSchema>;
 
+export const agentSelectionSettingsSchema = z.object({
+  mode: modeSchema.default("coding"),
+  permissionLevel: permissionLevelSchema.default("autonomous"),
+  model: modelSelectionSchema.optional(),
+  thinkingLevel: thinkingLevelSchema.default("off"),
+});
+export type AgentSelectionSettings = z.infer<
+  typeof agentSelectionSettingsSchema
+>;
+
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
+  defaultModel: modelSelectionSchema.optional(),
+  defaultThinkingLevel: thinkingLevelSchema.default("off"),
+  rememberLastAgentSelection: z.boolean().default(false),
+  lastAgentSelection: agentSelectionSettingsSchema.default({
+    mode: "coding",
+    permissionLevel: "autonomous",
+    thinkingLevel: "off",
+  }),
   exploreAgent: z.object({
     model: modelSelectionSchema.optional(),
     thinkingLevel: thinkingLevelSchema.default("off"),
@@ -53,6 +71,13 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
   defaultMode: "coding",
   defaultPermissionLevel: "autonomous",
+  defaultThinkingLevel: "off",
+  rememberLastAgentSelection: false,
+  lastAgentSelection: {
+    mode: "coding",
+    permissionLevel: "autonomous",
+    thinkingLevel: "off",
+  },
   exploreAgent: {
     thinkingLevel: "off",
   },
@@ -89,6 +114,17 @@ export const defaultSettings: Settings = {
 export const updateSettingsRequestSchema = z.object({
   defaultMode: modeSchema.optional(),
   defaultPermissionLevel: permissionLevelSchema.optional(),
+  defaultModel: modelSelectionSchema.nullable().optional(),
+  defaultThinkingLevel: thinkingLevelSchema.optional(),
+  rememberLastAgentSelection: z.boolean().optional(),
+  lastAgentSelection: z
+    .object({
+      mode: modeSchema.optional(),
+      permissionLevel: permissionLevelSchema.optional(),
+      model: modelSelectionSchema.nullable().optional(),
+      thinkingLevel: thinkingLevelSchema.optional(),
+    })
+    .optional(),
   exploreAgent: z
     .object({
       model: modelSelectionSchema.nullable().optional(),

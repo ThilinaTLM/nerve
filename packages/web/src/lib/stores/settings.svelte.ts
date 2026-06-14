@@ -1,4 +1,5 @@
 import { notify } from "$lib/notifications/notify.svelte";
+import type { AgentRecord, ModelInfo } from "../api";
 import {
   getAuthProviders,
   getModels,
@@ -12,13 +13,13 @@ import {
   applyTheme,
   applyZoomLevel,
   clampZoomLevel,
+  selection,
 } from "../state/app-state.svelte";
 import { modelKey, scopedUsableModelOptions } from "../utils/model";
 import {
   clampThinkingLevelForModel,
-  currentActiveAgent,
-  selectedModelInfo,
-} from "./composer-config.svelte";
+  resolveNewAgentComposerSelection,
+} from "./agent-selection-defaults";
 import {
   addCenterTab,
   nextCenterTabAfterClose,
@@ -37,6 +38,16 @@ let pendingSettingsPatch: UpdateSettingsRequest | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let saveInFlight = false;
 let savedServerSettingsSinceLoad = false;
+
+function currentActiveAgent(): AgentRecord | undefined {
+  return workbenchState.agents.find((agent) => agent.id === selection.agentId);
+}
+
+function currentSelectedModelInfo(): ModelInfo | undefined {
+  return workbenchState.models.find(
+    (model) => modelKey(model) === workbenchState.selectedModelKey,
+  );
+}
 
 export async function openSettingsPane() {
   addCenterTab({ kind: "settings", id: "settings" });
@@ -80,32 +91,43 @@ export async function loadSettingsPanel() {
   workbenchState.subscriptionUsage = Object.fromEntries(
     subscriptionUsage.map((usage) => [usage.provider, usage]),
   );
-  workbenchState.selectedMode =
-    currentActiveAgent()?.mode ?? settings.defaultMode;
-  workbenchState.selectedPermissionLevel =
-    currentActiveAgent()?.permissionLevel ?? settings.defaultPermissionLevel;
   const usable = scopedUsableModelOptions(
     modelList,
     auth,
     settings.scopedModels,
   );
-  const activeModel = currentActiveAgent()?.model;
-  if (
-    activeModel &&
-    usable.some((model) => modelKey(model) === modelKey(activeModel))
-  ) {
-    workbenchState.selectedModelKey = modelKey(activeModel);
+  const defaultSelection = resolveNewAgentComposerSelection(
+    settings,
+    modelList,
+    auth,
+  );
+  const activeAgent = currentActiveAgent();
+  if (activeAgent) {
+    workbenchState.selectedMode = activeAgent.mode;
+    workbenchState.selectedPermissionLevel = activeAgent.permissionLevel;
+    const activeModel = activeAgent.model;
+    if (
+      activeModel &&
+      usable.some((model) => modelKey(model) === modelKey(activeModel))
+    ) {
+      workbenchState.selectedModelKey = modelKey(activeModel);
+      workbenchState.selectedThinkingLevel = activeAgent.thinkingLevel;
+    } else {
+      workbenchState.selectedModelKey = defaultSelection.selectedModelKey;
+      workbenchState.selectedThinkingLevel =
+        defaultSelection.selectedThinkingLevel;
+    }
+  } else {
+    workbenchState.selectedMode = defaultSelection.selectedMode;
+    workbenchState.selectedPermissionLevel =
+      defaultSelection.selectedPermissionLevel;
+    workbenchState.selectedModelKey = defaultSelection.selectedModelKey;
     workbenchState.selectedThinkingLevel =
-      currentActiveAgent()?.thinkingLevel ?? "off";
-  } else if (
-    !usable.some((model) => modelKey(model) === workbenchState.selectedModelKey)
-  ) {
-    workbenchState.selectedModelKey =
-      usable.length > 0 ? modelKey(usable[0]) : "";
+      defaultSelection.selectedThinkingLevel;
   }
   workbenchState.selectedThinkingLevel = clampThinkingLevelForModel(
     workbenchState.selectedThinkingLevel,
-    selectedModelInfo(),
+    currentSelectedModelInfo(),
   );
   if (!hasPendingSettingsSave()) {
     savedServerSettingsSinceLoad = false;
@@ -127,6 +149,12 @@ function mergeSettingsPatch(
   }
   if (base?.desktop || patch.desktop) {
     next.desktop = { ...(base?.desktop ?? {}), ...(patch.desktop ?? {}) };
+  }
+  if (base?.lastAgentSelection || patch.lastAgentSelection) {
+    next.lastAgentSelection = {
+      ...(base?.lastAgentSelection ?? {}),
+      ...(patch.lastAgentSelection ?? {}),
+    };
   }
   if (base?.exploreAgent || patch.exploreAgent) {
     next.exploreAgent = {
@@ -174,7 +202,7 @@ function reconcileSelectedModelForScope(
     usable.length > 0 ? modelKey(usable[0]) : "";
   workbenchState.selectedThinkingLevel = clampThinkingLevelForModel(
     workbenchState.selectedThinkingLevel,
-    selectedModelInfo(),
+    currentSelectedModelInfo(),
   );
 }
 

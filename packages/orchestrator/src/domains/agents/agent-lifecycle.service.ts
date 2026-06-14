@@ -35,7 +35,7 @@ export class AgentLifecycleService {
   private readonly childReservationQueues = new Map<string, Promise<void>>();
 
   constructor(
-    _storage: InitializedStorage,
+    private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
     private readonly state: RuntimeState,
@@ -67,10 +67,24 @@ export class AgentLifecycleService {
     const now = new Date().toISOString();
     const id = createId("agent");
     const projectDir = resolve(request.projectDir ?? project.dir);
+    const defaultSelection = this.storage.settings.rememberLastAgentSelection
+      ? this.storage.settings.lastAgentSelection
+      : {
+          mode: this.storage.settings.defaultMode,
+          permissionLevel: this.storage.settings.defaultPermissionLevel,
+          model: this.storage.settings.defaultModel,
+          thinkingLevel: this.storage.settings.defaultThinkingLevel,
+        };
     const mode = request.mode ?? (parent ? parent.mode : conversation.mode);
     const permissionLevel =
       request.permissionLevel ??
       (parent ? parent.permissionLevel : conversation.permissionLevel);
+    const model = parent
+      ? request.model
+      : (request.model ?? defaultSelection.model);
+    const thinkingLevel = parent
+      ? request.thinkingLevel
+      : (request.thinkingLevel ?? defaultSelection.thinkingLevel);
     const workerId = this.workers.requireWorker(
       request.workerId ?? parent?.workerId,
       "agent",
@@ -96,11 +110,8 @@ export class AgentLifecycleService {
       workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
       systemPrompt: request.systemPrompt,
       budget: agentBudget(parent, request.budget),
-      model: request.model,
-      thinkingLevel: clampAgentThinkingLevel(
-        request.model,
-        request.thinkingLevel,
-      ),
+      model,
+      thinkingLevel: clampAgentThinkingLevel(model, thinkingLevel),
       status: "idle",
       createdAt: now,
       updatedAt: now,
