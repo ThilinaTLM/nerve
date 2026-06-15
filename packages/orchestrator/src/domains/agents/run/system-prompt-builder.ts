@@ -18,7 +18,9 @@ export async function buildAgentSystemPrompt(
 ): Promise<string> {
   const activeToolNames = activeToolNamesForAgent(agent);
   const promptMetadata = toolPromptMetadata(activeToolNames);
-  const resources = await loadHarnessResources(agent.projectDir);
+  const resources = await loadHarnessResources(agent.projectDir, {
+    storageHome: options.storageHome,
+  });
   return composeAgentSystemPrompt(
     agent,
     activeToolNames,

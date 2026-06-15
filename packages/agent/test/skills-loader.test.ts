@@ -226,7 +226,7 @@ describe("skill loader Windows paths", () => {
   });
 
   it("loads a nested skill under a Windows absolute root", async () => {
-    const root = String.raw`C:\Users\alice\.pi\agent\skills`;
+    const root = String.raw`C:\Users\alice\.agents\skills`;
     const env = new MemoryExecutionEnv(root, {
       [`${root}\\category\\agent-browser\\SKILL.md`]: skillContent(),
     });
@@ -241,7 +241,7 @@ describe("skill loader Windows paths", () => {
   });
 
   it("honors root ignore files with Windows paths", async () => {
-    const root = String.raw`C:\Users\alice\.pi\agent\skills`;
+    const root = String.raw`C:\Users\alice\.agents\skills`;
     const env = new MemoryExecutionEnv(root, {
       [`${root}\\.gitignore`]: "agent-browser/\n",
       [`${root}\\agent-browser\\SKILL.md`]: skillContent(),
@@ -254,7 +254,7 @@ describe("skill loader Windows paths", () => {
   });
 
   it("prefixes nested ignore files with POSIX-style relative paths for Windows paths", async () => {
-    const root = String.raw`C:\Users\alice\.pi\agent\skills`;
+    const root = String.raw`C:\Users\alice\.agents\skills`;
     const env = new MemoryExecutionEnv(root, {
       [`${root}\\category\\.gitignore`]: "ignored/\n",
       [`${root}\\category\\ignored\\SKILL.md`]: skillContent(),

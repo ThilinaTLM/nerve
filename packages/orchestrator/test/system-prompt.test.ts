@@ -29,14 +29,17 @@ async function tempProject(): Promise<string> {
 describe("Nerve system prompt", () => {
   it("renders active tool summary, context files, skills, date, and cwd", async () => {
     const cwd = await tempProject();
+    const storageHome = await tempProject();
     await writeFile(join(cwd, "AGENTS.md"), "Project rule: prefer tests.\n");
-    await mkdir(join(cwd, ".pi", "skills", "review"), { recursive: true });
+    await mkdir(join(cwd, ".nerve", "skills", "review"), {
+      recursive: true,
+    });
     await writeFile(
-      join(cwd, ".pi", "skills", "review", "SKILL.md"),
+      join(cwd, ".nerve", "skills", "review", "SKILL.md"),
       "---\ndescription: Review code carefully.\n---\n\nReview instructions.\n",
     );
 
-    const resources = await loadHarnessResources(cwd);
+    const resources = await loadHarnessResources(cwd, { storageHome });
     const prompt = buildNerveSystemPrompt({
       cwd,
       selectedTools: ["read", "bash", "edit", "write"],
@@ -85,12 +88,94 @@ describe("Nerve system prompt", () => {
           name: "hidden",
           description: "Hidden without read.",
           content: "content",
-          filePath: "/tmp/project/.pi/skills/hidden/SKILL.md",
+          filePath: "/tmp/project/.nerve/skills/hidden/SKILL.md",
         },
       ],
     });
 
     assert.doesNotMatch(prompt, /<available_skills>/);
+  });
+
+  it("does not load legacy .pi project resources", async () => {
+    const cwd = await tempProject();
+    const storageHome = await tempProject();
+    await mkdir(join(cwd, ".pi", "skills", "legacy-pi-skill"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(cwd, ".pi", "skills", "legacy-pi-skill", "SKILL.md"),
+      "---\ndescription: Legacy Pi skill.\n---\n\nDo not load.\n",
+    );
+    await writeFile(join(cwd, ".pi", "SYSTEM.md"), "Legacy system prompt.\n");
+    await writeFile(
+      join(cwd, ".pi", "APPEND_SYSTEM.md"),
+      "Legacy append prompt.\n",
+    );
+
+    const resources = await loadHarnessResources(cwd, { storageHome });
+
+    assert.equal(resources.systemPrompt, undefined);
+    assert.equal(resources.appendSystemPrompt, undefined);
+    assert.equal(
+      resources.skills.some((skill) => skill.name === "legacy-pi-skill"),
+      false,
+    );
+  });
+
+  it("loads global Nerve agent resources from storage home", async () => {
+    const cwd = await tempProject();
+    const storageHome = await tempProject();
+    const agentDir = join(storageHome, "agent");
+    await mkdir(join(agentDir, "skills", "global-nerve-skill"), {
+      recursive: true,
+    });
+    await writeFile(join(agentDir, "AGENTS.md"), "Global Nerve rule.\n");
+    await writeFile(join(agentDir, "SYSTEM.md"), "Global system prompt.\n");
+    await writeFile(
+      join(agentDir, "skills", "global-nerve-skill", "SKILL.md"),
+      "---\ndescription: Global Nerve skill.\n---\n\nUse global instructions.\n",
+    );
+
+    const resources = await loadHarnessResources(cwd, { storageHome });
+
+    assert.deepEqual(resources.contextFiles[0], {
+      path: join(agentDir, "AGENTS.md"),
+      content: "Global Nerve rule.\n",
+    });
+    assert.equal(resources.systemPrompt, "Global system prompt.\n");
+    assert.ok(
+      resources.skills.some(
+        (skill) =>
+          skill.name === "global-nerve-skill" &&
+          skill.description === "Global Nerve skill.",
+      ),
+    );
+  });
+
+  it("prefers project .nerve skills over project .agents skills", async () => {
+    const cwd = await tempProject();
+    const storageHome = await tempProject();
+    await mkdir(join(cwd, ".nerve", "skills", "collision-skill"), {
+      recursive: true,
+    });
+    await mkdir(join(cwd, ".agents", "skills", "collision-skill"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(cwd, ".nerve", "skills", "collision-skill", "SKILL.md"),
+      "---\ndescription: Nerve project skill.\n---\n\nUse Nerve.\n",
+    );
+    await writeFile(
+      join(cwd, ".agents", "skills", "collision-skill", "SKILL.md"),
+      "---\ndescription: Agents project skill.\n---\n\nUse agents.\n",
+    );
+
+    const resources = await loadHarnessResources(cwd, { storageHome });
+    const skill = resources.skills.find(
+      (candidate) => candidate.name === "collision-skill",
+    );
+
+    assert.equal(skill?.description, "Nerve project skill.");
   });
 
   it("adds full plan-mode instructions, including for custom prompts", () => {

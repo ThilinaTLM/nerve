@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadSkills, NodeExecutionEnv, type Skill } from "@nerve/agent";
+import { resolveDataDir } from "./infrastructure/storage/paths.js";
 
 const CONTEXT_FILE_CANDIDATES = [
   "AGENTS.md",
@@ -10,7 +11,8 @@ const CONTEXT_FILE_CANDIDATES = [
   "CLAUDE.md",
   "CLAUDE.MD",
 ];
-const CONFIG_DIR_NAME = ".pi";
+const NERVE_DIR_NAME = ".nerve";
+const AGENTS_DIR_NAME = ".agents";
 
 export interface LoadedHarnessResources {
   contextFiles: Array<{ path: string; content: string }>;
@@ -19,11 +21,16 @@ export interface LoadedHarnessResources {
   appendSystemPrompt?: string;
 }
 
+export interface LoadHarnessResourcesOptions {
+  storageHome?: string;
+}
+
 export async function loadHarnessResources(
   cwd: string,
+  options: LoadHarnessResourcesOptions = {},
 ): Promise<LoadedHarnessResources> {
   const resolvedCwd = resolve(cwd);
-  const agentDir = join(homedir(), ".pi", "agent");
+  const agentDir = join(resolveDataDir(options.storageHome), "agent");
   const env = new NodeExecutionEnv({ cwd: resolvedCwd });
 
   const [contextFiles, skills, systemPrompt, appendSystemPrompt] =
@@ -31,7 +38,7 @@ export async function loadHarnessResources(
       loadProjectContextFiles(resolvedCwd, agentDir),
       loadProjectSkills(env, resolvedCwd, agentDir),
       loadFirstExistingText([
-        join(resolvedCwd, CONFIG_DIR_NAME, "SYSTEM.md"),
+        join(resolvedCwd, NERVE_DIR_NAME, "SYSTEM.md"),
         join(agentDir, "SYSTEM.md"),
       ]),
       loadAppendSystemPrompt(resolvedCwd, agentDir),
@@ -88,11 +95,12 @@ async function loadProjectSkills(
   cwd: string,
   agentDir: string,
 ): Promise<Skill[]> {
+  const globalAgentsSkillDir = join(homedir(), AGENTS_DIR_NAME, "skills");
   const dirs = [
+    join(cwd, NERVE_DIR_NAME, "skills"),
+    ...ancestorAgentsSkillDirs(cwd, globalAgentsSkillDir),
     join(agentDir, "skills"),
-    join(cwd, CONFIG_DIR_NAME, "skills"),
-    join(homedir(), ".agents", "skills"),
-    ...ancestorAgentsSkillDirs(cwd),
+    globalAgentsSkillDir,
   ];
   const loaded = await loadSkills(env, dirs);
   const byName = new Map<string, Skill>();
@@ -102,12 +110,15 @@ async function loadProjectSkills(
   return [...byName.values()];
 }
 
-function ancestorAgentsSkillDirs(cwd: string): string[] {
+function ancestorAgentsSkillDirs(cwd: string, excludedDir?: string): string[] {
   const dirs: string[] = [];
+  const resolvedExcludedDir = excludedDir ? resolve(excludedDir) : undefined;
   let current = resolve(cwd);
   while (true) {
-    const candidate = join(current, ".agents", "skills");
-    if (existsSync(candidate)) dirs.unshift(candidate);
+    const candidate = join(current, AGENTS_DIR_NAME, "skills");
+    if (existsSync(candidate) && resolve(candidate) !== resolvedExcludedDir) {
+      dirs.push(candidate);
+    }
     const parent = resolve(current, "..");
     if (parent === current) break;
     current = parent;
@@ -131,7 +142,7 @@ async function loadAppendSystemPrompt(
 ): Promise<string | undefined> {
   const values = await Promise.all(
     [
-      join(cwd, CONFIG_DIR_NAME, "APPEND_SYSTEM.md"),
+      join(cwd, NERVE_DIR_NAME, "APPEND_SYSTEM.md"),
       join(agentDir, "APPEND_SYSTEM.md"),
     ]
       .filter((path) => existsSync(path))
