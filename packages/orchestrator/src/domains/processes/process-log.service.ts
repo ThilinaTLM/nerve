@@ -12,8 +12,22 @@ import {
   readJsonLines,
 } from "../../infrastructure/storage/index.js";
 
+export type ProcessLogStream = "stdout" | "stderr";
+
+export const MAX_BUFFERED_LOG_LINE_CHARS = 256 * 1024;
+
 export interface ProcessLogCursor {
   logSeq: number;
+  lineBuffers: Record<ProcessLogStream, string>;
+  logQueue: Promise<void>;
+}
+
+export function createProcessLogCursor(logSeq = 0): ProcessLogCursor {
+  return {
+    logSeq,
+    lineBuffers: { stdout: "", stderr: "" },
+    logQueue: Promise.resolve(),
+  };
 }
 
 export class ProcessLogService {
@@ -69,32 +83,36 @@ export class ProcessLogService {
   async captureOutput(
     record: ProcessRecord,
     cursor: ProcessLogCursor,
-    stream: "stdout" | "stderr",
+    stream: ProcessLogStream,
     chunk: Buffer | string,
     onLog: (event: ProcessLogEvent) => Promise<void>,
   ): Promise<void> {
     const text = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk;
-    const path = stream === "stdout" ? record.stdoutPath : record.stderrPath;
-    await appendFile(path, text, "utf8");
-    for (const line of splitLines(text)) {
-      cursor.logSeq += 1;
-      const event: ProcessLogEvent = {
-        seq: cursor.logSeq,
-        ts: new Date().toISOString(),
-        stream,
-        level: classifyLogLevel(stream, line),
-        line,
-      };
-      await appendJsonLine(record.logsPath, event, 0o600);
-      await this.events.publish("process.log", {
-        processId: record.id,
-        projectId: record.projectId,
-        conversationId: record.conversationId,
-        agentId: record.agentId,
-        log: event,
-      });
-      await onLog(event);
-    }
+    return this.enqueue(cursor, () =>
+      this.captureOutputNow(record, cursor, stream, text, onLog),
+    );
+  }
+
+  async flushOutput(
+    record: ProcessRecord,
+    cursor: ProcessLogCursor,
+    stream: ProcessLogStream,
+    onLog: (event: ProcessLogEvent) => Promise<void>,
+  ): Promise<void> {
+    return this.enqueue(cursor, () =>
+      this.flushOutputNow(record, cursor, stream, onLog),
+    );
+  }
+
+  async flushOutputBuffers(
+    record: ProcessRecord,
+    cursor: ProcessLogCursor,
+    onLog: (event: ProcessLogEvent) => Promise<void>,
+  ): Promise<void> {
+    return this.enqueue(cursor, async () => {
+      await this.flushOutputNow(record, cursor, "stdout", onLog);
+      await this.flushOutputNow(record, cursor, "stderr", onLog);
+    });
   }
 
   async latestLogSeq(logsPath: string): Promise<number> {
@@ -110,17 +128,109 @@ export class ProcessLogService {
       .map((result) => result.data)
       .sort((a, b) => a.seq - b.seq);
   }
+
+  private enqueue(
+    cursor: ProcessLogCursor,
+    task: () => Promise<void>,
+  ): Promise<void> {
+    ensureLogCursorState(cursor);
+    const queued = cursor.logQueue.catch(() => undefined).then(task);
+    cursor.logQueue = queued.catch(() => undefined);
+    return queued;
+  }
+
+  private async captureOutputNow(
+    record: ProcessRecord,
+    cursor: ProcessLogCursor,
+    stream: ProcessLogStream,
+    text: string,
+    onLog: (event: ProcessLogEvent) => Promise<void>,
+  ): Promise<void> {
+    const path = stream === "stdout" ? record.stdoutPath : record.stderrPath;
+    await appendFile(path, text, "utf8");
+
+    const { lines, remainder } = appendChunkAndTakeCompleteLines(
+      cursor.lineBuffers[stream],
+      text,
+    );
+    cursor.lineBuffers[stream] = remainder;
+
+    for (const line of lines) {
+      await this.emitLogLine(record, cursor, stream, line, onLog);
+    }
+
+    if (cursor.lineBuffers[stream].length > MAX_BUFFERED_LOG_LINE_CHARS) {
+      const overlongLine = cursor.lineBuffers[stream];
+      cursor.lineBuffers[stream] = "";
+      await this.emitLogLine(record, cursor, stream, overlongLine, onLog);
+    }
+  }
+
+  private async flushOutputNow(
+    record: ProcessRecord,
+    cursor: ProcessLogCursor,
+    stream: ProcessLogStream,
+    onLog: (event: ProcessLogEvent) => Promise<void>,
+  ): Promise<void> {
+    const line = cursor.lineBuffers[stream];
+    cursor.lineBuffers[stream] = "";
+    if (line.length === 0) return;
+    await this.emitLogLine(record, cursor, stream, line, onLog);
+  }
+
+  private async emitLogLine(
+    record: ProcessRecord,
+    cursor: ProcessLogCursor,
+    stream: ProcessLogStream,
+    line: string,
+    onLog: (event: ProcessLogEvent) => Promise<void>,
+  ): Promise<void> {
+    const cleaned = line.trimEnd();
+    if (cleaned.length === 0) return;
+
+    cursor.logSeq += 1;
+    const event: ProcessLogEvent = {
+      seq: cursor.logSeq,
+      ts: new Date().toISOString(),
+      stream,
+      level: classifyLogLevel(stream, cleaned),
+      line: cleaned,
+    };
+    await appendJsonLine(record.logsPath, event, 0o600);
+    await this.events.publish("process.log", {
+      processId: record.id,
+      projectId: record.projectId,
+      conversationId: record.conversationId,
+      agentId: record.agentId,
+      log: event,
+    });
+    await onLog(event);
+  }
 }
 
-function splitLines(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0);
+function ensureLogCursorState(cursor: ProcessLogCursor): void {
+  cursor.lineBuffers ??= { stdout: "", stderr: "" };
+  cursor.lineBuffers.stdout ??= "";
+  cursor.lineBuffers.stderr ??= "";
+  cursor.logQueue ??= Promise.resolve();
+}
+
+function appendChunkAndTakeCompleteLines(
+  previous: string,
+  chunk: string,
+): { lines: string[]; remainder: string } {
+  const combined = previous + chunk;
+  if (combined.length === 0) return { lines: [], remainder: "" };
+
+  const parts = combined.split(/\r?\n/);
+  if (combined.endsWith("\n")) {
+    return { lines: parts.slice(0, -1), remainder: "" };
+  }
+  return { lines: parts.slice(0, -1), remainder: parts.at(-1) ?? "" };
 }
 
 function classifyLogLevel(
-  stream: "stdout" | "stderr",
+  stream: ProcessLogStream,
   line: string,
 ): ProcessLogEvent["level"] {
   if (/\b(warn|warning)\b/i.test(line)) return "warn";

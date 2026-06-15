@@ -18,8 +18,10 @@ import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { ApplicationLogger } from "../../logging.js";
 import {
+  createProcessLogCursor,
   defaultProcessSupervisor,
   isActiveProcessStatus,
+  type ProcessLogCursor,
   ProcessLogService,
   ProcessReadinessService,
   ProcessRepository,
@@ -35,9 +37,8 @@ export interface ProcessManagerOptions {
   launchConfigs?: ProcessLaunchConfigStore;
 }
 
-interface ManagedProcess {
+interface ManagedProcess extends ProcessLogCursor {
   child?: ChildProcess;
-  logSeq: number;
   stopping: boolean;
   finalized: boolean;
   closePromise?: Promise<{
@@ -193,7 +194,9 @@ export class ProcessManager {
     });
     const managed: ManagedProcess = {
       child,
-      logSeq: await this.processLogs.latestLogSeq(record.logsPath),
+      ...createProcessLogCursor(
+        await this.processLogs.latestLogSeq(record.logsPath),
+      ),
       stopping: false,
       finalized: false,
       closePromise,
@@ -457,6 +460,30 @@ export class ProcessManager {
       chunk,
       async (event) => this.checkReadiness(record.id, event),
     );
+  }
+
+  private async flushProcessOutputBuffers(processId: string): Promise<void> {
+    const record = this.processes.get(processId);
+    const managed = this.managed.get(processId);
+    if (!record || !managed) return;
+
+    try {
+      await this.processLogs.flushOutputBuffers(
+        record,
+        managed,
+        async (event) => this.checkReadiness(record.id, event),
+      );
+    } catch (error) {
+      await this.logger
+        ?.warn("Process output flush failed", {
+          processId: record.id,
+          projectId: record.projectId,
+          conversationId: record.conversationId,
+          agentId: record.agentId,
+          error,
+        })
+        .catch(() => undefined);
+    }
   }
 
   private async checkReadiness(
@@ -869,10 +896,13 @@ export class ProcessManager {
     if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
     if (managed) managed.finalized = true;
 
+    await this.flushProcessOutputBuffers(processId);
+
+    const freshRecord = this.processes.get(processId) ?? record;
     const readiness =
-      record.readiness.outcome === "pending"
-        ? { ...record.readiness, outcome: "exited" as const }
-        : record.readiness;
+      freshRecord.readiness.outcome === "pending"
+        ? { ...freshRecord.readiness, outcome: "exited" as const }
+        : freshRecord.readiness;
     const updated = await this.updateProcess(processId, {
       status: "stopped",
       readiness,
@@ -904,15 +934,22 @@ export class ProcessManager {
     if (managed?.finalized) return record;
     if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
     if (managed) managed.finalized = true;
+
+    await this.flushProcessOutputBuffers(processId);
+
+    const freshRecord = this.processes.get(processId);
+    if (!freshRecord) return undefined;
+    if (!isActiveProcessStatus(freshRecord.status)) return freshRecord;
+
     const status = managed?.stopping
       ? "stopped"
       : exitCode === 0
         ? "exited"
         : "error";
     const readiness =
-      record.readiness.outcome === "pending"
-        ? { ...record.readiness, outcome: "exited" as const }
-        : record.readiness;
+      freshRecord.readiness.outcome === "pending"
+        ? { ...freshRecord.readiness, outcome: "exited" as const }
+        : freshRecord.readiness;
     const updated = await this.updateProcess(processId, {
       status,
       readiness,
@@ -945,6 +982,12 @@ export class ProcessManager {
     if (managed?.finalized) return;
     if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
     if (managed) managed.finalized = true;
+
+    await this.flushProcessOutputBuffers(processId);
+
+    const freshRecord = this.processes.get(processId);
+    if (!freshRecord || !isActiveProcessStatus(freshRecord.status)) return;
+
     const updated = await this.updateProcess(processId, {
       status: "error",
       error: message,

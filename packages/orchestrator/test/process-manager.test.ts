@@ -11,6 +11,7 @@ import {
   type ProcessLaunchConfig,
   type ProcessRecord,
   type ProcessRuntime,
+  type StartProcessRequest,
 } from "@nerve/shared";
 import type { ProcessLaunchConfigStore } from "../src/domains/processes/process-launch-config.store.js";
 import { ProcessManager } from "../src/domains/processes/process-manager.js";
@@ -364,6 +365,116 @@ describe("process manager launch env", () => {
   });
 });
 
+describe("process manager log buffering and readiness", () => {
+  it("matches readyPattern across stdout chunks", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({ child });
+    const { manager, storage, events } = await createManager(supervisor);
+    const startedEvent = waitForProcessEvent(events, "process.started");
+
+    const start = startFakeProcess(manager, storage, undefined, {
+      readyPattern: "ready on port 5173",
+      readyTimeoutMs: 1000,
+    });
+    const started = await startedEvent;
+    child.stdout.emit("data", "server ready on ");
+    child.stdout.emit("data", "port 5173\n");
+
+    const process = await start;
+    const logs = await manager.queryLogs(started.id);
+
+    assert.equal(process.readiness.outcome, "ready");
+    assert.equal(process.readiness.matched, "ready on port 5173");
+    assert.deepEqual(
+      logs.events.map((event) => event.line),
+      ["server ready on port 5173"],
+    );
+  });
+
+  it("matches readyOnUrl across stdout chunks", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({ child });
+    const { manager, storage, events } = await createManager(supervisor);
+    const startedEvent = waitForProcessEvent(events, "process.started");
+
+    const start = startFakeProcess(manager, storage, undefined, {
+      readyOnUrl: true,
+      readyTimeoutMs: 1000,
+    });
+    await startedEvent;
+    child.stdout.emit("data", "Listening at http://localhost:");
+    child.stdout.emit("data", "5173\n");
+
+    const process = await start;
+
+    assert.equal(process.readiness.outcome, "ready");
+    assert.equal(process.readiness.matched, "http://localhost:5173");
+  });
+
+  it("uses final flush to satisfy readiness before exit", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({ child });
+    const { manager, storage, events } = await createManager(supervisor);
+    const startedEvent = waitForProcessEvent(events, "process.started");
+
+    const start = startFakeProcess(manager, storage, undefined, {
+      readyPattern: "final ready",
+      readyTimeoutMs: 1000,
+    });
+    const started = await startedEvent;
+    const exitedEvent = waitForProcessEvent(
+      events,
+      "process.exited",
+      started.id,
+    );
+    child.stdout.emit("data", "final ready");
+    child.emitClose(0, null);
+
+    await start;
+    await exitedEvent;
+    const stored = manager.getProcess(started.id);
+
+    assert.equal(stored.status, "exited");
+    assert.equal(stored.readiness.outcome, "ready");
+    assert.equal(stored.readiness.matched, "final ready");
+  });
+
+  it("flushes buffered stderr before marking process error", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({ child });
+    const { manager, storage, events } = await createManager(supervisor);
+    const process = await startFakeProcess(manager, storage);
+    const errorEvent = waitForProcessEvent(events, "process.error", process.id);
+
+    child.stderr.emit("data", "fatal failure");
+    child.emit("error", new Error("boom"));
+    await errorEvent;
+
+    const logs = await manager.queryLogs(process.id, { mode: "errors" });
+    assert.deepEqual(
+      logs.events.map((event) => event.line),
+      ["fatal failure"],
+    );
+  });
+
+  it("flushes buffered output during force-finalized stop", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({ child });
+    const { manager, storage } = await createManager(supervisor);
+    const process = await startFakeProcess(manager, storage);
+
+    child.stdout.emit("data", "stopping output");
+    const stopped = await manager.stopProcess(process.id, { timeoutMs: 20 });
+
+    const logs = await manager.queryLogs(process.id);
+    assert.equal(stopped.status, "stopped");
+    assert.deepEqual(
+      logs.events.map((event) => event.line),
+      ["stopping output"],
+    );
+  });
+});
+
 describe("process manager orphan cleanup", () => {
   it("cleans up an orphaned record with runtime metadata", async () => {
     const runtime = runtimeMetadata();
@@ -661,16 +772,35 @@ function fakeSupervisor(options: FakeSupervisorOptions): {
   };
 }
 
+function waitForProcessEvent(
+  events: EventBus,
+  type: string,
+  processId?: string,
+): Promise<ProcessRecord> {
+  return new Promise((resolve) => {
+    const unsubscribe = events.subscribe((event) => {
+      if (event.type !== type) return;
+      const data = event.data as { process?: ProcessRecord };
+      if (!data.process) return;
+      if (processId && data.process.id !== processId) return;
+      unsubscribe();
+      resolve(data.process);
+    });
+  });
+}
+
 async function startFakeProcess(
   manager: ProcessManager,
   storage: InitializedStorage,
   env?: Record<string, string>,
+  patch: Partial<Omit<StartProcessRequest, "cwd" | "command" | "env">> = {},
 ) {
   return manager.startProcess({
     cwd: storage.paths.home,
     command: "fake long-running command",
     env,
     readyTimeoutMs: 0,
+    ...patch,
   });
 }
 
