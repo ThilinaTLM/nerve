@@ -8,6 +8,26 @@ import {
 } from "../src/execution/index.js";
 import { createTempProject } from "./helpers.js";
 
+function resultDiff(result: Awaited<ReturnType<typeof executeEdit>>): string {
+  const details = result.details as { diff?: unknown } | undefined;
+  assert.equal(typeof details?.diff, "string");
+  return details.diff;
+}
+
+function diffStats(diff: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
+    else if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
+  }
+  return { additions, deletions };
+}
+
+function hunkCount(diff: string): number {
+  return diff.match(/^@@ /gm)?.length ?? 0;
+}
+
 describe("edit executor", () => {
   it("normalizes array and legacy single-edit arguments", () => {
     assert.deepEqual(
@@ -53,6 +73,8 @@ describe("edit executor", () => {
     );
     assert.equal(single.path, join(project.root, "example.txt"));
     assert.equal(single.content, "Edited file with 1 replacement(s).");
+    assert.equal(diffStats(resultDiff(single)).additions, 1);
+    assert.equal(diffStats(resultDiff(single)).deletions, 1);
     assert.equal(
       await readFile(single.path ?? "", "utf8"),
       "alpha\nBETA\ngamma\n",
@@ -72,6 +94,56 @@ describe("edit executor", () => {
       await readFile(single.path ?? "", "utf8"),
       "ALPHA\nBETA\nGAMMA\n",
     );
+  });
+
+  it("generates accurate unified diffs for insertions and deletions", async () => {
+    const project = await createTempProject();
+    await project.write("insert.txt", "alpha\nbeta\ngamma\n");
+
+    const insertion = await executeEdit(
+      {
+        path: "insert.txt",
+        oldText: "beta\n",
+        newText: "beta\ninserted\n",
+      },
+      { cwd: project.root },
+    );
+    const insertionDiff = resultDiff(insertion);
+    assert.match(insertionDiff, /^@@ -1,3 \+1,4 @@/m);
+    assert.deepEqual(diffStats(insertionDiff), { additions: 1, deletions: 0 });
+
+    await project.write("delete.txt", "alpha\nbeta\nremoved\ngamma\n");
+    const deletion = await executeEdit(
+      { path: "delete.txt", oldText: "removed\n", newText: "" },
+      { cwd: project.root },
+    );
+    const deletionDiff = resultDiff(deletion);
+    assert.match(deletionDiff, /^@@ -1,4 \+1,3 @@/m);
+    assert.deepEqual(diffStats(deletionDiff), { additions: 0, deletions: 1 });
+  });
+
+  it("generates separate hunks for far-apart replacements", async () => {
+    const project = await createTempProject();
+    await project.write(
+      "multi.txt",
+      Array.from({ length: 12 }, (_, index) => `line${index + 1}`).join("\n") +
+        "\n",
+    );
+
+    const result = await executeEdit(
+      {
+        path: "multi.txt",
+        edits: [
+          { oldText: "line1\n", newText: "LINE1\n" },
+          { oldText: "line11\n", newText: "LINE11\n" },
+        ],
+      },
+      { cwd: project.root },
+    );
+    const diff = resultDiff(result);
+    assert.equal(hunkCount(diff), 2);
+    assert.match(diff, /-line1\n\+LINE1/);
+    assert.match(diff, /-line11\n\+LINE11/);
   });
 
   it("preserves CRLF line endings and UTF-8 BOM", async () => {

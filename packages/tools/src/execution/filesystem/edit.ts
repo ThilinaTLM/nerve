@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { formatPatch, OMIT_HEADERS, structuredPatch } from "diff";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { writeTextFileAtomically } from "./atomic-write.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
@@ -157,27 +158,11 @@ function firstChangedLine(before: string, after: string): number | undefined {
 }
 
 function generateDiffString(before: string, after: string): string {
-  const line = firstChangedLine(before, after) ?? 1;
-  const beforeLines = before.split("\n");
-  const afterLines = after.split("\n");
-  const start = Math.max(0, line - 3);
-  const end = Math.min(
-    Math.max(beforeLines.length, afterLines.length),
-    line + 3,
-  );
-  const output = [
-    `@@ -${start + 1},${end - start} +${start + 1},${end - start} @@`,
-  ];
-  for (let index = start; index < end; index += 1) {
-    const beforeLine = beforeLines[index];
-    const afterLine = afterLines[index];
-    if (beforeLine === afterLine) output.push(` ${beforeLine ?? ""}`);
-    else {
-      if (beforeLine !== undefined) output.push(`-${beforeLine}`);
-      if (afterLine !== undefined) output.push(`+${afterLine}`);
-    }
-  }
-  return output.join("\n");
+  const patch = structuredPatch("", "", before, after, undefined, undefined, {
+    context: 3,
+  });
+  const diff = formatPatch(patch, OMIT_HEADERS);
+  return diff.endsWith("\n") ? diff.slice(0, -1) : diff;
 }
 
 export function normalizeEditOperations(
