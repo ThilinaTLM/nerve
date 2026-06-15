@@ -36,27 +36,18 @@ export const notificationState = $state<{
 
 let listenersInstalled = false;
 
+// Direct notify.* calls are intentionally non-interruptive in-app
+// feedback. OS/browser notifications must go through notifyNative(...) and the
+// runtime notification policy.
 export const notify = {
   success(title: string, options: NotifyOptions = {}): void {
-    deliverNotification(
-      { title, body: options.description, urgency: "normal" },
-      "success",
-      options,
-    );
+    showToast("success", title, options.description);
   },
   error(title: string, options: NotifyOptions = {}): void {
-    deliverNotification(
-      { title, body: options.description, urgency: "attention" },
-      "error",
-      options,
-    );
+    showToast("error", title, options.description);
   },
   message(title: string, options: NotifyOptions = {}): void {
-    deliverNotification(
-      { title, body: options.description, urgency: "normal" },
-      "message",
-      options,
-    );
+    showToast("message", title, options.description);
   },
 };
 
@@ -92,10 +83,10 @@ export function notifyNative(
 ): void {
   const fallbackKind =
     options.kind ?? (payload.urgency === "attention" ? "error" : "message");
-  deliverNotification(payload, fallbackKind, options);
+  deliverNativeNotification(payload, fallbackKind, options);
 }
 
-function deliverNotification(
+function deliverNativeNotification(
   payload: DesktopNotificationPayload,
   kind: NotifyKind,
   options: NativeNotifyOptions,

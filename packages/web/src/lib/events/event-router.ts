@@ -1,4 +1,3 @@
-import type { DesktopNotificationPayload } from "$lib/desktop/bridge.svelte";
 import { notifyNative } from "$lib/notifications/notify.svelte";
 import type {
   AgentRecord,
@@ -37,6 +36,7 @@ import type {
 import { workbenchState } from "../stores/workbench/state.svelte";
 import { entryToTranscriptItems } from "../stores/workbench/transcript";
 import { loadWorkspaceState } from "../stores/workspace.svelte";
+import { notificationForRuntimeEvent } from "./runtime-notifications";
 
 const MAX_LIVE_TOOL_OUTPUT_CHARS = 32_000;
 const MAX_LIVE_TOOL_OUTPUT_CHUNKS = 400;
@@ -133,94 +133,17 @@ function maybeShowRuntimeNotification(
   event: EventEnvelope<Record<string, unknown>>,
 ): void {
   if (!isRecentEvent(event)) return;
-  const candidate = notificationForEvent(event);
+  const candidate = notificationForRuntimeEvent(event, {
+    projects: workbenchState.projects,
+    conversations: workbenchState.conversations,
+  });
   if (!candidate) return;
 
-  notifyNative(candidate.payload, { backgroundOnly: candidate.backgroundOnly });
-}
-
-function notificationForEvent(
-  event: EventEnvelope<Record<string, unknown>>,
-):
-  | { payload: DesktopNotificationPayload; backgroundOnly: boolean }
-  | undefined {
-  switch (event.type) {
-    case "approval.requested": {
-      const approval = recordValue(event.data?.approval);
-      return {
-        backgroundOnly: false,
-        payload: {
-          title: "Approval requested",
-          body: shortNotificationText(
-            stringValue(approval?.reason) ??
-              "An agent is waiting for tool approval.",
-          ),
-          urgency: "attention",
-        },
-      };
-    }
-    case "user_question.requested": {
-      const question = recordValue(event.data?.question);
-      return {
-        backgroundOnly: false,
-        payload: {
-          title: "Nerve needs your answer",
-          body: shortNotificationText(
-            stringValue(question?.question) ?? "An agent asked a question.",
-          ),
-          urgency: "attention",
-        },
-      };
-    }
-    case "plan_review.requested": {
-      const planReview = recordValue(event.data?.planReview);
-      return {
-        backgroundOnly: false,
-        payload: {
-          title: "Plan ready for review",
-          body: shortNotificationText(
-            stringValue(planReview?.title) ??
-              stringValue(planReview?.summary) ??
-              "An agent submitted a plan for review.",
-          ),
-          urgency: "attention",
-        },
-      };
-    }
-    case "conversation.run.completed":
-      return {
-        backgroundOnly: true,
-        payload: {
-          title: "Agent run completed",
-          body: projectBodyForEvent(event) ?? "Nerve finished a run.",
-        },
-      };
-    case "conversation.run.failed":
-      return {
-        backgroundOnly: true,
-        payload: {
-          title: "Agent run failed",
-          body: shortNotificationText(
-            stringValue(event.data?.message) ??
-              projectBodyForEvent(event) ??
-              "Nerve hit an agent error.",
-          ),
-          urgency: "attention",
-        },
-      };
-    case "conversation.run.suspended":
-      return {
-        backgroundOnly: true,
-        payload: {
-          title: "Agent run suspended",
-          body:
-            projectBodyForEvent(event) ?? "Nerve is waiting before continuing.",
-          urgency: "attention",
-        },
-      };
-    default:
-      return undefined;
-  }
+  notifyNative(candidate.payload, {
+    backgroundOnly: candidate.backgroundOnly,
+    kind: candidate.kind,
+    tag: candidate.tag,
+  });
 }
 
 function isRecentEvent(event: EventEnvelope<Record<string, unknown>>): boolean {
@@ -228,29 +151,8 @@ function isRecentEvent(event: EventEnvelope<Record<string, unknown>>): boolean {
   return Number.isFinite(ts) && Date.now() - ts < 60_000;
 }
 
-function recordValue(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function projectBodyForEvent(
-  event: EventEnvelope<Record<string, unknown>>,
-): string | undefined {
-  const projectId = stringValue(event.data?.projectId);
-  const dir = projectId
-    ? workbenchState.projects.find((project) => project.id === projectId)?.dir
-    : undefined;
-  return dir ? shortNotificationText(dir) : undefined;
-}
-
-function shortNotificationText(value: string): string {
-  const singleLine = value.replace(/\s+/g, " ").trim();
-  return singleLine.length <= 180 ? singleLine : `${singleLine.slice(0, 179)}…`;
 }
 
 function isConversationRuntimeEvent(type: string): boolean {

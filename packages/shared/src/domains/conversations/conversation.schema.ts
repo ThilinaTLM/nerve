@@ -34,6 +34,15 @@ export interface ConversationRunCompletedData {
   completedAt: string;
 }
 
+export interface ConversationRunRetryExhaustedData {
+  statusEntryId?: string;
+  failedEntryId?: string;
+  attempt?: number;
+  maxRetries?: number;
+  errorMessage?: string;
+  retryable?: boolean;
+}
+
 export interface ConversationRunFailedData {
   conversationId: string;
   agentId: string;
@@ -42,6 +51,7 @@ export interface ConversationRunFailedData {
   message: string;
   aborted: boolean;
   failedAt: string;
+  retryExhausted?: ConversationRunRetryExhaustedData;
 }
 
 export interface ConversationRunSuspendedData {

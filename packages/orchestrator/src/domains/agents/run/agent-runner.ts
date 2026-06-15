@@ -18,6 +18,7 @@ import {
   type ContextUsage,
   type ConversationEntry,
   type ConversationRecord,
+  type ConversationRunRetryExhaustedData,
   type ConversationRunStatusDetails,
   type CreateAgentRequest,
   createId,
@@ -671,14 +672,14 @@ export class AgentRunner {
         const aborted = runAssistant.stopReason === "aborted" || abortRequested;
         if (latest)
           await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
-        if (!aborted) {
-          await this.maybeAppendRetryExhaustedStatus(
-            agent,
-            runId,
-            assistantEntry,
-            runAssistant,
-          );
-        }
+        const retryExhausted = !aborted
+          ? await this.maybeAppendRetryExhaustedStatus(
+              agent,
+              runId,
+              assistantEntry,
+              runAssistant,
+            )
+          : undefined;
         await this.deps.events.publish("conversation.run.failed", {
           agentId: agent.id,
           projectId: agent.projectId,
@@ -687,6 +688,7 @@ export class AgentRunner {
           message: runAssistant.errorMessage ?? "Agent run failed.",
           aborted,
           failedAt: new Date().toISOString(),
+          retryExhausted,
         });
         await this.deps.logger.warn("Agent run failed", {
           agentId: agent.id,
@@ -840,14 +842,14 @@ export class AgentRunner {
     runId: string,
     assistantEntry: ConversationEntry,
     assistant: AssistantMessage,
-  ): Promise<void> {
+  ): Promise<ConversationRunRetryExhaustedData | undefined> {
     const settings = this.deps.storage.settings.retry;
     if (
       !settings.enabled ||
       settings.maxRetries <= 0 ||
       !isRetryableAssistantError(assistant)
     ) {
-      return;
+      return undefined;
     }
     const details = {
       type: "agent_run_retry_status",
@@ -879,6 +881,14 @@ export class AgentRunner {
       runId,
       entry: statusEntry,
     });
+    return {
+      statusEntryId: statusEntry.id,
+      failedEntryId: details.failedEntryId,
+      attempt: details.attempt,
+      maxRetries: details.maxRetries,
+      errorMessage: details.errorMessage,
+      retryable: details.retryable,
+    };
   }
 
   private async runHarnessWithRetries(input: {
