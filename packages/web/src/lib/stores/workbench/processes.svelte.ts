@@ -21,6 +21,9 @@ export async function selectProcess(processId: string) {
 }
 
 export async function stopSelectedProcess(processId: string) {
+  const wasOrphaned =
+    workbenchState.processes.find((process) => process.id === processId)
+      ?.status === "orphaned";
   await stopProcess(processId);
   await loadWorkspaceState();
   if (workbenchState.selectedProcessId) {
@@ -28,7 +31,9 @@ export async function stopSelectedProcess(processId: string) {
       workbenchState.selectedProcessId,
     );
   }
-  notify.success("Process stopped");
+  notify.success(
+    wasOrphaned ? "Orphaned process cleanup completed" : "Process stopped",
+  );
 }
 
 export async function restartSelectedProcess(processId: string) {

@@ -7,7 +7,6 @@ import {
   listChildDirs,
   readJsonFile,
 } from "../../infrastructure/storage/index.js";
-import { isActiveProcessStatus } from "./process-status.js";
 
 export class ProcessRepository {
   constructor(private readonly storage: InitializedStorage) {}
@@ -22,7 +21,7 @@ export class ProcessRepository {
         ).catch(() => undefined),
       );
       if (!parsed.success) continue;
-      records.push(this.markOrphanedIfActive(parsed.data));
+      records.push(parsed.data);
     }
     return records;
   }
@@ -41,15 +40,5 @@ export class ProcessRepository {
 
   processDir(processId: string): string {
     return join(this.storage.paths.home, "proc", processId);
-  }
-
-  private markOrphanedIfActive(record: ProcessRecord): ProcessRecord {
-    if (!isActiveProcessStatus(record.status)) return record;
-    return {
-      ...record,
-      status: "orphaned",
-      error: "Process supervision was lost after daemon restart.",
-      updatedAt: new Date().toISOString(),
-    };
   }
 }

@@ -1,10 +1,16 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import type { ProcessRuntime } from "@nerve/shared";
 
 const DEFAULT_HELPER_TIMEOUT_MS = 2000;
 
 export interface SpawnManagedProcessOptions {
   cwd: string;
   env?: Record<string, string>;
+}
+
+export interface SpawnedManagedProcess {
+  child: ChildProcess;
+  runtime: ProcessRuntime;
 }
 
 export interface TerminateProcessOptions {
@@ -21,24 +27,49 @@ export interface TerminateProcessResult {
 }
 
 export interface ProcessSupervisor {
-  spawn(command: string, options: SpawnManagedProcessOptions): ChildProcess;
+  spawn(
+    command: string,
+    options: SpawnManagedProcessOptions,
+  ): SpawnedManagedProcess;
   terminate(
     child: ChildProcess,
     signal: NodeJS.Signals,
   ): Promise<TerminateProcessResult>;
+  terminateRuntime(
+    runtime: ProcessRuntime,
+    signal: NodeJS.Signals,
+  ): Promise<TerminateProcessResult>;
+  isRuntimeTargetAlive(runtime: ProcessRuntime): Promise<boolean>;
 }
 
 export function spawnManagedProcess(
   command: string,
   options: SpawnManagedProcessOptions,
-): ChildProcess {
-  return spawn(command, {
+): SpawnedManagedProcess {
+  const child = spawn(command, {
     cwd: options.cwd,
     shell: true,
     env: { ...process.env, ...(options.env ?? {}) },
     stdio: ["ignore", "pipe", "pipe"],
     detached: process.platform !== "win32",
   });
+  return { child, runtime: runtimeForChild(child, process.platform) };
+}
+
+export function runtimeForChild(
+  child: Pick<ChildProcess, "pid">,
+  platform: NodeJS.Platform = process.platform,
+  now = new Date(),
+): ProcessRuntime {
+  const detached = platform !== "win32";
+  return {
+    platform,
+    childPid: child.pid,
+    processGroupId: detached ? child.pid : undefined,
+    detached,
+    shell: true,
+    spawnedAt: now.toISOString(),
+  };
 }
 
 export async function terminateProcess(
@@ -68,9 +99,75 @@ export async function terminateProcess(
   }
 }
 
+export async function terminateProcessRuntime(
+  runtime: ProcessRuntime,
+  signal: NodeJS.Signals,
+  options: TerminateProcessOptions = {},
+): Promise<TerminateProcessResult> {
+  const platform = options.platform ?? process.platform;
+  const spawnCommand = options.spawnCommand ?? spawn;
+  const killProcess = options.killProcess ?? process.kill;
+
+  if (runtime.platform !== platform) {
+    return {
+      attempted: false,
+      method: "none",
+      error: `Cannot clean up process spawned on ${runtime.platform} from ${platform}.`,
+    };
+  }
+
+  if (platform === "win32") {
+    if (!runtime.childPid) return missingRuntimeTargetResult(platform);
+    return terminateWindowsProcessTree(
+      runtime.childPid,
+      spawnCommand,
+      options.helperTimeoutMs ?? DEFAULT_HELPER_TIMEOUT_MS,
+    );
+  }
+
+  const target = nonWindowsRuntimeTarget(runtime);
+  if (!target) return missingRuntimeTargetResult(platform);
+
+  try {
+    killProcess(target.pid, signal);
+    return { attempted: true, method: target.method };
+  } catch (error) {
+    return {
+      attempted: true,
+      method: target.method,
+      error: errorMessage(error),
+    };
+  }
+}
+
+export async function isProcessRuntimeTargetAlive(
+  runtime: ProcessRuntime,
+  options: TerminateProcessOptions = {},
+): Promise<boolean> {
+  const platform = options.platform ?? process.platform;
+  const killProcess = options.killProcess ?? process.kill;
+
+  if (runtime.platform !== platform) return false;
+  if (platform === "win32") return false;
+
+  const target = nonWindowsRuntimeTarget(runtime);
+  if (!target) return false;
+
+  try {
+    killProcess(target.pid, 0);
+    return true;
+  } catch (error) {
+    const code = errorCode(error);
+    if (code === "EPERM") return true;
+    return false;
+  }
+}
+
 export const defaultProcessSupervisor: ProcessSupervisor = {
   spawn: spawnManagedProcess,
   terminate: terminateProcess,
+  terminateRuntime: terminateProcessRuntime,
+  isRuntimeTargetAlive: isProcessRuntimeTargetAlive,
 };
 
 function signalDirectChild(
@@ -99,6 +196,29 @@ function signalDirectChild(
       error: errorMessage(error),
     };
   }
+}
+
+function nonWindowsRuntimeTarget(
+  runtime: ProcessRuntime,
+): { pid: number; method: "process-group" | "direct-child" } | undefined {
+  if (runtime.processGroupId) {
+    return { pid: -runtime.processGroupId, method: "process-group" };
+  }
+  if (runtime.childPid) {
+    return { pid: runtime.childPid, method: "direct-child" };
+  }
+  return undefined;
+}
+
+function missingRuntimeTargetResult(platform: string): TerminateProcessResult {
+  return {
+    attempted: false,
+    method: "none",
+    error:
+      platform === "win32"
+        ? "Cannot clean up orphaned process because no child PID metadata was captured."
+        : "Cannot clean up orphaned process because no process-group or child PID metadata was captured.",
+  };
 }
 
 async function terminateWindowsProcessTree(
@@ -170,6 +290,12 @@ async function terminateWindowsProcessTree(
       });
     });
   });
+}
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code)
+    : undefined;
 }
 
 function errorMessage(error: unknown): string {

@@ -94,8 +94,13 @@ export const processToolDefinitions = [
   {
     name: "process_stop",
     label: "process_stop",
-    description: "Stop a managed process by processId or name.",
-    promptSnippet: "Stop supervised long-running processes",
+    description:
+      "Stop a managed process or clean up an orphaned process by processId or name.",
+    promptSnippet:
+      "Stop supervised long-running processes, including best-effort cleanup of orphaned process trees after daemon restarts",
+    promptGuidelines: [
+      "Use process_stop on orphaned records before restarting if a daemon restart may have left the old process tree alive.",
+    ],
     parameters: processTargetParameters,
     executionMode: "sequential",
   },

@@ -22,6 +22,16 @@ export const processReadinessSchema = z.object({
 });
 export type ProcessReadiness = z.infer<typeof processReadinessSchema>;
 
+export const processRuntimeSchema = z.object({
+  platform: z.string().min(1),
+  childPid: z.number().int().positive().optional(),
+  processGroupId: z.number().int().positive().optional(),
+  detached: z.boolean(),
+  shell: z.boolean(),
+  spawnedAt: z.string().datetime(),
+});
+export type ProcessRuntime = z.infer<typeof processRuntimeSchema>;
+
 export const processRecordSchema = z.object({
   id: z.string().startsWith("proc_"),
   name: z.string().min(1).optional(),
@@ -44,6 +54,7 @@ export const processRecordSchema = z.object({
   signal: z.string().nullable().optional(),
   error: z.string().optional(),
   restartedFromProcessId: z.string().startsWith("proc_").optional(),
+  runtime: processRuntimeSchema.optional(),
 });
 export type ProcessRecord = z.infer<typeof processRecordSchema>;
 

@@ -1,12 +1,14 @@
 import type { ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   createId,
   type ProcessLogEvent,
   type ProcessLogQuery,
   type ProcessLogQueryResponse,
   type ProcessRecord,
+  type ProcessRuntime,
   type StartProcessRequest,
   type StopProcessRequest,
 } from "@nerve/shared";
@@ -56,10 +58,29 @@ export class ProcessManager {
   }
 
   async hydrate(): Promise<void> {
-    for (const record of await this.processRepository.hydrate()) {
-      this.processes.set(record.id, record);
-      this.index.upsertProcess(record);
-      await this.processRepository.write(record);
+    for (const persisted of await this.processRepository.hydrate()) {
+      const wasActive = isActiveProcessStatus(persisted.status);
+      const record = wasActive
+        ? this.markHydratedRecordOrphaned(persisted)
+        : persisted;
+      await this.upsertProcess(record);
+      if (wasActive) {
+        await this.events.publish("process.orphaned", { process: record });
+        await this.logger?.warn(
+          "Process supervision lost after daemon restart",
+          {
+            processId: record.id,
+            projectId: record.projectId,
+            conversationId: record.conversationId,
+            agentId: record.agentId,
+            context: {
+              pid: record.runtime?.childPid,
+              processGroupId: record.runtime?.processGroupId,
+              platform: record.runtime?.platform,
+            },
+          },
+        );
+      }
     }
   }
 
@@ -124,10 +145,12 @@ export class ProcessManager {
       context: { name: record.name, cwd: record.cwd, command: record.command },
     });
 
-    const child = this.supervisor.spawn(request.command, {
+    const spawned = this.supervisor.spawn(request.command, {
       cwd: record.cwd,
       env: request.env,
     });
+    const { child, runtime } = spawned;
+    await this.updateProcess(record.id, { runtime });
 
     const closePromise = new Promise<{
       exitCode: number | null;
@@ -178,14 +201,19 @@ export class ProcessManager {
     await this.updateProcess(record.id, { status: "running" });
     await this.events.publish("process.started", {
       process: this.getProcess(record.id),
-      pid: child.pid,
+      pid: runtime.childPid,
+      runtime,
     });
     await this.logger?.info("Process started", {
       processId: record.id,
       projectId: record.projectId,
       conversationId: record.conversationId,
       agentId: record.agentId,
-      context: { pid: child.pid },
+      context: {
+        pid: runtime.childPid,
+        processGroupId: runtime.processGroupId,
+        platform: runtime.platform,
+      },
     });
 
     await this.waitForReadiness(record.id);
@@ -197,6 +225,9 @@ export class ProcessManager {
     request: StopProcessRequest = {},
   ): Promise<ProcessRecord> {
     const record = this.getProcess(processId);
+    if (record.status === "orphaned") {
+      return this.cleanupOrphanedProcess(record.id, request);
+    }
     const managed = this.managed.get(record.id);
     if (!managed?.child || !isActiveProcessStatus(record.status)) return record;
 
@@ -257,7 +288,11 @@ export class ProcessManager {
 
   async restartProcess(processId: string): Promise<ProcessRecord> {
     const record = this.getProcess(processId);
-    if (isActiveProcessStatus(record.status)) await this.stopProcess(processId);
+    if (record.status === "orphaned") {
+      await this.cleanupOrphanedProcess(record.id, { timeoutMs: 5000 });
+    } else if (isActiveProcessStatus(record.status)) {
+      await this.stopProcess(processId);
+    }
     return this.startProcess({
       name: record.name,
       workerId: record.workerId,
@@ -478,6 +513,289 @@ export class ProcessManager {
           .catch(() => undefined);
       }
     }
+  }
+
+  private markHydratedRecordOrphaned(record: ProcessRecord): ProcessRecord {
+    return {
+      ...record,
+      status: "orphaned",
+      error: this.orphanedHydrateMessage(record.runtime),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  private orphanedHydrateMessage(runtime: ProcessRuntime | undefined): string {
+    if (runtime?.childPid) {
+      return `Process supervision was lost after daemon restart. Use process_stop to attempt cleanup of PID ${runtime.childPid}.`;
+    }
+    if (runtime?.processGroupId) {
+      return `Process supervision was lost after daemon restart. Use process_stop to attempt cleanup of process group ${runtime.processGroupId}.`;
+    }
+    return "Process supervision was lost after daemon restart, and no PID metadata was captured.";
+  }
+
+  private async cleanupOrphanedProcess(
+    processId: string,
+    request: StopProcessRequest,
+  ): Promise<ProcessRecord> {
+    const record = this.getProcess(processId);
+    if (record.status !== "orphaned") return record;
+
+    const validationError = this.orphanCleanupValidationError(record.runtime);
+    if (validationError) {
+      await this.failOrphanCleanup(record, validationError);
+    }
+    const runtime = record.runtime as ProcessRuntime;
+    const initialSignal = request.signal ?? "SIGTERM";
+    const timeoutMs = request.timeoutMs ?? 5000;
+
+    await this.events.publish("process.stop_requested", {
+      processId: record.id,
+      signal: initialSignal,
+      orphaned: true,
+    });
+    await this.logger?.info("Orphaned process cleanup requested", {
+      processId: record.id,
+      projectId: record.projectId,
+      conversationId: record.conversationId,
+      agentId: record.agentId,
+      context: this.runtimeLogContext(runtime, { signal: initialSignal }),
+    });
+
+    if (runtime.platform === "win32") {
+      const result = await this.terminateRuntimeForCleanup(
+        record,
+        runtime,
+        "SIGKILL",
+      );
+      if (!result.attempted || result.error) {
+        await this.failOrphanCleanup(
+          record,
+          result.error ?? "Could not clean up orphaned process runtime target.",
+          { method: result.method, signal: "SIGKILL" },
+        );
+      }
+      return this.finalizeOrphanCleanup(record.id, "SIGKILL", runtime, {
+        method: result.method,
+      });
+    }
+
+    const initialResult = await this.terminateRuntimeForCleanup(
+      record,
+      runtime,
+      initialSignal,
+    );
+    if (!initialResult.attempted || initialResult.method === "none") {
+      await this.failOrphanCleanup(
+        record,
+        initialResult.error ??
+          "Could not signal orphaned process runtime target.",
+        { method: initialResult.method, signal: initialSignal },
+      );
+    }
+    if (initialResult.error) {
+      await this.logger?.warn(
+        "Orphaned process cleanup signal reported an error",
+        {
+          processId: record.id,
+          projectId: record.projectId,
+          conversationId: record.conversationId,
+          agentId: record.agentId,
+          context: this.runtimeLogContext(runtime, {
+            signal: initialSignal,
+            method: initialResult.method,
+            error: initialResult.error,
+          }),
+        },
+      );
+    }
+
+    let finalSignal = initialSignal;
+    if (!(await this.waitForRuntimeTargetExit(runtime, timeoutMs))) {
+      finalSignal = "SIGKILL";
+      const killResult = await this.terminateRuntimeForCleanup(
+        record,
+        runtime,
+        finalSignal,
+      );
+      if (!killResult.attempted || killResult.method === "none") {
+        await this.failOrphanCleanup(
+          record,
+          killResult.error ??
+            "Could not force-kill orphaned process runtime target.",
+          { method: killResult.method, signal: finalSignal },
+        );
+      }
+      if (killResult.error && (await this.isRuntimeTargetAlive(runtime))) {
+        await this.failOrphanCleanup(record, killResult.error, {
+          method: killResult.method,
+          signal: finalSignal,
+        });
+      }
+    }
+
+    return this.finalizeOrphanCleanup(record.id, finalSignal, runtime);
+  }
+
+  private orphanCleanupValidationError(
+    runtime: ProcessRuntime | undefined,
+  ): string | undefined {
+    if (!runtime) {
+      return "Cannot clean up orphaned process because no PID metadata was captured.";
+    }
+    if (runtime.platform !== process.platform) {
+      return `Cannot clean up process spawned on ${runtime.platform} from ${process.platform}.`;
+    }
+    if (runtime.platform === "win32" && !runtime.childPid) {
+      return "Cannot clean up orphaned process because no child PID metadata was captured.";
+    }
+    if (
+      runtime.platform !== "win32" &&
+      !runtime.processGroupId &&
+      !runtime.childPid
+    ) {
+      return "Cannot clean up orphaned process because no process-group or child PID metadata was captured.";
+    }
+    return undefined;
+  }
+
+  private async terminateRuntimeForCleanup(
+    record: ProcessRecord,
+    runtime: ProcessRuntime,
+    signal: NodeJS.Signals,
+  ) {
+    try {
+      return await this.supervisor.terminateRuntime(runtime, signal);
+    } catch (error) {
+      await this.logger?.warn("Orphaned process cleanup termination threw", {
+        processId: record.id,
+        projectId: record.projectId,
+        conversationId: record.conversationId,
+        agentId: record.agentId,
+        error,
+        context: this.runtimeLogContext(runtime, { signal }),
+      });
+      return {
+        attempted: false,
+        method: "none" as const,
+        error: this.errorMessage(error),
+      };
+    }
+  }
+
+  private async waitForRuntimeTargetExit(
+    runtime: ProcessRuntime,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (true) {
+      if (!(await this.isRuntimeTargetAlive(runtime))) return true;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return false;
+      await delay(Math.min(50, remaining));
+    }
+  }
+
+  private async isRuntimeTargetAlive(
+    runtime: ProcessRuntime,
+  ): Promise<boolean> {
+    try {
+      return await this.supervisor.isRuntimeTargetAlive(runtime);
+    } catch (error) {
+      await this.logger?.warn("Orphaned process liveness check failed", {
+        error,
+        context: this.runtimeLogContext(runtime),
+      });
+      return true;
+    }
+  }
+
+  private async finalizeOrphanCleanup(
+    processId: string,
+    finalSignal: NodeJS.Signals,
+    runtime: ProcessRuntime,
+    context: Record<string, unknown> = {},
+  ): Promise<ProcessRecord> {
+    const record = this.getProcess(processId);
+    if (record.status !== "orphaned") return record;
+    const managed = this.managed.get(processId);
+    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+
+    const readiness =
+      record.readiness.outcome === "pending"
+        ? { ...record.readiness, outcome: "exited" as const }
+        : record.readiness;
+    const updated = await this.updateProcess(processId, {
+      status: "stopped",
+      readiness,
+      exitedAt: new Date().toISOString(),
+      exitCode: null,
+      signal: finalSignal,
+      error: undefined,
+    });
+    this.managed.delete(processId);
+    await this.events.publish("process.exited", { process: updated });
+    await this.events.publish("process.orphan_cleanup_succeeded", {
+      process: updated,
+      runtime,
+      signal: finalSignal,
+      ...context,
+    });
+    await this.logger?.info("Orphaned process cleanup completed", {
+      processId: updated.id,
+      projectId: updated.projectId,
+      conversationId: updated.conversationId,
+      agentId: updated.agentId,
+      context: this.runtimeLogContext(runtime, {
+        signal: finalSignal,
+        ...context,
+      }),
+    });
+    return updated;
+  }
+
+  private async failOrphanCleanup(
+    record: ProcessRecord,
+    message: string,
+    context: Record<string, unknown> = {},
+  ): Promise<never> {
+    const updated = await this.updateProcess(record.id, { error: message });
+    await this.events.publish("process.cleanup_failed", {
+      process: updated,
+      error: message,
+      orphaned: true,
+      ...context,
+    });
+    await this.logger?.warn("Orphaned process cleanup failed", {
+      processId: updated.id,
+      projectId: updated.projectId,
+      conversationId: updated.conversationId,
+      agentId: updated.agentId,
+      context: this.runtimeLogContext(updated.runtime, {
+        error: message,
+        ...context,
+      }),
+    });
+    throw new Error(message);
+  }
+
+  private runtimeLogContext(
+    runtime: ProcessRuntime | undefined,
+    extra: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      pid: runtime?.childPid,
+      processGroupId: runtime?.processGroupId,
+      platform: runtime?.platform,
+      detached: runtime?.detached,
+      shell: runtime?.shell,
+      spawnedAt: runtime?.spawnedAt,
+      ...extra,
+    };
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private async forceFinalizeStoppedProcess(

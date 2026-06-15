@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import type { ChildProcess, SpawnOptions, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { describe, it } from "node:test";
-import { terminateProcess } from "../src/domains/processes/process-supervisor.js";
+import type { ProcessRuntime } from "@nerve/shared";
+import {
+  isProcessRuntimeTargetAlive,
+  runtimeForChild,
+  terminateProcess,
+  terminateProcessRuntime,
+} from "../src/domains/processes/process-supervisor.js";
 
 interface FakeChild extends ChildProcess {
   killSignals: Array<NodeJS.Signals | number | undefined>;
@@ -18,6 +24,56 @@ function fakeChild(pid = 1234): FakeChild {
     },
   }) as FakeChild;
 }
+
+const spawnedAt = "2026-01-02T03:04:05.000Z";
+
+function runtime(overrides: Partial<ProcessRuntime> = {}): ProcessRuntime {
+  return {
+    platform: "linux",
+    childPid: 1234,
+    processGroupId: 1234,
+    detached: true,
+    shell: true,
+    spawnedAt,
+    ...overrides,
+  };
+}
+
+describe("process supervisor spawn metadata", () => {
+  it("builds non-Windows runtime metadata with process group", () => {
+    const metadata = runtimeForChild(
+      { pid: 1234 },
+      "linux",
+      new Date(spawnedAt),
+    );
+
+    assert.deepEqual(metadata, {
+      platform: "linux",
+      childPid: 1234,
+      processGroupId: 1234,
+      detached: true,
+      shell: true,
+      spawnedAt,
+    });
+  });
+
+  it("builds Windows runtime metadata without process group", () => {
+    const metadata = runtimeForChild(
+      { pid: 1234 },
+      "win32",
+      new Date(spawnedAt),
+    );
+
+    assert.deepEqual(metadata, {
+      platform: "win32",
+      childPid: 1234,
+      processGroupId: undefined,
+      detached: false,
+      shell: true,
+      spawnedAt,
+    });
+  });
+});
 
 describe("process supervisor termination", () => {
   it("uses taskkill tree termination on Windows", async () => {
@@ -105,5 +161,139 @@ describe("process supervisor termination", () => {
 
     assert.equal(result.method, "direct-child");
     assert.deepEqual(child.killSignals, ["SIGINT"]);
+  });
+});
+
+describe("process supervisor runtime cleanup", () => {
+  it("uses taskkill for Windows runtime cleanup", async () => {
+    const helper = fakeChild(5678);
+    const calls: Array<{
+      command: string;
+      args: readonly string[] | undefined;
+      options: SpawnOptions | undefined;
+    }> = [];
+    const fakeSpawn = ((
+      command: string,
+      args?: readonly string[],
+      options?: SpawnOptions,
+    ) => {
+      calls.push({ command, args, options });
+      return helper;
+    }) as typeof spawn;
+
+    const resultPromise = terminateProcessRuntime(
+      runtime({
+        platform: "win32",
+        processGroupId: undefined,
+        detached: false,
+      }),
+      "SIGKILL",
+      { platform: "win32", spawnCommand: fakeSpawn },
+    );
+    helper.emit("close", 0, null);
+    const result = await resultPromise;
+
+    assert.equal(result.method, "taskkill");
+    assert.equal(calls[0].command, "taskkill");
+    assert.deepEqual(calls[0].args, ["/F", "/T", "/PID", "1234"]);
+  });
+
+  it("prefers process-group signaling for non-Windows runtime cleanup", async () => {
+    const killCalls: Array<{
+      pid: number;
+      signal: string | number | undefined;
+    }> = [];
+    const killProcess = ((pid: number, signal?: string | number) => {
+      killCalls.push({ pid, signal });
+      return true;
+    }) as typeof process.kill;
+
+    const result = await terminateProcessRuntime(
+      runtime({ processGroupId: 1234, childPid: 5678 }),
+      "SIGTERM",
+      { platform: "linux", killProcess },
+    );
+
+    assert.equal(result.method, "process-group");
+    assert.deepEqual(killCalls, [{ pid: -1234, signal: "SIGTERM" }]);
+  });
+
+  it("falls back to child PID when runtime has no process group", async () => {
+    const killCalls: Array<{
+      pid: number;
+      signal: string | number | undefined;
+    }> = [];
+    const killProcess = ((pid: number, signal?: string | number) => {
+      killCalls.push({ pid, signal });
+      return true;
+    }) as typeof process.kill;
+
+    const result = await terminateProcessRuntime(
+      runtime({ processGroupId: undefined, childPid: 5678 }),
+      "SIGINT",
+      { platform: "linux", killProcess },
+    );
+
+    assert.equal(result.method, "direct-child");
+    assert.deepEqual(killCalls, [{ pid: 5678, signal: "SIGINT" }]);
+  });
+
+  it("does not signal on platform mismatch", async () => {
+    const killCalls: Array<number> = [];
+    const killProcess = ((pid: number) => {
+      killCalls.push(pid);
+      return true;
+    }) as typeof process.kill;
+
+    const result = await terminateProcessRuntime(
+      runtime({
+        platform: "win32",
+        detached: false,
+        processGroupId: undefined,
+      }),
+      "SIGKILL",
+      { platform: "linux", killProcess },
+    );
+
+    assert.equal(result.attempted, false);
+    assert.equal(result.method, "none");
+    assert.match(result.error ?? "", /spawned on win32 from linux/);
+    assert.deepEqual(killCalls, []);
+  });
+
+  it("returns an error when runtime target metadata is missing", async () => {
+    const result = await terminateProcessRuntime(
+      runtime({ childPid: undefined, processGroupId: undefined }),
+      "SIGTERM",
+      { platform: "linux" },
+    );
+
+    assert.equal(result.attempted, false);
+    assert.equal(result.method, "none");
+    assert.match(result.error ?? "", /no process-group or child PID metadata/);
+  });
+
+  it("liveness checks treat ESRCH as not alive and EPERM as alive", async () => {
+    const esrchKill = (() => {
+      throw Object.assign(new Error("missing"), { code: "ESRCH" });
+    }) as typeof process.kill;
+    const epermKill = (() => {
+      throw Object.assign(new Error("denied"), { code: "EPERM" });
+    }) as typeof process.kill;
+
+    assert.equal(
+      await isProcessRuntimeTargetAlive(runtime(), {
+        platform: "linux",
+        killProcess: esrchKill,
+      }),
+      false,
+    );
+    assert.equal(
+      await isProcessRuntimeTargetAlive(runtime(), {
+        platform: "linux",
+        killProcess: epermKill,
+      }),
+      true,
+    );
   });
 });

@@ -32,6 +32,14 @@
   const title = $derived(process?.name ?? process?.command ?? "Process output");
   const readiness = $derived(process?.readiness.matched ?? process?.readiness.outcome);
   const tone = $derived(processTone(process?.status));
+  const runtimeMeta = $derived(processRuntimeLabel(process));
+
+  function processRuntimeLabel(record: ProcessRecord | undefined): string | undefined {
+    const parts: string[] = [];
+    if (record?.runtime?.childPid) parts.push(`pid ${record.runtime.childPid}`);
+    if (record?.runtime?.platform) parts.push(record.runtime.platform);
+    return parts.length > 0 ? parts.join(" · ") : undefined;
+  }
 </script>
 
 <section class="process-output-pane">
@@ -44,7 +52,7 @@
       <div class="flex min-w-0 flex-1 items-baseline gap-2">
         <strong class="truncate text-sm font-semibold text-foreground" title={process.command}>{title}</strong>
         <span class="truncate font-mono text-xs text-muted-foreground" title={process.cwd}>
-          {shortenPath(process.cwd, homeDir)} · {readiness}
+          {shortenPath(process.cwd, homeDir)} · {readiness}{#if runtimeMeta} · {runtimeMeta}{/if}
         </span>
       </div>
       <Badge
@@ -62,7 +70,7 @@
           <RotateCw size={13} strokeWidth={2.3} />Restart
         </Button>
         <Button size="sm" variant="ghost" class="h-7 text-muted-foreground hover:text-destructive" onclick={() => onStop?.(process.id)}>
-          <Square size={13} strokeWidth={2.3} />Stop
+          <Square size={13} strokeWidth={2.3} />{process.status === "orphaned" ? "Clean up" : "Stop"}
         </Button>
       </div>
     </footer>

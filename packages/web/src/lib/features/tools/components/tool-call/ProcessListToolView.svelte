@@ -18,6 +18,15 @@
         <StatusDot tone={processTone(process.status)} />
         <span class="name">{process.name ?? process.command}</span>
         <span class="status">{process.status}</span>
+        {#if process.runtime?.childPid}
+          <span class="meta">pid {process.runtime.childPid}</span>
+        {/if}
+        {#if process.runtime?.processGroupId}
+          <span class="meta">pgid {process.runtime.processGroupId}</span>
+        {/if}
+        {#if process.status === "orphaned" && process.runtime?.platform}
+          <span class="meta">{process.runtime.platform}</span>
+        {/if}
         {#if url}<a class="url" href={url} target="_blank" rel="noreferrer noopener">{url}</a>{/if}
       </li>
     {/each}
@@ -56,6 +65,12 @@
   .status {
     color: var(--muted-foreground);
     text-transform: capitalize;
+  }
+
+  .meta {
+    font-family: var(--font-mono);
+    color: var(--muted-foreground);
+    white-space: nowrap;
   }
 
   .url {

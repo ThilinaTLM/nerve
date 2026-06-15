@@ -10,3 +10,15 @@ export function isActiveProcessStatus(
     status === "stopping"
   );
 }
+
+export function isOrphanedProcessStatus(
+  status: ProcessRecord["status"],
+): boolean {
+  return status === "orphaned";
+}
+
+export function isStoppableProcessStatus(
+  status: ProcessRecord["status"],
+): boolean {
+  return isActiveProcessStatus(status) || isOrphanedProcessStatus(status);
+}

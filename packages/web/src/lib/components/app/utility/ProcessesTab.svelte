@@ -7,6 +7,7 @@
   import Square from "@lucide/svelte/icons/square";
   import Terminal from "@lucide/svelte/icons/terminal";
   import Trash2 from "@lucide/svelte/icons/trash-2";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import {
     createPinnedCommand,
     deletePinnedCommand,
@@ -65,10 +66,14 @@
   const isActive = (process: ProcessRecord) => ACTIVE.has(process.status);
 
   const running = $derived(processes.filter(isActive));
-  const stopped = $derived(processes.filter((process) => !isActive(process)));
+  const orphaned = $derived(processes.filter((process) => process.status === "orphaned"));
+  const stopped = $derived(
+    processes.filter((process) => !isActive(process) && process.status !== "orphaned"),
+  );
 
   let pinnedSectionOpen = $state(true);
   let runningSectionOpen = $state(true);
+  let orphanedSectionOpen = $state(true);
   let stoppedSectionOpen = $state(false);
   let confirmPruneOpen = $state(false);
 
@@ -156,6 +161,28 @@
           icon: Square,
           destructive: true,
           onSelect: () => onStopProcess?.(process.id),
+        },
+      ];
+    }
+    if (process.status === "orphaned") {
+      return [
+        ...shared,
+        {
+          label: "Clean up orphan",
+          icon: TriangleAlert,
+          destructive: true,
+          onSelect: () => onStopProcess?.(process.id),
+        },
+        {
+          label: "Restart process",
+          icon: RotateCw,
+          onSelect: () => onRestartProcess?.(process.id),
+        },
+        {
+          label: "Forget record",
+          icon: Trash2,
+          destructive: true,
+          onSelect: () => onRemoveProcess?.(process.id),
         },
       ];
     }
@@ -267,6 +294,21 @@
         <span class="tt-row"><span class="tt-key">cwd</span>{process.cwd}</span>
         <span class="tt-row"><span class="tt-key">status</span>{process.status}</span>
         <span class="tt-row"><span class="tt-key">started</span>{dateTimeLabel(process.startedAt)}</span>
+        {#if process.runtime?.childPid}
+          <span class="tt-row"><span class="tt-key">pid</span>{process.runtime.childPid}</span>
+        {/if}
+        {#if process.runtime?.processGroupId}
+          <span class="tt-row"><span class="tt-key">pgid</span>{process.runtime.processGroupId}</span>
+        {/if}
+        {#if process.status === "orphaned" && !process.runtime?.childPid && !process.runtime?.processGroupId}
+          <span class="tt-row"><span class="tt-key">pid</span>No PID metadata captured</span>
+        {/if}
+        {#if process.runtime?.platform}
+          <span class="tt-row"><span class="tt-key">platform</span>{process.runtime.platform}</span>
+        {/if}
+        {#if process.runtime?.spawnedAt}
+          <span class="tt-row"><span class="tt-key">spawned</span>{dateTimeLabel(process.runtime.spawnedAt)}</span>
+        {/if}
         {#if process.exitedAt}
           <span class="tt-row"><span class="tt-key">exited</span>{dateTimeLabel(process.exitedAt)}</span>
         {/if}
@@ -308,6 +350,46 @@
           }}
         >
           <Square size={12} strokeWidth={2.3} />
+        </Button>
+      {:else if process.status === "orphaned"}
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          ariaLabel="Clean up orphaned process"
+          title="Clean up orphan"
+          class="text-muted-foreground hover:text-destructive"
+          onclick={(event) => {
+            stopPropagation(event);
+            onStopProcess?.(process.id);
+          }}
+        >
+          <TriangleAlert size={12} strokeWidth={2.3} />
+        </Button>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          ariaLabel="Restart process"
+          title="Restart process"
+          class="text-muted-foreground hover:text-foreground"
+          onclick={(event) => {
+            stopPropagation(event);
+            onRestartProcess?.(process.id);
+          }}
+        >
+          <RotateCw size={12} strokeWidth={2.3} />
+        </Button>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          ariaLabel="Forget process record"
+          title="Forget record"
+          class="text-muted-foreground hover:text-destructive"
+          onclick={(event) => {
+            stopPropagation(event);
+            onRemoveProcess?.(process.id);
+          }}
+        >
+          <Trash2 size={12} strokeWidth={2.3} />
         </Button>
       {:else}
         <Button
@@ -465,6 +547,21 @@
             <p class="px-1 py-1 text-xs text-muted-foreground">No running processes.</p>
           {:else}
             {#each running as process (process.id)}
+              {@render processRow(process)}
+            {/each}
+          {/if}
+        </div>
+      </PanelSection>
+
+      <PanelSection title="Needs cleanup" icon={TriangleAlert} bind:open={orphanedSectionOpen}>
+        {#snippet meta()}
+          <span class="font-mono">{orphaned.length}</span>
+        {/snippet}
+        <div class="flex flex-col gap-1.5">
+          {#if orphaned.length === 0}
+            <p class="px-1 py-1 text-xs text-muted-foreground">No orphaned processes.</p>
+          {:else}
+            {#each orphaned as process (process.id)}
               {@render processRow(process)}
             {/each}
           {/if}

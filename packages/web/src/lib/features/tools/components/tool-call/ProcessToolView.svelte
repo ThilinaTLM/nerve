@@ -22,6 +22,15 @@
     {#if process.signal}
       <span class="meta">signal {process.signal}</span>
     {/if}
+    {#if process.runtime?.childPid}
+      <span class="meta">pid {process.runtime.childPid}</span>
+    {/if}
+    {#if process.runtime?.processGroupId}
+      <span class="meta">pgid {process.runtime.processGroupId}</span>
+    {/if}
+    {#if process.status === "orphaned" && process.runtime?.platform}
+      <span class="meta">{process.runtime.platform}</span>
+    {/if}
   </div>
   <p class="command">{process.command}</p>
   {#if url}
