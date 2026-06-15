@@ -209,6 +209,7 @@ describe("parseToolView", () => {
     );
     assert.equal(view.kind, "python");
     if (view.kind !== "python") return;
+    assert.equal(view.code, "print('hello')\nprint('done')");
     assert.equal(view.summary, "print('hello')");
     assert.equal(view.codeLineCount, 2);
     assert.equal(view.exitCode, 1);
@@ -227,6 +228,36 @@ describe("parseToolView", () => {
     assert.equal(view.streams?.stdout?.truncated, true);
     assert.equal(view.streams?.stdout?.savedTo, "/tmp/python-stdout.log");
     assert.equal(view.truncated, true);
+  });
+
+  it("parses serialized python arguments and text content blocks", () => {
+    const view = parseToolView(
+      toolCall("python", JSON.stringify({ code: "print('from block')" }), {
+        contentBlocks: [
+          { type: "text", text: "from block" },
+          { type: "text", text: "second line" },
+        ],
+        exitCode: 0,
+      }),
+    );
+    assert.equal(view.kind, "python");
+    if (view.kind !== "python") return;
+    assert.equal(view.code, "print('from block')");
+    assert.equal(view.summary, "print('from block')");
+    assert.equal(view.output, "from block\nsecond line");
+  });
+
+  it("falls back to python stdout and stderr when content is absent", () => {
+    const view = parseToolView(
+      toolCall(
+        "python",
+        { code: "import sys\nprint('out')\nprint('err', file=sys.stderr)" },
+        { stdout: "out\n", stderr: "err\n", exitCode: 0 },
+      ),
+    );
+    assert.equal(view.kind, "python");
+    if (view.kind !== "python") return;
+    assert.equal(view.output, "out\nerr\n");
   });
 
   it("parses edit diff, replacement count, and +/- stats", () => {
@@ -956,18 +987,20 @@ describe("toolPresentation", () => {
     assert.match(p.collapse?.expandLabel ?? "", /earlier lines/);
   });
 
-  it("marks python exits and planning write guard metadata", () => {
+  it("marks python exits, script summary, and planning write guard metadata", () => {
     const p = present(
       "python",
-      { code: "print('x')" },
+      { code: "print('x')\nprint('y')" },
       {
-        content: "x",
+        content: "x\ny",
         exitCode: 3,
         details: { allowFileWrite: false, signal: null },
       },
     );
     assert.equal(p.primaryArg?.text, "print('x')");
     assert.ok(p.meta.some((m) => m.text === "exit 3" && m.tone === "error"));
+    assert.ok(p.meta.some((m) => m.text === "2 code lines"));
+    assert.ok(p.meta.some((m) => m.text === "2 lines"));
     assert.ok(
       p.meta.some((m) => m.text === "writes off" && m.tone === "warning"),
     );

@@ -13,8 +13,8 @@
 </script>
 
 {#if view.code && view.code.length > 0}
-  <section class="section" aria-label="Python code">
-    <span class="section-label">code</span>
+  <section class="section" aria-label="Python script">
+    <span class="section-label">script</span>
     <ResultCodeBlock code={view.code} language="python" trim={false} />
   </section>
 {/if}
@@ -26,6 +26,11 @@
   </section>
 {:else if toolCall.status === "running"}
   <p class="note">Waiting for Python output…</p>
+{:else if toolCall.status === "completed" && view.code && view.code.length > 0}
+  <section class="section" aria-label="Python output">
+    <span class="section-label">output</span>
+    <p class="note">No Python output.</p>
+  </section>
 {/if}
 
 {#if view.live}

@@ -230,13 +230,71 @@ const TITLE_MAX = 120;
 const GREP_MATCH_TEXT_MAX = 260;
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === "string" && value.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Fall through to the empty record for non-JSON strings.
+    }
+  }
+  return {};
 }
 
 function stringField(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function parseToolExecutionResult(value: unknown) {
+  const direct = toolExecutionResultSchema.safeParse(value);
+  if (direct.success) return direct.data;
+  const parsedRecord = asRecord(value);
+  if (Object.keys(parsedRecord).length === 0) return undefined;
+  const parsed = toolExecutionResultSchema.safeParse(parsedRecord);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function textContentBlocks(value: unknown): string | undefined {
+  const blocks = asRecord(value).contentBlocks;
+  if (!Array.isArray(blocks)) return undefined;
+  const texts = blocks.flatMap((block) => {
+    const record = asRecord(block);
+    return record.type === "text" && typeof record.text === "string"
+      ? [record.text]
+      : [];
+  });
+  return texts.length > 0 ? texts.join("\n") : undefined;
+}
+
+function combinedStreamOutput(value: unknown): string | undefined {
+  const record = asRecord(value);
+  const stdout = stringField(record.stdout);
+  const stderr = stringField(record.stderr);
+  if (stdout === undefined && stderr === undefined) return undefined;
+  if (!stdout) return stderr && stderr.length > 0 ? stderr : undefined;
+  if (!stderr) return stdout.length > 0 ? stdout : undefined;
+  return stdout.endsWith("\n") ? `${stdout}${stderr}` : `${stdout}\n${stderr}`;
+}
+
+function resultOutputText(
+  result: ReturnType<typeof parseToolExecutionResult>,
+  rawResult: unknown,
+  liveOutput?: LiveToolOutput,
+): string {
+  return (
+    result?.content ??
+    textContentBlocks(result) ??
+    textContentBlocks(rawResult) ??
+    combinedStreamOutput(result) ??
+    combinedStreamOutput(rawResult) ??
+    liveOutput?.text ??
+    ""
+  );
 }
 
 function todoItemsField(value: unknown): TodoItem[] | undefined {
@@ -527,8 +585,7 @@ export function parseToolView(
 ): ToolView {
   const args = asRecord(toolCall.args);
   const cwd = toolCall.cwd;
-  const fileResult = toolExecutionResultSchema.safeParse(toolCall.result);
-  const result = fileResult.success ? fileResult.data : undefined;
+  const result = parseToolExecutionResult(toolCall.result);
 
   switch (toolCall.toolName) {
     case "read": {
@@ -575,7 +632,7 @@ export function parseToolView(
     case "bash": {
       const command = stringField(args.command);
       const details = bashResultDetailsSchema.safeParse(result?.details);
-      const output = result?.content ?? liveOutput?.text ?? "";
+      const output = resultOutputText(result, toolCall.result, liveOutput);
       return {
         kind: "bash",
         command,
@@ -593,7 +650,7 @@ export function parseToolView(
     case "python": {
       const code = stringField(args.code);
       const details = pythonResultDetailsSchema.safeParse(result?.details);
-      const output = result?.content ?? liveOutput?.text ?? "";
+      const output = resultOutputText(result, toolCall.result, liveOutput);
       const nonEmptyLine = code
         ?.split(/\r?\n/)
         .map((line) => line.trim())
