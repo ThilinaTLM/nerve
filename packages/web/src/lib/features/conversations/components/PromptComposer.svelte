@@ -315,7 +315,7 @@
           {/if}
         </Button>
         {#if sending && !pendingQuestion}
-          <Button variant="secondary" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" aria-keyshortcuts={stopShortcutAria} title={stopShortcut ? `Stop generation (${stopShortcut})` : "Stop generation"}>
+          <Button variant="destructive" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" aria-keyshortcuts={stopShortcutAria} title={stopShortcut ? `Stop generation (${stopShortcut})` : "Stop generation"}>
             <Square size={13} strokeWidth={2.5} />
           </Button>
         {/if}
