@@ -34,6 +34,7 @@ import type {
   TranscriptItem,
 } from "../stores/workbench/state.svelte";
 import { workbenchState } from "../stores/workbench/state.svelte";
+import { conversationViewKey } from "../stores/workbench/state-keys";
 import { entryToTranscriptItems } from "../stores/workbench/transcript";
 import { loadWorkspaceState } from "../stores/workspace.svelte";
 import { notificationForRuntimeEvent } from "./runtime-notifications";
@@ -847,7 +848,8 @@ async function refreshContextUsage(conversationId: string): Promise<void> {
   const contextUsage = await getConversationContextUsage(conversationId).catch(
     () => undefined,
   );
-  const view = workbenchState.conversationViews[conversationId];
+  const view =
+    workbenchState.conversationViews[conversationViewKey(conversationId)];
   if (!contextUsage || !view) return;
   view.contextUsage = contextUsage;
 }

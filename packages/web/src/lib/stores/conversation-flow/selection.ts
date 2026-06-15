@@ -1,6 +1,7 @@
 import {
   type AgentRecord,
   apiGet,
+  apiPathSegment,
   type ConversationRecord,
   getConversationSnapshot,
   type ProjectRecord,
@@ -40,7 +41,7 @@ async function projectForConversation(
     ) ??
     (
       await apiGet<{ project: ProjectRecord }>(
-        `/api/projects/${conversation.projectId}`,
+        `/api/projects/${apiPathSegment(conversation.projectId)}`,
       )
     ).project
   );

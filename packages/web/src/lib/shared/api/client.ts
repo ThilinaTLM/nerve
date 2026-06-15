@@ -11,6 +11,40 @@ export class ApiRequestError extends Error {
   }
 }
 
+function apiBaseOrigin(): string {
+  if (typeof window !== "undefined") return window.location.origin;
+  return "http://localhost";
+}
+
+export function apiPathSegment(value: string | number): string {
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    throw new Error("API path segment must be a finite number.");
+  }
+  return encodeURIComponent(String(value));
+}
+
+export function normalizeApiPathForFetch(path: string): string {
+  if (
+    !(
+      path === "/api" ||
+      path.startsWith("/api/") ||
+      path.startsWith("/api?")
+    ) ||
+    path.startsWith("//")
+  ) {
+    throw new Error("API requests must use a same-origin /api path.");
+  }
+
+  const url = new URL(path, apiBaseOrigin());
+  if (url.origin !== apiBaseOrigin()) {
+    throw new Error("API requests must stay on the current origin.");
+  }
+  if (!(url.pathname === "/api" || url.pathname.startsWith("/api/"))) {
+    throw new Error("API requests must stay under /api.");
+  }
+  return `${url.pathname}${url.search}`;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) throw new Error(await response.text());
@@ -29,14 +63,18 @@ export async function fetchJson<T>(
 ): Promise<T> {
   const started = performance.now();
   const method = init.method ?? "GET";
+  const requestPath = normalizeApiPathForFetch(path);
   let response: Response | undefined;
   try {
-    response = await fetch(path, { credentials: "same-origin", ...init });
+    response = await fetch(requestPath, {
+      credentials: "same-origin",
+      ...init,
+    });
     return await parseResponse<T>(response);
   } catch (error) {
     logApiFailure(
       method,
-      path,
+      requestPath,
       response?.status,
       Math.round(performance.now() - started),
       error,
@@ -78,7 +116,8 @@ export async function apiDelete<T>(path: string): Promise<T> {
 }
 
 export async function apiDeleteNoContent(path: string): Promise<void> {
-  const response = await fetch(path, {
+  const requestPath = normalizeApiPathForFetch(path);
+  const response = await fetch(requestPath, {
     method: "DELETE",
     credentials: "same-origin",
   });

@@ -16,6 +16,11 @@ import {
 import { saveConversationTabs } from "./conversation-tabs";
 import type { CenterTabIdentity } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
+import {
+  conversationViewKey,
+  fileViewKey,
+  pendingConversationKey,
+} from "./state-keys";
 
 function tabIndex(tab: CenterTabIdentity): number {
   return workbenchState.openCenterTabs.findIndex((candidate) =>
@@ -150,11 +155,14 @@ export async function closeCenterTabs(
 
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
-    if (tab.kind === "file") delete workbenchState.fileViews[tab.id];
+    if (tab.kind === "file")
+      delete workbenchState.fileViews[fileViewKey(tab.id)];
     if (tab.kind === "conversation")
-      delete workbenchState.conversationViews[tab.id];
+      delete workbenchState.conversationViews[conversationViewKey(tab.id)];
     if (tab.kind === "pending-conversation")
-      delete workbenchState.pendingConversations[tab.id];
+      delete workbenchState.pendingConversations[
+        pendingConversationKey(tab.id)
+      ];
   }
 
   if (

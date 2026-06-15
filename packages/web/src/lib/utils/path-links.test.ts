@@ -63,10 +63,17 @@ describe("path link helpers", () => {
       "//server/share/App.svelte",
     );
     assert.equal(parseLocalFileHref("src/App.svelte?raw"), "src/App.svelte");
-    assert.equal(
-      parseLocalFileHref("https://example.test/App.svelte"),
-      undefined,
-    );
+    for (const href of [
+      "https://example.test/App.svelte",
+      "javascript:alert(1)",
+      "JaVaScRiPt:alert(1)",
+      "vbscript:msgbox(1)",
+      "data:text/html,hello",
+      "mailto:hello@example.test",
+      "#fragment",
+    ]) {
+      assert.equal(parseLocalFileHref(href), undefined);
+    }
   });
 
   it("splits line suffixes without treating drive letters as lines", () => {

@@ -5,7 +5,13 @@ import type {
   OAuthFlowInfo,
   RespondOAuthFlowRequest,
 } from "@nerve/shared";
-import { apiDelete, apiGet, apiPost, apiPut } from "../../../shared/api/client";
+import {
+  apiDelete,
+  apiGet,
+  apiPathSegment,
+  apiPost,
+  apiPut,
+} from "../../../shared/api/client";
 
 export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
   return (
@@ -31,7 +37,7 @@ export async function deleteProviderCredential(
   provider: string,
 ): Promise<void> {
   await apiDelete<{ ok: boolean }>(
-    `/api/auth/providers/${encodeURIComponent(provider)}`,
+    `/api/auth/providers/${apiPathSegment(provider)}`,
   );
 }
 
@@ -46,7 +52,7 @@ export async function startOAuthFlow(provider: string): Promise<OAuthFlowInfo> {
 export async function getOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
   return (
     await apiGet<{ flow: OAuthFlowInfo }>(
-      `/api/auth/oauth/flows/${encodeURIComponent(flowId)}`,
+      `/api/auth/oauth/flows/${apiPathSegment(flowId)}`,
     )
   ).flow;
 }
@@ -57,7 +63,7 @@ export async function respondOAuthFlow(
 ): Promise<OAuthFlowInfo> {
   return (
     await apiPost<{ flow: OAuthFlowInfo }>(
-      `/api/auth/oauth/flows/${encodeURIComponent(flowId)}/respond`,
+      `/api/auth/oauth/flows/${apiPathSegment(flowId)}/respond`,
       body,
     )
   ).flow;
@@ -66,7 +72,7 @@ export async function respondOAuthFlow(
 export async function cancelOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
   return (
     await apiPost<{ flow: OAuthFlowInfo }>(
-      `/api/auth/oauth/flows/${encodeURIComponent(flowId)}/cancel`,
+      `/api/auth/oauth/flows/${apiPathSegment(flowId)}/cancel`,
       {},
     )
   ).flow;

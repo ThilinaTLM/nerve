@@ -1,19 +1,42 @@
 const WINDOWS_DRIVE_PATH_RE = /^[A-Za-z]:[\\/]/;
-const WINDOWS_DRIVE_ROOT_RE = /^[A-Za-z]:[\\/]+$/;
 
 function preferredSeparator(path: string): "/" | "\\" {
   return path.includes("\\") && !path.includes("/") ? "\\" : "/";
 }
 
+function isAsciiLetter(char: string | undefined): boolean {
+  if (!char) return false;
+  const code = char.charCodeAt(0);
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+function isPathSeparator(char: string | undefined): boolean {
+  return char === "/" || char === "\\";
+}
+
+function isWindowsDriveRootPath(path: string): boolean {
+  if (path.length < 3 || !isAsciiLetter(path[0]) || path[1] !== ":") {
+    return false;
+  }
+  for (let index = 2; index < path.length; index += 1) {
+    if (!isPathSeparator(path[index])) return false;
+  }
+  return true;
+}
+
 function stripTrailingSeparators(path: string): string {
-  if (WINDOWS_DRIVE_ROOT_RE.test(path)) return path.slice(0, 3);
-  return path.replace(/[\\/]+$/, "") || path;
+  if (isWindowsDriveRootPath(path)) return path.slice(0, 3);
+  let end = path.length;
+  while (end > 0 && isPathSeparator(path[end - 1])) end -= 1;
+  return end === 0 ? path : path.slice(0, end);
 }
 
 function toPosixPath(path: string): string {
   const normalized = path.replace(/\\/g, "/");
-  if (/^[A-Za-z]:\/+$/u.test(normalized)) return normalized.slice(0, 3);
-  return normalized.replace(/\/+$/, "") || normalized;
+  if (isWindowsDriveRootPath(normalized)) return normalized.slice(0, 3);
+  let end = normalized.length;
+  while (end > 0 && normalized[end - 1] === "/") end -= 1;
+  return end === 0 ? normalized : normalized.slice(0, end);
 }
 
 function isWindowsDrivePath(path: string): boolean {

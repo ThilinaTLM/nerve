@@ -3,6 +3,7 @@ import {
   acceptPlanReview,
   acceptPlanReviewInNewChat,
   answerUserQuestion,
+  apiPathSegment,
   apiPost,
   discardPlanReview,
   dismissUserQuestion as dismissUserQuestionRequest,
@@ -19,13 +20,13 @@ import { refreshConversationView } from "./selection";
 import { openConversation } from "./tabs";
 
 export async function grantApproval(approvalId: string) {
-  await apiPost(`/api/approvals/${approvalId}/grant`, {});
+  await apiPost(`/api/approvals/${apiPathSegment(approvalId)}/grant`, {});
   workbenchState.approvals = await getPendingApprovals();
   notify.success("Approval granted");
 }
 
 export async function denyApproval(approvalId: string) {
-  await apiPost(`/api/approvals/${approvalId}/deny`, {
+  await apiPost(`/api/approvals/${apiPathSegment(approvalId)}/deny`, {
     note: "Denied from UI.",
   });
   workbenchState.approvals = await getPendingApprovals();

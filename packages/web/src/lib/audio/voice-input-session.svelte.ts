@@ -1,6 +1,7 @@
 import { notify } from "$lib/notifications/notify.svelte";
 import { ensureConversationView } from "$lib/stores/conversation-flow/state";
 import { workbenchState } from "$lib/stores/workbench/state.svelte";
+import { pendingConversationKey } from "$lib/stores/workbench/state-keys";
 import { TranscriptionController } from "./transcription-controller.svelte";
 import {
   appendTranscriptText,
@@ -180,7 +181,8 @@ class VoiceInputSession {
     }
 
     if (target.kind === "pending-conversation") {
-      const pending = workbenchState.pendingConversations[target.id];
+      const pending =
+        workbenchState.pendingConversations[pendingConversationKey(target.id)];
       if (pending)
         pending.composerText = appendTranscriptText(pending.composerText, text);
     }

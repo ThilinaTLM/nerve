@@ -6,7 +6,7 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
 } from "@nerve/shared";
-import { apiGet, apiPost } from "../../../shared/api/client";
+import { apiGet, apiPathSegment, apiPost } from "../../../shared/api/client";
 
 export type ApprovalWithToolCall = ApprovalRecord & {
   toolCall?: ToolCallRecord;
@@ -51,7 +51,7 @@ export async function acceptPlanReview(
 ): Promise<PlanReviewRecord> {
   return (
     await apiPost<{ planReview: PlanReviewRecord }>(
-      `/api/plan-reviews/${reviewId}/accept`,
+      `/api/plan-reviews/${apiPathSegment(reviewId)}/accept`,
       { feedback },
     )
   ).planReview;
@@ -65,9 +65,12 @@ export async function acceptPlanReviewInNewChat(
   conversation: ConversationRecord;
   agent: AgentRecord;
 }> {
-  return apiPost(`/api/plan-reviews/${reviewId}/accept-in-new-chat`, {
-    feedback,
-  });
+  return apiPost(
+    `/api/plan-reviews/${apiPathSegment(reviewId)}/accept-in-new-chat`,
+    {
+      feedback,
+    },
+  );
 }
 
 export async function rejectPlanReview(
@@ -76,7 +79,7 @@ export async function rejectPlanReview(
 ): Promise<PlanReviewRecord> {
   return (
     await apiPost<{ planReview: PlanReviewRecord }>(
-      `/api/plan-reviews/${reviewId}/reject`,
+      `/api/plan-reviews/${apiPathSegment(reviewId)}/reject`,
       { feedback },
     )
   ).planReview;
@@ -88,7 +91,7 @@ export async function requestPlanChanges(
 ): Promise<PlanReviewRecord> {
   return (
     await apiPost<{ planReview: PlanReviewRecord }>(
-      `/api/plan-reviews/${reviewId}/request-changes`,
+      `/api/plan-reviews/${apiPathSegment(reviewId)}/request-changes`,
       { feedback },
     )
   ).planReview;
@@ -100,7 +103,7 @@ export async function discardPlanReview(
 ): Promise<PlanReviewRecord> {
   return (
     await apiPost<{ planReview: PlanReviewRecord }>(
-      `/api/plan-reviews/${reviewId}/discard`,
+      `/api/plan-reviews/${apiPathSegment(reviewId)}/discard`,
       { feedback },
     )
   ).planReview;
@@ -112,7 +115,7 @@ export async function answerUserQuestion(
 ): Promise<UserQuestionRecord> {
   return (
     await apiPost<{ question: UserQuestionRecord }>(
-      `/api/user-questions/${questionId}/answer`,
+      `/api/user-questions/${apiPathSegment(questionId)}/answer`,
       { answer },
     )
   ).question;
@@ -124,7 +127,7 @@ export async function dismissUserQuestion(
 ): Promise<UserQuestionRecord> {
   return (
     await apiPost<{ question: UserQuestionRecord }>(
-      `/api/user-questions/${questionId}/dismiss`,
+      `/api/user-questions/${apiPathSegment(questionId)}/dismiss`,
       { reason },
     )
   ).question;

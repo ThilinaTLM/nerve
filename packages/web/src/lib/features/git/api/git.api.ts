@@ -8,12 +8,14 @@ import type {
   GitMutationResponse,
   GitOverviewResponse,
 } from "@nerve/shared";
-import { apiGet, apiPost } from "../../../shared/api/client";
+import { apiGet, apiPathSegment, apiPost } from "../../../shared/api/client";
 
 export async function discoverGitRepos(
   projectId: string,
 ): Promise<GitDiscoveryResponse> {
-  return apiGet<GitDiscoveryResponse>(`/api/projects/${projectId}/git/repos`);
+  return apiGet<GitDiscoveryResponse>(
+    `/api/projects/${apiPathSegment(projectId)}/git/repos`,
+  );
 }
 
 export async function getGitOverview(
@@ -22,7 +24,7 @@ export async function getGitOverview(
 ): Promise<GitOverviewResponse> {
   const params = new URLSearchParams({ repo });
   return apiGet<GitOverviewResponse>(
-    `/api/projects/${projectId}/git/overview?${params.toString()}`,
+    `/api/projects/${apiPathSegment(projectId)}/git/overview?${params.toString()}`,
   );
 }
 
@@ -32,7 +34,7 @@ export async function listGitBranches(
 ): Promise<GitBranchListResponse> {
   const params = new URLSearchParams({ repo });
   return apiGet<GitBranchListResponse>(
-    `/api/projects/${projectId}/git/branches?${params.toString()}`,
+    `/api/projects/${apiPathSegment(projectId)}/git/branches?${params.toString()}`,
   );
 }
 
@@ -41,10 +43,13 @@ export async function createGitBranch(
   repo: string,
   name: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/branch`, {
-    repo,
-    name,
-  });
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${apiPathSegment(projectId)}/git/branch`,
+    {
+      repo,
+      name,
+    },
+  );
 }
 
 export async function switchGitBranch(
@@ -53,7 +58,7 @@ export async function switchGitBranch(
   name: string,
 ): Promise<GitMutationResponse> {
   return apiPost<GitMutationResponse>(
-    `/api/projects/${projectId}/git/switch-branch`,
+    `/api/projects/${apiPathSegment(projectId)}/git/switch-branch`,
     { repo, name },
   );
 }
@@ -62,36 +67,48 @@ export async function syncGitBranch(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/sync`, {
-    repo,
-  });
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${apiPathSegment(projectId)}/git/sync`,
+    {
+      repo,
+    },
+  );
 }
 
 export async function pushGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/push`, {
-    repo,
-  });
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${apiPathSegment(projectId)}/git/push`,
+    {
+      repo,
+    },
+  );
 }
 
 export async function pullGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/pull`, {
-    repo,
-  });
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${apiPathSegment(projectId)}/git/pull`,
+    {
+      repo,
+    },
+  );
 }
 
 export async function fetchGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(`/api/projects/${projectId}/git/fetch`, {
-    repo,
-  });
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${apiPathSegment(projectId)}/git/fetch`,
+    {
+      repo,
+    },
+  );
 }
 
 export async function stageGitFile(
@@ -100,7 +117,7 @@ export async function stageGitFile(
   path: string,
 ): Promise<GitMutationResponse> {
   return apiPost<GitMutationResponse>(
-    `/api/projects/${projectId}/git/stage-file`,
+    `/api/projects/${apiPathSegment(projectId)}/git/stage-file`,
     { repo, path },
   );
 }
@@ -111,7 +128,7 @@ export async function unstageGitFile(
   path: string,
 ): Promise<GitMutationResponse> {
   return apiPost<GitMutationResponse>(
-    `/api/projects/${projectId}/git/unstage-file`,
+    `/api/projects/${apiPathSegment(projectId)}/git/unstage-file`,
     { repo, path },
   );
 }
@@ -122,7 +139,7 @@ export async function discardGitFile(
   path: string,
 ): Promise<GitMutationResponse> {
   return apiPost<GitMutationResponse>(
-    `/api/projects/${projectId}/git/discard-file`,
+    `/api/projects/${apiPathSegment(projectId)}/git/discard-file`,
     { repo, path },
   );
 }
@@ -133,7 +150,7 @@ export async function getGithubStatus(
 ): Promise<GithubStatusResponse> {
   const params = new URLSearchParams({ repo });
   return apiGet<GithubStatusResponse>(
-    `/api/projects/${projectId}/github/status?${params.toString()}`,
+    `/api/projects/${apiPathSegment(projectId)}/github/status?${params.toString()}`,
   );
 }
 
@@ -143,7 +160,7 @@ export async function listGithubPrs(
 ): Promise<GithubPrListResponse> {
   const params = new URLSearchParams({ repo });
   return apiGet<GithubPrListResponse>(
-    `/api/projects/${projectId}/github/prs?${params.toString()}`,
+    `/api/projects/${apiPathSegment(projectId)}/github/prs?${params.toString()}`,
   );
 }
 
@@ -154,7 +171,7 @@ export async function getGithubPr(
 ): Promise<GithubPrDetail> {
   const params = new URLSearchParams({ repo });
   return apiGet<GithubPrDetail>(
-    `/api/projects/${projectId}/github/pr/${number}?${params.toString()}`,
+    `/api/projects/${apiPathSegment(projectId)}/github/pr/${apiPathSegment(number)}?${params.toString()}`,
   );
 }
 
@@ -164,7 +181,7 @@ export async function checkoutGithubPr(
   number: number,
 ): Promise<GithubPrCheckoutResponse> {
   return apiPost<GithubPrCheckoutResponse>(
-    `/api/projects/${projectId}/github/pr/${number}/checkout`,
+    `/api/projects/${apiPathSegment(projectId)}/github/pr/${apiPathSegment(number)}/checkout`,
     { repo },
   );
 }

@@ -1,5 +1,5 @@
 import { notify } from "$lib/notifications/notify.svelte";
-import { apiPost, compactConversation } from "../../api";
+import { apiPathSegment, apiPost, compactConversation } from "../../api";
 import { queryClient, queryKeys } from "../../query";
 import { selection } from "../../state/app-state.svelte";
 import { workbenchState } from "../workbench/state.svelte";
@@ -13,10 +13,13 @@ export async function navigateToEntry(
 ) {
   if (!selection.conversationId) return;
   const conversationId = selection.conversationId;
-  await apiPost(`/api/conversations/${conversationId}/navigate`, {
-    activeEntryId: entryId ?? null,
-    summarize,
-  });
+  await apiPost(
+    `/api/conversations/${apiPathSegment(conversationId)}/navigate`,
+    {
+      activeEntryId: entryId ?? null,
+      summarize,
+    },
+  );
   await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
   await loadWorkspaceState();
   await openConversation(conversationId);
@@ -39,9 +42,12 @@ export async function continueFromFailure(statusEntryId: string) {
   workbenchState.sending = true;
   workbenchState.error = undefined;
   try {
-    await apiPost(`/api/agents/${selection.agentId}/continue-from-failure`, {
-      statusEntryId,
-    });
+    await apiPost(
+      `/api/agents/${apiPathSegment(selection.agentId)}/continue-from-failure`,
+      {
+        statusEntryId,
+      },
+    );
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.sending = false;
@@ -57,7 +63,7 @@ export async function abortActiveRun() {
   const view = selection.conversationId
     ? ensureConversationView(selection.conversationId)
     : undefined;
-  await apiPost(`/api/agents/${selection.agentId}/abort`, {});
+  await apiPost(`/api/agents/${apiPathSegment(selection.agentId)}/abort`, {});
   if (view) {
     view.sending = false;
     view.streamingText = "";

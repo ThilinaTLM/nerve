@@ -143,9 +143,31 @@ class MemoryExecutionEnv implements ExecutionEnv {
   }
 }
 
+function isAsciiLetter(char: string | undefined): boolean {
+  if (!char) return false;
+  const code = char.charCodeAt(0);
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+function isPathSeparator(char: string | undefined): boolean {
+  return char === "/" || char === "\\";
+}
+
+function isWindowsDriveRootPath(path: string): boolean {
+  if (path.length < 3 || !isAsciiLetter(path[0]) || path[1] !== ":") {
+    return false;
+  }
+  for (let index = 2; index < path.length; index += 1) {
+    if (!isPathSeparator(path[index])) return false;
+  }
+  return true;
+}
+
 function normalizePath(path: string): string {
-  if (/^[A-Za-z]:[\\/]+$/.test(path)) return path.slice(0, 3);
-  return path.replace(/[\\/]+$/, "") || path;
+  if (isWindowsDriveRootPath(path)) return path.slice(0, 3);
+  let end = path.length;
+  while (end > 0 && isPathSeparator(path[end - 1])) end -= 1;
+  return end === 0 ? path : path.slice(0, end);
 }
 
 function parentPath(path: string): string {
@@ -196,6 +218,13 @@ function skillContent(
 }
 
 describe("skill loader Windows paths", () => {
+  it("normalizes trailing separators without trimming roots", () => {
+    assert.equal(normalizePath("C:\\Users\\alice\\\\"), "C:\\Users\\alice");
+    assert.equal(normalizePath("C:\\\\"), "C:\\");
+    assert.equal(normalizePath("/tmp/project///"), "/tmp/project");
+    assert.equal(normalizePath("///"), "///");
+  });
+
   it("loads a nested skill under a Windows absolute root", async () => {
     const root = String.raw`C:\Users\alice\.pi\agent\skills`;
     const env = new MemoryExecutionEnv(root, {

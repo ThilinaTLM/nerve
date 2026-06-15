@@ -10,6 +10,7 @@ import {
   setActiveCenterTab,
 } from "../workbench/center-tabs.svelte";
 import { workbenchState } from "../workbench/state.svelte";
+import { pendingConversationKey } from "../workbench/state-keys";
 import { clearTranscriptState, createPendingConversationId } from "./state";
 
 export function openPendingConversation(project: ProjectRecord) {
@@ -26,7 +27,7 @@ export function openPendingConversation(project: ProjectRecord) {
         selectedMode: workbenchState.selectedMode,
         selectedPermissionLevel: workbenchState.selectedPermissionLevel,
       };
-  workbenchState.pendingConversations[id] = {
+  workbenchState.pendingConversations[pendingConversationKey(id)] = {
     id,
     projectId: project.id,
     projectDir: project.dir,
@@ -44,7 +45,8 @@ export function openPendingConversation(project: ProjectRecord) {
 }
 
 export function selectPendingConversation(pendingId: string) {
-  const pending = workbenchState.pendingConversations[pendingId];
+  const pending =
+    workbenchState.pendingConversations[pendingConversationKey(pendingId)];
   if (!pending) return;
   setActiveCenterTab({ kind: "pending-conversation", id: pending.id });
   workbenchState.activeConversationTabId = undefined;

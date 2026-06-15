@@ -1,5 +1,5 @@
 import type { AgentRecord, ModelSelection } from "@nerve/shared";
-import { apiPatch } from "../../../shared/api/client";
+import { apiPatch, apiPathSegment } from "../../../shared/api/client";
 
 export async function updateAgentConfig(
   agentId: string,
@@ -11,7 +11,10 @@ export async function updateAgentConfig(
   },
 ): Promise<AgentRecord> {
   return (
-    await apiPatch<{ agent: AgentRecord }>(`/api/agents/${agentId}`, patch)
+    await apiPatch<{ agent: AgentRecord }>(
+      `/api/agents/${apiPathSegment(agentId)}`,
+      patch,
+    )
   ).agent;
 }
 

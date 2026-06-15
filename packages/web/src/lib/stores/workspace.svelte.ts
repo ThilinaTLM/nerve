@@ -1,6 +1,7 @@
 import { notify } from "$lib/notifications/notify.svelte";
 import {
   type AgentRecord,
+  apiPathSegment,
   apiPost,
   type CompletionItem,
   type ConversationRecord,
@@ -98,12 +99,12 @@ export async function loadSlashCommands() {
 export function exportUrl(kind: "json" | "md" | "html"): string | undefined {
   if (!selection.conversationId) return undefined;
   const suffix = kind === "json" ? "export" : `export.${kind}`;
-  return `/api/conversations/${selection.conversationId}/${suffix}`;
+  return `/api/conversations/${apiPathSegment(selection.conversationId)}/${suffix}`;
 }
 
 export function systemPromptUrl(): string | undefined {
   if (!selection.agentId) return undefined;
-  return `/api/agents/${selection.agentId}/system-prompt`;
+  return `/api/agents/${apiPathSegment(selection.agentId)}/system-prompt`;
 }
 
 export async function completeFiles(query: string): Promise<CompletionItem[]> {

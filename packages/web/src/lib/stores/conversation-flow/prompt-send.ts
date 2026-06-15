@@ -2,6 +2,7 @@ import { deriveConversationTitle } from "@nerve/shared";
 import { notify } from "$lib/notifications/notify.svelte";
 import {
   type AgentRecord,
+  apiPathSegment,
   apiPost,
   type ConversationRecord,
   deleteConversation,
@@ -23,6 +24,7 @@ import type {
   PendingConversationState,
 } from "../workbench/state.svelte";
 import { workbenchState } from "../workbench/state.svelte";
+import { pendingConversationKey } from "../workbench/state-keys";
 import { loadWorkspaceState } from "../workspace.svelte";
 import { abortActiveRun } from "./run-control";
 import { upsertAgentRecord, upsertConversationRecord } from "./selection";
@@ -169,7 +171,9 @@ async function sendPendingPrompt(
     selection.agentId = agent.id;
     composerDraft.projectDir = pending.projectDir;
     const preservedComposerText = clearComposer ? "" : pending.composerText;
-    delete workbenchState.pendingConversations[pending.id];
+    delete workbenchState.pendingConversations[
+      pendingConversationKey(pending.id)
+    ];
     view = ensureConversationView(conversation.id);
     view.sending = true;
     view.error = undefined;
@@ -185,7 +189,7 @@ async function sendPendingPrompt(
     persistConversationTabs();
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    await apiPost(`/api/agents/${agent.id}/prompt`, { text });
+    await apiPost(`/api/agents/${apiPathSegment(agent.id)}/prompt`, { text });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     if (view) {
@@ -252,7 +256,7 @@ export async function sendPromptText(
       composerDraft.text = "";
     }
     if (queueWhileRunning) {
-      await apiPost(`/api/agents/${agentId}/prompt`, {
+      await apiPost(`/api/agents/${apiPathSegment(agentId)}/prompt`, {
         text,
         behavior: "steer",
       });
@@ -263,7 +267,7 @@ export async function sendPromptText(
       { role: "user", text, optimistic: true },
     ];
     workbenchState.transcript = view.transcript;
-    await apiPost(`/api/agents/${agentId}/prompt`, { text });
+    await apiPost(`/api/agents/${apiPathSegment(agentId)}/prompt`, { text });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.error = message;

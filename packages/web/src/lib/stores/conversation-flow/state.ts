@@ -6,11 +6,16 @@ import type {
   PendingConversationState,
 } from "../workbench/state.svelte";
 import { workbenchState } from "../workbench/state.svelte";
+import {
+  conversationViewKey,
+  pendingConversationKey,
+} from "../workbench/state-keys";
 
 export function ensureConversationView(
   conversationId: string,
 ): ConversationViewState {
-  workbenchState.conversationViews[conversationId] ??= {
+  const key = conversationViewKey(conversationId);
+  workbenchState.conversationViews[key] ??= {
     conversationId,
     activeEntryId: undefined,
     activeEntryIds: [],
@@ -25,7 +30,7 @@ export function ensureConversationView(
     composerText: "",
     loading: false,
   };
-  return workbenchState.conversationViews[conversationId];
+  return workbenchState.conversationViews[key];
 }
 
 export function persistConversationTabs() {
@@ -52,7 +57,7 @@ export function activePendingConversation():
   | undefined {
   const active = workbenchState.activeCenterTab;
   if (active?.kind !== "pending-conversation") return undefined;
-  return workbenchState.pendingConversations[active.id];
+  return workbenchState.pendingConversations[pendingConversationKey(active.id)];
 }
 
 export function clearTranscriptState() {

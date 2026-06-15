@@ -7,11 +7,12 @@ import type {
 import {
   apiDeleteNoContent,
   apiGet,
+  apiPathSegment,
   apiPost,
 } from "../../../shared/api/client";
 
 export async function deleteProject(projectId: string): Promise<void> {
-  await apiDeleteNoContent(`/api/projects/${projectId}`);
+  await apiDeleteNoContent(`/api/projects/${apiPathSegment(projectId)}`);
 }
 
 export async function pruneProjectConversations(
@@ -19,7 +20,7 @@ export async function pruneProjectConversations(
   request: PruneProjectConversationsRequest,
 ): Promise<PruneProjectConversationsResponse> {
   return apiPost<PruneProjectConversationsResponse>(
-    `/api/projects/${projectId}/conversations/prune`,
+    `/api/projects/${apiPathSegment(projectId)}/conversations/prune`,
     request,
   );
 }
@@ -29,7 +30,7 @@ export async function getPinnedCommands(
 ): Promise<PinnedCommand[]> {
   return (
     await apiGet<{ commands: PinnedCommand[] }>(
-      `/api/projects/${projectId}/pinned-commands`,
+      `/api/projects/${apiPathSegment(projectId)}/pinned-commands`,
     )
   ).commands;
 }
@@ -40,7 +41,7 @@ export async function createPinnedCommand(
 ): Promise<PinnedCommand> {
   return (
     await apiPost<{ command: PinnedCommand }>(
-      `/api/projects/${projectId}/pinned-commands`,
+      `/api/projects/${apiPathSegment(projectId)}/pinned-commands`,
       body,
     )
   ).command;
@@ -51,6 +52,6 @@ export async function deletePinnedCommand(
   commandId: string,
 ): Promise<void> {
   await apiDeleteNoContent(
-    `/api/projects/${projectId}/pinned-commands/${commandId}`,
+    `/api/projects/${apiPathSegment(projectId)}/pinned-commands/${apiPathSegment(commandId)}`,
   );
 }

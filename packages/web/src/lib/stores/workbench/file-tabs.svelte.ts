@@ -12,6 +12,7 @@ import {
   setActiveCenterTab,
 } from "./center-tabs.svelte";
 import { workbenchState } from "./state.svelte";
+import { fileViewKey } from "./state-keys";
 
 function encodeFileTabId(projectId: string, path: string): string {
   return `${projectId}:${encodeURIComponent(path)}`;
@@ -22,7 +23,7 @@ function addFileTab(id: string) {
 }
 
 async function loadFileView(id: string) {
-  const view = workbenchState.fileViews[id];
+  const view = workbenchState.fileViews[fileViewKey(id)];
   if (!view) return;
   view.loading = true;
   view.error = undefined;
@@ -44,21 +45,22 @@ export async function openFilePane(input: {
   line?: number;
 }) {
   const id = encodeFileTabId(input.projectId, input.path);
+  const key = fileViewKey(id);
   addFileTab(id);
-  workbenchState.fileViews[id] ??= {
+  workbenchState.fileViews[key] ??= {
     id,
     projectId: input.projectId,
     path: input.path,
     line: input.line,
     loading: false,
   };
-  workbenchState.fileViews[id].line = input.line;
+  workbenchState.fileViews[key].line = input.line;
   setActiveCenterTab({ kind: "file", id });
   await loadFileView(id);
 }
 
 export async function selectCenterFileTab(id: string) {
-  const view = workbenchState.fileViews[id];
+  const view = workbenchState.fileViews[fileViewKey(id)];
   if (!view) return;
   addFileTab(id);
   setActiveCenterTab({ kind: "file", id });
@@ -76,13 +78,13 @@ export async function refreshActiveFilePane() {
 }
 
 export function setFileDisplayMode(id: string, mode: FileDisplayMode) {
-  const view = workbenchState.fileViews[id];
+  const view = workbenchState.fileViews[fileViewKey(id)];
   if (!view) return;
   view.displayMode = mode;
 }
 
 export function toggleFileDisplayMode(id: string) {
-  const view = workbenchState.fileViews[id];
+  const view = workbenchState.fileViews[fileViewKey(id)];
   if (!view) return;
   const current =
     view.displayMode ??
@@ -91,7 +93,7 @@ export function toggleFileDisplayMode(id: string) {
 }
 
 export function toggleFileLineWrap(id: string) {
-  const view = workbenchState.fileViews[id];
+  const view = workbenchState.fileViews[fileViewKey(id)];
   if (!view) return;
   view.wrapLines = !view.wrapLines;
 }
@@ -103,6 +105,6 @@ export function closeFileTab(id: string) {
     workbenchState.activeCenterTab.id === id;
   const fallback = nextCenterTabAfterClose(tab);
   removeCenterTab(tab);
-  delete workbenchState.fileViews[id];
+  delete workbenchState.fileViews[fileViewKey(id)];
   if (closingActive) void selectCenterTab(fallback);
 }

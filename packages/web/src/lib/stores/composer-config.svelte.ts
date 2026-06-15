@@ -8,6 +8,10 @@ import {
 } from "./agent-selection-defaults";
 import { queueSettingsSave } from "./settings.svelte";
 import { workbenchState } from "./workbench/state.svelte";
+import {
+  conversationViewKey,
+  pendingConversationKey,
+} from "./workbench/state-keys";
 
 export function currentActiveAgent(): AgentRecord | undefined {
   return workbenchState.agents.find((agent) => agent.id === selection.agentId);
@@ -41,6 +45,12 @@ function rememberLastAgentSelection(patch: LastAgentSelectionPatch): void {
   queueSettingsSave({ lastAgentSelection: patch }, { immediate: true });
 }
 
+function activePendingComposerConversation() {
+  const active = workbenchState.activeCenterTab;
+  if (active?.kind !== "pending-conversation") return undefined;
+  return workbenchState.pendingConversations[pendingConversationKey(active.id)];
+}
+
 export function selectedThinkingLevel(): AgentRecord["thinkingLevel"] {
   return clampThinkingLevelForModel(
     workbenchState.selectedThinkingLevel,
@@ -55,10 +65,7 @@ export async function setComposerModel(key: string) {
     selectedModelInfo(),
   );
   workbenchState.selectedThinkingLevel = thinkingLevel;
-  const pending =
-    workbenchState.activeCenterTab?.kind === "pending-conversation"
-      ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
-      : undefined;
+  const pending = activePendingComposerConversation();
   if (pending) {
     pending.selectedModelKey = key;
     pending.thinkingLevel = thinkingLevel;
@@ -81,7 +88,10 @@ export async function setComposerModel(key: string) {
     const contextUsage = await getConversationContextUsage(
       selection.conversationId,
     ).catch(() => undefined);
-    const view = workbenchState.conversationViews[selection.conversationId];
+    const view =
+      workbenchState.conversationViews[
+        conversationViewKey(selection.conversationId)
+      ];
     if (contextUsage && view) view.contextUsage = contextUsage;
   }
 }
@@ -91,10 +101,7 @@ export async function setComposerThinkingLevel(
 ) {
   const thinkingLevel = clampThinkingLevelForModel(level, selectedModelInfo());
   workbenchState.selectedThinkingLevel = thinkingLevel;
-  const pending =
-    workbenchState.activeCenterTab?.kind === "pending-conversation"
-      ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
-      : undefined;
+  const pending = activePendingComposerConversation();
   if (pending) pending.thinkingLevel = thinkingLevel;
   rememberLastAgentSelection({ thinkingLevel });
   if (!selection.agentId) return;
@@ -107,10 +114,7 @@ export async function setComposerThinkingLevel(
 
 export async function setComposerMode(mode: AgentRecord["mode"]) {
   workbenchState.selectedMode = mode;
-  const pending =
-    workbenchState.activeCenterTab?.kind === "pending-conversation"
-      ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
-      : undefined;
+  const pending = activePendingComposerConversation();
   if (pending) pending.mode = mode;
   rememberLastAgentSelection({ mode });
   if (!selection.agentId) return;
@@ -124,10 +128,7 @@ export async function setComposerPermission(
   permissionLevel: AgentRecord["permissionLevel"],
 ) {
   workbenchState.selectedPermissionLevel = permissionLevel;
-  const pending =
-    workbenchState.activeCenterTab?.kind === "pending-conversation"
-      ? workbenchState.pendingConversations[workbenchState.activeCenterTab.id]
-      : undefined;
+  const pending = activePendingComposerConversation();
   if (pending) pending.permissionLevel = permissionLevel;
   rememberLastAgentSelection({ permissionLevel });
   if (!selection.agentId) return;

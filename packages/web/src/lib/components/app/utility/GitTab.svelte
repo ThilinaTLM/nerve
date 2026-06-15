@@ -46,6 +46,10 @@
     syncGitRepo,
     switchGitRepoBranch,
   } from "../../../stores/workbench/git-panel.svelte";
+  import {
+    gitProjectStateKey,
+    gitRepoStateKey,
+  } from "../../../stores/workbench/state-keys";
   import PanelSection from "./PanelSection.svelte";
 
   type Props = {
@@ -70,11 +74,13 @@
   let discardDialogOpen = $state(false);
 
   const projectState = $derived(
-    activeProject ? gitPanelState.projects[activeProject.id] : undefined,
+    activeProject
+      ? gitPanelState.projects[gitProjectStateKey(activeProject.id)]
+      : undefined,
   );
   const repos = $derived(projectState?.repos ?? []);
   const selectedRepo = $derived(projectState?.selectedRepo ?? ".");
-  const current = $derived(projectState?.repoStates[selectedRepo]);
+  const current = $derived(projectState?.repoStates[gitRepoStateKey(selectedRepo)]);
   const overview = $derived(current?.overview);
   const github = $derived(current?.github);
   const prs = $derived(current?.prs ?? []);

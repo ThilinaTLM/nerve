@@ -23,6 +23,7 @@ import {
 import { gitContextFingerprint } from "./git-context-helpers";
 import type { GitContext } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
+import { gitProjectStateKey, gitRepoStateKey } from "./state-keys";
 
 export type FileMutation = {
   path: string;
@@ -130,7 +131,7 @@ function repoStorageKey(projectId: string): string {
 }
 
 function touchProject(projectId: string): void {
-  const state = gitPanelState.projects[projectId];
+  const state = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!state) return;
   state.touchedAt = Date.now();
   pruneProjectCache();
@@ -141,15 +142,16 @@ function pruneProjectCache(): void {
     (a, b) => b.touchedAt - a.touchedAt,
   );
   for (const stale of entries.slice(MAX_PROJECT_CACHE_ENTRIES)) {
-    delete gitPanelState.projects[stale.projectId];
+    delete gitPanelState.projects[gitProjectStateKey(stale.projectId)];
   }
 }
 
 export function ensureGitProjectState(
   project: ProjectRecord,
 ): GitPanelProjectState {
-  gitPanelState.projects[project.id] ??= createProjectState(project);
-  const state = gitPanelState.projects[project.id];
+  const key = gitProjectStateKey(project.id);
+  gitPanelState.projects[key] ??= createProjectState(project);
+  const state = gitPanelState.projects[key];
   state.projectDir = project.dir;
   touchProject(project.id);
   return state;
@@ -159,10 +161,11 @@ export function ensureGitRepoState(
   projectId: string,
   repo: string,
 ): GitPanelRepoState {
-  const project = gitPanelState.projects[projectId];
+  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!project) return createRepoState();
-  project.repoStates[repo] ??= createRepoState();
-  return project.repoStates[repo];
+  const key = gitRepoStateKey(repo);
+  project.repoStates[key] ??= createRepoState();
+  return project.repoStates[key];
 }
 
 function errorMessage(error: unknown): string {
@@ -226,7 +229,7 @@ export function overviewFingerprint(next: GitOverviewResponse): string {
 }
 
 function mergeRepoSummary(projectId: string, next: GitRepoSummary): void {
-  const project = gitPanelState.projects[projectId];
+  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!project) return;
   const exists = project.repos.some(
     (repo) => repo.relativePath === next.relativePath,
@@ -236,7 +239,7 @@ function mergeRepoSummary(projectId: string, next: GitRepoSummary): void {
         repo.relativePath === next.relativePath ? next : repo,
       )
     : [...project.repos, next];
-  const state = project.repoStates[next.relativePath];
+  const state = project.repoStates[gitRepoStateKey(next.relativePath)];
   if (
     state?.overview &&
     state.overview.repo.relativePath === next.relativePath
@@ -256,10 +259,10 @@ function repoSummaryFor(
   projectId: string,
   repo: string,
 ): GitRepoSummary | undefined {
-  const project = gitPanelState.projects[projectId];
+  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!project) return undefined;
   return (
-    project.repoStates[repo]?.overview?.repo ??
+    project.repoStates[gitRepoStateKey(repo)]?.overview?.repo ??
     project.repos.find((candidate) => candidate.relativePath === repo)
   );
 }
@@ -291,7 +294,8 @@ function gitContextFromProject(
   project: GitPanelProjectState,
 ): GitContext | undefined {
   if (!project.loaded && project.repos.length === 0) return undefined;
-  const selectedState = project.repoStates[project.selectedRepo];
+  const selectedState =
+    project.repoStates[gitRepoStateKey(project.selectedRepo)];
   return {
     projectId: project.projectId,
     projectIsRepo: project.projectIsRepo,
@@ -307,7 +311,7 @@ function gitContextFromProject(
 }
 
 export function applyGitContextFromProject(projectId: string): void {
-  const project = gitPanelState.projects[projectId];
+  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!project) return;
   const next = gitContextFromProject(project);
   if (!next) return;
@@ -324,7 +328,9 @@ export function applyGitContextFromProject(projectId: string): void {
 export function selectedGitProjectState(
   projectId: string | undefined,
 ): GitPanelProjectState | undefined {
-  return projectId ? gitPanelState.projects[projectId] : undefined;
+  return projectId
+    ? gitPanelState.projects[gitProjectStateKey(projectId)]
+    : undefined;
 }
 
 export function selectedGitRepoState(
@@ -332,7 +338,7 @@ export function selectedGitRepoState(
 ): GitPanelRepoState | undefined {
   const project = selectedGitProjectState(projectId);
   if (!project) return undefined;
-  return project.repoStates[project.selectedRepo];
+  return project.repoStates[gitRepoStateKey(project.selectedRepo)];
 }
 
 export function selectGitProject(project: ProjectRecord): void {
@@ -347,7 +353,7 @@ export function selectGitProject(project: ProjectRecord): void {
 }
 
 export function selectGitRepo(projectId: string, repo: string): void {
-  const project = gitPanelState.projects[projectId];
+  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!project || repo === project.selectedRepo) return;
   project.selectedRepo = repo;
   saveSelectedRepo(projectId, repo);
@@ -535,7 +541,10 @@ export function autoRefreshGitOverview(projectId: string, repo: string): void {
   ) {
     return;
   }
-  const state = gitPanelState.projects[projectId]?.repoStates[repo];
+  const state =
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(repo)
+    ];
   if (!state || state.overviewRequestInFlight || repoMutationInProgress(state))
     return;
   void refreshGitOverview(projectId, repo, {
@@ -690,12 +699,13 @@ export async function bulkStageGitFiles(
 }
 
 export function invalidateGitPanel(projectId?: string, repo?: string): void {
-  const projectIds = projectId
-    ? [projectId]
-    : Object.keys(gitPanelState.projects);
-  for (const id of projectIds) {
-    const project = gitPanelState.projects[id];
-    if (!project) continue;
+  const projects = projectId
+    ? [gitPanelState.projects[gitProjectStateKey(projectId)]].filter(
+        (project): project is GitPanelProjectState => Boolean(project),
+      )
+    : Object.values(gitPanelState.projects);
+  for (const project of projects) {
+    const id = project.projectId;
     if (repo) {
       void refreshGitOverview(id, repo, { force: true });
       void refreshGithub(id, repo);

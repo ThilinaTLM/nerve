@@ -8,6 +8,7 @@ import {
   setActiveCenterTab,
 } from "./center-tabs.svelte";
 import { workbenchState } from "./state.svelte";
+import { prViewKey } from "./state-keys";
 
 function encodePrTabId(
   projectId: string,
@@ -22,7 +23,7 @@ function addPrTab(id: string) {
 }
 
 async function loadPrView(id: string) {
-  const view = workbenchState.prViews[id];
+  const view = workbenchState.prViews[prViewKey(id)];
   if (!view || view.loading) return;
   view.loading = true;
   view.error = undefined;
@@ -43,8 +44,9 @@ export async function openPrPane(input: {
   number: number;
 }) {
   const id = encodePrTabId(input.projectId, input.repo, input.number);
+  const key = prViewKey(id);
   addPrTab(id);
-  workbenchState.prViews[id] ??= {
+  workbenchState.prViews[key] ??= {
     id,
     projectId: input.projectId,
     repo: input.repo,
@@ -56,7 +58,7 @@ export async function openPrPane(input: {
 }
 
 export async function selectCenterPrTab(id: string) {
-  const view = workbenchState.prViews[id];
+  const view = workbenchState.prViews[prViewKey(id)];
   if (!view) return;
   addPrTab(id);
   setActiveCenterTab({ kind: "pr", id });
@@ -74,6 +76,6 @@ export function closePrTab(id: string) {
     workbenchState.activeCenterTab.id === id;
   const fallback = nextCenterTabAfterClose(tab);
   removeCenterTab(tab);
-  delete workbenchState.prViews[id];
+  delete workbenchState.prViews[prViewKey(id)];
   if (closingActive) void selectCenterTab(fallback);
 }

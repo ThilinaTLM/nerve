@@ -8,6 +8,7 @@ import type {
 import {
   apiDeleteNoContent,
   apiGet,
+  apiPathSegment,
   apiPost,
 } from "../../../shared/api/client";
 
@@ -16,7 +17,7 @@ export async function getConversationSnapshot(
 ): Promise<ConversationSnapshot> {
   return (
     await apiGet<{ snapshot: ConversationSnapshot }>(
-      `/api/conversations/${conversationId}/snapshot`,
+      `/api/conversations/${apiPathSegment(conversationId)}/snapshot`,
     )
   ).snapshot;
 }
@@ -26,7 +27,7 @@ export async function getConversationContextUsage(
 ): Promise<ContextUsage> {
   return (
     await apiGet<{ contextUsage: ContextUsage }>(
-      `/api/conversations/${conversationId}/context-usage`,
+      `/api/conversations/${apiPathSegment(conversationId)}/context-usage`,
     )
   ).contextUsage;
 }
@@ -36,7 +37,7 @@ export async function getConversationEntries(
 ): Promise<ConversationEntry[]> {
   return (
     await apiGet<{ entries: ConversationEntry[] }>(
-      `/api/conversations/${conversationId}/entries`,
+      `/api/conversations/${apiPathSegment(conversationId)}/entries`,
     )
   ).entries;
 }
@@ -46,7 +47,7 @@ export async function getConversationTree(
 ): Promise<ConversationTree> {
   return (
     await apiGet<{ tree: ConversationTree }>(
-      `/api/conversations/${conversationId}/tree`,
+      `/api/conversations/${apiPathSegment(conversationId)}/tree`,
     )
   ).tree;
 }
@@ -55,11 +56,16 @@ export async function compactConversation(conversationId: string): Promise<{
   conversation: ConversationRecord;
   entry: ConversationEntry;
 }> {
-  return apiPost(`/api/conversations/${conversationId}/compact`, {});
+  return apiPost(
+    `/api/conversations/${apiPathSegment(conversationId)}/compact`,
+    {},
+  );
 }
 
 export async function deleteConversation(
   conversationId: string,
 ): Promise<void> {
-  await apiDeleteNoContent(`/api/conversations/${conversationId}`);
+  await apiDeleteNoContent(
+    `/api/conversations/${apiPathSegment(conversationId)}`,
+  );
 }

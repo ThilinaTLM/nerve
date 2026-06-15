@@ -1,4 +1,4 @@
-import { apiGet, type ConversationRecord } from "../../api";
+import { apiGet, apiPathSegment, type ConversationRecord } from "../../api";
 import { voiceInputSession } from "../../audio/voice-input-session.svelte";
 import { selection } from "../../state/app-state.svelte";
 import {
@@ -13,6 +13,10 @@ import {
   loadStoredConversationTabs,
 } from "../workbench/conversation-tabs";
 import { workbenchState } from "../workbench/state.svelte";
+import {
+  conversationViewKey,
+  pendingConversationKey,
+} from "../workbench/state-keys";
 import {
   applyActiveConversationSelection,
   refreshConversationView,
@@ -31,7 +35,7 @@ export async function openConversation(conversationId: string) {
     ) ??
     (
       await apiGet<{ conversation: ConversationRecord }>(
-        `/api/conversations/${conversationId}`,
+        `/api/conversations/${apiPathSegment(conversationId)}`,
       )
     ).conversation;
   addConversationTab(conversation.id);
@@ -76,7 +80,7 @@ export async function closeConversationTab(conversationId: string) {
     id: conversationId,
   });
   removeCenterTab(tab);
-  delete workbenchState.conversationViews[conversationId];
+  delete workbenchState.conversationViews[conversationViewKey(conversationId)];
 
   const closingActiveCenter =
     workbenchState.activeCenterTab?.kind === "conversation" &&
@@ -98,7 +102,8 @@ export async function closeConversationTab(conversationId: string) {
 }
 
 export async function closePendingConversationTab(pendingId: string) {
-  const pending = workbenchState.pendingConversations[pendingId];
+  const pending =
+    workbenchState.pendingConversations[pendingConversationKey(pendingId)];
   if (!pending) return;
   const tab = { kind: "pending-conversation" as const, id: pendingId };
   const fallback = nextCenterTabAfterClose(tab);
@@ -110,7 +115,7 @@ export async function closePendingConversationTab(pendingId: string) {
     id: pendingId,
   });
   removeCenterTab(tab);
-  delete workbenchState.pendingConversations[pendingId];
+  delete workbenchState.pendingConversations[pendingConversationKey(pendingId)];
   if (closingActiveCenter) {
     clearActiveSelection();
     await selectCenterTab(fallback);
@@ -132,7 +137,9 @@ export async function removeConversationTabs(conversationIds: string[]) {
     ),
   );
   for (const conversationId of removing)
-    delete workbenchState.conversationViews[conversationId];
+    delete workbenchState.conversationViews[
+      conversationViewKey(conversationId)
+    ];
 
   if (!activeRemoved) {
     persistConversationTabs();

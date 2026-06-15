@@ -7,6 +7,7 @@ import type {
 } from "../../api";
 import type { StatusTone } from "../../utils/status";
 import type { ConversationViewState } from "./state.svelte";
+import { conversationViewKey } from "./state-keys";
 
 export type ConversationActivitySource =
   | "pending-input"
@@ -120,12 +121,12 @@ export function buildConversationActivityById(input: {
   userQuestions: UserQuestionRecord[];
   planReviews: PlanReviewRecord[];
 }): Record<string, ConversationActivityState> {
-  const result: Record<string, ConversationActivityState> = {};
+  const result: Record<string, ConversationActivityState> = Object.create(null);
   for (const conversation of input.conversations) {
     result[conversation.id] = conversationActivityForRecord({
       conversationId: conversation.id,
       agent: agentForConversation(conversation, input.agents),
-      view: input.views[conversation.id],
+      view: input.views[conversationViewKey(conversation.id)],
       hasPendingHumanInput: hasPendingHumanInput(
         conversation.id,
         input.approvals,

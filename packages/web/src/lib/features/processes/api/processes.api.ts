@@ -3,7 +3,12 @@ import type {
   ProcessRecord,
   StartProcessRequest,
 } from "@nerve/shared";
-import { apiDelete, apiGet, apiPost } from "../../../shared/api/client";
+import {
+  apiDelete,
+  apiGet,
+  apiPathSegment,
+  apiPost,
+} from "../../../shared/api/client";
 
 export async function getProcessLogs(
   processId: string,
@@ -11,7 +16,7 @@ export async function getProcessLogs(
 ): Promise<ProcessLogQueryResponse> {
   const params = new URLSearchParams({ mode, limit: "120" });
   return apiGet<ProcessLogQueryResponse>(
-    `/api/processes/${processId}/logs?${params.toString()}`,
+    `/api/processes/${apiPathSegment(processId)}/logs?${params.toString()}`,
   );
 }
 
@@ -25,7 +30,7 @@ export async function startProcess(
 export async function stopProcess(processId: string): Promise<ProcessRecord> {
   return (
     await apiPost<{ process: ProcessRecord }>(
-      `/api/processes/${processId}/stop`,
+      `/api/processes/${apiPathSegment(processId)}/stop`,
       {},
     )
   ).process;
@@ -36,14 +41,16 @@ export async function restartProcess(
 ): Promise<ProcessRecord> {
   return (
     await apiPost<{ process: ProcessRecord }>(
-      `/api/processes/${processId}/restart`,
+      `/api/processes/${apiPathSegment(processId)}/restart`,
       {},
     )
   ).process;
 }
 
 export async function deleteProcess(processId: string): Promise<void> {
-  await apiDelete<{ removed: boolean }>(`/api/processes/${processId}`);
+  await apiDelete<{ removed: boolean }>(
+    `/api/processes/${apiPathSegment(processId)}`,
+  );
 }
 
 export async function pruneProcesses(): Promise<{ removed: string[] }> {

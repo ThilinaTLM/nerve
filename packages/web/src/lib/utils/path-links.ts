@@ -13,9 +13,21 @@ function preferredSeparator(base: string): "/" | "\\" {
   return isWindowsLikePath(base) && base.includes("\\") ? "\\" : "/";
 }
 
+function isPathSeparator(char: string | undefined): boolean {
+  return char === "/" || char === "\\";
+}
+
 function trimTrailingSeparators(path: string): string {
   if (WINDOWS_DRIVE_PREFIX.test(path)) return path;
-  return path.replace(/[\\/]+$/g, "");
+  let end = path.length;
+  while (end > 0 && isPathSeparator(path[end - 1])) end -= 1;
+  return path.slice(0, end);
+}
+
+function trimTrailingForwardSlashes(path: string): string {
+  let end = path.length;
+  while (end > 0 && path[end - 1] === "/") end -= 1;
+  return path.slice(0, end);
 }
 
 export function isAbsoluteLocalPath(path: string): boolean {
@@ -32,7 +44,7 @@ export function normalizePathForCompare(path: string): string {
   const unc = value.startsWith("//");
   value = value.replace(/\/{2,}/g, "/");
   if (unc && !value.startsWith("//")) value = `/${value}`;
-  value = value.replace(/\/+$/g, "");
+  value = trimTrailingForwardSlashes(value);
   if (/^[A-Za-z]:($|\/)/.test(value)) {
     value = `${value[0]?.toLowerCase()}${value.slice(1)}`;
   }
@@ -90,18 +102,9 @@ export function parseLocalFileHref(href: string): string | undefined {
   const value = href.trim();
   if (!value) return undefined;
 
-  const lower = value.toLowerCase();
-  if (
-    lower.startsWith("http:") ||
-    lower.startsWith("https:") ||
-    lower.startsWith("mailto:") ||
-    lower.startsWith("data:") ||
-    lower.startsWith("javascript:") ||
-    lower.startsWith("#")
-  ) {
-    return undefined;
-  }
+  if (value.startsWith("#")) return undefined;
 
+  const lower = value.toLowerCase();
   if (lower.startsWith("file://")) {
     try {
       const url = new URL(value);

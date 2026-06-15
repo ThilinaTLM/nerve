@@ -27,6 +27,14 @@ import { buildGitSuggestions, type GitSuggestion } from "./git-context.svelte";
 import { gitPanelState } from "./git-panel.svelte";
 import type { CenterTabIdentity, ConversationViewState } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
+import {
+  conversationViewKey,
+  fileViewKey,
+  gitProjectStateKey,
+  gitRepoStateKey,
+  pendingConversationKey,
+  prViewKey,
+} from "./state-keys";
 
 export type ConversationTabModel = {
   kind: "conversation";
@@ -118,13 +126,13 @@ function activeView(): ConversationViewState | undefined {
   const conversationId =
     selection.conversationId ?? workbenchState.activeConversationTabId;
   if (!conversationId) return undefined;
-  return workbenchState.conversationViews[conversationId];
+  return workbenchState.conversationViews[conversationViewKey(conversationId)];
 }
 
 function activePendingConversation() {
   const active = workbenchState.activeCenterTab;
   if (active?.kind !== "pending-conversation") return undefined;
-  return workbenchState.pendingConversations[active.id];
+  return workbenchState.pendingConversations[pendingConversationKey(active.id)];
 }
 
 function activeTabMatches(
@@ -314,7 +322,8 @@ export const workbenchSelectors = {
           candidate.id === conversation.activeAgentId ||
           candidate.conversationId === conversation.id,
       );
-      const view = workbenchState.conversationViews[conversation.id];
+      const view =
+        workbenchState.conversationViews[conversationViewKey(conversation.id)];
       const activity =
         this.conversationActivityById[conversation.id] ??
         idleConversationActivity;
@@ -339,7 +348,8 @@ export const workbenchSelectors = {
     const tabs: PendingConversationTabModel[] = [];
     for (const tab of workbenchState.openCenterTabs) {
       if (tab.kind !== "pending-conversation") continue;
-      const pending = workbenchState.pendingConversations[tab.id];
+      const pending =
+        workbenchState.pendingConversations[pendingConversationKey(tab.id)];
       if (!pending) continue;
       tabs.push({
         kind: "pending-conversation",
@@ -390,7 +400,7 @@ export const workbenchSelectors = {
   },
   get openFileTabs(): FileTabModel[] {
     return workbenchState.openFileTabIds.map((id) => {
-      const view = workbenchState.fileViews[id];
+      const view = workbenchState.fileViews[fileViewKey(id)];
       const displayPath = view?.content?.relativePath ?? view?.path;
       return {
         kind: "file" as const,
@@ -409,7 +419,7 @@ export const workbenchSelectors = {
   },
   get openPrTabs(): PrTabModel[] {
     return workbenchState.openPrTabIds.map((id) => {
-      const view = workbenchState.prViews[id];
+      const view = workbenchState.prViews[prViewKey(id)];
       return {
         kind: "pr" as const,
         id,
@@ -502,12 +512,12 @@ export const workbenchSelectors = {
   get activeCenterFileView() {
     const active = workbenchState.activeCenterTab;
     if (active?.kind !== "file") return undefined;
-    return workbenchState.fileViews[active.id];
+    return workbenchState.fileViews[fileViewKey(active.id)];
   },
   get activeCenterPrView() {
     const active = workbenchState.activeCenterTab;
     if (active?.kind !== "pr") return undefined;
-    return workbenchState.prViews[active.id];
+    return workbenchState.prViews[prViewKey(active.id)];
   },
   get gitSuggestions(): GitSuggestion[] {
     const ctx = workbenchState.gitContext;
@@ -523,9 +533,11 @@ export const workbenchSelectors = {
   },
   get gitStatus(): { branch: string; dirty: boolean } | undefined {
     const projectId = this.activeProject?.id;
-    const state = projectId ? gitPanelState.projects[projectId] : undefined;
+    const state = projectId
+      ? gitPanelState.projects[gitProjectStateKey(projectId)]
+      : undefined;
     if (!state || state.repos.length === 0) return undefined;
-    const repoState = state.repoStates[state.selectedRepo];
+    const repoState = state.repoStates[gitRepoStateKey(state.selectedRepo)];
     const repo =
       repoState?.overview?.repo ??
       state.repos.find(
