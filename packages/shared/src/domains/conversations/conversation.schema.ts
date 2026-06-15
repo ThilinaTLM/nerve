@@ -210,6 +210,30 @@ export interface ConversationLiveToolDraftDoneData {
   args: Record<string, unknown>;
 }
 
+export interface ConversationLiveToolDraftProgressSnapshot {
+  path?: string;
+  lineCount?: number;
+  replacementCount?: number;
+  generatedLineCount?: number;
+  estimatedAdditions?: number;
+  estimatedDeletions?: number;
+  estimated: boolean;
+}
+
+export interface ConversationLiveToolDraftProgressData {
+  conversationId: string;
+  agentId: string;
+  projectId: string;
+  runId: string;
+  turnId: string;
+  liveMessageId: string;
+  contentBlockId: string;
+  contentIndex: number;
+  providerToolCallId?: string;
+  toolName?: string;
+  progress: ConversationLiveToolDraftProgressSnapshot;
+}
+
 export interface ConversationLiveToolOutputDeltaData {
   conversationId: string;
   agentId: string;
@@ -244,6 +268,7 @@ export type ConversationEventData =
   | ConversationLiveToolDraftStartedData
   | ConversationLiveToolDraftDeltaData
   | ConversationLiveToolDraftDoneData
+  | ConversationLiveToolDraftProgressData
   | ConversationLiveToolOutputDeltaData;
 
 export interface ConversationLiveTextBlockSnapshot {
@@ -263,6 +288,7 @@ export interface ConversationLiveToolDraftBlockSnapshot {
   toolName?: string;
   argsText: string;
   args?: Record<string, unknown>;
+  progress?: ConversationLiveToolDraftProgressSnapshot;
   done: boolean;
 }
 
@@ -348,6 +374,7 @@ export const conversationEventTypes = [
   "conversation.live.tool_draft.started",
   "conversation.live.tool_draft.delta",
   "conversation.live.tool_draft.done",
+  "conversation.live.tool_draft.progress",
   "conversation.live.tool_output.delta",
 ] as const;
 

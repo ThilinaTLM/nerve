@@ -53,7 +53,14 @@ import type { PromptQueueRepository } from "../prompt-queue.repository.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
-import { shouldStreamToolDraftArguments } from "./tool-draft-streaming.js";
+import {
+  createToolDraftProgressAccumulator,
+  type ToolDraftProgressAccumulator,
+} from "./tool-draft-progress.js";
+import {
+  shouldPublishToolDraftProgress,
+  shouldStreamToolDraftArguments,
+} from "./tool-draft-streaming.js";
 
 export interface AgentRunnerDeps {
   storage: InitializedStorage;
@@ -275,6 +282,10 @@ export class AgentRunner {
     let currentTurnId: string | undefined;
     let currentLiveMessageId: string | undefined;
     const liveToolDraftNames = new Map<number, string | undefined>();
+    const liveToolDraftProgress = new Map<
+      number,
+      ToolDraftProgressAccumulator
+    >();
     const pendingProviderToolCalls = new Map<
       string,
       { toolName: string; args: Record<string, unknown> }
@@ -354,6 +365,8 @@ export class AgentRunner {
           const turn = this.deps.state.conversationRuntime.startTurn(runId);
           currentTurnId = turn.turnId;
           currentLiveMessageId = undefined;
+          liveToolDraftNames.clear();
+          liveToolDraftProgress.clear();
           pendingProviderToolCalls.clear();
           return;
         }
@@ -422,6 +435,7 @@ export class AgentRunner {
             );
           currentLiveMessageId = started.liveMessageId;
           liveToolDraftNames.clear();
+          liveToolDraftProgress.clear();
           await this.deps.events.publish(
             "conversation.live.message.started",
             started,
@@ -502,6 +516,15 @@ export class AgentRunner {
               update.contentIndex,
             );
             liveToolDraftNames.set(update.contentIndex, draft?.name);
+            const progressAccumulator = createToolDraftProgressAccumulator(
+              draft?.name,
+            );
+            if (progressAccumulator) {
+              liveToolDraftProgress.set(
+                update.contentIndex,
+                progressAccumulator,
+              );
+            }
             const data = this.deps.state.conversationRuntime.startToolDraft({
               runId,
               turnId: currentTurnId,
@@ -524,22 +547,48 @@ export class AgentRunner {
               draft?.name ?? liveToolDraftNames.get(update.contentIndex);
             if (draft?.name)
               liveToolDraftNames.set(update.contentIndex, draft.name);
-            if (!shouldStreamToolDraftArguments(toolName)) return;
+            if (shouldStreamToolDraftArguments(toolName)) {
+              const data =
+                this.deps.state.conversationRuntime.applyToolDraftDelta({
+                  runId,
+                  turnId: currentTurnId,
+                  liveMessageId: currentLiveMessageId,
+                  contentIndex: update.contentIndex,
+                  delta: update.delta,
+                });
+              await this.deps.events.publish(
+                "conversation.live.tool_draft.delta",
+                data,
+                { durability: "transient" },
+              );
+              return;
+            }
+            if (!shouldPublishToolDraftProgress(toolName)) return;
+            const progressAccumulator =
+              liveToolDraftProgress.get(update.contentIndex) ??
+              createToolDraftProgressAccumulator(toolName);
+            if (!progressAccumulator) return;
+            liveToolDraftProgress.set(update.contentIndex, progressAccumulator);
+            const progress = progressAccumulator.push(update.delta);
+            if (!progress) return;
             const data =
-              this.deps.state.conversationRuntime.applyToolDraftDelta({
+              this.deps.state.conversationRuntime.applyToolDraftProgress({
                 runId,
                 turnId: currentTurnId,
                 liveMessageId: currentLiveMessageId,
                 contentIndex: update.contentIndex,
-                delta: update.delta,
+                providerToolCallId: draft?.id,
+                toolName,
+                progress,
               });
             await this.deps.events.publish(
-              "conversation.live.tool_draft.delta",
+              "conversation.live.tool_draft.progress",
               data,
               { durability: "transient" },
             );
           } else if (update.type === "toolcall_end") {
             liveToolDraftNames.delete(update.contentIndex);
+            liveToolDraftProgress.delete(update.contentIndex);
             const data = this.deps.state.conversationRuntime.finishToolDraft({
               runId,
               turnId: currentTurnId,

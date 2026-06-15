@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { shouldStreamToolDraftArguments } from "../src/domains/agents/run/tool-draft-streaming.js";
+import {
+  shouldPublishToolDraftProgress,
+  shouldStreamToolDraftArguments,
+} from "../src/domains/agents/run/tool-draft-streaming.js";
 
 describe("tool draft argument streaming policy", () => {
   it("does not stream large write/edit tool arguments", () => {
@@ -23,5 +26,13 @@ describe("tool draft argument streaming policy", () => {
     ]) {
       assert.equal(shouldStreamToolDraftArguments(toolName), true, toolName);
     }
+  });
+
+  it("publishes sanitized progress for write/edit drafts only", () => {
+    assert.equal(shouldPublishToolDraftProgress("write"), true);
+    assert.equal(shouldPublishToolDraftProgress("edit"), true);
+    assert.equal(shouldPublishToolDraftProgress("python"), false);
+    assert.equal(shouldPublishToolDraftProgress("bash"), false);
+    assert.equal(shouldPublishToolDraftProgress(undefined), false);
   });
 });

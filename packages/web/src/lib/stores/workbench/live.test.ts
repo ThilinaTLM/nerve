@@ -98,6 +98,49 @@ describe("activeRunToLegacyLive", () => {
     assert.deepEqual(live.toolDrafts, []);
   });
 
+  it("maps tool draft progress snapshots", () => {
+    const live = activeRunToLegacyLive(
+      activeRun({
+        turns: [
+          {
+            turnId: "turn_01H0000000000000000000000",
+            ordinal: 0,
+            messages: [
+              {
+                liveMessageId: "msg_01HPROGRESS00000000000000",
+                messageOrdinal: 0,
+                startedAt: "2026-01-01T00:00:01.000Z",
+                blocks: [
+                  {
+                    kind: "tool_call_draft",
+                    contentBlockId: "block_01H000000000000000000005",
+                    contentIndex: 0,
+                    providerToolCallId: "call_live",
+                    toolName: "edit",
+                    argsText: "",
+                    progress: {
+                      path: "src/app.ts",
+                      replacementCount: 2,
+                      generatedLineCount: 5,
+                      estimatedAdditions: 5,
+                      estimatedDeletions: 3,
+                      estimated: true,
+                    },
+                    done: false,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    assert.equal(live.toolDrafts[0]?.progress?.path, "src/app.ts");
+    assert.equal(live.toolDrafts[0]?.progress?.replacementCount, 2);
+    assert.equal(live.toolDrafts[0]?.progress?.estimatedAdditions, 5);
+  });
+
   it("maps active run retry snapshots to live run status", () => {
     const live = activeRunToLegacyLive(
       activeRun({

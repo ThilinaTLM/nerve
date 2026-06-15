@@ -65,6 +65,7 @@ export function activeRunToLegacyLive(
             toolName: block.toolName,
             argsText: block.argsText,
             args: block.args,
+            progress: block.progress,
             done: block.done,
             createdAt: message.startedAt,
             updatedAt: message.startedAt,

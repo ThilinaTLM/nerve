@@ -11,6 +11,7 @@ export type {
   ContextUsage,
   ConversationActiveRunSnapshot,
   ConversationEntry,
+  ConversationLiveToolDraftProgressSnapshot,
   ConversationRecord,
   ConversationSnapshot,
   ConversationTree,

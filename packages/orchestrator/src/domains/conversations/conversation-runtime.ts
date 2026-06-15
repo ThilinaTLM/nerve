@@ -9,6 +9,8 @@ import {
   type ConversationLiveToolDraftBlockSnapshot,
   type ConversationLiveToolDraftDeltaData,
   type ConversationLiveToolDraftDoneData,
+  type ConversationLiveToolDraftProgressData,
+  type ConversationLiveToolDraftProgressSnapshot,
   type ConversationLiveToolDraftStartedData,
   type ConversationLiveToolOutputDeltaData,
   type ConversationLiveToolOutputSnapshot,
@@ -339,6 +341,39 @@ export class ConversationRuntime {
     };
   }
 
+  applyToolDraftProgress(input: {
+    runId: string;
+    turnId: string;
+    liveMessageId: string;
+    contentIndex: number;
+    providerToolCallId?: string;
+    toolName?: string;
+    progress: ConversationLiveToolDraftProgressSnapshot;
+  }): ConversationLiveToolDraftProgressData {
+    const { run, message } = this.requireMessage(input);
+    const block = this.ensureToolDraftBlock(message, input.contentIndex);
+    block.providerToolCallId =
+      input.providerToolCallId ?? block.providerToolCallId;
+    block.toolName = input.toolName ?? block.toolName;
+    block.progress = { ...input.progress };
+    if (block.providerToolCallId) {
+      this.rememberToolAnchor(input, block.providerToolCallId);
+    }
+    return {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      projectId: run.projectId,
+      runId: input.runId,
+      turnId: input.turnId,
+      liveMessageId: input.liveMessageId,
+      contentBlockId: block.contentBlockId,
+      contentIndex: input.contentIndex,
+      providerToolCallId: block.providerToolCallId,
+      toolName: block.toolName,
+      progress: { ...block.progress },
+    };
+  }
+
   applyToolOutputDelta(input: {
     conversationId: string;
     agentId: string;
@@ -512,7 +547,14 @@ function cloneTurn(turn: MutableTurn): ConversationLiveTurnSnapshot {
     ...turn,
     messages: turn.messages.map((message) => ({
       ...message,
-      blocks: message.blocks.map((block) => ({ ...block })),
+      blocks: message.blocks.map((block) =>
+        block.kind === "tool_call_draft"
+          ? {
+              ...block,
+              progress: block.progress ? { ...block.progress } : undefined,
+            }
+          : { ...block },
+      ),
     })),
   };
 }

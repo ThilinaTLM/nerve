@@ -2,6 +2,7 @@ import { notifyNative } from "$lib/notifications/notify.svelte";
 import type {
   AgentRecord,
   ConversationEntry,
+  ConversationLiveToolDraftProgressSnapshot,
   EventEnvelope,
   QueuedPromptRecord,
   SubscriptionUsage,
@@ -313,6 +314,9 @@ function handleConversationEvent(
     case "conversation.live.tool_draft.done":
       handleToolDraftDone(view, event);
       break;
+    case "conversation.live.tool_draft.progress":
+      handleToolDraftProgress(view, event);
+      break;
     case "conversation.live.tool_output.delta":
       handleToolOutputDelta(view, event);
       break;
@@ -391,6 +395,23 @@ function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function toolDraftProgressFromValue(
+  value: unknown,
+): ConversationLiveToolDraftProgressSnapshot | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const progress: ConversationLiveToolDraftProgressSnapshot = {
+    estimated: typeof record.estimated === "boolean" ? record.estimated : true,
+  };
+  if (typeof record.path === "string") progress.path = record.path;
+  progress.lineCount = numberValue(record.lineCount);
+  progress.replacementCount = numberValue(record.replacementCount);
+  progress.generatedLineCount = numberValue(record.generatedLineCount);
+  progress.estimatedAdditions = numberValue(record.estimatedAdditions);
+  progress.estimatedDeletions = numberValue(record.estimatedDeletions);
+  return progress;
 }
 
 function liveRunStatusId(runId: string): string {
@@ -719,6 +740,7 @@ function upsertToolDraft(
         ? patch.argsText
         : (current?.argsText ?? ""),
     args: (patch.args as Record<string, unknown> | undefined) ?? current?.args,
+    progress: toolDraftProgressFromValue(patch.progress) ?? current?.progress,
     done: typeof patch.done === "boolean" ? patch.done : current?.done,
     createdAt: current?.createdAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -776,6 +798,19 @@ function handleToolDraftDone(
         : undefined,
     done: true,
   });
+}
+
+function handleToolDraftProgress(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  ensureLiveState(
+    view,
+    typeof event.data?.runId === "string" ? event.data.runId : undefined,
+  );
+  const progress = toolDraftProgressFromValue(event.data?.progress);
+  if (!progress) return;
+  upsertToolDraft(view, event, { progress });
 }
 
 function capLiveOutput(output: LiveToolOutput): LiveToolOutput {

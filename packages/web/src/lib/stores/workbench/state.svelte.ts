@@ -7,6 +7,7 @@ import type {
   ContextUsage,
   ConversationActiveRunSnapshot,
   ConversationEntry,
+  ConversationLiveToolDraftProgressSnapshot,
   ConversationRecord,
   ConversationTreeNode,
   FilesystemFileResponse,
@@ -77,6 +78,7 @@ export type LiveToolCallDraft = {
   toolName?: string;
   argsText: string;
   args?: Record<string, unknown>;
+  progress?: ConversationLiveToolDraftProgressSnapshot;
   done?: boolean;
   createdAt: string;
   updatedAt: string;

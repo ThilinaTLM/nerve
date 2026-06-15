@@ -22,6 +22,9 @@ export type ToolDraftSummary = {
   lineCount?: number;
   replacementCount?: number;
   generatedLineCount?: number;
+  estimatedAdditions?: number;
+  estimatedDeletions?: number;
+  estimated?: boolean;
   code?: string;
   codeLineCount?: number;
   language?: "python";
@@ -131,17 +134,11 @@ function lineCountsForJsonStringValues(
   return counts;
 }
 
-function countPropertyStarts(text: string, property: string): number {
-  const pattern = propertyValuePattern(property);
-  let count = 0;
-  while (pattern.exec(text)) count += 1;
-  return count;
-}
-
 function firstPathFromDraft(draft: LiveToolCallDraft): string | undefined {
   const args = asRecord(draft.args);
   return (
     stringField(args.path) ??
+    draft.progress?.path ??
     extractJsonStringValues(draft.argsText, "path", { maxChars: 240 })[0]
   );
 }
@@ -149,15 +146,19 @@ function firstPathFromDraft(draft: LiveToolCallDraft): string | undefined {
 function summarizeWriteDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalContent = stringField(args.content);
-  const partialContentLines = lineCountsForJsonStringValues(
-    draft.argsText,
-    "content",
-  )[0];
-  const lines = lineCount(finalContent) ?? partialContentLines;
+  const partialContentLines = draft.argsText
+    ? lineCountsForJsonStringValues(draft.argsText, "content")[0]
+    : undefined;
+  const progressLines =
+    draft.progress?.lineCount ?? draft.progress?.generatedLineCount;
+  const lines = lineCount(finalContent) ?? partialContentLines ?? progressLines;
+  const estimated =
+    finalContent === undefined && Boolean(draft.progress?.estimated);
   const meta: DraftMetaItem[] = [];
   if (lines !== undefined && lines > 0) {
     meta.push({ text: plural(lines, "line"), tone: "info" });
   }
+  if (estimated && !draft.done) meta.push({ text: "estimated", tone: "info" });
   if (draft.done) meta.push({ text: "submitted", tone: "success" });
   return {
     kind: "write",
@@ -168,50 +169,99 @@ function summarizeWriteDraft(draft: LiveToolCallDraft): ToolDraftSummary {
       : "Generating content…",
     meta,
     lineCount: lines,
+    generatedLineCount: lines,
+    estimated,
     done: Boolean(draft.done),
   };
 }
 
-function finalEditStats(
-  args: Record<string, unknown>,
-): { replacements: number; generatedLines: number } | undefined {
-  if (!Array.isArray(args.edits)) return undefined;
-  let generatedLines = 0;
-  for (const edit of args.edits) {
-    const count = lineCount(stringField(asRecord(edit).newText));
-    generatedLines += count ?? 0;
-  }
-  return { replacements: args.edits.length, generatedLines };
-}
-
-function partialEditStats(argsText: string): {
+type EditDraftStats = {
   replacements: number;
   generatedLines: number;
-} {
+  estimatedAdditions?: number;
+  estimatedDeletions?: number;
+  estimated: boolean;
+};
+
+function finalEditStats(
+  args: Record<string, unknown>,
+): EditDraftStats | undefined {
+  if (!Array.isArray(args.edits)) return undefined;
+  let generatedLines = 0;
+  let deletedLines = 0;
+  for (const edit of args.edits) {
+    const record = asRecord(edit);
+    generatedLines += lineCount(stringField(record.newText)) ?? 0;
+    deletedLines += lineCount(stringField(record.oldText)) ?? 0;
+  }
+  return {
+    replacements: args.edits.length,
+    generatedLines,
+    estimatedAdditions: generatedLines,
+    estimatedDeletions: deletedLines,
+    estimated: false,
+  };
+}
+
+function progressEditStats(
+  draft: LiveToolCallDraft,
+): EditDraftStats | undefined {
+  const progress = draft.progress;
+  if (!progress) return undefined;
+  return {
+    replacements: progress.replacementCount ?? 0,
+    generatedLines: progress.generatedLineCount ?? 0,
+    estimatedAdditions: progress.estimatedAdditions,
+    estimatedDeletions: progress.estimatedDeletions,
+    estimated: progress.estimated,
+  };
+}
+
+function partialEditStats(argsText: string): EditDraftStats {
+  const oldTextLines = lineCountsForJsonStringValues(argsText, "oldText");
   const newTextLines = lineCountsForJsonStringValues(argsText, "newText");
-  const replacements = Math.max(
-    newTextLines.length,
-    countPropertyStarts(argsText, "oldText"),
-  );
+  const replacements = Math.max(newTextLines.length, oldTextLines.length);
   return {
     replacements,
     generatedLines: newTextLines.reduce((total, count) => total + count, 0),
+    estimatedAdditions: newTextLines.reduce((total, count) => total + count, 0),
+    estimatedDeletions: oldTextLines.reduce((total, count) => total + count, 0),
+    estimated: true,
   };
 }
 
 function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalStats = finalEditStats(args);
-  const partialStats = finalStats ?? partialEditStats(draft.argsText);
+  const partialStats = draft.argsText
+    ? partialEditStats(draft.argsText)
+    : undefined;
+  const progressStats = progressEditStats(draft);
+  const stats = finalStats ??
+    partialStats ??
+    progressStats ?? {
+      replacements: 0,
+      generatedLines: 0,
+      estimated: false,
+    };
   const meta: DraftMetaItem[] = [];
-  if (partialStats.replacements > 0) {
-    meta.push({ text: plural(partialStats.replacements, "replacement") });
+  if (stats.replacements > 0) {
+    meta.push({ text: plural(stats.replacements, "replacement") });
   }
-  if (partialStats.generatedLines > 0) {
+  if (stats.generatedLines > 0) {
     meta.push({
-      text: plural(partialStats.generatedLines, "generated line"),
+      text: plural(stats.generatedLines, "generated line"),
       tone: "info",
     });
+  }
+  if (stats.estimatedAdditions !== undefined && stats.estimatedAdditions > 0) {
+    meta.push({ text: `~+${stats.estimatedAdditions}`, tone: "success" });
+  }
+  if (stats.estimatedDeletions !== undefined && stats.estimatedDeletions > 0) {
+    meta.push({ text: `~−${stats.estimatedDeletions}`, tone: "error" });
+  }
+  if (stats.estimated && !draft.done) {
+    meta.push({ text: "estimated", tone: "info" });
   }
   if (draft.done) meta.push({ text: "submitted", tone: "success" });
   return {
@@ -220,8 +270,11 @@ function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
     path: firstPathFromDraft(draft),
     statusText: draft.done ? "Submitting edit arguments…" : "Generating edits…",
     meta,
-    replacementCount: partialStats.replacements,
-    generatedLineCount: partialStats.generatedLines,
+    replacementCount: stats.replacements,
+    generatedLineCount: stats.generatedLines,
+    estimatedAdditions: stats.estimatedAdditions,
+    estimatedDeletions: stats.estimatedDeletions,
+    estimated: stats.estimated,
     done: Boolean(draft.done),
   };
 }
