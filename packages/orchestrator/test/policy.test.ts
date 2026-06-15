@@ -76,6 +76,53 @@ describe("tool policy", () => {
     );
   });
 
+  it("handles python as a command tool with planning-mode guardrails", () => {
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "python",
+        { code: "print('ok')" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("supervised"),
+        "python",
+        { code: "print('ok')" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "approval",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("read_only"),
+        "python",
+        { code: "print('ok')" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "deny",
+    );
+    const planning = evaluateToolPolicy(
+      agent("autonomous", "planning"),
+      "python",
+      { code: "print('ok')" },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(planning.decision, "allow");
+    assert.match(planning.reason, /file-write guardrails/);
+    assert.equal(
+      evaluateToolPolicy(
+        agent("supervised", "planning"),
+        "python",
+        { code: "print('ok')" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "approval",
+    );
+  });
+
   it("handles explore as a bounded agent-spawn tool", () => {
     assert.equal(
       evaluateToolPolicy(

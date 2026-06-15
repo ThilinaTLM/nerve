@@ -1,6 +1,7 @@
 import type { CoreToolName } from "@nerve/shared";
 import { filesystemToolDefinitions } from "./core/filesystem.tools.js";
 import { interactionToolDefinitions } from "./core/interaction.tools.js";
+import { pythonToolDefinitions } from "./core/python.tools.js";
 import { shellToolDefinitions } from "./core/shell.tools.js";
 import { webToolDefinitions } from "./core/web.tools.js";
 import { exploreToolDefinitions } from "./orchestration/explore.tools.js";
@@ -10,6 +11,7 @@ import type { CoreToolDefinition } from "./types.js";
 
 export * from "./core/filesystem.tools.js";
 export * from "./core/interaction.tools.js";
+export * from "./core/python.tools.js";
 export * from "./core/shell.tools.js";
 export * from "./core/web.tools.js";
 export * from "./descriptors.js";
@@ -25,6 +27,7 @@ const [readToolDefinition, ...remainingFilesystemToolDefinitions] =
 export const coreToolDefinitions: CoreToolDefinition[] = [
   ...(readToolDefinition ? [readToolDefinition] : []),
   ...shellToolDefinitions,
+  ...pythonToolDefinitions,
   ...remainingFilesystemToolDefinitions,
   ...interactionToolDefinitions,
   ...webToolDefinitions,

@@ -74,6 +74,7 @@ const INTERACTION_TOOLS = new Set(["ask_user", "plan_mode_present"]);
 const TOOL_ICONS: Record<string, HistoryIconName> = {
   read: "file-text",
   bash: "terminal",
+  python: "terminal",
   edit: "file-pen",
   write: "file-plus",
   grep: "search",

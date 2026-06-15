@@ -48,6 +48,11 @@ async function main() {
     context: { latestSeq: state.events.latestSeq },
   });
   await state.registry.hydrate();
+  await state.registry.pythonRuntime
+    .refresh()
+    .catch((error) =>
+      state.logger.warn("Python runtime discovery failed", { error }),
+    );
   await state.logger.info("Registry hydrated");
   await state.registry.rebuildIndex();
   await state.logger.info("Index rebuilt", {

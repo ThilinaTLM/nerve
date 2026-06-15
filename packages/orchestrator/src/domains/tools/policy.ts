@@ -182,6 +182,36 @@ function evaluatePlanningModePolicy(
     };
   }
 
+  if (toolName === "python") {
+    if (agent.permissionLevel === "read_only") {
+      return {
+        decision: "deny",
+        risk,
+        reason: "read_only agents cannot run Python tool calls.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (agent.permissionLevel === "supervised") {
+      return {
+        decision: "approval",
+        risk,
+        reason:
+          "Supervised agent requires approval for planning-mode Python tool calls.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    return {
+      decision: "allow",
+      risk,
+      reason:
+        "Planning-mode Python tool call is allowed with file-write guardrails.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
   if (toolName === "edit" || toolName === "write") {
     let targetPath: string;
     try {

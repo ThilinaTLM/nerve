@@ -117,6 +117,9 @@ export function statusResponse(state: OrchestratorState): StatusResponse {
       sqlitePath: state.storage.paths.sqlitePath,
       indexHealthy: state.index.isHealthy,
     },
+    runtime: {
+      python: state.registry.pythonRuntime.statusSnapshot(),
+    },
   };
 }
 

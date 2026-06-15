@@ -11,6 +11,7 @@ import PlanModeToolView from "$lib/features/tools/components/tool-call/PlanModeT
 import ProcessListToolView from "$lib/features/tools/components/tool-call/ProcessListToolView.svelte";
 import ProcessLogsToolView from "$lib/features/tools/components/tool-call/ProcessLogsToolView.svelte";
 import ProcessToolView from "$lib/features/tools/components/tool-call/ProcessToolView.svelte";
+import PythonToolView from "$lib/features/tools/components/tool-call/PythonToolView.svelte";
 import ReadToolView from "$lib/features/tools/components/tool-call/ReadToolView.svelte";
 import TodoToolView from "$lib/features/tools/components/tool-call/TodoToolView.svelte";
 import WebFetchToolView from "$lib/features/tools/components/tool-call/WebFetchToolView.svelte";
@@ -24,6 +25,7 @@ type ToolViewComponent = Component<any>;
 const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   read: ReadToolView,
   bash: BashToolView,
+  python: PythonToolView,
   edit: EditToolView,
   write: WriteToolView,
   grep: GrepToolView,

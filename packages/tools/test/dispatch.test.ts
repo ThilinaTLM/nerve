@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { describe, it } from "node:test";
 import type { ToolName } from "@nerve/shared";
-import { executeTool } from "../src/execution/index.js";
+import { executeTool, resolvePythonRuntime } from "../src/execution/index.js";
 import { createTempProject } from "./helpers.js";
 
 describe("executeTool dispatch", () => {
@@ -30,6 +30,30 @@ describe("executeTool dispatch", () => {
       const result = await executeTool(name, args, context);
       assert.equal(typeof result, "object", name);
     }
+  });
+
+  it("dispatches python when a runtime is provided", async (t) => {
+    const project = await createTempProject();
+    const status = await resolvePythonRuntime({ cwd: project.root });
+    if (!status.available) {
+      t.skip(`Python runtime unavailable: ${status.error}`);
+      return;
+    }
+    const result = await executeTool(
+      "python",
+      { code: "print('ok', end='')" },
+      {
+        cwd: project.root,
+        pythonRuntime: {
+          command: status.command,
+          args: status.args,
+          displayPath: status.displayPath,
+          version: status.version,
+          source: status.source,
+        },
+      },
+    );
+    assert.equal(result.stdout, "ok");
   });
 
   it("dispatches web_fetch and converts HTML to markdown", async () => {

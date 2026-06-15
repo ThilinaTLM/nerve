@@ -61,6 +61,10 @@ export class RuntimeRegistry {
     return this.services.processes;
   }
 
+  get pythonRuntime() {
+    return this.services.pythonRuntime;
+  }
+
   get workers() {
     return this.services.workers;
   }

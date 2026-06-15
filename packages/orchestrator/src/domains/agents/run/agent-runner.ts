@@ -37,6 +37,7 @@ import type { ConversationService } from "../../conversations/conversation-servi
 import type { HarnessManager } from "../../conversations/harness-manager.js";
 import type { CompactionService } from "../../conversations/operations/index.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
+import type { PythonRuntimeService } from "../../runtime/python-runtime-service.js";
 import {
   activeToolNamesForAgent,
   createAgentToolsForAgent,
@@ -59,6 +60,7 @@ export interface AgentRunnerDeps {
   events: EventBus;
   auth: AuthManager;
   tools: ToolService;
+  pythonRuntime: PythonRuntimeService;
   suspensions: AgentSuspensionService;
   harnessManager: HarnessManager;
   conversationService: ConversationService;
@@ -100,6 +102,13 @@ export class AgentRunner {
       subscriptionUsage: deps.subscriptionUsage,
       logger: deps.logger.child({ component: "subagent-runner" }),
     });
+  }
+
+  private async activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]> {
+    const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
+      agent.projectDir,
+    );
+    return activeToolNamesForAgent(agent, { pythonAvailable });
   }
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
@@ -291,7 +300,7 @@ export class AgentRunner {
       const initialHarnessEntryIds = new Set(
         (await storage.getEntries()).map((entry) => entry.id),
       );
-      const activeToolNames = activeToolNamesForAgent(agent);
+      const activeToolNames = await this.activeToolNamesFor(agent);
       const model = resolveAgentModel(agent.model);
       this.deps.subscriptionUsage.touchProvider(model.provider);
       const env = new NodeExecutionEnv({ cwd: agent.projectDir });
@@ -299,7 +308,9 @@ export class AgentRunner {
       const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
       const composeLatestSystemPrompt = () => {
         const currentAgent = latestAgent();
-        const currentActiveToolNames = activeToolNamesForAgent(currentAgent);
+        const currentActiveToolNames = activeToolNamesForAgent(currentAgent, {
+          pythonAvailable: activeToolNames.includes("python"),
+        });
         return composeAgentSystemPrompt(
           currentAgent,
           currentActiveToolNames,
@@ -643,7 +654,9 @@ export class AgentRunner {
         followUp: (text, options) =>
           harness.followUp(text, { images: options?.images }),
         updateAgentRuntimeConfig: async (updatedAgent) => {
-          await harness.setActiveTools(activeToolNamesForAgent(updatedAgent));
+          await harness.setActiveTools(
+            await this.activeToolNamesFor(updatedAgent),
+          );
         },
       });
       await this.deps.setAgentStatus(agent, "running");

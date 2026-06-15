@@ -39,6 +39,7 @@ describe("agent tool definitions", () => {
       [
         "read",
         "bash",
+        "python",
         "edit",
         "write",
         "grep",
@@ -109,8 +110,19 @@ describe("agent tool definitions", () => {
     assert.deepEqual(activeToolNamesForAgent(agent("autonomous")), codingTools);
     assert.deepEqual(activeToolNamesForAgent(agent("supervised")), codingTools);
     assert.deepEqual(
+      activeToolNamesForAgent(agent("autonomous"), { pythonAvailable: true }),
+      ["read", "bash", "python", ...codingTools.slice(2)],
+    );
+    assert.deepEqual(
       activeToolNamesForAgent({ ...agent("autonomous"), mode: "planning" }),
       planningTools,
+    );
+    assert.deepEqual(
+      activeToolNamesForAgent(
+        { ...agent("autonomous"), mode: "planning" },
+        { pythonAvailable: true },
+      ),
+      ["read", "bash", "python", ...planningTools.slice(2)],
     );
     assert.deepEqual(activeToolNamesForAgent(agent("read_only")), [
       "read",
@@ -367,6 +379,20 @@ describe("agent tool definitions", () => {
       } as never,
       { upsertToolCall: () => undefined } as never,
       {} as never,
+      {
+        runtimeForProject: async () => undefined,
+        isAvailableForProject: async () => false,
+        statusSnapshot: () => ({
+          available: false,
+          source: "unavailable",
+          error: "not used",
+        }),
+        refresh: async () => ({
+          available: false,
+          source: "unavailable",
+          error: "not used",
+        }),
+      } as never,
       async () => {
         throw new Error("not used");
       },

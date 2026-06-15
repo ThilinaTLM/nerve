@@ -1,10 +1,7 @@
 import { spawn } from "node:child_process";
-import { writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
-import { truncateTail } from "../common/truncate.js";
+import { buildProcessResult } from "../common/process-result.js";
 
 export async function executeBash(
   args: Record<string, unknown>,
@@ -113,35 +110,13 @@ async function buildResult(
   code: number | null,
   signal: NodeJS.Signals | null,
 ): Promise<ToolExecutionResult> {
-  const stdout = Buffer.concat(stdoutChunks).toString("utf8");
-  const stderr = Buffer.concat(stderrChunks).toString("utf8");
-  const combined = Buffer.concat(combinedChunks).toString("utf8");
-  const exitCode = code ?? (signal ? 128 : 0);
-  const output = combined.length > 0 ? combined : "(no output)";
-  const truncated = truncateTail(output);
-  let content = truncated.text;
-  let fullOutputPath: string | undefined;
-  if (truncated.truncated) {
-    fullOutputPath = join(
-      tmpdir(),
-      `nerve-bash-${Date.now()}-${Math.random().toString(16).slice(2)}.log`,
-    );
-    await writeFile(fullOutputPath, output, "utf8");
-    content = `[...output truncated; full output saved to ${fullOutputPath}]\n${content}`;
-  }
-  if (exitCode !== 0) {
-    content += `${content.endsWith("\n") ? "" : "\n"}Command exited with code ${exitCode}.`;
-  }
-  return {
-    stdout,
-    stderr,
-    exitCode,
-    content,
-    contentBlocks: [{ type: "text", text: content }],
-    details: {
-      truncation: truncated.truncated ? truncated : undefined,
-      fullOutputPath,
-      signal,
-    },
-  };
+  return buildProcessResult({
+    stdoutChunks,
+    stderrChunks,
+    combinedChunks,
+    code,
+    signal,
+    outputFilePrefix: "nerve-bash",
+    exitMessagePrefix: "Command",
+  });
 }

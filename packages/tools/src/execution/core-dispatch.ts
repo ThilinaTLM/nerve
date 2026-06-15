@@ -6,6 +6,7 @@ import { executeLs } from "./filesystem/list.js";
 import { executeRead } from "./filesystem/read.js";
 import { executeGrep } from "./filesystem/search.js";
 import { executeWrite } from "./filesystem/write.js";
+import { executePython } from "./python/python.js";
 import { executeBash } from "./shell/bash.js";
 import { executeWebFetch } from "./web/web-fetch.js";
 import { executeWebSearch } from "./web/web-search.js";
@@ -20,6 +21,8 @@ export async function executeTool(
       return executeRead(args, context);
     case "bash":
       return executeBash(args, context);
+    case "python":
+      return executePython(args, context);
     case "edit":
       return executeEdit(args, context);
     case "write":

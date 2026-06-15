@@ -36,6 +36,7 @@ import {
   ProjectRepository,
   PruneProjectConversationsService,
 } from "../domains/projects/index.js";
+import { PythonRuntimeService } from "../domains/runtime/python-runtime-service.js";
 import { ToolService } from "../domains/tools/tool-service.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
@@ -62,6 +63,7 @@ export interface RuntimeDeps {
 
 export interface RuntimeServices {
   processes: ProcessManager;
+  pythonRuntime: PythonRuntimeService;
   workers: WorkerManager;
   plans: PlanService;
   suspensions: AgentSuspensionService;
@@ -216,6 +218,7 @@ export function composeRuntime(
     logger.child({ component: "process" }),
     { launchConfigs: processLaunchConfigs },
   );
+  services.pythonRuntime = new PythonRuntimeService(storage);
   services.workers = new WorkerManager(storage, events, index);
   services.projectLifecycle = new ProjectLifecycleService(
     projectRepository,
@@ -270,6 +273,7 @@ export function composeRuntime(
     events,
     index,
     services.processes,
+    services.pythonRuntime,
     (request) =>
       services.workers.startProcess(
         request.workerId,
@@ -293,6 +297,7 @@ export function composeRuntime(
     events,
     auth,
     tools: services.tools,
+    pythonRuntime: services.pythonRuntime,
     suspensions: services.suspensions,
     harnessManager: services.harnessManager,
     conversationService: services.conversationService,

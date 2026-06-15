@@ -3,9 +3,10 @@ import { describe, it } from "node:test";
 import { shouldStreamToolDraftArguments } from "../src/domains/agents/run/tool-draft-streaming.js";
 
 describe("tool draft argument streaming policy", () => {
-  it("does not stream large write/edit tool arguments", () => {
+  it("does not stream large write/edit/python tool arguments", () => {
     assert.equal(shouldStreamToolDraftArguments("write"), false);
     assert.equal(shouldStreamToolDraftArguments("edit"), false);
+    assert.equal(shouldStreamToolDraftArguments("python"), false);
   });
 
   it("does not stream before the tool name is known", () => {

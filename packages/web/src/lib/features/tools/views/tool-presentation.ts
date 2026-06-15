@@ -92,7 +92,7 @@ function statusDot(
       break;
   }
   if (
-    view.kind === "bash" &&
+    (view.kind === "bash" || view.kind === "python") &&
     view.exitCode !== undefined &&
     view.exitCode !== 0
   ) {
@@ -150,6 +150,31 @@ export function toolPresentation(
       return {
         ...base,
         primaryArg: view.command ? { text: view.command } : undefined,
+        meta,
+        collapse: collapseFor(lines, "lines", "tail"),
+      };
+    }
+
+    case "python": {
+      const meta: MetaItem[] = [];
+      const lines = lineCount(view.output);
+      if (view.exitCode !== undefined && view.exitCode !== 0) {
+        meta.push({ text: `exit ${view.exitCode}`, tone: "error" });
+      }
+      if (view.signal)
+        meta.push({ text: `signal ${view.signal}`, tone: "warning" });
+      if (view.codeLineCount > 0)
+        meta.push({ text: plural(view.codeLineCount, "code line") });
+      if (lines > 0) meta.push({ text: plural(lines, "line") });
+      if (view.allowFileWrite === false)
+        meta.push({ text: "writes off", tone: "warning" });
+      if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
+      if (view.savedTo) {
+        meta.push({ text: `saved ${basename(view.savedTo)}`, mono: true });
+      }
+      return {
+        ...base,
+        primaryArg: view.summary ? { text: view.summary } : undefined,
         meta,
         collapse: collapseFor(lines, "lines", "tail"),
       };

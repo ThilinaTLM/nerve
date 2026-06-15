@@ -6,7 +6,13 @@ import {
 } from "./catalog/index.js";
 
 export * from "./catalog/index.js";
-export { executeTool, resolveToolPath } from "./execution/index.js";
+export {
+  executeTool,
+  type PythonRuntime,
+  type PythonRuntimeStatus,
+  resolvePythonRuntime,
+  resolveToolPath,
+} from "./execution/index.js";
 export {
   hasDangerousCommandPattern,
   hasShellControlOperator,

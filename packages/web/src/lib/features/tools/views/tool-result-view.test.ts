@@ -166,6 +166,37 @@ describe("parseToolView", () => {
     assert.equal(view.truncated, true);
   });
 
+  it("parses python exit code, output, policy details, and saved-output path", () => {
+    const view = parseToolView(
+      toolCall(
+        "python",
+        { code: "print('hello')\nprint('done')" },
+        {
+          content: "hello\ndone",
+          stdout: "hello\ndone",
+          stderr: "",
+          exitCode: 1,
+          details: {
+            signal: null,
+            fullOutputPath: "/tmp/python.log",
+            allowNetwork: true,
+            allowFileWrite: false,
+            truncation: { truncated: true },
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "python");
+    if (view.kind !== "python") return;
+    assert.equal(view.summary, "print('hello')");
+    assert.equal(view.codeLineCount, 2);
+    assert.equal(view.exitCode, 1);
+    assert.equal(view.output, "hello\ndone");
+    assert.equal(view.savedTo, "/tmp/python.log");
+    assert.equal(view.allowFileWrite, false);
+    assert.equal(view.truncated, true);
+  });
+
   it("parses edit diff, replacement count, and +/- stats", () => {
     const view = parseToolView(
       toolCall(
@@ -891,6 +922,24 @@ describe("toolPresentation", () => {
     assert.ok(p.collapse);
     assert.equal(p.collapse?.hidden, 15);
     assert.match(p.collapse?.expandLabel ?? "", /earlier lines/);
+  });
+
+  it("marks python exits and planning write guard metadata", () => {
+    const p = present(
+      "python",
+      { code: "print('x')" },
+      {
+        content: "x",
+        exitCode: 3,
+        details: { allowFileWrite: false, signal: null },
+      },
+    );
+    assert.equal(p.primaryArg?.text, "print('x')");
+    assert.ok(p.meta.some((m) => m.text === "exit 3" && m.tone === "error"));
+    assert.ok(
+      p.meta.some((m) => m.text === "writes off" && m.tone === "warning"),
+    );
+    assert.equal(p.dotTone, "danger");
   });
 
   it("emits +/- chips for edit", () => {

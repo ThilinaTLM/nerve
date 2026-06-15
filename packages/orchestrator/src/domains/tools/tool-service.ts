@@ -22,6 +22,7 @@ import type {
 } from "../conversations/conversation-runtime.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { ProcessManager } from "../processes/process-manager.js";
+import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
 import {
   ApprovalRepository,
   evaluateToolPolicy,
@@ -134,6 +135,7 @@ export class ToolService {
     private readonly events: EventBus,
     index: IndexStore,
     private readonly processes: ProcessManager,
+    private readonly pythonRuntime: PythonRuntimeService,
     private readonly startProcess: ProcessStarter,
     private readonly getAgent: (agentId: string) => AgentRecord,
     private readonly runExplore: ExploreRunner,
@@ -166,6 +168,7 @@ export class ToolService {
       storage: this.storage,
       events: this.events,
       processes: this.processes,
+      pythonRuntime: this.pythonRuntime,
       startProcess: this.startProcess,
       getAgent: this.getAgent,
       runExplore: this.runExplore,

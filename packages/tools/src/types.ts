@@ -4,6 +4,7 @@ import type {
   ToolImageContentPayload,
   ToolTextContentPayload,
 } from "@nerve/shared";
+import type { PythonRuntime } from "./execution/python/runtime.js";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
@@ -16,6 +17,11 @@ export type ToolExecutionContext = {
   signal?: AbortSignal;
   dataDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
+  pythonRuntime?: PythonRuntime;
+  pythonPolicy?: {
+    allowNetwork: boolean;
+    allowFileWrite: boolean;
+  };
   onUpdate?: (update: ToolExecutionOutputUpdate) => void;
 };
 
@@ -46,6 +52,12 @@ export type EditToolArgs = ToolPathArgs & {
 
 export type BashToolArgs = {
   command?: unknown;
+  timeout?: unknown;
+};
+
+export type PythonToolArgs = {
+  code?: unknown;
+  cwd?: unknown;
   timeout?: unknown;
 };
 

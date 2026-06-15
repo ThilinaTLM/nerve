@@ -1,5 +1,21 @@
 import { z } from "zod";
 
+export const pythonRuntimeStatusSchema = z.object({
+  available: z.boolean(),
+  source: z.enum([
+    "manual",
+    "project_venv",
+    "path",
+    "windows_launcher",
+    "uv",
+    "unavailable",
+  ]),
+  executable: z.string().optional(),
+  version: z.string().optional(),
+  error: z.string().optional(),
+});
+export type PythonRuntimeStatus = z.infer<typeof pythonRuntimeStatusSchema>;
+
 export const statusResponseSchema = z.object({
   daemonId: z.string().startsWith("daemon_"),
   version: z.string(),
@@ -9,6 +25,9 @@ export const statusResponseSchema = z.object({
     home: z.string(),
     sqlitePath: z.string(),
     indexHealthy: z.boolean(),
+  }),
+  runtime: z.object({
+    python: pythonRuntimeStatusSchema,
   }),
 });
 export type StatusResponse = z.infer<typeof statusResponseSchema>;

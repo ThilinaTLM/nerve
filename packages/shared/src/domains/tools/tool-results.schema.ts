@@ -58,6 +58,20 @@ export const bashResultDetailsSchema = z
   .passthrough();
 export type BashResultDetails = z.infer<typeof bashResultDetailsSchema>;
 
+export const pythonResultDetailsSchema = z
+  .object({
+    truncation: truncationDetailsSchema.optional(),
+    fullOutputPath: z.string().optional(),
+    signal: z.string().nullable().optional(),
+    executable: z.string().optional(),
+    version: z.string().optional(),
+    timeoutSeconds: z.number().optional(),
+    allowNetwork: z.boolean().optional(),
+    allowFileWrite: z.boolean().optional(),
+  })
+  .passthrough();
+export type PythonResultDetails = z.infer<typeof pythonResultDetailsSchema>;
+
 export const fileEntrySchema = z.object({
   path: z.string(),
   kind: z.enum(["file", "directory", "other"]),
@@ -90,7 +104,7 @@ export const webFetchResultDetailsSchema = z.object({
 });
 export type WebFetchResultDetails = z.infer<typeof webFetchResultDetailsSchema>;
 
-/** File-tool result envelope (read/write/edit/grep/find/ls/bash/web_fetch/web_search). */
+/** File-tool result envelope (read/write/edit/grep/find/ls/bash/python/web_fetch/web_search). */
 export const toolExecutionResultSchema = z.object({
   content: z.string().optional(),
   contentBlocks: z.array(toolContentBlockSchema).optional(),

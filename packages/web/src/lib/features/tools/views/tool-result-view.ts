@@ -11,6 +11,7 @@ import {
   processActionResultSchema,
   processListResultSchema,
   processLogsResultSchema,
+  pythonResultDetailsSchema,
   type TodoItem,
   todosResultSchema,
   toolExecutionResultSchema,
@@ -99,6 +100,20 @@ export type ToolView =
       savedTo?: string;
       truncated: boolean;
       live?: boolean;
+    }
+  | {
+      kind: "python";
+      code?: string;
+      codeLineCount: number;
+      summary?: string;
+      exitCode?: number;
+      signal?: string | null;
+      output: string;
+      savedTo?: string;
+      truncated: boolean;
+      live?: boolean;
+      allowNetwork?: boolean;
+      allowFileWrite?: boolean;
     }
   | {
       kind: "edit";
@@ -559,6 +574,39 @@ export function parseToolView(
         savedTo: details.success ? details.data.fullOutputPath : undefined,
         truncated: detailsTruncated(result?.details),
         live: !result && Boolean(liveOutput?.text),
+      };
+    }
+
+    case "python": {
+      const code = stringField(args.code);
+      const details = pythonResultDetailsSchema.safeParse(result?.details);
+      const output = result?.content ?? liveOutput?.text ?? "";
+      const nonEmptyLine = code
+        ?.split(/\r?\n/)
+        .map((line) => line.trim())
+        .find(Boolean);
+      const codeLineCount = code ? code.split(/\r?\n/).length : 0;
+      return {
+        kind: "python",
+        code,
+        codeLineCount,
+        summary: nonEmptyLine
+          ? truncateTitle(nonEmptyLine)
+          : codeLineCount > 0
+            ? `${codeLineCount} line script`
+            : undefined,
+        exitCode: result?.exitCode,
+        signal: details.success
+          ? (details.data.signal ?? undefined)
+          : undefined,
+        output,
+        savedTo: details.success ? details.data.fullOutputPath : undefined,
+        truncated: detailsTruncated(result?.details),
+        live: !result && Boolean(liveOutput?.text),
+        allowNetwork: details.success ? details.data.allowNetwork : undefined,
+        allowFileWrite: details.success
+          ? details.data.allowFileWrite
+          : undefined,
       };
     }
 

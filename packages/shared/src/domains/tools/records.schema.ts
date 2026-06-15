@@ -16,6 +16,7 @@ export type ToolRisk = z.infer<typeof toolRiskSchema>;
 export const coreToolNameSchema = z.enum([
   "read",
   "bash",
+  "python",
   "edit",
   "write",
   "grep",

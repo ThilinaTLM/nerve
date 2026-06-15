@@ -1,11 +1,16 @@
 import type { AgentRecord, Mode, ToolCallRecord } from "@nerve/shared";
-import { executeTool, type ToolExecutionOutputUpdate } from "@nerve/tools";
+import {
+  executeTool,
+  type ToolExecutionContext,
+  type ToolExecutionOutputUpdate,
+} from "@nerve/tools";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { ConversationRuntime } from "../conversations/conversation-runtime.js";
 import { ensurePlanDir } from "../plans/plan-paths.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { ProcessManager } from "../processes/process-manager.js";
+import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
 import type { InteractionSessionService } from "./interaction-session.service.js";
 import type { TodoStateService } from "./todo-state.service.js";
 import { todoItemsArg, todosResult } from "./todo-state.service.js";
@@ -29,6 +34,7 @@ export interface OrchestrationToolDispatcherDeps {
   storage: InitializedStorage;
   events: EventBus;
   processes: ProcessManager;
+  pythonRuntime: PythonRuntimeService;
   startProcess: ProcessStarter;
   getAgent(agentId: string): AgentRecord;
   runExplore: ExploreRunner;
@@ -144,16 +150,32 @@ export class OrchestrationToolDispatcher {
         return this.requestPlanReview(toolCall, args, options);
       case "plan_mode_force_exit":
         return this.forceExitPlanMode(toolCall, args);
-      default:
-        if (toolCall.toolName === "bash") delete args.cwd;
-        return executeTool(toolCall.toolName, args, {
+      default: {
+        const executionContext: ToolExecutionContext = {
           cwd: toolCall.cwd,
           signal: options.signal,
           dataDir: this.deps.storage.paths.home,
           getApiKey: this.deps.getApiKey,
           onUpdate: (update) =>
             this.publishToolExecutionUpdate(toolCall, update, options.runId),
-        });
+        };
+        if (toolCall.toolName === "bash" || toolCall.toolName === "python") {
+          delete args.cwd;
+        }
+        if (toolCall.toolName === "python") {
+          const agent = this.deps.getAgent(toolCall.agentId);
+          const runtime = await this.deps.pythonRuntime.runtimeForProject(
+            agent.projectDir,
+          );
+          if (!runtime) throw new Error("Python runtime is not available.");
+          executionContext.pythonRuntime = runtime;
+          executionContext.pythonPolicy = {
+            allowNetwork: true,
+            allowFileWrite: agent.mode !== "planning",
+          };
+        }
+        return executeTool(toolCall.toolName, args, executionContext);
+      }
     }
   }
 

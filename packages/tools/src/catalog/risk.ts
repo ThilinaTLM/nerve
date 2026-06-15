@@ -3,6 +3,7 @@ import type { ToolName, ToolRisk } from "@nerve/shared";
 const toolRisks: Record<ToolName, ToolRisk> = {
   read: "read",
   bash: "command",
+  python: "command",
   edit: "workspace_write",
   write: "workspace_write",
   grep: "read",

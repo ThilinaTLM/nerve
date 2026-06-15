@@ -16,12 +16,13 @@
   import ExploreAgentSettingsSection from "./settings/sections/ExploreAgentSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
   import ProvidersSettingsSection from "./settings/sections/ProvidersSettingsSection.svelte";
+  import PythonRuntimeSettingsSection from "./settings/sections/PythonRuntimeSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
   import "./settings/settings.css";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-  type SectionId = "appearance" | "desktop" | "agents" | "explore" | "providers" | "models" | "server" | "compaction" | "runtime";
+  type SectionId = "appearance" | "desktop" | "agents" | "explore" | "providers" | "models" | "server" | "compaction" | "python" | "runtime";
   type SettingsChange = (
     patch: UpdateSettingsRequest,
     options?: { immediate?: boolean; debounceMs?: number },
@@ -47,6 +48,7 @@
     { id: "models", label: "Models", detail: "Scope" },
     { id: "server", label: "Server", detail: "Binding" },
     { id: "compaction", label: "Compaction", detail: "Context" },
+    { id: "python", label: "Python", detail: "Runtime" },
     { id: "runtime", label: "Runtime", detail: "Read-only" },
   ];
 
@@ -115,6 +117,7 @@
         <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ServerSettingsSection {settingsDraft} {onSettingsChange} />
         <CompactionSettingsSection {settingsDraft} {onSettingsChange} />
+        <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />
         <GeneralSettingsSection {status} />
       {:else}
         <section class="app-empty-state settings-loading">

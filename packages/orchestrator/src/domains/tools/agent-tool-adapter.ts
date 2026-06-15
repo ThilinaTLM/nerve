@@ -39,7 +39,10 @@ export function activeToolNamesForExploreAgent(): ToolName[] {
   return ["read", "grep", "find", "ls", "process_list", "process_logs"];
 }
 
-export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
+export function activeToolNamesForAgent(
+  agent: AgentRecord,
+  options: { pythonAvailable?: boolean } = {},
+): ToolName[] {
   if (agent.permissionLevel === "read_only") {
     const tools: ToolName[] = [
       "read",
@@ -58,10 +61,13 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
     }
     return tools;
   }
+  const pythonTools: ToolName[] =
+    options.pythonAvailable === true ? ["python"] : [];
   if (agent.mode === "planning") {
     return [
       "read",
       "bash",
+      ...pythonTools,
       "edit",
       "write",
       "grep",
@@ -83,6 +89,7 @@ export function activeToolNamesForAgent(agent: AgentRecord): ToolName[] {
   return [
     "read",
     "bash",
+    ...pythonTools,
     "edit",
     "write",
     "grep",

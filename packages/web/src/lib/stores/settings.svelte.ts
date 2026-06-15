@@ -2,6 +2,7 @@ import { notify } from "$lib/notifications/notify.svelte";
 import type { AgentRecord, ModelInfo } from "../api";
 import {
   getAuthProviders,
+  getClientConfig,
   getModels,
   getSettings,
   getSubscriptionUsage,
@@ -168,11 +169,23 @@ function mergeSettingsPatch(
       ...(patch.compaction ?? {}),
     };
   }
+  if (base?.runtime || patch.runtime) {
+    next.runtime = {
+      ...(base?.runtime ?? {}),
+      ...(patch.runtime ?? {}),
+    };
+  }
   return next;
 }
 
 function patchTouchesServer(patch: UpdateSettingsRequest | undefined): boolean {
   return Boolean(patch?.server && Object.keys(patch.server).length > 0);
+}
+
+function patchTouchesRuntime(
+  patch: UpdateSettingsRequest | undefined,
+): boolean {
+  return Boolean(patch?.runtime && Object.keys(patch.runtime).length > 0);
 }
 
 function clearSaveTimer() {
@@ -241,6 +254,13 @@ export async function flushSettingsSave() {
   try {
     const saved = await updateSettings(patch);
     savedServerSettingsSinceLoad ||= patchTouchesServer(patch);
+    if (patchTouchesRuntime(patch)) {
+      const config = await getClientConfig().catch(() => undefined);
+      if (config) {
+        workbenchState.config = config;
+        workbenchState.status = config.status;
+      }
+    }
     if (!pendingSettingsPatch) {
       workbenchState.settingsDraft = saved;
       workbenchState.settingsSaveStatus = "saved";

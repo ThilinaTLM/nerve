@@ -22,6 +22,10 @@ export type AgentSelectionSettings = z.infer<
   typeof agentSelectionSettingsSchema
 >;
 
+const runtimeSettingsSchema = z.object({
+  pythonExecutablePath: z.string().trim().min(1).optional(),
+});
+
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
@@ -64,6 +68,7 @@ export const settingsSchema = z.object({
     maxRetries: z.number().int().nonnegative().default(3),
     baseDelayMs: z.number().int().positive().default(2000),
   }),
+  runtime: runtimeSettingsSchema.default({}),
   scopedModels: z.array(modelSelectionSchema).default([]),
 });
 export type Settings = z.infer<typeof settingsSchema>;
@@ -108,6 +113,7 @@ export const defaultSettings: Settings = {
     maxRetries: 3,
     baseDelayMs: 2000,
   },
+  runtime: {},
   scopedModels: [],
 };
 
@@ -168,6 +174,11 @@ export const updateSettingsRequestSchema = z.object({
       enabled: z.boolean().optional(),
       maxRetries: z.number().int().nonnegative().optional(),
       baseDelayMs: z.number().int().positive().optional(),
+    })
+    .optional(),
+  runtime: z
+    .object({
+      pythonExecutablePath: z.string().trim().min(1).nullable().optional(),
     })
     .optional(),
   scopedModels: z.array(modelSelectionSchema).optional(),

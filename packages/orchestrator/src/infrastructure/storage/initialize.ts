@@ -95,6 +95,14 @@ export async function writeSettings(
         ...(patch.exploreAgent.model === null ? { model: undefined } : {}),
       }
     : undefined;
+  const runtimePatch = patch.runtime
+    ? {
+        ...patch.runtime,
+        ...(patch.runtime.pythonExecutablePath === null
+          ? { pythonExecutablePath: undefined }
+          : {}),
+      }
+    : undefined;
   const next = settingsSchema.parse({
     ...storage.settings,
     ...patch,
@@ -116,6 +124,7 @@ export async function writeSettings(
     },
     logging: { ...storage.settings.logging, ...(patch.logging ?? {}) },
     retry: { ...storage.settings.retry, ...(patch.retry ?? {}) },
+    runtime: { ...storage.settings.runtime, ...(runtimePatch ?? {}) },
   });
   await atomicWriteJson(storage.paths.configPath, next, 0o600);
   storage.settings = next;
