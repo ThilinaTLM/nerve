@@ -374,6 +374,19 @@
   </div>
 {/snippet}
 
+{#snippet repoRefreshActions()}
+  {#if refreshing}
+    <span
+      class="inline-flex h-6 w-6 items-center justify-center text-muted-foreground"
+      role="status"
+      aria-label="Refreshing Git status"
+      title="Refreshing Git status"
+    >
+      <LoaderCircle size={12} class="animate-spin" />
+    </span>
+  {/if}
+{/snippet}
+
 <div class="p-2">
   {#if !activeProject}
     <p class="px-1 py-6 text-center text-xs text-muted-foreground">
@@ -393,17 +406,12 @@
     </p>
   {:else}
     <div class="flex flex-col gap-2">
-      {#if refreshing}
-        <div class="flex items-center gap-1 px-1 text-xs text-muted-foreground">
-          <LoaderCircle size={12} class="animate-spin" /> Refreshing…
-        </div>
-      {/if}
       {#if discoverError}
         <Card class="gap-0 overflow-hidden p-0">
           <div class="px-3 py-2 text-xs text-warning">Using cached Git data. Refresh failed: {discoverError}</div>
         </Card>
       {/if}
-      <PanelSection title="Repo & Branch" icon={GitBranch} bind:open={repoSectionOpen}>
+      <PanelSection title="Repo & Branch" icon={GitBranch} actions={repoRefreshActions} bind:open={repoSectionOpen}>
         {#if overview}
           {@const repo = overview.repo}
           <div class="flex flex-col gap-2">

@@ -345,7 +345,7 @@ export async function refreshGitProject(
   state.discoverError = undefined;
   const showFullLoading = !state.loaded && !options.silent;
   state.loadingRepos = showFullLoading;
-  state.refreshingRepos = !showFullLoading;
+  state.refreshingRepos = !showFullLoading && !options.silent;
   try {
     const result = await discoverGitRepos(project.id);
     if (state.requestSeq !== requestSeq) return;
