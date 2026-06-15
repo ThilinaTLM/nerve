@@ -176,10 +176,15 @@
   const queuedPromptSignature = $derived(
     queuedPrompts.map((prompt) => `${prompt.id}:${prompt.text.length}`).join("|"),
   );
+  const scrollConversationId = $derived(
+    activeConversation?.id ??
+      (pendingConversationActive
+        ? (activePendingConversation?.id ?? "pending")
+        : undefined),
+  );
   const scroll = createConversationScrollController({
     conversationOpen: () => conversationOpen,
-    conversationId: () =>
-      activeConversation?.id ?? (pendingConversationActive ? "pending" : undefined),
+    conversationId: () => scrollConversationId,
     scrollSignature: () => scrollSignature,
     queuedPromptSignature: () => queuedPromptSignature,
     sending: () => sending,

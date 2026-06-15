@@ -15,8 +15,8 @@ type ConversationScrollControllerOptions = {
 };
 
 const BOTTOM_THRESHOLD_PX = 24;
-const USER_SCROLL_AWAY_THRESHOLD_PX = 100;
 const USER_SCROLL_INTENT_TIMEOUT_MS = 350;
+const PROGRAMMATIC_SCROLL_GUARD_MS = 120;
 
 function distanceFromBottom(el: HTMLElement): number {
   return Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
@@ -38,8 +38,12 @@ export function createConversationScrollController(
   let followBottom = $state(true);
   let composerHeight = $state(0);
   let scrollFrame: number | undefined;
+  let lastConversationId: string | undefined;
   let userScrollIntent = false;
+  let userScrollIntentStartTop: number | undefined;
   let userScrollIntentTimer: ReturnType<typeof setTimeout> | undefined;
+  let programmaticScrollActive = false;
+  let programmaticScrollTimer: ReturnType<typeof setTimeout> | undefined;
   let pointerScrollActive = false;
 
   function clearUserScrollIntentTimer() {
@@ -48,17 +52,37 @@ export function createConversationScrollController(
     userScrollIntentTimer = undefined;
   }
 
+  function clearProgrammaticScrollTimer() {
+    if (programmaticScrollTimer === undefined) return;
+    clearTimeout(programmaticScrollTimer);
+    programmaticScrollTimer = undefined;
+  }
+
+  function markProgrammaticScroll() {
+    programmaticScrollActive = true;
+    clearProgrammaticScrollTimer();
+    programmaticScrollTimer = setTimeout(() => {
+      programmaticScrollActive = false;
+      programmaticScrollTimer = undefined;
+    }, PROGRAMMATIC_SCROLL_GUARD_MS);
+  }
+
   function markUserScrollIntent() {
+    programmaticScrollActive = false;
+    clearProgrammaticScrollTimer();
+    cancelScheduledBottomScroll();
     userScrollIntent = true;
+    userScrollIntentStartTop = transcriptEl?.scrollTop;
     clearUserScrollIntentTimer();
     userScrollIntentTimer = setTimeout(() => {
       userScrollIntent = false;
+      userScrollIntentStartTop = undefined;
       userScrollIntentTimer = undefined;
     }, USER_SCROLL_INTENT_TIMEOUT_MS);
   }
 
   function handleTranscriptScroll() {
-    if (!transcriptEl) return;
+    if (!transcriptEl || programmaticScrollActive) return;
 
     const distance = distanceFromBottom(transcriptEl);
     if (distance <= BOTTOM_THRESHOLD_PX) {
@@ -66,9 +90,7 @@ export function createConversationScrollController(
       return;
     }
 
-    if (userScrollIntent && distance >= USER_SCROLL_AWAY_THRESHOLD_PX) {
-      followBottom = false;
-    }
+    followBottom = false;
   }
 
   function cancelScheduledBottomScroll() {
@@ -78,14 +100,31 @@ export function createConversationScrollController(
   }
 
   async function scrollBottomNow(scrollOptions: ScrollOptions = {}) {
+    const force = scrollOptions.force === true;
     if (!transcriptEl) return;
-    if (!scrollOptions.force && !followBottom) return;
-    if (scrollOptions.force) followBottom = true;
+    if (!force && !followBottom) return;
+    if (force) followBottom = true;
 
     await tick();
 
+    if (!transcriptEl) return;
+    if (!force && !followBottom) return;
+    const userScrolledUp =
+      userScrollIntentStartTop !== undefined &&
+      transcriptEl.scrollTop < userScrollIntentStartTop - 1;
+    if (
+      !force &&
+      userScrollIntent &&
+      userScrolledUp &&
+      distanceFromBottom(transcriptEl) > BOTTOM_THRESHOLD_PX
+    ) {
+      return;
+    }
+
     const behavior: ScrollBehavior =
       scrollOptions.smooth && !prefersReducedMotion() ? "smooth" : "auto";
+
+    markProgrammaticScroll();
 
     if (bottomEl) {
       bottomEl.scrollIntoView({ block: "end", behavior });
@@ -114,6 +153,8 @@ export function createConversationScrollController(
 
   $effect(() => {
     const conversationId = options.conversationId();
+    if (conversationId === lastConversationId) return;
+    lastConversationId = conversationId;
     if (conversationId) scheduleBottomScroll({ force: true, smooth: false });
   });
 
@@ -150,7 +191,6 @@ export function createConversationScrollController(
 
     const handlePointerDown = () => {
       pointerScrollActive = true;
-      markUserScrollIntent();
     };
     const handlePointerMove = () => {
       if (pointerScrollActive) markUserScrollIntent();
@@ -160,7 +200,6 @@ export function createConversationScrollController(
     };
 
     el.addEventListener("wheel", markUserScrollIntent, { passive: true });
-    el.addEventListener("touchstart", markUserScrollIntent, { passive: true });
     el.addEventListener("touchmove", markUserScrollIntent, { passive: true });
     el.addEventListener("pointerdown", handlePointerDown, { passive: true });
     el.addEventListener("pointermove", handlePointerMove, { passive: true });
@@ -169,7 +208,6 @@ export function createConversationScrollController(
 
     return () => {
       el.removeEventListener("wheel", markUserScrollIntent);
-      el.removeEventListener("touchstart", markUserScrollIntent);
       el.removeEventListener("touchmove", markUserScrollIntent);
       el.removeEventListener("pointerdown", handlePointerDown);
       el.removeEventListener("pointermove", handlePointerMove);
@@ -182,6 +220,9 @@ export function createConversationScrollController(
     return () => {
       cancelScheduledBottomScroll();
       clearUserScrollIntentTimer();
+      userScrollIntentStartTop = undefined;
+      programmaticScrollActive = false;
+      clearProgrammaticScrollTimer();
     };
   });
 
