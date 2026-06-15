@@ -1,6 +1,7 @@
 {
   "name": "@nerve/desktop",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
+  "private": true,
   "description": "UI-first personal AI coding harness.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
@@ -14,8 +15,8 @@
     "start": "node scripts/start-electron.mjs",
     "build:deps": "pnpm --filter @nerve/shared --filter @nerve/agent --filter @nerve/tools build",
     "dev": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && node scripts/start-electron.mjs",
-    "build:package": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron-builder",
-    "package:linux": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron-builder --linux AppImage deb"
+    "build:package": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron-builder --publish never",
+    "package:linux": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && pnpm --filter @nerve/desktop build && electron-builder --linux AppImage deb rpm --publish never"
   },
   "dependencies": {
     "@nerve/orchestrator": "workspace:*",
@@ -27,5 +28,8 @@
     "electron-builder": "^26.15.0",
     "sharp": "^0.34.5",
     "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.19.0"
   }
 }

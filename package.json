@@ -1,5 +1,7 @@
 {
   "name": "nerve",
+  "version": "0.1.0-alpha.1",
+  "private": true,
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
@@ -18,7 +20,12 @@
     "serve": "pnpm --filter @nerve/cli dev -- serve",
     "format": "biome format --write .",
     "lint": "biome check .",
-    "test": "pnpm -r --if-present test"
+    "test": "pnpm -r --if-present test",
+    "release:build": "pnpm --filter @nerve/shared build && pnpm --filter @nerve/agent build && pnpm --filter @nerve/tools build && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nerve/cli build && pnpm --filter @nerve/desktop build",
+    "release:pack:npm": "pnpm release:build && node scripts/pack-npm.mjs",
+    "release:desktop:linux": "pnpm --filter @nerve/desktop package:linux && pnpm release:checksums",
+    "release:checksums": "node scripts/checksums.mjs",
+    "release:verify-tag": "node scripts/verify-release-tag.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.79.1"

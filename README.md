@@ -36,6 +36,10 @@ NERVE_ELECTRON_OZONE_PLATFORM=x11 make desktop
 
 Supported values are `x11`, `wayland`, and `auto`. Leave it unset for Electron's default platform selection.
 
+## Release
+
+See `docs/release.md` for the Linux desktop and npm CLI/daemon release checklist. Tag pushes matching `v*` build AppImage, deb, and rpm artifacts and create a GitHub Release.
+
 ## License
 
 Apache-2.0. See `LICENSE` and `NOTICE`.

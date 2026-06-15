@@ -1,9 +1,14 @@
 {
   "name": "@nerve/cli",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
+  "files": [
+    "dist/**",
+    "LICENSE",
+    "NOTICE"
+  ],
   "bin": {
     "nerve": "./dist/main.js"
   },
@@ -26,5 +31,8 @@
     "@types/node": "24.10.1",
     "tsx": "4.22.4",
     "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.19.0"
   }
 }

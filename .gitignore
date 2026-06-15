@@ -6,6 +6,7 @@ dist/
 *.tsbuildinfo
 packages/desktop/build/
 packages/desktop/release/
+release/
 .env
 .env.*
 !.env.example

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -127,5 +128,10 @@ function resolveWebDistPath(): string {
   if (explicitPath) return resolve(explicitPath);
 
   const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const packageLocalDist = resolve(moduleDir, "..", "web");
+  if (existsSync(join(packageLocalDist, "index.html"))) {
+    return packageLocalDist;
+  }
+
   return resolve(moduleDir, "..", "..", "..", "web", "dist");
 }

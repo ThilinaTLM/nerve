@@ -20,10 +20,10 @@ import { RuntimeRegistry } from "./registry.js";
 import { mountApiRoutes } from "./routes/index.js";
 import type { SecretProvider } from "./secrets.js";
 import { EncryptedFileSecretProvider } from "./secrets.js";
+import { version } from "./version.js";
 
 export { isWebSocketAuthorized } from "./http/auth-middleware.js";
-
-export const version = "0.0.0";
+export { version } from "./version.js";
 
 export interface OrchestratorState {
   daemonId: string;
