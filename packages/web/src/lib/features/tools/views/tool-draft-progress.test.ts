@@ -96,6 +96,51 @@ describe("summarizeToolDraft", () => {
     );
   });
 
+  it("extracts partial Python code from streamed JSON", () => {
+    const summary = summarizeToolDraft(
+      draft("python", {
+        argsText: '{"code":"import os\\nprint(os.getcwd())',
+      }),
+    );
+
+    assert.equal(summary.kind, "python");
+    assert.equal(summary.code, "import os\nprint(os.getcwd())");
+    assert.equal(summary.codeLineCount, 2);
+    assert.deepEqual(
+      summary.meta.map((item) => item.text),
+      ["2 code lines"],
+    );
+  });
+
+  it("uses final Python args for exact submitted code", () => {
+    const summary = summarizeToolDraft(
+      draft("python", {
+        argsText: '{"code":"partial',
+        args: { code: "print('hello')\nprint('done')" },
+        done: true,
+      }),
+    );
+
+    assert.equal(summary.kind, "python");
+    assert.equal(summary.code, "print('hello')\nprint('done')");
+    assert.equal(summary.codeLineCount, 2);
+    assert.deepEqual(
+      summary.meta.map((item) => item.text),
+      ["2 code lines", "submitted"],
+    );
+  });
+
+  it("waits cleanly for early Python drafts before code starts", () => {
+    const summary = summarizeToolDraft(
+      draft("python", { argsText: '{"timeout": 5, "code":' }),
+    );
+
+    assert.equal(summary.kind, "python");
+    assert.equal(summary.code, undefined);
+    assert.equal(summary.statusText, "Waiting for Python code…");
+    assert.deepEqual(summary.meta, []);
+  });
+
   it("falls back cleanly for malformed partial JSON", () => {
     const summary = summarizeToolDraft(
       draft("write", { argsText: '{"path":"x.ts","content":' }),

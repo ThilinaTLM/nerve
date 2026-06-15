@@ -1,4 +1,4 @@
-const nonStreamingToolDrafts = new Set(["write", "edit", "python"]);
+const nonStreamingToolDrafts = new Set(["write", "edit"]);
 
 export function shouldStreamToolDraftArguments(
   toolName: string | undefined,

@@ -15,6 +15,12 @@ const pythonParameters = Type.Object(
         description: "Timeout in seconds, capped by the executor",
       }),
     ),
+    env: Type.Optional(
+      Type.Record(Type.String(), Type.String(), {
+        description:
+          "Non-secret environment variable overrides for the Python process. Sensitive-looking keys are rejected.",
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -24,14 +30,16 @@ export const pythonToolDefinitions = [
     name: "python",
     label: "python",
     description:
-      "Execute Python code in the current working directory. Returns stdout and stderr. Optionally provide a timeout in seconds.",
+      "Execute Python code in the current working directory. Returns stdout, stderr, exit metadata, truncation details, and artifact paths. Optionally provide a timeout in seconds and non-secret env overrides.",
     promptSnippet:
       "Execute short Python snippets for parsing, calculations, data inspection, and one-off transformations.",
     promptGuidelines: [
       "Use python for short Python snippets instead of wrapping Python in bash heredocs.",
       "The python tool has no stdin; do not write scripts that wait for input().",
       "Do not use python for long-running servers, watchers, or daemons; use process_start for those.",
-      "In planning mode, python is guarded against file writes and must not be used to mutate workspace files.",
+      "Use env only for non-secret environment overrides; secrets must not be passed through python tool args.",
+      'For large JSON, CSV, diagrams, or other generated outputs, write files under os.environ["NERVE_PYTHON_ARTIFACT_DIR"] and return the artifact path instead of dumping everything to stdout.',
+      "In planning mode, python is guarded against workspace file writes; artifact writes under NERVE_PYTHON_ARTIFACT_DIR are allowed.",
     ],
     parameters: pythonParameters,
     executionMode: "sequential",

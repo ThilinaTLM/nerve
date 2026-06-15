@@ -47,6 +47,12 @@ function formatBytes(bytes: number | undefined): string | undefined {
   return `${(kb / 1024).toFixed(1)} MB`;
 }
 
+function formatDuration(ms: number | undefined): string | undefined {
+  if (ms === undefined) return undefined;
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 function plural(count: number, singular: string, suffix = "s"): string {
   return `${count} ${singular}${count === 1 ? "" : suffix}`;
 }
@@ -163,11 +169,25 @@ export function toolPresentation(
       }
       if (view.signal)
         meta.push({ text: `signal ${view.signal}`, tone: "warning" });
+      if (view.timedOut) meta.push({ text: "timed out", tone: "error" });
+      const duration = formatDuration(view.durationMs);
+      if (duration) meta.push({ text: duration });
       if (view.codeLineCount > 0)
         meta.push({ text: plural(view.codeLineCount, "code line") });
       if (lines > 0) meta.push({ text: plural(lines, "line") });
       if (view.allowFileWrite === false)
         meta.push({ text: "writes off", tone: "warning" });
+      if (view.envKeys && view.envKeys.length > 0)
+        meta.push({ text: plural(view.envKeys.length, "env") });
+      if (view.artifacts && view.artifacts.length > 0)
+        meta.push({
+          text: plural(view.artifacts.length, "artifact"),
+          tone: "info",
+        });
+      if (view.streams?.stdout?.truncated)
+        meta.push({ text: "stdout truncated", tone: "warning" });
+      if (view.streams?.stderr?.truncated)
+        meta.push({ text: "stderr truncated", tone: "warning" });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
       if (view.savedTo) {
         meta.push({ text: `saved ${basename(view.savedTo)}`, mono: true });

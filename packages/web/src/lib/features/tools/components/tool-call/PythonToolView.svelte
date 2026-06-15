@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ToolCallRecord } from "$lib/api";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
+  import ResultCodeBlock from "./ResultCodeBlock.svelte";
   import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
   type Props = {
@@ -11,8 +12,18 @@
   let { toolCall, view, expanded = false }: Props = $props();
 </script>
 
+{#if view.code && view.code.length > 0}
+  <section class="section" aria-label="Python code">
+    <span class="section-label">code</span>
+    <ResultCodeBlock code={view.code} language="python" trim={false} />
+  </section>
+{/if}
+
 {#if view.output.length > 0}
-  <ToolOutputBlock text={view.output} direction="tail" {expanded} />
+  <section class="section" aria-label="Python output">
+    <span class="section-label">output</span>
+    <ToolOutputBlock text={view.output} direction="tail" {expanded} />
+  </section>
 {:else if toolCall.status === "running"}
   <p class="note">Waiting for Python output…</p>
 {/if}
@@ -22,6 +33,25 @@
 {/if}
 
 <style>
+  .section {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .section + .section,
+  .section + .note,
+  .note + .note {
+    margin-top: 0.4rem;
+  }
+
+  .section-label {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    text-transform: uppercase;
+  }
+
   .note {
     margin: 0;
     font-size: var(--text-xs);

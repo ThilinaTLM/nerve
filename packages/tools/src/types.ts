@@ -59,6 +59,7 @@ export type PythonToolArgs = {
   code?: unknown;
   cwd?: unknown;
   timeout?: unknown;
+  env?: unknown;
 };
 
 export type LsToolArgs = ToolPathArgs & {

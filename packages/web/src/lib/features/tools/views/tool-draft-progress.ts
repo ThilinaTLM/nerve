@@ -14,7 +14,7 @@ export type DraftMetaItem = {
 };
 
 export type ToolDraftSummary = {
-  kind: "write" | "edit" | "generic";
+  kind: "write" | "edit" | "python" | "generic";
   toolName: string;
   path?: string;
   statusText: string;
@@ -22,6 +22,9 @@ export type ToolDraftSummary = {
   lineCount?: number;
   replacementCount?: number;
   generatedLineCount?: number;
+  code?: string;
+  codeLineCount?: number;
+  language?: "python";
   done: boolean;
 };
 
@@ -223,9 +226,40 @@ function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   };
 }
 
+function summarizePythonDraft(draft: LiveToolCallDraft): ToolDraftSummary {
+  const args = asRecord(draft.args);
+  const finalCode = stringField(args.code);
+  const partialCode = extractJsonStringValues(draft.argsText, "code", {
+    maxChars: 24_000,
+  })[0];
+  const code = finalCode ?? partialCode;
+  const codeLineCount = lineCount(code);
+  const hasCode = code !== undefined && code.length > 0;
+  const meta: DraftMetaItem[] = [];
+  if (codeLineCount !== undefined && codeLineCount > 0) {
+    meta.push({ text: plural(codeLineCount, "code line"), tone: "info" });
+  }
+  if (draft.done) meta.push({ text: "submitted", tone: "success" });
+  return {
+    kind: "python",
+    toolName: "python",
+    statusText: hasCode
+      ? draft.done
+        ? "Submitting Python code…"
+        : "Generating Python code…"
+      : "Waiting for Python code…",
+    meta,
+    code,
+    codeLineCount,
+    language: "python",
+    done: Boolean(draft.done),
+  };
+}
+
 export function summarizeToolDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   if (draft.toolName === "write") return summarizeWriteDraft(draft);
   if (draft.toolName === "edit") return summarizeEditDraft(draft);
+  if (draft.toolName === "python") return summarizePythonDraft(draft);
   const toolName = draft.toolName ?? "tool";
   return {
     kind: "generic",

@@ -181,6 +181,27 @@ describe("parseToolView", () => {
             fullOutputPath: "/tmp/python.log",
             allowNetwork: true,
             allowFileWrite: false,
+            durationMs: 42,
+            timedOut: true,
+            timeoutKilled: true,
+            envKeys: ["NERVE_TEST_FLAG"],
+            artifactDir: "/tmp/python-artifacts/run-abc",
+            artifacts: [
+              { path: "/tmp/python-artifacts/run-abc/report.json", size: 17 },
+            ],
+            streams: {
+              stdout: {
+                bytes: 1024,
+                displayedBytes: 512,
+                lines: 100,
+                displayedLines: 50,
+                truncated: true,
+                omittedLines: 50,
+                omittedBytes: 512,
+                direction: "tail",
+                savedTo: "/tmp/python-stdout.log",
+              },
+            },
             truncation: { truncated: true },
           },
         },
@@ -194,6 +215,17 @@ describe("parseToolView", () => {
     assert.equal(view.output, "hello\ndone");
     assert.equal(view.savedTo, "/tmp/python.log");
     assert.equal(view.allowFileWrite, false);
+    assert.equal(view.durationMs, 42);
+    assert.equal(view.timedOut, true);
+    assert.equal(view.timeoutKilled, true);
+    assert.deepEqual(view.envKeys, ["NERVE_TEST_FLAG"]);
+    assert.equal(view.artifactDir, "/tmp/python-artifacts/run-abc");
+    assert.equal(
+      view.artifacts?.[0]?.path,
+      "/tmp/python-artifacts/run-abc/report.json",
+    );
+    assert.equal(view.streams?.stdout?.truncated, true);
+    assert.equal(view.streams?.stdout?.savedTo, "/tmp/python-stdout.log");
     assert.equal(view.truncated, true);
   });
 

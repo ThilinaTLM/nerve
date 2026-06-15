@@ -8,6 +8,8 @@ import {
   type GrepMatch,
   type ProcessLogEvent,
   type ProcessRecord,
+  type ProcessStreamResultDetails,
+  type PythonArtifactResultDetails,
   processActionResultSchema,
   processListResultSchema,
   processLogsResultSchema,
@@ -114,6 +116,17 @@ export type ToolView =
       live?: boolean;
       allowNetwork?: boolean;
       allowFileWrite?: boolean;
+      durationMs?: number;
+      timedOut?: boolean;
+      timeoutKilled?: boolean;
+      envKeys?: string[];
+      artifactDir?: string;
+      artifacts?: PythonArtifactResultDetails[];
+      streams?: {
+        stdout?: ProcessStreamResultDetails;
+        stderr?: ProcessStreamResultDetails;
+        combined?: ProcessStreamResultDetails;
+      };
     }
   | {
       kind: "edit";
@@ -607,6 +620,13 @@ export function parseToolView(
         allowFileWrite: details.success
           ? details.data.allowFileWrite
           : undefined,
+        durationMs: details.success ? details.data.durationMs : undefined,
+        timedOut: details.success ? details.data.timedOut : undefined,
+        timeoutKilled: details.success ? details.data.timeoutKilled : undefined,
+        envKeys: details.success ? details.data.envKeys : undefined,
+        artifactDir: details.success ? details.data.artifactDir : undefined,
+        artifacts: details.success ? details.data.artifacts : undefined,
+        streams: details.success ? details.data.streams : undefined,
       };
     }
 

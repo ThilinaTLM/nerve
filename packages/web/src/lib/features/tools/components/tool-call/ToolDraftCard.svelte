@@ -3,6 +3,7 @@
   import { summarizeToolDraft } from "$lib/features/tools/views/tool-draft-progress";
   import { trimTextPreview } from "$lib/utils/text-preview";
   import { StatusDot } from "$lib/components/ui/status-dot";
+  import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
   type Props = {
     draft: LiveToolCallDraft;
@@ -47,6 +48,15 @@
       <span>{progressText}</span>
       {#if !summary.done}<span class="progress-caret" aria-hidden="true"></span>{/if}
     </div>
+  {:else if summary.kind === "python"}
+    {#if summary.code !== undefined && summary.code.length > 0}
+      <ResultCodeBlock code={summary.code} language={summary.language} trim={false} />
+    {:else}
+      <div class="draft-progress" aria-live="polite">
+        <span>{summary.statusText}</span>
+        {#if !summary.done}<span class="progress-caret" aria-hidden="true"></span>{/if}
+      </div>
+    {/if}
   {:else}
     <pre>{genericPreview}</pre>
   {/if}

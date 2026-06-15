@@ -35,11 +35,42 @@ export const truncationDetailsSchema = z
   .object({
     truncated: z.boolean().optional(),
     omittedLines: z.number().optional(),
+    omittedBytes: z.number().optional(),
+    direction: z.enum(["head", "tail", "line"]).optional(),
+    partialLine: z.boolean().optional(),
     nextOffset: z.number().optional(),
     maxLines: z.number().optional(),
   })
   .passthrough();
 export type TruncationDetails = z.infer<typeof truncationDetailsSchema>;
+
+export const processStreamResultDetailsSchema = z
+  .object({
+    bytes: z.number().optional(),
+    lines: z.number().optional(),
+    displayedBytes: z.number().optional(),
+    displayedLines: z.number().optional(),
+    truncated: z.boolean().optional(),
+    omittedLines: z.number().optional(),
+    omittedBytes: z.number().optional(),
+    direction: z.enum(["head", "tail", "line"]).optional(),
+    savedTo: z.string().optional(),
+  })
+  .passthrough();
+export type ProcessStreamResultDetails = z.infer<
+  typeof processStreamResultDetailsSchema
+>;
+
+export const processStreamsResultDetailsSchema = z
+  .object({
+    stdout: processStreamResultDetailsSchema.optional(),
+    stderr: processStreamResultDetailsSchema.optional(),
+    combined: processStreamResultDetailsSchema.optional(),
+  })
+  .passthrough();
+export type ProcessStreamsResultDetails = z.infer<
+  typeof processStreamsResultDetailsSchema
+>;
 
 export const editResultDetailsSchema = z.object({
   diff: z.string(),
@@ -58,6 +89,16 @@ export const bashResultDetailsSchema = z
   .passthrough();
 export type BashResultDetails = z.infer<typeof bashResultDetailsSchema>;
 
+export const pythonArtifactResultDetailsSchema = z
+  .object({
+    path: z.string(),
+    size: z.number().nonnegative().optional(),
+  })
+  .passthrough();
+export type PythonArtifactResultDetails = z.infer<
+  typeof pythonArtifactResultDetailsSchema
+>;
+
 export const pythonResultDetailsSchema = z
   .object({
     truncation: truncationDetailsSchema.optional(),
@@ -66,8 +107,15 @@ export const pythonResultDetailsSchema = z
     executable: z.string().optional(),
     version: z.string().optional(),
     timeoutSeconds: z.number().optional(),
+    durationMs: z.number().optional(),
+    timedOut: z.boolean().optional(),
+    timeoutKilled: z.boolean().optional(),
     allowNetwork: z.boolean().optional(),
     allowFileWrite: z.boolean().optional(),
+    streams: processStreamsResultDetailsSchema.optional(),
+    artifactDir: z.string().optional(),
+    artifacts: z.array(pythonArtifactResultDetailsSchema).optional(),
+    envKeys: z.array(z.string()).optional(),
   })
   .passthrough();
 export type PythonResultDetails = z.infer<typeof pythonResultDetailsSchema>;
