@@ -11,6 +11,7 @@
     planReview?: PlanReviewRecord;
     onOpenFile?: (path: string, line?: number) => void;
     onAcceptPlanReview?: (id: string) => void;
+    onAcceptPlanReviewInNewChat?: (id: string) => void;
     onRejectPlanReview?: (id: string) => void;
   };
   let {
@@ -18,6 +19,7 @@
     view,
     planReview,
     onAcceptPlanReview,
+    onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
   }: Props = $props();
 
@@ -47,6 +49,7 @@
     displayedReview?.status ?? stringField(asRecord(toolCall.result).outcome),
   );
   const accepted = $derived(reviewStatus === "accepted");
+  const acceptedInNewChat = $derived(reviewStatus === "accepted_in_new_chat");
   const rejected = $derived(
     reviewStatus === "changes_requested" || reviewStatus === "discarded",
   );
@@ -78,6 +81,15 @@
       >
         {#if accepted}<Check size={14} strokeWidth={2.4} />{/if}
         Accept &amp; Implement
+      </Button>
+      <Button
+        size="sm"
+        variant={acceptedInNewChat ? "success" : "secondary"}
+        disabled={!pendingReview}
+        onclick={() => planReview && onAcceptPlanReviewInNewChat?.(planReview.id)}
+      >
+        {#if acceptedInNewChat}<Check size={14} strokeWidth={2.4} />{/if}
+        Accept in New Chat
       </Button>
       <Button
         size="sm"

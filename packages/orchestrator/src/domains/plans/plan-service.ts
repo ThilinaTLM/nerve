@@ -190,6 +190,22 @@ export class PlanService {
     return updated;
   }
 
+  async acceptPlanReviewInNewChat(
+    reviewId: string,
+    feedback?: string,
+  ): Promise<PlanReviewRecord> {
+    const review = this.getPendingPlanReview(reviewId);
+    const updated = await this.resolvePlanReview(
+      review,
+      "accepted_in_new_chat",
+      feedback,
+    );
+    await this.events.publish("plan_review.accepted_in_new_chat", {
+      planReview: updated,
+    });
+    return updated;
+  }
+
   async requestPlanChanges(
     reviewId: string,
     feedback?: string,
@@ -340,6 +356,9 @@ export class PlanService {
   private planReviewOutcomeMessage(review: PlanReviewRecord): string {
     if (review.status === "accepted") {
       return `Plan accepted. Proceed with implementation using ${review.planPath} as the source of truth.`;
+    }
+    if (review.status === "accepted_in_new_chat") {
+      return `Plan accepted for implementation in a new chat using ${review.planPath} as the source of truth. Do not implement it in this original conversation.`;
     }
     if (review.status === "changes_requested") {
       return `Plan rejected. The current mode remains unchanged; wait for the user's follow-up instructions before presenting another plan.`;

@@ -3,6 +3,9 @@ import type { AgentMessage } from "@nerve/agent";
 import type {
   AgentRecord,
   ConversationEntry,
+  ConversationRecord,
+  CreateAgentRequest,
+  CreateConversationRequest,
   PlanReviewRecord,
   ToolCallRecord,
   UserQuestionRecord,
@@ -20,12 +23,22 @@ import type { PlanService } from "../plans/plan-service.js";
 import { completedToolResult } from "../tools/agent-tool-adapter.js";
 import type { ToolService } from "../tools/tool-service.js";
 
+export type AcceptPlanReviewInNewChatResult = {
+  planReview: PlanReviewRecord;
+  conversation: ConversationRecord;
+  agent: AgentRecord;
+};
+
 export interface HumanInputResolutionDeps {
   events: EventBus;
   tools: ToolService;
   plans: PlanService;
   suspensions: AgentSuspensionService;
   continueAgent(agentId: string): Promise<void>;
+  createConversation(
+    request: CreateConversationRequest,
+  ): Promise<ConversationRecord>;
+  createAgent(request: CreateAgentRequest): Promise<AgentRecord>;
   getAgent(agentId: string): AgentRecord;
   setAgentStatus(
     agent: AgentRecord,
@@ -64,6 +77,60 @@ export class HumanInputResolutionService {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  async acceptPlanReviewInNewChat(
+    reviewId: string,
+    feedback?: string,
+  ): Promise<AcceptPlanReviewInNewChatResult> {
+    const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
+    const sourceAgent = this.deps.getAgent(pendingReview.agentId);
+    const conversation = await this.deps.createConversation({
+      projectId: pendingReview.projectId,
+      title: implementationConversationTitle(pendingReview),
+      mode: "coding",
+      permissionLevel: sourceAgent.permissionLevel,
+    });
+    const agent = await this.deps.createAgent({
+      projectId: pendingReview.projectId,
+      conversationId: conversation.id,
+      projectDir: sourceAgent.projectDir,
+      workerId: sourceAgent.workerId,
+      mode: "coding",
+      permissionLevel: sourceAgent.permissionLevel,
+      workspaceScope: sourceAgent.workspaceScope,
+      model: sourceAgent.model,
+      thinkingLevel: sourceAgent.thinkingLevel,
+    });
+    const instructionEntry = await this.appendUserInstructionForAgent(
+      agent.id,
+      acceptedPlanInNewChatInstruction(pendingReview.planPath),
+    );
+    await this.publishConversationEntryAppended(instructionEntry);
+
+    let review: PlanReviewRecord;
+    try {
+      review = await this.deps.plans.acceptPlanReviewInNewChat(
+        reviewId,
+        feedback,
+      );
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    await this.resolveSuspensionForToolCall(
+      review.toolCallId,
+      this.deps.plans.planReviewResult(review),
+      {
+        continueAgent: false,
+        finalSuspensionStatus: "cancelled",
+      },
+    );
+    await this.deps.continueAgent(agent.id);
+    return { planReview: review, conversation, agent };
   }
 
   async rejectPlanReview(
@@ -184,6 +251,27 @@ export class HumanInputResolutionService {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  private getPendingPlanReviewOrThrow(reviewId: string): PlanReviewRecord {
+    const review = this.deps.plans
+      .listPlanReviews()
+      .find((candidate) => candidate.id === reviewId);
+    if (!review) {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        "Plan review not found.",
+      );
+    }
+    if (review.status !== "pending") {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        "Plan review is already resolved.",
+      );
+    }
+    return review;
   }
 
   private async resolveSuspensionForToolCall(
@@ -398,4 +486,12 @@ export class HumanInputResolutionService {
 
 function acceptedPlanFollowUp(planPath: string): string {
   return `The user accepted the plan at ${planPath}. Proceed with the implementation using that plan as the source of truth.`;
+}
+
+function acceptedPlanInNewChatInstruction(planPath: string): string {
+  return `The user accepted the plan at ${planPath} and chose to implement it in this new chat. Read that plan file and implement it as the source of truth.`;
+}
+
+function implementationConversationTitle(review: PlanReviewRecord): string {
+  return `Implement: ${review.title ?? review.slug}`;
 }

@@ -1,5 +1,7 @@
 import type {
+  AgentRecord,
   ApprovalRecord,
+  ConversationRecord,
   PlanReviewRecord,
   ToolCallRecord,
   UserQuestionRecord,
@@ -53,6 +55,19 @@ export async function acceptPlanReview(
       { feedback },
     )
   ).planReview;
+}
+
+export async function acceptPlanReviewInNewChat(
+  reviewId: string,
+  feedback?: string,
+): Promise<{
+  planReview: PlanReviewRecord;
+  conversation: ConversationRecord;
+  agent: AgentRecord;
+}> {
+  return apiPost(`/api/plan-reviews/${reviewId}/accept-in-new-chat`, {
+    feedback,
+  });
 }
 
 export async function rejectPlanReview(

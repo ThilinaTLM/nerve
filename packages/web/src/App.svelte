@@ -40,6 +40,7 @@
   import {
     abortActiveRun,
     acceptPendingPlanReview,
+    acceptPendingPlanReviewInNewChat,
     answerUserQuestionById,
     centerTabsExcept,
     centerTabsToLeftOf,
@@ -484,6 +485,7 @@
                 onGrantApproval={(id) => void grantApproval(id)}
                 onDenyApproval={(id) => void denyApproval(id)}
                 onAcceptPlanReview={(id) => void acceptPendingPlanReview(id)}
+                onAcceptPlanReviewInNewChat={(id) => void acceptPendingPlanReviewInNewChat(id)}
                 onRejectPlanReview={(id) => void rejectPendingPlanReview(id)}
                 onContinueFromFailure={(id) => void continueFromFailure(id)}
                 onNavigateToEntry={(entryId, summarize) => {

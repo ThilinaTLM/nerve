@@ -192,6 +192,76 @@ describe("RuntimeRegistry agent run state", () => {
     }
   });
 
+  it("accepts a suspended plan in a new chat without continuing the original agent", async () => {
+    const { state, agent } = await createProjectConversationAgent();
+    const continuedAgentIds: string[] = [];
+    let continuedAtSeq: number | undefined;
+    try {
+      await state.registry.configureAgent(agent.id, { mode: "planning" });
+      const { review, suspension, toolCall } =
+        await createPendingPlanReviewSuspension(state, agent.id);
+      const startSeq = state.events.latestSeq;
+      setContinueAgentMock(state, async (continuedAgentId) => {
+        continuedAgentIds.push(continuedAgentId);
+        continuedAtSeq = state.events.latestSeq;
+      });
+
+      const result = await state.registry.acceptPlanReviewInNewChat(review.id);
+
+      assert.equal(result.planReview.status, "accepted_in_new_chat");
+      assert.notEqual(result.conversation.id, agent.conversationId);
+      assert.equal(result.conversation.projectId, agent.projectId);
+      assert.equal(result.conversation.mode, "coding");
+      assert.equal(result.agent.conversationId, result.conversation.id);
+      assert.equal(result.agent.projectId, agent.projectId);
+      assert.equal(result.agent.mode, "coding");
+      assert.equal(result.agent.permissionLevel, agent.permissionLevel);
+      assert.deepEqual(continuedAgentIds, [result.agent.id]);
+      assert.equal(state.registry.getAgent(agent.id).mode, "planning");
+      assert.equal(state.registry.getAgent(agent.id).status, "idle");
+      assert.equal(
+        state.registry.suspensions.getSuspension(suspension.id).status,
+        "cancelled",
+      );
+
+      const instruction = acceptedPlanInNewChatInstructionText(review.planPath);
+      const newEntries = state.registry.getConversationEntries(
+        result.conversation.id,
+      );
+      assert.ok(
+        newEntries.some(
+          (entry) => entry.role === "user" && entry.text === instruction,
+        ),
+      );
+
+      const events = await state.events.replayPersistedSince(startSeq);
+      const completedToolEvent = findToolCallEvent(
+        events,
+        toolCall.id,
+        "completed",
+      );
+      const instructionEntryEvent = findEntryEvent(
+        events,
+        (entry) =>
+          entry.conversationId === result.conversation.id &&
+          entry.role === "user" &&
+          entry.text === instruction,
+      );
+      assert.ok(completedToolEvent, "completed tool-call event was published");
+      assert.ok(
+        instructionEntryEvent,
+        "new-chat instruction entry event was published",
+      );
+      assert.ok(
+        continuedAtSeq !== undefined &&
+          instructionEntryEvent.seq <= continuedAtSeq,
+        "new-chat instruction entry is published before agent continuation",
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("rejects a suspended plan without changing mode or continuing", async () => {
     const { state, agent } = await createProjectConversationAgent();
     let continued = false;
@@ -408,6 +478,10 @@ describe("RuntimeRegistry agent run state", () => {
 
 function acceptedPlanFollowUpText(planPath: string): string {
   return `The user accepted the plan at ${planPath}. Proceed with the implementation using that plan as the source of truth.`;
+}
+
+function acceptedPlanInNewChatInstructionText(planPath: string): string {
+  return `The user accepted the plan at ${planPath} and chose to implement it in this new chat. Read that plan file and implement it as the source of truth.`;
 }
 
 function setContinueAgentMock(

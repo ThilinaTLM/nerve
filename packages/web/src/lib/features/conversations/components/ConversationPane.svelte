@@ -65,6 +65,7 @@
     onGrantApproval?: (id: string) => void;
     onDenyApproval?: (id: string) => void;
     onAcceptPlanReview?: (id: string) => void;
+    onAcceptPlanReviewInNewChat?: (id: string) => void;
     onRejectPlanReview?: (id: string) => void;
     onContinueFromFailure?: (statusEntryId: string) => void;
     onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
@@ -120,6 +121,7 @@
     onGrantApproval,
     onDenyApproval,
     onAcceptPlanReview,
+    onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
     onContinueFromFailure,
     onNavigateToEntry,
@@ -255,6 +257,7 @@
         {onAnswerUserQuestion}
         {onDismissUserQuestion}
         {onAcceptPlanReview}
+        {onAcceptPlanReviewInNewChat}
         {onRejectPlanReview}
         {onContinueFromFailure}
         messageMenu={menuForMessage}

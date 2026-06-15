@@ -43,6 +43,7 @@
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
     onAcceptPlanReview?: (id: string) => void;
+    onAcceptPlanReviewInNewChat?: (id: string) => void;
     onRejectPlanReview?: (id: string) => void;
     onContinueFromFailure?: (statusEntryId: string) => void;
     messageMenu: (item: import("$lib/stores/workbench/state.svelte").TranscriptItem) => ContextMenuItem[];
@@ -69,6 +70,7 @@
     onAnswerUserQuestion,
     onDismissUserQuestion,
     onAcceptPlanReview,
+    onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
     onContinueFromFailure,
     messageMenu,
@@ -114,6 +116,7 @@
           {onAnswerUserQuestion}
           {onDismissUserQuestion}
           {onAcceptPlanReview}
+          {onAcceptPlanReviewInNewChat}
           {onRejectPlanReview}
         />
       </ContextMenu>

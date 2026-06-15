@@ -308,6 +308,8 @@ export function composeRuntime(
     plans: services.plans,
     suspensions: services.suspensions,
     continueAgent: (agentId) => services.agentRunner.continueAgent(agentId),
+    createConversation,
+    createAgent,
     getAgent,
     setAgentStatus: (agent, status) =>
       services.agentLifecycle.setAgentStatus(agent, status),

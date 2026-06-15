@@ -15,6 +15,7 @@
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
     onAcceptPlanReview?: (id: string) => void;
+    onAcceptPlanReviewInNewChat?: (id: string) => void;
     onRejectPlanReview?: (id: string) => void;
   };
   let {
@@ -26,6 +27,7 @@
     onAnswerUserQuestion,
     onDismissUserQuestion,
     onAcceptPlanReview,
+    onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
   }: Props = $props();
 
@@ -60,6 +62,7 @@
       {onAnswerUserQuestion}
       {onDismissUserQuestion}
       {onAcceptPlanReview}
+      {onAcceptPlanReviewInNewChat}
       {onRejectPlanReview}
     />
   {/if}

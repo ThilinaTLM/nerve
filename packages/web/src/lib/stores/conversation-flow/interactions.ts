@@ -1,6 +1,7 @@
 import { notify } from "$lib/notifications/notify.svelte";
 import {
   acceptPlanReview,
+  acceptPlanReviewInNewChat,
   answerUserQuestion,
   apiPost,
   discardPlanReview,
@@ -15,6 +16,7 @@ import { selection } from "../../state/app-state.svelte";
 import { workbenchState } from "../workbench/state.svelte";
 import { loadWorkspaceState } from "../workspace.svelte";
 import { refreshConversationView } from "./selection";
+import { openConversation } from "./tabs";
 
 export async function grantApproval(approvalId: string) {
   await apiPost(`/api/approvals/${approvalId}/grant`, {});
@@ -37,6 +39,14 @@ export async function acceptPendingPlanReview(reviewId: string) {
   if (selection.conversationId)
     await refreshConversationView(selection.conversationId);
   notify.success("Plan accepted");
+}
+
+export async function acceptPendingPlanReviewInNewChat(reviewId: string) {
+  const { conversation } = await acceptPlanReviewInNewChat(reviewId);
+  workbenchState.planReviews = await getPendingPlanReviews();
+  await loadWorkspaceState();
+  await openConversation(conversation.id);
+  notify.success("Plan accepted in new chat");
 }
 
 export async function rejectPendingPlanReview(reviewId: string) {

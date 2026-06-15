@@ -4,6 +4,7 @@ export {
 } from "../workbench/live";
 export {
   acceptPendingPlanReview,
+  acceptPendingPlanReviewInNewChat,
   answerUserQuestionById,
   denyApproval,
   discardPendingPlanReview,

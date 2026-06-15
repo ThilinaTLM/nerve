@@ -10,6 +10,7 @@ export type PlanSlug = z.infer<typeof planSlugSchema>;
 export const planReviewStatusSchema = z.enum([
   "pending",
   "accepted",
+  "accepted_in_new_chat",
   "changes_requested",
   "discarded",
   "force_exited",

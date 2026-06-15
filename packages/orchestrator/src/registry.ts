@@ -325,6 +325,13 @@ export class RuntimeRegistry {
     return this.services.humanInput.acceptPlanReview(reviewId, feedback);
   }
 
+  async acceptPlanReviewInNewChat(reviewId: string, feedback?: string) {
+    return this.services.humanInput.acceptPlanReviewInNewChat(
+      reviewId,
+      feedback,
+    );
+  }
+
   async rejectPlanReview(reviewId: string, feedback?: string) {
     return this.services.humanInput.rejectPlanReview(reviewId, feedback);
   }
