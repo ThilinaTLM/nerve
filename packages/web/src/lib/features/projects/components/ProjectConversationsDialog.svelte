@@ -89,7 +89,7 @@
         {:else}
           <VirtualList
             items={rows}
-            itemHeight={48}
+            itemHeight={32}
             keyFn={(row) => row.conversation.id}
             class="conversations-virtual-list"
           >
@@ -100,7 +100,6 @@
                 isActive={item.conversation.id === selectedConversationId}
                 menuItems={buildMenu?.(item.conversation) ?? []}
                 onOpenConversation={openAndClose}
-                titleMode="expanded"
               />
             {/snippet}
           </VirtualList>

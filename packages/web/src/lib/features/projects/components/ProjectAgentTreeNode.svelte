@@ -15,7 +15,6 @@
     isActive?: boolean;
     menuItems: ContextMenuItem[];
     onOpenConversation?: (conversationId: string) => void;
-    titleMode?: "compact" | "expanded";
   };
 
   let {
@@ -24,7 +23,6 @@
     isActive = false,
     menuItems,
     onOpenConversation,
-    titleMode = "compact",
   }: Props = $props();
 
   const status = $derived(row.agent?.status ?? "idle");
@@ -43,7 +41,6 @@
           type="button"
           class="conversation-row"
           data-active={isActive}
-          data-title-mode={titleMode}
           title={row.conversation.title}
           onclick={() => onOpenConversation?.(row.conversation.id)}
         >
@@ -127,26 +124,6 @@
     font-weight: 400;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .conversation-row[data-title-mode="expanded"] {
-    min-height: 2.75rem;
-    align-items: flex-start;
-    padding-block: 0.35rem;
-  }
-
-  .conversation-row[data-title-mode="expanded"] :global(.conversation-status) {
-    margin-top: 0.22rem;
-  }
-
-  .conversation-row[data-title-mode="expanded"] .conversation-label {
-    display: -webkit-box;
-    line-height: 1.3;
-    text-overflow: clip;
-    white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
   }
 
   :global(.nav-tooltip) {

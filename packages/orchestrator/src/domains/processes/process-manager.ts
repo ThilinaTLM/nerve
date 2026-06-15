@@ -15,18 +15,24 @@ import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { ApplicationLogger } from "../../logging.js";
 import {
+  defaultProcessSupervisor,
   isActiveProcessStatus,
   ProcessLogService,
   ProcessReadinessService,
   ProcessRepository,
-  spawnManagedProcess,
-  terminateProcess,
+  type ProcessSupervisor,
 } from "./index.js";
 
 interface ManagedProcess {
   child?: ChildProcess;
   logSeq: number;
   stopping: boolean;
+  finalized: boolean;
+  closePromise?: Promise<{
+    exitCode: number | null;
+    signal: NodeJS.Signals | null;
+  }>;
+  finalizationPromise?: Promise<ProcessRecord | undefined>;
   readinessTimer?: NodeJS.Timeout;
   readinessPattern?: RegExp;
 }
@@ -43,6 +49,7 @@ export class ProcessManager {
     private readonly events: EventBus,
     private readonly index: IndexStore,
     private readonly logger?: ApplicationLogger,
+    private readonly supervisor: ProcessSupervisor = defaultProcessSupervisor,
   ) {
     this.processRepository = new ProcessRepository(storage);
     this.processLogs = new ProcessLogService(events);
@@ -117,17 +124,45 @@ export class ProcessManager {
       context: { name: record.name, cwd: record.cwd, command: record.command },
     });
 
-    const child = spawnManagedProcess(request.command, {
+    const child = this.supervisor.spawn(request.command, {
       cwd: record.cwd,
       env: request.env,
     });
 
+    const closePromise = new Promise<{
+      exitCode: number | null;
+      signal: NodeJS.Signals | null;
+    }>((resolveClose) => {
+      child.once("close", (exitCode, signal) => {
+        resolveClose({ exitCode, signal });
+      });
+    });
     const managed: ManagedProcess = {
       child,
       logSeq: await this.processLogs.latestLogSeq(record.logsPath),
       stopping: false,
+      finalized: false,
+      closePromise,
       readinessPattern,
     };
+    managed.finalizationPromise = closePromise
+      .then(({ exitCode, signal }) =>
+        this.markProcessExited(record.id, exitCode, signal),
+      )
+      .catch(async (error: unknown) => {
+        if (this.logger) {
+          await this.logger
+            .error("Process finalization failed", {
+              processId: record.id,
+              projectId: record.projectId,
+              conversationId: record.conversationId,
+              agentId: record.agentId,
+              error,
+            })
+            .catch(() => undefined);
+        }
+        return undefined;
+      });
     this.managed.set(record.id, managed);
 
     child.stdout?.on("data", (chunk) => {
@@ -138,9 +173,6 @@ export class ProcessManager {
     });
     child.on("error", (error) => {
       void this.markProcessError(record.id, error.message);
-    });
-    child.on("close", (exitCode, signal) => {
-      void this.markProcessExited(record.id, exitCode, signal);
     });
 
     await this.updateProcess(record.id, { status: "running" });
@@ -168,29 +200,59 @@ export class ProcessManager {
     const managed = this.managed.get(record.id);
     if (!managed?.child || !isActiveProcessStatus(record.status)) return record;
 
+    const signal = request.signal ?? "SIGTERM";
     managed.stopping = true;
-    await this.updateProcess(record.id, { status: "stopping" });
+    const stopping = await this.updateProcess(record.id, {
+      status: "stopping",
+    });
     await this.events.publish("process.stop_requested", {
       processId: record.id,
-      signal: request.signal ?? "SIGTERM",
+      signal,
     });
     await this.logger?.info("Process stop requested", {
       processId: record.id,
       projectId: record.projectId,
       conversationId: record.conversationId,
       agentId: record.agentId,
-      context: { signal: request.signal ?? "SIGTERM" },
+      context: { signal },
     });
 
-    const stopped = new Promise<void>((resolveStop) => {
-      managed.child?.once("close", () => resolveStop());
+    void this.requestTermination(
+      stopping,
+      managed.child,
+      signal,
+      "stop requested",
+    );
+
+    const timeoutMs = request.timeoutMs ?? 5000;
+    const timeoutResult = Symbol("process-stop-timeout");
+    let timeout: NodeJS.Timeout | undefined;
+    const finalized = await Promise.race<
+      ProcessRecord | undefined | typeof timeoutResult
+    >([
+      managed.finalizationPromise ?? Promise.resolve(undefined),
+      new Promise<typeof timeoutResult>((resolveTimeout) => {
+        timeout = setTimeout(() => resolveTimeout(timeoutResult), timeoutMs);
+      }),
+    ]).finally(() => {
+      if (timeout) clearTimeout(timeout);
     });
-    terminateProcess(managed.child, request.signal ?? "SIGTERM");
-    const timeout = setTimeout(() => {
-      if (managed.child) terminateProcess(managed.child, "SIGKILL");
-    }, request.timeoutMs ?? 5000);
-    await stopped.finally(() => clearTimeout(timeout));
-    return this.getProcess(processId);
+
+    if (finalized !== timeoutResult) {
+      return finalized ?? this.getProcess(processId);
+    }
+
+    void this.requestTermination(
+      this.processes.get(processId) ?? stopping,
+      managed.child,
+      "SIGKILL",
+      `stop timed out after ${timeoutMs}ms`,
+    );
+    return this.forceFinalizeStoppedProcess(
+      processId,
+      "SIGKILL",
+      `Process did not close within ${timeoutMs}ms after stop was requested.`,
+    );
   }
 
   async restartProcess(processId: string): Promise<ProcessRecord> {
@@ -377,15 +439,94 @@ export class ProcessManager {
     });
   }
 
+  private async requestTermination(
+    record: ProcessRecord,
+    child: ChildProcess,
+    signal: NodeJS.Signals,
+    reason: string,
+  ): Promise<void> {
+    try {
+      const result = await this.supervisor.terminate(child, signal);
+      if (!result.error) return;
+      if (this.logger) {
+        await this.logger
+          .warn("Process termination reported an error", {
+            processId: record.id,
+            projectId: record.projectId,
+            conversationId: record.conversationId,
+            agentId: record.agentId,
+            context: {
+              signal,
+              reason,
+              method: result.method,
+              error: result.error,
+            },
+          })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      if (this.logger) {
+        await this.logger
+          .warn("Process termination failed", {
+            processId: record.id,
+            projectId: record.projectId,
+            conversationId: record.conversationId,
+            agentId: record.agentId,
+            error,
+            context: { signal, reason },
+          })
+          .catch(() => undefined);
+      }
+    }
+  }
+
+  private async forceFinalizeStoppedProcess(
+    processId: string,
+    signal: NodeJS.Signals,
+    reason: string,
+  ): Promise<ProcessRecord> {
+    const record = this.getProcess(processId);
+    if (!isActiveProcessStatus(record.status)) return record;
+
+    const managed = this.managed.get(processId);
+    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    if (managed) managed.finalized = true;
+
+    const readiness =
+      record.readiness.outcome === "pending"
+        ? { ...record.readiness, outcome: "exited" as const }
+        : record.readiness;
+    const updated = await this.updateProcess(processId, {
+      status: "stopped",
+      readiness,
+      exitedAt: new Date().toISOString(),
+      exitCode: null,
+      signal,
+    });
+    this.managed.delete(processId);
+    await this.events.publish("process.exited", { process: updated });
+    await this.logger?.warn("Process stop force-finalized", {
+      processId: updated.id,
+      projectId: updated.projectId,
+      conversationId: updated.conversationId,
+      agentId: updated.agentId,
+      context: { signal, reason },
+    });
+    return updated;
+  }
+
   private async markProcessExited(
     processId: string,
     exitCode: number | null,
     signal: NodeJS.Signals | null,
-  ): Promise<void> {
+  ): Promise<ProcessRecord | undefined> {
     const record = this.processes.get(processId);
     const managed = this.managed.get(processId);
-    if (!record) return;
+    if (!record) return undefined;
+    if (!isActiveProcessStatus(record.status)) return record;
+    if (managed?.finalized) return record;
     if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    if (managed) managed.finalized = true;
     const status = managed?.stopping
       ? "stopped"
       : exitCode === 0
@@ -414,6 +555,7 @@ export class ProcessManager {
         context: { exitCode, signal, status },
       },
     );
+    return updated;
   }
 
   private async markProcessError(
@@ -421,11 +563,16 @@ export class ProcessManager {
     message: string,
   ): Promise<void> {
     const record = this.processes.get(processId);
-    if (!record) return;
+    const managed = this.managed.get(processId);
+    if (!record || !isActiveProcessStatus(record.status)) return;
+    if (managed?.finalized) return;
+    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    if (managed) managed.finalized = true;
     const updated = await this.updateProcess(processId, {
       status: "error",
       error: message,
     });
+    this.managed.delete(processId);
     await this.events.publish("process.error", { process: updated, message });
     await this.logger?.error("Process error", {
       processId: updated.id,
