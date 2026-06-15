@@ -33,14 +33,20 @@ export function buildGitSuggestions(ctx: GitContext): GitSuggestion[] {
   const repos = ctx.repos;
   const changed = repos.filter((r) => r.dirty);
   const onBaseChanged = changed.filter((r) => r.onBaseBranch);
-  const prBranchRepos = repos.filter(
+  const githubRemoteRepos = repos.filter(
+    (r) => r.hasRemote && r.hasGithubRemote,
+  );
+  const changedGithubRepos = changed.filter(
+    (r) => r.hasRemote && r.hasGithubRemote,
+  );
+  const prBranchRepos = githubRemoteRepos.filter(
     (r) =>
       !r.detached &&
       r.currentBranch !== null &&
       !r.onBaseBranch &&
       !r.mergedToBase,
   );
-  const prRepos = uniqueRepos([...changed, ...prBranchRepos]);
+  const prRepos = uniqueRepos([...changedGithubRepos, ...prBranchRepos]);
   const ghReady = Boolean(ctx.github?.available && ctx.github?.authenticated);
 
   const suggestions: GitSuggestion[] = [];

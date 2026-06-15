@@ -19,6 +19,7 @@ function repo(overrides: Partial<GitRepoSummary> = {}): GitRepoSummary {
     behind: 0,
     hasUpstream: true,
     hasRemote: true,
+    hasGithubRemote: true,
     baseBranch: "main",
     onBaseBranch: true,
     mergedToBase: false,
@@ -74,6 +75,18 @@ describe("gitContextFingerprint", () => {
     assert.notEqual(
       gitContextFingerprint(authenticated),
       gitContextFingerprint(unavailable),
+    );
+  });
+
+  it("changes when GitHub remote eligibility changes", () => {
+    const githubRemote = ctx();
+    const nonGithubRemote = ctx({
+      repos: [repo({ hasGithubRemote: false })],
+    });
+
+    assert.notEqual(
+      gitContextFingerprint(githubRemote),
+      gitContextFingerprint(nonGithubRemote),
     );
   });
 

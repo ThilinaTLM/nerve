@@ -123,6 +123,47 @@ export class GitService {
     }
   }
 
+  private async repoRemoteState(
+    repoDir: string,
+  ): Promise<{ hasRemote: boolean; hasGithubRemote: boolean }> {
+    let hasRemote = false;
+    try {
+      hasRemote =
+        (await this.runGit(repoDir, ["remote"])).stdout.trim().length > 0;
+    } catch {
+      hasRemote = false;
+    }
+    if (!hasRemote) return { hasRemote: false, hasGithubRemote: false };
+
+    try {
+      const { stdout } = await this.runGit(repoDir, ["remote", "-v"]);
+      return {
+        hasRemote: true,
+        hasGithubRemote: parseGitRemoteUrls(stdout).some(isGithubRemoteUrl),
+      };
+    } catch {
+      return { hasRemote: true, hasGithubRemote: false };
+    }
+  }
+
+  private async ensureGithubRemote(repoDir: string): Promise<void> {
+    const remoteState = await this.repoRemoteState(repoDir);
+    if (!remoteState.hasRemote) {
+      throw new HttpError(
+        409,
+        "GH_NO_REMOTE",
+        "This repository does not have a remote configured.",
+      );
+    }
+    if (!remoteState.hasGithubRemote) {
+      throw new HttpError(
+        409,
+        "GH_NO_GITHUB_REMOTE",
+        "This repository does not have a GitHub remote configured.",
+      );
+    }
+  }
+
   // --- discovery ---
 
   async discoverRepos(projectId: string): Promise<GitDiscoveryResponse> {
@@ -189,13 +230,7 @@ export class GitService {
     ]);
     const { branch, files } = parsePorcelainV2(stdout);
     const baseBranch = await this.detectBaseBranch(repoDir);
-    let hasRemote = false;
-    try {
-      hasRemote =
-        (await this.runGit(repoDir, ["remote"])).stdout.trim().length > 0;
-    } catch {
-      hasRemote = false;
-    }
+    const remoteState = await this.repoRemoteState(repoDir);
     const onBaseBranch = branch.head === baseBranch;
     return {
       relativePath,
@@ -207,7 +242,8 @@ export class GitService {
       ahead: branch.upstream ? (branch.ahead ?? 0) : null,
       behind: branch.upstream ? (branch.behind ?? 0) : null,
       hasUpstream: branch.upstream !== null,
-      hasRemote,
+      hasRemote: remoteState.hasRemote,
+      hasGithubRemote: remoteState.hasGithubRemote,
       baseBranch,
       onBaseBranch,
       mergedToBase: await this.mergedToBase(repoDir, baseBranch, {
@@ -715,6 +751,24 @@ export class GitService {
     relativePath: string,
   ): Promise<GithubStatusResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const remoteState = await this.repoRemoteState(repoDir);
+    if (!remoteState.hasRemote) {
+      return {
+        available: false,
+        authenticated: false,
+        login: null,
+        reason: "No remote repository configured.",
+      };
+    }
+    if (!remoteState.hasGithubRemote) {
+      return {
+        available: false,
+        authenticated: false,
+        login: null,
+        reason: "Remote repository is not GitHub.",
+      };
+    }
+
     try {
       await this.runGh(repoDir, ["--version"]);
     } catch {
@@ -756,6 +810,7 @@ export class GitService {
     relativePath: string,
   ): Promise<GithubPrListResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
+    await this.ensureGithubRemote(repoDir);
     const { stdout } = await this.mapGh(() =>
       this.runGh(repoDir, [
         "pr",
@@ -828,6 +883,7 @@ export class GitService {
     number: number,
   ): Promise<GithubPrDetail> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
+    await this.ensureGithubRemote(repoDir);
     const { stdout } = await this.mapGh(() =>
       this.runGh(repoDir, [
         "pr",
@@ -904,6 +960,7 @@ export class GitService {
     number: number,
   ): Promise<GithubPrCheckoutResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
+    await this.ensureGithubRemote(repoDir);
     const { files } = parsePorcelainV2(
       (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
     );
@@ -951,6 +1008,37 @@ export class GitService {
       throw error;
     }
   }
+}
+
+function isGithubHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/\.$/, "");
+  return normalized === "github.com" || normalized === "ssh.github.com";
+}
+
+export function isGithubRemoteUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (trimmed.length === 0) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.hostname) return isGithubHost(parsed.hostname);
+  } catch {
+    // Fall through to SCP-like git remote syntax, e.g.
+    // `git@github.com:owner/repo.git`.
+  }
+
+  const scpLike = trimmed.match(/^(?:(?:[^@/\s]+)@)?([^:/\s]+):\S+$/);
+  return scpLike ? isGithubHost(scpLike[1] ?? "") : false;
+}
+
+export function parseGitRemoteUrls(stdout: string): string[] {
+  const urls = new Set<string>();
+  for (const line of stdout.split("\n")) {
+    const match = line.trim().match(/^\S+\s+(.+?)(?:\s+\((?:fetch|push)\))?$/);
+    const url = match?.[1]?.trim();
+    if (url) urls.add(url);
+  }
+  return [...urls];
 }
 
 type GithubCheckRunRaw = { name: string; state: string; link?: string };

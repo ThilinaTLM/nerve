@@ -16,6 +16,7 @@ function repo(overrides: Partial<GitRepoSummary> = {}): GitRepoSummary {
     behind: 0,
     hasUpstream: true,
     hasRemote: true,
+    hasGithubRemote: true,
     baseBranch: "main",
     onBaseBranch: true,
     mergedToBase: false,
@@ -85,6 +86,23 @@ describe("buildGitSuggestions", () => {
       ids(ctx([dirty], { available: false, authenticated: false })),
       ["commit", "commit-branch"],
     );
+  });
+
+  it("drops open-pr for local or non-GitHub remote repositories", () => {
+    const local = repo({
+      dirty: true,
+      hasRemote: false,
+      hasGithubRemote: false,
+    });
+    const nonGithub = repo({
+      relativePath: "mirror",
+      name: "mirror",
+      dirty: true,
+      hasGithubRemote: false,
+    });
+
+    assert.deepEqual(ids(ctx([local])), ["commit", "commit-branch"]);
+    assert.deepEqual(ids(ctx([nonGithub])), ["commit", "commit-branch"]);
   });
 
   it("labels open-pr 'Create PRs' and scopes prompts for multiple unpushed repos", () => {

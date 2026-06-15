@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  isGithubRemoteUrl,
   parseGithubChecks,
+  parseGitRemoteUrls,
   summarizeChecks,
 } from "../src/domains/git/git-service.js";
 import {
@@ -92,6 +94,45 @@ describe("parseShortstat", () => {
     const result = parseShortstat("");
     assert.equal(result.insertions, 0);
     assert.equal(result.deletions, 0);
+  });
+});
+
+describe("git remote helpers", () => {
+  it("parses unique urls from git remote -v output", () => {
+    const urls = parseGitRemoteUrls(
+      [
+        "origin\thttps://github.com/acme/app.git (fetch)",
+        "origin\thttps://github.com/acme/app.git (push)",
+        "mirror\tgit@example.com:acme/app.git (fetch)",
+      ].join("\n"),
+    );
+
+    assert.deepEqual(urls, [
+      "https://github.com/acme/app.git",
+      "git@example.com:acme/app.git",
+    ]);
+  });
+
+  it("recognizes common GitHub remote url forms", () => {
+    for (const url of [
+      "https://github.com/acme/app.git",
+      "git@github.com:acme/app.git",
+      "ssh://git@github.com/acme/app.git",
+      "ssh://git@ssh.github.com/acme/app.git",
+    ]) {
+      assert.equal(isGithubRemoteUrl(url), true, url);
+    }
+  });
+
+  it("rejects non-GitHub remotes", () => {
+    for (const url of [
+      "git@example.com:acme/app.git",
+      "https://gitlab.com/acme/app.git",
+      "../local/repo.git",
+      "",
+    ]) {
+      assert.equal(isGithubRemoteUrl(url), false, url);
+    }
   });
 });
 

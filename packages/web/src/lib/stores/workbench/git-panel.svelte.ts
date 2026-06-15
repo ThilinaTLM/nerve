@@ -201,6 +201,7 @@ export function overviewFingerprint(next: GitOverviewResponse): string {
       behind: next.repo.behind,
       hasUpstream: next.repo.hasUpstream,
       hasRemote: next.repo.hasRemote,
+      hasGithubRemote: next.repo.hasGithubRemote,
       baseBranch: next.repo.baseBranch,
       onBaseBranch: next.repo.onBaseBranch,
       mergedToBase: next.repo.mergedToBase,
@@ -242,6 +243,37 @@ function mergeRepoSummary(projectId: string, next: GitRepoSummary): void {
   ) {
     state.overview = { ...state.overview, repo: next };
   }
+  if (state && (!next.hasRemote || !next.hasGithubRemote)) {
+    state.github = undefined;
+    state.prs = [];
+    state.loadingPrs = false;
+    state.prsRequestInFlight = false;
+  }
+  applyGitContextFromProject(projectId);
+}
+
+function repoSummaryFor(
+  projectId: string,
+  repo: string,
+): GitRepoSummary | undefined {
+  const project = gitPanelState.projects[projectId];
+  if (!project) return undefined;
+  return (
+    project.repoStates[repo]?.overview?.repo ??
+    project.repos.find((candidate) => candidate.relativePath === repo)
+  );
+}
+
+function repoHasGithubRemote(projectId: string, repo: string): boolean {
+  const summary = repoSummaryFor(projectId, repo);
+  return Boolean(summary?.hasRemote && summary.hasGithubRemote);
+}
+
+function clearGithubState(projectId: string, state: GitPanelRepoState): void {
+  state.github = undefined;
+  state.prs = [];
+  state.loadingPrs = false;
+  state.prsRequestInFlight = false;
   applyGitContextFromProject(projectId);
 }
 
@@ -446,6 +478,11 @@ export async function refreshGithub(
   repo: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
+  if (!repoHasGithubRemote(projectId, repo)) {
+    clearGithubState(projectId, state);
+    return;
+  }
+
   try {
     const status = await getGithubStatus(projectId, repo);
     state.github = status;
@@ -473,6 +510,10 @@ export async function refreshPrs(
   silent = false,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
+  if (!repoHasGithubRemote(projectId, repo)) {
+    clearGithubState(projectId, state);
+    return;
+  }
   if (state.prsRequestInFlight) return;
   state.prsRequestInFlight = true;
   if (!silent) state.loadingPrs = true;

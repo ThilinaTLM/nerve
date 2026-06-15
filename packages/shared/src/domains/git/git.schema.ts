@@ -37,6 +37,11 @@ export const gitRepoSummarySchema = z.object({
   hasUpstream: z.boolean(),
   /** True when at least one remote is configured (`git remote`). */
   hasRemote: z.boolean(),
+  /**
+   * True when at least one configured remote points at GitHub. This is a
+   * frontend-safe provider hint only; remote URLs stay in the orchestrator.
+   */
+  hasGithubRemote: z.boolean(),
   /** Detected base branch (origin/HEAD, else main/master/develop). */
   baseBranch: z.string(),
   /** True when the current branch is the detected base branch. */

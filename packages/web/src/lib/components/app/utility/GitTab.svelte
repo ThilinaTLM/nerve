@@ -79,6 +79,12 @@
   const github = $derived(current?.github);
   const prs = $derived(current?.prs ?? []);
   const branches = $derived(current?.branches ?? []);
+  const selectedRepoSummary = $derived(
+    overview?.repo ?? repos.find((repo) => repo.relativePath === selectedRepo),
+  );
+  const selectedRepoHasGithubRemote = $derived(
+    Boolean(selectedRepoSummary?.hasRemote && selectedRepoSummary.hasGithubRemote),
+  );
   const discoverError = $derived(projectState?.discoverError);
   const loadingRepos = $derived(projectState?.loadingRepos ?? false);
   const loadingInitialRepos = $derived(
@@ -296,7 +302,16 @@
     const repoCount = repos.length;
     const authenticated = github?.authenticated;
     const pendingChecks = hasPendingChecks;
-    if (!projectId || repoCount === 0 || !repo || !authenticated || !pendingChecks) return;
+    const hasGithubRemote = selectedRepoHasGithubRemote;
+    if (
+      !projectId ||
+      repoCount === 0 ||
+      !repo ||
+      !hasGithubRemote ||
+      !authenticated ||
+      !pendingChecks
+    )
+      return;
 
     const refreshPendingPrs = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -664,7 +679,7 @@
 
       <PanelSection title="PRs (GitHub)" icon={GitPullRequest} bind:open={prsSectionOpen}>
         {#snippet actions()}
-          {#if github?.authenticated}
+          {#if selectedRepoHasGithubRemote && github?.authenticated}
             <Button
               size="icon-xs"
               variant="ghost"
@@ -678,11 +693,19 @@
           {/if}
         {/snippet}
 
-        {#if !github}
+        {#if selectedRepoSummary && !selectedRepoSummary.hasRemote}
+          <div class="py-1 text-xs text-muted-foreground">
+            No remote configured for this repository.
+          </div>
+        {:else if selectedRepoSummary && !selectedRepoSummary.hasGithubRemote}
+          <div class="py-1 text-xs text-muted-foreground">
+            PRs are only available for GitHub remotes.
+          </div>
+        {:else if !github}
           <div class="py-1 text-xs text-muted-foreground">Checking GitHub CLI…</div>
         {:else if !github.available}
           <div class="py-1 text-xs text-muted-foreground">
-            GitHub CLI (<code class="font-mono">gh</code>) is not installed.
+            {github.reason ?? "GitHub CLI (gh) is not installed."}
           </div>
         {:else if !github.authenticated}
           <div class="py-1 text-xs text-muted-foreground">
