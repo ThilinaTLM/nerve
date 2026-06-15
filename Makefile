@@ -35,6 +35,7 @@ desktop-fast:
 desktop-build: dev-deps
 	$(PNPM) --filter @nerve/web build
 	$(PNPM) --filter @nerve/orchestrator build
+	$(NODE) scripts/copy-web-dist-to-orchestrator.mjs
 	$(PNPM) --filter @nerve/desktop build
 
 desktop-check:

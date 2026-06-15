@@ -107,7 +107,6 @@ export type ToolView =
       kind: "python";
       code?: string;
       codeLineCount: number;
-      summary?: string;
       exitCode?: number;
       signal?: string | null;
       output: string;
@@ -226,7 +225,6 @@ export type ToolView =
 
 /** Lines/items shown before the footer "Show more" toggle expands a body. */
 export const COLLAPSED_LINES = 10;
-const TITLE_MAX = 120;
 const GREP_MATCH_TEXT_MAX = 260;
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -334,13 +332,6 @@ export function relativePath(
 
 export function tail<T>(items: T[], count: number): T[] {
   return items.length > count ? items.slice(items.length - count) : items;
-}
-
-export function truncateTitle(text: string): string {
-  const single = text.replace(/\s+/g, " ").trim();
-  return single.length > TITLE_MAX
-    ? `${single.slice(0, TITLE_MAX - 1)}…`
-    : single;
 }
 
 export function imageDataUrl(mimeType: string, data: string): string {
@@ -651,20 +642,11 @@ export function parseToolView(
       const code = stringField(args.code);
       const details = pythonResultDetailsSchema.safeParse(result?.details);
       const output = resultOutputText(result, toolCall.result, liveOutput);
-      const nonEmptyLine = code
-        ?.split(/\r?\n/)
-        .map((line) => line.trim())
-        .find(Boolean);
       const codeLineCount = code ? code.split(/\r?\n/).length : 0;
       return {
         kind: "python",
         code,
         codeLineCount,
-        summary: nonEmptyLine
-          ? truncateTitle(nonEmptyLine)
-          : codeLineCount > 0
-            ? `${codeLineCount} line script`
-            : undefined,
         exitCode: result?.exitCode,
         signal: details.success
           ? (details.data.signal ?? undefined)

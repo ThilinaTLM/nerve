@@ -192,9 +192,10 @@ export function toolPresentation(
       if (view.savedTo) {
         meta.push({ text: `saved ${basename(view.savedTo)}`, mono: true });
       }
+      // The full script is always rendered in the body's SCRIPT block, so the
+      // header intentionally omits a code preview to avoid duplicating it.
       return {
         ...base,
-        primaryArg: view.summary ? { text: view.summary } : undefined,
         meta,
         collapse: collapseFor(lines, "lines", "tail"),
       };

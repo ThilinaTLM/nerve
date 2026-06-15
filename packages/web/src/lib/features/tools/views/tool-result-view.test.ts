@@ -210,7 +210,6 @@ describe("parseToolView", () => {
     assert.equal(view.kind, "python");
     if (view.kind !== "python") return;
     assert.equal(view.code, "print('hello')\nprint('done')");
-    assert.equal(view.summary, "print('hello')");
     assert.equal(view.codeLineCount, 2);
     assert.equal(view.exitCode, 1);
     assert.equal(view.output, "hello\ndone");
@@ -243,7 +242,6 @@ describe("parseToolView", () => {
     assert.equal(view.kind, "python");
     if (view.kind !== "python") return;
     assert.equal(view.code, "print('from block')");
-    assert.equal(view.summary, "print('from block')");
     assert.equal(view.output, "from block\nsecond line");
   });
 
@@ -987,7 +985,7 @@ describe("toolPresentation", () => {
     assert.match(p.collapse?.expandLabel ?? "", /earlier lines/);
   });
 
-  it("marks python exits, script summary, and planning write guard metadata", () => {
+  it("marks python exits and planning write guard metadata without a header code preview", () => {
     const p = present(
       "python",
       { code: "print('x')\nprint('y')" },
@@ -997,7 +995,7 @@ describe("toolPresentation", () => {
         details: { allowFileWrite: false, signal: null },
       },
     );
-    assert.equal(p.primaryArg?.text, "print('x')");
+    assert.equal(p.primaryArg, undefined);
     assert.ok(p.meta.some((m) => m.text === "exit 3" && m.tone === "error"));
     assert.ok(p.meta.some((m) => m.text === "2 code lines"));
     assert.ok(p.meta.some((m) => m.text === "2 lines"));

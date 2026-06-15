@@ -14,21 +14,18 @@
 
 {#if view.code && view.code.length > 0}
   <section class="section" aria-label="Python script">
-    <span class="section-label">script</span>
     <ResultCodeBlock code={view.code} language="python" trim={false} />
   </section>
 {/if}
 
 {#if view.output.length > 0}
   <section class="section" aria-label="Python output">
-    <span class="section-label">output</span>
     <ToolOutputBlock text={view.output} direction="tail" {expanded} />
   </section>
 {:else if toolCall.status === "running"}
   <p class="note">Waiting for Python output…</p>
 {:else if toolCall.status === "completed" && view.code && view.code.length > 0}
   <section class="section" aria-label="Python output">
-    <span class="section-label">output</span>
     <p class="note">No Python output.</p>
   </section>
 {/if}
@@ -47,14 +44,6 @@
   .section + .note,
   .note + .note {
     margin-top: 0.4rem;
-  }
-
-  .section-label {
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: 1.4;
-    text-transform: uppercase;
   }
 
   .note {
