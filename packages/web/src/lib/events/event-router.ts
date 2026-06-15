@@ -11,7 +11,6 @@ import type {
 import { getConversationContextUsage, getProcessLogs } from "../api";
 import { queryClient, queryKeys } from "../query";
 import { selection } from "../state/app-state.svelte";
-import { upsertAgentByUpdatedAt } from "../stores/agent-freshness";
 import {
   activeRunToLegacyLive,
   ensureConversationView,
@@ -23,6 +22,11 @@ import {
   hasPendingSettingsSave,
   loadSettingsPanel,
 } from "../stores/settings.svelte";
+import {
+  applyEntityEvent,
+  patchKnownAgentStatus,
+  upsertAgentRecordFresh,
+} from "../stores/workbench/event-reducers";
 import { invalidateGit } from "../stores/workbench/git-context.svelte";
 import type {
   ConversationLiveState,
@@ -41,10 +45,14 @@ const contextUsageRefreshTimers = new Map<
   string,
   ReturnType<typeof setTimeout>
 >();
+const WORKSPACE_REFRESH_DEBOUNCE_MS = 150;
+let workspaceRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   if (event.seq && event.seq <= workbenchState.lastEventSeq) return;
   if (event.seq) workbenchState.lastEventSeq = event.seq;
+  applyEntityEvent(event);
+  patchRuntimeAgentStatus(event);
   maybeShowRuntimeNotification(event);
 
   if (isConversationRuntimeEvent(event.type)) {
@@ -102,8 +110,7 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
   }
 
   if (shouldRefreshWorkspace(event.type)) {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-    void loadWorkspaceState();
+    scheduleWorkspaceRefresh();
     if (
       shouldRefreshSettings(event.type) &&
       !(event.type.startsWith("settings.") && hasPendingSettingsSave())
@@ -111,6 +118,15 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
       void loadSettingsPanel();
     }
   }
+}
+
+function scheduleWorkspaceRefresh(): void {
+  if (workspaceRefreshTimer) clearTimeout(workspaceRefreshTimer);
+  workspaceRefreshTimer = setTimeout(() => {
+    workspaceRefreshTimer = undefined;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+    void loadWorkspaceState();
+  }, WORKSPACE_REFRESH_DEBOUNCE_MS);
 }
 
 function maybeShowRuntimeNotification(
@@ -292,7 +308,31 @@ function agentRecordFromEvent(value: unknown): AgentRecord | undefined {
 }
 
 function applyAgentRecord(agent: AgentRecord): void {
-  workbenchState.agents = upsertAgentByUpdatedAt(agent, workbenchState.agents);
+  upsertAgentRecordFresh(agent);
+}
+
+function patchRuntimeAgentStatus(
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  const agentId = stringValue(event.data?.agentId);
+  switch (event.type) {
+    case "conversation.run.started":
+      patchKnownAgentStatus(agentId, "running", event.ts);
+      break;
+    case "conversation.run.suspended":
+      patchKnownAgentStatus(agentId, "awaiting_user", event.ts);
+      break;
+    case "conversation.run.completed":
+      patchKnownAgentStatus(agentId, "idle", event.ts);
+      break;
+    case "conversation.run.failed":
+      patchKnownAgentStatus(
+        agentId,
+        event.data?.aborted ? "aborted" : "error",
+        event.ts,
+      );
+      break;
+  }
 }
 
 function handleConversationEvent(

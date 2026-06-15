@@ -10,6 +10,8 @@
 
   const process = $derived(view.process);
   const url = $derived(process ? processUrl(process) : undefined);
+  const envMeta = $derived(process?.envInfo?.keys.length ? `env ${process.envInfo.keys.length} redacted` : undefined);
+  const envKeys = $derived(process?.envInfo?.keys.join(", "));
 </script>
 
 {#if process}
@@ -30,6 +32,9 @@
     {/if}
     {#if process.status === "orphaned" && process.runtime?.platform}
       <span class="meta">{process.runtime.platform}</span>
+    {/if}
+    {#if envMeta}
+      <span class="meta" title={envKeys}>{envMeta}</span>
     {/if}
   </div>
   <p class="command">{process.command}</p>

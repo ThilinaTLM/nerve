@@ -19,7 +19,6 @@
   import { shortProjectLabel } from "../../utils/project-tree";
   import { Button } from "$lib/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
-  import { agentActivityPulse, agentActivityTone } from "../../utils/status";
   import {
     getShortcutAriaLabel,
     getShortcutLabel,
@@ -98,20 +97,16 @@
 
   function statusLabel(tab: CenterTabModel): string | undefined {
     if (tab.error) return tab.error;
-    if (tab.kind === "conversation" && tab.agent?.status === "awaiting_user") return "Needs user action";
+    if (tab.kind === "conversation" || tab.kind === "pending-conversation") {
+      return tab.activity.label ?? (tab.hasDraft ? "Unsaved draft" : undefined);
+    }
     if (tab.sending) {
       if (tab.kind === "process") return "Process active";
       if (tab.kind === "file") return "Loading file";
-      return "Agent running";
     }
-    if ((tab.kind === "conversation" || tab.kind === "pending-conversation") && tab.hasDraft) return "Unsaved draft";
     if (tab.kind === "process") return tab.process?.status ?? "missing";
     if (tab.kind === "file" && tab.file?.truncated) return "Truncated";
     return undefined;
-  }
-
-  function agentStatus(tab: CenterTabModel): string | undefined {
-    return tab.kind === "conversation" ? tab.agent?.status : undefined;
   }
 
   function tabIndex(tab: CenterTabModel): number {
@@ -236,8 +231,8 @@
             {#if tab.kind === "conversation" || tab.kind === "pending-conversation"}
               <StatusDot
                 class="tab-agent-status"
-                tone={agentActivityTone(agentStatus(tab), tab.sending)}
-                pulse={agentActivityPulse(agentStatus(tab), tab.sending)}
+                tone={tab.activity.tone}
+                pulse={tab.activity.pulse}
                 label={statusLabel(tab)}
               />
             {:else if tab.kind === "process"}

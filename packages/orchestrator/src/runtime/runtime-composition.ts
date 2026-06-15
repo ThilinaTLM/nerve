@@ -29,6 +29,7 @@ import {
   PinnedCommandService,
 } from "../domains/pinned-commands/index.js";
 import { PlanService } from "../domains/plans/plan-service.js";
+import { SecretProcessLaunchConfigStore } from "../domains/processes/index.js";
 import { ProcessManager } from "../domains/processes/process-manager.js";
 import {
   ProjectLifecycleService,
@@ -46,6 +47,7 @@ import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../registry/types.js";
+import type { SecretProvider } from "../secrets.js";
 import type { RuntimeState } from "./runtime-state.js";
 
 export interface RuntimeDeps {
@@ -53,6 +55,7 @@ export interface RuntimeDeps {
   events: EventBus;
   index: IndexStore;
   auth: AuthManager;
+  secrets: SecretProvider;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
 }
@@ -87,7 +90,8 @@ export function composeRuntime(
   state: RuntimeState,
   deps: RuntimeDeps,
 ): RuntimeServices {
-  const { storage, events, index, auth, subscriptionUsage, logger } = deps;
+  const { storage, events, index, auth, secrets, subscriptionUsage, logger } =
+    deps;
   const services = {} as RuntimeServices;
 
   const getProject = (projectId: string) =>
@@ -204,11 +208,13 @@ export function composeRuntime(
     updateConversation,
     events,
   });
+  const processLaunchConfigs = new SecretProcessLaunchConfigStore(secrets);
   services.processes = new ProcessManager(
     storage,
     events,
     index,
     logger.child({ component: "process" }),
+    { launchConfigs: processLaunchConfigs },
   );
   services.workers = new WorkerManager(storage, events, index);
   services.projectLifecycle = new ProjectLifecycleService(

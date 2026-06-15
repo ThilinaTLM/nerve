@@ -18,7 +18,13 @@ import {
   scopedUsableModelOptions,
 } from "../../utils/model";
 import { isPathInDirectory } from "../../utils/path";
+import {
+  buildConversationActivityById,
+  type ConversationActivityState,
+  idleConversationActivity,
+} from "./conversation-activity";
 import { buildGitSuggestions, type GitSuggestion } from "./git-context.svelte";
+import { gitPanelState } from "./git-panel.svelte";
 import type { CenterTabIdentity, ConversationViewState } from "./state.svelte";
 import { workbenchState } from "./state.svelte";
 
@@ -31,6 +37,7 @@ export type ConversationTabModel = {
   active: boolean;
   hasDraft: boolean;
   sending: boolean;
+  activity: ConversationActivityState;
   error?: string;
 };
 
@@ -43,6 +50,7 @@ export type PendingConversationTabModel = {
   active: boolean;
   hasDraft: boolean;
   sending: boolean;
+  activity: ConversationActivityState;
   error?: string;
 };
 
@@ -178,6 +186,16 @@ export const workbenchSelectors = {
   get planReviews() {
     return workbenchState.planReviews;
   },
+  get conversationActivityById() {
+    return buildConversationActivityById({
+      conversations: workbenchState.conversations,
+      agents: workbenchState.agents,
+      views: workbenchState.conversationViews,
+      approvals: workbenchState.approvals,
+      userQuestions: workbenchState.userQuestions,
+      planReviews: workbenchState.planReviews,
+    });
+  },
   get activePlanReview() {
     const conversationId = selection.conversationId;
     const agentId = selection.agentId;
@@ -297,6 +315,9 @@ export const workbenchSelectors = {
           candidate.conversationId === conversation.id,
       );
       const view = workbenchState.conversationViews[conversation.id];
+      const activity =
+        this.conversationActivityById[conversation.id] ??
+        idleConversationActivity;
       tabs.push({
         kind: "conversation",
         id: conversation.id,
@@ -305,7 +326,8 @@ export const workbenchSelectors = {
         agent,
         active: activeTabMatches("conversation", conversation.id),
         hasDraft: Boolean(view?.composerText.trim()),
-        sending: Boolean(view?.sending || agent?.status === "running"),
+        sending: activity.busy,
+        activity,
         error:
           view?.error ??
           (agent?.status === "error" ? "Agent error" : undefined),
@@ -330,6 +352,16 @@ export const workbenchSelectors = {
         active: activeTabMatches("pending-conversation", pending.id),
         hasDraft: Boolean(pending.composerText.trim()),
         sending: pending.sending,
+        activity: pending.sending
+          ? {
+              tone: "running",
+              pulse: true,
+              label: "Agent running",
+              busy: true,
+              needsUser: false,
+              source: "live-view",
+            }
+          : idleConversationActivity,
         error: pending.error,
       });
     }
@@ -489,13 +521,21 @@ export const workbenchSelectors = {
   get branchDepth() {
     return (activeView()?.treeNodes ?? workbenchState.treeNodes).length;
   },
-  /**
-   * Reserved seam for git status. The orchestrator does not expose git data yet,
-   * so this returns undefined and the footer slot stays hidden. Wire this to real
-   * branch/dirty state once the daemon provides it.
-   */
   get gitStatus(): { branch: string; dirty: boolean } | undefined {
-    return undefined;
+    const projectId = this.activeProject?.id;
+    const state = projectId ? gitPanelState.projects[projectId] : undefined;
+    if (!state || state.repos.length === 0) return undefined;
+    const repoState = state.repoStates[state.selectedRepo];
+    const repo =
+      repoState?.overview?.repo ??
+      state.repos.find(
+        (candidate) => candidate.relativePath === state.selectedRepo,
+      ) ??
+      state.repos[0];
+    return {
+      branch: repo.currentBranch ?? "detached",
+      dirty: repo.dirty,
+    };
   },
   get pendingApprovalCount() {
     return workbenchState.approvals.length;

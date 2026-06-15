@@ -1,9 +1,13 @@
-import { discoverGitRepos, getGithubStatus } from "../../api";
 import { selection } from "../../state/app-state.svelte";
 import {
   gitContextFingerprint,
   shouldRefreshGitContextOnFocus,
 } from "./git-context-helpers";
+import {
+  applyGitContextFromProject,
+  invalidateGitPanel,
+  refreshGitProject,
+} from "./git-panel.svelte";
 import { type GitContext, workbenchState } from "./state.svelte";
 
 export {
@@ -72,28 +76,22 @@ function applyGitContext(next: GitContext): void {
   }
 }
 
-async function loadGitContext(projectId: string): Promise<GitContext> {
-  const discovery = await discoverGitRepos(projectId);
-  let github: { available: boolean; authenticated: boolean } | undefined;
-  try {
-    const status = await getGithubStatus(
-      projectId,
-      discovery.repos[0]?.relativePath ?? ".",
-    );
-    github = {
-      available: status.available,
-      authenticated: status.authenticated,
-    };
-  } catch {
-    github = undefined;
-  }
-  return {
-    projectId,
-    projectIsRepo: discovery.projectIsRepo,
-    repos: discovery.repos,
-    github,
-    loadedAt: Date.now(),
-  };
+async function loadGitContext(
+  projectId: string,
+  options: GitContextRefreshOptions = {},
+): Promise<GitContext | undefined> {
+  const project = workbenchState.projects.find(
+    (candidate) => candidate.id === projectId,
+  );
+  if (!project) return undefined;
+  await refreshGitProject(project, {
+    force: options.force,
+    silent: true,
+    onlyIfChanged: !options.force,
+  });
+  applyGitContextFromProject(projectId);
+  const context = workbenchState.gitContext;
+  return context?.projectId === projectId ? context : undefined;
 }
 
 export async function refreshGitContext(
@@ -123,7 +121,8 @@ export async function refreshGitContext(
   lastRefreshStartedAt = now;
   inFlight.add(id);
   try {
-    applyGitContext(await loadGitContext(id));
+    const next = await loadGitContext(id, options);
+    if (next) applyGitContext(next);
   } catch {
     // Discovery failed (not a repo, permissions, etc.) — drop context so no
     // suggestions are shown rather than surfacing an error.
@@ -199,6 +198,6 @@ export function stopGitContextAutoRefresh(): void {
  * mutation: GitTab commit/branch/PR/sync, and PR pane checkout.
  */
 export function invalidateGit(projectId?: string): void {
-  workbenchState.gitRefreshToken += 1;
+  invalidateGitPanel(projectId);
   void refreshGitContext(projectId, { reason: "invalidate", force: true });
 }

@@ -4,6 +4,7 @@
   import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import Dialog from "$lib/components/ui/dialog-shell";
   import { Input } from "$lib/components/ui/input";
+  import type { ConversationActivityState } from "$lib/stores/workbench/conversation-activity";
   import * as Tooltip from "$lib/components/ui/tooltip";
   import VirtualList from "$lib/components/ui/virtual-list";
   import { buildConversationRows } from "$lib/utils/project-tree";
@@ -18,6 +19,7 @@
     agents?: AgentRecord[];
     selectedConversationId?: string;
     openConversationTabIds?: Set<string>;
+    conversationActivityById?: Record<string, ConversationActivityState>;
     onOpenConversation?: (conversationId: string) => void;
     buildMenu?: (conversation: ConversationRecord) => ContextMenuItem[];
     onOpenChange?: (open: boolean) => void;
@@ -32,6 +34,7 @@
     agents = [],
     selectedConversationId,
     openConversationTabIds,
+    conversationActivityById = {},
     onOpenConversation,
     buildMenu,
     onOpenChange,
@@ -98,6 +101,7 @@
                 row={item}
                 isOpen={openConversationTabIds?.has(item.conversation.id) ?? false}
                 isActive={item.conversation.id === selectedConversationId}
+                activity={conversationActivityById[item.conversation.id]}
                 menuItems={buildMenu?.(item.conversation) ?? []}
                 onOpenConversation={openAndClose}
               />

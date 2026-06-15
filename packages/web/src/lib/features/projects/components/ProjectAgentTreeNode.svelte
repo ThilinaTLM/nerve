@@ -4,15 +4,17 @@
   } from "$lib/components/ui/context-menu-list";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import * as Tooltip from "$lib/components/ui/tooltip";
+  import type { ConversationActivityState } from "$lib/stores/workbench/conversation-activity";
+  import { conversationActivityForRecord } from "$lib/stores/workbench/conversation-activity";
   import type { ConversationRow } from "$lib/utils/project-tree";
   import { shortAgentModel } from "$lib/utils/project-tree";
-  import { agentActivityPulse, agentActivityTone } from "$lib/utils/status";
   import { dateTimeLabel } from "$lib/utils/time";
 
   type Props = {
     row: ConversationRow;
     isOpen?: boolean;
     isActive?: boolean;
+    activity?: ConversationActivityState;
     menuItems: ContextMenuItem[];
     onOpenConversation?: (conversationId: string) => void;
   };
@@ -21,11 +23,19 @@
     row,
     isOpen = false,
     isActive = false,
+    activity,
     menuItems,
     onOpenConversation,
   }: Props = $props();
 
   const status = $derived(row.agent?.status ?? "idle");
+  const dotActivity = $derived(
+    activity ??
+      conversationActivityForRecord({
+        conversationId: row.conversation.id,
+        agent: row.agent,
+      }),
+  );
   const mode = $derived(row.agent?.mode ?? row.conversation.mode);
   const permission = $derived(
     row.agent?.permissionLevel ?? row.conversation.permissionLevel,
@@ -46,8 +56,9 @@
         >
           <StatusDot
             class="conversation-status"
-            tone={agentActivityTone(status)}
-            pulse={agentActivityPulse(status)}
+            tone={dotActivity.tone}
+            pulse={dotActivity.pulse}
+            label={dotActivity.label}
             variant={isOpen ? "solid" : "outline"}
             size="sm"
           />
@@ -108,11 +119,6 @@
 
   :global(.conversation-status) {
     flex: none;
-  }
-
-  .conversation-row:hover :global(.conversation-status),
-  .conversation-row[data-active="true"] :global(.conversation-status) {
-    background-color: currentColor;
   }
 
   .conversation-label {

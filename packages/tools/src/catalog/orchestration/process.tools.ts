@@ -10,7 +10,8 @@ const processStartParameters = Type.Object(
     command: Type.String({ description: "Command to start and supervise" }),
     env: Type.Optional(
       Type.Record(Type.String(), Type.String(), {
-        description: "Extra environment variables",
+        description:
+          "Extra environment variables. Values are stored encrypted for restart and shown only as redacted keys.",
       }),
     ),
     readyOnUrl: Type.Optional(
@@ -107,8 +108,10 @@ export const processToolDefinitions = [
   {
     name: "process_restart",
     label: "process_restart",
-    description: "Restart a managed process by processId or name.",
-    promptSnippet: "Restart supervised long-running processes",
+    description:
+      "Restart a managed process by processId or name, preserving encrypted env overrides captured at start.",
+    promptSnippet:
+      "Restart supervised long-running processes while preserving stored env overrides",
     parameters: processRestartParameters,
     executionMode: "sequential",
   },

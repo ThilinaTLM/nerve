@@ -19,6 +19,7 @@
   import { Input } from "$lib/components/ui/input";
   import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
+  import type { ConversationActivityState } from "$lib/stores/workbench/conversation-activity";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as Tooltip from "$lib/components/ui/tooltip";
   import PanelSection from "$lib/components/app/utility/PanelSection.svelte";
@@ -52,6 +53,7 @@
     selectedProjectId?: string;
     selectedConversationId?: string;
     openConversationTabIds?: Set<string>;
+    conversationActivityById?: Record<string, ConversationActivityState>;
     searchFocusToken?: number;
     onOpenConversation?: (conversationId: string) => void;
     onNewConversationInProject?: (projectDir: string) => void;
@@ -71,6 +73,7 @@
     selectedProjectId,
     selectedConversationId,
     openConversationTabIds,
+    conversationActivityById = {},
     searchFocusToken = 0,
     onOpenConversation,
     onNewConversationInProject,
@@ -249,6 +252,7 @@
                     {row}
                     isOpen={openConversationTabIds?.has(row.conversation.id) ?? false}
                     isActive={row.conversation.id === selectedConversationId}
+                    activity={conversationActivityById[row.conversation.id]}
                     menuItems={conversationMenu(group.project, row.conversation)}
                     {onOpenConversation}
                   />
@@ -297,6 +301,7 @@
     {agents}
     {selectedConversationId}
     {openConversationTabIds}
+    {conversationActivityById}
     {onOpenConversation}
     buildMenu={(conversation) =>
       pendingConversations

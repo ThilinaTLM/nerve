@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   createId,
+  type ProcessEnvInfo,
   type ProcessLogEvent,
   type ProcessLogQuery,
   type ProcessLogQueryResponse,
@@ -24,6 +25,15 @@ import {
   ProcessRepository,
   type ProcessSupervisor,
 } from "./index.js";
+import {
+  type ProcessLaunchConfigStore,
+  UnconfiguredProcessLaunchConfigStore,
+} from "./process-launch-config.store.js";
+
+export interface ProcessManagerOptions {
+  supervisor?: ProcessSupervisor;
+  launchConfigs?: ProcessLaunchConfigStore;
+}
 
 interface ManagedProcess {
   child?: ChildProcess;
@@ -45,14 +55,19 @@ export class ProcessManager {
   private readonly processRepository: ProcessRepository;
   private readonly processLogs: ProcessLogService;
   private readonly processReadiness = new ProcessReadinessService();
+  private readonly supervisor: ProcessSupervisor;
+  private readonly launchConfigs: ProcessLaunchConfigStore;
 
   constructor(
     storage: InitializedStorage,
     private readonly events: EventBus,
     private readonly index: IndexStore,
     private readonly logger?: ApplicationLogger,
-    private readonly supervisor: ProcessSupervisor = defaultProcessSupervisor,
+    options: ProcessManagerOptions = {},
   ) {
+    this.supervisor = options.supervisor ?? defaultProcessSupervisor;
+    this.launchConfigs =
+      options.launchConfigs ?? new UnconfiguredProcessLaunchConfigStore();
     this.processRepository = new ProcessRepository(storage);
     this.processLogs = new ProcessLogService(events);
   }
@@ -111,6 +126,16 @@ export class ProcessManager {
     const dir = this.processDir(id);
     await mkdir(dir, { recursive: true, mode: 0o755 });
 
+    const envInfo = buildProcessEnvInfo(request.env);
+    if (envInfo) {
+      await this.launchConfigs.write(id, {
+        version: 1,
+        env: request.env,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
     const readiness = this.processReadiness.buildReadiness(request);
     const record: ProcessRecord = {
       id,
@@ -121,6 +146,7 @@ export class ProcessManager {
       agentId: request.agentId,
       cwd: resolve(request.cwd),
       command: request.command,
+      envInfo,
       status: "starting",
       readiness,
       stdoutPath: join(dir, "stdout.log"),
@@ -142,7 +168,12 @@ export class ProcessManager {
       projectId: record.projectId,
       conversationId: record.conversationId,
       agentId: record.agentId,
-      context: { name: record.name, cwd: record.cwd, command: record.command },
+      context: {
+        name: record.name,
+        cwd: record.cwd,
+        command: record.command,
+        envKeyCount: record.envInfo?.keys.length ?? 0,
+      },
     });
 
     const spawned = this.supervisor.spawn(request.command, {
@@ -288,6 +319,7 @@ export class ProcessManager {
 
   async restartProcess(processId: string): Promise<ProcessRecord> {
     const record = this.getProcess(processId);
+    const env = await this.envForRestart(record);
     if (record.status === "orphaned") {
       await this.cleanupOrphanedProcess(record.id, { timeoutMs: 5000 });
     } else if (isActiveProcessStatus(record.status)) {
@@ -301,6 +333,7 @@ export class ProcessManager {
       agentId: record.agentId,
       cwd: record.cwd,
       command: record.command,
+      env,
       readyOnUrl: record.readiness.readyOnUrl,
       readyPattern: record.readiness.readyPattern,
       readyTimeoutMs: record.readiness.timeoutMs,
@@ -313,6 +346,7 @@ export class ProcessManager {
     if (isActiveProcessStatus(record.status)) {
       throw new Error("Stop the process before removing it.");
     }
+    await this.launchConfigs.remove(record.id);
     const managed = this.managed.get(record.id);
     if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
     this.managed.delete(record.id);
@@ -381,6 +415,31 @@ export class ProcessManager {
     query: ProcessLogQuery = {},
   ): Promise<ProcessLogQueryResponse> {
     return this.processLogs.queryLogs(this.getProcess(processId), query);
+  }
+
+  private async envForRestart(
+    record: ProcessRecord,
+  ): Promise<Record<string, string> | undefined> {
+    if (!record.envInfo?.persisted) return undefined;
+
+    const config = await this.launchConfigs.read(record.id);
+    if (!config) {
+      throw new Error(
+        "Process was started with persisted env metadata, but launch env is missing; refusing to restart without env.",
+      );
+    }
+
+    const env = config.env;
+    const missingKeys = record.envInfo.keys.filter(
+      (key) => !env || !Object.hasOwn(env, key),
+    );
+    if (missingKeys.length > 0) {
+      throw new Error(
+        `Process launch env is missing persisted keys (${missingKeys.join(", ")}); refusing to restart without env.`,
+      );
+    }
+
+    return env ? { ...env } : undefined;
   }
 
   private async captureOutput(
@@ -928,6 +987,16 @@ export class ProcessManager {
   private processDir(processId: string): string {
     return this.processRepository.processDir(processId);
   }
+}
+
+function buildProcessEnvInfo(
+  env?: Record<string, string>,
+): ProcessEnvInfo | undefined {
+  const keys = Object.keys(env ?? {})
+    .filter((key) => key.length > 0)
+    .sort();
+  if (keys.length === 0) return undefined;
+  return { keys, persisted: true, redacted: true };
 }
 
 export { isActiveProcessStatus } from "./index.js";

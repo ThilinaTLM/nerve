@@ -114,6 +114,7 @@
   const approvals = $derived(workbenchSelectors.approvals);
   const pendingUserQuestion = $derived(workbenchSelectors.activeUserQuestion);
   const pendingPlanReview = $derived(workbenchSelectors.activePlanReview);
+  const conversationActivityById = $derived(workbenchSelectors.conversationActivityById);
   const processes = $derived(workbenchSelectors.scopedProcesses);
   const treeNodes = $derived(workbenchSelectors.treeNodes);
   const processLogs = $derived(workbenchSelectors.processLogs);
@@ -374,6 +375,7 @@
                 selectedProjectId={selection.projectId}
                 selectedConversationId={selection.conversationId}
                 {openConversationTabIds}
+                {conversationActivityById}
                 searchFocusToken={projectSearchFocusToken}
                 onOpenConversation={openConversation}
                 onNewConversationInProject={newConversationInProject}

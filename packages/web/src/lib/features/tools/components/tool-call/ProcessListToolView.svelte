@@ -6,6 +6,12 @@
 
   type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "process_list" }> };
   let { view }: Props = $props();
+
+  const envMeta = (process: { envInfo?: { keys: string[] } }) => {
+    const count = process.envInfo?.keys.length ?? 0;
+    return count > 0 ? `env ${count} redacted` : undefined;
+  };
+  const envKeys = (process: { envInfo?: { keys: string[] } }) => process.envInfo?.keys.join(", ");
 </script>
 
 {#if view.processes.length === 0}
@@ -26,6 +32,9 @@
         {/if}
         {#if process.status === "orphaned" && process.runtime?.platform}
           <span class="meta">{process.runtime.platform}</span>
+        {/if}
+        {#if envMeta(process)}
+          <span class="meta" title={envKeys(process)}>{envMeta(process)}</span>
         {/if}
         {#if url}<a class="url" href={url} target="_blank" rel="noreferrer noopener">{url}</a>{/if}
       </li>

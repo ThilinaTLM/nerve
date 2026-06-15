@@ -32,6 +32,21 @@ export const processRuntimeSchema = z.object({
 });
 export type ProcessRuntime = z.infer<typeof processRuntimeSchema>;
 
+export const processEnvInfoSchema = z.object({
+  keys: z.array(z.string().min(1)).default([]),
+  persisted: z.boolean(),
+  redacted: z.literal(true).default(true),
+});
+export type ProcessEnvInfo = z.infer<typeof processEnvInfoSchema>;
+
+export const processLaunchConfigSchema = z.object({
+  version: z.literal(1),
+  env: z.record(z.string(), z.string()).optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ProcessLaunchConfig = z.infer<typeof processLaunchConfigSchema>;
+
 export const processRecordSchema = z.object({
   id: z.string().startsWith("proc_"),
   name: z.string().min(1).optional(),
@@ -41,7 +56,7 @@ export const processRecordSchema = z.object({
   agentId: z.string().startsWith("agent_").optional(),
   cwd: z.string().min(1),
   command: z.string().min(1),
-  env: z.record(z.string(), z.string()).optional(),
+  envInfo: processEnvInfoSchema.optional(),
   status: processStatusSchema,
   readiness: processReadinessSchema,
   stdoutPath: z.string().min(1),

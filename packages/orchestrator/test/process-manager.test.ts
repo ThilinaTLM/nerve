@@ -8,12 +8,15 @@ import { after, describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   createId,
+  type ProcessLaunchConfig,
   type ProcessRecord,
   type ProcessRuntime,
 } from "@nerve/shared";
+import type { ProcessLaunchConfigStore } from "../src/domains/processes/process-launch-config.store.js";
 import { ProcessManager } from "../src/domains/processes/process-manager.js";
 import type {
   ProcessSupervisor,
+  SpawnManagedProcessOptions,
   TerminateProcessResult,
 } from "../src/domains/processes/process-supervisor.js";
 import { EventBus } from "../src/infrastructure/events/index.js";
@@ -127,7 +130,8 @@ describe("process manager runtime metadata", () => {
   it("hydrates active persisted records as orphaned and preserves runtime", async () => {
     const runtime = runtimeMetadata({ childPid: 4321, processGroupId: 4321 });
     const { supervisor } = fakeSupervisor({ child: fakeChild(4321), runtime });
-    const { manager, storage, index } = await createManager(supervisor);
+    const { manager, storage, index, launchConfigs } =
+      await createManager(supervisor);
     const process = await startFakeProcess(manager, storage);
 
     const hydrated = new ProcessManager(
@@ -135,7 +139,10 @@ describe("process manager runtime metadata", () => {
       new EventBus(storage.paths.home, index),
       index,
       undefined,
-      fakeSupervisor({ runtime }).supervisor,
+      {
+        supervisor: fakeSupervisor({ runtime }).supervisor,
+        launchConfigs,
+      },
     );
     await hydrated.hydrate();
 
@@ -143,6 +150,217 @@ describe("process manager runtime metadata", () => {
     assert.equal(record.status, "orphaned");
     assert.deepEqual(record.runtime, runtime);
     assert.match(record.error ?? "", /process_stop/);
+  });
+});
+
+describe("process manager launch env", () => {
+  it("stores env config-side and exposes only redacted envInfo", async () => {
+    const env = { PORT: "4321", API_TOKEN: "secret" };
+    const { supervisor, spawnCalls } = fakeSupervisor({});
+    const { manager, storage, events, launchConfigs } =
+      await createManager(supervisor);
+
+    const process = await startFakeProcess(manager, storage, env);
+    const persisted = await readJsonFile<Record<string, unknown>>(
+      join(storage.paths.home, "proc", process.id, "process.json"),
+    );
+    const launchConfig = await launchConfigs.read(process.id);
+
+    assert.deepEqual(spawnCalls[0]?.options.env, env);
+    assert.deepEqual(process.envInfo, {
+      keys: ["API_TOKEN", "PORT"],
+      persisted: true,
+      redacted: true,
+    });
+    assert.equal("env" in process, false);
+    assert.equal("env" in persisted, false);
+    assert.deepEqual(launchConfig?.env, env);
+    assert.equal(
+      JSON.stringify(events.replaySince(0)).includes("secret"),
+      false,
+    );
+  });
+
+  it("passes stored env to replacement spawn on restart", async () => {
+    const env = { PORT: "4321", API_TOKEN: "secret" };
+    const child = fakeChild();
+    const { supervisor, spawnCalls } = fakeSupervisor({
+      child,
+      onTerminate(signal) {
+        if (signal === "SIGTERM") child.emitClose(0, signal);
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const process = await startFakeProcess(manager, storage, env);
+    await manager.stopProcess(process.id);
+
+    const restarted = await manager.restartProcess(process.id);
+
+    assert.equal(spawnCalls.length, 2);
+    assert.deepEqual(spawnCalls[1]?.options.env, env);
+    assert.equal(restarted.restartedFromProcessId, process.id);
+    assert.deepEqual(restarted.envInfo, {
+      keys: ["API_TOKEN", "PORT"],
+      persisted: true,
+      redacted: true,
+    });
+    assert.equal("env" in restarted, false);
+  });
+
+  it("loads restart env before stopping an active process", async () => {
+    const env = { API_TOKEN: "secret" };
+    const { supervisor, terminateSignals, spawnCalls } = fakeSupervisor({});
+    const { manager, storage, launchConfigs } = await createManager(supervisor);
+    const process = await startFakeProcess(manager, storage, env);
+    await launchConfigs.remove(process.id);
+
+    await assert.rejects(
+      () => manager.restartProcess(process.id),
+      /launch env is missing/,
+    );
+
+    assert.deepEqual(terminateSignals, []);
+    assert.equal(spawnCalls.length, 1);
+    assert.equal(manager.getProcess(process.id).status, "running");
+  });
+
+  it("loads restart env before cleaning an orphaned process", async () => {
+    const runtime = runtimeMetadata({ childPid: 4321, processGroupId: 4321 });
+    const { supervisor: firstSupervisor } = fakeSupervisor({ runtime });
+    const { manager, storage, index, launchConfigs } =
+      await createManager(firstSupervisor);
+    const process = await startFakeProcess(manager, storage, {
+      API_TOKEN: "secret",
+    });
+    await launchConfigs.remove(process.id);
+
+    const { supervisor, runtimeTerminateSignals, spawnCalls } = fakeSupervisor({
+      runtime,
+      isRuntimeTargetAlive: () => false,
+    });
+    const hydrated = new ProcessManager(
+      storage,
+      new EventBus(storage.paths.home, index),
+      index,
+      undefined,
+      { supervisor, launchConfigs },
+    );
+    await hydrated.hydrate();
+
+    await assert.rejects(
+      () => hydrated.restartProcess(process.id),
+      /launch env is missing/,
+    );
+
+    assert.deepEqual(runtimeTerminateSignals, []);
+    assert.equal(spawnCalls.length, 0);
+    assert.equal(hydrated.getProcess(process.id).status, "orphaned");
+  });
+
+  it("continues to restart env-less records", async () => {
+    const child = fakeChild();
+    const { supervisor, spawnCalls } = fakeSupervisor({
+      child,
+      onTerminate(signal) {
+        if (signal === "SIGTERM") child.emitClose(0, signal);
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const process = await startFakeProcess(manager, storage);
+    await manager.stopProcess(process.id);
+
+    const restarted = await manager.restartProcess(process.id);
+
+    assert.equal(spawnCalls.length, 2);
+    assert.equal(spawnCalls[1]?.options.env, undefined);
+    assert.equal(restarted.envInfo, undefined);
+  });
+
+  it("deletes launch config when removing a process", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({
+      child,
+      onTerminate(signal) {
+        if (signal === "SIGTERM") child.emitClose(0, signal);
+      },
+    });
+    const { manager, storage, launchConfigs } = await createManager(supervisor);
+    const process = await startFakeProcess(manager, storage, {
+      API_TOKEN: "secret",
+    });
+    await manager.stopProcess(process.id);
+
+    await manager.removeProcess(process.id);
+
+    assert.equal(await launchConfigs.read(process.id), undefined);
+  });
+
+  it("hydrates envInfo without raw env values", async () => {
+    const env = { API_TOKEN: "secret", PORT: "4321" };
+    const runtime = runtimeMetadata({ childPid: 4321, processGroupId: 4321 });
+    const { supervisor } = fakeSupervisor({ runtime });
+    const { manager, storage, index, launchConfigs } =
+      await createManager(supervisor);
+    const process = await startFakeProcess(manager, storage, env);
+
+    const hydrated = new ProcessManager(
+      storage,
+      new EventBus(storage.paths.home, index),
+      index,
+      undefined,
+      { supervisor: fakeSupervisor({ runtime }).supervisor, launchConfigs },
+    );
+    await hydrated.hydrate();
+
+    const record = hydrated.getProcess(process.id);
+    const persisted = await readJsonFile<Record<string, unknown>>(
+      join(storage.paths.home, "proc", process.id, "process.json"),
+    );
+    assert.equal(record.status, "orphaned");
+    assert.deepEqual(record.envInfo, {
+      keys: ["API_TOKEN", "PORT"],
+      persisted: true,
+      redacted: true,
+    });
+    assert.equal("env" in record, false);
+    assert.equal("env" in persisted, false);
+  });
+
+  it("preserves env when restarting an orphaned record after cleanup", async () => {
+    const env = { API_TOKEN: "secret", PORT: "4321" };
+    const runtime = runtimeMetadata({ childPid: 1234, processGroupId: 1234 });
+    const replacementRuntime = runtimeMetadata({
+      childPid: 9876,
+      processGroupId: 9876,
+      spawnedAt: "2026-01-02T03:05:05.000Z",
+    });
+    const { supervisor: firstSupervisor } = fakeSupervisor({ runtime });
+    const { manager, storage, index, launchConfigs } =
+      await createManager(firstSupervisor);
+    const process = await startFakeProcess(manager, storage, env);
+    const { supervisor, runtimeTerminateSignals, spawnCalls } = fakeSupervisor({
+      runtime: replacementRuntime,
+      isRuntimeTargetAlive: () => false,
+    });
+    const hydrated = new ProcessManager(
+      storage,
+      new EventBus(storage.paths.home, index),
+      index,
+      undefined,
+      { supervisor, launchConfigs },
+    );
+    await hydrated.hydrate();
+
+    const restarted = await hydrated.restartProcess(process.id);
+
+    assert.deepEqual(runtimeTerminateSignals, ["SIGTERM"]);
+    assert.deepEqual(spawnCalls[0]?.options.env, env);
+    assert.equal(restarted.restartedFromProcessId, process.id);
+    assert.deepEqual(restarted.envInfo, {
+      keys: ["API_TOKEN", "PORT"],
+      persisted: true,
+      redacted: true,
+    });
   });
 });
 
@@ -295,17 +513,38 @@ describe("process manager orphan cleanup", () => {
   });
 });
 
+class MemoryProcessLaunchConfigStore implements ProcessLaunchConfigStore {
+  readonly configs = new Map<string, ProcessLaunchConfig>();
+
+  async write(processId: string, config: ProcessLaunchConfig): Promise<void> {
+    this.configs.set(processId, structuredClone(config));
+  }
+
+  async read(processId: string): Promise<ProcessLaunchConfig | undefined> {
+    const config = this.configs.get(processId);
+    return config ? structuredClone(config) : undefined;
+  }
+
+  async remove(processId: string): Promise<void> {
+    this.configs.delete(processId);
+  }
+}
+
 async function tempHome(prefix: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   roots.push(root);
   return root;
 }
 
-async function createManager(supervisor: ProcessSupervisor): Promise<{
+async function createManager(
+  supervisor: ProcessSupervisor,
+  launchConfigs = new MemoryProcessLaunchConfigStore(),
+): Promise<{
   manager: ProcessManager;
   storage: InitializedStorage;
   events: EventBus;
   index: IndexStore;
+  launchConfigs: MemoryProcessLaunchConfigStore;
 }> {
   const storage = await initializeStorage(await tempHome("nerve-processes-"));
   const index = new IndexStore(storage.paths.sqlitePath);
@@ -313,10 +552,14 @@ async function createManager(supervisor: ProcessSupervisor): Promise<{
   indexes.push(index);
   const events = new EventBus(storage.paths.home, index);
   return {
-    manager: new ProcessManager(storage, events, index, undefined, supervisor),
+    manager: new ProcessManager(storage, events, index, undefined, {
+      supervisor,
+      launchConfigs,
+    }),
     storage,
     events,
     index,
+    launchConfigs,
   };
 }
 
@@ -355,7 +598,7 @@ function runtimeMetadata(
 type FakeSupervisorOptions = {
   child?: FakeChild;
   runtime?: ProcessRuntime;
-  onSpawn?: (command: string) => void;
+  onSpawn?: (command: string, options: SpawnManagedProcessOptions) => void;
   onTerminate?: (signal: NodeJS.Signals) => void | Promise<void>;
   onTerminateRuntime?: (
     runtime: ProcessRuntime,
@@ -374,20 +617,27 @@ function fakeSupervisor(options: FakeSupervisorOptions): {
   terminateSignals: NodeJS.Signals[];
   runtimeTerminateSignals: NodeJS.Signals[];
   spawnCommands: string[];
+  spawnCalls: Array<{ command: string; options: SpawnManagedProcessOptions }>;
 } {
   const child = options.child ?? fakeChild();
   const runtime = options.runtime ?? runtimeMetadata({ childPid: child.pid });
   const terminateSignals: NodeJS.Signals[] = [];
   const runtimeTerminateSignals: NodeJS.Signals[] = [];
   const spawnCommands: string[] = [];
+  const spawnCalls: Array<{
+    command: string;
+    options: SpawnManagedProcessOptions;
+  }> = [];
   return {
     terminateSignals,
     runtimeTerminateSignals,
     spawnCommands,
+    spawnCalls,
     supervisor: {
-      spawn(command) {
+      spawn(command, spawnOptions) {
         spawnCommands.push(command);
-        options.onSpawn?.(command);
+        spawnCalls.push({ command, options: spawnOptions });
+        options.onSpawn?.(command, spawnOptions);
         return { child, runtime };
       },
       async terminate(terminatedChild, signal) {
@@ -414,10 +664,12 @@ function fakeSupervisor(options: FakeSupervisorOptions): {
 async function startFakeProcess(
   manager: ProcessManager,
   storage: InitializedStorage,
+  env?: Record<string, string>,
 ) {
   return manager.startProcess({
     cwd: storage.paths.home,
     command: "fake long-running command",
+    env,
     readyTimeoutMs: 0,
   });
 }

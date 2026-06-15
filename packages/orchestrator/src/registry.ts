@@ -41,6 +41,7 @@ import {
   type RuntimeServices,
 } from "./runtime/runtime-composition.js";
 import { RuntimeState } from "./runtime/runtime-state.js";
+import type { SecretProvider } from "./secrets.js";
 
 export class RuntimeRegistry {
   private readonly state = new RuntimeState();
@@ -89,6 +90,7 @@ export class RuntimeRegistry {
     private readonly events: EventBus,
     private readonly index: IndexStore,
     auth: AuthManager,
+    secrets: SecretProvider,
     private readonly subscriptionUsage: SubscriptionUsageService,
     logger: ApplicationLogger,
   ) {
@@ -97,6 +99,7 @@ export class RuntimeRegistry {
       events,
       index,
       auth,
+      secrets,
       subscriptionUsage,
       logger,
     });

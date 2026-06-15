@@ -14,29 +14,13 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Search from "@lucide/svelte/icons/search";
   import X from "@lucide/svelte/icons/x";
-  import { notify } from "$lib/notifications/notify.svelte";
-  import {
-    createGitBranch,
-    discardGitFile,
-    discoverGitRepos,
-    fetchGit,
-    getGitOverview,
-    getGithubStatus,
-    listGitBranches,
-    listGithubPrs,
-    stageGitFile,
-    switchGitBranch,
-    syncGitBranch,
-    unstageGitFile,
-    type AgentRecord,
-    type GitBranchSummary,
-    type GitFileChange,
-    type GithubChecksSummary,
-    type GithubPr,
-    type GithubStatusResponse,
-    type GitOverviewResponse,
-    type GitRepoSummary,
-    type ProjectRecord,
+  import type {
+    AgentRecord,
+    GitBranchSummary,
+    GitFileChange,
+    GithubChecksSummary,
+    GitRepoSummary,
+    ProjectRecord,
   } from "../../../api";
   import { Badge, type BadgeTone } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -47,9 +31,21 @@
   import { ToggleGroup, ToggleGroupItem } from "$lib/components/ui/toggle-group";
   import { cn } from "$lib/utils.js";
   import { hasPendingPrChecks } from "$lib/features/git/checks";
-  import { invalidateGit } from "../../../stores/workbench/git-context.svelte";
   import { openPrPane } from "../../../stores/workbench/pr-tabs.svelte";
-  import { workbenchState } from "../../../stores/workbench/state.svelte";
+  import {
+    autoRefreshGitOverview,
+    bulkStageGitFiles,
+    createGitRepoBranch,
+    fetchGitRepo,
+    gitPanelState,
+    mutateGitFile,
+    refreshBranches,
+    refreshPrs,
+    selectGitProject,
+    selectGitRepo,
+    syncGitRepo,
+    switchGitRepoBranch,
+  } from "../../../stores/workbench/git-panel.svelte";
   import PanelSection from "./PanelSection.svelte";
 
   type Props = {
@@ -57,68 +53,11 @@
     activeAgent?: AgentRecord;
   };
 
-  type LoadOverviewOptions = {
-    silent?: boolean;
-    onlyIfChanged?: boolean;
-  };
-
   const GIT_OVERVIEW_AUTO_REFRESH_MS = 4_000;
   const GITHUB_CHECKS_POLL_MS = 10_000;
   const MAX_CHANGE_PATH_LENGTH = 48;
 
-  let { activeProject }: Props = $props();
-
-  type FileMutation = { path: string; action: "stage" | "unstage" | "discard" };
-
-  type RepoState = {
-    overview?: GitOverviewResponse;
-    github?: GithubStatusResponse;
-    prs: GithubPr[];
-    branches: GitBranchSummary[];
-    loadingOverview: boolean;
-    loadingPrs: boolean;
-    loadingBranches: boolean;
-    prsRequestInFlight: boolean;
-    fetching: boolean;
-    syncing: boolean;
-    switchingBranch?: string;
-    creatingBranch: boolean;
-    fileMutation?: FileMutation;
-    bulkMutation?: "stage-all" | "unstage-all";
-    lastOverviewFingerprint?: string;
-    overviewRequestInFlight: boolean;
-    loaded: boolean;
-  };
-
-  function createRepoState(): RepoState {
-    return {
-      overview: undefined,
-      github: undefined,
-      prs: [],
-      branches: [],
-      loadingOverview: false,
-      loadingPrs: false,
-      loadingBranches: false,
-      prsRequestInFlight: false,
-      fetching: false,
-      syncing: false,
-      switchingBranch: undefined,
-      creatingBranch: false,
-      fileMutation: undefined,
-      bulkMutation: undefined,
-      lastOverviewFingerprint: undefined,
-      overviewRequestInFlight: false,
-      loaded: false,
-    };
-  }
-
-  let repos = $state<GitRepoSummary[]>([]);
-  let selectedRepo = $state(".");
-  // Per-repo state cache so switching repositories never discards already-loaded
-  // or in-flight state. Background operations write to their own repo entry and
-  // keep running even while another repo is on screen.
-  let repoStates = $state<Record<string, RepoState>>({});
-  let discoverError = $state<string | undefined>(undefined);
+  let { activeProject, activeAgent: _activeAgent }: Props = $props();
 
   let repoSectionOpen = $state(true);
   let changesSectionOpen = $state(true);
@@ -130,29 +69,24 @@
   let discardCandidate = $state<{ repo: string; file: GitFileChange } | undefined>(undefined);
   let discardDialogOpen = $state(false);
 
-  function repoState(repo: string): RepoState {
-    if (!repoStates[repo]) {
-      repoStates[repo] = createRepoState();
-    }
-    return repoStates[repo];
-  }
-
-  function repoMutationInProgress(state: RepoState): boolean {
-    return (
-      state.fetching ||
-      state.syncing ||
-      state.creatingBranch ||
-      Boolean(state.switchingBranch) ||
-      Boolean(state.fileMutation) ||
-      Boolean(state.bulkMutation)
-    );
-  }
-
-  const current = $derived(repoStates[selectedRepo]);
+  const projectState = $derived(
+    activeProject ? gitPanelState.projects[activeProject.id] : undefined,
+  );
+  const repos = $derived(projectState?.repos ?? []);
+  const selectedRepo = $derived(projectState?.selectedRepo ?? ".");
+  const current = $derived(projectState?.repoStates[selectedRepo]);
   const overview = $derived(current?.overview);
   const github = $derived(current?.github);
   const prs = $derived(current?.prs ?? []);
   const branches = $derived(current?.branches ?? []);
+  const discoverError = $derived(projectState?.discoverError);
+  const loadingRepos = $derived(projectState?.loadingRepos ?? false);
+  const loadingInitialRepos = $derived(
+    Boolean(activeProject && !projectState) ||
+      loadingRepos ||
+      Boolean(projectState?.reposRequestInFlight && !projectState.loaded && repos.length === 0),
+  );
+  const refreshingRepos = $derived(projectState?.refreshingRepos ?? false);
   const loadingOverview = $derived(current?.loadingOverview ?? false);
   const loadingPrs = $derived(current?.loadingPrs ?? false);
   const loadingBranches = $derived(current?.loadingBranches ?? false);
@@ -162,6 +96,9 @@
   const creatingBranch = $derived(current?.creatingBranch ?? false);
   const fileMutation = $derived(current?.fileMutation);
   const bulkMutation = $derived(current?.bulkMutation);
+  const refreshing = $derived(
+    refreshingRepos || (loadingOverview && Boolean(overview)),
+  );
 
   const stagedFiles = $derived(overview?.files.filter((file) => file.staged) ?? []);
   const unstagedFiles = $derived(
@@ -183,33 +120,6 @@
       return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
     }),
   );
-
-  function repoStorageKey(projectId: string): string {
-    return `nerve.git.repo.${projectId}`;
-  }
-
-  function errorMessage(error: unknown): string {
-    if (error instanceof Error) {
-      try {
-        const parsed = JSON.parse(error.message);
-        if (parsed?.error?.message) return String(parsed.error.message);
-      } catch {
-        // not JSON
-      }
-      return error.message;
-    }
-    return String(error);
-  }
-
-  function mergeRepoSummary(next: GitRepoSummary) {
-    repos = repos.map((repo) =>
-      repo.relativePath === next.relativePath ? next : repo,
-    );
-    const state = repoStates[next.relativePath];
-    if (state?.overview && state.overview.repo.relativePath === next.relativePath) {
-      state.overview = { ...state.overview, repo: next };
-    }
-  }
 
   function repoPathLabel(repo: GitRepoSummary): string {
     return repo.relativePath === "." ? "project root" : repo.relativePath;
@@ -290,247 +200,40 @@
     }
   }
 
-  function overviewFingerprint(next: GitOverviewResponse): string {
-    return JSON.stringify({
-      repo: {
-        currentBranch: next.repo.currentBranch,
-        detached: next.repo.detached,
-        ahead: next.repo.ahead,
-        behind: next.repo.behind,
-        hasUpstream: next.repo.hasUpstream,
-        hasRemote: next.repo.hasRemote,
-        baseBranch: next.repo.baseBranch,
-        onBaseBranch: next.repo.onBaseBranch,
-        mergedToBase: next.repo.mergedToBase,
-      },
-      counts: {
-        staged: next.stagedCount,
-        unstaged: next.unstagedCount,
-        untracked: next.untrackedCount,
-        insertions: next.insertions,
-        deletions: next.deletions,
-      },
-      files: next.files.map((file) => ({
-        path: file.path,
-        renamedFrom: file.renamedFrom,
-        index: file.index,
-        worktree: file.worktree,
-        staged: file.staged,
-        untracked: file.untracked,
-      })),
-      latestCommit: next.recentCommits[0]?.hash ?? null,
-    });
-  }
-
-  async function loadRepos(project: ProjectRecord) {
-    discoverError = undefined;
-    try {
-      const result = await discoverGitRepos(project.id);
-      if (activeProject?.id !== project.id) return;
-      repos = result.repos;
-      repoStates = {};
-      const stored =
-        typeof localStorage !== "undefined"
-          ? localStorage.getItem(repoStorageKey(project.id))
-          : null;
-      const fallback = result.repos[0]?.relativePath ?? ".";
-      selectedRepo =
-        stored && result.repos.some((repo) => repo.relativePath === stored)
-          ? stored
-          : fallback;
-      if (result.repos.length > 0) {
-        for (const repo of result.repos) repoState(repo.relativePath);
-        await Promise.all([loadOverview(selectedRepo), loadGithub(selectedRepo)]);
-      }
-    } catch (error) {
-      discoverError = errorMessage(error);
-      repos = [];
-      repoStates = {};
-    }
-  }
-
-  async function loadOverview(repo: string, options: LoadOverviewOptions = {}) {
-    if (!activeProject) return;
-    const state = repoState(repo);
-    if (state.overviewRequestInFlight) return;
-    const { silent = false, onlyIfChanged = false } = options;
-    const projectId = activeProject.id;
-    state.overviewRequestInFlight = true;
-    if (!silent) state.loadingOverview = true;
-    try {
-      const next = await getGitOverview(projectId, repo);
-      if (activeProject?.id !== projectId) return;
-      mergeRepoSummary(next.repo);
-      const fingerprint = overviewFingerprint(next);
-      if (!onlyIfChanged || fingerprint !== state.lastOverviewFingerprint) {
-        state.overview = next;
-      }
-      state.lastOverviewFingerprint = fingerprint;
-      state.loaded = true;
-    } catch (error) {
-      if (!silent) notify.error(`Git overview failed: ${errorMessage(error)}`);
-    } finally {
-      if (!silent) state.loadingOverview = false;
-      state.overviewRequestInFlight = false;
-    }
-  }
-
-  async function loadBranches(repo: string) {
-    if (!activeProject) return;
-    const state = repoState(repo);
-    const projectId = activeProject.id;
-    state.loadingBranches = true;
-    try {
-      const result = await listGitBranches(projectId, repo);
-      if (activeProject?.id !== projectId) return;
-      state.branches = result.branches;
-    } catch (error) {
-      notify.error(`Could not list branches: ${errorMessage(error)}`);
-    } finally {
-      state.loadingBranches = false;
-    }
-  }
-
-  async function loadGithub(repo: string) {
-    if (!activeProject) return;
-    const state = repoState(repo);
-    try {
-      const status = await getGithubStatus(activeProject.id, repo);
-      state.github = status;
-      if (status.authenticated) {
-        await loadPrs(repo);
-      } else {
-        state.prs = [];
-      }
-    } catch (error) {
-      state.github = {
-        available: false,
-        authenticated: false,
-        login: null,
-        reason: errorMessage(error),
-      };
-      state.prs = [];
-    }
-  }
-
-  async function loadPrs(repo: string, silent = false) {
-    if (!activeProject) return;
-    const state = repoState(repo);
-    if (state.prsRequestInFlight) return;
-    const projectId = activeProject.id;
-    state.prsRequestInFlight = true;
-    if (!silent) state.loadingPrs = true;
-    try {
-      const result = await listGithubPrs(projectId, repo);
-      if (activeProject?.id !== projectId) return;
-      state.prs = result.prs;
-    } catch (error) {
-      if (!silent) notify.error(`Could not list PRs: ${errorMessage(error)}`);
-    } finally {
-      if (!silent) state.loadingPrs = false;
-      state.prsRequestInFlight = false;
-    }
-  }
-
   function selectRepo(value: string) {
-    if (value === selectedRepo) return;
-    selectedRepo = value;
-    if (activeProject && typeof localStorage !== "undefined") {
-      localStorage.setItem(repoStorageKey(activeProject.id), value);
-    }
+    if (!activeProject || value === selectedRepo) return;
+    selectGitRepo(activeProject.id, value);
     branchFilter = "";
     newBranchName = "";
     expandedPr = undefined;
-    const state = repoState(value);
-    if (!state.loaded) {
-      // First visit: load fresh state for this repo.
-      void loadOverview(value);
-      void loadGithub(value);
-    } else if (!repoMutationInProgress(state)) {
-      // Cached state is shown instantly; quietly refresh in the background
-      // without discarding what we already have.
-      void loadOverview(value, { silent: true, onlyIfChanged: true });
-      if (state.github?.authenticated) void loadPrs(value, true);
-    }
   }
 
   async function onFetch(repo: string) {
     if (!activeProject) return;
-    const state = repoState(repo);
-    state.fetching = true;
-    try {
-      const result = await fetchGit(activeProject.id, repo);
-      mergeRepoSummary(result.repo);
-      notify.success("Fetched from remote");
-      invalidateGit(activeProject.id);
-      await loadOverview(repo);
-      if (state.github?.authenticated) await loadPrs(repo, true);
-    } catch (error) {
-      notify.error(`Fetch failed: ${errorMessage(error)}`);
-    } finally {
-      state.fetching = false;
-    }
+    await fetchGitRepo(activeProject.id, repo);
   }
 
   async function onSync(repo: string) {
     if (!activeProject) return;
-    const state = repoState(repo);
-    state.syncing = true;
-    try {
-      const result = await syncGitBranch(activeProject.id, repo);
-      mergeRepoSummary(result.repo);
-      notify.success("Branch synced");
-      invalidateGit(activeProject.id);
-      await loadOverview(repo);
-      if (state.github?.authenticated) await loadPrs(repo, true);
-    } catch (error) {
-      notify.error(`Sync failed: ${errorMessage(error)}`);
-    } finally {
-      state.syncing = false;
-    }
+    await syncGitRepo(activeProject.id, repo);
   }
 
   async function onSwitchBranch(repo: string, branch: GitBranchSummary) {
-    if (!activeProject || branch.current) return;
-    const state = repoState(repo);
-    state.switchingBranch = branch.name;
-    try {
-      const result = await switchGitBranch(activeProject.id, repo, branch.name);
-      mergeRepoSummary(result.repo);
-      branchPopoverOpen = false;
-      branchFilter = "";
-      newBranchName = "";
-      state.branches = [];
-      notify.success(`Switched to ${result.repo.currentBranch ?? branch.name}`);
-      invalidateGit(activeProject.id);
-      await Promise.all([loadOverview(repo), loadGithub(repo)]);
-    } catch (error) {
-      notify.error(`Switch branch failed: ${errorMessage(error)}`);
-    } finally {
-      state.switchingBranch = undefined;
-    }
+    if (!activeProject) return;
+    const switched = await switchGitRepoBranch(activeProject.id, repo, branch);
+    if (!switched) return;
+    branchPopoverOpen = false;
+    branchFilter = "";
+    newBranchName = "";
   }
 
   async function onCreateBranch(repo: string) {
     if (!activeProject || newBranchName.trim().length === 0) return;
-    const name = newBranchName.trim();
-    const state = repoState(repo);
-    state.creatingBranch = true;
-    try {
-      const result = await createGitBranch(activeProject.id, repo, name);
-      mergeRepoSummary(result.repo);
-      branchPopoverOpen = false;
-      branchFilter = "";
-      newBranchName = "";
-      state.branches = [];
-      notify.success(`Created branch ${name}`);
-      invalidateGit(activeProject.id);
-      await Promise.all([loadOverview(repo), loadGithub(repo)]);
-    } catch (error) {
-      notify.error(`Create branch failed: ${errorMessage(error)}`);
-    } finally {
-      state.creatingBranch = false;
-    }
+    const created = await createGitRepoBranch(activeProject.id, repo, newBranchName);
+    if (!created) return;
+    branchPopoverOpen = false;
+    branchFilter = "";
+    newBranchName = "";
   }
 
   async function mutateFile(
@@ -539,50 +242,12 @@
     action: "stage" | "unstage" | "discard",
   ) {
     if (!activeProject) return;
-    const state = repoState(repo);
-    state.fileMutation = { path: file.path, action };
-    try {
-      const fn =
-        action === "stage"
-          ? stageGitFile
-          : action === "unstage"
-            ? unstageGitFile
-            : discardGitFile;
-      const result = await fn(activeProject.id, repo, file.path);
-      mergeRepoSummary(result.repo);
-      invalidateGit(activeProject.id);
-      await loadOverview(repo);
-    } catch (error) {
-      notify.error(`${action[0].toUpperCase()}${action.slice(1)} failed: ${errorMessage(error)}`);
-    } finally {
-      state.fileMutation = undefined;
-    }
+    await mutateGitFile(activeProject.id, repo, file, action);
   }
 
   async function bulkStage(repo: string, action: "stage-all" | "unstage-all") {
     if (!activeProject) return;
-    const state = repoState(repo);
-    const files = state.overview?.files ?? [];
-    const targets =
-      action === "stage-all"
-        ? files.filter((file) => file.untracked || file.worktree !== " ")
-        : files.filter((file) => file.staged);
-    if (targets.length === 0) return;
-    const fn = action === "stage-all" ? stageGitFile : unstageGitFile;
-    state.bulkMutation = action;
-    try {
-      for (const file of targets) {
-        await fn(activeProject.id, repo, file.path);
-      }
-      invalidateGit(activeProject.id);
-      await loadOverview(repo);
-    } catch (error) {
-      notify.error(
-        `${action === "stage-all" ? "Stage all" : "Unstage all"} failed: ${errorMessage(error)}`,
-      );
-    } finally {
-      state.bulkMutation = undefined;
-    }
+    await bulkStageGitFiles(activeProject.id, repo, action);
   }
 
   function requestDiscard(file: GitFileChange) {
@@ -596,17 +261,17 @@
     if (candidate) void mutateFile(candidate.repo, candidate.file, "discard");
   }
 
-  function autoRefreshOverview() {
-    if (
-      typeof document !== "undefined" &&
-      document.visibilityState !== "visible"
-    ) {
-      return;
-    }
-    const state = repoStates[selectedRepo];
-    if (!state || state.overviewRequestInFlight || repoMutationInProgress(state)) return;
-    void loadOverview(selectedRepo, { silent: true, onlyIfChanged: true });
-  }
+  let lastProjectId = $state<string | undefined>(undefined);
+  $effect(() => {
+    const project = activeProject;
+    const projectId = project?.id;
+    if (projectId === lastProjectId) return;
+    lastProjectId = projectId;
+    branchFilter = "";
+    newBranchName = "";
+    expandedPr = undefined;
+    if (project) queueMicrotask(() => selectGitProject(project));
+  });
 
   $effect(() => {
     const projectId = activeProject?.id;
@@ -614,7 +279,7 @@
     const repoCount = repos.length;
     if (!projectId || repoCount === 0 || !repo) return;
     const intervalId = window.setInterval(
-      autoRefreshOverview,
+      () => autoRefreshGitOverview(projectId, repo),
       GIT_OVERVIEW_AUTO_REFRESH_MS,
     );
     return () => window.clearInterval(intervalId);
@@ -622,7 +287,7 @@
 
   $effect(() => {
     if (!branchPopoverOpen || !activeProject || repos.length === 0) return;
-    void loadBranches(selectedRepo);
+    void refreshBranches(activeProject.id, selectedRepo);
   });
 
   $effect(() => {
@@ -635,35 +300,12 @@
 
     const refreshPendingPrs = () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      void loadPrs(repo, true);
+      void refreshPrs(projectId, repo, true);
     };
 
     refreshPendingPrs();
     const intervalId = window.setInterval(refreshPendingPrs, GITHUB_CHECKS_POLL_MS);
     return () => window.clearInterval(intervalId);
-  });
-
-  let lastProjectId = $state<string | undefined>(undefined);
-  $effect(() => {
-    if (activeProject && activeProject.id !== lastProjectId) {
-      lastProjectId = activeProject.id;
-      void loadRepos(activeProject);
-    } else if (!activeProject) {
-      lastProjectId = undefined;
-      repos = [];
-      repoStates = {};
-    }
-  });
-
-  let lastGitRefreshToken = workbenchState.gitRefreshToken;
-  $effect(() => {
-    const token = workbenchState.gitRefreshToken;
-    if (token === lastGitRefreshToken) return;
-    lastGitRefreshToken = token;
-    if (activeProject && repos.length > 0) {
-      void loadOverview(selectedRepo);
-      void loadGithub(selectedRepo);
-    }
   });
 </script>
 
@@ -737,16 +379,30 @@
     <p class="px-1 py-6 text-center text-xs text-muted-foreground">
       Select a project to inspect its git repositories.
     </p>
-  {:else if discoverError}
+  {:else if discoverError && repos.length === 0}
     <Card class="gap-0 overflow-hidden p-0">
       <div class="px-3 py-3 text-xs text-destructive">{discoverError}</div>
     </Card>
+  {:else if loadingInitialRepos}
+    <div class="flex items-center justify-center gap-2 px-1 py-6 text-xs text-muted-foreground">
+      <LoaderCircle size={13} class="animate-spin" /> Loading git repositories…
+    </div>
   {:else if repos.length === 0}
     <p class="px-1 py-6 text-center text-xs text-muted-foreground">
       No git repositories found in this directory (searched up to 2 levels deep).
     </p>
   {:else}
     <div class="flex flex-col gap-2">
+      {#if refreshing}
+        <div class="flex items-center gap-1 px-1 text-xs text-muted-foreground">
+          <LoaderCircle size={12} class="animate-spin" /> Refreshing…
+        </div>
+      {/if}
+      {#if discoverError}
+        <Card class="gap-0 overflow-hidden p-0">
+          <div class="px-3 py-2 text-xs text-warning">Using cached Git data. Refresh failed: {discoverError}</div>
+        </Card>
+      {/if}
       <PanelSection title="Repo & Branch" icon={GitBranch} bind:open={repoSectionOpen}>
         {#if overview}
           {@const repo = overview.repo}
@@ -1007,7 +663,7 @@
               ariaLabel="Refresh PRs"
               title={`Refresh PRs · signed in as ${github.login ?? "unknown"}`}
               disabled={loadingPrs}
-              onclick={() => void loadPrs(selectedRepo)}
+              onclick={() => activeProject && void refreshPrs(activeProject.id, selectedRepo)}
             >
               <RefreshCw class={loadingPrs ? "animate-spin" : ""} />
             </Button>

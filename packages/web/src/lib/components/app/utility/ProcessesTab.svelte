@@ -64,6 +64,13 @@
 
   const ACTIVE = new Set(["starting", "running", "ready", "stopping"]);
   const isActive = (process: ProcessRecord) => ACTIVE.has(process.status);
+  const envCount = (process: ProcessRecord) => process.envInfo?.keys.length ?? 0;
+  const envSummary = (process: ProcessRecord) => {
+    const count = envCount(process);
+    if (count === 0) return undefined;
+    return `${count} redacted ${count === 1 ? "var" : "vars"}`;
+  };
+  const envKeys = (process: ProcessRecord) => process.envInfo?.keys.join(", ");
 
   const running = $derived(processes.filter(isActive));
   const orphaned = $derived(processes.filter((process) => process.status === "orphaned"));
@@ -284,6 +291,9 @@
             <div class="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
               {process.command}
             </div>
+            {#if envCount(process) > 0}
+              <Badge tone="neutral" size="xs" title={envKeys(process)}>env</Badge>
+            {/if}
             {@render statusBadge(process.status)}
           </button>
         {/snippet}
@@ -293,6 +303,10 @@
         <span class="tt-row"><span class="tt-key">command</span>{process.command}</span>
         <span class="tt-row"><span class="tt-key">cwd</span>{process.cwd}</span>
         <span class="tt-row"><span class="tt-key">status</span>{process.status}</span>
+        {#if envCount(process) > 0}
+          <span class="tt-row"><span class="tt-key">env</span>{envSummary(process)}</span>
+          <span class="tt-row tt-env-keys"><span class="tt-key">keys</span>{envKeys(process)}</span>
+        {/if}
         <span class="tt-row"><span class="tt-key">started</span>{dateTimeLabel(process.startedAt)}</span>
         {#if process.runtime?.childPid}
           <span class="tt-row"><span class="tt-key">pid</span>{process.runtime.childPid}</span>

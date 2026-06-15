@@ -80,6 +80,7 @@ export function createOrchestratorState(
       events,
       index,
       auth,
+      secrets,
       subscriptionUsage,
       logger,
     ),

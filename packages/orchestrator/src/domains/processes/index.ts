@@ -1,4 +1,10 @@
 export { ProcessRepository } from "./process.repository.js";
+export type { ProcessLaunchConfigStore } from "./process-launch-config.store.js";
+export {
+  processLaunchConfigSecretName,
+  SecretProcessLaunchConfigStore,
+  UnconfiguredProcessLaunchConfigStore,
+} from "./process-launch-config.store.js";
 export type { ProcessLogCursor } from "./process-log.service.js";
 export { ProcessLogService } from "./process-log.service.js";
 export { ProcessReadinessService } from "./process-readiness.service.js";

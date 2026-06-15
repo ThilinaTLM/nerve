@@ -33,12 +33,18 @@
   const readiness = $derived(process?.readiness.matched ?? process?.readiness.outcome);
   const tone = $derived(processTone(process?.status));
   const runtimeMeta = $derived(processRuntimeLabel(process));
+  const envMeta = $derived(processEnvLabel(process));
 
   function processRuntimeLabel(record: ProcessRecord | undefined): string | undefined {
     const parts: string[] = [];
     if (record?.runtime?.childPid) parts.push(`pid ${record.runtime.childPid}`);
     if (record?.runtime?.platform) parts.push(record.runtime.platform);
     return parts.length > 0 ? parts.join(" · ") : undefined;
+  }
+
+  function processEnvLabel(record: ProcessRecord | undefined): string | undefined {
+    const count = record?.envInfo?.keys.length ?? 0;
+    return count > 0 ? `env ${count} redacted` : undefined;
   }
 </script>
 
@@ -52,7 +58,7 @@
       <div class="flex min-w-0 flex-1 items-baseline gap-2">
         <strong class="truncate text-sm font-semibold text-foreground" title={process.command}>{title}</strong>
         <span class="truncate font-mono text-xs text-muted-foreground" title={process.cwd}>
-          {shortenPath(process.cwd, homeDir)} · {readiness}{#if runtimeMeta} · {runtimeMeta}{/if}
+          {shortenPath(process.cwd, homeDir)} · {readiness}{#if runtimeMeta} · {runtimeMeta}{/if}{#if envMeta} · {envMeta}{/if}
         </span>
       </div>
       <Badge
