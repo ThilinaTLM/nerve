@@ -7,6 +7,7 @@ import {
 import { Hono } from "hono";
 import { HttpError } from "../http/errors.js";
 import { routeHandler } from "../http/responses.js";
+import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
 function prNumberParam(value: string | undefined): number {
@@ -31,7 +32,9 @@ export function createGitRoutes(state: OrchestratorState): Hono {
   app.get(
     "/projects/:projectId/git/repos",
     routeHandler(async (c) =>
-      c.json(await state.registry.git.discoverRepos(c.req.param("projectId"))),
+      c.json(
+        await state.registry.git.discoverRepos(routeParam(c, "projectId")),
+      ),
     ),
   );
 
@@ -40,7 +43,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json(
         await state.registry.git.overview(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           repoParam(c.req.query("repo")),
         ),
       ),
@@ -52,7 +55,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json(
         await state.registry.git.listBranches(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           repoParam(c.req.query("repo")),
         ),
       ),
@@ -65,7 +68,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       const body = createBranchRequestSchema.parse(await c.req.json());
       return c.json(
         await state.registry.git.createBranch(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           body.repo,
           body.name,
         ),
@@ -79,7 +82,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       const body = switchBranchRequestSchema.parse(await c.req.json());
       return c.json(
         await state.registry.git.switchBranch(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           body.repo,
           body.name,
         ),
@@ -93,7 +96,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       const body = gitFileActionRequestSchema.parse(await c.req.json());
       return c.json(
         await state.registry.git.stageFile(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           body.repo,
           body.path,
         ),
@@ -107,7 +110,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       const body = gitFileActionRequestSchema.parse(await c.req.json());
       return c.json(
         await state.registry.git.unstageFile(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           body.repo,
           body.path,
         ),
@@ -121,7 +124,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       const body = gitFileActionRequestSchema.parse(await c.req.json());
       return c.json(
         await state.registry.git.discardFile(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           body.repo,
           body.path,
         ),
@@ -137,7 +140,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       );
       return c.json(
         await state.registry.git.syncBranch(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           body.repo,
         ),
       );
@@ -151,7 +154,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
         await c.req.json().catch(() => ({})),
       );
       return c.json(
-        await state.registry.git.push(c.req.param("projectId"), body.repo),
+        await state.registry.git.push(routeParam(c, "projectId"), body.repo),
       );
     }),
   );
@@ -163,7 +166,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
         await c.req.json().catch(() => ({})),
       );
       return c.json(
-        await state.registry.git.pull(c.req.param("projectId"), body.repo),
+        await state.registry.git.pull(routeParam(c, "projectId"), body.repo),
       );
     }),
   );
@@ -175,7 +178,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
         await c.req.json().catch(() => ({})),
       );
       return c.json(
-        await state.registry.git.fetch(c.req.param("projectId"), body.repo),
+        await state.registry.git.fetch(routeParam(c, "projectId"), body.repo),
       );
     }),
   );
@@ -185,7 +188,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json(
         await state.registry.git.githubStatus(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           repoParam(c.req.query("repo")),
         ),
       ),
@@ -197,7 +200,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json(
         await state.registry.git.listOpenPrs(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           repoParam(c.req.query("repo")),
         ),
       ),
@@ -209,9 +212,9 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json(
         await state.registry.git.prDetail(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           repoParam(c.req.query("repo")),
-          prNumberParam(c.req.param("number")),
+          prNumberParam(routeParam(c, "number")),
         ),
       ),
     ),
@@ -225,9 +228,9 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       );
       return c.json(
         await state.registry.git.checkoutPr(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           body.repo,
-          prNumberParam(c.req.param("number")),
+          prNumberParam(routeParam(c, "number")),
         ),
       );
     }),

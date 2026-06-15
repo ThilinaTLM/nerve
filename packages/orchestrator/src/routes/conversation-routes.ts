@@ -6,6 +6,7 @@ import {
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
+import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
 export function createConversationRoutes(state: OrchestratorState): Hono {
@@ -36,7 +37,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
     routeHandler((c) =>
       c.json({
         conversation: state.registry.getConversation(
-          c.req.param("conversationId"),
+          routeParam(c, "conversationId"),
         ),
       }),
     ),
@@ -44,7 +45,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
   app.delete(
     "/conversations/:conversationId",
     routeHandler(async (c) => {
-      await state.registry.removeConversation(c.req.param("conversationId"));
+      await state.registry.removeConversation(routeParam(c, "conversationId"));
       return c.body(null, 204);
     }),
   );
@@ -53,7 +54,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
     routeHandler((c) =>
       c.json({
         entries: state.registry.getConversationEntries(
-          c.req.param("conversationId"),
+          routeParam(c, "conversationId"),
         ),
       }),
     ),
@@ -63,7 +64,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json({
         snapshot: await state.registry.getConversationSnapshot(
-          c.req.param("conversationId"),
+          routeParam(c, "conversationId"),
         ),
       }),
     ),
@@ -73,7 +74,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json({
         contextUsage: await state.registry.getContextUsage(
-          c.req.param("conversationId"),
+          routeParam(c, "conversationId"),
         ),
       }),
     ),
@@ -81,7 +82,9 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
   app.get(
     "/conversations/:conversationId/export",
     routeHandler((c) =>
-      c.json(state.registry.exportConversation(c.req.param("conversationId"))),
+      c.json(
+        state.registry.exportConversation(routeParam(c, "conversationId")),
+      ),
     ),
   );
   app.get(
@@ -89,7 +92,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
     routeHandler((c) =>
       c.text(
         state.registry.exportConversationMarkdown(
-          c.req.param("conversationId"),
+          routeParam(c, "conversationId"),
         ),
         200,
         {
@@ -102,7 +105,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
     "/conversations/:conversationId/export.html",
     routeHandler((c) =>
       c.html(
-        state.registry.exportConversationHtml(c.req.param("conversationId")),
+        state.registry.exportConversationHtml(routeParam(c, "conversationId")),
       ),
     ),
   );
@@ -110,7 +113,9 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
     "/conversations/:conversationId/tree",
     routeHandler((c) =>
       c.json({
-        tree: state.registry.getConversationTree(c.req.param("conversationId")),
+        tree: state.registry.getConversationTree(
+          routeParam(c, "conversationId"),
+        ),
       }),
     ),
   );
@@ -120,7 +125,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
       const body = navigateConversationRequestSchema.parse(await c.req.json());
       return c.json({
         conversation: await state.registry.navigateConversation(
-          c.req.param("conversationId"),
+          routeParam(c, "conversationId"),
           body,
         ),
       });
@@ -134,7 +139,7 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
       );
       return c.json(
         await state.registry.compactConversation(
-          c.req.param("conversationId"),
+          routeParam(c, "conversationId"),
           body,
         ),
       );

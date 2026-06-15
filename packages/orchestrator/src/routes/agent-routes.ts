@@ -8,6 +8,7 @@ import {
 import { Hono } from "hono";
 import { buildAgentSystemPrompt } from "../domains/agents/run/system-prompt-builder.js";
 import { routeHandler } from "../http/responses.js";
+import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
 export function createAgentRoutes(state: OrchestratorState): Hono {
@@ -24,13 +25,13 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
   app.get(
     "/agents/:agentId",
     routeHandler((c) =>
-      c.json({ agent: state.registry.getAgent(c.req.param("agentId")) }),
+      c.json({ agent: state.registry.getAgent(routeParam(c, "agentId")) }),
     ),
   );
   app.get(
     "/agents/:agentId/system-prompt",
     routeHandler(async (c) => {
-      const agentId = c.req.param("agentId");
+      const agentId = routeParam(c, "agentId");
       const agent = state.registry.getAgent(agentId);
       const prompt = await buildAgentSystemPrompt(agent, {
         storageHome: state.storage.paths.home,
@@ -47,7 +48,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
       const body = updateAgentRequestSchema.parse(await c.req.json());
       return c.json({
         agent: await state.registry.configureAgent(
-          c.req.param("agentId"),
+          routeParam(c, "agentId"),
           body,
         ),
       });
@@ -57,7 +58,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     "/agents/:agentId/prompt",
     routeHandler(async (c) => {
       const body = promptRequestSchema.parse(await c.req.json());
-      await state.registry.promptAgent(c.req.param("agentId"), body);
+      await state.registry.promptAgent(routeParam(c, "agentId"), body);
       return c.json({ ok: true }, 202);
     }),
   );
@@ -66,7 +67,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json({
         queuedPrompts: await state.registry.listQueuedPrompts(
-          c.req.param("agentId"),
+          routeParam(c, "agentId"),
         ),
       }),
     ),
@@ -76,8 +77,8 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json({
         queuedPrompt: await state.registry.cancelQueuedPrompt(
-          c.req.param("agentId"),
-          c.req.param("queuedPromptId"),
+          routeParam(c, "agentId"),
+          routeParam(c, "queuedPromptId"),
         ),
       }),
     ),
@@ -87,7 +88,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) => {
       const body = executeToolRequestSchema.parse(await c.req.json());
       const result = await state.registry.requestTool(
-        c.req.param("agentId"),
+        routeParam(c, "agentId"),
         body.toolName,
         body.args,
       );
@@ -99,7 +100,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) => {
       const body = continueFromFailureRequestSchema.parse(await c.req.json());
       await state.registry.continueFromFailedTurn(
-        c.req.param("agentId"),
+        routeParam(c, "agentId"),
         body.statusEntryId,
       );
       return c.json({ ok: true }, 202);
@@ -109,7 +110,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
   app.post(
     "/agents/:agentId/abort",
     routeHandler(async (c) => {
-      await state.registry.abortAgent(c.req.param("agentId"));
+      await state.registry.abortAgent(routeParam(c, "agentId"));
       return c.json({ ok: true });
     }),
   );

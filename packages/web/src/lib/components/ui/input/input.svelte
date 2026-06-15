@@ -26,7 +26,7 @@
 		...restProps
 	}: Props = $props();
 
-	const sizeClass = size === "sm" ? "h-8" : "h-9";
+	const sizeClass = $derived(size === "sm" ? "h-8" : "h-9");
 </script>
 
 {#if type === "file"}

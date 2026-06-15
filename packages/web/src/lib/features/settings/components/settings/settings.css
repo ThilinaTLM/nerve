@@ -314,24 +314,23 @@
   font-size: var(--text-xs);
 }
 
-.settings-page :global([data-slot="radio-group"] label) {
+.settings-page [data-slot="radio-group"] label {
   border-radius: var(--radius-sm);
   border-color: color-mix(in oklab, var(--border) 55%, transparent);
   background: transparent;
   box-shadow: none;
 }
 
-.settings-page :global([data-slot="radio-group"] label:hover) {
+.settings-page [data-slot="radio-group"] label:hover {
   background: color-mix(in oklab, var(--accent) 40%, transparent);
 }
 
-.settings-page
-  :global([data-slot="radio-group"] label:has([data-state="checked"])) {
+.settings-page [data-slot="radio-group"] label:has([data-state="checked"]) {
   border-color: var(--primary);
   background: color-mix(in oklab, var(--accent) 35%, transparent);
 }
 
-.settings-page :global(input[data-slot="input"]) {
+.settings-page input[data-slot="input"] {
   border-radius: var(--radius-sm);
   box-shadow: none;
 }

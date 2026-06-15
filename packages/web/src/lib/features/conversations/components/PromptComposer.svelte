@@ -111,9 +111,9 @@
   }: Props = $props();
 
   let editorFocusToken = $state(0);
-  let lastFocusToken = focusToken;
-  let lastComposerEscapeToken = composerEscapeToken;
-  let lastMicShortcutToken = micShortcutToken;
+  let lastFocusToken = $state<number | undefined>(undefined);
+  let lastComposerEscapeToken = $state<number | undefined>(undefined);
+  let lastMicShortcutToken = $state<number | undefined>(undefined);
 
   const micShortcut = getShortcutLabel("composer.toggleMic");
   const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
@@ -202,18 +202,30 @@
   }
 
   $effect(() => {
+    if (lastFocusToken === undefined) {
+      lastFocusToken = focusToken;
+      return;
+    }
     if (focusToken === lastFocusToken) return;
     lastFocusToken = focusToken;
     editorFocusToken += 1;
   });
 
   $effect(() => {
+    if (lastComposerEscapeToken === undefined) {
+      lastComposerEscapeToken = composerEscapeToken;
+      return;
+    }
     if (composerEscapeToken === lastComposerEscapeToken) return;
     lastComposerEscapeToken = composerEscapeToken;
     if (!cancelRecordingShortcut()) editorFocusToken += 1;
   });
 
   $effect(() => {
+    if (lastMicShortcutToken === undefined) {
+      lastMicShortcutToken = micShortcutToken;
+      return;
+    }
     if (micShortcutToken === lastMicShortcutToken) return;
     lastMicShortcutToken = micShortcutToken;
     toggleRecording();

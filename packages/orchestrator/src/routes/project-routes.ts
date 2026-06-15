@@ -5,6 +5,7 @@ import {
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
+import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
 export function createProjectRoutes(state: OrchestratorState): Hono {
@@ -22,7 +23,7 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
     "/:projectId",
     routeHandler((c) =>
       c.json({
-        project: state.registry.getProject(c.req.param("projectId")),
+        project: state.registry.getProject(routeParam(c, "projectId")),
       }),
     ),
   );
@@ -34,7 +35,7 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
       );
       return c.json(
         await state.registry.pruneProjectConversations(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
           body,
         ),
       );
@@ -45,7 +46,7 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) =>
       c.json({
         commands: await state.registry.listPinnedCommands(
-          c.req.param("projectId"),
+          routeParam(c, "projectId"),
         ),
       }),
     ),
@@ -57,7 +58,7 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
       return c.json(
         {
           command: await state.registry.createPinnedCommand(
-            c.req.param("projectId"),
+            routeParam(c, "projectId"),
             body,
           ),
         },
@@ -69,8 +70,8 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
     "/:projectId/pinned-commands/:commandId",
     routeHandler(async (c) => {
       await state.registry.removePinnedCommand(
-        c.req.param("projectId"),
-        c.req.param("commandId"),
+        routeParam(c, "projectId"),
+        routeParam(c, "commandId"),
       );
       return c.body(null, 204);
     }),
@@ -78,7 +79,7 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
   app.delete(
     "/:projectId",
     routeHandler(async (c) => {
-      await state.registry.removeProject(c.req.param("projectId"));
+      await state.registry.removeProject(routeParam(c, "projectId"));
       return c.body(null, 204);
     }),
   );

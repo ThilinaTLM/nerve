@@ -6,6 +6,7 @@ import {
 import { Hono } from "hono";
 import { numberQuery } from "../http/query.js";
 import { routeHandler } from "../http/responses.js";
+import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
 export function createProcessRoutes(state: OrchestratorState): Hono {
@@ -25,7 +26,7 @@ export function createProcessRoutes(state: OrchestratorState): Hono {
     "/processes/:processId",
     routeHandler((c) =>
       c.json({
-        process: state.registry.getProcess(c.req.param("processId")),
+        process: state.registry.getProcess(routeParam(c, "processId")),
       }),
     ),
   );
@@ -37,7 +38,7 @@ export function createProcessRoutes(state: OrchestratorState): Hono {
       );
       return c.json({
         process: await state.registry.stopProcess(
-          c.req.param("processId"),
+          routeParam(c, "processId"),
           body,
         ),
       });
@@ -47,7 +48,9 @@ export function createProcessRoutes(state: OrchestratorState): Hono {
     "/processes/:processId/restart",
     routeHandler(async (c) =>
       c.json({
-        process: await state.registry.restartProcess(c.req.param("processId")),
+        process: await state.registry.restartProcess(
+          routeParam(c, "processId"),
+        ),
       }),
     ),
   );
@@ -60,7 +63,7 @@ export function createProcessRoutes(state: OrchestratorState): Hono {
   app.delete(
     "/processes/:processId",
     routeHandler(async (c) => {
-      await state.registry.removeProcess(c.req.param("processId"));
+      await state.registry.removeProcess(routeParam(c, "processId"));
       return c.json({ removed: true });
     }),
   );
@@ -76,7 +79,10 @@ export function createProcessRoutes(state: OrchestratorState): Hono {
         limit: numberQuery(c.req.query("limit")),
       });
       return c.json(
-        await state.registry.queryProcessLogs(c.req.param("processId"), query),
+        await state.registry.queryProcessLogs(
+          routeParam(c, "processId"),
+          query,
+        ),
       );
     }),
   );

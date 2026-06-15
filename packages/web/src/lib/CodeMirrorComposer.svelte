@@ -34,7 +34,7 @@
 
   let host: HTMLDivElement;
   let view: EditorView | undefined;
-  let editorValue = $state(value);
+  let editorValue = $state("");
   let lastFocusToken = 0;
   const editableCompartment = new Compartment();
   const completionCompartment = new Compartment();
@@ -125,6 +125,7 @@
   }
 
   onMount(() => {
+    editorValue = value;
     view = new EditorView({
       parent: host,
       state: EditorState.create({

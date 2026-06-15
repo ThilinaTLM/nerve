@@ -8,6 +8,7 @@ import {
 } from "@nerve/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
+import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
 export function createToolRoutes(state: OrchestratorState): Hono {
@@ -35,7 +36,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       );
       return c.json({
         toolCall: await state.registry.grantApproval(
-          c.req.param("approvalId"),
+          routeParam(c, "approvalId"),
           body.note,
         ),
       });
@@ -49,7 +50,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       );
       return c.json({
         toolCall: await state.registry.denyApproval(
-          c.req.param("approvalId"),
+          routeParam(c, "approvalId"),
           body.note,
         ),
       });
@@ -70,7 +71,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       const body = answerUserQuestionRequestSchema.parse(await c.req.json());
       return c.json({
         question: await state.registry.answerUserQuestion(
-          c.req.param("questionId"),
+          routeParam(c, "questionId"),
           body.answer,
         ),
       });
@@ -84,7 +85,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       );
       return c.json({
         question: await state.registry.dismissUserQuestion(
-          c.req.param("questionId"),
+          routeParam(c, "questionId"),
           body.reason,
         ),
       });
@@ -107,7 +108,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       );
       return c.json({
         planReview: await state.registry.acceptPlanReview(
-          c.req.param("reviewId"),
+          routeParam(c, "reviewId"),
           body.feedback,
         ),
       });
@@ -121,7 +122,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       );
       return c.json(
         await state.registry.acceptPlanReviewInNewChat(
-          c.req.param("reviewId"),
+          routeParam(c, "reviewId"),
           body.feedback,
         ),
       );
@@ -135,7 +136,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       );
       return c.json({
         planReview: await state.registry.rejectPlanReview(
-          c.req.param("reviewId"),
+          routeParam(c, "reviewId"),
           body.feedback,
         ),
       });
@@ -149,7 +150,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       );
       return c.json({
         planReview: await state.registry.requestPlanChanges(
-          c.req.param("reviewId"),
+          routeParam(c, "reviewId"),
           body.feedback,
         ),
       });
@@ -163,7 +164,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       );
       return c.json({
         planReview: await state.registry.discardPlanReview(
-          c.req.param("reviewId"),
+          routeParam(c, "reviewId"),
           body.feedback,
         ),
       });

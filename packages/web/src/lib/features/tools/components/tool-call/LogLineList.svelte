@@ -8,8 +8,7 @@
     lines?: string[];
     maxHeight?: string;
   };
-  let { events, lines, maxHeight: _maxHeight = "16rem" }: Props = $props();
-  void _maxHeight;
+  let { events, lines, maxHeight = "16rem" }: Props = $props();
 
   const items = $derived<LineItem[]>(
     events
@@ -18,7 +17,7 @@
   );
 </script>
 
-<div class="log-list">
+<div class="log-list" style:max-height={maxHeight}>
   {#each items as item, index (index)}
     <div class={`log-line${item.level ? ` level-${item.level}` : ""}${item.stream === "stderr" ? " stderr" : ""}`}>{item.text || "\u00A0"}</div>
   {/each}
@@ -26,7 +25,7 @@
 
 <style>
   .log-list {
-    overflow: visible;
+    overflow: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--sidebar);

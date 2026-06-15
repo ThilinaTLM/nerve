@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
+import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
 export function createWorkerRoutes(state: OrchestratorState): Hono {
@@ -10,7 +11,7 @@ export function createWorkerRoutes(state: OrchestratorState): Hono {
     "/workers/:workerId",
     routeHandler((c) =>
       c.json({
-        worker: state.registry.getWorker(c.req.param("workerId")),
+        worker: state.registry.getWorker(routeParam(c, "workerId")),
       }),
     ),
   );

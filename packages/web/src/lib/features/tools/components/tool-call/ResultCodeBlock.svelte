@@ -8,8 +8,7 @@
     maxHeight?: string;
     trim?: boolean;
   };
-  let { code, language, maxHeight: _maxHeight = "18rem", trim = true }: Props = $props();
-  void _maxHeight;
+  let { code, language, maxHeight = "18rem", trim = true }: Props = $props();
 
   let html = $state<string | undefined>(undefined);
   let htmlSignature = $state<string | undefined>(undefined);
@@ -51,17 +50,17 @@
 </script>
 
 {#if html && htmlSignature === signature}
-  <div class="code-block">
+  <div class="code-block" style:max-height={maxHeight}>
     {@html html}
   </div>
 {:else}
-  <pre class="code-block plain">{preview.text}</pre>
+  <pre class="code-block plain" style:max-height={maxHeight}>{preview.text}</pre>
 {/if}
 
 <style>
   .code-block {
     margin: 0;
-    overflow: visible;
+    overflow: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--sidebar);
