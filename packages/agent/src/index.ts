@@ -11,10 +11,13 @@ export {
   prepareBranchEntries,
 } from "./harness/compaction/branch-summarization.js";
 export {
+  type AutoCompactionPolicy,
+  type AutoCompactionReason,
   calculateContextTokens,
   compact,
   computeContextUsage,
   DEFAULT_COMPACTION_SETTINGS,
+  deriveAutoCompactionPolicy,
   estimateContextTokens,
   estimateTokens,
   findCutPoint,
@@ -22,8 +25,10 @@ export {
   generateSummary,
   getLastAssistantUsage,
   getLatestCompactionEntry,
+  isContextOverflowAssistantMessage,
   prepareCompaction,
   serializeConversation,
+  shouldAutoCompact,
   shouldCompact,
 } from "./harness/compaction/compaction.js";
 export * from "./harness/conversation/conversation.js";

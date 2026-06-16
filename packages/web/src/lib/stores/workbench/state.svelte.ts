@@ -29,6 +29,32 @@ import type { FileDisplayMode } from "../../utils/file-display";
 
 export type TranscriptDisplayKind = "message" | "thinking";
 
+export type CompactionNoticeState = "running" | "completed" | "failed";
+
+export type CompactionNotice = {
+  id: string;
+  state: CompactionNoticeState;
+  reason?: "manual" | "threshold" | "overflow";
+  entryId?: string;
+  conversationId?: string;
+  agentId?: string;
+  runId?: string;
+  text?: string;
+  summary?: string;
+  tokensBefore?: number;
+  contextWindow?: number;
+  contextTokens?: number;
+  thresholdTokens?: number;
+  triggerReserveTokens?: number;
+  keepRecentTokens?: number;
+  firstKeptEntryId?: string;
+  failedEntryId?: string;
+  errorMessage?: string;
+  details?: unknown;
+  createdAt?: string;
+  completedAt?: string;
+};
+
 export type RunStatusNotice = {
   entryId?: string;
   conversationId?: string;
@@ -66,6 +92,7 @@ export type TranscriptItem = {
   stopReason?: "error" | "aborted";
   errorMessage?: string;
   runStatus?: RunStatusNotice;
+  compaction?: CompactionNotice;
 };
 
 export type LiveToolCallDraft = {
@@ -102,6 +129,7 @@ export type ConversationLiveState = {
   toolDrafts: LiveToolCallDraft[];
   toolOutputByToolCallId: Record<string, LiveToolOutput>;
   runStatus?: RunStatusNotice;
+  compaction?: CompactionNotice;
   hiddenEntryIds?: string[];
 };
 

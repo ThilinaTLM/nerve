@@ -123,6 +123,11 @@
     );
   }
 
+  function onAutoCompactionChange(checked: boolean) {
+    settingsDraft.compaction.auto = checked;
+    onSettingsChange?.({ compaction: { auto: checked } }, { immediate: true });
+  }
+
   function onRememberLastSelectionChange(checked: boolean) {
     settingsDraft.rememberLastAgentSelection = checked;
     if (!checked) {
@@ -167,6 +172,14 @@
       label="Use last selections for new agents"
       description="When enabled, new conversations reuse the last mode, permission, model, and thinking level you selected in the composer."
       onCheckedChange={onRememberLastSelectionChange}
+    />
+
+    <Switch
+      class="settings-full-switch"
+      checked={settingsDraft.compaction.auto}
+      label="Auto-compact long conversations"
+      description="Automatically summarize older context when the selected model approaches its context window."
+      onCheckedChange={onAutoCompactionChange}
     />
 
     <div class="settings-control-grid">

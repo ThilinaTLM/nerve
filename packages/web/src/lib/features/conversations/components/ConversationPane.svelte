@@ -132,6 +132,7 @@
   const conversationOpen = $derived(Boolean(activeConversation || pendingConversationActive));
   const activeProjectLabel = $derived(activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined);
   const timeline = $derived(buildConversationTimeline(transcript, toolCalls, liveState));
+  const compacting = $derived(liveState?.compaction?.state === "running");
   const treeEntriesById = $derived(
     new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
   );
@@ -151,7 +152,9 @@
             ? node.toolCall.status === "running"
             : node.kind === "run_status"
               ? node.notice.state === "retrying"
-              : false,
+              : node.kind === "compaction"
+                ? node.notice.state === "running"
+                : false,
     ),
   );
   const scrollSignature = $derived(
@@ -165,6 +168,9 @@
         }
         if (node.kind === "run_status") {
           return `${node.key}:${node.notice.state}:${node.notice.attempt ?? 0}:${node.notice.errorMessage?.length ?? 0}`;
+        }
+        if (node.kind === "compaction") {
+          return `${node.key}:${node.notice.state}:${node.notice.summary?.length ?? 0}:${node.notice.errorMessage?.length ?? 0}`;
         }
         if (node.kind === "tool_result_error") {
           return `${node.key}:${node.toolName}:${node.error.length}`;
@@ -290,6 +296,7 @@
         {pendingPlanReview}
         {live}
         {sending}
+        {compacting}
         {models}
         {selectedModelKey}
         {contextUsage}

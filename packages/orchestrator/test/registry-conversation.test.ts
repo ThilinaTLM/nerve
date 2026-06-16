@@ -188,6 +188,59 @@ describe("RuntimeRegistry conversation behavior", () => {
     }
   });
 
+  it("publishes compaction lifecycle events with metadata", async () => {
+    const state = await createState("nerve-registry-compaction-");
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const conversation = await state.registry.createConversation({
+        projectId: project.id,
+      });
+      const first = await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "Please inspect this project.",
+      });
+      await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        parentEntryId: first.id,
+        role: "assistant",
+        text: "I inspected it and found several files.",
+      });
+      await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "Now summarize the work.",
+      });
+
+      const result = await state.registry.compactConversation(conversation.id);
+      const events = state.events.replaySince(0);
+      const started = events.find(
+        (event) => event.type === "conversation.compaction.started",
+      );
+      const compacted = events.find(
+        (event) => event.type === "conversation.compacted",
+      );
+
+      assert.ok(started);
+      assert.equal((started.data as { reason?: string }).reason, "manual");
+      assert.ok(compacted);
+      assert.equal((compacted.data as { reason?: string }).reason, "manual");
+      assert.equal(result.entry.kind, "compaction");
+      assert.equal(
+        (result.entry.details as { reason?: string }).reason,
+        "manual",
+      );
+      assert.equal(
+        (result.entry.details as { generatedBy?: string }).generatedBy,
+        "orchestrator-extractive",
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("writes and clears new agent default model settings", async () => {
     const state = await createState("nerve-registry-settings-merge-");
     try {

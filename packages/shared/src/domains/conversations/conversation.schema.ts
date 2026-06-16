@@ -112,6 +112,45 @@ export interface ConversationEntryAppendedData {
   entry: ConversationEntry;
 }
 
+export type ConversationCompactionReason = "manual" | "threshold" | "overflow";
+
+export interface ConversationCompactionStartedData {
+  conversationId: string;
+  agentId?: string;
+  runId?: string;
+  reason: ConversationCompactionReason;
+  startedAt: string;
+  contextWindow?: number;
+  contextTokens?: number;
+  thresholdTokens?: number;
+  triggerReserveTokens?: number;
+  keepRecentTokens?: number;
+  failedEntryId?: string;
+}
+
+export interface ConversationCompactionFailedData {
+  conversationId: string;
+  agentId?: string;
+  runId?: string;
+  reason: ConversationCompactionReason;
+  failedAt: string;
+  message: string;
+  failedEntryId?: string;
+}
+
+export interface ConversationCompactedData {
+  conversationId: string;
+  entry: ConversationEntry;
+  tokensBefore: number;
+  firstKeptEntryId: string;
+  reason?: ConversationCompactionReason;
+  agentId?: string;
+  runId?: string;
+  contextWindow?: number;
+  thresholdTokens?: number;
+  keepRecentTokens?: number;
+}
+
 export interface ConversationContextUpdatedData {
   conversationId: string;
   agentId?: string;
@@ -260,6 +299,9 @@ export type ConversationEventData =
   | ConversationPromptDequeuedData
   | ConversationPromptCancelledData
   | ConversationEntryAppendedData
+  | ConversationCompactionStartedData
+  | ConversationCompactionFailedData
+  | ConversationCompactedData
   | ConversationContextUpdatedData
   | ConversationToolCallUpdatedData
   | ConversationLiveMessageStartedData
@@ -366,6 +408,8 @@ export const conversationEventTypes = [
   "conversation.prompt.dequeued",
   "conversation.prompt.cancelled",
   "conversation.entry.appended",
+  "conversation.compaction.started",
+  "conversation.compaction.failed",
   "conversation.context.updated",
   "conversation.tool_call.updated",
   "conversation.live.message.started",

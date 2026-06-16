@@ -84,6 +84,17 @@ export function conversationActivityForRecord(input: {
     };
   }
 
+  if (input.view?.live.compaction?.state === "running") {
+    return {
+      tone: "running",
+      pulse: true,
+      label: "Compacting context",
+      busy: true,
+      needsUser: false,
+      source: "live-view",
+    };
+  }
+
   if (
     input.agent?.status === "running" ||
     input.view?.sending ||

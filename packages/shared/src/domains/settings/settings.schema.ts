@@ -54,9 +54,7 @@ export const settingsSchema = z.object({
     closeToTray: z.boolean().default(true),
   }),
   compaction: z.object({
-    auto: z.boolean(),
-    reserveTokens: z.number().int().positive().default(16_384),
-    keepRecentTokens: z.number().int().positive(),
+    auto: z.boolean().default(true),
   }),
   logging: z.object({
     level: applicationLogLevelSchema.default("info"),
@@ -99,9 +97,7 @@ export const defaultSettings: Settings = {
     closeToTray: true,
   },
   compaction: {
-    auto: false,
-    reserveTokens: 16_384,
-    keepRecentTokens: 20_000,
+    auto: true,
   },
   logging: {
     level: "info",
@@ -158,8 +154,6 @@ export const updateSettingsRequestSchema = z.object({
   compaction: z
     .object({
       auto: z.boolean().optional(),
-      reserveTokens: z.number().int().positive().optional(),
-      keepRecentTokens: z.number().int().positive().optional(),
     })
     .optional(),
   logging: z

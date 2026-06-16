@@ -1,5 +1,6 @@
 import type { ToolCallRecord } from "../../api";
 import type {
+  CompactionNotice,
   ConversationLiveState,
   LiveToolCallDraft,
   LiveToolOutput,
@@ -17,6 +18,7 @@ export type TimelineItem =
       anchorEntryId?: string;
     }
   | { kind: "tool_draft"; key: string; draft: LiveToolCallDraft }
+  | { kind: "compaction"; key: string; notice: CompactionNotice }
   | {
       kind: "tool_result_error";
       key: string;
@@ -108,6 +110,9 @@ export function buildConversationTimeline(
   if (live?.runStatus?.failedEntryId) {
     hiddenEntryIds.add(live.runStatus.failedEntryId);
   }
+  if (live?.compaction?.failedEntryId) {
+    hiddenEntryIds.add(live.compaction.failedEntryId);
+  }
   const hiddenFailedRunIds = new Set<string>();
   for (const item of transcript) {
     if (item.runStatus?.failedEntryId)
@@ -129,6 +134,14 @@ export function buildConversationTimeline(
 
   transcript.forEach((item, index) => {
     if (isToolCallPlaceholder(item)) return;
+    if (item.compaction) {
+      items.push({
+        kind: "compaction",
+        key: item.compaction.entryId ?? item.id ?? `compaction-${index}`,
+        notice: item.compaction,
+      });
+      return;
+    }
     if (item.runStatus) {
       items.push({
         kind: "run_status",
@@ -182,6 +195,16 @@ export function buildConversationTimeline(
         ? [node.notice.runId]
         : [],
     ),
+  );
+  const completedCompactionKeys = new Set(
+    items.flatMap((node) => {
+      if (node.kind !== "compaction") return [];
+      const keys = [node.notice.id, node.notice.entryId].filter(
+        (value): value is string => Boolean(value),
+      );
+      if (node.notice.runId) keys.push(`run:${node.notice.runId}`);
+      return keys;
+    }),
   );
 
   const liveNodes = [
@@ -244,6 +267,21 @@ export function buildConversationTimeline(
       ),
       notice: live.runStatus,
     });
+  }
+
+  if (live?.compaction) {
+    const duplicateKeys = [
+      live.compaction.id,
+      live.compaction.entryId,
+      live.compaction.runId ? `run:${live.compaction.runId}` : undefined,
+    ].filter((value): value is string => Boolean(value));
+    if (!duplicateKeys.some((key) => completedCompactionKeys.has(key))) {
+      items.push({
+        kind: "compaction",
+        key: live.compaction.id,
+        notice: live.compaction,
+      });
+    }
   }
 
   for (const toolCall of orderedToolCalls) {

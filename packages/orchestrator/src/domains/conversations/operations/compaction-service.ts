@@ -5,13 +5,13 @@ import {
 } from "@nerve/agent";
 import type {
   CompactConversationRequest,
+  ConversationCompactionReason,
   ConversationEntry,
   ConversationRecord,
   ProjectRecord,
 } from "@nerve/shared";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
-import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
 import type { HarnessManager } from "../harness-manager.js";
 import { buildExtractiveSummary } from "./summary.js";
 
@@ -19,6 +19,7 @@ export interface AppendConversationEntryInput {
   id?: string;
   conversationId: string;
   agentId?: string;
+  runId?: string;
   parentEntryId?: string | null;
   role: ConversationEntry["role"];
   kind?: ConversationEntry["kind"];
@@ -36,9 +37,24 @@ export type AppendConversationEntry = (
   options?: { mirrorToHarness?: boolean },
 ) => Promise<ConversationEntry>;
 
+export interface CompactConversationOptions {
+  reason?: ConversationCompactionReason;
+  agentId?: string;
+  runId?: string;
+  contextWindow?: number;
+  contextTokens?: number;
+  thresholdTokens?: number;
+  triggerReserveTokens?: number;
+  keepRecentTokens?: number;
+  failedEntryId?: string;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export class CompactionService {
   constructor(
-    private readonly storage: InitializedStorage,
     private readonly getConversation: (
       conversationId: string,
     ) => ConversationRecord,
@@ -52,7 +68,9 @@ export class CompactionService {
   async compactConversation(
     conversationId: string,
     request: CompactConversationRequest = {},
+    options: CompactConversationOptions = {},
   ): Promise<{ conversation: ConversationRecord; entry: ConversationEntry }> {
+    const reason = options.reason ?? "manual";
     const conversation = this.getConversation(conversationId);
     const project = this.getProject(conversation.projectId);
     const storage = await this.harnessManager.openStorage(
@@ -60,11 +78,15 @@ export class CompactionService {
       project.dir,
     );
     const branch = await storage.getPathToRoot(await storage.getLeafId());
+    const branchLeafId = branch.at(-1)?.id ?? null;
     const settings = {
       ...DEFAULT_COMPACTION_SETTINGS,
+      reserveTokens: DEFAULT_COMPACTION_SETTINGS.reserveTokens,
       keepRecentTokens:
         request.keepRecentTokens ??
-        this.storage.settings.compaction.keepRecentTokens,
+        (options.keepRecentTokens && options.keepRecentTokens > 0
+          ? options.keepRecentTokens
+          : DEFAULT_COMPACTION_SETTINGS.keepRecentTokens),
     };
     const prepared = prepareCompaction(branch, settings);
     if (!prepared.ok) {
@@ -97,52 +119,116 @@ export class CompactionService {
         "No prior messages to compact.",
       );
     }
-    const summary = buildExtractiveSummary({
-      title: "Context checkpoint",
-      messages: messagesToSummarize,
-      previousSummary: preparation.previousSummary,
-      instructions: request.instructions,
-    });
-    const details = {
-      generatedBy: "orchestrator-extractive",
-      compactedMessages: messagesToSummarize.length,
-      splitTurn: preparation.isSplitTurn,
-      fileOps: {
+
+    const startedAt = new Date().toISOString();
+    let started = false;
+    try {
+      await this.events.publish(
+        "conversation.compaction.started",
+        {
+          conversationId,
+          agentId: options.agentId,
+          runId: options.runId,
+          reason,
+          startedAt,
+          contextWindow: options.contextWindow,
+          contextTokens: options.contextTokens ?? preparation.tokensBefore,
+          thresholdTokens: options.thresholdTokens,
+          triggerReserveTokens: options.triggerReserveTokens,
+          keepRecentTokens: settings.keepRecentTokens,
+          failedEntryId: options.failedEntryId,
+        },
+        { durability: "transient" },
+      );
+      started = true;
+
+      const summary = buildExtractiveSummary({
+        title: "Context checkpoint",
+        messages: messagesToSummarize,
+        previousSummary: preparation.previousSummary,
+        instructions: request.instructions,
+      });
+      const fileOps = {
         read: [...preparation.fileOps.read].sort(),
         written: [...preparation.fileOps.written].sort(),
         edited: [...preparation.fileOps.edited].sort(),
-      },
-    };
-    const entry = await this.appendEntry(
-      {
-        conversationId,
-        role: "system",
-        kind: "compaction",
-        text: summary,
+      };
+      const details = {
+        generatedBy: "orchestrator-extractive",
+        compactedMessages: messagesToSummarize.length,
+        splitTurn: preparation.isSplitTurn,
+        reason,
+        policy: {
+          contextWindow: options.contextWindow,
+          thresholdTokens: options.thresholdTokens,
+          triggerReserveTokens: options.triggerReserveTokens,
+          keepRecentTokens: settings.keepRecentTokens,
+        },
+        fileOps,
+        readFiles: fileOps.read,
+        modifiedFiles: Array.from(
+          new Set([...fileOps.written, ...fileOps.edited]),
+        ).sort(),
+      };
+      const entry = await this.appendEntry(
+        {
+          conversationId,
+          agentId: options.agentId,
+          runId: options.runId,
+          parentEntryId: branchLeafId,
+          role: "system",
+          kind: "compaction",
+          text: summary,
+          summary,
+          tokensBefore: preparation.tokensBefore,
+          firstKeptEntryId,
+          details,
+        },
+        { mirrorToHarness: false },
+      );
+      await storage.appendEntry({
+        type: "compaction",
+        id: entry.id,
+        parentId: entry.parentEntryId ?? null,
+        timestamp: entry.createdAt,
         summary,
+        firstKeptEntryId,
+        tokensBefore: preparation.tokensBefore,
+        details,
+      });
+      await this.rebuildConversations();
+      await this.events.publish("conversation.compacted", {
+        conversationId,
+        entry,
         tokensBefore: preparation.tokensBefore,
         firstKeptEntryId,
-        details,
-      },
-      { mirrorToHarness: false },
-    );
-    await storage.appendEntry({
-      type: "compaction",
-      id: entry.id,
-      parentId: entry.parentEntryId ?? null,
-      timestamp: entry.createdAt,
-      summary,
-      firstKeptEntryId,
-      tokensBefore: preparation.tokensBefore,
-      details,
-    });
-    await this.rebuildConversations();
-    await this.events.publish("conversation.compacted", {
-      conversationId,
-      entry,
-      tokensBefore: preparation.tokensBefore,
-      firstKeptEntryId,
-    });
-    return { conversation: this.getConversation(conversationId), entry };
+        reason,
+        agentId: options.agentId,
+        runId: options.runId,
+        contextWindow: options.contextWindow,
+        thresholdTokens: options.thresholdTokens,
+        keepRecentTokens: settings.keepRecentTokens,
+      });
+      return { conversation: this.getConversation(conversationId), entry };
+    } catch (error) {
+      if (started) {
+        await this.events
+          .publish(
+            "conversation.compaction.failed",
+            {
+              conversationId,
+              agentId: options.agentId,
+              runId: options.runId,
+              reason,
+              failedAt: new Date().toISOString(),
+              message: errorMessage(error),
+              failedEntryId: options.failedEntryId,
+            },
+            { durability: "transient" },
+          )
+          .catch(() => undefined);
+      }
+      throw error;
+    }
   }
 }

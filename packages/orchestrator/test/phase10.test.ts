@@ -44,7 +44,7 @@ describe("phase 10 hardening helpers", () => {
     assert.equal(settings.ui.theme, "system");
     assert.equal(settings.ui.zoomLevel, 0);
     assert.equal(settings.desktop.closeToTray, true);
-    assert.equal(settings.compaction.auto, false);
+    assert.equal(settings.compaction.auto, true);
     assert.deepEqual(settings.scopedModels, scopedModels);
     assert.equal(storage.settings.server.allowRemote, true);
     assert.deepEqual(storage.settings.scopedModels, scopedModels);

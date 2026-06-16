@@ -47,6 +47,7 @@
     pendingPlanReview?: PlanReviewRecord;
     live?: boolean;
     sending?: boolean;
+    compacting?: boolean;
     models?: ModelInfo[];
     selectedModelKey?: string;
     contextUsage?: ContextUsage;
@@ -84,6 +85,7 @@
     pendingPlanReview,
     live = false,
     sending = false,
+    compacting = false,
     models = [],
     selectedModelKey = "",
     contextUsage,
@@ -146,7 +148,7 @@
   const pendingQuestion = $derived(Boolean(pendingUserQuestion));
   const pendingPlan = $derived(Boolean(pendingPlanReview));
   const blockedForReview = $derived(pendingApproval || pendingQuestion || pendingPlan);
-  const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview));
+  const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview && !compacting));
   const editorDisabled = $derived(!canPrompt);
   const submitDisabled = $derived(!canPrompt);
   const supportsAudioRecording = $derived(voiceInputSession.isSupported());
@@ -177,21 +179,21 @@
   }
 
   function submitComposer() {
-    if (!blockedForReview) onSubmit?.();
+    if (!blockedForReview && !compacting) onSubmit?.();
   }
 
   async function pasteImage(file: File): Promise<string> {
     return uploadClipboardImage(file);
   }
 
-  const controlsDisabled = $derived(!(activeConversation || pendingConversationActive) || sending || blockedForReview);
+  const controlsDisabled = $derived(!(activeConversation || pendingConversationActive) || sending || compacting || blockedForReview);
   const modeDisabled = $derived(!(activeConversation || pendingConversationActive));
   const modelDisabled = $derived(controlsDisabled || models.length === 0);
 
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
 
   function toggleRecording() {
-    if (micDisabled || !voiceTarget) return;
+    if (micDisabled || compacting || !voiceTarget) return;
     void voiceInputSession.toggle(voiceTarget);
   }
 
@@ -241,7 +243,7 @@
 <form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
   <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
 
-  {#if gitSuggestions.length > 0 && !blockedForReview && !sending && canPrompt}
+  {#if gitSuggestions.length > 0 && !blockedForReview && !sending && !compacting && canPrompt}
     <GitFollowupSuggestions
       suggestions={gitSuggestions}
       onSend={onSendGitSuggestion}
@@ -277,7 +279,7 @@
       <CodeMirrorComposer
         value={text}
         disabled={editorDisabled}
-        placeholder={pendingApproval ? "Approval required before the agent can continue" : pendingPlan ? "Review the plan in the transcript before the agent can continue" : pendingQuestion ? "Reply in the transcript before the agent can continue" : sending ? "Queue a prompt for the next agent turn" : "Ask the local Nerve agent"}
+        placeholder={pendingApproval ? "Approval required before the agent can continue" : pendingPlan ? "Review the plan in the transcript before the agent can continue" : pendingQuestion ? "Reply in the transcript before the agent can continue" : compacting ? "Compacting context…" : sending ? "Queue a prompt for the next agent turn" : "Ask the local Nerve agent"}
         {slashCompletions}
         {fileCompletions}
         focusToken={editorFocusToken}
@@ -314,12 +316,12 @@
             <Mic size={14} strokeWidth={2.4} />
           {/if}
         </Button>
-        {#if sending && !pendingQuestion}
+        {#if sending && !pendingQuestion && !compacting}
           <Button variant="destructive" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" aria-keyshortcuts={stopShortcutAria} title={stopShortcut ? `Stop generation (${stopShortcut})` : "Stop generation"}>
             <Square size={13} strokeWidth={2.5} />
           </Button>
         {/if}
-        <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label={sending ? "Queue prompt" : "Send prompt"} title={sending ? "Queue prompt for the next agent turn" : "Send prompt"}>
+        <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label={compacting ? "Compacting context" : sending ? "Queue prompt" : "Send prompt"} title={compacting ? "Compacting context" : sending ? "Queue prompt for the next agent turn" : "Send prompt"}>
           <Send size={14} strokeWidth={2.4} />
         </Button>
       </div>

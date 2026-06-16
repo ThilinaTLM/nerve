@@ -20,6 +20,7 @@ describe("settings schema", () => {
       thinkingLevel: "off",
     });
     assert.deepEqual(settings.runtime, {});
+    assert.equal(settings.compaction.auto, true);
   });
 
   it("backfills new defaults for older config files", () => {
@@ -36,6 +37,18 @@ describe("settings schema", () => {
     assert.equal(settings.lastAgentSelection.permissionLevel, "autonomous");
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
+  });
+
+  it("strips legacy compaction token fields while backfilling auto default", () => {
+    const settings = settingsSchema.parse({
+      ...defaultSettings,
+      compaction: {
+        reserveTokens: 32_000,
+        keepRecentTokens: 64_000,
+      },
+    });
+
+    assert.deepEqual(settings.compaction, { auto: true });
   });
 
   it("accepts python runtime update settings", () => {

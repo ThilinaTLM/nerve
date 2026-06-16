@@ -171,7 +171,6 @@ export function composeRuntime(
     services.conversationService.agentConversationCache,
   );
   services.compactionService = new CompactionService(
-    storage,
     getConversation,
     getProject,
     appendEntry,

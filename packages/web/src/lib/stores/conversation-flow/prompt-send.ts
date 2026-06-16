@@ -239,6 +239,13 @@ export async function sendPromptText(
     notifyPromptError("No usable model configured", message);
     return;
   }
+  if (view.live.compaction?.state === "running") {
+    notifyPromptError(
+      "Compaction in progress",
+      "Wait for context compaction to finish before sending another prompt.",
+    );
+    return;
+  }
   const queueWhileRunning = Boolean(view.sending || workbenchState.sending);
   view.error = undefined;
   workbenchState.error = undefined;

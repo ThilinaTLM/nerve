@@ -2,6 +2,7 @@ import { notify } from "$lib/notifications/notify.svelte";
 import { apiPathSegment, apiPost, compactConversation } from "../../api";
 import { queryClient, queryKeys } from "../../query";
 import { selection } from "../../state/app-state.svelte";
+import type { CompactionNotice } from "../workbench/state.svelte";
 import { workbenchState } from "../workbench/state.svelte";
 import { loadWorkspaceState } from "../workspace.svelte";
 import { ensureConversationView } from "./state";
@@ -28,10 +29,34 @@ export async function navigateToEntry(
 export async function compactActiveConversation() {
   if (!selection.conversationId) return;
   const conversationId = selection.conversationId;
-  await compactConversation(conversationId);
-  await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
-  await loadWorkspaceState();
-  await openConversation(conversationId);
+  const view = ensureConversationView(conversationId);
+  const notice: CompactionNotice = {
+    id: `local:compaction:${conversationId}:${Date.now()}`,
+    state: "running",
+    reason: "manual",
+    conversationId,
+    createdAt: new Date().toISOString(),
+  };
+  view.live = { ...view.live, compaction: notice };
+  view.error = undefined;
+  try {
+    await compactConversation(conversationId);
+    view.live = { ...view.live, compaction: undefined };
+    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+    await loadWorkspaceState();
+    await openConversation(conversationId);
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    view.live = {
+      ...view.live,
+      compaction: {
+        ...notice,
+        state: "failed",
+        errorMessage: message,
+      },
+    };
+    notify.error("Compaction failed", { description: message });
+  }
 }
 
 export async function continueFromFailure(statusEntryId: string) {

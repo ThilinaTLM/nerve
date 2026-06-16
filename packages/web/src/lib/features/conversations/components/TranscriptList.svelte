@@ -23,6 +23,7 @@
   import ToolResultErrorCard from "$lib/features/tools/components/tool-call/ToolResultErrorCard.svelte";
   import Markdown from "$lib/Markdown.svelte";
   import type { TimelineItem } from "$lib/stores/workbench/timeline";
+  import CompactionCard from "./CompactionCard.svelte";
   import RunStatusCard from "./RunStatusCard.svelte";
   import ThinkingBlock from "./ThinkingBlock.svelte";
 
@@ -131,6 +132,8 @@
         {sending}
         {onContinueFromFailure}
       />
+    {:else if node.kind === "compaction"}
+      <CompactionCard notice={node.notice} {activeProject} {onOpenFile} />
     {:else}
       <ContextMenu
         items={messageMenu(node.item)}

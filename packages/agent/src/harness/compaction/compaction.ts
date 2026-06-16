@@ -60,6 +60,24 @@ function extractFileOperations(
       if (Array.isArray(details.modifiedFiles)) {
         for (const f of details.modifiedFiles) fileOps.edited.add(f);
       }
+      const detailsRecord = details as CompactionDetails & {
+        fileOps?: { read?: unknown; written?: unknown; edited?: unknown };
+      };
+      if (Array.isArray(detailsRecord.fileOps?.read)) {
+        for (const f of detailsRecord.fileOps.read) {
+          if (typeof f === "string") fileOps.read.add(f);
+        }
+      }
+      if (Array.isArray(detailsRecord.fileOps?.written)) {
+        for (const f of detailsRecord.fileOps.written) {
+          if (typeof f === "string") fileOps.written.add(f);
+        }
+      }
+      if (Array.isArray(detailsRecord.fileOps?.edited)) {
+        for (const f of detailsRecord.fileOps.edited) {
+          if (typeof f === "string") fileOps.edited.add(f);
+        }
+      }
     }
   }
   for (const msg of messages) {
@@ -137,6 +155,156 @@ export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
   reserveTokens: 16384,
   keepRecentTokens: 20000,
 };
+
+export type AutoCompactionReason = "threshold" | "overflow" | "manual";
+
+export interface AutoCompactionPolicy {
+  enabled: boolean;
+  contextWindow: number;
+  thresholdPercent: number;
+  thresholdTokens: number;
+  triggerReserveTokens: number;
+  keepRecentTokens: number;
+  summaryReserveTokens: number;
+}
+
+const AUTO_COMPACTION_THRESHOLD_PERCENT = 90;
+const AUTO_COMPACTION_KEEP_RECENT_PERCENT = 10;
+const AUTO_COMPACTION_MIN_KEEP_RECENT_TOKENS = 4_000;
+const AUTO_COMPACTION_MAX_KEEP_RECENT_TOKENS = 50_000;
+const AUTO_COMPACTION_SUMMARY_RESERVE_TOKENS = 16_384;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+export function deriveAutoCompactionPolicy(
+  contextWindow: number,
+  enabled = true,
+): AutoCompactionPolicy {
+  const normalizedWindow = Number.isFinite(contextWindow)
+    ? Math.max(0, Math.floor(contextWindow))
+    : 0;
+  if (normalizedWindow <= 0) {
+    return {
+      enabled,
+      contextWindow: 0,
+      thresholdPercent: AUTO_COMPACTION_THRESHOLD_PERCENT,
+      thresholdTokens: 0,
+      triggerReserveTokens: 0,
+      keepRecentTokens: 0,
+      summaryReserveTokens: AUTO_COMPACTION_SUMMARY_RESERVE_TOKENS,
+    };
+  }
+
+  const thresholdTokens = Math.floor(
+    normalizedWindow * (AUTO_COMPACTION_THRESHOLD_PERCENT / 100),
+  );
+  const maxKeepRecentTokens = Math.min(
+    AUTO_COMPACTION_MAX_KEEP_RECENT_TOKENS,
+    Math.floor(normalizedWindow * 0.5),
+  );
+  const keepRecentTokens = clamp(
+    Math.floor(normalizedWindow * (AUTO_COMPACTION_KEEP_RECENT_PERCENT / 100)),
+    Math.min(AUTO_COMPACTION_MIN_KEEP_RECENT_TOKENS, maxKeepRecentTokens),
+    maxKeepRecentTokens,
+  );
+
+  return {
+    enabled,
+    contextWindow: normalizedWindow,
+    thresholdPercent: AUTO_COMPACTION_THRESHOLD_PERCENT,
+    thresholdTokens,
+    triggerReserveTokens: Math.max(0, normalizedWindow - thresholdTokens),
+    keepRecentTokens,
+    summaryReserveTokens: AUTO_COMPACTION_SUMMARY_RESERVE_TOKENS,
+  };
+}
+
+export function shouldAutoCompact(
+  contextTokens: number | null | undefined,
+  policy: AutoCompactionPolicy,
+): boolean {
+  if (
+    !policy.enabled ||
+    policy.contextWindow <= 0 ||
+    policy.thresholdTokens <= 0
+  ) {
+    return false;
+  }
+  return (
+    typeof contextTokens === "number" && contextTokens >= policy.thresholdTokens
+  );
+}
+
+const OVERFLOW_PATTERNS = [
+  /prompt is too long/i,
+  /request_too_large/i,
+  /input is too long for requested model/i,
+  /exceeds the context window/i,
+  /exceeds (?:the )?(?:model'?s )?maximum context length of [\d,]+ tokens?/i,
+  /input token count.*exceeds the maximum/i,
+  /maximum prompt length is \d+/i,
+  /reduce the length of the messages/i,
+  /maximum context length is [\d,]+ tokens/i,
+  /exceeds (?:the )?maximum allowed input length of [\d,]+ tokens?/i,
+  /input \([\d,]+ tokens\) is longer than the model'?s context length \([\d,]+ tokens\)/i,
+  /exceeds the limit of [\d,]+/i,
+  /exceeds the available context size/i,
+  /greater than the context length/i,
+  /context window exceeds limit/i,
+  /exceeded model token limit/i,
+  /too large for model with [\d,]+ maximum context length/i,
+  /model_context_window_exceeded/i,
+  /prompt too long; exceeded (?:max )?context length/i,
+  /context[_ ]length[_ ]exceeded/i,
+  /too many tokens/i,
+  /token limit exceeded/i,
+  /^4(?:00|13)\s*(?:status code)?\s*\(no body\)/i,
+];
+
+const NON_OVERFLOW_PATTERNS = [
+  /^(Throttling error|Service unavailable):/i,
+  /rate limit/i,
+  /too many requests/i,
+  /throttling/i,
+  /service unavailable/i,
+];
+
+export function isContextOverflowAssistantMessage(
+  message: AssistantMessage,
+  contextWindow?: number,
+): boolean {
+  if (message.stopReason === "error" && message.errorMessage) {
+    const isNonOverflow = NON_OVERFLOW_PATTERNS.some((pattern) =>
+      pattern.test(message.errorMessage ?? ""),
+    );
+    if (
+      !isNonOverflow &&
+      OVERFLOW_PATTERNS.some((pattern) =>
+        pattern.test(message.errorMessage ?? ""),
+      )
+    ) {
+      return true;
+    }
+  }
+
+  if (contextWindow && contextWindow > 0) {
+    const inputTokens = message.usage.input + message.usage.cacheRead;
+    if (message.stopReason === "stop" && inputTokens > contextWindow) {
+      return true;
+    }
+    if (
+      message.stopReason === "length" &&
+      message.usage.output === 0 &&
+      inputTokens >= contextWindow * 0.99
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 /** Calculate total context tokens from provider usage. */
 export function calculateContextTokens(usage: Usage): number {
@@ -234,7 +402,7 @@ export function shouldCompact(
   contextWindow: number,
   settings: CompactionSettings,
 ): boolean {
-  if (!settings.enabled) return false;
+  if (!settings.enabled || contextWindow <= 0) return false;
   return contextTokens > contextWindow - settings.reserveTokens;
 }
 

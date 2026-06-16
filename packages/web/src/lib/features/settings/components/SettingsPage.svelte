@@ -11,7 +11,6 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
   import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";
-  import CompactionSettingsSection from "./settings/sections/CompactionSettingsSection.svelte";
   import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";
   import ExploreAgentSettingsSection from "./settings/sections/ExploreAgentSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
@@ -22,7 +21,7 @@
   import "./settings/settings.css";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-  type SectionId = "appearance" | "desktop" | "agents" | "explore" | "providers" | "models" | "server" | "compaction" | "python" | "runtime";
+  type SectionId = "appearance" | "desktop" | "agents" | "explore" | "providers" | "models" | "server" | "python" | "runtime";
   type SettingsChange = (
     patch: UpdateSettingsRequest,
     options?: { immediate?: boolean; debounceMs?: number },
@@ -47,7 +46,6 @@
     { id: "providers", label: "Providers", detail: "Auth" },
     { id: "models", label: "Models", detail: "Scope" },
     { id: "server", label: "Server", detail: "Binding" },
-    { id: "compaction", label: "Compaction", detail: "Context" },
     { id: "python", label: "Python", detail: "Runtime" },
     { id: "runtime", label: "Runtime", detail: "Read-only" },
   ];
@@ -116,7 +114,6 @@
         <ProvidersSettingsSection {authProviders} />
         <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ServerSettingsSection {settingsDraft} {onSettingsChange} />
-        <CompactionSettingsSection {settingsDraft} {onSettingsChange} />
         <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />
         <GeneralSettingsSection {status} />
       {:else}

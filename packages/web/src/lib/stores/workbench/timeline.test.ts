@@ -619,6 +619,56 @@ describe("buildConversationTimeline", () => {
     assert.deepEqual(keys(timeline), ["entry_user", "live:msg_1:text:0"]);
   });
 
+  it("renders persisted compaction entries as compaction timeline nodes", () => {
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Go" },
+        {
+          id: "entry_compaction",
+          role: "system",
+          text: "Summary",
+          kind: "compaction",
+          compaction: {
+            id: "entry_compaction",
+            entryId: "entry_compaction",
+            state: "completed",
+            reason: "manual",
+            summary: "Summary",
+          },
+        },
+      ],
+      [],
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user", "entry_compaction"]);
+    assert.equal(timeline[1]?.kind, "compaction");
+  });
+
+  it("appends live compaction and hides the failed overflow entry", () => {
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Go" },
+        { id: "entry_failed", role: "assistant", text: "Too many tokens" },
+      ],
+      [],
+      liveState({
+        compaction: {
+          id: "live:compaction:run_1:overflow",
+          state: "running",
+          reason: "overflow",
+          runId: "run_1",
+          failedEntryId: "entry_failed",
+        },
+      }),
+    );
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "live:compaction:run_1:overflow",
+    ]);
+    assert.equal(timeline[1]?.kind, "compaction");
+  });
+
   it("renders persisted run status entries as status timeline nodes", () => {
     const timeline = buildConversationTimeline(
       [

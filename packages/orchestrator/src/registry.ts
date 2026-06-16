@@ -262,6 +262,7 @@ export class RuntimeRegistry {
     return this.services.compactionService.compactConversation(
       conversationId,
       request,
+      { reason: "manual" },
     );
   }
 

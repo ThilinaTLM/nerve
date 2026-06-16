@@ -29,6 +29,7 @@ import {
 } from "../stores/workbench/event-reducers";
 import { invalidateGit } from "../stores/workbench/git-context.svelte";
 import type {
+  CompactionNotice,
   ConversationLiveState,
   ConversationViewState,
   LiveToolOutput,
@@ -78,8 +79,12 @@ export function handleEvent(event: EventEnvelope<Record<string, unknown>>) {
     event.type === "conversation.navigated"
   ) {
     const conversationId = conversationIdFromEvent(event);
-    if (conversationId && isOpenConversation(conversationId))
+    if (conversationId && isOpenConversation(conversationId)) {
+      if (event.type === "conversation.compacted") {
+        clearLiveCompaction(conversationId, event);
+      }
       void refreshConversationView(conversationId);
+    }
   }
 
   if (isAgentRecordEvent(event.type)) {
@@ -160,6 +165,8 @@ function stringValue(value: unknown): string | undefined {
 function isConversationRuntimeEvent(type: string): boolean {
   return (
     type === "conversation.entry.appended" ||
+    type === "conversation.compaction.started" ||
+    type === "conversation.compaction.failed" ||
     type === "conversation.context.updated" ||
     type === "conversation.tool_call.updated" ||
     type.startsWith("conversation.prompt.") ||
@@ -293,6 +300,12 @@ function handleConversationEvent(
     case "conversation.run.retrying":
       handleRunRetrying(view, event);
       break;
+    case "conversation.compaction.started":
+      handleCompactionStarted(view, event);
+      break;
+    case "conversation.compaction.failed":
+      handleCompactionFailed(view, event);
+      break;
     case "conversation.live.message.started":
       ensureLiveState(view, String(event.data?.runId ?? ""));
       view.live.runStatus = undefined;
@@ -336,17 +349,22 @@ function handleConversationEvent(
         void invalidateGit(stringValue(event.data?.projectId));
       }
       break;
-    case "conversation.run.failed":
+    case "conversation.run.failed": {
       removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
+      const failedCompaction =
+        view.live.compaction?.state === "failed"
+          ? view.live.compaction
+          : undefined;
       view.sending = false;
       view.streamingText = "";
-      view.live = emptyLiveState();
+      view.live = { ...emptyLiveState(), compaction: failedCompaction };
       view.activeRun = undefined;
       view.queuedPrompts = [];
       view.error = event.data?.aborted
         ? undefined
         : String(event.data?.message ?? "Agent error");
       break;
+    }
     case "conversation.run.suspended":
       removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = false;
@@ -395,6 +413,99 @@ function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function compactionReasonValue(
+  value: unknown,
+): CompactionNotice["reason"] | undefined {
+  return value === "manual" || value === "threshold" || value === "overflow"
+    ? value
+    : undefined;
+}
+
+function liveCompactionId(
+  event: EventEnvelope<Record<string, unknown>>,
+): string {
+  return `live:compaction:${String(
+    event.data?.runId ?? event.data?.conversationId ?? "active",
+  )}:${String(event.data?.reason ?? "manual")}`;
+}
+
+function compactionNoticeFromEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+  state: CompactionNotice["state"],
+  current?: CompactionNotice,
+): CompactionNotice {
+  return {
+    id: current?.id ?? liveCompactionId(event),
+    state,
+    reason: compactionReasonValue(event.data?.reason) ?? current?.reason,
+    conversationId: stringValue(event.data?.conversationId),
+    agentId: stringValue(event.data?.agentId),
+    runId: stringValue(event.data?.runId),
+    contextWindow:
+      numberValue(event.data?.contextWindow) ?? current?.contextWindow,
+    contextTokens:
+      numberValue(event.data?.contextTokens) ?? current?.contextTokens,
+    thresholdTokens:
+      numberValue(event.data?.thresholdTokens) ?? current?.thresholdTokens,
+    triggerReserveTokens:
+      numberValue(event.data?.triggerReserveTokens) ??
+      current?.triggerReserveTokens,
+    keepRecentTokens:
+      numberValue(event.data?.keepRecentTokens) ?? current?.keepRecentTokens,
+    failedEntryId:
+      stringValue(event.data?.failedEntryId) ?? current?.failedEntryId,
+    errorMessage:
+      state === "failed"
+        ? (stringValue(event.data?.message) ?? current?.errorMessage)
+        : current?.errorMessage,
+    createdAt:
+      stringValue(event.data?.startedAt) ?? current?.createdAt ?? event.ts,
+  };
+}
+
+function clearLiveCompaction(
+  conversationId: string,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  const view =
+    workbenchState.conversationViews[conversationViewKey(conversationId)];
+  if (!view) return;
+  if (event.seq <= view.cursorSeq) return;
+  view.cursorSeq = event.seq;
+  view.live.compaction = undefined;
+  view.error = undefined;
+  syncActiveView(view);
+}
+
+function handleCompactionStarted(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  const live = ensureLiveState(view, stringValue(event.data?.runId));
+  const notice = compactionNoticeFromEvent(event, "running", live.compaction);
+  live.compaction = notice;
+  if (notice.failedEntryId) {
+    live.hiddenEntryIds = Array.from(
+      new Set([...(live.hiddenEntryIds ?? []), notice.failedEntryId]),
+    );
+  }
+  view.error = undefined;
+}
+
+function handleCompactionFailed(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  const live = ensureLiveState(view, stringValue(event.data?.runId));
+  const notice = compactionNoticeFromEvent(event, "failed", live.compaction);
+  live.compaction = notice;
+  if (notice.failedEntryId) {
+    live.hiddenEntryIds = (live.hiddenEntryIds ?? []).filter(
+      (entryId) => entryId !== notice.failedEntryId,
+    );
+  }
 }
 
 function toolDraftProgressFromValue(

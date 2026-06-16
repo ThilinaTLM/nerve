@@ -4,14 +4,16 @@ import {
   AgentToolSuspension,
   buildConversationContext,
   Conversation,
+  calculateContextTokens,
   computeContextUsage,
   convertToLlm,
-  estimateContextTokens,
+  deriveAutoCompactionPolicy,
   getModelContextWindow,
   isAgentToolSuspension,
+  isContextOverflowAssistantMessage,
   NodeExecutionEnv,
   resolveAgentModel,
-  shouldCompact,
+  shouldAutoCompact,
 } from "@nerve/agent";
 import {
   type AgentRecord,
@@ -786,13 +788,15 @@ export class AgentRunner {
         context: { finalEntryId: assistantEntry.id },
       });
       this.deps.state.conversationRuntime.completeRun(runId);
-      await this.maybeAutoCompact(agent.conversationId).catch((error) => {
-        process.emitWarning(
-          `Auto-compaction failed for ${agent.conversationId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
+      await this.maybeAutoCompact(agent.conversationId, agent.id, runId).catch(
+        (error) => {
+          process.emitWarning(
+            `Auto-compaction failed for ${agent.conversationId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        },
+      );
       await this.publishContextUsage(
         agent.conversationId,
         agent.id,
@@ -962,14 +966,33 @@ export class AgentRunner {
     agent: AgentRecord;
   }): Promise<AssistantMessage> {
     const settings = this.deps.storage.settings.retry;
+    const contextWindow = getModelContextWindow(input.agent.model);
     let attempt = 0;
     let continueRun = input.continue;
+    let overflowCompactionAttempted = false;
     while (true) {
       const assistant = continueRun
         ? await input.harness.continue()
         : await input.harness.prompt(input.request.text, {
             images: input.request.images,
           });
+      if (
+        this.deps.storage.settings.compaction.auto &&
+        !overflowCompactionAttempted &&
+        isContextOverflowAssistantMessage(assistant, contextWindow)
+      ) {
+        overflowCompactionAttempted = true;
+        const recovered = await this.tryOverflowCompactionRecovery(
+          input,
+          assistant,
+          contextWindow,
+        );
+        if (recovered) {
+          continueRun = true;
+          continue;
+        }
+        return assistant;
+      }
       if (
         assistant.stopReason !== "error" ||
         !isRetryableAssistantError(assistant) ||
@@ -1018,6 +1041,71 @@ export class AgentRunner {
       await delay(delayMs);
       this.deps.state.conversationRuntime.clearRetry(input.runId);
       continueRun = true;
+    }
+  }
+
+  private async tryOverflowCompactionRecovery(
+    input: {
+      conversation: Conversation;
+      runId: string;
+      agent: AgentRecord;
+    },
+    assistant: AssistantMessage,
+    contextWindow: number,
+  ): Promise<boolean> {
+    const leafId = await input.conversation.getLeafId();
+    const leaf = leafId ? await input.conversation.getEntry(leafId) : undefined;
+    if (!leaf || leaf.type !== "message" || leaf.message.role !== "assistant") {
+      return false;
+    }
+    const failedEntryId = leaf.id;
+    const failedParentId = leaf.parentId;
+    const policy = deriveAutoCompactionPolicy(
+      contextWindow,
+      this.deps.storage.settings.compaction.auto,
+    );
+    try {
+      await input.conversation.moveTo(failedParentId);
+      await this.deps.compactionService.compactConversation(
+        input.agent.conversationId,
+        {
+          instructions:
+            "Overflow recovery after the selected model hit its context limit.",
+        },
+        {
+          reason: "overflow",
+          agentId: input.agent.id,
+          runId: input.runId,
+          contextWindow: policy.contextWindow,
+          contextTokens: calculateContextTokens(assistant.usage),
+          thresholdTokens: policy.thresholdTokens,
+          triggerReserveTokens: policy.triggerReserveTokens,
+          keepRecentTokens: policy.keepRecentTokens,
+          failedEntryId,
+        },
+      );
+      await this.deps.logger.info(
+        "Recovered context overflow with compaction",
+        {
+          agentId: input.agent.id,
+          conversationId: input.agent.conversationId,
+          projectId: input.agent.projectId,
+          runId: input.runId,
+          context: { failedEntryId, contextWindow: policy.contextWindow },
+        },
+      );
+      return true;
+    } catch (error) {
+      await input.conversation.moveTo(failedEntryId).catch(() => undefined);
+      await this.deps.logger.warn("Context overflow compaction failed", {
+        agentId: input.agent.id,
+        conversationId: input.agent.conversationId,
+        projectId: input.agent.projectId,
+        runId: input.runId,
+        context: { failedEntryId },
+        error,
+      });
+      return false;
     }
   }
 
@@ -1107,34 +1195,53 @@ export class AgentRunner {
     );
   }
 
-  private async maybeAutoCompact(conversationId: string): Promise<void> {
+  private async maybeAutoCompact(
+    conversationId: string,
+    agentId?: string,
+    runId?: string,
+  ): Promise<void> {
     if (!this.deps.storage.settings.compaction.auto) return;
     const conversation = this.deps.state.getConversation(conversationId);
+    const agent =
+      (agentId ? this.deps.state.agents.get(agentId) : undefined) ??
+      (conversation.activeAgentId
+        ? this.deps.state.agents.get(conversation.activeAgentId)
+        : undefined);
+    const contextWindow = getModelContextWindow(agent?.model);
+    if (contextWindow <= 0) return;
+
     const project = this.deps.state.getProject(conversation.projectId);
     const storage = await this.deps.harnessManager.openStorage(
       conversation,
       project.dir,
     );
     const branch = await storage.getPathToRoot(await storage.getLeafId());
-    const tokens = estimateContextTokens(
-      buildConversationContext(branch).messages,
-    ).tokens;
-    const agent = conversation.activeAgentId
-      ? this.deps.state.agents.get(conversation.activeAgentId)
-      : undefined;
-    const contextWindow = getModelContextWindow(agent?.model);
-    if (contextWindow <= 0) return;
-    const settings = {
-      enabled: this.deps.storage.settings.compaction.auto,
-      reserveTokens: this.deps.storage.settings.compaction.reserveTokens,
-      keepRecentTokens: this.deps.storage.settings.compaction.keepRecentTokens,
-    };
-    if (!shouldCompact(tokens, contextWindow, settings)) return;
-    await this.deps.compactionService.compactConversation(conversationId, {
-      instructions:
-        "Automatic compaction after the selected model's context threshold was exceeded.",
-      keepRecentTokens: settings.keepRecentTokens,
-    });
+    const messages = buildConversationContext(branch).messages;
+    const contextUsage = computeContextUsage(messages, branch, contextWindow);
+    if (contextUsage.tokens === null) return;
+
+    const policy = deriveAutoCompactionPolicy(
+      contextWindow,
+      this.deps.storage.settings.compaction.auto,
+    );
+    if (!shouldAutoCompact(contextUsage.tokens, policy)) return;
+    await this.deps.compactionService.compactConversation(
+      conversationId,
+      {
+        instructions:
+          "Automatic compaction after the selected model approached its context window.",
+      },
+      {
+        reason: "threshold",
+        agentId: agent?.id,
+        runId,
+        contextWindow: policy.contextWindow,
+        contextTokens: contextUsage.tokens,
+        thresholdTokens: policy.thresholdTokens,
+        triggerReserveTokens: policy.triggerReserveTokens,
+        keepRecentTokens: policy.keepRecentTokens,
+      },
+    );
   }
 }
 

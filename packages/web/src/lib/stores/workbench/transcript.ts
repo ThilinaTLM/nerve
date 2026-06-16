@@ -1,5 +1,9 @@
 import type { ConversationEntry } from "../../api";
-import type { RunStatusNotice, TranscriptItem } from "./state.svelte";
+import type {
+  CompactionNotice,
+  RunStatusNotice,
+  TranscriptItem,
+} from "./state.svelte";
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 
@@ -60,6 +64,51 @@ function toolMetadata(entry: ConversationEntry): {
   };
 }
 
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function compactionReason(
+  value: unknown,
+): CompactionNotice["reason"] | undefined {
+  return value === "manual" || value === "threshold" || value === "overflow"
+    ? value
+    : undefined;
+}
+
+function compactionNotice(
+  entry: ConversationEntry,
+): CompactionNotice | undefined {
+  if (entry.kind !== "compaction") return undefined;
+  const details = entryDetails(entry);
+  const policy =
+    details?.policy && typeof details.policy === "object"
+      ? (details.policy as Record<string, unknown>)
+      : undefined;
+  return {
+    id: entry.id,
+    state: "completed",
+    reason: compactionReason(details?.reason),
+    entryId: entry.id,
+    conversationId: entry.conversationId,
+    agentId: stringValue(entry.agentId),
+    runId: stringValue(entry.runId),
+    text: entry.text,
+    summary: entry.summary ?? entry.text,
+    tokensBefore: entry.tokensBefore,
+    contextWindow: numberValue(policy?.contextWindow),
+    thresholdTokens: numberValue(policy?.thresholdTokens),
+    triggerReserveTokens: numberValue(policy?.triggerReserveTokens),
+    keepRecentTokens: numberValue(policy?.keepRecentTokens),
+    firstKeptEntryId: stringValue(entry.firstKeptEntryId),
+    details: entry.details,
+    createdAt: entry.createdAt,
+    completedAt: entry.createdAt,
+  };
+}
+
 function runStatusNotice(
   entry: ConversationEntry,
 ): RunStatusNotice | undefined {
@@ -89,6 +138,22 @@ function runStatusNotice(
 export function entryToTranscriptItems(
   entry: ConversationEntry,
 ): TranscriptItem[] {
+  const compaction = compactionNotice(entry);
+  if (compaction) {
+    return [
+      {
+        id: entry.id,
+        runId: entry.runId,
+        role: "system",
+        kind: entry.kind,
+        displayKind: "message",
+        text: entry.summary ?? entry.text,
+        createdAt: entry.createdAt,
+        compaction,
+      },
+    ];
+  }
+
   const status = runStatusNotice(entry);
   if (status) {
     return [
