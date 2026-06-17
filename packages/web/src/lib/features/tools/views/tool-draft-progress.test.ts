@@ -36,7 +36,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.lineCount, 3);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["(+3)"],
+      ["+3"],
     );
   });
 
@@ -58,7 +58,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.estimated, true);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["(+12)"],
+      ["+12"],
     );
   });
 
@@ -82,7 +82,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.lineCount, 2);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["(+2)"],
+      ["+2"],
     );
   });
 
@@ -101,7 +101,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.generatedLineCount, 3);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["(+3)", "(-2)"],
+      ["+3", "-2"],
     );
   });
 
@@ -126,7 +126,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.estimatedDeletions, 5);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["(+8)", "(-5)"],
+      ["+8", "-5"],
     );
   });
 
@@ -166,7 +166,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.generatedLineCount, 2);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["(+2)", "(-2)"],
+      ["+2", "-2"],
     );
   });
 

@@ -156,7 +156,7 @@ function summarizeWriteDraft(draft: LiveToolCallDraft): ToolDraftSummary {
     finalContent === undefined && Boolean(draft.progress?.estimated);
   const meta: DraftMetaItem[] = [];
   if (lines !== undefined && lines > 0) {
-    meta.push({ text: `(+${lines})`, tone: "success" });
+    meta.push({ text: `+${lines}`, tone: "success" });
   }
   return {
     kind: "write",
@@ -243,10 +243,10 @@ function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   const meta: DraftMetaItem[] = [];
   const additions = stats.estimatedAdditions ?? stats.generatedLines;
   if (additions > 0) {
-    meta.push({ text: `(+${additions})`, tone: "success" });
+    meta.push({ text: `+${additions}`, tone: "success" });
   }
   if (stats.estimatedDeletions !== undefined && stats.estimatedDeletions > 0) {
-    meta.push({ text: `(-${stats.estimatedDeletions})`, tone: "error" });
+    meta.push({ text: `-${stats.estimatedDeletions}`, tone: "error" });
   }
   return {
     kind: "edit",

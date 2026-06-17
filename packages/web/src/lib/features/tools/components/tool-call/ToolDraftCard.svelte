@@ -37,7 +37,8 @@
 
   {#if summary.kind === "write" || summary.kind === "edit"}
     <div class="draft-progress" aria-live="polite">
-      <span>{summary.statusText}<span class="progress-dots" aria-hidden="true">...</span></span>
+      <span>{summary.statusText}</span>
+      <span class="progress-spinner" aria-hidden="true"></span>
     </div>
   {:else if summary.kind === "python"}
     {#if summary.code !== undefined && summary.code.length > 0}
@@ -111,12 +112,14 @@
     line-height: 1.4;
   }
 
-  .progress-dots {
-    display: inline-block;
-    width: 1ch;
-    overflow: hidden;
-    white-space: nowrap;
-    animation: dots 1.2s step-end infinite;
+  .progress-spinner {
+    flex: none;
+    width: 0.72rem;
+    height: 0.72rem;
+    border: 1px solid color-mix(in oklab, var(--muted-foreground) 32%, transparent);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
   }
 
   .progress-caret {
@@ -184,20 +187,9 @@
     border-color: color-mix(in oklab, var(--info) 35%, var(--border));
   }
 
-  @keyframes dots {
-    0%,
-    24% {
-      width: 1ch;
-    }
-
-    25%,
-    49% {
-      width: 2ch;
-    }
-
-    50%,
-    100% {
-      width: 3ch;
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
     }
   }
 
@@ -208,8 +200,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .progress-dots {
-      width: 3ch;
+    .progress-spinner {
       animation: none;
     }
 
