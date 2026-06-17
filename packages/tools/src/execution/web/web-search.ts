@@ -39,12 +39,11 @@ export async function executeWebSearch(
 ): Promise<ToolExecutionResult> {
   const query = stringArg(args.query, "query");
   const maxResults = maxResultsArg(args.max_results);
-  const apiKey =
-    (await context.getApiKey?.("tavily")) ?? process.env.TAVILY_API_KEY;
+  const apiKey = await context.getApiKey?.("tavily");
 
   if (!apiKey) {
     throw new Error(
-      "Tavily API key is not configured. Configure provider 'tavily' in Nerve or set TAVILY_API_KEY.",
+      "Tavily API key is not configured. Configure Web Search in Nerve Settings.",
     );
   }
 

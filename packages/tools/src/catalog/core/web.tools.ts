@@ -33,7 +33,7 @@ export const webToolDefinitions = [
     name: "web_search",
     label: "Web Search",
     description:
-      "Search the web using Tavily. Requires a configured Tavily API key or TAVILY_API_KEY environment variable.",
+      "Search the web using Tavily. Requires a configured Tavily API key in Nerve Settings.",
     promptSnippet: "Search the web for current external information",
     parameters: webSearchParameters,
     executionMode: "parallel",

@@ -16,12 +16,13 @@
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
   import ProvidersSettingsSection from "./settings/sections/ProvidersSettingsSection.svelte";
   import PythonRuntimeSettingsSection from "./settings/sections/PythonRuntimeSettingsSection.svelte";
+  import WebSearchSettingsSection from "./settings/sections/WebSearchSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
   import "./settings/settings.css";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-  type SectionId = "appearance" | "desktop" | "agents" | "explore" | "providers" | "models" | "server" | "python" | "runtime";
+  type SectionId = "appearance" | "desktop" | "agents" | "explore" | "providers" | "web-search" | "models" | "server" | "python" | "runtime";
   type SettingsChange = (
     patch: UpdateSettingsRequest,
     options?: { immediate?: boolean; debounceMs?: number },
@@ -44,6 +45,7 @@
     { id: "agents", label: "Agents", detail: "Defaults" },
     { id: "explore", label: "Explore agent", detail: "Delegate" },
     { id: "providers", label: "Providers", detail: "Auth" },
+    { id: "web-search", label: "Web Search", detail: "Tavily" },
     { id: "models", label: "Models", detail: "Scope" },
     { id: "server", label: "Server", detail: "Binding" },
     { id: "python", label: "Python", detail: "Runtime" },
@@ -62,6 +64,10 @@
   }: Props = $props();
 
   let activeSection = $state<SectionId>("appearance");
+
+  const modelAuthProviders = $derived(
+    authProviders.filter((provider) => provider.provider !== "tavily"),
+  );
 
   function scrollToSection(id: SectionId) {
     activeSection = id;
@@ -111,7 +117,8 @@
         <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
         <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-        <ProvidersSettingsSection {authProviders} />
+        <ProvidersSettingsSection authProviders={modelAuthProviders} />
+        <WebSearchSettingsSection {authProviders} />
         <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         <ServerSettingsSection {settingsDraft} {onSettingsChange} />
         <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />

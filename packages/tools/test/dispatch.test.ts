@@ -124,17 +124,17 @@ describe("executeTool dispatch", () => {
     }
   });
 
-  it("rejects web_search when the Tavily key is missing", async () => {
+  it("rejects web_search when the stored Tavily key is missing", async () => {
     const previous = process.env.TAVILY_API_KEY;
-    delete process.env.TAVILY_API_KEY;
+    process.env.TAVILY_API_KEY = "env-key";
     try {
       await assert.rejects(
         executeTool(
           "web_search",
           { query: "missing key" },
-          { cwd: process.cwd() },
+          { cwd: process.cwd(), getApiKey: async () => undefined },
         ),
-        /Tavily API key is not configured/,
+        /Configure Web Search in Nerve Settings/,
       );
     } finally {
       if (previous === undefined) delete process.env.TAVILY_API_KEY;

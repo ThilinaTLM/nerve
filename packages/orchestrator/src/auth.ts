@@ -185,9 +185,10 @@ export class AuthManager {
           oauthName: oauthProvider?.name,
           configured: Boolean(credential),
           credentialType: credential?.type,
-          envVar: supportsStoredApiKey(provider)
-            ? providerEnvVarName(provider)
-            : undefined,
+          envVar:
+            supportsStoredApiKey(provider) && provider !== "tavily"
+              ? providerEnvVarName(provider)
+              : undefined,
           warning:
             provider === "anthropic" && credential?.type === "oauth"
               ? ANTHROPIC_OAUTH_WARNING
