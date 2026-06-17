@@ -155,32 +155,51 @@ describe("python executor", () => {
     assert.equal(await readFile(join(project.root, "ok.txt"), "utf8"), "yes");
   });
 
-  it("truncates large output and saves full output", async (t) => {
+  it("saves large output to one transcript and returns first/last previews", async (t) => {
     const runtime = await runtimeOrSkip(t);
     if (!runtime) return;
+    const project = await createTempProject();
     const result = await executePython(
-      { code: "for i in range(2100): print(f'line {i}')" },
-      { cwd: process.cwd(), pythonRuntime: runtime },
+      { code: "for i in range(600): print(f'line {i}')" },
+      { cwd: project.root, dataDir: project.root, pythonRuntime: runtime },
     );
 
-    assert.match(result.content ?? "", /output truncated/);
+    assert.match(result.content ?? "", /output exceeded inline limits/);
+    assert.match(result.content ?? "", /Preview — first 40 lines/);
+    assert.match(result.content ?? "", /line 0/);
+    assert.match(result.content ?? "", /Preview — last 40 lines/);
+    assert.match(result.content ?? "", /line 599/);
+    assert.match(result.content ?? "", /Use read with offset\/limit or grep/);
+
     const details = result.details as {
       fullOutputPath?: string;
+      artifactDir?: string;
+      truncation?: { truncated?: boolean; direction?: string };
       streams?: {
         stdout?: {
           truncated?: boolean;
           omittedLines?: number;
           savedTo?: string;
         };
-        combined?: { truncated?: boolean };
+        stderr?: { savedTo?: string };
+        combined?: { truncated?: boolean; savedTo?: string };
       };
     };
     assert.ok(details.fullOutputPath);
+    assert.match(details.fullOutputPath, /tmp\/tool-outputs\/nerve-python-/);
+    assert.equal(details.artifactDir, undefined);
+    assert.equal(details.truncation?.truncated, true);
+    assert.equal(details.truncation?.direction, "head_tail");
     assert.equal(details.streams?.stdout?.truncated, true);
     assert.ok((details.streams?.stdout?.omittedLines ?? 0) > 0);
-    assert.ok(details.streams?.stdout?.savedTo);
+    assert.equal(details.streams?.stdout?.savedTo, undefined);
+    assert.equal(details.streams?.stderr?.savedTo, undefined);
     assert.equal(details.streams?.combined?.truncated, true);
-    assert.match(await readFile(details.fullOutputPath, "utf8"), /line 0/);
+    assert.equal(details.streams?.combined?.savedTo, details.fullOutputPath);
+
+    const transcript = await readFile(details.fullOutputPath, "utf8");
+    assert.match(transcript, /line 0/);
+    assert.match(transcript, /line 599/);
   });
 
   it("applies non-secret env overrides and rejects sensitive env keys", async (t) => {
@@ -234,6 +253,40 @@ describe("python executor", () => {
       '{"ok": true}',
     );
     assert.match(result.content ?? "", /Python artifacts \(1\)/);
+  });
+
+  it("keeps Python artifact reporting when large output uses a transcript", async (t) => {
+    const runtime = await runtimeOrSkip(t);
+    if (!runtime) return;
+    const project = await createTempProject();
+    const result = await executePython(
+      {
+        code: [
+          "import os",
+          "from pathlib import Path",
+          "artifact = Path(os.environ['NERVE_PYTHON_ARTIFACT_DIR']) / 'report.txt'",
+          "artifact.write_text('ok', encoding='utf8')",
+          "for i in range(600): print(f'line {i}')",
+        ].join("\n"),
+      },
+      { cwd: project.root, dataDir: project.root, pythonRuntime: runtime },
+    );
+
+    assert.match(result.content ?? "", /output exceeded inline limits/);
+    assert.match(result.content ?? "", /Python artifacts \(1\)/);
+    const details = result.details as {
+      fullOutputPath?: string;
+      artifactDir?: string;
+      artifacts?: { path: string }[];
+    };
+    assert.ok(details.fullOutputPath);
+    assert.ok(details.artifactDir);
+    assert.equal(details.artifacts?.length, 1);
+    assert.ok(!details.fullOutputPath.startsWith(details.artifactDir));
+    assert.equal(
+      await readFile(details.artifacts?.[0]?.path ?? "", "utf8"),
+      "ok",
+    );
   });
 
   it("permits artifact writes while planning-mode workspace writes are blocked", async (t) => {

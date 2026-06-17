@@ -2,7 +2,13 @@ export const DEFAULT_MAX_LINES = 2000;
 export const DEFAULT_MAX_BYTES = 50 * 1024;
 export const GREP_MAX_LINE_LENGTH = 500;
 
-export type TruncationDirection = "head" | "tail" | "line";
+export const PROCESS_INLINE_MAX_BYTES = 32 * 1024;
+export const PROCESS_INLINE_MAX_LINES = 500;
+export const PROCESS_PREVIEW_EDGE_LINES = 40;
+export const PROCESS_PREVIEW_EDGE_MAX_BYTES = 8 * 1024;
+export const PROCESS_PREVIEW_MAX_LINE_CHARS = 500;
+
+export type TruncationDirection = "head" | "tail" | "line" | "head_tail";
 
 export type TruncationResult = {
   text: string;

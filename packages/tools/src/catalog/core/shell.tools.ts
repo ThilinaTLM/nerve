@@ -18,7 +18,7 @@ export const shellToolDefinitions = [
     name: "bash",
     label: "bash",
     description:
-      "Execute a bash command in the current working directory. Returns stdout and stderr. Optionally provide a timeout in seconds.",
+      "Execute a bash command in the current working directory. Returns stdout and stderr. Large outputs are saved to a transcript file with a compact preview. Optionally provide a timeout in seconds.",
     promptSnippet: "Execute bash commands (ls, grep, find, etc.)",
     parameters: bashParameters,
     executionMode: "sequential",

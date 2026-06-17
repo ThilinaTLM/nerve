@@ -1,8 +1,21 @@
-import { writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolExecutionResult } from "../../types.js";
-import { formatSize, type TruncationResult, truncateTail } from "./truncate.js";
+import {
+  formatSize,
+  PROCESS_INLINE_MAX_BYTES,
+  PROCESS_INLINE_MAX_LINES,
+  PROCESS_PREVIEW_EDGE_LINES,
+  PROCESS_PREVIEW_EDGE_MAX_BYTES,
+  PROCESS_PREVIEW_MAX_LINE_CHARS,
+  type TruncationDirection,
+  type TruncationResult,
+  truncateHead,
+  truncateLine,
+  truncateTail,
+} from "./truncate.js";
 
 export type ProcessStreamResultDetails = {
   bytes: number;
@@ -12,7 +25,7 @@ export type ProcessStreamResultDetails = {
   truncated: boolean;
   omittedLines: number;
   omittedBytes: number;
-  direction: TruncationResult["direction"];
+  direction: TruncationDirection;
   savedTo?: string;
 };
 
@@ -26,11 +39,32 @@ export type ProcessResultOptions = {
   exitMessagePrefix: string;
   noOutputText?: string;
   details?: Record<string, unknown>;
+  dataDir?: string;
   durationMs?: number;
   timedOut?: boolean;
   timeoutKilled?: boolean;
   timeoutMessage?: string;
   contentFooterLines?: string[];
+};
+
+type OutputStats = {
+  bytes: number;
+  lines: number;
+};
+
+type PreviewSection = {
+  title: string;
+  text: string;
+};
+
+type PreviewResult = {
+  text: string;
+  omittedLines: number;
+  omittedBytes: number;
+};
+
+type BuiltStreamResult = ProcessStreamResultDetails & {
+  text: string;
 };
 
 export async function buildProcessResult({
@@ -43,6 +77,7 @@ export async function buildProcessResult({
   exitMessagePrefix,
   noOutputText = "(no output)",
   details = {},
+  dataDir,
   durationMs,
   timedOut = false,
   timeoutKilled = false,
@@ -53,54 +88,43 @@ export async function buildProcessResult({
   const stderr = Buffer.concat(stderrChunks).toString("utf8");
   const combined = Buffer.concat(combinedChunks).toString("utf8");
   const exitCode = code ?? (timedOut ? 124 : signal ? 128 : 0);
+  const combinedStats = outputStats(combined);
+  const hasOutput = combined.length > 0;
+  const largeOutput = hasOutput && exceedsInlineLimits(combinedStats);
 
-  const stdoutStream = await buildStreamResult({
-    label: "stdout",
-    text: stdout,
-    outputFilePrefix,
-  });
-  const stderrStream = await buildStreamResult({
-    label: "stderr",
-    text: stderr,
-    outputFilePrefix,
-  });
-  const combinedStream = await buildStreamResult({
+  const fullOutputPath = largeOutput
+    ? await writeTranscriptFile({ outputFilePrefix, text: combined, dataDir })
+    : undefined;
+
+  const stdoutStream = buildStreamResult({ label: "stdout", text: stdout });
+  const stderrStream = buildStreamResult({ label: "stderr", text: stderr });
+  const combinedStream = buildStreamResult({
     label: "output",
     text: combined,
-    outputFilePrefix,
+    savedTo: fullOutputPath,
   });
 
-  const displayOutput = combined.length > 0 ? combined : noOutputText;
-  const outputTruncation = truncateTail(displayOutput);
-  let content = outputTruncation.text;
-  let fullOutputPath: string | undefined;
-  const contentHeaders: string[] = [];
+  const outputPreview = largeOutput
+    ? buildHeadTailPreview(combined)
+    : undefined;
+  const outputTruncation = outputPreview
+    ? previewTruncation(outputPreview)
+    : undefined;
 
-  if (outputTruncation.truncated) {
-    fullOutputPath =
-      combinedStream.savedTo ??
-      (await writeTempOutputFile({
-        outputFilePrefix,
-        label: "output",
-        text: displayOutput,
-      }));
-    contentHeaders.push(
-      `[output truncated: showing tail; omitted ${formatOmissions(outputTruncation)}; full output saved to ${fullOutputPath}]`,
-    );
-  }
-
-  for (const [label, stream] of [
-    ["stdout", stdoutStream] as const,
-    ["stderr", stderrStream] as const,
-  ]) {
-    if (!stream.truncated || !stream.savedTo) continue;
-    contentHeaders.push(
-      `[${label} truncated: showing tail; omitted ${formatStreamOmissions(stream)}; full ${label} saved to ${stream.savedTo}]`,
-    );
-  }
-
-  if (contentHeaders.length > 0) {
-    content = `${contentHeaders.join("\n")}\n${content}`;
+  let content = noOutputText;
+  if (hasOutput && outputPreview) {
+    content = formatLargeOutputContent({
+      exitMessagePrefix,
+      fullOutputPath: fullOutputPath ?? "",
+      combinedStats,
+      stdoutStats: outputStats(stdout),
+      stderrStats: outputStats(stderr),
+      exitCode,
+      signal,
+      preview: outputPreview,
+    });
+  } else if (hasOutput) {
+    content = combined;
   }
 
   const footerLines = [...contentFooterLines];
@@ -129,7 +153,7 @@ export async function buildProcessResult({
       durationMs,
       timedOut,
       timeoutKilled,
-      truncation: outputTruncation.truncated ? outputTruncation : undefined,
+      truncation: outputTruncation,
       streams: {
         stdout: streamDetails(stdoutStream),
         stderr: streamDetails(stderrStream),
@@ -141,33 +165,29 @@ export async function buildProcessResult({
   };
 }
 
-type BuiltStreamResult = ProcessStreamResultDetails & {
-  text: string;
-};
-
-async function buildStreamResult({
+function buildStreamResult({
   label,
   text,
-  outputFilePrefix,
+  savedTo,
 }: {
   label: string;
   text: string;
-  outputFilePrefix: string;
-}): Promise<BuiltStreamResult> {
-  const truncated = truncateTail(text);
-  const savedTo = truncated.truncated
-    ? await writeTempOutputFile({ outputFilePrefix, label, text })
-    : undefined;
+  savedTo?: string;
+}): BuiltStreamResult {
+  const stats = outputStats(text);
+  const truncated = exceedsInlineLimits(stats);
+  const preview = truncated ? buildHeadTailPreview(text) : undefined;
+  const displayText = preview ? renderStreamPreview(label, preview) : text;
   return {
-    text: truncated.text,
-    bytes: Buffer.byteLength(text, "utf8"),
-    lines: countLines(text),
-    displayedBytes: Buffer.byteLength(truncated.text, "utf8"),
-    displayedLines: countLines(truncated.text),
-    truncated: truncated.truncated,
-    omittedLines: truncated.omittedLines,
-    omittedBytes: truncated.omittedBytes,
-    direction: truncated.direction,
+    text: displayText,
+    bytes: stats.bytes,
+    lines: stats.lines,
+    displayedBytes: Buffer.byteLength(displayText, "utf8"),
+    displayedLines: countLines(displayText),
+    truncated,
+    omittedLines: preview?.omittedLines ?? 0,
+    omittedBytes: preview?.omittedBytes ?? 0,
+    direction: truncated ? "head_tail" : "tail",
     savedTo,
   };
 }
@@ -186,29 +206,188 @@ function streamDetails(stream: BuiltStreamResult): ProcessStreamResultDetails {
   };
 }
 
-async function writeTempOutputFile({
+function outputStats(text: string): OutputStats {
+  return {
+    bytes: Buffer.byteLength(text, "utf8"),
+    lines: countLines(text),
+  };
+}
+
+function exceedsInlineLimits(stats: OutputStats): boolean {
+  return (
+    stats.bytes > PROCESS_INLINE_MAX_BYTES ||
+    stats.lines > PROCESS_INLINE_MAX_LINES
+  );
+}
+
+function buildHeadTailPreview(text: string): PreviewResult {
+  const lines = splitLines(text);
+  if (lines.length === 0) {
+    return {
+      text: "",
+      omittedLines: 0,
+      omittedBytes: 0,
+    };
+  }
+
+  const headCount = Math.min(PROCESS_PREVIEW_EDGE_LINES, lines.length);
+  const tailStart = Math.max(
+    headCount,
+    lines.length - PROCESS_PREVIEW_EDGE_LINES,
+  );
+  const tailLines = tailStart < lines.length ? lines.slice(tailStart) : [];
+  const omittedBetweenLines = Math.max(0, tailStart - headCount);
+  const sections: PreviewSection[] = [
+    {
+      title: `first ${formatLineCount(headCount)}`,
+      text: formatPreviewSection(lines.slice(0, headCount), "head"),
+    },
+  ];
+
+  if (tailLines.length > 0) {
+    sections.push({
+      title: `last ${formatLineCount(tailLines.length)}`,
+      text: formatPreviewSection(tailLines, "tail"),
+    });
+  }
+
+  const previewText = renderPreviewSections(sections, omittedBetweenLines);
+  const originalBytes = Buffer.byteLength(text, "utf8");
+  const previewBytes = Buffer.byteLength(previewText, "utf8");
+
+  return {
+    text: previewText,
+    omittedLines: omittedBetweenLines,
+    omittedBytes: Math.max(0, originalBytes - previewBytes),
+  };
+}
+
+function formatPreviewSection(
+  lines: string[],
+  direction: "head" | "tail",
+): string {
+  const text = lines.map(truncatePreviewLine).join("\n");
+  const truncation =
+    direction === "head"
+      ? truncateHead(text, {
+          maxLines: lines.length,
+          maxBytes: PROCESS_PREVIEW_EDGE_MAX_BYTES,
+        })
+      : truncateTail(text, {
+          maxLines: lines.length,
+          maxBytes: PROCESS_PREVIEW_EDGE_MAX_BYTES,
+        });
+
+  if (!truncation.truncated) return truncation.text;
+  const marker = `[preview section truncated: omitted ${formatOmissions(truncation)}]`;
+  return direction === "head"
+    ? `${truncation.text}\n${marker}`
+    : `${marker}\n${truncation.text}`;
+}
+
+function truncatePreviewLine(line: string): string {
+  return truncateLine(line, PROCESS_PREVIEW_MAX_LINE_CHARS).text;
+}
+
+function renderPreviewSections(
+  sections: PreviewSection[],
+  omittedBetweenLines: number,
+): string {
+  return sections
+    .map((section, index) => {
+      const prefix =
+        index > 0 && omittedBetweenLines > 0
+          ? `[... omitted ${formatLineCount(omittedBetweenLines)} between preview sections ...]\n\n`
+          : "";
+      return `${prefix}Preview — ${section.title}:\n${section.text}`;
+    })
+    .join("\n\n");
+}
+
+function renderStreamPreview(label: string, preview: PreviewResult): string {
+  if (preview.text.length === 0) return "";
+  return `[${label} exceeded inline limits; showing first/last preview]\n${preview.text}`;
+}
+
+function previewTruncation(preview: PreviewResult): TruncationResult {
+  return {
+    text: preview.text,
+    truncated: true,
+    omittedLines: preview.omittedLines,
+    omittedBytes: preview.omittedBytes,
+    direction: "head_tail",
+  };
+}
+
+function formatLargeOutputContent({
+  exitMessagePrefix,
+  fullOutputPath,
+  combinedStats,
+  stdoutStats,
+  stderrStats,
+  exitCode,
+  signal,
+  preview,
+}: {
+  exitMessagePrefix: string;
+  fullOutputPath: string;
+  combinedStats: OutputStats;
+  stdoutStats: OutputStats;
+  stderrStats: OutputStats;
+  exitCode: number;
+  signal: NodeJS.Signals | null;
+  preview: PreviewResult;
+}): string {
+  const lines = [
+    `${exitMessagePrefix} output exceeded inline limits and was saved to:`,
+    fullOutputPath,
+    "",
+    `Combined output: ${formatStats(combinedStats)}`,
+    `stdout: ${formatStats(stdoutStats)}`,
+    `stderr: ${formatStats(stderrStats)}`,
+    `exitCode: ${exitCode}${signal ? `, signal: ${signal}` : ""}`,
+    "",
+    preview.text,
+    "",
+    "Use read with offset/limit or grep on the saved transcript to inspect specific sections.",
+  ];
+  return lines.join("\n");
+}
+
+async function writeTranscriptFile({
   outputFilePrefix,
-  label,
   text,
+  dataDir,
 }: {
   outputFilePrefix: string;
-  label: string;
   text: string;
+  dataDir?: string;
 }): Promise<string> {
+  const baseDir = dataDir
+    ? join(dataDir, "tmp", "tool-outputs")
+    : join(tmpdir(), "nerve-tool-outputs");
+  await mkdir(baseDir, { recursive: true, mode: 0o700 });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const path = join(
-    tmpdir(),
-    `${outputFilePrefix}-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}.log`,
+    baseDir,
+    `${outputFilePrefix}-${timestamp}-${randomUUID()}.log`,
   );
-  await writeFile(path, text, "utf8");
+  await writeFile(path, text, { encoding: "utf8", mode: 0o600 });
   return path;
+}
+
+function formatStats(stats: OutputStats): string {
+  return `${formatSize(stats.bytes)}, ${formatLineCount(stats.lines)}`;
+}
+
+function formatLineCount(lines: number): string {
+  return `${lines} line${lines === 1 ? "" : "s"}`;
 }
 
 function formatOmissions(truncation: TruncationResult): string {
   const parts: string[] = [];
   if (truncation.omittedLines > 0) {
-    parts.push(
-      `${truncation.omittedLines} line${truncation.omittedLines === 1 ? "" : "s"}`,
-    );
+    parts.push(formatLineCount(truncation.omittedLines));
   }
   if (truncation.omittedBytes > 0) {
     parts.push(formatSize(truncation.omittedBytes));
@@ -216,18 +395,14 @@ function formatOmissions(truncation: TruncationResult): string {
   return parts.length > 0 ? parts.join(", ") : "0 bytes";
 }
 
-function formatStreamOmissions(stream: ProcessStreamResultDetails): string {
-  const parts: string[] = [];
-  if (stream.omittedLines > 0) {
-    parts.push(
-      `${stream.omittedLines} line${stream.omittedLines === 1 ? "" : "s"}`,
-    );
-  }
-  if (stream.omittedBytes > 0) parts.push(formatSize(stream.omittedBytes));
-  return parts.length > 0 ? parts.join(", ") : "0 bytes";
+function splitLines(text: string): string[] {
+  if (text.length === 0) return [];
+  const withoutFinalNewline = text.endsWith("\n") ? text.slice(0, -1) : text;
+  return withoutFinalNewline.length === 0
+    ? [""]
+    : withoutFinalNewline.split("\n");
 }
 
 function countLines(text: string): number {
-  if (text.length === 0) return 0;
-  return text.split("\n").length;
+  return splitLines(text).length;
 }

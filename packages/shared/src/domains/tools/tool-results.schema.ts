@@ -36,7 +36,7 @@ export const truncationDetailsSchema = z
     truncated: z.boolean().optional(),
     omittedLines: z.number().optional(),
     omittedBytes: z.number().optional(),
-    direction: z.enum(["head", "tail", "line"]).optional(),
+    direction: z.enum(["head", "tail", "line", "head_tail"]).optional(),
     partialLine: z.boolean().optional(),
     nextOffset: z.number().optional(),
     maxLines: z.number().optional(),
@@ -53,7 +53,7 @@ export const processStreamResultDetailsSchema = z
     truncated: z.boolean().optional(),
     omittedLines: z.number().optional(),
     omittedBytes: z.number().optional(),
-    direction: z.enum(["head", "tail", "line"]).optional(),
+    direction: z.enum(["head", "tail", "line", "head_tail"]).optional(),
     savedTo: z.string().optional(),
   })
   .passthrough();

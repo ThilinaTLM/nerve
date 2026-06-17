@@ -26,22 +26,81 @@ describe("bash executor", () => {
     assert.equal(result.stdout, "out");
     assert.equal(result.stderr, "err");
     assert.equal(result.exitCode, 0);
+    const details = result.details as {
+      fullOutputPath?: string;
+      streams?: { combined?: { truncated?: boolean } };
+    };
+    assert.equal(details.fullOutputPath, undefined);
+    assert.equal(details.streams?.combined?.truncated, false);
   });
 
-  it("truncates large output and saves the full output to a temp file", async () => {
+  it("saves large output to one transcript and returns first/last previews", async () => {
     const project = await createTempProject();
     const result = await executeBash(
       {
-        command: `${node} -e "for (let i = 0; i < 2100; i++) console.log('line ' + i)"`,
+        command: `${node} -e "for (let i = 0; i < 600; i++) console.log('line ' + i)"`,
       },
-      { cwd: project.root },
+      { cwd: project.root, dataDir: project.root },
     );
 
-    assert.match(result.content ?? "", /output truncated/);
-    const fullOutputPath = (result.details as { fullOutputPath?: string })
-      .fullOutputPath;
-    assert.ok(fullOutputPath);
-    assert.match(await readFile(fullOutputPath, "utf8"), /line 0/);
+    assert.match(result.content ?? "", /output exceeded inline limits/);
+    assert.match(result.content ?? "", /Preview — first 40 lines/);
+    assert.match(result.content ?? "", /line 0/);
+    assert.match(result.content ?? "", /Preview — last 40 lines/);
+    assert.match(result.content ?? "", /line 599/);
+    assert.match(result.content ?? "", /Use read with offset\/limit or grep/);
+
+    const details = result.details as {
+      fullOutputPath?: string;
+      truncation?: { truncated?: boolean; direction?: string };
+      streams?: {
+        stdout?: { truncated?: boolean; savedTo?: string };
+        stderr?: { truncated?: boolean; savedTo?: string };
+        combined?: { truncated?: boolean; savedTo?: string };
+      };
+    };
+    assert.ok(details.fullOutputPath);
+    assert.match(details.fullOutputPath, /tmp\/tool-outputs\/nerve-bash-/);
+    assert.equal(details.truncation?.truncated, true);
+    assert.equal(details.truncation?.direction, "head_tail");
+    assert.equal(details.streams?.stdout?.truncated, true);
+    assert.equal(details.streams?.stdout?.savedTo, undefined);
+    assert.equal(details.streams?.stderr?.savedTo, undefined);
+    assert.equal(details.streams?.combined?.truncated, true);
+    assert.equal(details.streams?.combined?.savedTo, details.fullOutputPath);
+
+    const transcript = await readFile(details.fullOutputPath, "utf8");
+    assert.match(transcript, /line 0/);
+    assert.match(transcript, /line 599/);
+  });
+
+  it("saves mixed stdout and stderr to the same transcript", async () => {
+    const project = await createTempProject();
+    const result = await executeBash(
+      {
+        command: `${node} -e "for (let i = 0; i < 700; i++) { if (i % 2) process.stderr.write('err ' + i + '\\n'); else process.stdout.write('out ' + i + '\\n'); }"`,
+      },
+      { cwd: project.root, dataDir: project.root },
+    );
+
+    const details = result.details as {
+      fullOutputPath?: string;
+      streams?: {
+        stdout?: { savedTo?: string; lines?: number };
+        stderr?: { savedTo?: string; lines?: number };
+        combined?: { savedTo?: string; lines?: number };
+      };
+    };
+    assert.ok(details.fullOutputPath);
+    assert.equal(details.streams?.stdout?.savedTo, undefined);
+    assert.equal(details.streams?.stderr?.savedTo, undefined);
+    assert.equal(details.streams?.combined?.savedTo, details.fullOutputPath);
+    assert.ok((details.streams?.stdout?.lines ?? 0) > 0);
+    assert.ok((details.streams?.stderr?.lines ?? 0) > 0);
+
+    const transcript = await readFile(details.fullOutputPath, "utf8");
+    assert.match(transcript, /out 0/);
+    assert.match(transcript, /err 1/);
   });
 
   it("normalizes non-zero commands instead of throwing", async () => {
@@ -56,5 +115,6 @@ describe("bash executor", () => {
     assert.equal(result.stdout, "out");
     assert.equal(result.stderr, "err");
     assert.equal(result.exitCode, 7);
+    assert.match(result.content ?? "", /Command exited with code 7/);
   });
 });

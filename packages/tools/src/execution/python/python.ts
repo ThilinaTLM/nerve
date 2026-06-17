@@ -288,6 +288,7 @@ export async function executePython(
       userPath,
       artifactDir,
       envOverrides,
+      dataDir: context.dataDir,
       signal: context.signal,
       onUpdate: context.onUpdate,
     });
@@ -312,6 +313,7 @@ type RunPythonProcessOptions = {
   userPath: string;
   artifactDir: string;
   envOverrides: Record<string, string>;
+  dataDir?: string;
   signal?: AbortSignal;
   onUpdate?: ToolExecutionContext["onUpdate"];
 };
@@ -330,6 +332,7 @@ async function runPythonProcess({
   userPath,
   artifactDir,
   envOverrides,
+  dataDir,
   signal,
   onUpdate,
 }: RunPythonProcessOptions): Promise<ToolExecutionResult> {
@@ -454,6 +457,7 @@ async function runPythonProcess({
             signal: closeSignal,
             outputFilePrefix: "nerve-python",
             exitMessagePrefix: "Python",
+            dataDir,
             durationMs,
             timedOut,
             timeoutKilled,

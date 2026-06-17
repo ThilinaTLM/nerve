@@ -96,7 +96,14 @@ export async function executeBash(
       if (settled) return;
       settled = true;
       cleanup();
-      void buildResult(stdoutChunks, stderrChunks, combinedChunks, code, signal)
+      void buildResult(
+        stdoutChunks,
+        stderrChunks,
+        combinedChunks,
+        code,
+        signal,
+        context.dataDir,
+      )
         .then(resolve)
         .catch(reject);
     });
@@ -109,6 +116,7 @@ async function buildResult(
   combinedChunks: Buffer[],
   code: number | null,
   signal: NodeJS.Signals | null,
+  dataDir: string | undefined,
 ): Promise<ToolExecutionResult> {
   return buildProcessResult({
     stdoutChunks,
@@ -118,5 +126,6 @@ async function buildResult(
     signal,
     outputFilePrefix: "nerve-bash",
     exitMessagePrefix: "Command",
+    dataDir,
   });
 }
