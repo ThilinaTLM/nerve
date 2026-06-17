@@ -1,5 +1,5 @@
 import type { SubscriptionUsage } from "@nerve/shared";
-import { apiGet } from "../../../shared/api/client";
+import { apiGet } from "../../../core/api/client";
 
 export async function getSubscriptionUsage(): Promise<SubscriptionUsage[]> {
   return (

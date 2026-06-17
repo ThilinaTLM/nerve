@@ -1,3 +1,4 @@
+import { selection } from "$lib/features/workspace/state/selection.svelte";
 import type {
   AgentRecord,
   ConversationRecord,
@@ -6,7 +7,6 @@ import type {
   ProcessRecord,
   ProjectRecord,
 } from "../../api";
-import { selection } from "../../state/app-state.svelte";
 import {
   defaultFileDisplayMode,
   type FileDisplayMode,

@@ -1,4 +1,4 @@
-import { notify } from "$lib/notifications/notify.svelte";
+import { notify } from "$lib/features/notifications/notify.svelte";
 import { ensureConversationView } from "$lib/stores/conversation-flow/state";
 import { workbenchState } from "$lib/stores/workbench/state.svelte";
 import { pendingConversationKey } from "$lib/stores/workbench/state-keys";

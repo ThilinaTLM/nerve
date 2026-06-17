@@ -6,7 +6,7 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
 } from "@nerve/shared";
-import { apiGet, apiPathSegment, apiPost } from "../../../shared/api/client";
+import { apiGet, apiPathSegment, apiPost } from "../../../core/api/client";
 
 export type ApprovalWithToolCall = ApprovalRecord & {
   toolCall?: ToolCallRecord;

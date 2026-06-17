@@ -1,9 +1,9 @@
-import type { ProjectRecord } from "../../api";
 import {
   composerDraft,
   resetSelection,
   selection,
-} from "../../state/app-state.svelte";
+} from "$lib/features/workspace/state/selection.svelte";
+import type { ProjectRecord } from "../../api";
 import { resolveNewAgentComposerSelection } from "../agent-selection-defaults";
 import {
   addCenterTab,

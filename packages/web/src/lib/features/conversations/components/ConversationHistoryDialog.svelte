@@ -6,7 +6,7 @@
     ToolCallRecord,
   } from "$lib/api";
   import Dialog from "$lib/components/ui/dialog-shell";
-  import HistoryTab from "$lib/components/app/utility/HistoryTab.svelte";
+  import HistoryTab from "./HistoryTab.svelte";
 
   type Props = {
     open?: boolean;

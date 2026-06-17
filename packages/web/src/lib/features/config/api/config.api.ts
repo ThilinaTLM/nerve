@@ -1,5 +1,5 @@
 import type { ModelInfo, StatusResponse } from "@nerve/shared";
-import { apiGet } from "../../../shared/api/client";
+import { apiGet } from "../../../core/api/client";
 
 export type ClientConfig = {
   url: string;

@@ -8,7 +8,7 @@ import {
   apiGet,
   apiPathSegment,
   apiPost,
-} from "../../../shared/api/client";
+} from "../../../core/api/client";
 
 export async function getProcessLogs(
   processId: string,

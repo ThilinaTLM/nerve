@@ -1,4 +1,5 @@
-import { notify } from "$lib/notifications/notify.svelte";
+import { notify } from "$lib/features/notifications/notify.svelte";
+import { selection } from "$lib/features/workspace/state/selection.svelte";
 import {
   type AgentRecord,
   apiPathSegment,
@@ -21,7 +22,6 @@ import {
   pruneProjectConversations,
 } from "../api";
 import { queryClient, queryKeys } from "../query";
-import { selection } from "../state/app-state.svelte";
 import { modelKey } from "../utils/model";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
 import {

@@ -1,5 +1,5 @@
+import type { DesktopNotificationPayload } from "$lib/features/desktop/state/desktop-bridge.svelte";
 import type { ConversationRecord, EventEnvelope, ProjectRecord } from "../api";
-import type { DesktopNotificationPayload } from "../desktop/bridge.svelte";
 
 type RuntimeNotificationKind = "success" | "error" | "message";
 

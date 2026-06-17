@@ -61,7 +61,7 @@
   text-align: left;
 }
 
-.settings-nav button svg {
+.settings-nav :where(button) :where(svg) {
   flex: none;
   opacity: 0.85;
 }

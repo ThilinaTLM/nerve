@@ -8,7 +8,7 @@ import type {
   GitMutationResponse,
   GitOverviewResponse,
 } from "@nerve/shared";
-import { apiGet, apiPathSegment, apiPost } from "../../../shared/api/client";
+import { apiGet, apiPathSegment, apiPost } from "../../../core/api/client";
 
 export async function discoverGitRepos(
   projectId: string,

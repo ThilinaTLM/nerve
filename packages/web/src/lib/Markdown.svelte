@@ -1,6 +1,6 @@
 <script lang="ts">
   import { writeClipboardText } from "$lib/clipboard";
-  import { notify } from "$lib/notifications/notify.svelte";
+  import { notify } from "$lib/features/notifications/notify.svelte";
   import { unified } from "unified";
   import remarkParse from "remark-parse";
   import remarkGfm from "remark-gfm";

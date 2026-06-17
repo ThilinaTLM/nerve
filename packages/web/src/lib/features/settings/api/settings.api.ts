@@ -1,5 +1,5 @@
 import type { Settings, UpdateSettingsRequest } from "@nerve/shared";
-import { apiGet, apiPut } from "../../../shared/api/client";
+import { apiGet, apiPut } from "../../../core/api/client";
 
 export type SettingsResponse = Settings;
 export type { UpdateSettingsRequest };

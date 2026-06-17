@@ -6,7 +6,7 @@
   import Search from "@lucide/svelte/icons/search";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import { writeClipboardText } from "$lib/clipboard";
-  import { notify } from "$lib/notifications/notify.svelte";
+  import { notify } from "$lib/features/notifications/notify.svelte";
   import type {
     AgentRecord,
     ProjectRecord,
@@ -26,7 +26,7 @@
   import type { ConversationActivityState } from "$lib/stores/workbench/conversation-activity";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as Tooltip from "$lib/components/ui/tooltip";
-  import PanelSection from "$lib/components/app/utility/PanelSection.svelte";
+  import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
   import {
     buildProjectGroups,
     shortProjectLabel,

@@ -62,6 +62,7 @@ export type {
   UpdateSettingsRequest,
   UserQuestionRecord,
 } from "@nerve/shared";
+export * from "./core/api/client";
 export * from "./features/agents/api/agents.api";
 export * from "./features/audio/api/transcription.api";
 export * from "./features/auth/api/auth.api";
@@ -76,4 +77,3 @@ export * from "./features/settings/api/settings.api";
 export * from "./features/tools/api/tools.api";
 export * from "./features/usage/api/usage.api";
 export * from "./features/workspace/api/workspace.api";
-export * from "./shared/api/client";

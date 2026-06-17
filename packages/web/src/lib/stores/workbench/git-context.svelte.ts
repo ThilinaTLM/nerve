@@ -1,4 +1,4 @@
-import { selection } from "../../state/app-state.svelte";
+import { selection } from "$lib/features/workspace/state/selection.svelte";
 import {
   gitContextFingerprint,
   shouldRefreshGitContextOnFocus,

@@ -1,4 +1,8 @@
 import {
+  composerDraft,
+  selection,
+} from "$lib/features/workspace/state/selection.svelte";
+import {
   type AgentRecord,
   apiGet,
   apiPathSegment,
@@ -7,7 +11,6 @@ import {
   type ProjectRecord,
 } from "../../api";
 import { voiceInputSession } from "../../audio/voice-input-session.svelte";
-import { composerDraft, selection } from "../../state/app-state.svelte";
 import { modelKey } from "../../utils/model";
 import { replaceOpenCenterTabs } from "../workbench/center-tabs.svelte";
 import {

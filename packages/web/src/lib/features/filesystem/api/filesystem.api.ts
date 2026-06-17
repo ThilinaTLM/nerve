@@ -3,7 +3,7 @@ import type {
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
 } from "@nerve/shared";
-import { apiGet, apiPost, fileToBase64 } from "../../../shared/api/client";
+import { apiGet, apiPost, fileToBase64 } from "../../../core/api/client";
 
 export async function uploadClipboardImage(file: File): Promise<string> {
   const response = await apiPost<ClipboardImageUploadResponse>(

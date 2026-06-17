@@ -3,7 +3,7 @@
   import Mic from "@lucide/svelte/icons/mic";
   import Send from "@lucide/svelte/icons/send";
   import X from "@lucide/svelte/icons/x";
-  import { notify } from "$lib/notifications/notify.svelte";
+  import { notify } from "$lib/features/notifications/notify.svelte";
   import type { ToolCallRecord, UserQuestionRecord } from "$lib/api";
   import TranscriptionActivity from "$lib/audio/TranscriptionActivity.svelte";
   import {

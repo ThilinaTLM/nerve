@@ -5,7 +5,7 @@ import type {
   ApplicationLogQueryResponse,
   ApplicationLogSource,
 } from "@nerve/shared";
-import { apiGet, apiPost } from "../../../shared/api/client";
+import { apiGet, apiPost } from "../../../core/api/client";
 
 export type {
   ApplicationLogLevel,

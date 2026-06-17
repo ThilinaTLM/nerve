@@ -13,7 +13,7 @@
     StatusResponse,
     UpdateSettingsRequest,
   } from "$lib/api";
-  import type { ThemePreference } from "$lib/state/app-state.svelte";
+  import type { ThemePreference } from "$lib/app/layout/layout-state.svelte";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
   import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";

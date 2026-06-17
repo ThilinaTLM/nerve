@@ -1,5 +1,9 @@
 import { deriveConversationTitle } from "@nerve/shared";
-import { notify } from "$lib/notifications/notify.svelte";
+import { notify } from "$lib/features/notifications/notify.svelte";
+import {
+  composerDraft,
+  selection,
+} from "$lib/features/workspace/state/selection.svelte";
 import {
   type AgentRecord,
   apiPathSegment,
@@ -9,7 +13,6 @@ import {
   updateAgentConfig,
 } from "../../api";
 import { queryClient, queryKeys } from "../../query";
-import { composerDraft, selection } from "../../state/app-state.svelte";
 import { scopedUsableModelOptions } from "../../utils/model";
 import {
   agentNeedsComposerUpdate,

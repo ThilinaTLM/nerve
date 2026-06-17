@@ -1,4 +1,4 @@
-import { notify } from "$lib/notifications/notify.svelte";
+import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   createGitBranch,
   discardGitFile,

@@ -1,6 +1,6 @@
+import { selection } from "$lib/features/workspace/state/selection.svelte";
 import type { AgentRecord, ModelInfo, ModelSelection, Settings } from "../api";
 import { getConversationContextUsage, updateAgentConfig } from "../api";
-import { selection } from "../state/app-state.svelte";
 import { modelKey, parseModelKey } from "../utils/model";
 import {
   clampThinkingLevelForModel,

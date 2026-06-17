@@ -1,6 +1,6 @@
+import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { apiGet, apiPathSegment, type ConversationRecord } from "../../api";
 import { voiceInputSession } from "../../audio/voice-input-session.svelte";
-import { selection } from "../../state/app-state.svelte";
 import {
   nextCenterTabAfterClose,
   removeCenterTab,

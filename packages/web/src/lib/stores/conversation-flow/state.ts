@@ -1,4 +1,7 @@
-import { composerDraft, resetSelection } from "../../state/app-state.svelte";
+import {
+  composerDraft,
+  resetSelection,
+} from "$lib/features/workspace/state/selection.svelte";
 import { addCenterTab } from "../workbench/center-tabs.svelte";
 import { saveConversationTabs } from "../workbench/conversation-tabs";
 import type {

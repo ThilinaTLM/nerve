@@ -1,4 +1,4 @@
-import { getDesktopBridge } from "$lib/desktop/bridge.svelte";
+import { getDesktopBridge } from "$lib/features/desktop/state/desktop-bridge.svelte";
 
 export async function writeClipboardText(text: string): Promise<void> {
   const bridge = getDesktopBridge();

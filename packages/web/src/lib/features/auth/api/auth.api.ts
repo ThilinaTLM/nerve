@@ -11,7 +11,7 @@ import {
   apiPathSegment,
   apiPost,
   apiPut,
-} from "../../../shared/api/client";
+} from "../../../core/api/client";
 
 export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
   return (

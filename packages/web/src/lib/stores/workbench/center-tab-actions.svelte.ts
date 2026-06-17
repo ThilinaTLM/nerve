@@ -1,12 +1,12 @@
 import {
-  type VoiceInputTarget,
-  voiceInputSession,
-} from "../../audio/voice-input-session.svelte";
-import {
   composerDraft,
   resetSelection,
   selection,
-} from "../../state/app-state.svelte";
+} from "$lib/features/workspace/state/selection.svelte";
+import {
+  type VoiceInputTarget,
+  voiceInputSession,
+} from "../../audio/voice-input-session.svelte";
 import {
   centerTabKey,
   centerTabsEqual,

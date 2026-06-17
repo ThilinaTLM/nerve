@@ -1,4 +1,11 @@
-import { notify } from "$lib/notifications/notify.svelte";
+import type { ThemePreference } from "$lib/app/layout/layout-state.svelte";
+import {
+  applyTheme,
+  applyZoomLevel,
+  clampZoomLevel,
+} from "$lib/app/layout/layout-state.svelte";
+import { notify } from "$lib/features/notifications/notify.svelte";
+import { selection } from "$lib/features/workspace/state/selection.svelte";
 import type { AgentRecord, ModelInfo } from "../api";
 import {
   getAuthProviders,
@@ -9,13 +16,6 @@ import {
   type UpdateSettingsRequest,
   updateSettings,
 } from "../api";
-import type { ThemePreference } from "../state/app-state.svelte";
-import {
-  applyTheme,
-  applyZoomLevel,
-  clampZoomLevel,
-  selection,
-} from "../state/app-state.svelte";
 import { modelKey, scopedUsableModelOptions } from "../utils/model";
 import {
   clampThinkingLevelForModel,

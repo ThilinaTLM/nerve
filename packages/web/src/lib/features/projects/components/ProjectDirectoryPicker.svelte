@@ -15,7 +15,7 @@
   import Terminal from "@lucide/svelte/icons/terminal";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import { writeClipboardText } from "$lib/clipboard";
-  import { notify } from "$lib/notifications/notify.svelte";
+  import { notify } from "$lib/features/notifications/notify.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button, buttonVariants } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";

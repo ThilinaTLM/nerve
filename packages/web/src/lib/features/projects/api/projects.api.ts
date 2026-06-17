@@ -11,7 +11,7 @@ import {
   apiGet,
   apiPathSegment,
   apiPost,
-} from "../../../shared/api/client";
+} from "../../../core/api/client";
 
 export async function deleteProject(projectId: string): Promise<void> {
   await apiDeleteNoContent(`/api/projects/${apiPathSegment(projectId)}`);

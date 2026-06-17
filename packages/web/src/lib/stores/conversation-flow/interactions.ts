@@ -1,4 +1,5 @@
-import { notify } from "$lib/notifications/notify.svelte";
+import { notify } from "$lib/features/notifications/notify.svelte";
+import { selection } from "$lib/features/workspace/state/selection.svelte";
 import {
   acceptPlanReview,
   acceptPlanReviewInNewChat,
@@ -13,7 +14,6 @@ import {
   rejectPlanReview,
   requestPlanChanges,
 } from "../../api";
-import { selection } from "../../state/app-state.svelte";
 import { workbenchState } from "../workbench/state.svelte";
 import { loadWorkspaceState } from "../workspace.svelte";
 import { refreshConversationView } from "./selection";
