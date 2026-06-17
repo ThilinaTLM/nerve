@@ -552,42 +552,38 @@
         </div>
       </PanelSection>
 
-      <PanelSection title="Running" icon={Play} bind:open={runningSectionOpen}>
-        {#snippet meta()}
-          <span class="font-mono">{running.length}</span>
-        {/snippet}
-        <div class="flex flex-col gap-1.5">
-          {#if running.length === 0}
-            <p class="px-1 py-1 text-xs text-muted-foreground">No running processes.</p>
-          {:else}
+      {#if running.length > 0}
+        <PanelSection title="Running" icon={Play} bind:open={runningSectionOpen}>
+          {#snippet meta()}
+            <span class="font-mono">{running.length}</span>
+          {/snippet}
+          <div class="flex flex-col gap-1.5">
             {#each running as process (process.id)}
               {@render processRow(process)}
             {/each}
-          {/if}
-        </div>
-      </PanelSection>
+          </div>
+        </PanelSection>
+      {/if}
 
-      <PanelSection title="Needs cleanup" icon={TriangleAlert} bind:open={orphanedSectionOpen}>
-        {#snippet meta()}
-          <span class="font-mono">{orphaned.length}</span>
-        {/snippet}
-        <div class="flex flex-col gap-1.5">
-          {#if orphaned.length === 0}
-            <p class="px-1 py-1 text-xs text-muted-foreground">No orphaned processes.</p>
-          {:else}
+      {#if orphaned.length > 0}
+        <PanelSection title="Needs cleanup" icon={TriangleAlert} bind:open={orphanedSectionOpen}>
+          {#snippet meta()}
+            <span class="font-mono">{orphaned.length}</span>
+          {/snippet}
+          <div class="flex flex-col gap-1.5">
             {#each orphaned as process (process.id)}
               {@render processRow(process)}
             {/each}
-          {/if}
-        </div>
-      </PanelSection>
+          </div>
+        </PanelSection>
+      {/if}
 
-      <PanelSection title="Stopped" icon={Square} bind:open={stoppedSectionOpen}>
-        {#snippet meta()}
-          <span class="font-mono">{stopped.length}</span>
-        {/snippet}
-        {#snippet actions()}
-          {#if stopped.length > 0}
+      {#if stopped.length > 0}
+        <PanelSection title="Stopped" icon={Square} bind:open={stoppedSectionOpen}>
+          {#snippet meta()}
+            <span class="font-mono">{stopped.length}</span>
+          {/snippet}
+          {#snippet actions()}
             <Button
               size="xs"
               variant="ghost"
@@ -596,18 +592,14 @@
             >
               <Trash2 size={12} strokeWidth={2.3} />Prune
             </Button>
-          {/if}
-        {/snippet}
-        <div class="flex flex-col gap-1.5">
-          {#if stopped.length === 0}
-            <p class="px-1 py-1 text-xs text-muted-foreground">No stopped processes.</p>
-          {:else}
+          {/snippet}
+          <div class="flex flex-col gap-1.5">
             {#each stopped as process (process.id)}
               {@render processRow(process)}
             {/each}
-          {/if}
-        </div>
-      </PanelSection>
+          </div>
+        </PanelSection>
+      {/if}
     {/if}
   </div>
 </Tooltip.Provider>

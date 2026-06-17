@@ -64,7 +64,7 @@
     </dl>
   </PanelSection>
 
-  <PanelSection title="Conversation Agents" icon={Bot} bind:open={agentsOpen}>
+  <PanelSection title="Agents" icon={Bot} bind:open={agentsOpen}>
     <div class="-mx-3 -my-2.5 flex flex-col">
       {#if conversationAgents.length === 0}
         <p class="px-3 py-2.5 text-xs text-muted-foreground">No agents in the active conversation.</p>
