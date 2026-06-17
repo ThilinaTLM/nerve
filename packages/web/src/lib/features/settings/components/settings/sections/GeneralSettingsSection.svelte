@@ -11,7 +11,7 @@
 
 <section id="settings-runtime" class="settings-section settings-section-muted" data-section="runtime">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Activity size={14} strokeWidth={2.1} /> Runtime</div>
+    <div class="settings-section-kicker"><Activity size={14} strokeWidth={2.1} /> Diagnostics</div>
     <h2>Daemon state</h2>
     <p>Read-only runtime metadata from the orchestrator.</p>
   </header>

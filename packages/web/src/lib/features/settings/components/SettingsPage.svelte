@@ -1,4 +1,10 @@
 <script lang="ts">
+  import type { Component } from "svelte";
+  import { tick } from "svelte";
+  import Bot from "@lucide/svelte/icons/bot";
+  import Monitor from "@lucide/svelte/icons/monitor";
+  import Server from "@lucide/svelte/icons/server";
+  import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import type {
     AuthProviderMetadata,
@@ -22,7 +28,26 @@
   import "./settings/settings.css";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-  type SectionId = "appearance" | "desktop" | "agents" | "explore" | "providers" | "web-search" | "models" | "server" | "python" | "runtime";
+  type SectionId =
+    | "appearance"
+    | "desktop"
+    | "agents"
+    | "explore"
+    | "providers"
+    | "web-search"
+    | "models"
+    | "server"
+    | "python"
+    | "runtime";
+  type GroupId = "workbench" | "agents" | "models" | "system";
+  type GroupSection = { id: SectionId; label: string };
+  type SettingsGroup = {
+    id: GroupId;
+    label: string;
+    description: string;
+    icon: Component;
+    sections: GroupSection[];
+  };
   type SettingsChange = (
     patch: UpdateSettingsRequest,
     options?: { immediate?: boolean; debounceMs?: number },
@@ -39,17 +64,49 @@
     onThemeChange?: (theme: ThemePreference) => void;
   };
 
-  const sections: { id: SectionId; label: string; detail: string }[] = [
-    { id: "appearance", label: "Appearance", detail: "Theme" },
-    { id: "desktop", label: "Desktop", detail: "Window" },
-    { id: "agents", label: "Agents", detail: "Defaults" },
-    { id: "explore", label: "Explore agent", detail: "Delegate" },
-    { id: "providers", label: "Providers", detail: "Auth" },
-    { id: "web-search", label: "Web Search", detail: "Tavily" },
-    { id: "models", label: "Models", detail: "Scope" },
-    { id: "server", label: "Server", detail: "Binding" },
-    { id: "python", label: "Python", detail: "Runtime" },
-    { id: "runtime", label: "Runtime", detail: "Read-only" },
+  const groups: SettingsGroup[] = [
+    {
+      id: "workbench",
+      label: "Workbench",
+      description: "Appearance and desktop window behavior.",
+      icon: Monitor,
+      sections: [
+        { id: "appearance", label: "Appearance" },
+        { id: "desktop", label: "Desktop" },
+      ],
+    },
+    {
+      id: "agents",
+      label: "Agents",
+      description: "Defaults for new agents and the codebase explore delegate.",
+      icon: Bot,
+      sections: [
+        { id: "agents", label: "Defaults" },
+        { id: "explore", label: "Explore agent" },
+      ],
+    },
+    {
+      id: "models",
+      label: "Models & providers",
+      description: "Authentication, web search, and the composer model scope.",
+      icon: ShieldCheck,
+      sections: [
+        { id: "providers", label: "Providers" },
+        { id: "web-search", label: "Web search" },
+        { id: "models", label: "Scoped models" },
+      ],
+    },
+    {
+      id: "system",
+      label: "System",
+      description: "Server binding, Python runtime, and daemon diagnostics.",
+      icon: Server,
+      sections: [
+        { id: "server", label: "Server" },
+        { id: "python", label: "Python" },
+        { id: "runtime", label: "Diagnostics" },
+      ],
+    },
   ];
 
   let {
@@ -63,18 +120,75 @@
     onThemeChange,
   }: Props = $props();
 
-  let activeSection = $state<SectionId>("appearance");
+  let activeGroup = $state<GroupId>("workbench");
+  let activeSubsection = $state<SectionId>("appearance");
+
+  const activeGroupDef = $derived(
+    groups.find((group) => group.id === activeGroup) ?? groups[0],
+  );
 
   const modelAuthProviders = $derived(
     authProviders.filter((provider) => provider.provider !== "tavily"),
   );
 
-  function scrollToSection(id: SectionId) {
-    activeSection = id;
+  function selectGroup(id: GroupId) {
+    if (id === activeGroup) return;
+    activeGroup = id;
+    const first = groups.find((group) => group.id === id)?.sections[0];
+    if (first) activeSubsection = first.id;
+    void scrollPanelToTop();
+  }
+
+  async function scrollPanelToTop() {
+    await tick();
+    document.querySelector(".settings-viewport")?.scrollTo({ top: 0 });
+  }
+
+  function scrollToSubsection(id: SectionId) {
+    activeSubsection = id;
     document
       .getElementById(`settings-${id}`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  // Scroll-spy: highlight the sub-nav chip matching the section in view.
+  $effect(() => {
+    const group = activeGroupDef;
+    const ready = !!settingsDraft;
+    if (!ready) return;
+
+    let observer: IntersectionObserver | undefined;
+    let cancelled = false;
+
+    void (async () => {
+      await tick();
+      if (cancelled) return;
+      const root = document.querySelector<HTMLElement>(".settings-viewport");
+      const elements = group.sections
+        .map((section) => document.getElementById(`settings-${section.id}`))
+        .filter((element): element is HTMLElement => element !== null);
+      if (elements.length === 0) return;
+
+      observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort(
+              (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
+            );
+          const id = visible[0]?.target.getAttribute("data-section");
+          if (id) activeSubsection = id as SectionId;
+        },
+        { root, rootMargin: "0px 0px -65% 0px", threshold: 0 },
+      );
+      for (const element of elements) observer.observe(element);
+    })();
+
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+    };
+  });
 
   function statusText() {
     if (settingsMessage) return settingsMessage;
@@ -93,14 +207,16 @@
       <span>Auto-saved</span>
     </div>
     <nav class="settings-nav">
-      {#each sections as section}
+      {#each groups as group}
+        {@const Icon = group.icon}
         <button
           type="button"
-          class:active={activeSection === section.id}
-          onclick={() => scrollToSection(section.id)}
+          class:active={activeGroup === group.id}
+          aria-current={activeGroup === group.id ? "page" : undefined}
+          onclick={() => selectGroup(group.id)}
         >
-          <span>{section.label}</span>
-          <small>{section.detail}</small>
+          <Icon size={16} strokeWidth={2} />
+          <span>{group.label}</span>
         </button>
       {/each}
     </nav>
@@ -113,16 +229,41 @@
   <ScrollArea class="settings-scroll" viewportClass="settings-viewport" type="auto">
     <div class="settings-main">
       {#if settingsDraft}
-        <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
-        <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
-        <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-        <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-        <ProvidersSettingsSection authProviders={modelAuthProviders} />
-        <WebSearchSettingsSection {authProviders} />
-        <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-        <ServerSettingsSection {settingsDraft} {onSettingsChange} />
-        <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />
-        <GeneralSettingsSection {status} />
+        <header class="settings-panel-header">
+          <h2>{activeGroupDef.label}</h2>
+          <p>{activeGroupDef.description}</p>
+          {#if activeGroupDef.sections.length > 1}
+            <div class="settings-subnav" role="tablist" aria-label="{activeGroupDef.label} sections">
+              {#each activeGroupDef.sections as section}
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeSubsection === section.id}
+                  class:active={activeSubsection === section.id}
+                  onclick={() => scrollToSubsection(section.id)}
+                >
+                  {section.label}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </header>
+
+        {#if activeGroup === "workbench"}
+          <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
+          <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
+        {:else if activeGroup === "agents"}
+          <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+          <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+        {:else if activeGroup === "models"}
+          <ProvidersSettingsSection authProviders={modelAuthProviders} />
+          <WebSearchSettingsSection {authProviders} />
+          <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+        {:else if activeGroup === "system"}
+          <ServerSettingsSection {settingsDraft} {onSettingsChange} />
+          <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />
+          <GeneralSettingsSection {status} />
+        {/if}
       {:else}
         <section class="app-empty-state settings-loading">
           <Sparkles size={28} strokeWidth={1.8} />

@@ -1,6 +1,8 @@
 <script lang="ts">
-  import Check from "@lucide/svelte/icons/check";
+  import Plus from "@lucide/svelte/icons/plus";
   import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+  import X from "@lucide/svelte/icons/x";
   import type {
     AuthProviderMetadata,
     ModelInfo,
@@ -8,20 +10,25 @@
     Settings,
     UpdateSettingsRequest,
   } from "$lib/api";
+  import { Button } from "$lib/components/ui/button";
   import {
     authenticatedRealModelOptions,
     modelDisplayName,
     modelKey,
+    providerDisplayName,
   } from "$lib/utils/model";
+  import AddScopedModelsDialog from "./AddScopedModelsDialog.svelte";
 
   type SettingsChange = (
     patch: UpdateSettingsRequest,
     options?: { immediate?: boolean; debounceMs?: number },
   ) => void;
 
-  type ModelGroup = {
-    provider: string;
-    models: ModelInfo[];
+  type ScopedEntry = {
+    key: string;
+    selection: ModelSelection;
+    model?: ModelInfo;
+    stale: boolean;
   };
 
   type Props = {
@@ -38,75 +45,58 @@
     onSettingsChange,
   }: Props = $props();
 
-  function modelSelection(model: ModelInfo): ModelSelection {
-    return { provider: model.provider, modelId: model.modelId };
-  }
-
-  function groupModels(modelList: ModelInfo[]): ModelGroup[] {
-    const groups = new Map<string, ModelInfo[]>();
-    for (const model of [...modelList].sort((left, right) => {
-      const provider = left.provider.localeCompare(right.provider);
-      return provider || left.label.localeCompare(right.label);
-    })) {
-      groups.set(model.provider, [...(groups.get(model.provider) ?? []), model]);
-    }
-    return [...groups.entries()].map(([provider, groupModels]) => ({
-      provider,
-      models: groupModels,
-    }));
-  }
-
-  function commitScopedModels(scopedModels: ModelSelection[]) {
-    settingsDraft.scopedModels = scopedModels;
-    onSettingsChange?.({ scopedModels }, { immediate: true });
-  }
-
-  function toggleModel(model: ModelInfo) {
-    const key = modelKey(model);
-    if (!scopeActive) {
-      const next = availableModels
-        .filter((candidate) => modelKey(candidate) !== key)
-        .map(modelSelection);
-      commitScopedModels(next.length === 0 ? [] : next);
-      return;
-    }
-
-    const next = scopedKeys.has(key)
-      ? settingsDraft.scopedModels.filter(
-          (candidate) => modelKey(candidate) !== key,
-        )
-      : [...settingsDraft.scopedModels, modelSelection(model)];
-    commitScopedModels(next.length === 0 ? [] : next);
-  }
-
-  function resetScope() {
-    commitScopedModels([]);
-  }
+  let dialogOpen = $state(false);
 
   const availableModels = $derived(
     authenticatedRealModelOptions(models, authProviders),
   );
+  const availableByKey = $derived(
+    new Map(availableModels.map((model) => [modelKey(model), model])),
+  );
   const scopeActive = $derived(settingsDraft.scopedModels.length > 0);
-  const scopedKeys = $derived(
-    new Set(settingsDraft.scopedModels.map((model) => modelKey(model))),
+
+  const scopedEntries = $derived.by<ScopedEntry[]>(() =>
+    settingsDraft.scopedModels
+      .map((selection) => {
+        const key = modelKey(selection);
+        const model = availableByKey.get(key);
+        return { key, selection, model, stale: !model };
+      })
+      .sort((left, right) => {
+        const provider = providerDisplayName(left.selection.provider).localeCompare(
+          providerDisplayName(right.selection.provider),
+        );
+        const leftLabel = left.model
+          ? modelDisplayName(left.model)
+          : left.selection.modelId;
+        const rightLabel = right.model
+          ? modelDisplayName(right.model)
+          : right.selection.modelId;
+        return provider || leftLabel.localeCompare(rightLabel);
+      }),
   );
-  const selectedCount = $derived(
-    scopeActive
-      ? availableModels.filter((model) => scopedKeys.has(modelKey(model))).length
-      : availableModels.length,
-  );
-  const staleCount = $derived(
-    settingsDraft.scopedModels.filter(
-      (selection) =>
-        !availableModels.some((model) => modelKey(model) === modelKey(selection)),
-    ).length,
-  );
-  const groupedModels = $derived(groupModels(availableModels));
+  const staleCount = $derived(scopedEntries.filter((entry) => entry.stale).length);
+  const activeCount = $derived(scopedEntries.length - staleCount);
   const summary = $derived(
     scopeActive
-      ? `Showing ${selectedCount} of ${availableModels.length} authenticated models in the composer.`
+      ? `Showing ${activeCount} of ${availableModels.length} authenticated models in the composer.`
       : "All authenticated models are shown in the composer.",
   );
+
+  function commitScopedModels(next: ModelSelection[]) {
+    settingsDraft.scopedModels = next;
+    onSettingsChange?.({ scopedModels: next }, { immediate: true });
+  }
+
+  function removeEntry(key: string) {
+    commitScopedModels(
+      settingsDraft.scopedModels.filter((selection) => modelKey(selection) !== key),
+    );
+  }
+
+  function clearScope() {
+    commitScopedModels([]);
+  }
 </script>
 
 <section id="settings-models" class="settings-section" data-section="models">
@@ -122,43 +112,50 @@
         <strong>{scopeActive ? "Scoped picker" : "All models"}</strong>
         <span>{summary}</span>
       </div>
-      <button type="button" class="scope-reset-button" disabled={!scopeActive} onclick={resetScope}>
-        Use all authenticated models
-      </button>
+      <div class="scoped-models-actions">
+        {#if scopeActive}
+          <Button variant="ghost" size="sm" onclick={clearScope}>Clear</Button>
+        {/if}
+        <Button size="sm" disabled={availableModels.length === 0} onclick={() => (dialogOpen = true)}>
+          <Plus size={15} strokeWidth={2.2} />
+          Add models
+        </Button>
+      </div>
     </div>
 
     {#if availableModels.length === 0}
       <p class="settings-note">Authenticate a provider before choosing scoped models.</p>
-    {:else}
-      <div class="scoped-models-list" role="group" aria-label="Scoped models">
-        {#each groupedModels as group (group.provider)}
-          <section class="scoped-models-provider" aria-label={group.provider}>
-            <h3>{group.provider}</h3>
-            <div class="scoped-models-provider-list">
-              {#each group.models as model (modelKey(model))}
-                {@const selected = !scopeActive || scopedKeys.has(modelKey(model))}
-                <button
-                  type="button"
-                  class="scoped-model-row"
-                  class:selected
-                  role="checkbox"
-                  aria-checked={selected}
-                  onclick={() => toggleModel(model)}
-                >
-                  <span class="scoped-model-row-text">
-                    <strong>{modelDisplayName(model)}</strong>
-                    <span>{model.modelId}</span>
-                  </span>
-                  <span class="scoped-model-check" aria-hidden="true">
-                    {#if selected}<Check size={14} strokeWidth={2.4} />{/if}
-                  </span>
-                </button>
-              {/each}
-            </div>
-          </section>
-        {/each}
+    {:else if !scopeActive}
+      <div class="scoped-empty">
+        <strong>No scope set</strong>
+        <span>Every authenticated model appears in the composer picker. Add models to narrow it down.</span>
       </div>
-      {#if scopeActive && staleCount > 0}
+    {:else}
+      <ul class="scoped-list" aria-label="Scoped models">
+        {#each scopedEntries as entry (entry.key)}
+          <li class="scoped-list-item" class:stale={entry.stale}>
+            <span class="scoped-list-text">
+              <strong>{entry.model ? modelDisplayName(entry.model) : entry.selection.modelId}</strong>
+              <span>{providerDisplayName(entry.selection.provider)} · {entry.selection.modelId}</span>
+            </span>
+            {#if entry.stale}
+              <span class="scoped-list-stale">
+                <TriangleAlert size={13} strokeWidth={2} />
+                Unavailable
+              </span>
+            {/if}
+            <button
+              type="button"
+              class="scoped-list-remove"
+              aria-label={`Remove ${entry.model ? modelDisplayName(entry.model) : entry.selection.modelId}`}
+              onclick={() => removeEntry(entry.key)}
+            >
+              <X size={14} strokeWidth={2.2} />
+            </button>
+          </li>
+        {/each}
+      </ul>
+      {#if staleCount > 0}
         <p class="settings-note">
           {staleCount} scoped {staleCount === 1 ? "model is" : "models are"} no longer available and will be ignored by the picker.
         </p>
@@ -167,120 +164,118 @@
   </div>
 </section>
 
+<AddScopedModelsDialog
+  bind:open={dialogOpen}
+  {models}
+  {authProviders}
+  scopedModels={settingsDraft.scopedModels}
+  onSave={commitScopedModels}
+/>
+
 <style>
   .scoped-models-summary {
     align-items: flex-start;
   }
 
-  .scope-reset-button {
-    flex: none;
-    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--foreground);
-    padding: 0.42rem 0.7rem;
-    font-size: var(--text-xs);
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .scope-reset-button:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--accent) 50%, transparent);
-  }
-
-  .scope-reset-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-
-  .scoped-models-list {
-    display: grid;
-    max-height: min(42vh, 24rem);
-    overflow: auto;
-    border: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
-    border-radius: var(--radius-sm);
-    background: transparent;
-  }
-
-  .scoped-models-provider {
-    display: grid;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
-  }
-
-  .scoped-models-provider:last-child {
-    border-bottom: 0;
-  }
-
-  .scoped-models-provider h3 {
-    margin: 0;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 38%, transparent);
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    padding: 0.52rem 0.65rem;
-  }
-
-  .scoped-models-provider-list {
-    display: grid;
-  }
-
-  .scoped-model-row {
+  .scoped-models-actions {
     display: flex;
+    flex: none;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.8rem;
-    width: 100%;
-    border: 0;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 30%, transparent);
-    background: transparent;
-    color: var(--foreground);
-    padding: 0.58rem 0.65rem;
-    text-align: left;
-    cursor: pointer;
+    gap: 0.4rem;
   }
 
-  .scoped-model-row:last-child {
-    border-bottom: 0;
-  }
-
-  .scoped-model-row:hover {
-    background: color-mix(in oklab, var(--accent) 50%, transparent);
-  }
-
-  .scoped-model-row.selected {
-    background: color-mix(in oklab, var(--accent) 35%, transparent);
-  }
-
-  .scoped-model-row-text {
+  .scoped-empty {
     display: grid;
-    min-width: 0;
-    gap: 0.08rem;
+    gap: 0.18rem;
+    border: 1px dashed color-mix(in oklab, var(--border) 60%, transparent);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem 0.9rem;
   }
 
-  .scoped-model-row-text strong,
-  .scoped-model-row-text span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .scoped-model-row-text strong {
+  .scoped-empty strong {
     color: var(--foreground);
     font-size: var(--text-sm);
     font-weight: 500;
   }
 
-  .scoped-model-row-text span {
+  .scoped-empty span {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+  }
+
+  .scoped-list {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .scoped-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+  }
+
+  .scoped-list-item.stale {
+    border-color: color-mix(in oklab, var(--warning) 45%, transparent);
+  }
+
+  .scoped-list-text {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 0.08rem;
+  }
+
+  .scoped-list-text strong {
+    overflow: hidden;
+    color: var(--foreground);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .scoped-list-text span {
+    overflow: hidden;
     color: var(--muted-foreground);
     font-family: var(--font-mono);
     font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .scoped-model-check {
+  .scoped-list-stale {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--warning);
+    font-size: var(--text-xs);
+  }
+
+  .scoped-list-remove {
     display: grid;
     flex: none;
     place-items: center;
-    width: 1rem;
-    color: var(--primary);
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+  }
+
+  .scoped-list-remove:hover {
+    border-color: color-mix(in oklab, var(--destructive) 50%, transparent);
+    background: color-mix(in oklab, var(--destructive) 12%, transparent);
+    color: var(--destructive);
   }
 </style>
