@@ -30,6 +30,8 @@
     <span class="badge">{summary.toolName}</span>
     {#if summary.path}
       <span class="arg" title={summary.path}>{summary.path}</span>
+    {:else if summary.kind === "python"}
+      <span class="arg">inline</span>
     {:else if summary.kind === "generic"}
       <span class="arg">Preparing arguments…</span>
     {/if}
@@ -42,7 +44,11 @@
     </div>
   {:else if summary.kind === "python"}
     {#if summary.code !== undefined && summary.code.length > 0}
-      <ResultCodeBlock code={summary.code} language={summary.language} trim={false} />
+      <ResultCodeBlock
+        code={trimTextPreview(summary.code, { headLines: 12, tailLines: 0 }).text}
+        language={summary.language}
+        trim={false}
+      />
     {:else}
       <div class="draft-progress" aria-live="polite">
         <span>{summary.statusText}</span>

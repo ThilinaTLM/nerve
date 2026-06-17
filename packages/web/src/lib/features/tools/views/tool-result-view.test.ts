@@ -985,7 +985,7 @@ describe("toolPresentation", () => {
     assert.match(p.collapse?.expandLabel ?? "", /earlier lines/);
   });
 
-  it("marks python exits and planning write guard metadata without a header code preview", () => {
+  it("marks python exits and planning write guard metadata with an inline source marker", () => {
     const p = present(
       "python",
       { code: "print('x')\nprint('y')" },
@@ -995,7 +995,7 @@ describe("toolPresentation", () => {
         details: { allowFileWrite: false, signal: null },
       },
     );
-    assert.equal(p.primaryArg, undefined);
+    assert.equal(p.primaryArg?.text, "inline");
     assert.ok(p.meta.some((m) => m.text === "exit 3" && m.tone === "error"));
     assert.ok(p.meta.some((m) => m.text === "2 code lines"));
     assert.ok(p.meta.some((m) => m.text === "2 lines"));
@@ -1003,6 +1003,14 @@ describe("toolPresentation", () => {
       p.meta.some((m) => m.text === "writes off" && m.tone === "warning"),
     );
     assert.equal(p.dotTone, "danger");
+  });
+
+  it("produces a collapse toggle when the python script alone exceeds the limit", () => {
+    const code = Array.from({ length: 14 }, (_, i) => `line${i}`).join("\n");
+    const p = present("python", { code }, { content: "ok" });
+    assert.ok(p.collapse);
+    assert.equal(p.collapse?.hidden, 4);
+    assert.match(p.collapse?.expandLabel ?? "", /Show 4 more lines/);
   });
 
   it("emits +/- chips for edit", () => {

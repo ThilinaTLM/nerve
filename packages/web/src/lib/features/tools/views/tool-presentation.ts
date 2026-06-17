@@ -192,12 +192,24 @@ export function toolPresentation(
       if (view.savedTo) {
         meta.push({ text: `saved ${basename(view.savedTo)}`, mono: true });
       }
-      // The full script is always rendered in the body's SCRIPT block, so the
-      // header intentionally omits a code preview to avoid duplicating it.
+      // The script comes inline (not from a file); the header carries an
+      // `inline` source marker, while the full script renders in the body.
+      const hiddenCode = Math.max(0, view.codeLineCount - COLLAPSED_LINES);
+      const hiddenOutput = Math.max(0, lines - COLLAPSED_LINES);
+      const hiddenTotal = hiddenCode + hiddenOutput;
+      const collapse =
+        hiddenTotal > 0
+          ? {
+              hidden: hiddenTotal,
+              expandLabel: `Show ${hiddenTotal} more lines`,
+              collapseLabel: "Show less",
+            }
+          : undefined;
       return {
         ...base,
+        primaryArg: { text: "inline" },
         meta,
-        collapse: collapseFor(lines, "lines", "tail"),
+        collapse,
       };
     }
 

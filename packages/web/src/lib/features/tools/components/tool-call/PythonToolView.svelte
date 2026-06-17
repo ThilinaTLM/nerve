@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { ToolCallRecord } from "$lib/api";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
-  import ResultCodeBlock from "./ResultCodeBlock.svelte";
   import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
   type Props = {
@@ -14,7 +13,7 @@
 
 {#if view.code && view.code.length > 0}
   <section class="section" aria-label="Python script">
-    <ResultCodeBlock code={view.code} language="python" trim={false} />
+    <ToolOutputBlock text={view.code} language="python" {expanded} />
   </section>
 {/if}
 
