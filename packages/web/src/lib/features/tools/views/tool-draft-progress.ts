@@ -156,17 +156,13 @@ function summarizeWriteDraft(draft: LiveToolCallDraft): ToolDraftSummary {
     finalContent === undefined && Boolean(draft.progress?.estimated);
   const meta: DraftMetaItem[] = [];
   if (lines !== undefined && lines > 0) {
-    meta.push({ text: plural(lines, "line"), tone: "info" });
+    meta.push({ text: `(+${lines})`, tone: "success" });
   }
-  if (estimated && !draft.done) meta.push({ text: "estimated", tone: "info" });
-  if (draft.done) meta.push({ text: "submitted", tone: "success" });
   return {
     kind: "write",
     toolName: "write",
     path: firstPathFromDraft(draft),
-    statusText: draft.done
-      ? "Submitting write arguments…"
-      : "Generating content…",
+    statusText: draft.done ? "Submitting" : "Generating",
     meta,
     lineCount: lines,
     generatedLineCount: lines,
@@ -245,30 +241,18 @@ function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
       estimated: false,
     };
   const meta: DraftMetaItem[] = [];
-  if (stats.replacements > 0) {
-    meta.push({ text: plural(stats.replacements, "replacement") });
-  }
-  if (stats.generatedLines > 0) {
-    meta.push({
-      text: plural(stats.generatedLines, "generated line"),
-      tone: "info",
-    });
-  }
-  if (stats.estimatedAdditions !== undefined && stats.estimatedAdditions > 0) {
-    meta.push({ text: `~+${stats.estimatedAdditions}`, tone: "success" });
+  const additions = stats.estimatedAdditions ?? stats.generatedLines;
+  if (additions > 0) {
+    meta.push({ text: `(+${additions})`, tone: "success" });
   }
   if (stats.estimatedDeletions !== undefined && stats.estimatedDeletions > 0) {
-    meta.push({ text: `~−${stats.estimatedDeletions}`, tone: "error" });
+    meta.push({ text: `(-${stats.estimatedDeletions})`, tone: "error" });
   }
-  if (stats.estimated && !draft.done) {
-    meta.push({ text: "estimated", tone: "info" });
-  }
-  if (draft.done) meta.push({ text: "submitted", tone: "success" });
   return {
     kind: "edit",
     toolName: "edit",
     path: firstPathFromDraft(draft),
-    statusText: draft.done ? "Submitting edit arguments…" : "Generating edits…",
+    statusText: draft.done ? "Submitting" : "Generating",
     meta,
     replacementCount: stats.replacements,
     generatedLineCount: stats.generatedLines,

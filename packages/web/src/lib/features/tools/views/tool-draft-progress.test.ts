@@ -32,10 +32,11 @@ describe("summarizeToolDraft", () => {
 
     assert.equal(summary.kind, "write");
     assert.equal(summary.path, "src/app.ts");
+    assert.equal(summary.statusText, "Generating");
     assert.equal(summary.lineCount, 3);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["3 lines"],
+      ["(+3)"],
     );
   });
 
@@ -57,7 +58,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.estimated, true);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["12 lines", "estimated"],
+      ["(+12)"],
     );
   });
 
@@ -77,10 +78,11 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.path, "src/final.ts");
+    assert.equal(summary.statusText, "Submitting");
     assert.equal(summary.lineCount, 2);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["2 lines", "submitted"],
+      ["(+2)"],
     );
   });
 
@@ -94,11 +96,12 @@ describe("summarizeToolDraft", () => {
 
     assert.equal(summary.kind, "edit");
     assert.equal(summary.path, "src/app.ts");
+    assert.equal(summary.statusText, "Generating");
     assert.equal(summary.replacementCount, 2);
     assert.equal(summary.generatedLineCount, 3);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["2 replacements", "3 generated lines", "~+3", "~−2", "estimated"],
+      ["(+3)", "(-2)"],
     );
   });
 
@@ -123,8 +126,26 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.estimatedDeletions, 5);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["3 replacements", "8 generated lines", "~+8", "~−5", "estimated"],
+      ["(+8)", "(-5)"],
     );
+  });
+
+  it("hides edit draft chips until non-zero counts are known", () => {
+    const summary = summarizeToolDraft(
+      draft("edit", {
+        progress: {
+          path: "src/live.ts",
+          replacementCount: 0,
+          generatedLineCount: 0,
+          estimatedAdditions: 0,
+          estimatedDeletions: 0,
+          estimated: true,
+        },
+      }),
+    );
+
+    assert.equal(summary.path, "src/live.ts");
+    assert.deepEqual(summary.meta, []);
   });
 
   it("uses final edit args for exact replacement and generated-line counts", () => {
@@ -145,7 +166,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.generatedLineCount, 2);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["2 replacements", "2 generated lines", "~+2", "~−2", "submitted"],
+      ["(+2)", "(-2)"],
     );
   });
 

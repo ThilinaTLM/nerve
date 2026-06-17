@@ -12,14 +12,6 @@
   let { draft }: Props = $props();
 
   const summary = $derived(summarizeToolDraft(draft));
-  const progressText = $derived.by(() => {
-    const counts = summary.meta
-      .filter((item) => item.text !== "submitted")
-      .map((item) => item.text);
-    return counts.length > 0
-      ? `${summary.statusText} ${counts.join(" · ")}`
-      : summary.statusText;
-  });
   const genericPreview = $derived.by(() => {
     const text = draft.args
       ? JSON.stringify(draft.args, null, 2)
@@ -45,8 +37,7 @@
 
   {#if summary.kind === "write" || summary.kind === "edit"}
     <div class="draft-progress" aria-live="polite">
-      <span>{progressText}</span>
-      {#if !summary.done}<span class="progress-caret" aria-hidden="true"></span>{/if}
+      <span>{summary.statusText}<span class="progress-dots" aria-hidden="true">...</span></span>
     </div>
   {:else if summary.kind === "python"}
     {#if summary.code !== undefined && summary.code.length > 0}
@@ -120,6 +111,14 @@
     line-height: 1.4;
   }
 
+  .progress-dots {
+    display: inline-block;
+    width: 1ch;
+    overflow: hidden;
+    white-space: nowrap;
+    animation: dots 1.2s step-end infinite;
+  }
+
   .progress-caret {
     width: 0.38rem;
     height: 0.9rem;
@@ -185,6 +184,23 @@
     border-color: color-mix(in oklab, var(--info) 35%, var(--border));
   }
 
+  @keyframes dots {
+    0%,
+    24% {
+      width: 1ch;
+    }
+
+    25%,
+    49% {
+      width: 2ch;
+    }
+
+    50%,
+    100% {
+      width: 3ch;
+    }
+  }
+
   @keyframes pulse {
     50% {
       opacity: 0;
@@ -192,6 +208,11 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .progress-dots {
+      width: 3ch;
+      animation: none;
+    }
+
     .progress-caret {
       animation: none;
     }
