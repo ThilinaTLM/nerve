@@ -15,6 +15,8 @@ import type {
   ImportConversationRequest,
   ModelInfo,
   NavigateConversationRequest,
+  OpenProjectInEditorRequest,
+  OpenProjectInEditorResponse,
   PlanReviewStatus,
   ProcessLogQuery,
   ProjectRecord,
@@ -83,6 +85,10 @@ export class RuntimeRegistry {
 
   get git() {
     return this.services.git;
+  }
+
+  get editors() {
+    return this.services.editors;
   }
 
   private get agentRunner() {
@@ -193,6 +199,13 @@ export class RuntimeRegistry {
 
   async removeProject(projectId: string): Promise<void> {
     return this.services.projectLifecycle.removeProject(projectId);
+  }
+
+  async openProjectInEditor(
+    projectId: string,
+    request: OpenProjectInEditorRequest,
+  ): Promise<OpenProjectInEditorResponse> {
+    return this.services.editors.openProject(projectId, request.editor);
   }
 
   async pruneProjectConversations(

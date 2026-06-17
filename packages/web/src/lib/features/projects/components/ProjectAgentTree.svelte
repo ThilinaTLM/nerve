@@ -4,6 +4,7 @@
   import Folder from "@lucide/svelte/icons/folder";
   import Plus from "@lucide/svelte/icons/plus";
   import Search from "@lucide/svelte/icons/search";
+  import SquareCode from "@lucide/svelte/icons/square-code";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
@@ -11,11 +12,15 @@
     AgentRecord,
     ProjectRecord,
     ConversationRecord,
+    ProjectEditor,
     PruneProjectConversationsRequest,
+    StatusResponse,
   } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import AlertDialog from "$lib/components/ui/confirm-dialog";
-  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import ContextMenu, {
+    type ContextMenuItem,
+  } from "$lib/components/ui/context-menu-list";
   import { Input } from "$lib/components/ui/input";
   import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
@@ -55,8 +60,10 @@
     openConversationTabIds?: Set<string>;
     conversationActivityById?: Record<string, ConversationActivityState>;
     searchFocusToken?: number;
+    editorAvailability?: StatusResponse["runtime"]["editors"];
     onOpenConversation?: (conversationId: string) => void;
     onNewConversationInProject?: (projectDir: string) => void;
+    onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
     onDeleteProject?: (projectId: string) => void;
     onDeleteConversation?: (conversationId: string) => void;
     onPruneProjectConversations?: (
@@ -75,8 +82,10 @@
     openConversationTabIds,
     conversationActivityById = {},
     searchFocusToken = 0,
+    editorAvailability,
     onOpenConversation,
     onNewConversationInProject,
+    onOpenProjectInEditor,
     onDeleteProject,
     onDeleteConversation,
     onPruneProjectConversations,
@@ -154,11 +163,45 @@
     }
   }
 
+  function projectEditorMenu(project: ProjectRecord): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+    if (editorAvailability?.vscode.available) {
+      items.push({
+        label: "Open in VS Code",
+        icon: SquareCode,
+        onSelect: () => onOpenProjectInEditor?.(project.id, "vscode"),
+      });
+    }
+    if (editorAvailability?.zed.available) {
+      items.push({
+        label: "Open in Zed",
+        icon: SquareCode,
+        onSelect: () => onOpenProjectInEditor?.(project.id, "zed"),
+      });
+    }
+    return items;
+  }
+
   function projectMenu(project: ProjectRecord): ContextMenuItem[] {
-    return [
-      { label: "New chat", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
+    const editorItems = projectEditorMenu(project);
+    const items: ContextMenuItem[] = [
+      {
+        label: "New chat",
+        icon: Plus,
+        shortcut: newConversationShortcut,
+        onSelect: () => onNewConversationInProject?.(project.dir),
+      },
+    ];
+    if (editorItems.length > 0) {
+      items.push({ type: "separator" }, ...editorItems);
+    }
+    items.push(
       { type: "separator" },
-      { label: "Copy path", icon: Copy, onSelect: () => void copyToClipboard(project.dir, "path") },
+      {
+        label: "Copy path",
+        icon: Copy,
+        onSelect: () => void copyToClipboard(project.dir, "path"),
+      },
       {
         label: "Clean up",
         icon: Trash2,
@@ -170,9 +213,15 @@
         label: "Remove project",
         icon: Trash2,
         destructive: true,
-        onSelect: () => requestDelete({ kind: "project", id: project.id, label: shortProjectLabel(project.dir, homeDir) }),
+        onSelect: () =>
+          requestDelete({
+            kind: "project",
+            id: project.id,
+            label: shortProjectLabel(project.dir, homeDir),
+          }),
       },
-    ];
+    );
+    return items;
   }
 
   function conversationMenu(project: ProjectRecord, conversation: ConversationRecord): ContextMenuItem[] {

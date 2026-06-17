@@ -1,6 +1,7 @@
 import {
   createPinnedCommandRequestSchema,
   createProjectRequestSchema,
+  openProjectInEditorRequestSchema,
   pruneProjectConversationsRequestSchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
@@ -26,6 +27,18 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
         project: state.registry.getProject(routeParam(c, "projectId")),
       }),
     ),
+  );
+  app.post(
+    "/:projectId/open-editor",
+    routeHandler(async (c) => {
+      const body = openProjectInEditorRequestSchema.parse(await c.req.json());
+      return c.json(
+        await state.registry.openProjectInEditor(
+          routeParam(c, "projectId"),
+          body,
+        ),
+      );
+    }),
   );
   app.post(
     "/:projectId/conversations/prune",

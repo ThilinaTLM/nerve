@@ -53,6 +53,9 @@ async function main() {
     .catch((error) =>
       state.logger.warn("Python runtime discovery failed", { error }),
     );
+  await state.registry.editors
+    .refresh()
+    .catch((error) => state.logger.warn("Editor discovery failed", { error }));
   await state.logger.info("Registry hydrated");
   await state.registry.rebuildIndex();
   await state.logger.info("Index rebuilt", {

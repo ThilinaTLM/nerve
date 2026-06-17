@@ -84,9 +84,22 @@ describe("settings schema", () => {
           executable: "/usr/bin/python3",
           version: "3.12.0",
         },
+        editors: {
+          vscode: {
+            available: true,
+            source: "path",
+            executable: "/usr/bin/code",
+          },
+          zed: {
+            available: false,
+            error: "zed executable not found",
+          },
+        },
       },
     });
 
     assert.equal(parsed.runtime.python.available, true);
+    assert.equal(parsed.runtime.editors.vscode.available, true);
+    assert.equal(parsed.runtime.editors.zed.available, false);
   });
 });

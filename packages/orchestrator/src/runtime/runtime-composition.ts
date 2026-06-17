@@ -32,6 +32,7 @@ import { PlanService } from "../domains/plans/plan-service.js";
 import { SecretProcessLaunchConfigStore } from "../domains/processes/index.js";
 import { ProcessManager } from "../domains/processes/process-manager.js";
 import {
+  ProjectEditorService,
   ProjectLifecycleService,
   ProjectRepository,
   PruneProjectConversationsService,
@@ -78,6 +79,7 @@ export interface RuntimeServices {
   importService: ImportService;
   messageMirror: MessageMirror;
   agentRunner: AgentRunner;
+  editors: ProjectEditorService;
   projectLifecycle: ProjectLifecycleService;
   conversationLifecycle: ConversationLifecycleService;
   conversationQuery: ConversationQueryService;
@@ -219,6 +221,7 @@ export function composeRuntime(
   );
   services.pythonRuntime = new PythonRuntimeService(storage);
   services.workers = new WorkerManager(storage, events, index);
+  services.editors = new ProjectEditorService(getProject);
   services.projectLifecycle = new ProjectLifecycleService(
     projectRepository,
     events,

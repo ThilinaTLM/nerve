@@ -4,8 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
+import { HttpError } from "../src/http/errors.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
-import { createApp, createOrchestratorState } from "../src/server.js";
+import { createProjectRoutes } from "../src/routes/project-routes.js";
+import {
+  createApp,
+  createOrchestratorState,
+  type OrchestratorState,
+} from "../src/server.js";
 
 const roots: string[] = [];
 
@@ -108,6 +114,69 @@ describe("orchestrator server routes", () => {
     } finally {
       state.index.close();
     }
+  });
+
+  it("opens registered projects in editors through the project API", async () => {
+    const calls: Array<{ projectId: string; editor: string }> = [];
+    const app = createProjectRoutes({
+      registry: {
+        openProjectInEditor: async (
+          projectId: string,
+          request: { editor: "vscode" | "zed" },
+        ) => {
+          calls.push({ projectId, editor: request.editor });
+          return { projectId, editor: request.editor, dir: "/tmp/project" };
+        },
+      },
+    } as unknown as OrchestratorState);
+
+    const response = await app.request(
+      "/proj_01HN0000000000000000000000/open-editor",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ editor: "vscode" }),
+      },
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(calls, [
+      { projectId: "proj_01HN0000000000000000000000", editor: "vscode" },
+    ]);
+    assert.deepEqual(await response.json(), {
+      projectId: "proj_01HN0000000000000000000000",
+      editor: "vscode",
+      dir: "/tmp/project",
+    });
+  });
+
+  it("returns editor availability errors from the project open API", async () => {
+    const app = createProjectRoutes({
+      registry: {
+        openProjectInEditor: async () => {
+          throw new HttpError(
+            404,
+            "EDITOR_NOT_AVAILABLE",
+            "VS Code is not available on this installation.",
+          );
+        },
+      },
+    } as unknown as OrchestratorState);
+
+    const response = await app.request(
+      "/proj_01HN0000000000000000000000/open-editor",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ editor: "vscode" }),
+      },
+    );
+
+    assert.equal(response.status, 404);
+    assert.equal(
+      ((await response.json()) as { error: { code: string } }).error.code,
+      "EDITOR_NOT_AVAILABLE",
+    );
   });
 
   it("prunes old project conversations through the API", async () => {

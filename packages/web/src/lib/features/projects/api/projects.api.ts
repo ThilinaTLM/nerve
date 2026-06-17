@@ -1,6 +1,8 @@
 import type {
   CreatePinnedCommandRequest,
+  OpenProjectInEditorResponse,
   PinnedCommand,
+  ProjectEditor,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
 } from "@nerve/shared";
@@ -22,6 +24,16 @@ export async function pruneProjectConversations(
   return apiPost<PruneProjectConversationsResponse>(
     `/api/projects/${apiPathSegment(projectId)}/conversations/prune`,
     request,
+  );
+}
+
+export async function openProjectInEditor(
+  projectId: string,
+  editor: ProjectEditor,
+): Promise<OpenProjectInEditorResponse> {
+  return apiPost<OpenProjectInEditorResponse>(
+    `/api/projects/${apiPathSegment(projectId)}/open-editor`,
+    { editor },
   );
 }
 

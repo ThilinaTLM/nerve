@@ -14,6 +14,8 @@ import {
   getProcessLogs,
   getSlashCompletions,
   getWorkspaceSnapshot,
+  openProjectInEditor,
+  type ProjectEditor,
   type ProjectRecord,
   type PruneProjectConversationsRequest,
   pruneProjectConversations,
@@ -158,6 +160,27 @@ export async function deleteConversationAndRefresh(conversationId: string) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workbenchState.error = message;
     notify.error("Could not remove conversation", { description: message });
+  }
+}
+
+export async function openProjectInEditorAndNotify(
+  projectId: string,
+  editor: ProjectEditor,
+) {
+  try {
+    await openProjectInEditor(projectId, editor);
+    notify.success(
+      editor === "vscode"
+        ? "Opening project in VS Code"
+        : "Opening project in Zed",
+    );
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    workbenchState.error = message;
+    notify.error(
+      editor === "vscode" ? "Could not open VS Code" : "Could not open Zed",
+      { description: message },
+    );
   }
 }
 

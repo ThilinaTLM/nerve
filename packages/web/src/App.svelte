@@ -67,6 +67,7 @@
     navigateToEntry,
     newConversationInProject,
     newConversation,
+    openProjectInEditorAndNotify,
     openFilePane,
     openLogsPane,
     openPrPane,
@@ -377,8 +378,11 @@
                 {openConversationTabIds}
                 {conversationActivityById}
                 searchFocusToken={projectSearchFocusToken}
+                editorAvailability={status?.runtime.editors}
                 onOpenConversation={openConversation}
                 onNewConversationInProject={newConversationInProject}
+                onOpenProjectInEditor={(projectId, editor) =>
+                  void openProjectInEditorAndNotify(projectId, editor)}
                 onDeleteProject={(id) => void deleteProjectAndRefresh(id)}
                 onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}
                 onPruneProjectConversations={(id, request) => void pruneProjectConversationsAndRefresh(id, request)}

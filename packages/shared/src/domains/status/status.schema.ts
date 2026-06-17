@@ -16,6 +16,22 @@ export const pythonRuntimeStatusSchema = z.object({
 });
 export type PythonRuntimeStatus = z.infer<typeof pythonRuntimeStatusSchema>;
 
+export const externalEditorStatusSchema = z.object({
+  available: z.boolean(),
+  source: z.enum(["path", "app", "known_path"]).optional(),
+  executable: z.string().optional(),
+  error: z.string().optional(),
+});
+export type ExternalEditorStatus = z.infer<typeof externalEditorStatusSchema>;
+
+export const externalEditorStatusesSchema = z.object({
+  vscode: externalEditorStatusSchema,
+  zed: externalEditorStatusSchema,
+});
+export type ExternalEditorStatuses = z.infer<
+  typeof externalEditorStatusesSchema
+>;
+
 export const statusResponseSchema = z.object({
   daemonId: z.string().startsWith("daemon_"),
   version: z.string(),
@@ -28,6 +44,7 @@ export const statusResponseSchema = z.object({
   }),
   runtime: z.object({
     python: pythonRuntimeStatusSchema,
+    editors: externalEditorStatusesSchema,
   }),
 });
 export type StatusResponse = z.infer<typeof statusResponseSchema>;
