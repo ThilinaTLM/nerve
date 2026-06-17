@@ -5,15 +5,15 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@earendil-works/pi-ai@0.79.1': a889418f9800cac15193b9dd2badc1d9913eb8b97f832a648138860de5129260
+  '@earendil-works/pi-ai@0.79.6': 8a21b18e1d52927f1fab514629a98ad14b9606a4365dc71ee72f0c383bde5112
 
 importers:
 
   .:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.79.1
-        version: 0.79.1(patch_hash=a889418f9800cac15193b9dd2badc1d9913eb8b97f832a648138860de5129260)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.79.6
+        version: 0.79.6(patch_hash=8a21b18e1d52927f1fab514629a98ad14b9606a4365dc71ee72f0c383bde5112)(ws@8.21.0)(zod@4.1.12)
     devDependencies:
       '@biomejs/biome':
         specifier: 2.2.4
@@ -28,8 +28,8 @@ importers:
   packages/agent:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.79.1
-        version: 0.79.1(patch_hash=a889418f9800cac15193b9dd2badc1d9913eb8b97f832a648138860de5129260)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.79.6
+        version: 0.79.6(patch_hash=8a21b18e1d52927f1fab514629a98ad14b9606a4365dc71ee72f0c383bde5112)(ws@8.21.0)(zod@4.1.12)
       '@nerve/shared':
         specifier: workspace:*
         version: link:../shared
@@ -94,8 +94,8 @@ importers:
   packages/orchestrator:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.79.1
-        version: 0.79.1(patch_hash=a889418f9800cac15193b9dd2badc1d9913eb8b97f832a648138860de5129260)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.79.6
+        version: 0.79.6(patch_hash=8a21b18e1d52927f1fab514629a98ad14b9606a4365dc71ee72f0c383bde5112)(ws@8.21.0)(zod@4.1.12)
       '@hono/node-server':
         specifier: 1.19.14
         version: 1.19.14(hono@4.12.25)
@@ -478,8 +478,8 @@ packages:
   '@codemirror/view@6.43.0':
     resolution: {integrity: sha512-V7ZCLQO3Jus9hzh2jVCCPW3mO4IBMr43O37PqSUYautJSnnJF41YlgLw21x0fLJTYvJ+Vkm6Gp+qKGH9pltgXA==}
 
-  '@earendil-works/pi-ai@0.79.1':
-    resolution: {integrity: sha512-UnORwrcsTNLm4StEvoM8iEom0u87Te7BXEWxhec3iNXygWD6eEBosUoq9ddcveqtj/QpUZBMPWUu81cCtZxzkQ==}
+  '@earendil-works/pi-ai@0.79.6':
+    resolution: {integrity: sha512-KGepEdgEeWDs7Imwlp96tBsO8TjSIpcDBvazsCDtHRa81+uwJI/YGetTegI52pMlKhVpJFLIGajRi4PCGC5MUg==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
@@ -3655,7 +3655,7 @@ snapshots:
       style-mod: 4.1.3
       w3c-keyname: 2.2.8
 
-  '@earendil-works/pi-ai@0.79.1(patch_hash=a889418f9800cac15193b9dd2badc1d9913eb8b97f832a648138860de5129260)(ws@8.21.0)(zod@4.1.12)':
+  '@earendil-works/pi-ai@0.79.6(patch_hash=8a21b18e1d52927f1fab514629a98ad14b9606a4365dc71ee72f0c383bde5112)(ws@8.21.0)(zod@4.1.12)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.1.12)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
