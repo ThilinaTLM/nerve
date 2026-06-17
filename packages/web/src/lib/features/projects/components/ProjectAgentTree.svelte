@@ -4,7 +4,6 @@
   import Folder from "@lucide/svelte/icons/folder";
   import Plus from "@lucide/svelte/icons/plus";
   import Search from "@lucide/svelte/icons/search";
-  import SquareCode from "@lucide/svelte/icons/square-code";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import { writeClipboardText } from "$lib/clipboard";
   import { notify } from "$lib/notifications/notify.svelte";
@@ -34,6 +33,8 @@
     type ProjectGroup,
   } from "$lib/utils/project-tree";
   import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
+  import VsCodeIcon from "./VsCodeIcon.svelte";
+  import ZedIcon from "./ZedIcon.svelte";
   import {
     getShortcutAriaLabel,
     getShortcutLabel,
@@ -168,14 +169,14 @@
     if (editorAvailability?.vscode.available) {
       items.push({
         label: "Open in VS Code",
-        icon: SquareCode,
+        icon: VsCodeIcon,
         onSelect: () => onOpenProjectInEditor?.(project.id, "vscode"),
       });
     }
     if (editorAvailability?.zed.available) {
       items.push({
         label: "Open in Zed",
-        icon: SquareCode,
+        icon: ZedIcon,
         onSelect: () => onOpenProjectInEditor?.(project.id, "zed"),
       });
     }
