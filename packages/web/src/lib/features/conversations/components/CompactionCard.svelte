@@ -356,19 +356,4 @@
     background: var(--muted);
   }
 
-  @keyframes compaction-progress {
-    0%,
-    100% {
-      opacity: 0.58;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .compaction-progress :global([data-slot="progress-indicator"]) {
-      animation: none;
-    }
-  }
 </style>

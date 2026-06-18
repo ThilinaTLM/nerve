@@ -34,7 +34,7 @@
 
 <article class={`tool-card status-${toolCall.status}`}>
   <div class="tool-header">
-    <StatusDot tone={presentation.dotTone} pulse={presentation.dotPulse} size="xs" />
+    <StatusDot tone={presentation.dotTone} pulse={presentation.dotPulse} size="xs" class="mr-1.5 align-middle" />
     <span class="badge">{presentation.badge}</span>
     {#if arg}
       {#if arg.openPath}
@@ -85,11 +85,6 @@
   .tool-header {
     min-width: 0;
     line-height: 1.5;
-  }
-
-  .tool-header :global(span[aria-hidden]) {
-    margin-right: 0.4rem;
-    vertical-align: middle;
   }
 
   .badge {

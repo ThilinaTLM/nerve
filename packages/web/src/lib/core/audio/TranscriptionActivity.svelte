@@ -106,20 +106,4 @@
     clip-path: inset(50%);
   }
 
-  @keyframes activity-enter {
-    from {
-      opacity: 0;
-      transform: translateX(0.15rem) scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0) scale(1);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .transcription-activity {
-      animation: none;
-    }
-  }
 </style>

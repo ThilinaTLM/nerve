@@ -78,13 +78,6 @@
 </ContextMenu>
 
 <style>
-  :global(.conversation-context-trigger),
-  :global(.conversation-context-trigger [data-slot="tooltip-trigger"]) {
-    display: block;
-    width: 100%;
-    min-width: 0;
-  }
-
   .conversation-row {
     display: flex;
     width: 100%;
@@ -117,10 +110,6 @@
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ring) 60%, transparent);
   }
 
-  :global(.conversation-status) {
-    flex: none;
-  }
-
   .conversation-label {
     display: block;
     flex: 1 1 0;
@@ -132,38 +121,4 @@
     white-space: nowrap;
   }
 
-  :global(.nav-tooltip) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.1rem;
-    max-width: 22rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: 1.35;
-    overflow-wrap: anywhere;
-  }
-
-  :global(.conversation-tooltip) .tt-title {
-    margin-bottom: 0.15rem;
-    font-family: var(--font-sans);
-    font-size: var(--text-xs);
-    font-weight: 600;
-  }
-
-  :global(.conversation-tooltip) .tt-row {
-    display: flex;
-    gap: 0.4rem;
-  }
-
-  :global(.conversation-tooltip) .tt-key {
-    min-width: 3.4rem;
-    color: var(--muted-foreground);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  :global(.conversation-tooltip) .tt-id {
-    margin-top: 0.2rem;
-    color: var(--muted-foreground);
-  }
 </style>

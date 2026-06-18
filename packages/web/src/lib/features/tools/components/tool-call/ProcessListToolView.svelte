@@ -15,85 +15,29 @@
 </script>
 
 {#if view.processes.length === 0}
-  <p class="note">No managed processes.</p>
+  <p class="m-0 text-xs text-muted-foreground">No managed processes.</p>
 {:else}
-  <ul class="proc-list">
+  <ul class="m-0 grid list-none gap-1 rounded-sm border bg-sidebar px-2.5 py-2 text-xs text-sidebar-foreground">
     {#each view.processes as process (process.id)}
       {@const url = processUrl(process)}
-      <li>
+      <li class="flex min-w-0 items-center gap-2">
         <StatusDot tone={processTone(process.status)} />
-        <span class="name">{process.name ?? process.command}</span>
-        <span class="status">{process.status}</span>
+        <span class="truncate font-mono font-semibold">{process.name ?? process.command}</span>
+        <span class="capitalize text-muted-foreground">{process.status}</span>
         {#if process.runtime?.childPid}
-          <span class="meta">pid {process.runtime.childPid}</span>
+          <span class="whitespace-nowrap font-mono text-muted-foreground">pid {process.runtime.childPid}</span>
         {/if}
         {#if process.runtime?.processGroupId}
-          <span class="meta">pgid {process.runtime.processGroupId}</span>
+          <span class="whitespace-nowrap font-mono text-muted-foreground">pgid {process.runtime.processGroupId}</span>
         {/if}
         {#if process.status === "orphaned" && process.runtime?.platform}
-          <span class="meta">{process.runtime.platform}</span>
+          <span class="whitespace-nowrap font-mono text-muted-foreground">{process.runtime.platform}</span>
         {/if}
         {#if envMeta(process)}
-          <span class="meta" title={envKeys(process)}>{envMeta(process)}</span>
+          <span class="whitespace-nowrap font-mono text-muted-foreground" title={envKeys(process)}>{envMeta(process)}</span>
         {/if}
-        {#if url}<a class="url" href={url} target="_blank" rel="noreferrer noopener">{url}</a>{/if}
+        {#if url}<a class="ml-auto truncate font-mono text-info" href={url} target="_blank" rel="noreferrer noopener">{url}</a>{/if}
       </li>
     {/each}
   </ul>
 {/if}
-
-<style>
-  .proc-list {
-    margin: 0;
-    list-style: none;
-    display: grid;
-    gap: 0.3rem;
-    padding: 0.5rem 0.6rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--sidebar-foreground);
-    font-size: var(--text-xs);
-  }
-
-  .proc-list li {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-  }
-
-  .name {
-    font-family: var(--font-mono);
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .status {
-    color: var(--muted-foreground);
-    text-transform: capitalize;
-  }
-
-  .meta {
-    font-family: var(--font-mono);
-    color: var(--muted-foreground);
-    white-space: nowrap;
-  }
-
-  .url {
-    margin-left: auto;
-    font-family: var(--font-mono);
-    color: var(--info);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .note {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
-  }
-</style>

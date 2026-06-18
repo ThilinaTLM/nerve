@@ -90,7 +90,7 @@
 
 <article class={`run-status-line state-${notice.state}`} aria-live="polite">
   <div class="run-status-header">
-    <StatusDot tone={dotTone} pulse={notice.state === "retrying"} size="xs" />
+    <StatusDot tone={dotTone} pulse={notice.state === "retrying"} size="xs" class="mr-1.5 align-middle" />
     <span class="badge">retrying</span>
     <span class="arg">{headerText}</span>
   </div>
@@ -117,11 +117,6 @@
   .run-status-header {
     min-width: 0;
     line-height: 1.5;
-  }
-
-  .run-status-header :global(span[aria-hidden]) {
-    margin-right: 0.4rem;
-    vertical-align: middle;
   }
 
   .badge {

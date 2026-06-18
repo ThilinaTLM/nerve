@@ -14,15 +14,7 @@
 </script>
 
 {#if view.events.length === 0}
-  <p class="note">No log events.</p>
+  <p class="m-0 text-xs text-muted-foreground">No log events.</p>
 {:else}
   <LogLineList events={visible} />
 {/if}
-
-<style>
-  .note {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
-  }
-</style>

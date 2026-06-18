@@ -11,43 +11,26 @@
   let { toolCall, view, expanded = false }: Props = $props();
 </script>
 
-{#if view.code && view.code.length > 0}
-  <section class="section" aria-label="Python script">
-    <ToolOutputBlock text={view.code} language="python" {expanded} />
-  </section>
-{/if}
+<div class="grid gap-1.5">
+  {#if view.code && view.code.length > 0}
+    <section class="grid gap-1" aria-label="Python script">
+      <ToolOutputBlock text={view.code} language="python" {expanded} />
+    </section>
+  {/if}
 
-{#if view.output.length > 0}
-  <section class="section" aria-label="Python output">
-    <ToolOutputBlock text={view.output} direction="tail" {expanded} />
-  </section>
-{:else if toolCall.status === "running"}
-  <p class="note">Waiting for Python output…</p>
-{:else if toolCall.status === "completed" && view.code && view.code.length > 0}
-  <section class="section" aria-label="Python output">
-    <p class="note">No Python output.</p>
-  </section>
-{/if}
+  {#if view.output.length > 0}
+    <section class="grid gap-1" aria-label="Python output">
+      <ToolOutputBlock text={view.output} direction="tail" {expanded} />
+    </section>
+  {:else if toolCall.status === "running"}
+    <p class="m-0 text-xs text-muted-foreground">Waiting for Python output…</p>
+  {:else if toolCall.status === "completed" && view.code && view.code.length > 0}
+    <section class="grid gap-1" aria-label="Python output">
+      <p class="m-0 text-xs text-muted-foreground">No Python output.</p>
+    </section>
+  {/if}
 
-{#if view.live}
-  <p class="note">Streaming live output…</p>
-{/if}
-
-<style>
-  .section {
-    display: grid;
-    gap: 0.25rem;
-  }
-
-  .section + .section,
-  .section + .note,
-  .note + .note {
-    margin-top: 0.4rem;
-  }
-
-  .note {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
-  }
-</style>
+  {#if view.live}
+    <p class="m-0 text-xs text-muted-foreground">Streaming live output…</p>
+  {/if}
+</div>

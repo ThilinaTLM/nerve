@@ -17,7 +17,7 @@
 
 <article class="tool-result-error-card">
   <div class="tool-header">
-    <StatusDot tone="danger" size="xs" />
+    <StatusDot tone="danger" size="xs" class="mr-1.5 align-middle" />
     <span class="badge">{toolName}</span>
   </div>
   <pre class="tool-error">{errorPreview}</pre>
@@ -34,11 +34,6 @@
   .tool-header {
     min-width: 0;
     line-height: 1.5;
-  }
-
-  .tool-header :global(span[aria-hidden]) {
-    margin-right: 0.4rem;
-    vertical-align: middle;
   }
 
   .badge {

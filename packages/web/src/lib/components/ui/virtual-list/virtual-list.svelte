@@ -55,13 +55,13 @@
 
 <div
   bind:this={viewportEl}
-  class={cn("virtual-list-viewport", className)}
+  class={cn("h-full min-h-0 overflow-x-hidden overflow-y-auto", className)}
   onscroll={handleScroll}
 >
-  <div class="virtual-list-spacer" style:height={`${total * itemHeight}px`}>
+  <div class="relative w-full" style:height={`${total * itemHeight}px`}>
     {#each visible as item, i (keyFn ? keyFn(item, start + i) : start + i)}
       <div
-        class="virtual-list-item"
+        class="absolute inset-x-0 flex items-center"
         style:top={`${(start + i) * itemHeight}px`}
         style:height={`${itemHeight}px`}
       >
@@ -70,25 +70,3 @@
     {/each}
   </div>
 </div>
-
-<style>
-  .virtual-list-viewport {
-    height: 100%;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  .virtual-list-spacer {
-    position: relative;
-    width: 100%;
-  }
-
-  .virtual-list-item {
-    position: absolute;
-    right: 0;
-    left: 0;
-    display: flex;
-    align-items: center;
-  }
-</style>

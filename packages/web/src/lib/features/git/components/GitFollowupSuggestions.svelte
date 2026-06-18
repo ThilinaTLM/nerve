@@ -37,7 +37,7 @@
           onDraft?.(suggestion);
         }}
       >
-        <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
+        <Icon size={13} strokeWidth={2.2} aria-hidden="true" class="text-primary" />
         <span>{suggestion.label}</span>
       </button>
     {/each}
@@ -71,10 +71,6 @@
       color 120ms ease,
       border-color 120ms ease,
       background 120ms ease;
-  }
-
-  .git-suggestion-chip :global(svg) {
-    color: var(--primary);
   }
 
   .git-suggestion-chip:hover:not(:disabled) {

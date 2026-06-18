@@ -117,6 +117,7 @@
           placeholder="Search models"
           bind:value={query}
           aria-label="Search models"
+          class="rounded-sm"
         />
       </div>
       {#if availableModels.length > 0}
@@ -196,10 +197,6 @@
     align-items: center;
     gap: 0.5rem;
     color: var(--muted-foreground);
-  }
-
-  .scoped-dialog-search :global(input) {
-    border-radius: var(--radius-sm);
   }
 
   .scoped-dialog-providers {

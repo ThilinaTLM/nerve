@@ -1,0 +1,54 @@
+/* Navigation context-menu trigger wrappers and rich tooltip content.
+ * Applied to bits-ui ContextMenu/Tooltip children via triggerClass, so the
+ * classes must be global. Shared by the processes and projects trees. */
+
+.process-context-trigger,
+.conversation-context-trigger,
+.conversation-context-trigger [data-slot="tooltip-trigger"] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.conversation-status {
+  flex: none;
+}
+
+.nav-tooltip {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  max-width: 22rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.process-tooltip .tt-title,
+.conversation-tooltip .tt-title {
+  margin-bottom: 0.15rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.process-tooltip .tt-row,
+.conversation-tooltip .tt-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.process-tooltip .tt-key,
+.conversation-tooltip .tt-key {
+  min-width: 3.4rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.process-tooltip .tt-id,
+.conversation-tooltip .tt-id {
+  margin-top: 0.2rem;
+  color: var(--muted-foreground);
+}

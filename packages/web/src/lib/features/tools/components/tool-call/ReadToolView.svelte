@@ -16,26 +16,9 @@
 </script>
 
 {#if view.image}
-  <button class="thumb-button" type="button" onclick={() => view.path && onOpenFile?.(view.path)} title="Open image pane">
-    <img class="read-thumb" src={view.image.dataUrl} alt={view.relPath ?? "image"} />
+  <button class="cursor-pointer border-0 bg-transparent p-0" type="button" onclick={() => view.path && onOpenFile?.(view.path)} title="Open image pane">
+    <img class="max-h-60 max-w-80 rounded-sm border object-contain" src={view.image.dataUrl} alt={view.relPath ?? "image"} />
   </button>
 {:else if view.content !== undefined && view.content.length > 0}
   <ToolOutputBlock text={view.content} {language} {expanded} />
 {/if}
-
-<style>
-  .thumb-button {
-    border: 0;
-    background: transparent;
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .read-thumb {
-    max-width: 320px;
-    max-height: 240px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    object-fit: contain;
-  }
-</style>

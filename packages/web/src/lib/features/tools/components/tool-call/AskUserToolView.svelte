@@ -311,16 +311,6 @@
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent) inset;
   }
 
-  :global(.spin) {
-    animation: ask-spin 900ms linear infinite;
-  }
-
-  @keyframes ask-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
   .actions {
     display: flex;
     justify-content: end;

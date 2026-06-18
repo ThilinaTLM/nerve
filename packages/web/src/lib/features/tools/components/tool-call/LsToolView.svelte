@@ -27,14 +27,14 @@
 </script>
 
 {#if view.total === 0}
-  <p class="note">Empty directory.</p>
+  <p class="m-0 text-xs text-muted-foreground">Empty directory.</p>
 {:else}
-  <ul class="entries">
+  <ul class="m-0 list-none rounded-sm border bg-sidebar px-2.5 py-2 font-mono text-xs leading-normal text-sidebar-foreground">
     {#each visible as entry (entry.path)}
-      <li>
-        {#if entry.kind === "directory"}<Folder size={12} strokeWidth={2} />{:else}<FileIcon size={12} strokeWidth={2} />{/if}
+      <li class="flex items-center gap-1.5">
+        {#if entry.kind === "directory"}<Folder size={12} strokeWidth={2} class="flex-none text-muted-foreground" />{:else}<FileIcon size={12} strokeWidth={2} class="flex-none text-muted-foreground" />{/if}
         {#if entry.kind === "file"}
-          <button type="button" onclick={() => onOpenFile?.(entry.openPath ?? entry.path)}>{entry.path}</button>
+          <button type="button" class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-xs text-primary hover:underline" onclick={() => onOpenFile?.(entry.openPath ?? entry.path)}>{entry.path}</button>
         {:else}
           <span>{entry.path}</span>
         {/if}
@@ -42,50 +42,3 @@
     {/each}
   </ul>
 {/if}
-
-<style>
-  .entries {
-    margin: 0;
-    list-style: none;
-    padding: 0.5rem 0.6rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--sidebar-foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: 1.45;
-    overflow: visible;
-  }
-
-  .entries li {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .entries li :global(svg) {
-    color: var(--muted-foreground);
-    flex: none;
-  }
-
-  .entries button {
-    border: 0;
-    background: transparent;
-    color: var(--primary);
-    cursor: pointer;
-    font: inherit;
-    padding: 0;
-    text-align: left;
-  }
-
-  .entries button:hover {
-    text-decoration: underline;
-  }
-
-  .note {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
-  }
-</style>

@@ -26,7 +26,7 @@
 
 <article class={`tool-draft-card draft-${summary.kind}`}>
   <div class="tool-header">
-    <StatusDot tone={summary.done ? "good" : "running"} pulse={!summary.done} size="xs" />
+    <StatusDot tone={summary.done ? "good" : "running"} pulse={!summary.done} size="xs" class="mr-1.5 align-middle" />
     <span class="badge">{summary.toolName}</span>
     {#if summary.path}
       <span class="arg" title={summary.path}>{summary.path}</span>
@@ -80,11 +80,6 @@
   .tool-header {
     min-width: 0;
     line-height: 1.5;
-  }
-
-  .tool-header :global(span[aria-hidden]) {
-    margin-right: 0.4rem;
-    vertical-align: middle;
   }
 
   .badge {
@@ -193,25 +188,4 @@
     border-color: color-mix(in oklab, var(--info) 35%, var(--border));
   }
 
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  @keyframes pulse {
-    50% {
-      opacity: 0;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .progress-spinner {
-      animation: none;
-    }
-
-    .progress-caret {
-      animation: none;
-    }
-  }
 </style>

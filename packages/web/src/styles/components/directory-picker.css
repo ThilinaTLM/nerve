@@ -309,21 +309,6 @@
   animation: picker-sheen 1.2s ease-in-out infinite;
 }
 
-@keyframes picker-sheen {
-  from {
-    background-position: 120% 0;
-  }
-  to {
-    background-position: -120% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skeleton-row {
-    animation: none;
-  }
-}
-
 .empty {
   display: grid;
   place-items: center;

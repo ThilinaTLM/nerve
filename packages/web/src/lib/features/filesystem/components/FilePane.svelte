@@ -328,12 +328,4 @@
   :global(.dark) .code-view :global(span) {
     color: var(--shiki-dark, inherit);
   }
-
-  :global(.spin) {
-    animation: spin 0.9s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
 </style>

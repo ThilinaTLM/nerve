@@ -14,17 +14,9 @@
 {#if view.output.length > 0}
   <ToolOutputBlock text={view.output} direction="tail" {expanded} />
 {:else if toolCall.status === "running"}
-  <p class="note">Waiting for command output…</p>
+  <p class="m-0 text-xs text-muted-foreground">Waiting for command output…</p>
 {/if}
 
 {#if view.live}
-  <p class="note">Streaming live output…</p>
+  <p class="m-0 text-xs text-muted-foreground">Streaming live output…</p>
 {/if}
-
-<style>
-  .note {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
-  }
-</style>

@@ -141,7 +141,6 @@
   $effect(() => {
     void refresh();
   });
-  import "./nerve-logs-pane.css";
 </script>
 
 <section class="logs-pane">
@@ -275,3 +274,335 @@
   destructive
   onConfirm={() => void pruneLogs()}
 />
+
+<style>
+  .logs-pane {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    background: var(--background);
+  }
+
+  .logs-toolbar {
+    display: grid;
+    gap: 0.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    padding: 0.6rem 0.75rem;
+  }
+
+  .toolbar-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .segmented {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+  }
+
+  .segmented button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--background);
+    color: var(--muted-foreground);
+    padding: 0.2rem 0.5rem;
+    font-size: var(--text-xs);
+    text-transform: capitalize;
+    cursor: pointer;
+    transition:
+      color 0.12s ease,
+      background 0.12s ease,
+      border-color 0.12s ease;
+  }
+
+  .segmented button:hover {
+    color: var(--foreground);
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+  }
+
+  .segmented button.active {
+    border-color: var(--primary);
+    color: var(--primary-foreground);
+    background: var(--primary);
+  }
+
+  .toolbar-divider {
+    width: 1px;
+    align-self: stretch;
+    min-height: 1.2rem;
+    background: var(--border);
+  }
+
+  .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+  }
+
+  .result-count {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .search-line {
+    flex-wrap: nowrap;
+  }
+
+  .field {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--muted-foreground);
+  }
+
+  .search-field {
+    flex: 1 1 60%;
+  }
+
+  .component-field {
+    flex: 1 1 30%;
+  }
+
+  .search-line :global(input) {
+    flex: 1 1 0;
+  }
+
+  .field-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    padding: 0.1rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .field-clear:hover {
+    color: var(--foreground);
+    background: var(--accent);
+  }
+
+  .logs-error,
+  .logs-notice {
+    margin: 0.6rem 0.75rem 0;
+    border: 1px solid color-mix(in oklab, var(--destructive) 35%, var(--border));
+    border-radius: var(--radius-md);
+    padding: 0.5rem 0.6rem;
+    color: var(--destructive);
+    background: color-mix(in oklab, var(--destructive) 8%, var(--card));
+    font-size: var(--text-sm);
+  }
+
+  .logs-notice {
+    border-color: color-mix(in oklab, var(--success) 35%, var(--border));
+    color: var(--success);
+    background: color-mix(in oklab, var(--success) 8%, var(--card));
+  }
+
+  :global(.logs-scroll) {
+    min-height: 0;
+  }
+
+  .logs-list {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0.5rem;
+  }
+
+  .empty {
+    margin: 1rem 0.75rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    color: var(--muted-foreground);
+    text-align: center;
+    font-size: var(--text-sm);
+  }
+
+  .log-row {
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+    border-left: 2px solid transparent;
+    font-family: var(--font-mono);
+  }
+
+  .log-row:hover {
+    background: color-mix(in oklab, var(--accent) 40%, transparent);
+  }
+
+  .log-row.open {
+    background: color-mix(in oklab, var(--accent) 30%, transparent);
+  }
+
+  .log-row.warn {
+    border-left-color: var(--warning);
+  }
+
+  .log-row.error {
+    border-left-color: var(--destructive);
+  }
+
+  .log-line {
+    display: grid;
+    grid-template-columns:
+      1rem
+      [time] 7rem
+      [level] 4rem
+      [source] minmax(6rem, 12rem)
+      [message] minmax(0, 1fr)
+      [meta] auto;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.18rem 0.6rem 0.18rem 0.15rem;
+    line-height: 1.5;
+  }
+
+  .caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: 1rem;
+    height: 1rem;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .caret:hover {
+    color: var(--foreground);
+  }
+
+  .caret :global(svg) {
+    transition: transform 0.12s ease;
+  }
+
+  .log-row.open .caret :global(svg) {
+    transform: rotate(90deg);
+  }
+
+  .time {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .level {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--muted-foreground);
+  }
+
+  .level.info {
+    color: var(--foreground);
+  }
+
+  .level.warn {
+    color: var(--warning);
+  }
+
+  .level.error {
+    color: var(--destructive);
+  }
+
+  .source {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .message {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--foreground);
+    font-size: var(--text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .duration {
+    justify-self: end;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .log-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.1rem 0.6rem 0.5rem 8.65rem;
+  }
+
+  .refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .logs-pane code {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.05rem 0.25rem;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+
+  .context {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.1rem 0.6rem;
+    margin: 0;
+  }
+
+  .context dt {
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+  }
+
+  .context dd {
+    margin: 0;
+    color: var(--foreground);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .error-block {
+    max-height: 14rem;
+    overflow: auto;
+    margin: 0;
+    border-left: 2px solid
+      color-mix(in oklab, var(--destructive) 60%, transparent);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--destructive) 6%, transparent);
+    padding: 0.4rem 0.6rem;
+    color: color-mix(in oklab, var(--destructive) 85%, var(--foreground));
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+</style>

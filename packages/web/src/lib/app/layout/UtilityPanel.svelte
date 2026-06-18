@@ -14,7 +14,6 @@
   import ContextTab from "$lib/features/conversations/components/ContextUtilityPanel.svelte";
   import GitTab from "$lib/features/git/components/GitUtilityPanel.svelte";
   import ProcessesTab from "$lib/features/processes/components/ProcessUtilityPanel.svelte";
-  import "$lib/app/layout/utility/utility.css";
 
   type UtilityTab = "processes" | "info" | "git";
 

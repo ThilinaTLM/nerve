@@ -89,7 +89,7 @@
                   <span>{provider.oauthName ?? provider.provider}</span>
                   {#if provider.warning}
                     <p class="provider-warning">
-                      <TriangleAlert size={13} strokeWidth={2} />
+                      <TriangleAlert size={13} strokeWidth={2} class="mt-0.5 flex-none" />
                       {provider.warning}
                     </p>
                   {/if}
@@ -216,11 +216,6 @@
     color: var(--warning);
     font-size: var(--text-xs);
     line-height: 1.4;
-  }
-
-  .provider-warning :global(svg) {
-    margin-top: 0.1rem;
-    flex: none;
   }
 
   .provider-item-actions {

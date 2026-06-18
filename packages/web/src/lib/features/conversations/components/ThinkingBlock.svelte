@@ -63,15 +63,4 @@
     color: var(--muted-foreground);
   }
 
-  @keyframes pulse {
-    50% { opacity: 0; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .thinking-block.live :global(.markdown > :last-child)::after,
-    .thinking-block.live .redacted::after,
-    .stream-caret {
-      animation: none;
-    }
-  }
 </style>

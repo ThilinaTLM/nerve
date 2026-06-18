@@ -6,7 +6,6 @@
   } from "$lib/core/shortcuts/registry";
   import CenterTabItem from "./CenterTabItem.svelte";
   import NewTabButton from "./NewTabButton.svelte";
-  import "./center-tab-strip.css";
 
   type Props = {
     tabs?: CenterTabModel[];

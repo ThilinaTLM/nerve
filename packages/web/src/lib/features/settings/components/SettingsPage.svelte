@@ -25,7 +25,6 @@
   import WebSearchSettingsSection from "./settings/sections/WebSearchSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
-  import "./settings/settings.css";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
   type SectionId =

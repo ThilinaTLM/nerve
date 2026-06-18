@@ -354,15 +354,4 @@
     color: var(--muted-foreground);
   }
 
-  @keyframes pulse {
-    50% {
-      opacity: 0;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .prompt-caret {
-      animation: none;
-    }
-  }
 </style>

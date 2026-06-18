@@ -23,7 +23,6 @@
   import { notify } from "$lib/features/notifications/notify.svelte";
   import PinnedCommandItem from "./PinnedCommandItem.svelte";
   import ProcessListItem from "./ProcessListItem.svelte";
-  import "./process-utility-panel.css";
 
   type Props = {
     activeProject?: ProjectRecord;

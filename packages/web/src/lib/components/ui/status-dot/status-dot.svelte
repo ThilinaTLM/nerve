@@ -59,19 +59,3 @@
 	aria-label={label}
 	aria-hidden={label ? undefined : "true"}
 ></span>
-
-<style>
-	.status-pulse {
-		animation: status-pulse 1.5s ease-in-out infinite;
-	}
-
-	@keyframes status-pulse {
-		0%,
-		100% {
-			box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent);
-		}
-		50% {
-			box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 0%, transparent);
-		}
-	}
-</style>

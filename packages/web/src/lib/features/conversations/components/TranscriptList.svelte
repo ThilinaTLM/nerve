@@ -370,16 +370,4 @@
     font-family: var(--font-mono);
   }
 
-  @keyframes pulse {
-    50% {
-      opacity: 0;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .prompt-caret,
-    .stream-caret {
-      animation: none;
-    }
-  }
 </style>

@@ -15,83 +15,35 @@
 </script>
 
 {#if process}
-  <div class="row">
+  <div class="flex items-center gap-2">
     <StatusDot tone={processTone(process.status)} pulse={process.status === "starting" || process.status === "stopping"} />
-    <span class="status">{process.status}</span>
+    <span class="text-sm font-semibold capitalize">{process.status}</span>
     {#if process.exitCode !== undefined && process.exitCode !== null}
-      <span class="meta">exit {process.exitCode}</span>
+      <span class="font-mono text-xs text-muted-foreground">exit {process.exitCode}</span>
     {/if}
     {#if process.signal}
-      <span class="meta">signal {process.signal}</span>
+      <span class="font-mono text-xs text-muted-foreground">signal {process.signal}</span>
     {/if}
     {#if process.runtime?.childPid}
-      <span class="meta">pid {process.runtime.childPid}</span>
+      <span class="font-mono text-xs text-muted-foreground">pid {process.runtime.childPid}</span>
     {/if}
     {#if process.runtime?.processGroupId}
-      <span class="meta">pgid {process.runtime.processGroupId}</span>
+      <span class="font-mono text-xs text-muted-foreground">pgid {process.runtime.processGroupId}</span>
     {/if}
     {#if process.status === "orphaned" && process.runtime?.platform}
-      <span class="meta">{process.runtime.platform}</span>
+      <span class="font-mono text-xs text-muted-foreground">{process.runtime.platform}</span>
     {/if}
     {#if envMeta}
-      <span class="meta" title={envKeys}>{envMeta}</span>
+      <span class="font-mono text-xs text-muted-foreground" title={envKeys}>{envMeta}</span>
     {/if}
   </div>
-  <p class="command">{process.command}</p>
+  <p class="m-0 whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">{process.command}</p>
   {#if url}
-    <a class="url" href={url} target="_blank" rel="noreferrer noopener">
+    <a class="inline-flex items-center gap-1 font-mono text-xs text-info hover:underline" href={url} target="_blank" rel="noreferrer noopener">
       <ExternalLink size={12} strokeWidth={2} />{url}
     </a>
   {/if}
   {#if process.error}
-    <p class="error">{process.error}</p>
+    <p class="m-0 text-xs text-destructive">{process.error}</p>
   {/if}
 {/if}
-
-<style>
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-  }
-
-  .status {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    text-transform: capitalize;
-  }
-
-  .meta {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
-  }
-
-  .command {
-    margin: 0;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  .url {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--info);
-  }
-
-  .url:hover {
-    text-decoration: underline;
-  }
-
-  .error {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--destructive);
-  }
-</style>

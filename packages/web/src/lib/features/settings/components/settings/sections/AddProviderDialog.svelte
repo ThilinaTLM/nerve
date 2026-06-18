@@ -355,13 +355,4 @@
     font-size: var(--text-xs);
   }
 
-  :global(.oauth-progress .spin) {
-    animation: add-provider-spin 1s linear infinite;
-  }
-
-  @keyframes add-provider-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
 </style>

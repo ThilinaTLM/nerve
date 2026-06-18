@@ -67,12 +67,12 @@
 </script>
 
 {#if showPlanCard && displayedReview}
-  <div class="plan-review" aria-label="Plan review">
+  <div class="grid gap-2" aria-label="Plan review">
     {#if preview.trim()}
-      <pre class="plan-preview">{preview}</pre>
+      <pre class="m-0 whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-normal text-foreground">{preview}</pre>
     {/if}
 
-    <div class="plan-actions">
+    <div class="flex flex-wrap justify-end gap-2">
       <Button
         size="sm"
         variant={accepted ? "success" : "default"}
@@ -103,38 +103,5 @@
     </div>
   </div>
 {:else if view.summary}
-  <p class="summary">{view.summary}</p>
+  <p class="m-0 text-sm text-muted-foreground">{view.summary}</p>
 {/if}
-
-<style>
-  .plan-review {
-    display: grid;
-    gap: 0.55rem;
-  }
-
-  .summary {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-sm);
-  }
-
-  .plan-preview {
-    margin: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--foreground);
-    padding: 0.6rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: 1.45;
-    white-space: pre-wrap;
-  }
-
-  .plan-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: end;
-    gap: 0.5rem;
-  }
-</style>

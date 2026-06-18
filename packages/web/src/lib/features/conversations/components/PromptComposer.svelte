@@ -370,15 +370,4 @@
   :global(.mic-button.recording) {
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent) inset;
   }
-
-  :global(.spin) {
-    animation: composer-spin 900ms linear infinite;
-  }
-
-  @keyframes composer-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
 </style>

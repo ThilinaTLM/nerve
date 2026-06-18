@@ -18,7 +18,6 @@
   import DirectoryPickerSearch from "./DirectoryPickerSearch.svelte";
   import { expandHome, signalMeta, uniqueSignals } from "./directory-picker-helpers";
   import type { FilesystemEntry, NavItem } from "./directory-picker-types";
-  import "./project-directory-picker.css";
   type Props = {
     open?: boolean;
     projects?: ProjectRecord[];
@@ -222,7 +221,6 @@
     if (open && showHidden !== previousShowHidden) reloadCurrent();
     previousShowHidden = showHidden;
   });
-  import "./project-directory-picker.css";
 </script>
 <Dialog
   bind:open

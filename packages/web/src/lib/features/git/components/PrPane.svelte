@@ -384,13 +384,4 @@
     color: var(--destructive);
   }
 
-  :global(.spin) {
-    animation: pr-spin 0.9s linear infinite;
-  }
-
-  @keyframes pr-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
 </style>

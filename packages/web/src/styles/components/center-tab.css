@@ -183,12 +183,3 @@
   border-left: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
   padding: 0 0.28rem;
 }
-
-@keyframes tab-pulse {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 45%, transparent);
-  }
-  100% {
-    box-shadow: 0 0 0 0.36rem transparent;
-  }
-}
