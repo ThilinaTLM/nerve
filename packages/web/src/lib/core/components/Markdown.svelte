@@ -196,12 +196,12 @@
 
   .markdown :global(code) {
     display: inline;
-    border-radius: 0.2rem;
-    background: color-mix(in oklab, var(--muted) 60%, transparent);
-    color: var(--foreground);
-    padding: 0 0.25rem;
+    border-radius: 0.25rem;
+    background: color-mix(in oklab, currentColor 14%, transparent);
+    color: inherit;
+    padding: 0.05rem 0.3rem;
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: 0.9em;
   }
 
   .markdown :global(.code-block) {
