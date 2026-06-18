@@ -8,8 +8,8 @@
     ProjectRecord,
     ConversationRecord,
     StatusResponse,
-  } from "../../../api";
-  import { agentActivityPulse, agentActivityTone } from "../../../utils/status";
+  } from "$lib/api";
+  import { agentActivityPulse, agentActivityTone } from "$lib/core/utils/status";
   import { Badge } from "$lib/components/ui/badge";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";

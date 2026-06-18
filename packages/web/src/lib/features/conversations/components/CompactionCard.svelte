@@ -9,8 +9,8 @@
   import { StatusDot } from "$lib/components/ui/status-dot";
   import Markdown from "$lib/Markdown.svelte";
   import type { ProjectRecord } from "$lib/api";
-  import type { CompactionNotice } from "$lib/stores/workbench/state.svelte";
-  import { formatTokens } from "$lib/utils/usage";
+  import type { CompactionNotice } from "$lib/features/state-types";
+  import { formatTokens } from "$lib/core/utils/usage";
 
   type Props = {
     notice: CompactionNotice;

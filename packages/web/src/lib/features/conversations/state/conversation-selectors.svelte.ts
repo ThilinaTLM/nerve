@@ -1,88 +1,188 @@
-import { workbenchSelectors } from "$lib/stores/workbench/selectors.svelte";
+import {
+  conversationViewKey,
+  pendingConversationKey,
+} from "$lib/core/state/state-keys";
+import {
+  modelKey,
+  parseModelKey,
+  scopedUsableModelOptions,
+} from "$lib/core/utils/model";
+import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
+import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { usageState } from "$lib/features/usage/state/usage-state.svelte";
+import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { conversationState } from "./conversation-state.svelte";
+
+function activeView() {
+  const conversationId =
+    selection.conversationId ?? conversationState.activeConversationTabId;
+  if (!conversationId) return undefined;
+  return conversationState.conversationViews[
+    conversationViewKey(conversationId)
+  ];
+}
+
+function activePendingConversation() {
+  const active = workspaceState.activeCenterTab;
+  if (active?.kind !== "pending-conversation") return undefined;
+  return conversationState.pendingConversations[
+    pendingConversationKey(active.id)
+  ];
+}
 
 export const conversationSelectors = {
   get activeProject() {
-    return workbenchSelectors.activeProject;
+    return workspaceSelectors.activeProject;
   },
   get activeConversation() {
-    return workbenchSelectors.activeConversation;
+    return workspaceSelectors.activeConversation;
   },
   get activeAgent() {
-    return workbenchSelectors.activeAgent;
+    return workspaceSelectors.activeAgent;
   },
   get activePendingConversation() {
-    return workbenchSelectors.activePendingConversation;
+    return activePendingConversation();
   },
   get pendingConversationActive() {
-    return workbenchSelectors.pendingConversationActive;
+    return Boolean(activePendingConversation());
   },
   get activeUserQuestion() {
-    return workbenchSelectors.activeUserQuestion;
+    const conversationId = selection.conversationId;
+    const agentId = selection.agentId;
+    return workspaceState.userQuestions.find((question) => {
+      if (conversationId && question.conversationId === conversationId)
+        return true;
+      return Boolean(agentId && question.agentId === agentId);
+    });
   },
   get activePlanReview() {
-    return workbenchSelectors.activePlanReview;
+    const conversationId = selection.conversationId;
+    const agentId = selection.agentId;
+    return workspaceState.planReviews.find((review) => {
+      if (conversationId && review.conversationId === conversationId)
+        return true;
+      return Boolean(agentId && review.agentId === agentId);
+    });
   },
   get conversationActivityById() {
-    return workbenchSelectors.conversationActivityById;
+    return workspaceSelectors.conversationActivityById;
   },
   get conversationAgents() {
-    return workbenchSelectors.conversationAgents;
+    return workspaceState.agents.filter(
+      (agent) => agent.conversationId === selection.conversationId,
+    );
   },
   get pendingApprovalCount() {
-    return workbenchSelectors.pendingApprovalCount;
+    return workspaceState.approvals.length;
   },
   get conversationLiveState() {
-    return workbenchSelectors.conversationLiveState;
+    return activeView()?.live;
   },
   get transcript() {
-    return workbenchSelectors.transcript;
+    return activeView()?.transcript ?? [];
   },
   get toolCalls() {
-    return workbenchSelectors.toolCalls;
+    return activeView()?.toolCalls ?? [];
   },
   get treeNodes() {
-    return workbenchSelectors.treeNodes;
+    return activeView()?.treeNodes ?? [];
   },
   get streamingText() {
-    return workbenchSelectors.streamingText;
+    return activeView()?.streamingText ?? "";
   },
   get queuedPrompts() {
-    return workbenchSelectors.queuedPrompts;
+    return activeView()?.queuedPrompts ?? [];
   },
   get activeComposerText() {
-    return workbenchSelectors.activeComposerText;
+    return (
+      activePendingConversation()?.composerText ??
+      activeView()?.composerText ??
+      ""
+    );
   },
   get gitSuggestions() {
-    return workbenchSelectors.gitSuggestions;
+    return gitSelectors.gitSuggestions;
   },
   get slashCompletions() {
-    return workbenchSelectors.slashCompletions;
+    return conversationState.slashCompletions;
   },
   get selectedModelKey() {
-    return workbenchSelectors.selectedModelKey;
+    return conversationState.selectedModelKey;
   },
   get selectedThinkingLevel() {
-    return workbenchSelectors.selectedThinkingLevel;
+    return conversationState.selectedThinkingLevel;
   },
   get selectedMode() {
-    return workbenchSelectors.selectedMode;
+    return conversationState.selectedMode;
   },
   get selectedPermissionLevel() {
-    return workbenchSelectors.selectedPermissionLevel;
+    return conversationState.selectedPermissionLevel;
   },
   get activeContextUsage() {
-    return workbenchSelectors.activeContextUsage;
+    return activeView()?.contextUsage;
   },
-  get activeContextWindow() {
-    return workbenchSelectors.activeContextWindow;
+  get activeModelInfo() {
+    const model = workspaceState.agents.find(
+      (agent) => agent.id === selection.agentId,
+    )?.model;
+    if (!model) return undefined;
+    return settingsState.models.find(
+      (candidate) =>
+        candidate.provider === model.provider &&
+        candidate.modelId === model.modelId,
+    );
+  },
+  get activeContextWindow(): number {
+    const selectedModelInfo = settingsState.models.find(
+      (model) => modelKey(model) === conversationState.selectedModelKey,
+    );
+    if (selectedModelInfo?.contextWindow)
+      return selectedModelInfo.contextWindow;
+    if (this.activeModelInfo?.contextWindow)
+      return this.activeModelInfo.contextWindow;
+    return activeView()?.contextUsage?.contextWindow ?? 0;
+  },
+  get activeConversationUsage() {
+    const totals = {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0,
+    };
+    for (const item of activeView()?.transcript ?? []) {
+      if (!item.usage) continue;
+      totals.input += item.usage.input;
+      totals.output += item.usage.output;
+      totals.cacheRead += item.usage.cacheRead;
+      totals.cacheWrite += item.usage.cacheWrite;
+      totals.cost += item.usage.cost;
+    }
+    return totals;
   },
   get usableModels() {
-    return workbenchSelectors.usableModels;
+    return scopedUsableModelOptions(
+      settingsState.models,
+      settingsState.authProviders,
+      settingsState.settingsDraft?.scopedModels,
+    );
   },
   get live() {
-    return workbenchSelectors.live;
+    return workspaceState.connection === "live";
   },
   get sending() {
-    return workbenchSelectors.sending;
+    return (
+      activePendingConversation()?.sending ?? activeView()?.sending ?? false
+    );
+  },
+  get activeSubscriptionUsage() {
+    const provider =
+      workspaceState.agents.find((agent) => agent.id === selection.agentId)
+        ?.model?.provider ??
+      parseModelKey(conversationState.selectedModelKey)?.provider;
+    if (!provider) return undefined;
+    return usageState.subscriptionUsage[provider];
   },
 };

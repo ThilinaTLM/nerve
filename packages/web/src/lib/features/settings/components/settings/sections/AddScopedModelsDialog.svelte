@@ -10,7 +10,7 @@
     modelDisplayName,
     modelKey,
     providerDisplayName,
-  } from "$lib/utils/model";
+  } from "$lib/core/utils/model";
 
   type ProviderChip = { id: string; label: string; count: number };
 

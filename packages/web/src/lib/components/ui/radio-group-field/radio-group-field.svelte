@@ -10,7 +10,7 @@
 <script lang="ts">
 	import * as RadioGroup from "$lib/components/ui/radio-group/index.js";
 	import { Label } from "$lib/components/ui/label/index.js";
-	import { cn } from "$lib/utils.js";
+	import { cn } from "$lib/core/utils.js";
 
 	let {
 		items = [],

@@ -1,17 +1,19 @@
-import { workbenchState } from "$lib/stores/workbench/state.svelte";
+import type { FilesystemFileResponse } from "$lib/api";
+import type { FileDisplayMode } from "$lib/core/utils/file-display";
 
-/** Compatibility facade for file viewer state during migration. */
-export const fileState = {
-  get fileViews() {
-    return workbenchState.fileViews;
-  },
-  set fileViews(value) {
-    workbenchState.fileViews = value;
-  },
-  get openFileTabIds() {
-    return workbenchState.openFileTabIds;
-  },
-  set openFileTabIds(value) {
-    workbenchState.openFileTabIds = value;
-  },
+export type FileViewState = {
+  id: string;
+  projectId: string;
+  path: string;
+  line?: number;
+  content?: FilesystemFileResponse;
+  displayMode?: FileDisplayMode;
+  wrapLines?: boolean;
+  loading: boolean;
+  error?: string;
 };
+
+export const fileState = $state({
+  fileViews: {} as Record<string, FileViewState>,
+  openFileTabIds: [] as string[],
+});

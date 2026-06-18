@@ -4,8 +4,8 @@
   import Square from "@lucide/svelte/icons/square";
   import Terminal from "@lucide/svelte/icons/terminal";
   import type { ProcessLogQueryResponse, ProcessRecord } from "$lib/api";
-  import { shortenPath } from "$lib/utils/path";
-  import { processPulse, processTone } from "$lib/utils/status";
+  import { shortenPath } from "$lib/core/utils/path";
+  import { processPulse, processTone } from "$lib/core/utils/status";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { StatusDot } from "$lib/components/ui/status-dot";

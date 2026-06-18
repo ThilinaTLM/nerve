@@ -1,4 +1,6 @@
 <script lang="ts">
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+
   import Bot from "@lucide/svelte/icons/bot";
   import type {
     AuthProviderMetadata,
@@ -9,15 +11,14 @@
   import RadioGroup from "$lib/components/ui/radio-group-field";
   import SelectField, { type SelectItem } from "$lib/components/ui/select-field";
   import Switch from "$lib/components/ui/switch-field";
-  import { clampThinkingLevelForModel } from "$lib/stores/agent-selection-defaults";
-  import { workbenchState } from "$lib/stores/workbench/state.svelte";
+  import { clampThinkingLevelForModel } from "$lib/features/settings/state/agent-selection-defaults";
   import {
     contextualModelLabel,
     modelKey,
     parseModelKey,
     providerDisplayName,
     scopedUsableModelOptions,
-  } from "$lib/utils/model";
+  } from "$lib/core/utils/model";
   import { modeItems, permissionItems } from "../options";
 
   type SettingsChange = (
@@ -138,12 +139,12 @@
       return;
     }
 
-    const model = parseModelKey(workbenchState.selectedModelKey);
+    const model = parseModelKey(conversationState.selectedModelKey);
     const lastAgentSelection = {
-      mode: workbenchState.selectedMode,
-      permissionLevel: workbenchState.selectedPermissionLevel,
+      mode: conversationState.selectedMode,
+      permissionLevel: conversationState.selectedPermissionLevel,
       ...(model ? { model } : {}),
-      thinkingLevel: workbenchState.selectedThinkingLevel,
+      thinkingLevel: conversationState.selectedThinkingLevel,
     } satisfies Settings["lastAgentSelection"];
     settingsDraft.lastAgentSelection = lastAgentSelection;
     onSettingsChange?.(

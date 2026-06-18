@@ -16,7 +16,7 @@
     modelDisplayName,
     modelKey,
     providerDisplayName,
-  } from "$lib/utils/model";
+  } from "$lib/core/utils/model";
   import AddScopedModelsDialog from "./AddScopedModelsDialog.svelte";
 
   type SettingsChange = (

@@ -4,10 +4,10 @@
     formatResetAfterSeconds,
     formatResetAt,
     usageTone,
-  } from "$lib/utils/usage";
+  } from "$lib/core/utils/usage";
   import Popover from "$lib/components/ui/popover-panel";
   import { StatusDot } from "$lib/components/ui/status-dot";
-  import type { StatusTone } from "$lib/utils/status";
+  import type { StatusTone } from "$lib/core/utils/status";
 
   type Props = {
     usage?: SubscriptionUsage;

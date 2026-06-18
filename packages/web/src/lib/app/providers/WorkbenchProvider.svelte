@@ -1,4 +1,6 @@
 <script lang="ts">
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+
   import { onMount, type Snippet } from "svelte";
   import {
     desktopRuntime,
@@ -20,32 +22,40 @@
     focusProjectSearch,
     toggleComposerMic,
   } from "$lib/app/state/workbench-ui-state.svelte";
-  import { createAppShortcuts } from "$lib/shortcuts/app-shortcuts.svelte";
+  import { createAppShortcuts } from "$lib/core/shortcuts/app-shortcuts.svelte";
+  import { abortActiveRun } from "$lib/features/conversations/state/conversation-flow/run-control";
+  import { refreshConversationView } from "$lib/features/conversations/state/conversation-flow/selection";
   import {
-    abortActiveRun,
-    centerTabsExcept,
-    closeCenterTab,
-    closeCenterTabs,
-    clearGitContext,
-    disconnectWorkbench,
-    initializeWorkbench,
-    loadSettingsPanel,
-    newConversation,
-    openSettingsPane,
-    refreshConversationView,
-    refreshFilePane,
-    refreshGitContext,
-    refreshPrPane,
-    selectCenterTab,
     setComposerMode,
     setComposerPermission,
     setComposerThinkingLevel,
-    setUiZoomLevel,
+  } from "$lib/features/conversations/state/composer-config.svelte";
+  import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
+  import { refreshFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+  import {
+    clearGitContext,
+    refreshGitContext,
     startGitContextAutoRefresh,
-    workbenchSelectors,
-    workbenchState,
-    type CenterTabIdentity,
-  } from "$lib/stores/workbench.svelte";
+  } from "$lib/features/git/state/git-context.svelte";
+  import { refreshPrPane } from "$lib/features/git/state/pr-tabs.svelte";
+  import {
+    loadSettingsPanel,
+    openSettingsPane,
+    setUiZoomLevel,
+  } from "$lib/features/settings/state/settings-actions.svelte";
+  import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
+  import { disconnectWorkbench, initializeWorkbench } from "$lib/core/events/websocket-client.svelte";
+  import {
+    centerTabsExcept,
+    closeCenterTabs,
+  } from "$lib/features/workspace/state/center-tab-actions.svelte";
+  import {
+    closeCenterTab,
+    selectCenterTab,
+  } from "$lib/features/workspace/state/center-tabs.svelte";
+  import { newConversation } from "$lib/features/workspace/state/workspace-actions.svelte";
+  import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+  import type { CenterTabIdentity } from "$lib/features/workspace";
 
   type Props = {
     children?: Snippet;
@@ -53,31 +63,31 @@
 
   let { children }: Props = $props();
 
-  const activeProject = $derived(workbenchSelectors.activeProject);
-  const activeConversation = $derived(workbenchSelectors.activeConversation);
-  const activeCenterTab = $derived(workbenchSelectors.activeCenterTab);
-  const centerTabs = $derived(workbenchSelectors.centerTabs);
-  const live = $derived(workbenchSelectors.live);
+  const activeProject = $derived(workspaceSelectors.activeProject);
+  const activeConversation = $derived(conversationSelectors.activeConversation);
+  const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
+  const centerTabs = $derived(workspaceSelectors.centerTabs);
+  const live = $derived(conversationSelectors.live);
   const pendingConversationActive = $derived(
-    workbenchSelectors.pendingConversationActive,
+    conversationSelectors.pendingConversationActive,
   );
-  const selectedMode = $derived(workbenchSelectors.selectedMode);
-  const selectedModelKey = $derived(workbenchSelectors.selectedModelKey);
+  const selectedMode = $derived(conversationSelectors.selectedMode);
+  const selectedModelKey = $derived(conversationSelectors.selectedModelKey);
   const selectedPermissionLevel = $derived(
-    workbenchSelectors.selectedPermissionLevel,
+    conversationSelectors.selectedPermissionLevel,
   );
   const selectedThinkingLevel = $derived(
-    workbenchSelectors.selectedThinkingLevel,
+    conversationSelectors.selectedThinkingLevel,
   );
-  const sending = $derived(workbenchSelectors.sending);
-  const settingsDraft = $derived(workbenchSelectors.settingsDraft);
-  const usableModels = $derived(workbenchSelectors.usableModels);
+  const sending = $derived(conversationSelectors.sending);
+  const settingsDraft = $derived(settingsSelectors.settingsDraft);
+  const usableModels = $derived(conversationSelectors.usableModels);
   const currentZoomLevel = $derived(
     settingsDraft?.ui.zoomLevel ?? zoomState.level,
   );
 
   function openProjectPicker() {
-    workbenchState.projectPickerOpen = true;
+    workspaceState.projectPickerOpen = true;
   }
 
   function focusProjectSearchShortcut() {

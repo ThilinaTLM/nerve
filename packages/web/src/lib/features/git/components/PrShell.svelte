@@ -1,12 +1,11 @@
 <script lang="ts">
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+
   import { checkoutGithubPr } from "$lib/api";
   import PrPane from "$lib/features/git/components/PrPane.svelte";
   import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
-  import {
-    invalidateGit,
-    refreshPrPane,
-    workbenchState,
-  } from "$lib/stores/workbench.svelte";
+  import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
+  import { refreshPrPane } from "$lib/features/git/state/pr-tabs.svelte";
 
   const activeCenterPrView = $derived(gitSelectors.activeCenterPrView);
 
@@ -18,7 +17,7 @@
       invalidateGit(view.projectId);
       void refreshPrPane(view.id);
     } catch (caught) {
-      workbenchState.error = caught instanceof Error ? caught.message : String(caught);
+      workspaceState.error = caught instanceof Error ? caught.message : String(caught);
     }
   }
 </script>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ContextUsage } from "$lib/api";
-  import { formatTokens, usageTone } from "$lib/utils/usage";
+  import { formatTokens, usageTone } from "$lib/core/utils/usage";
 
   type Props = {
     contextUsage?: ContextUsage;

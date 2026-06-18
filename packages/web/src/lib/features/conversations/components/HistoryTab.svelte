@@ -28,14 +28,14 @@
   import User from "@lucide/svelte/icons/user";
   import Wrench from "@lucide/svelte/icons/wrench";
   import type { Component } from "svelte";
-  import { writeClipboardText } from "$lib/clipboard";
+  import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
-  import type { ConversationEntry, ConversationRecord, ConversationTreeNode, ToolCallRecord } from "../../../api";
+  import type { ConversationEntry, ConversationRecord, ConversationTreeNode, ToolCallRecord } from "$lib/api";
   import { buttonVariants } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import { relativeTimeLabel } from "$lib/utils/time";
+  import { relativeTimeLabel } from "$lib/core/utils/time";
   import {
     buildHistoryGraph,
     classifyHistoryEntry,

@@ -1,4 +1,4 @@
-import { logApiFailure } from "../../logging/client-logger";
+import { logApiFailure } from "$lib/core/logger/client-logger";
 
 export class ApiRequestError extends Error {
   constructor(

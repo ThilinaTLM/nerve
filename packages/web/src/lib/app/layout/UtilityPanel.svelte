@@ -8,7 +8,7 @@
     ProcessRecord,
     ProjectRecord,
     StatusResponse,
-  } from "../../api";
+  } from "$lib/api";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import Tabs, { type TabItem } from "$lib/components/ui/tabs-bar";
   import ContextTab from "$lib/features/conversations/components/ContextUtilityPanel.svelte";

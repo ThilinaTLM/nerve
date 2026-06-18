@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { LiveToolCallDraft } from "$lib/stores/workbench/state.svelte";
+  import type { LiveToolCallDraft } from "$lib/features/state-types";
   import { summarizeToolDraft } from "$lib/features/tools/views/tool-draft-progress";
-  import { trimTextPreview } from "$lib/utils/text-preview";
+  import { trimTextPreview } from "$lib/core/utils/text-preview";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import ResultCodeBlock from "./ResultCodeBlock.svelte";
 

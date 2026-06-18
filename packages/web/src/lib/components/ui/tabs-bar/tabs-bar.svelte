@@ -21,7 +21,7 @@
 
 <script lang="ts">
 	import * as Tabs from "$lib/components/ui/tabs/index.js";
-	import { cn } from "$lib/utils.js";
+	import { cn } from "$lib/core/utils.js";
 
 	let {
 		tabs = [],

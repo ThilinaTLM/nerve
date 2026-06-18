@@ -1,7 +1,7 @@
-import { workbenchSelectors } from "$lib/stores/workbench/selectors.svelte";
+import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
 
 export const usageSelectors = {
   get activeSubscriptionUsage() {
-    return workbenchSelectors.activeSubscriptionUsage;
+    return conversationSelectors.activeSubscriptionUsage;
   },
 };

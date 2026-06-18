@@ -12,7 +12,7 @@
   import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
   import { usageSelectors } from "$lib/features/usage/state/usage-selectors.svelte";
   import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-  import { setUiZoomLevel } from "$lib/stores/workbench.svelte";
+  import { setUiZoomLevel } from "$lib/features/settings/state/settings-actions.svelte";
 
   const activeProject = $derived(workspaceSelectors.activeProject);
   const activeConversation = $derived(conversationSelectors.activeConversation);

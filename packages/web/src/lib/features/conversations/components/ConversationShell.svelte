@@ -1,4 +1,6 @@
 <script lang="ts">
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+
   import ConversationPane from "$lib/features/conversations/components/ConversationPane.svelte";
   import {
     focusComposer,
@@ -9,27 +11,34 @@
   import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
   import {
     abortActiveRun,
+    continueFromFailure,
+    navigateToEntry,
+  } from "$lib/features/conversations/state/conversation-flow/run-control";
+  import {
     acceptPendingPlanReview,
     acceptPendingPlanReviewInNewChat,
     answerUserQuestionById,
-    completeFiles,
-    continueFromFailure,
     denyApproval,
     dismissUserQuestionById,
     grantApproval,
-    navigateToEntry,
-    newConversationInProject,
-    openFilePane,
     rejectPendingPlanReview,
+  } from "$lib/features/conversations/state/conversation-flow/interactions";
+  import {
     sendPrompt,
     sendPromptText,
     setActiveComposerText,
+  } from "$lib/features/conversations/state/conversation-flow/prompt-send";
+  import {
     setComposerMode,
     setComposerModel,
     setComposerPermission,
     setComposerThinkingLevel,
-    workbenchState,
-  } from "$lib/stores/workbench.svelte";
+  } from "$lib/features/conversations/state/composer-config.svelte";
+  import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+  import {
+    completeFiles,
+    newConversationInProject,
+  } from "$lib/features/workspace/state/workspace-actions.svelte";
 
   const status = $derived(workspaceSelectors.status);
   const projects = $derived(workspaceSelectors.projects);
@@ -90,7 +99,7 @@
   }
 
   function openProjectPicker() {
-    workbenchState.projectPickerOpen = true;
+    workspaceState.projectPickerOpen = true;
   }
 
   function openToolFile(path: string, line?: number) {

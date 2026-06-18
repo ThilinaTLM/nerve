@@ -2,7 +2,7 @@ import type {
   ConversationEntry,
   ConversationTreeNode,
   ToolCallRecord,
-} from "../../../api";
+} from "$lib/api";
 
 /**
  * Stable icon identifiers. The Svelte layer maps these to `@lucide/svelte`

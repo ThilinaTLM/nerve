@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ToolCallRecord } from "$lib/api";
   import type { ToolPresentation } from "$lib/features/tools/views/tool-presentation";
-  import { trimTextPreview } from "$lib/utils/text-preview";
+  import { trimTextPreview } from "$lib/core/utils/text-preview";
   import { StatusDot } from "$lib/components/ui/status-dot";
 
   type Props = {

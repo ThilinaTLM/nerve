@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PlanReviewRecord, ToolCallRecord, UserQuestionRecord } from "$lib/api";
-  import type { LiveToolOutput } from "$lib/stores/workbench/state.svelte";
+  import type { LiveToolOutput } from "$lib/features/state-types";
   import { toolPresentation } from "$lib/features/tools/views/tool-presentation";
   import { parseToolView } from "$lib/features/tools/views/tool-result-view";
   import { toolViewComponent } from "$lib/features/tools/views/registry";

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { highlightCodeCached } from "$lib/highlight";
-  import { trimTextPreview } from "$lib/utils/text-preview";
+  import { highlightCodeCached } from "$lib/core/highlight/highlight";
+  import { trimTextPreview } from "$lib/core/utils/text-preview";
 
   type Props = {
     code: string;

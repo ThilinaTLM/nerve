@@ -1,6 +1,6 @@
 <script lang="ts" generics="T">
   import type { Snippet } from "svelte";
-  import { cn } from "$lib/utils.js";
+  import { cn } from "$lib/core/utils.js";
 
   type Props = {
     items: T[];

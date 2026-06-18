@@ -6,16 +6,15 @@
   import { processSelectors } from "$lib/features/processes/state/process-selectors.svelte";
   import { selection } from "$lib/features/workspace/state/selection.svelte";
   import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+  import { exportUrl, systemPromptUrl } from "$lib/features/workspace/state/workspace-actions.svelte";
+  import { openProcessTab } from "$lib/features/processes/state/process-tabs.svelte";
   import {
-    exportUrl,
-    openProcessTab,
     pruneStoppedProcesses,
     removeProcess,
     restartSelectedProcess,
     runProcessCommand,
     stopSelectedProcess,
-    systemPromptUrl,
-  } from "$lib/stores/workbench.svelte";
+  } from "$lib/features/processes/state/processes.svelte";
 
   const status = $derived(workspaceSelectors.status);
   const activeProject = $derived(workspaceSelectors.activeProject);

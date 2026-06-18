@@ -4,7 +4,7 @@ import type {
   ConversationEntry,
   ConversationTreeNode,
   ToolCallRecord,
-} from "../../../api";
+} from "$lib/api";
 import { buildHistoryGraph, classifyHistoryEntry } from "./history-graph";
 
 function entry(

@@ -1,29 +1,28 @@
-import { workbenchState } from "$lib/stores/workbench/state.svelte";
+import type { GithubPrDetail, GitRepoSummary } from "$lib/api";
 
-/** Compatibility facade for git and pull-request state during migration. */
-export const gitState = {
-  get gitContext() {
-    return workbenchState.gitContext;
-  },
-  set gitContext(value) {
-    workbenchState.gitContext = value;
-  },
-  get gitRefreshToken() {
-    return workbenchState.gitRefreshToken;
-  },
-  set gitRefreshToken(value) {
-    workbenchState.gitRefreshToken = value;
-  },
-  get prViews() {
-    return workbenchState.prViews;
-  },
-  set prViews(value) {
-    workbenchState.prViews = value;
-  },
-  get openPrTabIds() {
-    return workbenchState.openPrTabIds;
-  },
-  set openPrTabIds(value) {
-    workbenchState.openPrTabIds = value;
-  },
+export type PrViewState = {
+  /** `${projectId}:${encodeURIComponent(repo)}:${number}` */
+  id: string;
+  projectId: string;
+  /** Relative repo path ("." for the project root). */
+  repo: string;
+  number: number;
+  detail?: GithubPrDetail;
+  loading: boolean;
+  error?: string;
 };
+
+export type GitContext = {
+  projectId: string;
+  projectIsRepo: boolean;
+  repos: GitRepoSummary[];
+  github?: { available: boolean; authenticated: boolean };
+  loadedAt: number;
+};
+
+export const gitState = $state({
+  gitContext: undefined as GitContext | undefined,
+  gitRefreshToken: 0,
+  prViews: {} as Record<string, PrViewState>,
+  openPrTabIds: [] as string[],
+});

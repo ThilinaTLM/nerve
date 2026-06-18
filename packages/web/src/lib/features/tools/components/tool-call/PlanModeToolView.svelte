@@ -2,7 +2,7 @@
   import Check from "@lucide/svelte/icons/check";
   import type { PlanReviewRecord, ToolCallRecord } from "$lib/api";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
-  import { trimTextPreview } from "$lib/utils/text-preview";
+  import { trimTextPreview } from "$lib/core/utils/text-preview";
   import { Button } from "$lib/components/ui/button";
 
   type Props = {

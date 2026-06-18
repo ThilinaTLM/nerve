@@ -22,7 +22,7 @@
   import ToolDraftCard from "$lib/features/tools/components/tool-call/ToolDraftCard.svelte";
   import ToolResultErrorCard from "$lib/features/tools/components/tool-call/ToolResultErrorCard.svelte";
   import Markdown from "$lib/Markdown.svelte";
-  import type { TimelineItem } from "$lib/stores/workbench/timeline";
+  import type { TimelineItem } from "$lib/features/conversations/state/timeline";
   import CompactionCard from "./CompactionCard.svelte";
   import RunStatusCard from "./RunStatusCard.svelte";
   import ThinkingBlock from "./ThinkingBlock.svelte";
@@ -47,7 +47,7 @@
     onAcceptPlanReviewInNewChat?: (id: string) => void;
     onRejectPlanReview?: (id: string) => void;
     onContinueFromFailure?: (statusEntryId: string) => void;
-    messageMenu: (item: import("$lib/stores/workbench/state.svelte").TranscriptItem) => ContextMenuItem[];
+    messageMenu: (item: import("$lib/features/conversations").TranscriptItem) => ContextMenuItem[];
     toolMenu: (
       anchorEntryId: string | undefined,
       toolCall: ToolCallRecord,

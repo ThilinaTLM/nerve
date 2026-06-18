@@ -5,7 +5,7 @@
   import Plus from "@lucide/svelte/icons/plus";
   import Search from "@lucide/svelte/icons/search";
   import Trash2 from "@lucide/svelte/icons/trash-2";
-  import { writeClipboardText } from "$lib/clipboard";
+  import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
   import type {
     AgentRecord,
@@ -23,7 +23,7 @@
   import { Input } from "$lib/components/ui/input";
   import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
-  import type { ConversationActivityState } from "$lib/stores/workbench/conversation-activity";
+  import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as Tooltip from "$lib/components/ui/tooltip";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
@@ -31,14 +31,14 @@
     buildProjectGroups,
     shortProjectLabel,
     type ProjectGroup,
-  } from "$lib/utils/project-tree";
+  } from "$lib/core/utils/project-tree";
   import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
   import VsCodeIcon from "./VsCodeIcon.svelte";
   import ZedIcon from "./ZedIcon.svelte";
   import {
     getShortcutAriaLabel,
     getShortcutLabel,
-  } from "$lib/shortcuts/registry";
+  } from "$lib/core/shortcuts/registry";
 
   type DeleteTarget = {
     kind: "project" | "conversation";

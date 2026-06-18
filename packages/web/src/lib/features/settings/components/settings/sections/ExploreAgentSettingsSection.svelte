@@ -14,7 +14,7 @@
     parseModelKey,
     providerDisplayName,
     usableModelOptions,
-  } from "$lib/utils/model";
+  } from "$lib/core/utils/model";
 
   type SettingsChange = (
     patch: UpdateSettingsRequest,

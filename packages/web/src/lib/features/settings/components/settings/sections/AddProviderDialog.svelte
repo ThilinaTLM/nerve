@@ -13,7 +13,7 @@
     setProviderApiKey,
     startOAuthFlow,
   } from "$lib/api";
-  import { encryptApiKey } from "$lib/utils/credential-crypto";
+  import { encryptApiKey } from "$lib/core/utils/credential-crypto";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";

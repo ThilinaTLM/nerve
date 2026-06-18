@@ -4,10 +4,10 @@
   import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import Dialog from "$lib/components/ui/dialog-shell";
   import { Input } from "$lib/components/ui/input";
-  import type { ConversationActivityState } from "$lib/stores/workbench/conversation-activity";
+  import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
   import * as Tooltip from "$lib/components/ui/tooltip";
   import VirtualList from "$lib/components/ui/virtual-list";
-  import { buildConversationRows } from "$lib/utils/project-tree";
+  import { buildConversationRows } from "$lib/core/utils/project-tree";
   import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 
   type Props = {

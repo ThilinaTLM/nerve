@@ -1,16 +1,17 @@
-import { workbenchSelectors } from "$lib/stores/workbench/selectors.svelte";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { settingsState } from "./settings-state.svelte";
 
 export const settingsSelectors = {
   get settingsDraft() {
-    return workbenchSelectors.settingsDraft;
+    return settingsState.settingsDraft;
   },
   get settingsSaveStatus() {
-    return workbenchSelectors.settingsSaveStatus;
+    return settingsState.settingsSaveStatus;
   },
   get settingsMessage() {
-    return workbenchSelectors.settingsMessage;
+    return settingsState.settingsMessage;
   },
   get selectedModelKey() {
-    return workbenchSelectors.selectedModelKey;
+    return conversationState.selectedModelKey;
   },
 };

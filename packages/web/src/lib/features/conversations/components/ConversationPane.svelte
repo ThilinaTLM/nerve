@@ -1,12 +1,12 @@
 <script lang="ts">
   import ArrowDown from "@lucide/svelte/icons/arrow-down";
-  import { writeClipboardText } from "$lib/clipboard";
+  import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
   import type { AgentRecord, ApprovalWithToolCall, CompletionItem, ContextUsage, ConversationEntry, ConversationRecord, ConversationTreeNode, ModelInfo, PlanReviewRecord, ProjectRecord, QueuedPromptRecord, ToolCallRecord, UserQuestionRecord } from "$lib/api";
-  import type { GitSuggestion } from "$lib/stores/workbench/git-context.svelte";
-  import type { ConversationLiveState, PendingConversationState, TranscriptItem } from "$lib/stores/workbench/state.svelte";
-  import { shortProjectLabel } from "$lib/utils/project-tree";
-  import { buildConversationTimeline } from "$lib/stores/workbench/timeline";
+  import type { GitSuggestion } from "$lib/features/git/state/git-context.svelte";
+  import type { ConversationLiveState, PendingConversationState, TranscriptItem } from "$lib/features/state-types";
+  import { shortProjectLabel } from "$lib/core/utils/project-tree";
+  import { buildConversationTimeline } from "$lib/features/conversations/state/timeline";
   import { Button } from "$lib/components/ui/button";
   import PromptComposer from "./PromptComposer.svelte";
   import TranscriptList from "./TranscriptList.svelte";

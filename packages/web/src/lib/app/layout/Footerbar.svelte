@@ -12,8 +12,8 @@
     ProjectRecord,
     ConversationRecord,
     SubscriptionUsage,
-  } from "../../api";
-  import { shortenPath } from "../../utils/path";
+  } from "$lib/api";
+  import { shortenPath } from "$lib/core/utils/path";
   import { Button } from "$lib/components/ui/button";
   import StatusPopover from "./StatusPopover.svelte";
   import SubscriptionUsageChip from "$lib/features/usage/components/SubscriptionUsageChip.svelte";

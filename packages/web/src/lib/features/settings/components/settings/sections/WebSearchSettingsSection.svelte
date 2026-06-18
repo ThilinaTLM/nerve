@@ -14,8 +14,8 @@
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
   import { Input } from "$lib/components/ui/input";
-  import { loadSettingsPanel } from "$lib/stores/settings.svelte";
-  import { encryptApiKey } from "$lib/utils/credential-crypto";
+  import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
+  import { encryptApiKey } from "$lib/core/utils/credential-crypto";
 
   type Props = {
     authProviders?: AuthProviderMetadata[];

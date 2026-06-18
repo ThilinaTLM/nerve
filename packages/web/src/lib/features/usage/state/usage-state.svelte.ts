@@ -1,11 +1,5 @@
-import { workbenchState } from "$lib/stores/workbench/state.svelte";
+import type { SubscriptionUsage } from "$lib/api";
 
-/** Compatibility facade for usage state during migration. */
-export const usageState = {
-  get subscriptionUsage() {
-    return workbenchState.subscriptionUsage;
-  },
-  set subscriptionUsage(value) {
-    workbenchState.subscriptionUsage = value;
-  },
-};
+export const usageState = $state({
+  subscriptionUsage: {} as Record<string, SubscriptionUsage>,
+});

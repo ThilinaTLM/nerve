@@ -3,7 +3,7 @@
   import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
   import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
   import type { Component } from "svelte";
-  import type { GitSuggestion } from "$lib/stores/workbench/git-context.svelte";
+  import type { GitSuggestion } from "$lib/features/git/state/git-context.svelte";
 
   type Props = {
     suggestions?: GitSuggestion[];

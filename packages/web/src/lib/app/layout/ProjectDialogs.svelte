@@ -1,17 +1,17 @@
 <script lang="ts">
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+
   import { focusComposer, workbenchUiState } from "$lib/app/state/workbench-ui-state.svelte";
   import ConversationHistoryDialog from "$lib/features/conversations/components/ConversationHistoryDialog.svelte";
   import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
   import ProjectDirectoryPicker from "$lib/features/projects/components/ProjectDirectoryPicker.svelte";
   import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+  import { compactActiveConversation, navigateToEntry } from "$lib/features/conversations/state/conversation-flow/run-control";
+  import { setActiveComposerText } from "$lib/features/conversations/state/conversation-flow/prompt-send";
   import {
-    compactActiveConversation,
     createConversationForDirectory,
     deleteProjectAndRefresh,
-    navigateToEntry,
-    setActiveComposerText,
-    workbenchState,
-  } from "$lib/stores/workbench.svelte";
+  } from "$lib/features/workspace/state/workspace-actions.svelte";
 
   const status = $derived(workspaceSelectors.status);
   const projects = $derived(workspaceSelectors.projects);
@@ -39,7 +39,7 @@
 </script>
 
 <ProjectDirectoryPicker
-  bind:open={workbenchState.projectPickerOpen}
+  bind:open={workspaceState.projectPickerOpen}
   {projects}
   {conversations}
   homeDir={status?.storage.home}

@@ -1,4 +1,4 @@
-import type { LiveToolCallDraft } from "$lib/stores/workbench/state.svelte";
+import type { LiveToolCallDraft } from "$lib/features/state-types";
 
 export type DraftMetaTone =
   | "default"

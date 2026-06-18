@@ -9,7 +9,7 @@
 
 <script lang="ts">
 	import * as Select from "$lib/components/ui/select/index.js";
-	import { cn } from "$lib/utils.js";
+	import { cn } from "$lib/core/utils.js";
 
 	let {
 		items = [],

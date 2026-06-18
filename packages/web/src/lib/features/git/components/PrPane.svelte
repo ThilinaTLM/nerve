@@ -11,7 +11,7 @@
   import type { GithubChecksSummary } from "$lib/api";
   import { isGithubChecksPending } from "$lib/features/git/checks";
   import Markdown from "$lib/Markdown.svelte";
-  import type { PrViewState } from "$lib/stores/workbench/state.svelte";
+  import type { PrViewState } from "$lib/features/state-types";
   import { Badge, type BadgeTone } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";

@@ -6,7 +6,7 @@
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { AuthProviderMetadata } from "$lib/api";
   import { deleteProviderCredential } from "$lib/api";
-  import { loadSettingsPanel } from "$lib/stores/settings.svelte";
+  import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";

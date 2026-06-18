@@ -1,22 +1,25 @@
+import type { EventEnvelope } from "$lib/api";
+import { getClientConfig } from "$lib/api";
 import {
   applyTheme,
   loadThemePreference,
 } from "$lib/app/layout/layout-state.svelte";
-import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
-import type { EventEnvelope } from "../../api";
-import { getClientConfig } from "../../api";
-import { handleEvent } from "../../events/event-router";
-import { clientLog, installClientLogging } from "../../logging/client-logger";
-import { restoreConversationTabs } from "../../stores/conversation-flow.svelte";
+import { dispatchEvent } from "$lib/core/events/event-bus";
+import {
+  clientLog,
+  installClientLogging,
+} from "$lib/core/logger/client-logger";
+import { restoreConversationTabs } from "$lib/features/conversations/state/conversation-flow.svelte";
 import {
   loadSettingsPanel,
   refreshSubscriptionUsage,
-} from "../../stores/settings.svelte";
-import { workbenchState } from "../../stores/workbench/state.svelte";
+} from "$lib/features/settings/state/settings-actions.svelte";
+import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
 import {
   loadSlashCommands,
   loadWorkspaceState,
-} from "../../stores/workspace.svelte";
+} from "$lib/features/workspace/state/workspace-actions.svelte";
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 
 let socket: WebSocket | undefined;
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -32,23 +35,23 @@ export async function initializeWorkbench(): Promise<void> {
   try {
     installClientLogging();
     applyTheme(loadThemePreference());
-    workbenchState.config = await retryDuringStartup(
+    workspaceState.config = await retryDuringStartup(
       "load client config",
       getClientConfig,
     );
-    workbenchState.status = workbenchState.config.status;
-    workbenchState.error = undefined;
-    composerDraft.projectDir = workbenchState.config.status.storage.home;
+    workspaceState.status = workspaceState.config.status;
+    workspaceState.error = undefined;
+    composerDraft.projectDir = workspaceState.config.status.storage.home;
     await Promise.all([loadWorkspaceState(), loadSlashCommands()]);
     await restoreConversationTabs();
     await loadSettingsPanel();
     startSubscriptionUsagePolling();
     clientLog("info", "workbench", "Workbench initialized");
-    connectWebsocket(workbenchState.config.wsUrl);
+    connectWebsocket(workspaceState.config.wsUrl);
   } catch (caught) {
-    workbenchState.error =
+    workspaceState.error =
       caught instanceof Error ? caught.message : String(caught);
-    workbenchState.connection = "error";
+    workspaceState.connection = "error";
     clientLog("error", "workbench", "Workbench initialization failed", {
       error: caught,
     });
@@ -64,8 +67,8 @@ async function retryDuringStartup<T>(
       return await operation();
     } catch (caught) {
       if (intentionallyDisconnected) throw caught;
-      workbenchState.connection = "connecting";
-      workbenchState.error = `Waiting for Nerve daemon to start (${errorMessage(caught)})`;
+      workspaceState.connection = "connecting";
+      workspaceState.error = `Waiting for Nerve daemon to start (${errorMessage(caught)})`;
       clientLog("warn", "workbench", "Workbench initialization retrying", {
         context: { label, attempt: attempt + 1, delayMs },
         error: caught,
@@ -108,7 +111,7 @@ function scheduleReconnect(wsUrl: string) {
   clearReconnectTimer();
   const delay = Math.min(500 * 2 ** reconnectAttempts, 5_000);
   reconnectAttempts += 1;
-  workbenchState.connection = "connecting";
+  workspaceState.connection = "connecting";
   reconnectTimer = setTimeout(() => {
     reconnectTimer = undefined;
     if (!intentionallyDisconnected) connectWebsocket(wsUrl);
@@ -128,6 +131,14 @@ function stopSubscriptionUsagePolling() {
   subscriptionUsagePollTimer = undefined;
 }
 
+function dispatchIncomingEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  if (event.seq && event.seq <= workspaceState.lastEventSeq) return;
+  if (event.seq) workspaceState.lastEventSeq = event.seq;
+  dispatchEvent(event);
+}
+
 function connectWebsocket(wsUrl: string) {
   clearReconnectTimer();
   const generation = socketGeneration + 1;
@@ -135,19 +146,19 @@ function connectWebsocket(wsUrl: string) {
   socket?.close();
 
   const url = resolveWebsocketUrl(wsUrl);
-  if (workbenchState.lastEventSeq > 0) {
-    url.searchParams.set("since", String(workbenchState.lastEventSeq));
+  if (workspaceState.lastEventSeq > 0) {
+    url.searchParams.set("since", String(workspaceState.lastEventSeq));
   }
   const nextSocket = new WebSocket(url);
   socket = nextSocket;
-  workbenchState.connection = "connecting";
+  workspaceState.connection = "connecting";
 
   nextSocket.addEventListener("open", () => {
     if (generation !== socketGeneration) return;
     reconnectAttempts = 0;
-    workbenchState.connection = "live";
+    workspaceState.connection = "live";
     clientLog("info", "websocket", "WebSocket connected", {
-      context: { since: workbenchState.lastEventSeq },
+      context: { since: workspaceState.lastEventSeq },
     });
   });
   nextSocket.addEventListener("message", (message) => {
@@ -155,13 +166,13 @@ function connectWebsocket(wsUrl: string) {
     const parsed = JSON.parse(String(message.data)) as EventEnvelope<
       Record<string, unknown>
     >;
-    if (parsed.type) handleEvent(parsed);
+    if (parsed.type) dispatchIncomingEvent(parsed);
   });
   nextSocket.addEventListener("close", () => {
     if (generation !== socketGeneration) return;
     socket = undefined;
     if (intentionallyDisconnected) {
-      workbenchState.connection = "closed";
+      workspaceState.connection = "closed";
       return;
     }
     clientLog("warn", "websocket", "WebSocket closed; reconnect scheduled");
@@ -169,7 +180,7 @@ function connectWebsocket(wsUrl: string) {
   });
   nextSocket.addEventListener("error", () => {
     if (generation !== socketGeneration) return;
-    workbenchState.connection = "error";
+    workspaceState.connection = "error";
     clientLog("error", "websocket", "WebSocket error");
   });
 }
@@ -181,7 +192,7 @@ export function disconnectWorkbench() {
   socketGeneration += 1;
   socket?.close();
   socket = undefined;
-  workbenchState.connection = "closed";
+  workspaceState.connection = "closed";
 }
 
 export { disconnectWorkbench as disconnect, initializeWorkbench as connect };

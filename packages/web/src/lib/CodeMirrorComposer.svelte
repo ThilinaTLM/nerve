@@ -6,7 +6,7 @@
   import { Compartment, EditorState, Prec } from "@codemirror/state";
   import { EditorView, keymap, placeholder as placeholderExtension, type ViewUpdate } from "@codemirror/view";
   import type { CompletionItem } from "./api";
-  import { clientLog } from "./logging/client-logger";
+  import { clientLog } from "$lib/core/logger/client-logger";
 
   type Props = {
     value: string;

@@ -4,14 +4,14 @@
   import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
   import { selection } from "$lib/features/workspace/state/selection.svelte";
   import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+  import { openConversation } from "$lib/features/conversations/state/conversation-flow/tabs";
   import {
     deleteConversationAndRefresh,
     deleteProjectAndRefresh,
     newConversationInProject,
-    openConversation,
     openProjectInEditorAndNotify,
     pruneProjectConversationsAndRefresh,
-  } from "$lib/stores/workbench.svelte";
+  } from "$lib/features/workspace/state/workspace-actions.svelte";
 
   const status = $derived(workspaceSelectors.status);
   const projects = $derived(workspaceSelectors.projects);

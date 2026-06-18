@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ProcessLogQueryResponse } from "$lib/api";
-  import { logLevelTone } from "$lib/utils/status";
-  import { timeLabel } from "$lib/utils/time";
+  import { logLevelTone } from "$lib/core/utils/status";
+  import { timeLabel } from "$lib/core/utils/time";
   import { StatusDot } from "$lib/components/ui/status-dot";
 
   type Props = {

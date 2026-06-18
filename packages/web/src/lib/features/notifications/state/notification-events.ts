@@ -1,7 +1,7 @@
 import { onAnyEvent, type WorkbenchEvent } from "$lib/core/events/event-bus";
-import { notificationForRuntimeEvent } from "$lib/events/runtime-notifications";
 import { notifyNative } from "$lib/features/notifications/notify.svelte";
-import { workbenchState } from "$lib/stores/workbench/state.svelte";
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { notificationForRuntimeEvent } from "./runtime-notifications";
 
 let unsubscribe: (() => void) | undefined;
 
@@ -17,8 +17,8 @@ export function registerNotificationEventHandlers(): () => void {
 function maybeShowRuntimeNotification(event: WorkbenchEvent): void {
   if (!isRecentEvent(event)) return;
   const candidate = notificationForRuntimeEvent(event, {
-    projects: workbenchState.projects,
-    conversations: workbenchState.conversations,
+    projects: workspaceState.projects,
+    conversations: workspaceState.conversations,
   });
   if (!candidate) return;
 

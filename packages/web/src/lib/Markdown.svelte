@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { writeClipboardText } from "$lib/clipboard";
+  import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
   import { unified } from "unified";
   import remarkParse from "remark-parse";
@@ -7,13 +7,13 @@
   import remarkRehype from "remark-rehype";
   import rehypeSanitize from "rehype-sanitize";
   import rehypeStringify from "rehype-stringify";
-  import { highlightCodeCached } from "./highlight";
+  import { highlightCodeCached } from "$lib/core/highlight/highlight";
   import {
     parseLocalFileHref,
     resolveDisplayPath,
     splitPathLineSuffix,
-  } from "./utils/path-links";
-  import { trimTextPreview } from "./utils/text-preview";
+  } from "$lib/core/utils/path-links";
+  import { trimTextPreview } from "$lib/core/utils/text-preview";
 
   type Props = {
     text: string;

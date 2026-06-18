@@ -5,12 +5,12 @@
   import X from "@lucide/svelte/icons/x";
   import { notify } from "$lib/features/notifications/notify.svelte";
   import type { ToolCallRecord, UserQuestionRecord } from "$lib/api";
-  import TranscriptionActivity from "$lib/audio/TranscriptionActivity.svelte";
+  import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
   import {
     voiceInputSession,
     type VoiceInputTarget,
-  } from "$lib/audio/voice-input-session.svelte";
-  import { appendTranscriptText } from "$lib/audio/voice-input-target";
+  } from "$lib/core/audio/voice-input-session.svelte";
+  import { appendTranscriptText } from "$lib/core/audio/voice-input-target";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
   import { Button } from "$lib/components/ui/button";
 

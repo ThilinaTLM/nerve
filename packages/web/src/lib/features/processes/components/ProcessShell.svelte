@@ -6,7 +6,7 @@
     refreshProcessLogs,
     restartSelectedProcess,
     stopSelectedProcess,
-  } from "$lib/stores/workbench.svelte";
+  } from "$lib/features/processes/state/processes.svelte";
 
   const status = $derived(workspaceSelectors.status);
   const processLogs = $derived(processSelectors.processLogs);

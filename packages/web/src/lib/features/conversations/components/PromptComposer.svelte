@@ -15,13 +15,13 @@
     type ConversationRecord,
     type UserQuestionRecord,
   } from "$lib/api";
-  import TranscriptionActivity from "$lib/audio/TranscriptionActivity.svelte";
+  import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
   import {
     voiceInputSession,
     type VoiceInputTarget,
-  } from "$lib/audio/voice-input-session.svelte";
+  } from "$lib/core/audio/voice-input-session.svelte";
   import CodeMirrorComposer from "$lib/CodeMirrorComposer.svelte";
-  import type { GitSuggestion } from "$lib/stores/workbench/git-context.svelte";
+  import type { GitSuggestion } from "$lib/features/git/state/git-context.svelte";
   import { Button } from "$lib/components/ui/button";
   import ApprovalStrip from "./ApprovalStrip.svelte";
   import GitFollowupSuggestions from "$lib/features/git/components/GitFollowupSuggestions.svelte";
@@ -29,8 +29,8 @@
   import {
     getShortcutAriaLabel,
     getShortcutLabel,
-  } from "$lib/shortcuts/registry";
-  import type { PendingConversationState } from "$lib/stores/workbench/state.svelte";
+  } from "$lib/core/shortcuts/registry";
+  import type { PendingConversationState } from "$lib/features/state-types";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];

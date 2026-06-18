@@ -4,11 +4,11 @@
   } from "$lib/components/ui/context-menu-list";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import * as Tooltip from "$lib/components/ui/tooltip";
-  import type { ConversationActivityState } from "$lib/stores/workbench/conversation-activity";
-  import { conversationActivityForRecord } from "$lib/stores/workbench/conversation-activity";
-  import type { ConversationRow } from "$lib/utils/project-tree";
-  import { shortAgentModel } from "$lib/utils/project-tree";
-  import { dateTimeLabel } from "$lib/utils/time";
+  import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
+  import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
+  import type { ConversationRow } from "$lib/core/utils/project-tree";
+  import { shortAgentModel } from "$lib/core/utils/project-tree";
+  import { dateTimeLabel } from "$lib/core/utils/time";
 
   type Props = {
     row: ConversationRow;
