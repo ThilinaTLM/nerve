@@ -100,7 +100,7 @@
   flex: 1 1 30%;
 }
 
-.search-line :global(input) {
+.search-line input {
   flex: 1 1 0;
 }
 
@@ -138,7 +138,7 @@
   background: color-mix(in oklab, var(--success) 8%, var(--card));
 }
 
-:global(.logs-scroll) {
+.logs-scroll {
   min-height: 0;
 }
 
@@ -213,11 +213,11 @@
   color: var(--foreground);
 }
 
-.caret :global(svg) {
+.caret svg {
   transition: transform 0.12s ease;
 }
 
-.log-row.open .caret :global(svg) {
+.log-row.open .caret svg {
   transform: rotate(90deg);
 }
 

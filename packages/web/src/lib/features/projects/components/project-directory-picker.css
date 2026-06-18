@@ -1,9 +1,9 @@
-:global(.project-picker-dialog) {
+.project-picker-dialog {
   width: min(680px, calc(100vw - 24px));
   max-height: min(82vh, 720px);
 }
 
-:global(.project-picker-dialog .dialog-header) {
+.project-picker-dialog .dialog-header {
   gap: 0.6rem;
 }
 
@@ -70,7 +70,7 @@
   cursor: default;
 }
 
-.crumbs :global(.crumb-sep) {
+.crumbs .crumb-sep {
   flex: none;
   color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
 }
@@ -91,7 +91,7 @@
   padding: 0.6rem 0.75rem;
 }
 
-.picker-search :global(svg) {
+.picker-search svg {
   position: absolute;
   z-index: 1;
   top: 50%;
@@ -101,7 +101,7 @@
   pointer-events: none;
 }
 
-.picker-search :global([data-slot="input"]) {
+.picker-search [data-slot="input"] {
   padding-left: 2rem;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -168,12 +168,12 @@
     border-color 120ms ease;
 }
 
-.row > :global(svg) {
+.row > svg {
   flex: none;
   color: var(--muted-foreground);
 }
 
-.recent-row > :global(svg) {
+.recent-row > svg {
   color: var(--primary);
 }
 
@@ -345,7 +345,7 @@
 }
 
 /* Footer */
-:global(.project-picker-dialog .dialog-footer) {
+.project-picker-dialog .dialog-footer {
   justify-content: space-between;
   gap: 0.75rem;
 }
@@ -359,7 +359,7 @@
   color: var(--muted-foreground);
 }
 
-.footer-path > :global(svg) {
+.footer-path > svg {
   flex: none;
   color: var(--primary);
 }
@@ -388,7 +388,7 @@
   gap: 0.6rem;
 }
 
-:global(.hidden-switch) {
+.hidden-switch {
   height: 1.75rem;
   gap: 0.45rem;
   border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
@@ -398,12 +398,12 @@
   font-size: var(--text-xs);
 }
 
-:global(.hidden-switch) :global(.switch-copy small) {
+.hidden-switch .switch-copy small {
   display: none;
 }
 
 @media (max-width: 560px) {
-  :global(.project-picker-dialog) {
+  .project-picker-dialog {
     width: calc(100vw - 12px);
     max-height: calc(100vh - 12px);
   }
@@ -412,7 +412,7 @@
     max-width: 7rem;
   }
 
-  .path-tools :global(.hidden-switch) :global(.switch-copy) {
+  .path-tools .hidden-switch .switch-copy {
     display: none;
   }
 }
