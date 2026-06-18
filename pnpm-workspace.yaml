@@ -1,7 +1,7 @@
 packages:
   - "packages/*"
 patchedDependencies:
-  '@earendil-works/pi-ai@0.79.6': patches/@earendil-works__pi-ai@0.79.6.patch
+  '@earendil-works/pi-ai@0.79.7': patches/@earendil-works__pi-ai@0.79.7.patch
 allowBuilds:
   '@google/genai': true
   electron-winstaller: true
@@ -9,4 +9,4 @@ allowBuilds:
   protobufjs: true
   sharp: true
 minimumReleaseAgeExclude:
-  - '@earendil-works/pi-ai@0.79.6'
+  - '@earendil-works/pi-ai@0.79.7'
