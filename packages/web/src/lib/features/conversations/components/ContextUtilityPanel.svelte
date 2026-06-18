@@ -1,5 +1,7 @@
 <script lang="ts">
   import Bot from "@lucide/svelte/icons/bot";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import Download from "@lucide/svelte/icons/download";
   import Layers from "@lucide/svelte/icons/layers";
   import ScrollText from "@lucide/svelte/icons/scroll-text";
@@ -50,6 +52,49 @@
     { label: "Daemon", value: status?.daemonId },
     { label: "Data", value: status?.dataDir },
   ]);
+
+  const mainAgents = $derived(
+    conversationAgents.filter((agent) => !agent.parentAgentId),
+  );
+  const subagents = $derived(
+    conversationAgents.filter((agent) => agent.parentAgentId),
+  );
+
+  function shortAgentId(id: string): string {
+    const parts = id.split("_");
+    return parts.length > 1 ? (parts.at(-1) ?? id) : id.slice(-6);
+  }
+
+  function isAgentLive(agent: AgentRecord): boolean {
+    return agent.status === "running" || agent.status === "awaiting_user";
+  }
+
+  function sortAgents(agents: AgentRecord[]): AgentRecord[] {
+    return [...agents].sort((a, b) => {
+      const aSelected = a.id === activeAgent?.id ? 1 : 0;
+      const bSelected = b.id === activeAgent?.id ? 1 : 0;
+      if (aSelected !== bSelected) return bSelected - aSelected;
+
+      const aLive = isAgentLive(a) ? 1 : 0;
+      const bLive = isAgentLive(b) ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive;
+
+      const aUpdated = new Date(a.updatedAt).getTime();
+      const bUpdated = new Date(b.updatedAt).getTime();
+      if (aUpdated !== bUpdated) return bUpdated - aUpdated;
+
+      const aCreated = new Date(a.createdAt).getTime();
+      const bCreated = new Date(b.createdAt).getTime();
+      return bCreated - aCreated;
+    });
+  }
+
+  let subagentsOpen = $state(false);
+  $effect(() => {
+    if (subagents.some(isAgentLive)) {
+      subagentsOpen = true;
+    }
+  });
 </script>
 
 <div class="flex flex-col gap-2 p-2">
@@ -69,27 +114,74 @@
       {#if conversationAgents.length === 0}
         <p class="px-3 py-2.5 text-xs text-muted-foreground">No agents in the active conversation.</p>
       {/if}
-      {#each conversationAgents as agent, i}
+
+      {#if mainAgents.length > 0}
+        <div class="px-3 pt-2.5 pb-1">
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Main agent</h4>
+        </div>
+        {#each sortAgents(mainAgents) as agent (agent.id)}
+          <button
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/60 {agent.id === activeAgent?.id ? 'bg-muted/60' : ''}"
+            type="button"
+            title={agent.id}
+            onclick={() => onSelectAgent?.(agent)}
+          >
+            <StatusDot
+              tone={agentActivityTone(agent.status)}
+              pulse={agentActivityPulse(agent.status)}
+            />
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 truncate text-xs text-foreground">
+                <span>Main agent</span>
+                <span class="font-mono text-xs text-muted-foreground">{shortAgentId(agent.id)}</span>
+              </div>
+              <div class="truncate text-xs text-muted-foreground">
+                {agent.status} · {agent.mode} · {agent.permissionLevel}
+              </div>
+            </div>
+          </button>
+        {/each}
+      {/if}
+
+      {#if subagents.length > 0}
         <button
-          class="w-full text-left transition-colors hover:bg-muted/60 {i > 0 ? 'border-t' : ''}"
+          class="flex w-full items-center gap-1 px-3 pt-2.5 pb-1 text-left"
           type="button"
-          onclick={() => onSelectAgent?.(agent)}
+          onclick={() => (subagentsOpen = !subagentsOpen)}
         >
-          <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-3 py-2.5">
-            <dt class="font-mono text-xs text-muted-foreground">Status</dt>
-            <dd class="flex items-center gap-1.5 truncate font-mono text-xs text-foreground">
-              <StatusDot tone={agentActivityTone(agent.status)} pulse={agentActivityPulse(agent.status)} />
-              {agent.status}
-            </dd>
-            <dt class="font-mono text-xs text-muted-foreground">Mode</dt>
-            <dd class="truncate font-mono text-xs text-foreground">{agent.mode}</dd>
-            <dt class="font-mono text-xs text-muted-foreground">Permission</dt>
-            <dd class="truncate font-mono text-xs text-foreground">{agent.permissionLevel}</dd>
-            <dt class="font-mono text-xs text-muted-foreground">Agent</dt>
-            <dd class="truncate font-mono text-xs text-foreground" title={agent.id}>{agent.id}</dd>
-          </dl>
+          {#if subagentsOpen}
+            <ChevronDown size={13} strokeWidth={2.2} class="shrink-0 text-muted-foreground" />
+          {:else}
+            <ChevronRight size={13} strokeWidth={2.2} class="shrink-0 text-muted-foreground" />
+          {/if}
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subagents</h4>
+          <span class="text-xs text-muted-foreground">· {subagents.length}</span>
         </button>
-      {/each}
+        {#if subagentsOpen}
+          {#each sortAgents(subagents) as agent (agent.id)}
+            <button
+              class="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/60 {agent.id === activeAgent?.id ? 'bg-muted/60' : ''}"
+              type="button"
+              title={agent.id}
+              onclick={() => onSelectAgent?.(agent)}
+            >
+              <StatusDot
+                tone={agentActivityTone(agent.status)}
+                pulse={agentActivityPulse(agent.status)}
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 truncate text-xs text-foreground">
+                  <span>Subagent</span>
+                  <span class="font-mono text-xs text-muted-foreground">{shortAgentId(agent.id)}</span>
+                </div>
+                <div class="truncate text-xs text-muted-foreground">
+                  {agent.status} · {agent.mode} · {agent.permissionLevel}
+                </div>
+              </div>
+            </button>
+          {/each}
+        {/if}
+      {/if}
     </div>
   </PanelSection>
 
