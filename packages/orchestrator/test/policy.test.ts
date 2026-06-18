@@ -161,4 +161,63 @@ describe("tool policy", () => {
       "allow",
     );
   });
+
+  it("uses a blacklist guard for planning-mode bash commands", () => {
+    const autonomousSafe = evaluateToolPolicy(
+      agent("autonomous", "planning"),
+      "bash",
+      { command: "pnpm check" },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(autonomousSafe.decision, "allow");
+    assert.equal(autonomousSafe.risk, "command");
+    assert.match(autonomousSafe.reason, /blacklist guard/);
+
+    const supervisedSafe = evaluateToolPolicy(
+      agent("supervised", "planning"),
+      "bash",
+      { command: "biome check . && tsc --noEmit" },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(supervisedSafe.decision, "approval");
+    assert.equal(supervisedSafe.risk, "command");
+
+    assert.equal(
+      evaluateToolPolicy(
+        agent("read_only", "planning"),
+        "bash",
+        { command: "pnpm check" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "deny",
+    );
+
+    const supervisedReadOnlyCommand = evaluateToolPolicy(
+      agent("supervised", "planning"),
+      "bash",
+      { command: "git status --short" },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(supervisedReadOnlyCommand.decision, "allow");
+    assert.equal(supervisedReadOnlyCommand.risk, "read");
+
+    for (const command of [
+      "find . -delete",
+      "rm -rf dist",
+      "pnpm install",
+      "pnpm run dev",
+      "echo hello > file.txt",
+    ]) {
+      assert.equal(
+        evaluateToolPolicy(
+          agent("autonomous", "planning"),
+          "bash",
+          { command },
+          { dataDir: "/tmp/nerve" },
+        ).decision,
+        "deny",
+        command,
+      );
+    }
+  });
 });

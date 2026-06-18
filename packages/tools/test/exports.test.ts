@@ -7,6 +7,7 @@ import {
   executeTool,
   hasDangerousCommandPattern,
   hasShellControlOperator,
+  isAllowedPlanModeBashCommand,
   isKnownReadOnlyCommand,
   isLikelyLongRunningCommand,
   resolveToolPath,
@@ -21,6 +22,7 @@ describe("public source exports", () => {
     assert.equal(typeof coreToolDefinitionByName, "function");
     assert.equal(typeof hasDangerousCommandPattern, "function");
     assert.equal(typeof hasShellControlOperator, "function");
+    assert.equal(typeof isAllowedPlanModeBashCommand, "function");
     assert.equal(typeof isKnownReadOnlyCommand, "function");
     assert.equal(typeof isLikelyLongRunningCommand, "function");
     assert.ok(coreToolDefinitions.length > 0);

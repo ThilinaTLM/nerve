@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import type { AgentRecord, ToolName, ToolRisk } from "@nerve/shared";
 import {
   hasDangerousCommandPattern,
+  isAllowedPlanModeBashCommand,
   isKnownReadOnlyCommand,
   toolRiskForName,
 } from "@nerve/tools";
@@ -139,6 +140,55 @@ function evaluatePlanningModePolicy(
       decision: "allow",
       risk,
       reason: "Planning-mode interaction tool call is allowed.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+
+  if (toolName === "bash") {
+    const command = typeof args.command === "string" ? args.command : "";
+    if (!isAllowedPlanModeBashCommand(command)) {
+      return {
+        decision: "deny",
+        risk,
+        reason:
+          "Planning mode blocks bash commands that look destructive, write files, install/update dependencies, deploy, or run long-running processes.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (risk === "read") {
+      return {
+        decision: "allow",
+        risk,
+        reason: "Planning-mode read-only bash command is allowed.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (agent.permissionLevel === "read_only") {
+      return {
+        decision: "deny",
+        risk,
+        reason: "read_only agents cannot run bash tool calls.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    if (agent.permissionLevel === "supervised") {
+      return {
+        decision: "approval",
+        risk,
+        reason:
+          "Supervised agent requires approval for planning-mode bash tool calls.",
+        normalizedArgs,
+        cwd,
+      };
+    }
+    return {
+      decision: "allow",
+      risk,
+      reason: "Planning-mode bash command is allowed by the blacklist guard.",
       normalizedArgs,
       cwd,
     };

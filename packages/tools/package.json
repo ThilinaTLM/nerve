@@ -24,10 +24,12 @@
     "@nerve/shared": "workspace:*",
     "diff": "^8.0.4",
     "node-html-markdown": "^2.0.0",
+    "shell-quote": "^1.8.4",
     "typebox": "1.1.38"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "@types/shell-quote": "^1.7.5",
     "typescript": "5.9.3"
   },
   "engines": {

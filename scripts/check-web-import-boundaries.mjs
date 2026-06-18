@@ -31,8 +31,7 @@ for (const dir of bannedTopLevel) {
 // The app shell must compose features through their public barrels
 // (`$lib/features/<feature>`), never by reaching into a feature's internal
 // state modules (`$lib/features/<feature>/state/...`).
-const appDeepStateImport =
-  /\$lib\/features\/[a-z0-9-]+\/state\//;
+const appDeepStateImport = /\$lib\/features\/[a-z0-9-]+\/state\//;
 
 function walk(dir) {
   for (const entry of readdirSync(dir)) {
@@ -50,7 +49,10 @@ function walk(dir) {
         break;
       }
     }
-    if (path.includes(`${join("src", "lib", "app")}/`) && appDeepStateImport.test(text)) {
+    if (
+      path.includes(`${join("src", "lib", "app")}/`) &&
+      appDeepStateImport.test(text)
+    ) {
       failures.push(
         `app must use feature barrels, not deep state imports: ${relative(root, path)}`,
       );

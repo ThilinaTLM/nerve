@@ -16,6 +16,7 @@ export {
 export {
   hasDangerousCommandPattern,
   hasShellControlOperator,
+  isAllowedPlanModeBashCommand,
   isKnownReadOnlyCommand,
   isLikelyLongRunningCommand,
 } from "./safety/command-policy.js";
