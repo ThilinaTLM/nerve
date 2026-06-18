@@ -21,7 +21,8 @@
   import ToolCallCard from "$lib/features/tools/components/ToolCallCard.svelte";
   import ToolDraftCard from "$lib/features/tools/components/tool-call/ToolDraftCard.svelte";
   import ToolResultErrorCard from "$lib/features/tools/components/tool-call/ToolResultErrorCard.svelte";
-  import Markdown from "$lib/Markdown.svelte";
+  import Markdown from "$lib/core/components/Markdown.svelte";
+  import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
   import type { TimelineItem } from "$lib/features/conversations/state/timeline";
   import CompactionCard from "./CompactionCard.svelte";
   import RunStatusCard from "./RunStatusCard.svelte";
@@ -155,6 +156,7 @@
                   trimCodeBlocks={node.item.role !== "assistant"}
                   linkBasePath={activeProject?.dir}
                   {onOpenFile}
+                  onCopy={notifyCopyResult}
                 />
                 {#if node.item.live && !node.item.done}<span
                     class="stream-caret"

@@ -1,5 +1,5 @@
+import type { GitContext } from "$lib/core/types/state-types";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
-import type { GitContext } from "$lib/features/state-types";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import {

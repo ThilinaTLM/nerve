@@ -1,6 +1,6 @@
 import { pendingConversationKey } from "$lib/core/state/state-keys";
-import { ensureConversationView } from "$lib/features/conversations/state/conversation-flow/state";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { ensureConversationView } from "$lib/features/conversations/state/state";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { TranscriptionController } from "./transcription-controller.svelte";
 import {

@@ -2,12 +2,12 @@ import {
   conversationViewKey,
   pendingConversationKey,
 } from "$lib/core/state/state-keys";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { saveConversationTabs } from "$lib/features/conversations/state/conversation-tabs";
 import type {
   ConversationViewState,
   PendingConversationState,
-} from "$lib/features/state-types";
+} from "$lib/core/types/state-types";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { saveConversationTabs } from "$lib/features/conversations/state/conversation-tabs";
 import { addCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,

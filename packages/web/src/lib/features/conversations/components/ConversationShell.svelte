@@ -3,17 +3,17 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
 
   import ConversationPane from "$lib/features/conversations/components/ConversationPane.svelte";
   import {
+    composerSignals,
     focusComposer,
     openConversationHistory,
-    workbenchUiState,
-  } from "$lib/app/state/workbench-ui-state.svelte";
+  } from "$lib/features/conversations/state/composer-signals.svelte";
   import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
   import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
   import {
     abortActiveRun,
     continueFromFailure,
     navigateToEntry,
-  } from "$lib/features/conversations/state/conversation-flow/run-control";
+  } from "$lib/features/conversations/state/run-control";
   import {
     acceptPendingPlanReview,
     acceptPendingPlanReviewInNewChat,
@@ -22,12 +22,12 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
     dismissUserQuestionById,
     grantApproval,
     rejectPendingPlanReview,
-  } from "$lib/features/conversations/state/conversation-flow/interactions";
+  } from "$lib/features/conversations/state/interactions";
   import {
     sendPrompt,
     sendPromptText,
     setActiveComposerText,
-  } from "$lib/features/conversations/state/conversation-flow/prompt-send";
+  } from "$lib/features/conversations/state/prompt-send";
   import {
     setComposerMode,
     setComposerModel,
@@ -154,9 +154,9 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
   {slashCompletions}
   {contextUsage}
   {contextWindow}
-  composerFocusToken={workbenchUiState.composerFocusToken}
-  composerEscapeToken={workbenchUiState.composerEscapeToken}
-  micShortcutToken={workbenchUiState.micShortcutToken}
+  composerFocusToken={composerSignals.focusToken}
+  composerEscapeToken={composerSignals.escapeToken}
+  micShortcutToken={composerSignals.micToken}
   fileCompletions={completeFiles}
   onComposerChange={setActiveComposerText}
   onSubmit={sendPrompt}

@@ -1,4 +1,4 @@
-import type { LiveToolCallDraft } from "$lib/features/state-types";
+import type { LiveToolCallDraft } from "$lib/core/types/state-types";
 
 export type DraftMetaTone =
   | "default"

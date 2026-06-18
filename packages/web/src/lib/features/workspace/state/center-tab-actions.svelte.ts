@@ -7,11 +7,11 @@ import {
   fileViewKey,
   pendingConversationKey,
 } from "$lib/core/state/state-keys";
+import type { CenterTabIdentity } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { saveConversationTabs } from "$lib/features/conversations/state/conversation-tabs";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { processState } from "$lib/features/processes/state/process-state.svelte";
-import type { CenterTabIdentity } from "$lib/features/state-types";
 import {
   composerDraft,
   resetSelection,

@@ -9,6 +9,10 @@ import {
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { pendingConversationKey } from "$lib/core/state/state-keys";
+import type {
+  ConversationViewState,
+  PendingConversationState,
+} from "$lib/core/types/state-types";
 import { scopedUsableModelOptions } from "$lib/core/utils/model";
 import {
   agentNeedsComposerUpdate,
@@ -20,10 +24,6 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { openSettingsPane } from "$lib/features/settings/state/settings-actions.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import type {
-  ConversationViewState,
-  PendingConversationState,
-} from "$lib/features/state-types";
 import { replaceCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,

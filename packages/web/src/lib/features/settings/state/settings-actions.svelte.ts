@@ -15,6 +15,10 @@ import {
   clampZoomLevel,
 } from "$lib/app/layout/layout-state.svelte";
 import { modelKey, scopedUsableModelOptions } from "$lib/core/utils/model";
+import {
+  clampThinkingLevelForModel,
+  resolveNewAgentComposerSelection,
+} from "$lib/features/conversations/state/agent-selection-defaults";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
@@ -28,10 +32,6 @@ import {
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-import {
-  clampThinkingLevelForModel,
-  resolveNewAgentComposerSelection,
-} from "./agent-selection-defaults";
 export type SettingsSaveOptions = {
   immediate?: boolean;
   debounceMs?: number;

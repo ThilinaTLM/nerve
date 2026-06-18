@@ -4,7 +4,7 @@ import type { ToolCallRecord } from "$lib/api";
 import type {
   ConversationLiveState,
   TranscriptItem,
-} from "$lib/features/state-types";
+} from "$lib/core/types/state-types";
 import { buildConversationTimeline } from "./timeline";
 
 function toolCall(

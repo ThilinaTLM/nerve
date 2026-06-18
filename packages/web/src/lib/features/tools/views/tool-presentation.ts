@@ -1,117 +1,29 @@
 import type { ToolCallRecord } from "$lib/api";
-import type { StatusTone } from "$lib/components/ui/status-dot";
 import { processTone } from "./process";
+import {
+  basename,
+  collapseFor,
+  formatBytes,
+  formatDuration,
+  lineCount,
+  plural,
+  statusDot,
+  toneFromDot,
+} from "./tool-presentation-helpers";
+import type { MetaItem, ToolPresentation } from "./tool-presentation-types";
 import {
   aggregateExploreTasks,
   COLLAPSED_LINES,
   type ToolView,
 } from "./tool-result-view";
 
-export type MetaTone = "default" | "success" | "warning" | "error" | "info";
-
-export type MetaItem = { text: string; tone?: MetaTone; mono?: boolean };
-
-export type CollapseInfo = {
-  hidden: number;
-  expandLabel: string;
-  collapseLabel: string;
-};
-
-export type PrimaryArg = {
-  text: string;
-  openPath?: string;
-  line?: number;
-  href?: string;
-};
-
-export type ToolPresentation = {
-  badge: string;
-  primaryArg?: PrimaryArg;
-  meta: MetaItem[];
-  collapse?: CollapseInfo;
-  /** Tone for the leading status dot. */
-  dotTone: StatusTone;
-  /** Pulse the leading status dot (in-flight / awaiting states). */
-  dotPulse: boolean;
-};
-
-function basename(path: string): string {
-  return path.split(/[\\/]/).pop() || path;
-}
-
-function formatBytes(bytes: number | undefined): string | undefined {
-  if (bytes === undefined) return undefined;
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
-}
-
-function formatDuration(ms: number | undefined): string | undefined {
-  if (ms === undefined) return undefined;
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function plural(count: number, singular: string, suffix = "s"): string {
-  return `${count} ${singular}${count === 1 ? "" : suffix}`;
-}
-
-function lineCount(text: string | undefined): number {
-  if (!text) return 0;
-  return text.length === 0 ? 0 : text.split("\n").length;
-}
-
-function collapseFor(
-  total: number,
-  noun: string,
-  direction: "head" | "tail" = "head",
-): CollapseInfo | undefined {
-  const hidden = total - COLLAPSED_LINES;
-  if (hidden <= 0) return undefined;
-  const verb = direction === "tail" ? "earlier" : "more";
-  return {
-    hidden,
-    expandLabel: `Show ${hidden} ${verb} ${noun}`,
-    collapseLabel: "Show less",
-  };
-}
-
-function statusDot(
-  toolCall: ToolCallRecord,
-  view: ToolView,
-): {
-  tone: StatusTone;
-  pulse: boolean;
-} {
-  switch (toolCall.status) {
-    case "error":
-    case "denied":
-      return { tone: "danger", pulse: false };
-    case "running":
-    case "requested":
-      return { tone: "running", pulse: true };
-    case "pending_approval":
-    case "waiting_for_user":
-      return { tone: "warn", pulse: true };
-    default:
-      break;
-  }
-  if (
-    (view.kind === "bash" || view.kind === "python") &&
-    view.exitCode !== undefined &&
-    view.exitCode !== 0
-  ) {
-    return { tone: "danger", pulse: false };
-  }
-  if (
-    view.kind === "explore" &&
-    aggregateExploreTasks(view).summary.failed > 0
-  ) {
-    return { tone: "danger", pulse: false };
-  }
-  return { tone: "good", pulse: false };
-}
+export type {
+  CollapseInfo,
+  MetaItem,
+  MetaTone,
+  PrimaryArg,
+  ToolPresentation,
+} from "./tool-presentation-types";
 
 /** Derive the header (badge + primary arg) and footer (meta chips) for a tool. */
 export function toolPresentation(
@@ -416,20 +328,5 @@ export function toolPresentation(
 
     default:
       return base;
-  }
-}
-
-function toneFromDot(tone: StatusTone): MetaTone {
-  switch (tone) {
-    case "good":
-      return "success";
-    case "warn":
-      return "warning";
-    case "danger":
-      return "error";
-    case "running":
-      return "info";
-    default:
-      return "default";
   }
 }

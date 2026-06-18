@@ -6,13 +6,12 @@
     setUtilityCollapsed,
     zoomState,
   } from "$lib/app/layout/layout-state.svelte";
-  import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
-  import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
-  import { processSelectors } from "$lib/features/processes/state/process-selectors.svelte";
-  import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
-  import { usageSelectors } from "$lib/features/usage/state/usage-selectors.svelte";
-  import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-  import { setUiZoomLevel } from "$lib/features/settings/state/settings-actions.svelte";
+  import { conversationSelectors } from "$lib/features/conversations";
+  import { gitSelectors } from "$lib/features/git";
+  import { processSelectors } from "$lib/features/processes";
+  import { settingsSelectors, setUiZoomLevel } from "$lib/features/settings";
+  import { usageSelectors } from "$lib/features/usage";
+  import { workspaceSelectors } from "$lib/features/workspace";
 
   const activeProject = $derived(workspaceSelectors.activeProject);
   const activeConversation = $derived(conversationSelectors.activeConversation);

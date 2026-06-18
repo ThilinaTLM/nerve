@@ -1,5 +1,6 @@
 <script lang="ts">
-  import Markdown from "$lib/Markdown.svelte";
+  import Markdown from "$lib/core/components/Markdown.svelte";
+  import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
 
   type ThinkingBlockItem = {
     text: string;
@@ -18,7 +19,7 @@
   {#if block.redacted && !block.text}
     <p class="redacted">Provider returned redacted thinking.</p>
   {:else}
-    <Markdown text={block.text} />
+    <Markdown text={block.text} onCopy={notifyCopyResult} />
     {#if live && !block.text}<span class="stream-caret" aria-hidden="true"></span>{/if}
   {/if}
 </div>

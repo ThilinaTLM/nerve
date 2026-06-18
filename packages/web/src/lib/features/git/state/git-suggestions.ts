@@ -1,5 +1,5 @@
 import type { GitRepoSummary } from "$lib/api";
-import type { GitContext } from "$lib/features/state-types";
+import type { GitContext } from "$lib/core/types/state-types";
 
 export type GitSuggestion = {
   id: "commit" | "commit-branch" | "open-pr";

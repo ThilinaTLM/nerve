@@ -5,7 +5,7 @@
   import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
   import { Compartment, EditorState, Prec } from "@codemirror/state";
   import { EditorView, keymap, placeholder as placeholderExtension, type ViewUpdate } from "@codemirror/view";
-  import type { CompletionItem } from "./api";
+  import type { CompletionItem } from "$lib/api";
   import { clientLog } from "$lib/core/logger/client-logger";
 
   type Props = {

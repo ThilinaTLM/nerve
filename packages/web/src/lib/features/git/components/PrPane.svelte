@@ -8,11 +8,19 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import X from "@lucide/svelte/icons/x";
-  import type { GithubChecksSummary } from "$lib/api";
   import { isGithubChecksPending } from "$lib/features/git/checks";
-  import Markdown from "$lib/Markdown.svelte";
-  import type { PrViewState } from "$lib/features/state-types";
-  import { Badge, type BadgeTone } from "$lib/components/ui/badge";
+  import Markdown from "$lib/core/components/Markdown.svelte";
+  import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
+  import type { PrViewState } from "$lib/core/types/state-types";
+  import {
+    checksTone,
+    formatPrDate,
+    reviewTone,
+    runTone,
+    stateLabel,
+    stateTone,
+  } from "./pr-pane-helpers";
+  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
 
@@ -29,55 +37,6 @@
 
   const detail = $derived(view?.detail);
   const checksPending = $derived(isGithubChecksPending(detail?.checks));
-
-  function checksTone(checks: GithubChecksSummary): BadgeTone {
-    switch (checks.status) {
-      case "passing":
-        return "good";
-      case "failing":
-        return "danger";
-      case "pending":
-        return "warn";
-      default:
-        return "neutral";
-    }
-  }
-
-  function stateTone(): BadgeTone {
-    if (!detail) return "neutral";
-    if (detail.isDraft) return "neutral";
-    if (detail.state === "MERGED") return "accent";
-    if (detail.state === "CLOSED") return "danger";
-    return "good";
-  }
-
-  function stateLabel(): string {
-    if (!detail) return "";
-    if (detail.isDraft) return "draft";
-    return detail.state.toLowerCase();
-  }
-
-  function reviewTone(decision: string): BadgeTone {
-    if (decision === "APPROVED") return "good";
-    if (decision === "CHANGES_REQUESTED") return "danger";
-    return "warn";
-  }
-
-  function runTone(status: string): BadgeTone {
-    const s = status.toLowerCase();
-    if (["success", "neutral", "skipped", "completed"].includes(s)) return "good";
-    if (
-      ["failure", "error", "cancelled", "timed_out", "action_required"].includes(s)
-    )
-      return "danger";
-    return "warn";
-  }
-
-  function formatDate(value?: string): string {
-    if (!value) return "";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
-  }
 
   function confirmCheckout() {
     if (!detail) return;
@@ -134,7 +93,7 @@
         </div>
 
         <div class="pr-meta">
-          <Badge tone={stateTone()} size="sm">{stateLabel()}</Badge>
+          <Badge tone={stateTone(detail)} size="sm">{stateLabel(detail)}</Badge>
           <Badge tone={checksTone(detail.checks)} size="sm">
             {#if detail.checks.status === "passing"}
               <Check size={11} />
@@ -161,7 +120,7 @@
 
         <div class="pr-subline">
           {#if detail.author}<span>by <span class="mono">{detail.author}</span></span>{/if}
-          {#if detail.createdAt}<span>opened {formatDate(detail.createdAt)}</span>{/if}
+          {#if detail.createdAt}<span>opened {formatPrDate(detail.createdAt)}</span>{/if}
           <span class="mono diffstat">
             <span class="add">+{detail.additions}</span>
             <span class="del">−{detail.deletions}</span>
@@ -209,7 +168,7 @@
       <section class="pr-section">
         <h2>Description</h2>
         {#if detail.body.trim()}
-          <div class="pr-body"><Markdown text={detail.body} /></div>
+          <div class="pr-body"><Markdown text={detail.body} onCopy={notifyCopyResult} /></div>
         {:else}
           <p class="pr-muted">No description provided.</p>
         {/if}

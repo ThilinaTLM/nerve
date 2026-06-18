@@ -11,14 +11,14 @@ import {
 } from "$lib/core/state/state-keys";
 import { modelKey, parseModelKey } from "$lib/core/utils/model";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import {
-  clampThinkingLevelForModel,
-  supportedThinkingLevelsForModel,
-} from "$lib/features/settings/state/agent-selection-defaults";
 import { queueSettingsSave } from "$lib/features/settings/state/settings-actions.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import {
+  clampThinkingLevelForModel,
+  supportedThinkingLevelsForModel,
+} from "./agent-selection-defaults";
 
 export function currentActiveAgent(): AgentRecord | undefined {
   return workspaceState.agents.find((agent) => agent.id === selection.agentId);

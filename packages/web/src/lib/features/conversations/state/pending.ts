@@ -1,7 +1,6 @@
 import type { ProjectRecord } from "$lib/api";
 import { pendingConversationKey } from "$lib/core/state/state-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { resolveNewAgentComposerSelection } from "$lib/features/settings/state/agent-selection-defaults";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import {
   addCenterTab,
@@ -13,6 +12,7 @@ import {
   selection,
 } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { resolveNewAgentComposerSelection } from "./agent-selection-defaults";
 import { clearTranscriptState, createPendingConversationId } from "./state";
 
 export function openPendingConversation(project: ProjectRecord) {

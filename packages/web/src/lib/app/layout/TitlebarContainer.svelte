@@ -1,24 +1,21 @@
 <script lang="ts">
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-
   import Titlebar from "$lib/app/layout/Titlebar.svelte";
   import {
     closeDesktopWindow,
     desktopRuntime,
+    desktopShutdownState,
     minimizeDesktopWindow,
     toggleMaximizeDesktopWindow,
-  } from "$lib/features/desktop/state/desktop-bridge.svelte";
-  import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
-  import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-  import { openLogsPane } from "$lib/features/logs/state/logs.svelte";
-  import { openSettingsPane } from "$lib/features/settings/state/settings-actions.svelte";
-  import { workbenchUiState } from "$lib/app/state/workbench-ui-state.svelte";
+  } from "$lib/features/desktop";
+  import { openLogsPane } from "$lib/features/logs";
+  import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
+  import { workspaceSelectors, workspaceState } from "$lib/features/workspace";
 
   const activeProject = $derived(workspaceSelectors.activeProject);
   const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
   const settingsDraft = $derived(settingsSelectors.settingsDraft);
   const desktopQuitting = $derived(
-    desktopRuntime.quitting || workbenchUiState.desktopQuitRequested,
+    desktopRuntime.quitting || desktopShutdownState.quitRequested,
   );
 
   function openProjectPicker() {
@@ -28,14 +25,14 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
   async function handleDesktopClose() {
     const closeToTray = settingsDraft?.desktop.closeToTray ?? true;
     if (!closeToTray) {
-      workbenchUiState.desktopQuitRequested = true;
+      desktopShutdownState.quitRequested = true;
       desktopRuntime.quitting = true;
     }
     try {
       await closeDesktopWindow({ closeToTray });
     } catch (caught) {
       if (!closeToTray) {
-        workbenchUiState.desktopQuitRequested = false;
+        desktopShutdownState.quitRequested = false;
         desktopRuntime.quitting = false;
       }
       workspaceState.error =

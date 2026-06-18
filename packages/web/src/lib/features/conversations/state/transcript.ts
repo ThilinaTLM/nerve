@@ -3,7 +3,7 @@ import type {
   CompactionNotice,
   RunStatusNotice,
   TranscriptItem,
-} from "$lib/features/state-types";
+} from "$lib/core/types/state-types";
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 

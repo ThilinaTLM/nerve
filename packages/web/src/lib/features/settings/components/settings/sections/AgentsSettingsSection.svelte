@@ -11,7 +11,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
   import RadioGroup from "$lib/components/ui/radio-group-field";
   import SelectField, { type SelectItem } from "$lib/components/ui/select-field";
   import Switch from "$lib/components/ui/switch-field";
-  import { clampThinkingLevelForModel } from "$lib/features/settings/state/agent-selection-defaults";
+  import { clampThinkingLevelForModel } from "$lib/features/conversations/state/agent-selection-defaults";
   import {
     contextualModelLabel,
     modelKey,

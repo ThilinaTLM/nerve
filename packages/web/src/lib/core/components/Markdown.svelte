@@ -1,134 +1,32 @@
 <script lang="ts">
   import { writeClipboardText } from "$lib/core/clipboard";
-  import { notify } from "$lib/features/notifications/notify.svelte";
-  import { unified } from "unified";
-  import remarkParse from "remark-parse";
-  import remarkGfm from "remark-gfm";
-  import remarkRehype from "remark-rehype";
-  import rehypeSanitize from "rehype-sanitize";
-  import rehypeStringify from "rehype-stringify";
-  import { highlightCodeCached } from "$lib/core/highlight/highlight";
+  import {
+    decorateMarkdownHtml,
+    highlightMarkdownHtml,
+    renderMarkdown,
+  } from "$lib/core/components/markdown-render";
   import {
     parseLocalFileHref,
     resolveDisplayPath,
     splitPathLineSuffix,
   } from "$lib/core/utils/path-links";
-  import { trimTextPreview } from "$lib/core/utils/text-preview";
 
   type Props = {
     text: string;
     trimCodeBlocks?: boolean;
     linkBasePath?: string;
     onOpenFile?: (path: string, line?: number) => void;
+    onCopy?: (ok: boolean) => void;
   };
 
-  let { text, trimCodeBlocks = true, linkBasePath, onOpenFile }: Props = $props();
+  let {
+    text,
+    trimCodeBlocks = true,
+    linkBasePath,
+    onOpenFile,
+    onCopy,
+  }: Props = $props();
   let html = $state("");
-
-  const markdownProcessor = unified()
-    .use(remarkParse)
-    .use(remarkGfm)
-    .use(remarkRehype)
-    .use(rehypeSanitize)
-    .use(rehypeStringify);
-
-  function escapeHtml(source: string): string {
-    return source
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;");
-  }
-
-  function renderMarkdown(source: string): string {
-    try {
-      return String(markdownProcessor.processSync(source));
-    } catch {
-      return escapeHtml(source);
-    }
-  }
-
-  function languageFromClass(className: string): string {
-    return className.match(/language-([\w-]+)/)?.[1] ?? "text";
-  }
-
-  function codeBlockText(block: Element): string {
-    const source = block.textContent ?? "";
-    return trimCodeBlocks ? trimTextPreview(source).text : source;
-  }
-
-  function clonePreWithTrimmedCode(pre: Element, code: string): Element {
-    const clone = pre.cloneNode(true) as Element;
-    const codeEl = clone.querySelector("code");
-    if (codeEl) codeEl.textContent = code;
-    else clone.textContent = code;
-    return clone;
-  }
-
-  function wrapCodeBlock(pre: Element): Element {
-    const shell = document.createElement("div");
-    shell.className = "code-block";
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "code-copy";
-    button.dataset.copyCode = "";
-    button.textContent = "Copy";
-    shell.append(button, pre);
-    return shell;
-  }
-
-  function wrapPlainCodeBlocks(safeHtml: string): string {
-    if (typeof document === "undefined" || !safeHtml.includes("<pre")) return safeHtml;
-    const container = document.createElement("div");
-    container.innerHTML = safeHtml;
-    for (const block of Array.from(container.querySelectorAll("pre > code"))) {
-      const pre = block.parentElement;
-      if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, codeBlockText(block))));
-    }
-    return container.innerHTML;
-  }
-
-  function wrapTables(safeHtml: string): string {
-    if (typeof document === "undefined" || !safeHtml.includes("<table")) return safeHtml;
-    const container = document.createElement("div");
-    container.innerHTML = safeHtml;
-    for (const table of Array.from(container.querySelectorAll("table"))) {
-      if (table.parentElement?.classList.contains("table-scroll")) continue;
-      const wrapper = document.createElement("div");
-      wrapper.className = "table-scroll";
-      table.replaceWith(wrapper);
-      wrapper.append(table);
-    }
-    return container.innerHTML;
-  }
-
-  async function highlightCodeBlocks(safeHtml: string): Promise<string> {
-    if (typeof document === "undefined" || !safeHtml.includes("<pre")) return safeHtml;
-    const container = document.createElement("div");
-    container.innerHTML = safeHtml;
-    const blocks = Array.from(container.querySelectorAll("pre > code"));
-    await Promise.all(
-      blocks.map(async (block) => {
-        const className = block.getAttribute("class") ?? "";
-        const language = languageFromClass(className);
-        try {
-          const code = codeBlockText(block);
-          const highlighted = await highlightCodeCached(code, language);
-          if (highlighted) {
-            const wrapper = document.createElement("div");
-            wrapper.innerHTML = highlighted;
-            const highlightedPre = wrapper.firstElementChild;
-            if (highlightedPre) block.parentElement?.replaceWith(wrapCodeBlock(highlightedPre));
-            return;
-          }
-        } catch {
-          // Fall back to the plain pre/code while keeping the Stitch code header.
-        }
-        const pre = block.parentElement;
-        if (pre) pre.replaceWith(wrapCodeBlock(clonePreWithTrimmedCode(pre, codeBlockText(block))));
-      }),
-    );
-    return container.innerHTML;
-  }
 
   async function handleClick(event: MouseEvent) {
     const target = event.target;
@@ -139,9 +37,9 @@
       if (!code) return;
       try {
         await writeClipboardText(code);
-        notify.success("Copied code block");
+        onCopy?.(true);
       } catch {
-        notify.error("Could not copy code block");
+        onCopy?.(false);
       }
       return;
     }
@@ -175,18 +73,18 @@
     if (htmlSource === signature) return;
     let cancelled = false;
     const rendered = renderMarkdown(source);
-    html = wrapTables(wrapPlainCodeBlocks(rendered));
+    html = decorateMarkdownHtml(rendered, trimCodeBlocks);
     htmlSource = signature;
-    highlightCodeBlocks(rendered)
+    highlightMarkdownHtml(rendered, trimCodeBlocks)
       .then((highlighted) => {
         if (!cancelled && source === text) {
-          html = wrapTables(highlighted);
+          html = highlighted;
           htmlSource = signature;
         }
       })
       .catch(() => {
         if (!cancelled && source === text) {
-          html = wrapTables(wrapPlainCodeBlocks(rendered));
+          html = decorateMarkdownHtml(rendered, trimCodeBlocks);
           htmlSource = signature;
         }
       });

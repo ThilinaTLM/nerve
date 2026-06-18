@@ -1,5 +1,5 @@
 import type { ConversationActiveRunSnapshot } from "$lib/api";
-import type { ConversationLiveState } from "$lib/features/state-types";
+import type { ConversationLiveState } from "$lib/core/types/state-types";
 
 export type ActiveRunLiveOptions = {
   excludeLiveMessageIds?: Iterable<string>;

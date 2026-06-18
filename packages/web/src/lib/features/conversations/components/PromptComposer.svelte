@@ -3,25 +3,13 @@
   import Mic from "@lucide/svelte/icons/mic";
   import Send from "@lucide/svelte/icons/send";
   import Square from "@lucide/svelte/icons/square";
-  import {
-    uploadClipboardImage,
-    type AgentRecord,
-    type ApprovalWithToolCall,
-    type CompletionItem,
-    type ContextUsage,
-    type ModelInfo,
-    type PlanReviewRecord,
-    type ProjectRecord,
-    type ConversationRecord,
-    type UserQuestionRecord,
-  } from "$lib/api";
+  import { uploadClipboardImage } from "$lib/api";
   import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
   import {
     voiceInputSession,
     type VoiceInputTarget,
   } from "$lib/core/audio/voice-input-session.svelte";
-  import CodeMirrorComposer from "$lib/CodeMirrorComposer.svelte";
-  import type { GitSuggestion } from "$lib/features/git/state/git-context.svelte";
+  import CodeMirrorComposer from "./CodeMirrorComposer.svelte";
   import { Button } from "$lib/components/ui/button";
   import ApprovalStrip from "./ApprovalStrip.svelte";
   import GitFollowupSuggestions from "$lib/features/git/components/GitFollowupSuggestions.svelte";
@@ -30,49 +18,12 @@
     getShortcutAriaLabel,
     getShortcutLabel,
   } from "$lib/core/shortcuts/registry";
-  import type { PendingConversationState } from "$lib/features/state-types";
-
-  type Mode = AgentRecord["mode"];
-  type PermissionLevel = AgentRecord["permissionLevel"];
-  type ThinkingLevel = AgentRecord["thinkingLevel"];
-
-  type Props = {
-    text?: string;
-    activeProject?: ProjectRecord;
-    activeConversation?: ConversationRecord;
-    activePendingConversation?: PendingConversationState;
-    pendingConversationActive?: boolean;
-    approvals?: ApprovalWithToolCall[];
-    pendingUserQuestion?: UserQuestionRecord;
-    pendingPlanReview?: PlanReviewRecord;
-    live?: boolean;
-    sending?: boolean;
-    compacting?: boolean;
-    models?: ModelInfo[];
-    selectedModelKey?: string;
-    contextUsage?: ContextUsage;
-    contextWindow?: number;
-    focusToken?: number;
-    composerEscapeToken?: number;
-    micShortcutToken?: number;
-    thinkingLevel?: ThinkingLevel;
-    mode?: Mode;
-    permissionLevel?: PermissionLevel;
-    slashCompletions?: CompletionItem[];
-    fileCompletions?: (query: string) => Promise<CompletionItem[]>;
-    gitSuggestions?: GitSuggestion[];
-    onSendGitSuggestion?: (suggestion: GitSuggestion) => void;
-    onDraftGitSuggestion?: (suggestion: GitSuggestion) => void;
-    onChange?: (value: string) => void;
-    onSubmit?: () => void;
-    onAbort?: () => void;
-    onModelChange?: (value: string) => void;
-    onThinkingLevelChange?: (value: ThinkingLevel) => void;
-    onModeChange?: (value: Mode) => void;
-    onPermissionChange?: (value: PermissionLevel) => void;
-    onGrantApproval?: (id: string) => void;
-    onDenyApproval?: (id: string) => void;
-  };
+  import type {
+    Mode,
+    PermissionLevel,
+    PromptComposerProps,
+    ThinkingLevel,
+  } from "./prompt-composer-props";
 
   let {
     text = "",
@@ -110,7 +61,7 @@
     onPermissionChange,
     onGrantApproval,
     onDenyApproval,
-  }: Props = $props();
+  }: PromptComposerProps = $props();
 
   let editorFocusToken = $state(0);
   let lastFocusToken = $state<number | undefined>(undefined);

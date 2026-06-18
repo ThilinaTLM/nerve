@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { LiveToolCallDraft } from "$lib/features/state-types";
+  import type { LiveToolCallDraft } from "$lib/core/types/state-types";
   import { summarizeToolDraft } from "$lib/features/tools/views/tool-draft-progress";
   import { trimTextPreview } from "$lib/core/utils/text-preview";
   import { StatusDot } from "$lib/components/ui/status-dot";

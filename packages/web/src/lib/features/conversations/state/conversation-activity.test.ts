@@ -7,7 +7,7 @@ import type {
   PlanReviewRecord,
   UserQuestionRecord,
 } from "$lib/api";
-import type { ConversationViewState } from "$lib/features/state-types";
+import type { ConversationViewState } from "$lib/core/types/state-types";
 import {
   buildConversationActivityById,
   conversationActivityForRecord,

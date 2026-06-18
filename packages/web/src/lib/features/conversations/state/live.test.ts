@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ConversationActiveRunSnapshot } from "$lib/api";
-import type { ConversationLiveState } from "$lib/features/state-types";
+import type { ConversationLiveState } from "$lib/core/types/state-types";
 import { activeRunToLegacyLive, liveTextFromLegacyLive } from "./live";
 
 function activeRun(

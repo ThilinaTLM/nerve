@@ -6,26 +6,24 @@
   import LogsShell from "$lib/features/logs/components/LogsShell.svelte";
   import ProcessShell from "$lib/features/processes/components/ProcessShell.svelte";
   import SettingsShell from "$lib/features/settings/components/SettingsShell.svelte";
-  import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-  import { refreshConversationView } from "$lib/features/conversations/state/conversation-flow/selection";
+  import { refreshConversationView } from "$lib/features/conversations";
   import {
     centerTabsExcept,
     centerTabsToLeftOf,
     centerTabsToRightOf,
-    closeCenterTabs,
-  } from "$lib/features/workspace/state/center-tab-actions.svelte";
-  import {
     closeCenterTab,
+    closeCenterTabs,
+    newConversation,
     selectCenterTab,
-  } from "$lib/features/workspace/state/center-tabs.svelte";
+    workspaceSelectors,
+  } from "$lib/features/workspace";
   import {
     refreshFilePane,
     toggleFileDisplayMode,
     toggleFileLineWrap,
-  } from "$lib/features/filesystem/state/file-tabs.svelte";
-  import { refreshPrPane } from "$lib/features/git/state/pr-tabs.svelte";
-  import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
-  import { newConversation } from "$lib/features/workspace/state/workspace-actions.svelte";
+  } from "$lib/features/filesystem";
+  import { refreshPrPane } from "$lib/features/git";
+  import { loadSettingsPanel } from "$lib/features/settings";
   import type { CenterTabIdentity } from "$lib/features/workspace";
 
   const status = $derived(workspaceSelectors.status);

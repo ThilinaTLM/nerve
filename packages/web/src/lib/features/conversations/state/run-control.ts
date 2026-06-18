@@ -1,7 +1,7 @@
 import { apiPathSegment, apiPost, compactConversation } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/core/query";
+import type { CompactionNotice } from "$lib/core/types/state-types";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import type { CompactionNotice } from "$lib/features/state-types";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";

@@ -1,4 +1,4 @@
-import type { GitContext } from "$lib/features/state-types";
+import type { GitContext } from "$lib/core/types/state-types";
 
 export function gitContextFingerprint(ctx: GitContext): string {
   return JSON.stringify({

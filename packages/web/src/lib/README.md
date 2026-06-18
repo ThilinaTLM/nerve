@@ -2,9 +2,11 @@
 
 The web package is organized as a feature-sliced workbench frontend.
 
-- `app/` owns the shell, layout state, workbench lifecycle provider, and cross-feature UI tokens.
-- `core/` owns transport-neutral primitives such as the HTTP API client and event bus/websocket transport.
-- `features/*/api`, `features/*/state`, and `features/*/components` own domain-specific calls, selectors, compatibility state facades, and panes.
-- `stores/workbench.svelte.ts` remains a temporary legacy barrel while feature stores/actions finish migrating.
-- `events/event-router.ts` still performs legacy event-to-state reconciliation; feature event hooks register through `core/events/event-bus.ts`.
+- `api.ts` is the public API barrel; `README.md` documents ownership. These are the only files at the `lib/` root.
+- `app/` owns the shell, layout state, and the workbench lifecycle provider. It composes features only through their public barrels (`$lib/features/<feature>`) and must not reach into a feature's internal `state/` modules. This is enforced by `scripts/check-web-import-boundaries.mjs` (run as part of `pnpm check`).
+- `core/` owns transport-neutral, non-domain primitives: the HTTP API client, event bus/websocket transport, shared presentation components (`core/components`, e.g. `Markdown.svelte`), aggregated state types (`core/types/state-types.ts`), state keys, hooks, shortcuts, audio, highlighting, and utilities. `core/` must not depend on any feature.
+- `features/*/api`, `features/*/state`, and `features/*/components` own domain-specific calls, selectors, actions, and panes. Each feature exposes everything other features and `app/` need through its `index.ts` barrel.
+- Cross-component UI signals are owned by the feature they belong to (e.g. composer focus/escape/mic tokens live in `features/conversations/state/composer-signals.svelte.ts`, project-search focus in `features/projects/state/project-navigator-signals.svelte.ts`, desktop quit state in `features/desktop/state/desktop-shutdown.svelte.ts`).
+- Feature event hooks register through `core/events/event-bus.ts` via `features/register-feature-events.ts`.
+- Prefer files under ~400 lines: split oversized modules into focused helpers/sub-modules and oversized components into presenter sub-components.
 - Shared schemas and protocol types stay in `@nerve/shared`; frontend code must not own secrets or daemon-side policy decisions.

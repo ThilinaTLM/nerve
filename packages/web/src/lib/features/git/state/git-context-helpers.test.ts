@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { GitRepoSummary } from "$lib/api";
-import type { GitContext } from "$lib/features/state-types";
+import type { GitContext } from "$lib/core/types/state-types";
 import {
   gitContextFingerprint,
   shouldRefreshGitContextOnFocus,

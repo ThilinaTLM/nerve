@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { LiveToolCallDraft } from "$lib/features/state-types";
+import type { LiveToolCallDraft } from "$lib/core/types/state-types";
 import { summarizeToolDraft } from "./tool-draft-progress";
 
 function draft(

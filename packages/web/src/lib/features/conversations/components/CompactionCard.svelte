@@ -7,9 +7,10 @@
   import { Button } from "$lib/components/ui/button";
   import { Progress } from "$lib/components/ui/progress";
   import { StatusDot } from "$lib/components/ui/status-dot";
-  import Markdown from "$lib/Markdown.svelte";
+  import Markdown from "$lib/core/components/Markdown.svelte";
+  import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
   import type { ProjectRecord } from "$lib/api";
-  import type { CompactionNotice } from "$lib/features/state-types";
+  import type { CompactionNotice } from "$lib/core/types/state-types";
   import { formatTokens } from "$lib/core/utils/usage";
 
   type Props = {
@@ -174,6 +175,7 @@
             trimCodeBlocks={false}
             linkBasePath={activeProject?.dir}
             {onOpenFile}
+            onCopy={notifyCopyResult}
           />
         </div>
       {/if}

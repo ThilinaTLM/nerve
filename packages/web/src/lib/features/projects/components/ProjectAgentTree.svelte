@@ -1,77 +1,43 @@
 <script lang="ts">
-  import ArrowRight from "@lucide/svelte/icons/arrow-right";
-  import Copy from "@lucide/svelte/icons/copy";
   import Folder from "@lucide/svelte/icons/folder";
   import Plus from "@lucide/svelte/icons/plus";
   import Search from "@lucide/svelte/icons/search";
-  import Trash2 from "@lucide/svelte/icons/trash-2";
-  import { writeClipboardText } from "$lib/core/clipboard";
-  import { notify } from "$lib/features/notifications/notify.svelte";
   import type {
-    AgentRecord,
     ProjectRecord,
-    ConversationRecord,
-    ProjectEditor,
     PruneProjectConversationsRequest,
-    StatusResponse,
   } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import AlertDialog from "$lib/components/ui/confirm-dialog";
-  import ContextMenu, {
-    type ContextMenuItem,
-  } from "$lib/components/ui/context-menu-list";
+  import ContextMenu from "$lib/components/ui/context-menu-list";
   import { Input } from "$lib/components/ui/input";
   import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
-  import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as Tooltip from "$lib/components/ui/tooltip";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
   import {
     buildProjectGroups,
-    shortProjectLabel,
     type ProjectGroup,
+    shortProjectLabel,
   } from "$lib/core/utils/project-tree";
   import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
-  import VsCodeIcon from "./VsCodeIcon.svelte";
-  import ZedIcon from "./ZedIcon.svelte";
   import {
     getShortcutAriaLabel,
     getShortcutLabel,
   } from "$lib/core/shortcuts/registry";
-
-  type DeleteTarget = {
-    kind: "project" | "conversation";
-    id: string;
-    label: string;
-  };
-
-  type PruneTarget = {
-    id: string;
-    label: string;
-  };
-
-  type Props = {
-    projects?: ProjectRecord[];
-    conversations?: ConversationRecord[];
-    agents?: AgentRecord[];
-    homeDir?: string;
-    selectedProjectId?: string;
-    selectedConversationId?: string;
-    openConversationTabIds?: Set<string>;
-    conversationActivityById?: Record<string, ConversationActivityState>;
-    searchFocusToken?: number;
-    editorAvailability?: StatusResponse["runtime"]["editors"];
-    onOpenConversation?: (conversationId: string) => void;
-    onNewConversationInProject?: (projectDir: string) => void;
-    onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
-    onDeleteProject?: (projectId: string) => void;
-    onDeleteConversation?: (conversationId: string) => void;
-    onPruneProjectConversations?: (
-      projectId: string,
-      request: PruneProjectConversationsRequest,
-    ) => void;
-  };
+  import type {
+    DeleteTarget,
+    ProjectAgentTreeProps,
+    PruneTarget,
+  } from "./project-agent-tree-props";
+  import {
+    buildConversationMenu,
+    buildProjectMenu,
+    countAgeEligible,
+    countKeepEligible,
+    countProjectConversations,
+    type ProjectTreeMenuContext,
+  } from "./project-tree-menus";
 
   let {
     projects = [],
@@ -90,7 +56,7 @@
     onDeleteProject,
     onDeleteConversation,
     onPruneProjectConversations,
-  }: Props = $props();
+  }: ProjectAgentTreeProps = $props();
 
   let filter = $state("");
   let searchInputEl = $state<HTMLInputElement | null>(null);
@@ -115,6 +81,19 @@
     pendingDelete = target;
   }
 
+  const menuContext = $derived<ProjectTreeMenuContext>({
+    homeDir,
+    newConversationShortcut,
+    editorAvailability,
+    conversationCount: (projectId) =>
+      countProjectConversations(conversations, projectId),
+    onOpenConversation,
+    onNewConversationInProject,
+    onOpenProjectInEditor,
+    requestPrune,
+    requestDelete,
+  });
+
   function requestPrune(project: ProjectRecord) {
     pendingPrune = {
       id: project.id,
@@ -131,113 +110,6 @@
   function confirmPrune(request: PruneProjectConversationsRequest) {
     if (!pendingPrune) return;
     onPruneProjectConversations?.(pendingPrune.id, request);
-  }
-
-  function projectConversationCount(projectId: string): number {
-    return conversations.filter(
-      (conversation) => conversation.projectId === projectId,
-    ).length;
-  }
-
-  function ageEligibleCount(projectId: string, days: number): number {
-    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    return conversations.filter((conversation) => {
-      const updatedAt = Date.parse(conversation.updatedAt);
-      return (
-        conversation.projectId === projectId &&
-        Number.isFinite(updatedAt) &&
-        updatedAt < cutoff
-      );
-    }).length;
-  }
-
-  function keepEligibleCount(projectId: string, keep: number): number {
-    return Math.max(0, projectConversationCount(projectId) - keep);
-  }
-
-  async function copyToClipboard(text: string, label: string) {
-    try {
-      await writeClipboardText(text);
-      notify.success(`Copied ${label}`);
-    } catch {
-      notify.error("Could not copy to clipboard");
-    }
-  }
-
-  function projectEditorMenu(project: ProjectRecord): ContextMenuItem[] {
-    const items: ContextMenuItem[] = [];
-    if (editorAvailability?.vscode.available) {
-      items.push({
-        label: "Open in VS Code",
-        icon: VsCodeIcon,
-        onSelect: () => onOpenProjectInEditor?.(project.id, "vscode"),
-      });
-    }
-    if (editorAvailability?.zed.available) {
-      items.push({
-        label: "Open in Zed",
-        icon: ZedIcon,
-        onSelect: () => onOpenProjectInEditor?.(project.id, "zed"),
-      });
-    }
-    return items;
-  }
-
-  function projectMenu(project: ProjectRecord): ContextMenuItem[] {
-    const editorItems = projectEditorMenu(project);
-    const items: ContextMenuItem[] = [
-      {
-        label: "New chat",
-        icon: Plus,
-        shortcut: newConversationShortcut,
-        onSelect: () => onNewConversationInProject?.(project.dir),
-      },
-    ];
-    if (editorItems.length > 0) {
-      items.push({ type: "separator" }, ...editorItems);
-    }
-    items.push(
-      { type: "separator" },
-      {
-        label: "Copy path",
-        icon: Copy,
-        onSelect: () => void copyToClipboard(project.dir, "path"),
-      },
-      {
-        label: "Clean up",
-        icon: Trash2,
-        destructive: true,
-        disabled: projectConversationCount(project.id) === 0,
-        onSelect: () => requestPrune(project),
-      },
-      {
-        label: "Remove project",
-        icon: Trash2,
-        destructive: true,
-        onSelect: () =>
-          requestDelete({
-            kind: "project",
-            id: project.id,
-            label: shortProjectLabel(project.dir, homeDir),
-          }),
-      },
-    );
-    return items;
-  }
-
-  function conversationMenu(project: ProjectRecord, conversation: ConversationRecord): ContextMenuItem[] {
-    return [
-      { label: "Open conversation", icon: ArrowRight, onSelect: () => onOpenConversation?.(conversation.id) },
-      { label: "New chat", icon: Plus, shortcut: newConversationShortcut, onSelect: () => onNewConversationInProject?.(project.dir) },
-      { type: "separator" },
-      { label: "Copy conversation id", icon: Copy, onSelect: () => void copyToClipboard(conversation.id, "conversation id") },
-      {
-        label: "Delete conversation",
-        icon: Trash2,
-        destructive: true,
-        onSelect: () => requestDelete({ kind: "conversation", id: conversation.id, label: conversation.title }),
-      },
-    ];
   }
 
   const result = $derived.by(() =>
@@ -269,7 +141,7 @@
         {/if}
 
         {#each groups as group (group.key)}
-          <ContextMenu items={projectMenu(group.project)} triggerClass="project-context-trigger">
+          <ContextMenu items={buildProjectMenu(group.project, menuContext)} triggerClass="project-context-trigger">
             <PanelSection
               title={group.label}
               icon={Folder}
@@ -303,7 +175,7 @@
                     isOpen={openConversationTabIds?.has(row.conversation.id) ?? false}
                     isActive={row.conversation.id === selectedConversationId}
                     activity={conversationActivityById[row.conversation.id]}
-                    menuItems={conversationMenu(group.project, row.conversation)}
+                    menuItems={buildConversationMenu(group.project, row.conversation, menuContext)}
                     {onOpenConversation}
                   />
                 {/each}
@@ -355,7 +227,7 @@
     {onOpenConversation}
     buildMenu={(conversation) =>
       pendingConversations
-        ? conversationMenu(pendingConversations.project, conversation)
+        ? buildConversationMenu(pendingConversations.project, conversation, menuContext)
         : []}
     onOpenChange={(open) => { if (!open) pendingConversations = undefined; }}
   />
@@ -364,9 +236,9 @@
 <PruneConversationsDialog
   open={!!pendingPrune}
   projectLabel={pendingPrune?.label ?? ""}
-  totalCount={pendingPrune ? projectConversationCount(pendingPrune.id) : 0}
-  ageEligible={(days) => (pendingPrune ? ageEligibleCount(pendingPrune.id, days) : 0)}
-  keepEligible={(keep) => (pendingPrune ? keepEligibleCount(pendingPrune.id, keep) : 0)}
+  totalCount={pendingPrune ? countProjectConversations(conversations, pendingPrune.id) : 0}
+  ageEligible={(days) => (pendingPrune ? countAgeEligible(conversations, pendingPrune.id, days) : 0)}
+  keepEligible={(keep) => (pendingPrune ? countKeepEligible(conversations, pendingPrune.id, keep) : 0)}
   onConfirm={confirmPrune}
   onOpenChange={(open) => { if (!open) pendingPrune = undefined; }}
 />

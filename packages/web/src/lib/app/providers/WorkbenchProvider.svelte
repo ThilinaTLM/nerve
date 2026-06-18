@@ -1,12 +1,10 @@
 <script lang="ts">
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-
   import { onMount, type Snippet } from "svelte";
   import {
     desktopRuntime,
     initializeDesktopRuntime,
     syncDesktopCloseToTray,
-  } from "$lib/features/desktop/state/desktop-bridge.svelte";
+  } from "$lib/features/desktop";
   import { initializeNotifications } from "$lib/features/notifications/notify.svelte";
   import { registerFeatureEventHandlers } from "$lib/features/register-feature-events";
   import {
@@ -18,43 +16,40 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
     zoomState,
   } from "$lib/app/layout/layout-state.svelte";
   import {
+    abortActiveRun,
+    conversationSelectors,
     escapeComposer,
-    focusProjectSearch,
-    toggleComposerMic,
-  } from "$lib/app/state/workbench-ui-state.svelte";
-  import { createAppShortcuts } from "$lib/core/shortcuts/app-shortcuts.svelte";
-  import { abortActiveRun } from "$lib/features/conversations/state/conversation-flow/run-control";
-  import { refreshConversationView } from "$lib/features/conversations/state/conversation-flow/selection";
-  import {
+    refreshConversationView,
     setComposerMode,
     setComposerPermission,
     setComposerThinkingLevel,
-  } from "$lib/features/conversations/state/composer-config.svelte";
-  import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
-  import { refreshFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+    toggleComposerMic,
+  } from "$lib/features/conversations";
+  import { focusProjectSearch } from "$lib/features/projects";
+  import { createAppShortcuts } from "$lib/core/shortcuts/app-shortcuts.svelte";
+  import { refreshFilePane } from "$lib/features/filesystem";
   import {
     clearGitContext,
     refreshGitContext,
+    refreshPrPane,
     startGitContextAutoRefresh,
-  } from "$lib/features/git/state/git-context.svelte";
-  import { refreshPrPane } from "$lib/features/git/state/pr-tabs.svelte";
+  } from "$lib/features/git";
   import {
     loadSettingsPanel,
     openSettingsPane,
+    settingsSelectors,
     setUiZoomLevel,
-  } from "$lib/features/settings/state/settings-actions.svelte";
-  import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
+  } from "$lib/features/settings";
   import { disconnectWorkbench, initializeWorkbench } from "$lib/core/events/websocket-client.svelte";
   import {
     centerTabsExcept,
-    closeCenterTabs,
-  } from "$lib/features/workspace/state/center-tab-actions.svelte";
-  import {
     closeCenterTab,
+    closeCenterTabs,
+    newConversation,
     selectCenterTab,
-  } from "$lib/features/workspace/state/center-tabs.svelte";
-  import { newConversation } from "$lib/features/workspace/state/workspace-actions.svelte";
-  import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+    workspaceSelectors,
+    workspaceState,
+  } from "$lib/features/workspace";
   import type { CenterTabIdentity } from "$lib/features/workspace";
 
   type Props = {

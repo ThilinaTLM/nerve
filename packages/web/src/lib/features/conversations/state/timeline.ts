@@ -6,7 +6,7 @@ import type {
   LiveToolOutput,
   RunStatusNotice,
   TranscriptItem,
-} from "$lib/features/state-types";
+} from "$lib/core/types/state-types";
 
 export type TimelineItem =
   | { kind: "message"; key: string; item: TranscriptItem }

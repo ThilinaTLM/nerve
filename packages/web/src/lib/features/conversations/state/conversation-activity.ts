@@ -6,8 +6,8 @@ import type {
   UserQuestionRecord,
 } from "$lib/api";
 import { conversationViewKey } from "$lib/core/state/state-keys";
+import type { ConversationViewState } from "$lib/core/types/state-types";
 import type { StatusTone } from "$lib/core/utils/status";
-import type { ConversationViewState } from "$lib/features/state-types";
 
 export type ConversationActivitySource =
   | "pending-input"

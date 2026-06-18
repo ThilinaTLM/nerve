@@ -1,17 +1,20 @@
 <script lang="ts">
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-
-  import { focusComposer, workbenchUiState } from "$lib/app/state/workbench-ui-state.svelte";
+  import {
+    compactActiveConversation,
+    composerSignals,
+    conversationSelectors,
+    focusComposer,
+    navigateToEntry,
+    setActiveComposerText,
+  } from "$lib/features/conversations";
   import ConversationHistoryDialog from "$lib/features/conversations/components/ConversationHistoryDialog.svelte";
-  import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
   import ProjectDirectoryPicker from "$lib/features/projects/components/ProjectDirectoryPicker.svelte";
-  import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-  import { compactActiveConversation, navigateToEntry } from "$lib/features/conversations/state/conversation-flow/run-control";
-  import { setActiveComposerText } from "$lib/features/conversations/state/conversation-flow/prompt-send";
   import {
     createConversationForDirectory,
     deleteProjectAndRefresh,
-  } from "$lib/features/workspace/state/workspace-actions.svelte";
+    workspaceSelectors,
+    workspaceState,
+  } from "$lib/features/workspace";
 
   const status = $derived(workspaceSelectors.status);
   const projects = $derived(workspaceSelectors.projects);
@@ -48,7 +51,7 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
 />
 
 <ConversationHistoryDialog
-  bind:open={workbenchUiState.historyDialogOpen}
+  bind:open={composerSignals.historyDialogOpen}
   {activeConversation}
   {treeNodes}
   {toolCalls}

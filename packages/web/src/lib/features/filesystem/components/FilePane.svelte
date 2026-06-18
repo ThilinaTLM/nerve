@@ -3,9 +3,10 @@
   import FileText from "@lucide/svelte/icons/file-text";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import Markdown from "$lib/Markdown.svelte";
+  import Markdown from "$lib/core/components/Markdown.svelte";
+  import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
   import { highlightCodeCached } from "$lib/core/highlight/highlight";
-  import type { FileViewState } from "$lib/features/state-types";
+  import type { FileViewState } from "$lib/core/types/state-types";
   import { extname } from "$lib/features/tools/views/lang";
   import { defaultFileDisplayMode, isMarkdownPath } from "$lib/core/utils/file-display";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
@@ -141,7 +142,7 @@
     {:else if file?.type === "text"}
       {#if markdown && displayMode === "rendered"}
         <div class="markdown-view">
-          <Markdown text={file.text ?? ""} trimCodeBlocks={false} />
+          <Markdown text={file.text ?? ""} trimCodeBlocks={false} onCopy={notifyCopyResult} />
         </div>
       {:else if html && htmlSignature === annotatedCodeSignature}
         <div class="code-view" class:wrap-lines={view?.wrapLines} style={codeViewStyle}>{@html html}</div>

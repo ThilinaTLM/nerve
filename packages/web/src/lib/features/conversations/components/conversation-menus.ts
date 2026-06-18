@@ -6,7 +6,7 @@ import Pencil from "@lucide/svelte/icons/pencil";
 import TextQuote from "@lucide/svelte/icons/text-quote";
 import type { ConversationEntry, ToolCallRecord } from "$lib/api";
 import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
-import type { TranscriptItem } from "$lib/features/state-types";
+import type { TranscriptItem } from "$lib/core/types/state-types";
 
 export type ConversationMenuHandlers = {
   copyText: (text: string, label?: string) => void | Promise<void>;

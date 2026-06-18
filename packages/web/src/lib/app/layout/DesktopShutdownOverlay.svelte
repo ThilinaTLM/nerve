@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { desktopRuntime } from "$lib/features/desktop/state/desktop-bridge.svelte";
-  import { workbenchUiState } from "$lib/app/state/workbench-ui-state.svelte";
+  import { desktopRuntime, desktopShutdownState } from "$lib/features/desktop";
 
   const desktopQuitting = $derived(
-    desktopRuntime.quitting || workbenchUiState.desktopQuitRequested,
+    desktopRuntime.quitting || desktopShutdownState.quitRequested,
   );
 </script>
 

@@ -2,19 +2,22 @@
   import UtilityPanel from "$lib/app/layout/UtilityPanel.svelte";
   import { layout } from "$lib/app/layout/layout-state.svelte";
   import type { AgentRecord } from "$lib/api";
-  import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
-  import { processSelectors } from "$lib/features/processes/state/process-selectors.svelte";
-  import { selection } from "$lib/features/workspace/state/selection.svelte";
-  import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
-  import { exportUrl, systemPromptUrl } from "$lib/features/workspace/state/workspace-actions.svelte";
-  import { openProcessTab } from "$lib/features/processes/state/process-tabs.svelte";
+  import { conversationSelectors } from "$lib/features/conversations";
   import {
+    openProcessTab,
+    processSelectors,
     pruneStoppedProcesses,
     removeProcess,
     restartSelectedProcess,
     runProcessCommand,
     stopSelectedProcess,
-  } from "$lib/features/processes/state/processes.svelte";
+  } from "$lib/features/processes";
+  import {
+    exportUrl,
+    selection,
+    systemPromptUrl,
+    workspaceSelectors,
+  } from "$lib/features/workspace";
 
   const status = $derived(workspaceSelectors.status);
   const activeProject = $derived(workspaceSelectors.activeProject);

@@ -1,10 +1,10 @@
+import type { CenterTabIdentity } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { logsState } from "$lib/features/logs/state/log-state.svelte";
 import { processState } from "$lib/features/processes/state/process-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import type { CenterTabIdentity } from "$lib/features/state-types";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 export function centerTabKey(tab: CenterTabIdentity): string {
   return `${tab.kind}:${tab.id}`;
