@@ -71,6 +71,11 @@ src/styles/
   (rendered HTML, bits-ui primitive internals reachable only via a wrapper
   class). Keep it scoped under a local class (`.foo :global(svg)`), never a bare
   app-wide `:global(.thing)` — cross-component classes go to `src/styles/components/`.
+- When a wrapper component sets **default** styles on a bits-ui/shadcn primitive
+  it owns (e.g. `popover-panel`'s `.popover-trigger`), wrap the selector in
+  `:where()` so the defaults stay at zero specificity and any consumer
+  `triggerClass`/`class` (e.g. `.composer-tab`) always wins regardless of CSS
+  bundle order: `:global(:where(.popover-trigger)) { … }`.
 
 ## Misc
 
