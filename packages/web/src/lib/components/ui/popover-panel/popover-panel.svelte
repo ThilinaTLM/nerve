@@ -56,7 +56,9 @@
 </PopoverPrimitive.Root>
 
 <style>
-  :global(.popover-trigger) {
+  /* :where() keeps the default reset at zero specificity so any consumer
+     `triggerClass` (e.g. .composer-tab) always wins regardless of CSS order. */
+  :global(:where(.popover-trigger)) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
