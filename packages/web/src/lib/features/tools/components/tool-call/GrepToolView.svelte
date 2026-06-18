@@ -35,7 +35,7 @@
         <button class="file-path" type="button" onclick={() => onOpenFile?.(group.openPath ?? group.path)} title="Open file pane">
           {group.path}
         </button>
-        {#each group.matches as match (`${group.path}:${match.line}:${match.text}`)}
+        {#each group.matches as match, index (`${group.path}:${match.line}:${index}:${match.text}`)}
           <button class="match" type="button" onclick={() => onOpenFile?.(match.openPath ?? group.openPath ?? group.path, match.line)} title={`Open ${group.path}:${match.line}`}>
             <span class="line-no">{match.line}</span><span class="line-text">{match.text}</span>
           </button>

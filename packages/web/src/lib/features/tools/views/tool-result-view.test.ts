@@ -320,6 +320,31 @@ describe("parseToolView", () => {
     assert.equal(view.allMatches[0]?.matches.length, 2);
   });
 
+  it("preserves duplicate grep rows for the UI to render safely", () => {
+    const duplicate = { path: "a.ts", line: 7, text: "const value = TODO;" };
+    const view = parseToolView(
+      toolCall(
+        "grep",
+        { pattern: "TODO" },
+        { matches: [duplicate, duplicate] },
+      ),
+    );
+
+    assert.equal(view.kind, "grep");
+    if (view.kind !== "grep") return;
+    assert.equal(view.matchCount, 2);
+    assert.equal(view.fileCount, 1);
+    assert.equal(view.allMatches[0]?.matches.length, 2);
+    assert.deepEqual(
+      view.allMatches[0]?.matches.map(({ path, line, text }) => ({
+        path,
+        line,
+        text,
+      })),
+      [duplicate, duplicate],
+    );
+  });
+
   it("resolves grep match links against a Windows search root", () => {
     const view = parseToolView(
       toolCall(
