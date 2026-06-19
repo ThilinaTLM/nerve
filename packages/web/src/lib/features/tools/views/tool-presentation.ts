@@ -1,5 +1,4 @@
 import type { ToolCallRecord } from "$lib/api";
-import { taskTone } from "./task";
 import {
   basename,
   collapseFor,
@@ -8,7 +7,6 @@ import {
   lineCount,
   plural,
   statusDot,
-  toneFromDot,
 } from "./tool-presentation-helpers";
 import type { MetaItem, ToolPresentation } from "./tool-presentation-types";
 import {
@@ -242,27 +240,13 @@ export function toolPresentation(
       };
 
     case "task_action": {
-      const meta: MetaItem[] = [{ text: view.action }];
+      // Status / exit / signal / runtime metadata render on the TaskRow badges
+      // and tooltip in the body, so the header stays minimal.
       const task = view.task ?? view.tasks?.[0];
-      if (task) {
-        meta.push({
-          text: task.status,
-          tone: toneFromDot(taskTone(task.status)),
-        });
-        if (task.exitCode !== undefined && task.exitCode !== null) {
-          meta.push({ text: `exit ${task.exitCode}` });
-        }
-        if (task.signal) meta.push({ text: `signal ${task.signal}` });
-      }
       return {
         ...base,
         badge: `task_${view.action}`,
-        primaryArg: task?.name
-          ? { text: task.name }
-          : task?.command
-            ? { text: task.command }
-            : undefined,
-        meta,
+        primaryArg: task?.name ? { text: task.name } : undefined,
       };
     }
 

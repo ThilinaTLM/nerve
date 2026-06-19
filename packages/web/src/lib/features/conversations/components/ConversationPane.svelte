@@ -115,6 +115,9 @@
         if (node.kind === "tool_result_error") {
           return `${node.key}:${node.toolName}:${node.error.length}`;
         }
+        if (node.kind === "task_event") {
+          return `${node.key}:${node.notice.status ?? ""}:${node.notice.event ?? ""}`;
+        }
         return `${node.key}:${node.toolCall.status}:${node.liveOutput?.text.length ?? 0}`;
       })
       .join("|"),

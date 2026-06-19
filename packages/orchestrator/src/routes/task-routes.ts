@@ -4,6 +4,7 @@ import {
   taskLogQuerySchema,
 } from "@nerve/shared";
 import { Hono } from "hono";
+import { HttpError } from "../http/errors.js";
 import { numberQuery } from "../http/query.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
@@ -22,11 +23,10 @@ export function createTaskRoutes(state: OrchestratorState): Hono {
   );
   app.get(
     "/tasks/:taskId",
-    routeHandler((c) =>
-      c.json({
-        task: state.registry.getTask(routeParam(c, "taskId")),
-      }),
-    ),
+    routeHandler((c) => {
+      const taskId = routeParam(c, "taskId");
+      return c.json({ task: getTaskOrThrow(state, taskId) });
+    }),
   );
   app.post(
     "/tasks/:taskId/cancel",
@@ -34,18 +34,22 @@ export function createTaskRoutes(state: OrchestratorState): Hono {
       const body = cancelTaskRequestSchema.parse(
         await c.req.json().catch(() => ({})),
       );
+      const taskId = routeParam(c, "taskId");
+      getTaskOrThrow(state, taskId);
       return c.json({
-        task: await state.registry.cancelTask(routeParam(c, "taskId"), body),
+        task: await state.registry.cancelTask(taskId, body),
       });
     }),
   );
   app.post(
     "/tasks/:taskId/restart",
-    routeHandler(async (c) =>
-      c.json({
-        task: await state.registry.restartTask(routeParam(c, "taskId")),
-      }),
-    ),
+    routeHandler(async (c) => {
+      const taskId = routeParam(c, "taskId");
+      getTaskOrThrow(state, taskId);
+      return c.json({
+        task: await state.registry.restartTask(taskId),
+      });
+    }),
   );
   app.post(
     "/tasks/prune",
@@ -56,7 +60,9 @@ export function createTaskRoutes(state: OrchestratorState): Hono {
   app.delete(
     "/tasks/:taskId",
     routeHandler(async (c) => {
-      await state.registry.removeTask(routeParam(c, "taskId"));
+      const taskId = routeParam(c, "taskId");
+      getTaskOrThrow(state, taskId);
+      await state.registry.removeTask(taskId);
       return c.json({ removed: true });
     }),
   );
@@ -71,11 +77,26 @@ export function createTaskRoutes(state: OrchestratorState): Hono {
         contextLines: numberQuery(c.req.query("contextLines")),
         limit: numberQuery(c.req.query("limit")),
       });
-      return c.json(
-        await state.registry.queryTaskLogs(routeParam(c, "taskId"), query),
-      );
+      const taskId = routeParam(c, "taskId");
+      getTaskOrThrow(state, taskId);
+      return c.json(await state.registry.queryTaskLogs(taskId, query));
     }),
   );
 
   return app;
+}
+
+function getTaskOrThrow(
+  state: OrchestratorState,
+  taskId: string,
+): ReturnType<OrchestratorState["registry"]["getTask"]> {
+  try {
+    return state.registry.getTask(taskId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/Task not found/i.test(message)) {
+      throw new HttpError(404, "TASK_NOT_FOUND", `Task '${taskId}' not found.`);
+    }
+    throw error;
+  }
 }

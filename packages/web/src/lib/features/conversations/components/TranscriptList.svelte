@@ -25,6 +25,7 @@
   import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
   import type { TimelineItem } from "$lib/features/conversations/state/timeline";
   import CompactionCard from "./CompactionCard.svelte";
+  import TaskEventCard from "./TaskEventCard.svelte";
   import RunStatusCard from "./RunStatusCard.svelte";
   import ThinkingBlock from "./ThinkingBlock.svelte";
 
@@ -135,6 +136,8 @@
       />
     {:else if node.kind === "compaction"}
       <CompactionCard notice={node.notice} {activeProject} {onOpenFile} />
+    {:else if node.kind === "task_event"}
+      <TaskEventCard notice={node.notice} />
     {:else}
       <ContextMenu
         items={messageMenu(node.item)}

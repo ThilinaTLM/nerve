@@ -150,8 +150,12 @@ function taskEventNotice(
     taskId: stringValue(details.taskId),
     taskName: stringValue(details.taskName),
     groupId: stringValue(details.groupId),
+    groupName: stringValue(details.groupName),
     event: stringValue(details.event),
     status: stringValue(details.status),
+    exitCode: numberValue(details.exitCode),
+    signal: stringValue(details.signal),
+    commandPreview: stringValue(details.commandPreview),
     nextCursor: numberValue(details.nextCursor),
     createdAt: entry.createdAt,
   };

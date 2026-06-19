@@ -3,6 +3,7 @@ import {
   type AgentRecord,
   createId,
   type Mode,
+  type TaskCancelResultPayload,
   type TaskLogEvent,
   type TaskRecord,
   type ToolCallRecord,
@@ -22,6 +23,7 @@ import type { PythonRuntimeService } from "../runtime/python-runtime-service.js"
 import { isActiveTaskStatus } from "../tasks/index.js";
 import type { TaskManager } from "../tasks/task-manager.js";
 import {
+  formatTaskCancelSummary,
   formatTaskListSummary,
   formatTaskLogsSummary,
   formatTaskStartSummary,
@@ -39,6 +41,7 @@ import {
   stringRecordArg,
 } from "./tool-args.js";
 import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
+import { CodedToolError } from "./tool-errors.js";
 import type {
   ExploreProgressUpdate,
   ExploreRunner,
@@ -95,14 +98,20 @@ export class OrchestrationToolDispatcher {
           stringArg(args, "taskId"),
           toolCall,
         ).id;
-        const task = await this.deps.tasks.restartTask(restartedFromTaskId);
+        const task = await this.restartTaskWithStructuredErrors(
+          restartedFromTaskId,
+        );
+        const label = task.name ? `${task.name} (${task.id})` : task.id;
         return {
           task,
+          tasks: [task],
           restartedFromTaskId,
+          newTaskId: task.id,
+          restartRootTaskId: task.restartRootTaskId,
           contentBlocks: [
             {
               type: "text",
-              text: `Restarted ${restartedFromTaskId} as ${task.name ?? task.id}. Use task_status/task_logs with the task name or ID.`,
+              text: `Restarted ${restartedFromTaskId} as ${label}. Use task_status/task_logs with taskId "${task.id}".`,
             },
           ],
         };
@@ -202,21 +211,34 @@ export class OrchestrationToolDispatcher {
   ): Promise<unknown> {
     const batch = Array.isArray(args.tasks) ? args.tasks : undefined;
     if (batch && typeof args.command === "string") {
-      throw new Error("Provide either 'command' or 'tasks', not both.");
+      throw new CodedToolError(
+        "TASK_ARGUMENT_INVALID",
+        "Provide either 'command' or 'tasks', not both.",
+      );
     }
     if (batch && batch.length > 8) {
-      throw new Error("task_start supports at most 8 tasks in one batch.");
+      throw new CodedToolError(
+        "TASK_BATCH_LIMIT_EXCEEDED",
+        "task_start supports at most 8 tasks in one batch.",
+        { maxItems: 8, received: batch.length },
+      );
     }
     const inputs = batch
       ? batch.map((task) => {
           if (!task || typeof task !== "object") {
-            throw new Error("Each task_start batch item must be an object.");
+            throw new CodedToolError(
+              "TASK_ARGUMENT_INVALID",
+              "Each task_start batch item must be an object.",
+            );
           }
           return task as Record<string, unknown>;
         })
       : [args];
     if (!batch && typeof args.command !== "string") {
-      throw new Error("Tool argument 'command' or 'tasks' is required.");
+      throw new CodedToolError(
+        "TASK_ARGUMENT_INVALID",
+        "Tool argument 'command' or 'tasks' is required.",
+      );
     }
 
     const tasks: TaskRecord[] = [];
@@ -301,12 +323,17 @@ export class OrchestrationToolDispatcher {
     const selectorCount =
       (singleTask ? 1 : 0) + (taskIds ? 1 : 0) + (groupId ? 1 : 0);
     if (selectorCount > 1) {
-      throw new Error(
+      throw new CodedToolError(
+        "TASK_ARGUMENT_INVALID",
         "Provide at most one of 'taskId', 'taskIds', or 'groupId'.",
       );
     }
     if (taskIds && taskIds.length > 20) {
-      throw new Error("task_status supports at most 20 task IDs.");
+      throw new CodedToolError(
+        "TASK_ARGUMENT_INVALID",
+        "task_status supports at most 20 task IDs.",
+        { maxItems: 20, received: taskIds.length },
+      );
     }
     const limit =
       optionalBoundedIntegerArg(args.limit, "limit", { min: 1, max: 50 }) ?? 5;
@@ -360,6 +387,22 @@ export class OrchestrationToolDispatcher {
     return { tasks: rows, contentBlocks: bounded.contentBlocks };
   }
 
+  private async restartTaskWithStructuredErrors(
+    taskId: string,
+  ): Promise<TaskRecord> {
+    try {
+      return await this.deps.tasks.restartTask(taskId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/launch env is missing|persisted keys/i.test(message)) {
+        throw new CodedToolError("TASK_RESTART_ENV_MISSING", message, {
+          taskId,
+        });
+      }
+      throw error;
+    }
+  }
+
   private async taskListFromTool(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
@@ -402,7 +445,10 @@ export class OrchestrationToolDispatcher {
     const taskRef = optionalStringArg(args.taskId);
     const groupId = optionalStringArg(args.groupId);
     if (taskRef && groupId) {
-      throw new Error("Provide only one of 'taskId' or 'groupId'.");
+      throw new CodedToolError(
+        "TASK_ARGUMENT_INVALID",
+        "Provide only one of 'taskId' or 'groupId'.",
+      );
     }
     const request = {
       signal: signalArg(args.signal),
@@ -439,19 +485,34 @@ export class OrchestrationToolDispatcher {
       return { tasks: targets, contentBlocks: [{ type: "text", text }] };
     }
     if (targets.length === 0) {
+      const cancelResults: TaskCancelResultPayload[] = [
+        {
+          outcome: "no_matching_active_task",
+          requestedSignal: request.signal,
+          message: "No active matching tasks to cancel.",
+        },
+      ];
       return {
         tasks: [],
+        cancelResults,
         contentBlocks: [
-          { type: "text", text: "No active matching tasks to cancel." },
+          { type: "text", text: formatTaskCancelSummary(cancelResults) },
         ],
       };
     }
     const cancelled: TaskRecord[] = [];
+    const cancelResults: TaskCancelResultPayload[] = [];
+    const requestedSignal = request.signal ?? "SIGTERM";
     for (const target of targets) {
-      cancelled.push(await this.deps.tasks.cancelTask(target.id, request));
+      const before = target;
+      const after = await this.deps.tasks.cancelTask(target.id, request);
+      cancelled.push(after);
+      cancelResults.push(
+        classifyCancelResult(before, after, requestedSignal),
+      );
     }
     const bounded = await buildProcessTextResult({
-      text: formatTaskStatusSummary(cancelled.map((task) => ({ task }))),
+      text: formatTaskCancelSummary(cancelResults),
       outputFilePrefix: "nerve-task-cancel",
       exitMessagePrefix: "Task cancel",
       dataDir: this.deps.storage.paths.home,
@@ -459,6 +520,7 @@ export class OrchestrationToolDispatcher {
     return {
       task: cancelled[0],
       tasks: cancelled,
+      cancelResults,
       contentBlocks: bounded.contentBlocks,
     };
   }
@@ -547,9 +609,27 @@ export class OrchestrationToolDispatcher {
   ): TaskRecord {
     const trimmed = ref.trim();
     if (trimmed.startsWith("task_")) {
-      const task = this.deps.tasks.getTask(trimmed);
+      let task: TaskRecord;
+      try {
+        task = this.deps.tasks.getTask(trimmed);
+      } catch {
+        throw new CodedToolError(
+          "TASK_NOT_FOUND",
+          `Task '${trimmed}' not found.`,
+          { ref: trimmed, taskId: trimmed },
+        );
+      }
       if (task.projectId !== toolCall.projectId) {
-        throw new Error("Task is outside this agent's project scope.");
+        throw new CodedToolError(
+          "TASK_OUT_OF_SCOPE",
+          "Task is outside this agent's project scope.",
+          {
+            ref: trimmed,
+            taskId: task.id,
+            projectId: task.projectId,
+            currentProjectId: toolCall.projectId,
+          },
+        );
       }
       return task;
     }
@@ -564,17 +644,51 @@ export class OrchestrationToolDispatcher {
     );
     const matches =
       conversationMatches.length > 0 ? conversationMatches : projectMatches;
-    if (matches.length === 0) throw new Error(`Task '${trimmed}' not found.`);
-    if (matches.length > 1) {
-      const listed = matches
-        .slice(0, 8)
-        .map((task) => `${task.name ?? task.id} (${task.id}, ${task.status})`)
-        .join(", ");
-      throw new Error(
-        `Task name '${trimmed}' is ambiguous: ${listed}. Use a task ID or groupId.`,
+    if (matches.length === 0) {
+      throw new CodedToolError(
+        "TASK_NOT_FOUND",
+        `Task '${trimmed}' not found.`,
+        {
+          ref: trimmed,
+          projectId: toolCall.projectId,
+          conversationId: toolCall.conversationId,
+        },
       );
     }
-    return matches[0] as TaskRecord;
+    const resolved = this.resolveNameMatches(trimmed, matches);
+    if (resolved) return resolved;
+    const details = {
+      ref: trimmed,
+      projectId: toolCall.projectId,
+      conversationId: toolCall.conversationId,
+      matches: matches.slice(0, 20).map(taskReferenceDetails),
+    };
+    const listed = matches
+      .slice(0, 8)
+      .map((task) => `${task.name ?? task.id} (${task.id}, ${task.status})`)
+      .join(", ");
+    throw new CodedToolError(
+      "TASK_NAME_AMBIGUOUS",
+      `Task name '${trimmed}' is ambiguous: ${listed}. Use a task ID or groupId.`,
+      details,
+    );
+  }
+
+  private resolveNameMatches(
+    _ref: string,
+    matches: TaskRecord[],
+  ): TaskRecord | undefined {
+    if (matches.length === 1) return matches[0];
+    const activeMatches = matches.filter((task) =>
+      isActiveTaskStatus(task.status),
+    );
+    if (activeMatches.length === 1) return activeMatches[0];
+
+    const lineageKeys = new Set(
+      matches.map((task) => task.restartRootTaskId ?? task.id),
+    );
+    if (lineageKeys.size === 1) return newestTask(matches);
+    return undefined;
   }
 
   private async statusLogs(
@@ -758,4 +872,65 @@ export class OrchestrationToolDispatcher {
     );
     return { mode: updated.mode, reason };
   }
+}
+
+function newestTask(tasks: TaskRecord[]): TaskRecord {
+  return [...tasks].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] as TaskRecord;
+}
+
+function taskReferenceDetails(task: TaskRecord): Record<string, unknown> {
+  return {
+    taskId: task.id,
+    name: task.name,
+    status: task.status,
+    startedAt: task.startedAt,
+    groupId: task.groupId,
+    restartRootTaskId: task.restartRootTaskId ?? task.id,
+    restartGeneration: task.restartGeneration,
+  };
+}
+
+function classifyCancelResult(
+  before: TaskRecord,
+  after: TaskRecord,
+  requestedSignal: "SIGTERM" | "SIGINT" | "SIGKILL",
+): TaskCancelResultPayload {
+  const taskName = after.name ?? before.name;
+  const label = taskName ? `${taskName} (${after.id})` : after.id;
+  const base = {
+    taskId: after.id,
+    taskName,
+    requestedSignal,
+    status: after.status,
+  };
+
+  if (!isActiveTaskStatus(before.status)) {
+    return {
+      ...base,
+      outcome: "already_terminal",
+      message: `${label} was already ${before.status}; no signal was sent by this request.`,
+    };
+  }
+  if (after.status === "cancelled") {
+    const forced = after.signal === "SIGKILL" && requestedSignal !== "SIGKILL";
+    return {
+      ...base,
+      outcome: forced ? "force_cancelled" : "cancelled",
+      message: forced
+        ? `${label} did not stop after ${requestedSignal}; force-cancelled with SIGKILL.`
+        : `${label} cancelled with ${after.signal ?? requestedSignal}.`,
+    };
+  }
+  if (!isActiveTaskStatus(after.status)) {
+    return {
+      ...base,
+      outcome: "became_terminal_before_cancel",
+      message: `${label} became ${after.status} before cancellation completed; no additional force kill was needed.`,
+    };
+  }
+  return {
+    ...base,
+    outcome: "became_terminal_before_cancel",
+    message: `${label} is still ${after.status}; cancellation did not reach a terminal state before the cancel wait ended.`,
+  };
 }

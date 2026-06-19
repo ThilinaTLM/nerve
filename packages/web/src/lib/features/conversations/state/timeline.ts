@@ -5,6 +5,7 @@ import type {
   LiveToolCallDraft,
   LiveToolOutput,
   RunStatusNotice,
+  TaskEventNotice,
   TranscriptItem,
 } from "$lib/core/types/state-types";
 
@@ -25,7 +26,8 @@ export type TimelineItem =
       toolName: string;
       error: string;
     }
-  | { kind: "run_status"; key: string; notice: RunStatusNotice };
+  | { kind: "run_status"; key: string; notice: RunStatusNotice }
+  | { kind: "task_event"; key: string; notice: TaskEventNotice };
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 
@@ -150,6 +152,14 @@ export function buildConversationTimeline(
           item.id ?? `run-status-${index}`,
         ),
         notice: item.runStatus,
+      });
+      return;
+    }
+    if (item.taskEvent) {
+      items.push({
+        kind: "task_event",
+        key: item.taskEvent.entryId ?? item.id ?? `task-event-${index}`,
+        notice: item.taskEvent,
       });
       return;
     }

@@ -156,6 +156,30 @@ describe("task manager runtime metadata", () => {
   });
 });
 
+describe("task manager notifications", () => {
+  it("defaults notifications on for conversation tasks and honors explicit opt-out", async () => {
+    const { supervisor } = fakeSupervisor({ child: fakeChild() });
+    const { manager, storage } = await createManager(supervisor);
+
+    const defaulted = await startFakeTask(manager, storage, undefined, {
+      agentId: "agent_test",
+      conversationId: "conv_test",
+    });
+    const optedOut = await startFakeTask(manager, storage, undefined, {
+      agentId: "agent_test",
+      conversationId: "conv_test",
+      notify: false,
+    });
+
+    assert.equal(defaulted.notifications?.enabled, true);
+    assert.equal(defaulted.notifications?.ready, true);
+    assert.equal(defaulted.notifications?.terminal, true);
+    assert.equal(optedOut.notifications?.enabled, false);
+    assert.equal(optedOut.notifications?.ready, false);
+    assert.equal(optedOut.notifications?.terminal, false);
+  });
+});
+
 describe("task manager launch env", () => {
   it("stores env config-side and exposes only redacted envInfo", async () => {
     const env = { PORT: "4321", API_TOKEN: "secret" };
@@ -208,6 +232,30 @@ describe("task manager launch env", () => {
       redacted: true,
     });
     assert.equal("env" in restarted, false);
+  });
+
+  it("records restart lineage metadata", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({
+      child,
+      onTerminate(signal) {
+        if (signal === "SIGTERM") child.emitClose(0, signal);
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const task = await startFakeTask(manager, storage);
+    await manager.cancelTask(task.id);
+
+    const firstRestart = await manager.restartTask(task.id);
+    await manager.cancelTask(firstRestart.id);
+    const secondRestart = await manager.restartTask(firstRestart.id);
+
+    assert.equal(task.restartRootTaskId, task.id);
+    assert.equal(task.restartGeneration, 0);
+    assert.equal(firstRestart.restartRootTaskId, task.id);
+    assert.equal(firstRestart.restartGeneration, 1);
+    assert.equal(secondRestart.restartRootTaskId, task.id);
+    assert.equal(secondRestart.restartGeneration, 2);
   });
 
   it("loads restart env before stopping an active task", async () => {
@@ -368,6 +416,35 @@ describe("task manager launch env", () => {
 });
 
 describe("task manager log buffering and readiness", () => {
+  it("keeps readiness checks off unless a readiness signal is configured", async () => {
+    const { supervisor } = fakeSupervisor({ child: fakeChild() });
+    const { manager, storage } = await createManager(supervisor);
+
+    const task = await startFakeTask(manager, storage, undefined, {
+      readyTimeoutMs: 20,
+    });
+    await delay(40);
+
+    assert.equal(manager.getTask(task.id).readiness.outcome, "none");
+  });
+
+  it("marks explicit readiness timeout without stopping the task", async () => {
+    const { supervisor } = fakeSupervisor({ child: fakeChild() });
+    const { manager, storage, events } = await createManager(supervisor);
+    const timeoutEvent = waitForTaskEvent(events, "task.ready_timeout");
+
+    const task = await startFakeTask(manager, storage, undefined, {
+      readyPattern: "never ready",
+      readyTimeoutMs: 20,
+    });
+    const timedOut = await timeoutEvent;
+
+    assert.equal(timedOut.id, task.id);
+    assert.equal(timedOut.status, "running");
+    assert.equal(timedOut.readiness.outcome, "timeout");
+    assert.equal(timedOut.readiness.timeoutMs, 20);
+  });
+
   it("matches readyPattern across stdout chunks", async () => {
     const child = fakeChild();
     const { supervisor } = fakeSupervisor({ child });

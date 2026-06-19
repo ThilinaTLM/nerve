@@ -140,6 +140,49 @@ describe("task log service line buffering", () => {
     );
   });
 
+  it("classifies log severity conservatively", async () => {
+    const { record, service, cursor, onLog } = await createFixture();
+
+    await service.captureOutput(
+      record,
+      cursor,
+      "stdout",
+      [
+        "qa-fail:before-error",
+        "ERROR: synthetic failure",
+        "fatal failure",
+        "warning: heads up",
+      ].join("\n") + "\n",
+      onLog,
+    );
+    await service.captureOutput(
+      record,
+      cursor,
+      "stderr",
+      "warning: stderr warning\nplain stderr\n",
+      onLog,
+    );
+
+    const events = await service.readLogEvents(record.logsPath);
+    assert.deepEqual(
+      events.map((event) => [event.stream, event.level, event.line]),
+      [
+        ["stdout", "info", "qa-fail:before-error"],
+        ["stdout", "error", "ERROR: synthetic failure"],
+        ["stdout", "error", "fatal failure"],
+        ["stdout", "warn", "warning: heads up"],
+        ["stderr", "warn", "warning: stderr warning"],
+        ["stderr", "error", "plain stderr"],
+      ],
+    );
+
+    const errors = await service.queryLogs(record, { mode: "errors" });
+    assert.deepEqual(
+      errors.events.map((event) => event.line),
+      ["ERROR: synthetic failure", "fatal failure", "plain stderr"],
+    );
+  });
+
   it("caps large newline-less buffers", async () => {
     const { record, service, cursor, onLog } = await createFixture();
     const text = "x".repeat(MAX_BUFFERED_LOG_LINE_CHARS + 1);

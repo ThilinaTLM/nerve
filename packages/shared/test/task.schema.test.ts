@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   startTaskRequestSchema,
+  taskActionResultSchema,
   type TaskRecord,
   taskEnvInfoSchema,
   taskLaunchConfigSchema,
   taskRecordSchema,
+  toolCallRecordSchema,
 } from "../src/index.js";
 
 function record(overrides: Partial<TaskRecord> = {}): TaskRecord {
@@ -121,6 +123,70 @@ describe("taskRecordSchema task ergonomics metadata", () => {
     assert.equal(parsed.groupId, "taskgrp_test");
     assert.equal(parsed.readyUrl, "http://127.0.0.1:5173");
     assert.equal(parsed.notify, true);
+  });
+
+  it("accepts restart lineage metadata", () => {
+    const parsed = taskRecordSchema.safeParse(
+      record({
+        restartedFromTaskId: "task_previous",
+        restartRootTaskId: "task_root",
+        restartGeneration: 2,
+      }),
+    );
+
+    assert.equal(parsed.success, true);
+    if (parsed.success) {
+      assert.equal(parsed.data.restartRootTaskId, "task_root");
+      assert.equal(parsed.data.restartGeneration, 2);
+    }
+  });
+});
+
+describe("tool task result metadata", () => {
+  it("accepts restart and cancellation action metadata", () => {
+    const parsed = taskActionResultSchema.safeParse({
+      task: record({ id: "task_new" }),
+      tasks: [record({ id: "task_new" })],
+      restartedFromTaskId: "task_old",
+      newTaskId: "task_new",
+      restartRootTaskId: "task_root",
+      cancelResults: [
+        {
+          taskId: "task_old",
+          taskName: "dev",
+          requestedSignal: "SIGTERM",
+          outcome: "cancelled",
+          status: "cancelled",
+          message: "dev cancelled with SIGTERM.",
+        },
+      ],
+    });
+
+    assert.equal(parsed.success, true);
+  });
+
+  it("accepts structured tool error metadata", () => {
+    const parsed = toolCallRecordSchema.safeParse({
+      id: "tool_test",
+      agentId: "agent_test",
+      conversationId: "conv_test",
+      projectId: "proj_test",
+      toolName: "task_status",
+      risk: "read",
+      args: { taskId: "missing" },
+      cwd: "/tmp/project",
+      status: "error",
+      error: "Task 'missing' not found.",
+      errorDetails: {
+        code: "TASK_NOT_FOUND",
+        message: "Task 'missing' not found.",
+        details: { ref: "missing" },
+      },
+      createdAt: "2026-01-02T03:04:05.000Z",
+      updatedAt: "2026-01-02T03:04:06.000Z",
+    });
+
+    assert.equal(parsed.success, true);
   });
 });
 

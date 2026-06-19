@@ -2,6 +2,7 @@ import type { ToolCallRecord } from "@nerve/shared";
 import type { ApplicationLogger } from "../../logging.js";
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";
+import { toolErrorDetails } from "./tool-errors.js";
 import type { ToolRequestOptions } from "./tool-service.js";
 
 export interface ToolExecutorDeps {
@@ -46,6 +47,7 @@ export class ToolExecutorService {
         status: "completed",
         result,
         error: undefined,
+        errorDetails: undefined,
       });
       await this.deps.publishToolCallUpdated(completed);
       await this.deps.logger?.info("Tool execution completed", {
@@ -71,9 +73,11 @@ export class ToolExecutorService {
         });
         return this.deps.getToolCall(toolCall.id);
       }
+      const details = toolErrorDetails(error);
       const failed = await this.deps.updateToolCall(toolCall.id, {
         status: "error",
-        error: error instanceof Error ? error.message : String(error),
+        error: details.message,
+        errorDetails: details,
       });
       await this.deps.publishToolCallUpdated(failed);
       await this.deps.logger?.error("Tool execution failed", {

@@ -40,6 +40,7 @@ export interface CustomMessage<T = unknown> {
 
 export type HarnessTaskEvent =
   | "ready"
+  | "ready_timeout"
   | "completed"
   | "failed"
   | "timed_out"

@@ -83,11 +83,14 @@ export class TaskNotificationService {
       return;
     }
 
-    if (event.type === "task.ready") {
+    if (event.type === "task.ready" || event.type === "task.ready_timeout") {
       const data = event.data as { task?: TaskRecord } | undefined;
       const task = data?.task;
       if (!task) return;
-      this.scheduleReadyNotification(task);
+      this.scheduleReadyNotification(
+        task,
+        event.type === "task.ready" ? "ready" : "ready_timeout",
+      );
       return;
     }
 
@@ -112,12 +115,15 @@ export class TaskNotificationService {
     );
   }
 
-  private scheduleReadyNotification(task: TaskRecord): void {
+  private scheduleReadyNotification(
+    task: TaskRecord,
+    event: Extract<HarnessTaskEvent, "ready" | "ready_timeout">,
+  ): void {
     const existing = this.readyTimers.get(task.id);
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
       this.readyTimers.delete(task.id);
-      void this.deliverNotification(task, "ready").catch((error) =>
+      void this.deliverNotification(task, event).catch((error) =>
         this.deps.logger?.warn("Task ready notification failed", {
           taskId: task.id,
           projectId: task.projectId,
@@ -133,14 +139,15 @@ export class TaskNotificationService {
   async recoverPendingNotifications(): Promise<void> {
     for (const task of this.deps.tasks.listTasks()) {
       if (task.notifications?.enabled !== true) continue;
+      const readinessEvent = readinessEventForTask(task);
       if (
-        task.readiness.outcome === "ready" &&
+        readinessEvent &&
         task.notifications.ready === true &&
         !task.notifications.readyDeliveredAt &&
         (task.status === "ready" || task.status === "running")
       ) {
-        await this.recoverNotification(task, "ready").catch((error) =>
-          this.deps.logger?.warn("Task ready notification recovery failed", {
+        await this.recoverNotification(task, readinessEvent).catch((error) =>
+          this.deps.logger?.warn("Task readiness notification recovery failed", {
             taskId: task.id,
             error,
           }),
@@ -256,7 +263,7 @@ export class TaskNotificationService {
     const notifications = task.notifications;
     if (notifications?.enabled !== true) return false;
     if (!task.agentId || !task.conversationId) return false;
-    if (event === "ready") {
+    if (event === "ready" || event === "ready_timeout") {
       return notifications.ready === true && !notifications.readyDeliveredAt;
     }
     return (
@@ -310,6 +317,13 @@ export class TaskNotificationService {
         limit: 1,
       });
       return { events: [], nextCursor: cursor.nextCursor };
+    }
+    if (event === "ready_timeout") {
+      const recent = await this.deps.tasks.queryLogs(task.id, {
+        mode: "recent",
+        limit: Math.min(task.notifications?.outputTailLineCount ?? 3, 3),
+      });
+      return { events: recent.events, nextCursor: recent.nextCursor };
     }
     if (event === "failed" || event === "timed_out") {
       const [firstFailure, errors, warnings, recent] = await Promise.all([
@@ -422,7 +436,13 @@ export class TaskNotificationService {
 }
 
 function slotForEvent(event: HarnessTaskEvent): NotificationSlot {
-  return event === "ready" ? "ready" : "terminal";
+  return event === "ready" || event === "ready_timeout" ? "ready" : "terminal";
+}
+
+function readinessEventForTask(task: TaskRecord): HarnessTaskEvent | undefined {
+  if (task.readiness.outcome === "ready") return "ready";
+  if (task.readiness.outcome === "timeout") return "ready_timeout";
+  return undefined;
 }
 
 function terminalEventForTask(task: TaskRecord): HarnessTaskEvent | undefined {
@@ -450,6 +470,7 @@ function stringValue(value: unknown): string | undefined {
 
 function taskEventValue(value: unknown): HarnessTaskEvent | undefined {
   return value === "ready" ||
+    value === "ready_timeout" ||
     value === "completed" ||
     value === "failed" ||
     value === "timed_out" ||

@@ -25,7 +25,8 @@ const taskStartItemParameters = Type.Object(
     ),
     readyTimeoutMs: Type.Optional(
       Type.Number({
-        description: "Readiness wait timeout in milliseconds",
+        description:
+          "Readiness wait timeout in milliseconds. Only applies when readyUrl, readyOnUrl, or readyPattern is provided; it does not stop the process.",
         minimum: 0,
         maximum: 60_000,
       }),
@@ -39,7 +40,9 @@ const taskStartItemParameters = Type.Object(
     ),
     notify: Type.Optional(
       Type.Boolean({
-        description: "Send concise asynchronous task updates to the agent",
+        description:
+          "Send concise asynchronous task updates to the agent. Defaults to true for agent task tools; set false to opt out.",
+        default: true,
       }),
     ),
   },
@@ -72,7 +75,8 @@ const taskStartParameters = Type.Object(
     ),
     readyTimeoutMs: Type.Optional(
       Type.Number({
-        description: "Readiness wait timeout in milliseconds",
+        description:
+          "Readiness wait timeout in milliseconds. Only applies when readyUrl, readyOnUrl, or readyPattern is provided; it does not stop the process.",
         minimum: 0,
         maximum: 60_000,
       }),
@@ -86,7 +90,9 @@ const taskStartParameters = Type.Object(
     ),
     notify: Type.Optional(
       Type.Boolean({
-        description: "Send concise asynchronous task updates to the agent",
+        description:
+          "Send concise asynchronous task updates to the agent. Defaults to true for agent task tools; set false to opt out.",
+        default: true,
       }),
     ),
     tasks: Type.Optional(
@@ -222,7 +228,9 @@ export const taskToolDefinitions = [
     promptGuidelines: [
       "Use task_start for tests, builds, dev servers, watchers, long commands, and commands whose result is not needed before continuing.",
       "After starting a task, continue independent work instead of polling immediately unless the next action truly depends on it.",
-      "Use timeoutMs for finite test/build jobs that should not run indefinitely; use readyTimeoutMs only for readiness checks.",
+      "Async task updates are enabled by default; set notify:false only when you intentionally do not need harness events.",
+      "Readiness checks are off unless you provide readyUrl, readyOnUrl, or readyPattern.",
+      "Use timeoutMs for finite test/build jobs that should not run indefinitely; readyTimeoutMs only bounds readiness detection and does not stop the process.",
       "Use task_status or task_list before reporting current task state because old transcript status may be stale.",
       "Prefer task names and group IDs returned by task_start when checking related tasks.",
       "Use task_logs for output and task_cancel to terminate a running task.",

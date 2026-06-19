@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   taskLogQueryResponseSchema,
   taskRecordSchema,
+  taskStatusSchema,
 } from "../tasks/index.js";
 
 /**
@@ -168,6 +169,25 @@ export type ToolExecutionResultPayload = z.infer<
   typeof toolExecutionResultSchema
 >;
 
+export const taskCancelOutcomeSchema = z.enum([
+  "cancelled",
+  "force_cancelled",
+  "already_terminal",
+  "became_terminal_before_cancel",
+  "no_matching_active_task",
+]);
+export type TaskCancelOutcomePayload = z.infer<typeof taskCancelOutcomeSchema>;
+
+export const taskCancelResultSchema = z.object({
+  taskId: z.string().startsWith("task_").optional(),
+  taskName: z.string().optional(),
+  requestedSignal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
+  outcome: taskCancelOutcomeSchema,
+  status: taskStatusSchema.optional(),
+  message: z.string(),
+});
+export type TaskCancelResultPayload = z.infer<typeof taskCancelResultSchema>;
+
 /** Result of task_start / task_cancel / task_restart. */
 export const taskActionResultSchema = z.object({
   task: taskRecordSchema.optional(),
@@ -175,6 +195,9 @@ export const taskActionResultSchema = z.object({
   groupId: z.string().startsWith("taskgrp_").optional(),
   groupName: z.string().optional(),
   restartedFromTaskId: z.string().startsWith("task_").optional(),
+  newTaskId: z.string().startsWith("task_").optional(),
+  restartRootTaskId: z.string().startsWith("task_").optional(),
+  cancelResults: z.array(taskCancelResultSchema).optional(),
   contentBlocks: z.array(toolContentBlockSchema).optional(),
 });
 export type TaskActionResult = z.infer<typeof taskActionResultSchema>;

@@ -1,4 +1,5 @@
 import type {
+  TaskCancelResultPayload,
   TaskLogEvent,
   TaskLogQueryResponse,
   TaskRecord,
@@ -27,6 +28,14 @@ export function taskCommandPreview(task: TaskRecord): string {
 
 export function formatReadiness(task: TaskRecord): string | undefined {
   if (task.readiness.outcome === "none") return undefined;
+  if (task.readiness.outcome === "timeout") {
+    const duration = task.readiness.timeoutMs
+      ? ` after ${task.readiness.timeoutMs}ms`
+      : "";
+    return isActiveTaskStatus(task.status)
+      ? `readiness=timeout${duration} (task still running)`
+      : `readiness=timeout${duration}`;
+  }
   const matched = task.readiness.matched ?? task.readiness.readyUrl;
   return matched
     ? `readiness=${task.readiness.outcome} ${truncateTaskText(matched, 80)}`
@@ -102,6 +111,13 @@ export function formatTaskStatusSummary(
     }
   }
   return lines.join("\n");
+}
+
+export function formatTaskCancelSummary(
+  results: TaskCancelResultPayload[],
+): string {
+  if (results.length === 0) return "No active matching tasks to cancel.";
+  return results.map((result) => `- ${result.message}`).join("\n");
 }
 
 export function formatTaskListSummary(tasks: TaskRecord[]): string {

@@ -221,11 +221,21 @@ export class TaskManager {
     }
 
     const readiness = this.taskReadiness.buildReadiness(request);
-    const notify =
-      request.notify ??
-      request.injectCompletion ??
-      request.origin?.kind === "agent_tool";
+    const notify = defaultTaskNotificationsEnabled(request);
     const injectCompletion = request.injectCompletion ?? false;
+    const restartSource = request.restartedFromTaskId
+      ? this.tasks.get(request.restartedFromTaskId)
+      : undefined;
+    const restartRootTaskId = restartSource
+      ? (restartSource.restartRootTaskId ?? restartSource.id)
+      : request.restartedFromTaskId
+        ? request.restartedFromTaskId
+        : id;
+    const restartGeneration = restartSource
+      ? (restartSource.restartGeneration ?? 0) + 1
+      : request.restartedFromTaskId
+        ? 1
+        : 0;
     const completion =
       request.completion ??
       (injectCompletion
@@ -260,6 +270,8 @@ export class TaskManager {
       updatedAt: now,
       timeoutMs: request.timeoutMs,
       restartedFromTaskId: request.restartedFromTaskId,
+      restartRootTaskId,
+      restartGeneration,
       origin: request.origin ?? { kind: "api" },
       completion,
       notifications,
@@ -1498,6 +1510,19 @@ export class TaskManager {
   private taskDir(taskId: string): string {
     return this.taskRepository.taskDir(taskId);
   }
+}
+
+function defaultTaskNotificationsEnabled(
+  request: StartTaskRequest & {
+    origin?: TaskRecord["origin"];
+    completion?: TaskRecord["completion"];
+  },
+): boolean {
+  if (request.notify !== undefined) return request.notify;
+  if (request.injectCompletion === true || request.completion?.inject === true)
+    return true;
+  if (request.origin?.kind === "agent_tool") return true;
+  return Boolean(request.agentId && request.conversationId);
 }
 
 function buildTaskEnvInfo(

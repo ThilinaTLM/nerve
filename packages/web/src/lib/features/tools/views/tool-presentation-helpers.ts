@@ -1,5 +1,6 @@
 import type { ToolCallRecord } from "$lib/api";
 import type { StatusTone } from "$lib/components/ui/status-dot";
+import { taskPulse, taskTone } from "$lib/core/utils/status";
 import type { CollapseInfo, MetaTone } from "./tool-presentation-types";
 import {
   aggregateExploreTasks,
@@ -81,6 +82,17 @@ export function statusDot(
     aggregateExploreTasks(view).summary.failed > 0
   ) {
     return { tone: "danger", pulse: false };
+  }
+  if (view.kind === "task_action") {
+    const task = view.task ?? view.tasks?.[0];
+    if (task)
+      return { tone: taskTone(task.status), pulse: taskPulse(task.status) };
+  }
+  if (view.kind === "task_logs" && view.task) {
+    return {
+      tone: taskTone(view.task.status),
+      pulse: taskPulse(view.task.status),
+    };
   }
   return { tone: "good", pulse: false };
 }

@@ -68,6 +68,16 @@ export const toolCallStatusSchema = z.enum([
 ]);
 export type ToolCallStatus = z.infer<typeof toolCallStatusSchema>;
 
+export const toolCallErrorDetailsSchema = z.object({
+  code: z.string().min(1),
+  message: z.string().min(1),
+  retryable: z.boolean().optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
+});
+export type ToolCallErrorDetails = z.infer<
+  typeof toolCallErrorDetailsSchema
+>;
+
 export const toolCallRecordSchema = z.object({
   id: z.string().startsWith("tool_"),
   agentId: z.string().startsWith("agent_"),
@@ -89,6 +99,7 @@ export const toolCallRecordSchema = z.object({
   suspensionId: z.string().startsWith("susp_").optional(),
   result: z.unknown().optional(),
   error: z.string().optional(),
+  errorDetails: toolCallErrorDetailsSchema.optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

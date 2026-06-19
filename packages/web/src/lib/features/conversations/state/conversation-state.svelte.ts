@@ -62,8 +62,12 @@ export type TaskEventNotice = {
   taskId?: string;
   taskName?: string;
   groupId?: string;
+  groupName?: string;
   event?: string;
   status?: string;
+  exitCode?: number;
+  signal?: string;
+  commandPreview?: string;
   nextCursor?: number;
   createdAt?: string;
 };
