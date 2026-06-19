@@ -396,7 +396,7 @@ describe("buildConversationTimeline", () => {
     ]);
   });
 
-  it("keeps completed unanchored tool calls visible during an active run", () => {
+  it("keeps completed unanchored tool calls visible for the active run", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Run tools" },
     ];
@@ -406,7 +406,7 @@ describe("buildConversationTimeline", () => {
         "2026-01-01T00:00:01.000Z",
         "bash",
         undefined,
-        { status: "completed" },
+        { runId: "run_active", status: "completed" },
       ),
     ];
 
@@ -419,6 +419,91 @@ describe("buildConversationTimeline", () => {
     assert.deepEqual(keys(timeline), [
       "entry_user",
       "tool_completed_during_run",
+    ]);
+  });
+
+  it("does not resurrect unrelated completed tool calls during another active run", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Run tools" },
+    ];
+    const toolCalls = [
+      toolCall(
+        "tool_completed_old_run",
+        "2026-01-01T00:00:01.000Z",
+        "bash",
+        undefined,
+        { runId: "run_old", status: "completed" },
+      ),
+    ];
+
+    const timeline = buildConversationTimeline(
+      transcript,
+      toolCalls,
+      liveState({ runId: "run_active" }),
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user"]);
+  });
+
+  it("orders active-run tool calls by live content index after draft removal", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Run tools" },
+    ];
+    const toolCalls = [
+      toolCall(
+        "tool_task_status",
+        "2026-01-01T00:00:02.000Z",
+        "task_status",
+        "provider_status",
+        {
+          runId: "run_active",
+          liveMessageId: "msg_active",
+          contentIndex: 1,
+          status: "completed",
+        },
+      ),
+    ];
+
+    const timeline = buildConversationTimeline(
+      transcript,
+      toolCalls,
+      liveState({
+        runId: "run_active",
+        messages: [
+          {
+            id: "live:msg_active:thinking:0",
+            role: "assistant",
+            displayKind: "thinking",
+            text: "I should check the task state.",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            contentIndex: 0,
+            live: false,
+            done: true,
+          },
+        ],
+        toolDrafts: [
+          {
+            kind: "tool_call_draft",
+            key: "live:msg_active:tool-draft:2",
+            runId: "run_active",
+            conversationId: "conv_01H00000000000000000000000",
+            contentIndex: 2,
+            providerToolCallId: "provider_start",
+            toolName: "task_start",
+            argsText: "",
+            done: false,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:03.000Z",
+          },
+        ],
+      }),
+    );
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "live:msg_active:thinking:0",
+      "tool_task_status",
+      "live:msg_active:tool-draft:2",
     ]);
   });
 
@@ -512,6 +597,40 @@ describe("buildConversationTimeline", () => {
       "bash",
       "provider_call_1",
       { status: "running" },
+    );
+    const timeline = buildConversationTimeline(
+      [{ id: "entry_user", role: "user", text: "Run command" }],
+      [matching],
+      liveState({
+        toolDrafts: [
+          {
+            kind: "tool_call_draft",
+            key: "live:run_1:tool-draft:0",
+            runId: "run_1",
+            conversationId: "conv_01H00000000000000000000000",
+            contentIndex: 0,
+            providerToolCallId: "provider_call_1",
+            toolName: "bash",
+            argsText: '{"command":"pwd"}',
+            done: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user", "tool_real"]);
+    assert.equal(timeline[1]?.kind, "tool");
+  });
+
+  it("matches live tool drafts by provider tool-call id", () => {
+    const matching = toolCall(
+      "tool_real",
+      "2026-01-01T00:00:01.000Z",
+      "bash",
+      undefined,
+      { providerToolCallId: "provider_call_1", status: "running" },
     );
     const timeline = buildConversationTimeline(
       [{ id: "entry_user", role: "user", text: "Run command" }],

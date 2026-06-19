@@ -1,3 +1,4 @@
+import { toolCallRecordSchema } from "@nerve/shared";
 import type {
   ConversationEntry,
   EventEnvelope,
@@ -30,6 +31,24 @@ import {
   updateTreeNodesForEntry,
 } from "./conversation-reducer-shared";
 
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function toolCallFromEntry(
+  entry: ConversationEntry,
+): ToolCallRecord | undefined {
+  const details = recordValue(entry.details);
+  const nestedDetails = recordValue(details?.details);
+  for (const candidate of [details?.toolCall, nestedDetails?.toolCall]) {
+    const parsed = toolCallRecordSchema.safeParse(candidate);
+    if (parsed.success) return parsed.data;
+  }
+  return undefined;
+}
+
 export function handleEntryAppended(
   view: ConversationViewState,
   entry: ConversationEntry | undefined,
@@ -59,9 +78,14 @@ export function handleEntryAppended(
         candidate.text === item.text,
     );
   });
+  handleToolCallUpdated(view, toolCallFromEntry(entry));
   if (entry.role === "assistant" && entry.liveMessageId) {
+    const livePrefix = `live:${entry.liveMessageId}:`;
     view.live.messages = view.live.messages.filter(
-      (item) => !item.id?.startsWith(`live:${entry.liveMessageId}:`),
+      (item) => !item.id?.startsWith(livePrefix),
+    );
+    view.live.toolDrafts = view.live.toolDrafts.filter(
+      (draft) => !draft.key.startsWith(livePrefix),
     );
     view.streamingText = liveTextFromLegacyLive(view.live);
   }

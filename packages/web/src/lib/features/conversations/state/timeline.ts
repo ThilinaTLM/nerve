@@ -53,13 +53,36 @@ function isLiveToolCall(toolCall: ToolCallRecord): boolean {
   );
 }
 
+function toolCallAliasIds(toolCall: ToolCallRecord): string[] {
+  return Array.from(
+    new Set(
+      [toolCall.sourceToolCallId, toolCall.providerToolCallId].filter(
+        (value): value is string => Boolean(value),
+      ),
+    ),
+  );
+}
+
+function isActiveRunPlacedToolCall(
+  toolCall: ToolCallRecord,
+  live: ConversationLiveState | undefined,
+): boolean {
+  return Boolean(
+    live?.runId &&
+      toolCall.runId === live.runId &&
+      typeof toolCall.contentIndex === "number",
+  );
+}
+
 function shouldAppendUnanchoredToolCall(
   toolCall: ToolCallRecord,
   liveOutput: LiveToolOutput | undefined,
   live: ConversationLiveState | undefined,
 ): boolean {
   return (
-    isLiveToolCall(toolCall) || Boolean(liveOutput) || Boolean(live?.runId)
+    isLiveToolCall(toolCall) ||
+    Boolean(liveOutput) ||
+    Boolean(live?.runId && toolCall.runId === live.runId)
   );
 }
 
@@ -70,10 +93,103 @@ function liveOutputFor(
   return live?.toolOutputByToolCallId[toolCallId];
 }
 
-function contentIndexOf(item: TranscriptItem | LiveToolCallDraft): number {
+function contentIndexOf(
+  item: TranscriptItem | LiveToolCallDraft | ToolCallRecord,
+): number {
   return typeof item.contentIndex === "number"
     ? item.contentIndex
     : Number.MAX_SAFE_INTEGER;
+}
+
+type LiveTimelineNode =
+  | { type: "message"; item: TranscriptItem }
+  | { type: "draft"; draft: LiveToolCallDraft }
+  | { type: "tool"; toolCall: ToolCallRecord };
+
+function liveMessageIdFromKey(key: string | undefined): string | undefined {
+  const match = key?.match(/^live:([^:]+):/);
+  return match?.[1];
+}
+
+function liveNodeMessageId(node: LiveTimelineNode): string | undefined {
+  if (node.type === "message") return liveMessageIdFromKey(node.item.id);
+  if (node.type === "draft") return liveMessageIdFromKey(node.draft.key);
+  return node.toolCall.liveMessageId;
+}
+
+function liveNodeContentIndex(node: LiveTimelineNode): number {
+  if (node.type === "message") return contentIndexOf(node.item);
+  if (node.type === "draft") return contentIndexOf(node.draft);
+  return contentIndexOf(node.toolCall);
+}
+
+function liveNodeCreatedAt(node: LiveTimelineNode): string {
+  if (node.type === "message") return node.item.createdAt ?? "";
+  if (node.type === "draft") return node.draft.createdAt;
+  return node.toolCall.createdAt;
+}
+
+function liveNodeStableKey(node: LiveTimelineNode): string {
+  if (node.type === "message") return node.item.id ?? "";
+  if (node.type === "draft") return node.draft.key;
+  return node.toolCall.id;
+}
+
+function liveNodeTypePriority(node: LiveTimelineNode): number {
+  if (node.type === "message") return 0;
+  if (node.type === "draft") return 1;
+  return 2;
+}
+
+function liveMessageOrder(nodes: LiveTimelineNode[]): Map<string, number> {
+  const firstByMessageId = new Map<
+    string,
+    { createdAt: string; sequence: number }
+  >();
+  for (const [sequence, node] of nodes.entries()) {
+    const messageId = liveNodeMessageId(node);
+    if (!messageId) continue;
+    const createdAt = liveNodeCreatedAt(node);
+    const current = firstByMessageId.get(messageId);
+    if (current && (current.createdAt || "9999") <= (createdAt || "9999")) {
+      continue;
+    }
+    firstByMessageId.set(messageId, { createdAt, sequence });
+  }
+
+  return new Map(
+    [...firstByMessageId.entries()]
+      .sort(([, a], [, b]) => {
+        const createdAtCmp = (a.createdAt || "9999").localeCompare(
+          b.createdAt || "9999",
+        );
+        return createdAtCmp !== 0 ? createdAtCmp : a.sequence - b.sequence;
+      })
+      .map(([messageId], index) => [messageId, index]),
+  );
+}
+
+function compareLiveTimelineNodes(
+  order: Map<string, number>,
+  a: LiveTimelineNode,
+  b: LiveTimelineNode,
+): number {
+  const aMessageOrder = order.get(liveNodeMessageId(a) ?? "") ?? order.size;
+  const bMessageOrder = order.get(liveNodeMessageId(b) ?? "") ?? order.size;
+  if (aMessageOrder !== bMessageOrder) return aMessageOrder - bMessageOrder;
+
+  const aIndex = liveNodeContentIndex(a);
+  const bIndex = liveNodeContentIndex(b);
+  if (aIndex !== bIndex) return aIndex - bIndex;
+
+  const aPriority = liveNodeTypePriority(a);
+  const bPriority = liveNodeTypePriority(b);
+  if (aPriority !== bPriority) return aPriority - bPriority;
+
+  const createdAtCmp = liveNodeCreatedAt(a).localeCompare(liveNodeCreatedAt(b));
+  return createdAtCmp !== 0
+    ? createdAtCmp
+    : liveNodeStableKey(a).localeCompare(liveNodeStableKey(b));
 }
 
 function runStatusTimelineKey(
@@ -101,11 +217,14 @@ export function buildConversationTimeline(
   const toolCallsById = new Map(
     orderedToolCalls.map((toolCall) => [toolCall.id, toolCall]),
   );
-  const toolCallsBySourceId = new Map(
-    orderedToolCalls.flatMap((toolCall) =>
-      toolCall.sourceToolCallId ? [[toolCall.sourceToolCallId, toolCall]] : [],
-    ),
-  );
+  const toolCallsByProviderId = new Map<string, ToolCallRecord>();
+  for (const toolCall of orderedToolCalls) {
+    for (const alias of toolCallAliasIds(toolCall)) {
+      if (!toolCallsByProviderId.has(alias)) {
+        toolCallsByProviderId.set(alias, toolCall);
+      }
+    }
+  }
   const consumedToolCallIds = new Set<string>();
 
   const hiddenEntryIds = new Set(live?.hiddenEntryIds ?? []);
@@ -168,7 +287,7 @@ export function buildConversationTimeline(
     const toolCall = item.toolRecordId
       ? toolCallsById.get(item.toolRecordId)
       : item.toolCallId
-        ? toolCallsBySourceId.get(item.toolCallId)
+        ? toolCallsByProviderId.get(item.toolCallId)
         : undefined;
     if (toolCall) {
       items.push({
@@ -217,7 +336,7 @@ export function buildConversationTimeline(
     }),
   );
 
-  const liveNodes = [
+  const liveNodes: LiveTimelineNode[] = [
     ...(live?.messages ?? []).map((item) => ({
       type: "message" as const,
       item,
@@ -226,12 +345,15 @@ export function buildConversationTimeline(
       type: "draft" as const,
       draft,
     })),
-  ].sort((a, b) => {
-    const aIndex = contentIndexOf(a.type === "message" ? a.item : a.draft);
-    const bIndex = contentIndexOf(b.type === "message" ? b.item : b.draft);
-    if (aIndex !== bIndex) return aIndex - bIndex;
-    return a.type.localeCompare(b.type);
-  });
+    ...orderedToolCalls
+      .filter((toolCall) => isActiveRunPlacedToolCall(toolCall, live))
+      .map((toolCall) => ({
+        type: "tool" as const,
+        toolCall,
+      })),
+  ];
+  const messageOrder = liveMessageOrder(liveNodes);
+  liveNodes.sort((a, b) => compareLiveTimelineNodes(messageOrder, a, b));
 
   for (const node of liveNodes) {
     if (node.type === "message") {
@@ -245,8 +367,21 @@ export function buildConversationTimeline(
       continue;
     }
 
+    if (node.type === "tool") {
+      if (!consumedToolCallIds.has(node.toolCall.id)) {
+        items.push({
+          kind: "tool",
+          key: node.toolCall.id,
+          toolCall: node.toolCall,
+          liveOutput: liveOutputFor(live, node.toolCall.id),
+        });
+        consumedToolCallIds.add(node.toolCall.id);
+      }
+      continue;
+    }
+
     const matchingToolCall = node.draft.providerToolCallId
-      ? toolCallsBySourceId.get(node.draft.providerToolCallId)
+      ? toolCallsByProviderId.get(node.draft.providerToolCallId)
       : undefined;
     if (matchingToolCall) {
       if (!consumedToolCallIds.has(matchingToolCall.id)) {

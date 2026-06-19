@@ -752,6 +752,7 @@ export class AgentRunner {
               runAssistant,
             )
           : undefined;
+        this.deps.state.conversationRuntime.failRun(runId);
         await this.deps.events.publish("conversation.run.failed", {
           agentId: agent.id,
           projectId: agent.projectId,
@@ -774,11 +775,11 @@ export class AgentRunner {
             errorMessage: runAssistant.errorMessage,
           },
         });
-        this.deps.state.conversationRuntime.failRun(runId);
         return assistantEntry;
       }
       if (latest) await this.deps.setAgentStatus(latest, "idle");
       const completedAt = new Date().toISOString();
+      this.deps.state.conversationRuntime.completeRun(runId);
       await this.deps.events.publish("conversation.run.completed", {
         agentId: agent.id,
         projectId: agent.projectId,
@@ -795,7 +796,6 @@ export class AgentRunner {
         durationMs: Math.round(performance.now() - runStartedAt),
         context: { finalEntryId: assistantEntry.id },
       });
-      this.deps.state.conversationRuntime.completeRun(runId);
       await this.maybeAutoCompact(agent.conversationId, agent.id, runId).catch(
         (error) => {
           process.emitWarning(
@@ -854,6 +854,7 @@ export class AgentRunner {
         });
         if (latest) await this.deps.setAgentStatus(latest, "awaiting_user");
         const suspendedAt = new Date().toISOString();
+        this.deps.state.conversationRuntime.completeRun(runId);
         await this.deps.events.publish("conversation.run.suspended", {
           agentId: agent.id,
           projectId: agent.projectId,
@@ -876,7 +877,6 @@ export class AgentRunner {
             reason: suspensionError.data.reason,
           },
         });
-        this.deps.state.conversationRuntime.completeRun(runId);
         if (lastAssistantEntry) return lastAssistantEntry;
         throw new Error("Agent run suspended without an assistant entry.");
       }
@@ -885,6 +885,7 @@ export class AgentRunner {
       const latest = this.deps.state.agents.get(agent.id);
       if (latest)
         await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
+      this.deps.state.conversationRuntime.failRun(runId);
       await this.deps.events.publish("conversation.run.failed", {
         agentId: agent.id,
         projectId: agent.projectId,
@@ -906,7 +907,6 @@ export class AgentRunner {
           error,
         },
       );
-      this.deps.state.conversationRuntime.failRun(runId);
       throw error;
     }
   }
