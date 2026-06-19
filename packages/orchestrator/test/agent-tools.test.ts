@@ -184,6 +184,42 @@ describe("agent tool definitions", () => {
     );
   });
 
+  it("documents bash foreground use and task_start background use", () => {
+    const bash = allToolDefinitions.find((tool) => tool.name === "bash");
+    const taskStart = allToolDefinitions.find(
+      (tool) => tool.name === "task_start",
+    );
+
+    assert.ok(bash);
+    assert.ok(taskStart);
+    assert.equal(bash.promptSnippet, "Execute short foreground shell commands");
+    assert.ok(
+      bash.promptGuidelines?.some((line) =>
+        line.includes("Use dedicated file tools when available"),
+      ),
+    );
+    assert.ok(
+      bash.promptGuidelines?.some((line) =>
+        line.includes("Use bash for short foreground commands"),
+      ),
+    );
+    assert.doesNotMatch(bash.promptSnippet ?? "", /ls, grep, find/);
+    assert.match(taskStart.description, /supervised background tasks/);
+    assert.ok(
+      taskStart.promptGuidelines?.some((line) =>
+        line.includes(
+          "For short finite commands and normal tests/checks, use bash",
+        ),
+      ),
+    );
+    assert.equal(
+      taskStart.promptGuidelines?.some((line) =>
+        line.includes("Use task_start for tests, builds"),
+      ),
+      false,
+    );
+  });
+
   it("defines explore as a parallel read-only delegation tool with required context", () => {
     const explore = allToolDefinitions.find((tool) => tool.name === "explore");
     assert.ok(explore);

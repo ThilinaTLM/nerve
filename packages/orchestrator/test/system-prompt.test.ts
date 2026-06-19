@@ -79,6 +79,48 @@ describe("Nerve system prompt", () => {
     assert.doesNotMatch(prompt, /task_start/);
   });
 
+  it("prefers dedicated file tools over bash file-operation guidance", () => {
+    const agent = testAgent();
+    const activeToolNames = activeToolNamesForAgent(agent);
+    const prompt = composeAgentSystemPrompt(
+      agent,
+      activeToolNames,
+      toolPromptMetadata(activeToolNames),
+      { contextFiles: [], skills: [] },
+    );
+
+    assert.match(prompt, /Use dedicated file tools when available:/);
+    assert.match(prompt, /Use bash for short foreground commands/);
+    assert.match(
+      prompt,
+      /For short finite commands and normal tests\/checks, use bash/,
+    );
+    assert.doesNotMatch(
+      prompt,
+      /Use bash for file operations like ls, rg, find/,
+    );
+    assert.doesNotMatch(
+      prompt,
+      /Use bash for file listing\/search only when dedicated grep\/find\/ls tools are unavailable/,
+    );
+  });
+
+  it("falls back to bash file listing/search guidance when dedicated tools are unavailable", () => {
+    const prompt = buildNerveSystemPrompt({
+      cwd: "/tmp/project",
+      selectedTools: ["bash"],
+    });
+
+    assert.match(
+      prompt,
+      /Use bash for file listing\/search only when dedicated grep\/find\/ls tools are unavailable\./,
+    );
+    assert.doesNotMatch(
+      prompt,
+      /Use bash for file operations like ls, rg, find/,
+    );
+  });
+
   it("omits skills when read is not active", async () => {
     const prompt = buildNerveSystemPrompt({
       cwd: "/tmp/project",

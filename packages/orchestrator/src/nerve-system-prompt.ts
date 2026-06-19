@@ -69,8 +69,10 @@ function defaultPrompt(options: {
   const hasGrep = options.selectedTools.includes("grep");
   const hasFind = options.selectedTools.includes("find");
   const hasLs = options.selectedTools.includes("ls");
-  if (hasBash && !hasGrep && !hasFind && !hasLs) {
-    addGuideline("Use bash for file operations like ls, rg, find");
+  if (hasBash && (!hasGrep || !hasFind || !hasLs)) {
+    addGuideline(
+      "Use bash for file listing/search only when dedicated grep/find/ls tools are unavailable.",
+    );
   }
   for (const guideline of options.promptGuidelines) addGuideline(guideline);
   if (options.mode !== "planning") {
