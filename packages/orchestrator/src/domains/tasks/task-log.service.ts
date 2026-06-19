@@ -229,15 +229,15 @@ function appendChunkAndTakeCompleteLines(
   return { lines: parts.slice(0, -1), remainder: parts.at(-1) ?? "" };
 }
 
-const WORD_LEFT_BOUNDARY = String.raw`(?:^|[^A-Za-z0-9_-])`;
-const WORD_RIGHT_BOUNDARY = String.raw`(?=$|[^A-Za-z0-9_-])`;
+const WORD_LEFT_BOUNDARY = "(?:^|[^A-Za-z0-9_-])";
+const WORD_RIGHT_BOUNDARY = "(?=$|[^A-Za-z0-9_-])";
 const warningPattern = new RegExp(
   `${WORD_LEFT_BOUNDARY}(warn|warning)${WORD_RIGHT_BOUNDARY}`,
   "i",
 );
 const stdoutErrorPattern = new RegExp(
   [
-    `${WORD_LEFT_BOUNDARY}(error|failed|failure|exception|fatal)${WORD_RIGHT_BOUNDARY}`,
+    `${WORD_LEFT_BOUNDARY}(failed|failure|exception|fatal)${WORD_RIGHT_BOUNDARY}`,
     "^\\s*(error|failed|failure|fatal)(:|\\b)",
     "^\\s*(fatal\\s+error|uncaught\\s+exception|traceback)(:|\\b)",
   ].join("|"),

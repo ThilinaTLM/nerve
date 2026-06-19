@@ -147,10 +147,13 @@ export class TaskNotificationService {
         (task.status === "ready" || task.status === "running")
       ) {
         await this.recoverNotification(task, readinessEvent).catch((error) =>
-          this.deps.logger?.warn("Task readiness notification recovery failed", {
-            taskId: task.id,
-            error,
-          }),
+          this.deps.logger?.warn(
+            "Task readiness notification recovery failed",
+            {
+              taskId: task.id,
+              error,
+            },
+          ),
         );
       }
       const terminalEvent = terminalEventForTask(task);

@@ -14,16 +14,23 @@ export class CodedToolError extends Error {
 
 export function toolErrorDetails(error: unknown): ToolCallErrorDetails {
   if (error instanceof CodedToolError) {
-    return {
+    const details: ToolCallErrorDetails = {
       code: error.code,
       message: error.message,
-      retryable: error.retryable || undefined,
-      details:
-        Object.keys(error.details).length > 0 ? error.details : undefined,
+    };
+    if (error.retryable) details.retryable = true;
+    if (Object.keys(error.details).length > 0) details.details = error.details;
+    return details;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  if (/^Tool argument '\w+'/.test(message)) {
+    return {
+      code: "TOOL_ARGUMENT_INVALID",
+      message,
     };
   }
   return {
     code: "INTERNAL_ERROR",
-    message: error instanceof Error ? error.message : String(error),
+    message,
   };
 }

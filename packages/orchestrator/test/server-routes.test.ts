@@ -116,6 +116,23 @@ describe("orchestrator server routes", () => {
     }
   });
 
+  it("returns structured not-found errors for missing task records", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const response = await app.request("/api/tasks/task_missing", {
+        headers,
+      });
+
+      assert.equal(response.status, 404);
+      assert.equal(
+        ((await response.json()) as { error: { code: string } }).error.code,
+        "TASK_NOT_FOUND",
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("opens registered projects in editors through the project API", async () => {
     const calls: Array<{ projectId: string; editor: string }> = [];
     const app = createProjectRoutes({

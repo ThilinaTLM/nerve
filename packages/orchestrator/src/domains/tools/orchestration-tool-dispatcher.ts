@@ -40,8 +40,8 @@ import {
   stringArg,
   stringRecordArg,
 } from "./tool-args.js";
-import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
 import { CodedToolError } from "./tool-errors.js";
+import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
 import type {
   ExploreProgressUpdate,
   ExploreRunner,
@@ -98,9 +98,8 @@ export class OrchestrationToolDispatcher {
           stringArg(args, "taskId"),
           toolCall,
         ).id;
-        const task = await this.restartTaskWithStructuredErrors(
-          restartedFromTaskId,
-        );
+        const task =
+          await this.restartTaskWithStructuredErrors(restartedFromTaskId);
         const label = task.name ? `${task.name} (${task.id})` : task.id;
         return {
           task,
@@ -507,9 +506,7 @@ export class OrchestrationToolDispatcher {
       const before = target;
       const after = await this.deps.tasks.cancelTask(target.id, request);
       cancelled.push(after);
-      cancelResults.push(
-        classifyCancelResult(before, after, requestedSignal),
-      );
+      cancelResults.push(classifyCancelResult(before, after, requestedSignal));
     }
     const bounded = await buildProcessTextResult({
       text: formatTaskCancelSummary(cancelResults),
@@ -875,7 +872,9 @@ export class OrchestrationToolDispatcher {
 }
 
 function newestTask(tasks: TaskRecord[]): TaskRecord {
-  return [...tasks].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] as TaskRecord;
+  return [...tasks].sort((a, b) =>
+    b.startedAt.localeCompare(a.startedAt),
+  )[0] as TaskRecord;
 }
 
 function taskReferenceDetails(task: TaskRecord): Record<string, unknown> {

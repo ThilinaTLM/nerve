@@ -34,10 +34,9 @@ describe("orchestration task tools", () => {
     });
     const dispatcher = await createDispatcher([rootTask, restarted]);
 
-    const result = (await dispatcher.execute(
-      toolCall("task_status"),
-      { taskId: "dev" },
-    )) as { tasks: Array<{ task: TaskRecord }> };
+    const result = (await dispatcher.execute(toolCall("task_status"), {
+      taskId: "dev",
+    })) as { tasks: Array<{ task: TaskRecord }> };
 
     assert.equal(result.tasks[0]?.task.id, restarted.id);
   });
@@ -95,7 +94,11 @@ describe("orchestration task tools", () => {
   });
 
   it("returns cancellation outcome metadata for terminal targets", async () => {
-    const completed = task({ id: "task_done", name: "done", status: "completed" });
+    const completed = task({
+      id: "task_done",
+      name: "done",
+      status: "completed",
+    });
     const dispatcher = await createDispatcher([completed], {
       cancelTask: async () => completed,
     });
@@ -147,8 +150,7 @@ async function createDispatcher(
         return restarted;
       }),
     cancelTask:
-      overrides.cancelTask ??
-      (async (taskId: string) => tasks.getTask(taskId)),
+      overrides.cancelTask ?? (async (taskId: string) => tasks.getTask(taskId)),
   };
 
   return new OrchestrationToolDispatcher({
@@ -161,7 +163,11 @@ async function createDispatcher(
     runExplore: async () => ({ reports: [] }),
     getApiKey: async () => undefined,
     plans: {},
-    setAgentMode: async () => ({ id: "agent_test", projectDir: root, mode: "coding" }),
+    setAgentMode: async () => ({
+      id: "agent_test",
+      projectDir: root,
+      mode: "coding",
+    }),
     conversationRuntime: {},
     todoState: { set() {}, get: () => [] },
     interactionSessions: {},

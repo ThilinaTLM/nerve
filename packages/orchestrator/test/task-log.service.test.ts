@@ -147,12 +147,13 @@ describe("task log service line buffering", () => {
       record,
       cursor,
       "stdout",
-      [
+      `${[
         "qa-fail:before-error",
+        "client-serialized error details",
         "ERROR: synthetic failure",
         "fatal failure",
         "warning: heads up",
-      ].join("\n") + "\n",
+      ].join("\n")}\n`,
       onLog,
     );
     await service.captureOutput(
@@ -168,6 +169,7 @@ describe("task log service line buffering", () => {
       events.map((event) => [event.stream, event.level, event.line]),
       [
         ["stdout", "info", "qa-fail:before-error"],
+        ["stdout", "info", "client-serialized error details"],
         ["stdout", "error", "ERROR: synthetic failure"],
         ["stdout", "error", "fatal failure"],
         ["stdout", "warn", "warning: heads up"],

@@ -74,9 +74,7 @@ export const toolCallErrorDetailsSchema = z.object({
   retryable: z.boolean().optional(),
   details: z.record(z.string(), z.unknown()).optional(),
 });
-export type ToolCallErrorDetails = z.infer<
-  typeof toolCallErrorDetailsSchema
->;
+export type ToolCallErrorDetails = z.infer<typeof toolCallErrorDetailsSchema>;
 
 export const toolCallRecordSchema = z.object({
   id: z.string().startsWith("tool_"),

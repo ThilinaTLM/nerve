@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   startTaskRequestSchema,
-  taskActionResultSchema,
   type TaskRecord,
+  taskActionResultSchema,
   taskEnvInfoSchema,
   taskLaunchConfigSchema,
   taskRecordSchema,
