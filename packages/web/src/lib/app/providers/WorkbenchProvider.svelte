@@ -93,7 +93,7 @@
   function refreshCenterTab(tab: CenterTabIdentity) {
     if (tab.kind === "conversation") void refreshConversationView(tab.id);
     else if (tab.kind === "pending-conversation") void selectCenterTab(tab);
-    else if (tab.kind === "process") void selectCenterTab(tab);
+    else if (tab.kind === "task") void selectCenterTab(tab);
     else if (tab.kind === "file") void refreshFilePane(tab.id);
     else if (tab.kind === "pr") void refreshPrPane(tab.id);
     else void loadSettingsPanel();

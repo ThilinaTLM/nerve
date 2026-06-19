@@ -1,7 +1,7 @@
 import { setMode, userPrefersMode } from "mode-watcher";
 
 export type ThemePreference = "system" | "light" | "dark";
-export type UtilityTab = "processes" | "info" | "git";
+export type UtilityTab = "tasks" | "info" | "git";
 
 export const layout = $state({
   utilityTab: "git" as UtilityTab,

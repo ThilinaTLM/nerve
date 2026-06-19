@@ -25,7 +25,7 @@ export type ApplicationLogContext = Partial<
     | "agentId"
     | "runId"
     | "toolCallId"
-    | "processId"
+    | "taskId"
     | "workerId"
     | "durationMs"
   >
@@ -183,7 +183,7 @@ export class ApplicationLogger {
       "agentId",
       "runId",
       "toolCallId",
-      "processId",
+      "taskId",
       "workerId",
     ] as const) {
       const value = query[key];
@@ -406,7 +406,7 @@ function pickLogRefs(context: ApplicationLogContext) {
     agentId: context.agentId,
     runId: context.runId,
     toolCallId: context.toolCallId,
-    processId: context.processId,
+    taskId: context.taskId,
     workerId: context.workerId,
   };
 }
@@ -431,7 +431,7 @@ function matchesLogPrune(
     "agentId",
     "runId",
     "toolCallId",
-    "processId",
+    "taskId",
     "workerId",
   ] as const) {
     const value = query[key];

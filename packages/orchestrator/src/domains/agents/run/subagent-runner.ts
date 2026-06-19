@@ -721,10 +721,10 @@ function summarizeToolCall(
       return `find ${quoteValue(args.pattern)}${pathSuffix(args)}`;
     case "ls":
       return `list ${stringValue(args.path) ?? "."}`;
-    case "process_logs":
-      return `inspect process logs${stringValue(args.mode) ? ` (${stringValue(args.mode)})` : ""}`;
-    case "process_list":
-      return "list managed processes";
+    case "task_logs":
+      return `inspect task logs${stringValue(args.mode) ? ` (${stringValue(args.mode)})` : ""}`;
+    case "task_list":
+      return "list managed tasks";
     default:
       return `ran ${toolName}`;
   }
@@ -972,7 +972,7 @@ export function exploreSystemPrompt(): string {
   return [
     "You are an Explore Agent specialized in reading and mapping codebases for a parent coding agent.",
     "Your job is to investigate the assigned area thoroughly using only the read-only tools made available to you.",
-    "You cannot edit files, write files, run shell commands, start processes, stop processes, ask the user questions, or change runtime state.",
+    "You cannot edit files, write files, run shell commands, start tasks, cancel tasks, ask the user questions, or change runtime state.",
     "Strategy:",
     "1. Start with grep/find/ls to locate relevant code quickly.",
     "2. Read targeted sections, not entire files, unless the file is small and central.",

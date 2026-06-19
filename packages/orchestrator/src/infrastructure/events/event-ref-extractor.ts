@@ -15,9 +15,8 @@ export function conversationIdForEvent(
     return toolCall.conversationId;
   const agent = data.agent as Record<string, unknown> | undefined;
   if (typeof agent?.conversationId === "string") return agent.conversationId;
-  const process = data.process as Record<string, unknown> | undefined;
-  if (typeof process?.conversationId === "string")
-    return process.conversationId;
+  const task = data.task as Record<string, unknown> | undefined;
+  if (typeof task?.conversationId === "string") return task.conversationId;
   const question = data.question as Record<string, unknown> | undefined;
   if (typeof question?.conversationId === "string")
     return question.conversationId;

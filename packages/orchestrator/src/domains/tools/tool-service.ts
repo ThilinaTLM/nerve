@@ -3,8 +3,8 @@ import type {
   AgentRecord,
   ApprovalRecord,
   Mode,
-  ProcessRecord,
-  StartProcessRequest,
+  StartTaskRequest,
+  TaskRecord,
   ToolCallRecord,
   ToolName,
   UserQuestionRecord,
@@ -21,8 +21,8 @@ import type {
   ToolAnchor,
 } from "../conversations/conversation-runtime.js";
 import type { PlanService } from "../plans/plan-service.js";
-import type { ProcessManager } from "../processes/process-manager.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
+import type { TaskManager } from "../tasks/task-manager.js";
 import {
   ApprovalRepository,
   evaluateToolPolicy,
@@ -110,9 +110,13 @@ export type ExploreRunner = (
   },
 ) => Promise<ExploreRunResult>;
 
-export type ProcessStarter = (
-  request: StartProcessRequest,
-) => Promise<ProcessRecord>;
+export type TaskStarter = (
+  request: StartTaskRequest & {
+    origin?: TaskRecord["origin"];
+    completion?: TaskRecord["completion"];
+    visibility?: TaskRecord["visibility"];
+  },
+) => Promise<TaskRecord>;
 
 export class ToolService {
   readonly toolCalls: Map<string, ToolCallRecord>;
@@ -134,9 +138,9 @@ export class ToolService {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     index: IndexStore,
-    private readonly processes: ProcessManager,
+    private readonly tasks: TaskManager,
     private readonly pythonRuntime: PythonRuntimeService,
-    private readonly startProcess: ProcessStarter,
+    private readonly startTask: TaskStarter,
     private readonly getAgent: (agentId: string) => AgentRecord,
     private readonly runExplore: ExploreRunner,
     private readonly getApiKey: (
@@ -167,9 +171,9 @@ export class ToolService {
     this.dispatcher = new OrchestrationToolDispatcher({
       storage: this.storage,
       events: this.events,
-      processes: this.processes,
+      tasks: this.tasks,
       pythonRuntime: this.pythonRuntime,
-      startProcess: this.startProcess,
+      startTask: this.startTask,
       getAgent: this.getAgent,
       runExplore: this.runExplore,
       getApiKey: this.getApiKey,

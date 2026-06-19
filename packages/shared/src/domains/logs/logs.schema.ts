@@ -38,7 +38,7 @@ export const applicationLogRecordSchema = z.object({
   agentId: z.string().startsWith("agent_").optional(),
   runId: z.string().startsWith("run_").optional(),
   toolCallId: z.string().startsWith("tool_").optional(),
-  processId: z.string().startsWith("proc_").optional(),
+  taskId: z.string().startsWith("task_").optional(),
   workerId: z.string().startsWith("worker_").optional(),
   durationMs: z.number().nonnegative().optional(),
   context: z.record(z.string(), z.unknown()).optional(),
@@ -59,7 +59,7 @@ export const applicationLogQuerySchema = z.object({
   agentId: z.string().startsWith("agent_").optional(),
   runId: z.string().startsWith("run_").optional(),
   toolCallId: z.string().startsWith("tool_").optional(),
-  processId: z.string().startsWith("proc_").optional(),
+  taskId: z.string().startsWith("task_").optional(),
   workerId: z.string().startsWith("worker_").optional(),
 });
 export type ApplicationLogQuery = z.infer<typeof applicationLogQuerySchema>;

@@ -116,7 +116,7 @@ Restrictions:
 - Use read-only research tools and planning-safe bash commands: read files, grep/find/ls, explore, web search/fetch, and planning-safe python when available.
 - WRITE and EDIT only plan files inside ${planDir}/.
 - NO code modifications outside the plans directory.
-- Bash is guarded on a best-effort blacklist basis; avoid commands that modify files, install/update dependencies, deploy, or run long-running processes.
+- Bash is guarded on a best-effort blacklist basis; avoid commands that modify files, install/update dependencies, deploy, or run long-running tasks.
 
 ## Your Role
 

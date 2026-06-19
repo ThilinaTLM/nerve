@@ -1,18 +1,18 @@
 import type {
   AgentRecord,
   ConversationRecord,
-  ProcessRecord,
   ProjectRecord,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
+  TaskRecord,
 } from "@nerve/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { ApplicationLogger } from "../../logging.js";
 import type { ConversationRepository } from "../conversations/index.js";
 
-export interface PruneConversationsProcessPort {
-  activeProcessesForConversations(conversationIds: string[]): ProcessRecord[];
-  removeInactiveProcessesForConversations(
+export interface PruneConversationsTaskPort {
+  activeTasksForConversations(conversationIds: string[]): TaskRecord[];
+  removeInactiveTasksForConversations(
     conversationIds: string[],
   ): Promise<string[]>;
 }
@@ -36,7 +36,7 @@ export interface PruneProjectConversationsServiceDeps {
   getProject: (projectId: string) => ProjectRecord;
   listConversations: () => ConversationRecord[];
   agents: Map<string, AgentRecord>;
-  processes: PruneConversationsProcessPort;
+  tasks: PruneConversationsTaskPort;
   tools: PruneConversationsToolPort;
   plans: PruneConversationsPlanPort;
   suspensions: PruneConversationsSuspensionPort;
@@ -63,10 +63,10 @@ export class PruneProjectConversationsService {
       .filter((conversation) => conversation.projectId === projectId);
     const candidates = this.pruneCandidates(projectConversations, request);
     const candidateIds = candidates.map((conversation) => conversation.id);
-    const activeProcessConversationIds = new Set(
-      this.deps.processes
-        .activeProcessesForConversations(candidateIds)
-        .map((process) => process.conversationId)
+    const activeTaskConversationIds = new Set(
+      this.deps.tasks
+        .activeTasksForConversations(candidateIds)
+        .map((task) => task.conversationId)
         .filter((conversationId): conversationId is string =>
           Boolean(conversationId),
         ),
@@ -90,10 +90,10 @@ export class PruneProjectConversationsService {
         });
         continue;
       }
-      if (activeProcessConversationIds.has(conversation.id)) {
+      if (activeTaskConversationIds.has(conversation.id)) {
         skipped.push({
           conversationId: conversation.id,
-          reason: "active_process",
+          reason: "active_task",
         });
         continue;
       }
@@ -101,8 +101,8 @@ export class PruneProjectConversationsService {
       prunedAgentIds.push(...agents.map((agent) => agent.id));
     }
 
-    const prunedProcessIds =
-      await this.deps.processes.removeInactiveProcessesForConversations(
+    const prunedTaskIds =
+      await this.deps.tasks.removeInactiveTasksForConversations(
         prunedConversationIds,
       );
     await this.deps.tools.removeRecordsForConversations(
@@ -131,7 +131,7 @@ export class PruneProjectConversationsService {
       projectId,
       strategy: request.strategy,
       prunedConversationIds,
-      prunedProcessIds,
+      prunedTaskIds,
       skipped,
     };
     await this.deps.events.publish("project.conversations.pruned", response);

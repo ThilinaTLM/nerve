@@ -1,8 +1,8 @@
 import { z } from "zod";
 import {
-  processLogQueryResponseSchema,
-  processRecordSchema,
-} from "../processes/index.js";
+  taskLogQueryResponseSchema,
+  taskRecordSchema,
+} from "../tasks/index.js";
 
 /**
  * Result contracts shared between the `@nerve/tools` executors (producers) and the
@@ -168,21 +168,27 @@ export type ToolExecutionResultPayload = z.infer<
   typeof toolExecutionResultSchema
 >;
 
-/** Result of process_start / process_stop / process_restart. */
-export const processActionResultSchema = z.object({
-  process: processRecordSchema,
+/** Result of task_start / task_cancel / task_restart. */
+export const taskActionResultSchema = z.object({
+  task: taskRecordSchema.optional(),
+  tasks: z.array(taskRecordSchema).optional(),
+  restartedFromTaskId: z.string().startsWith("task_").optional(),
+  contentBlocks: z.array(toolContentBlockSchema).optional(),
 });
-export type ProcessActionResult = z.infer<typeof processActionResultSchema>;
+export type TaskActionResult = z.infer<typeof taskActionResultSchema>;
 
-/** Result of process_list. */
-export const processListResultSchema = z.object({
-  processes: z.array(processRecordSchema),
+/** Result of task_list. */
+export const taskListResultSchema = z.object({
+  tasks: z.array(taskRecordSchema),
+  contentBlocks: z.array(toolContentBlockSchema).optional(),
 });
-export type ProcessListResult = z.infer<typeof processListResultSchema>;
+export type TaskListResult = z.infer<typeof taskListResultSchema>;
 
-/** Result of process_logs (re-export of the existing query response shape). */
-export const processLogsResultSchema = processLogQueryResponseSchema;
-export type ProcessLogsResult = z.infer<typeof processLogsResultSchema>;
+/** Result of task_logs (re-export of the existing query response shape). */
+export const taskLogsResultSchema = taskLogQueryResponseSchema.extend({
+  contentBlocks: z.array(toolContentBlockSchema).optional(),
+});
+export type TaskLogsResult = z.infer<typeof taskLogsResultSchema>;
 
 /** Result of explore. */
 export const exploreUsageStatsSchema = z.object({

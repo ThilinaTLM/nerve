@@ -8,7 +8,7 @@
   import type {
     AgentRecord,
     ContextUsage,
-    ProcessRecord,
+    TaskRecord,
     ProjectRecord,
     ConversationRecord,
   } from "$lib/api";
@@ -22,7 +22,7 @@
     connection?: string;
     live?: boolean;
     pendingApprovals?: number;
-    processes?: ProcessRecord[];
+    tasks?: TaskRecord[];
     branchDepth?: number;
     activeAgent?: AgentRecord;
     activeConversation?: ConversationRecord;
@@ -35,7 +35,7 @@
     connection = "connecting",
     live = false,
     pendingApprovals = 0,
-    processes = [],
+    tasks = [],
     branchDepth = 0,
     activeAgent,
     activeConversation,
@@ -53,8 +53,8 @@
     return `${formatTokens(contextUsage.tokens)}/${window} · ${contextUsage.percent.toFixed(1)}%`;
   });
 
-  const activeProcesses = $derived(
-    processes.filter((process) => ["starting", "running", "ready", "stopping"].includes(process.status)).length,
+  const activeTasks = $derived(
+    tasks.filter((task) => ["starting", "running", "ready", "stopping"].includes(task.status)).length,
   );
   const connectionTone = $derived<StatusTone>(live ? "good" : connection === "error" ? "danger" : connection === "closed" ? "warn" : "neutral");
   const summary = $derived(live ? "Connected" : connection);
@@ -76,7 +76,7 @@
     <header>
       <div>
         <strong>Runtime status</strong>
-        <span>Daemon, approvals, processes, and active agent.</span>
+        <span>Daemon, approvals, tasks, and active agent.</span>
       </div>
       <Badge size="xs" tone={connectionTone}>{summary}</Badge>
     </header>
@@ -91,8 +91,8 @@
         <strong>{pendingApprovals} pending</strong>
       </section>
       <section>
-        <span><Terminal size={12} strokeWidth={2.2} />Processes</span>
-        <strong>{activeProcesses}/{processes.length} active</strong>
+        <span><Terminal size={12} strokeWidth={2.2} />Tasks</span>
+        <strong>{activeTasks}/{tasks.length} active</strong>
       </section>
       <section>
         <span><GitBranch size={12} strokeWidth={2.2} />Branch depth</span>

@@ -44,9 +44,6 @@ export type {
   OpenProjectInEditorResponse,
   PinnedCommand,
   PlanReviewRecord,
-  ProcessLogEvent,
-  ProcessLogQueryResponse,
-  ProcessRecord,
   ProjectEditor,
   ProjectRecord,
   PruneProjectConversationsRequest,
@@ -54,10 +51,13 @@ export type {
   QueuedPromptRecord,
   RespondOAuthFlowRequest,
   Settings,
-  StartProcessRequest,
+  StartTaskRequest,
   StatusResponse,
   SubscriptionUsage,
   SubscriptionWindow,
+  TaskLogEvent,
+  TaskLogQueryResponse,
+  TaskRecord,
   ToolCallRecord,
   UpdateSettingsRequest,
   UserQuestionRecord,
@@ -71,9 +71,9 @@ export * from "./features/conversations/api/conversations.api";
 export * from "./features/filesystem/api/filesystem.api";
 export * from "./features/git/api/git.api";
 export * from "./features/logs/api/logs.api";
-export * from "./features/processes/api/processes.api";
 export * from "./features/projects/api/projects.api";
 export * from "./features/settings/api/settings.api";
+export * from "./features/tasks/api/tasks.api";
 export * from "./features/tools/api/tools.api";
 export * from "./features/usage/api/usage.api";
 export * from "./features/workspace/api/workspace.api";

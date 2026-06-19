@@ -124,7 +124,7 @@
       Removes up to <strong>{removeCount}</strong> of {totalCount} conversation{totalCount ===
       1
         ? ""
-        : "s"}. Active conversations and processes are skipped.
+        : "s"}. Active conversations and tasks are skipped.
     </p>
   </div>
 

@@ -14,8 +14,7 @@ export function tabIdentity(tab: CenterTabModel): TabIdentity {
 }
 
 export function tabLabel(tab: CenterTabModel): string {
-  if (tab.kind === "process")
-    return tab.process?.name ?? tab.process?.command ?? tab.id;
+  if (tab.kind === "task") return tab.task?.name ?? tab.task?.command ?? tab.id;
   if (tab.kind === "file")
     return (
       tab.file?.name ??
@@ -31,9 +30,9 @@ export function tabLabel(tab: CenterTabModel): string {
 }
 
 export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
-  if (tab.kind === "process") {
-    if (!tab.process) return `Missing process · ${tab.id}`;
-    return `${tab.process.name ?? tab.process.command} · ${tab.process.status} · ${shortenPath(tab.process.cwd, homeDir)} · ${tab.process.id}`;
+  if (tab.kind === "task") {
+    if (!tab.task) return `Missing task · ${tab.id}`;
+    return `${tab.task.name ?? tab.task.command} · ${tab.task.status} · ${shortenPath(tab.task.cwd, homeDir)} · ${tab.task.id}`;
   }
   if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
   if (tab.kind === "pr")
@@ -58,10 +57,10 @@ export function statusLabel(tab: CenterTabModel): string | undefined {
     return tab.activity.label ?? (tab.hasDraft ? "Unsaved draft" : undefined);
   }
   if (tab.sending) {
-    if (tab.kind === "process") return "Process active";
+    if (tab.kind === "task") return "Task active";
     if (tab.kind === "file") return "Loading file";
   }
-  if (tab.kind === "process") return tab.process?.status ?? "missing";
+  if (tab.kind === "task") return tab.task?.status ?? "missing";
   if (tab.kind === "file" && tab.file?.truncated) return "Truncated";
   return undefined;
 }

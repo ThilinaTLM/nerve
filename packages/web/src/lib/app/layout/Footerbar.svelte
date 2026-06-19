@@ -8,7 +8,7 @@
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type {
     AgentRecord,
-    ProcessRecord,
+    TaskRecord,
     ProjectRecord,
     ConversationRecord,
     SubscriptionUsage,
@@ -28,7 +28,7 @@
     connection?: string;
     live?: boolean;
     pendingApprovals?: number;
-    processes?: ProcessRecord[];
+    tasks?: TaskRecord[];
     branchDepth?: number;
     gitStatus?: GitStatus;
     subscriptionUsage?: SubscriptionUsage;
@@ -48,7 +48,7 @@
     connection = "connecting",
     live = false,
     pendingApprovals = 0,
-    processes = [],
+    tasks = [],
     branchDepth = 0,
     gitStatus,
     subscriptionUsage,
@@ -61,9 +61,9 @@
     onToggleUtility,
   }: Props = $props();
 
-  const activeProcesses = $derived(
-    processes.filter((process) =>
-      ["starting", "running", "ready", "stopping"].includes(process.status),
+  const activeTasks = $derived(
+    tasks.filter((task) =>
+      ["starting", "running", "ready", "stopping"].includes(task.status),
     ).length,
   );
   const projectPath = $derived(
@@ -99,10 +99,10 @@
       </span>
     {/if}
 
-    {#if activeProcesses > 0}
-      <span class="footer-chip" title="Running processes">
+    {#if activeTasks > 0}
+      <span class="footer-chip" title="Running tasks">
         <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
-        <span>{activeProcesses}</span>
+        <span>{activeTasks}</span>
       </span>
     {/if}
 
@@ -123,7 +123,7 @@
       {activeAgent}
       {activeConversation}
       {activeProject}
-      {processes}
+      {tasks}
       {branchDepth}
       {pendingApprovals}
       side="top"

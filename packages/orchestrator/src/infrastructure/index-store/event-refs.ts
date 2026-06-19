@@ -18,9 +18,9 @@ export function refsForEvent(event: EventEnvelope): EventRefs {
   copyNestedRef(data.project, refs, "projectId", "id");
   copyNestedRef(data.conversation, refs, "conversationId", "id");
   copyNestedRef(data.agent, refs, "agentId", "id");
-  copyNestedRef(data.process, refs, "projectId", "projectId");
-  copyNestedRef(data.process, refs, "conversationId", "conversationId");
-  copyNestedRef(data.process, refs, "agentId", "agentId");
+  copyNestedRef(data.task, refs, "projectId", "projectId");
+  copyNestedRef(data.task, refs, "conversationId", "conversationId");
+  copyNestedRef(data.task, refs, "agentId", "agentId");
   copyNestedRef(data.question, refs, "projectId", "projectId");
   copyNestedRef(data.question, refs, "conversationId", "conversationId");
   copyNestedRef(data.question, refs, "agentId", "agentId");

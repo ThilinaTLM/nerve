@@ -4,7 +4,7 @@
   import FileShell from "$lib/features/filesystem/components/FileShell.svelte";
   import PrShell from "$lib/features/git/components/PrShell.svelte";
   import LogsShell from "$lib/features/logs/components/LogsShell.svelte";
-  import ProcessShell from "$lib/features/processes/components/ProcessShell.svelte";
+  import TaskShell from "$lib/features/tasks/components/TaskShell.svelte";
   import SettingsShell from "$lib/features/settings/components/SettingsShell.svelte";
   import { refreshConversationView } from "$lib/features/conversations";
   import {
@@ -33,7 +33,7 @@
   function refreshCenterTab(tab: CenterTabIdentity) {
     if (tab.kind === "conversation") void refreshConversationView(tab.id);
     else if (tab.kind === "pending-conversation") void selectCenterTab(tab);
-    else if (tab.kind === "process") void selectCenterTab(tab);
+    else if (tab.kind === "task") void selectCenterTab(tab);
     else if (tab.kind === "file") void refreshFilePane(tab.id);
     else if (tab.kind === "pr") void refreshPrPane(tab.id);
     else void loadSettingsPanel();
@@ -66,8 +66,8 @@
   onNewConversation={newConversation}
 />
 
-{#if activeCenterTab?.kind === "process"}
-  <ProcessShell />
+{#if activeCenterTab?.kind === "task"}
+  <TaskShell />
 {:else if activeCenterTab?.kind === "file"}
   <FileShell />
 {:else if activeCenterTab?.kind === "pr"}

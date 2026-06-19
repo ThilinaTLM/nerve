@@ -21,7 +21,7 @@ describe("tool draft argument streaming policy", () => {
       "python",
       "read",
       "grep",
-      "process_logs",
+      "task_logs",
       "explore",
     ]) {
       assert.equal(shouldStreamToolDraftArguments(toolName), true, toolName);

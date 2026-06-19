@@ -47,17 +47,17 @@ export function agentActivityPulse(
   return status === "running" || active;
 }
 
-// Process-specific tone mapping. Unlike `statusTone`, a clean stop/exit reads
+// Task-specific tone mapping. Unlike `statusTone`, a finished task reads
 // as muted (neutral) rather than "good" (green), which is misleading for a
-// process that is no longer running.
-export function processTone(status: string | undefined): StatusTone {
+// task that is no longer running.
+export function taskTone(status: string | undefined): StatusTone {
   if (status === "running" || status === "ready") return "good";
   if (status === "starting" || status === "stopping") return "warn";
-  if (status === "error" || status === "orphaned") return "danger";
+  if (status === "failed" || status === "orphaned") return "danger";
   return "neutral";
 }
 
-export function processPulse(status: string | undefined): boolean {
+export function taskPulse(status: string | undefined): boolean {
   return (
     status === "running" ||
     status === "ready" ||

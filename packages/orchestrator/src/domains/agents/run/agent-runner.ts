@@ -709,6 +709,7 @@ export class AgentRunner {
             await this.activeToolNamesFor(updatedAgent),
           );
         },
+        appendExternalMessage: (input) => harness.appendExternalMessage(input),
       });
       await this.deps.setAgentStatus(agent, "running");
 

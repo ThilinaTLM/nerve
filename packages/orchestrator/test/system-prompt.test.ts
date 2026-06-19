@@ -76,7 +76,7 @@ describe("Nerve system prompt", () => {
       /Tools available in this conversation include: read, grep\./,
     );
     assert.doesNotMatch(prompt, /write/);
-    assert.doesNotMatch(prompt, /process_start/);
+    assert.doesNotMatch(prompt, /task_start/);
   });
 
   it("omits skills when read is not active", async () => {

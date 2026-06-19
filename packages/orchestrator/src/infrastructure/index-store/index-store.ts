@@ -4,8 +4,8 @@ import type {
   ApprovalRecord,
   ConversationRecord,
   EventEnvelope,
-  ProcessRecord,
   ProjectRecord,
+  TaskRecord,
   ToolCallRecord,
   UserQuestionRecord,
   WorkerRecord,
@@ -18,7 +18,7 @@ export interface IndexCounts {
   conversations: number;
   agents: number;
   events: number;
-  processes: number;
+  tasks: number;
   workers: number;
   userQuestions: number;
 }
@@ -28,7 +28,7 @@ export interface RebuildIndexInput {
   conversations: ConversationRecord[];
   agents: AgentRecord[];
   events: EventEnvelope[];
-  processes?: ProcessRecord[];
+  tasks?: TaskRecord[];
   workers?: WorkerRecord[];
   toolCalls?: ToolCallRecord[];
   approvals?: ApprovalRecord[];
@@ -164,11 +164,11 @@ export class IndexStore {
     });
   }
 
-  upsertProcess(process: ProcessRecord): void {
+  upsertTask(task: TaskRecord): void {
     this.guard(() => {
       this.db
         .prepare(
-          `INSERT INTO processes (
+          `INSERT INTO tasks (
              id, name, project_id, conversation_id, agent_id, cwd, command,
              status, started_at, updated_at, json
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -184,24 +184,24 @@ export class IndexStore {
              json = excluded.json`,
         )
         .run(
-          process.id,
-          process.name ?? null,
-          process.projectId ?? null,
-          process.conversationId ?? null,
-          process.agentId ?? null,
-          process.cwd,
-          process.command,
-          process.status,
-          process.startedAt,
-          process.updatedAt,
-          JSON.stringify(process),
+          task.id,
+          task.name ?? null,
+          task.projectId ?? null,
+          task.conversationId ?? null,
+          task.agentId ?? null,
+          task.cwd,
+          task.command,
+          task.status,
+          task.startedAt,
+          task.updatedAt,
+          JSON.stringify(task),
         );
     });
   }
 
-  deleteProcess(processId: string): void {
+  deleteTask(taskId: string): void {
     this.guard(() => {
-      this.db.prepare("DELETE FROM processes WHERE id = ?").run(processId);
+      this.db.prepare("DELETE FROM tasks WHERE id = ?").run(taskId);
     });
   }
 
@@ -313,7 +313,7 @@ export class IndexStore {
       this.db.exec("BEGIN IMMEDIATE");
       try {
         this.db.exec(
-          "DELETE FROM user_questions; DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM processes; DELETE FROM workers; DELETE FROM events_index; DELETE FROM agents; DELETE FROM conversations; DELETE FROM projects;",
+          "DELETE FROM user_questions; DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM tasks; DELETE FROM workers; DELETE FROM events_index; DELETE FROM agents; DELETE FROM conversations; DELETE FROM projects;",
         );
         for (const question of input.userQuestions ?? [])
           this.upsertUserQuestion(question);
@@ -326,8 +326,7 @@ export class IndexStore {
         for (const conversation of input.conversations)
           this.upsertConversation(conversation);
         for (const agent of input.agents) this.upsertAgent(agent);
-        for (const process of input.processes ?? [])
-          this.upsertProcess(process);
+        for (const task of input.tasks ?? []) this.upsertTask(task);
         for (const event of input.events) this.insertEvent(event);
         this.db.exec("COMMIT");
       } catch (error) {
@@ -343,7 +342,7 @@ export class IndexStore {
       conversations: this.countTable("conversations"),
       agents: this.countTable("agents"),
       events: this.countTable("events_index"),
-      processes: this.countTable("processes"),
+      tasks: this.countTable("tasks"),
       workers: this.countTable("workers"),
       userQuestions: this.countTable("user_questions"),
     }));

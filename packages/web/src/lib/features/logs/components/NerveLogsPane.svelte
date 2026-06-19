@@ -60,7 +60,7 @@
       log.agentId,
       log.runId,
       log.toolCallId,
-      log.processId,
+      log.taskId,
     ].filter((value): value is string => Boolean(value));
   }
 

@@ -11,7 +11,7 @@ import type { CenterTabIdentity } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { saveConversationTabs } from "$lib/features/conversations/state/conversation-tabs";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
-import { processState } from "$lib/features/processes/state/process-state.svelte";
+import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
   composerDraft,
   resetSelection,
@@ -164,13 +164,11 @@ export async function closeCenterTabs(
   }
 
   if (
-    processState.selectedProcessId &&
-    targets.has(
-      centerTabKey({ kind: "process", id: processState.selectedProcessId }),
-    )
+    taskState.selectedTaskId &&
+    targets.has(centerTabKey({ kind: "task", id: taskState.selectedTaskId }))
   ) {
-    processState.selectedProcessId = undefined;
-    processState.processLogs = undefined;
+    taskState.selectedTaskId = undefined;
+    taskState.taskLogs = undefined;
   }
 
   const remainingConversationIds = remainingTabs

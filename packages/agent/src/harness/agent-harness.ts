@@ -674,6 +674,24 @@ export class AgentHarness<
     }
   }
 
+  async appendExternalMessage(input: {
+    id: string;
+    message: AgentMessage;
+    timestamp?: string;
+  }): Promise<void> {
+    try {
+      await queueOrWriteMessage(
+        this.phase,
+        this.pendingConversationWrites,
+        this.conversation,
+        input.message,
+        { id: input.id, timestamp: input.timestamp },
+      );
+    } catch (error) {
+      throw normalizeHarnessError(error, "conversation");
+    }
+  }
+
   async compact(customInstructions?: string): Promise<{
     summary: string;
     firstKeptEntryId: string;

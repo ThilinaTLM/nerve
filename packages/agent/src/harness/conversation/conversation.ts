@@ -76,11 +76,22 @@ export class Conversation<
   }
 
   async appendMessage(message: AgentMessage): Promise<string> {
+    return this.appendMessageWithId(
+      await this.storage.createEntryId(),
+      message,
+    );
+  }
+
+  async appendMessageWithId(
+    id: string,
+    message: AgentMessage,
+    timestamp = new Date().toISOString(),
+  ): Promise<string> {
     return this.appendTypedEntry({
       type: "message",
-      id: await this.storage.createEntryId(),
+      id,
       parentId: await this.storage.getLeafId(),
-      timestamp: new Date().toISOString(),
+      timestamp,
       message,
     } satisfies MessageEntry);
   }

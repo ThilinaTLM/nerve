@@ -3,10 +3,11 @@ import {
   bashResultDetailsSchema,
   editResultDetailsSchema,
   exploreResultSchema,
-  processActionResultSchema,
-  processListResultSchema,
-  processLogsResultSchema,
   pythonResultDetailsSchema,
+  taskActionResultSchema,
+  taskListResultSchema,
+  taskLogsResultSchema,
+  taskRecordSchema,
   todosResultSchema,
   webFetchResultDetailsSchema,
   webSearchResultDetailsSchema,
@@ -272,38 +273,56 @@ export function parseToolView(
       };
     }
 
-    case "process_start":
-    case "process_stop":
-    case "process_restart": {
-      const action = toolCall.toolName.replace("process_", "") as
+    case "task_start":
+    case "task_cancel":
+    case "task_restart": {
+      const action = toolCall.toolName.replace("task_", "") as
         | "start"
-        | "stop"
+        | "cancel"
         | "restart";
-      const parsed = processActionResultSchema.safeParse(toolCall.result);
-      const process = parsed.success ? parsed.data.process : undefined;
+      const parsed = taskActionResultSchema.safeParse(toolCall.result);
+      const task = parsed.success ? parsed.data.task : undefined;
+      const tasks = parsed.success ? parsed.data.tasks : undefined;
       return {
-        kind: "process_action",
+        kind: "task_action",
         action,
-        process,
+        task,
+        tasks,
       };
     }
 
-    case "process_list": {
-      const parsed = processListResultSchema.safeParse(toolCall.result);
-      const processes = parsed.success ? parsed.data.processes : [];
+    case "task_status": {
+      const result = asRecord(toolCall.result);
+      const rows = Array.isArray(result.tasks) ? result.tasks : [];
+      const tasks = rows
+        .map((row) => {
+          const record = asRecord(row);
+          return taskRecordSchema.safeParse(record.task ?? record);
+        })
+        .filter((parsed) => parsed.success)
+        .map((parsed) => parsed.data);
       return {
-        kind: "process_list",
-        processes,
+        kind: "task_list",
+        tasks,
       };
     }
 
-    case "process_logs": {
-      const parsed = processLogsResultSchema.safeParse(toolCall.result);
+    case "task_list": {
+      const parsed = taskListResultSchema.safeParse(toolCall.result);
+      const tasks = parsed.success ? parsed.data.tasks : [];
+      return {
+        kind: "task_list",
+        tasks,
+      };
+    }
+
+    case "task_logs": {
+      const parsed = taskLogsResultSchema.safeParse(toolCall.result);
       const data = parsed.success ? parsed.data : undefined;
       const events = data?.events ?? [];
       return {
-        kind: "process_logs",
-        process: data?.process,
+        kind: "task_logs",
+        task: data?.task,
         events,
         mode: data?.mode,
       };

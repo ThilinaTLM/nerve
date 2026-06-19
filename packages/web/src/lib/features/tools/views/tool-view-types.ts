@@ -2,10 +2,10 @@ import type {
   ExploreReportPayload,
   FileEntry,
   GrepMatch,
-  ProcessLogEvent,
-  ProcessRecord,
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
+  TaskLogEvent,
+  TaskRecord,
   TodoItem,
 } from "@nerve/shared";
 
@@ -160,15 +160,16 @@ export type ToolView =
       total: number;
     }
   | {
-      kind: "process_action";
-      action: "start" | "stop" | "restart";
-      process?: ProcessRecord;
+      kind: "task_action";
+      action: "start" | "cancel" | "restart";
+      task?: TaskRecord;
+      tasks?: TaskRecord[];
     }
-  | { kind: "process_list"; processes: ProcessRecord[] }
+  | { kind: "task_list"; tasks: TaskRecord[] }
   | {
-      kind: "process_logs";
-      process?: ProcessRecord;
-      events: ProcessLogEvent[];
+      kind: "task_logs";
+      task?: TaskRecord;
+      events: TaskLogEvent[];
       mode?: string;
     }
   | {

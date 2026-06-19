@@ -1,4 +1,4 @@
-import type { ProcessManager } from "../processes/process-manager.js";
+import type { TaskManager } from "../tasks/task-manager.js";
 
 export function stringArg(args: Record<string, unknown>, name: string): string {
   const value = args[name];
@@ -39,28 +39,37 @@ export function optionalFiniteNumberArg(value: unknown): number | undefined {
     : undefined;
 }
 
-export function processIdArg(
+export function optionalBoundedIntegerArg(
+  value: unknown,
+  name: string,
+  options: { min: number; max: number },
+): number | undefined {
+  const parsed = optionalFiniteNumberArg(value);
+  if (parsed === undefined) return undefined;
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < options.min ||
+    parsed > options.max
+  ) {
+    throw new Error(
+      `Tool argument '${name}' must be an integer between ${options.min} and ${options.max}.`,
+    );
+  }
+  return parsed;
+}
+
+export function taskIdArg(
   args: Record<string, unknown>,
-  processes: ProcessManager,
+  tasks: TaskManager,
   projectId: string,
 ): string {
-  let processId: string | undefined;
-  if (typeof args.processId === "string" && args.processId.trim()) {
-    processId = args.processId;
-  } else if (typeof args.name === "string" && args.name.trim()) {
-    processId = processes
-      .listProcesses()
-      .find(
-        (process) =>
-          process.name === args.name && process.projectId === projectId,
-      )?.id;
+  const taskId = typeof args.taskId === "string" ? args.taskId.trim() : "";
+  if (!taskId) {
+    throw new Error("Tool argument 'taskId' is required.");
   }
-  if (!processId) {
-    throw new Error("Tool argument 'processId' or 'name' is required.");
+  const task = tasks.getTask(taskId);
+  if (task.projectId !== projectId) {
+    throw new Error("Task is outside this agent's project scope.");
   }
-  const process = processes.getProcess(processId);
-  if (process.projectId !== projectId) {
-    throw new Error("Process is outside this agent's project scope.");
-  }
-  return process.id;
+  return task.id;
 }

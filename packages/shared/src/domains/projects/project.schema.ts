@@ -56,7 +56,7 @@ export type PruneProjectConversationsRequest = z.infer<
 
 export const pruneProjectConversationSkippedReasonSchema = z.enum([
   "active_agent",
-  "active_process",
+  "active_task",
 ]);
 export type PruneProjectConversationSkippedReason = z.infer<
   typeof pruneProjectConversationSkippedReasonSchema
@@ -66,7 +66,7 @@ export const pruneProjectConversationsResponseSchema = z.object({
   projectId: z.string().startsWith("proj_"),
   strategy: pruneStrategySchema,
   prunedConversationIds: z.array(z.string().startsWith("conv_")),
-  prunedProcessIds: z.array(z.string().startsWith("proc_")),
+  prunedTaskIds: z.array(z.string().startsWith("task_")),
   skipped: z.array(
     z.object({
       conversationId: z.string().startsWith("conv_"),

@@ -8,11 +8,11 @@ import GenericToolView from "$lib/features/tools/components/tool-call/GenericToo
 import GrepToolView from "$lib/features/tools/components/tool-call/GrepToolView.svelte";
 import LsToolView from "$lib/features/tools/components/tool-call/LsToolView.svelte";
 import PlanModeToolView from "$lib/features/tools/components/tool-call/PlanModeToolView.svelte";
-import ProcessListToolView from "$lib/features/tools/components/tool-call/ProcessListToolView.svelte";
-import ProcessLogsToolView from "$lib/features/tools/components/tool-call/ProcessLogsToolView.svelte";
-import ProcessToolView from "$lib/features/tools/components/tool-call/ProcessToolView.svelte";
 import PythonToolView from "$lib/features/tools/components/tool-call/PythonToolView.svelte";
 import ReadToolView from "$lib/features/tools/components/tool-call/ReadToolView.svelte";
+import TaskListToolView from "$lib/features/tools/components/tool-call/TaskListToolView.svelte";
+import TaskLogsToolView from "$lib/features/tools/components/tool-call/TaskLogsToolView.svelte";
+import TaskToolView from "$lib/features/tools/components/tool-call/TaskToolView.svelte";
 import TodoToolView from "$lib/features/tools/components/tool-call/TodoToolView.svelte";
 import WebFetchToolView from "$lib/features/tools/components/tool-call/WebFetchToolView.svelte";
 import WebSearchToolView from "$lib/features/tools/components/tool-call/WebSearchToolView.svelte";
@@ -33,9 +33,9 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   ls: LsToolView,
   ask_user: AskUserToolView,
   todos: TodoToolView,
-  process_action: ProcessToolView,
-  process_list: ProcessListToolView,
-  process_logs: ProcessLogsToolView,
+  task_action: TaskToolView,
+  task_list: TaskListToolView,
+  task_logs: TaskLogsToolView,
   explore: ExploreToolView,
   plan_mode: PlanModeToolView,
   web_search: WebSearchToolView,

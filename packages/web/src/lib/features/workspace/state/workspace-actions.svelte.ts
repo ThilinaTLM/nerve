@@ -10,8 +10,8 @@ import {
   getPendingApprovals,
   getPendingPlanReviews,
   getPendingUserQuestions,
-  getProcessLogs,
   getSlashCompletions,
+  getTaskLogs,
   getWorkspaceSnapshot,
   openProjectInEditor,
   type ProjectEditor,
@@ -27,7 +27,7 @@ import {
 } from "$lib/features/conversations/state/conversation-flow.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import { processState } from "$lib/features/processes/state/process-state.svelte";
+import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
@@ -40,7 +40,7 @@ export async function loadWorkspaceState() {
   workspaceState.projects = snapshot.projects;
   workspaceState.conversations = snapshot.conversations;
   workspaceState.agents = agents;
-  processState.processes = snapshot.processes;
+  taskState.tasks = snapshot.tasks;
   syncSelectedAgentConfig(agents, snapshot.conversations);
   const conversationIds = new Set(
     snapshot.conversations.map((conversation) => conversation.id),
@@ -49,8 +49,7 @@ export async function loadWorkspaceState() {
     (conversationId) => !conversationIds.has(conversationId),
   );
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
-  processState.selectedProcessId =
-    processState.selectedProcessId ?? processState.processes[0]?.id;
+  taskState.selectedTaskId = taskState.selectedTaskId ?? taskState.tasks[0]?.id;
   const [approvals, userQuestions, planReviews] = await Promise.all([
     getPendingApprovals(),
     getPendingUserQuestions(),
@@ -59,10 +58,8 @@ export async function loadWorkspaceState() {
   workspaceState.approvals = approvals;
   workspaceState.userQuestions = userQuestions;
   workspaceState.planReviews = planReviews;
-  if (processState.selectedProcessId) {
-    processState.processLogs = await getProcessLogs(
-      processState.selectedProcessId,
-    );
+  if (taskState.selectedTaskId) {
+    taskState.taskLogs = await getTaskLogs(taskState.selectedTaskId);
   }
 }
 

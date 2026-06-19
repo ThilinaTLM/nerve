@@ -16,8 +16,8 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { logsState } from "$lib/features/logs/state/log-state.svelte";
-import { processState } from "$lib/features/processes/state/process-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import {
   type CenterTabIdentity,
@@ -30,9 +30,9 @@ export type {
   FileTabModel,
   LogsTabModel,
   PendingConversationTabModel,
-  ProcessTabModel,
   PrTabModel,
   SettingsTabModel,
+  TaskTabModel,
 } from "./center-tab-models";
 
 import type {
@@ -41,9 +41,9 @@ import type {
   FileTabModel,
   LogsTabModel,
   PendingConversationTabModel,
-  ProcessTabModel,
   PrTabModel,
   SettingsTabModel,
+  TaskTabModel,
 } from "./center-tab-models";
 
 function activeTabMatches(
@@ -64,7 +64,7 @@ function activePendingConversation() {
   ];
 }
 
-function isActiveProcessStatus(status: string): boolean {
+function isActiveTaskStatus(status: string): boolean {
   return ["starting", "running", "ready", "stopping"].includes(status);
 }
 
@@ -202,23 +202,21 @@ export const workspaceSelectors = {
     }
     return tabs;
   },
-  get openProcessTabs(): ProcessTabModel[] {
-    const tabs: ProcessTabModel[] = [];
-    for (const processId of processState.openProcessTabIds) {
-      const process = processState.processes.find(
-        (candidate) => candidate.id === processId,
-      );
+  get openTaskTabs(): TaskTabModel[] {
+    const tabs: TaskTabModel[] = [];
+    for (const taskId of taskState.openTaskTabIds) {
+      const task = taskState.tasks.find((candidate) => candidate.id === taskId);
       tabs.push({
-        kind: "process",
-        id: processId,
-        process,
-        active: activeTabMatches("process", processId),
-        sending: process ? isActiveProcessStatus(process.status) : false,
-        error: process
-          ? process.status === "error"
-            ? (process.error ?? "Process error")
+        kind: "task",
+        id: taskId,
+        task,
+        active: activeTabMatches("task", taskId),
+        sending: task ? isActiveTaskStatus(task.status) : false,
+        error: task
+          ? task.status === "failed"
+            ? (task.error ?? "Task failed")
             : undefined
-          : "Process not found",
+          : "Task not found",
       });
     }
     return tabs;
@@ -303,8 +301,8 @@ export const workspaceSelectors = {
           (candidate) => candidate.id === tab.id,
         );
         if (model) models.push(model);
-      } else if (tab.kind === "process") {
-        const model = this.openProcessTabs.find(
+      } else if (tab.kind === "task") {
+        const model = this.openTaskTabs.find(
           (candidate) => candidate.id === tab.id,
         );
         if (model) models.push(model);

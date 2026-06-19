@@ -29,8 +29,6 @@ import {
   PinnedCommandService,
 } from "../domains/pinned-commands/index.js";
 import { PlanService } from "../domains/plans/plan-service.js";
-import { SecretProcessLaunchConfigStore } from "../domains/processes/index.js";
-import { ProcessManager } from "../domains/processes/process-manager.js";
 import {
   ProjectEditorService,
   ProjectLifecycleService,
@@ -38,6 +36,11 @@ import {
   PruneProjectConversationsService,
 } from "../domains/projects/index.js";
 import { PythonRuntimeService } from "../domains/runtime/python-runtime-service.js";
+import {
+  SecretTaskLaunchConfigStore,
+  TaskCompletionService,
+} from "../domains/tasks/index.js";
+import { TaskManager } from "../domains/tasks/task-manager.js";
 import { ToolService } from "../domains/tools/tool-service.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
@@ -63,7 +66,8 @@ export interface RuntimeDeps {
 }
 
 export interface RuntimeServices {
-  processes: ProcessManager;
+  tasks: TaskManager;
+  taskCompletion: TaskCompletionService;
   pythonRuntime: PythonRuntimeService;
   workers: WorkerManager;
   plans: PlanService;
@@ -142,7 +146,7 @@ export function composeRuntime(
       conversations: listConversations(),
       agents: listAgents(),
       events: await events.replayPersistedSince(0),
-      processes: services.processes.listProcesses(),
+      tasks: services.tasks.listTasks(),
       workers: services.workers.listWorkers(),
       toolCalls: services.tools.listToolCalls(),
       approvals: services.tools.listApprovals(),
@@ -211,13 +215,13 @@ export function composeRuntime(
     updateConversation,
     events,
   });
-  const processLaunchConfigs = new SecretProcessLaunchConfigStore(secrets);
-  services.processes = new ProcessManager(
+  const taskLaunchConfigs = new SecretTaskLaunchConfigStore(secrets);
+  services.tasks = new TaskManager(
     storage,
     events,
     index,
-    logger.child({ component: "process" }),
-    { launchConfigs: processLaunchConfigs },
+    logger.child({ component: "task" }),
+    { launchConfigs: taskLaunchConfigs },
   );
   services.pythonRuntime = new PythonRuntimeService(storage);
   services.workers = new WorkerManager(storage, events, index);
@@ -274,14 +278,10 @@ export function composeRuntime(
     storage,
     events,
     index,
-    services.processes,
+    services.tasks,
     services.pythonRuntime,
     (request) =>
-      services.workers.startProcess(
-        request.workerId,
-        services.processes,
-        request,
-      ),
+      services.workers.startTask(request.workerId, services.tasks, request),
     getAgent,
     // Tool execution can spawn explore agents; the closure is only invoked after
     // composition completes, so reading services.agentRunner here is safe.
@@ -315,6 +315,17 @@ export function composeRuntime(
     logger: logger.child({ component: "agent-runner" }),
     promptQueue: promptQueueRepository,
   });
+  services.taskCompletion = new TaskCompletionService({
+    tasks: services.tasks,
+    events,
+    dataDir: storage.paths.home,
+    runs: state.runs,
+    appendEntry,
+    harnessManager: services.harnessManager,
+    getAgent,
+    logger: logger.child({ component: "task-completion" }),
+  });
+  services.taskCompletion.start();
   services.humanInput = new HumanInputResolutionService({
     events,
     tools: services.tools,
@@ -345,7 +356,7 @@ export function composeRuntime(
     getProject,
     listConversations,
     agents: state.agents,
-    processes: services.processes,
+    tasks: services.tasks,
     tools: services.tools,
     plans: services.plans,
     suspensions: services.suspensions,

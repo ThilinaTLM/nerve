@@ -12,7 +12,7 @@ import type {
 export type CenterTabIdentity =
   | { kind: "conversation"; id: string }
   | { kind: "pending-conversation"; id: string }
-  | { kind: "process"; id: string }
+  | { kind: "task"; id: string }
   | { kind: "file"; id: string }
   | { kind: "pr"; id: string }
   | { kind: "settings"; id: "settings" }

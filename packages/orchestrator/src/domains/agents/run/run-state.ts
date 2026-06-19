@@ -1,4 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
+import type { AgentMessage } from "@nerve/agent";
 import type { AgentRecord, PromptRequest } from "@nerve/shared";
 
 export interface AgentRunState {
@@ -16,6 +17,11 @@ export interface AgentRunState {
     queuedPromptId?: string,
   ) => Promise<void>;
   updateAgentRuntimeConfig?: (agent: AgentRecord) => Promise<void>;
+  appendExternalMessage?: (input: {
+    id: string;
+    message: AgentMessage;
+    timestamp: string;
+  }) => Promise<void>;
 }
 
 export type AgentRunStateMap = Map<string, AgentRunState>;

@@ -8,7 +8,7 @@
   } from "$lib/app/layout/layout-state.svelte";
   import { conversationSelectors } from "$lib/features/conversations";
   import { gitSelectors } from "$lib/features/git";
-  import { processSelectors } from "$lib/features/processes";
+  import { taskSelectors } from "$lib/features/tasks";
   import { settingsSelectors, setUiZoomLevel } from "$lib/features/settings";
   import { usageSelectors } from "$lib/features/usage";
   import { workspaceSelectors } from "$lib/features/workspace";
@@ -19,7 +19,7 @@
   const connection = $derived(workspaceSelectors.connection);
   const live = $derived(conversationSelectors.live);
   const pendingApprovalCount = $derived(conversationSelectors.pendingApprovalCount);
-  const processes = $derived(processSelectors.scopedProcesses);
+  const tasks = $derived(taskSelectors.scopedTasks);
   const branchDepth = $derived(gitSelectors.branchDepth);
   const gitStatus = $derived(gitSelectors.gitStatus);
   const subscriptionUsage = $derived(usageSelectors.activeSubscriptionUsage);
@@ -37,7 +37,7 @@
   {connection}
   {live}
   pendingApprovals={pendingApprovalCount}
-  {processes}
+  {tasks}
   {branchDepth}
   {gitStatus}
   {subscriptionUsage}

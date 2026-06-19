@@ -1,5 +1,5 @@
 import type { ToolCallRecord } from "$lib/api";
-import { processTone } from "./process";
+import { taskTone } from "./task";
 import {
   basename,
   collapseFor,
@@ -190,13 +190,13 @@ export function toolPresentation(
         collapse: collapseFor(view.total, "entries"),
       };
 
-    case "process_logs": {
+    case "task_logs": {
       const meta: MetaItem[] = [{ text: plural(view.events.length, "event") }];
       if (view.mode) meta.push({ text: view.mode });
       return {
         ...base,
-        primaryArg: view.process?.name
-          ? { text: view.process.name }
+        primaryArg: view.task?.name
+          ? { text: view.task.name }
           : view.mode
             ? { text: view.mode }
             : undefined,
@@ -241,35 +241,35 @@ export function toolPresentation(
         meta: [{ text: `${view.completed}/${view.total} done` }],
       };
 
-    case "process_action": {
+    case "task_action": {
       const meta: MetaItem[] = [{ text: view.action }];
-      const process = view.process;
-      if (process) {
+      const task = view.task ?? view.tasks?.[0];
+      if (task) {
         meta.push({
-          text: process.status,
-          tone: toneFromDot(processTone(process.status)),
+          text: task.status,
+          tone: toneFromDot(taskTone(task.status)),
         });
-        if (process.exitCode !== undefined && process.exitCode !== null) {
-          meta.push({ text: `exit ${process.exitCode}` });
+        if (task.exitCode !== undefined && task.exitCode !== null) {
+          meta.push({ text: `exit ${task.exitCode}` });
         }
-        if (process.signal) meta.push({ text: `signal ${process.signal}` });
+        if (task.signal) meta.push({ text: `signal ${task.signal}` });
       }
       return {
         ...base,
-        badge: `process_${view.action}`,
-        primaryArg: process?.name
-          ? { text: process.name }
-          : process?.command
-            ? { text: process.command }
+        badge: `task_${view.action}`,
+        primaryArg: task?.name
+          ? { text: task.name }
+          : task?.command
+            ? { text: task.command }
             : undefined,
         meta,
       };
     }
 
-    case "process_list":
+    case "task_list":
       return {
         ...base,
-        meta: [{ text: plural(view.processes.length, "process", "es") }],
+        meta: [{ text: plural(view.tasks.length, "task", "s") }],
       };
 
     case "explore": {

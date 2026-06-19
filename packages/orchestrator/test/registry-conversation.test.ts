@@ -7,7 +7,7 @@ import {
   type ConversationEntry,
   type ConversationRecord,
   createId,
-  type ProcessRecord,
+  type TaskRecord,
 } from "@nerve/shared";
 import { EntryRepository } from "../src/domains/conversations/index.js";
 import {
@@ -66,20 +66,20 @@ function appendRegistryEntry(
   ).appendEntry(input);
 }
 
-async function addProcessRecord(
+async function addTaskRecord(
   state: Awaited<ReturnType<typeof createState>>,
   input: {
     projectId: string;
     conversationId: string;
     agentId?: string;
-    status: ProcessRecord["status"];
+    status: TaskRecord["status"];
   },
-): Promise<ProcessRecord> {
-  const id = createId("proc");
-  const dir = join(state.storage.paths.home, "proc", id);
+): Promise<TaskRecord> {
+  const id = createId("task");
+  const dir = join(state.storage.paths.home, "tasks", id);
   await mkdir(dir, { recursive: true });
   const now = new Date().toISOString();
-  const record: ProcessRecord = {
+  const record: TaskRecord = {
     id,
     projectId: input.projectId,
     conversationId: input.conversationId,
@@ -94,9 +94,9 @@ async function addProcessRecord(
     startedAt: now,
     updatedAt: now,
   };
-  state.registry.processes.processes.set(record.id, record);
-  state.index.upsertProcess(record);
-  await writeFile(join(dir, "process.json"), `${JSON.stringify(record)}\n`);
+  state.registry.tasks.tasks.set(record.id, record);
+  state.index.upsertTask(record);
+  await writeFile(join(dir, "task.json"), `${JSON.stringify(record)}\n`);
   return record;
 }
 
@@ -414,7 +414,7 @@ describe("RuntimeRegistry conversation behavior", () => {
       await state.registry.requestTool(oldAgent.id, "todos_set", {
         todos: [{ todo: "remove me", done: false }],
       });
-      const inactiveProcess = await addProcessRecord(state, {
+      const inactiveTask = await addTaskRecord(state, {
         projectId: project.id,
         conversationId: oldConversation.id,
         agentId: oldAgent.id,
@@ -428,7 +428,7 @@ describe("RuntimeRegistry conversation behavior", () => {
 
       assert.equal(result.strategy, "olderThanDays");
       assert.deepEqual(result.prunedConversationIds, [oldConversation.id]);
-      assert.deepEqual(result.prunedProcessIds, [inactiveProcess.id]);
+      assert.deepEqual(result.prunedTaskIds, [inactiveTask.id]);
       assert.deepEqual(result.skipped, []);
       assert.throws(() => state.registry.getConversation(oldConversation.id));
       assert.equal(
@@ -443,7 +443,7 @@ describe("RuntimeRegistry conversation behavior", () => {
       );
       assert.equal(
         await pathExists(
-          join(state.storage.paths.home, "proc", inactiveProcess.id),
+          join(state.storage.paths.home, "tasks", inactiveTask.id),
         ),
         false,
       );
@@ -458,7 +458,7 @@ describe("RuntimeRegistry conversation behavior", () => {
     }
   });
 
-  it("skips old conversations with active agents or active processes", async () => {
+  it("skips old conversations with active agents or active tasks", async () => {
     const state = await createState("nerve-registry-prune-skip-");
     try {
       const project = await state.registry.createProject({
@@ -475,19 +475,17 @@ describe("RuntimeRegistry conversation behavior", () => {
         ...activeAgent,
         status: "running",
       });
-      const activeProcessConversation = await state.registry.createConversation(
-        {
-          projectId: project.id,
-        },
-      );
-      const processAgent = await state.registry.createAgent({
+      const activeTaskConversation = await state.registry.createConversation({
         projectId: project.id,
-        conversationId: activeProcessConversation.id,
       });
-      const activeProcess = await addProcessRecord(state, {
+      const taskAgent = await state.registry.createAgent({
         projectId: project.id,
-        conversationId: activeProcessConversation.id,
-        agentId: processAgent.id,
+        conversationId: activeTaskConversation.id,
+      });
+      const activeTask = await addTaskRecord(state, {
+        projectId: project.id,
+        conversationId: activeTaskConversation.id,
+        agentId: taskAgent.id,
         status: "running",
       });
       ageConversation(
@@ -497,7 +495,7 @@ describe("RuntimeRegistry conversation behavior", () => {
       );
       ageConversation(
         state,
-        activeProcessConversation,
+        activeTaskConversation,
         "2000-01-01T00:00:00.000Z",
       );
 
@@ -507,15 +505,15 @@ describe("RuntimeRegistry conversation behavior", () => {
       );
 
       assert.deepEqual(result.prunedConversationIds, []);
-      assert.deepEqual(result.prunedProcessIds, []);
+      assert.deepEqual(result.prunedTaskIds, []);
       assert.deepEqual(result.skipped, [
         {
           conversationId: activeAgentConversation.id,
           reason: "active_agent",
         },
         {
-          conversationId: activeProcessConversation.id,
-          reason: "active_process",
+          conversationId: activeTaskConversation.id,
+          reason: "active_task",
         },
       ]);
       assert.equal(
@@ -523,12 +521,12 @@ describe("RuntimeRegistry conversation behavior", () => {
         activeAgentConversation.id,
       );
       assert.equal(
-        state.registry.getConversation(activeProcessConversation.id).id,
-        activeProcessConversation.id,
+        state.registry.getConversation(activeTaskConversation.id).id,
+        activeTaskConversation.id,
       );
       assert.equal(
-        state.registry.processes.getProcess(activeProcess.id).id,
-        activeProcess.id,
+        state.registry.tasks.getTask(activeTask.id).id,
+        activeTask.id,
       );
     } finally {
       state.index.close();

@@ -554,14 +554,14 @@ describe("parseToolView", () => {
     assert.deepEqual(view.items, [{ todo: "Fallback", done: false }]);
   });
 
-  it("parses a process_start action with ready url", () => {
+  it("parses a task_start action with ready url", () => {
     const view = parseToolView(
       toolCall(
-        "process_start",
+        "task_start",
         { command: "npm run dev" },
         {
-          process: {
-            id: "proc_01H00000000000000000000000",
+          task: {
+            id: "task_01H00000000000000000000000",
             name: "dev",
             cwd: CWD,
             command: "npm run dev",
@@ -580,14 +580,14 @@ describe("parseToolView", () => {
         },
       ),
     );
-    assert.equal(view.kind, "process_action");
-    if (view.kind !== "process_action") return;
+    assert.equal(view.kind, "task_action");
+    if (view.kind !== "task_action") return;
     assert.equal(view.action, "start");
-    assert.equal(view.process?.status, "ready");
-    assert.equal(view.process?.readiness.matched, "http://localhost:3000");
+    assert.equal(view.task?.status, "ready");
+    assert.equal(view.task?.readiness.matched, "http://localhost:3000");
   });
 
-  it("parses process_logs events", () => {
+  it("parses task_logs events", () => {
     const events = Array.from({ length: 20 }, (_, index) => ({
       seq: index + 1,
       ts: "2026-01-01T00:00:00.000Z",
@@ -597,11 +597,11 @@ describe("parseToolView", () => {
     }));
     const view = parseToolView(
       toolCall(
-        "process_logs",
+        "task_logs",
         { name: "dev" },
         {
-          process: {
-            id: "proc_01H00000000000000000000000",
+          task: {
+            id: "task_01H00000000000000000000000",
             name: "dev",
             cwd: CWD,
             command: "npm run dev",
@@ -619,8 +619,8 @@ describe("parseToolView", () => {
         },
       ),
     );
-    assert.equal(view.kind, "process_logs");
-    if (view.kind !== "process_logs") return;
+    assert.equal(view.kind, "task_logs");
+    if (view.kind !== "task_logs") return;
     assert.equal(view.events.length, 20);
     assert.equal(view.mode, "recent");
   });

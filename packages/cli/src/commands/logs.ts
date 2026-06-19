@@ -56,7 +56,7 @@ function printLogRecords(response: ApplicationLogQueryResponse): void {
       log.agentId,
       log.runId,
       log.toolCallId,
-      log.processId,
+      log.taskId,
     ]
       .filter(Boolean)
       .join(" ");

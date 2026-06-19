@@ -145,13 +145,13 @@
 
 <ContextMenu
   items={tabMenu()}
-  triggerClass={`center-tab-menu-trigger ${tab.kind === "process" || tab.kind === "file" ? "wide-tab" : ""}`}
+  triggerClass={`center-tab-menu-trigger ${tab.kind === "task" || tab.kind === "file" ? "wide-tab" : ""}`}
 >
   <div class="center-tab" class:active={tab.active} class:running={tab.sending} class:errored={Boolean(tab.error)}>
     <div class="tab-leading">
       {#if tab.kind === "conversation" || tab.kind === "pending-conversation"}
         <StatusDot class="tab-agent-status" tone={tab.activity.tone} pulse={tab.activity.pulse} label={statusLabel(tab)} />
-      {:else if tab.kind === "process"}
+      {:else if tab.kind === "task"}
         <span class="tab-status" title={statusLabel(tab)} aria-hidden="true"></span>
       {:else if tab.kind === "file"}
         {#if tab.markdown}
@@ -181,7 +181,7 @@
       {/if}
     </div>
     <button type="button" class="tab-select" role="tab" aria-selected={tab.active} title={tabTitle(tab, homeDir)} onclick={() => onSelect?.(tabIdentity(tab))}>
-      {#if tab.kind === "process"}
+      {#if tab.kind === "task"}
         <span class="tab-kind-icon"><Terminal size={12} strokeWidth={2.2} aria-hidden="true" /></span>
       {/if}
       <span class="tab-title">{tabLabel(tab)}</span>

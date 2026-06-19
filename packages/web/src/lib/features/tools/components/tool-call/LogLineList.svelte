@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { ProcessLogEvent } from "$lib/api";
+  import type { TaskLogEvent } from "$lib/api";
 
-  type LineItem = { text: string; level?: ProcessLogEvent["level"]; stream?: ProcessLogEvent["stream"] };
+  type LineItem = { text: string; level?: TaskLogEvent["level"]; stream?: TaskLogEvent["stream"] };
 
   type Props = {
-    events?: ProcessLogEvent[];
+    events?: TaskLogEvent[];
     lines?: string[];
     maxHeight?: string;
   };

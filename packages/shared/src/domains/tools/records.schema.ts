@@ -31,11 +31,12 @@ export const coreToolNameSchema = z.enum([
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 
 export const orchestrationToolNameSchema = z.enum([
-  "process_start",
-  "process_stop",
-  "process_restart",
-  "process_list",
-  "process_logs",
+  "task_start",
+  "task_status",
+  "task_logs",
+  "task_cancel",
+  "task_restart",
+  "task_list",
   "explore",
   "plan_mode_enter",
   "plan_mode_present",

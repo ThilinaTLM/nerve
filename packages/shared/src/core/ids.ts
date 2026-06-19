@@ -9,6 +9,7 @@ export type IdPrefix =
   | "msg"
   | "block"
   | "proc"
+  | "task"
   | "entry"
   | "tool"
   | "approval"

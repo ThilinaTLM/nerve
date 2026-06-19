@@ -152,7 +152,7 @@ function evaluatePlanningModePolicy(
         decision: "deny",
         risk,
         reason:
-          "Planning mode blocks bash commands that look destructive, write files, install/update dependencies, deploy, or run long-running processes.",
+          "Planning mode blocks bash commands that look destructive, write files, install/update dependencies, deploy, or run long-running tasks.",
         normalizedArgs,
         cwd,
       };
@@ -346,10 +346,22 @@ function evaluatePlanningModePolicy(
   return {
     decision: "deny",
     risk,
-    reason: `Planning mode cannot run '${toolName}' because it may mutate workspace files, processes, or runtime state outside plan review.`,
+    reason: `Planning mode cannot run '${toolName}' because it may mutate workspace files, tasks, or runtime state outside plan review.`,
     normalizedArgs,
     cwd,
   };
+}
+
+function taskStartCommands(args: Record<string, unknown>): string[] {
+  if (typeof args.command === "string") return [args.command];
+  if (!Array.isArray(args.tasks)) return [];
+  return args.tasks
+    .map((task) =>
+      task && typeof task === "object"
+        ? (task as Record<string, unknown>).command
+        : undefined,
+    )
+    .filter((command): command is string => typeof command === "string");
 }
 
 function classifyRisk(
@@ -367,13 +379,21 @@ function classifyRisk(
   }
   if (
     toolName === "todos_get" ||
-    toolName === "process_list" ||
-    toolName === "process_logs"
+    toolName === "task_status" ||
+    toolName === "task_logs" ||
+    toolName === "task_list"
   ) {
     return "read";
   }
-  if (toolName === "process_stop" || toolName === "process_restart") {
-    return "destructive";
+  if (toolName === "task_cancel" || toolName === "task_restart") {
+    return "command";
+  }
+  if (toolName === "task_start") {
+    const commands = taskStartCommands(args);
+    if (commands.some((command) => hasDangerousCommandPattern(command))) {
+      return "destructive";
+    }
+    return "command";
   }
   if (toolName === "web_search" || toolName === "web_fetch") {
     return "network";

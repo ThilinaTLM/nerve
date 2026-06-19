@@ -43,7 +43,7 @@ export const INDEX_STORE_SCHEMA_SQL = `
     run_id TEXT,
     json TEXT NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS processes (
+  CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     name TEXT,
     project_id TEXT,

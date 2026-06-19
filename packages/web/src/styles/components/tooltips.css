@@ -1,8 +1,8 @@
 /* Navigation context-menu trigger wrappers and rich tooltip content.
  * Applied to bits-ui ContextMenu/Tooltip children via triggerClass, so the
- * classes must be global. Shared by the processes and projects trees. */
+ * classes must be global. Shared by the tasks and projects trees. */
 
-.process-context-trigger,
+.task-context-trigger,
 .conversation-context-trigger,
 .conversation-context-trigger [data-slot="tooltip-trigger"] {
   display: block;
@@ -25,7 +25,7 @@
   overflow-wrap: anywhere;
 }
 
-.process-tooltip .tt-title,
+.task-tooltip .tt-title,
 .conversation-tooltip .tt-title {
   margin-bottom: 0.15rem;
   font-family: var(--font-sans);
@@ -33,13 +33,13 @@
   font-weight: 600;
 }
 
-.process-tooltip .tt-row,
+.task-tooltip .tt-row,
 .conversation-tooltip .tt-row {
   display: flex;
   gap: 0.4rem;
 }
 
-.process-tooltip .tt-key,
+.task-tooltip .tt-key,
 .conversation-tooltip .tt-key {
   min-width: 3.4rem;
   color: var(--muted-foreground);
@@ -47,7 +47,7 @@
   letter-spacing: 0.04em;
 }
 
-.process-tooltip .tt-id,
+.task-tooltip .tt-id,
 .conversation-tooltip .tt-id {
   margin-top: 0.2rem;
   color: var(--muted-foreground);

@@ -26,11 +26,11 @@ export type AgentHarnessPhase =
   | "retry";
 
 export type PendingConversationWrite =
-  ConversationTreeEntry extends infer TEntry
+  (ConversationTreeEntry extends infer TEntry
     ? TEntry extends ConversationTreeEntry
       ? Omit<TEntry, "id" | "parentId" | "timestamp">
       : never
-    : never;
+    : never) & { id?: string; timestamp?: string };
 
 export interface QueueUpdateEvent {
   type: "queue_update";

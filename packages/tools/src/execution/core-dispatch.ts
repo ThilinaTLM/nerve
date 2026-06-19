@@ -46,17 +46,16 @@ export async function executeTool(
       throw new Error(
         `${name} is executed by the orchestrator task-state service.`,
       );
-    case "process_start":
-    case "process_stop":
-    case "process_restart":
-    case "process_list":
-    case "process_logs":
-      // packages/tools executes only core local tools. Managed process tools are
+    case "task_start":
+    case "task_status":
+    case "task_logs":
+    case "task_cancel":
+    case "task_restart":
+    case "task_list":
+      // packages/tools executes only core local tools. Background task tools are
       // orchestration tools: descriptors are shared for prompting/API purposes,
-      // but execution is mediated by the orchestrator process manager.
-      throw new Error(
-        `${name} is executed by the orchestrator process manager.`,
-      );
+      // but execution is mediated by the orchestrator task manager.
+      throw new Error(`${name} is executed by the orchestrator task manager.`);
     case "explore":
       // Explore agents require runtime/conversation authority checks owned by orchestrator.
       throw new Error(`${name} is executed by the orchestrator agent runtime.`);

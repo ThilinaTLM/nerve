@@ -12,8 +12,16 @@ export const workerRecordSchema = z.object({
   name: z.string().min(1),
   status: workerStatusSchema,
   capabilities: z
-    .array(z.enum(["agent", "process"]))
-    .default(["agent", "process"]),
+    .preprocess(
+      (value) =>
+        Array.isArray(value)
+          ? value.map((capability) =>
+              capability === "process" ? "task" : capability,
+            )
+          : value,
+      z.array(z.enum(["agent", "task"])),
+    )
+    .default(["agent", "task"]),
   endpoint: z
     .object({
       pid: z.number().int().positive().optional(),

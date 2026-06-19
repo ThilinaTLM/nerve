@@ -3,8 +3,8 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { logsState } from "$lib/features/logs/state/log-state.svelte";
-import { processState } from "$lib/features/processes/state/process-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 export function centerTabKey(tab: CenterTabIdentity): string {
   return `${tab.kind}:${tab.id}`;
@@ -23,8 +23,8 @@ function syncLegacyTabFields() {
   conversationState.openConversationTabIds = workspaceState.openCenterTabs
     .filter((tab) => tab.kind === "conversation")
     .map((tab) => tab.id);
-  processState.openProcessTabIds = workspaceState.openCenterTabs
-    .filter((tab) => tab.kind === "process")
+  taskState.openTaskTabIds = workspaceState.openCenterTabs
+    .filter((tab) => tab.kind === "task")
     .map((tab) => tab.id);
   fileState.openFileTabIds = workspaceState.openCenterTabs
     .filter((tab) => tab.kind === "file")
@@ -101,7 +101,7 @@ export function removeCenterTab(tab: CenterTabIdentity) {
 export function setActiveCenterTab(tab: CenterTabIdentity | undefined) {
   if (tab) addCenterTab(tab);
   workspaceState.activeCenterTab = tab;
-  if (tab?.kind === "process") processState.selectedProcessId = tab.id;
+  if (tab?.kind === "task") taskState.selectedTaskId = tab.id;
 }
 
 export function fallbackCenterTab(
@@ -132,11 +132,11 @@ export async function selectCenterTab(tab: CenterTabIdentity | undefined) {
       selectPendingConversation(tab.id);
       return;
     }
-    case "process": {
-      const { selectCenterProcessTab } = await import(
-        "$lib/features/processes/state/process-tabs.svelte"
+    case "task": {
+      const { selectCenterTaskTab } = await import(
+        "$lib/features/tasks/state/task-tabs.svelte"
       );
-      await selectCenterProcessTab(tab.id);
+      await selectCenterTaskTab(tab.id);
       return;
     }
     case "file": {
@@ -186,11 +186,11 @@ export async function closeCenterTab(tab: CenterTabIdentity) {
       await closePendingConversationTab(tab.id);
       return;
     }
-    case "process": {
-      const { closeProcessTab } = await import(
-        "$lib/features/processes/state/process-tabs.svelte"
+    case "task": {
+      const { closeTaskTab } = await import(
+        "$lib/features/tasks/state/task-tabs.svelte"
       );
-      await closeProcessTab(tab.id);
+      await closeTaskTab(tab.id);
       return;
     }
     case "file": {

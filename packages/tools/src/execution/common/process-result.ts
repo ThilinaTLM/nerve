@@ -47,6 +47,16 @@ export type ProcessResultOptions = {
   contentFooterLines?: string[];
 };
 
+export type ProcessTextResultOptions = {
+  text: string;
+  outputFilePrefix: string;
+  exitMessagePrefix: string;
+  noOutputText?: string;
+  details?: Record<string, unknown>;
+  dataDir?: string;
+  contentFooterLines?: string[];
+};
+
 type OutputStats = {
   bytes: number;
   lines: number;
@@ -66,6 +76,31 @@ type PreviewResult = {
 type BuiltStreamResult = ProcessStreamResultDetails & {
   text: string;
 };
+
+export async function buildProcessTextResult({
+  text,
+  outputFilePrefix,
+  exitMessagePrefix,
+  noOutputText,
+  details,
+  dataDir,
+  contentFooterLines,
+}: ProcessTextResultOptions): Promise<ToolExecutionResult> {
+  const buffer = Buffer.from(text, "utf8");
+  return buildProcessResult({
+    stdoutChunks: text.length > 0 ? [buffer] : [],
+    stderrChunks: [],
+    combinedChunks: text.length > 0 ? [buffer] : [],
+    code: 0,
+    signal: null,
+    outputFilePrefix,
+    exitMessagePrefix,
+    noOutputText,
+    details,
+    dataDir,
+    contentFooterLines,
+  });
+}
 
 export async function buildProcessResult({
   stdoutChunks,

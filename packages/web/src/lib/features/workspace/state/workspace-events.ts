@@ -105,7 +105,7 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type === "conversation.run.completed" ||
     type === "conversation.run.failed" ||
     type === "conversation.run.suspended" ||
-    type.startsWith("process.") ||
+    type.startsWith("task.") ||
     shouldRefreshSettings(type)
   );
 }

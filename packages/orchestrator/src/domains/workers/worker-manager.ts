@@ -2,8 +2,8 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   createId,
-  type ProcessRecord,
-  type StartProcessRequest,
+  type StartTaskRequest,
+  type TaskRecord,
   type WorkerRecord,
   workerRecordSchema,
 } from "@nerve/shared";
@@ -15,7 +15,7 @@ import {
   listChildDirs,
   readJsonFile,
 } from "../../infrastructure/storage/index.js";
-import type { ProcessManager } from "../processes/process-manager.js";
+import type { TaskManager } from "../tasks/task-manager.js";
 import {
   type AgentProcessHandlers,
   type AgentProcessInput,
@@ -71,7 +71,7 @@ export class WorkerManager {
     return this.listWorkers().find((worker) => worker.kind === "local");
   }
 
-  requireWorker(workerId: string | undefined, capability: "agent" | "process") {
+  requireWorker(workerId: string | undefined, capability: "agent" | "task") {
     const worker = workerId
       ? this.getWorker(workerId)
       : this.requireDefaultLocalWorker();
@@ -114,13 +114,13 @@ export class WorkerManager {
     );
   }
 
-  startProcess(
+  startTask(
     workerId: string | undefined,
-    processManager: ProcessManager,
-    request: StartProcessRequest,
-  ): Promise<ProcessRecord> {
-    const worker = this.requireWorker(workerId ?? request.workerId, "process");
-    return processManager.startProcess({ ...request, workerId: worker.id });
+    taskManager: TaskManager,
+    request: StartTaskRequest,
+  ): Promise<TaskRecord> {
+    const worker = this.requireWorker(workerId ?? request.workerId, "task");
+    return taskManager.startTask({ ...request, workerId: worker.id });
   }
 
   private async createLocalWorker(): Promise<WorkerRecord> {
@@ -130,7 +130,7 @@ export class WorkerManager {
       kind: "local",
       name: "Local worker",
       status: "online",
-      capabilities: ["agent", "process"],
+      capabilities: ["agent", "task"],
       endpoint: { pid: process.pid },
       createdAt: now,
       updatedAt: now,

@@ -36,7 +36,15 @@ export function createAgentToolsForAgent(
 }
 
 export function activeToolNamesForExploreAgent(): ToolName[] {
-  return ["read", "grep", "find", "ls", "process_list", "process_logs"];
+  return [
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "task_status",
+    "task_logs",
+    "task_list",
+  ];
 }
 
 export function activeToolNamesForAgent(
@@ -49,8 +57,9 @@ export function activeToolNamesForAgent(
       "grep",
       "find",
       "ls",
-      "process_list",
-      "process_logs",
+      "task_status",
+      "task_logs",
+      "task_list",
       "ask_user",
       "todos_set",
       "todos_get",
@@ -73,8 +82,9 @@ export function activeToolNamesForAgent(
       "grep",
       "find",
       "ls",
-      "process_list",
-      "process_logs",
+      "task_status",
+      "task_logs",
+      "task_list",
       "explore",
       "ask_user",
       "todos_set",
@@ -95,11 +105,12 @@ export function activeToolNamesForAgent(
     "grep",
     "find",
     "ls",
-    "process_start",
-    "process_stop",
-    "process_restart",
-    "process_list",
-    "process_logs",
+    "task_start",
+    "task_status",
+    "task_logs",
+    "task_cancel",
+    "task_restart",
+    "task_list",
     "explore",
     "ask_user",
     "todos_set",

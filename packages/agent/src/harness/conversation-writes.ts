@@ -7,10 +7,25 @@ export function queueOrWriteMessage(
   pendingWrites: PendingConversationWrite[],
   conversation: Conversation,
   message: AgentMessage,
+  options: { id?: string; timestamp?: string } = {},
 ): Promise<void> | void {
-  if (phase === "idle")
-    return conversation.appendMessage(message).then(() => undefined);
-  pendingWrites.push({ type: "message", message });
+  if (phase === "idle") {
+    return (
+      options.id
+        ? conversation.appendMessageWithId(
+            options.id,
+            message,
+            options.timestamp,
+          )
+        : conversation.appendMessage(message)
+    ).then(() => undefined);
+  }
+  pendingWrites.push({
+    type: "message",
+    id: options.id,
+    timestamp: options.timestamp,
+    message,
+  });
 }
 
 export async function flushPendingConversationWrites(
@@ -21,7 +36,15 @@ export async function flushPendingConversationWrites(
     const write = pendingWrites[0];
     if (!write) break;
     if (write.type === "message") {
-      await conversation.appendMessage(write.message);
+      if (write.id) {
+        await conversation.appendMessageWithId(
+          write.id,
+          write.message,
+          write.timestamp,
+        );
+      } else {
+        await conversation.appendMessage(write.message);
+      }
     } else if (write.type === "model_change") {
       await conversation.appendModelChange(write.provider, write.modelId);
     } else if (write.type === "thinking_level_change") {

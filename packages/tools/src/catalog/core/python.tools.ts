@@ -36,7 +36,7 @@ export const pythonToolDefinitions = [
     promptGuidelines: [
       "Use python for short Python snippets instead of wrapping Python in bash heredocs.",
       "The python tool has no stdin; do not write scripts that wait for input().",
-      "Do not use python for long-running servers, watchers, or daemons; use process_start for those.",
+      "Do not use python for long-running servers, watchers, or daemons; use task_start for those.",
       "Use env only for non-secret environment overrides; secrets must not be passed through python tool args.",
       'For large JSON, CSV, diagrams, or other generated outputs, write files under os.environ["NERVE_PYTHON_ARTIFACT_DIR"] and return the artifact path instead of dumping everything to stdout.',
       "If stdout/stderr is still large, the tool saves the combined process output to a transcript file and returns a compact preview.",

@@ -4,14 +4,14 @@
   import type { AgentRecord } from "$lib/api";
   import { conversationSelectors } from "$lib/features/conversations";
   import {
-    openProcessTab,
-    processSelectors,
-    pruneStoppedProcesses,
-    removeProcess,
-    restartSelectedProcess,
-    runProcessCommand,
-    stopSelectedProcess,
-  } from "$lib/features/processes";
+    openTaskTab,
+    taskSelectors,
+    pruneFinishedTasks,
+    removeTask,
+    restartSelectedTask,
+    runTaskCommand,
+    cancelSelectedTask,
+  } from "$lib/features/tasks";
   import {
     exportUrl,
     selection,
@@ -24,8 +24,8 @@
   const activeConversation = $derived(conversationSelectors.activeConversation);
   const activeAgent = $derived(conversationSelectors.activeAgent);
   const conversationAgents = $derived(conversationSelectors.conversationAgents);
-  const processes = $derived(processSelectors.scopedProcesses);
-  const selectedProcess = $derived(processSelectors.selectedProcess);
+  const tasks = $derived(taskSelectors.scopedTasks);
+  const selectedTask = $derived(taskSelectors.selectedTask);
 
   function selectAgent(agent: AgentRecord) {
     selection.agentId = agent.id;
@@ -42,26 +42,26 @@
   {activeConversation}
   {activeAgent}
   {conversationAgents}
-  {processes}
-  {selectedProcess}
+  {tasks}
+  {selectedTask}
   homeDir={status?.storage.home}
   {exportUrl}
   {systemPromptUrl}
   onTabChange={(tab) => (layout.utilityTab = tab)}
   onSelectAgent={selectAgent}
-  onOpenProcessOutput={(id) => {
-    layout.utilityTab = "processes";
-    void openProcessTab(id);
+  onOpenTaskOutput={(id) => {
+    layout.utilityTab = "tasks";
+    void openTaskTab(id);
   }}
-  onStopProcess={(id) => void stopSelectedProcess(id)}
-  onRestartProcess={(id) => void restartSelectedProcess(id)}
-  onRemoveProcess={(id) => void removeProcess(id)}
-  onPruneProcesses={() => void pruneStoppedProcesses()}
+  onCancelTask={(id) => void cancelSelectedTask(id)}
+  onRestartTask={(id) => void restartSelectedTask(id)}
+  onRemoveTask={(id) => void removeTask(id)}
+  onPruneTasks={() => void pruneFinishedTasks()}
   onRunCommand={(input) => {
-    layout.utilityTab = "processes";
+    layout.utilityTab = "tasks";
     void (async () => {
-      const process = await runProcessCommand(input);
-      await openProcessTab(process.id);
+      const task = await runTaskCommand(input);
+      await openTaskTab(task.id);
     })();
   }}
 />

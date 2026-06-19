@@ -2,6 +2,7 @@ import type { Message } from "@earendil-works/pi-ai";
 import { listAvailableModels } from "@nerve/agent";
 import type {
   AgentRecord,
+  CancelTaskRequest,
   CompactConversationRequest,
   ContextUsage,
   ConversationEntry,
@@ -18,13 +19,12 @@ import type {
   OpenProjectInEditorRequest,
   OpenProjectInEditorResponse,
   PlanReviewStatus,
-  ProcessLogQuery,
   ProjectRecord,
   PromptRequest,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
-  StartProcessRequest,
-  StopProcessRequest,
+  StartTaskRequest,
+  TaskLogQuery,
   ToolName,
   UpdateAgentRequest,
   UserQuestionStatus,
@@ -59,8 +59,8 @@ export class RuntimeRegistry {
   }
   private readonly services: RuntimeServices;
 
-  get processes() {
-    return this.services.processes;
+  get tasks() {
+    return this.services.tasks;
   }
 
   get pythonRuntime() {
@@ -122,7 +122,7 @@ export class RuntimeRegistry {
 
   async hydrate(): Promise<void> {
     await this.workers.hydrate();
-    await this.processes.hydrate();
+    await this.tasks.hydrate();
     await this.tools.hydrate();
     await this.plans.hydrate();
     await this.suspensions.hydrate();
@@ -138,7 +138,7 @@ export class RuntimeRegistry {
       conversations: this.listConversations(),
       agents: this.listAgents(),
       events: await this.events.replayPersistedSince(0),
-      processes: this.processes.listProcesses(),
+      tasks: this.tasks.listTasks(),
       workers: this.workers.listWorkers(),
       toolCalls: this.tools.listToolCalls(),
       approvals: this.tools.listApprovals(),
@@ -373,12 +373,12 @@ export class RuntimeRegistry {
     return this.services.humanInput.dismissUserQuestion(questionId, reason);
   }
 
-  listProcesses() {
-    return this.processes.listProcesses();
+  listTasks() {
+    return this.tasks.listTasks();
   }
 
-  getProcess(processId: string) {
-    return this.processes.getProcess(processId);
+  getTask(taskId: string) {
+    return this.tasks.getTask(taskId);
   }
 
   listWorkers() {
@@ -409,28 +409,28 @@ export class RuntimeRegistry {
     return this.services.pinnedCommands.remove(projectId, commandId);
   }
 
-  startProcess(request: StartProcessRequest) {
-    return this.workers.startProcess(request.workerId, this.processes, request);
+  startTask(request: StartTaskRequest) {
+    return this.workers.startTask(request.workerId, this.tasks, request);
   }
 
-  stopProcess(processId: string, request?: StopProcessRequest) {
-    return this.processes.stopProcess(processId, request);
+  cancelTask(taskId: string, request?: CancelTaskRequest) {
+    return this.tasks.cancelTask(taskId, request);
   }
 
-  restartProcess(processId: string) {
-    return this.processes.restartProcess(processId);
+  restartTask(taskId: string) {
+    return this.tasks.restartTask(taskId);
   }
 
-  removeProcess(processId: string) {
-    return this.processes.removeProcess(processId);
+  removeTask(taskId: string) {
+    return this.tasks.removeTask(taskId);
   }
 
-  pruneProcesses() {
-    return this.processes.pruneProcesses();
+  pruneTasks() {
+    return this.tasks.pruneTasks();
   }
 
-  queryProcessLogs(processId: string, query?: ProcessLogQuery) {
-    return this.processes.queryLogs(processId, query);
+  queryTaskLogs(taskId: string, query?: TaskLogQuery) {
+    return this.tasks.queryLogs(taskId, query);
   }
 
   listModels(): ModelInfo[] {

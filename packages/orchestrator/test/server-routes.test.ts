@@ -603,7 +603,7 @@ describe("orchestrator server routes", () => {
     }
   });
 
-  it("returns representative project, conversation, agent, and process log responses", async () => {
+  it("returns representative project, conversation, agent, and task log responses", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
     try {
       const project = await state.registry.createProject({
@@ -642,23 +642,20 @@ describe("orchestrator server routes", () => {
         agent.id,
       );
 
-      const processRecord = await state.registry.startProcess({
+      const taskRecord = await state.registry.startTask({
         cwd: state.storage.paths.home,
         command: `${process.execPath} -e "console.log('route-log')"`,
       });
       await delay(100);
-      const logs = await app.request(
-        `/api/processes/${processRecord.id}/logs`,
-        {
-          headers,
-        },
-      );
+      const logs = await app.request(`/api/tasks/${taskRecord.id}/logs`, {
+        headers,
+      });
       assert.equal(logs.status, 200);
       const body = (await logs.json()) as {
-        process: { id: string };
+        task: { id: string };
         events: Array<{ line: string }>;
       };
-      assert.equal(body.process.id, processRecord.id);
+      assert.equal(body.task.id, taskRecord.id);
       assert.ok(body.events.some((event) => event.line.includes("route-log")));
     } finally {
       state.index.close();

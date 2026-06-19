@@ -6,7 +6,7 @@ import { shellToolDefinitions } from "./core/shell.tools.js";
 import { webToolDefinitions } from "./core/web.tools.js";
 import { exploreToolDefinitions } from "./orchestration/explore.tools.js";
 import { planModeToolDefinitions } from "./orchestration/plan-mode.tools.js";
-import { processToolDefinitions } from "./orchestration/process.tools.js";
+import { taskToolDefinitions } from "./orchestration/task.tools.js";
 import type { CoreToolDefinition } from "./types.js";
 
 export * from "./core/filesystem.tools.js";
@@ -17,7 +17,7 @@ export * from "./core/web.tools.js";
 export * from "./descriptors.js";
 export * from "./orchestration/explore.tools.js";
 export * from "./orchestration/plan-mode.tools.js";
-export * from "./orchestration/process.tools.js";
+export * from "./orchestration/task.tools.js";
 export * from "./risk.js";
 export * from "./types.js";
 
@@ -34,7 +34,7 @@ export const coreToolDefinitions: CoreToolDefinition[] = [
 ];
 
 export const orchestrationToolDefinitions: CoreToolDefinition[] = [
-  ...processToolDefinitions,
+  ...taskToolDefinitions,
   ...exploreToolDefinitions,
   ...planModeToolDefinitions,
 ];

@@ -163,19 +163,20 @@ describe("executeTool dispatch", () => {
     }
   });
 
-  it("rejects process tools because they are orchestrator-owned", async () => {
-    const processTools = [
-      "process_start",
-      "process_stop",
-      "process_restart",
-      "process_list",
-      "process_logs",
+  it("rejects task tools because they are orchestrator-owned", async () => {
+    const taskTools = [
+      "task_start",
+      "task_status",
+      "task_logs",
+      "task_cancel",
+      "task_restart",
+      "task_list",
     ] as ToolName[];
 
-    for (const name of processTools) {
+    for (const name of taskTools) {
       await assert.rejects(
         executeTool(name, {}, { cwd: process.cwd() }),
-        /orchestrator process manager/,
+        /orchestrator task manager/,
         name,
       );
     }

@@ -1,3 +1,7 @@
+export {
+  buildProcessResult,
+  buildProcessTextResult,
+} from "./common/process-result.js";
 export { executeTool } from "./core-dispatch.js";
 export { executeEdit, normalizeEditOperations } from "./filesystem/edit.js";
 export { executeFind } from "./filesystem/find.js";

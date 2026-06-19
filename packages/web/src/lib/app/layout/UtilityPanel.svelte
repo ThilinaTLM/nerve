@@ -5,7 +5,7 @@
   import type {
     AgentRecord,
     ConversationRecord,
-    ProcessRecord,
+    TaskRecord,
     ProjectRecord,
     StatusResponse,
   } from "$lib/api";
@@ -13,9 +13,9 @@
   import Tabs, { type TabItem } from "$lib/components/ui/tabs-bar";
   import ContextTab from "$lib/features/conversations/components/ContextUtilityPanel.svelte";
   import GitTab from "$lib/features/git/components/GitUtilityPanel.svelte";
-  import ProcessesTab from "$lib/features/processes/components/ProcessUtilityPanel.svelte";
+  import TasksTab from "$lib/features/tasks/components/TaskUtilityPanel.svelte";
 
-  type UtilityTab = "processes" | "info" | "git";
+  type UtilityTab = "tasks" | "info" | "git";
 
   type Props = {
     activeTab?: UtilityTab;
@@ -24,18 +24,18 @@
     activeConversation?: ConversationRecord;
     activeAgent?: AgentRecord;
     conversationAgents?: AgentRecord[];
-    processes?: ProcessRecord[];
-    selectedProcess?: ProcessRecord;
+    tasks?: TaskRecord[];
+    selectedTask?: TaskRecord;
     homeDir?: string;
     exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
     systemPromptUrl?: () => string | undefined;
     onTabChange?: (tab: UtilityTab) => void;
     onSelectAgent?: (agent: AgentRecord) => void;
-    onOpenProcessOutput?: (id: string) => void;
-    onStopProcess?: (id: string) => void;
-    onRestartProcess?: (id: string) => void;
-    onRemoveProcess?: (id: string) => void;
-    onPruneProcesses?: () => void;
+    onOpenTaskOutput?: (id: string) => void;
+    onCancelTask?: (id: string) => void;
+    onRestartTask?: (id: string) => void;
+    onRemoveTask?: (id: string) => void;
+    onPruneTasks?: () => void;
     onRunCommand?: (input: {
       projectId: string;
       cwd: string;
@@ -51,29 +51,29 @@
     activeConversation,
     activeAgent,
     conversationAgents = [],
-    processes = [],
-    selectedProcess,
+    tasks = [],
+    selectedTask,
     homeDir,
     exportUrl,
     systemPromptUrl,
     onTabChange,
     onSelectAgent,
-    onOpenProcessOutput,
-    onStopProcess,
-    onRestartProcess,
-    onRemoveProcess,
-    onPruneProcesses,
+    onOpenTaskOutput,
+    onCancelTask,
+    onRestartTask,
+    onRemoveTask,
+    onPruneTasks,
     onRunCommand,
   }: Props = $props();
 
-  const ACTIVE_PROCESS_STATUSES = new Set(["starting", "running", "ready", "stopping"]);
-  const runningProcessCount = $derived(
-    processes.filter((process) => ACTIVE_PROCESS_STATUSES.has(process.status)).length,
+  const ACTIVE_TASK_STATUSES = new Set(["starting", "running", "ready", "stopping"]);
+  const runningTaskCount = $derived(
+    tasks.filter((task) => ACTIVE_TASK_STATUSES.has(task.status)).length,
   );
 
   const tabs = $derived<TabItem[]>([
     { value: "git", label: "Git", icon: GitBranch },
-    { value: "processes", label: "Processes", icon: Terminal, count: runningProcessCount },
+    { value: "tasks", label: "Tasks", icon: Terminal, count: runningTaskCount },
     { value: "info", label: "Context", icon: Info },
   ]);
 
@@ -102,17 +102,17 @@
       />
     {:else if activeTab === "git"}
       <GitTab {activeProject} {activeAgent} />
-    {:else if activeTab === "processes"}
-      <ProcessesTab
+    {:else if activeTab === "tasks"}
+      <TasksTab
         {activeProject}
-        {processes}
-        {selectedProcess}
+        {tasks}
+        {selectedTask}
         {homeDir}
-        {onOpenProcessOutput}
-        {onStopProcess}
-        {onRestartProcess}
-        {onRemoveProcess}
-        {onPruneProcesses}
+        {onOpenTaskOutput}
+        {onCancelTask}
+        {onRestartTask}
+        {onRemoveTask}
+        {onPruneTasks}
         {onRunCommand}
       />
     {/if}

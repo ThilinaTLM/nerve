@@ -3,8 +3,8 @@ import type {
   ConversationRecord,
   FilesystemFileResponse,
   GithubChecksSummary,
-  ProcessRecord,
   ProjectRecord,
+  TaskRecord,
 } from "$lib/api";
 import type { defaultFileDisplayMode } from "$lib/core/utils/file-display";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
@@ -35,10 +35,10 @@ export type PendingConversationTabModel = {
   error?: string;
 };
 
-export type ProcessTabModel = {
-  kind: "process";
+export type TaskTabModel = {
+  kind: "task";
   id: string;
-  process?: ProcessRecord;
+  task?: TaskRecord;
   active: boolean;
   sending: boolean;
   error?: string;
@@ -89,7 +89,7 @@ export type PrTabModel = {
 export type CenterTabModel =
   | ConversationTabModel
   | PendingConversationTabModel
-  | ProcessTabModel
+  | TaskTabModel
   | FileTabModel
   | PrTabModel
   | SettingsTabModel

@@ -7,6 +7,8 @@ import {
 
 export * from "./catalog/index.js";
 export {
+  buildProcessResult,
+  buildProcessTextResult,
   executeTool,
   type PythonRuntime,
   type PythonRuntimeStatus,
