@@ -1,10 +1,11 @@
 import { isAbsolute, resolve } from "node:path";
-import type {
-  AgentRecord,
-  Mode,
-  TaskLogEvent,
-  TaskRecord,
-  ToolCallRecord,
+import {
+  type AgentRecord,
+  createId,
+  type Mode,
+  type TaskLogEvent,
+  type TaskRecord,
+  type ToolCallRecord,
 } from "@nerve/shared";
 import {
   buildProcessTextResult,
@@ -18,7 +19,15 @@ import type { ConversationRuntime } from "../conversations/conversation-runtime.
 import { ensurePlanDir } from "../plans/plan-paths.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
+import { isActiveTaskStatus } from "../tasks/index.js";
 import type { TaskManager } from "../tasks/task-manager.js";
+import {
+  formatTaskListSummary,
+  formatTaskLogsSummary,
+  formatTaskStartSummary,
+  formatTaskStatusSummary,
+  relevantFailureLogs,
+} from "../tasks/task-summary-format.js";
 import type { InteractionSessionService } from "./interaction-session.service.js";
 import type { TodoStateService } from "./todo-state.service.js";
 import { todoItemsArg, todosResult } from "./todo-state.service.js";
@@ -28,7 +37,6 @@ import {
   signalArg,
   stringArg,
   stringRecordArg,
-  taskIdArg,
 } from "./tool-args.js";
 import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
 import type {
@@ -80,34 +88,13 @@ export class OrchestrationToolDispatcher {
         return this.taskStatusFromTool(toolCall, args);
       case "task_logs":
         return this.taskLogsFromTool(toolCall, args);
-      case "task_cancel": {
-        const task = await this.deps.tasks.cancelTask(
-          taskIdArg(args, this.deps.tasks, toolCall.projectId),
-          {
-            signal: signalArg(args.signal),
-            timeoutMs: optionalBoundedIntegerArg(args.timeoutMs, "timeoutMs", {
-              min: 1,
-              max: 30_000,
-            }),
-            reason: optionalStringArg(args.reason),
-          },
-        );
-        return {
-          task,
-          contentBlocks: [
-            {
-              type: "text",
-              text: `Task ${task.id} is ${task.status}. Use task_status/task_logs for current details.`,
-            },
-          ],
-        };
-      }
+      case "task_cancel":
+        return this.taskCancelFromTool(toolCall, args);
       case "task_restart": {
-        const restartedFromTaskId = taskIdArg(
-          args,
-          this.deps.tasks,
-          toolCall.projectId,
-        );
+        const restartedFromTaskId = this.resolveTaskReference(
+          stringArg(args, "taskId"),
+          toolCall,
+        ).id;
         const task = await this.deps.tasks.restartTask(restartedFromTaskId);
         return {
           task,
@@ -115,52 +102,13 @@ export class OrchestrationToolDispatcher {
           contentBlocks: [
             {
               type: "text",
-              text: `Restarted ${restartedFromTaskId} as ${task.id}. Use task_status/task_logs with the full task ID.`,
+              text: `Restarted ${restartedFromTaskId} as ${task.name ?? task.id}. Use task_status/task_logs with the task name or ID.`,
             },
           ],
         };
       }
-      case "task_list": {
-        const status = optionalStringArg(args.status);
-        const activeOnly = args.activeOnly === true;
-        const limit =
-          optionalBoundedIntegerArg(args.limit, "limit", {
-            min: 1,
-            max: 500,
-          }) ?? 100;
-        const activeStatuses = new Set([
-          "starting",
-          "running",
-          "ready",
-          "stopping",
-        ]);
-        const projectId =
-          optionalStringArg(args.projectId) ?? toolCall.projectId;
-        const conversationId = optionalStringArg(args.conversationId);
-        const agentId = optionalStringArg(args.agentId);
-        let tasks = this.deps.tasks
-          .listTasks()
-          .filter((task) => task.projectId === projectId);
-        if (conversationId)
-          tasks = tasks.filter(
-            (task) => task.conversationId === conversationId,
-          );
-        if (agentId) tasks = tasks.filter((task) => task.agentId === agentId);
-        if (status) tasks = tasks.filter((task) => task.status === status);
-        if (activeOnly)
-          tasks = tasks.filter((task) => activeStatuses.has(task.status));
-        tasks = tasks.slice(0, Math.max(1, Math.min(500, limit)));
-        const bounded = await buildProcessTextResult({
-          text: this.formatTaskListSummary(tasks),
-          outputFilePrefix: "nerve-task-list",
-          exitMessagePrefix: "Task list",
-          dataDir: this.deps.storage.paths.home,
-        });
-        return {
-          tasks,
-          contentBlocks: bounded.contentBlocks,
-        };
-      }
+      case "task_list":
+        return this.taskListFromTool(toolCall, args);
       case "explore":
         return this.deps.runExplore(
           this.deps.getAgent(toolCall.agentId),
@@ -272,6 +220,8 @@ export class OrchestrationToolDispatcher {
     }
 
     const tasks: TaskRecord[] = [];
+    const groupId = createId("taskgrp");
+    const groupName = optionalStringArg(args.name);
     const agent = this.deps.getAgent(toolCall.agentId);
     for (const input of inputs) {
       const command = stringArg(input, "command");
@@ -287,6 +237,8 @@ export class OrchestrationToolDispatcher {
       tasks.push(
         await this.deps.startTask({
           name: typeof input.name === "string" ? input.name : undefined,
+          groupId,
+          groupName,
           workerId: agent.workerId,
           projectId: toolCall.projectId,
           conversationId: toolCall.conversationId,
@@ -294,6 +246,7 @@ export class OrchestrationToolDispatcher {
           cwd,
           command,
           env: stringRecordArg(input.env),
+          readyUrl: optionalStringArg(input.readyUrl),
           readyOnUrl: Boolean(input.readyOnUrl),
           readyPattern: optionalStringArg(input.readyPattern),
           readyTimeoutMs: optionalBoundedIntegerArg(
@@ -305,10 +258,7 @@ export class OrchestrationToolDispatcher {
             min: 1,
             max: 86_400_000,
           }),
-          injectCompletion:
-            typeof input.injectCompletion === "boolean"
-              ? input.injectCompletion
-              : true,
+          notify: typeof input.notify === "boolean" ? input.notify : true,
           origin: {
             kind: "agent_tool",
             toolCallId: toolCall.id,
@@ -322,18 +272,18 @@ export class OrchestrationToolDispatcher {
       );
     }
 
+    const bounded = await buildProcessTextResult({
+      text: formatTaskStartSummary({ tasks, groupId, groupName }),
+      outputFilePrefix: "nerve-task-start",
+      exitMessagePrefix: "Task start",
+      dataDir: this.deps.storage.paths.home,
+      details: { groupId, groupName },
+    });
     return {
       tasks,
-      contentBlocks: [
-        {
-          type: "text",
-          text: `Started ${tasks.length} background ${tasks.length === 1 ? "task" : "tasks"}: ${tasks
-            .map((task) => task.id)
-            .join(
-              ", ",
-            )}. Use task_status/task_logs/task_cancel with the full task IDs.`,
-        },
-      ],
+      groupId,
+      groupName,
+      contentBlocks: bounded.contentBlocks,
     };
   }
 
@@ -341,71 +291,192 @@ export class OrchestrationToolDispatcher {
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    const singleTaskId =
-      typeof args.taskId === "string" ? args.taskId : undefined;
+    const singleTask = optionalStringArg(args.taskId);
     const taskIds = Array.isArray(args.taskIds)
       ? args.taskIds.filter(
           (value): value is string => typeof value === "string",
         )
       : undefined;
-    if ((singleTaskId ? 1 : 0) + (taskIds ? 1 : 0) !== 1) {
-      throw new Error("Provide exactly one of 'taskId' or 'taskIds'.");
+    const groupId = optionalStringArg(args.groupId);
+    const selectorCount =
+      (singleTask ? 1 : 0) + (taskIds ? 1 : 0) + (groupId ? 1 : 0);
+    if (selectorCount > 1) {
+      throw new Error(
+        "Provide at most one of 'taskId', 'taskIds', or 'groupId'.",
+      );
     }
     if (taskIds && taskIds.length > 20) {
       throw new Error("task_status supports at most 20 task IDs.");
     }
-    const ids = singleTaskId ? [singleTaskId] : (taskIds ?? []);
+    const limit =
+      optionalBoundedIntegerArg(args.limit, "limit", { min: 1, max: 50 }) ?? 5;
     const includeLogs = args.includeLogs === true;
     const logLimit =
       optionalBoundedIntegerArg(args.logLimit, "logLimit", {
         min: 1,
         max: 50,
-      }) ?? 20;
-    const tasks = [] as Array<{
-      task: TaskRecord;
-      recentLogs?: TaskLogEvent[];
-    }>;
-    for (const rawId of ids) {
-      const taskId = taskIdArg(
-        { taskId: rawId },
-        this.deps.tasks,
-        toolCall.projectId,
+      }) ?? 5;
+    const activeOnly = args.activeOnly === true;
+
+    let selected: TaskRecord[];
+    if (singleTask) {
+      selected = [this.resolveTaskReference(singleTask, toolCall)];
+    } else if (taskIds) {
+      selected = taskIds.map((ref) => this.resolveTaskReference(ref, toolCall));
+    } else if (groupId) {
+      selected = this.tasksInScope(toolCall).filter(
+        (task) =>
+          task.groupId === groupId &&
+          (!activeOnly || isActiveTaskStatus(task.status)),
       );
-      const task = this.deps.tasks.getTask(taskId);
+    } else {
+      selected = this.defaultStatusTasks(toolCall, activeOnly, limit);
+    }
+    selected = selected.slice(0, limit);
+
+    const rows: Array<{
+      task: TaskRecord;
+      logs?: TaskLogEvent[];
+      nextCursor?: number;
+    }> = [];
+    for (const task of selected) {
       if (!includeLogs) {
-        tasks.push({ task });
+        const cursor = await this.deps.tasks.queryLogs(task.id, {
+          mode: "recent",
+          limit: 1,
+        });
+        rows.push({ task, nextCursor: cursor.nextCursor });
         continue;
       }
-      const logs = await this.deps.tasks.queryLogs(taskId, {
-        mode: "recent",
-        limit: logLimit,
-      });
-      tasks.push({ task, recentLogs: logs.events });
+      const logs = await this.statusLogs(task, logLimit);
+      rows.push({ task, logs: logs.events, nextCursor: logs.nextCursor });
     }
-    const text = this.formatTaskStatusSummary(tasks);
     const bounded = await buildProcessTextResult({
-      text,
+      text: formatTaskStatusSummary(rows),
       outputFilePrefix: "nerve-task-status",
       exitMessagePrefix: "Task status",
       dataDir: this.deps.storage.paths.home,
     });
-    return { tasks, contentBlocks: bounded.contentBlocks };
+    return { tasks: rows, contentBlocks: bounded.contentBlocks };
+  }
+
+  private async taskListFromTool(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    const status = optionalStringArg(args.status);
+    const activeOnly = args.activeOnly === true;
+    const limit =
+      optionalBoundedIntegerArg(args.limit, "limit", { min: 1, max: 500 }) ??
+      20;
+    const projectId = optionalStringArg(args.projectId) ?? toolCall.projectId;
+    const conversationId =
+      optionalStringArg(args.conversationId) ?? toolCall.conversationId;
+    const agentId = optionalStringArg(args.agentId);
+    const groupId = optionalStringArg(args.groupId);
+    let tasks = this.deps.tasks
+      .listTasks()
+      .filter((task) => task.projectId === projectId);
+    if (conversationId) {
+      tasks = tasks.filter((task) => task.conversationId === conversationId);
+    }
+    if (agentId) tasks = tasks.filter((task) => task.agentId === agentId);
+    if (groupId) tasks = tasks.filter((task) => task.groupId === groupId);
+    if (status) tasks = tasks.filter((task) => task.status === status);
+    if (activeOnly)
+      tasks = tasks.filter((task) => isActiveTaskStatus(task.status));
+    tasks = tasks.slice(0, limit);
+    const bounded = await buildProcessTextResult({
+      text: formatTaskListSummary(tasks),
+      outputFilePrefix: "nerve-task-list",
+      exitMessagePrefix: "Task list",
+      dataDir: this.deps.storage.paths.home,
+    });
+    return { tasks, groupId, contentBlocks: bounded.contentBlocks };
+  }
+
+  private async taskCancelFromTool(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    const taskRef = optionalStringArg(args.taskId);
+    const groupId = optionalStringArg(args.groupId);
+    if (taskRef && groupId) {
+      throw new Error("Provide only one of 'taskId' or 'groupId'.");
+    }
+    const request = {
+      signal: signalArg(args.signal),
+      timeoutMs: optionalBoundedIntegerArg(args.timeoutMs, "timeoutMs", {
+        min: 1,
+        max: 30_000,
+      }),
+      reason: optionalStringArg(args.reason),
+    };
+    let targets: TaskRecord[] = [];
+    let ambiguity = false;
+    if (taskRef) {
+      targets = [this.resolveTaskReference(taskRef, toolCall)];
+    } else if (groupId) {
+      targets = this.tasksInScope(toolCall).filter(
+        (task) => task.groupId === groupId && isActiveTaskStatus(task.status),
+      );
+    } else {
+      targets = this.tasksInScope(toolCall).filter((task) =>
+        isActiveTaskStatus(task.status),
+      );
+      ambiguity = targets.length > 1;
+    }
+    if (ambiguity) {
+      const text = [
+        `Multiple active tasks found (${targets.length}); no tasks cancelled.`,
+        ...targets
+          .slice(0, 10)
+          .map(
+            (task) => `- ${task.name ?? task.id}: ${task.id} — ${task.status}`,
+          ),
+        "Call task_cancel with taskId/name or groupId.",
+      ].join("\n");
+      return { tasks: targets, contentBlocks: [{ type: "text", text }] };
+    }
+    if (targets.length === 0) {
+      return {
+        tasks: [],
+        contentBlocks: [
+          { type: "text", text: "No active matching tasks to cancel." },
+        ],
+      };
+    }
+    const cancelled: TaskRecord[] = [];
+    for (const target of targets) {
+      cancelled.push(await this.deps.tasks.cancelTask(target.id, request));
+    }
+    const bounded = await buildProcessTextResult({
+      text: formatTaskStatusSummary(cancelled.map((task) => ({ task }))),
+      outputFilePrefix: "nerve-task-cancel",
+      exitMessagePrefix: "Task cancel",
+      dataDir: this.deps.storage.paths.home,
+    });
+    return {
+      task: cancelled[0],
+      tasks: cancelled,
+      contentBlocks: bounded.contentBlocks,
+    };
   }
 
   private async taskLogsFromTool(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    const taskId = taskIdArg(args, this.deps.tasks, toolCall.projectId);
+    const selected = this.selectTaskForLogs(toolCall, args);
+    if (!selected.task) {
+      return {
+        events: [],
+        contentBlocks: [{ type: "text", text: "No matching tasks found." }],
+      };
+    }
+    const taskId = selected.task.id;
     const response = await this.deps.tasks.queryLogs(taskId, {
-      mode:
-        args.mode === "errors" ||
-        args.mode === "warnings" ||
-        args.mode === "since_cursor" ||
-        args.mode === "first_failure" ||
-        args.mode === "recent"
-          ? args.mode
-          : undefined,
+      mode: this.logModeArg(args.mode),
       sinceSeq: optionalBoundedIntegerArg(args.sinceSeq, "sinceSeq", {
         min: 0,
         max: Number.MAX_SAFE_INTEGER,
@@ -417,16 +488,19 @@ export class OrchestrationToolDispatcher {
         "contextLines",
         { min: 0, max: 20 },
       ),
-      limit: optionalBoundedIntegerArg(args.limit, "limit", {
-        min: 1,
-        max: 500,
-      }),
+      limit:
+        optionalBoundedIntegerArg(args.limit, "limit", {
+          min: 1,
+          max: 500,
+        }) ?? 80,
     });
-    const text = this.formatTaskLogs(
-      response.task,
-      response.events,
-      response.nextCursor,
-    );
+    const text = formatTaskLogsSummary({
+      task: response.task,
+      events: response.events,
+      nextCursor: response.nextCursor,
+      mode: response.mode,
+      autoSelected: selected.autoSelected,
+    });
     const bounded = await buildProcessTextResult({
       text,
       outputFilePrefix: "nerve-task-logs",
@@ -445,67 +519,130 @@ export class OrchestrationToolDispatcher {
     };
   }
 
-  private formatTaskListSummary(tasks: TaskRecord[]): string {
-    if (tasks.length === 0) return "No tasks found.";
-    return tasks
-      .map((task) => `${task.id} — ${task.status} — ${task.command}`)
-      .join("\n");
+  private tasksInScope(toolCall: ToolCallRecord): TaskRecord[] {
+    return this.deps.tasks
+      .listTasks()
+      .filter(
+        (task) =>
+          task.projectId === toolCall.projectId &&
+          task.conversationId === toolCall.conversationId,
+      );
   }
 
-  private formatTaskStatusSummary(
-    tasks: Array<{ task: TaskRecord; recentLogs?: TaskLogEvent[] }>,
-  ): string {
-    return tasks
-      .map(({ task, recentLogs }) => {
-        const lines = [
-          `${task.id}: ${task.status}`,
-          `Command: ${task.command}`,
-          `Cwd: ${task.cwd}`,
-        ];
-        if (task.exitCode !== undefined)
-          lines.push(`Exit code: ${task.exitCode}`);
-        if (task.signal) lines.push(`Signal: ${task.signal}`);
-        if (task.error) lines.push(`Error: ${task.error}`);
-        if (task.readiness.outcome !== "none") {
-          lines.push(
-            `Readiness: ${task.readiness.outcome}${task.readiness.matched ? ` (${task.readiness.matched})` : ""}`,
-          );
-        }
-        if (recentLogs && recentLogs.length > 0) {
-          lines.push("Recent logs:");
-          lines.push(...recentLogs.map((log) => this.formatLogEvent(log)));
-          lines.push(`Use task_logs with taskId "${task.id}" for more output.`);
-        }
-        return lines.join("\n");
-      })
-      .join("\n\n");
+  private defaultStatusTasks(
+    toolCall: ToolCallRecord,
+    activeOnly: boolean,
+    limit: number,
+  ): TaskRecord[] {
+    const scoped = this.tasksInScope(toolCall);
+    const active = scoped.filter((task) => isActiveTaskStatus(task.status));
+    if (active.length > 0) return active.slice(0, limit);
+    if (activeOnly) return [];
+    return scoped.slice(0, limit);
   }
 
-  private formatTaskLogs(
-    task: TaskRecord,
-    events: TaskLogEvent[],
-    nextCursor: number,
-  ): string {
-    const lines = [
-      `Logs for ${task.id} (${task.status})`,
-      `Command: ${task.command}`,
-      `nextCursor: ${nextCursor}`,
-      "",
-    ];
-    if (events.length === 0) {
-      lines.push("No matching log events.");
-    } else {
-      lines.push(...events.map((event) => this.formatLogEvent(event)));
+  private resolveTaskReference(
+    ref: string,
+    toolCall: ToolCallRecord,
+  ): TaskRecord {
+    const trimmed = ref.trim();
+    if (trimmed.startsWith("task_")) {
+      const task = this.deps.tasks.getTask(trimmed);
+      if (task.projectId !== toolCall.projectId) {
+        throw new Error("Task is outside this agent's project scope.");
+      }
+      return task;
     }
-    lines.push(
-      "",
-      `Use task_logs with mode "since_cursor" and sinceSeq ${nextCursor} to continue.`,
+    const projectMatches = this.deps.tasks
+      .listTasks()
+      .filter(
+        (task) =>
+          task.projectId === toolCall.projectId && task.name === trimmed,
+      );
+    const conversationMatches = projectMatches.filter(
+      (task) => task.conversationId === toolCall.conversationId,
     );
-    return lines.join("\n");
+    const matches =
+      conversationMatches.length > 0 ? conversationMatches : projectMatches;
+    if (matches.length === 0) throw new Error(`Task '${trimmed}' not found.`);
+    if (matches.length > 1) {
+      const listed = matches
+        .slice(0, 8)
+        .map((task) => `${task.name ?? task.id} (${task.id}, ${task.status})`)
+        .join(", ");
+      throw new Error(
+        `Task name '${trimmed}' is ambiguous: ${listed}. Use a task ID or groupId.`,
+      );
+    }
+    return matches[0] as TaskRecord;
   }
 
-  private formatLogEvent(event: TaskLogEvent): string {
-    return `[${event.seq} ${event.stream} ${event.level}] ${event.line}`;
+  private async statusLogs(
+    task: TaskRecord,
+    limit: number,
+  ): Promise<{ events: TaskLogEvent[]; nextCursor: number }> {
+    if (task.status === "failed" || task.status === "timed_out") {
+      const [firstFailure, errors, warnings, recent] = await Promise.all([
+        this.deps.tasks.queryLogs(task.id, {
+          mode: "first_failure",
+          contextLines: 2,
+          limit,
+        }),
+        this.deps.tasks.queryLogs(task.id, { mode: "errors", limit }),
+        this.deps.tasks.queryLogs(task.id, { mode: "warnings", limit }),
+        this.deps.tasks.queryLogs(task.id, { mode: "recent", limit }),
+      ]);
+      const selected = relevantFailureLogs(
+        [firstFailure, errors, warnings, recent],
+        limit,
+      );
+      return {
+        events: selected.events,
+        nextCursor: selected.nextCursor ?? recent.nextCursor,
+      };
+    }
+    const recent = await this.deps.tasks.queryLogs(task.id, {
+      mode: "recent",
+      limit,
+    });
+    return { events: recent.events, nextCursor: recent.nextCursor };
+  }
+
+  private selectTaskForLogs(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+  ): { task?: TaskRecord; autoSelected: boolean } {
+    const taskRef = optionalStringArg(args.taskId);
+    if (taskRef) {
+      return {
+        task: this.resolveTaskReference(taskRef, toolCall),
+        autoSelected: false,
+      };
+    }
+    const groupId = optionalStringArg(args.groupId);
+    const scoped = groupId
+      ? this.tasksInScope(toolCall).filter((task) => task.groupId === groupId)
+      : this.tasksInScope(toolCall);
+    const active = scoped.find((task) => isActiveTaskStatus(task.status));
+    return { task: active ?? scoped[0], autoSelected: true };
+  }
+
+  private logModeArg(
+    value: unknown,
+  ):
+    | "recent"
+    | "errors"
+    | "warnings"
+    | "since_cursor"
+    | "first_failure"
+    | undefined {
+    return value === "errors" ||
+      value === "warnings" ||
+      value === "since_cursor" ||
+      value === "first_failure" ||
+      value === "recent"
+      ? value
+      : undefined;
   }
 
   private publishExploreProgress(

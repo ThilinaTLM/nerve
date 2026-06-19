@@ -9,6 +9,7 @@ export type {
   LiveToolOutput,
   PendingConversationState,
   RunStatusNotice,
+  TaskEventNotice,
   TranscriptItem,
 } from "$lib/features/conversations";
 export type { FileViewState } from "$lib/features/filesystem";

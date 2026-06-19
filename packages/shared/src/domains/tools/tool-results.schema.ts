@@ -172,6 +172,8 @@ export type ToolExecutionResultPayload = z.infer<
 export const taskActionResultSchema = z.object({
   task: taskRecordSchema.optional(),
   tasks: z.array(taskRecordSchema).optional(),
+  groupId: z.string().startsWith("taskgrp_").optional(),
+  groupName: z.string().optional(),
   restartedFromTaskId: z.string().startsWith("task_").optional(),
   contentBlocks: z.array(toolContentBlockSchema).optional(),
 });
@@ -180,6 +182,7 @@ export type TaskActionResult = z.infer<typeof taskActionResultSchema>;
 /** Result of task_list. */
 export const taskListResultSchema = z.object({
   tasks: z.array(taskRecordSchema),
+  groupId: z.string().startsWith("taskgrp_").optional(),
   contentBlocks: z.array(toolContentBlockSchema).optional(),
 });
 export type TaskListResult = z.infer<typeof taskListResultSchema>;

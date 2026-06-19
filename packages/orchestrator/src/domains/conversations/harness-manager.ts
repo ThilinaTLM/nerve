@@ -85,6 +85,28 @@ export class HarnessManager {
     };
   }
 
+  async appendHarnessMessageWithId(
+    agent: AgentRecord,
+    id: string,
+    message: AgentMessage,
+    timestamp = new Date().toISOString(),
+  ): Promise<{ id: string; timestamp: string }> {
+    const conversation = this.getConversation(agent.conversationId);
+    const project = this.getProject(conversation.projectId);
+    const storage = await this.openStorage(conversation, project.dir);
+    const harnessConversation = new Conversation(storage);
+    await harnessConversation.appendHarnessMessageWithId(
+      id,
+      message,
+      timestamp,
+    );
+    const entry = await storage.getEntry(id);
+    return {
+      id,
+      timestamp: entry?.timestamp ?? timestamp,
+    };
+  }
+
   async appendEntry(entry: ConversationEntry): Promise<void> {
     if (entry.role === "system") return;
     try {

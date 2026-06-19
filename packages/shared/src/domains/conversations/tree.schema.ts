@@ -61,6 +61,7 @@ export const conversationEntryKindSchema = z.enum([
   "branch_summary",
   "explore_report",
   "run_status",
+  "task_event",
 ]);
 export type ConversationEntryKind = z.infer<typeof conversationEntryKindSchema>;
 

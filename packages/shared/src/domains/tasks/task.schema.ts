@@ -7,6 +7,7 @@ export const taskStatusSchema = z.enum([
   "stopping",
   "completed",
   "failed",
+  "timed_out",
   "cancelled",
   "orphaned",
 ]);
@@ -16,6 +17,7 @@ export const taskVisibilitySchema = z.enum(["foreground", "background"]);
 export type TaskVisibility = z.infer<typeof taskVisibilitySchema>;
 
 export const taskReadinessSchema = z.object({
+  readyUrl: z.string().url().optional(),
   readyOnUrl: z.boolean().optional(),
   readyPattern: z.string().optional(),
   timeoutMs: z.number().int().nonnegative().optional(),
@@ -75,9 +77,23 @@ export type TaskCompletionInjection = z.infer<
   typeof taskCompletionInjectionSchema
 >;
 
+export const taskNotificationStateSchema = z.object({
+  enabled: z.boolean().default(false),
+  ready: z.boolean().default(false),
+  terminal: z.boolean().default(false),
+  readyEntryId: z.string().startsWith("entry_").optional(),
+  terminalEntryId: z.string().startsWith("entry_").optional(),
+  readyDeliveredAt: z.string().datetime().optional(),
+  terminalDeliveredAt: z.string().datetime().optional(),
+  outputTailLineCount: z.number().int().positive().max(200).default(80),
+});
+export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
+
 export const taskRecordSchema = z.object({
   id: z.string().startsWith("task_"),
   name: z.string().min(1).optional(),
+  groupId: z.string().startsWith("taskgrp_").optional(),
+  groupName: z.string().min(1).optional(),
   workerId: z.string().startsWith("worker_").optional(),
   projectId: z.string().startsWith("proj_").optional(),
   conversationId: z.string().startsWith("conv_").optional(),
@@ -102,12 +118,15 @@ export const taskRecordSchema = z.object({
   runtime: taskRuntimeSchema.optional(),
   origin: taskOriginSchema.default({ kind: "api" }),
   completion: taskCompletionInjectionSchema.optional(),
+  notifications: taskNotificationStateSchema.optional(),
   visibility: taskVisibilitySchema.default("background"),
 });
 export type TaskRecord = z.infer<typeof taskRecordSchema>;
 
 export const startTaskRequestSchema = z.object({
   name: z.string().min(1).optional(),
+  groupId: z.string().startsWith("taskgrp_").optional(),
+  groupName: z.string().min(1).optional(),
   workerId: z.string().startsWith("worker_").optional(),
   projectId: z.string().startsWith("proj_").optional(),
   conversationId: z.string().startsWith("conv_").optional(),
@@ -115,10 +134,12 @@ export const startTaskRequestSchema = z.object({
   cwd: z.string().min(1),
   command: z.string().min(1),
   env: z.record(z.string(), z.string()).optional(),
+  readyUrl: z.string().url().optional(),
   readyOnUrl: z.boolean().optional(),
   readyPattern: z.string().min(1).optional(),
   readyTimeoutMs: z.number().int().nonnegative().max(60_000).optional(),
   timeoutMs: z.number().int().positive().max(86_400_000).optional(),
+  notify: z.boolean().optional(),
   injectCompletion: z.boolean().optional(),
 });
 export type StartTaskRequest = z.infer<typeof startTaskRequestSchema>;

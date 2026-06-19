@@ -87,6 +87,7 @@ export class Conversation<
     message: AgentMessage,
     timestamp = new Date().toISOString(),
   ): Promise<string> {
+    if (await this.storage.getEntry(id)) return id;
     return this.appendTypedEntry({
       type: "message",
       id,
@@ -94,6 +95,14 @@ export class Conversation<
       timestamp,
       message,
     } satisfies MessageEntry);
+  }
+
+  async appendHarnessMessageWithId(
+    id: string,
+    message: AgentMessage,
+    timestamp = new Date().toISOString(),
+  ): Promise<string> {
+    return this.appendMessageWithId(id, message, timestamp);
   }
 
   async appendThinkingLevelChange(thinkingLevel: string): Promise<string> {

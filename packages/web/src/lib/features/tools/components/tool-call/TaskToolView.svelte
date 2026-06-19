@@ -24,6 +24,9 @@
     {#if task.signal}
       <span class="font-mono text-xs text-muted-foreground">signal {task.signal}</span>
     {/if}
+    {#if task.groupId}
+      <span class="font-mono text-xs text-muted-foreground">group {task.groupId}</span>
+    {/if}
     {#if task.runtime?.childPid}
       <span class="font-mono text-xs text-muted-foreground">pid {task.runtime.childPid}</span>
     {/if}

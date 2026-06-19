@@ -22,6 +22,16 @@ export interface AgentRunState {
     message: AgentMessage;
     timestamp: string;
   }) => Promise<void>;
+  enqueueHarnessMessage?: (input: {
+    id: string;
+    message: AgentMessage;
+    timestamp: string;
+    delivery?: {
+      taskId?: string;
+      event?: string;
+      pendingNotificationId?: string;
+    };
+  }) => Promise<void>;
 }
 
 export type AgentRunStateMap = Map<string, AgentRunState>;

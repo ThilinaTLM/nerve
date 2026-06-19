@@ -67,4 +67,32 @@ describe("entryToTranscriptItems", () => {
     assert.equal(item?.runStatus?.failedEntryId, "entry_failed");
     assert.equal(item?.runStatus?.retryable, true);
   });
+
+  it("converts task event entries into system transcript items", () => {
+    const [item] = entryToTranscriptItems(
+      entry({
+        kind: "task_event",
+        text: "Background task typecheck failed.",
+        details: {
+          type: "task_event",
+          source: "harness",
+          taskId: "task_123",
+          taskName: "typecheck",
+          groupId: "taskgrp_123",
+          event: "failed",
+          status: "failed",
+          nextCursor: 42,
+        },
+      }),
+    );
+
+    assert.equal(item?.role, "system");
+    assert.equal(item?.kind, "task_event");
+    assert.equal(item?.text, "Background task typecheck failed.");
+    assert.equal(item?.taskEvent?.taskId, "task_123");
+    assert.equal(item?.taskEvent?.taskName, "typecheck");
+    assert.equal(item?.taskEvent?.groupId, "taskgrp_123");
+    assert.equal(item?.taskEvent?.event, "failed");
+    assert.equal(item?.taskEvent?.nextCursor, 42);
+  });
 });

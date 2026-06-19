@@ -68,12 +68,15 @@ export class MessageMirror {
       if (
         entry.message.role !== "user" &&
         entry.message.role !== "assistant" &&
-        entry.message.role !== "toolResult"
+        entry.message.role !== "toolResult" &&
+        entry.message.role !== "harness"
       ) {
         continue;
       }
       const role: ConversationEntry["role"] =
-        entry.message.role === "toolResult" ? "system" : entry.message.role;
+        entry.message.role === "toolResult" || entry.message.role === "harness"
+          ? "system"
+          : entry.message.role;
       const uiEntry = await this.deps.appendEntry(
         {
           id: entry.id,
@@ -89,6 +92,7 @@ export class MessageMirror {
             visibleEntryIds,
           ),
           role,
+          kind: entryKind(entry.message as AgentMessage),
           text: agentMessageText(entry.message as AgentMessage),
           usage: extractEntryUsage(entry.message as AgentMessage),
           details: entryDetails(entry.message as AgentMessage),
@@ -151,6 +155,15 @@ function entryDetails(message: AgentMessage): unknown {
       details: message.details,
     };
   }
+  if (message.role === "harness") {
+    return {
+      type: message.eventType,
+      source: "harness",
+      ...(message.details && typeof message.details === "object"
+        ? (message.details as Record<string, unknown>)
+        : { details: message.details }),
+    };
+  }
   if (message.role !== "assistant") return undefined;
   const thinkingBlocks = message.content
     .filter((part) => part.type === "thinking")
@@ -194,7 +207,15 @@ function toolRecordIdFromDetails(details: unknown): string | undefined {
     : undefined;
 }
 
+function entryKind(message: AgentMessage): ConversationEntry["kind"] {
+  if (message.role === "harness" && message.eventType === "task_event") {
+    return "task_event";
+  }
+  return "message";
+}
+
 export function agentMessageText(message: AgentMessage): string {
+  if (message.role === "harness") return message.content;
   if (message.role === "user") {
     if (typeof message.content === "string") return message.content;
     return message.content

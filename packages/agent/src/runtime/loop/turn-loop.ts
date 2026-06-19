@@ -23,118 +23,101 @@ export async function runLoop(
   let currentContext = initialContext;
   let config = initialConfig;
   let firstTurn = true;
-  // Check for steering messages at start (user may have typed while waiting)
   let pendingMessages: AgentMessage[] =
     (await config.getSteeringMessages?.()) || [];
 
-  // Outer loop: continues when queued follow-up messages arrive after agent would stop
   while (true) {
-    let hasMoreToolCalls = true;
+    if (!firstTurn) {
+      await emit({ type: "turn_start" });
+    } else {
+      firstTurn = false;
+    }
 
-    // Inner loop: process tool calls and steering messages
-    while (hasMoreToolCalls || pendingMessages.length > 0) {
-      if (!firstTurn) {
-        await emit({ type: "turn_start" });
-      } else {
-        firstTurn = false;
+    if (pendingMessages.length > 0) {
+      for (const message of pendingMessages) {
+        await emit({ type: "message_start", message });
+        await emit({ type: "message_end", message });
+        currentContext.messages.push(message);
+        newMessages.push(message);
       }
+      pendingMessages = [];
+    }
 
-      // Process pending messages (inject before next assistant response)
-      if (pendingMessages.length > 0) {
-        for (const message of pendingMessages) {
-          await emit({ type: "message_start", message });
-          await emit({ type: "message_end", message });
-          currentContext.messages.push(message);
-          newMessages.push(message);
-        }
-        pendingMessages = [];
-      }
+    const message = await streamAssistantResponse(
+      currentContext,
+      config,
+      signal,
+      emit,
+      streamFn,
+    );
+    newMessages.push(message);
 
-      // Stream assistant response
-      const message = await streamAssistantResponse(
+    if (message.stopReason === "error" || message.stopReason === "aborted") {
+      await emit({ type: "turn_end", message, toolResults: [] });
+      await emit({ type: "agent_end", messages: newMessages });
+      return;
+    }
+
+    const toolCalls = message.content.filter((c) => c.type === "toolCall");
+    const toolResults: ToolResultMessage[] = [];
+    let hasMoreToolCalls = false;
+
+    if (toolCalls.length > 0) {
+      const executedToolBatch = await executeToolCalls(
         currentContext,
+        message,
         config,
         signal,
         emit,
-        streamFn,
       );
-      newMessages.push(message);
+      toolResults.push(...executedToolBatch.messages);
+      hasMoreToolCalls = !executedToolBatch.terminate;
 
-      if (message.stopReason === "error" || message.stopReason === "aborted") {
-        await emit({ type: "turn_end", message, toolResults: [] });
-        await emit({ type: "agent_end", messages: newMessages });
-        return;
+      for (const result of toolResults) {
+        currentContext.messages.push(result);
+        newMessages.push(result);
       }
+    }
 
-      // Check for tool calls
-      const toolCalls = message.content.filter((c) => c.type === "toolCall");
+    await emit({ type: "turn_end", message, toolResults });
 
-      const toolResults: ToolResultMessage[] = [];
-      hasMoreToolCalls = false;
-      if (toolCalls.length > 0) {
-        const executedToolBatch = await executeToolCalls(
-          currentContext,
-          message,
-          config,
-          signal,
-          emit,
-        );
-        toolResults.push(...executedToolBatch.messages);
-        hasMoreToolCalls = !executedToolBatch.terminate;
+    const nextTurnContext = {
+      message,
+      toolResults,
+      context: currentContext,
+      newMessages,
+    };
+    const nextTurnSnapshot = await config.prepareNextTurn?.(nextTurnContext);
+    if (nextTurnSnapshot) {
+      currentContext = nextTurnSnapshot.context ?? currentContext;
+      config = {
+        ...config,
+        model: nextTurnSnapshot.model ?? config.model,
+        reasoning:
+          nextTurnSnapshot.thinkingLevel === undefined
+            ? config.reasoning
+            : nextTurnSnapshot.thinkingLevel === "off"
+              ? undefined
+              : nextTurnSnapshot.thinkingLevel,
+      };
+    }
 
-        for (const result of toolResults) {
-          currentContext.messages.push(result);
-          newMessages.push(result);
-        }
-      }
+    pendingMessages = (await config.getSteeringMessages?.()) || [];
+    if (pendingMessages.length > 0) continue;
 
-      await emit({ type: "turn_end", message, toolResults });
-
-      const nextTurnContext = {
+    if (
+      await config.shouldStopAfterTurn?.({
         message,
         toolResults,
         context: currentContext,
         newMessages,
-      };
-      const nextTurnSnapshot = await config.prepareNextTurn?.(nextTurnContext);
-      if (nextTurnSnapshot) {
-        currentContext = nextTurnSnapshot.context ?? currentContext;
-        config = {
-          ...config,
-          model: nextTurnSnapshot.model ?? config.model,
-          reasoning:
-            nextTurnSnapshot.thinkingLevel === undefined
-              ? config.reasoning
-              : nextTurnSnapshot.thinkingLevel === "off"
-                ? undefined
-                : nextTurnSnapshot.thinkingLevel,
-        };
-      }
-
-      if (
-        await config.shouldStopAfterTurn?.({
-          message,
-          toolResults,
-          context: currentContext,
-          newMessages,
-        })
-      ) {
-        await emit({ type: "agent_end", messages: newMessages });
-        return;
-      }
-
-      pendingMessages = (await config.getSteeringMessages?.()) || [];
+      })
+    ) {
+      await emit({ type: "agent_end", messages: newMessages });
+      return;
     }
 
-    // Agent would stop here. Check for follow-up messages.
-    const followUpMessages = (await config.getFollowUpMessages?.()) || [];
-    if (followUpMessages.length > 0) {
-      // Set as pending so inner loop processes them
-      pendingMessages = followUpMessages;
-      continue;
-    }
-
-    // No more messages, exit
+    if (hasMoreToolCalls) continue;
     break;
   }
 

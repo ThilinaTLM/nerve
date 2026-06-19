@@ -2,6 +2,7 @@ import type { ConversationEntry } from "$lib/api";
 import type {
   CompactionNotice,
   RunStatusNotice,
+  TaskEventNotice,
   TranscriptItem,
 } from "$lib/core/types/state-types";
 
@@ -135,6 +136,27 @@ function runStatusNotice(
   };
 }
 
+function taskEventNotice(
+  entry: ConversationEntry,
+): TaskEventNotice | undefined {
+  if (entry.kind !== "task_event") return undefined;
+  const details = entryDetails(entry);
+  if (details?.type !== "task_event") return undefined;
+  return {
+    entryId: entry.id,
+    conversationId: entry.conversationId,
+    agentId: stringValue(entry.agentId),
+    runId: stringValue(entry.runId),
+    taskId: stringValue(details.taskId),
+    taskName: stringValue(details.taskName),
+    groupId: stringValue(details.groupId),
+    event: stringValue(details.event),
+    status: stringValue(details.status),
+    nextCursor: numberValue(details.nextCursor),
+    createdAt: entry.createdAt,
+  };
+}
+
 export function entryToTranscriptItems(
   entry: ConversationEntry,
 ): TranscriptItem[] {
@@ -165,6 +187,22 @@ export function entryToTranscriptItems(
         text: entry.text,
         createdAt: entry.createdAt,
         runStatus: status,
+      },
+    ];
+  }
+
+  const taskEvent = taskEventNotice(entry);
+  if (taskEvent) {
+    return [
+      {
+        id: entry.id,
+        runId: entry.runId,
+        role: "system",
+        kind: entry.kind,
+        displayKind: "message",
+        text: entry.text,
+        createdAt: entry.createdAt,
+        taskEvent,
       },
     ];
   }

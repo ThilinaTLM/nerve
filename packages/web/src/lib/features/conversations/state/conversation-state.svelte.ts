@@ -54,6 +54,20 @@ export type RunStatusNotice = {
   createdAt?: string;
 };
 
+export type TaskEventNotice = {
+  entryId?: string;
+  conversationId?: string;
+  agentId?: string;
+  runId?: string;
+  taskId?: string;
+  taskName?: string;
+  groupId?: string;
+  event?: string;
+  status?: string;
+  nextCursor?: number;
+  createdAt?: string;
+};
+
 export type TranscriptItem = {
   id?: string;
   runId?: string;
@@ -76,6 +90,7 @@ export type TranscriptItem = {
   errorMessage?: string;
   runStatus?: RunStatusNotice;
   compaction?: CompactionNotice;
+  taskEvent?: TaskEventNotice;
 };
 
 export type LiveToolCallDraft = {

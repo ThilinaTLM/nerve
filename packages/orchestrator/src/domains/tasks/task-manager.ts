@@ -71,6 +71,7 @@ interface ManagedTask extends TaskLogCursor {
   }>;
   finalizationPromise?: Promise<TaskRecord | undefined>;
   readinessTimer?: NodeJS.Timeout;
+  readinessPollAbort?: AbortController;
   runtimeTimer?: NodeJS.Timeout;
   readinessPattern?: RegExp;
   timedOut?: boolean;
@@ -220,8 +221,11 @@ export class TaskManager {
     }
 
     const readiness = this.taskReadiness.buildReadiness(request);
-    const injectCompletion =
-      request.injectCompletion ?? request.origin?.kind === "agent_tool";
+    const notify =
+      request.notify ??
+      request.injectCompletion ??
+      request.origin?.kind === "agent_tool";
+    const injectCompletion = request.injectCompletion ?? false;
     const completion =
       request.completion ??
       (injectCompletion
@@ -229,9 +233,17 @@ export class TaskManager {
         : request.injectCompletion === false
           ? { inject: false, outputTailLineCount: 80 }
           : undefined);
+    const notifications = {
+      enabled: notify,
+      ready: notify,
+      terminal: notify,
+      outputTailLineCount: 80,
+    };
     const record: TaskRecord = {
       id,
       name: request.name,
+      groupId: request.groupId,
+      groupName: request.groupName,
       workerId: request.workerId,
       projectId: request.projectId,
       conversationId: request.conversationId,
@@ -250,6 +262,7 @@ export class TaskManager {
       restartedFromTaskId: request.restartedFromTaskId,
       origin: request.origin ?? { kind: "api" },
       completion,
+      notifications,
       visibility: request.visibility ?? "background",
     };
 
@@ -326,6 +339,7 @@ export class TaskManager {
     });
 
     await this.updateTask(record.id, { status: "running" });
+    this.scheduleReadyUrlPolling(record.id);
     this.scheduleReadinessTimeout(record.id);
     this.scheduleRuntimeTimeout(record.id, request.timeoutMs);
     await this.events.publish("task.started", {
@@ -361,6 +375,7 @@ export class TaskManager {
 
     const signal = request.signal ?? "SIGTERM";
     managed.stopping = true;
+    this.clearReadinessWatch(managed);
     const stopping = await this.updateTask(record.id, {
       status: "stopping",
     });
@@ -424,6 +439,8 @@ export class TaskManager {
     }
     return this.startTask({
       name: record.name,
+      groupId: record.groupId,
+      groupName: record.groupName,
       workerId: record.workerId,
       projectId: record.projectId,
       conversationId: record.conversationId,
@@ -431,10 +448,12 @@ export class TaskManager {
       cwd: record.cwd,
       command: record.command,
       env,
+      readyUrl: record.readiness.readyUrl,
       readyOnUrl: record.readiness.readyOnUrl,
       readyPattern: record.readiness.readyPattern,
       readyTimeoutMs: record.readiness.timeoutMs,
       timeoutMs: record.timeoutMs,
+      notify: record.notifications?.enabled,
       injectCompletion: record.completion?.inject,
       origin: record.origin,
       completion: record.completion
@@ -452,7 +471,7 @@ export class TaskManager {
     }
     await this.launchConfigs.remove(record.id);
     const managed = this.managed.get(record.id);
-    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    this.clearReadinessWatch(managed);
     this.managed.delete(record.id);
     this.tasks.delete(record.id);
     this.index.deleteTask(record.id);
@@ -608,6 +627,12 @@ export class TaskManager {
     const promoted = await this.updateTask(task.id, {
       visibility: "background",
       completion: { inject: true, outputTailLineCount: 80 },
+      notifications: {
+        enabled: true,
+        ready: true,
+        terminal: true,
+        outputTailLineCount: 80,
+      },
     });
     await this.events.publish("task.promoted", { task: promoted });
     const elapsedMs = Date.now() - startedAt;
@@ -662,6 +687,57 @@ export class TaskManager {
         entryId,
         injectedAt,
       },
+    });
+  }
+
+  async markNotificationPending(
+    taskId: string,
+    event: "ready" | "terminal",
+    entryId: string,
+  ): Promise<TaskRecord> {
+    const record = this.getTask(taskId);
+    const notifications = {
+      enabled: record.notifications?.enabled ?? false,
+      ready: record.notifications?.ready ?? false,
+      terminal: record.notifications?.terminal ?? false,
+      outputTailLineCount: record.notifications?.outputTailLineCount ?? 80,
+      ...record.notifications,
+    };
+    return this.updateTask(taskId, {
+      notifications:
+        event === "ready"
+          ? { ...notifications, readyEntryId: entryId }
+          : { ...notifications, terminalEntryId: entryId },
+    });
+  }
+
+  async markNotificationDelivered(
+    taskId: string,
+    event: "ready" | "terminal",
+    entryId: string,
+    deliveredAt = new Date().toISOString(),
+  ): Promise<TaskRecord> {
+    const record = this.getTask(taskId);
+    const notifications = {
+      enabled: record.notifications?.enabled ?? false,
+      ready: record.notifications?.ready ?? false,
+      terminal: record.notifications?.terminal ?? false,
+      outputTailLineCount: record.notifications?.outputTailLineCount ?? 80,
+      ...record.notifications,
+    };
+    return this.updateTask(taskId, {
+      notifications:
+        event === "ready"
+          ? {
+              ...notifications,
+              readyEntryId: entryId,
+              readyDeliveredAt: deliveredAt,
+            }
+          : {
+              ...notifications,
+              terminalEntryId: entryId,
+              terminalDeliveredAt: deliveredAt,
+            },
     });
   }
 
@@ -742,7 +818,16 @@ export class TaskManager {
       log,
     );
     if (!matched) return;
-    if (managed.readinessTimer) clearTimeout(managed.readinessTimer);
+    await this.markTaskReady(taskId, matched);
+  }
+
+  private async markTaskReady(taskId: string, matched: string): Promise<void> {
+    const record = this.tasks.get(taskId);
+    const managed = this.managed.get(taskId);
+    if (!record || !managed || record.readiness.outcome !== "pending") return;
+    if (record.status === "stopping" || !isActiveTaskStatus(record.status))
+      return;
+    this.clearReadinessWatch(managed);
     const ready = await this.updateTask(taskId, {
       status: "ready",
       readiness: {
@@ -760,6 +845,62 @@ export class TaskManager {
       agentId: ready.agentId,
       context: { matched },
     });
+  }
+
+  private scheduleReadyUrlPolling(taskId: string): void {
+    const record = this.tasks.get(taskId);
+    if (!record?.readiness.readyUrl || record.readiness.outcome !== "pending") {
+      return;
+    }
+    const managed = this.managed.get(taskId);
+    if (!managed) return;
+    managed.readinessPollAbort?.abort();
+    const abort = new AbortController();
+    managed.readinessPollAbort = abort;
+    const readyUrl = record.readiness.readyUrl;
+    void this.pollReadyUrl(taskId, readyUrl, abort.signal);
+  }
+
+  private async pollReadyUrl(
+    taskId: string,
+    readyUrl: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    while (!signal.aborted) {
+      const record = this.tasks.get(taskId);
+      if (!record || record.readiness.outcome !== "pending") return;
+      if (await this.isReadyUrlReachable(readyUrl, signal)) {
+        await this.markTaskReady(taskId, readyUrl);
+        return;
+      }
+      try {
+        await delay(250, undefined, { signal });
+      } catch {
+        return;
+      }
+    }
+  }
+
+  private async isReadyUrlReachable(
+    readyUrl: string,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    try {
+      await fetch(readyUrl, { method: "GET", signal });
+      return true;
+    } catch (error) {
+      if (signal.aborted) return false;
+      if (error instanceof TypeError) return false;
+      return false;
+    }
+  }
+
+  private clearReadinessWatch(managed: ManagedTask | undefined): void {
+    if (!managed) return;
+    if (managed.readinessTimer) clearTimeout(managed.readinessTimer);
+    managed.readinessTimer = undefined;
+    managed.readinessPollAbort?.abort();
+    managed.readinessPollAbort = undefined;
   }
 
   private scheduleReadinessTimeout(taskId: string): void {
@@ -790,6 +931,7 @@ export class TaskManager {
   private async markReadinessTimeout(taskId: string): Promise<void> {
     const record = this.tasks.get(taskId);
     if (!record || record.readiness.outcome !== "pending") return;
+    this.clearReadinessWatch(this.managed.get(taskId));
     const updated = await this.updateTask(taskId, {
       readiness: { ...record.readiness, outcome: "timeout" },
     });
@@ -812,6 +954,7 @@ export class TaskManager {
     if (!record || !managed?.child || !isActiveTaskStatus(record.status))
       return;
     managed.timedOut = true;
+    this.clearReadinessWatch(managed);
     const error = `Task exceeded maximum runtime of ${timeoutMs}ms.`;
     const stopping = await this.updateTask(taskId, {
       status: "stopping",
@@ -1081,7 +1224,7 @@ export class TaskManager {
     const record = this.getTask(taskId);
     if (record.status !== "orphaned") return record;
     const managed = this.managed.get(taskId);
-    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    this.clearReadinessWatch(managed);
     if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
 
     const readiness =
@@ -1170,7 +1313,7 @@ export class TaskManager {
     if (!isActiveTaskStatus(record.status)) return record;
 
     const managed = this.managed.get(taskId);
-    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    this.clearReadinessWatch(managed);
     if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
     if (managed) managed.finalized = true;
 
@@ -1209,7 +1352,7 @@ export class TaskManager {
     if (!isActiveTaskStatus(record.status)) return record;
 
     const managed = this.managed.get(taskId);
-    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    this.clearReadinessWatch(managed);
     if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
     if (managed) managed.finalized = true;
 
@@ -1221,7 +1364,7 @@ export class TaskManager {
         ? { ...freshRecord.readiness, outcome: "exited" as const }
         : freshRecord.readiness;
     const updated = await this.updateTask(taskId, {
-      status: "failed",
+      status: "timed_out",
       readiness,
       finishedAt: new Date().toISOString(),
       exitCode: null,
@@ -1229,7 +1372,7 @@ export class TaskManager {
       error: freshRecord.error ?? reason,
     });
     this.managed.delete(taskId);
-    await this.events.publish("task.failed", { task: updated });
+    await this.events.publish("task.timed_out", { task: updated });
     await this.logger?.warn("Task timeout force-finalized", {
       taskId: updated.id,
       projectId: updated.projectId,
@@ -1250,7 +1393,7 @@ export class TaskManager {
     if (!record) return undefined;
     if (!isActiveTaskStatus(record.status)) return record;
     if (managed?.finalized) return record;
-    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    this.clearReadinessWatch(managed);
     if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
     if (managed) managed.finalized = true;
 
@@ -1261,7 +1404,7 @@ export class TaskManager {
     if (!isActiveTaskStatus(freshRecord.status)) return freshRecord;
 
     const status = managed?.timedOut
-      ? "failed"
+      ? "timed_out"
       : managed?.stopping
         ? "cancelled"
         : exitCode === 0
@@ -1281,7 +1424,9 @@ export class TaskManager {
     });
     this.managed.delete(taskId);
     await this.events.publish(`task.${status}`, { task: updated });
-    await this.logger?.[status === "failed" ? "error" : "info"]("Task exited", {
+    await this.logger?.[
+      status === "failed" || status === "timed_out" ? "error" : "info"
+    ]("Task exited", {
       taskId: updated.id,
       projectId: updated.projectId,
       conversationId: updated.conversationId,
@@ -1296,7 +1441,7 @@ export class TaskManager {
     const managed = this.managed.get(taskId);
     if (!record || !isActiveTaskStatus(record.status)) return;
     if (managed?.finalized) return;
-    if (managed?.readinessTimer) clearTimeout(managed.readinessTimer);
+    this.clearReadinessWatch(managed);
     if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
     if (managed) managed.finalized = true;
 

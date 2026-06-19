@@ -10,7 +10,12 @@ export function statusTone(status: string | undefined): StatusTone {
   if (status === "running" || status === "ready" || status === "starting") {
     return "running";
   }
-  if (status === "error" || status === "failed" || status === "orphaned") {
+  if (
+    status === "error" ||
+    status === "failed" ||
+    status === "timed_out" ||
+    status === "orphaned"
+  ) {
     return "danger";
   }
   if (status === "completed" || status === "stopped" || status === "exited") {
@@ -53,7 +58,8 @@ export function agentActivityPulse(
 export function taskTone(status: string | undefined): StatusTone {
   if (status === "running" || status === "ready") return "good";
   if (status === "starting" || status === "stopping") return "warn";
-  if (status === "failed" || status === "orphaned") return "danger";
+  if (status === "failed" || status === "timed_out" || status === "orphaned")
+    return "danger";
   return "neutral";
 }
 

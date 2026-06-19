@@ -83,6 +83,47 @@ describe("taskRecordSchema env metadata", () => {
   });
 });
 
+describe("taskRecordSchema task ergonomics metadata", () => {
+  it("accepts timed_out status, group IDs, readyUrl, and notifications", () => {
+    const parsed = taskRecordSchema.safeParse(
+      record({
+        status: "timed_out",
+        groupId: "taskgrp_test",
+        groupName: "checks",
+        readiness: {
+          readyUrl: "http://127.0.0.1:5173/health",
+          outcome: "timeout",
+        },
+        notifications: {
+          enabled: true,
+          ready: true,
+          terminal: true,
+          terminalEntryId: "entry_timeout",
+          terminalDeliveredAt: "2026-01-02T03:04:06.000Z",
+          outputTailLineCount: 12,
+        },
+      }),
+    );
+
+    assert.equal(parsed.success, true);
+  });
+
+  it("accepts readyUrl, group metadata, and notify in start requests", () => {
+    const parsed = startTaskRequestSchema.parse({
+      cwd: "/tmp/project",
+      command: "pnpm dev",
+      groupId: "taskgrp_test",
+      groupName: "dev",
+      readyUrl: "http://127.0.0.1:5173",
+      notify: true,
+    });
+
+    assert.equal(parsed.groupId, "taskgrp_test");
+    assert.equal(parsed.readyUrl, "http://127.0.0.1:5173");
+    assert.equal(parsed.notify, true);
+  });
+});
+
 describe("taskRecordSchema runtime metadata", () => {
   it("accepts records with valid runtime metadata", () => {
     const parsed = taskRecordSchema.safeParse(

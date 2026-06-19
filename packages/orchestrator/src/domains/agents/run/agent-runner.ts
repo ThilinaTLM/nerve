@@ -703,13 +703,20 @@ export class AgentRunner {
         steer: (text, options) =>
           harness.steer(text, { images: options?.images }),
         followUp: (text, options) =>
-          harness.followUp(text, { images: options?.images }),
+          harness.steer(text, { images: options?.images }),
         updateAgentRuntimeConfig: async (updatedAgent) => {
           await harness.setActiveTools(
             await this.activeToolNamesFor(updatedAgent),
           );
         },
         appendExternalMessage: (input) => harness.appendExternalMessage(input),
+        enqueueHarnessMessage: (input) =>
+          harness.enqueueHarnessMessage({
+            id: input.id,
+            message: input.message,
+            timestamp: input.timestamp,
+            delivery: input.delivery,
+          }),
       });
       await this.deps.setAgentStatus(agent, "running");
 

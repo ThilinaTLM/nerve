@@ -2,7 +2,6 @@ import {
   type AssistantMessage,
   type ImageContent,
   streamSimple,
-  type UserMessage,
 } from "@earendil-works/pi-ai";
 import { runAgentLoop, runAgentLoopContinue } from "../agent-loop.js";
 import { isAgentToolSuspension } from "../suspension.js";
@@ -75,6 +74,20 @@ import {
   createTurnState as createAgentHarnessTurnState,
 } from "./turn-state.js";
 
+type InboundQueuedMessage = {
+  id?: string;
+  source: "user" | "harness";
+  message: AgentMessage;
+  enqueuedAt: string;
+  timestamp?: string;
+  priority?: "normal" | "high";
+  delivery?: {
+    taskId?: string;
+    event?: string;
+    pendingNotificationId?: string;
+  };
+};
+
 export class AgentHarness<
   TSkill extends Skill = Skill,
   TPromptTemplate extends PromptTemplate = PromptTemplate,
@@ -98,11 +111,15 @@ export class AgentHarness<
   private resources: AgentHarnessResources<TSkill, TPromptTemplate>;
   private tools = new Map<string, TTool>();
   private activeToolNames: string[];
-  private steerQueue: UserMessage[] = [];
+  private steerQueue: InboundQueuedMessage[] = [];
   private steeringQueueMode: QueueMode;
-  private followUpQueue: UserMessage[] = [];
+  private followUpQueue: InboundQueuedMessage[] = [];
   private followUpQueueMode: QueueMode;
   private nextTurnQueue: AgentMessage[] = [];
+  private readonly queuedMessageWrites = new WeakMap<
+    AgentMessage,
+    { id?: string; timestamp?: string }
+  >();
   private events = new AgentHarnessEventHub<TSkill, TPromptTemplate>();
 
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
@@ -165,8 +182,8 @@ export class AgentHarness<
   private async emitQueueUpdate(): Promise<void> {
     await this.emitOwn({
       type: "queue_update",
-      steer: [...this.steerQueue],
-      followUp: [...this.followUpQueue],
+      steer: this.steerQueue.map((entry) => entry.message),
+      followUp: this.followUpQueue.map((entry) => entry.message),
       nextTurn: [...this.nextTurnQueue],
     });
   }
@@ -254,16 +271,24 @@ export class AgentHarness<
   }
 
   private async drainQueuedMessages(
-    queue: AgentMessage[],
+    queue: InboundQueuedMessage[],
     mode: QueueMode,
   ): Promise<AgentMessage[]> {
-    const messages = mode === "all" ? queue.splice(0) : queue.splice(0, 1);
-    if (messages.length === 0) return messages;
+    const entries = mode === "all" ? queue.splice(0) : queue.splice(0, 1);
+    if (entries.length === 0) return [];
     try {
       await this.emitQueueUpdate();
-      return messages;
+      for (const entry of entries) {
+        if (entry.id || entry.timestamp) {
+          this.queuedMessageWrites.set(entry.message, {
+            id: entry.id,
+            timestamp: entry.timestamp,
+          });
+        }
+      }
+      return entries.map((entry) => entry.message);
     } catch (error) {
-      queue.unshift(...messages);
+      queue.unshift(...entries);
       throw normalizeHookError(error);
     }
   }
@@ -329,8 +354,7 @@ export class AgentHarness<
       },
       getSteeringMessages: async () =>
         this.drainQueuedMessages(this.steerQueue, this.steeringQueueMode),
-      getFollowUpMessages: async () =>
-        this.drainQueuedMessages(this.followUpQueue, this.followUpQueueMode),
+      getFollowUpMessages: async () => [],
     };
   }
 
@@ -353,7 +377,17 @@ export class AgentHarness<
     signal?: AbortSignal,
   ): Promise<void> {
     if (event.type === "message_end") {
-      await this.conversation.appendMessage(event.message);
+      const queuedWrite = this.queuedMessageWrites.get(event.message);
+      this.queuedMessageWrites.delete(event.message);
+      if (queuedWrite?.id) {
+        await this.conversation.appendMessageWithId(
+          queuedWrite.id,
+          event.message,
+          queuedWrite.timestamp,
+        );
+      } else {
+        await this.conversation.appendMessage(event.message);
+      }
       await this.emitAny(event, signal);
       return;
     }
@@ -636,7 +670,11 @@ export class AgentHarness<
   ): Promise<void> {
     if (this.phase === "idle")
       throw new AgentHarnessError("invalid_state", "Cannot steer while idle");
-    this.steerQueue.push(createUserMessage(text, options?.images));
+    this.steerQueue.push({
+      source: "user",
+      message: createUserMessage(text, options?.images),
+      enqueuedAt: new Date().toISOString(),
+    });
     await this.emitQueueUpdate();
   }
 
@@ -649,7 +687,31 @@ export class AgentHarness<
         "invalid_state",
         "Cannot follow up while idle",
       );
-    this.followUpQueue.push(createUserMessage(text, options?.images));
+    await this.steer(text, options);
+  }
+
+  async enqueueHarnessMessage(input: {
+    id?: string;
+    message: AgentMessage;
+    timestamp?: string;
+    delivery?: InboundQueuedMessage["delivery"];
+    priority?: InboundQueuedMessage["priority"];
+  }): Promise<void> {
+    if (this.phase === "idle") {
+      throw new AgentHarnessError(
+        "invalid_state",
+        "Cannot enqueue harness message while idle",
+      );
+    }
+    this.steerQueue.push({
+      id: input.id,
+      source: "harness",
+      message: input.message,
+      timestamp: input.timestamp,
+      enqueuedAt: new Date().toISOString(),
+      delivery: input.delivery,
+      priority: input.priority,
+    });
     await this.emitQueueUpdate();
   }
 
@@ -1040,8 +1102,8 @@ export class AgentHarness<
   }
 
   async abort(): Promise<AbortResult> {
-    const clearedSteer = [...this.steerQueue];
-    const clearedFollowUp = [...this.followUpQueue];
+    const clearedSteer = this.steerQueue.map((entry) => entry.message);
+    const clearedFollowUp = this.followUpQueue.map((entry) => entry.message);
     this.steerQueue = [];
     this.followUpQueue = [];
     this.runAbortController?.abort();

@@ -10,6 +10,7 @@ export type IdPrefix =
   | "block"
   | "proc"
   | "task"
+  | "taskgrp"
   | "entry"
   | "tool"
   | "approval"

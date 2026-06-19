@@ -38,7 +38,7 @@ import {
 import { PythonRuntimeService } from "../domains/runtime/python-runtime-service.js";
 import {
   SecretTaskLaunchConfigStore,
-  TaskCompletionService,
+  TaskNotificationService,
 } from "../domains/tasks/index.js";
 import { TaskManager } from "../domains/tasks/task-manager.js";
 import { ToolService } from "../domains/tools/tool-service.js";
@@ -67,7 +67,7 @@ export interface RuntimeDeps {
 
 export interface RuntimeServices {
   tasks: TaskManager;
-  taskCompletion: TaskCompletionService;
+  taskNotifications: TaskNotificationService;
   pythonRuntime: PythonRuntimeService;
   workers: WorkerManager;
   plans: PlanService;
@@ -315,17 +315,18 @@ export function composeRuntime(
     logger: logger.child({ component: "agent-runner" }),
     promptQueue: promptQueueRepository,
   });
-  services.taskCompletion = new TaskCompletionService({
+  services.taskNotifications = new TaskNotificationService({
     tasks: services.tasks,
     events,
-    dataDir: storage.paths.home,
     runs: state.runs,
     appendEntry,
     harnessManager: services.harnessManager,
     getAgent,
-    logger: logger.child({ component: "task-completion" }),
+    getConversationEntries: (conversationId) =>
+      state.getConversationEntries(conversationId),
+    logger: logger.child({ component: "task-notification" }),
   });
-  services.taskCompletion.start();
+  services.taskNotifications.start();
   services.humanInput = new HumanInputResolutionService({
     events,
     tools: services.tools,

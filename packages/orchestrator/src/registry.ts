@@ -130,6 +130,7 @@ export class RuntimeRegistry {
     await this.loadConversations();
     await this.loadAgents();
     await this.rebuildConversations();
+    await this.services.taskNotifications.recoverPendingNotifications();
   }
 
   async rebuildIndex(): Promise<void> {

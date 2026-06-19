@@ -12,6 +12,7 @@ export {
   MAX_BUFFERED_LOG_LINE_CHARS,
   TaskLogService,
 } from "./task-log.service.js";
+export { TaskNotificationService } from "./task-notification.service.js";
 export { TaskReadinessService } from "./task-readiness.service.js";
 export {
   isActiveTaskStatus,

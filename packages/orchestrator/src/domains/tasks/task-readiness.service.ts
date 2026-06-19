@@ -4,14 +4,17 @@ const urlPattern = /https?:\/\/[^\s)'"]+/i;
 
 export class TaskReadinessService {
   buildReadiness(request: StartTaskRequest): TaskRecord["readiness"] {
+    const hasReadiness = Boolean(
+      request.readyUrl || request.readyOnUrl || request.readyPattern,
+    );
+    const timeoutMs =
+      request.readyTimeoutMs ?? (request.readyUrl ? 30_000 : 3000);
     return {
+      readyUrl: request.readyUrl,
       readyOnUrl: request.readyOnUrl,
       readyPattern: request.readyPattern,
-      timeoutMs: request.readyTimeoutMs ?? 3000,
-      outcome:
-        request.readyOnUrl || request.readyPattern
-          ? ("pending" as const)
-          : ("none" as const),
+      timeoutMs: hasReadiness ? timeoutMs : undefined,
+      outcome: hasReadiness ? "pending" : "none",
     };
   }
 

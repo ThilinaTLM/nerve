@@ -31,6 +31,7 @@ export interface TaskCompletionServiceDeps {
 const TERMINAL_TASK_EVENTS = new Set([
   "task.completed",
   "task.failed",
+  "task.timed_out",
   "task.cancelled",
   "task.orphaned",
 ]);

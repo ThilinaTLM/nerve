@@ -14,6 +14,9 @@ const taskStartItemParameters = Type.Object(
           "Extra environment variables. Values are stored encrypted for restart and shown only as redacted keys.",
       }),
     ),
+    readyUrl: Type.Optional(
+      Type.String({ description: "Explicit URL to poll until reachable" }),
+    ),
     readyOnUrl: Type.Optional(
       Type.Boolean({ description: "Treat first detected URL as ready" }),
     ),
@@ -34,9 +37,9 @@ const taskStartItemParameters = Type.Object(
         maximum: 86_400_000,
       }),
     ),
-    injectCompletion: Type.Optional(
+    notify: Type.Optional(
       Type.Boolean({
-        description: "Inject a completion summary into the agent conversation",
+        description: "Send concise asynchronous task updates to the agent",
       }),
     ),
   },
@@ -58,6 +61,9 @@ const taskStartParameters = Type.Object(
           "Extra environment variables. Values are stored encrypted for restart and shown only as redacted keys.",
       }),
     ),
+    readyUrl: Type.Optional(
+      Type.String({ description: "Explicit URL to poll until reachable" }),
+    ),
     readyOnUrl: Type.Optional(
       Type.Boolean({ description: "Treat first detected URL as ready" }),
     ),
@@ -78,9 +84,9 @@ const taskStartParameters = Type.Object(
         maximum: 86_400_000,
       }),
     ),
-    injectCompletion: Type.Optional(
+    notify: Type.Optional(
       Type.Boolean({
-        description: "Inject a completion summary into the agent conversation",
+        description: "Send concise asynchronous task updates to the agent",
       }),
     ),
     tasks: Type.Optional(
@@ -95,7 +101,10 @@ const taskStartParameters = Type.Object(
 
 const taskTargetParameters = Type.Object(
   {
-    taskId: Type.String({ description: "Task id" }),
+    taskId: Type.Optional(
+      Type.String({ description: "Task id or stable task name" }),
+    ),
+    groupId: Type.Optional(Type.String({ description: "Task group id" })),
     signal: Type.Optional(
       Type.Union([
         Type.Literal("SIGTERM"),
@@ -117,28 +126,37 @@ const taskTargetParameters = Type.Object(
 
 const taskRestartParameters = Type.Object(
   {
-    taskId: Type.String({ description: "Task id" }),
+    taskId: Type.String({ description: "Task id or stable task name" }),
   },
   { additionalProperties: false },
 );
 
 const taskStatusParameters = Type.Object(
   {
-    taskId: Type.Optional(Type.String({ description: "Task id" })),
+    taskId: Type.Optional(
+      Type.String({ description: "Task id or stable task name" }),
+    ),
     taskIds: Type.Optional(
-      Type.Array(Type.String({ description: "Task id" }), {
+      Type.Array(Type.String({ description: "Task id or stable task name" }), {
         maxItems: 20,
       }),
     ),
+    groupId: Type.Optional(Type.String({ description: "Task group id" })),
+    activeOnly: Type.Optional(
+      Type.Boolean({ description: "Only active tasks" }),
+    ),
     includeLogs: Type.Optional(
-      Type.Boolean({ description: "Include a short recent log tail" }),
+      Type.Boolean({ description: "Include a short relevant log tail" }),
     ),
     logLimit: Type.Optional(
       Type.Number({
-        description: "Maximum recent log events to include",
+        description: "Maximum log events to include per task",
         minimum: 1,
         maximum: 50,
       }),
+    ),
+    limit: Type.Optional(
+      Type.Number({ description: "Maximum tasks", minimum: 1, maximum: 50 }),
     ),
   },
   { additionalProperties: false },
@@ -155,6 +173,9 @@ const taskListParameters = Type.Object(
       Type.String({ description: "Conversation id filter" }),
     ),
     agentId: Type.Optional(Type.String({ description: "Agent id filter" })),
+    groupId: Type.Optional(
+      Type.String({ description: "Task group id filter" }),
+    ),
     limit: Type.Optional(Type.Number({ description: "Maximum tasks" })),
   },
   { additionalProperties: false },
@@ -162,7 +183,10 @@ const taskListParameters = Type.Object(
 
 const taskLogsParameters = Type.Object(
   {
-    taskId: Type.String({ description: "Task id" }),
+    taskId: Type.Optional(
+      Type.String({ description: "Task id or stable task name" }),
+    ),
+    groupId: Type.Optional(Type.String({ description: "Task group id" })),
     mode: Type.Optional(
       Type.Union([
         Type.Literal("recent"),
@@ -200,6 +224,7 @@ export const taskToolDefinitions = [
       "After starting a task, continue independent work instead of polling immediately unless the next action truly depends on it.",
       "Use timeoutMs for finite test/build jobs that should not run indefinitely; use readyTimeoutMs only for readiness checks.",
       "Use task_status or task_list before reporting current task state because old transcript status may be stale.",
+      "Prefer task names and group IDs returned by task_start when checking related tasks.",
       "Use task_logs for output and task_cancel to terminate a running task.",
     ],
     parameters: taskStartParameters,
@@ -209,7 +234,7 @@ export const taskToolDefinitions = [
     name: "task_status",
     label: "task_status",
     description:
-      "Inspect the current status/result for one or more task IDs, optionally including a short recent log tail.",
+      "Inspect the current status/result for tasks. With no target, defaults to active tasks in this conversation, then recent tasks.",
     promptSnippet: "Inspect current task status",
     parameters: taskStatusParameters,
     executionMode: "parallel",
@@ -222,7 +247,7 @@ export const taskToolDefinitions = [
     promptSnippet: "Inspect logs from background tasks",
     promptGuidelines: [
       "Use task_logs to inspect task output instead of restarting a running task just to see errors.",
-      "Use full task_... IDs; do not abbreviate them.",
+      "Use full task_... IDs, stable task names, or group IDs; do not abbreviate IDs.",
     ],
     parameters: taskLogsParameters,
     executionMode: "parallel",
@@ -230,7 +255,8 @@ export const taskToolDefinitions = [
   {
     name: "task_cancel",
     label: "task_cancel",
-    description: "Terminate/clean up a running or orphaned task by task ID.",
+    description:
+      "Terminate/clean up a running or orphaned task by task ID/name or active group. With no target, only cancels when exactly one active task exists in this conversation.",
     promptSnippet:
       "Cancel supervised background tasks or clean up orphaned task records",
     parameters: taskTargetParameters,
@@ -240,7 +266,7 @@ export const taskToolDefinitions = [
     name: "task_restart",
     label: "task_restart",
     description:
-      "Restart a task by task ID, preserving encrypted env overrides and launch settings captured at start.",
+      "Restart a task by task ID or stable name, preserving encrypted env overrides and launch settings captured at start.",
     promptSnippet:
       "Restart supervised background tasks while preserving stored env overrides",
     parameters: taskRestartParameters,

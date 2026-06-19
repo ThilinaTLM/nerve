@@ -29,6 +29,7 @@ export type {
   LiveToolOutput,
   PendingConversationState,
   RunStatusNotice,
+  TaskEventNotice,
   TranscriptItem,
 } from "./state/conversation-state.svelte";
 export { conversationState } from "./state/conversation-state.svelte";

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -417,6 +419,35 @@ describe("task manager log buffering and readiness", () => {
     assert.equal(task.readiness.matched, "http://localhost:5173");
   });
 
+  it("polls readyUrl and marks the task ready on any HTTP response", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({ child });
+    const { manager, storage, events } = await createManager(supervisor);
+    const server = createServer((_request, response) => {
+      response.statusCode = 503;
+      response.end("not yet, but reachable");
+    });
+    await listen(server);
+    try {
+      const address = server.address() as AddressInfo;
+      const readyUrl = `http://127.0.0.1:${address.port}/health`;
+      const readyEvent = waitForTaskEvent(events, "task.ready");
+
+      await startFakeTask(manager, storage, undefined, {
+        readyUrl,
+        readyTimeoutMs: 2000,
+      });
+      const ready = await readyEvent;
+
+      assert.equal(ready.status, "ready");
+      assert.equal(ready.readiness.outcome, "ready");
+      assert.equal(ready.readiness.readyUrl, readyUrl);
+      assert.equal(ready.readiness.matched, readyUrl);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
   it("uses final flush to satisfy readiness before exit", async () => {
     const child = fakeChild();
     const { supervisor } = fakeSupervisor({ child });
@@ -474,6 +505,31 @@ describe("task manager log buffering and readiness", () => {
       logs.events.map((event) => event.line),
       ["stopping output"],
     );
+  });
+});
+
+describe("task manager runtime timeout", () => {
+  it("uses timed_out status when runtime timeout termination closes the child", async () => {
+    const child = fakeChild();
+    const { supervisor, terminateSignals } = fakeSupervisor({
+      child,
+      onTerminate(signal) {
+        if (signal === "SIGTERM") child.emitClose(null, signal);
+      },
+    });
+    const { manager, storage, events } = await createManager(supervisor);
+    const timedOutEvent = waitForTaskEvent(events, "task.timed_out");
+
+    const task = await startFakeTask(manager, storage, undefined, {
+      timeoutMs: 20,
+    });
+    const timedOut = await timedOutEvent;
+
+    assert.equal(timedOut.id, task.id);
+    assert.equal(timedOut.status, "timed_out");
+    assert.equal(timedOut.signal, "SIGTERM");
+    assert.match(timedOut.error ?? "", /maximum runtime/);
+    assert.deepEqual(terminateSignals, ["SIGTERM"]);
   });
 });
 
@@ -647,6 +703,18 @@ async function tempHome(prefix: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   roots.push(root);
   return root;
+}
+
+async function listen(server: Server): Promise<void> {
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+}
+
+async function closeServer(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
 }
 
 async function createManager(

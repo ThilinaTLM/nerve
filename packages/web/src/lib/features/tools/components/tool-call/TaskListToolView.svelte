@@ -24,6 +24,9 @@
         <StatusDot tone={taskTone(task.status)} />
         <span class="truncate font-mono font-semibold">{task.name ?? task.command}</span>
         <span class="capitalize text-muted-foreground">{task.status}</span>
+        {#if task.groupId}
+          <span class="whitespace-nowrap font-mono text-muted-foreground">group {task.groupId}</span>
+        {/if}
         {#if task.runtime?.childPid}
           <span class="whitespace-nowrap font-mono text-muted-foreground">pid {task.runtime.childPid}</span>
         {/if}
