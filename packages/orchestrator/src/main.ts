@@ -43,10 +43,17 @@ async function main() {
   await state.logger.info("Daemon storage initialized", {
     context: { dataDir: storage.paths.home, host, port },
   });
-  await state.events.hydrate();
+  const eventHydrateStartedAt = Date.now();
+  const persistedEvents = await state.events.hydrate();
+  const persistedLatestSeq = state.events.latestSeq;
   await state.logger.info("Event log hydrated", {
-    context: { latestSeq: state.events.latestSeq },
+    durationMs: Date.now() - eventHydrateStartedAt,
+    context: {
+      latestSeq: state.events.latestSeq,
+      events: persistedEvents.length,
+    },
   });
+  const registryHydrateStartedAt = Date.now();
   await state.registry.hydrate();
   await state.registry.pythonRuntime
     .refresh()
@@ -56,9 +63,18 @@ async function main() {
   await state.registry.editors
     .refresh()
     .catch((error) => state.logger.warn("Editor discovery failed", { error }));
-  await state.logger.info("Registry hydrated");
-  await state.registry.rebuildIndex();
+  await state.logger.info("Registry hydrated", {
+    durationMs: Date.now() - registryHydrateStartedAt,
+  });
+  const indexRebuildStartedAt = Date.now();
+  await state.registry.rebuildIndex([
+    ...persistedEvents,
+    ...state.events
+      .replaySince(persistedLatestSeq)
+      .filter((event) => event.durability === "durable"),
+  ]);
   await state.logger.info("Index rebuilt", {
+    durationMs: Date.now() - indexRebuildStartedAt,
     context: { ...state.index.counts() },
   });
   state.subscriptionUsage.start();

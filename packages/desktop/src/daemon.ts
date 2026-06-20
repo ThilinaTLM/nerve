@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { type DaemonFile, daemonFileSchema } from "@nerve/shared";
 import { desktopLog } from "./logging.js";
 
-const readinessTimeoutMs = 15_000;
+const defaultReadinessTimeoutMs = 60_000;
 const healthCheckTimeoutMs = 1500;
 const shutdownTimeoutMs = 5000;
 
@@ -107,6 +107,7 @@ async function ensureLocalDaemon(
   options: EnsureDaemonOptions,
 ): Promise<ManagedDaemon> {
   const paths = resolveDaemonPaths();
+  const readinessTimeoutMs = resolveReadinessTimeoutMs();
   const existing = await findHealthyDaemon(paths);
   if (existing) {
     void desktopLog("info", "daemon", "Using existing healthy local daemon", {
@@ -130,7 +131,7 @@ async function ensureLocalDaemon(
 
   const output = new OutputBuffer();
   void desktopLog("info", "daemon", "Starting owned local daemon", {
-    context: { orchestratorMain },
+    context: { orchestratorMain, dataDir: paths.home, readinessTimeoutMs },
   });
   const child = spawn(process.execPath, [orchestratorMain], {
     env: {
@@ -168,12 +169,14 @@ async function ensureLocalDaemon(
       throw daemonStartupError(
         `Failed to start the Nerve daemon: ${spawnError.message}`,
         output,
+        { dataDir: paths.home, readinessTimeoutMs },
       );
     }
     if (childExit) {
       throw daemonStartupError(
         `Nerve daemon exited before it became ready${formatExit(childExit)}.`,
         output,
+        { dataDir: paths.home, readinessTimeoutMs },
       );
     }
 
@@ -197,10 +200,11 @@ async function ensureLocalDaemon(
   const error = daemonStartupError(
     `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
     output,
+    { dataDir: paths.home, readinessTimeoutMs },
   );
   void desktopLog("error", "daemon", "Owned local daemon startup timed out", {
     error,
-    context: { output: output.tail() },
+    context: { output: output.tail(), dataDir: paths.home, readinessTimeoutMs },
   });
   throw error;
 }
@@ -213,6 +217,14 @@ function resolveDaemonPaths(): DaemonPaths {
     daemonPath: join(home, "daemon.json"),
     localTokenPath: join(home, "auth", "local-token"),
   };
+}
+
+function resolveReadinessTimeoutMs(): number {
+  const raw = process.env.NERVE_DAEMON_STARTUP_TIMEOUT_MS?.trim();
+  if (!raw) return defaultReadinessTimeoutMs;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return defaultReadinessTimeoutMs;
+  return Math.max(1, Math.trunc(value));
 }
 
 function resolveOrchestratorMainPath(): string {
@@ -342,8 +354,32 @@ async function stopOwnedChild(
   });
 }
 
-function daemonStartupError(message: string, output: OutputBuffer): Error {
-  return new Error(`${message}\n\nDaemon output:\n${output.tail()}`);
+function daemonStartupError(
+  message: string,
+  output: OutputBuffer,
+  context?: { dataDir?: string; readinessTimeoutMs?: number },
+): Error {
+  const diagnostics = [
+    context?.readinessTimeoutMs
+      ? `Startup timeout: ${context.readinessTimeoutMs}ms`
+      : undefined,
+    context?.dataDir ? `Data dir: ${context.dataDir}` : undefined,
+    context?.dataDir
+      ? `Application log: ${join(
+          context.dataDir,
+          "logs",
+          `application-${new Date().toISOString().slice(0, 10)}.jsonl`,
+        )}`
+      : undefined,
+  ].filter((line): line is string => Boolean(line));
+
+  return new Error(
+    `${message}\n\nDaemon output:\n${output.tail()}${
+      diagnostics.length > 0
+        ? `\n\nDiagnostics:\n${diagnostics.map((line) => `- ${line}`).join("\n")}`
+        : ""
+    }`,
+  );
 }
 
 function formatExit(exit: ChildExit): string {

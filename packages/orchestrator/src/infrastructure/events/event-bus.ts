@@ -27,7 +27,7 @@ export class EventBus {
     private readonly maxBufferedEvents = 10_000,
   ) {}
 
-  async hydrate(): Promise<void> {
+  async hydrate(): Promise<EventEnvelope[]> {
     const events = await readJsonLines<unknown>(this.globalEventsPath()).catch(
       () => [],
     );
@@ -42,6 +42,7 @@ export class EventBus {
       0,
     );
     this.#seq = this.#latestDurableSeq;
+    return parsed;
   }
 
   publish<T>(

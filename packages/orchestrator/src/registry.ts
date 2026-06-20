@@ -13,6 +13,7 @@ import type {
   CreateConversationRequest,
   CreatePinnedCommandRequest,
   CreateProjectRequest,
+  EventEnvelope,
   ImportConversationRequest,
   ModelInfo,
   NavigateConversationRequest,
@@ -133,12 +134,12 @@ export class RuntimeRegistry {
     await this.services.taskNotifications.recoverPendingNotifications();
   }
 
-  async rebuildIndex(): Promise<void> {
+  async rebuildIndex(events?: EventEnvelope[]): Promise<void> {
     this.index.rebuild({
       projects: this.listProjects(),
       conversations: this.listConversations(),
       agents: this.listAgents(),
-      events: await this.events.replayPersistedSince(0),
+      events: events ?? (await this.events.replayPersistedSince(0)),
       tasks: this.tasks.listTasks(),
       workers: this.workers.listWorkers(),
       toolCalls: this.tools.listToolCalls(),
