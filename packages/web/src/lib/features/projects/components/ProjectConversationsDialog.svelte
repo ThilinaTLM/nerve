@@ -6,7 +6,7 @@
   import { Input } from "$lib/components/ui/input";
   import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
   import * as Tooltip from "$lib/components/ui/tooltip";
-  import VirtualList from "$lib/components/ui/virtual-list";
+  import { VirtualScroller } from "$lib/components/ui/virtual-list";
   import { buildConversationRows } from "$lib/core/utils/project-tree";
   import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 
@@ -90,11 +90,11 @@
         {#if rows.length === 0}
           <p class="empty">No conversations match.</p>
         {:else}
-          <VirtualList
+          <VirtualScroller
             items={rows}
-            itemHeight={32}
-            keyFn={(row) => row.conversation.id}
-            class="conversations-virtual-list"
+            getKey={(row) => row.conversation.id}
+            estimateSize={() => 32}
+            viewportClass="conversations-virtual-list"
           >
             {#snippet row({ item })}
               <ProjectAgentTreeNode
@@ -106,7 +106,7 @@
                 onOpenConversation={openAndClose}
               />
             {/snippet}
-          </VirtualList>
+          </VirtualScroller>
         {/if}
       </div>
     </div>
@@ -161,6 +161,7 @@
   }
 
   :global(.conversations-virtual-list) {
+    height: 100%;
     padding: 0 0.1rem;
   }
 

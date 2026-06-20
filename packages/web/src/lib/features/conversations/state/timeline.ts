@@ -29,6 +29,28 @@ export type TimelineItem =
   | { kind: "run_status"; key: string; notice: RunStatusNotice }
   | { kind: "task_event"; key: string; notice: TaskEventNotice };
 
+/**
+ * Memoizable products of the persisted-branch projection. `buildLiveTimeline`
+ * consumes this so the live tail can be recomputed without re-walking the
+ * (potentially huge) transcript or re-sorting the tool calls.
+ */
+export type CommittedContext = {
+  orderedToolCalls: ToolCallRecord[];
+  toolCallsById: Map<string, ToolCallRecord>;
+  toolCallsByProviderId: Map<string, ToolCallRecord>;
+  /** Tool ids already rendered as anchored committed cards. */
+  consumedToolCallIds: Set<string>;
+  /** Run ids that already have a committed run-status node. */
+  statusRunIds: Set<string>;
+  /** Keys (id/entryId/`run:<id>`) of committed compaction notices. */
+  completedCompactionKeys: Set<string>;
+};
+
+export type CommittedTimeline = {
+  items: TimelineItem[];
+  context: CommittedContext;
+};
+
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 
 function isToolCallPlaceholder(item: TranscriptItem): boolean {
@@ -199,17 +221,44 @@ function runStatusTimelineKey(
   return notice.runId ? `run-status:${notice.runId}` : fallback;
 }
 
+function entryIdMatches(itemId: string, entryId: string): boolean {
+  return itemId === entryId || itemId.startsWith(`${entryId}:`);
+}
+
+function isHiddenByEntryIds(
+  item: TranscriptItem,
+  hiddenEntryIds: Set<string>,
+): boolean {
+  return Boolean(
+    item.id &&
+      [...hiddenEntryIds].some((entryId) =>
+        entryIdMatches(item.id as string, entryId),
+      ),
+  );
+}
+
+function isHiddenByFailedRun(
+  item: TranscriptItem,
+  hiddenFailedRunIds: Set<string>,
+): boolean {
+  return (
+    item.role === "assistant" &&
+    item.stopReason === "error" &&
+    Boolean(item.runId && hiddenFailedRunIds.has(item.runId))
+  );
+}
+
 /**
- * Merge persisted branch entries, live assistant content, tool-call drafts, and
- * live/unanchored tool records into one renderer-facing conversation timeline.
- * Persisted branch entries remain source of truth; live nodes are transient
- * first-class transcript nodes appended at the current branch tail.
+ * Project the persisted branch transcript + tool calls into committed timeline
+ * nodes. This pass is intentionally independent of live state so it can be
+ * memoized while the agent streams: only `transcript`/`toolCalls` identity
+ * changes invalidate it. Live-only hiding is layered in afterwards by
+ * {@link selectVisibleCommitted}.
  */
-export function buildConversationTimeline(
+export function buildCommittedTimeline(
   transcript: TranscriptItem[],
   toolCalls: ToolCallRecord[],
-  live?: ConversationLiveState,
-): TimelineItem[] {
+): CommittedTimeline {
   const items: TimelineItem[] = [];
   const orderedToolCalls = toolCalls
     .filter((toolCall) => !toolCall.hidden)
@@ -227,31 +276,18 @@ export function buildConversationTimeline(
   }
   const consumedToolCallIds = new Set<string>();
 
-  const hiddenEntryIds = new Set(live?.hiddenEntryIds ?? []);
-  if (live?.runStatus?.failedEntryId) {
-    hiddenEntryIds.add(live.runStatus.failedEntryId);
-  }
-  if (live?.compaction?.failedEntryId) {
-    hiddenEntryIds.add(live.compaction.failedEntryId);
-  }
+  // Transcript-derived hiding (persisted run-status entries). Live-derived
+  // hiding is applied later, so this pass stays live-independent.
+  const hiddenEntryIds = new Set<string>();
   const hiddenFailedRunIds = new Set<string>();
   for (const item of transcript) {
     if (item.runStatus?.failedEntryId)
       hiddenEntryIds.add(item.runStatus.failedEntryId);
     if (item.runStatus?.runId) hiddenFailedRunIds.add(item.runStatus.runId);
   }
-  if (live?.runStatus?.runId) hiddenFailedRunIds.add(live.runStatus.runId);
   const itemHidden = (item: TranscriptItem) =>
-    Boolean(
-      (item.id &&
-        [...hiddenEntryIds].some(
-          (entryId) =>
-            item.id === entryId || item.id?.startsWith(`${entryId}:`),
-        )) ||
-        (item.role === "assistant" &&
-          item.stopReason === "error" &&
-          Boolean(item.runId && hiddenFailedRunIds.has(item.runId))),
-    );
+    isHiddenByEntryIds(item, hiddenEntryIds) ||
+    isHiddenByFailedRun(item, hiddenFailedRunIds);
 
   transcript.forEach((item, index) => {
     if (isToolCallPlaceholder(item)) return;
@@ -294,7 +330,6 @@ export function buildConversationTimeline(
         kind: "tool",
         key: toolCall.id,
         toolCall,
-        liveOutput: liveOutputFor(live, toolCall.id),
         anchorEntryId: item.id,
       });
       consumedToolCallIds.add(toolCall.id);
@@ -335,6 +370,84 @@ export function buildConversationTimeline(
       return keys;
     }),
   );
+
+  return {
+    items,
+    context: {
+      orderedToolCalls,
+      toolCallsById,
+      toolCallsByProviderId,
+      consumedToolCallIds,
+      statusRunIds,
+      completedCompactionKeys,
+    },
+  };
+}
+
+function committedEntryId(item: TimelineItem): string | undefined {
+  if (item.kind === "message") return item.item.id;
+  if (item.kind === "tool") return item.anchorEntryId;
+  if (item.kind === "tool_result_error") return item.key;
+  return undefined;
+}
+
+/**
+ * Filter committed items that live state hides (retry/compaction in progress).
+ * Returns the same array reference when nothing is hidden — the common case
+ * during pure text streaming — so the timeline concat stays cheap.
+ */
+export function selectVisibleCommitted(
+  items: TimelineItem[],
+  live: ConversationLiveState | undefined,
+): TimelineItem[] {
+  const liveHiddenEntryIds = new Set<string>(live?.hiddenEntryIds ?? []);
+  if (live?.runStatus?.failedEntryId)
+    liveHiddenEntryIds.add(live.runStatus.failedEntryId);
+  if (live?.compaction?.failedEntryId)
+    liveHiddenEntryIds.add(live.compaction.failedEntryId);
+  const liveHiddenRunId = live?.runStatus?.runId;
+
+  if (liveHiddenEntryIds.size === 0 && !liveHiddenRunId) return items;
+
+  return items.filter((item) => {
+    const entryId = committedEntryId(item);
+    if (
+      entryId &&
+      [...liveHiddenEntryIds].some((hidden) => entryIdMatches(entryId, hidden))
+    ) {
+      return false;
+    }
+    if (
+      liveHiddenRunId &&
+      item.kind === "message" &&
+      item.item.role === "assistant" &&
+      item.item.stopReason === "error" &&
+      item.item.runId === liveHiddenRunId
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Project the transient live tail (streaming assistant content, tool drafts,
+ * unanchored/active-run tool cards, run-status, compaction) using the memoized
+ * committed `context` instead of recomputing it.
+ */
+export function buildLiveTimeline(
+  live: ConversationLiveState | undefined,
+  context: CommittedContext,
+): TimelineItem[] {
+  const items: TimelineItem[] = [];
+  const {
+    orderedToolCalls,
+    toolCallsByProviderId,
+    statusRunIds,
+    completedCompactionKeys,
+  } = context;
+  // Clone so repeated live recomputes never mutate the memoized committed set.
+  const consumedToolCallIds = new Set(context.consumedToolCallIds);
 
   const liveNodes: LiveTimelineNode[] = [
     ...(live?.messages ?? []).map((item) => ({
@@ -446,4 +559,20 @@ export function buildConversationTimeline(
   }
 
   return items;
+}
+
+/**
+ * Merge persisted branch entries, live assistant content, tool-call drafts, and
+ * live/unanchored tool records into one renderer-facing conversation timeline.
+ * Thin compose over {@link buildCommittedTimeline} + {@link buildLiveTimeline};
+ * the reactive UI calls those directly so the committed pass stays memoized.
+ */
+export function buildConversationTimeline(
+  transcript: TranscriptItem[],
+  toolCalls: ToolCallRecord[],
+  live?: ConversationLiveState,
+): TimelineItem[] {
+  const committed = buildCommittedTimeline(transcript, toolCalls);
+  const liveItems = buildLiveTimeline(live, committed.context);
+  return [...selectVisibleCommitted(committed.items, live), ...liveItems];
 }

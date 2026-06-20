@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { TaskLogEvent } from "$lib/api";
+  import { VirtualScroller } from "$lib/components/ui/virtual-list";
 
   type LineItem = { text: string; level?: TaskLogEvent["level"]; stream?: TaskLogEvent["stream"] };
 
@@ -7,8 +8,10 @@
     events?: TaskLogEvent[];
     lines?: string[];
     maxHeight?: string;
+    /** Stick to the bottom as new lines arrive (live tails). */
+    followOutput?: boolean;
   };
-  let { events, lines, maxHeight = "16rem" }: Props = $props();
+  let { events, lines, maxHeight = "16rem", followOutput = false }: Props = $props();
 
   const items = $derived<LineItem[]>(
     events
@@ -17,15 +20,30 @@
   );
 </script>
 
-<div class="log-list" style:max-height={maxHeight}>
-  {#each items as item, index (index)}
-    <div class={`log-line${item.level ? ` level-${item.level}` : ""}${item.stream === "stderr" ? " stderr" : ""}`}>{item.text || "\u00A0"}</div>
-  {/each}
+<div class="log-list-wrap" style:--log-max-height={maxHeight}>
+  <VirtualScroller
+    {items}
+    getKey={(_, index) => index}
+    estimateSize={() => 18}
+    anchor="start"
+    {followOutput}
+    viewportClass="log-list"
+  >
+    {#snippet row({ item })}
+      <div
+        class={`log-line${item.level ? ` level-${item.level}` : ""}${item.stream === "stderr" ? " stderr" : ""}`}
+      >{item.text || "\u00A0"}</div>
+    {/snippet}
+  </VirtualScroller>
 </div>
 
 <style>
-  .log-list {
-    overflow: auto;
+  .log-list-wrap {
+    min-width: 0;
+  }
+
+  :global(.log-list) {
+    max-height: var(--log-max-height);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--sidebar);

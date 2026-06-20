@@ -5,7 +5,12 @@ import type {
   ConversationLiveState,
   TranscriptItem,
 } from "$lib/core/types/state-types";
-import { buildConversationTimeline } from "./timeline";
+import {
+  buildCommittedTimeline,
+  buildConversationTimeline,
+  buildLiveTimeline,
+  selectVisibleCommitted,
+} from "./timeline";
 
 function toolCall(
   id: string,
@@ -850,6 +855,65 @@ describe("buildConversationTimeline", () => {
     assert.equal(
       timeline.filter((item) => item.kind === "run_status").length,
       1,
+    );
+  });
+
+  it("composes from the committed + live split builders", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Go" },
+      { id: "entry_failed", role: "assistant", text: "Agent run failed" },
+    ];
+    const toolCalls = [
+      toolCall("tool_live", "2026-01-01T00:00:01.000Z", "read", undefined, {
+        status: "running",
+      }),
+    ];
+    const live = liveState({
+      runStatus: {
+        state: "retrying",
+        runId: "run_01H00000000000000000000000",
+        failedEntryId: "entry_failed",
+        attempt: 1,
+        maxRetries: 3,
+      },
+    });
+
+    const committed = buildCommittedTimeline(transcript, toolCalls);
+    const expected = [
+      ...selectVisibleCommitted(committed.items, live),
+      ...buildLiveTimeline(live, committed.context),
+    ];
+
+    assert.deepEqual(
+      keys(buildConversationTimeline(transcript, toolCalls, live)),
+      keys(expected),
+    );
+  });
+
+  it("keeps the committed pass independent of live state", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Go" },
+      { id: "entry_failed", role: "assistant", text: "Agent run failed" },
+    ];
+    const committed = buildCommittedTimeline(transcript, []);
+    // The failed entry is only hidden once live state references it.
+    assert.deepEqual(keys(committed.items), ["entry_user", "entry_failed"]);
+    assert.deepEqual(
+      keys(
+        selectVisibleCommitted(
+          committed.items,
+          liveState({
+            runStatus: {
+              state: "retrying",
+              runId: "run_01H00000000000000000000000",
+              failedEntryId: "entry_failed",
+              attempt: 1,
+              maxRetries: 3,
+            },
+          }),
+        ),
+      ),
+      ["entry_user"],
     );
   });
 

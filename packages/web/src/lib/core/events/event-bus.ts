@@ -48,6 +48,51 @@ export function dispatchEvent(event: WorkbenchEvent): void {
 export function clearEventHandlers(): void {
   handlersByType.clear();
   anyHandlers.clear();
+  eventQueue.length = 0;
+  flushScheduled = false;
+}
+
+// --- Coalesced delivery -----------------------------------------------------
+// Incoming envelopes are buffered and flushed once per animation frame so a
+// burst of streaming deltas (content/tool output) collapses into a single
+// reactive pass instead of one render per frame-event. FIFO order is preserved.
+
+const eventQueue: WorkbenchEvent[] = [];
+let flushScheduled = false;
+
+function scheduleFlush(): void {
+  if (flushScheduled) return;
+  flushScheduled = true;
+  const run = () => {
+    flushScheduled = false;
+    flushEvents();
+  };
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(run);
+  } else {
+    queueMicrotask(run);
+  }
+}
+
+/**
+ * Buffer an event for batched delivery on the next animation frame. Use this
+ * for high-frequency transport events; ordering and per-batch atomicity are
+ * preserved by {@link flushEvents}.
+ */
+export function enqueueEvent(event: WorkbenchEvent): void {
+  eventQueue.push(event);
+  scheduleFlush();
+}
+
+/**
+ * Synchronously drain the buffered event queue in FIFO order. Safe to call for
+ * deterministic teardown (disconnect) and in tests.
+ */
+export function flushEvents(): void {
+  while (eventQueue.length > 0) {
+    const event = eventQueue.shift() as WorkbenchEvent;
+    dispatchEvent(event);
+  }
 }
 
 function reportHandlerError(event: WorkbenchEvent, error: unknown): void {

@@ -4,7 +4,7 @@ import {
   applyTheme,
   loadThemePreference,
 } from "$lib/app/layout/layout-state.svelte";
-import { dispatchEvent } from "$lib/core/events/event-bus";
+import { enqueueEvent, flushEvents } from "$lib/core/events/event-bus";
 import {
   clientLog,
   installClientLogging,
@@ -136,7 +136,8 @@ function dispatchIncomingEvent(
 ): void {
   if (event.seq && event.seq <= workspaceState.lastEventSeq) return;
   if (event.seq) workspaceState.lastEventSeq = event.seq;
-  dispatchEvent(event);
+  // Buffer for coalesced, frame-batched delivery (preserves arrival order).
+  enqueueEvent(event);
 }
 
 function connectWebsocket(wsUrl: string) {
@@ -192,6 +193,8 @@ export function disconnectWorkbench() {
   socketGeneration += 1;
   socket?.close();
   socket = undefined;
+  // Deliver any buffered events before tearing down.
+  flushEvents();
   workspaceState.connection = "closed";
 }
 

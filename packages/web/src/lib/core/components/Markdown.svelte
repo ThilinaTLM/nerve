@@ -14,6 +14,12 @@
   type Props = {
     text: string;
     trimCodeBlocks?: boolean;
+    /**
+     * When true, coalesce re-renders to one frame and defer syntax highlighting
+     * (shiki) until streaming stops. Avoids per-token unified parse + async
+     * highlight cost for the actively streaming message.
+     */
+    streaming?: boolean;
     linkBasePath?: string;
     onOpenFile?: (path: string, line?: number) => void;
     onCopy?: (ok: boolean) => void;
@@ -22,6 +28,7 @@
   let {
     text,
     trimCodeBlocks = true,
+    streaming = false,
     linkBasePath,
     onOpenFile,
     onCopy,
@@ -66,31 +73,70 @@
   }
 
   let htmlSource: string | undefined;
+  let frame: number | undefined;
+  let highlightToken = 0;
 
-  $effect(() => {
-    const source = text;
-    const signature = `${trimCodeBlocks ? "trim" : "full"}\0${source}`;
+  function signatureFor(source: string, trim: boolean): string {
+    return `${trim ? "trim" : "full"}\0${source}`;
+  }
+
+  function cancelFrame() {
+    if (frame === undefined) return;
+    cancelAnimationFrame(frame);
+    frame = undefined;
+  }
+
+  /** Decorate-only render (no shiki). Used per-frame while streaming. */
+  function renderDecorateOnly(source: string, trim: boolean) {
+    const signature = signatureFor(source, trim);
     if (htmlSource === signature) return;
-    let cancelled = false;
-    const rendered = renderMarkdown(source);
-    html = decorateMarkdownHtml(rendered, trimCodeBlocks);
+    html = decorateMarkdownHtml(renderMarkdown(source), trim);
     htmlSource = signature;
-    highlightMarkdownHtml(rendered, trimCodeBlocks)
+    // Invalidate any in-flight highlight from a previous non-streaming pass.
+    highlightToken += 1;
+  }
+
+  /** Full render + async shiki highlight. Used when not streaming. */
+  function renderWithHighlight(source: string, trim: boolean) {
+    const signature = signatureFor(source, trim);
+    const rendered = renderMarkdown(source);
+    html = decorateMarkdownHtml(rendered, trim);
+    htmlSource = signature;
+    const token = (highlightToken += 1);
+    highlightMarkdownHtml(rendered, trim)
       .then((highlighted) => {
-        if (!cancelled && source === text) {
+        if (token === highlightToken) {
           html = highlighted;
           htmlSource = signature;
         }
       })
       .catch(() => {
-        if (!cancelled && source === text) {
-          html = decorateMarkdownHtml(rendered, trimCodeBlocks);
+        if (token === highlightToken) {
+          html = decorateMarkdownHtml(rendered, trim);
           htmlSource = signature;
         }
       });
-    return () => {
-      cancelled = true;
-    };
+  }
+
+  $effect(() => {
+    const source = text;
+    const trim = trimCodeBlocks;
+    if (!streaming) {
+      cancelFrame();
+      renderWithHighlight(source, trim);
+      return;
+    }
+    // Streaming: coalesce bursts of token deltas into one decorate-only render
+    // per animation frame; the final highlight happens once streaming stops.
+    if (frame !== undefined) return;
+    frame = requestAnimationFrame(() => {
+      frame = undefined;
+      renderDecorateOnly(text, trimCodeBlocks);
+    });
+  });
+
+  $effect(() => {
+    return () => cancelFrame();
   });
 </script>
 

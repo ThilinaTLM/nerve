@@ -26,6 +26,7 @@
     "@shikijs/themes": "^4.1.0",
     "@tailwindcss/vite": "4.3.1",
     "@tanstack/svelte-query": "6.0.0",
+    "@tanstack/svelte-virtual": "^3.13.29",
     "bits-ui": "^2.18.1",
     "paneforge": "^1.0.2",
     "rehype-sanitize": "^6.0.0",

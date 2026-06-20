@@ -6,7 +6,11 @@
   import type { TranscriptItem } from "$lib/core/types/state-types";
   import type { ConversationPaneProps } from "./conversation-pane-props";
   import { shortProjectLabel } from "$lib/core/utils/project-tree";
-  import { buildConversationTimeline } from "$lib/features/conversations/state/timeline";
+  import {
+    buildCommittedTimeline,
+    buildLiveTimeline,
+    selectVisibleCommitted,
+  } from "$lib/features/conversations/state/timeline";
   import { Button } from "$lib/components/ui/button";
   import PromptComposer from "./PromptComposer.svelte";
   import TranscriptList from "./TranscriptList.svelte";
@@ -71,7 +75,13 @@
 
   const conversationOpen = $derived(Boolean(activeConversation || pendingConversationActive));
   const activeProjectLabel = $derived(activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined);
-  const timeline = $derived(buildConversationTimeline(transcript, toolCalls, liveState));
+  // Incremental projection: `committed` only recomputes when transcript/toolCalls
+  // identity changes (i.e. not during pure text streaming), so streaming tokens
+  // only re-run the small live tail.
+  const committed = $derived.by(() => buildCommittedTimeline(transcript, toolCalls));
+  const liveItems = $derived.by(() => buildLiveTimeline(liveState, committed.context));
+  const visibleCommitted = $derived(selectVisibleCommitted(committed.items, liveState));
+  const timeline = $derived([...visibleCommitted, ...liveItems]);
   const compacting = $derived(liveState?.compaction?.state === "running");
   const treeEntriesById = $derived(
     new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
@@ -82,48 +92,10 @@
     ),
   );
   const lastTimelineKey = $derived(timeline.at(-1)?.key);
+  // Cheap live-activity check (no whole-timeline scan): the live tail being
+  // non-empty, or any running tool card, means something live is rendered.
   const hasLiveTimelineNodes = $derived(
-    timeline.some((node) =>
-      node.kind === "message"
-        ? Boolean(node.item.live)
-        : node.kind === "tool_draft"
-          ? true
-          : node.kind === "tool"
-            ? node.toolCall.status === "running"
-            : node.kind === "run_status"
-              ? node.notice.state === "retrying"
-              : node.kind === "compaction"
-                ? node.notice.state === "running"
-                : false,
-    ),
-  );
-  const scrollSignature = $derived(
-    timeline
-      .map((node) => {
-        if (node.kind === "message") {
-          return `${node.key}:${node.item.text.length}:${node.item.live ? "live" : "done"}`;
-        }
-        if (node.kind === "tool_draft") {
-          return `${node.key}:${node.draft.argsText.length}:${node.draft.done ? "done" : "live"}`;
-        }
-        if (node.kind === "run_status") {
-          return `${node.key}:${node.notice.state}:${node.notice.attempt ?? 0}:${node.notice.errorMessage?.length ?? 0}`;
-        }
-        if (node.kind === "compaction") {
-          return `${node.key}:${node.notice.state}:${node.notice.summary?.length ?? 0}:${node.notice.errorMessage?.length ?? 0}`;
-        }
-        if (node.kind === "tool_result_error") {
-          return `${node.key}:${node.toolName}:${node.error.length}`;
-        }
-        if (node.kind === "task_event") {
-          return `${node.key}:${node.notice.status ?? ""}:${node.notice.event ?? ""}`;
-        }
-        return `${node.key}:${node.toolCall.status}:${node.liveOutput?.text.length ?? 0}`;
-      })
-      .join("|"),
-  );
-  const queuedPromptSignature = $derived(
-    queuedPrompts.map((prompt) => `${prompt.id}:${prompt.text.length}`).join("|"),
+    liveItems.length > 0 || toolCalls.some((tool) => tool.status === "running"),
   );
   const scrollConversationId = $derived(
     activeConversation?.id ??
@@ -134,10 +106,7 @@
   const scroll = createConversationScrollController({
     conversationOpen: () => conversationOpen,
     conversationId: () => scrollConversationId,
-    scrollSignature: () => scrollSignature,
-    queuedPromptSignature: () => queuedPromptSignature,
-    sending: () => sending,
-    streamingTextLength: () => streamingText.length,
+    contentReady: () => timeline.length > 0,
   });
 
   async function copyText(text: string, label = "message") {
@@ -186,17 +155,11 @@
 
 <section class="conversation-pane">
   {#if conversationOpen}
-    <div
-      bind:this={scroll.transcriptEl}
-      class="transcript"
-      role="log"
-      aria-label="Conversation transcript"
-      aria-live="polite"
-      onscroll={scroll.handleTranscriptScroll}
-    >
+    <div class="transcript" role="log" aria-label="Conversation transcript" aria-live="polite">
       <TranscriptList
-        bind:contentEl={scroll.transcriptContentEl}
-        bind:bottomEl={scroll.bottomEl}
+        bind:controller={scroll.controller}
+        bind:atEnd={scroll.atEnd}
+        paddingEnd={18}
         {timeline}
         {streamingText}
         {sending}
@@ -219,9 +182,9 @@
       />
     </div>
 
-    {#if !scroll.followBottom && scroll.composerHeight > 0}
+    {#if !scroll.atEnd && scroll.composerHeight > 0}
       <div class="scroll-bottom-button-wrap" style={`bottom: ${scroll.composerHeight + 8}px;`}>
-        <Button class="rounded-full" variant="secondary" size="icon-sm" ariaLabel="Scroll to latest" title="Scroll to latest" onclick={() => scroll.scheduleBottomScroll({ force: true, smooth: false })}>
+        <Button class="rounded-full" variant="secondary" size="icon-sm" ariaLabel="Scroll to latest" title="Scroll to latest" onclick={() => scroll.jumpToBottom()}>
           <ArrowDown size={16} strokeWidth={2.4} />
         </Button>
       </div>
@@ -290,10 +253,9 @@
   }
 
   .transcript {
+    display: grid;
     min-height: 0;
-    overflow: auto;
-    overflow-anchor: none;
-    padding: 0.75rem 0.75rem 1.1rem;
+    min-width: 0;
   }
 
   .composer-wrap {

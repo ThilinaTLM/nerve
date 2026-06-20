@@ -2,36 +2,30 @@
   import Folder from "@lucide/svelte/icons/folder";
   import ListPlus from "@lucide/svelte/icons/list-plus";
   import type {
-    CompletionItem,
-    ContextUsage,
-    ConversationRecord,
-    ModelInfo,
-  } from "$lib/api";
-  import type {
-    AgentRecord,
     PlanReviewRecord,
     ProjectRecord,
     QueuedPromptRecord,
     ToolCallRecord,
     UserQuestionRecord,
   } from "$lib/api";
-  import ContextMenu, {
-    type ContextMenuItem,
-  } from "$lib/components/ui/context-menu-list";
-  import ToolCallCard from "$lib/features/tools/components/ToolCallCard.svelte";
-  import ToolDraftCard from "$lib/features/tools/components/tool-call/ToolDraftCard.svelte";
-  import ToolResultErrorCard from "$lib/features/tools/components/tool-call/ToolResultErrorCard.svelte";
-  import Markdown from "$lib/core/components/Markdown.svelte";
-  import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
+  import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import {
+    VirtualScroller,
+    type VirtualScrollerController,
+  } from "$lib/components/ui/virtual-list";
+  import type { TranscriptItem } from "$lib/core/types/state-types";
   import type { TimelineItem } from "$lib/features/conversations/state/timeline";
-  import CompactionCard from "./CompactionCard.svelte";
-  import TaskEventCard from "./TaskEventCard.svelte";
-  import RunStatusCard from "./RunStatusCard.svelte";
-  import ThinkingBlock from "./ThinkingBlock.svelte";
+  import TranscriptRow from "./TranscriptRow.svelte";
+
+  type TranscriptRowItem =
+    | { kind: "timeline"; key: string; node: TimelineItem }
+    | { kind: "waiting"; key: string }
+    | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
 
   type Props = {
-    contentEl?: HTMLDivElement;
-    bottomEl?: HTMLDivElement;
+    controller?: VirtualScrollerController;
+    atEnd?: boolean;
+    paddingEnd?: number;
     timeline: TimelineItem[];
     streamingText: string;
     sending: boolean;
@@ -49,7 +43,7 @@
     onAcceptPlanReviewInNewChat?: (id: string) => void;
     onRejectPlanReview?: (id: string) => void;
     onContinueFromFailure?: (statusEntryId: string) => void;
-    messageMenu: (item: import("$lib/features/conversations").TranscriptItem) => ContextMenuItem[];
+    messageMenu: (item: TranscriptItem) => ContextMenuItem[];
     toolMenu: (
       anchorEntryId: string | undefined,
       toolCall: ToolCallRecord,
@@ -57,8 +51,9 @@
   };
 
   let {
-    contentEl = $bindable(),
-    bottomEl = $bindable(),
+    controller = $bindable(),
+    atEnd = $bindable(true),
+    paddingEnd = 0,
     timeline,
     streamingText,
     sending,
@@ -79,10 +74,29 @@
     messageMenu,
     toolMenu,
   }: Props = $props();
+
+  const rows = $derived.by<TranscriptRowItem[]>(() => {
+    const result: TranscriptRowItem[] = timeline.map((node) => ({
+      kind: "timeline",
+      key: node.key,
+      node,
+    }));
+    if (sending && !hasLiveTimelineNodes) {
+      result.push({ kind: "waiting", key: "__waiting__" });
+    }
+    for (const prompt of queuedPrompts) {
+      result.push({ kind: "queued", key: `__queued__:${prompt.id}`, prompt });
+    }
+    return result;
+  });
+
+  const showEmptyRun = $derived(
+    timeline.length === 0 && !streamingText && !sending,
+  );
 </script>
 
-<div bind:this={contentEl} class="transcript-content">
-  {#if timeline.length === 0 && !streamingText && !sending}
+{#if showEmptyRun}
+  <div class="empty-run-wrap">
     <div class="empty-run">
       <div class="prompt-line">
         <span class="prompt-sigil">nerve</span>
@@ -102,120 +116,105 @@
         </div>
       {/if}
     </div>
-  {/if}
-
-  {#each timeline as node (node.key)}
-    {#if node.kind === "tool"}
-      <ContextMenu
-        items={toolMenu(node.anchorEntryId, node.toolCall)}
-        triggerClass="block min-w-0"
-      >
-        <ToolCallCard
-          toolCall={node.toolCall}
-          liveOutput={node.liveOutput}
+  </div>
+{:else}
+  <VirtualScroller
+    bind:controller
+    bind:atEnd
+    items={rows}
+    getKey={(row) => row.key}
+    estimateSize={() => 120}
+    overscan={10}
+    anchor="end"
+    followOutput={true}
+    scrollEndThreshold={32}
+    paddingStart={12}
+    {paddingEnd}
+    gap={2}
+    viewportClass="transcript-viewport"
+  >
+    {#snippet row({ item })}
+      {#if item.kind === "timeline"}
+        <TranscriptRow
+          node={item.node}
+          {sending}
+          {activeProject}
           {pendingUserQuestion}
           {pendingPlanReview}
+          {lastTimelineKey}
           {onOpenFile}
           {onAnswerUserQuestion}
           {onDismissUserQuestion}
           {onAcceptPlanReview}
           {onAcceptPlanReviewInNewChat}
           {onRejectPlanReview}
+          {onContinueFromFailure}
+          {messageMenu}
+          {toolMenu}
         />
-      </ContextMenu>
-    {:else if node.kind === "tool_draft"}
-      <ToolDraftCard draft={node.draft} />
-    {:else if node.kind === "tool_result_error"}
-      <ToolResultErrorCard toolName={node.toolName} error={node.error} />
-    {:else if node.kind === "run_status"}
-      <RunStatusCard
-        notice={node.notice}
-        isLast={node.key === lastTimelineKey}
-        {sending}
-        {onContinueFromFailure}
-      />
-    {:else if node.kind === "compaction"}
-      <CompactionCard notice={node.notice} />
-    {:else if node.kind === "task_event"}
-      <TaskEventCard notice={node.notice} />
-    {:else}
-      <ContextMenu
-        items={messageMenu(node.item)}
-        triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}
-      >
-        <article
-          class={`transcript-entry ${node.item.role} ${node.item.displayKind === "thinking" ? "thinking-entry" : ""} ${node.item.live ? "streaming" : ""}`}
-        >
+      {:else if item.kind === "waiting"}
+        <article class="transcript-entry assistant streaming waiting-entry">
           <div class="message-body">
-            {#if node.item.displayKind === "thinking"}
-              <ThinkingBlock
-                block={{ text: node.item.text, redacted: node.item.redacted }}
-                live={node.item.live && !node.item.done}
-              />
-            {:else if node.item.text}
-              <div class="message-content">
-                <Markdown
-                  text={node.item.text}
-                  trimCodeBlocks={node.item.role !== "assistant"}
-                  linkBasePath={activeProject?.dir}
-                  {onOpenFile}
-                  onCopy={notifyCopyResult}
-                />
-                {#if node.item.live && !node.item.done}<span
-                    class="stream-caret"
-                    aria-hidden="true"
-                  ></span>{/if}
-              </div>
-            {/if}
+            <div class="message-content streaming-content">
+              <span class="stream-caret" aria-hidden="true"></span>
+            </div>
           </div>
         </article>
-      </ContextMenu>
-    {/if}
-  {/each}
-
-  {#if sending && !hasLiveTimelineNodes}
-    <article class="transcript-entry assistant streaming waiting-entry">
-      <div class="message-body">
-        <div class="message-content streaming-content">
-          <span class="stream-caret" aria-hidden="true"></span>
-        </div>
-      </div>
-    </article>
-  {/if}
-
-  {#if queuedPrompts.length > 0}
-    <div class="queued-prompts" aria-label="Queued prompts">
-      {#each queuedPrompts as queuedPrompt (queuedPrompt.id)}
+      {:else}
         <div class="queued-prompt">
           <ListPlus size={14} strokeWidth={2.2} />
           <span class="queued-label">Queued</span>
-          <span class="queued-text">{queuedPrompt.text}</span>
+          <span class="queued-text">{item.prompt.text}</span>
         </div>
-      {/each}
-    </div>
-  {/if}
-
-  <div bind:this={bottomEl} class="transcript-bottom" aria-hidden="true"></div>
-</div>
+      {/if}
+    {/snippet}
+  </VirtualScroller>
+{/if}
 
 <style>
-  .transcript-content {
+  :global(.transcript-viewport) {
+    height: 100%;
+    padding: 0 0.75rem;
+  }
+
+  .empty-run-wrap {
     display: grid;
-    align-content: start;
-    gap: 0.1rem;
     min-height: 100%;
+    align-content: start;
+    padding: 0.75rem;
+  }
+
+  .waiting-entry {
+    position: relative;
+    width: 100%;
     min-width: 0;
+    padding: 0.75rem;
   }
 
-  .transcript-bottom {
-    height: 1px;
-    overflow-anchor: auto;
+  .waiting-entry .message-body {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
   }
 
-  .queued-prompts {
-    display: grid;
+  .streaming-content {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
     gap: 0.45rem;
-    margin: 0.5rem 0 0.75rem;
+    color: var(--muted-foreground);
+    min-width: 0;
+    font-size: var(--text-sm);
+  }
+
+  .stream-caret {
+    display: inline-block;
+    width: 0.42rem;
+    height: 1em;
+    margin-left: 0.15rem;
+    margin-top: 0.18rem;
+    background: var(--primary);
+    animation: pulse 1s steps(2, start) infinite;
   }
 
   .queued-prompt {
@@ -223,6 +222,7 @@
     align-items: center;
     gap: 0.5rem;
     justify-self: end;
+    margin-left: auto;
     max-width: min(42rem, 82%);
     border: 1px dashed var(--border);
     border-radius: var(--radius);
@@ -242,64 +242,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .transcript-entry {
-    position: relative;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    padding: 0.75rem;
-    border-bottom: 0;
-  }
-
-  :global(.user-msg-trigger) {
-    display: block;
-  }
-
-  .transcript-entry.user {
-    width: fit-content;
-    max-width: 70%;
-    margin-left: auto;
-    border: 1px solid color-mix(in oklab, var(--primary) 16%, var(--border));
-    border-radius: var(--radius-lg);
-    border-bottom-right-radius: var(--radius-sm);
-    background: color-mix(in oklab, var(--primary) 12%, var(--card));
-    padding: 0.55rem 0.8rem;
-  }
-
-  .message-body {
-    position: relative;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .message-content {
-    min-width: 0;
-    color: color-mix(in oklab, var(--foreground) 92%, transparent);
-    font-size: var(--text-sm);
-  }
-
-  .streaming-content {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    color: var(--muted-foreground);
-  }
-
-  .transcript-entry.user .message-content {
-    color: var(--foreground);
-  }
-
-  .stream-caret {
-    display: inline-block;
-    width: 0.42rem;
-    height: 1em;
-    margin-left: 0.15rem;
-    margin-top: 0.18rem;
-    background: var(--primary);
-    animation: pulse 1s steps(2, start) infinite;
   }
 
   .empty-run {
@@ -372,5 +314,4 @@
     color: var(--foreground);
     font-family: var(--font-mono);
   }
-
 </style>
