@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SubscriptionUsage, SubscriptionWindow } from "$lib/api";
   import {
+    formatDurationMinutes,
     formatResetAfterSeconds,
     formatResetAt,
     usageTone,
@@ -133,8 +134,8 @@
 
       <div class="usage-list">
         <div><span>Updated</span><strong>{updatedLabel(usage?.updatedAt)}</strong></div>
-        <div><span>Session window</span><strong>{session?.windowMinutes ? `${session.windowMinutes}m` : "reset countdown"}</strong></div>
-        <div><span>Weekly window</span><strong>{weekly?.windowMinutes ? `${weekly.windowMinutes}m` : "—"}</strong></div>
+        <div><span>Session window</span><strong>{formatDurationMinutes(session?.windowMinutes) ?? "reset countdown"}</strong></div>
+        <div><span>Weekly window</span><strong>{formatDurationMinutes(weekly?.windowMinutes) ?? "—"}</strong></div>
       </div>
     </div>
   </Popover>

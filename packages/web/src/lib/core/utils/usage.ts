@@ -17,7 +17,34 @@ export function usageTone(
   return "neutral";
 }
 
-/** Format an absolute reset timestamp as a compact countdown (e.g. "2h15m"). */
+/** Format a duration in minutes as compact days, hours, and minutes. */
+export function formatDurationMinutes(
+  totalMinutes: number | null | undefined,
+): string | null {
+  if (
+    totalMinutes == null ||
+    !Number.isFinite(totalMinutes) ||
+    totalMinutes < 0
+  ) {
+    return null;
+  }
+
+  const wholeMinutes = Math.floor(totalMinutes);
+  if (wholeMinutes === 0) return "0m";
+
+  const days = Math.floor(wholeMinutes / (24 * 60));
+  const hours = Math.floor((wholeMinutes % (24 * 60)) / 60);
+  const minutes = wholeMinutes % 60;
+  const parts: string[] = [];
+
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+
+  return parts.join(" ");
+}
+
+/** Format an absolute reset timestamp as a compact countdown (e.g. "2h 15m"). */
 export function formatResetAt(
   resetAt: string | null | undefined,
 ): string | null {
@@ -37,9 +64,5 @@ export function formatResetAfterSeconds(
 
 function formatCountdownMs(diffMs: number): string | null {
   if (diffMs <= 0) return null;
-  const totalMinutes = Math.floor(diffMs / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) return minutes > 0 ? `${hours}h${minutes}m` : `${hours}h`;
-  return `${minutes}m`;
+  return formatDurationMinutes(Math.floor(diffMs / 60_000));
 }
