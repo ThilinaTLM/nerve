@@ -125,8 +125,8 @@ export class TranscriptionController {
     }
   }
 
-  async stop(): Promise<void> {
-    if (!this.#recorder || this.#stoppingRecording) return;
+  async stop(): Promise<boolean> {
+    if (!this.#recorder || this.#stoppingRecording) return false;
     const recorder = this.#recorder;
     this.#stoppingRecording = true;
     this.#recorder = undefined;
@@ -135,10 +135,11 @@ export class TranscriptionController {
       const result = await recorder.stop({ maxDurationMs: this.maxDurationMs });
       this.recording = false;
       this.elapsedMs = result.durationMs;
-      await this.#transcribe(result);
+      return await this.#transcribe(result);
     } catch (err) {
       this.recording = false;
       this.#setError(errorMessage(err));
+      return false;
     } finally {
       this.#stoppingRecording = false;
     }
@@ -181,7 +182,7 @@ export class TranscriptionController {
     );
   }
 
-  async #transcribe(result: WavRecordingResult): Promise<void> {
+  async #transcribe(result: WavRecordingResult): Promise<boolean> {
     const abort = new AbortController();
     this.#transcriptionAbort = abort;
     this.transcribing = true;
@@ -204,11 +205,12 @@ export class TranscriptionController {
               signal: abort.signal,
             },
           );
-          if (abort.signal.aborted) return;
+          if (abort.signal.aborted) return false;
+          if (!transcript.trim()) return false;
           this.#onTranscript(transcript);
-          return;
+          return true;
         } catch (err) {
-          if (abort.signal.aborted || isAbortError(err)) return;
+          if (abort.signal.aborted || isAbortError(err)) return false;
           if (
             attempt >= this.maxRetries ||
             !isRetryableTranscriptionError(err)
@@ -219,7 +221,7 @@ export class TranscriptionController {
         }
       }
     } catch (err) {
-      if (abort.signal.aborted || isAbortError(err)) return;
+      if (abort.signal.aborted || isAbortError(err)) return false;
       const message = errorMessage(err);
       this.#setError(
         retriesExhausted
@@ -232,5 +234,6 @@ export class TranscriptionController {
       this.transcribing = false;
       this.retryAttempt = 0;
     }
+    return false;
   }
 }

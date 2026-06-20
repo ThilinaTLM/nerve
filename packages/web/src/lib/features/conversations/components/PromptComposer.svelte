@@ -64,6 +64,7 @@
   }: PromptComposerProps = $props();
 
   let editorFocusToken = $state(0);
+  let voiceSubmitPending = $state(false);
   let lastFocusToken = $state<number | undefined>(undefined);
   let lastComposerEscapeToken = $state<number | undefined>(undefined);
   let lastMicShortcutToken = $state<number | undefined>(undefined);
@@ -101,7 +102,7 @@
   const blockedForReview = $derived(pendingApproval || pendingQuestion || pendingPlan);
   const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview && !compacting));
   const editorDisabled = $derived(!canPrompt);
-  const submitDisabled = $derived(!canPrompt);
+  const submitDisabled = $derived(!canPrompt || voiceSubmitPending);
   const supportsAudioRecording = $derived(voiceInputSession.isSupported());
   const micDisabled = $derived(
     !voiceTarget ||
@@ -121,6 +122,28 @@
               ? `Record voice prompt (${micShortcut})`
               : "Record voice prompt",
   );
+  const sendAriaLabel = $derived(
+    voiceSubmitPending
+      ? "Transcribing and sending prompt"
+      : recording
+        ? "Transcribe and send prompt"
+        : compacting
+          ? "Compacting context"
+          : sending
+            ? "Queue prompt"
+            : "Send prompt",
+  );
+  const sendTitle = $derived(
+    voiceSubmitPending
+      ? "Transcribing audio, then sending prompt"
+      : recording
+        ? "Stop recording, transcribe, and send prompt"
+        : compacting
+          ? "Compacting context"
+          : sending
+            ? "Queue prompt for the next agent turn"
+            : "Send prompt",
+  );
 
   function formatElapsed(ms: number): string {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -129,8 +152,21 @@
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }
 
-  function submitComposer() {
-    if (!blockedForReview && !compacting) onSubmit?.();
+  async function submitComposer() {
+    if (blockedForReview || compacting || voiceSubmitPending) return;
+
+    if (recording && voiceTarget) {
+      voiceSubmitPending = true;
+      try {
+        const transcribed = await voiceInputSession.stop(voiceTarget);
+        if (transcribed) onSubmit?.();
+      } finally {
+        voiceSubmitPending = false;
+      }
+      return;
+    }
+
+    onSubmit?.();
   }
 
   async function pasteImage(file: File): Promise<string> {
@@ -272,7 +308,7 @@
             <Square size={13} strokeWidth={2.5} />
           </Button>
         {/if}
-        <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label={compacting ? "Compacting context" : sending ? "Queue prompt" : "Send prompt"} title={compacting ? "Compacting context" : sending ? "Queue prompt for the next agent turn" : "Send prompt"}>
+        <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label={sendAriaLabel} title={sendTitle}>
           <Send size={14} strokeWidth={2.4} />
         </Button>
       </div>

@@ -8,16 +8,16 @@ import {
 
 describe("voice input target helpers", () => {
   it("appends transcript text with composer spacing", () => {
-    assert.equal(appendTranscriptText("", " hello "), "hello");
+    assert.equal(appendTranscriptText("", " hello "), "hello ");
     assert.equal(
       appendTranscriptText("existing", " next "),
-      "existing\n\nnext",
+      "existing\n\nnext ",
     );
     assert.equal(
       appendTranscriptText("existing\n", " next "),
-      "existing\nnext",
+      "existing\nnext ",
     );
-    assert.equal(appendTranscriptText("existing ", " next "), "existing next");
+    assert.equal(appendTranscriptText("existing ", " next "), "existing next ");
   });
 
   it("ignores empty transcripts", () => {

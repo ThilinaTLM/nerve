@@ -124,12 +124,14 @@ class VoiceInputSession {
     return true;
   }
 
-  async stop(target?: VoiceInputTarget): Promise<void> {
+  async stop(target?: VoiceInputTarget): Promise<boolean> {
     const active = this.#activeTarget;
-    if (!active || (target && !voiceInputTargetsEqual(active, target))) return;
-    await this.#controller.stop();
+    if (!active || (target && !voiceInputTargetsEqual(active, target)))
+      return false;
+    const transcribed = await this.#controller.stop();
     if (voiceInputTargetsEqual(this.#activeTarget, active))
       this.#activeTarget = undefined;
+    return transcribed;
   }
 
   async cancel(target?: VoiceInputTarget): Promise<void> {

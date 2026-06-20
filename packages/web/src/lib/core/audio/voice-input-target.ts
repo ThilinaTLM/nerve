@@ -23,5 +23,5 @@ export function appendTranscriptText(
   const trimmed = transcript.trim();
   if (!trimmed) return current;
   const separator = current.trim() ? (/\s$/.test(current) ? "" : "\n\n") : "";
-  return `${current}${separator}${trimmed}`;
+  return `${current}${separator}${trimmed} `;
 }
