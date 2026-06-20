@@ -362,6 +362,7 @@ export function composeRuntime(
     getAgent,
     getConversationEntries: (conversationId) =>
       state.getConversationEntries(conversationId),
+    continueAgent: (agentId) => services.agentRunner.continueAgent(agentId),
     logger: logger.child({ component: "task-notification" }),
   });
   services.taskNotifications.start();

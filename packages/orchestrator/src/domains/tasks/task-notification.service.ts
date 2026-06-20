@@ -35,6 +35,7 @@ export interface TaskNotificationServiceDeps {
   harnessManager: HarnessManager;
   getAgent(agentId: string): AgentRecord;
   getConversationEntries(conversationId: string): ConversationEntry[];
+  continueAgent?: (agentId: string) => Promise<void>;
   logger?: ApplicationLogger;
 }
 
@@ -184,6 +185,7 @@ export class TaskNotificationService {
         existing.id,
         existing.createdAt,
       );
+      await this.maybeContinueAwaitedTask(task, event);
       return;
     }
     await this.deliverNotification(task, event);
@@ -207,6 +209,7 @@ export class TaskNotificationService {
           existing.id,
           existing.createdAt,
         );
+        await this.maybeContinueAwaitedTask(task, event);
         return;
       }
 
@@ -257,9 +260,32 @@ export class TaskNotificationService {
       }
 
       await this.appendNotificationDirectly(task, entryId, message, timestamp);
+      await this.maybeContinueAwaitedTask(task, event);
     } finally {
       this.delivering.delete(key);
     }
+  }
+
+  private async maybeContinueAwaitedTask(
+    task: TaskRecord,
+    event: HarnessTaskEvent,
+  ): Promise<void> {
+    if (slotForEvent(event) !== "terminal") return;
+    if (task.completion?.inject !== true) return;
+    if (!task.agentId) return;
+    if (this.deps.runs.get(task.agentId)) return;
+    const continueAgent = this.deps.continueAgent;
+    if (!continueAgent) return;
+    const agent = this.deps.getAgent(task.agentId);
+    if (agent.status !== "idle") return;
+    await continueAgent(task.agentId).catch((error) =>
+      this.deps.logger?.warn("Awaited task continuation failed", {
+        taskId: task.id,
+        agentId: task.agentId,
+        conversationId: task.conversationId,
+        error,
+      }),
+    );
   }
 
   private shouldDeliver(task: TaskRecord, event: HarnessTaskEvent): boolean {

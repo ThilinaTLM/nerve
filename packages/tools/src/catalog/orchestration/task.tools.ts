@@ -222,17 +222,17 @@ export const taskToolDefinitions = [
     name: "task_start",
     label: "task_start",
     description:
-      "Start one command, or a small batch of commands, as supervised background tasks. Use for dev servers, watchers, long-lived jobs, or commands expected to exceed about a minute.",
+      "Start one command, or a small batch of commands, as supervised detached background tasks. Use for dev servers, watchers, listeners, and other long-lived processes.",
     promptSnippet:
-      "Start supervised background tasks for long-running commands and servers",
+      "Start detached background processes for long-lived commands and servers",
     promptGuidelines: [
-      "Use task_start for dev servers, watchers, long-lived jobs, commands expected to exceed about 60 seconds, or commands that should continue while you work.",
-      "For short finite commands and normal tests/checks, use bash and let it auto-promote if it runs long.",
-      "After starting a task, continue independent work instead of polling immediately unless the next action truly depends on it.",
+      "Use task_start for detached dev servers, watchers, listeners, and other long-lived processes that should keep running independently.",
+      "Do not use task_start for finite tests/checks/builds; use bash and let it auto-promote if needed.",
+      "After starting a task, continue independent work; do not poll task_status/task_logs to wait.",
       "Readiness checks are off unless you provide readyUrl, readyOnUrl, or readyPattern.",
-      "Use timeoutMs only for finite background jobs; readyTimeoutMs only bounds readiness detection and does not stop the process.",
-      "Prefer task names and group IDs returned by task_start when checking related tasks.",
-      "Use task_status/task_logs to inspect running work; use task_cancel to terminate persistent tasks.",
+      "Use timeoutMs only to cap detached task runtime; readyTimeoutMs only bounds readiness detection and does not stop the process.",
+      "Use task_status/task_logs only for one-off inspection or debugging when the next action depends on current state.",
+      "Use notify: false only when the process should be fully quiet/detached; use task_cancel to terminate persistent tasks.",
     ],
     parameters: taskStartParameters,
     executionMode: "sequential",
@@ -241,8 +241,12 @@ export const taskToolDefinitions = [
     name: "task_status",
     label: "task_status",
     description:
-      "Inspect the current status/result for tasks. With no target, defaults to active tasks in this conversation, then recent tasks.",
+      "Inspect task state once for diagnostics. Not a wait mechanism. With no target, defaults to active tasks in this conversation, then recent tasks.",
     promptSnippet: "Inspect current task status",
+    promptGuidelines: [
+      "Do not call task_status repeatedly to wait for completion.",
+      "For awaited finite commands, use bash instead of task_start; promoted bash commands send async terminal notifications.",
+    ],
     parameters: taskStatusParameters,
     executionMode: "parallel",
   },
@@ -250,10 +254,11 @@ export const taskToolDefinitions = [
     name: "task_logs",
     label: "task_logs",
     description:
-      "Query captured logs from a task, including recent output, errors, warnings, cursor-based updates, and first-failure context.",
+      "Query captured logs from a task for debugging or requested output inspection, including recent output, errors, warnings, cursor-based updates, and first-failure context.",
     promptSnippet: "Inspect logs from background tasks",
     promptGuidelines: [
       "Use task_logs to inspect task output instead of restarting a running task just to see errors.",
+      "Do not call task_logs repeatedly to wait for progress.",
       "Use full task_... IDs, stable task names, or group IDs; do not abbreviate IDs.",
     ],
     parameters: taskLogsParameters,

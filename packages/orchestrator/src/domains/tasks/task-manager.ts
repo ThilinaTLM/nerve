@@ -667,8 +667,8 @@ export class TaskManager {
       "Recent output:",
       recentOutput || "(no captured log lines yet)",
       "",
-      `Use task_status with taskId "${promoted.id}" to check status.`,
-      `Use task_logs with taskId "${promoted.id}" to inspect output.`,
+      "No polling is needed; Nerve will notify/continue this agent when the command reaches a terminal status.",
+      `Use task_logs with taskId "${promoted.id}" to inspect output if needed.`,
       `Use task_cancel with taskId "${promoted.id}" to terminate it.`,
     ].join("\n");
     const result = await buildProcessTextResult({

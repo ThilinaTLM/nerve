@@ -90,10 +90,10 @@ describe("Nerve system prompt", () => {
     );
 
     assert.match(prompt, /Use dedicated file tools when available:/);
-    assert.match(prompt, /Use bash for short foreground commands/);
+    assert.match(prompt, /Use bash for finite shell work whose result matters/);
     assert.match(
       prompt,
-      /For short finite commands and normal tests\/checks, use bash/,
+      /Do not use task_start for finite tests\/checks\/builds/,
     );
     assert.doesNotMatch(
       prompt,

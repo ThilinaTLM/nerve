@@ -184,7 +184,7 @@ describe("agent tool definitions", () => {
     );
   });
 
-  it("documents bash foreground use and task_start background use", () => {
+  it("documents awaited bash use and detached task_start use", () => {
     const bash = allToolDefinitions.find((tool) => tool.name === "bash");
     const taskStart = allToolDefinitions.find(
       (tool) => tool.name === "task_start",
@@ -192,7 +192,7 @@ describe("agent tool definitions", () => {
 
     assert.ok(bash);
     assert.ok(taskStart);
-    assert.equal(bash.promptSnippet, "Execute short foreground shell commands");
+    assert.equal(bash.promptSnippet, "Run awaited shell commands");
     assert.ok(
       bash.promptGuidelines?.some((line) =>
         line.includes("Use dedicated file tools when available"),
@@ -200,16 +200,14 @@ describe("agent tool definitions", () => {
     );
     assert.ok(
       bash.promptGuidelines?.some((line) =>
-        line.includes("Use bash for short foreground commands"),
+        line.includes("Use bash for finite shell work whose result matters"),
       ),
     );
     assert.doesNotMatch(bash.promptSnippet ?? "", /ls, grep, find/);
-    assert.match(taskStart.description, /supervised background tasks/);
+    assert.match(taskStart.description, /supervised detached background tasks/);
     assert.ok(
       taskStart.promptGuidelines?.some((line) =>
-        line.includes(
-          "For short finite commands and normal tests/checks, use bash",
-        ),
+        line.includes("Do not use task_start for finite tests/checks/builds"),
       ),
     );
     assert.equal(

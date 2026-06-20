@@ -84,16 +84,9 @@ export function formatTaskStartSummary(input: {
       bits.push(`readyUrl=${task.readiness.readyUrl}`);
     lines.push(bits.join("; "));
   }
-  if (input.groupId) {
-    lines.push(
-      `Use task_status({ groupId: "${input.groupId}" }) for current state.`,
-    );
-  } else if (input.tasks.length === 1) {
-    const task = input.tasks[0];
-    lines.push(
-      `Use task_status({ taskId: "${task?.name ?? task?.id}" }) for current state.`,
-    );
-  }
+  lines.push(
+    "Task updates may arrive asynchronously. Use task_status/task_logs only if you need to inspect or debug.",
+  );
   return lines.join("\n");
 }
 
@@ -141,7 +134,7 @@ export function formatTaskLogsSummary(input: {
     lines.push(...input.events.map(formatLogEvent));
   }
   lines.push(
-    `Use task_logs({ taskId: "${input.task.name ?? input.task.id}", mode: "since_cursor", sinceSeq: ${input.nextCursor} }) to continue.`,
+    `Use task_logs({ taskId: "${input.task.name ?? input.task.id}", mode: "since_cursor", sinceSeq: ${input.nextCursor} }) later for more output if needed.`,
   );
   return lines.join("\n");
 }
@@ -171,7 +164,7 @@ export function formatTaskEventSummary(input: {
   }
   if (input.nextCursor !== undefined) {
     lines.push(
-      `Use task_logs({ taskId: "${input.task.name ?? input.task.id}", mode: "since_cursor", sinceSeq: ${input.nextCursor} }) for more output.`,
+      `Use task_logs({ taskId: "${input.task.name ?? input.task.id}", mode: "since_cursor", sinceSeq: ${input.nextCursor} }) later for more output if needed.`,
     );
   }
   return lines.join("\n");
