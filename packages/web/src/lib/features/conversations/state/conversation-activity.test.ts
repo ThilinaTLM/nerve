@@ -126,6 +126,53 @@ describe("conversation activity", () => {
     assert.equal(activity.pulse, true);
   });
 
+  it("keeps coding-mode running activity on the running tone", () => {
+    const activity = conversationActivityForRecord({
+      conversationId: "conv_01H00000000000000000000000",
+      agent: agent({ status: "running", mode: "coding" }),
+    });
+
+    assert.equal(activity.tone, "running");
+    assert.equal(activity.busy, true);
+    assert.equal(activity.pulse, true);
+  });
+
+  it("uses the success tone for planning-mode live activity before agent status catches up", () => {
+    const activity = conversationActivityForRecord({
+      conversationId: "conv_01H00000000000000000000000",
+      agent: agent({ status: "idle", mode: "planning" }),
+      mode: "planning",
+      view: view({ sending: true }),
+    });
+
+    assert.equal(activity.tone, "good");
+    assert.equal(activity.busy, true);
+    assert.equal(activity.pulse, true);
+  });
+
+  it("uses the success tone for running planning-mode agents", () => {
+    const activity = conversationActivityForRecord({
+      conversationId: "conv_01H00000000000000000000000",
+      agent: agent({ status: "running", mode: "planning" }),
+    });
+
+    assert.equal(activity.tone, "good");
+    assert.equal(activity.busy, true);
+    assert.equal(activity.pulse, true);
+  });
+
+  it("keeps pending user input as warn for running planning-mode agents", () => {
+    const activity = conversationActivityForRecord({
+      conversationId: "conv_01H00000000000000000000000",
+      agent: agent({ status: "running", mode: "planning" }),
+      hasPendingHumanInput: true,
+    });
+
+    assert.equal(activity.tone, "warn");
+    assert.equal(activity.needsUser, true);
+    assert.equal(activity.source, "pending-input");
+  });
+
   it("shows pending human input as warn even if agent status is stale", () => {
     const [record] = [conversation()];
     const activityById = buildConversationActivityById({

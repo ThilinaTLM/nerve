@@ -34,6 +34,7 @@
       conversationActivityForRecord({
         conversationId: row.conversation.id,
         agent: row.agent,
+        mode: row.agent?.mode ?? row.conversation.mode,
       }),
   );
   const mode = $derived(row.agent?.mode ?? row.conversation.mode);

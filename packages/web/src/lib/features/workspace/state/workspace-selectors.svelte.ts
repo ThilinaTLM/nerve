@@ -8,6 +8,7 @@ import {
   defaultFileDisplayMode,
   isMarkdownPath,
 } from "$lib/core/utils/file-display";
+import { agentRunningTone } from "$lib/core/utils/status";
 import {
   buildConversationActivityById,
   idleConversationActivity,
@@ -189,7 +190,7 @@ export const workspaceSelectors = {
         sending: pending.sending,
         activity: pending.sending
           ? {
-              tone: "running",
+              tone: agentRunningTone(pending.mode),
               pulse: true,
               label: "Agent running",
               busy: true,

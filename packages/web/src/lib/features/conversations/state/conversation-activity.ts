@@ -7,7 +7,7 @@ import type {
 } from "$lib/api";
 import { conversationViewKey } from "$lib/core/state/state-keys";
 import type { ConversationViewState } from "$lib/core/types/state-types";
-import type { StatusTone } from "$lib/core/utils/status";
+import { agentRunningTone, type StatusTone } from "$lib/core/utils/status";
 
 export type ConversationActivitySource =
   | "pending-input"
@@ -69,6 +69,7 @@ function hasPendingHumanInput(
 export function conversationActivityForRecord(input: {
   conversationId: string;
   agent?: AgentRecord;
+  mode?: AgentRecord["mode"];
   view?: ConversationViewState;
   hasPendingHumanInput?: boolean;
 }): ConversationActivityState {
@@ -101,7 +102,7 @@ export function conversationActivityForRecord(input: {
     input.view?.activeRun
   ) {
     return {
-      tone: "running",
+      tone: agentRunningTone(input.agent?.mode ?? input.mode),
       pulse: true,
       label: "Agent running",
       busy: true,
@@ -134,9 +135,11 @@ export function buildConversationActivityById(input: {
 }): Record<string, ConversationActivityState> {
   const result: Record<string, ConversationActivityState> = Object.create(null);
   for (const conversation of input.conversations) {
+    const agent = agentForConversation(conversation, input.agents);
     result[conversation.id] = conversationActivityForRecord({
       conversationId: conversation.id,
-      agent: agentForConversation(conversation, input.agents),
+      agent,
+      mode: agent?.mode ?? conversation.mode,
       view: input.views[conversationViewKey(conversation.id)],
       hasPendingHumanInput: hasPendingHumanInput(
         conversation.id,

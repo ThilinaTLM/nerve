@@ -127,7 +127,7 @@
             onclick={() => onSelectAgent?.(agent)}
           >
             <StatusDot
-              tone={agentActivityTone(agent.status)}
+              tone={agentActivityTone(agent.status, false, agent.mode)}
               pulse={agentActivityPulse(agent.status)}
             />
             <div class="min-w-0 flex-1">
@@ -166,7 +166,7 @@
               onclick={() => onSelectAgent?.(agent)}
             >
               <StatusDot
-                tone={agentActivityTone(agent.status)}
+                tone={agentActivityTone(agent.status, false, agent.mode)}
                 pulse={agentActivityPulse(agent.status)}
               />
               <div class="min-w-0 flex-1">

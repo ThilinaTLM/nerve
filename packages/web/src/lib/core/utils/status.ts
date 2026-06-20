@@ -32,15 +32,20 @@ export function statusTone(status: string | undefined): StatusTone {
   return "neutral";
 }
 
+export function agentRunningTone(mode: string | undefined): StatusTone {
+  return mode === "planning" ? "good" : "running";
+}
+
 // Agent activity indicators intentionally collapse all non-active states to
 // neutral so conversation dots only call attention to running work or pending
 // user action.
 export function agentActivityTone(
   status: string | undefined,
   active = false,
+  mode?: string,
 ): StatusTone {
   if (status === "awaiting_user") return "warn";
-  if (status === "running" || active) return "running";
+  if (status === "running" || active) return agentRunningTone(mode);
   return "neutral";
 }
 
