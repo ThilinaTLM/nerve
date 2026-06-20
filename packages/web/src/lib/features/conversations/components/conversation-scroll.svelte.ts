@@ -14,6 +14,7 @@ const BOTTOM_THRESHOLD_PX = 32;
 const USER_SCROLL_AWAY_THRESHOLD_PX = 100;
 const USER_SCROLL_INTENT_TIMEOUT_MS = 350;
 const PROGRAMMATIC_SCROLL_GUARD_MS = 120;
+const SCROLL_DIRECTION_EPSILON_PX = 1;
 
 const SCROLL_KEYS = new Set([
   "ArrowDown",
@@ -32,6 +33,32 @@ type ConversationScrollControllerOptions = {
   /** True once the opened conversation has rendered at least one row. */
   contentReady: () => boolean;
 };
+
+function distanceFromDomEnd(el: HTMLElement): number {
+  return Math.max(el.scrollHeight - el.clientHeight - el.scrollTop, 0);
+}
+
+function isDomAtEnd(el: HTMLElement, threshold = BOTTOM_THRESHOLD_PX): boolean {
+  return distanceFromDomEnd(el) <= threshold;
+}
+
+function isVerticalScrollbarPointer(
+  event: PointerEvent,
+  el: HTMLElement,
+): boolean {
+  if (el.scrollHeight <= el.clientHeight) return false;
+
+  const scrollbarWidth = el.offsetWidth - el.clientWidth;
+  if (scrollbarWidth <= 0) return false;
+
+  const rect = el.getBoundingClientRect();
+  return (
+    event.clientX >= rect.right - scrollbarWidth &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
+  );
+}
 
 /**
  * Slim, virtualizer-driven scroll coordinator. The VirtualScroller handles
@@ -88,16 +115,30 @@ export function createConversationScrollController(
     controller?.scrollToEnd(opts);
   }
 
-  function updateFollowFromUserScroll() {
+  function updateFollowFromUserScroll(viewport?: HTMLElement | null) {
     const ctrl = controller;
-    if (!ctrl) return;
-    if (ctrl.isAtEnd(BOTTOM_THRESHOLD_PX)) {
+    if (viewport) {
+      if (isDomAtEnd(viewport, BOTTOM_THRESHOLD_PX)) {
+        followBottom = true;
+        return;
+      }
+      if (
+        userScrollIntent &&
+        distanceFromDomEnd(viewport) > USER_SCROLL_AWAY_THRESHOLD_PX
+      ) {
+        followBottom = false;
+        cancelSettledScroll();
+      }
+      return;
+    }
+
+    if (ctrl?.isAtEnd(BOTTOM_THRESHOLD_PX)) {
       followBottom = true;
       return;
     }
     if (
       userScrollIntent &&
-      ctrl.getDistanceFromEnd() > USER_SCROLL_AWAY_THRESHOLD_PX
+      (ctrl?.getDistanceFromEnd() ?? 0) > USER_SCROLL_AWAY_THRESHOLD_PX
     ) {
       followBottom = false;
       cancelSettledScroll();
@@ -111,6 +152,7 @@ export function createConversationScrollController(
 
   function markUserScrollIntent(options?: {
     disableFollowImmediately?: boolean;
+    viewport?: HTMLElement | null;
   }) {
     if (programmaticScrollActive) return;
     userScrollIntent = true;
@@ -125,7 +167,7 @@ export function createConversationScrollController(
       userScrollIntent = false;
       userScrollIntentTimer = undefined;
     }, USER_SCROLL_INTENT_TIMEOUT_MS);
-    requestAnimationFrame(updateFollowFromUserScroll);
+    requestAnimationFrame(() => updateFollowFromUserScroll(options?.viewport));
   }
 
   // Jump-to-latest button handler: snap instantly from far away (fast, avoids
@@ -170,7 +212,11 @@ export function createConversationScrollController(
 
   $effect(() => {
     const currentlyAtEnd = atEnd;
-    if (currentlyAtEnd) followBottom = true;
+    if (!currentlyAtEnd) return;
+
+    const viewport = controller?.getViewportElement();
+    if (viewport && !isDomAtEnd(viewport, BOTTOM_THRESHOLD_PX)) return;
+    followBottom = true;
   });
 
   $effect(() => {
@@ -216,22 +262,72 @@ export function createConversationScrollController(
     const el = ctrl?.getViewportElement();
     if (!el) return;
 
-    const handlePointerDown = () => {
+    let lastScrollTop = el.scrollTop;
+    let scrollbarPointerActive = false;
+
+    // Native scrollbar drags/clicks and middle-mouse autoscroll can move the
+    // viewport without reliable wheel/pointermove intent events. Use the
+    // actual scrollTop delta as the final source of truth for scroll-away.
+    const handleScroll = () => {
+      const nextScrollTop = el.scrollTop;
+      const delta = nextScrollTop - lastScrollTop;
+      lastScrollTop = nextScrollTop;
+
+      if (programmaticScrollActive) return;
+      if (isDomAtEnd(el, BOTTOM_THRESHOLD_PX)) {
+        followBottom = true;
+        return;
+      }
+      if (delta < -SCROLL_DIRECTION_EPSILON_PX) {
+        markUserScrollIntent({
+          disableFollowImmediately: true,
+          viewport: el,
+        });
+        return;
+      }
+      if (
+        userScrollIntent &&
+        distanceFromDomEnd(el) > USER_SCROLL_AWAY_THRESHOLD_PX
+      ) {
+        disableFollowForManualScroll();
+      }
+    };
+    const handlePointerDown = (event: PointerEvent) => {
       pointerScrollActive = true;
+      scrollbarPointerActive = isVerticalScrollbarPointer(event, el);
+      if (scrollbarPointerActive) {
+        markUserScrollIntent({
+          disableFollowImmediately: true,
+          viewport: el,
+        });
+      }
     };
     const handlePointerMove = () => {
       if (pointerScrollActive) {
-        markUserScrollIntent({ disableFollowImmediately: true });
+        markUserScrollIntent({
+          disableFollowImmediately: true,
+          viewport: el,
+        });
       }
     };
     const handlePointerEnd = () => {
       pointerScrollActive = false;
+      if (scrollbarPointerActive && isDomAtEnd(el, BOTTOM_THRESHOLD_PX)) {
+        followBottom = true;
+      }
+      scrollbarPointerActive = false;
     };
     const handleWheel = (event: WheelEvent) => {
-      markUserScrollIntent({ disableFollowImmediately: event.deltaY < 0 });
+      markUserScrollIntent({
+        disableFollowImmediately: event.deltaY < 0,
+        viewport: el,
+      });
     };
     const handleTouchMove = () => {
-      markUserScrollIntent({ disableFollowImmediately: true });
+      markUserScrollIntent({
+        disableFollowImmediately: true,
+        viewport: el,
+      });
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!SCROLL_KEYS.has(event.key)) return;
@@ -239,9 +335,11 @@ export function createConversationScrollController(
         disableFollowImmediately:
           SCROLL_AWAY_KEYS.has(event.key) ||
           (event.key === " " && event.shiftKey),
+        viewport: el,
       });
     };
 
+    el.addEventListener("scroll", handleScroll, { passive: true });
     el.addEventListener("wheel", handleWheel, { passive: true });
     el.addEventListener("touchmove", handleTouchMove, { passive: true });
     el.addEventListener("pointerdown", handlePointerDown, { passive: true });
@@ -251,6 +349,7 @@ export function createConversationScrollController(
     el.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      el.removeEventListener("scroll", handleScroll);
       el.removeEventListener("wheel", handleWheel);
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("pointerdown", handlePointerDown);
