@@ -3,6 +3,7 @@ import type {
   VirtualScrollBehavior,
   VirtualScrollerController,
 } from "$lib/components/ui/virtual-list";
+import { shouldDisableFollowForScroll } from "./conversation-scroll-intent";
 
 const MAX_SETTLE_FRAMES = 30;
 // Above this distance from the bottom, a smooth animation would have to mount
@@ -77,11 +78,10 @@ export function createConversationScrollController(
   let lastConversationId: string | undefined;
   let initialScrollDone = false;
   let settleFrame: number | undefined;
-  let userScrollIntent = false;
+  let userScrollAwayIntent = false;
   let userScrollIntentTimer: ReturnType<typeof setTimeout> | undefined;
   let programmaticScrollActive = false;
   let programmaticScrollTimer: ReturnType<typeof setTimeout> | undefined;
-  let pointerScrollActive = false;
 
   function clearUserScrollIntentTimer() {
     if (userScrollIntentTimer === undefined) return;
@@ -123,7 +123,7 @@ export function createConversationScrollController(
         return;
       }
       if (
-        userScrollIntent &&
+        userScrollAwayIntent &&
         distanceFromDomEnd(viewport) > USER_SCROLL_AWAY_THRESHOLD_PX
       ) {
         followBottom = false;
@@ -137,7 +137,7 @@ export function createConversationScrollController(
       return;
     }
     if (
-      userScrollIntent &&
+      userScrollAwayIntent &&
       (ctrl?.getDistanceFromEnd() ?? 0) > USER_SCROLL_AWAY_THRESHOLD_PX
     ) {
       followBottom = false;
@@ -152,10 +152,12 @@ export function createConversationScrollController(
 
   function markUserScrollIntent(options?: {
     disableFollowImmediately?: boolean;
+    scrollAwayIntent?: boolean;
     viewport?: HTMLElement | null;
   }) {
     if (programmaticScrollActive) return;
-    userScrollIntent = true;
+    userScrollAwayIntent =
+      options?.scrollAwayIntent ?? Boolean(options?.disableFollowImmediately);
     if (options?.disableFollowImmediately) {
       // Disable before the browser applies the scroll delta. Otherwise an
       // already-scheduled pinned-follow frame can pull the viewport back to the
@@ -164,7 +166,7 @@ export function createConversationScrollController(
     }
     clearUserScrollIntentTimer();
     userScrollIntentTimer = setTimeout(() => {
-      userScrollIntent = false;
+      userScrollAwayIntent = false;
       userScrollIntentTimer = undefined;
     }, USER_SCROLL_INTENT_TIMEOUT_MS);
     requestAnimationFrame(() => updateFollowFromUserScroll(options?.viewport));
@@ -265,35 +267,34 @@ export function createConversationScrollController(
     let lastScrollTop = el.scrollTop;
     let scrollbarPointerActive = false;
 
-    // Native scrollbar drags/clicks and middle-mouse autoscroll can move the
-    // viewport without reliable wheel/pointermove intent events. Use the
-    // actual scrollTop delta as the final source of truth for scroll-away.
+    // Scroll events only report movement, not why it happened. Treat movement
+    // as manual scroll-away only when it is paired with explicit user intent;
+    // virtualizer/layout adjustments can otherwise look like upward scrolls.
     const handleScroll = () => {
       const nextScrollTop = el.scrollTop;
       const delta = nextScrollTop - lastScrollTop;
       lastScrollTop = nextScrollTop;
 
       if (programmaticScrollActive) return;
-      if (isDomAtEnd(el, BOTTOM_THRESHOLD_PX)) {
+
+      const atEndByDom = isDomAtEnd(el, BOTTOM_THRESHOLD_PX);
+      if (atEndByDom) {
         followBottom = true;
         return;
       }
-      if (delta < -SCROLL_DIRECTION_EPSILON_PX) {
-        markUserScrollIntent({
-          disableFollowImmediately: true,
-          viewport: el,
-        });
-        return;
-      }
       if (
-        userScrollIntent &&
-        distanceFromDomEnd(el) > USER_SCROLL_AWAY_THRESHOLD_PX
+        shouldDisableFollowForScroll({
+          atEnd: atEndByDom,
+          scrollDelta: delta,
+          userScrollAwayIntent,
+          scrollbarPointerActive,
+          epsilon: SCROLL_DIRECTION_EPSILON_PX,
+        })
       ) {
         disableFollowForManualScroll();
       }
     };
     const handlePointerDown = (event: PointerEvent) => {
-      pointerScrollActive = true;
       scrollbarPointerActive = isVerticalScrollbarPointer(event, el);
       if (scrollbarPointerActive) {
         markUserScrollIntent({
@@ -303,7 +304,7 @@ export function createConversationScrollController(
       }
     };
     const handlePointerMove = () => {
-      if (pointerScrollActive) {
+      if (scrollbarPointerActive) {
         markUserScrollIntent({
           disableFollowImmediately: true,
           viewport: el,
@@ -311,15 +312,16 @@ export function createConversationScrollController(
       }
     };
     const handlePointerEnd = () => {
-      pointerScrollActive = false;
       if (scrollbarPointerActive && isDomAtEnd(el, BOTTOM_THRESHOLD_PX)) {
         followBottom = true;
       }
       scrollbarPointerActive = false;
     };
     const handleWheel = (event: WheelEvent) => {
+      const scrollAwayIntent = event.deltaY < 0;
       markUserScrollIntent({
-        disableFollowImmediately: event.deltaY < 0,
+        disableFollowImmediately: scrollAwayIntent,
+        scrollAwayIntent,
         viewport: el,
       });
     };
@@ -331,10 +333,12 @@ export function createConversationScrollController(
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!SCROLL_KEYS.has(event.key)) return;
+      const scrollAwayIntent =
+        SCROLL_AWAY_KEYS.has(event.key) ||
+        (event.key === " " && event.shiftKey);
       markUserScrollIntent({
-        disableFollowImmediately:
-          SCROLL_AWAY_KEYS.has(event.key) ||
-          (event.key === " " && event.shiftKey),
+        disableFollowImmediately: scrollAwayIntent,
+        scrollAwayIntent,
         viewport: el,
       });
     };
@@ -365,9 +369,8 @@ export function createConversationScrollController(
       cancelSettledScroll();
       clearUserScrollIntentTimer();
       clearProgrammaticScrollTimer();
-      userScrollIntent = false;
+      userScrollAwayIntent = false;
       programmaticScrollActive = false;
-      pointerScrollActive = false;
     };
   });
 
