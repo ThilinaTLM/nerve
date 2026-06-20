@@ -1,6 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   AgentHarness,
+  type AgentMessage,
   AgentToolSuspension,
   buildConversationContext,
   Conversation,
@@ -91,8 +92,16 @@ export interface AgentRunnerDeps {
   promptQueue: PromptQueueRepository;
 }
 
+/** Max consecutive auto-continuations per conversation before stopping. */
+const MAX_AUTO_CONTINUATIONS = 3;
+
+/** Fixed handover instruction pushed after automatic compaction. */
+const AUTO_CONTINUE_MESSAGE =
+  "Continue the work using the context checkpoint above. Resume from the Next Steps and keep going until the task is complete. If everything is already finished, briefly confirm completion and stop.";
+
 export class AgentRunner {
   private readonly subagents: SubagentRunner;
+  private readonly autoContinuationCounts = new Map<string, number>();
 
   constructor(private readonly deps: AgentRunnerDeps) {
     this.subagents = new SubagentRunner({
@@ -275,6 +284,12 @@ export class AgentRunner {
   ): Promise<ConversationEntry> {
     if (this.deps.state.runs.has(agent.id)) {
       throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+    }
+
+    // A fresh (non-continuation) prompt resets the auto-continuation budget so
+    // the runaway guard only counts back-to-back automatic continuations.
+    if (!options.continue) {
+      this.autoContinuationCounts.delete(agent.conversationId);
     }
 
     const runId = createId("run");
@@ -1249,6 +1264,56 @@ export class AgentRunner {
         triggerReserveTokens: policy.triggerReserveTokens,
         keepRecentTokens: policy.keepRecentTokens,
       },
+    );
+    // Compaction succeeded: hand the work back to the agent so it continues
+    // from the fresh context checkpoint instead of stopping.
+    if (agent) await this.continueAfterAutoCompaction(agent);
+  }
+
+  /**
+   * Push a normal handover user message and start a continuation run after an
+   * automatic compaction, bounded by a per-conversation runaway guard.
+   */
+  private async continueAfterAutoCompaction(agent: AgentRecord): Promise<void> {
+    const count = this.autoContinuationCounts.get(agent.conversationId) ?? 0;
+    if (count >= MAX_AUTO_CONTINUATIONS) return;
+    this.autoContinuationCounts.set(agent.conversationId, count + 1);
+    const entry = await this.appendAutoContinueMessage(
+      agent,
+      AUTO_CONTINUE_MESSAGE,
+    );
+    await this.deps.events.publish("conversation.entry.appended", {
+      conversationId: entry.conversationId,
+      agentId: entry.agentId,
+      runId: entry.runId,
+      entry,
+    });
+    void this.continueAgent(agent.id).catch(() => undefined);
+  }
+
+  private async appendAutoContinueMessage(
+    agent: AgentRecord,
+    text: string,
+  ): Promise<ConversationEntry> {
+    const message: AgentMessage = {
+      role: "user",
+      content: text,
+      timestamp: Date.now(),
+    };
+    const appended = await this.deps.harnessManager.appendAgentMessage(
+      agent,
+      message,
+    );
+    return this.deps.appendEntry(
+      {
+        id: appended.id,
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        role: "user",
+        text,
+        createdAt: appended.timestamp,
+      },
+      { mirrorToHarness: false },
     );
   }
 }

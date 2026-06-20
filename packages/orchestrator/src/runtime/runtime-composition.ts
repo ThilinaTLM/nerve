@@ -1,3 +1,8 @@
+import {
+  DEFAULT_COMPACTION_SETTINGS,
+  generateSummary,
+  resolveAgentModel,
+} from "@nerve/agent";
 import type { AuthManager } from "../auth.js";
 import { AgentSuspensionService } from "../domains/agents/agent-suspension.service.js";
 import {
@@ -18,6 +23,7 @@ import {
 } from "../domains/conversations/index.js";
 import {
   CompactionService,
+  type CompactionSummarizer,
   ExportService,
   ImportService,
   NavigationService,
@@ -176,6 +182,37 @@ export function composeRuntime(
   state.useAgentConversationMessages(
     services.conversationService.agentConversationCache,
   );
+  const compactionSummarizer: CompactionSummarizer = async ({
+    conversationId,
+    agentId,
+    messages,
+    previousSummary,
+    instructions,
+    signal,
+  }) => {
+    const conversation = getConversation(conversationId);
+    const resolvedAgentId = agentId ?? conversation.activeAgentId;
+    const agent = resolvedAgentId
+      ? state.agents.get(resolvedAgentId)
+      : undefined;
+    if (!agent) return undefined;
+    const model = resolveAgentModel(agent.model);
+    if (model.provider === "nerve-faux") return undefined;
+    const apiKey = await auth.getApiKey(model.provider);
+    if (!apiKey) return undefined;
+    const result = await generateSummary(
+      messages,
+      model,
+      DEFAULT_COMPACTION_SETTINGS.reserveTokens,
+      apiKey,
+      undefined,
+      signal,
+      instructions,
+      previousSummary,
+      agent.thinkingLevel,
+    );
+    return result.ok ? result.value : undefined;
+  };
   services.compactionService = new CompactionService(
     getConversation,
     getProject,
@@ -183,6 +220,7 @@ export function composeRuntime(
     services.harnessManager,
     rebuildConversations,
     events,
+    compactionSummarizer,
   );
   services.navigationService = new NavigationService(
     getConversation,

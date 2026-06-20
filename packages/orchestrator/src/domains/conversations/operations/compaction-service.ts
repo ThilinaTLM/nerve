@@ -1,6 +1,10 @@
 import {
+  type AgentMessage,
+  buildConversationContext,
   type ConversationTreeEntry,
+  createCompactionSummaryMessage,
   DEFAULT_COMPACTION_SETTINGS,
+  estimateTokens,
   prepareCompaction,
 } from "@nerve/agent";
 import type {
@@ -37,6 +41,20 @@ export type AppendConversationEntry = (
   options?: { mirrorToHarness?: boolean },
 ) => Promise<ConversationEntry>;
 
+/**
+ * Optional LLM summarizer. Returns continuation-focused summary text, or
+ * `undefined` to fall back to the local extractive summary (e.g. when model or
+ * auth is unavailable).
+ */
+export type CompactionSummarizer = (input: {
+  conversationId: string;
+  agentId?: string;
+  messages: AgentMessage[];
+  previousSummary?: string;
+  instructions?: string;
+  signal?: AbortSignal;
+}) => Promise<string | undefined>;
+
 export interface CompactConversationOptions {
   reason?: ConversationCompactionReason;
   agentId?: string;
@@ -63,6 +81,7 @@ export class CompactionService {
     private readonly harnessManager: HarnessManager,
     private readonly rebuildConversations: () => Promise<void>,
     private readonly events: EventBus,
+    private readonly summarize?: CompactionSummarizer,
   ) {}
 
   async compactConversation(
@@ -142,12 +161,27 @@ export class CompactionService {
       );
       started = true;
 
-      const summary = buildExtractiveSummary({
-        title: "Context checkpoint",
-        messages: messagesToSummarize,
-        previousSummary: preparation.previousSummary,
-        instructions: request.instructions,
-      });
+      const summary =
+        (await this.summarizeWithFallback(
+          conversationId,
+          options.agentId,
+          messagesToSummarize,
+          preparation.previousSummary,
+          request.instructions,
+        )) ||
+        buildExtractiveSummary({
+          title: "Context checkpoint",
+          messages: messagesToSummarize,
+          previousSummary: preparation.previousSummary,
+          instructions: request.instructions,
+        });
+      const tokensAfter = estimatePostCompactionTokens(
+        branch,
+        firstKeptEntryId,
+        summary,
+        preparation.tokensBefore,
+      );
+      const freedTokens = Math.max(0, preparation.tokensBefore - tokensAfter);
       const fileOps = {
         read: [...preparation.fileOps.read].sort(),
         written: [...preparation.fileOps.written].sort(),
@@ -157,6 +191,8 @@ export class CompactionService {
         generatedBy: "orchestrator-extractive",
         compactedMessages: messagesToSummarize.length,
         splitTurn: preparation.isSplitTurn,
+        tokensAfter,
+        freedTokens,
         reason,
         policy: {
           contextWindow: options.contextWindow,
@@ -208,6 +244,8 @@ export class CompactionService {
         contextWindow: options.contextWindow,
         thresholdTokens: options.thresholdTokens,
         keepRecentTokens: settings.keepRecentTokens,
+        tokensAfter,
+        freedTokens,
       });
       return { conversation: this.getConversation(conversationId), entry };
     } catch (error) {
@@ -231,4 +269,52 @@ export class CompactionService {
       throw error;
     }
   }
+
+  private async summarizeWithFallback(
+    conversationId: string,
+    agentId: string | undefined,
+    messages: AgentMessage[],
+    previousSummary: string | undefined,
+    instructions: string | undefined,
+  ): Promise<string | undefined> {
+    if (!this.summarize) return undefined;
+    try {
+      const summary = await this.summarize({
+        conversationId,
+        agentId,
+        messages,
+        previousSummary,
+        instructions,
+      });
+      return summary?.trim() ? summary : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+/**
+ * Estimate the context-token size of the conversation after compaction: the
+ * generated summary plus the retained recent messages. Uses a character-based
+ * estimate (not provider usage) because retained assistant usage still reflects
+ * the pre-compaction context size.
+ */
+function estimatePostCompactionTokens(
+  branch: ConversationTreeEntry[],
+  firstKeptEntryId: string,
+  summary: string,
+  tokensBefore: number,
+): number {
+  const keptIndex = branch.findIndex((entry) => entry.id === firstKeptEntryId);
+  const keptEntries = keptIndex >= 0 ? branch.slice(keptIndex) : [];
+  const keptMessages = buildConversationContext(keptEntries).messages;
+  const summaryMessage = createCompactionSummaryMessage(
+    summary,
+    tokensBefore,
+    new Date().toISOString(),
+  );
+  return [summaryMessage, ...keptMessages].reduce(
+    (sum, message) => sum + estimateTokens(message),
+    0,
+  );
 }

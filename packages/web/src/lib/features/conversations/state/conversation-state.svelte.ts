@@ -25,6 +25,8 @@ export type CompactionNotice = {
   text?: string;
   summary?: string;
   tokensBefore?: number;
+  tokensAfter?: number;
+  freedTokens?: number;
   contextWindow?: number;
   contextTokens?: number;
   thresholdTokens?: number;

@@ -135,7 +135,7 @@
         {onContinueFromFailure}
       />
     {:else if node.kind === "compaction"}
-      <CompactionCard notice={node.notice} {activeProject} {onOpenFile} />
+      <CompactionCard notice={node.notice} />
     {:else if node.kind === "task_event"}
       <TaskEventCard notice={node.notice} />
     {:else}

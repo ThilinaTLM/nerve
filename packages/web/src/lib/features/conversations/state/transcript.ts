@@ -88,6 +88,12 @@ function compactionNotice(
     details?.policy && typeof details.policy === "object"
       ? (details.policy as Record<string, unknown>)
       : undefined;
+  const tokensAfter = numberValue(details?.tokensAfter);
+  const freedTokens =
+    numberValue(details?.freedTokens) ??
+    (typeof entry.tokensBefore === "number" && typeof tokensAfter === "number"
+      ? Math.max(0, entry.tokensBefore - tokensAfter)
+      : undefined);
   return {
     id: entry.id,
     state: "completed",
@@ -99,6 +105,8 @@ function compactionNotice(
     text: entry.text,
     summary: entry.summary ?? entry.text,
     tokensBefore: entry.tokensBefore,
+    tokensAfter,
+    freedTokens,
     contextWindow: numberValue(policy?.contextWindow),
     thresholdTokens: numberValue(policy?.thresholdTokens),
     triggerReserveTokens: numberValue(policy?.triggerReserveTokens),

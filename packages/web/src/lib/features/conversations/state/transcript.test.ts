@@ -27,6 +27,8 @@ describe("entryToTranscriptItems", () => {
         details: {
           reason: "threshold",
           compactedMessages: 12,
+          tokensAfter: 24_000,
+          freedTokens: 156_000,
           policy: {
             contextWindow: 200_000,
             thresholdTokens: 180_000,
@@ -41,8 +43,26 @@ describe("entryToTranscriptItems", () => {
     assert.equal(item?.compaction?.reason, "threshold");
     assert.equal(item?.compaction?.summary, "summary markdown");
     assert.equal(item?.compaction?.tokensBefore, 180_000);
+    assert.equal(item?.compaction?.tokensAfter, 24_000);
+    assert.equal(item?.compaction?.freedTokens, 156_000);
     assert.equal(item?.compaction?.contextWindow, 200_000);
     assert.equal(item?.compaction?.firstKeptEntryId, "entry_kept");
+  });
+
+  it("derives freedTokens from before/after when not persisted", () => {
+    const [item] = entryToTranscriptItems(
+      entry({
+        kind: "compaction",
+        text: "summary text",
+        summary: "summary markdown",
+        tokensBefore: 180_000,
+        firstKeptEntryId: "entry_kept",
+        details: { reason: "manual", tokensAfter: 30_000 },
+      }),
+    );
+
+    assert.equal(item?.compaction?.tokensAfter, 30_000);
+    assert.equal(item?.compaction?.freedTokens, 150_000);
   });
 
   it("converts run status entries into transcript status items", () => {

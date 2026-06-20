@@ -236,6 +236,20 @@ describe("RuntimeRegistry conversation behavior", () => {
         (result.entry.details as { generatedBy?: string }).generatedBy,
         "orchestrator-extractive",
       );
+      const compactedDetails = result.entry.details as {
+        tokensAfter?: number;
+        freedTokens?: number;
+      };
+      assert.equal(typeof compactedDetails.tokensAfter, "number");
+      assert.equal(typeof compactedDetails.freedTokens, "number");
+      assert.equal(
+        typeof (compacted.data as { tokensAfter?: number }).tokensAfter,
+        "number",
+      );
+      assert.equal(
+        typeof (compacted.data as { freedTokens?: number }).freedTokens,
+        "number",
+      );
     } finally {
       state.index.close();
     }

@@ -149,6 +149,10 @@ export interface ConversationCompactedData {
   contextWindow?: number;
   thresholdTokens?: number;
   keepRecentTokens?: number;
+  /** Estimated context tokens after compaction (summary + retained messages). */
+  tokensAfter?: number;
+  /** Estimated tokens freed by compaction (tokensBefore - tokensAfter). */
+  freedTokens?: number;
 }
 
 export interface ConversationContextUpdatedData {

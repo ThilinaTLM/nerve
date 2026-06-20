@@ -667,7 +667,9 @@ export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assi
 
 Do NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.`;
 
-const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize. Create a structured context checkpoint summary that another LLM will use to continue the work.
+const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize. Another agent will read ONLY this summary (not the original transcript) and immediately continue the work, so write it as a handover that lets them resume without re-reading anything.
+
+Prioritize what is needed to continue. Keep finished work terse, and drop abandoned tangents, superseded approaches, and dead ends.
 
 Use this EXACT format:
 
@@ -675,40 +677,41 @@ Use this EXACT format:
 [What is the user trying to accomplish? Can be multiple items if the conversation covers different tasks.]
 
 ## Constraints & Preferences
-- [Any constraints, preferences, or requirements mentioned by user]
+- [Any constraints, preferences, or requirements mentioned by user that still apply]
 - [Or "(none)" if none were mentioned]
 
 ## Progress
 ### Done
-- [x] [Completed tasks/changes]
+- [x] [Completed tasks/changes - ONE terse line each, no narration]
 
 ### In Progress
-- [ ] [Current work]
+- [ ] [Current work, with enough detail to pick it back up]
 
 ### Blocked
 - [Issues preventing progress, if any]
 
 ## Key Decisions
-- **[Decision]**: [Brief rationale]
+- **[Decision]**: [Brief rationale - only decisions that still constrain the remaining work]
 
 ## Next Steps
-1. [Ordered list of what should happen next]
+1. [Concrete, ordered list of exactly what to do next to finish the task]
 
 ## Critical Context
-- [Any data, examples, or references needed to continue]
+- [Data, examples, exact file paths, function names, commands, or error messages needed to continue]
 - [Or "(none)" if not applicable]
 
-Keep each section concise. Preserve exact file paths, function names, and error messages.`;
+Keep each section concise. Expand detail for unfinished work and Next Steps; compress everything already done. Preserve exact file paths, function names, commands, and error messages verbatim.`;
 
 const UPDATE_SUMMARIZATION_PROMPT = `The messages above are NEW conversation messages to incorporate into the existing summary provided in <previous-summary> tags.
 
+Another agent will read ONLY this summary (not the original transcript) and immediately continue the work, so keep it a tight handover focused on what remains.
+
 Update the existing structured summary with new information. RULES:
-- PRESERVE all existing information from the previous summary
+- PRESERVE information still needed to continue; compress or drop details about work that is finished or no longer relevant
 - ADD new progress, decisions, and context from the new messages
-- UPDATE the Progress section: move items from "In Progress" to "Done" when completed
-- UPDATE "Next Steps" based on what was accomplished
-- PRESERVE exact file paths, function names, and error messages
-- If something is no longer relevant, you may remove it
+- UPDATE the Progress section: move items from "In Progress" to "Done" (and keep Done terse, one line each)
+- UPDATE "Next Steps" so they are the concrete, ordered actions to finish the task
+- PRESERVE exact file paths, function names, commands, and error messages verbatim
 
 Use this EXACT format:
 
@@ -732,12 +735,12 @@ Use this EXACT format:
 - **[Decision]**: [Brief rationale] (preserve all previous, add new)
 
 ## Next Steps
-1. [Update based on current state]
+1. [Concrete, ordered list of exactly what to do next to finish the task]
 
 ## Critical Context
-- [Preserve important context, add new if needed]
+- [Preserve context still needed to continue; add new if needed]
 
-Keep each section concise. Preserve exact file paths, function names, and error messages.`;
+Keep each section concise. Expand detail for unfinished work and Next Steps; compress everything already done. Preserve exact file paths, function names, commands, and error messages verbatim.`;
 
 /** Generate or update a conversation summary for compaction. */
 export async function generateSummary(
