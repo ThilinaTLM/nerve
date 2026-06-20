@@ -20,6 +20,7 @@ export type VirtualScrollerController = {
   scrollToIndex: (index: number, opts?: VirtualScrollToIndexOptions) => void;
   isAtEnd: (threshold?: number) => boolean;
   getDistanceFromEnd: () => number;
+  getViewportElement: () => HTMLDivElement | null;
   measureAll: () => void;
 };
 

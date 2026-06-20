@@ -176,6 +176,7 @@ function connectWebsocket(wsUrl: string) {
       workspaceState.connection = "closed";
       return;
     }
+    flushEvents();
     clientLog("warn", "websocket", "WebSocket closed; reconnect scheduled");
     scheduleReconnect(wsUrl);
   });

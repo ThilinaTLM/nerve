@@ -38,6 +38,9 @@ export type CommittedContext = {
   orderedToolCalls: ToolCallRecord[];
   toolCallsById: Map<string, ToolCallRecord>;
   toolCallsByProviderId: Map<string, ToolCallRecord>;
+  toolCallsByRunId: Map<string, ToolCallRecord[]>;
+  /** Live-status tools that may need an unanchored live-tail card. */
+  liveCandidateToolCalls: ToolCallRecord[];
   /** Tool ids already rendered as anchored committed cards. */
   consumedToolCallIds: Set<string>;
   /** Run ids that already have a committed run-status node. */
@@ -267,11 +270,21 @@ export function buildCommittedTimeline(
     orderedToolCalls.map((toolCall) => [toolCall.id, toolCall]),
   );
   const toolCallsByProviderId = new Map<string, ToolCallRecord>();
+  const toolCallsByRunId = new Map<string, ToolCallRecord[]>();
+  const liveCandidateToolCalls: ToolCallRecord[] = [];
   for (const toolCall of orderedToolCalls) {
     for (const alias of toolCallAliasIds(toolCall)) {
       if (!toolCallsByProviderId.has(alias)) {
         toolCallsByProviderId.set(alias, toolCall);
       }
+    }
+    if (toolCall.runId) {
+      const runToolCalls = toolCallsByRunId.get(toolCall.runId) ?? [];
+      runToolCalls.push(toolCall);
+      toolCallsByRunId.set(toolCall.runId, runToolCalls);
+    }
+    if (isLiveToolCall(toolCall)) {
+      liveCandidateToolCalls.push(toolCall);
     }
   }
   const consumedToolCallIds = new Set<string>();
@@ -377,6 +390,8 @@ export function buildCommittedTimeline(
       orderedToolCalls,
       toolCallsById,
       toolCallsByProviderId,
+      toolCallsByRunId,
+      liveCandidateToolCalls,
       consumedToolCallIds,
       statusRunIds,
       completedCompactionKeys,
@@ -409,11 +424,13 @@ export function selectVisibleCommitted(
 
   if (liveHiddenEntryIds.size === 0 && !liveHiddenRunId) return items;
 
+  const hiddenEntryIds = [...liveHiddenEntryIds];
+
   return items.filter((item) => {
     const entryId = committedEntryId(item);
     if (
       entryId &&
-      [...liveHiddenEntryIds].some((hidden) => entryIdMatches(entryId, hidden))
+      hiddenEntryIds.some((hidden) => entryIdMatches(entryId, hidden))
     ) {
       return false;
     }
@@ -441,13 +458,24 @@ export function buildLiveTimeline(
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
   const {
-    orderedToolCalls,
+    toolCallsById,
     toolCallsByProviderId,
+    toolCallsByRunId,
+    liveCandidateToolCalls,
     statusRunIds,
     completedCompactionKeys,
   } = context;
-  // Clone so repeated live recomputes never mutate the memoized committed set.
-  const consumedToolCallIds = new Set(context.consumedToolCallIds);
+  const liveConsumedToolCallIds = new Set<string>();
+  const activeRunToolCalls = live?.runId
+    ? (toolCallsByRunId.get(live.runId) ?? [])
+    : [];
+
+  const isToolConsumed = (toolCallId: string) =>
+    context.consumedToolCallIds.has(toolCallId) ||
+    liveConsumedToolCallIds.has(toolCallId);
+  const consumeTool = (toolCallId: string) => {
+    liveConsumedToolCallIds.add(toolCallId);
+  };
 
   const liveNodes: LiveTimelineNode[] = [
     ...(live?.messages ?? []).map((item) => ({
@@ -458,7 +486,7 @@ export function buildLiveTimeline(
       type: "draft" as const,
       draft,
     })),
-    ...orderedToolCalls
+    ...activeRunToolCalls
       .filter((toolCall) => isActiveRunPlacedToolCall(toolCall, live))
       .map((toolCall) => ({
         type: "tool" as const,
@@ -481,14 +509,14 @@ export function buildLiveTimeline(
     }
 
     if (node.type === "tool") {
-      if (!consumedToolCallIds.has(node.toolCall.id)) {
+      if (!isToolConsumed(node.toolCall.id)) {
         items.push({
           kind: "tool",
           key: node.toolCall.id,
           toolCall: node.toolCall,
           liveOutput: liveOutputFor(live, node.toolCall.id),
         });
-        consumedToolCallIds.add(node.toolCall.id);
+        consumeTool(node.toolCall.id);
       }
       continue;
     }
@@ -497,14 +525,14 @@ export function buildLiveTimeline(
       ? toolCallsByProviderId.get(node.draft.providerToolCallId)
       : undefined;
     if (matchingToolCall) {
-      if (!consumedToolCallIds.has(matchingToolCall.id)) {
+      if (!isToolConsumed(matchingToolCall.id)) {
         items.push({
           kind: "tool",
           key: matchingToolCall.id,
           toolCall: matchingToolCall,
           liveOutput: liveOutputFor(live, matchingToolCall.id),
         });
-        consumedToolCallIds.add(matchingToolCall.id);
+        consumeTool(matchingToolCall.id);
       }
       continue;
     }
@@ -542,10 +570,26 @@ export function buildLiveTimeline(
     }
   }
 
-  for (const toolCall of orderedToolCalls) {
+  const unanchoredToolCandidates = new Map<string, ToolCallRecord>();
+  const addUnanchoredCandidate = (toolCall: ToolCallRecord | undefined) => {
+    if (toolCall && !unanchoredToolCandidates.has(toolCall.id)) {
+      unanchoredToolCandidates.set(toolCall.id, toolCall);
+    }
+  };
+
+  for (const toolCall of liveCandidateToolCalls)
+    addUnanchoredCandidate(toolCall);
+  for (const toolCall of activeRunToolCalls) addUnanchoredCandidate(toolCall);
+  for (const toolCallId of Object.keys(live?.toolOutputByToolCallId ?? {})) {
+    addUnanchoredCandidate(toolCallsById.get(toolCallId));
+  }
+
+  for (const toolCall of [...unanchoredToolCandidates.values()].sort(
+    byCreatedAtAscending,
+  )) {
     const liveOutput = liveOutputFor(live, toolCall.id);
     if (
-      consumedToolCallIds.has(toolCall.id) ||
+      isToolConsumed(toolCall.id) ||
       !shouldAppendUnanchoredToolCall(toolCall, liveOutput, live)
     ) {
       continue;

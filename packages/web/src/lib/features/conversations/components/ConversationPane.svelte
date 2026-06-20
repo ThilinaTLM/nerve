@@ -165,6 +165,7 @@
         {sending}
         {hasLiveTimelineNodes}
         {queuedPrompts}
+        followBottom={scroll.followBottom}
         {activeProject}
         {activeProjectLabel}
         {pendingUserQuestion}

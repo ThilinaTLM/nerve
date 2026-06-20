@@ -10,6 +10,21 @@ const MAX_SETTLE_FRAMES = 30;
 // instantly instead. Below it, the in-between rows are already measured so a
 // short smooth scroll stays cheap and feels nicer.
 const SMOOTH_JUMP_MAX_PX = 2400;
+const BOTTOM_THRESHOLD_PX = 32;
+const USER_SCROLL_AWAY_THRESHOLD_PX = 100;
+const USER_SCROLL_INTENT_TIMEOUT_MS = 350;
+const PROGRAMMATIC_SCROLL_GUARD_MS = 120;
+
+const SCROLL_KEYS = new Set([
+  "ArrowDown",
+  "ArrowUp",
+  "End",
+  "Home",
+  "PageDown",
+  "PageUp",
+  " ",
+]);
+const SCROLL_AWAY_KEYS = new Set(["ArrowUp", "Home", "PageUp"]);
 
 type ConversationScrollControllerOptions = {
   conversationOpen: () => boolean;
@@ -19,12 +34,10 @@ type ConversationScrollControllerOptions = {
 };
 
 /**
- * Slim, virtualizer-driven scroll coordinator. The heavy lifting (stick-to-end,
- * follow-on-append, "don't yank while reading history") is handled by the
- * VirtualScroller's `anchorTo: 'end'` + `followOnAppend`. This controller only:
- *  - measures the docked composer height (for the jump-to-latest button offset),
- *  - exposes the bound VirtualScroller controller + `atEnd` flag,
- *  - scrolls to the end once when a conversation is opened/switched.
+ * Slim, virtualizer-driven scroll coordinator. The VirtualScroller handles
+ * end anchoring and dynamic measurement; this controller owns the user's
+ * explicit follow-bottom intent. `atEnd` is a viewport measurement,
+ * `followBottom` is whether new output should keep the transcript pinned.
  */
 export function createConversationScrollController(
   options: ConversationScrollControllerOptions,
@@ -33,11 +46,86 @@ export function createConversationScrollController(
   let composerHeight = $state(0);
   let controller = $state<VirtualScrollerController>();
   let atEnd = $state(true);
+  let followBottom = $state(true);
   let lastConversationId: string | undefined;
   let initialScrollDone = false;
+  let settleFrame: number | undefined;
+  let userScrollIntent = false;
+  let userScrollIntentTimer: ReturnType<typeof setTimeout> | undefined;
+  let programmaticScrollActive = false;
+  let programmaticScrollTimer: ReturnType<typeof setTimeout> | undefined;
+  let pointerScrollActive = false;
+
+  function clearUserScrollIntentTimer() {
+    if (userScrollIntentTimer === undefined) return;
+    clearTimeout(userScrollIntentTimer);
+    userScrollIntentTimer = undefined;
+  }
+
+  function clearProgrammaticScrollTimer() {
+    if (programmaticScrollTimer === undefined) return;
+    clearTimeout(programmaticScrollTimer);
+    programmaticScrollTimer = undefined;
+  }
+
+  function markProgrammaticScroll() {
+    programmaticScrollActive = true;
+    clearProgrammaticScrollTimer();
+    programmaticScrollTimer = setTimeout(() => {
+      programmaticScrollActive = false;
+      programmaticScrollTimer = undefined;
+    }, PROGRAMMATIC_SCROLL_GUARD_MS);
+  }
+
+  function cancelSettledScroll() {
+    if (settleFrame === undefined) return;
+    cancelAnimationFrame(settleFrame);
+    settleFrame = undefined;
+  }
 
   function scrollToEnd(opts?: { behavior?: VirtualScrollBehavior }): void {
+    markProgrammaticScroll();
     controller?.scrollToEnd(opts);
+  }
+
+  function updateFollowFromUserScroll() {
+    const ctrl = controller;
+    if (!ctrl) return;
+    if (ctrl.isAtEnd(BOTTOM_THRESHOLD_PX)) {
+      followBottom = true;
+      return;
+    }
+    if (
+      userScrollIntent &&
+      ctrl.getDistanceFromEnd() > USER_SCROLL_AWAY_THRESHOLD_PX
+    ) {
+      followBottom = false;
+      cancelSettledScroll();
+    }
+  }
+
+  function disableFollowForManualScroll() {
+    followBottom = false;
+    cancelSettledScroll();
+  }
+
+  function markUserScrollIntent(options?: {
+    disableFollowImmediately?: boolean;
+  }) {
+    if (programmaticScrollActive) return;
+    userScrollIntent = true;
+    if (options?.disableFollowImmediately) {
+      // Disable before the browser applies the scroll delta. Otherwise an
+      // already-scheduled pinned-follow frame can pull the viewport back to the
+      // bottom, making it feel impossible to scroll up while output streams.
+      disableFollowForManualScroll();
+    }
+    clearUserScrollIntentTimer();
+    userScrollIntentTimer = setTimeout(() => {
+      userScrollIntent = false;
+      userScrollIntentTimer = undefined;
+    }, USER_SCROLL_INTENT_TIMEOUT_MS);
+    requestAnimationFrame(updateFollowFromUserScroll);
   }
 
   // Jump-to-latest button handler: snap instantly from far away (fast, avoids
@@ -45,8 +133,9 @@ export function createConversationScrollController(
   function jumpToBottom(): void {
     const ctrl = controller;
     if (!ctrl) return;
+    followBottom = true;
     if (ctrl.getDistanceFromEnd() <= SMOOTH_JUMP_MAX_PX) {
-      ctrl.scrollToEnd({ behavior: "smooth" });
+      scrollToEnd({ behavior: "smooth" });
     } else {
       scrollToEndWhenSettled();
     }
@@ -58,21 +147,31 @@ export function createConversationScrollController(
   // cap elapses). This also tolerates the controller binding slightly after
   // this effect first runs.
   function scrollToEndWhenSettled() {
+    cancelSettledScroll();
+    followBottom = true;
     let frames = 0;
     const step = () => {
+      settleFrame = undefined;
       frames += 1;
       const ctrl = controller;
       if (!ctrl) {
-        if (frames < MAX_SETTLE_FRAMES) requestAnimationFrame(step);
+        if (frames < MAX_SETTLE_FRAMES) {
+          settleFrame = requestAnimationFrame(step);
+        }
         return;
       }
-      ctrl.scrollToEnd({ behavior: "instant" });
-      if (!ctrl.isAtEnd() && frames < MAX_SETTLE_FRAMES) {
-        requestAnimationFrame(step);
+      scrollToEnd({ behavior: "instant" });
+      if (!ctrl.isAtEnd(BOTTOM_THRESHOLD_PX) && frames < MAX_SETTLE_FRAMES) {
+        settleFrame = requestAnimationFrame(step);
       }
     };
-    requestAnimationFrame(step);
+    settleFrame = requestAnimationFrame(step);
   }
+
+  $effect(() => {
+    const currentlyAtEnd = atEnd;
+    if (currentlyAtEnd) followBottom = true;
+  });
 
   $effect(() => {
     const conversationId = options.conversationId();
@@ -80,10 +179,19 @@ export function createConversationScrollController(
     if (conversationId !== lastConversationId) {
       lastConversationId = conversationId;
       initialScrollDone = false;
+      followBottom = true;
+      cancelSettledScroll();
     }
     // Wait for the opened conversation's transcript to populate (it loads after
     // the conversation id changes); scroll to the bottom exactly once it has.
-    if (!conversationId || initialScrollDone || !ready) return;
+    if (
+      !options.conversationOpen() ||
+      !conversationId ||
+      initialScrollDone ||
+      !ready
+    ) {
+      return;
+    }
     initialScrollDone = true;
     void tick().then(scrollToEndWhenSettled);
   });
@@ -101,6 +209,67 @@ export function createConversationScrollController(
     observer.observe(el);
 
     return () => observer.disconnect();
+  });
+
+  $effect(() => {
+    const ctrl = controller;
+    const el = ctrl?.getViewportElement();
+    if (!el) return;
+
+    const handlePointerDown = () => {
+      pointerScrollActive = true;
+    };
+    const handlePointerMove = () => {
+      if (pointerScrollActive) {
+        markUserScrollIntent({ disableFollowImmediately: true });
+      }
+    };
+    const handlePointerEnd = () => {
+      pointerScrollActive = false;
+    };
+    const handleWheel = (event: WheelEvent) => {
+      markUserScrollIntent({ disableFollowImmediately: event.deltaY < 0 });
+    };
+    const handleTouchMove = () => {
+      markUserScrollIntent({ disableFollowImmediately: true });
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!SCROLL_KEYS.has(event.key)) return;
+      markUserScrollIntent({
+        disableFollowImmediately:
+          SCROLL_AWAY_KEYS.has(event.key) ||
+          (event.key === " " && event.shiftKey),
+      });
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: true });
+    el.addEventListener("touchmove", handleTouchMove, { passive: true });
+    el.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    el.addEventListener("pointermove", handlePointerMove, { passive: true });
+    el.addEventListener("pointerup", handlePointerEnd, { passive: true });
+    el.addEventListener("pointerleave", handlePointerEnd, { passive: true });
+    el.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      el.removeEventListener("touchmove", handleTouchMove);
+      el.removeEventListener("pointerdown", handlePointerDown);
+      el.removeEventListener("pointermove", handlePointerMove);
+      el.removeEventListener("pointerup", handlePointerEnd);
+      el.removeEventListener("pointerleave", handlePointerEnd);
+      el.removeEventListener("keydown", handleKeyDown);
+    };
+  });
+
+  $effect(() => {
+    return () => {
+      cancelSettledScroll();
+      clearUserScrollIntentTimer();
+      clearProgrammaticScrollTimer();
+      userScrollIntent = false;
+      programmaticScrollActive = false;
+      pointerScrollActive = false;
+    };
   });
 
   return {
@@ -124,6 +293,9 @@ export function createConversationScrollController(
     },
     set atEnd(value: boolean) {
       atEnd = value;
+    },
+    get followBottom() {
+      return followBottom;
     },
     scrollToEnd,
     jumpToBottom,

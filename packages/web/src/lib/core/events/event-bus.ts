@@ -89,10 +89,10 @@ export function enqueueEvent(event: WorkbenchEvent): void {
  * deterministic teardown (disconnect) and in tests.
  */
 export function flushEvents(): void {
-  while (eventQueue.length > 0) {
-    const event = eventQueue.shift() as WorkbenchEvent;
-    dispatchEvent(event);
+  for (let index = 0; index < eventQueue.length; index += 1) {
+    dispatchEvent(eventQueue[index] as WorkbenchEvent);
   }
+  eventQueue.length = 0;
 }
 
 function reportHandlerError(event: WorkbenchEvent, error: unknown): void {

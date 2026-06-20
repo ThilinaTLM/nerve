@@ -31,6 +31,7 @@
     sending: boolean;
     hasLiveTimelineNodes: boolean;
     queuedPrompts: QueuedPromptRecord[];
+    followBottom?: boolean;
     activeProject?: ProjectRecord;
     activeProjectLabel?: string;
     pendingUserQuestion?: UserQuestionRecord;
@@ -59,6 +60,7 @@
     sending,
     hasLiveTimelineNodes,
     queuedPrompts,
+    followBottom = true,
     activeProject,
     activeProjectLabel,
     pendingUserQuestion,
@@ -126,7 +128,7 @@
     estimateSize={() => 120}
     overscan={10}
     anchor="end"
-    followOutput={true}
+    followOutput={followBottom}
     scrollEndThreshold={32}
     paddingStart={12}
     {paddingEnd}

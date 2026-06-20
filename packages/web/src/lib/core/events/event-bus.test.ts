@@ -68,6 +68,32 @@ describe("event bus", () => {
     assert.deepEqual(seen, [1, 2, 3]);
   });
 
+  it("delivers events enqueued by a handler in FIFO order during a flush", () => {
+    const seen: number[] = [];
+    onAnyEvent((candidate) => {
+      seen.push(candidate.seq);
+      if (candidate.seq === 1) enqueueEvent(event("content.delta", 2));
+    });
+
+    enqueueEvent(event("content.delta", 1));
+    flushEvents();
+
+    assert.deepEqual(seen, [1, 2]);
+  });
+
+  it("clearEventHandlers removes buffered events", () => {
+    const seen: number[] = [];
+    onAnyEvent((candidate) => {
+      seen.push(candidate.seq);
+    });
+    enqueueEvent(event("content.delta", 1));
+
+    clearEventHandlers();
+    flushEvents();
+
+    assert.deepEqual(seen, []);
+  });
+
   it("flushEvents is a no-op when the queue is empty", () => {
     const seen: number[] = [];
     onAnyEvent((candidate) => {

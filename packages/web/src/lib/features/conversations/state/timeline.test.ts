@@ -450,6 +450,81 @@ describe("buildConversationTimeline", () => {
     assert.deepEqual(keys(timeline), ["entry_user"]);
   });
 
+  it("keeps live candidates scoped to active-run and live-output tools", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Run tools" },
+    ];
+    const unrelatedCompleted = Array.from({ length: 20 }, (_, index) =>
+      toolCall(
+        `tool_completed_${index}`,
+        `2026-01-01T00:00:${String(index).padStart(2, "0")}.000Z`,
+        "read",
+        undefined,
+        { status: "completed", runId: "run_old" },
+      ),
+    );
+    const toolCalls = [
+      ...unrelatedCompleted,
+      toolCall(
+        "tool_active_placed",
+        "2026-01-01T00:01:00.000Z",
+        "bash",
+        undefined,
+        {
+          runId: "run_active",
+          liveMessageId: "msg_active",
+          contentIndex: 1,
+          status: "completed",
+        },
+      ),
+      toolCall(
+        "tool_with_live_output",
+        "2026-01-01T00:01:01.000Z",
+        "bash",
+        undefined,
+        { status: "completed", runId: "run_old" },
+      ),
+    ];
+
+    const timeline = buildConversationTimeline(
+      transcript,
+      toolCalls,
+      liveState({
+        runId: "run_active",
+        messages: [
+          {
+            id: "live:msg_active:text:0",
+            role: "assistant",
+            displayKind: "message",
+            text: "Running selected tools",
+            contentIndex: 0,
+            live: true,
+          },
+        ],
+        toolOutputByToolCallId: {
+          tool_with_live_output: {
+            chunks: [
+              {
+                stream: "stdout",
+                text: "still flushing\n",
+                ts: "2026-01-01T00:01:02.000Z",
+              },
+            ],
+            text: "still flushing\n",
+            updatedAt: "2026-01-01T00:01:02.000Z",
+          },
+        },
+      }),
+    );
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "live:msg_active:text:0",
+      "tool_active_placed",
+      "tool_with_live_output",
+    ]);
+  });
+
   it("orders active-run tool calls by live content index after draft removal", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Run tools" },

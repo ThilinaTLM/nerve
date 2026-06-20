@@ -2,7 +2,12 @@
   import type { TaskLogEvent } from "$lib/api";
   import { VirtualScroller } from "$lib/components/ui/virtual-list";
 
-  type LineItem = { text: string; level?: TaskLogEvent["level"]; stream?: TaskLogEvent["stream"] };
+  type LineItem = {
+    key: string | number;
+    text: string;
+    level?: TaskLogEvent["level"];
+    stream?: TaskLogEvent["stream"];
+  };
 
   type Props = {
     events?: TaskLogEvent[];
@@ -15,17 +20,22 @@
 
   const items = $derived<LineItem[]>(
     events
-      ? events.map((event) => ({ text: event.line, level: event.level, stream: event.stream }))
-      : (lines ?? []).map((text) => ({ text })),
+      ? events.map((event) => ({
+          key: event.seq,
+          text: event.line,
+          level: event.level,
+          stream: event.stream,
+        }))
+      : (lines ?? []).map((text, index) => ({ key: `line:${index}`, text })),
   );
 </script>
 
 <div class="log-list-wrap" style:--log-max-height={maxHeight}>
   <VirtualScroller
     {items}
-    getKey={(_, index) => index}
+    getKey={(item) => item.key}
     estimateSize={() => 18}
-    anchor="start"
+    anchor={followOutput ? "end" : "start"}
     {followOutput}
     viewportClass="log-list"
   >

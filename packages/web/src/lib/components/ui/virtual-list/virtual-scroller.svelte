@@ -3,6 +3,7 @@
   import { get } from "svelte/store";
   import { cn } from "$lib/core/utils.js";
   import type {
+    VirtualScrollBehavior,
     VirtualScrollerController,
     VirtualScrollerProps,
   } from "./virtual-scroller-types";
@@ -32,13 +33,18 @@
     return estimateSize?.(index) ?? DEFAULT_ESTIMATE;
   }
 
+  function itemKeyForIndex(index: number): string | number {
+    const item = items[index];
+    return item === undefined ? `__missing__:${index}` : getKey(item, index);
+  }
+
   // Created once per component instance. `getItemKey`/`estimateSize` read the
   // latest props by closure; everything else is reconciled via `setOptions`.
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLElement>({
     count: 0,
     getScrollElement: () => viewportEl,
     estimateSize: (index) => resolveEstimate(index),
-    getItemKey: (index) => getKey(items[index] as T, index),
+    getItemKey: itemKeyForIndex,
   });
 
   // Stable instance reference (also ensures the adapter has attached its wrapped
@@ -50,6 +56,52 @@
 
   let virtualItems = $state(instance.getVirtualItems());
   let totalSize = $state(instance.getTotalSize());
+  const renderedVirtualItems = $derived(
+    virtualItems.filter(
+      (virtualRow) => virtualRow.index >= 0 && virtualRow.index < items.length,
+    ),
+  );
+
+  const FOLLOW_SETTLE_FRAMES = 8;
+  let followFrame: number | undefined;
+  let followSettleFrames = 0;
+
+  function shouldFollowEnd(): boolean {
+    return anchor === "end" && Boolean(followOutput);
+  }
+
+  function followBehavior(): VirtualScrollBehavior {
+    return followOutput === "smooth" ? "smooth" : "auto";
+  }
+
+  function cancelFollowFrame() {
+    if (followFrame === undefined) return;
+    cancelAnimationFrame(followFrame);
+    followFrame = undefined;
+  }
+
+  function scheduleFollowToEnd(settleFrames = FOLLOW_SETTLE_FRAMES) {
+    if (!shouldFollowEnd()) return;
+    followSettleFrames = Math.max(followSettleFrames, settleFrames);
+    if (followFrame !== undefined) return;
+
+    followFrame = requestAnimationFrame(() => {
+      followFrame = undefined;
+      if (!shouldFollowEnd()) {
+        followSettleFrames = 0;
+        return;
+      }
+
+      instance.scrollToEnd({ behavior: followBehavior() });
+      syncFromVirtualizer();
+      followSettleFrames -= 1;
+      if (followSettleFrames > 0 && !instance.isAtEnd(scrollEndThreshold)) {
+        scheduleFollowToEnd(followSettleFrames);
+      } else {
+        followSettleFrames = 0;
+      }
+    });
+  }
 
   function syncFromVirtualizer() {
     virtualItems = instance.getVirtualItems();
@@ -64,11 +116,22 @@
     return unsubscribe;
   });
 
+  let itemEdgeSignature = "";
+
   // Reconcile dynamic options without recreating the virtualizer (preserves
   // scroll/measurement state). Touching `viewportEl` re-runs this once the
   // scroll element binds so `_willUpdate` can attach scroll listeners.
   $effect(() => {
     void viewportEl;
+    const nextEdgeSignature =
+      items.length === 0
+        ? "0"
+        : `${items.length}\0${String(itemKeyForIndex(0))}\0${String(
+            itemKeyForIndex(items.length - 1),
+          )}`;
+    const edgeChanged = nextEdgeSignature !== itemEdgeSignature;
+    itemEdgeSignature = nextEdgeSignature;
+
     instance.setOptions({
       count: items.length,
       overscan,
@@ -80,6 +143,12 @@
       ...(gap !== undefined ? { gap } : {}),
     });
     syncFromVirtualizer();
+    if (!shouldFollowEnd()) {
+      cancelFollowFrame();
+      followSettleFrames = 0;
+    } else if (edgeChanged) {
+      scheduleFollowToEnd();
+    }
   });
 
   // Raw scroll events update `atEnd` with sub-range precision (the virtualizer
@@ -89,11 +158,13 @@
   }
 
   $effect(() => {
+    void viewportEl;
     controller = {
       scrollToEnd: (opts) => instance.scrollToEnd(opts),
       scrollToIndex: (index, opts) => instance.scrollToIndex(index, opts),
       isAtEnd: (threshold) => instance.isAtEnd(threshold ?? scrollEndThreshold),
       getDistanceFromEnd: () => instance.getDistanceFromEnd(),
+      getViewportElement: () => viewportEl,
       measureAll: () => instance.measure(),
     } satisfies VirtualScrollerController;
   });
@@ -111,16 +182,39 @@
     if (!Number.isNaN(index)) {
       instance.resizeItem(index, node.offsetHeight);
     }
+    scheduleFollowToEnd(3);
   }
 
   function measure(node: HTMLElement) {
+    let lastHeight = node.offsetHeight;
+    let observer: ResizeObserver | undefined;
+
     measureNow(node);
+
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(() => {
+        const nextHeight = node.offsetHeight;
+        if (nextHeight === lastHeight) return;
+        lastHeight = nextHeight;
+        scheduleFollowToEnd(4);
+      });
+      observer.observe(node);
+    }
+
     return {
       update() {
         measureNow(node);
       },
+      destroy() {
+        observer?.disconnect();
+        queueMicrotask(() => instance.measureElement(null));
+      },
     };
   }
+
+  $effect(() => {
+    return () => cancelFollowFrame();
+  });
 </script>
 
 <div
@@ -132,18 +226,18 @@
     class={cn("virtual-scroller-spacer", className)}
     style:height={`${totalSize}px`}
   >
-    {#each virtualItems as virtualRow (virtualRow.key)}
-      <div
-        class="virtual-scroller-row"
-        data-index={virtualRow.index}
-        use:measure
-        style:transform={`translateY(${virtualRow.start}px)`}
-      >
-        {@render row({
-          item: items[virtualRow.index] as T,
-          index: virtualRow.index,
-        })}
-      </div>
+    {#each renderedVirtualItems as virtualRow (virtualRow.key)}
+      {@const item = items[virtualRow.index]}
+      {#if item !== undefined}
+        <div
+          class="virtual-scroller-row"
+          data-index={virtualRow.index}
+          use:measure
+          style:transform={`translateY(${virtualRow.start}px)`}
+        >
+          {@render row({ item, index: virtualRow.index })}
+        </div>
+      {/if}
     {/each}
   </div>
 </div>
