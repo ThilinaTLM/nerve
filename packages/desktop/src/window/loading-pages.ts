@@ -77,6 +77,8 @@ function shellStyles(): string {
       place-items: center;
       background: var(--background);
       color: var(--foreground);
+      user-select: none;
+      -webkit-app-region: drag;
     }
     main {
       width: min(420px, calc(100vw - 48px));
@@ -115,6 +117,8 @@ function shellStyles(): string {
       max-height: 280px;
       margin: 4px 0 0;
       overflow: auto;
+      user-select: text;
+      -webkit-app-region: no-drag;
       white-space: pre-wrap;
       text-align: left;
       border: 1px solid color-mix(in oklab, var(--destructive) 40%, transparent);
