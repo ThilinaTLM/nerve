@@ -191,9 +191,24 @@
         <div class="flex flex-col gap-1.5">
           <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conversation</span>
           <div class="flex flex-wrap gap-1.5">
-            <Badge href={exportUrl?.("json")} variant="outline" size="sm">JSON</Badge>
-            <Badge href={exportUrl?.("md")} variant="outline" size="sm">Markdown</Badge>
-            <Badge href={exportUrl?.("html")} variant="outline" size="sm">HTML</Badge>
+            <Badge
+              href={exportUrl?.("json")}
+              download={`conversation-${activeConversation.id}.json`}
+              variant="outline"
+              size="sm"
+            >JSON</Badge>
+            <Badge
+              href={exportUrl?.("md")}
+              download={`conversation-${activeConversation.id}.md`}
+              variant="outline"
+              size="sm"
+            >Markdown</Badge>
+            <Badge
+              href={exportUrl?.("html")}
+              download={`conversation-${activeConversation.id}.html`}
+              variant="outline"
+              size="sm"
+            >HTML</Badge>
           </div>
         </div>
         <div class="flex flex-col gap-1.5">

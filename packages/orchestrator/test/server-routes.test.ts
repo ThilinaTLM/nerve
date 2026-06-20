@@ -116,6 +116,54 @@ describe("orchestrator server routes", () => {
     }
   });
 
+  it("serves conversation exports as downloadable attachments", async () => {
+    const { app, state, headers } = await createAuthenticatedApp();
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const conversation = await state.registry.createConversation({
+        projectId: project.id,
+      });
+      const cases = [
+        {
+          path: `/api/conversations/${conversation.id}/export`,
+          filename: `conversation-${conversation.id}.json`,
+          contentType: "application/json",
+        },
+        {
+          path: `/api/conversations/${conversation.id}/export.md`,
+          filename: `conversation-${conversation.id}.md`,
+          contentType: "text/markdown",
+        },
+        {
+          path: `/api/conversations/${conversation.id}/export.html`,
+          filename: `conversation-${conversation.id}.html`,
+          contentType: "text/html",
+        },
+      ];
+
+      for (const item of cases) {
+        const response = await app.request(item.path, { headers });
+        assert.equal(response.status, 200);
+        assert.match(
+          response.headers.get("content-disposition") ?? "",
+          /^attachment;/,
+        );
+        assert.match(
+          response.headers.get("content-disposition") ?? "",
+          new RegExp(`filename="${item.filename}"`),
+        );
+        assert.match(
+          response.headers.get("content-type")?.toLowerCase() ?? "",
+          new RegExp(item.contentType),
+        );
+      }
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("returns structured not-found errors for missing task records", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
     try {

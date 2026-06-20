@@ -9,6 +9,17 @@ import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
+function conversationExportHeaders(
+  conversationId: string,
+  extension: "json" | "md" | "html",
+  contentType: string,
+): Record<string, string> {
+  return {
+    "Content-Type": contentType,
+    "Content-Disposition": `attachment; filename="conversation-${conversationId}.${extension}"`,
+  };
+}
+
 export function createConversationRoutes(state: OrchestratorState): Hono {
   const app = new Hono();
 
@@ -81,33 +92,48 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
   );
   app.get(
     "/conversations/:conversationId/export",
-    routeHandler((c) =>
-      c.json(
-        state.registry.exportConversation(routeParam(c, "conversationId")),
-      ),
-    ),
+    routeHandler((c) => {
+      const conversationId = routeParam(c, "conversationId");
+      return c.json(
+        state.registry.exportConversation(conversationId),
+        200,
+        conversationExportHeaders(
+          conversationId,
+          "json",
+          "application/json; charset=utf-8",
+        ),
+      );
+    }),
   );
   app.get(
     "/conversations/:conversationId/export.md",
-    routeHandler((c) =>
-      c.text(
-        state.registry.exportConversationMarkdown(
-          routeParam(c, "conversationId"),
-        ),
+    routeHandler((c) => {
+      const conversationId = routeParam(c, "conversationId");
+      return c.text(
+        state.registry.exportConversationMarkdown(conversationId),
         200,
-        {
-          "content-type": "text/markdown; charset=utf-8",
-        },
-      ),
-    ),
+        conversationExportHeaders(
+          conversationId,
+          "md",
+          "text/markdown; charset=utf-8",
+        ),
+      );
+    }),
   );
   app.get(
     "/conversations/:conversationId/export.html",
-    routeHandler((c) =>
-      c.html(
-        state.registry.exportConversationHtml(routeParam(c, "conversationId")),
-      ),
-    ),
+    routeHandler((c) => {
+      const conversationId = routeParam(c, "conversationId");
+      return c.html(
+        state.registry.exportConversationHtml(conversationId),
+        200,
+        conversationExportHeaders(
+          conversationId,
+          "html",
+          "text/html; charset=utf-8",
+        ),
+      );
+    }),
   );
   app.get(
     "/conversations/:conversationId/tree",
