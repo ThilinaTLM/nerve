@@ -5,6 +5,7 @@ import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { highlightCodeCached } from "$lib/core/highlight/highlight";
+import { LruCache } from "$lib/core/utils/lru-cache";
 import { trimTextPreview } from "$lib/core/utils/text-preview";
 
 const markdownProcessor = unified()
@@ -14,6 +15,19 @@ const markdownProcessor = unified()
   .use(rehypeSanitize)
   .use(rehypeStringify);
 
+// Content-keyed memoization for the (pure) render products. Re-mounts (tab
+// switches, virtual-scroll remounts) and run-completion re-renders reuse work
+// instead of re-parsing/re-decorating/re-highlighting unchanged message text.
+const MARKDOWN_CACHE_MAX = 400;
+const parseCache = new LruCache<string, string>(MARKDOWN_CACHE_MAX);
+const decoratedCache = new LruCache<string, string>(MARKDOWN_CACHE_MAX);
+const highlightedCache = new LruCache<string, string>(MARKDOWN_CACHE_MAX);
+const highlightInflight = new Map<string, Promise<string>>();
+
+function signatureFor(source: string, trimCodeBlocks: boolean): string {
+  return `${trimCodeBlocks ? "t" : "f"}\0${source}`;
+}
+
 function escapeHtml(source: string): string {
   return source
     .replaceAll("&", "&amp;")
@@ -21,13 +35,33 @@ function escapeHtml(source: string): string {
     .replaceAll(">", "&gt;");
 }
 
+export type RenderMarkdownOptions = {
+  /**
+   * When false, bypass the parse cache. Used by the streaming decorate path: an
+   * actively streaming message produces a unique string per frame, so caching
+   * those transient prefixes would only churn/pollute the LRU.
+   */
+  cache?: boolean;
+};
+
 /** Render markdown source to sanitized HTML (before code-block decoration). */
-export function renderMarkdown(source: string): string {
-  try {
-    return String(markdownProcessor.processSync(source));
-  } catch {
-    return escapeHtml(source);
+export function renderMarkdown(
+  source: string,
+  options: RenderMarkdownOptions = {},
+): string {
+  const useCache = options.cache ?? true;
+  if (useCache) {
+    const cached = parseCache.get(source);
+    if (cached !== undefined) return cached;
   }
+  let html: string;
+  try {
+    html = String(markdownProcessor.processSync(source));
+  } catch {
+    html = escapeHtml(source);
+  }
+  if (useCache) parseCache.set(source, html);
+  return html;
 }
 
 function languageFromClass(className: string): string {
@@ -147,4 +181,58 @@ export async function highlightMarkdownHtml(
   trimCodeBlocks: boolean,
 ): Promise<string> {
   return wrapTables(await highlightCodeBlocks(renderedHtml, trimCodeBlocks));
+}
+
+/**
+ * Cached decorate-only render (parse + code-block/table decoration, no shiki).
+ * Use for non-streaming mount/scroll re-renders where the source is finalized.
+ */
+export function renderDecoratedMarkdown(
+  source: string,
+  trimCodeBlocks: boolean,
+): string {
+  const key = signatureFor(source, trimCodeBlocks);
+  const cached = decoratedCache.get(key);
+  if (cached !== undefined) return cached;
+  const html = decorateMarkdownHtml(renderMarkdown(source), trimCodeBlocks);
+  decoratedCache.set(key, html);
+  return html;
+}
+
+/**
+ * Return resolved highlighted HTML if it is already cached, else undefined so
+ * the caller can render the (cheaper) decorated variant first.
+ */
+export function getHighlightedMarkdownSync(
+  source: string,
+  trimCodeBlocks: boolean,
+): string | undefined {
+  return highlightedCache.get(signatureFor(source, trimCodeBlocks));
+}
+
+/**
+ * Cached async highlight + table wrapping. De-dupes concurrent calls for the
+ * same (source, trim) so repeated mounts share a single shiki pass.
+ */
+export function renderHighlightedMarkdown(
+  source: string,
+  trimCodeBlocks: boolean,
+): Promise<string> {
+  const key = signatureFor(source, trimCodeBlocks);
+  const cached = highlightedCache.get(key);
+  if (cached !== undefined) return Promise.resolve(cached);
+  const inflight = highlightInflight.get(key);
+  if (inflight) return inflight;
+  const promise = highlightMarkdownHtml(renderMarkdown(source), trimCodeBlocks)
+    .then((html) => {
+      highlightedCache.set(key, html);
+      highlightInflight.delete(key);
+      return html;
+    })
+    .catch((error) => {
+      highlightInflight.delete(key);
+      throw error;
+    });
+  highlightInflight.set(key, promise);
+  return promise;
 }

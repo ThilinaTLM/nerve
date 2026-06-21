@@ -169,51 +169,82 @@
     } satisfies VirtualScrollerController;
   });
 
-  function measureNow(node: HTMLElement) {
+  // Batched measurement: bursty row mounts (tab switch, conversation open) used
+  // to interleave layout reads (`offsetHeight`) with writes (`resizeItem`),
+  // forcing one reflow per row. Instead, collect nodes for one frame, READ all
+  // heights first, then WRITE all sizes — a single reflow per frame.
+  const pendingMeasure = new Map<number, HTMLElement>();
+  let measureFrame: number | undefined;
+
+  function flushMeasurements() {
+    measureFrame = undefined;
+    if (pendingMeasure.size === 0) return;
+    // Phase 1: read every height before mutating anything.
+    const heights: Array<[number, number]> = [];
+    for (const [index, node] of pendingMeasure) {
+      heights.push([index, node.offsetHeight]);
+    }
+    pendingMeasure.clear();
+    // Phase 2: apply sizes. `resizeItem` keeps virtual-core's scroll-anchor
+    // logic intact; batching just removes the read/write interleaving.
+    for (const [index, height] of heights) {
+      instance.resizeItem(index, height);
+    }
+    scheduleFollowToEnd(3);
+  }
+
+  function queueMeasure(node: HTMLElement) {
     // Register the node for future resizes (async highlight, image/font load,
     // re-wrapping). The internal ResizeObserver also fires once on observe.
     instance.measureElement(node);
-    // Force-apply the current height synchronously. virtual-core defers
-    // measurement while `isScrolling` is true (e.g. mid-scroll or right after a
-    // conversation switch), which would otherwise leave freshly-mounted rows at
-    // the size estimate and overlapping their neighbours until the observer
-    // catches up. `resizeItem` keeps virtual-core's scroll-anchor logic intact.
     const index = Number(node.dataset.index);
-    if (!Number.isNaN(index)) {
-      instance.resizeItem(index, node.offsetHeight);
+    if (!Number.isNaN(index)) pendingMeasure.set(index, node);
+    if (measureFrame === undefined) {
+      measureFrame = requestAnimationFrame(flushMeasurements);
     }
-    scheduleFollowToEnd(3);
+  }
+
+  function cancelMeasureFrame() {
+    if (measureFrame === undefined) return;
+    cancelAnimationFrame(measureFrame);
+    measureFrame = undefined;
   }
 
   function measure(node: HTMLElement) {
     let lastHeight = node.offsetHeight;
     let observer: ResizeObserver | undefined;
 
-    measureNow(node);
+    queueMeasure(node);
 
     if (typeof ResizeObserver !== "undefined") {
       observer = new ResizeObserver(() => {
         const nextHeight = node.offsetHeight;
         if (nextHeight === lastHeight) return;
         lastHeight = nextHeight;
-        scheduleFollowToEnd(4);
+        queueMeasure(node);
       });
       observer.observe(node);
     }
 
     return {
       update() {
-        measureNow(node);
+        queueMeasure(node);
       },
       destroy() {
         observer?.disconnect();
+        const index = Number(node.dataset.index);
+        if (!Number.isNaN(index)) pendingMeasure.delete(index);
+        if (pendingMeasure.size === 0) cancelMeasureFrame();
         queueMicrotask(() => instance.measureElement(null));
       },
     };
   }
 
   $effect(() => {
-    return () => cancelFollowFrame();
+    return () => {
+      cancelFollowFrame();
+      cancelMeasureFrame();
+    };
   });
 </script>
 

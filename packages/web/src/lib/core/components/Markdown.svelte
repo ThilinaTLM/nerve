@@ -2,7 +2,9 @@
   import { writeClipboardText } from "$lib/core/clipboard";
   import {
     decorateMarkdownHtml,
-    highlightMarkdownHtml,
+    getHighlightedMarkdownSync,
+    renderDecoratedMarkdown,
+    renderHighlightedMarkdown,
     renderMarkdown,
   } from "$lib/core/components/markdown-render";
   import {
@@ -90,7 +92,9 @@
   function renderDecorateOnly(source: string, trim: boolean) {
     const signature = signatureFor(source, trim);
     if (htmlSource === signature) return;
-    html = decorateMarkdownHtml(renderMarkdown(source), trim);
+    // Streaming text is unique per frame; bypass the parse cache to avoid
+    // churning the shared LRU with transient prefixes.
+    html = decorateMarkdownHtml(renderMarkdown(source, { cache: false }), trim);
     htmlSource = signature;
     // Invalidate any in-flight highlight from a previous non-streaming pass.
     highlightToken += 1;
@@ -99,11 +103,19 @@
   /** Full render + async shiki highlight. Used when not streaming. */
   function renderWithHighlight(source: string, trim: boolean) {
     const signature = signatureFor(source, trim);
-    const rendered = renderMarkdown(source);
-    html = decorateMarkdownHtml(rendered, trim);
+    // Fast path: a finalized message re-mounted (tab switch / scroll) whose
+    // highlighted HTML is already cached — skip parse, decorate, and async work.
+    const cachedHighlighted = getHighlightedMarkdownSync(source, trim);
+    if (cachedHighlighted !== undefined) {
+      html = cachedHighlighted;
+      htmlSource = signature;
+      highlightToken += 1;
+      return;
+    }
+    html = renderDecoratedMarkdown(source, trim);
     htmlSource = signature;
     const token = (highlightToken += 1);
-    highlightMarkdownHtml(rendered, trim)
+    renderHighlightedMarkdown(source, trim)
       .then((highlighted) => {
         if (token === highlightToken) {
           html = highlighted;
@@ -112,7 +124,7 @@
       })
       .catch(() => {
         if (token === highlightToken) {
-          html = decorateMarkdownHtml(rendered, trim);
+          html = renderDecoratedMarkdown(source, trim);
           htmlSource = signature;
         }
       });
