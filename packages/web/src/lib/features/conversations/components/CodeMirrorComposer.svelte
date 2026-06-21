@@ -269,4 +269,11 @@
     opacity: 0.58;
   }
 
+  /* Phone: composer text must be >= 16px so iOS does not zoom on focus.
+     Targets the CodeMirror-rendered content (escape hatch: rendered HTML). */
+  @media (max-width: 639px) {
+    .composer-editor :global(.cm-editor .cm-content) {
+      font-size: 1rem;
+    }
+  }
 </style>

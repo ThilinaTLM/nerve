@@ -32,6 +32,23 @@
   background: var(--sidebar);
 }
 
+/* Compact (< 1024px): the center workspace fills the shell; the navigator and
+   utility panels move into slide-over drawers (see ShellPanes). */
+.workspace-shell.compact {
+  display: block;
+}
+
+.workspace-shell.compact .center-shell {
+  width: 100%;
+  height: 100%;
+}
+
+/* Navigator/utility panels reused inside a Sheet drawer must fill its height. */
+.sheet-pane .pane-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .shutdown-overlay {
   position: fixed;
   inset: 0;
@@ -69,14 +86,4 @@
   animation: spin 800ms linear infinite;
 }
 
-@media (max-width: 980px) {
-  /* Desktop/workbench-first shell: preserve pane usability instead of
-     collapsing to mobile drawers. */
-  .workspace-shell {
-    overflow: auto;
-  }
 
-  .workspace-shell [data-pane-group] {
-    min-width: 980px;
-  }
-}

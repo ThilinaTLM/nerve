@@ -1,11 +1,15 @@
 <script lang="ts">
   import Footerbar from "$lib/app/layout/Footerbar.svelte";
   import {
+    closeDrawers,
     layout,
+    openNavDrawer,
+    openUtilityDrawer,
     setSidebarCollapsed,
     setUtilityCollapsed,
     zoomState,
   } from "$lib/app/layout/layout-state.svelte";
+  import { responsive } from "$lib/app/layout/responsive.svelte";
   import { conversationSelectors } from "$lib/features/conversations";
   import { gitSelectors } from "$lib/features/git";
   import { taskSelectors } from "$lib/features/tasks";
@@ -28,6 +32,37 @@
   const currentZoomLevel = $derived(
     settingsDraft?.ui.zoomLevel ?? zoomState.level,
   );
+
+  const isCompact = $derived(responsive.isCompact);
+  const isPhone = $derived(responsive.isPhone);
+
+  // In compact mode the panel toggles drive overlay drawers instead of the
+  // desktop collapse model; mirror the drawer state into the collapsed prop so
+  // the toggle icon/pressed affordance stays correct (collapsed = panel hidden).
+  const sidebarCollapsed = $derived(
+    isCompact ? !layout.navDrawerOpen : layout.sidebarCollapsed,
+  );
+  const utilityCollapsed = $derived(
+    isCompact ? !layout.utilityDrawerOpen : layout.utilityCollapsed,
+  );
+
+  function toggleSidebar() {
+    if (isCompact) {
+      if (layout.navDrawerOpen) closeDrawers();
+      else openNavDrawer();
+    } else {
+      setSidebarCollapsed(!layout.sidebarCollapsed);
+    }
+  }
+
+  function toggleUtility() {
+    if (isCompact) {
+      if (layout.utilityDrawerOpen) closeDrawers();
+      else openUtilityDrawer();
+    } else {
+      setUtilityCollapsed(!layout.utilityCollapsed);
+    }
+  }
 </script>
 
 <Footerbar
@@ -43,9 +78,10 @@
   {subscriptionUsage}
   homeDir={status?.storage.home}
   zoomLevel={currentZoomLevel}
-  sidebarCollapsed={layout.sidebarCollapsed}
-  utilityCollapsed={layout.utilityCollapsed}
+  {sidebarCollapsed}
+  {utilityCollapsed}
+  phone={isPhone}
   onZoomLevelChange={setUiZoomLevel}
-  onToggleSidebar={() => setSidebarCollapsed(!layout.sidebarCollapsed)}
-  onToggleUtility={() => setUtilityCollapsed(!layout.utilityCollapsed)}
+  onToggleSidebar={toggleSidebar}
+  onToggleUtility={toggleUtility}
 />

@@ -141,10 +141,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    height: 3rem;
+    height: 100%;
     border-bottom: 1px solid var(--border);
     background: var(--card);
     padding: 0 0.75rem;
+    padding-top: env(safe-area-inset-top);
     user-select: none;
   }
 
@@ -213,6 +214,13 @@
     white-space: nowrap;
     font-size: var(--text-sm);
     font-weight: 500;
+  }
+
+  /* Phone: reclaim width — keep the folder icon, drop the "Open Project" label. */
+  @media (max-width: 639px) {
+    .project-button-label {
+      display: none;
+    }
   }
 
   :global(.window-control) {

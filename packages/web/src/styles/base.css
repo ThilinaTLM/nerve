@@ -20,6 +20,11 @@
     width: 100%;
     height: 100%;
   }
+  /* Dynamic viewport height keeps the shell stable when the mobile URL bar or
+     on-screen keyboard toggles. Falls back to 100% where dvh is unsupported. */
+  #app {
+    height: 100dvh;
+  }
   body {
     margin: 0;
     overflow: hidden;

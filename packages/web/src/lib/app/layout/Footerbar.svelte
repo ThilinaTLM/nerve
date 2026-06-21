@@ -36,6 +36,7 @@
     zoomLevel?: number;
     sidebarCollapsed?: boolean;
     utilityCollapsed?: boolean;
+    phone?: boolean;
     onZoomLevelChange?: (level: number) => void;
     onToggleSidebar?: () => void;
     onToggleUtility?: () => void;
@@ -56,6 +57,7 @@
     zoomLevel = 0,
     sidebarCollapsed = false,
     utilityCollapsed = false,
+    phone = false,
     onZoomLevelChange,
     onToggleSidebar,
     onToggleUtility,
@@ -92,30 +94,32 @@
   </div>
 
   <div class="footer-group footer-right">
-    {#if gitStatus}
-      <span class="footer-chip" title="Git branch">
-        <GitBranch size={12} strokeWidth={2.1} aria-hidden="true" />
-        <span>{gitStatus.branch}{gitStatus.dirty ? "*" : ""}</span>
-      </span>
+    {#if !phone}
+      {#if gitStatus}
+        <span class="footer-chip" title="Git branch">
+          <GitBranch size={12} strokeWidth={2.1} aria-hidden="true" />
+          <span>{gitStatus.branch}{gitStatus.dirty ? "*" : ""}</span>
+        </span>
+      {/if}
+
+      {#if activeTasks > 0}
+        <span class="footer-chip" title="Running tasks">
+          <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
+          <span>{activeTasks}</span>
+        </span>
+      {/if}
+
+      {#if pendingApprovals > 0}
+        <span class="footer-chip warn" title="Pending approvals">
+          <TriangleAlert size={12} strokeWidth={2.1} aria-hidden="true" />
+          <span>{pendingApprovals}</span>
+        </span>
+      {/if}
+
+      <SubscriptionUsageChip usage={subscriptionUsage} />
+
+      <ZoomControl {zoomLevel} {onZoomLevelChange} />
     {/if}
-
-    {#if activeTasks > 0}
-      <span class="footer-chip" title="Running tasks">
-        <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
-        <span>{activeTasks}</span>
-      </span>
-    {/if}
-
-    {#if pendingApprovals > 0}
-      <span class="footer-chip warn" title="Pending approvals">
-        <TriangleAlert size={12} strokeWidth={2.1} aria-hidden="true" />
-        <span>{pendingApprovals}</span>
-      </span>
-    {/if}
-
-    <SubscriptionUsageChip usage={subscriptionUsage} />
-
-    <ZoomControl {zoomLevel} {onZoomLevelChange} />
 
     <StatusPopover
       {connection}
@@ -222,5 +226,18 @@
   :global(.footer-toggle) {
     width: 1.5rem;
     height: 1.5rem;
+  }
+
+  /* Phone: fill the taller footer row and grow toggle tap targets. */
+  @media (max-width: 639px) {
+    .footerbar {
+      height: 100%;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    :global(.footer-toggle) {
+      width: 2.25rem;
+      height: 2.25rem;
+    }
   }
 </style>

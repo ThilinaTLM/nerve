@@ -5,8 +5,12 @@ export type UtilityTab = "tasks" | "info" | "git";
 
 export const layout = $state({
   utilityTab: "git" as UtilityTab,
+  // Desktop (>= 1024px) collapse model — persisted.
   sidebarCollapsed: false,
   utilityCollapsed: false,
+  // Compact (< 1024px) overlay-drawer model — ephemeral, never persisted.
+  navDrawerOpen: false,
+  utilityDrawerOpen: false,
 });
 
 export const MIN_ZOOM_LEVEL = -8;
@@ -71,6 +75,29 @@ export function setUtilityCollapsed(collapsed: boolean) {
   layout.utilityCollapsed = collapsed;
   if (typeof localStorage !== "undefined")
     localStorage.setItem("nerve.utilityCollapsed", collapsed ? "1" : "0");
+}
+
+export function setNavDrawerOpen(open: boolean) {
+  layout.navDrawerOpen = open;
+}
+
+export function setUtilityDrawerOpen(open: boolean) {
+  layout.utilityDrawerOpen = open;
+}
+
+export function openNavDrawer() {
+  layout.navDrawerOpen = true;
+  layout.utilityDrawerOpen = false;
+}
+
+export function openUtilityDrawer() {
+  layout.utilityDrawerOpen = true;
+  layout.navDrawerOpen = false;
+}
+
+export function closeDrawers() {
+  layout.navDrawerOpen = false;
+  layout.utilityDrawerOpen = false;
 }
 
 export function loadThemePreference(): ThemePreference {
