@@ -27,6 +27,7 @@
     approvals = [],
     pendingUserQuestion,
     pendingPlanReview,
+    active = true,
     transcript = [],
     toolCalls = [],
     treeNodes = [],
@@ -104,6 +105,7 @@
         : undefined),
   );
   const scroll = createConversationScrollController({
+    active: () => active,
     conversationOpen: () => conversationOpen,
     conversationId: () => scrollConversationId,
     contentReady: () => timeline.length > 0,
@@ -166,11 +168,12 @@
         {sending}
         {hasLiveTimelineNodes}
         {queuedPrompts}
-        followBottom={scroll.followBottom}
+        followBottom={active ? scroll.followBottom : false}
         {activeProject}
         {activeProjectLabel}
         {pendingUserQuestion}
         {pendingPlanReview}
+        {active}
         {lastTimelineKey}
         {onOpenFile}
         {onAnswerUserQuestion}
@@ -184,7 +187,7 @@
       />
     </div>
 
-    {#if !scroll.atEnd && scroll.composerHeight > 0}
+    {#if active && !scroll.atEnd && scroll.composerHeight > 0}
       <div class="scroll-bottom-button-wrap" style={`bottom: ${scroll.composerHeight + 8}px;`}>
         <Button class="rounded-full" variant="secondary" size="icon-sm" ariaLabel="Scroll to latest" title="Scroll to latest" onclick={() => scroll.jumpToBottom()}>
           <ArrowDown size={16} strokeWidth={2.4} />
@@ -202,6 +205,7 @@
         {approvals}
         {pendingUserQuestion}
         {pendingPlanReview}
+        interactive={active}
         {live}
         {sending}
         {compacting}

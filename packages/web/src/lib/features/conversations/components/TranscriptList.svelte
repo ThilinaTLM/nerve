@@ -37,6 +37,7 @@
     activeProjectLabel?: string;
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
+    active?: boolean;
     lastTimelineKey?: string;
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
@@ -67,6 +68,7 @@
     activeProjectLabel,
     pendingUserQuestion,
     pendingPlanReview,
+    active = true,
     lastTimelineKey,
     onOpenFile,
     onAnswerUserQuestion,
@@ -144,6 +146,7 @@
         <TranscriptRow
           node={item.node}
           {sending}
+          hydrateToolBodies={active}
           {activeProject}
           {pendingUserQuestion}
           {pendingPlanReview}

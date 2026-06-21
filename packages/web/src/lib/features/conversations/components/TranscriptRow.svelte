@@ -26,6 +26,7 @@
     activeProject?: ProjectRecord;
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
+    hydrateToolBodies?: boolean;
     lastTimelineKey?: string;
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
@@ -47,6 +48,7 @@
     activeProject,
     pendingUserQuestion,
     pendingPlanReview,
+    hydrateToolBodies = true,
     lastTimelineKey,
     onOpenFile,
     onAnswerUserQuestion,
@@ -69,6 +71,7 @@
       toolCall={node.toolCall}
       liveOutput={node.liveOutput}
       {pendingUserQuestion}
+      hydrateBody={hydrateToolBodies}
       {pendingPlanReview}
       {onOpenFile}
       {onAnswerUserQuestion}

@@ -34,6 +34,7 @@
     approvals = [],
     pendingUserQuestion,
     pendingPlanReview,
+    interactive = true,
     live = false,
     sending = false,
     compacting = false,
@@ -101,11 +102,12 @@
   const pendingPlan = $derived(Boolean(pendingPlanReview));
   const blockedForReview = $derived(pendingApproval || pendingQuestion || pendingPlan);
   const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview && !compacting));
-  const editorDisabled = $derived(!canPrompt);
-  const submitDisabled = $derived(!canPrompt || voiceSubmitPending);
+  const editorDisabled = $derived(!interactive || !canPrompt);
+  const submitDisabled = $derived(!interactive || !canPrompt || voiceSubmitPending);
   const supportsAudioRecording = $derived(voiceInputSession.isSupported());
   const micDisabled = $derived(
-    !voiceTarget ||
+    !interactive ||
+      !voiceTarget ||
       voiceInputSession.pending ||
       (!recording && (!canPrompt || !supportsAudioRecording || voiceBusyElsewhere)),
   );
@@ -153,7 +155,7 @@
   }
 
   async function submitComposer() {
-    if (blockedForReview || compacting || voiceSubmitPending) return;
+    if (!interactive || blockedForReview || compacting || voiceSubmitPending) return;
 
     if (recording && voiceTarget) {
       voiceSubmitPending = true;
@@ -173,14 +175,14 @@
     return uploadClipboardImage(file);
   }
 
-  const controlsDisabled = $derived(!(activeConversation || pendingConversationActive) || sending || compacting || blockedForReview);
-  const modeDisabled = $derived(!(activeConversation || pendingConversationActive));
+  const controlsDisabled = $derived(!interactive || !(activeConversation || pendingConversationActive) || sending || compacting || blockedForReview);
+  const modeDisabled = $derived(!interactive || !(activeConversation || pendingConversationActive));
   const modelDisabled = $derived(controlsDisabled || models.length === 0);
 
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
 
   function toggleRecording() {
-    if (micDisabled || compacting || !voiceTarget) return;
+    if (!interactive || micDisabled || compacting || !voiceTarget) return;
     void voiceInputSession.toggle(voiceTarget);
   }
 
@@ -191,7 +193,7 @@
   }
 
   $effect(() => {
-    if (lastFocusToken === undefined) {
+    if (lastFocusToken === undefined || !interactive) {
       lastFocusToken = focusToken;
       return;
     }
@@ -201,7 +203,7 @@
   });
 
   $effect(() => {
-    if (lastComposerEscapeToken === undefined) {
+    if (lastComposerEscapeToken === undefined || !interactive) {
       lastComposerEscapeToken = composerEscapeToken;
       return;
     }
@@ -211,7 +213,7 @@
   });
 
   $effect(() => {
-    if (lastMicShortcutToken === undefined) {
+    if (lastMicShortcutToken === undefined || !interactive) {
       lastMicShortcutToken = micShortcutToken;
       return;
     }

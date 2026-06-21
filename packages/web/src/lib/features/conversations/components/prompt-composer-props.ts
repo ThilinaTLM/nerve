@@ -25,6 +25,7 @@ export type PromptComposerProps = {
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;
+  interactive?: boolean;
   live?: boolean;
   sending?: boolean;
   compacting?: boolean;

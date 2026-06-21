@@ -1,14 +1,21 @@
 <script lang="ts">
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-
+  import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+  import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
+  import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
+  import type { CenterTabIdentity } from "$lib/features/workspace";
+  import {
+    conversationViewKey,
+    pendingConversationKey,
+  } from "$lib/core/state/state-keys";
+  import { modelKey, scopedUsableModelOptions } from "$lib/core/utils/model";
+  import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
   import ConversationPane from "$lib/features/conversations/components/ConversationPane.svelte";
   import {
     composerSignals,
     focusComposer,
     openConversationHistory,
   } from "$lib/features/conversations/state/composer-signals.svelte";
-  import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
-  import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+  import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
   import {
     abortActiveRun,
     continueFromFailure,
@@ -34,58 +41,173 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
     setComposerPermission,
     setComposerThinkingLevel,
   } from "$lib/features/conversations/state/composer-config.svelte";
+  import { ensureConversationView } from "$lib/features/conversations/state/state";
   import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+  import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
   import {
     completeFiles,
     newConversationInProject,
   } from "$lib/features/workspace/state/workspace-actions.svelte";
 
-  const status = $derived(workspaceSelectors.status);
-  const projects = $derived(workspaceSelectors.projects);
-  const conversations = $derived(workspaceSelectors.conversations);
-  const agents = $derived(workspaceSelectors.agents);
-  const approvals = $derived(workspaceSelectors.approvals);
-  const pendingUserQuestion = $derived(conversationSelectors.activeUserQuestion);
-  const pendingPlanReview = $derived(conversationSelectors.activePlanReview);
-  const transcript = $derived(conversationSelectors.transcript);
-  const toolCalls = $derived(conversationSelectors.toolCalls);
-  const treeNodes = $derived(conversationSelectors.treeNodes);
-  const streamingText = $derived(conversationSelectors.streamingText);
-  const conversationLiveState = $derived(
-    conversationSelectors.conversationLiveState,
+  type Props = {
+    tab?: CenterTabIdentity;
+    active?: boolean;
+  };
+
+  let { tab, active = true }: Props = $props();
+
+  const paneTab = $derived(tab ?? workspaceState.activeCenterTab);
+  const conversationId = $derived(
+    paneTab?.kind === "conversation" ? paneTab.id : undefined,
   );
-  const queuedPrompts = $derived(conversationSelectors.queuedPrompts);
-  const activeComposerText = $derived(conversationSelectors.activeComposerText);
-  const gitSuggestions = $derived(conversationSelectors.gitSuggestions);
-  const slashCompletions = $derived(conversationSelectors.slashCompletions);
-  const selectedModelKey = $derived(conversationSelectors.selectedModelKey);
-  const selectedThinkingLevel = $derived(
-    conversationSelectors.selectedThinkingLevel,
+  const pendingId = $derived(
+    paneTab?.kind === "pending-conversation" ? paneTab.id : undefined,
   );
-  const selectedMode = $derived(conversationSelectors.selectedMode);
-  const selectedPermissionLevel = $derived(
-    conversationSelectors.selectedPermissionLevel,
+  const view = $derived(
+    conversationId
+      ? conversationState.conversationViews[conversationViewKey(conversationId)]
+      : undefined,
   );
-  const activeProject = $derived(conversationSelectors.activeProject);
-  const activeConversation = $derived(conversationSelectors.activeConversation);
-  const activeAgent = $derived(conversationSelectors.activeAgent);
   const activePendingConversation = $derived(
-    conversationSelectors.activePendingConversation,
+    pendingId
+      ? conversationState.pendingConversations[pendingConversationKey(pendingId)]
+      : undefined,
   );
+  const activeConversation = $derived(
+    conversationId
+      ? workspaceState.conversations.find(
+          (conversation) => conversation.id === conversationId,
+        )
+      : undefined,
+  );
+  const activeAgent = $derived(
+    activeConversation
+      ? workspaceState.agents.find(
+          (agent) =>
+            agent.id === activeConversation.activeAgentId ||
+            agent.conversationId === activeConversation.id,
+        )
+      : undefined,
+  );
+  const activeProject = $derived.by(() => {
+    const projectId =
+      activePendingConversation?.projectId ?? activeConversation?.projectId;
+    return projectId
+      ? workspaceState.projects.find((project) => project.id === projectId)
+      : undefined;
+  });
   const pendingConversationActive = $derived(
-    conversationSelectors.pendingConversationActive,
+    Boolean(activePendingConversation),
   );
-  const live = $derived(conversationSelectors.live);
-  const sending = $derived(conversationSelectors.sending);
-  const contextUsage = $derived(conversationSelectors.activeContextUsage);
-  const contextWindow = $derived(conversationSelectors.activeContextWindow);
-  const usableModels = $derived(conversationSelectors.usableModels);
+  const pendingUserQuestion = $derived.by(() => {
+    const agentId = activeAgent?.id;
+    return workspaceState.userQuestions.find((question) => {
+      if (conversationId && question.conversationId === conversationId)
+        return true;
+      return Boolean(agentId && question.agentId === agentId);
+    });
+  });
+  const pendingPlanReview = $derived.by(() => {
+    const agentId = activeAgent?.id;
+    return workspaceState.planReviews.find((review) => {
+      if (conversationId && review.conversationId === conversationId)
+        return true;
+      return Boolean(agentId && review.agentId === agentId);
+    });
+  });
+  const selectedModelKey = $derived(
+    activePendingConversation?.selectedModelKey ??
+      (activeAgent?.model ? modelKey(activeAgent.model) : conversationState.selectedModelKey),
+  );
+  const selectedModelInfo = $derived(
+    settingsState.models.find((model) => modelKey(model) === selectedModelKey),
+  );
+  const activeAgentModel = $derived(activeAgent?.model);
+  const activeModelInfo = $derived(
+    activeAgentModel
+      ? settingsState.models.find(
+          (model) => modelKey(model) === modelKey(activeAgentModel),
+        )
+      : undefined,
+  );
+  const selectedThinkingLevel = $derived(
+    activePendingConversation?.thinkingLevel ?? activeAgent?.thinkingLevel ?? "off",
+  );
+  const selectedMode = $derived(
+    activePendingConversation?.mode ??
+      activeAgent?.mode ??
+      activeConversation?.mode ??
+      conversationState.selectedMode,
+  );
+  const selectedPermissionLevel = $derived(
+    activePendingConversation?.permissionLevel ??
+      activeAgent?.permissionLevel ??
+      activeConversation?.permissionLevel ??
+      conversationState.selectedPermissionLevel,
+  );
+  const activeComposerText = $derived(
+    activePendingConversation?.composerText ?? view?.composerText ?? "",
+  );
+  const usableModels = $derived(
+    scopedUsableModelOptions(
+      settingsState.models,
+      settingsState.authProviders,
+      settingsState.settingsDraft?.scopedModels,
+    ),
+  );
+  const contextWindow = $derived(
+    selectedModelInfo?.contextWindow ??
+      activeModelInfo?.contextWindow ??
+      view?.contextUsage?.contextWindow ??
+      0,
+  );
+  const gitSuggestions = $derived(active ? gitSelectors.gitSuggestions : []);
+  const slashCompletions = $derived(
+    active ? conversationState.slashCompletions : [],
+  );
+
+  function tabsEqual(
+    left: CenterTabIdentity | undefined,
+    right: CenterTabIdentity | undefined,
+  ): boolean {
+    return Boolean(
+      left && right && left.kind === right.kind && left.id === right.id,
+    );
+  }
+
+  async function ensurePaneSelected() {
+    const target = paneTab;
+    if (!target || tabsEqual(workspaceState.activeCenterTab, target)) return;
+    await selectCenterTab(target);
+  }
+
+  function setPaneComposerText(value: string) {
+    const pending = activePendingConversation;
+    if (pending) {
+      pending.composerText = value;
+      return;
+    }
+    if (conversationId) {
+      ensureConversationView(conversationId).composerText = value;
+      return;
+    }
+    if (active && tabsEqual(workspaceState.activeCenterTab, paneTab)) {
+      setActiveComposerText(value);
+      return;
+    }
+    composerDraft.text = value;
+  }
+
+  async function runActivePaneAction(action: () => void | Promise<void>) {
+    await ensurePaneSelected();
+    await action();
+  }
 
   async function jumpToConversationEntry(
     entryId: string | undefined,
     summarize = false,
   ) {
-    await navigateToEntry(entryId, summarize);
+    await runActivePaneAction(() => navigateToEntry(entryId, summarize));
     focusComposer();
   }
 
@@ -93,8 +215,8 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
     parentEntryId?: string;
     text: string;
   }) {
-    await navigateToEntry(entry.parentEntryId);
-    setActiveComposerText(entry.text);
+    await runActivePaneAction(() => navigateToEntry(entry.parentEntryId));
+    setPaneComposerText(entry.text);
     focusComposer();
   }
 
@@ -109,7 +231,7 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
 
   function applyGitSuggestion(suggestion: { prompt: string }) {
     const current = activeComposerText.trim();
-    setActiveComposerText(
+    setPaneComposerText(
       current
         ? `${activeComposerText}\n\n${suggestion.prompt}`
         : suggestion.prompt,
@@ -117,31 +239,34 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
   }
 
   function sendGitSuggestion(suggestion: { prompt: string }) {
-    void sendPromptText(suggestion.prompt, { clearComposer: false });
+    void runActivePaneAction(() =>
+      sendPromptText(suggestion.prompt, { clearComposer: false }),
+    );
   }
 </script>
 
 <ConversationPane
+  {active}
   {activeProject}
   {activeConversation}
   {activeAgent}
   {activePendingConversation}
   {pendingConversationActive}
-  {projects}
-  {conversations}
-  {agents}
-  homeDir={status?.storage.home}
-  {approvals}
+  projects={workspaceState.projects}
+  conversations={workspaceState.conversations}
+  agents={workspaceState.agents}
+  homeDir={workspaceState.status?.storage.home}
+  approvals={workspaceState.approvals}
   {pendingUserQuestion}
   {pendingPlanReview}
-  {transcript}
-  {toolCalls}
-  {treeNodes}
-  {streamingText}
-  liveState={conversationLiveState}
-  {queuedPrompts}
-  {live}
-  {sending}
+  transcript={view?.transcript ?? []}
+  toolCalls={view?.toolCalls ?? []}
+  treeNodes={view?.treeNodes ?? []}
+  streamingText={view?.streamingText ?? ""}
+  liveState={view?.live}
+  queuedPrompts={view?.queuedPrompts ?? []}
+  live={workspaceState.connection === "live"}
+  sending={activePendingConversation?.sending ?? view?.sending ?? false}
   composerText={activeComposerText}
   {gitSuggestions}
   onSendGitSuggestion={sendGitSuggestion}
@@ -152,36 +277,52 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
   mode={selectedMode}
   permissionLevel={selectedPermissionLevel}
   {slashCompletions}
-  {contextUsage}
+  contextUsage={view?.contextUsage}
   {contextWindow}
   composerFocusToken={composerSignals.focusToken}
   composerEscapeToken={composerSignals.escapeToken}
   micShortcutToken={composerSignals.micToken}
-  fileCompletions={completeFiles}
-  onComposerChange={setActiveComposerText}
-  onSubmit={sendPrompt}
+  fileCompletions={active ? completeFiles : undefined}
+  onComposerChange={setPaneComposerText}
+  onSubmit={() => {
+    void runActivePaneAction(sendPrompt);
+  }}
   onAnswerUserQuestion={answerUserQuestionById}
   onDismissUserQuestion={dismissUserQuestionById}
-  onAbort={abortActiveRun}
+  onAbort={() => {
+    void runActivePaneAction(abortActiveRun);
+  }}
   onOpenProject={openProjectPicker}
   onNewConversationInProject={newConversationInProject}
   onOpenFile={openToolFile}
-  onModelChange={(value) => void setComposerModel(value)}
-  onThinkingLevelChange={(value) => void setComposerThinkingLevel(value)}
-  onModeChange={(value) => void setComposerMode(value)}
-  onPermissionChange={(value) => void setComposerPermission(value)}
+  onModelChange={(value) => {
+    void runActivePaneAction(() => setComposerModel(value));
+  }}
+  onThinkingLevelChange={(value) => {
+    void runActivePaneAction(() => setComposerThinkingLevel(value));
+  }}
+  onModeChange={(value) => {
+    void runActivePaneAction(() => setComposerMode(value));
+  }}
+  onPermissionChange={(value) => {
+    void runActivePaneAction(() => setComposerPermission(value));
+  }}
   onGrantApproval={(id) => void grantApproval(id)}
   onDenyApproval={(id) => void denyApproval(id)}
   onAcceptPlanReview={(id) => void acceptPendingPlanReview(id)}
   onAcceptPlanReviewInNewChat={(id) =>
     void acceptPendingPlanReviewInNewChat(id)}
   onRejectPlanReview={(id) => void rejectPendingPlanReview(id)}
-  onContinueFromFailure={(id) => void continueFromFailure(id)}
+  onContinueFromFailure={(id) => {
+    void runActivePaneAction(() => continueFromFailure(id));
+  }}
   onNavigateToEntry={(entryId, summarize) => {
     void jumpToConversationEntry(entryId, summarize);
   }}
   onEditEntry={(entry) => {
     void editConversationEntry(entry);
   }}
-  onOpenHistory={openConversationHistory}
+  onOpenHistory={() => {
+    void runActivePaneAction(openConversationHistory);
+  }}
 />

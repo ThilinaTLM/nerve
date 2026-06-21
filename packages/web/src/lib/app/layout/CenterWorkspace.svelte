@@ -16,6 +16,7 @@
     newConversation,
     selectCenterTab,
     workspaceSelectors,
+    workspaceState,
   } from "$lib/features/workspace";
   import {
     refreshFilePane,
@@ -25,10 +26,48 @@
   import { refreshPrPane } from "$lib/features/git";
   import { loadSettingsPanel } from "$lib/features/settings";
   import type { CenterTabIdentity } from "$lib/features/workspace";
+  import {
+    conversationPaneTabKey,
+    conversationPaneTabListsEqual,
+    conversationPaneTabsEqual,
+    isConversationPaneTab,
+    renderableConversationPaneTabs,
+    updateMountedConversationPaneTabs,
+    type ConversationPaneTab,
+  } from "./keep-mounted-conversation-panes";
 
   const status = $derived(workspaceSelectors.status);
   const centerTabs = $derived(workspaceSelectors.centerTabs);
   const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
+  const openCenterTabs = $derived(workspaceState.openCenterTabs);
+  const activeConversationPaneTab = $derived(
+    isConversationPaneTab(activeCenterTab) ? activeCenterTab : undefined,
+  );
+
+  let mountedConversationPaneTabs = $state<ConversationPaneTab[]>([]);
+
+  const renderedConversationPaneTabs = $derived(
+    renderableConversationPaneTabs(
+      mountedConversationPaneTabs,
+      activeConversationPaneTab,
+    ),
+  );
+
+  $effect(() => {
+    const nextMountedConversationPaneTabs = updateMountedConversationPaneTabs(
+      mountedConversationPaneTabs,
+      activeCenterTab,
+      openCenterTabs,
+    );
+    if (
+      !conversationPaneTabListsEqual(
+        mountedConversationPaneTabs,
+        nextMountedConversationPaneTabs,
+      )
+    ) {
+      mountedConversationPaneTabs = nextMountedConversationPaneTabs;
+    }
+  });
 
   function refreshCenterTab(tab: CenterTabIdentity) {
     if (tab.kind === "conversation") void refreshConversationView(tab.id);
@@ -66,16 +105,50 @@
   onNewConversation={newConversation}
 />
 
-{#if activeCenterTab?.kind === "task"}
-  <TaskShell />
-{:else if activeCenterTab?.kind === "file"}
-  <FileShell />
-{:else if activeCenterTab?.kind === "pr"}
-  <PrShell />
-{:else if activeCenterTab?.kind === "settings"}
-  <SettingsShell />
-{:else if activeCenterTab?.kind === "logs"}
-  <LogsShell />
-{:else}
-  <ConversationShell />
-{/if}
+<div class="center-workspace-content">
+  {#if activeCenterTab?.kind === "task"}
+    <TaskShell />
+  {:else if activeCenterTab?.kind === "file"}
+    <FileShell />
+  {:else if activeCenterTab?.kind === "pr"}
+    <PrShell />
+  {:else if activeCenterTab?.kind === "settings"}
+    <SettingsShell />
+  {:else if activeCenterTab?.kind === "logs"}
+    <LogsShell />
+  {/if}
+
+  {#if renderedConversationPaneTabs.length > 0}
+    {#each renderedConversationPaneTabs as tab (conversationPaneTabKey(tab))}
+      {@const tabActive = conversationPaneTabsEqual(activeConversationPaneTab, tab)}
+      <div class="conversation-pane-layer" hidden={!tabActive}>
+        <ConversationShell {tab} active={tabActive} />
+      </div>
+    {/each}
+  {:else if !activeCenterTab}
+    <ConversationShell active />
+  {/if}
+</div>
+
+<style>
+  .center-workspace-content {
+    position: relative;
+    display: grid;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .center-workspace-content > :global(*) {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .conversation-pane-layer {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .conversation-pane-layer[hidden] {
+    display: none;
+  }
+</style>

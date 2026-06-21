@@ -11,6 +11,7 @@
     liveOutput?: LiveToolOutput;
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
+    hydrateBody?: boolean;
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
@@ -23,6 +24,7 @@
     liveOutput,
     pendingUserQuestion,
     pendingPlanReview,
+    hydrateBody = true,
     onOpenFile,
     onAnswerUserQuestion,
     onDismissUserQuestion,
@@ -32,6 +34,12 @@
   }: Props = $props();
 
   let expanded = $state(false);
+
+  // Kept-mounted inactive panes may receive new tool rows while hidden. Avoid
+  // instantiating heavy tool bodies for those new hidden rows; once a body has
+  // mounted, keep it mounted across later hide/show transitions.
+  let bodyHydrated = $state(false);
+  const shouldHydrateBody = $derived(hydrateBody || bodyHydrated);
 
   const view = $derived(parseToolViewCached(toolCall, liveOutput));
   const presentation = $derived(toolPresentationCached(view, toolCall));
@@ -48,10 +56,14 @@
   const toolPlanReview = $derived(
     pendingPlanReview?.toolCallId === toolCall.id ? pendingPlanReview : undefined,
   );
+
+  $effect(() => {
+    if (hydrateBody) bodyHydrated = true;
+  });
 </script>
 
 <ToolCallShell {toolCall} {presentation} {bodyMode} {onOpenFile} bind:expanded>
-  {#if showBody}
+  {#if showBody && shouldHydrateBody}
     <ToolView
       {toolCall}
       {view}

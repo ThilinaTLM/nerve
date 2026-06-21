@@ -189,13 +189,28 @@
   const pendingMeasure = new Map<number, HTMLElement>();
   let measureFrame: number | undefined;
 
+  function isMeasurable(node: HTMLElement): boolean {
+    // Kept-mounted conversation panes are hidden with `display:none` when
+    // inactive. Reading layout there returns 0 and would poison the virtualizer
+    // + persisted row-height cache. Skip those hidden measurements; the
+    // previous measured height remains valid and ResizeObserver/update paths
+    // will measure again when the pane becomes visible.
+    return node.getClientRects().length > 0;
+  }
+
+  function measurableHeight(node: HTMLElement): number | undefined {
+    if (!isMeasurable(node)) return undefined;
+    return node.offsetHeight;
+  }
+
   function flushMeasurements() {
     measureFrame = undefined;
     if (pendingMeasure.size === 0) return;
     // Phase 1: read every height before mutating anything.
     const heights: Array<[number, number]> = [];
     for (const [index, node] of pendingMeasure) {
-      heights.push([index, node.offsetHeight]);
+      const height = measurableHeight(node);
+      if (height !== undefined) heights.push([index, height]);
     }
     pendingMeasure.clear();
     // Phase 2: apply sizes. `resizeItem` keeps virtual-core's scroll-anchor
@@ -209,6 +224,7 @@
   }
 
   function queueMeasure(node: HTMLElement) {
+    if (!isMeasurable(node)) return;
     // Register the node for future resizes (async highlight, image/font load,
     // re-wrapping). The internal ResizeObserver also fires once on observe.
     instance.measureElement(node);
@@ -226,15 +242,15 @@
   }
 
   function measure(node: HTMLElement) {
-    let lastHeight = node.offsetHeight;
+    let lastHeight = measurableHeight(node) ?? 0;
     let observer: ResizeObserver | undefined;
 
     queueMeasure(node);
 
     if (typeof ResizeObserver !== "undefined") {
       observer = new ResizeObserver(() => {
-        const nextHeight = node.offsetHeight;
-        if (nextHeight === lastHeight) return;
+        const nextHeight = measurableHeight(node);
+        if (nextHeight === undefined || nextHeight === lastHeight) return;
         lastHeight = nextHeight;
         queueMeasure(node);
       });

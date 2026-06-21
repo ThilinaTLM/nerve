@@ -33,6 +33,7 @@ export type ConversationPaneProps = {
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;
+  active?: boolean;
   transcript?: TranscriptItem[];
   toolCalls?: ToolCallRecord[];
   treeNodes?: ConversationTreeNode[];

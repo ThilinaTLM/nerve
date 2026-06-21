@@ -29,6 +29,9 @@ const SCROLL_KEYS = new Set([
 const SCROLL_AWAY_KEYS = new Set(["ArrowUp", "Home", "PageUp"]);
 
 type ConversationScrollControllerOptions = {
+  /** Whether this pane is currently visible/interactive. Hidden kept-mounted
+   * panes should not chase bottom anchoring or resize composer affordances. */
+  active?: () => boolean;
   conversationOpen: () => boolean;
   conversationId: () => string | undefined;
   /** True once the opened conversation has rendered at least one row. */
@@ -76,6 +79,7 @@ export function createConversationScrollController(
   let atEnd = $state(true);
   let followBottom = $state(true);
   let lastConversationId: string | undefined;
+  let lastActive = false;
   let initialScrollDone = false;
   let settleFrame: number | undefined;
   let userScrollAwayIntent = false;
@@ -222,34 +226,41 @@ export function createConversationScrollController(
   });
 
   $effect(() => {
+    const active = options.active?.() ?? true;
     const conversationId = options.conversationId();
     const ready = options.contentReady();
+    const becameActive = active && !lastActive;
+    lastActive = active;
     if (conversationId !== lastConversationId) {
       lastConversationId = conversationId;
       initialScrollDone = false;
       followBottom = true;
       cancelSettledScroll();
     }
-    // Wait for the opened conversation's transcript to populate (it loads after
-    // the conversation id changes); scroll to the bottom exactly once it has.
-    if (
-      !options.conversationOpen() ||
-      !conversationId ||
-      initialScrollDone ||
-      !ready
-    ) {
+    if (!active) {
+      cancelSettledScroll();
       return;
     }
-    initialScrollDone = true;
-    void tick().then(scrollToEndWhenSettled);
+    // Wait for the opened conversation's transcript to populate (it loads after
+    // the conversation id changes); scroll to the bottom exactly once it has.
+    if (!options.conversationOpen() || !conversationId || !ready) return;
+    if (!initialScrollDone) {
+      initialScrollDone = true;
+      void tick().then(scrollToEndWhenSettled);
+      return;
+    }
+    if (becameActive && followBottom) {
+      void tick().then(scrollToEndWhenSettled);
+    }
   });
 
   $effect(() => {
     const el = composerWrapEl;
+    const active = options.active?.() ?? true;
     if (!el || typeof ResizeObserver === "undefined") return;
 
     const updateComposerHeight = () => {
-      composerHeight = el.offsetHeight;
+      composerHeight = active ? el.offsetHeight : 0;
     };
     updateComposerHeight();
 

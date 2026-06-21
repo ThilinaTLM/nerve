@@ -80,6 +80,24 @@ export function canHighlight(language: string | undefined): boolean {
   return Boolean(normalizeHighlightLanguage(language));
 }
 
+function runWhenIdle<T>(task: () => Promise<T>): Promise<T> {
+  if (
+    typeof window === "undefined" ||
+    typeof window.requestIdleCallback !== "function"
+  ) {
+    return task();
+  }
+
+  return new Promise((resolve, reject) => {
+    window.requestIdleCallback(
+      () => {
+        void task().then(resolve, reject);
+      },
+      { timeout: 750 },
+    );
+  });
+}
+
 async function getHighlighter(): Promise<HighlighterLike> {
   highlighterPromise ??= Promise.all([
     import("@shikijs/core"),
@@ -104,14 +122,16 @@ export async function highlightCode(
 ): Promise<string | undefined> {
   const lang = normalizeHighlightLanguage(language);
   if (!lang) return undefined;
-  const highlighter = await getHighlighter();
-  return highlighter.codeToHtml(code, {
-    lang,
-    themes: {
-      light: "github-light",
-      dark: "github-dark-dimmed",
-    },
-    defaultColor: false,
+  return runWhenIdle(async () => {
+    const highlighter = await getHighlighter();
+    return highlighter.codeToHtml(code, {
+      lang,
+      themes: {
+        light: "github-light",
+        dark: "github-dark-dimmed",
+      },
+      defaultColor: false,
+    });
   });
 }
 
