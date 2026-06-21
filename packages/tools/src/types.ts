@@ -65,6 +65,7 @@ export type BashToolArgs = {
 
 export type PythonToolArgs = {
   code?: unknown;
+  path?: unknown;
   cwd?: unknown;
   timeout?: unknown;
   env?: unknown;

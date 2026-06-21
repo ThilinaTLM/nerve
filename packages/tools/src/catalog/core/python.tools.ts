@@ -3,7 +3,15 @@ import type { CoreToolDefinition } from "../types.js";
 
 const pythonParameters = Type.Object(
   {
-    code: Type.String({ description: "Python code to execute" }),
+    code: Type.Optional(
+      Type.String({ description: "Inline Python code to execute" }),
+    ),
+    path: Type.Optional(
+      Type.String({
+        description:
+          "Path to a Python script file to execute (relative to cwd or absolute). Provide exactly one of code or path.",
+      }),
+    ),
     cwd: Type.Optional(
       Type.String({
         description:
@@ -30,11 +38,13 @@ export const pythonToolDefinitions = [
     name: "python",
     label: "python",
     description:
-      "Execute Python code in the current working directory. Returns stdout, stderr, exit metadata, truncation details, and artifact paths. Large outputs are saved to a transcript file with a compact preview. Optionally provide a timeout in seconds and non-secret env overrides.",
+      "Execute inline Python code or a Python script file in the current working directory. Returns stdout, stderr, exit metadata, truncation details, and artifact paths. Large outputs are saved to a transcript file with a compact preview. Optionally provide a timeout in seconds and non-secret env overrides.",
     promptSnippet:
-      "Execute short Python snippets for parsing, calculations, data inspection, and one-off transformations.",
+      "Execute short Python snippets or a Python script file for parsing, calculations, data inspection, and one-off transformations.",
     promptGuidelines: [
-      "Use python for short Python snippets instead of wrapping Python in bash heredocs.",
+      "Provide exactly one of code or path to the python tool.",
+      "Use python with inline code for short Python snippets instead of wrapping Python in bash heredocs.",
+      "If a Python script is large, write it to a temporary .py file and run python with path instead of sending a large inline code argument.",
       "The python tool has no stdin; do not write scripts that wait for input().",
       "Do not use python for long-running servers, watchers, or daemons; use task_start for those.",
       "Use env only for non-secret environment overrides; secrets must not be passed through python tool args.",

@@ -85,8 +85,11 @@ export type ToolView =
     }
   | {
       kind: "python";
+      inputMode?: "inline" | "file";
       code?: string;
       codeLineCount: number;
+      scriptPath?: string;
+      relScriptPath?: string;
       exitCode?: number;
       signal?: string | null;
       output: string;

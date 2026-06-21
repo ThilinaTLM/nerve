@@ -119,8 +119,6 @@ export function toolPresentation(
       if (view.savedTo) {
         meta.push({ text: `saved ${basename(view.savedTo)}`, mono: true });
       }
-      // The script comes inline (not from a file); the header carries an
-      // `inline` source marker, while the full script renders in the body.
       const hiddenCode = Math.max(0, view.codeLineCount - COLLAPSED_LINES);
       const hiddenOutput = Math.max(0, lines - COLLAPSED_LINES);
       const hiddenTotal = hiddenCode + hiddenOutput;
@@ -132,9 +130,13 @@ export function toolPresentation(
               collapseLabel: "Show less",
             }
           : undefined;
+      const primaryArg =
+        view.inputMode === "file" && view.relScriptPath
+          ? { text: view.relScriptPath, openPath: view.scriptPath }
+          : { text: "inline" };
       return {
         ...base,
-        primaryArg: { text: "inline" },
+        primaryArg,
         meta,
         collapse,
       };

@@ -24,15 +24,26 @@ async function runtimeOrSkip(
 }
 
 describe("python executor", () => {
-  it("rejects empty code", async (t) => {
+  it("rejects missing, empty, or conflicting source inputs", async (t) => {
     const runtime = await runtimeOrSkip(t);
     if (!runtime) return;
+    await assert.rejects(
+      executePython({}, { cwd: process.cwd(), pythonRuntime: runtime }),
+      /exactly one.*code.*path/,
+    );
     await assert.rejects(
       executePython(
         { code: "   " },
         { cwd: process.cwd(), pythonRuntime: runtime },
       ),
       /code.*non-empty string/,
+    );
+    await assert.rejects(
+      executePython(
+        { code: "print('inline')", path: "script.py" },
+        { cwd: process.cwd(), pythonRuntime: runtime },
+      ),
+      /exactly one.*code.*path/,
     );
   });
 
@@ -69,6 +80,61 @@ describe("python executor", () => {
     assert.equal(details.timeoutKilled, false);
     assert.equal(details.streams?.stdout?.bytes, 3);
     assert.equal(details.streams?.stdout?.truncated, false);
+  });
+
+  it("executes a Python script file by path", async (t) => {
+    const runtime = await runtimeOrSkip(t);
+    if (!runtime) return;
+    const project = await createTempProject();
+    await project.write("scripts/helper.py", "VALUE = 'helper'");
+    const scriptPath = await project.write(
+      "scripts/hello.py",
+      [
+        "import os",
+        "from pathlib import Path",
+        "import helper",
+        "print(Path.cwd().name)",
+        "print(helper.VALUE)",
+        "print(os.environ['NERVE_TEST_FLAG'], end='')",
+      ].join("\n"),
+    );
+
+    const result = await executePython(
+      { path: "scripts/hello.py", env: { NERVE_TEST_FLAG: " file" } },
+      { cwd: project.root, pythonRuntime: runtime },
+    );
+
+    assert.equal(
+      result.stdout,
+      `${project.root.split(/[\\/]/).pop()}\nhelper\n file`,
+    );
+    assert.equal(result.exitCode, 0);
+    const details = result.details as {
+      inputMode?: string;
+      scriptPath?: string;
+    };
+    assert.equal(details.inputMode, "file");
+    assert.equal(details.scriptPath, scriptPath);
+  });
+
+  it("rejects missing or non-file Python script paths", async (t) => {
+    const runtime = await runtimeOrSkip(t);
+    if (!runtime) return;
+    const project = await createTempProject();
+    await assert.rejects(
+      executePython(
+        { path: "missing.py" },
+        { cwd: project.root, pythonRuntime: runtime },
+      ),
+      /python path not found/,
+    );
+    await assert.rejects(
+      executePython(
+        { path: "." },
+        { cwd: project.root, pythonRuntime: runtime },
+      ),
+      /must point to a Python script file/,
+    );
   });
 
   it("streams stdout and stderr updates", async (t) => {
@@ -287,6 +353,27 @@ describe("python executor", () => {
       await readFile(details.artifacts?.[0]?.path ?? "", "utf8"),
       "ok",
     );
+  });
+
+  it("blocks file-backed workspace writes when allowFileWrite is false", async (t) => {
+    const runtime = await runtimeOrSkip(t);
+    if (!runtime) return;
+    const project = await createTempProject();
+    await project.write(
+      "write_blocked.py",
+      "from pathlib import Path\nPath('blocked.txt').write_text('no')",
+    );
+    const result = await executePython(
+      { path: "write_blocked.py" },
+      {
+        cwd: project.root,
+        pythonRuntime: runtime,
+        pythonPolicy: { allowNetwork: true, allowFileWrite: false },
+      },
+    );
+
+    assert.notEqual(result.exitCode, 0);
+    assert.match(result.stderr ?? "", /file writes are disabled/);
   });
 
   it("permits artifact writes while planning-mode workspace writes are blocked", async (t) => {

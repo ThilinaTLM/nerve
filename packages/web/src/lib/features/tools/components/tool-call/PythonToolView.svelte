@@ -12,7 +12,11 @@
 </script>
 
 <div class="grid gap-1.5">
-  {#if view.code && view.code.length > 0}
+  {#if view.inputMode === "file" && view.relScriptPath}
+    <p class="m-0 text-xs text-muted-foreground">
+      Python script file: <code class="font-mono text-foreground">{view.relScriptPath}</code>
+    </p>
+  {:else if view.code && view.code.length > 0}
     <section class="grid gap-1" aria-label="Python script">
       <ToolOutputBlock text={view.code} language="python" {expanded} />
     </section>
@@ -24,7 +28,7 @@
     </section>
   {:else if toolCall.status === "running"}
     <p class="m-0 text-xs text-muted-foreground">Waiting for Python output…</p>
-  {:else if toolCall.status === "completed" && view.code && view.code.length > 0}
+  {:else if toolCall.status === "completed" && (view.inputMode === "file" || (view.code && view.code.length > 0))}
     <section class="grid gap-1" aria-label="Python output">
       <p class="m-0 text-xs text-muted-foreground">No Python output.</p>
     </section>

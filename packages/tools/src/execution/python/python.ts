@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { buildProcessResult } from "../common/process-result.js";
+import { pathNotFoundMessage, resolveToolPath } from "../filesystem/path.js";
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const MAX_TIMEOUT_SECONDS = 600;
@@ -248,6 +249,9 @@ except Exception:
 
 _install_filewrite_guards()
 _install_network_guards()
+user_dir = os.path.dirname(os.path.abspath(user_path))
+if user_dir:
+    sys.path.insert(0, user_dir)
 runpy.run_path(user_path, run_name="__main__")
 `;
 
@@ -255,9 +259,7 @@ export async function executePython(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
-  if (typeof args.code !== "string" || args.code.trim().length === 0) {
-    throw new Error("Tool argument 'code' must be a non-empty string.");
-  }
+  const source = await pythonSourceArg(args, context.cwd);
   const runtime = context.pythonRuntime;
   if (!runtime) throw new Error("Python runtime is not available.");
 
@@ -272,11 +274,16 @@ export async function executePython(
   const artifactDir = await createArtifactDir(context.dataDir);
   let keepArtifactDir = false;
   const runnerPath = join(tempDir, "runner.py");
-  const userPath = join(tempDir, "user.py");
-  await Promise.all([
-    writeFile(runnerPath, RUNNER_SOURCE, "utf8"),
-    writeFile(userPath, args.code, "utf8"),
-  ]);
+  const userPath =
+    source.kind === "inline" ? join(tempDir, "user.py") : source.path;
+  if (source.kind === "inline") {
+    await Promise.all([
+      writeFile(runnerPath, RUNNER_SOURCE, "utf8"),
+      writeFile(userPath, source.code, "utf8"),
+    ]);
+  } else {
+    await writeFile(runnerPath, RUNNER_SOURCE, "utf8");
+  }
 
   try {
     const result = await runPythonProcess({
@@ -288,6 +295,8 @@ export async function executePython(
       userPath,
       artifactDir,
       envOverrides,
+      inputMode: source.kind,
+      scriptPath: source.kind === "file" ? source.path : undefined,
       dataDir: context.dataDir,
       signal: context.signal,
       onUpdate: context.onUpdate,
@@ -313,6 +322,8 @@ type RunPythonProcessOptions = {
   userPath: string;
   artifactDir: string;
   envOverrides: Record<string, string>;
+  inputMode: PythonSource["kind"];
+  scriptPath?: string;
   dataDir?: string;
   signal?: AbortSignal;
   onUpdate?: ToolExecutionContext["onUpdate"];
@@ -332,6 +343,8 @@ async function runPythonProcess({
   userPath,
   artifactDir,
   envOverrides,
+  inputMode,
+  scriptPath,
   dataDir,
   signal,
   onUpdate,
@@ -470,6 +483,8 @@ async function runPythonProcess({
               allowNetwork: policy.allowNetwork,
               allowFileWrite: policy.allowFileWrite,
               envKeys: Object.keys(envOverrides).sort(),
+              inputMode,
+              scriptPath,
               artifactDir: artifacts.length > 0 ? artifactDir : undefined,
               artifacts,
             },
@@ -479,6 +494,48 @@ async function runPythonProcess({
         .catch(reject);
     });
   });
+}
+
+type PythonSource =
+  | { kind: "inline"; code: string }
+  | { kind: "file"; path: string };
+
+async function pythonSourceArg(
+  args: Record<string, unknown>,
+  cwd: string,
+): Promise<PythonSource> {
+  const hasCode = args.code !== undefined;
+  const hasPath = args.path !== undefined;
+  if (hasCode && hasPath) {
+    throw new Error("Provide exactly one of tool arguments 'code' or 'path'.");
+  }
+  if (!hasCode && !hasPath) {
+    throw new Error("Provide exactly one of tool arguments 'code' or 'path'.");
+  }
+
+  if (hasCode) {
+    if (typeof args.code !== "string" || args.code.trim().length === 0) {
+      throw new Error("Tool argument 'code' must be a non-empty string.");
+    }
+    return { kind: "inline", code: args.code };
+  }
+
+  if (typeof args.path !== "string" || args.path.trim().length === 0) {
+    throw new Error("Tool argument 'path' must be a non-empty string.");
+  }
+  const path = resolveToolPath(cwd, args.path);
+  const info = await stat(path).catch((error: unknown) => {
+    throw new Error(
+      pathNotFoundMessage("python", args.path, path),
+      error instanceof Error ? { cause: error } : undefined,
+    );
+  });
+  if (!info.isFile()) {
+    throw new Error(
+      `Tool argument 'path' must point to a Python script file: ${path}`,
+    );
+  }
+  return { kind: "file", path };
 }
 
 function clampTimeout(value: unknown): number {

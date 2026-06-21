@@ -156,13 +156,29 @@ export function parseToolView(
 
     case "python": {
       const code = stringField(args.code);
+      const scriptInputPath = stringField(args.path);
       const details = pythonResultDetailsSchema.safeParse(result?.details);
+      const detailScriptPath = details.success
+        ? details.data.scriptPath
+        : undefined;
+      const scriptPath = resolveToolPath(
+        detailScriptPath ?? scriptInputPath,
+        cwd,
+      );
       const output = resultOutputText(result, toolCall.result, liveOutput);
       const codeLineCount = code ? code.split(/\r?\n/).length : 0;
+      const inputMode = details.success
+        ? (details.data.inputMode ?? (scriptPath ? "file" : "inline"))
+        : scriptInputPath
+          ? "file"
+          : "inline";
       return {
         kind: "python",
+        inputMode,
         code,
         codeLineCount,
+        scriptPath,
+        relScriptPath: relativePath(scriptPath, cwd),
         exitCode: result?.exitCode,
         signal: details.success
           ? (details.data.signal ?? undefined)

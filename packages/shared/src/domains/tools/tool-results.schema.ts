@@ -152,6 +152,8 @@ export const pythonResultDetailsSchema = z
     timeoutKilled: z.boolean().optional(),
     allowNetwork: z.boolean().optional(),
     allowFileWrite: z.boolean().optional(),
+    inputMode: z.enum(["inline", "file"]).optional(),
+    scriptPath: z.string().optional(),
     streams: processStreamsResultDetailsSchema.optional(),
     artifactDir: z.string().optional(),
     artifacts: z.array(pythonArtifactResultDetailsSchema).optional(),

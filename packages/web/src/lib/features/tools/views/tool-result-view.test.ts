@@ -209,6 +209,7 @@ describe("parseToolView", () => {
     );
     assert.equal(view.kind, "python");
     if (view.kind !== "python") return;
+    assert.equal(view.inputMode, "inline");
     assert.equal(view.code, "print('hello')\nprint('done')");
     assert.equal(view.codeLineCount, 2);
     assert.equal(view.exitCode, 1);
@@ -227,6 +228,32 @@ describe("parseToolView", () => {
     assert.equal(view.streams?.stdout?.truncated, true);
     assert.equal(view.streams?.stdout?.savedTo, "/tmp/python-stdout.log");
     assert.equal(view.truncated, true);
+  });
+
+  it("parses python script path arguments and file-mode result details", () => {
+    const view = parseToolView(
+      toolCall(
+        "python",
+        { path: "scripts/report.py" },
+        {
+          content: "ok",
+          stdout: "ok",
+          exitCode: 0,
+          details: {
+            inputMode: "file",
+            scriptPath: `${CWD}/scripts/report.py`,
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "python");
+    if (view.kind !== "python") return;
+    assert.equal(view.inputMode, "file");
+    assert.equal(view.code, undefined);
+    assert.equal(view.codeLineCount, 0);
+    assert.equal(view.scriptPath, `${CWD}/scripts/report.py`);
+    assert.equal(view.relScriptPath, "scripts/report.py");
+    assert.equal(view.output, "ok");
   });
 
   it("parses serialized python arguments and text content blocks", () => {
@@ -1061,6 +1088,21 @@ describe("toolPresentation", () => {
       p.meta.some((m) => m.text === "writes off" && m.tone === "warning"),
     );
     assert.equal(p.dotTone, "danger");
+  });
+
+  it("uses the script path as python primary arg for file mode", () => {
+    const p = present(
+      "python",
+      { path: "scripts/report.py" },
+      {
+        content: "ok",
+        exitCode: 0,
+        details: { inputMode: "file", scriptPath: `${CWD}/scripts/report.py` },
+      },
+    );
+    assert.equal(p.primaryArg?.text, "scripts/report.py");
+    assert.equal(p.primaryArg?.openPath, `${CWD}/scripts/report.py`);
+    assert.ok(!p.meta.some((m) => m.text.includes("code line")));
   });
 
   it("produces a collapse toggle when the python script alone exceeds the limit", () => {

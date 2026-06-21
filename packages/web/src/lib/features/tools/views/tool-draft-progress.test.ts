@@ -256,14 +256,33 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("waits cleanly for early Python drafts before code starts", () => {
+  it("summarizes Python file path drafts", () => {
+    const summary = summarizeToolDraft(
+      draft("python", {
+        argsText: '{"path":"scripts/report.py"',
+        args: { path: "scripts/report.py" },
+        done: true,
+      }),
+    );
+
+    assert.equal(summary.kind, "python");
+    assert.equal(summary.path, "scripts/report.py");
+    assert.equal(summary.code, undefined);
+    assert.equal(summary.statusText, "Submitting Python file…");
+    assert.deepEqual(
+      summary.meta.map((item) => item.text),
+      ["file", "submitted"],
+    );
+  });
+
+  it("waits cleanly for early Python drafts before code or path starts", () => {
     const summary = summarizeToolDraft(
       draft("python", { argsText: '{"timeout": 5, "code":' }),
     );
 
     assert.equal(summary.kind, "python");
     assert.equal(summary.code, undefined);
-    assert.equal(summary.statusText, "Waiting for Python code…");
+    assert.equal(summary.statusText, "Waiting for Python code or path…");
     assert.deepEqual(summary.meta, []);
   });
 

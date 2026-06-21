@@ -420,6 +420,7 @@ function summarizeSmartEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
 
 function summarizePythonDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   const args = asRecord(draft.args);
+  const path = firstPathFromDraft(draft);
   const finalCode = stringField(args.code);
   const partialCode = extractJsonStringValues(draft.argsText, "code", {
     maxChars: 24_000,
@@ -427,19 +428,26 @@ function summarizePythonDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   const code = finalCode ?? partialCode;
   const codeLineCount = lineCount(code);
   const hasCode = code !== undefined && code.length > 0;
+  const hasPath = path !== undefined && path.length > 0;
   const meta: DraftMetaItem[] = [];
   if (codeLineCount !== undefined && codeLineCount > 0) {
     meta.push({ text: plural(codeLineCount, "code line"), tone: "info" });
   }
+  if (hasPath) meta.push({ text: "file", tone: "info" });
   if (draft.done) meta.push({ text: "submitted", tone: "success" });
   return {
     kind: "python",
     toolName: "python",
-    statusText: hasCode
+    path,
+    statusText: hasPath
       ? draft.done
-        ? "Submitting Python code…"
-        : "Generating Python code…"
-      : "Waiting for Python code…",
+        ? "Submitting Python file…"
+        : "Preparing Python file…"
+      : hasCode
+        ? draft.done
+          ? "Submitting Python code…"
+          : "Generating Python code…"
+        : "Waiting for Python code or path…",
     meta,
     code,
     codeLineCount,

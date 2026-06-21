@@ -48,21 +48,30 @@ describe("executeTool dispatch", () => {
       t.skip(`Python runtime unavailable: ${status.error}`);
       return;
     }
+    const pythonRuntime = {
+      command: status.command,
+      args: status.args,
+      displayPath: status.displayPath,
+      version: status.version,
+      source: status.source,
+    };
     const result = await executeTool(
       "python",
       { code: "print('ok', end='')" },
       {
         cwd: project.root,
-        pythonRuntime: {
-          command: status.command,
-          args: status.args,
-          displayPath: status.displayPath,
-          version: status.version,
-          source: status.source,
-        },
+        pythonRuntime,
       },
     );
     assert.equal(result.stdout, "ok");
+
+    await project.write("script.py", "print('file', end='')");
+    const fileResult = await executeTool(
+      "python",
+      { path: "script.py" },
+      { cwd: project.root, pythonRuntime },
+    );
+    assert.equal(fileResult.stdout, "file");
   });
 
   it("dispatches web_fetch and converts HTML to markdown", async () => {
