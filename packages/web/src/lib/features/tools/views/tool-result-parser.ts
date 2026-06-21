@@ -15,6 +15,7 @@ import {
 } from "@nerve/shared";
 import type { ToolCallRecord } from "$lib/api";
 import type { LiveToolOutput } from "$lib/core/types/state-types";
+import { LruCache } from "$lib/core/utils/lru-cache";
 import { parseExploreProgressLog } from "./explore-progress";
 import {
   asRecord,
@@ -52,6 +53,38 @@ export type {
   GroupedMatches,
   ToolView,
 } from "./tool-view-types";
+
+// Memoize the (zod-heavy) tool-result projection. parseToolView re-runs on
+// every card mount (tab switch / scroll into view) and on every live
+// `tool_call.updated`; caching by tool-call identity + revision lets stable
+// cards reuse the parsed view instead of re-running schema parsing.
+const toolViewCache = new LruCache<string, ToolView>(300);
+
+function toolViewSignature(
+  toolCall: ToolCallRecord,
+  liveOutput?: LiveToolOutput,
+): string {
+  return [
+    toolCall.id,
+    toolCall.status,
+    toolCall.updatedAt,
+    liveOutput?.updatedAt ?? "",
+    liveOutput?.text.length ?? 0,
+  ].join("\0");
+}
+
+/** Cached wrapper around {@link parseToolView}, keyed by tool-call revision. */
+export function parseToolViewCached(
+  toolCall: ToolCallRecord,
+  liveOutput?: LiveToolOutput,
+): ToolView {
+  const key = toolViewSignature(toolCall, liveOutput);
+  const cached = toolViewCache.get(key);
+  if (cached !== undefined) return cached;
+  const view = parseToolView(toolCall, liveOutput);
+  toolViewCache.set(key, view);
+  return view;
+}
 
 export function parseToolView(
   toolCall: ToolCallRecord,

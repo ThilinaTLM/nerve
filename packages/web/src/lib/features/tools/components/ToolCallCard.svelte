@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { PlanReviewRecord, ToolCallRecord, UserQuestionRecord } from "$lib/api";
   import type { LiveToolOutput } from "$lib/core/types/state-types";
-  import { toolPresentation } from "$lib/features/tools/views/tool-presentation";
-  import { parseToolView } from "$lib/features/tools/views/tool-result-view";
+  import { toolPresentationCached } from "$lib/features/tools/views/tool-presentation";
+  import { parseToolViewCached } from "$lib/features/tools/views/tool-result-view";
   import { toolViewComponent } from "$lib/features/tools/views/registry";
   import ToolCallShell from "./tool-call/ToolCallShell.svelte";
 
@@ -33,8 +33,8 @@
 
   let expanded = $state(false);
 
-  const view = $derived(parseToolView(toolCall, liveOutput));
-  const presentation = $derived(toolPresentation(view, toolCall));
+  const view = $derived(parseToolViewCached(toolCall, liveOutput));
+  const presentation = $derived(toolPresentationCached(view, toolCall));
   const ToolView = $derived(toolViewComponent(view.kind));
   const bodyMode = $derived<"output" | "interactive">(
     view.kind === "ask_user" || (view.kind === "plan_mode" && view.action === "present")

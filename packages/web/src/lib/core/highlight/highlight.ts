@@ -1,3 +1,5 @@
+import { LruCache } from "$lib/core/utils/lru-cache";
+
 const languageLoaders = {
   bash: () => import("@shikijs/langs/bash"),
   css: () => import("@shikijs/langs/css"),
@@ -50,10 +52,13 @@ const languageAliases = new Map<string, HighlightLanguage>([
 
 const supported = new Set<string>(Object.keys(languageLoaders));
 let highlighterPromise: Promise<HighlighterLike> | undefined;
-const highlightCache = new Map<
+// Bounded so long sessions with many unique code/tool blocks don't grow the
+// cache without limit. Stores resolved HTML (and in-flight promises) by
+// `${lang}\0${code}`.
+const highlightCache = new LruCache<
   string,
   string | Promise<string | undefined> | undefined
->();
+>(500);
 
 export type HighlightCodeResult =
   | string

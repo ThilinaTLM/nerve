@@ -23,6 +23,23 @@ export type {
   ToolPresentation,
 } from "./tool-presentation-types";
 
+// Presentation is a pure product of (view, toolCall); the cached view object
+// from parseToolViewCached is a stable identity per tool-call revision, so a
+// WeakMap keyed by it lets re-renders/re-mounts reuse the derived header/meta.
+const presentationCache = new WeakMap<ToolView, ToolPresentation>();
+
+/** Cached wrapper around {@link toolPresentation}, keyed by the parsed view. */
+export function toolPresentationCached(
+  view: ToolView,
+  toolCall: ToolCallRecord,
+): ToolPresentation {
+  const cached = presentationCache.get(view);
+  if (cached) return cached;
+  const presentation = toolPresentation(view, toolCall);
+  presentationCache.set(view, presentation);
+  return presentation;
+}
+
 /** Derive the header (badge + primary arg) and footer (meta chips) for a tool. */
 export function toolPresentation(
   view: ToolView,
