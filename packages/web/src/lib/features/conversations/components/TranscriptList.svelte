@@ -128,6 +128,7 @@
     items={rows}
     getKey={(row) => row.key}
     {heightCacheKey}
+    contentVisibility
     estimateSize={() => 120}
     overscan={10}
     anchor="end"

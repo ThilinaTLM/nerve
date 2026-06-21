@@ -14,6 +14,7 @@
     getKey,
     estimateSize,
     heightCacheKey,
+    contentVisibility = false,
     overscan = 8,
     anchor = "start",
     followOutput = false,
@@ -276,9 +277,13 @@
       {#if item !== undefined}
         <div
           class="virtual-scroller-row"
+          class:cv-auto={contentVisibility}
           data-index={virtualRow.index}
           use:measure
           style:transform={`translateY(${virtualRow.start}px)`}
+          style:contain-intrinsic-size={contentVisibility
+            ? `auto ${Math.max(1, Math.round(virtualRow.size))}px`
+            : undefined}
         >
           {@render row({ item, index: virtualRow.index })}
         </div>
@@ -312,5 +317,12 @@
     left: 0;
     width: 100%;
     min-width: 0;
+  }
+
+  /* Skip layout/paint for off-screen rows. `contain-intrinsic-size` (set inline
+     from the virtualizer's known height) keeps skipped rows reporting an
+     accurate height so measurement and scroll math stay correct. */
+  .virtual-scroller-row.cv-auto {
+    content-visibility: auto;
   }
 </style>

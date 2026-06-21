@@ -40,6 +40,14 @@ export type VirtualScrollerProps<T> = {
   heightCacheKey?: string;
   /** Extra rows rendered above/below the viewport. Defaults to 8. */
   overscan?: number;
+  /**
+   * Apply `content-visibility: auto` to rows so the browser skips layout/paint
+   * for off-screen rows. Each row gets `contain-intrinsic-size: auto <size>`
+   * seeded from the virtualizer's known height (itself seeded from
+   * {@link heightCacheKey}), so skipped rows still report an accurate height to
+   * measurement. Opt-in; intended for deep/tall row subtrees (tool cards).
+   */
+  contentVisibility?: boolean;
   /** Anchor new content to the start (default) or end (chat tail) of the list. */
   anchor?: VirtualScrollerAnchor;
   /** Follow appended content when already pinned to the end. */
