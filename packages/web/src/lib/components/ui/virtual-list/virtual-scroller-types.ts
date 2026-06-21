@@ -31,6 +31,13 @@ export type VirtualScrollerProps<T> = {
   getKey: (item: T, index: number) => string | number;
   /** Estimated row height in px before measurement. Defaults to 64. */
   estimateSize?: (index: number) => number;
+  /**
+   * Optional scope key (e.g. conversation id) for a persisted row-height
+   * cache. When set, measured heights are remembered across mount/unmount so
+   * remounting the list (tab switch, scroll-back) seeds first paint from real
+   * heights instead of {@link estimateSize}, avoiding a synchronous reflow.
+   */
+  heightCacheKey?: string;
   /** Extra rows rendered above/below the viewport. Defaults to 8. */
   overscan?: number;
   /** Anchor new content to the start (default) or end (chat tail) of the list. */

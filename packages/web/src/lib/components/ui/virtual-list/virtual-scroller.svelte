@@ -2,6 +2,7 @@
   import { createVirtualizer } from "@tanstack/svelte-virtual";
   import { get } from "svelte/store";
   import { cn } from "$lib/core/utils.js";
+  import { getRowHeightCache } from "./row-height-cache";
   import type {
     VirtualScrollBehavior,
     VirtualScrollerController,
@@ -12,6 +13,7 @@
     items,
     getKey,
     estimateSize,
+    heightCacheKey,
     overscan = 8,
     anchor = "start",
     followOutput = false,
@@ -29,13 +31,23 @@
   let viewportEl = $state<HTMLDivElement | null>(null);
 
   const DEFAULT_ESTIMATE = 64;
-  function resolveEstimate(index: number): number {
-    return estimateSize?.(index) ?? DEFAULT_ESTIMATE;
-  }
+
+  // Persisted per-scope height cache (seeded into `estimateSize` so remounts
+  // paint at real height without a synchronous reflow). Resolved reactively in
+  // case the scope key changes for a live instance.
+  const heightCache = $derived(
+    heightCacheKey ? getRowHeightCache(heightCacheKey) : undefined,
+  );
 
   function itemKeyForIndex(index: number): string | number {
     const item = items[index];
     return item === undefined ? `__missing__:${index}` : getKey(item, index);
+  }
+
+  function resolveEstimate(index: number): number {
+    const cached = heightCache?.get(itemKeyForIndex(index));
+    if (cached !== undefined) return cached;
+    return estimateSize?.(index) ?? DEFAULT_ESTIMATE;
   }
 
   // Created once per component instance. `getItemKey`/`estimateSize` read the
@@ -187,8 +199,10 @@
     pendingMeasure.clear();
     // Phase 2: apply sizes. `resizeItem` keeps virtual-core's scroll-anchor
     // logic intact; batching just removes the read/write interleaving.
+    const cache = heightCache;
     for (const [index, height] of heights) {
       instance.resizeItem(index, height);
+      cache?.set(itemKeyForIndex(index), height);
     }
     scheduleFollowToEnd(3);
   }

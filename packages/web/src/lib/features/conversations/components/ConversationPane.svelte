@@ -160,6 +160,7 @@
         bind:controller={scroll.controller}
         bind:atEnd={scroll.atEnd}
         paddingEnd={18}
+        heightCacheKey={scrollConversationId}
         {timeline}
         {streamingText}
         {sending}

@@ -26,6 +26,7 @@
     controller?: VirtualScrollerController;
     atEnd?: boolean;
     paddingEnd?: number;
+    heightCacheKey?: string;
     timeline: TimelineItem[];
     streamingText: string;
     sending: boolean;
@@ -55,6 +56,7 @@
     controller = $bindable(),
     atEnd = $bindable(true),
     paddingEnd = 0,
+    heightCacheKey,
     timeline,
     streamingText,
     sending,
@@ -125,6 +127,7 @@
     bind:atEnd
     items={rows}
     getKey={(row) => row.key}
+    {heightCacheKey}
     estimateSize={() => 120}
     overscan={10}
     anchor="end"
