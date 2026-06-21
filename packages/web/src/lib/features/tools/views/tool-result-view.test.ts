@@ -287,6 +287,39 @@ describe("parseToolView", () => {
     assert.equal(view.deletions, 1);
   });
 
+  it("parses smart_edit diff, operation count, dry-run flag, and +/- stats", () => {
+    const view = parseToolView(
+      toolCall(
+        "smart_edit",
+        {
+          path: "src/x.ts",
+          operations: [{ type: "replace_text", oldText: "a", newText: "b" }],
+          dryRun: true,
+        },
+        {
+          path: `${CWD}/src/x.ts`,
+          details: {
+            diff: "@@ -1 +1 @@\n-a\n+b",
+            lineEnding: "\n",
+            bom: false,
+            dryRun: true,
+            operationCount: 1,
+            operations: [
+              { index: 0, type: "replace_text", matchedBy: "unique" },
+            ],
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "edit");
+    if (view.kind !== "edit") return;
+    assert.equal(view.replacements, 1);
+    assert.equal(view.operationLabel, "operation");
+    assert.equal(view.dryRun, true);
+    assert.equal(view.additions, 1);
+    assert.equal(view.deletions, 1);
+  });
+
   it("parses write byte count", () => {
     const view = parseToolView(
       toolCall(
@@ -1047,6 +1080,31 @@ describe("toolPresentation", () => {
         details: { diff: "@@ -1 +1 @@\n-a\n+b", lineEnding: "\n", bom: false },
       },
     );
+    assert.ok(p.meta.some((m) => m.text === "+1" && m.tone === "success"));
+    assert.ok(p.meta.some((m) => m.text === "−1" && m.tone === "error"));
+  });
+
+  it("emits operation and preview chips for smart_edit dry runs", () => {
+    const p = present(
+      "smart_edit",
+      {
+        path: "x.ts",
+        operations: [{ type: "replace_text", oldText: "a", newText: "b" }],
+      },
+      {
+        path: `${CWD}/x.ts`,
+        details: {
+          diff: "@@ -1 +1 @@\n-a\n+b",
+          lineEnding: "\n",
+          bom: false,
+          dryRun: true,
+          operationCount: 1,
+          operations: [{ index: 0, type: "replace_text", matchedBy: "unique" }],
+        },
+      },
+    );
+    assert.ok(p.meta.some((m) => m.text === "1 operation"));
+    assert.ok(p.meta.some((m) => m.text === "preview" && m.tone === "info"));
     assert.ok(p.meta.some((m) => m.text === "+1" && m.tone === "success"));
     assert.ok(p.meta.some((m) => m.text === "−1" && m.tone === "error"));
   });

@@ -1,8 +1,15 @@
 import type { ConversationLiveToolDraftProgressSnapshot } from "@nerve/shared";
 
-export type ToolDraftProgressToolName = "write" | "edit";
+export type ToolDraftProgressToolName = "write" | "edit" | "smart_edit";
 
-type TargetProperty = "path" | "content" | "oldText" | "newText";
+type TargetProperty =
+  | "path"
+  | "content"
+  | "oldText"
+  | "newText"
+  | "text"
+  | "patch"
+  | "operationType";
 
 const PATH_MAX_CHARS = 240;
 const PROPERTY_MAX_CHARS = 48;
@@ -25,13 +32,43 @@ class LineMetric {
   }
 }
 
+class PatchMetric {
+  private line = "";
+  additions = 0;
+  deletions = 0;
+
+  add(char: string): void {
+    if (char === "\r") return;
+    if (char === "\n") {
+      this.finishLine();
+      return;
+    }
+    this.line += char;
+  }
+
+  finish(): void {
+    if (this.line.length > 0) this.finishLine();
+  }
+
+  private finishLine(): void {
+    if (this.line.startsWith("+") && !this.line.startsWith("+++")) {
+      this.additions += 1;
+    } else if (this.line.startsWith("-") && !this.line.startsWith("---")) {
+      this.deletions += 1;
+    }
+    this.line = "";
+  }
+}
+
 type ActiveValue =
   | { property: "path"; text: string; escaping: boolean }
+  | { property: "operationType"; text: string; escaping: boolean }
   | {
-      property: "content" | "oldText" | "newText";
+      property: "content" | "oldText" | "newText" | "text";
       metric: LineMetric;
       escaping: boolean;
-    };
+    }
+  | { property: "patch"; metric: PatchMetric; escaping: boolean };
 
 function isWhitespace(char: string): boolean {
   return char === " " || char === "\n" || char === "\r" || char === "\t";
@@ -43,8 +80,21 @@ function targetFor(
 ): TargetProperty | undefined {
   if (property === "path") return "path";
   if (toolName === "write" && property === "content") return "content";
-  if (toolName === "edit" && property === "oldText") return "oldText";
-  if (toolName === "edit" && property === "newText") return "newText";
+  if (
+    (toolName === "edit" || toolName === "smart_edit") &&
+    property === "oldText"
+  )
+    return "oldText";
+  if (
+    (toolName === "edit" || toolName === "smart_edit") &&
+    property === "newText"
+  )
+    return "newText";
+  if (toolName === "smart_edit" && property === "text") return "text";
+  if (toolName === "smart_edit" && property === "patch") return "patch";
+  if (toolName === "smart_edit" && property === "type") {
+    return "operationType";
+  }
   return undefined;
 }
 
@@ -72,6 +122,7 @@ function hasProgress(
       (snapshot.lineCount !== undefined && snapshot.lineCount > 0) ||
       (snapshot.replacementCount !== undefined &&
         snapshot.replacementCount > 0) ||
+      (snapshot.operationCount !== undefined && snapshot.operationCount > 0) ||
       (snapshot.generatedLineCount !== undefined &&
         snapshot.generatedLineCount > 0) ||
       (snapshot.estimatedAdditions !== undefined &&
@@ -108,8 +159,14 @@ export class ToolDraftProgressAccumulator {
   private newTextCount = 0;
   private closedOldTextLines = 0;
   private closedNewTextLines = 0;
+  private closedInsertedTextLines = 0;
+  private closedPatchAdditions = 0;
+  private closedPatchDeletions = 0;
+  private operationTypeCount = 0;
   private activeOldTextMetric: LineMetric | undefined;
   private activeNewTextMetric: LineMetric | undefined;
+  private activeInsertedTextMetric: LineMetric | undefined;
+  private activePatchMetric: PatchMetric | undefined;
   private lastSignature: string | undefined;
 
   constructor(private readonly toolName: ToolDraftProgressToolName) {}
@@ -137,13 +194,28 @@ export class ToolDraftProgressAccumulator {
       };
     }
 
+    const activePatchAdditions = this.activePatchMetric?.additions ?? 0;
+    const activePatchDeletions = this.activePatchMetric?.deletions ?? 0;
     const generatedLineCount =
-      this.closedNewTextLines + (this.activeNewTextMetric?.count ?? 0);
+      this.closedNewTextLines +
+      (this.activeNewTextMetric?.count ?? 0) +
+      this.closedInsertedTextLines +
+      (this.activeInsertedTextMetric?.count ?? 0) +
+      this.closedPatchAdditions +
+      activePatchAdditions;
     const deletedLineCount =
-      this.closedOldTextLines + (this.activeOldTextMetric?.count ?? 0);
+      this.closedOldTextLines +
+      (this.activeOldTextMetric?.count ?? 0) +
+      this.closedPatchDeletions +
+      activePatchDeletions;
     return {
       path,
-      replacementCount: Math.max(this.oldTextCount, this.newTextCount),
+      replacementCount:
+        this.toolName === "edit"
+          ? Math.max(this.oldTextCount, this.newTextCount)
+          : undefined,
+      operationCount:
+        this.toolName === "smart_edit" ? this.operationTypeCount : undefined,
       generatedLineCount,
       estimatedAdditions: generatedLineCount,
       estimatedDeletions: deletedLineCount,
@@ -234,6 +306,21 @@ export class ToolDraftProgressAccumulator {
         this.activeValue = { property, metric, escaping: false };
         break;
       }
+      case "text": {
+        const metric = new LineMetric();
+        this.activeInsertedTextMetric = metric;
+        this.activeValue = { property, metric, escaping: false };
+        break;
+      }
+      case "patch": {
+        const metric = new PatchMetric();
+        this.activePatchMetric = metric;
+        this.activeValue = { property, metric, escaping: false };
+        break;
+      }
+      case "operationType":
+        this.activeValue = { property, text: "", escaping: false };
+        break;
     }
   }
 
@@ -264,6 +351,10 @@ export class ToolDraftProgressAccumulator {
       }
       return;
     }
+    if (active.property === "operationType") {
+      if (active.text.length < PROPERTY_MAX_CHARS) active.text += char;
+      return;
+    }
     active.metric.add(char);
   }
 
@@ -285,9 +376,32 @@ export class ToolDraftProgressAccumulator {
         this.closedNewTextLines += active.metric.count;
         this.activeNewTextMetric = undefined;
         break;
+      case "text":
+        this.closedInsertedTextLines += active.metric.count;
+        this.activeInsertedTextMetric = undefined;
+        break;
+      case "patch":
+        active.metric.finish();
+        this.closedPatchAdditions += active.metric.additions;
+        this.closedPatchDeletions += active.metric.deletions;
+        this.activePatchMetric = undefined;
+        break;
+      case "operationType":
+        if (isSmartEditOperationType(active.text)) this.operationTypeCount += 1;
+        break;
     }
     this.activeValue = undefined;
   }
+}
+
+function isSmartEditOperationType(value: string): boolean {
+  return (
+    value === "replace_text" ||
+    value === "insert_text" ||
+    value === "replace_lines" ||
+    value === "insert_lines" ||
+    value === "apply_patch"
+  );
 }
 
 function decodeEscape(char: string): string {
@@ -300,7 +414,11 @@ function decodeEscape(char: string): string {
 export function createToolDraftProgressAccumulator(
   toolName: string | undefined,
 ): ToolDraftProgressAccumulator | undefined {
-  if (toolName === "write" || toolName === "edit") {
+  if (
+    toolName === "write" ||
+    toolName === "edit" ||
+    toolName === "smart_edit"
+  ) {
     return new ToolDraftProgressAccumulator(toolName);
   }
   return undefined;
@@ -322,21 +440,70 @@ export function finalToolDraftProgress(
     return hasProgress(snapshot) ? snapshot : undefined;
   }
 
-  if (toolName !== "edit" || !Array.isArray(args.edits)) return undefined;
-  let generatedLineCount = 0;
-  let deletedLineCount = 0;
-  for (const edit of args.edits) {
-    const record = asRecord(edit);
-    generatedLineCount += lineCount(stringField(record.newText)) ?? 0;
-    deletedLineCount += lineCount(stringField(record.oldText)) ?? 0;
+  if (toolName === "edit" && Array.isArray(args.edits)) {
+    let generatedLineCount = 0;
+    let deletedLineCount = 0;
+    for (const edit of args.edits) {
+      const record = asRecord(edit);
+      generatedLineCount += lineCount(stringField(record.newText)) ?? 0;
+      deletedLineCount += lineCount(stringField(record.oldText)) ?? 0;
+    }
+    const snapshot: ConversationLiveToolDraftProgressSnapshot = {
+      path: stringField(args.path),
+      replacementCount: args.edits.length,
+      generatedLineCount,
+      estimatedAdditions: generatedLineCount,
+      estimatedDeletions: deletedLineCount,
+      estimated: false,
+    };
+    return hasProgress(snapshot) ? snapshot : undefined;
   }
+
+  if (toolName !== "smart_edit" || !Array.isArray(args.operations)) {
+    return undefined;
+  }
+  const stats = smartEditOperationStats(args.operations);
   const snapshot: ConversationLiveToolDraftProgressSnapshot = {
     path: stringField(args.path),
-    replacementCount: args.edits.length,
-    generatedLineCount,
-    estimatedAdditions: generatedLineCount,
-    estimatedDeletions: deletedLineCount,
+    operationCount: args.operations.length,
+    generatedLineCount: stats.additions,
+    estimatedAdditions: stats.additions,
+    estimatedDeletions: stats.deletions,
     estimated: false,
   };
   return hasProgress(snapshot) ? snapshot : undefined;
+}
+
+function smartEditOperationStats(operations: unknown[]): {
+  additions: number;
+  deletions: number;
+} {
+  let additions = 0;
+  let deletions = 0;
+  for (const operation of operations) {
+    const record = asRecord(operation);
+    additions += lineCount(stringField(record.newText)) ?? 0;
+    additions += lineCount(stringField(record.text)) ?? 0;
+    deletions += lineCount(stringField(record.oldText)) ?? 0;
+    const patch = stringField(record.patch);
+    if (patch) {
+      const patchStats = patchLineStats(patch);
+      additions += patchStats.additions;
+      deletions += patchStats.deletions;
+    }
+  }
+  return { additions, deletions };
+}
+
+function patchLineStats(patch: string): {
+  additions: number;
+  deletions: number;
+} {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of patch.split(/\r?\n/)) {
+    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
+    else if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
+  }
+  return { additions, deletions };
 }

@@ -1,5 +1,5 @@
-const nonStreamingToolDrafts = new Set(["write", "edit"]);
-const progressStreamingToolDrafts = new Set(["write", "edit"]);
+const nonStreamingToolDrafts = new Set(["write", "edit", "smart_edit"]);
+const progressStreamingToolDrafts = new Set(["write", "edit", "smart_edit"]);
 
 export function shouldStreamToolDraftArguments(
   toolName: string | undefined,

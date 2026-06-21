@@ -21,6 +21,7 @@ export type ToolDraftSummary = {
   meta: DraftMetaItem[];
   lineCount?: number;
   replacementCount?: number;
+  operationCount?: number;
   generatedLineCount?: number;
   estimatedAdditions?: number;
   estimatedDeletions?: number;
@@ -226,6 +227,121 @@ function partialEditStats(argsText: string): EditDraftStats {
   };
 }
 
+type SmartEditDraftStats = {
+  operations: number;
+  generatedLines: number;
+  estimatedAdditions?: number;
+  estimatedDeletions?: number;
+  estimated: boolean;
+};
+
+function isSmartEditOperationType(value: string): boolean {
+  return (
+    value === "replace_text" ||
+    value === "insert_text" ||
+    value === "replace_lines" ||
+    value === "insert_lines" ||
+    value === "apply_patch"
+  );
+}
+
+function patchLineStats(patch: string): {
+  additions: number;
+  deletions: number;
+} {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of patch.split(/\r?\n/)) {
+    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
+    else if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
+  }
+  return { additions, deletions };
+}
+
+function smartEditStatsForOperations(
+  operations: unknown[],
+  estimated: boolean,
+): SmartEditDraftStats {
+  let additions = 0;
+  let deletions = 0;
+  for (const operation of operations) {
+    const record = asRecord(operation);
+    additions += lineCount(stringField(record.newText)) ?? 0;
+    additions += lineCount(stringField(record.text)) ?? 0;
+    deletions += lineCount(stringField(record.oldText)) ?? 0;
+    const patch = stringField(record.patch);
+    if (patch) {
+      const patchStats = patchLineStats(patch);
+      additions += patchStats.additions;
+      deletions += patchStats.deletions;
+    }
+  }
+  return {
+    operations: operations.length,
+    generatedLines: additions,
+    estimatedAdditions: additions,
+    estimatedDeletions: deletions,
+    estimated,
+  };
+}
+
+function finalSmartEditStats(
+  args: Record<string, unknown>,
+): SmartEditDraftStats | undefined {
+  if (!Array.isArray(args.operations)) return undefined;
+  return smartEditStatsForOperations(args.operations, false);
+}
+
+function progressSmartEditStats(
+  draft: LiveToolCallDraft,
+): SmartEditDraftStats | undefined {
+  const progress = draft.progress;
+  if (!progress) return undefined;
+  return {
+    operations: progress.operationCount ?? 0,
+    generatedLines: progress.generatedLineCount ?? 0,
+    estimatedAdditions: progress.estimatedAdditions,
+    estimatedDeletions: progress.estimatedDeletions,
+    estimated: progress.estimated,
+  };
+}
+
+function partialSmartEditStats(argsText: string): SmartEditDraftStats {
+  const types = extractJsonStringValues(argsText, "type", {
+    maxChars: 64,
+  }).filter(isSmartEditOperationType);
+  const oldTextLines = lineCountsForJsonStringValues(argsText, "oldText");
+  const newTextLines = lineCountsForJsonStringValues(argsText, "newText");
+  const insertedTextLines = lineCountsForJsonStringValues(argsText, "text");
+  const patches = extractJsonStringValues(argsText, "patch", {
+    maxChars: 24_000,
+  });
+  const patchStats = patches.reduce(
+    (total, patch) => {
+      const stats = patchLineStats(patch);
+      return {
+        additions: total.additions + stats.additions,
+        deletions: total.deletions + stats.deletions,
+      };
+    },
+    { additions: 0, deletions: 0 },
+  );
+  const additions =
+    newTextLines.reduce((total, count) => total + count, 0) +
+    insertedTextLines.reduce((total, count) => total + count, 0) +
+    patchStats.additions;
+  const deletions =
+    oldTextLines.reduce((total, count) => total + count, 0) +
+    patchStats.deletions;
+  return {
+    operations: types.length,
+    generatedLines: additions,
+    estimatedAdditions: additions,
+    estimatedDeletions: deletions,
+    estimated: true,
+  };
+}
+
 function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalStats = finalEditStats(args);
@@ -255,6 +371,45 @@ function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
     statusText: draft.done ? "Submitting" : "Generating",
     meta,
     replacementCount: stats.replacements,
+    generatedLineCount: stats.generatedLines,
+    estimatedAdditions: stats.estimatedAdditions,
+    estimatedDeletions: stats.estimatedDeletions,
+    estimated: stats.estimated,
+    done: Boolean(draft.done),
+  };
+}
+
+function summarizeSmartEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
+  const args = asRecord(draft.args);
+  const finalStats = finalSmartEditStats(args);
+  const partialStats = draft.argsText
+    ? partialSmartEditStats(draft.argsText)
+    : undefined;
+  const progressStats = progressSmartEditStats(draft);
+  const stats = finalStats ??
+    partialStats ??
+    progressStats ?? {
+      operations: 0,
+      generatedLines: 0,
+      estimated: false,
+    };
+  const meta: DraftMetaItem[] = [];
+  if (stats.operations > 0)
+    meta.push({ text: plural(stats.operations, "operation") });
+  const additions = stats.estimatedAdditions ?? stats.generatedLines;
+  if (additions > 0) {
+    meta.push({ text: `+${additions}`, tone: "success" });
+  }
+  if (stats.estimatedDeletions !== undefined && stats.estimatedDeletions > 0) {
+    meta.push({ text: `-${stats.estimatedDeletions}`, tone: "error" });
+  }
+  return {
+    kind: "edit",
+    toolName: "smart_edit",
+    path: firstPathFromDraft(draft),
+    statusText: draft.done ? "Submitting" : "Generating",
+    meta,
+    operationCount: stats.operations,
     generatedLineCount: stats.generatedLines,
     estimatedAdditions: stats.estimatedAdditions,
     estimatedDeletions: stats.estimatedDeletions,
@@ -296,6 +451,7 @@ function summarizePythonDraft(draft: LiveToolCallDraft): ToolDraftSummary {
 export function summarizeToolDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   if (draft.toolName === "write") return summarizeWriteDraft(draft);
   if (draft.toolName === "edit") return summarizeEditDraft(draft);
+  if (draft.toolName === "smart_edit") return summarizeSmartEditDraft(draft);
   if (draft.toolName === "python") return summarizePythonDraft(draft);
   const toolName = draft.toolName ?? "tool";
   return {

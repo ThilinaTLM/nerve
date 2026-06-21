@@ -45,6 +45,23 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.estimatedDeletions, 3);
   });
 
+  it("counts smart_edit operations, inserted text, replacements, and patches", () => {
+    const accumulator = new ToolDraftProgressAccumulator("smart_edit");
+
+    accumulator.push(
+      '{"path":"src/app.ts","operations":[{"type":"insert_text","text":"a\\nb"}',
+    );
+    const progress = accumulator.push(
+      ',{"type":"replace_text","oldText":"old\\ntext","newText":"new"},{"type":"apply_patch","patch":"@@ -1 +1,2 @@\\n-old\\n+new\\n+extra\\n"}',
+    );
+
+    assert.equal(progress?.path, "src/app.ts");
+    assert.equal(progress?.operationCount, 3);
+    assert.equal(progress?.generatedLineCount, 5);
+    assert.equal(progress?.estimatedAdditions, 5);
+    assert.equal(progress?.estimatedDeletions, 3);
+  });
+
   it("never exposes raw generated content in progress snapshots", () => {
     const secretContent = "SECRET_CONTENT_SHOULD_NOT_LEAK";
     const accumulator = new ToolDraftProgressAccumulator("write");
@@ -101,6 +118,26 @@ describe("finalToolDraftProgress", () => {
       generatedLineCount: 3,
       estimatedAdditions: 3,
       estimatedDeletions: 3,
+      estimated: false,
+    });
+  });
+
+  it("summarizes final smart_edit args", () => {
+    const progress = finalToolDraftProgress("smart_edit", {
+      path: "src/app.ts",
+      operations: [
+        { type: "insert_lines", line: 1, position: "before", text: "one\ntwo" },
+        { type: "replace_text", oldText: "old", newText: "new" },
+        { type: "apply_patch", patch: "@@ -1 +1,2 @@\n-old\n+new\n+extra\n" },
+      ],
+    });
+
+    assert.deepEqual(progress, {
+      path: "src/app.ts",
+      operationCount: 3,
+      generatedLineCount: 5,
+      estimatedAdditions: 5,
+      estimatedDeletions: 2,
       estimated: false,
     });
   });

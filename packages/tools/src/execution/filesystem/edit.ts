@@ -1,9 +1,16 @@
 import { readFile } from "node:fs/promises";
-import { formatPatch, OMIT_HEADERS, structuredPatch } from "diff";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { writeTextFileAtomically } from "./atomic-write.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
 import { resolveToolPath } from "./path.js";
+import {
+  detectLineEnding,
+  firstChangedLine,
+  generateDiffString,
+  normalizeForTrimmedMatch,
+  normalizeLineEndings,
+  restoreLineEndings,
+} from "./text-editing.js";
 
 type NormalizedEdit = { oldText: string; newText: string };
 type Match = NormalizedEdit & { index: number; start: number; end: number };
@@ -94,7 +101,7 @@ function fuzzyFind(
   content: string,
   needle: string,
 ): { start: number; end: number; duplicate: boolean } | undefined {
-  const normalizedNeedle = normalizeForFuzzyMatch(needle);
+  const normalizedNeedle = normalizeForTrimmedMatch(needle);
   const lines = content.split("\n");
   const needleLineCount = needle.split("\n").length;
   const matches: Array<{ start: number; end: number }> = [];
@@ -111,7 +118,7 @@ function fuzzyFind(
       count += 1
     ) {
       const chunk = lines.slice(line, line + count).join("\n");
-      if (normalizeForFuzzyMatch(chunk) !== normalizedNeedle) continue;
+      if (normalizeForTrimmedMatch(chunk) !== normalizedNeedle) continue;
       const start = offsets[line] ?? 0;
       const end = start + chunk.length;
       matches.push({ start, end });
@@ -120,49 +127,6 @@ function fuzzyFind(
   const first = matches[0];
   if (!first) return undefined;
   return { ...first, duplicate: matches.length > 1 };
-}
-
-function normalizeForFuzzyMatch(input: string): string {
-  return normalizeLineEndings(input)
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/[–—]/g, "-")
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .join("\n")
-    .trim();
-}
-
-function detectLineEnding(input: string): "\n" | "\r\n" {
-  const crlf = input.match(/\r\n/g)?.length ?? 0;
-  const lf = input.match(/(?<!\r)\n/g)?.length ?? 0;
-  return crlf > lf ? "\r\n" : "\n";
-}
-
-function normalizeLineEndings(input: string): string {
-  return input.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function restoreLineEndings(input: string, lineEnding: "\n" | "\r\n"): string {
-  return lineEnding === "\n" ? input : input.replace(/\n/g, "\r\n");
-}
-
-function firstChangedLine(before: string, after: string): number | undefined {
-  const beforeLines = before.split("\n");
-  const afterLines = after.split("\n");
-  const length = Math.max(beforeLines.length, afterLines.length);
-  for (let index = 0; index < length; index += 1) {
-    if (beforeLines[index] !== afterLines[index]) return index + 1;
-  }
-  return undefined;
-}
-
-function generateDiffString(before: string, after: string): string {
-  const patch = structuredPatch("", "", before, after, undefined, undefined, {
-    context: 3,
-  });
-  const diff = formatPatch(patch, OMIT_HEADERS);
-  return diff.endsWith("\n") ? diff.slice(0, -1) : diff;
 }
 
 export function normalizeEditOperations(

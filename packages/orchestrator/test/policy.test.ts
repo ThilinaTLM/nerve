@@ -123,6 +123,54 @@ describe("tool policy", () => {
     );
   });
 
+  it("applies planning-mode plan-file guardrails to smart_edit", () => {
+    const allowed = evaluateToolPolicy(
+      agent("autonomous", "planning"),
+      "smart_edit",
+      {
+        path: "/tmp/nerve/plans/smart-edit-plan.md",
+        operations: [
+          { type: "insert_lines", line: 1, position: "after", text: "ok" },
+        ],
+      },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(allowed.decision, "allow");
+    assert.equal(
+      allowed.normalizedArgs.path,
+      "/tmp/nerve/plans/smart-edit-plan.md",
+    );
+
+    const denied = evaluateToolPolicy(
+      agent("autonomous", "planning"),
+      "smart_edit",
+      {
+        path: "src/app.ts",
+        operations: [
+          { type: "insert_lines", line: 1, position: "after", text: "ok" },
+        ],
+      },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(denied.decision, "deny");
+    assert.match(denied.reason, /Planning mode allows smart_edit only/);
+
+    assert.equal(
+      evaluateToolPolicy(
+        agent("supervised", "planning"),
+        "smart_edit",
+        {
+          path: "/tmp/nerve/plans/smart-edit-plan.md",
+          operations: [
+            { type: "insert_lines", line: 1, position: "after", text: "ok" },
+          ],
+        },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "approval",
+    );
+  });
+
   it("handles explore as a bounded agent-spawn tool", () => {
     assert.equal(
       evaluateToolPolicy(

@@ -50,6 +50,14 @@ export type EditToolArgs = ToolPathArgs & {
   newText?: unknown;
 };
 
+export type SmartEditToolArgs = ToolPathArgs & {
+  dryRun?: unknown;
+  operations?: unknown;
+  oldText?: unknown;
+  newText?: unknown;
+  patch?: unknown;
+};
+
 export type BashToolArgs = {
   command?: unknown;
   timeout?: unknown;

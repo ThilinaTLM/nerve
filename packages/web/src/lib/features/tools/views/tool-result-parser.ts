@@ -4,6 +4,7 @@ import {
   editResultDetailsSchema,
   exploreResultSchema,
   pythonResultDetailsSchema,
+  smartEditResultDetailsSchema,
   taskActionResultSchema,
   taskListResultSchema,
   taskLogsResultSchema,
@@ -163,9 +164,34 @@ export function parseToolView(
         path,
         relPath,
         replacements: edits,
+        operationLabel: "replacement",
         additions,
         deletions,
         diff,
+      };
+    }
+
+    case "smart_edit": {
+      const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
+      const relPath = relativePath(path, cwd);
+      const details = smartEditResultDetailsSchema.safeParse(result?.details);
+      const operations = details.success
+        ? details.data.operationCount
+        : Array.isArray(args.operations)
+          ? args.operations.length
+          : 0;
+      const diff = details.success ? details.data.diff : undefined;
+      const { additions, deletions } = diffStats(diff);
+      return {
+        kind: "edit",
+        path,
+        relPath,
+        replacements: operations,
+        operationLabel: "operation",
+        additions,
+        deletions,
+        diff,
+        dryRun: details.success ? details.data.dryRun : undefined,
       };
     }
 

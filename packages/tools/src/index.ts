@@ -9,11 +9,14 @@ export * from "./catalog/index.js";
 export {
   buildProcessResult,
   buildProcessTextResult,
+  executeSmartEdit,
   executeTool,
+  normalizeSmartEditArgs,
   type PythonRuntime,
   type PythonRuntimeStatus,
   resolvePythonRuntime,
   resolveToolPath,
+  ToolExecutionError,
 } from "./execution/index.js";
 export {
   hasDangerousCommandPattern,

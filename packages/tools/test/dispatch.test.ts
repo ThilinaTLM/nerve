@@ -15,6 +15,15 @@ describe("executeTool dispatch", () => {
       ["read", { path: "input.txt" }],
       ["write", { path: "out.txt", content: "ok" }],
       ["edit", { path: "input.txt", oldText: "beta", newText: "gamma" }],
+      [
+        "smart_edit",
+        {
+          path: "input.txt",
+          operations: [
+            { type: "replace_text", oldText: "gamma", newText: "delta" },
+          ],
+        },
+      ],
       ["ls", { path: "." }],
       ["find", { path: ".", pattern: "*.txt" }],
       ["grep", { path: ".", pattern: "alpha" }],

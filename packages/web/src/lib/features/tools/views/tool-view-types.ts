@@ -112,9 +112,11 @@ export type ToolView =
       path?: string;
       relPath?: string;
       replacements: number;
+      operationLabel?: "replacement" | "operation";
       additions: number;
       deletions: number;
       diff?: string;
+      dryRun?: boolean;
     }
   | {
       kind: "write";

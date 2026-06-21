@@ -124,9 +124,9 @@ export function toolPresentation(
     }
 
     case "edit": {
-      const meta: MetaItem[] = [
-        { text: plural(view.replacements, "replacement") },
-      ];
+      const label = view.operationLabel ?? "replacement";
+      const meta: MetaItem[] = [{ text: plural(view.replacements, label) }];
+      if (view.dryRun) meta.push({ text: "preview", tone: "info" });
       if (view.additions > 0)
         meta.push({ text: `+${view.additions}`, tone: "success" });
       if (view.deletions > 0)

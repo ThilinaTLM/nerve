@@ -44,11 +44,121 @@ const editParameters = Type.Object(
   { additionalProperties: false },
 );
 
+const smartEditOperationParameters = Type.Object(
+  {
+    type: Type.Union(
+      [
+        Type.Literal("replace_text"),
+        Type.Literal("insert_text"),
+        Type.Literal("replace_lines"),
+        Type.Literal("insert_lines"),
+        Type.Literal("apply_patch"),
+      ],
+      {
+        description:
+          "Operation kind: replace_text, insert_text, replace_lines, insert_lines, or apply_patch.",
+      },
+    ),
+    oldText: Type.Optional(
+      Type.String({
+        description: "replace_text only: text to find and replace.",
+      }),
+    ),
+    newText: Type.Optional(
+      Type.String({
+        description: "replace_text/replace_lines only: replacement text.",
+      }),
+    ),
+    anchor: Type.Optional(
+      Type.String({
+        description: "insert_text only: text anchor to insert around.",
+      }),
+    ),
+    position: Type.Optional(
+      Type.Union([Type.Literal("before"), Type.Literal("after")], {
+        description:
+          "insert_text/insert_lines only: insert before or after the target.",
+      }),
+    ),
+    text: Type.Optional(
+      Type.String({
+        description: "insert_text/insert_lines only: text to insert.",
+      }),
+    ),
+    startLine: Type.Optional(
+      Type.Number({
+        description: "replace_lines only: 1-based inclusive start line.",
+      }),
+    ),
+    endLine: Type.Optional(
+      Type.Number({
+        description: "replace_lines only: 1-based inclusive end line.",
+      }),
+    ),
+    line: Type.Optional(
+      Type.Number({ description: "insert_lines only: 1-based target line." }),
+    ),
+    patch: Type.Optional(
+      Type.String({
+        description: "apply_patch only: single-file unified diff patch.",
+      }),
+    ),
+    matchMode: Type.Optional(
+      Type.Union(
+        [
+          Type.Literal("exact"),
+          Type.Literal("trimmed"),
+          Type.Literal("whitespace"),
+        ],
+        {
+          description:
+            "replace_text/insert_text only. Default exact. trimmed tolerates trailing whitespace and smart punctuation; whitespace collapses whitespace runs.",
+        },
+      ),
+    ),
+    occurrence: Type.Optional(
+      Type.Number({
+        description:
+          "replace_text/insert_text only: optional 1-based match occurrence. If omitted, the match must be unique.",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const smartEditParameters = Type.Object(
+  {
+    path: Type.String({
+      description:
+        "Path to the existing file to smart edit (relative or absolute).",
+    }),
+    dryRun: Type.Optional(
+      Type.Boolean({
+        description:
+          "If true, validate operations and return the diff without writing the file (default false).",
+      }),
+    ),
+    operations: Type.Array(smartEditOperationParameters, {
+      minItems: 1,
+      description:
+        "One or more operations resolved against the original file. apply_patch must be the only operation.",
+    }),
+  },
+  { additionalProperties: false },
+);
+
 type EditParameters = Static<typeof editParameters>;
+type SmartEditParameters = Static<typeof smartEditParameters>;
 
 type LegacyEditParameters = EditParameters & {
   oldText?: unknown;
   newText?: unknown;
+};
+
+type SmartEditConvenienceParameters = SmartEditParameters & {
+  oldText?: unknown;
+  newText?: unknown;
+  patch?: unknown;
 };
 
 function prepareEditArguments(input: unknown): EditParameters {
@@ -74,6 +184,37 @@ function prepareEditArguments(input: unknown): EditParameters {
   }
 
   return args as EditParameters;
+}
+
+function prepareSmartEditArguments(input: unknown): SmartEditParameters {
+  if (!input || typeof input !== "object") return input as SmartEditParameters;
+  const args = {
+    ...(input as Record<string, unknown>),
+  } as SmartEditConvenienceParameters;
+
+  if (typeof args.operations === "string") {
+    try {
+      const parsed = JSON.parse(args.operations);
+      if (Array.isArray(parsed)) {
+        args.operations = parsed as SmartEditParameters["operations"];
+      }
+    } catch {
+      // Let schema validation report the invalid value.
+    }
+  }
+
+  if (!Array.isArray(args.operations)) {
+    if (typeof args.oldText === "string" && typeof args.newText === "string") {
+      args.operations = [
+        { type: "replace_text", oldText: args.oldText, newText: args.newText },
+      ];
+    } else if (typeof args.patch === "string") {
+      args.operations = [{ type: "apply_patch", patch: args.patch }];
+    }
+  }
+
+  const { oldText: _oldText, newText: _newText, patch: _patch, ...rest } = args;
+  return rest as SmartEditParameters;
 }
 
 const writeParameters = Type.Object(
@@ -191,6 +332,24 @@ export const filesystemToolDefinitions = [
     ],
     parameters: editParameters,
     prepareArguments: prepareEditArguments,
+    executionMode: "sequential",
+  },
+  {
+    name: "smart_edit",
+    label: "smart_edit",
+    description:
+      "Experimental smarter single-file editor. Supports explicit text replacement, anchor insertion, line/range edits, single-file unified patch application, dry-run previews, optional trimmed/whitespace matching, occurrence selection, and richer ambiguity diagnostics. Fails instead of guessing when matches are missing or ambiguous.",
+    promptSnippet:
+      "Make flexible single-file edits with explicit operations, dry-run previews, line/range edits, anchors, or single-file patches",
+    promptGuidelines: [
+      "Use edit for simple exact unique replacements; use smart_edit when exact edit is brittle, line/range edits are clearer, a dry-run preview is useful, or you need a single-file patch.",
+      'For smart_edit, prefer matchMode "exact". Use "trimmed" or "whitespace" only when exact text is impractical.',
+      "If smart_edit is ambiguous, do not guess; provide a more specific anchor/oldText, use a line range, or set an explicit occurrence.",
+      "Use smart_edit with dryRun: true for large or risky changes before applying.",
+      "smart_edit apply_patch is single-file only and must be the only operation.",
+    ],
+    parameters: smartEditParameters,
+    prepareArguments: prepareSmartEditArguments,
     executionMode: "sequential",
   },
   {

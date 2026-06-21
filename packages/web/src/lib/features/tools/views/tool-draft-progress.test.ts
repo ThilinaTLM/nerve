@@ -130,6 +130,31 @@ describe("summarizeToolDraft", () => {
     );
   });
 
+  it("uses progress snapshots for smart_edit drafts without raw args", () => {
+    const summary = summarizeToolDraft(
+      draft("smart_edit", {
+        progress: {
+          path: "src/live.ts",
+          operationCount: 2,
+          generatedLineCount: 6,
+          estimatedAdditions: 6,
+          estimatedDeletions: 4,
+          estimated: true,
+        },
+      }),
+    );
+
+    assert.equal(summary.kind, "edit");
+    assert.equal(summary.toolName, "smart_edit");
+    assert.equal(summary.path, "src/live.ts");
+    assert.equal(summary.operationCount, 2);
+    assert.equal(summary.generatedLineCount, 6);
+    assert.deepEqual(
+      summary.meta.map((item) => item.text),
+      ["2 operations", "+6", "-4"],
+    );
+  });
+
   it("hides edit draft chips until non-zero counts are known", () => {
     const summary = summarizeToolDraft(
       draft("edit", {
@@ -167,6 +192,33 @@ describe("summarizeToolDraft", () => {
     assert.deepEqual(
       summary.meta.map((item) => item.text),
       ["+2", "-2"],
+    );
+  });
+
+  it("uses final smart_edit args for operation and generated-line counts", () => {
+    const summary = summarizeToolDraft(
+      draft("smart_edit", {
+        args: {
+          path: "src/app.ts",
+          operations: [
+            { type: "insert_lines", line: 1, position: "before", text: "a\nb" },
+            { type: "replace_text", oldText: "old", newText: "new" },
+            {
+              type: "apply_patch",
+              patch: "@@ -1 +1,2 @@\n-old\n+new\n+extra\n",
+            },
+          ],
+        },
+        done: true,
+      }),
+    );
+
+    assert.equal(summary.toolName, "smart_edit");
+    assert.equal(summary.operationCount, 3);
+    assert.equal(summary.generatedLineCount, 5);
+    assert.deepEqual(
+      summary.meta.map((item) => item.text),
+      ["3 operations", "+5", "-2"],
     );
   });
 

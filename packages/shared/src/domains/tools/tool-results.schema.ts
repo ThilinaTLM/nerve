@@ -73,13 +73,52 @@ export type ProcessStreamsResultDetails = z.infer<
   typeof processStreamsResultDetailsSchema
 >;
 
-export const editResultDetailsSchema = z.object({
-  diff: z.string(),
-  firstChangedLine: z.number().optional(),
-  lineEnding: z.union([z.literal("\n"), z.literal("\r\n")]),
-  bom: z.boolean(),
-});
+export const editResultDetailsSchema = z
+  .object({
+    diff: z.string(),
+    firstChangedLine: z.number().optional(),
+    lineEnding: z.union([z.literal("\n"), z.literal("\r\n")]),
+    bom: z.boolean(),
+  })
+  .passthrough();
 export type EditResultDetails = z.infer<typeof editResultDetailsSchema>;
+
+export const smartEditOperationResultSchema = z
+  .object({
+    index: z.number().int().nonnegative(),
+    type: z.enum([
+      "replace_text",
+      "insert_text",
+      "replace_lines",
+      "insert_lines",
+      "apply_patch",
+    ]),
+    matchMode: z.enum(["exact", "trimmed", "whitespace"]).optional(),
+    occurrence: z.number().int().positive().optional(),
+    matchCount: z.number().int().nonnegative().optional(),
+    startLine: z.number().int().positive().optional(),
+    endLine: z.number().int().positive().optional(),
+    matchedBy: z.enum([
+      "unique",
+      "occurrence",
+      "line_range",
+      "line_insert",
+      "patch",
+    ]),
+  })
+  .passthrough();
+export type SmartEditOperationResult = z.infer<
+  typeof smartEditOperationResultSchema
+>;
+
+export const smartEditResultDetailsSchema = editResultDetailsSchema.extend({
+  dryRun: z.boolean(),
+  operationCount: z.number().int().nonnegative(),
+  operations: z.array(smartEditOperationResultSchema),
+});
+export type SmartEditResultDetails = z.infer<
+  typeof smartEditResultDetailsSchema
+>;
 
 export const bashResultDetailsSchema = z
   .object({

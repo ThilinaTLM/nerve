@@ -5,6 +5,7 @@ import { executeFind } from "./filesystem/find.js";
 import { executeLs } from "./filesystem/list.js";
 import { executeRead } from "./filesystem/read.js";
 import { executeGrep } from "./filesystem/search.js";
+import { executeSmartEdit } from "./filesystem/smart-edit.js";
 import { executeWrite } from "./filesystem/write.js";
 import { executePython } from "./python/python.js";
 import { executeBash } from "./shell/bash.js";
@@ -25,6 +26,8 @@ export async function executeTool(
       return executePython(args, context);
     case "edit":
       return executeEdit(args, context);
+    case "smart_edit":
+      return executeSmartEdit(args, context);
     case "write":
       return executeWrite(args, context);
     case "grep":
