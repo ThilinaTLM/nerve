@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { AgentRecord } from "@nerve/shared";
+import type { AgentRecord, ToolCallRecord } from "@nerve/shared";
 import { coreToolNameSchema, defaultSettings } from "@nerve/shared";
 import {
   allToolDefinitions,
@@ -497,7 +497,130 @@ describe("agent tool definitions", () => {
     );
     assert.match(rawLog, /Validation failed for tool edit/);
   });
+
+  it("terminalizes lingering running/requested tool calls when a run ends", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-reconcile-"));
+    const testAgent = agent("autonomous");
+    const { service, events } = buildToolService(home, testAgent);
+
+    const runId = "run_01H00000000000000000000000";
+    const otherRun = "run_01H0000000000000000000000Z";
+    service.toolCalls.set(
+      "tool_running",
+      toolRecord({ id: "tool_running", status: "running", runId }),
+    );
+    service.toolCalls.set(
+      "tool_requested",
+      toolRecord({ id: "tool_requested", status: "requested", runId }),
+    );
+    service.toolCalls.set(
+      "tool_pending",
+      toolRecord({ id: "tool_pending", status: "pending_approval", runId }),
+    );
+    service.toolCalls.set(
+      "tool_waiting",
+      toolRecord({ id: "tool_waiting", status: "waiting_for_user", runId }),
+    );
+    service.toolCalls.set(
+      "tool_completed",
+      toolRecord({ id: "tool_completed", status: "completed", runId }),
+    );
+    service.toolCalls.set(
+      "tool_other_run",
+      toolRecord({ id: "tool_other_run", status: "running", runId: otherRun }),
+    );
+
+    const terminated = await service.terminateNonTerminalToolCallsForRun(
+      runId,
+      "interrupted",
+    );
+
+    assert.deepEqual(terminated.map((toolCall) => toolCall.id).sort(), [
+      "tool_requested",
+      "tool_running",
+    ]);
+    for (const toolCall of terminated) {
+      assert.equal(toolCall.status, "error");
+      assert.equal(toolCall.error, "interrupted");
+    }
+    assert.equal(service.getToolCall("tool_running").status, "error");
+    assert.equal(service.getToolCall("tool_requested").status, "error");
+    // Intentional pauses and already-terminal/other-run calls are untouched.
+    assert.equal(
+      service.getToolCall("tool_pending").status,
+      "pending_approval",
+    );
+    assert.equal(
+      service.getToolCall("tool_waiting").status,
+      "waiting_for_user",
+    );
+    assert.equal(service.getToolCall("tool_completed").status, "completed");
+    assert.equal(service.getToolCall("tool_other_run").status, "running");
+    const updates = events.filter(
+      (event) => event.type === "conversation.tool_call.updated",
+    );
+    assert.equal(updates.length, 2);
+  });
 });
+
+function buildToolService(home: string, testAgent: AgentRecord) {
+  const events: Array<{ type: string; data: unknown }> = [];
+  const service = new ToolService(
+    {
+      paths: storagePaths(home),
+      settings: defaultSettings,
+      localToken: "test",
+    },
+    {
+      publish: async (type: string, data: unknown) =>
+        events.push({ type, data }),
+    } as never,
+    { upsertToolCall: () => undefined } as never,
+    {} as never,
+    {
+      runtimeForProject: async () => undefined,
+      isAvailableForProject: async () => false,
+      statusSnapshot: () => ({
+        available: false,
+        source: "unavailable",
+        error: "not used",
+      }),
+      refresh: async () => ({
+        available: false,
+        source: "unavailable",
+        error: "not used",
+      }),
+    } as never,
+    async () => {
+      throw new Error("not used");
+    },
+    () => testAgent,
+    async () => {
+      throw new Error("not used");
+    },
+    async () => undefined,
+    {} as never,
+    async () => testAgent,
+    {} as never,
+  );
+  return { service, events };
+}
+
+function toolRecord(
+  overrides: Partial<ToolCallRecord> & Pick<ToolCallRecord, "id" | "status">,
+): ToolCallRecord {
+  return {
+    agentId: "agent_01HN0000000000000000000000",
+    conversationId: "conv_01HN0000000000000000000000",
+    projectId: "proj_01HN0000000000000000000000",
+    toolName: "bash",
+    risk: "command",
+    args: {},
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
 
 function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {
   return {

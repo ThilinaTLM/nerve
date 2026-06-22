@@ -1,6 +1,7 @@
 import type { EventEnvelope } from "@nerve/shared";
 import type { EventBus } from "../../../infrastructure/events/event-bus.js";
 import type { ApplicationLogger } from "../../../logging.js";
+import type { ToolService } from "../../tools/tool-service.js";
 
 const startedType = "conversation.run.started";
 const terminalTypes = new Set([
@@ -35,7 +36,11 @@ function stringField(
  */
 export async function recoverInterruptedRuns(
   events: EventEnvelope[],
-  deps: { events: EventBus; logger: ApplicationLogger },
+  deps: {
+    events: EventBus;
+    logger: ApplicationLogger;
+    tools: Pick<ToolService, "terminateNonTerminalToolCallsForRun">;
+  },
 ): Promise<number> {
   const active = new Map<string, RunRef>();
   for (const event of events) {
@@ -69,6 +74,10 @@ export async function recoverInterruptedRuns(
       interrupted: true,
       failedAt,
     });
+    await deps.tools.terminateNonTerminalToolCallsForRun(
+      run.runId,
+      "Tool execution was interrupted because the Nerve daemon restarted.",
+    );
   }
 
   await deps.logger.warn("Recovered interrupted agent runs after restart", {

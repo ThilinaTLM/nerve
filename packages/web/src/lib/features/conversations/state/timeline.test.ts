@@ -450,6 +450,30 @@ describe("buildConversationTimeline", () => {
     assert.deepEqual(keys(timeline), ["entry_user"]);
   });
 
+  it("does not pin a stale running tool call from a finished run during an active run", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Run tools" },
+    ];
+    const toolCalls = [
+      toolCall("tool_stale", "2026-01-01T00:00:01.000Z", "bash", undefined, {
+        runId: "run_old",
+        status: "running",
+      }),
+      toolCall("tool_active", "2026-01-01T00:00:02.000Z", "bash", undefined, {
+        runId: "run_active",
+        status: "running",
+      }),
+    ];
+
+    const timeline = buildConversationTimeline(
+      transcript,
+      toolCalls,
+      liveState({ runId: "run_active" }),
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user", "tool_active"]);
+  });
+
   it("keeps live candidates scoped to active-run and live-output tools", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Run tools" },

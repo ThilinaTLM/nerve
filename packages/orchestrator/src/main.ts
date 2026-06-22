@@ -101,6 +101,7 @@ async function main() {
   await recoverInterruptedRuns(persistedEvents, {
     events: state.events,
     logger: state.logger,
+    tools: state.registry.tools,
   }).catch((error) =>
     state.logger.warn("Interrupted run recovery failed", { error }),
   );

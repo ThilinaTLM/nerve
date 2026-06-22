@@ -51,6 +51,13 @@ describe("recoverInterruptedRuns", () => {
     bus.subscribe((evt) => {
       if (evt.type === "conversation.run.failed") failed.push(evt);
     });
+    const terminatedRunIds: string[] = [];
+    const tools = {
+      terminateNonTerminalToolCallsForRun: async (runId: string) => {
+        terminatedRunIds.push(runId);
+        return [];
+      },
+    };
 
     const events: EventEnvelope[] = [
       event(1, "conversation.run.started", {
@@ -76,6 +83,7 @@ describe("recoverInterruptedRuns", () => {
     const recovered = await recoverInterruptedRuns(events, {
       events: bus,
       logger,
+      tools,
     });
 
     assert.equal(recovered, 1);
@@ -85,6 +93,7 @@ describe("recoverInterruptedRuns", () => {
     assert.equal(data.conversationId, "conv_b");
     assert.equal(data.aborted, true);
     assert.equal(data.interrupted, true);
+    assert.deepEqual(terminatedRunIds, ["run_stuck"]);
   });
 
   it("does nothing when all runs already reached a terminal state", async () => {
@@ -101,10 +110,18 @@ describe("recoverInterruptedRuns", () => {
       event(2, "conversation.run.failed", { runId: "run_1" }),
     ];
 
+    const terminatedRunIds: string[] = [];
     const recovered = await recoverInterruptedRuns(events, {
       events: bus,
       logger,
+      tools: {
+        terminateNonTerminalToolCallsForRun: async (runId: string) => {
+          terminatedRunIds.push(runId);
+          return [];
+        },
+      },
     });
     assert.equal(recovered, 0);
+    assert.deepEqual(terminatedRunIds, []);
   });
 });

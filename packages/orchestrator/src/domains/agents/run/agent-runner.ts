@@ -768,6 +768,7 @@ export class AgentRunner {
             )
           : undefined;
         this.deps.state.conversationRuntime.failRun(runId);
+        await this.terminateRunToolCalls(runId);
         await this.deps.events.publish("conversation.run.failed", {
           agentId: agent.id,
           projectId: agent.projectId,
@@ -901,6 +902,7 @@ export class AgentRunner {
       if (latest)
         await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
       this.deps.state.conversationRuntime.failRun(runId);
+      await this.terminateRunToolCalls(runId);
       await this.deps.events.publish("conversation.run.failed", {
         agentId: agent.id,
         projectId: agent.projectId,
@@ -923,6 +925,20 @@ export class AgentRunner {
         },
       );
       throw error;
+    }
+  }
+
+  private async terminateRunToolCalls(
+    runId: string,
+    message = "Tool execution was interrupted because the agent run ended.",
+  ): Promise<void> {
+    try {
+      await this.deps.tools.terminateNonTerminalToolCallsForRun(runId, message);
+    } catch (error) {
+      await this.deps.logger.warn("Failed to terminate run tool calls", {
+        runId,
+        error,
+      });
     }
   }
 

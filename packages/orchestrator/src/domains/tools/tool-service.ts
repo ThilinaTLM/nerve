@@ -463,6 +463,49 @@ export class ToolService {
     return toolCall;
   }
 
+  /**
+   * Terminalize tool calls left in a non-terminal *execution* state when a run
+   * ends abnormally (aborted/failed/interrupted). Only `running` and
+   * `requested` calls are reconciled; `pending_approval` and `waiting_for_user`
+   * are intentional pauses resumed via approval / suspension flows and are left
+   * untouched.
+   */
+  async terminateNonTerminalToolCallsForRun(
+    runId: string,
+    errorMessage: string,
+  ): Promise<ToolCallRecord[]> {
+    if (!runId) return [];
+    const stale = this.toolCallRepository
+      .list()
+      .filter(
+        (toolCall) =>
+          toolCall.runId === runId &&
+          (toolCall.status === "running" || toolCall.status === "requested"),
+      );
+    const terminated: ToolCallRecord[] = [];
+    for (const toolCall of stale) {
+      const failed = await this.updateToolCall(toolCall.id, {
+        status: "error",
+        error: errorMessage,
+        result: {
+          content: errorMessage,
+          contentBlocks: [{ type: "text", text: errorMessage }],
+        },
+      });
+      await this.publishToolCallUpdated(failed);
+      await this.logger?.warn("Tool call terminated after run ended", {
+        toolCallId: failed.id,
+        agentId: failed.agentId,
+        conversationId: failed.conversationId,
+        projectId: failed.projectId,
+        runId: failed.runId,
+        context: { toolName: failed.toolName },
+      });
+      terminated.push(failed);
+    }
+    return terminated;
+  }
+
   async grantApproval(
     approvalId: string,
     note?: string,

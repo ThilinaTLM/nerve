@@ -104,11 +104,15 @@ function shouldAppendUnanchoredToolCall(
   liveOutput: LiveToolOutput | undefined,
   live: ConversationLiveState | undefined,
 ): boolean {
-  return (
-    isLiveToolCall(toolCall) ||
-    Boolean(liveOutput) ||
-    Boolean(live?.runId && toolCall.runId === live.runId)
-  );
+  // Tools actively streaming output always belong in the live tail.
+  if (liveOutput) return true;
+  // During an active run, only that run's tool calls belong in the live tail; a
+  // stale live-status call from a finished run must not be pinned below the
+  // current run's streaming content.
+  if (live?.runId) return toolCall.runId === live.runId;
+  // No active run: surface genuinely live tool calls. Stale ones are
+  // terminalized by the orchestrator so they are no longer live-status here.
+  return isLiveToolCall(toolCall);
 }
 
 function liveOutputFor(
