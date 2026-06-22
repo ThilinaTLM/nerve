@@ -82,7 +82,7 @@ export type ProcessStreamsResultDetails = z.infer<
   typeof processStreamsResultDetailsSchema
 >;
 
-export const editResultDetailsSchema = z
+const baseEditResultDetailsSchema = z
   .object({
     diff: z.string(),
     firstChangedLine: z.number().optional(),
@@ -90,9 +90,13 @@ export const editResultDetailsSchema = z
     bom: z.boolean(),
   })
   .passthrough();
-export type EditResultDetails = z.infer<typeof editResultDetailsSchema>;
 
-export const smartEditOperationResultSchema = z
+export const legacyEditResultDetailsSchema = baseEditResultDetailsSchema;
+export type LegacyEditResultDetails = z.infer<
+  typeof legacyEditResultDetailsSchema
+>;
+
+export const editOperationResultSchema = z
   .object({
     index: z.number().int().nonnegative(),
     type: z.enum([
@@ -116,17 +120,16 @@ export const smartEditOperationResultSchema = z
     ]),
   })
   .passthrough();
-export type SmartEditOperationResult = z.infer<
-  typeof smartEditOperationResultSchema
->;
+export type EditOperationResult = z.infer<typeof editOperationResultSchema>;
 
-export const smartEditResultDetailsSchema = editResultDetailsSchema.extend({
-  dryRun: z.boolean(),
-  operationCount: z.number().int().nonnegative(),
-  operations: z.array(smartEditOperationResultSchema),
-});
-export type SmartEditResultDetails = z.infer<
-  typeof smartEditResultDetailsSchema
+export const editOperationResultDetailsSchema =
+  baseEditResultDetailsSchema.extend({
+    dryRun: z.boolean(),
+    operationCount: z.number().int().nonnegative(),
+    operations: z.array(editOperationResultSchema),
+  });
+export type EditOperationResultDetails = z.infer<
+  typeof editOperationResultDetailsSchema
 >;
 
 export const bashResultDetailsSchema = z

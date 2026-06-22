@@ -47,6 +47,7 @@ export function extractFileOpsFromMessage(
         fileOps.written.add(path);
         break;
       case "edit":
+      case "legacy_edit":
         fileOps.edited.add(path);
         break;
     }

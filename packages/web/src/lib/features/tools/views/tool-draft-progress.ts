@@ -180,7 +180,7 @@ function summarizeWriteDraft(
   };
 }
 
-type EditDraftStats = {
+type LegacyEditDraftStats = {
   replacements: number;
   generatedLines: number;
   estimatedAdditions?: number;
@@ -188,9 +188,9 @@ type EditDraftStats = {
   estimated: boolean;
 };
 
-function finalEditStats(
+function finalLegacyEditStats(
   args: Record<string, unknown>,
-): EditDraftStats | undefined {
+): LegacyEditDraftStats | undefined {
   if (!Array.isArray(args.edits)) return undefined;
   let generatedLines = 0;
   let deletedLines = 0;
@@ -208,9 +208,9 @@ function finalEditStats(
   };
 }
 
-function progressEditStats(
+function progressLegacyEditStats(
   draft: LiveToolCallDraft,
-): EditDraftStats | undefined {
+): LegacyEditDraftStats | undefined {
   const progress = draft.progress;
   if (!progress) return undefined;
   return {
@@ -222,7 +222,7 @@ function progressEditStats(
   };
 }
 
-function partialEditStats(argsText: string): EditDraftStats {
+function partialLegacyEditStats(argsText: string): LegacyEditDraftStats {
   const oldTextLines = lineCountsForJsonStringValues(argsText, "oldText");
   const newTextLines = lineCountsForJsonStringValues(argsText, "newText");
   const replacements = Math.max(newTextLines.length, oldTextLines.length);
@@ -235,7 +235,7 @@ function partialEditStats(argsText: string): EditDraftStats {
   };
 }
 
-type SmartEditDraftStats = {
+type EditDraftStats = {
   operations: number;
   generatedLines: number;
   estimatedAdditions?: number;
@@ -243,7 +243,7 @@ type SmartEditDraftStats = {
   estimated: boolean;
 };
 
-function isSmartEditOperationType(value: string): boolean {
+function isEditOperationType(value: string): boolean {
   return (
     value === "replace_text" ||
     value === "insert_text" ||
@@ -266,10 +266,10 @@ function patchLineStats(patch: string): {
   return { additions, deletions };
 }
 
-function smartEditStatsForOperations(
+function editStatsForOperations(
   operations: unknown[],
   estimated: boolean,
-): SmartEditDraftStats {
+): EditDraftStats {
   let additions = 0;
   let deletions = 0;
   for (const operation of operations) {
@@ -293,16 +293,16 @@ function smartEditStatsForOperations(
   };
 }
 
-function finalSmartEditStats(
+function finalEditStats(
   args: Record<string, unknown>,
-): SmartEditDraftStats | undefined {
+): EditDraftStats | undefined {
   if (!Array.isArray(args.operations)) return undefined;
-  return smartEditStatsForOperations(args.operations, false);
+  return editStatsForOperations(args.operations, false);
 }
 
-function progressSmartEditStats(
+function progressEditStats(
   draft: LiveToolCallDraft,
-): SmartEditDraftStats | undefined {
+): EditDraftStats | undefined {
   const progress = draft.progress;
   if (!progress) return undefined;
   return {
@@ -314,10 +314,10 @@ function progressSmartEditStats(
   };
 }
 
-function partialSmartEditStats(argsText: string): SmartEditDraftStats {
+function partialEditStats(argsText: string): EditDraftStats {
   const types = extractJsonStringValues(argsText, "type", {
     maxChars: 64,
-  }).filter(isSmartEditOperationType);
+  }).filter(isEditOperationType);
   const oldTextLines = lineCountsForJsonStringValues(argsText, "oldText");
   const newTextLines = lineCountsForJsonStringValues(argsText, "newText");
   const insertedTextLines = lineCountsForJsonStringValues(argsText, "text");
@@ -350,16 +350,16 @@ function partialSmartEditStats(argsText: string): SmartEditDraftStats {
   };
 }
 
-function summarizeEditDraft(
+function summarizeLegacyEditDraft(
   draft: LiveToolCallDraft,
   cwd?: string,
 ): ToolDraftSummary {
   const args = asRecord(draft.args);
-  const finalStats = finalEditStats(args);
+  const finalStats = finalLegacyEditStats(args);
   const partialStats = draft.argsText
-    ? partialEditStats(draft.argsText)
+    ? partialLegacyEditStats(draft.argsText)
     : undefined;
-  const progressStats = progressEditStats(draft);
+  const progressStats = progressLegacyEditStats(draft);
   const stats = finalStats ??
     partialStats ??
     progressStats ?? {
@@ -377,7 +377,7 @@ function summarizeEditDraft(
   }
   return {
     kind: "edit",
-    toolName: "edit",
+    toolName: "legacy_edit",
     path: firstPathFromDraft(draft, cwd),
     statusText: draft.done ? "Submitting" : "Generating",
     meta,
@@ -390,16 +390,16 @@ function summarizeEditDraft(
   };
 }
 
-function summarizeSmartEditDraft(
+function summarizeEditDraft(
   draft: LiveToolCallDraft,
   cwd?: string,
 ): ToolDraftSummary {
   const args = asRecord(draft.args);
-  const finalStats = finalSmartEditStats(args);
+  const finalStats = finalEditStats(args);
   const partialStats = draft.argsText
-    ? partialSmartEditStats(draft.argsText)
+    ? partialEditStats(draft.argsText)
     : undefined;
-  const progressStats = progressSmartEditStats(draft);
+  const progressStats = progressEditStats(draft);
   const stats = finalStats ??
     partialStats ??
     progressStats ?? {
@@ -419,7 +419,7 @@ function summarizeSmartEditDraft(
   }
   return {
     kind: "edit",
-    toolName: "smart_edit",
+    toolName: "edit",
     path: firstPathFromDraft(draft, cwd),
     statusText: draft.done ? "Submitting" : "Generating",
     meta,
@@ -479,8 +479,9 @@ export function summarizeToolDraft(
 ): ToolDraftSummary {
   if (draft.toolName === "write") return summarizeWriteDraft(draft, cwd);
   if (draft.toolName === "edit") return summarizeEditDraft(draft, cwd);
-  if (draft.toolName === "smart_edit")
-    return summarizeSmartEditDraft(draft, cwd);
+  if (draft.toolName === "legacy_edit") {
+    return summarizeLegacyEditDraft(draft, cwd);
+  }
   if (draft.toolName === "python") return summarizePythonDraft(draft, cwd);
   const toolName = draft.toolName ?? "tool";
   return {

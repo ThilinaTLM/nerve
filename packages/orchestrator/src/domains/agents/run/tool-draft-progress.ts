@@ -1,6 +1,6 @@
 import type { ConversationLiveToolDraftProgressSnapshot } from "@nerve/shared";
 
-export type ToolDraftProgressToolName = "write" | "edit" | "smart_edit";
+export type ToolDraftProgressToolName = "write" | "edit" | "legacy_edit";
 
 type TargetProperty =
   | "path"
@@ -81,18 +81,18 @@ function targetFor(
   if (property === "path") return "path";
   if (toolName === "write" && property === "content") return "content";
   if (
-    (toolName === "edit" || toolName === "smart_edit") &&
+    (toolName === "edit" || toolName === "legacy_edit") &&
     property === "oldText"
   )
     return "oldText";
   if (
-    (toolName === "edit" || toolName === "smart_edit") &&
+    (toolName === "edit" || toolName === "legacy_edit") &&
     property === "newText"
   )
     return "newText";
-  if (toolName === "smart_edit" && property === "text") return "text";
-  if (toolName === "smart_edit" && property === "patch") return "patch";
-  if (toolName === "smart_edit" && property === "type") {
+  if (toolName === "edit" && property === "text") return "text";
+  if (toolName === "edit" && property === "patch") return "patch";
+  if (toolName === "edit" && property === "type") {
     return "operationType";
   }
   return undefined;
@@ -211,11 +211,11 @@ export class ToolDraftProgressAccumulator {
     return {
       path,
       replacementCount:
-        this.toolName === "edit"
+        this.toolName === "legacy_edit"
           ? Math.max(this.oldTextCount, this.newTextCount)
           : undefined,
       operationCount:
-        this.toolName === "smart_edit" ? this.operationTypeCount : undefined,
+        this.toolName === "edit" ? this.operationTypeCount : undefined,
       generatedLineCount,
       estimatedAdditions: generatedLineCount,
       estimatedDeletions: deletedLineCount,
@@ -387,14 +387,14 @@ export class ToolDraftProgressAccumulator {
         this.activePatchMetric = undefined;
         break;
       case "operationType":
-        if (isSmartEditOperationType(active.text)) this.operationTypeCount += 1;
+        if (isEditOperationType(active.text)) this.operationTypeCount += 1;
         break;
     }
     this.activeValue = undefined;
   }
 }
 
-function isSmartEditOperationType(value: string): boolean {
+function isEditOperationType(value: string): boolean {
   return (
     value === "replace_text" ||
     value === "insert_text" ||
@@ -417,7 +417,7 @@ export function createToolDraftProgressAccumulator(
   if (
     toolName === "write" ||
     toolName === "edit" ||
-    toolName === "smart_edit"
+    toolName === "legacy_edit"
   ) {
     return new ToolDraftProgressAccumulator(toolName);
   }
@@ -440,7 +440,7 @@ export function finalToolDraftProgress(
     return hasProgress(snapshot) ? snapshot : undefined;
   }
 
-  if (toolName === "edit" && Array.isArray(args.edits)) {
+  if (toolName === "legacy_edit" && Array.isArray(args.edits)) {
     let generatedLineCount = 0;
     let deletedLineCount = 0;
     for (const edit of args.edits) {
@@ -459,10 +459,10 @@ export function finalToolDraftProgress(
     return hasProgress(snapshot) ? snapshot : undefined;
   }
 
-  if (toolName !== "smart_edit" || !Array.isArray(args.operations)) {
+  if (toolName !== "edit" || !Array.isArray(args.operations)) {
     return undefined;
   }
-  const stats = smartEditOperationStats(args.operations);
+  const stats = editOperationStats(args.operations);
   const snapshot: ConversationLiveToolDraftProgressSnapshot = {
     path: stringField(args.path),
     operationCount: args.operations.length,
@@ -474,7 +474,7 @@ export function finalToolDraftProgress(
   return hasProgress(snapshot) ? snapshot : undefined;
 }
 
-function smartEditOperationStats(operations: unknown[]): {
+function editOperationStats(operations: unknown[]): {
   additions: number;
   deletions: number;
 } {

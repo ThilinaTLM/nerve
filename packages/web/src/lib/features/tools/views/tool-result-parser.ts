@@ -1,10 +1,10 @@
 import {
   askUserResultSchema,
   bashResultDetailsSchema,
-  editResultDetailsSchema,
+  editOperationResultDetailsSchema,
   exploreResultSchema,
+  legacyEditResultDetailsSchema,
   pythonResultDetailsSchema,
-  smartEditResultDetailsSchema,
   taskActionResultSchema,
   taskListResultSchema,
   taskLogsResultSchema,
@@ -204,26 +204,9 @@ export function parseToolView(
     case "edit": {
       const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
       const relPath = relativePath(path, cwd);
-      const edits = Array.isArray(args.edits) ? args.edits.length : 0;
-      const details = editResultDetailsSchema.safeParse(result?.details);
-      const diff = details.success ? details.data.diff : undefined;
-      const { additions, deletions } = diffStats(diff);
-      return {
-        kind: "edit",
-        path,
-        relPath,
-        replacements: edits,
-        operationLabel: "replacement",
-        additions,
-        deletions,
-        diff,
-      };
-    }
-
-    case "smart_edit": {
-      const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
-      const relPath = relativePath(path, cwd);
-      const details = smartEditResultDetailsSchema.safeParse(result?.details);
+      const details = editOperationResultDetailsSchema.safeParse(
+        result?.details,
+      );
       const operations = details.success
         ? details.data.operationCount
         : Array.isArray(args.operations)
@@ -241,6 +224,25 @@ export function parseToolView(
         deletions,
         diff,
         dryRun: details.success ? details.data.dryRun : undefined,
+      };
+    }
+
+    case "legacy_edit": {
+      const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
+      const relPath = relativePath(path, cwd);
+      const edits = Array.isArray(args.edits) ? args.edits.length : 0;
+      const details = legacyEditResultDetailsSchema.safeParse(result?.details);
+      const diff = details.success ? details.data.diff : undefined;
+      const { additions, deletions } = diffStats(diff);
+      return {
+        kind: "edit",
+        path,
+        relPath,
+        replacements: edits,
+        operationLabel: "replacement",
+        additions,
+        deletions,
+        diff,
       };
     }
 

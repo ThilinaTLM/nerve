@@ -86,9 +86,9 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("counts partial edit replacements and generated lines", () => {
+  it("counts partial legacy_edit replacements and generated lines", () => {
     const summary = summarizeToolDraft(
-      draft("edit", {
+      draft("legacy_edit", {
         argsText:
           '{"path":"src/app.ts","edits":[{"oldText":"a","newText":"b\\nc"},{"oldText":"d","newText":"e',
       }),
@@ -105,9 +105,9 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("uses progress snapshots for edit drafts without raw args", () => {
+  it("uses progress snapshots for legacy_edit drafts without raw args", () => {
     const summary = summarizeToolDraft(
-      draft("edit", {
+      draft("legacy_edit", {
         progress: {
           path: "src/live.ts",
           replacementCount: 3,
@@ -130,9 +130,9 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("uses progress snapshots for smart_edit drafts without raw args", () => {
+  it("uses progress snapshots for edit operation drafts without raw args", () => {
     const summary = summarizeToolDraft(
-      draft("smart_edit", {
+      draft("edit", {
         progress: {
           path: "src/live.ts",
           operationCount: 2,
@@ -145,7 +145,7 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "edit");
-    assert.equal(summary.toolName, "smart_edit");
+    assert.equal(summary.toolName, "edit");
     assert.equal(summary.path, "src/live.ts");
     assert.equal(summary.operationCount, 2);
     assert.equal(summary.generatedLineCount, 6);
@@ -155,9 +155,9 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("hides edit draft chips until non-zero counts are known", () => {
+  it("hides legacy_edit draft chips until non-zero counts are known", () => {
     const summary = summarizeToolDraft(
-      draft("edit", {
+      draft("legacy_edit", {
         progress: {
           path: "src/live.ts",
           replacementCount: 0,
@@ -173,9 +173,9 @@ describe("summarizeToolDraft", () => {
     assert.deepEqual(summary.meta, []);
   });
 
-  it("uses final edit args for exact replacement and generated-line counts", () => {
+  it("uses final legacy_edit args for exact replacement and generated-line counts", () => {
     const summary = summarizeToolDraft(
-      draft("edit", {
+      draft("legacy_edit", {
         args: {
           path: "src/app.ts",
           edits: [
@@ -195,9 +195,9 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("uses final smart_edit args for operation and generated-line counts", () => {
+  it("uses final edit operation args for operation and generated-line counts", () => {
     const summary = summarizeToolDraft(
-      draft("smart_edit", {
+      draft("edit", {
         args: {
           path: "src/app.ts",
           operations: [
@@ -213,7 +213,7 @@ describe("summarizeToolDraft", () => {
       }),
     );
 
-    assert.equal(summary.toolName, "smart_edit");
+    assert.equal(summary.toolName, "edit");
     assert.equal(summary.operationCount, 3);
     assert.equal(summary.generatedLineCount, 5);
     assert.deepEqual(

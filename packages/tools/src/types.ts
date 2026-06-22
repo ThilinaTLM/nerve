@@ -47,17 +47,17 @@ export type WriteToolArgs = ToolPathArgs & {
 };
 
 export type EditToolArgs = ToolPathArgs & {
-  edits?: unknown;
-  oldText?: unknown;
-  newText?: unknown;
-};
-
-export type SmartEditToolArgs = ToolPathArgs & {
   dryRun?: unknown;
   operations?: unknown;
   oldText?: unknown;
   newText?: unknown;
   patch?: unknown;
+};
+
+export type LegacyEditToolArgs = ToolPathArgs & {
+  edits?: unknown;
+  oldText?: unknown;
+  newText?: unknown;
 };
 
 export type BashToolArgs = {

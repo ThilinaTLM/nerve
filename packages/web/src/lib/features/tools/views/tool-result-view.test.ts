@@ -285,10 +285,10 @@ describe("parseToolView", () => {
     assert.equal(view.output, "out\nerr\n");
   });
 
-  it("parses edit diff, replacement count, and +/- stats", () => {
+  it("parses legacy_edit diff, replacement count, and +/- stats", () => {
     const view = parseToolView(
       toolCall(
-        "edit",
+        "legacy_edit",
         {
           path: "src/x.ts",
           edits: [
@@ -314,10 +314,10 @@ describe("parseToolView", () => {
     assert.equal(view.deletions, 1);
   });
 
-  it("parses smart_edit diff, operation count, dry-run flag, and +/- stats", () => {
+  it("parses edit diff, operation count, dry-run flag, and +/- stats", () => {
     const view = parseToolView(
       toolCall(
-        "smart_edit",
+        "edit",
         {
           path: "src/x.ts",
           operations: [{ type: "replace_text", oldText: "a", newText: "b" }],
@@ -1113,9 +1113,9 @@ describe("toolPresentation", () => {
     assert.match(p.collapse?.expandLabel ?? "", /Show 4 more lines/);
   });
 
-  it("emits +/- chips for edit", () => {
+  it("emits +/- chips for legacy_edit", () => {
     const p = present(
-      "edit",
+      "legacy_edit",
       { path: "x.ts", edits: [{ oldText: "a", newText: "b" }] },
       {
         path: `${CWD}/x.ts`,
@@ -1126,9 +1126,9 @@ describe("toolPresentation", () => {
     assert.ok(p.meta.some((m) => m.text === "−1" && m.tone === "error"));
   });
 
-  it("emits operation and preview chips for smart_edit dry runs", () => {
+  it("emits operation and preview chips for edit dry runs", () => {
     const p = present(
-      "smart_edit",
+      "edit",
       {
         path: "x.ts",
         operations: [{ type: "replace_text", oldText: "a", newText: "b" }],

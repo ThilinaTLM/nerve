@@ -22,16 +22,16 @@ export {
 } from "./common/process-result.js";
 export { ToolExecutionError } from "./common/tool-error.js";
 export { executeTool } from "./core-dispatch.js";
-export { executeEdit, normalizeEditOperations } from "./filesystem/edit.js";
+export { executeEdit, normalizeEditArgs } from "./filesystem/edit.js";
 export { executeFind } from "./filesystem/find.js";
+export {
+  executeLegacyEdit,
+  normalizeLegacyEditOperations,
+} from "./filesystem/legacy-edit.js";
 export { executeLs } from "./filesystem/list.js";
 export { resolveToolPath } from "./filesystem/path.js";
 export { executeRead } from "./filesystem/read.js";
 export { executeGrep } from "./filesystem/search.js";
-export {
-  executeSmartEdit,
-  normalizeSmartEditArgs,
-} from "./filesystem/smart-edit.js";
 export { executeWrite } from "./filesystem/write.js";
 export { executePython } from "./python/python.js";
 export type { PythonRuntime, PythonRuntimeStatus } from "./python/runtime.js";

@@ -14,15 +14,18 @@ describe("executeTool dispatch", () => {
     const cases: Array<[ToolName, Record<string, unknown>]> = [
       ["read", { path: "input.txt" }],
       ["write", { path: "out.txt", content: "ok" }],
-      ["edit", { path: "input.txt", oldText: "beta", newText: "gamma" }],
       [
-        "smart_edit",
+        "edit",
         {
           path: "input.txt",
           operations: [
-            { type: "replace_text", oldText: "gamma", newText: "delta" },
+            { type: "replace_text", oldText: "beta", newText: "gamma" },
           ],
         },
+      ],
+      [
+        "legacy_edit",
+        { path: "input.txt", oldText: "gamma", newText: "delta" },
       ],
       ["ls", { path: "." }],
       ["find", { path: ".", pattern: "*.txt" }],

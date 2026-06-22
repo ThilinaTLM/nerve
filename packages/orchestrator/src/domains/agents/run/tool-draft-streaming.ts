@@ -1,14 +1,16 @@
-const nonStreamingToolDrafts = new Set(["write", "edit", "smart_edit"]);
-const progressStreamingToolDrafts = new Set(["write", "edit", "smart_edit"]);
+const nonStreamingToolDrafts = new Set(["write", "edit", "legacy_edit"]);
+const progressStreamingToolDrafts = new Set(["write", "edit", "legacy_edit"]);
 
 export function shouldStreamToolDraftArguments(
   toolName: string | undefined,
 ): boolean {
-  return Boolean(toolName && !nonStreamingToolDrafts.has(toolName));
+  if (!toolName) return false;
+  return !nonStreamingToolDrafts.has(toolName);
 }
 
 export function shouldPublishToolDraftProgress(
   toolName: string | undefined,
 ): boolean {
-  return Boolean(toolName && progressStreamingToolDrafts.has(toolName));
+  if (!toolName) return false;
+  return progressStreamingToolDrafts.has(toolName);
 }

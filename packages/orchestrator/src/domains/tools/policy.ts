@@ -264,7 +264,7 @@ function evaluatePlanningModePolicy(
 
   if (
     toolName === "edit" ||
-    toolName === "smart_edit" ||
+    toolName === "legacy_edit" ||
     toolName === "write"
   ) {
     let targetPath: string;

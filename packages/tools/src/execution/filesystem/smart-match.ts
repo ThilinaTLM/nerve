@@ -49,7 +49,7 @@ export function resolveTextMatch(options: {
       options.matchMode,
     );
     throw new ToolExecutionError(
-      "SMART_EDIT_MATCH_NOT_FOUND",
+      "EDIT_MATCH_NOT_FOUND",
       missingMatchMessage(options, candidates),
       {
         operationIndex: options.operationIndex,
@@ -67,7 +67,7 @@ export function resolveTextMatch(options: {
     const selected = matches[options.occurrence - 1];
     if (!selected) {
       throw new ToolExecutionError(
-        "SMART_EDIT_OCCURRENCE_OUT_OF_RANGE",
+        "EDIT_OCCURRENCE_OUT_OF_RANGE",
         `operations[${options.operationIndex}] ${options.operationType} requested occurrence ${options.occurrence}, but ${matches.length} match(es) were found in ${options.path}.`,
         {
           operationIndex: options.operationIndex,
@@ -86,7 +86,7 @@ export function resolveTextMatch(options: {
 
   if (matches.length > 1) {
     throw new ToolExecutionError(
-      "SMART_EDIT_MATCH_AMBIGUOUS",
+      "EDIT_MATCH_AMBIGUOUS",
       ambiguousMatchMessage(options, matches),
       {
         operationIndex: options.operationIndex,
@@ -104,7 +104,7 @@ export function resolveTextMatch(options: {
   const selected = matches[0];
   if (!selected) {
     throw new ToolExecutionError(
-      "SMART_EDIT_MATCH_NOT_FOUND",
+      "EDIT_MATCH_NOT_FOUND",
       `operations[${options.operationIndex}] ${options.operationType} ${options.fieldName} was not found in ${options.path}.`,
       {
         operationIndex: options.operationIndex,

@@ -43,7 +43,7 @@ const replaceEditParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const editParameters = Type.Object(
+const legacyEditParameters = Type.Object(
   {
     path: Type.String({
       description: "Path to the file to edit (relative or absolute).",
@@ -56,7 +56,7 @@ const editParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const smartEditOperationParameters = Type.Object(
+const editOperationParameters = Type.Object(
   {
     type: Type.Union(
       [
@@ -138,11 +138,10 @@ const smartEditOperationParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const smartEditParameters = Type.Object(
+const editParameters = Type.Object(
   {
     path: Type.String({
-      description:
-        "Path to the existing file to smart edit (relative or absolute).",
+      description: "Path to the existing file to edit (relative or absolute).",
     }),
     dryRun: Type.Optional(
       Type.Boolean({
@@ -150,7 +149,7 @@ const smartEditParameters = Type.Object(
           "If true, validate operations and return the diff without writing the file (default false).",
       }),
     ),
-    operations: Type.Array(smartEditOperationParameters, {
+    operations: Type.Array(editOperationParameters, {
       minItems: 1,
       description:
         "One or more operations resolved against the original file. apply_patch must be the only operation.",
@@ -159,30 +158,36 @@ const smartEditParameters = Type.Object(
   { additionalProperties: false },
 );
 
+type LegacyEditParametersSchema = Static<typeof legacyEditParameters>;
 type EditParameters = Static<typeof editParameters>;
-type SmartEditParameters = Static<typeof smartEditParameters>;
 
-type LegacyEditParameters = EditParameters & {
+type LegacyEditConvenienceParameters = LegacyEditParametersSchema & {
   oldText?: unknown;
   newText?: unknown;
 };
 
-type SmartEditConvenienceParameters = SmartEditParameters & {
+type EditConvenienceParameters = EditParameters & {
   oldText?: unknown;
   newText?: unknown;
   patch?: unknown;
 };
 
-function prepareEditArguments(input: unknown): EditParameters {
-  if (!input || typeof input !== "object") return input as EditParameters;
+function prepareLegacyEditArguments(
+  input: unknown,
+): LegacyEditParametersSchema {
+  if (!input || typeof input !== "object") {
+    return input as LegacyEditParametersSchema;
+  }
   const args = {
     ...(input as Record<string, unknown>),
-  } as LegacyEditParameters;
+  } as LegacyEditConvenienceParameters;
 
   if (typeof args.edits === "string") {
     try {
       const parsed = JSON.parse(args.edits);
-      if (Array.isArray(parsed)) args.edits = parsed as EditParameters["edits"];
+      if (Array.isArray(parsed)) {
+        args.edits = parsed as LegacyEditParametersSchema["edits"];
+      }
     } catch {
       // Let schema validation report the invalid value.
     }
@@ -192,23 +197,23 @@ function prepareEditArguments(input: unknown): EditParameters {
     const edits = Array.isArray(args.edits) ? [...args.edits] : [];
     edits.push({ oldText: args.oldText, newText: args.newText });
     const { oldText: _oldText, newText: _newText, ...rest } = args;
-    return { ...rest, edits } as EditParameters;
+    return { ...rest, edits } as LegacyEditParametersSchema;
   }
 
-  return args as EditParameters;
+  return args as LegacyEditParametersSchema;
 }
 
-function prepareSmartEditArguments(input: unknown): SmartEditParameters {
-  if (!input || typeof input !== "object") return input as SmartEditParameters;
+function prepareEditArguments(input: unknown): EditParameters {
+  if (!input || typeof input !== "object") return input as EditParameters;
   const args = {
     ...(input as Record<string, unknown>),
-  } as SmartEditConvenienceParameters;
+  } as EditConvenienceParameters;
 
   if (typeof args.operations === "string") {
     try {
       const parsed = JSON.parse(args.operations);
       if (Array.isArray(parsed)) {
-        args.operations = parsed as SmartEditParameters["operations"];
+        args.operations = parsed as EditParameters["operations"];
       }
     } catch {
       // Let schema validation report the invalid value.
@@ -226,7 +231,7 @@ function prepareSmartEditArguments(input: unknown): SmartEditParameters {
   }
 
   const { oldText: _oldText, newText: _newText, patch: _patch, ...rest } = args;
-  return rest as SmartEditParameters;
+  return rest as EditParameters;
 }
 
 const writeParameters = Type.Object(
@@ -333,35 +338,38 @@ export const filesystemToolDefinitions = [
     name: "edit",
     label: "edit",
     description:
-      "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+      "Single-file editor with explicit operations. Supports text replacement, anchor insertion, line/range edits, single-file unified patch application, dry-run previews, optional trimmed/whitespace matching, occurrence selection, and ambiguity diagnostics. Fails instead of guessing when matches are missing or ambiguous.",
     promptSnippet:
-      "Make precise file edits with exact text replacement, including multiple disjoint edits in one call",
+      "Make single-file edits with explicit operations, dry-run previews, line/range edits, anchors, or single-file patches",
     promptGuidelines: [
-      "Use edit for precise changes (edits[].oldText must match exactly)",
-      "When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls",
-      "Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
-      "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
+      "Use edit for single-file edits.",
+      "Prefer replace_text for simple exact replacements.",
+      "Use insert_text for anchor insertion.",
+      "Use replace_lines / insert_lines when line ranges are clearer.",
+      "Use dryRun: true for large or risky edits before applying.",
+      'Use matchMode "trimmed" or "whitespace" only when exact matching is impractical.',
+      "If edit is ambiguous, do not guess; provide a more specific anchor/oldText, use line ranges, or set an explicit occurrence.",
+      "apply_patch is single-file only and must be the only operation.",
     ],
     parameters: editParameters,
     prepareArguments: prepareEditArguments,
     executionMode: "sequential",
   },
   {
-    name: "smart_edit",
-    label: "smart_edit",
+    name: "legacy_edit",
+    label: "legacy_edit",
     description:
-      "Experimental smarter single-file editor. Supports explicit text replacement, anchor insertion, line/range edits, single-file unified patch application, dry-run previews, optional trimmed/whitespace matching, occurrence selection, and richer ambiguity diagnostics. Fails instead of guessing when matches are missing or ambiguous.",
+      "Legacy exact-replacement single-file editor. Every edits[].oldText must match a unique, non-overlapping region of the original file.",
     promptSnippet:
-      "Make flexible single-file edits with explicit operations, dry-run previews, line/range edits, anchors, or single-file patches",
+      "Use the legacy exact-replacement edit workflow with edits[].oldText/newText",
     promptGuidelines: [
-      "Use edit for simple exact unique replacements; use smart_edit when exact edit is brittle, line/range edits are clearer, a dry-run preview is useful, or you need a single-file patch.",
-      'For smart_edit, prefer matchMode "exact". Use "trimmed" or "whitespace" only when exact text is impractical.',
-      "If smart_edit is ambiguous, do not guess; provide a more specific anchor/oldText, use a line range, or set an explicit occurrence.",
-      "Use smart_edit with dryRun: true for large or risky changes before applying.",
-      "smart_edit apply_patch is single-file only and must be the only operation.",
+      "Prefer edit for single-file edits; use legacy_edit only when the old { edits: [...] } exact replacement interface is specifically desired.",
+      "When changing multiple separate locations in one file, use one legacy_edit call with multiple entries in edits[] instead of multiple calls.",
+      "Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
+      "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
     ],
-    parameters: smartEditParameters,
-    prepareArguments: prepareSmartEditArguments,
+    parameters: legacyEditParameters,
+    prepareArguments: prepareLegacyEditArguments,
     executionMode: "sequential",
   },
   {

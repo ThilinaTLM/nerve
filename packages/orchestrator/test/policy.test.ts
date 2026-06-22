@@ -123,12 +123,12 @@ describe("tool policy", () => {
     );
   });
 
-  it("applies planning-mode plan-file guardrails to smart_edit", () => {
+  it("applies planning-mode plan-file guardrails to edit tools", () => {
     const allowed = evaluateToolPolicy(
       agent("autonomous", "planning"),
-      "smart_edit",
+      "edit",
       {
-        path: "/tmp/nerve/plans/smart-edit-plan.md",
+        path: "/tmp/nerve/plans/edit-plan.md",
         operations: [
           { type: "insert_lines", line: 1, position: "after", text: "ok" },
         ],
@@ -136,14 +136,26 @@ describe("tool policy", () => {
       { dataDir: "/tmp/nerve" },
     );
     assert.equal(allowed.decision, "allow");
+    assert.equal(allowed.normalizedArgs.path, "/tmp/nerve/plans/edit-plan.md");
+
+    const legacyAllowed = evaluateToolPolicy(
+      agent("autonomous", "planning"),
+      "legacy_edit",
+      {
+        path: "/tmp/nerve/plans/legacy-edit-plan.md",
+        edits: [{ oldText: "old", newText: "new" }],
+      },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(legacyAllowed.decision, "allow");
     assert.equal(
-      allowed.normalizedArgs.path,
-      "/tmp/nerve/plans/smart-edit-plan.md",
+      legacyAllowed.normalizedArgs.path,
+      "/tmp/nerve/plans/legacy-edit-plan.md",
     );
 
     const denied = evaluateToolPolicy(
       agent("autonomous", "planning"),
-      "smart_edit",
+      "edit",
       {
         path: "src/app.ts",
         operations: [
@@ -153,17 +165,15 @@ describe("tool policy", () => {
       { dataDir: "/tmp/nerve" },
     );
     assert.equal(denied.decision, "deny");
-    assert.match(denied.reason, /Planning mode allows smart_edit only/);
+    assert.match(denied.reason, /Planning mode allows edit only/);
 
     assert.equal(
       evaluateToolPolicy(
         agent("supervised", "planning"),
-        "smart_edit",
+        "legacy_edit",
         {
-          path: "/tmp/nerve/plans/smart-edit-plan.md",
-          operations: [
-            { type: "insert_lines", line: 1, position: "after", text: "ok" },
-          ],
+          path: "/tmp/nerve/plans/legacy-edit-plan.md",
+          edits: [{ oldText: "old", newText: "new" }],
         },
         { dataDir: "/tmp/nerve" },
       ).decision,

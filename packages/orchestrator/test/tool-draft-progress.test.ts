@@ -30,8 +30,8 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.lineCount, 2);
   });
 
-  it("counts edit replacements and estimated additions/deletions", () => {
-    const accumulator = new ToolDraftProgressAccumulator("edit");
+  it("counts legacy_edit replacements and estimated additions/deletions", () => {
+    const accumulator = new ToolDraftProgressAccumulator("legacy_edit");
 
     accumulator.push(
       '{"path":"src/app.ts","edits":[{"oldText":"a\\nb","newText":"c"}',
@@ -45,8 +45,8 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.estimatedDeletions, 3);
   });
 
-  it("counts smart_edit operations, inserted text, replacements, and patches", () => {
-    const accumulator = new ToolDraftProgressAccumulator("smart_edit");
+  it("counts edit operations, inserted text, replacements, and patches", () => {
+    const accumulator = new ToolDraftProgressAccumulator("edit");
 
     accumulator.push(
       '{"path":"src/app.ts","operations":[{"type":"insert_text","text":"a\\nb"}',
@@ -75,7 +75,7 @@ describe("ToolDraftProgressAccumulator", () => {
   });
 
   it("returns best-effort progress for malformed partial JSON", () => {
-    const accumulator = new ToolDraftProgressAccumulator("edit");
+    const accumulator = new ToolDraftProgressAccumulator("legacy_edit");
 
     const progress = accumulator.push(
       '{"path":"src/app.ts","edits":[{"oldText":"old\\ntext","newText":"new',
@@ -103,8 +103,8 @@ describe("finalToolDraftProgress", () => {
     });
   });
 
-  it("summarizes final edit args", () => {
-    const progress = finalToolDraftProgress("edit", {
+  it("summarizes final legacy_edit args", () => {
+    const progress = finalToolDraftProgress("legacy_edit", {
       path: "src/app.ts",
       edits: [
         { oldText: "one\ntwo", newText: "three" },
@@ -122,8 +122,8 @@ describe("finalToolDraftProgress", () => {
     });
   });
 
-  it("summarizes final smart_edit args", () => {
-    const progress = finalToolDraftProgress("smart_edit", {
+  it("summarizes final edit operation args", () => {
+    const progress = finalToolDraftProgress("edit", {
       path: "src/app.ts",
       operations: [
         { type: "insert_lines", line: 1, position: "before", text: "one\ntwo" },
