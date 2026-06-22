@@ -1,11 +1,15 @@
 import { rm } from "node:fs/promises";
+import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
+import { networkInterfaces } from "node:os";
+import type { Duplex } from "node:stream";
 import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
 import {
   initializeStorage,
   writeDaemonFile,
 } from "./infrastructure/storage/index.js";
+import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
 import {
   createApp,
   createOrchestratorState,
@@ -19,6 +23,10 @@ function readArg(name: string): string | undefined {
   if (value) return value.slice(prefix.length);
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function readFlag(name: string): boolean {
+  return process.argv.includes(name);
 }
 
 async function main() {
@@ -37,6 +45,17 @@ async function main() {
   const port = Number(
     readArg("--port") ?? process.env.NERVE_PORT ?? storage.settings.server.port,
   );
+  const mobileHttpsEnabled =
+    readFlag("--mobile-https") || process.env.NERVE_MOBILE_HTTPS === "1";
+  const httpsPort = Number(
+    readArg("--https-port") ?? process.env.NERVE_HTTPS_PORT ?? port + 1,
+  );
+  if (!Number.isFinite(port) || port <= 0) {
+    throw new Error(`Invalid Nerve daemon port: ${String(port)}`);
+  }
+  if (mobileHttpsEnabled && (!Number.isFinite(httpsPort) || httpsPort <= 0)) {
+    throw new Error(`Invalid Nerve HTTPS port: ${String(httpsPort)}`);
+  }
   const state = createOrchestratorState(storage, host, port);
   await state.logger.hydrate();
   await state.logger.pruneRetention();
@@ -78,6 +97,22 @@ async function main() {
     context: { ...state.index.counts() },
   });
   state.subscriptionUsage.start();
+  const mobileTls = mobileHttpsEnabled
+    ? await ensureMobileHttpsTlsMaterial(
+        storage.paths.home,
+        mobileHttpsHosts(host),
+      )
+    : undefined;
+  if (mobileTls) {
+    updateMobileHttpsState(state, mobileTls, port, httpsPort);
+    await state.logger.info("Mobile HTTPS sharing enabled", {
+      context: {
+        httpsUrl: state.mobileHttps?.url,
+        caCertUrl: state.mobileHttps?.caCertUrl,
+        hosts: mobileTls.hosts,
+      },
+    });
+  }
   const app = createApp(state);
 
   const server = serve(
@@ -89,6 +124,8 @@ async function main() {
     async () => {
       const address = server.address() as AddressInfo;
       state.port = address.port;
+      if (mobileTls)
+        updateMobileHttpsState(state, mobileTls, state.port, httpsPort);
       await writeDaemonFile(storage.paths.daemonPath, toDaemonFile(state));
       await state.events.publish("daemon.started", {
         daemonId: state.daemonId,
@@ -100,6 +137,12 @@ async function main() {
       await state.logger.info("Daemon listening", {
         context: {
           url: `http://${state.host}:${state.port}`,
+          mobileHttps: state.mobileHttps
+            ? {
+                url: state.mobileHttps.url,
+                caCertUrl: state.mobileHttps.caCertUrl,
+              }
+            : undefined,
           dataDir: storage.paths.home,
           pid: process.pid,
         },
@@ -107,16 +150,95 @@ async function main() {
     },
   );
 
+  const httpsServer = mobileTls
+    ? serve(
+        {
+          fetch: app.fetch,
+          hostname: host,
+          port: httpsPort,
+          createServer: createHttpsServer,
+          serverOptions: {
+            key: mobileTls.keyPem,
+            cert: mobileTls.certPem,
+          },
+        },
+        async () => {
+          const address = httpsServer?.address() as AddressInfo | undefined;
+          if (!address) return;
+          updateMobileHttpsState(state, mobileTls, state.port, address.port);
+          await writeDaemonFile(storage.paths.daemonPath, toDaemonFile(state));
+          await state.logger.info("Mobile HTTPS daemon listening", {
+            context: {
+              url: state.mobileHttps?.url,
+              caCertUrl: state.mobileHttps?.caCertUrl,
+            },
+          });
+        },
+      )
+    : undefined;
+
   const webSockets = new WebSocketServer({ noServer: true });
+  installWebSocketUpgrade(server, webSockets, state, storage.localToken);
+  if (httpsServer)
+    installWebSocketUpgrade(httpsServer, webSockets, state, storage.localToken);
   let shuttingDown = false;
 
-  server.on("upgrade", (request, socket, head) => {
-    const url = new URL(request.url ?? "/", `http://${host}:${state.port}`);
+  const shutdown = async (signal: NodeJS.Signals) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    const startedAt = Date.now();
+    const forceExitTimer = setTimeout(() => process.exit(0), 2000);
+    forceExitTimer.unref();
+
+    await state.logger
+      .info("Daemon shutdown requested", {
+        context: { signal },
+      })
+      .catch(() => undefined);
+    await state.events
+      .publish("daemon.stopped", { daemonId: state.daemonId, signal })
+      .catch(() => undefined);
+    await state.logger
+      .info("Daemon stopped event published", {
+        durationMs: Date.now() - startedAt,
+      })
+      .catch(() => undefined);
+    await rm(storage.paths.daemonPath, { force: true }).catch(() => undefined);
+    await state.logger
+      .info("Daemon file removed", { durationMs: Date.now() - startedAt })
+      .catch(() => undefined);
+    state.subscriptionUsage.stop();
+    closeWebSocketClients(webSockets);
+    webSockets.close();
+    state.index.close();
+    await state.logger
+      .info("Daemon resources closed; closing HTTP server", {
+        durationMs: Date.now() - startedAt,
+      })
+      .catch(() => undefined);
+    httpsServer?.close();
+    server.close(() => process.exit(0));
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
+
+function installWebSocketUpgrade(
+  server: ReturnType<typeof serve>,
+  webSockets: WebSocketServer,
+  state: ReturnType<typeof createOrchestratorState>,
+  token: string,
+): void {
+  server.on("upgrade", (request, socket: Duplex, head) => {
+    const url = new URL(
+      request.url ?? "/",
+      `http://${state.host}:${state.port}`,
+    );
     if (url.pathname !== "/ws") {
       socket.destroy();
       return;
     }
-    if (!isWebSocketAuthorized(request, storage.localToken)) {
+    if (!isWebSocketAuthorized(request, token)) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       socket.destroy();
       return;
@@ -179,45 +301,6 @@ async function main() {
       }
     });
   });
-
-  const shutdown = async (signal: NodeJS.Signals) => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    const startedAt = Date.now();
-    const forceExitTimer = setTimeout(() => process.exit(0), 2000);
-    forceExitTimer.unref();
-
-    await state.logger
-      .info("Daemon shutdown requested", {
-        context: { signal },
-      })
-      .catch(() => undefined);
-    await state.events
-      .publish("daemon.stopped", { daemonId: state.daemonId, signal })
-      .catch(() => undefined);
-    await state.logger
-      .info("Daemon stopped event published", {
-        durationMs: Date.now() - startedAt,
-      })
-      .catch(() => undefined);
-    await rm(storage.paths.daemonPath, { force: true }).catch(() => undefined);
-    await state.logger
-      .info("Daemon file removed", { durationMs: Date.now() - startedAt })
-      .catch(() => undefined);
-    state.subscriptionUsage.stop();
-    closeWebSocketClients(webSockets);
-    webSockets.close();
-    state.index.close();
-    await state.logger
-      .info("Daemon resources closed; closing HTTP server", {
-        durationMs: Date.now() - startedAt,
-      })
-      .catch(() => undefined);
-    server.close(() => process.exit(0));
-  };
-
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
 }
 
 function closeWebSocketClients(webSockets: WebSocketServer): void {
@@ -235,12 +318,85 @@ function closeWebSocketClients(webSockets: WebSocketServer): void {
   }, 500).unref();
 }
 
+function updateMobileHttpsState(
+  state: ReturnType<typeof createOrchestratorState>,
+  tls: Awaited<ReturnType<typeof ensureMobileHttpsTlsMaterial>>,
+  httpPort: number,
+  httpsPort: number,
+): void {
+  const host = formatHostForUrl(tls.primaryHost);
+  state.mobileHttps = {
+    port: httpsPort,
+    url: `https://${host}:${httpsPort}`,
+    caCertUrl: `http://${host}:${httpPort}/nerve-local-ca.pem`,
+    caCertPem: tls.caCertPem,
+    hosts: tls.hosts,
+  };
+}
+
+function mobileHttpsHosts(boundHost: string): string[] {
+  if (isWildcardHost(boundHost)) {
+    const addresses = lanIpv4Addresses();
+    return addresses.length > 0 ? addresses : ["localhost"];
+  }
+  return [boundHost];
+}
+
+function lanIpv4Addresses(): string[] {
+  const candidates: Array<{ name: string; address: string }> = [];
+  for (const [name, addresses] of Object.entries(networkInterfaces())) {
+    for (const address of addresses ?? []) {
+      if (address.family === "IPv4" && !address.internal) {
+        candidates.push({ name, address: address.address });
+      }
+    }
+  }
+  const sorted = [
+    ...candidates.filter(
+      (candidate) =>
+        isPrivateIpv4(candidate.address) && !isVirtualInterface(candidate.name),
+    ),
+    ...candidates.filter(
+      (candidate) =>
+        isPrivateIpv4(candidate.address) && isVirtualInterface(candidate.name),
+    ),
+    ...candidates.filter((candidate) => !isPrivateIpv4(candidate.address)),
+  ];
+  return [...new Set(sorted.map((candidate) => candidate.address))];
+}
+
+function isPrivateIpv4(address: string): boolean {
+  const parts = address.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
+    return false;
+  }
+  const [first, second] = parts;
+  return (
+    first === 10 ||
+    (first === 172 && second !== undefined && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isVirtualInterface(name: string): boolean {
+  return /^(br-|docker|veth|virbr|vmnet|vboxnet|lo)/i.test(name);
+}
+
+function isWildcardHost(host: string): boolean {
+  return host === "0.0.0.0" || host === "::";
+}
+
+function formatHostForUrl(host: string): string {
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+}
+
 function isLoopbackHost(host: string): boolean {
   return (
     host === "localhost" ||
     host === "127.0.0.1" ||
     host === "::1" ||
-    host.startsWith("127.")
+    host.startsWith("127.") ||
+    host.startsWith("::ffff:127.")
   );
 }
 

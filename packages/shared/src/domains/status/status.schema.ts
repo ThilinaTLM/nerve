@@ -32,11 +32,19 @@ export type ExternalEditorStatuses = z.infer<
   typeof externalEditorStatusesSchema
 >;
 
+const mobileHttpsInfoSchema = z.object({
+  port: z.number().int().positive(),
+  url: z.string().url(),
+  caCertUrl: z.string().url(),
+});
+export type MobileHttpsInfo = z.infer<typeof mobileHttpsInfoSchema>;
+
 export const statusResponseSchema = z.object({
   daemonId: z.string().startsWith("daemon_"),
   version: z.string(),
   startedAt: z.string().datetime(),
   dataDir: z.string(),
+  mobileHttps: mobileHttpsInfoSchema.optional(),
   storage: z.object({
     home: z.string(),
     sqlitePath: z.string(),
@@ -55,6 +63,7 @@ export const daemonFileSchema = z.object({
   host: z.string(),
   port: z.number().int().positive(),
   url: z.string().url(),
+  mobileHttps: mobileHttpsInfoSchema.optional(),
   startedAt: z.string().datetime(),
   dataDir: z.string(),
   version: z.string(),

@@ -27,11 +27,11 @@ async function tempHome(prefix: string): Promise<string> {
   return root;
 }
 
-async function createAuthenticatedApp() {
+async function createAuthenticatedApp(host = "127.0.0.1") {
   const storage = await initializeStorage(
     await tempHome("nerve-server-routes-"),
   );
-  const state = createOrchestratorState(storage, "127.0.0.1", 0);
+  const state = createOrchestratorState(storage, host, 0);
   await state.logger.hydrate();
   await state.registry.hydrate();
   const app = createApp(state);
@@ -111,6 +111,73 @@ describe("orchestrator server routes", () => {
         ((await response.json()) as { error: { code: string } }).error.code,
         "UNAUTHORIZED",
       );
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("sets the local auth cookie from a tokenized remote UI URL", async () => {
+    const { app, state } = await createAuthenticatedApp("0.0.0.0");
+    try {
+      const unauthenticated = await app.request("/api/status");
+      assert.equal(unauthenticated.status, 401);
+
+      const response = await app.request(
+        `/?token=${encodeURIComponent(state.storage.localToken)}&view=mobile`,
+      );
+      assert.equal(response.status, 302);
+      assert.equal(response.headers.get("location"), "/?view=mobile");
+      const cookie = response.headers.get("set-cookie") ?? "";
+      assert.match(cookie, /^nerve_token=/);
+      assert.match(cookie, /HttpOnly/);
+
+      assert.doesNotMatch(cookie, /; Secure/);
+
+      const secureResponse = await app.request(
+        `https://mobile.test/?token=${encodeURIComponent(state.storage.localToken)}`,
+      );
+      assert.equal(secureResponse.status, 302);
+      assert.match(secureResponse.headers.get("set-cookie") ?? "", /; Secure/);
+
+      const authenticated = await app.request("/api/status", {
+        headers: { cookie: cookie.split(";", 1)[0] ?? "" },
+      });
+      assert.equal(authenticated.status, 200);
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("serves mobile HTTPS setup and CA routes only when enabled", async () => {
+    const { app, state } = await createAuthenticatedApp("0.0.0.0");
+    try {
+      const disabledCert = await app.request("/nerve-local-ca.pem");
+      assert.equal(disabledCert.status, 404);
+
+      state.mobileHttps = {
+        port: 3748,
+        url: "https://192.168.1.5:3748",
+        caCertUrl: "http://192.168.1.5:3747/nerve-local-ca.pem",
+        caCertPem:
+          "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n",
+        hosts: ["192.168.1.5", "localhost", "127.0.0.1"],
+      };
+
+      const invalidSetup = await app.request("/mobile-setup?token=wrong");
+      assert.equal(invalidSetup.status, 401);
+
+      const cert = await app.request("/nerve-local-ca.pem");
+      assert.equal(cert.status, 200);
+      assert.match(await cert.text(), /BEGIN CERTIFICATE/);
+
+      const setup = await app.request(
+        `/mobile-setup?token=${encodeURIComponent(state.storage.localToken)}`,
+      );
+      assert.equal(setup.status, 200);
+      const html = await setup.text();
+      assert.match(html, /Nerve mobile HTTPS setup/);
+      assert.match(html, /https:\/\/192\.168\.1\.5:3748\/\?token=/);
+      assert.match(html, /nerve-local-ca\.pem/);
     } finally {
       state.index.close();
     }

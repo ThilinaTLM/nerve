@@ -166,6 +166,8 @@ async function openMainWindow(): Promise<void> {
         url: managedDaemon.url,
         mode: managedDaemon.mode,
         owned: managedDaemon.owned,
+        shareUrlAvailable: Boolean(managedDaemon.shareUrl),
+        mobileHttpsAvailable: Boolean(managedDaemon.mobileSetupUrl),
       },
     });
     await installDaemonCookie(managedDaemon);

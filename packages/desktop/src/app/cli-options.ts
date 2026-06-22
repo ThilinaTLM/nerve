@@ -16,6 +16,10 @@ export function parseDesktopOptions(args: string[]): DesktopCliOptions {
       options.allowRemote = true;
       continue;
     }
+    if (arg === "--mobile-https") {
+      options.mobileHttps = true;
+      continue;
+    }
     if (arg === "--connect") {
       const value = args[index + 1];
       if (!value) throw new Error("Missing value for --connect.");
@@ -60,6 +64,17 @@ export function parseDesktopOptions(args: string[]): DesktopCliOptions {
     }
     if (arg.startsWith("--port=")) {
       options.port = parsePort(arg.slice("--port=".length));
+      continue;
+    }
+    if (arg === "--https-port") {
+      const value = args[index + 1];
+      if (!value) throw new Error("Missing value for --https-port.");
+      options.httpsPort = parsePort(value);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--https-port=")) {
+      options.httpsPort = parsePort(arg.slice("--https-port=".length));
     }
   }
 

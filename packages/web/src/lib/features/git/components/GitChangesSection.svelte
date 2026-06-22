@@ -60,22 +60,26 @@
 {#snippet changeRow(file: GitFileChange, group: "staged" | "unstaged")}
   {@const parts = splitPath(shortenPath(file.path))}
   {@const busy = fileMutation?.path === file.path}
-  <div class="group flex items-center gap-2 rounded-sm px-1.5 py-0.5 hover:bg-muted/50">
+  <div class="group flex items-center gap-1.5 rounded-sm px-1.5 py-0 hover:bg-muted/40">
     <span
-      class={cn("w-3 shrink-0 text-center font-mono text-xs font-semibold", fileTone(file))}
+      class={cn(
+        "w-3 shrink-0 text-center font-mono text-xs font-semibold leading-5",
+        fileTone(file),
+      )}
       title={fileStatusLabel(file, group)}
     >
       {statusLetter(file, group)}
     </span>
-    <div class="min-w-0 flex-1 truncate font-mono text-xs" title={file.path}>
+    <div class="min-w-0 flex-1 truncate font-mono text-xs leading-5" title={file.path}>
       {#if parts.dir}<span class="text-muted-foreground">{parts.dir}</span>{/if}<span class="text-foreground">{parts.base}</span>
     </div>
     <div
-      class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+      class="flex w-0 shrink-0 items-center gap-0.5 overflow-hidden opacity-0 transition-all group-hover:w-auto group-hover:opacity-100 focus-within:w-auto focus-within:opacity-100"
     >
       {#if group === "staged"}
         <Button
           size="icon-xs"
+          class="size-5"
           variant="ghost"
           ariaLabel={`Unstage ${file.path}`}
           title="Unstage"
@@ -91,6 +95,7 @@
       {:else}
         <Button
           size="icon-xs"
+          class="size-5"
           variant="ghost"
           ariaLabel={`Stage ${file.path}`}
           title="Stage"
@@ -106,6 +111,7 @@
       {/if}
       <Button
         size="icon-xs"
+        class="size-5"
         variant="ghost"
         ariaLabel={`Discard ${file.path}`}
         title="Discard"
@@ -137,13 +143,14 @@
     {#if overview.files.length === 0}
       <p class="py-1 text-xs text-muted-foreground">Working tree clean.</p>
     {:else}
-      <div class="flex flex-col gap-2">
+      <div class="flex flex-col gap-1.5">
         {#if stagedFiles.length > 0}
           <div class="flex flex-col">
-            <div class="flex items-center gap-1 px-1.5 text-xs font-medium text-muted-foreground">
+            <div class="flex items-center gap-1 px-1.5 py-px text-xs font-medium text-muted-foreground">
               <span>Staged</span>
               <Button
                 size="icon-xs"
+                class="size-5"
                 variant="ghost"
                 ariaLabel="Unstage all"
                 title="Unstage all"
@@ -165,10 +172,11 @@
         {/if}
         {#if unstagedFiles.length > 0}
           <div class="flex flex-col">
-            <div class="flex items-center gap-1 px-1.5 text-xs font-medium text-muted-foreground">
+            <div class="flex items-center gap-1 px-1.5 py-px text-xs font-medium text-muted-foreground">
               <span>Unstaged</span>
               <Button
                 size="icon-xs"
+                class="size-5"
                 variant="ghost"
                 ariaLabel="Stage all"
                 title="Stage all"

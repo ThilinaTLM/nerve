@@ -1,6 +1,13 @@
 import type { ManagedDaemon } from "../daemon.js";
 import type { BrowserWindowType, NativeImage, TrayType } from "../electron.js";
-import { Menu, nativeImage, nativeTheme, shell, Tray } from "../electron.js";
+import {
+  clipboard,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  shell,
+  Tray,
+} from "../electron.js";
 import type { QuitOptions } from "../types.js";
 import { resolveTrayIconPath } from "../window/preload-paths.js";
 
@@ -62,6 +69,37 @@ export function createTrayController(
           enabled: Boolean(managedDaemon?.url),
           click: () => {
             if (managedDaemon?.url) void shell.openExternal(managedDaemon.url);
+          },
+        },
+        {
+          label: managedDaemon?.mobileSetupUrl
+            ? "Copy Mobile Setup URL"
+            : managedDaemon?.shareUrl
+              ? "Copy Mobile URL"
+              : "Copy Mobile URL (unavailable)",
+          enabled: Boolean(
+            managedDaemon?.mobileSetupUrl ?? managedDaemon?.shareUrl,
+          ),
+          click: () => {
+            const url =
+              managedDaemon?.mobileSetupUrl ?? managedDaemon?.shareUrl;
+            if (url) clipboard.writeText(url);
+          },
+        },
+        {
+          label: "Copy HTTPS App URL",
+          enabled: Boolean(managedDaemon?.secureShareUrl),
+          click: () => {
+            if (managedDaemon?.secureShareUrl)
+              clipboard.writeText(managedDaemon.secureShareUrl);
+          },
+        },
+        {
+          label: "Copy CA Certificate URL",
+          enabled: Boolean(managedDaemon?.caCertUrl),
+          click: () => {
+            if (managedDaemon?.caCertUrl)
+              clipboard.writeText(managedDaemon.caCertUrl);
           },
         },
         { type: "separator" },

@@ -31,7 +31,9 @@
     "@nerve/agent": "workspace:*",
     "@nerve/shared": "workspace:*",
     "@nerve/tools": "workspace:*",
+    "@peculiar/x509": "^2.0.0",
     "hono": "4.12.25",
+    "reflect-metadata": "^0.2.2",
     "ws": "8.21.0"
   },
   "devDependencies": {

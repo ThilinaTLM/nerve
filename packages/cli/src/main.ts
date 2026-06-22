@@ -10,8 +10,8 @@ function printHelp(): void {
   console.log(`nerve
 
 Usage:
-  nerve daemon [--host 127.0.0.1] [--port 3747] [--allow-remote]
-  nerve serve [--host 127.0.0.1] [--port 3747] [--open] [--allow-remote]
+  nerve daemon [--host 127.0.0.1] [--port 3747] [--allow-remote] [--mobile-https] [--https-port 3748]
+  nerve serve [--host 127.0.0.1] [--port 3747] [--open] [--allow-remote] [--mobile-https]
   nerve status
   nerve ui [--open]
   nerve logs [--level info] [--source orchestrator] [--limit 100] [--follow]
@@ -26,6 +26,8 @@ Environment:
   NERVE_HOST   Override daemon host
   NERVE_PORT   Override daemon port
   NERVE_ALLOW_REMOTE=1   Allow non-loopback daemon bind addresses
+  NERVE_MOBILE_HTTPS=1   Enable opt-in self-signed HTTPS LAN sharing
+  NERVE_HTTPS_PORT       Override opt-in mobile HTTPS port
   NERVE_DAEMON_URL     Connect CLI commands to an explicit daemon URL
   NERVE_DAEMON_TOKEN   Bearer token for NERVE_DAEMON_URL or local daemon override
 `);

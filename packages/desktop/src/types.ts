@@ -29,5 +29,7 @@ export interface DesktopCliOptions {
   token?: string;
   host?: string;
   port?: number;
+  httpsPort?: number;
   allowRemote?: boolean;
+  mobileHttps?: boolean;
 }

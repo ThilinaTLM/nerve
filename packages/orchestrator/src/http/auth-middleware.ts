@@ -67,8 +67,11 @@ export function createApiAuthMiddleware(token: string): MiddlewareHandler {
   };
 }
 
-export function cookieHeader(token: string): string {
-  return `nerve_token=${encodeURIComponent(token)}; Path=/; SameSite=Strict; HttpOnly; Max-Age=31536000`;
+export function cookieHeader(
+  token: string,
+  options: { secure?: boolean } = {},
+): string {
+  return `nerve_token=${encodeURIComponent(token)}; Path=/; SameSite=Strict; HttpOnly; Max-Age=31536000${options.secure ? "; Secure" : ""}`;
 }
 
 export function isWebSocketAuthorized(

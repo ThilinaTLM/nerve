@@ -1,9 +1,10 @@
 PNPM ?= pnpm
 NODE ?= node
+DESKTOP_ARGS ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-deps cli daemon serve web desktop desktop-fast desktop-build desktop-check install uninstall
+.PHONY: help dev dev-deps cli daemon serve web desktop desktop-mobile-https desktop-fast desktop-build desktop-check install uninstall
 
 help:
 	@$(NODE) scripts/make-help.mjs
@@ -27,7 +28,10 @@ web: dev-deps
 	$(PNPM) --filter @nerve/web dev
 
 desktop:
-	$(PNPM) desktop
+	$(PNPM) --filter @nerve/desktop dev -- --host 0.0.0.0 --allow-remote $(DESKTOP_ARGS)
+
+desktop-mobile-https:
+	$(MAKE) desktop DESKTOP_ARGS="--mobile-https $(DESKTOP_ARGS)"
 
 desktop-fast:
 	$(PNPM) --filter @nerve/desktop start
