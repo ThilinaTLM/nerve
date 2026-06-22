@@ -35,7 +35,7 @@ Environment:
 
 async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2);
-  if (rawArgs[0] === "--") rawArgs.shift();
+  while (rawArgs[0] === "--") rawArgs.shift();
   const [command = "ui", ...args] = rawArgs;
 
   if (command === "daemon") {
