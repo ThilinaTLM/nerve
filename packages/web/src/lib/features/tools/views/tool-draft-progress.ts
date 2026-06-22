@@ -1,4 +1,5 @@
 import type { LiveToolCallDraft } from "$lib/core/types/state-types";
+import { relativePathForDisplay } from "$lib/core/utils/path-links";
 
 export type DraftMetaTone =
   | "default"
@@ -135,16 +136,23 @@ function lineCountsForJsonStringValues(
   return counts;
 }
 
-function firstPathFromDraft(draft: LiveToolCallDraft): string | undefined {
+function firstPathFromDraft(
+  draft: LiveToolCallDraft,
+  cwd?: string,
+): string | undefined {
   const args = asRecord(draft.args);
-  return (
+  const path =
     stringField(args.path) ??
     draft.progress?.path ??
-    extractJsonStringValues(draft.argsText, "path", { maxChars: 240 })[0]
-  );
+    extractJsonStringValues(draft.argsText, "path", { maxChars: 240 })[0];
+  if (path && cwd) return relativePathForDisplay(path, cwd) ?? path;
+  return path;
 }
 
-function summarizeWriteDraft(draft: LiveToolCallDraft): ToolDraftSummary {
+function summarizeWriteDraft(
+  draft: LiveToolCallDraft,
+  cwd?: string,
+): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalContent = stringField(args.content);
   const partialContentLines = draft.argsText
@@ -162,7 +170,7 @@ function summarizeWriteDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   return {
     kind: "write",
     toolName: "write",
-    path: firstPathFromDraft(draft),
+    path: firstPathFromDraft(draft, cwd),
     statusText: draft.done ? "Submitting" : "Generating",
     meta,
     lineCount: lines,
@@ -342,7 +350,10 @@ function partialSmartEditStats(argsText: string): SmartEditDraftStats {
   };
 }
 
-function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
+function summarizeEditDraft(
+  draft: LiveToolCallDraft,
+  cwd?: string,
+): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalStats = finalEditStats(args);
   const partialStats = draft.argsText
@@ -367,7 +378,7 @@ function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   return {
     kind: "edit",
     toolName: "edit",
-    path: firstPathFromDraft(draft),
+    path: firstPathFromDraft(draft, cwd),
     statusText: draft.done ? "Submitting" : "Generating",
     meta,
     replacementCount: stats.replacements,
@@ -379,7 +390,10 @@ function summarizeEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   };
 }
 
-function summarizeSmartEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
+function summarizeSmartEditDraft(
+  draft: LiveToolCallDraft,
+  cwd?: string,
+): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalStats = finalSmartEditStats(args);
   const partialStats = draft.argsText
@@ -406,7 +420,7 @@ function summarizeSmartEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   return {
     kind: "edit",
     toolName: "smart_edit",
-    path: firstPathFromDraft(draft),
+    path: firstPathFromDraft(draft, cwd),
     statusText: draft.done ? "Submitting" : "Generating",
     meta,
     operationCount: stats.operations,
@@ -418,9 +432,12 @@ function summarizeSmartEditDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   };
 }
 
-function summarizePythonDraft(draft: LiveToolCallDraft): ToolDraftSummary {
+function summarizePythonDraft(
+  draft: LiveToolCallDraft,
+  cwd?: string,
+): ToolDraftSummary {
   const args = asRecord(draft.args);
-  const path = firstPathFromDraft(draft);
+  const path = firstPathFromDraft(draft, cwd);
   const finalCode = stringField(args.code);
   const partialCode = extractJsonStringValues(draft.argsText, "code", {
     maxChars: 24_000,
@@ -456,11 +473,15 @@ function summarizePythonDraft(draft: LiveToolCallDraft): ToolDraftSummary {
   };
 }
 
-export function summarizeToolDraft(draft: LiveToolCallDraft): ToolDraftSummary {
-  if (draft.toolName === "write") return summarizeWriteDraft(draft);
-  if (draft.toolName === "edit") return summarizeEditDraft(draft);
-  if (draft.toolName === "smart_edit") return summarizeSmartEditDraft(draft);
-  if (draft.toolName === "python") return summarizePythonDraft(draft);
+export function summarizeToolDraft(
+  draft: LiveToolCallDraft,
+  cwd?: string,
+): ToolDraftSummary {
+  if (draft.toolName === "write") return summarizeWriteDraft(draft, cwd);
+  if (draft.toolName === "edit") return summarizeEditDraft(draft, cwd);
+  if (draft.toolName === "smart_edit")
+    return summarizeSmartEditDraft(draft, cwd);
+  if (draft.toolName === "python") return summarizePythonDraft(draft, cwd);
   const toolName = draft.toolName ?? "tool";
   return {
     kind: "generic",

@@ -7,11 +7,12 @@
 
   type Props = {
     draft: LiveToolCallDraft;
+    cwd?: string;
   };
 
-  let { draft }: Props = $props();
+  let { draft, cwd }: Props = $props();
 
-  const summary = $derived(summarizeToolDraft(draft));
+  const summary = $derived(summarizeToolDraft(draft, cwd));
   const genericPreview = $derived.by(() => {
     const text = draft.args
       ? JSON.stringify(draft.args, null, 2)

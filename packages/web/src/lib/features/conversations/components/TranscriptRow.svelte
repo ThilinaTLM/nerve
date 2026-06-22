@@ -82,7 +82,7 @@
     />
   </ContextMenu>
 {:else if node.kind === "tool_draft"}
-  <ToolDraftCard draft={node.draft} />
+  <ToolDraftCard draft={node.draft} cwd={activeProject?.dir} />
 {:else if node.kind === "tool_result_error"}
   <ToolResultErrorCard toolName={node.toolName} error={node.error} />
 {:else if node.kind === "run_status"}

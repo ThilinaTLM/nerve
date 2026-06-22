@@ -296,4 +296,26 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.lineCount, undefined);
     assert.deepEqual(summary.meta, []);
   });
+
+  it("relativizes absolute draft paths against the project cwd", () => {
+    const summary = summarizeToolDraft(
+      draft("write", {
+        argsText: '{"path":"/home/u/proj/src/app.ts","content":"one\\ntwo',
+      }),
+      "/home/u/proj",
+    );
+
+    assert.equal(summary.path, "src/app.ts");
+  });
+
+  it("leaves out-of-cwd draft paths intact", () => {
+    const summary = summarizeToolDraft(
+      draft("write", {
+        argsText: '{"path":"/etc/hosts","content":"x',
+      }),
+      "/home/u/proj",
+    );
+
+    assert.equal(summary.path, "/etc/hosts");
+  });
 });
