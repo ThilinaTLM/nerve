@@ -1,5 +1,7 @@
 # nerve
 
+![Nerve preview screenshot](docs/assets/preview-screenshot.webp)
+
 Nerve is a UI-first local AI coding harness with an Electron desktop app, local daemon, Web UI, and CLI.
 
 > Status: alpha. APIs, storage formats, and packaging may change without migration support.
