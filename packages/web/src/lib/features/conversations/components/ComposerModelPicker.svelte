@@ -63,7 +63,6 @@
   function selectModel(model: ModelInfo) {
     const key = modelKey(model);
     if (key !== selectedModelKey) onModelChange?.(key);
-    open = false;
   }
 
   function selectThinking(level: ThinkingLevel) {
