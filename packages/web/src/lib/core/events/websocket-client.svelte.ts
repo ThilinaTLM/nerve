@@ -27,7 +27,13 @@ let reconnectAttempts = 0;
 let intentionallyDisconnected = false;
 let socketGeneration = 0;
 let subscriptionUsagePollTimer: ReturnType<typeof setInterval> | undefined;
+let livenessTimer: ReturnType<typeof setInterval> | undefined;
+let lastMessageAt = 0;
 const SUBSCRIPTION_USAGE_POLL_MS = 10_000;
+// Force a reconnect if no frame (events or server heartbeats every ~30s) arrives
+// within this window. Catches half-open sockets the browser never closes.
+const LIVENESS_CHECK_MS = 15_000;
+const LIVENESS_TIMEOUT_MS = 70_000;
 const STARTUP_RETRY_DELAYS_MS = [250, 500, 1_000, 1_500, 2_500, 4_000, 5_000];
 
 export async function initializeWorkbench(): Promise<void> {
@@ -118,6 +124,23 @@ function scheduleReconnect(wsUrl: string) {
   }, delay);
 }
 
+function startLivenessWatchdog() {
+  stopLivenessWatchdog();
+  livenessTimer = setInterval(() => {
+    if (intentionallyDisconnected) return;
+    if (Date.now() - lastMessageAt < LIVENESS_TIMEOUT_MS) return;
+    clientLog("warn", "websocket", "WebSocket liveness timeout; reconnecting");
+    // Closing triggers the existing close handler, which schedules a reconnect.
+    socket?.close();
+  }, LIVENESS_CHECK_MS);
+}
+
+function stopLivenessWatchdog() {
+  if (livenessTimer === undefined) return;
+  clearInterval(livenessTimer);
+  livenessTimer = undefined;
+}
+
 function startSubscriptionUsagePolling() {
   stopSubscriptionUsagePolling();
   subscriptionUsagePollTimer = setInterval(() => {
@@ -158,15 +181,20 @@ function connectWebsocket(wsUrl: string) {
     if (generation !== socketGeneration) return;
     reconnectAttempts = 0;
     workspaceState.connection = "live";
+    lastMessageAt = Date.now();
+    startLivenessWatchdog();
     clientLog("info", "websocket", "WebSocket connected", {
       context: { since: workspaceState.lastEventSeq },
     });
   });
   nextSocket.addEventListener("message", (message) => {
     if (generation !== socketGeneration) return;
+    lastMessageAt = Date.now();
     const parsed = JSON.parse(String(message.data)) as EventEnvelope<
       Record<string, unknown>
     >;
+    // Server liveness heartbeats carry no seq and must not enter the event bus.
+    if (parsed.type === "heartbeat") return;
     if (parsed.type) dispatchIncomingEvent(parsed);
   });
   nextSocket.addEventListener("close", () => {
@@ -191,6 +219,7 @@ export function disconnectWorkbench() {
   intentionallyDisconnected = true;
   clearReconnectTimer();
   stopSubscriptionUsagePolling();
+  stopLivenessWatchdog();
   socketGeneration += 1;
   socket?.close();
   socket = undefined;

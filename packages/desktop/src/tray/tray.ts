@@ -17,6 +17,7 @@ interface TrayControllerDependencies {
   showMainWindow: () => void | Promise<void>;
   hideWindow: (window: BrowserWindowType) => void;
   requestQuit: (options?: QuitOptions) => void;
+  restartDaemon: () => void;
 }
 
 export interface TrayController {
@@ -63,6 +64,11 @@ export function createTrayController(
         {
           label: daemonTargetLabel(managedDaemon),
           enabled: false,
+        },
+        {
+          label: "Restart Daemon",
+          enabled: Boolean(managedDaemon?.owned),
+          click: () => dependencies.restartDaemon(),
         },
         {
           label: "Open in Browser",
@@ -129,9 +135,18 @@ export function createTrayController(
 
 function daemonTargetLabel(managedDaemon: ManagedDaemon | undefined): string {
   if (!managedDaemon) return "Daemon: starting";
+  const status = managedDaemon.getStatus();
+  const suffix =
+    status === "restarting"
+      ? " — reconnecting…"
+      : status === "failed"
+        ? " — unavailable"
+        : "";
   if (managedDaemon.mode === "remote")
-    return `Remote daemon: ${managedDaemon.url}`;
-  return managedDaemon.owned ? "Local daemon: owned" : "Local daemon: existing";
+    return `Remote daemon: ${managedDaemon.url}${suffix}`;
+  return `${
+    managedDaemon.owned ? "Local daemon: owned" : "Local daemon: existing"
+  }${suffix}`;
 }
 
 function createTrayIcon(): NativeImage {

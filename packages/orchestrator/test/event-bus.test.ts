@@ -40,4 +40,19 @@ describe("EventBus", () => {
     assert.equal(restored.latestSeq, durable.seq);
     assert.equal(restored.latestDurableSeq, durable.seq);
   });
+
+  it("exposes the in-memory buffer floor for cheap reconnect replay", async () => {
+    const home = await tempHome();
+    const bus = new EventBus(home);
+    assert.equal(bus.bufferedFloorSeq(), 0);
+
+    const first = await bus.publish("project.created", { projectId: "p1" });
+    const second = await bus.publish("project.created", { projectId: "p2" });
+
+    assert.equal(bus.bufferedFloorSeq(), first.seq);
+    assert.deepEqual(
+      bus.replaySince(first.seq).map((event) => event.seq),
+      [second.seq],
+    );
+  });
 });

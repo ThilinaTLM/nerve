@@ -3,7 +3,12 @@ import {
   parseDesktopOptions,
   parseElectronOzonePlatform,
 } from "./app/cli-options.js";
-import { ensureDaemon, type ManagedDaemon } from "./daemon.js";
+import {
+  type DaemonStatus,
+  type DaemonStatusInfo,
+  ensureDaemon,
+  type ManagedDaemon,
+} from "./daemon.js";
 import type { BrowserWindowType } from "./electron.js";
 import { app, BrowserWindow, nativeTheme } from "./electron.js";
 import { showDesktopNotification } from "./ipc/notifications-ipc.js";
@@ -39,6 +44,7 @@ let daemonStopped = false;
 let appQuitting = false;
 let closeToTray = true;
 let stopDaemonPromise: Promise<void> | undefined;
+let unsubscribeDaemonStatus: (() => void) | undefined;
 
 const trayController = createTrayController({
   getMainWindow: () => mainWindow,
@@ -46,6 +52,13 @@ const trayController = createTrayController({
   showMainWindow,
   hideWindow,
   requestQuit,
+  restartDaemon: () => {
+    void managedDaemon?.restart().catch((error: unknown) => {
+      void desktopLog("error", "daemon", "Manual daemon restart failed", {
+        error,
+      });
+    });
+  },
 });
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -174,6 +187,7 @@ async function openMainWindow(): Promise<void> {
     await refreshDesktopSettingsFromDaemon(managedDaemon, (value) => {
       closeToTray = value;
     });
+    subscribeToDaemonStatus(managedDaemon);
     trayController.updateTrayMenu();
     if (window.isDestroyed()) return;
     await window.loadURL(managedDaemon.url);
@@ -184,6 +198,49 @@ async function openMainWindow(): Promise<void> {
     console.error(error);
     if (!window.isDestroyed())
       await window.loadURL(createDataUrl(errorHtml(error)));
+  }
+}
+
+function subscribeToDaemonStatus(daemon: ManagedDaemon): void {
+  unsubscribeDaemonStatus?.();
+  unsubscribeDaemonStatus = daemon.onStatusChange((status, info) => {
+    void handleDaemonStatusChange(status, info);
+  });
+}
+
+async function handleDaemonStatusChange(
+  status: DaemonStatus,
+  info?: DaemonStatusInfo,
+): Promise<void> {
+  void desktopLog("info", "daemon", "Daemon status changed", {
+    context: { status, attempt: info?.attempt, error: info?.error },
+  });
+  trayController.updateTrayMenu();
+  const window = mainWindow;
+  if (appQuitting || !window || window.isDestroyed()) return;
+  try {
+    if (status === "restarting") {
+      await window.loadURL(
+        createDataUrl(loadingHtml("Reconnecting to Nerve daemon…")),
+      );
+    } else if (status === "ready" && managedDaemon) {
+      await window.loadURL(managedDaemon.url);
+    } else if (status === "failed") {
+      await window.loadURL(
+        createDataUrl(
+          errorHtml(
+            new Error(
+              info?.error ?? "The Nerve daemon stopped and could not restart.",
+            ),
+          ),
+        ),
+      );
+    }
+  } catch (error) {
+    void desktopLog("error", "daemon", "Failed to update window for status", {
+      error,
+      context: { status },
+    });
   }
 }
 

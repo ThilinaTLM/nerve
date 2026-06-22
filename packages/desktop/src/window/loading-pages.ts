@@ -4,7 +4,7 @@ export function createDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
-export function loadingHtml(): string {
+export function loadingHtml(statusText = "Starting local daemon…"): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -16,7 +16,7 @@ export function loadingHtml(): string {
   <body>
     <main class="loading" aria-live="polite" aria-label="Starting Nerve">
       <div class="spinner" aria-hidden="true"></div>
-      <p class="status">Starting local daemon…</p>
+      <p class="status">${escapeHtml(statusText)}</p>
     </main>
   </body>
 </html>`;
@@ -34,8 +34,8 @@ export function errorHtml(error: unknown): string {
   </head>
   <body>
     <main class="error">
-      <h1 class="error-title">Startup error</h1>
-      <p class="status">Could not start the local daemon.</p>
+      <h1 class="error-title">Daemon unavailable</h1>
+      <p class="status">Could not start the local daemon. Use the Nerve tray menu → “Restart Daemon” to try again.</p>
       <pre>${escapeHtml(message)}</pre>
     </main>
   </body>

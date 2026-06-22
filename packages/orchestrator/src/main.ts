@@ -5,6 +5,7 @@ import { networkInterfaces } from "node:os";
 import type { Duplex } from "node:stream";
 import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
+import { recoverInterruptedRuns } from "./domains/agents/run/interrupted-run-recovery.js";
 import {
   initializeStorage,
   writeDaemonFile,
@@ -58,6 +59,7 @@ async function main() {
   }
   const state = createOrchestratorState(storage, host, port);
   await state.logger.hydrate();
+  installCrashGuards(state.logger);
   await state.logger.pruneRetention();
   await state.logger.info("Daemon storage initialized", {
     context: { dataDir: storage.paths.home, host, port },
@@ -96,6 +98,12 @@ async function main() {
     durationMs: Date.now() - indexRebuildStartedAt,
     context: { ...state.index.counts() },
   });
+  await recoverInterruptedRuns(persistedEvents, {
+    events: state.events,
+    logger: state.logger,
+  }).catch((error) =>
+    state.logger.warn("Interrupted run recovery failed", { error }),
+  );
   state.subscriptionUsage.start();
   const mobileTls = mobileHttpsEnabled
     ? await ensureMobileHttpsTlsMaterial(
@@ -181,6 +189,7 @@ async function main() {
   installWebSocketUpgrade(server, webSockets, state, storage.localToken);
   if (httpsServer)
     installWebSocketUpgrade(httpsServer, webSockets, state, storage.localToken);
+  const stopHeartbeat = startWebSocketHeartbeat(webSockets);
   let shuttingDown = false;
 
   const shutdown = async (signal: NodeJS.Signals) => {
@@ -208,6 +217,7 @@ async function main() {
       .info("Daemon file removed", { durationMs: Date.now() - startedAt })
       .catch(() => undefined);
     state.subscriptionUsage.stop();
+    stopHeartbeat();
     closeWebSocketClients(webSockets);
     webSockets.close();
     state.index.close();
@@ -221,6 +231,41 @@ async function main() {
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+}
+
+/**
+ * Backstop for truly unexpected errors. Per-run and per-tool failures are
+ * already isolated upstream; these handlers ensure that a stray async error
+ * does not leave a half-dead daemon. We best-effort log, then exit non-zero so
+ * the desktop supervisor restarts a clean process.
+ */
+function installCrashGuards(
+  logger: ReturnType<typeof createOrchestratorState>["logger"],
+): void {
+  let exiting = false;
+  const fatal = (
+    kind: "uncaughtException" | "unhandledRejection",
+    error: unknown,
+  ) => {
+    if (exiting) return;
+    exiting = true;
+    // Always surface to stderr (captured by the desktop daemon output buffer).
+    console.error(`[nerve] fatal ${kind}:`, error);
+    // Hard cap so logging can never hang the exit.
+    const forceExit = setTimeout(() => process.exit(1), 1000);
+    forceExit.unref();
+    void logger
+      .error(`Daemon crashed: ${kind}`, { error })
+      .catch(() => undefined)
+      .finally(() => {
+        clearTimeout(forceExit);
+        process.exit(1);
+      });
+  };
+  process.on("uncaughtException", (error) => fatal("uncaughtException", error));
+  process.on("unhandledRejection", (reason) =>
+    fatal("unhandledRejection", reason),
+  );
 }
 
 function installWebSocketUpgrade(
@@ -244,13 +289,19 @@ function installWebSocketUpgrade(
       return;
     }
     webSockets.handleUpgrade(request, socket, head, (ws) => {
+      markWebSocketAlive(ws);
+      ws.on("pong", () => markWebSocketAlive(ws));
       const sinceParam = url.searchParams.get("since");
       const since = sinceParam === null ? undefined : Number(sinceParam);
-      const replayAfter =
-        since === undefined || !Number.isFinite(since)
-          ? state.events.latestSeq
-          : since;
-      let replayReady = since === undefined || !Number.isFinite(since);
+      const hasSince = since !== undefined && Number.isFinite(since);
+      const replayAfter = hasSince ? (since as number) : state.events.latestSeq;
+      // Serve the backlog from the in-memory ring whenever the cursor is within
+      // the buffered window; only fall back to the (potentially huge) persisted
+      // event log for cursors older than what we still hold in memory.
+      const bufferedFloor = state.events.bufferedFloorSeq();
+      const canReplayFromMemory =
+        hasSince && (bufferedFloor === 0 || replayAfter >= bufferedFloor - 1);
+      let replayReady = !hasSince || canReplayFromMemory;
       let maxSentSeq = replayAfter;
       const pendingLive: Array<unknown> = [];
       const sendEvent = (event: unknown) => {
@@ -268,7 +319,13 @@ function installWebSocketUpgrade(
       });
       ws.on("close", unsubscribe);
 
-      if (!replayReady) {
+      if (hasSince && canReplayFromMemory) {
+        for (const event of state.events.replaySince(replayAfter)) {
+          if (event.seq <= maxSentSeq) continue;
+          maxSentSeq = event.seq;
+          sendEvent(event);
+        }
+      } else if (!replayReady) {
         void state.events
           .replayPersistedSince(replayAfter)
           .then((events) => {
@@ -301,6 +358,44 @@ function installWebSocketUpgrade(
       }
     });
   });
+}
+
+const heartbeatIntervalMs = 30_000;
+type AliveSocket = WebSocket & { isAlive?: boolean };
+
+function markWebSocketAlive(ws: WebSocket): void {
+  (ws as AliveSocket).isAlive = true;
+}
+
+/**
+ * Detect half-open sockets (sleep/wake, NIC drops, dead peers that never sent a
+ * close frame). Each interval we terminate clients that did not answer the
+ * previous ping, then ping the rest. A tiny app-level `heartbeat` frame is also
+ * sent so browser clients (which answer protocol pings invisibly to JS) can run
+ * their own liveness watchdog and force a reconnect when the daemon is gone.
+ */
+function startWebSocketHeartbeat(webSockets: WebSocketServer): () => void {
+  const heartbeatFrame = JSON.stringify({ type: "heartbeat" });
+  const interval = setInterval(() => {
+    for (const client of webSockets.clients) {
+      const alive = client as AliveSocket;
+      if (alive.isAlive === false) {
+        client.terminate();
+        continue;
+      }
+      alive.isAlive = false;
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.ping();
+          client.send(heartbeatFrame);
+        } catch {
+          client.terminate();
+        }
+      }
+    }
+  }, heartbeatIntervalMs);
+  interval.unref();
+  return () => clearInterval(interval);
 }
 
 function closeWebSocketClients(webSockets: WebSocketServer): void {

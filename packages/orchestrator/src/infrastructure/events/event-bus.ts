@@ -101,6 +101,15 @@ export class EventBus {
     return this.#latestDurableSeq;
   }
 
+  /**
+   * Oldest sequence still held in the in-memory ring buffer, or 0 when empty.
+   * Callers can serve a `since` backlog from memory (cheap) instead of
+   * re-reading the persisted log from disk whenever `since >= floor - 1`.
+   */
+  bufferedFloorSeq(): number {
+    return this.#events[0]?.seq ?? 0;
+  }
+
   replaySince(seq = 0): EventEnvelope[] {
     return this.#events.filter((event) => event.seq > seq);
   }
