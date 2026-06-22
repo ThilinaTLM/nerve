@@ -212,6 +212,15 @@ export class ToolService {
     return this.toolCallRepository.list();
   }
 
+  /** Compact the persisted tool-call log, dropping superseded append rows. */
+  async compactToolCallLog(): Promise<void> {
+    await this.toolCallRepository.compactPersisted();
+  }
+
+  toolCallLogPath(): string {
+    return this.toolCallRepository.persistedPath();
+  }
+
   listApprovals(status?: ApprovalRecord["status"]): ApprovalRecord[] {
     return this.approvalRepository.list(status);
   }

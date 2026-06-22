@@ -25,6 +25,7 @@
   import WebSearchSettingsSection from "./settings/sections/WebSearchSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
+  import StorageSettingsSection from "./settings/sections/StorageSettingsSection.svelte";
 
   type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
   type SectionId =
@@ -37,6 +38,7 @@
     | "models"
     | "server"
     | "python"
+    | "storage"
     | "runtime";
   type GroupId = "workbench" | "agents" | "models" | "system";
   type GroupSection = { id: SectionId; label: string };
@@ -103,6 +105,7 @@
       sections: [
         { id: "server", label: "Server" },
         { id: "python", label: "Python" },
+        { id: "storage", label: "Storage" },
         { id: "runtime", label: "Diagnostics" },
       ],
     },
@@ -261,6 +264,7 @@
         {:else if activeGroup === "system"}
           <ServerSettingsSection {settingsDraft} {onSettingsChange} />
           <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />
+          <StorageSettingsSection />
           <GeneralSettingsSection {status} />
         {/if}
       {:else}

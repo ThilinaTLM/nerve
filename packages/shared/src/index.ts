@@ -12,6 +12,7 @@ export * from "./domains/plans/index.js";
 export * from "./domains/projects/index.js";
 export * from "./domains/settings/index.js";
 export * from "./domains/status/index.js";
+export * from "./domains/storage/index.js";
 export * from "./domains/suspensions/index.js";
 export * from "./domains/tasks/index.js";
 export * from "./domains/tools/index.js";

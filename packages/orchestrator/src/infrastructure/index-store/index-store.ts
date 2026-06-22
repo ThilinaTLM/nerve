@@ -72,6 +72,22 @@ export class IndexStore {
     }
   }
 
+  /**
+   * Reclaim free pages left by deletes. Checkpoints the WAL first, then runs
+   * VACUUM (which needs transient free disk roughly equal to the db size).
+   * Returns true on success; failures (e.g. low disk) are reported, not thrown.
+   */
+  vacuum(): boolean {
+    try {
+      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      this.db.exec("VACUUM");
+      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   upsertProject(project: ProjectRecord): void {
     this.guard(() => {
       this.db

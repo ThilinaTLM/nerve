@@ -1,3 +1,4 @@
+import { storageCleanupRequestSchema } from "@nerve/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";
@@ -18,6 +19,19 @@ export function createStorageRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) => {
       await state.registry.rebuildIndex({ reindexEvents: true });
       return c.json({ ok: true, counts: state.index.counts() });
+    }),
+  );
+
+  app.get(
+    "/storage/usage",
+    routeHandler(async (c) => c.json(await state.storageUsage.computeUsage())),
+  );
+
+  app.post(
+    "/storage/cleanup",
+    routeHandler(async (c) => {
+      const body = storageCleanupRequestSchema.parse(await c.req.json());
+      return c.json(await state.storageUsage.cleanup(body));
     }),
   );
 

@@ -231,6 +231,24 @@ export class RuntimeRegistry {
     );
   }
 
+  /**
+   * Prune matching conversations across every project. Reuses the per-project
+   * safe prune (skips active agents/tasks, removes records/events/logs, rebuilds
+   * the index) and aggregates the totals. Used by storage cleanup.
+   */
+  async pruneConversationsAcrossProjects(
+    request: PruneProjectConversationsRequest,
+  ): Promise<{ prunedConversationIds: string[]; skippedCount: number }> {
+    const prunedConversationIds: string[] = [];
+    let skippedCount = 0;
+    for (const project of this.listProjects()) {
+      const result = await this.pruneProjectConversations(project.id, request);
+      prunedConversationIds.push(...result.prunedConversationIds);
+      skippedCount += result.skipped.length;
+    }
+    return { prunedConversationIds, skippedCount };
+  }
+
   async configureAgent(
     agentId: string,
     request: UpdateAgentRequest,

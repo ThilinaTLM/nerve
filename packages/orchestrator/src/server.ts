@@ -9,6 +9,7 @@ import {
 import { Hono } from "hono";
 import { AuthManager } from "./auth.js";
 import { CredentialKeyService } from "./credential-crypto.js";
+import { StorageUsageService } from "./domains/storage/index.js";
 import { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
 import {
   cookieHeader,
@@ -44,6 +45,7 @@ export interface OrchestratorState {
   logger: ApplicationLogger;
   registry: RuntimeRegistry;
   index: IndexStore;
+  storageUsage: StorageUsageService;
   secrets: SecretProvider;
   auth: AuthManager;
   credentialKey: CredentialKeyService;
@@ -76,6 +78,20 @@ export function createOrchestratorState(
     events,
     cacheDir: join(storage.paths.home, "cache", "usage"),
   });
+  const registry = new RuntimeRegistry(
+    storage,
+    events,
+    index,
+    auth,
+    secrets,
+    subscriptionUsage,
+    logger,
+  );
+  const storageUsage = new StorageUsageService({
+    paths: storage.paths,
+    index,
+    getRegistry: () => registry,
+  });
   return {
     daemonId: createId("daemon"),
     startedAt: new Date().toISOString(),
@@ -84,16 +100,9 @@ export function createOrchestratorState(
     storage,
     events,
     logger,
-    registry: new RuntimeRegistry(
-      storage,
-      events,
-      index,
-      auth,
-      secrets,
-      subscriptionUsage,
-      logger,
-    ),
+    registry,
     index,
+    storageUsage,
     secrets,
     auth,
     credentialKey,

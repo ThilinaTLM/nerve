@@ -64,6 +64,20 @@ export class ToolCallRepository {
     await rewriteJsonLines(this.path(), this.list(), 0o600);
   }
 
+  /**
+   * Rewrite the persisted log to only the latest version of each tool call,
+   * dropping the superseded append duplicates that accumulate via `upsert`.
+   * Frees disk without losing any tool call and keeps the file in sync with the
+   * in-memory map. Returns the file size delta (bytes freed).
+   */
+  async compactPersisted(): Promise<void> {
+    await rewriteJsonLines(this.path(), this.list(), 0o600);
+  }
+
+  persistedPath(): string {
+    return this.path();
+  }
+
   private async readLatest(): Promise<ToolCallRecord[]> {
     const values = await readJsonLines<ToolCallRecord>(this.path()).catch(
       () => [],
