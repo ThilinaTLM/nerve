@@ -376,6 +376,8 @@ export function composeRuntime(
     createConversation,
     createAgent,
     getAgent,
+    configureAgent: (agentId, request) =>
+      services.agentLifecycle.configureAgent(agentId, request),
     setAgentStatus: (agent, status) =>
       services.agentLifecycle.setAgentStatus(agent, status),
     appendEntry,

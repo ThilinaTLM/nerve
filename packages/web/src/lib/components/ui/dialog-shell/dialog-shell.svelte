@@ -77,13 +77,13 @@
   :global(.dialog-content) {
     position: fixed;
     z-index: 50;
-    top: 7vh;
+    top: 50%;
     left: 50%;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     width: min(760px, calc(100vw - 32px));
     max-height: 84vh;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);

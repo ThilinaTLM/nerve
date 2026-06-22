@@ -2,7 +2,10 @@
   import Folder from "@lucide/svelte/icons/folder";
   import ListPlus from "@lucide/svelte/icons/list-plus";
   import type {
+    AgentRecord,
+    ModelInfo,
     PlanReviewRecord,
+    PlanReviewResolveOptions,
     ProjectRecord,
     QueuedPromptRecord,
     ToolCallRecord,
@@ -38,12 +41,21 @@
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
     active?: boolean;
+    planReviewModels?: ModelInfo[];
+    planReviewModelKey?: string;
+    planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
     lastTimelineKey?: string;
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
-    onAcceptPlanReview?: (id: string) => void;
-    onAcceptPlanReviewInNewChat?: (id: string) => void;
+    onAcceptPlanReview?: (
+      id: string,
+      options?: PlanReviewResolveOptions,
+    ) => void | Promise<void>;
+    onAcceptPlanReviewInNewChat?: (
+      id: string,
+      options?: PlanReviewResolveOptions,
+    ) => void | Promise<void>;
     onRejectPlanReview?: (id: string) => void;
     onContinueFromFailure?: (statusEntryId: string) => void;
     messageMenu: (item: TranscriptItem) => ContextMenuItem[];
@@ -69,6 +81,9 @@
     pendingUserQuestion,
     pendingPlanReview,
     active = true,
+    planReviewModels = [],
+    planReviewModelKey = "",
+    planReviewThinkingLevel = "off",
     lastTimelineKey,
     onOpenFile,
     onAnswerUserQuestion,
@@ -151,6 +166,9 @@
           {pendingUserQuestion}
           {pendingPlanReview}
           {lastTimelineKey}
+          {planReviewModels}
+          {planReviewModelKey}
+          {planReviewThinkingLevel}
           {onOpenFile}
           {onAnswerUserQuestion}
           {onDismissUserQuestion}

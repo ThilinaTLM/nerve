@@ -110,6 +110,10 @@ export function createToolRoutes(state: OrchestratorState): Hono {
         planReview: await state.registry.acceptPlanReview(
           routeParam(c, "reviewId"),
           body.feedback,
+          {
+            implementationModel: body.implementationModel,
+            implementationThinkingLevel: body.implementationThinkingLevel,
+          },
         ),
       });
     }),
@@ -124,6 +128,10 @@ export function createToolRoutes(state: OrchestratorState): Hono {
         await state.registry.acceptPlanReviewInNewChat(
           routeParam(c, "reviewId"),
           body.feedback,
+          {
+            implementationModel: body.implementationModel,
+            implementationThinkingLevel: body.implementationThinkingLevel,
+          },
         ),
       );
     }),

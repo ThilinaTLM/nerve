@@ -1,27 +1,53 @@
 <script lang="ts">
   import Check from "@lucide/svelte/icons/check";
-  import type { PlanReviewRecord, ToolCallRecord } from "$lib/api";
-  import type { ToolView } from "$lib/features/tools/views/tool-result-view";
-  import { trimTextPreview } from "$lib/core/utils/text-preview";
+  import type {
+    AgentRecord,
+    ModelInfo,
+    PlanReviewRecord,
+    PlanReviewResolveOptions,
+    ToolCallRecord,
+  } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import { SplitButton } from "$lib/components/ui/split-button";
+  import { trimTextPreview } from "$lib/core/utils/text-preview";
+  import type { ToolView } from "$lib/features/tools/views/tool-result-view";
+  import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
+
+  type PlanAcceptTarget = "same" | "new-chat";
 
   type Props = {
     toolCall: ToolCallRecord;
     view: Extract<ToolView, { kind: "plan_mode" }>;
     planReview?: PlanReviewRecord;
+    planReviewModels?: ModelInfo[];
+    planReviewModelKey?: string;
+    planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
     onOpenFile?: (path: string, line?: number) => void;
-    onAcceptPlanReview?: (id: string) => void;
-    onAcceptPlanReviewInNewChat?: (id: string) => void;
+    onAcceptPlanReview?: (
+      id: string,
+      options?: PlanReviewResolveOptions,
+    ) => void | Promise<void>;
+    onAcceptPlanReviewInNewChat?: (
+      id: string,
+      options?: PlanReviewResolveOptions,
+    ) => void | Promise<void>;
     onRejectPlanReview?: (id: string) => void;
   };
   let {
     toolCall,
     view,
     planReview,
+    planReviewModels = [],
+    planReviewModelKey = "",
+    planReviewThinkingLevel = "off",
     onAcceptPlanReview,
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
   }: Props = $props();
+
+  let implementationDialog = $state<PlanAcceptTarget | undefined>();
+  let accepting = $state<PlanAcceptTarget | undefined>();
 
   function asRecord(value: unknown): Record<string, unknown> {
     return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -64,6 +90,52 @@
   const showPlanCard = $derived(
     toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),
   );
+  const actionsDisabled = $derived(!pendingReview || Boolean(accepting));
+  const acceptVariant = $derived<"success" | "default">(
+    accepted || acceptedInNewChat ? "success" : "default",
+  );
+
+  async function acceptSame(options?: PlanReviewResolveOptions) {
+    if (!planReview || !pendingReview || accepting || !onAcceptPlanReview) return;
+    accepting = "same";
+    try {
+      await onAcceptPlanReview(planReview.id, options);
+    } finally {
+      accepting = undefined;
+    }
+  }
+
+  async function acceptNewChat(options?: PlanReviewResolveOptions) {
+    if (
+      !planReview ||
+      !pendingReview ||
+      accepting ||
+      !onAcceptPlanReviewInNewChat
+    ) {
+      return;
+    }
+    accepting = "new-chat";
+    try {
+      await onAcceptPlanReviewInNewChat(planReview.id, options);
+    } finally {
+      accepting = undefined;
+    }
+  }
+
+  function openSameModelDialog() {
+    if (!pendingReview || accepting) return;
+    implementationDialog = "same";
+  }
+
+  function openNewChatModelDialog() {
+    if (!pendingReview || accepting) return;
+    implementationDialog = "new-chat";
+  }
+
+  function rejectPlan() {
+    if (!planReview || !pendingReview || accepting) return;
+    onRejectPlanReview?.(planReview.id);
+  }
 </script>
 
 {#if showPlanCard && displayedReview}
@@ -73,34 +145,71 @@
     {/if}
 
     <div class="flex flex-wrap justify-end gap-2">
-      <Button
+      <SplitButton
+        variant={acceptVariant}
         size="sm"
-        variant={accepted ? "success" : "default"}
-        disabled={!pendingReview}
-        onclick={() => planReview && onAcceptPlanReview?.(planReview.id)}
+        disabled={actionsDisabled}
+        menuAlign="end"
+        menuClass="w-60"
+        triggerLabel="Accept options"
+        onclick={() => void acceptSame()}
       >
-        {#if accepted}<Check size={14} strokeWidth={2.4} />{/if}
-        Accept &amp; Implement
-      </Button>
-      <Button
-        size="sm"
-        variant={acceptedInNewChat ? "success" : "secondary"}
-        disabled={!pendingReview}
-        onclick={() => planReview && onAcceptPlanReviewInNewChat?.(planReview.id)}
-      >
-        {#if acceptedInNewChat}<Check size={14} strokeWidth={2.4} />{/if}
-        Accept in New Chat
-      </Button>
+        {#if accepted || acceptedInNewChat}<Check class="size-3.5" strokeWidth={2.4} />{/if}
+        Accept & Implement
+        {#snippet menu()}
+          <DropdownMenu.Item disabled={actionsDisabled} onSelect={() => void acceptSame()}>
+            Accept & implement
+          </DropdownMenu.Item>
+          <DropdownMenu.Item disabled={actionsDisabled} onSelect={() => void acceptNewChat()}>
+            Accept in new chat
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator />
+          <DropdownMenu.Item disabled={actionsDisabled} onSelect={openSameModelDialog}>
+            Choose model & implement
+          </DropdownMenu.Item>
+          <DropdownMenu.Item disabled={actionsDisabled} onSelect={openNewChatModelDialog}>
+            Choose model & start new chat
+          </DropdownMenu.Item>
+        {/snippet}
+      </SplitButton>
+
       <Button
         size="sm"
         variant="secondary"
-        disabled={!pendingReview}
-        onclick={() => planReview && onRejectPlanReview?.(planReview.id)}
+        disabled={actionsDisabled}
+        onclick={rejectPlan}
       >
-        {#if rejected}<Check size={14} strokeWidth={2.4} />{/if}
+        {#if rejected}<Check class="size-3.5" strokeWidth={2.4} />{/if}
         Reject Plan
       </Button>
     </div>
+
+    <PlanImplementationModelDialog
+      open={implementationDialog === "same"}
+      title="Choose implementation model"
+      description="The selected model will be used when implementation continues in this conversation."
+      confirmLabel="Accept and implement"
+      models={planReviewModels}
+      initialModelKey={planReviewModelKey}
+      initialThinkingLevel={planReviewThinkingLevel}
+      onOpenChange={(open) => {
+        implementationDialog = open ? "same" : undefined;
+      }}
+      onConfirm={acceptSame}
+    />
+    <PlanImplementationModelDialog
+      open={implementationDialog === "new-chat"}
+      title="Choose implementation model"
+      description="The selected model will be used by the new implementation chat."
+      confirmLabel="Accept in new chat"
+      models={planReviewModels}
+      initialModelKey={planReviewModelKey}
+      initialThinkingLevel={planReviewThinkingLevel}
+      onOpenChange={(open) => {
+        implementationDialog = open ? "new-chat" : undefined;
+      }}
+      onConfirm={acceptNewChat}
+    />
   </div>
 {:else if view.summary}
   <p class="m-0 text-sm text-muted-foreground">{view.summary}</p>

@@ -185,7 +185,10 @@
 
   const controlsDisabled = $derived(!interactive || !(activeConversation || pendingConversationActive) || sending || compacting || blockedForReview);
   const modeDisabled = $derived(!interactive || !(activeConversation || pendingConversationActive));
-  const modelDisabled = $derived(controlsDisabled || models.length === 0);
+  const modelDisabled = $derived(!interactive || !(activeConversation || pendingConversationActive) || models.length === 0 || compacting);
+  const modelRuntimeChangeHint = $derived(
+    sending ? "Changes apply to the next model request" : undefined,
+  );
 
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
 
@@ -272,6 +275,7 @@
         {selectedModelKey}
         {thinkingLevel}
         {onModeChange}
+        runtimeChangeHint={modelRuntimeChangeHint}
         {onModelChange}
         {onThinkingLevelChange}
         {onPermissionChange}

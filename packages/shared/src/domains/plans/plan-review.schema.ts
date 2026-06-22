@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  type ModelSelection,
+  modelSelectionSchema,
+  type ThinkingLevel,
+  thinkingLevelSchema,
+} from "../models/index.js";
 
 export const planSlugSchema = z
   .string()
@@ -38,7 +44,14 @@ export type PlanReviewRecord = z.infer<typeof planReviewRecordSchema>;
 
 export const resolvePlanReviewRequestSchema = z.object({
   feedback: z.string().optional(),
+  implementationModel: modelSelectionSchema.optional(),
+  implementationThinkingLevel: thinkingLevelSchema.optional(),
 });
 export type ResolvePlanReviewRequest = z.infer<
   typeof resolvePlanReviewRequestSchema
 >;
+
+export type PlanImplementationSelection = {
+  implementationModel?: ModelSelection;
+  implementationThinkingLevel?: ThinkingLevel;
+};

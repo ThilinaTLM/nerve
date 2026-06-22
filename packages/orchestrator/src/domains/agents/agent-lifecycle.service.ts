@@ -31,6 +31,14 @@ function isModeOnlyUpdate(
   );
 }
 
+function isRuntimeModelUpdate(request: UpdateAgentRequest): boolean {
+  return (
+    request.permissionLevel === undefined &&
+    request.mode === undefined &&
+    (request.model !== undefined || request.thinkingLevel !== undefined)
+  );
+}
+
 export class AgentLifecycleService {
   private readonly childReservationQueues = new Map<string, Promise<void>>();
 
@@ -164,6 +172,27 @@ export class AgentLifecycleService {
           "Mode changed by user.",
         );
       }
+
+      if (isRuntimeModelUpdate(request)) {
+        const model =
+          request.model === null ? undefined : (request.model ?? agent.model);
+        const updated: AgentRecord = {
+          ...agent,
+          model,
+          thinkingLevel: clampAgentThinkingLevel(
+            model,
+            request.thinkingLevel ?? agent.thinkingLevel,
+          ),
+          updatedAt: new Date().toISOString(),
+        };
+        await this.updateAgent(updated);
+        await this.state.runs
+          .get(agent.id)
+          ?.updateAgentRuntimeConfig?.(updated);
+        await this.events.publish("agent.configured", { agent: updated });
+        return updated;
+      }
+
       throw new HttpError(409, "AGENT_BUSY", "Cannot update a running agent.");
     }
     const model =

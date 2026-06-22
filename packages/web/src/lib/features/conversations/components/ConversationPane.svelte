@@ -39,6 +39,9 @@
     composerText = "",
     models = [],
     selectedModelKey = "",
+    planReviewModels = [],
+    planReviewModelKey = "",
+    planReviewThinkingLevel = "off",
     contextUsage,
     contextWindow = 0,
     composerFocusToken = 0,
@@ -174,6 +177,9 @@
         {pendingUserQuestion}
         {pendingPlanReview}
         {active}
+        {planReviewModels}
+        {planReviewModelKey}
+        {planReviewThinkingLevel}
         {lastTimelineKey}
         {onOpenFile}
         {onAnswerUserQuestion}

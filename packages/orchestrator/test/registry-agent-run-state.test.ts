@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
+import { clampAgentThinkingLevel } from "@nerve/agent";
 import type {
   ConversationEntry,
   EventEnvelope,
@@ -13,6 +14,11 @@ import { HttpError } from "../src/registry.js";
 import { createOrchestratorState } from "../src/server.js";
 
 const roots: string[] = [];
+const modelA = { provider: "nerve-faux", modelId: "faux-fast" } as const;
+const modelB = {
+  provider: "anthropic",
+  modelId: "claude-sonnet-4-5",
+} as const;
 
 after(async () => {
   await Promise.all(
@@ -95,7 +101,7 @@ describe("RuntimeRegistry agent run state", () => {
     }
   });
 
-  it("still rejects non-mode config updates while an agent is running", async () => {
+  it("still rejects permission config updates while an agent is running", async () => {
     const { state, agent } = await createProjectConversationAgent();
     try {
       state.registry.runs.set(agent.id, {
@@ -114,6 +120,39 @@ describe("RuntimeRegistry agent run state", () => {
           error.status === 409 &&
           error.code === "AGENT_BUSY",
       );
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("allows model and thinking updates while an agent is running", async () => {
+    const { state, agent } = await createProjectConversationAgent();
+    let runtimeAgent: typeof agent | undefined;
+    try {
+      state.registry.runs.set(agent.id, {
+        runId: "run_01HN0000000000000000000000",
+        abort: () => undefined,
+        messages: [],
+        updateAgentRuntimeConfig: async (updated) => {
+          runtimeAgent = updated;
+        },
+      });
+
+      const updated = await state.registry.configureAgent(agent.id, {
+        model: modelB,
+        thinkingLevel: "high",
+      });
+      const expectedThinkingLevel = clampAgentThinkingLevel(modelB, "high");
+
+      assert.deepEqual(updated.model, modelB);
+      assert.equal(updated.thinkingLevel, expectedThinkingLevel);
+      assert.deepEqual(state.registry.getAgent(agent.id).model, modelB);
+      assert.equal(
+        state.registry.getAgent(agent.id).thinkingLevel,
+        expectedThinkingLevel,
+      );
+      assert.deepEqual(runtimeAgent?.model, modelB);
+      assert.equal(runtimeAgent?.thinkingLevel, expectedThinkingLevel);
     } finally {
       state.index.close();
     }
@@ -257,6 +296,95 @@ describe("RuntimeRegistry agent run state", () => {
           instructionEntryEvent.seq <= continuedAtSeq,
         "new-chat instruction entry is published before agent continuation",
       );
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("accepts a suspended plan with a selected implementation model in the same conversation", async () => {
+    const { state, agent } = await createProjectConversationAgent();
+    const continuedAgentIds: string[] = [];
+    let continuedAtSeq: number | undefined;
+    try {
+      await state.registry.configureAgent(agent.id, {
+        mode: "planning",
+        model: modelA,
+        thinkingLevel: "off",
+      });
+      const { review } = await createPendingPlanReviewSuspension(
+        state,
+        agent.id,
+      );
+      const startSeq = state.events.latestSeq;
+      setContinueAgentMock(state, async (continuedAgentId) => {
+        continuedAgentIds.push(continuedAgentId);
+        continuedAtSeq = state.events.latestSeq;
+      });
+
+      await state.registry.acceptPlanReview(review.id, undefined, {
+        implementationModel: modelB,
+        implementationThinkingLevel: "high",
+      });
+      const expectedThinkingLevel = clampAgentThinkingLevel(modelB, "high");
+      const updatedAgent = state.registry.getAgent(agent.id);
+
+      assert.equal(updatedAgent.mode, "coding");
+      assert.deepEqual(updatedAgent.model, modelB);
+      assert.equal(updatedAgent.thinkingLevel, expectedThinkingLevel);
+      assert.deepEqual(continuedAgentIds, [agent.id]);
+
+      const events = await state.events.replayPersistedSince(startSeq);
+      const configuredEvent = events.find((event) => {
+        if (event.type !== "agent.configured") return false;
+        const data = event.data as { agent?: { id?: string } };
+        return data.agent?.id === agent.id;
+      });
+      assert.ok(configuredEvent, "implementation model update was published");
+      assert.ok(
+        continuedAtSeq !== undefined && configuredEvent.seq <= continuedAtSeq,
+        "implementation model is applied before agent continuation",
+      );
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("accepts a suspended plan in a new chat with a selected implementation model", async () => {
+    const { state, agent } = await createProjectConversationAgent();
+    const continuedAgentIds: string[] = [];
+    try {
+      await state.registry.configureAgent(agent.id, {
+        mode: "planning",
+        model: modelA,
+        thinkingLevel: "off",
+      });
+      const { review } = await createPendingPlanReviewSuspension(
+        state,
+        agent.id,
+      );
+      setContinueAgentMock(state, async (continuedAgentId) => {
+        continuedAgentIds.push(continuedAgentId);
+      });
+
+      const result = await state.registry.acceptPlanReviewInNewChat(
+        review.id,
+        undefined,
+        {
+          implementationModel: modelB,
+          implementationThinkingLevel: "high",
+        },
+      );
+      const expectedThinkingLevel = clampAgentThinkingLevel(modelB, "high");
+      const sourceAgent = state.registry.getAgent(agent.id);
+
+      assert.equal(result.conversation.mode, "coding");
+      assert.equal(result.agent.mode, "coding");
+      assert.deepEqual(result.agent.model, modelB);
+      assert.equal(result.agent.thinkingLevel, expectedThinkingLevel);
+      assert.equal(sourceAgent.mode, "planning");
+      assert.deepEqual(sourceAgent.model, modelA);
+      assert.equal(sourceAgent.thinkingLevel, "off");
+      assert.deepEqual(continuedAgentIds, [result.agent.id]);
     } finally {
       state.index.close();
     }

@@ -13,6 +13,7 @@
     thinkingLevel?: ThinkingLevel;
     disabled?: boolean;
     shortcutLabel?: string;
+    runtimeChangeHint?: string;
     onModelChange?: (value: string) => void;
     onThinkingLevelChange?: (value: ThinkingLevel) => void;
   };
@@ -23,6 +24,7 @@
     thinkingLevel = "off",
     disabled = false,
     shortcutLabel,
+    runtimeChangeHint,
     onModelChange,
     onThinkingLevelChange,
   }: Props = $props();
@@ -57,21 +59,32 @@
     hasThinking && thinkingLevel !== "off" ? thinkingLevelLabel(thinkingLevel) : undefined,
   );
   const triggerTitle = $derived(
-    `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${shortcutLabel ? ` · Cycle thinking ${shortcutLabel}` : ""}`,
+    `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${runtimeChangeHint ? ` · ${runtimeChangeHint}` : ""}${shortcutLabel ? ` · Cycle thinking ${shortcutLabel}` : ""}`,
   );
 
+  function handleOpenChange(next: boolean) {
+    open = disabled ? false : next;
+  }
+
   function selectModel(model: ModelInfo) {
+    if (disabled) return;
     const key = modelKey(model);
     if (key !== selectedModelKey) onModelChange?.(key);
   }
 
   function selectThinking(level: ThinkingLevel) {
+    if (disabled) return;
     if (level !== thinkingLevel) onThinkingLevelChange?.(level);
   }
+
+  $effect(() => {
+    if (disabled) open = false;
+  });
 </script>
 
 <Popover
-  bind:open
+  {open}
+  onOpenChange={handleOpenChange}
   class="model-picker-content"
   triggerClass="composer-tab model-tab"
   ariaLabel="Model and thinking level"
@@ -81,7 +94,7 @@
   sideOffset={9}
 >
   {#snippet trigger()}
-    <span class="model-tab-inner" class:disabled>
+    <span class="model-tab-inner" class:disabled aria-disabled={disabled}>
       <span class="model-tab-label">{triggerLabel}</span>
       {#if triggerSuffix}<span class="model-tab-suffix">({triggerSuffix})</span>{/if}
       <ChevronDown size={12} strokeWidth={2.2} />
@@ -99,7 +112,7 @@
             {@const active = modelKey(model) === selectedModelKey}
             {@const label = contextualModelLabel(model, models)}
             <li>
-              <button type="button" class="model-row" class:active aria-pressed={active} onclick={() => selectModel(model)}>
+              <button type="button" class="model-row" class:active aria-pressed={active} disabled={disabled} onclick={() => selectModel(model)}>
                 <span class="model-row-text">
                   <span class="model-row-label">{label}</span>
                 </span>
@@ -123,6 +136,7 @@
               class:active
               aria-pressed={active}
               title={thinkingLevelDetails[level]}
+              disabled={disabled}
               onclick={() => selectThinking(level)}
             >
               {thinkingLevelLabel(level)}

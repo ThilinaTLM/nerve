@@ -2,6 +2,7 @@ import type {
   AgentRecord,
   ApprovalRecord,
   ConversationRecord,
+  ModelSelection,
   PlanReviewRecord,
   ToolCallRecord,
   UserQuestionRecord,
@@ -10,6 +11,12 @@ import { apiGet, apiPathSegment, apiPost } from "../../../core/api/client";
 
 export type ApprovalWithToolCall = ApprovalRecord & {
   toolCall?: ToolCallRecord;
+};
+
+export type PlanReviewResolveOptions = {
+  feedback?: string;
+  implementationModel?: ModelSelection;
+  implementationThinkingLevel?: AgentRecord["thinkingLevel"];
 };
 
 export async function getToolCalls(): Promise<ToolCallRecord[]> {
@@ -47,19 +54,19 @@ export async function getPendingPlanReviews(): Promise<PlanReviewRecord[]> {
 
 export async function acceptPlanReview(
   reviewId: string,
-  feedback?: string,
+  options: PlanReviewResolveOptions = {},
 ): Promise<PlanReviewRecord> {
   return (
     await apiPost<{ planReview: PlanReviewRecord }>(
       `/api/plan-reviews/${apiPathSegment(reviewId)}/accept`,
-      { feedback },
+      options,
     )
   ).planReview;
 }
 
 export async function acceptPlanReviewInNewChat(
   reviewId: string,
-  feedback?: string,
+  options: PlanReviewResolveOptions = {},
 ): Promise<{
   planReview: PlanReviewRecord;
   conversation: ConversationRecord;
@@ -67,9 +74,7 @@ export async function acceptPlanReviewInNewChat(
 }> {
   return apiPost(
     `/api/plan-reviews/${apiPathSegment(reviewId)}/accept-in-new-chat`,
-    {
-      feedback,
-    },
+    options,
   );
 }
 

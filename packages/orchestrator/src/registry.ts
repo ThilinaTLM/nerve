@@ -18,6 +18,7 @@ import type {
   NavigateConversationRequest,
   OpenProjectInEditorRequest,
   OpenProjectInEditorResponse,
+  PlanImplementationSelection,
   PlanReviewStatus,
   ProjectRecord,
   PromptRequest,
@@ -370,14 +371,27 @@ export class RuntimeRegistry {
     return this.plans.listPlanReviews(status);
   }
 
-  async acceptPlanReview(reviewId: string, feedback?: string) {
-    return this.services.humanInput.acceptPlanReview(reviewId, feedback);
+  async acceptPlanReview(
+    reviewId: string,
+    feedback?: string,
+    implementation?: PlanImplementationSelection,
+  ) {
+    return this.services.humanInput.acceptPlanReview(
+      reviewId,
+      feedback,
+      implementation,
+    );
   }
 
-  async acceptPlanReviewInNewChat(reviewId: string, feedback?: string) {
+  async acceptPlanReviewInNewChat(
+    reviewId: string,
+    feedback?: string,
+    implementation?: PlanImplementationSelection,
+  ) {
     return this.services.humanInput.acceptPlanReviewInNewChat(
       reviewId,
       feedback,
+      implementation,
     );
   }
 

@@ -328,7 +328,7 @@ export class AgentRunner {
       const initialHarnessEntryIds = new Set(
         (await storage.getEntries()).map((entry) => entry.id),
       );
-      const activeToolNames = await this.activeToolNamesFor(agent);
+      let activeToolNames = await this.activeToolNamesFor(agent);
       const model = resolveAgentModel(agent.model);
       this.deps.subscriptionUsage.touchProvider(model.provider);
       const env = new NodeExecutionEnv({ cwd: agent.projectDir });
@@ -347,6 +347,8 @@ export class AgentRunner {
           { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
         );
       };
+
+      let currentProviderForResponse: string | undefined;
 
       const harness = new AgentHarness({
         env,
@@ -372,8 +374,15 @@ export class AgentRunner {
       });
 
       harness.subscribe(async (event) => {
+        if (event.type === "before_provider_request") {
+          currentProviderForResponse = event.model.provider;
+          this.deps.subscriptionUsage.touchProvider(event.model.provider);
+          return;
+        }
         if (event.type === "after_provider_response") {
-          if (model.provider === "openai-codex") {
+          const responseProvider = currentProviderForResponse;
+          currentProviderForResponse = undefined;
+          if (responseProvider === "openai-codex") {
             this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
           }
           return;
@@ -720,9 +729,25 @@ export class AgentRunner {
         followUp: (text, options) =>
           harness.steer(text, { images: options?.images }),
         updateAgentRuntimeConfig: async (updatedAgent) => {
-          await harness.setActiveTools(
-            await this.activeToolNamesFor(updatedAgent),
-          );
+          const nextActiveToolNames =
+            await this.activeToolNamesFor(updatedAgent);
+          if (!sameStringList(nextActiveToolNames, activeToolNames)) {
+            activeToolNames = nextActiveToolNames;
+            await harness.setActiveTools(nextActiveToolNames);
+          }
+
+          const nextModel = resolveAgentModel(updatedAgent.model);
+          const currentModel = harness.getModel();
+          if (
+            currentModel.provider !== nextModel.provider ||
+            currentModel.id !== nextModel.id
+          ) {
+            await harness.setModel(nextModel);
+          }
+
+          if (harness.getThinkingLevel() !== updatedAgent.thinkingLevel) {
+            await harness.setThinkingLevel(updatedAgent.thinkingLevel);
+          }
         },
         appendExternalMessage: (input) => harness.appendExternalMessage(input),
         enqueueHarnessMessage: (input) =>
@@ -1005,7 +1030,10 @@ export class AgentRunner {
     agent: AgentRecord;
   }): Promise<AssistantMessage> {
     const settings = this.deps.storage.settings.retry;
-    const contextWindow = getModelContextWindow(input.agent.model);
+    const latestAgent = () =>
+      this.deps.state.agents.get(input.agent.id) ?? input.agent;
+    const latestContextWindow = () =>
+      getModelContextWindow(latestAgent().model);
     let attempt = 0;
     let continueRun = input.continue;
     let overflowCompactionAttempted = false;
@@ -1015,6 +1043,7 @@ export class AgentRunner {
         : await input.harness.prompt(input.request.text, {
             images: input.request.images,
           });
+      const contextWindow = latestContextWindow();
       if (
         this.deps.storage.settings.compaction.auto &&
         !overflowCompactionAttempted &&
@@ -1372,6 +1401,16 @@ function isRetryableAssistantError(message: AssistantMessage): boolean {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sameStringList(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
 function assistantContentRedacted(

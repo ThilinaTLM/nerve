@@ -37,6 +37,7 @@
     selectedModelKey: string;
     thinkingLevel: ThinkingLevel;
     onModeChange?: (value: Mode) => void;
+    runtimeChangeHint?: string;
     onModelChange?: (value: string) => void;
     onThinkingLevelChange?: (value: ThinkingLevel) => void;
     onPermissionChange?: (value: PermissionLevel) => void;
@@ -60,6 +61,7 @@
     selectedModelKey,
     thinkingLevel,
     onModeChange,
+    runtimeChangeHint,
     onModelChange,
     onThinkingLevelChange,
     onPermissionChange,
@@ -170,6 +172,7 @@
     disabled={modelDisabled}
     {onModelChange}
     {onThinkingLevelChange}
+    {runtimeChangeHint}
     shortcutLabel={thinkingShortcut}
   />
 </div>

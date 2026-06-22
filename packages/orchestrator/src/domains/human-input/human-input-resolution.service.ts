@@ -6,8 +6,10 @@ import type {
   ConversationRecord,
   CreateAgentRequest,
   CreateConversationRequest,
+  PlanImplementationSelection,
   PlanReviewRecord,
   ToolCallRecord,
+  UpdateAgentRequest,
   UserQuestionRecord,
 } from "@nerve/shared";
 import { HttpError } from "../../http/errors.js";
@@ -40,6 +42,10 @@ export interface HumanInputResolutionDeps {
   ): Promise<ConversationRecord>;
   createAgent(request: CreateAgentRequest): Promise<AgentRecord>;
   getAgent(agentId: string): AgentRecord;
+  configureAgent(
+    agentId: string,
+    request: UpdateAgentRequest,
+  ): Promise<AgentRecord>;
   setAgentStatus(
     agent: AgentRecord,
     status: AgentRecord["status"],
@@ -57,7 +63,14 @@ export class HumanInputResolutionService {
   async acceptPlanReview(
     reviewId: string,
     feedback?: string,
+    implementation?: PlanImplementationSelection,
   ): Promise<PlanReviewRecord> {
+    const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
+    await this.applyImplementationSelectionToSourceAgent(
+      pendingReview.agentId,
+      implementation,
+    );
+
     try {
       const review = await this.deps.plans.acceptPlanReview(reviewId, feedback);
       await this.resolveSuspensionForToolCall(
@@ -82,6 +95,7 @@ export class HumanInputResolutionService {
   async acceptPlanReviewInNewChat(
     reviewId: string,
     feedback?: string,
+    implementation?: PlanImplementationSelection,
   ): Promise<AcceptPlanReviewInNewChatResult> {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
     const sourceAgent = this.deps.getAgent(pendingReview.agentId);
@@ -99,8 +113,10 @@ export class HumanInputResolutionService {
       mode: "coding",
       permissionLevel: sourceAgent.permissionLevel,
       workspaceScope: sourceAgent.workspaceScope,
-      model: sourceAgent.model,
-      thinkingLevel: sourceAgent.thinkingLevel,
+      model: implementation?.implementationModel ?? sourceAgent.model,
+      thinkingLevel:
+        implementation?.implementationThinkingLevel ??
+        sourceAgent.thinkingLevel,
     });
     const instructionEntry = await this.appendUserInstructionForAgent(
       agent.id,
@@ -272,6 +288,34 @@ export class HumanInputResolutionService {
       );
     }
     return review;
+  }
+
+  private async applyImplementationSelectionToSourceAgent(
+    agentId: string,
+    implementation?: PlanImplementationSelection,
+  ): Promise<void> {
+    const implementationModel = implementation?.implementationModel;
+    const implementationThinkingLevel =
+      implementation?.implementationThinkingLevel;
+    if (
+      implementationModel === undefined &&
+      implementationThinkingLevel === undefined
+    ) {
+      return;
+    }
+
+    if (implementationModel) {
+      const sourceAgent = this.deps.getAgent(agentId);
+      await this.deps.configureAgent(agentId, {
+        model: implementationModel,
+        thinkingLevel: implementationThinkingLevel ?? sourceAgent.thinkingLevel,
+      });
+      return;
+    }
+
+    await this.deps.configureAgent(agentId, {
+      thinkingLevel: implementationThinkingLevel,
+    });
   }
 
   private async resolveSuspensionForToolCall(

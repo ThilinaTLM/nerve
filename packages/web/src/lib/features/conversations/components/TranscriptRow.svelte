@@ -1,6 +1,9 @@
 <script lang="ts">
   import type {
+    AgentRecord,
+    ModelInfo,
     PlanReviewRecord,
+    PlanReviewResolveOptions,
     ProjectRecord,
     ToolCallRecord,
     UserQuestionRecord,
@@ -27,12 +30,21 @@
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
     hydrateToolBodies?: boolean;
+    planReviewModels?: ModelInfo[];
+    planReviewModelKey?: string;
+    planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
     lastTimelineKey?: string;
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
-    onAcceptPlanReview?: (id: string) => void;
-    onAcceptPlanReviewInNewChat?: (id: string) => void;
+    onAcceptPlanReview?: (
+      id: string,
+      options?: PlanReviewResolveOptions,
+    ) => void | Promise<void>;
+    onAcceptPlanReviewInNewChat?: (
+      id: string,
+      options?: PlanReviewResolveOptions,
+    ) => void | Promise<void>;
     onRejectPlanReview?: (id: string) => void;
     onContinueFromFailure?: (statusEntryId: string) => void;
     messageMenu: (item: TranscriptItem) => ContextMenuItem[];
@@ -49,6 +61,9 @@
     pendingUserQuestion,
     pendingPlanReview,
     hydrateToolBodies = true,
+    planReviewModels = [],
+    planReviewModelKey = "",
+    planReviewThinkingLevel = "off",
     lastTimelineKey,
     onOpenFile,
     onAnswerUserQuestion,
@@ -74,6 +89,9 @@
       hydrateBody={hydrateToolBodies}
       {pendingPlanReview}
       {onOpenFile}
+      {planReviewModels}
+      {planReviewModelKey}
+      {planReviewThinkingLevel}
       {onAnswerUserQuestion}
       {onDismissUserQuestion}
       {onAcceptPlanReview}

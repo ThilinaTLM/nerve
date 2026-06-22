@@ -1,5 +1,12 @@
 <script lang="ts">
-  import type { PlanReviewRecord, ToolCallRecord, UserQuestionRecord } from "$lib/api";
+  import type {
+    AgentRecord,
+    ModelInfo,
+    PlanReviewRecord,
+    PlanReviewResolveOptions,
+    ToolCallRecord,
+    UserQuestionRecord,
+  } from "$lib/api";
   import type { LiveToolOutput } from "$lib/core/types/state-types";
   import { toolPresentationCached } from "$lib/features/tools/views/tool-presentation";
   import { parseToolViewCached } from "$lib/features/tools/views/tool-result-view";
@@ -12,11 +19,20 @@
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
     hydrateBody?: boolean;
+    planReviewModels?: ModelInfo[];
+    planReviewModelKey?: string;
+    planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
-    onAcceptPlanReview?: (id: string) => void;
-    onAcceptPlanReviewInNewChat?: (id: string) => void;
+    onAcceptPlanReview?: (
+      id: string,
+      options?: PlanReviewResolveOptions,
+    ) => void | Promise<void>;
+    onAcceptPlanReviewInNewChat?: (
+      id: string,
+      options?: PlanReviewResolveOptions,
+    ) => void | Promise<void>;
     onRejectPlanReview?: (id: string) => void;
   };
   let {
@@ -25,6 +41,9 @@
     pendingUserQuestion,
     pendingPlanReview,
     hydrateBody = true,
+    planReviewModels = [],
+    planReviewModelKey = "",
+    planReviewThinkingLevel = "off",
     onOpenFile,
     onAnswerUserQuestion,
     onDismissUserQuestion,
@@ -72,6 +91,9 @@
       questionRecord={toolQuestion}
       planReview={toolPlanReview}
       {onAnswerUserQuestion}
+      {planReviewModels}
+      {planReviewModelKey}
+      {planReviewThinkingLevel}
       {onDismissUserQuestion}
       {onAcceptPlanReview}
       {onAcceptPlanReviewInNewChat}

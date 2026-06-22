@@ -8,6 +8,7 @@ import type {
   ConversationTreeNode,
   ModelInfo,
   PlanReviewRecord,
+  PlanReviewResolveOptions,
   ProjectRecord,
   QueuedPromptRecord,
   ToolCallRecord,
@@ -45,6 +46,9 @@ export type ConversationPaneProps = {
   composerText?: string;
   models?: ModelInfo[];
   selectedModelKey?: string;
+  planReviewModels?: ModelInfo[];
+  planReviewModelKey?: string;
+  planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
   contextUsage?: ContextUsage;
   contextWindow?: number;
   composerFocusToken?: number;
@@ -72,8 +76,14 @@ export type ConversationPaneProps = {
   onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
   onGrantApproval?: (id: string) => void;
   onDenyApproval?: (id: string) => void;
-  onAcceptPlanReview?: (id: string) => void;
-  onAcceptPlanReviewInNewChat?: (id: string) => void;
+  onAcceptPlanReview?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onAcceptPlanReviewInNewChat?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void;
   onContinueFromFailure?: (statusEntryId: string) => void;
   onNavigateToEntry?: (

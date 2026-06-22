@@ -9,6 +9,7 @@ import {
   getPendingApprovals,
   getPendingPlanReviews,
   getPendingUserQuestions,
+  type PlanReviewResolveOptions,
   rejectPlanReview,
   requestPlanChanges,
 } from "$lib/api";
@@ -33,8 +34,11 @@ export async function denyApproval(approvalId: string) {
   notify.message("Approval denied");
 }
 
-export async function acceptPendingPlanReview(reviewId: string) {
-  await acceptPlanReview(reviewId);
+export async function acceptPendingPlanReview(
+  reviewId: string,
+  options: PlanReviewResolveOptions = {},
+) {
+  await acceptPlanReview(reviewId, options);
   workspaceState.planReviews = await getPendingPlanReviews();
   await loadWorkspaceState();
   if (selection.conversationId)
@@ -42,8 +46,11 @@ export async function acceptPendingPlanReview(reviewId: string) {
   notify.success("Plan accepted");
 }
 
-export async function acceptPendingPlanReviewInNewChat(reviewId: string) {
-  const { conversation } = await acceptPlanReviewInNewChat(reviewId);
+export async function acceptPendingPlanReviewInNewChat(
+  reviewId: string,
+  options: PlanReviewResolveOptions = {},
+) {
+  const { conversation } = await acceptPlanReviewInNewChat(reviewId, options);
   workspaceState.planReviews = await getPendingPlanReviews();
   await loadWorkspaceState();
   await openConversation(conversation.id);

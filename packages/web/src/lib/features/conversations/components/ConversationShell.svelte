@@ -115,6 +115,13 @@
       return Boolean(agentId && review.agentId === agentId);
     });
   });
+  const planReviewAgent = $derived(
+    pendingPlanReview
+      ? workspaceState.agents.find(
+          (agent) => agent.id === pendingPlanReview.agentId,
+        )
+      : undefined,
+  );
   const selectedModelKey = $derived(
     activePendingConversation?.selectedModelKey ??
       (activeAgent?.model ? modelKey(activeAgent.model) : conversationState.selectedModelKey),
@@ -154,6 +161,12 @@
       settingsState.authProviders,
       settingsState.settingsDraft?.scopedModels,
     ),
+  );
+  const planReviewModelKey = $derived(
+    planReviewAgent?.model ? modelKey(planReviewAgent.model) : selectedModelKey,
+  );
+  const planReviewThinkingLevel = $derived(
+    planReviewAgent?.thinkingLevel ?? selectedThinkingLevel,
   );
   const contextWindow = $derived(
     selectedModelInfo?.contextWindow ??
@@ -274,6 +287,9 @@
   models={usableModels}
   {selectedModelKey}
   thinkingLevel={selectedThinkingLevel}
+  planReviewModels={usableModels}
+  {planReviewModelKey}
+  {planReviewThinkingLevel}
   mode={selectedMode}
   permissionLevel={selectedPermissionLevel}
   {slashCompletions}
@@ -309,9 +325,9 @@
   }}
   onGrantApproval={(id) => void grantApproval(id)}
   onDenyApproval={(id) => void denyApproval(id)}
-  onAcceptPlanReview={(id) => void acceptPendingPlanReview(id)}
-  onAcceptPlanReviewInNewChat={(id) =>
-    void acceptPendingPlanReviewInNewChat(id)}
+  onAcceptPlanReview={(id, options) => acceptPendingPlanReview(id, options)}
+  onAcceptPlanReviewInNewChat={(id, options) =>
+    acceptPendingPlanReviewInNewChat(id, options)}
   onRejectPlanReview={(id) => void rejectPendingPlanReview(id)}
   onContinueFromFailure={(id) => {
     void runActivePaneAction(() => continueFromFailure(id));

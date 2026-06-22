@@ -200,4 +200,69 @@ describe("agent loop steering queue", () => {
       /<background_task_update>[\s\S]*task_456/,
     );
   });
+
+  it("uses prepareNextTurn model and thinking for the next provider request", async () => {
+    const modelA = { ...model, id: "model-a", name: "Model A" };
+    const modelB = { ...model, id: "model-b", name: "Model B" };
+    const providerRequests: Array<{
+      model: AnyModel;
+      reasoning?: unknown;
+    }> = [];
+    let requestCount = 0;
+    const streamFn: StreamFn = (requestModel, _context, options) => {
+      providerRequests.push({
+        model: requestModel as AnyModel,
+        reasoning: options.reasoning,
+      });
+      requestCount += 1;
+      if (requestCount === 1) {
+        return streamMessage(
+          assistant(
+            [
+              {
+                type: "toolCall",
+                id: "call_prepare_next_turn",
+                name: "noop",
+                arguments: {},
+              },
+            ],
+            "toolUse",
+          ),
+        );
+      }
+      return streamMessage(assistant([{ type: "text", text: "done" }]));
+    };
+    const noopTool: AgentTool = {
+      name: "noop",
+      label: "noop",
+      description: "No-op tool",
+      parameters: Type.Object({}, { additionalProperties: false }),
+      execute: async () => ({
+        content: [{ type: "text", text: "tool result" }],
+        details: {},
+      }),
+    };
+
+    await runAgentLoop(
+      [{ role: "user", content: "start", timestamp: Date.now() }],
+      { systemPrompt: "", messages: [], tools: [noopTool] },
+      {
+        model: modelA,
+        convertToLlm,
+        prepareNextTurn: async () => ({
+          model: modelB,
+          thinkingLevel: "high",
+        }),
+      },
+      async () => undefined,
+      undefined,
+      streamFn,
+    );
+
+    assert.equal(providerRequests.length, 2);
+    assert.equal(providerRequests[0]?.model.id, "model-a");
+    assert.equal(providerRequests[0]?.reasoning, undefined);
+    assert.equal(providerRequests[1]?.model.id, "model-b");
+    assert.equal(providerRequests[1]?.reasoning, "high");
+  });
 });
