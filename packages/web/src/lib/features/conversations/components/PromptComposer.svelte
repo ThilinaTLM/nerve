@@ -11,6 +11,10 @@
   } from "$lib/core/audio/voice-input-session.svelte";
   import CodeMirrorComposer from "./CodeMirrorComposer.svelte";
   import { Button } from "$lib/components/ui/button";
+  import {
+    AudioInputAuthRequiredDialog,
+    chatGptAudioAuth,
+  } from "$lib/features/audio";
   import ApprovalStrip from "./ApprovalStrip.svelte";
   import GitFollowupSuggestions from "$lib/features/git/components/GitFollowupSuggestions.svelte";
   import ComposerToolbar from "./ComposerToolbar.svelte";
@@ -69,6 +73,7 @@
   let lastFocusToken = $state<number | undefined>(undefined);
   let lastComposerEscapeToken = $state<number | undefined>(undefined);
   let lastMicShortcutToken = $state<number | undefined>(undefined);
+  let audioAuthDialogOpen = $state(false);
 
   const micShortcut = getShortcutLabel("composer.toggleMic");
   const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
@@ -104,6 +109,7 @@
   const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview && !compacting));
   const editorDisabled = $derived(!interactive || !canPrompt);
   const submitDisabled = $derived(!interactive || !canPrompt || voiceSubmitPending);
+  const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
   const supportsAudioRecording = $derived(voiceInputSession.isSupported());
   const micDisabled = $derived(
     !interactive ||
@@ -120,9 +126,11 @@
           ? `Retrying transcription ${voiceInputSession.retryAttempt}/${voiceInputSession.maxRetries}…`
           : transcribing
             ? "Transcribing audio…"
-            : micShortcut
-              ? `Record voice prompt (${micShortcut})`
-              : "Record voice prompt",
+            : !chatGptAudioConfigured
+              ? "Connect ChatGPT to use voice input"
+              : micShortcut
+                ? `Record voice prompt (${micShortcut})`
+                : "Record voice prompt",
   );
   const sendAriaLabel = $derived(
     voiceSubmitPending
@@ -183,6 +191,10 @@
 
   function toggleRecording() {
     if (!interactive || micDisabled || compacting || !voiceTarget) return;
+    if (!recording && !chatGptAudioConfigured) {
+      audioAuthDialogOpen = true;
+      return;
+    }
     void voiceInputSession.toggle(voiceTarget);
   }
 
@@ -295,7 +307,7 @@
           disabled={micDisabled}
           onclick={toggleRecording}
           oncontextmenu={handleMicContextMenu}
-          aria-label={recording ? "Stop recording; right-click to cancel" : "Record voice prompt"}
+          aria-label={recording ? "Stop recording; right-click to cancel" : chatGptAudioConfigured ? "Record voice prompt" : "Connect ChatGPT to use voice input"}
           aria-keyshortcuts={micShortcutAria}
           title={micTitle}
         >
@@ -318,6 +330,8 @@
   </div>
 
 </form>
+
+<AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
 
 <style>
   .composer {

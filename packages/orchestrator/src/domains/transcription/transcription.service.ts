@@ -108,7 +108,7 @@ export async function transcribeAudioWithChatGptSubscription(
     throw new HttpError(
       401,
       "CHATGPT_SUBSCRIPTION_AUTH_REQUIRED",
-      "ChatGPT subscription auth is not configured. Configure the OpenAI Codex OAuth provider first.",
+      "ChatGPT audio input is not configured. Connect the OpenAI Codex OAuth provider first.",
     );
   }
 
@@ -117,7 +117,7 @@ export async function transcribeAudioWithChatGptSubscription(
     throw new HttpError(
       401,
       "CHATGPT_SUBSCRIPTION_AUTH_REQUIRED",
-      "ChatGPT subscription auth is not configured. Configure the OpenAI Codex OAuth provider first.",
+      "ChatGPT audio input is not configured. Connect the OpenAI Codex OAuth provider first.",
     );
   }
 

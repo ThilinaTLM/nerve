@@ -13,6 +13,10 @@
   import { appendTranscriptText } from "$lib/core/audio/voice-input-target";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
   import { Button } from "$lib/components/ui/button";
+  import {
+    AudioInputAuthRequiredDialog,
+    chatGptAudioAuth,
+  } from "$lib/features/audio";
 
   type Props = {
     toolCall: ToolCallRecord;
@@ -37,6 +41,7 @@
   ];
 
   let answer = $state("");
+  let audioAuthDialogOpen = $state(false);
   const pending = $derived(
     toolCall.status === "waiting_for_user" && questionRecord?.status === "pending",
   );
@@ -67,6 +72,7 @@
   const voiceBusyElsewhere = $derived(
     Boolean(voiceTarget && voiceInputSession.isBusyForOtherTarget(voiceTarget)),
   );
+  const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
   const supportsAudioRecording = $derived(voiceInputSession.isSupported());
   const micDisabled = $derived(
     !voiceTarget ||
@@ -82,7 +88,9 @@
           ? `Retrying transcription ${voiceInputSession.retryAttempt}/${voiceInputSession.maxRetries}…`
           : transcribing
             ? "Transcribing audio…"
-            : "Record voice reply",
+            : !chatGptAudioConfigured
+              ? "Connect ChatGPT to use voice input"
+              : "Record voice reply",
   );
 
   $effect(() => {
@@ -120,6 +128,10 @@
 
   function toggleRecording() {
     if (micDisabled || !voiceTarget) return;
+    if (!recording && !chatGptAudioConfigured) {
+      audioAuthDialogOpen = true;
+      return;
+    }
     void voiceInputSession.toggle(voiceTarget);
   }
 
@@ -178,7 +190,7 @@
               disabled={micDisabled}
               onclick={toggleRecording}
               oncontextmenu={handleMicContextMenu}
-              aria-label={recording ? "Stop recording; right-click to cancel" : "Record voice reply"}
+              aria-label={recording ? "Stop recording; right-click to cancel" : chatGptAudioConfigured ? "Record voice reply" : "Connect ChatGPT to use voice input"}
               title={micTitle}
             >
               {#if transcribing}
@@ -205,6 +217,8 @@
     <p class="meta"><span class="meta-label">dismissed</span> {dismissedReason ?? "No answer provided"}</p>
   {/if}
 </div>
+
+<AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
 
 <style>
   .ask {
