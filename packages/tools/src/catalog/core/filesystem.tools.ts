@@ -56,84 +56,76 @@ const legacyEditParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const editOperationParameters = Type.Object(
+const matchModeParameters = Type.Optional(
+  Type.Union(
+    [
+      Type.Literal("exact"),
+      Type.Literal("trimmed"),
+      Type.Literal("whitespace"),
+    ],
+    {
+      description:
+        "Default exact. trimmed tolerates trailing whitespace and smart punctuation; whitespace collapses whitespace runs.",
+    },
+  ),
+);
+
+const occurrenceParameters = Type.Optional(
+  Type.Number({
+    description:
+      "Optional 1-based match occurrence. If omitted, the match must be unique.",
+  }),
+);
+
+const replacementParameters = Type.Object(
   {
-    type: Type.Union(
-      [
-        Type.Literal("replace_text"),
-        Type.Literal("insert_text"),
-        Type.Literal("replace_lines"),
-        Type.Literal("insert_lines"),
-        Type.Literal("apply_patch"),
-      ],
-      {
-        description:
-          "Operation kind: replace_text, insert_text, replace_lines, insert_lines, or apply_patch.",
-      },
-    ),
-    oldText: Type.Optional(
-      Type.String({
-        description: "replace_text only: text to find and replace.",
-      }),
-    ),
-    newText: Type.Optional(
-      Type.String({
-        description: "replace_text/replace_lines only: replacement text.",
-      }),
-    ),
-    anchor: Type.Optional(
-      Type.String({
-        description: "insert_text only: text anchor to insert around.",
-      }),
-    ),
-    position: Type.Optional(
-      Type.Union([Type.Literal("before"), Type.Literal("after")], {
-        description:
-          "insert_text/insert_lines only: insert before or after the target.",
-      }),
-    ),
-    text: Type.Optional(
-      Type.String({
-        description: "insert_text/insert_lines only: text to insert.",
-      }),
-    ),
-    startLine: Type.Optional(
-      Type.Number({
-        description: "replace_lines only: 1-based inclusive start line.",
-      }),
-    ),
-    endLine: Type.Optional(
-      Type.Number({
-        description: "replace_lines only: 1-based inclusive end line.",
-      }),
-    ),
-    line: Type.Optional(
-      Type.Number({ description: "insert_lines only: 1-based target line." }),
-    ),
-    patch: Type.Optional(
-      Type.String({
-        description: "apply_patch only: single-file unified diff patch.",
-      }),
-    ),
-    matchMode: Type.Optional(
-      Type.Union(
-        [
-          Type.Literal("exact"),
-          Type.Literal("trimmed"),
-          Type.Literal("whitespace"),
-        ],
-        {
-          description:
-            "replace_text/insert_text only. Default exact. trimmed tolerates trailing whitespace and smart punctuation; whitespace collapses whitespace runs.",
-        },
-      ),
-    ),
-    occurrence: Type.Optional(
-      Type.Number({
-        description:
-          "replace_text/insert_text only: optional 1-based match occurrence. If omitted, the match must be unique.",
-      }),
-    ),
+    oldText: Type.String({
+      description:
+        "Text to find and replace. Must be non-empty and unique unless occurrence is provided.",
+    }),
+    newText: Type.String({ description: "Replacement text." }),
+    matchMode: matchModeParameters,
+    occurrence: occurrenceParameters,
+  },
+  { additionalProperties: false },
+);
+
+const insertionParameters = Type.Object(
+  {
+    anchor: Type.String({
+      description:
+        "Text anchor to insert around. Must be non-empty and unique unless occurrence is provided.",
+    }),
+    position: Type.Union([Type.Literal("before"), Type.Literal("after")], {
+      description: "Insert before or after the anchor.",
+    }),
+    text: Type.String({ description: "Text to insert." }),
+    matchMode: matchModeParameters,
+    occurrence: occurrenceParameters,
+  },
+  { additionalProperties: false },
+);
+
+const lineReplacementParameters = Type.Object(
+  {
+    startLine: Type.Number({
+      description: "1-based inclusive start line.",
+    }),
+    endLine: Type.Number({
+      description: "1-based inclusive end line.",
+    }),
+    newText: Type.String({ description: "Replacement text for the range." }),
+  },
+  { additionalProperties: false },
+);
+
+const lineInsertionParameters = Type.Object(
+  {
+    line: Type.Number({ description: "1-based target line." }),
+    position: Type.Union([Type.Literal("before"), Type.Literal("after")], {
+      description: "Insert before or after the target line.",
+    }),
+    text: Type.String({ description: "Text to insert." }),
   },
   { additionalProperties: false },
 );
@@ -146,14 +138,41 @@ const editParameters = Type.Object(
     dryRun: Type.Optional(
       Type.Boolean({
         description:
-          "If true, validate operations and return the diff without writing the file (default false).",
+          "If true, validate edits and return the diff without writing the file (default false).",
       }),
     ),
-    operations: Type.Array(editOperationParameters, {
-      minItems: 1,
-      description:
-        "One or more operations resolved against the original file. apply_patch must be the only operation.",
-    }),
+    replacements: Type.Optional(
+      Type.Array(replacementParameters, {
+        minItems: 1,
+        description:
+          "Text replacements resolved against the original file. Use for simple or batch exact replacement.",
+      }),
+    ),
+    insertions: Type.Optional(
+      Type.Array(insertionParameters, {
+        minItems: 1,
+        description:
+          "Anchor-based text insertions resolved against the original file.",
+      }),
+    ),
+    lineReplacements: Type.Optional(
+      Type.Array(lineReplacementParameters, {
+        minItems: 1,
+        description: "1-based line range replacements.",
+      }),
+    ),
+    lineInsertions: Type.Optional(
+      Type.Array(lineInsertionParameters, {
+        minItems: 1,
+        description: "1-based line insertions.",
+      }),
+    ),
+    patch: Type.Optional(
+      Type.String({
+        description:
+          "Single-file unified diff patch. Must not be combined with other edit arrays.",
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -167,10 +186,21 @@ type LegacyEditConvenienceParameters = LegacyEditParametersSchema & {
 };
 
 type EditConvenienceParameters = EditParameters & {
-  oldText?: unknown;
-  newText?: unknown;
-  patch?: unknown;
+  replacements?: unknown;
+  insertions?: unknown;
+  lineReplacements?: unknown;
+  lineInsertions?: unknown;
 };
+
+function parseArrayArgument<T>(value: T): T {
+  if (typeof value !== "string") return value;
+  try {
+    const parsed = JSON.parse(value);
+    return (Array.isArray(parsed) ? parsed : value) as T;
+  } catch {
+    return value;
+  }
+}
 
 function prepareLegacyEditArguments(
   input: unknown,
@@ -209,29 +239,19 @@ function prepareEditArguments(input: unknown): EditParameters {
     ...(input as Record<string, unknown>),
   } as EditConvenienceParameters;
 
-  if (typeof args.operations === "string") {
-    try {
-      const parsed = JSON.parse(args.operations);
-      if (Array.isArray(parsed)) {
-        args.operations = parsed as EditParameters["operations"];
-      }
-    } catch {
-      // Let schema validation report the invalid value.
-    }
+  const record = args as Record<string, unknown>;
+  for (const key of [
+    "replacements",
+    "insertions",
+    "lineReplacements",
+    "lineInsertions",
+  ]) {
+    const parsed = parseArrayArgument(record[key]);
+    if (parsed === undefined) delete record[key];
+    else record[key] = parsed;
   }
 
-  if (!Array.isArray(args.operations)) {
-    if (typeof args.oldText === "string" && typeof args.newText === "string") {
-      args.operations = [
-        { type: "replace_text", oldText: args.oldText, newText: args.newText },
-      ];
-    } else if (typeof args.patch === "string") {
-      args.operations = [{ type: "apply_patch", patch: args.patch }];
-    }
-  }
-
-  const { oldText: _oldText, newText: _newText, patch: _patch, ...rest } = args;
-  return rest as EditParameters;
+  return args as EditParameters;
 }
 
 const writeParameters = Type.Object(
@@ -322,7 +342,6 @@ const lsParameters = Type.Object(
   },
   { additionalProperties: false },
 );
-
 export const filesystemToolDefinitions = [
   {
     name: "read",
@@ -338,18 +357,18 @@ export const filesystemToolDefinitions = [
     name: "edit",
     label: "edit",
     description:
-      "Single-file editor with explicit operations. Supports text replacement, anchor insertion, line/range edits, single-file unified patch application, dry-run previews, optional trimmed/whitespace matching, occurrence selection, and ambiguity diagnostics. Fails instead of guessing when matches are missing or ambiguous.",
+      "Single-file editor with shorthand edit arrays. Supports text replacements, anchor insertions, line/range edits, single-file unified patch application, dry-run previews, optional trimmed/whitespace matching, occurrence selection, and ambiguity diagnostics. Fails instead of guessing when matches are missing or ambiguous.",
     promptSnippet:
-      "Make single-file edits with explicit operations, dry-run previews, line/range edits, anchors, or single-file patches",
+      "Make single-file edits with replacements, insertions, line/range edits, dry-run previews, or a single-file patch",
     promptGuidelines: [
       "Use edit for single-file edits.",
-      "Prefer replace_text for simple exact replacements.",
-      "Use insert_text for anchor insertion.",
-      "Use replace_lines / insert_lines when line ranges are clearer.",
+      "Use replacements for simple or batch exact replacements.",
+      "Use insertions for anchor-based insertion.",
+      "Use lineReplacements / lineInsertions when line ranges are clearer.",
       "Use dryRun: true for large or risky edits before applying.",
       'Use matchMode "trimmed" or "whitespace" only when exact matching is impractical.',
-      "If edit is ambiguous, do not guess; provide a more specific anchor/oldText, use line ranges, or set an explicit occurrence.",
-      "apply_patch is single-file only and must be the only operation.",
+      "If edit is ambiguous, do not guess; provide a more specific oldText/anchor, use line ranges, or set occurrence.",
+      "patch is single-file only and must not be combined with replacements, insertions, lineReplacements, or lineInsertions.",
     ],
     parameters: editParameters,
     prepareArguments: prepareEditArguments,
@@ -363,7 +382,7 @@ export const filesystemToolDefinitions = [
     promptSnippet:
       "Use the legacy exact-replacement edit workflow with edits[].oldText/newText",
     promptGuidelines: [
-      "Prefer edit for single-file edits; use legacy_edit only when the old { edits: [...] } exact replacement interface is specifically desired.",
+      "Prefer edit.replacements for single-file text replacements; use legacy_edit only for compatibility with the old { edits: [...] } exact replacement interface.",
       "When changing multiple separate locations in one file, use one legacy_edit call with multiple entries in edits[] instead of multiple calls.",
       "Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
       "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",

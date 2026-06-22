@@ -407,15 +407,14 @@ describe("agent tool definitions", () => {
     const edit = coreToolDefinitionByName("edit");
     const preparedEdit = edit.prepareArguments?.({
       path: "src/file.ts",
-      oldText: "old",
-      newText: "new",
+      replacements: JSON.stringify([{ oldText: "old", newText: "new" }]),
     }) as {
       path: string;
-      operations: Array<{ type: string; oldText: string; newText: string }>;
+      replacements: Array<{ oldText: string; newText: string }>;
     };
     assert.deepEqual(preparedEdit, {
       path: "src/file.ts",
-      operations: [{ type: "replace_text", oldText: "old", newText: "new" }],
+      replacements: [{ oldText: "old", newText: "new" }],
     });
 
     const legacyEdit = coreToolDefinitionByName("legacy_edit");

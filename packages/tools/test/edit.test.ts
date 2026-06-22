@@ -37,83 +37,104 @@ async function rejectsWithCode(
 }
 
 describe("edit executor", () => {
-  it("normalizes convenience and JSON-string operations", () => {
+  it("normalizes shorthand edit arguments", () => {
     assert.deepEqual(
-      normalizeEditArgs({ oldText: "a", newText: "b" }).operations,
+      normalizeEditArgs({ replacements: [{ oldText: "a", newText: "b" }] })
+        .operations,
       [
         {
           type: "replace_text",
           oldText: "a",
           newText: "b",
           matchMode: "exact",
+          source: { key: "replacements", index: 0, label: "replacements[0]" },
         },
       ],
     );
     assert.deepEqual(
       normalizeEditArgs({ patch: "@@ -1 +1 @@\n-a\n+b\n" }).operations,
-      [{ type: "apply_patch", patch: "@@ -1 +1 @@\n-a\n+b\n" }],
+      [
+        {
+          type: "apply_patch",
+          patch: "@@ -1 +1 @@\n-a\n+b\n",
+          source: { key: "patch", index: 0, label: "patch" },
+        },
+      ],
     );
     assert.deepEqual(
       normalizeEditArgs({
-        operations: JSON.stringify([
-          { type: "insert_lines", line: 1, position: "before", text: "x\n" },
+        lineInsertions: JSON.stringify([
+          { line: 1, position: "before", text: "x\n" },
         ]),
       }).operations,
-      [{ type: "insert_lines", line: 1, position: "before", text: "x\n" }],
+      [
+        {
+          type: "insert_lines",
+          line: 1,
+          position: "before",
+          text: "x\n",
+          source: {
+            key: "lineInsertions",
+            index: 0,
+            label: "lineInsertions[0]",
+          },
+        },
+      ],
     );
   });
 
-  it("rejects invalid operation shapes", () => {
+  it("rejects invalid shorthand shapes and deprecated operations", () => {
+    assert.throws(() => normalizeEditArgs({ operations: [] }), /no longer/);
     assert.throws(
-      () => normalizeEditArgs({ operations: [] }),
-      /at least one operation/,
+      () => normalizeEditArgs({ oldText: "a", newText: "b" }),
+      /oldText\/newText/,
     );
+    assert.throws(() => normalizeEditArgs({ replacements: [] }), /at least/);
     assert.throws(
-      () => normalizeEditArgs({ operations: [null] }),
-      /must be an object/,
+      () => normalizeEditArgs({ replacements: [null] }),
+      /replacements\[0\] must be an object/,
     );
     assert.throws(
       () =>
         normalizeEditArgs({
-          operations: [{ type: "replace_text", oldText: "", newText: "x" }],
+          replacements: [{ oldText: "", newText: "x" }],
         }),
       /oldText.*non-empty/,
     );
     assert.throws(
       () =>
         normalizeEditArgs({
-          operations: [
-            { type: "insert_lines", line: 0, position: "after", text: "x" },
-          ],
+          lineInsertions: [{ line: 0, position: "after", text: "x" }],
         }),
       /line.*positive integer/,
     );
     assert.throws(
       () =>
         normalizeEditArgs({
-          operations: [
-            { type: "replace_text", oldText: "a", newText: "b", note: "bad" },
-          ],
+          replacements: [{ oldText: "a", newText: "b", note: "bad" }],
         }),
       /unsupported field/,
     );
+    assert.throws(
+      () =>
+        normalizeEditArgs({
+          patch: "@@ -1 +1 @@\n-a\n+b\n",
+          replacements: [{ oldText: "a", newText: "b" }],
+        }),
+      /must not be combined/,
+    );
   });
 
-  it("applies exact text operations and records operation metadata", async () => {
+  it("applies exact text shorthand edits and records operation metadata", async () => {
     const project = await createTempProject();
     const path = await project.write("example.txt", "alpha\nbeta\ngamma\n");
 
     const result = await executeEdit(
       {
         path: "example.txt",
-        operations: [
-          { type: "replace_text", oldText: "beta", newText: "BETA" },
-          {
-            type: "insert_text",
-            anchor: "gamma\n",
-            position: "before",
-            text: "inserted\n",
-          },
+        replacements: [{ oldText: "beta", newText: "BETA" }],
+        insertions: [
+          { anchor: "gamma\n", position: "before", text: "inserted\n" },
         ],
       },
       { cwd: project.root },
@@ -128,6 +149,9 @@ describe("edit executor", () => {
     const details = resultDetails(result);
     assert.equal(details.operationCount, 2);
     assert.equal(details.dryRun, false);
+    const operations = details.operations as Array<Record<string, unknown>>;
+    assert.equal(operations[0]?.source, "replacements");
+    assert.equal(operations[1]?.source, "insertions");
   });
 
   it("supports dry-run previews without writing", async () => {
@@ -138,7 +162,7 @@ describe("edit executor", () => {
       {
         path: "preview.txt",
         dryRun: true,
-        operations: [{ type: "replace_text", oldText: "two", newText: "TWO" }],
+        replacements: [{ oldText: "two", newText: "TWO" }],
       },
       { cwd: project.root },
     );
@@ -157,28 +181,20 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "dupe.txt",
-          operations: [
-            { type: "replace_text", oldText: "one", newText: "ONE" },
-          ],
+          replacements: [{ oldText: "one", newText: "ONE" }],
         },
         { cwd: project.root },
       ),
       "EDIT_MATCH_AMBIGUOUS",
     );
+    assert.match(ambiguous.message, /replacements\[0\]\.oldText/);
     assert.match(ambiguous.message, /matched 2 times/);
     assert.match(ambiguous.message, /occurrence to 1\.\.2/);
 
     await executeEdit(
       {
         path: "dupe.txt",
-        operations: [
-          {
-            type: "replace_text",
-            oldText: "one",
-            newText: "ONE",
-            occurrence: 2,
-          },
-        ],
+        replacements: [{ oldText: "one", newText: "ONE", occurrence: 2 }],
       },
       { cwd: project.root },
     );
@@ -188,7 +204,7 @@ describe("edit executor", () => {
     );
   });
 
-  it("reports missing-match closest candidates", async () => {
+  it("reports missing-match closest candidates with shorthand labels", async () => {
     const project = await createTempProject();
     await project.write(
       "missing.txt",
@@ -199,9 +215,8 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "missing.txt",
-          operations: [
+          replacements: [
             {
-              type: "replace_text",
               oldText: "function stop() {\n  return run();\n}",
               newText: "x",
             },
@@ -211,6 +226,7 @@ describe("edit executor", () => {
       ),
       "EDIT_MATCH_NOT_FOUND",
     );
+    assert.match(error.message, /replacements\[0\]\.oldText/);
     assert.match(error.message, /Closest candidates/);
     assert.match(error.message, /lines 1-3/);
   });
@@ -226,9 +242,8 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "modes.txt",
-          operations: [
+          replacements: [
             {
-              type: "replace_text",
               oldText: 'const value = "hello";',
               newText: 'const value = "hi";',
             },
@@ -242,9 +257,8 @@ describe("edit executor", () => {
     await executeEdit(
       {
         path: "modes.txt",
-        operations: [
+        replacements: [
           {
-            type: "replace_text",
             oldText: 'const value = "hello";',
             newText: 'const value = "hi";',
             matchMode: "whitespace",
@@ -261,9 +275,8 @@ describe("edit executor", () => {
     await executeEdit(
       {
         path: "modes.txt",
-        operations: [
+        replacements: [
           {
-            type: "replace_text",
             oldText: 'const value = "hi";   ',
             newText: 'const value = "done";',
             matchMode: "trimmed",
@@ -285,10 +298,10 @@ describe("edit executor", () => {
     await executeEdit(
       {
         path: "lines.txt",
-        operations: [
-          { type: "replace_lines", startLine: 2, endLine: 2, newText: "TWO\n" },
-          { type: "insert_lines", line: 1, position: "before", text: "zero\n" },
-          { type: "insert_lines", line: 3, position: "after", text: "four\n" },
+        lineReplacements: [{ startLine: 2, endLine: 2, newText: "TWO\n" }],
+        lineInsertions: [
+          { line: 1, position: "before", text: "zero\n" },
+          { line: 3, position: "after", text: "four\n" },
         ],
       },
       { cwd: project.root },
@@ -305,9 +318,9 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "overlap.txt",
-          operations: [
-            { type: "replace_text", oldText: "abc", newText: "ABC" },
-            { type: "replace_text", oldText: "bcd", newText: "BCD" },
+          replacements: [
+            { oldText: "abc", newText: "ABC" },
+            { oldText: "bcd", newText: "BCD" },
           ],
         },
         { cwd: project.root },
@@ -319,9 +332,9 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "overlap.txt",
-          operations: [
-            { type: "insert_lines", line: 1, position: "before", text: "x\n" },
-            { type: "insert_lines", line: 1, position: "before", text: "y\n" },
+          lineInsertions: [
+            { line: 1, position: "before", text: "x\n" },
+            { line: 1, position: "before", text: "y\n" },
           ],
         },
         { cwd: project.root },
@@ -337,12 +350,7 @@ describe("edit executor", () => {
     await executeEdit(
       {
         path: "patch.txt",
-        operations: [
-          {
-            type: "apply_patch",
-            patch: "@@ -1,2 +1,3 @@\n alpha\n+beta\n gamma\n",
-          },
-        ],
+        patch: "@@ -1,2 +1,3 @@\n alpha\n+beta\n gamma\n",
       },
       { cwd: project.root },
     );
@@ -350,7 +358,7 @@ describe("edit executor", () => {
     assert.equal(await readFile(path, "utf8"), "alpha\nbeta\ngamma\n");
   });
 
-  it("rejects invalid patches and mixed patch operations", async () => {
+  it("rejects invalid patches and mixed patch edits", async () => {
     const project = await createTempProject();
     await project.write("patch-errors.txt", "alpha\n");
 
@@ -358,10 +366,8 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "patch-errors.txt",
-          operations: [
-            { type: "apply_patch", patch: "@@ -1 +1 @@\n-alpha\n+beta\n" },
-            { type: "insert_lines", line: 1, position: "after", text: "x\n" },
-          ],
+          patch: "@@ -1 +1 @@\n-alpha\n+beta\n",
+          lineInsertions: [{ line: 1, position: "after", text: "x\n" }],
         },
         { cwd: project.root },
       ),
@@ -372,13 +378,8 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "patch-errors.txt",
-          operations: [
-            {
-              type: "apply_patch",
-              patch:
-                "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-alpha\n+beta\n--- a/b.txt\n+++ b/b.txt\n@@ -1 +1 @@\n-x\n+y\n",
-            },
-          ],
+          patch:
+            "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-alpha\n+beta\n--- a/b.txt\n+++ b/b.txt\n@@ -1 +1 @@\n-x\n+y\n",
         },
         { cwd: project.root },
       ),
@@ -389,9 +390,7 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "patch-errors.txt",
-          operations: [
-            { type: "apply_patch", patch: "@@ -1 +1 @@\n-missing\n+beta\n" },
-          ],
+          patch: "@@ -1 +1 @@\n-missing\n+beta\n",
         },
         { cwd: project.root },
       ),
@@ -406,9 +405,7 @@ describe("edit executor", () => {
     await executeEdit(
       {
         path: "crlf.txt",
-        operations: [
-          { type: "replace_text", oldText: "beta", newText: "BETA" },
-        ],
+        replacements: [{ oldText: "beta", newText: "BETA" }],
       },
       { cwd: project.root },
     );
@@ -425,9 +422,7 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "noop.txt",
-          operations: [
-            { type: "replace_text", oldText: "same", newText: "same" },
-          ],
+          replacements: [{ oldText: "same", newText: "same" }],
         },
         { cwd: project.root },
       ),
@@ -438,7 +433,7 @@ describe("edit executor", () => {
       executeEdit(
         {
           path: "binary.bin",
-          operations: [{ type: "replace_text", oldText: "a", newText: "A" }],
+          replacements: [{ oldText: "a", newText: "A" }],
         },
         { cwd: project.root },
       ),

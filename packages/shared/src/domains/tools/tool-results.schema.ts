@@ -106,6 +106,16 @@ export const editOperationResultSchema = z
       "insert_lines",
       "apply_patch",
     ]),
+    source: z
+      .enum([
+        "replacements",
+        "insertions",
+        "lineReplacements",
+        "lineInsertions",
+        "patch",
+      ])
+      .optional(),
+    sourceIndex: z.number().int().nonnegative().optional(),
     matchMode: z.enum(["exact", "trimmed", "whitespace"]).optional(),
     occurrence: z.number().int().positive().optional(),
     matchCount: z.number().int().nonnegative().optional(),

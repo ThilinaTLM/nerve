@@ -157,12 +157,13 @@ export class ToolDraftProgressAccumulator {
   private activeContentMetric: LineMetric | undefined;
   private oldTextCount = 0;
   private newTextCount = 0;
+  private insertedTextCount = 0;
+  private patchCount = 0;
   private closedOldTextLines = 0;
   private closedNewTextLines = 0;
   private closedInsertedTextLines = 0;
   private closedPatchAdditions = 0;
   private closedPatchDeletions = 0;
-  private operationTypeCount = 0;
   private activeOldTextMetric: LineMetric | undefined;
   private activeNewTextMetric: LineMetric | undefined;
   private activeInsertedTextMetric: LineMetric | undefined;
@@ -215,7 +216,11 @@ export class ToolDraftProgressAccumulator {
           ? Math.max(this.oldTextCount, this.newTextCount)
           : undefined,
       operationCount:
-        this.toolName === "edit" ? this.operationTypeCount : undefined,
+        this.toolName === "edit"
+          ? Math.max(this.oldTextCount, this.newTextCount) +
+            this.insertedTextCount +
+            this.patchCount
+          : undefined,
       generatedLineCount,
       estimatedAdditions: generatedLineCount,
       estimatedDeletions: deletedLineCount,
@@ -308,12 +313,14 @@ export class ToolDraftProgressAccumulator {
       }
       case "text": {
         const metric = new LineMetric();
+        this.insertedTextCount += 1;
         this.activeInsertedTextMetric = metric;
         this.activeValue = { property, metric, escaping: false };
         break;
       }
       case "patch": {
         const metric = new PatchMetric();
+        this.patchCount += 1;
         this.activePatchMetric = metric;
         this.activeValue = { property, metric, escaping: false };
         break;
@@ -387,21 +394,10 @@ export class ToolDraftProgressAccumulator {
         this.activePatchMetric = undefined;
         break;
       case "operationType":
-        if (isEditOperationType(active.text)) this.operationTypeCount += 1;
         break;
     }
     this.activeValue = undefined;
   }
-}
-
-function isEditOperationType(value: string): boolean {
-  return (
-    value === "replace_text" ||
-    value === "insert_text" ||
-    value === "replace_lines" ||
-    value === "insert_lines" ||
-    value === "apply_patch"
-  );
 }
 
 function decodeEscape(char: string): string {
@@ -459,13 +455,13 @@ export function finalToolDraftProgress(
     return hasProgress(snapshot) ? snapshot : undefined;
   }
 
-  if (toolName !== "edit" || !Array.isArray(args.operations)) {
+  if (toolName !== "edit") {
     return undefined;
   }
-  const stats = editOperationStats(args.operations);
+  const stats = editShorthandStats(args);
   const snapshot: ConversationLiveToolDraftProgressSnapshot = {
     path: stringField(args.path),
-    operationCount: args.operations.length,
+    operationCount: stats.operations,
     generatedLineCount: stats.additions,
     estimatedAdditions: stats.additions,
     estimatedDeletions: stats.deletions,
@@ -474,25 +470,54 @@ export function finalToolDraftProgress(
   return hasProgress(snapshot) ? snapshot : undefined;
 }
 
-function editOperationStats(operations: unknown[]): {
+function arrayField(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function editShorthandStats(args: Record<string, unknown>): {
+  operations: number;
   additions: number;
   deletions: number;
 } {
+  let operations = 0;
   let additions = 0;
   let deletions = 0;
-  for (const operation of operations) {
-    const record = asRecord(operation);
+
+  const replacements = arrayField(args.replacements);
+  operations += replacements.length;
+  for (const replacement of replacements) {
+    const record = asRecord(replacement);
     additions += lineCount(stringField(record.newText)) ?? 0;
-    additions += lineCount(stringField(record.text)) ?? 0;
     deletions += lineCount(stringField(record.oldText)) ?? 0;
-    const patch = stringField(record.patch);
-    if (patch) {
-      const patchStats = patchLineStats(patch);
-      additions += patchStats.additions;
-      deletions += patchStats.deletions;
-    }
   }
-  return { additions, deletions };
+
+  const insertions = arrayField(args.insertions);
+  operations += insertions.length;
+  for (const insertion of insertions) {
+    additions += lineCount(stringField(asRecord(insertion).text)) ?? 0;
+  }
+
+  const lineReplacements = arrayField(args.lineReplacements);
+  operations += lineReplacements.length;
+  for (const replacement of lineReplacements) {
+    additions += lineCount(stringField(asRecord(replacement).newText)) ?? 0;
+  }
+
+  const lineInsertions = arrayField(args.lineInsertions);
+  operations += lineInsertions.length;
+  for (const insertion of lineInsertions) {
+    additions += lineCount(stringField(asRecord(insertion).text)) ?? 0;
+  }
+
+  const patch = stringField(args.patch);
+  if (patch) {
+    operations += 1;
+    const patchStats = patchLineStats(patch);
+    additions += patchStats.additions;
+    deletions += patchStats.deletions;
+  }
+
+  return { operations, additions, deletions };
 }
 
 function patchLineStats(patch: string): {

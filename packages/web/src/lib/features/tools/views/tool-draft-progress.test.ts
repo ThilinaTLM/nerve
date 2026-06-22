@@ -195,19 +195,14 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("uses final edit operation args for operation and generated-line counts", () => {
+  it("uses final edit shorthand args for operation and generated-line counts", () => {
     const summary = summarizeToolDraft(
       draft("edit", {
         args: {
           path: "src/app.ts",
-          operations: [
-            { type: "insert_lines", line: 1, position: "before", text: "a\nb" },
-            { type: "replace_text", oldText: "old", newText: "new" },
-            {
-              type: "apply_patch",
-              patch: "@@ -1 +1,2 @@\n-old\n+new\n+extra\n",
-            },
-          ],
+          lineInsertions: [{ line: 1, position: "before", text: "a\nb" }],
+          replacements: [{ oldText: "old", newText: "new" }],
+          patch: "@@ -1 +1,2 @@\n-old\n+new\n+extra\n",
         },
         done: true,
       }),

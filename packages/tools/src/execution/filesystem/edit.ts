@@ -21,6 +21,19 @@ type EditOperationType =
   | "insert_lines"
   | "apply_patch";
 
+type EditOperationSourceKey =
+  | "replacements"
+  | "insertions"
+  | "lineReplacements"
+  | "lineInsertions"
+  | "patch";
+
+type EditOperationSource = {
+  key: EditOperationSourceKey;
+  index: number;
+  label: string;
+};
+
 type NormalizedEditOperation =
   | {
       type: "replace_text";
@@ -28,6 +41,7 @@ type NormalizedEditOperation =
       newText: string;
       matchMode: MatchMode;
       occurrence?: number;
+      source: EditOperationSource;
     }
   | {
       type: "insert_text";
@@ -36,20 +50,23 @@ type NormalizedEditOperation =
       text: string;
       matchMode: MatchMode;
       occurrence?: number;
+      source: EditOperationSource;
     }
   | {
       type: "replace_lines";
       startLine: number;
       endLine: number;
       newText: string;
+      source: EditOperationSource;
     }
   | {
       type: "insert_lines";
       line: number;
       position: "before" | "after";
       text: string;
+      source: EditOperationSource;
     }
-  | { type: "apply_patch"; patch: string };
+  | { type: "apply_patch"; patch: string; source: EditOperationSource };
 
 type NormalizedEditArgs = {
   dryRun: boolean;
@@ -59,15 +76,17 @@ type NormalizedEditArgs = {
 type ResolvedEditOperation = {
   index: number;
   type: EditOperationType;
+  source: EditOperationSource;
   start: number;
   end: number;
   newText: string;
   details: EditOperationDetail;
 };
-
 type EditOperationDetail = {
   index: number;
   type: EditOperationType;
+  source: EditOperationSourceKey;
+  sourceIndex: number;
   matchMode?: MatchMode;
   occurrence?: number;
   matchCount?: number;
@@ -75,15 +94,6 @@ type EditOperationDetail = {
   endLine?: number;
   matchedBy: "unique" | "occurrence" | "line_range" | "line_insert" | "patch";
 };
-
-const operationTypes = new Set<EditOperationType>([
-  "replace_text",
-  "insert_text",
-  "replace_lines",
-  "insert_lines",
-  "apply_patch",
-]);
-
 const matchModes = new Set<MatchMode>(["exact", "trimmed", "whitespace"]);
 const positions = new Set(["before", "after"]);
 
@@ -160,6 +170,8 @@ function resolveEditOperations(
         {
           index: 0,
           type: "apply_patch",
+          source: operations[0].source.key,
+          sourceIndex: operations[0].source.index,
           matchedBy: "patch",
         },
       ],
@@ -169,7 +181,7 @@ function resolveEditOperations(
   if (operations.some((operation) => operation.type === "apply_patch")) {
     throw editError(
       "EDIT_ARGUMENT_INVALID",
-      "operations[].type apply_patch must be the only edit operation.",
+      "patch must not be combined with replacements, insertions, lineReplacements, or lineInsertions.",
       { operationTypes: operations.map((operation) => operation.type) },
       true,
     );
@@ -210,17 +222,21 @@ function resolveOperation(
         operationIndex: index,
         operationType: operation.type,
         fieldName: "oldText",
+        fieldLabel: `${operation.source.label}.oldText`,
         path,
       });
       return {
         index,
         type: operation.type,
+        source: operation.source,
         start: match.selected.start,
         end: match.selected.end,
         newText: normalizeLineEndings(operation.newText),
         details: {
           index,
           type: operation.type,
+          source: operation.source.key,
+          sourceIndex: operation.source.index,
           matchMode: operation.matchMode,
           occurrence: operation.occurrence,
           matchCount: match.matches.length,
@@ -239,6 +255,7 @@ function resolveOperation(
         operationIndex: index,
         operationType: operation.type,
         fieldName: "anchor",
+        fieldLabel: `${operation.source.label}.anchor`,
         path,
       });
       const offset =
@@ -248,12 +265,15 @@ function resolveOperation(
       return {
         index,
         type: operation.type,
+        source: operation.source,
         start: offset,
         end: offset,
         newText: normalizeLineEndings(operation.text),
         details: {
           index,
           type: operation.type,
+          source: operation.source.key,
+          sourceIndex: operation.source.index,
           matchMode: operation.matchMode,
           occurrence: operation.occurrence,
           matchCount: match.matches.length,
@@ -266,17 +286,21 @@ function resolveOperation(
     case "replace_lines": {
       const range = lineRange(content, operation.startLine, operation.endLine, {
         operationIndex: index,
+        sourceLabel: operation.source.label,
         path,
       });
       return {
         index,
         type: operation.type,
+        source: operation.source,
         start: range.start,
         end: range.end,
         newText: normalizeLineEndings(operation.newText),
         details: {
           index,
           type: operation.type,
+          source: operation.source.key,
+          sourceIndex: operation.source.index,
           startLine: operation.startLine,
           endLine: operation.endLine,
           matchedBy: "line_range",
@@ -290,18 +314,22 @@ function resolveOperation(
         operation.position,
         {
           operationIndex: index,
+          sourceLabel: operation.source.label,
           path,
         },
       );
       return {
         index,
         type: operation.type,
+        source: operation.source,
         start: offset,
         end: offset,
         newText: normalizeLineEndings(operation.text),
         details: {
           index,
           type: operation.type,
+          source: operation.source.key,
+          sourceIndex: operation.source.index,
           startLine: operation.line,
           endLine: operation.line,
           matchedBy: "line_insert",
@@ -309,8 +337,10 @@ function resolveOperation(
       };
     }
     case "apply_patch":
-      throw argumentError("apply_patch must be the only edit operation.", {
+      throw argumentError("patch must be the only edit operation.", {
         operationIndex: index,
+        source: operation.source.key,
+        sourceIndex: operation.source.index,
         path,
       });
   }
@@ -396,11 +426,13 @@ function rejectOverlappingOperations(
     ) {
       throw editError(
         "EDIT_OVERLAP",
-        `operations[${current.index}] inserts at the same offset as operations[${previous.index}] in ${path}; merge same-location inserts into one operation.`,
+        `${current.source.label} inserts at the same offset as ${previous.source.label} in ${path}; merge same-location inserts into one operation.`,
         {
           path,
           previousIndex: previous.index,
           currentIndex: current.index,
+          previousSource: previous.source,
+          currentSource: current.source,
           offset: current.start,
         },
         true,
@@ -409,11 +441,13 @@ function rejectOverlappingOperations(
     if (current.start < previous.end) {
       throw editError(
         "EDIT_OVERLAP",
-        `operations[${current.index}] overlaps operations[${previous.index}] in ${path}; merge overlapping changes into one operation.`,
+        `${current.source.label} overlaps ${previous.source.label} in ${path}; merge overlapping changes into one operation.`,
         {
           path,
           previousIndex: previous.index,
           currentIndex: current.index,
+          previousSource: previous.source,
+          currentSource: current.source,
           previousRange: { start: previous.start, end: previous.end },
           currentRange: { start: current.start, end: current.end },
         },
@@ -427,22 +461,28 @@ function lineRange(
   content: string,
   startLine: number,
   endLine: number,
-  context: { operationIndex: number; path: string },
+  context: { operationIndex: number; sourceLabel: string; path: string },
 ): { start: number; end: number } {
   const lines = contentLineRanges(content);
   if (startLine > endLine) {
     throw argumentError(
-      `operations[${context.operationIndex}].endLine must be greater than or equal to startLine.`,
-      { operationIndex: context.operationIndex, startLine, endLine },
+      `${context.sourceLabel}.endLine must be greater than or equal to startLine.`,
+      {
+        operationIndex: context.operationIndex,
+        sourceLabel: context.sourceLabel,
+        startLine,
+        endLine,
+      },
     );
   }
   const start = lines[startLine - 1];
   const end = lines[endLine - 1];
   if (!start || !end) {
     throw argumentError(
-      `operations[${context.operationIndex}] replace_lines range ${startLine}-${endLine} is outside ${context.path}, which has ${lines.length} line(s).`,
+      `${context.sourceLabel} range ${startLine}-${endLine} is outside ${context.path}, which has ${lines.length} line(s).`,
       {
         operationIndex: context.operationIndex,
+        sourceLabel: context.sourceLabel,
         path: context.path,
         startLine,
         endLine,
@@ -457,15 +497,16 @@ function lineInsertOffset(
   content: string,
   line: number,
   position: "before" | "after",
-  context: { operationIndex: number; path: string },
+  context: { operationIndex: number; sourceLabel: string; path: string },
 ): number {
   const lines = contentLineRanges(content);
   const target = lines[line - 1];
   if (!target) {
     throw argumentError(
-      `operations[${context.operationIndex}] insert_lines line ${line} is outside ${context.path}, which has ${lines.length} line(s).`,
+      `${context.sourceLabel} line ${line} is outside ${context.path}, which has ${lines.length} line(s).`,
       {
         operationIndex: context.operationIndex,
+        sourceLabel: context.sourceLabel,
         path: context.path,
         line,
         lineCount: lines.length,
@@ -497,30 +538,90 @@ export function normalizeEditArgs(
   args: Record<string, unknown>,
 ): NormalizedEditArgs {
   const dryRun = booleanArg(args.dryRun, false, "dryRun");
-  let operationsValue = parseOperationsValue(args.operations);
-  if (!Array.isArray(operationsValue)) {
-    if (typeof args.oldText === "string" && typeof args.newText === "string") {
-      operationsValue = [
-        { type: "replace_text", oldText: args.oldText, newText: args.newText },
-      ];
-    } else if (typeof args.patch === "string") {
-      operationsValue = [{ type: "apply_patch", patch: args.patch }];
-    }
-  }
-  if (!Array.isArray(operationsValue) || operationsValue.length === 0) {
+  rejectDeprecatedEditArgs(args);
+
+  const operations: NormalizedEditOperation[] = [];
+  const replacements = arrayArg(args.replacements, "replacements");
+  const insertions = arrayArg(args.insertions, "insertions");
+  const lineReplacements = arrayArg(args.lineReplacements, "lineReplacements");
+  const lineInsertions = arrayArg(args.lineInsertions, "lineInsertions");
+  const patch = optionalStringArg(args.patch, "patch");
+  const hasArrayEdits = Boolean(
+    replacements || insertions || lineReplacements || lineInsertions,
+  );
+
+  if (patch !== undefined && hasArrayEdits) {
     throw argumentError(
-      "Tool argument 'operations' must contain at least one operation.",
+      "Tool argument 'patch' must not be combined with replacements, insertions, lineReplacements, or lineInsertions.",
+      { hasPatch: true },
     );
   }
-  return {
-    dryRun,
-    operations: operationsValue.map((entry, index) =>
-      normalizeOperation(entry, index),
-    ),
-  };
+
+  if (replacements) {
+    operations.push(...replacements.map(normalizeReplacement));
+  }
+  if (insertions) {
+    operations.push(...insertions.map(normalizeInsertion));
+  }
+  if (lineReplacements) {
+    operations.push(...lineReplacements.map(normalizeLineReplacement));
+  }
+  if (lineInsertions) {
+    operations.push(...lineInsertions.map(normalizeLineInsertion));
+  }
+  if (patch !== undefined) {
+    operations.push({
+      type: "apply_patch",
+      patch: nonEmptyStringArg(patch, "patch"),
+      source: sourceFor("patch", 0),
+    });
+  }
+
+  if (operations.length === 0) {
+    throw argumentError(
+      "Provide at least one edit using replacements, insertions, lineReplacements, lineInsertions, or patch.",
+    );
+  }
+
+  return { dryRun, operations };
 }
 
-function parseOperationsValue(value: unknown): unknown {
+function rejectDeprecatedEditArgs(args: Record<string, unknown>): void {
+  if (args.operations !== undefined) {
+    throw argumentError(
+      "Tool argument 'operations' is no longer supported; use replacements, insertions, lineReplacements, lineInsertions, or patch.",
+    );
+  }
+  if (args.oldText !== undefined || args.newText !== undefined) {
+    throw argumentError(
+      "Top-level oldText/newText are no longer supported for edit; use replacements: [{ oldText, newText }].",
+    );
+  }
+}
+
+function arrayArg(
+  value: unknown,
+  name: EditOperationSourceKey,
+): unknown[] | undefined {
+  if (value === undefined) return undefined;
+  const parsed = parseArrayValue(value);
+  if (!Array.isArray(parsed)) {
+    throw argumentError(`Tool argument '${name}' must be an array.`, {
+      source: name,
+    });
+  }
+  if (parsed.length === 0) {
+    throw argumentError(
+      `Tool argument '${name}' must contain at least one item.`,
+      {
+        source: name,
+      },
+    );
+  }
+  return parsed;
+}
+
+function parseArrayValue(value: unknown): unknown {
   if (typeof value !== "string") return value;
   try {
     return JSON.parse(value);
@@ -529,138 +630,121 @@ function parseOperationsValue(value: unknown): unknown {
   }
 }
 
-function normalizeOperation(
+function normalizeReplacement(
   entry: unknown,
   index: number,
 ): NormalizedEditOperation {
-  if (!entry || typeof entry !== "object") {
-    throw argumentError(`operations[${index}] must be an object.`, {
-      operationIndex: index,
-    });
-  }
-  const record = entry as Record<string, unknown>;
-  const type = stringArg(record.type, `operations[${index}].type`);
-  if (!operationTypes.has(type as EditOperationType)) {
-    throw argumentError(
-      `operations[${index}].type must be one of ${[...operationTypes].join(", ")}.`,
-      { operationIndex: index, type },
-    );
-  }
-
-  switch (type as EditOperationType) {
-    case "replace_text":
-      assertAllowedFields(record, index, [
-        "type",
-        "oldText",
-        "newText",
-        "matchMode",
-        "occurrence",
-      ]);
-      return withOptionalOccurrence(
-        {
-          type: "replace_text",
-          oldText: nonEmptyStringArg(
-            record.oldText,
-            `operations[${index}].oldText`,
-          ),
-          newText: stringArg(record.newText, `operations[${index}].newText`),
-          matchMode: matchModeArg(record.matchMode, index),
-        },
-        optionalPositiveIntegerArg(
-          record.occurrence,
-          `operations[${index}].occurrence`,
-        ),
-      );
-    case "insert_text":
-      assertAllowedFields(record, index, [
-        "type",
-        "anchor",
-        "position",
-        "text",
-        "matchMode",
-        "occurrence",
-      ]);
-      return withOptionalOccurrence(
-        {
-          type: "insert_text",
-          anchor: nonEmptyStringArg(
-            record.anchor,
-            `operations[${index}].anchor`,
-          ),
-          position: positionArg(
-            record.position,
-            `operations[${index}].position`,
-          ),
-          text: stringArg(record.text, `operations[${index}].text`),
-          matchMode: matchModeArg(record.matchMode, index),
-        },
-        optionalPositiveIntegerArg(
-          record.occurrence,
-          `operations[${index}].occurrence`,
-        ),
-      );
-    case "replace_lines":
-      assertAllowedFields(record, index, [
-        "type",
-        "startLine",
-        "endLine",
-        "newText",
-      ]);
-      return {
-        type: "replace_lines",
-        startLine: positiveIntegerArg(
-          record.startLine,
-          `operations[${index}].startLine`,
-        ),
-        endLine: positiveIntegerArg(
-          record.endLine,
-          `operations[${index}].endLine`,
-        ),
-        newText: stringArg(record.newText, `operations[${index}].newText`),
-      };
-    case "insert_lines":
-      assertAllowedFields(record, index, ["type", "line", "position", "text"]);
-      return {
-        type: "insert_lines",
-        line: positiveIntegerArg(record.line, `operations[${index}].line`),
-        position: positionArg(record.position, `operations[${index}].position`),
-        text: stringArg(record.text, `operations[${index}].text`),
-      };
-    case "apply_patch":
-      assertAllowedFields(record, index, ["type", "patch"]);
-      return {
-        type: "apply_patch",
-        patch: nonEmptyStringArg(record.patch, `operations[${index}].patch`),
-      };
-  }
+  const label = `replacements[${index}]`;
+  const record = objectArg(entry, label);
+  assertAllowedFields(record, label, [
+    "oldText",
+    "newText",
+    "matchMode",
+    "occurrence",
+  ]);
+  const operation = {
+    type: "replace_text" as const,
+    oldText: nonEmptyStringArg(record.oldText, `${label}.oldText`),
+    newText: stringArg(record.newText, `${label}.newText`),
+    matchMode: matchModeArg(record.matchMode, `${label}.matchMode`),
+    source: sourceFor("replacements", index),
+  };
+  const occurrence = optionalPositiveIntegerArg(
+    record.occurrence,
+    `${label}.occurrence`,
+  );
+  return occurrence === undefined ? operation : { ...operation, occurrence };
 }
 
-function withOptionalOccurrence<
-  T extends
-    | Omit<
-        Extract<NormalizedEditOperation, { type: "replace_text" }>,
-        "occurrence"
-      >
-    | Omit<
-        Extract<NormalizedEditOperation, { type: "insert_text" }>,
-        "occurrence"
-      >,
->(operation: T, occurrence: number | undefined): T & { occurrence?: number } {
-  if (occurrence === undefined) return operation;
-  return { ...operation, occurrence };
+function normalizeInsertion(
+  entry: unknown,
+  index: number,
+): NormalizedEditOperation {
+  const label = `insertions[${index}]`;
+  const record = objectArg(entry, label);
+  assertAllowedFields(record, label, [
+    "anchor",
+    "position",
+    "text",
+    "matchMode",
+    "occurrence",
+  ]);
+  const operation = {
+    type: "insert_text" as const,
+    anchor: nonEmptyStringArg(record.anchor, `${label}.anchor`),
+    position: positionArg(record.position, `${label}.position`),
+    text: stringArg(record.text, `${label}.text`),
+    matchMode: matchModeArg(record.matchMode, `${label}.matchMode`),
+    source: sourceFor("insertions", index),
+  };
+  const occurrence = optionalPositiveIntegerArg(
+    record.occurrence,
+    `${label}.occurrence`,
+  );
+  return occurrence === undefined ? operation : { ...operation, occurrence };
+}
+
+function normalizeLineReplacement(
+  entry: unknown,
+  index: number,
+): NormalizedEditOperation {
+  const label = `lineReplacements[${index}]`;
+  const record = objectArg(entry, label);
+  assertAllowedFields(record, label, ["startLine", "endLine", "newText"]);
+  return {
+    type: "replace_lines",
+    startLine: positiveIntegerArg(record.startLine, `${label}.startLine`),
+    endLine: positiveIntegerArg(record.endLine, `${label}.endLine`),
+    newText: stringArg(record.newText, `${label}.newText`),
+    source: sourceFor("lineReplacements", index),
+  };
+}
+
+function normalizeLineInsertion(
+  entry: unknown,
+  index: number,
+): NormalizedEditOperation {
+  const label = `lineInsertions[${index}]`;
+  const record = objectArg(entry, label);
+  assertAllowedFields(record, label, ["line", "position", "text"]);
+  return {
+    type: "insert_lines",
+    line: positiveIntegerArg(record.line, `${label}.line`),
+    position: positionArg(record.position, `${label}.position`),
+    text: stringArg(record.text, `${label}.text`),
+    source: sourceFor("lineInsertions", index),
+  };
+}
+
+function objectArg(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== "object") {
+    throw argumentError(`${label} must be an object.`, { sourceLabel: label });
+  }
+  return value as Record<string, unknown>;
+}
+
+function sourceFor(
+  key: EditOperationSourceKey,
+  index: number,
+): EditOperationSource {
+  return {
+    key,
+    index,
+    label: key === "patch" ? "patch" : `${key}[${index}]`,
+  };
 }
 
 function assertAllowedFields(
   record: Record<string, unknown>,
-  index: number,
+  label: string,
   allowed: string[],
 ): void {
   const allowedSet = new Set(allowed);
   const unexpected = Object.keys(record).filter((key) => !allowedSet.has(key));
   if (unexpected.length === 0) return;
   throw argumentError(
-    `operations[${index}] has unsupported field(s) for ${String(record.type)}: ${unexpected.join(", ")}.`,
-    { operationIndex: index, type: record.type, unexpected },
+    `${label} has unsupported field(s): ${unexpected.join(", ")}.`,
+    { sourceLabel: label, unexpected },
   );
 }
 
@@ -670,6 +754,11 @@ function booleanArg(value: unknown, fallback: boolean, name: string): boolean {
     throw argumentError(`Tool argument '${name}' must be a boolean.`);
   }
   return value;
+}
+
+function optionalStringArg(value: unknown, name: string): string | undefined {
+  if (value === undefined) return undefined;
+  return stringArg(value, name);
 }
 
 function stringArg(value: unknown, name: string): string {
@@ -709,13 +798,12 @@ function positionArg(value: unknown, name: string): "before" | "after" {
   return value as "before" | "after";
 }
 
-function matchModeArg(value: unknown, index: number): MatchMode {
+function matchModeArg(value: unknown, name: string): MatchMode {
   if (value === undefined) return "exact";
   if (typeof value !== "string" || !matchModes.has(value as MatchMode)) {
-    throw argumentError(
-      `operations[${index}].matchMode must be one of exact, trimmed, whitespace.`,
-      { operationIndex: index, matchMode: value },
-    );
+    throw argumentError(`${name} must be one of exact, trimmed, whitespace.`, {
+      matchMode: value,
+    });
   }
   return value as MatchMode;
 }

@@ -26,7 +26,6 @@ type ClosestCandidate = {
   similarity: number;
   preview: string;
 };
-
 export function resolveTextMatch(options: {
   content: string;
   needle: string;
@@ -35,6 +34,7 @@ export function resolveTextMatch(options: {
   operationIndex: number;
   operationType: string;
   fieldName: string;
+  fieldLabel?: string;
   path: string;
 }): MatchResolution {
   const matches = findTextMatches(
@@ -68,7 +68,7 @@ export function resolveTextMatch(options: {
     if (!selected) {
       throw new ToolExecutionError(
         "EDIT_OCCURRENCE_OUT_OF_RANGE",
-        `operations[${options.operationIndex}] ${options.operationType} requested occurrence ${options.occurrence}, but ${matches.length} match(es) were found in ${options.path}.`,
+        `${matchFieldLabel(options)} requested occurrence ${options.occurrence}, but ${matches.length} match(es) were found in ${options.path}.`,
         {
           operationIndex: options.operationIndex,
           operationType: options.operationType,
@@ -105,7 +105,7 @@ export function resolveTextMatch(options: {
   if (!selected) {
     throw new ToolExecutionError(
       "EDIT_MATCH_NOT_FOUND",
-      `operations[${options.operationIndex}] ${options.operationType} ${options.fieldName} was not found in ${options.path}.`,
+      `${matchFieldLabel(options)} was not found in ${options.path}.`,
       {
         operationIndex: options.operationIndex,
         operationType: options.operationType,
@@ -304,17 +304,30 @@ function trimPreview(input: string, maxLength = 220): string {
   return `${input.slice(0, maxLength - 1)}…`;
 }
 
+function matchFieldLabel(options: {
+  operationIndex: number;
+  operationType: string;
+  fieldName: string;
+  fieldLabel?: string;
+}): string {
+  return (
+    options.fieldLabel ??
+    `operations[${options.operationIndex}] ${options.operationType} ${options.fieldName}`
+  );
+}
+
 function missingMatchMessage(
   options: {
     operationIndex: number;
     operationType: string;
     fieldName: string;
+    fieldLabel?: string;
     path: string;
     matchMode: MatchMode;
   },
   candidates: ClosestCandidate[],
 ): string {
-  const base = `operations[${options.operationIndex}] ${options.operationType} ${options.fieldName} was not found in ${options.path} using matchMode "${options.matchMode}".`;
+  const base = `${matchFieldLabel(options)} was not found in ${options.path} using matchMode "${options.matchMode}".`;
   if (candidates.length === 0) {
     return `${base} Try exact text from read output, matchMode "whitespace", or a line-range operation.`;
   }
@@ -332,6 +345,7 @@ function ambiguousMatchMessage(
     operationIndex: number;
     operationType: string;
     fieldName: string;
+    fieldLabel?: string;
     path: string;
     matchMode: MatchMode;
   },
@@ -346,7 +360,7 @@ function ambiguousMatchMessage(
     .join("\n");
   const suffix =
     matches.length > 5 ? `\n...${matches.length - 5} more match(es).` : "";
-  return `operations[${options.operationIndex}] ${options.operationType} ${options.fieldName} matched ${matches.length} times in ${options.path} using matchMode "${options.matchMode}"; provide a more specific ${options.fieldName} or set occurrence to 1..${matches.length}.\nMatches:\n${formatted}${suffix}`;
+  return `${matchFieldLabel(options)} matched ${matches.length} times in ${options.path} using matchMode "${options.matchMode}"; provide a more specific ${options.fieldName} or set occurrence to 1..${matches.length}.\nMatches:\n${formatted}${suffix}`;
 }
 
 function closestCandidates(

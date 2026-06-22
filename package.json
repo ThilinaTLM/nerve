@@ -17,7 +17,7 @@
     "format": "biome format --write .",
     "test": "pnpm -r --if-present test",
     "desktop": "pnpm --filter @nerve/desktop dev --",
-    "desktop:mobile-https": "pnpm desktop -- --mobile-https",
+    "desktop:remote-enabled": "pnpm desktop -- --host 0.0.0.0 --allow-remote --mobile-https",
     "desktop:fast": "pnpm --filter @nerve/desktop start",
     "desktop:build": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nerve/desktop build",
     "desktop:check": "pnpm --filter @nerve/desktop check",

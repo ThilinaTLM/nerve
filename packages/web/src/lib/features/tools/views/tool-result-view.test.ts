@@ -320,7 +320,7 @@ describe("parseToolView", () => {
         "edit",
         {
           path: "src/x.ts",
-          operations: [{ type: "replace_text", oldText: "a", newText: "b" }],
+          replacements: [{ oldText: "a", newText: "b" }],
           dryRun: true,
         },
         {
@@ -1131,7 +1131,7 @@ describe("toolPresentation", () => {
       "edit",
       {
         path: "x.ts",
-        operations: [{ type: "replace_text", oldText: "a", newText: "b" }],
+        replacements: [{ oldText: "a", newText: "b" }],
       },
       {
         path: `${CWD}/x.ts`,

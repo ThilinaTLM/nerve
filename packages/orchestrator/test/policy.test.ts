@@ -122,16 +122,13 @@ describe("tool policy", () => {
       "approval",
     );
   });
-
   it("applies planning-mode plan-file guardrails to edit tools", () => {
     const allowed = evaluateToolPolicy(
       agent("autonomous", "planning"),
       "edit",
       {
         path: "/tmp/nerve/plans/edit-plan.md",
-        operations: [
-          { type: "insert_lines", line: 1, position: "after", text: "ok" },
-        ],
+        lineInsertions: [{ line: 1, position: "after", text: "ok" }],
       },
       { dataDir: "/tmp/nerve" },
     );
@@ -158,9 +155,7 @@ describe("tool policy", () => {
       "edit",
       {
         path: "src/app.ts",
-        operations: [
-          { type: "insert_lines", line: 1, position: "after", text: "ok" },
-        ],
+        lineInsertions: [{ line: 1, position: "after", text: "ok" }],
       },
       { dataDir: "/tmp/nerve" },
     );

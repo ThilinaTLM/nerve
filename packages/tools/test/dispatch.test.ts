@@ -18,9 +18,7 @@ describe("executeTool dispatch", () => {
         "edit",
         {
           path: "input.txt",
-          operations: [
-            { type: "replace_text", oldText: "beta", newText: "gamma" },
-          ],
+          replacements: [{ oldText: "beta", newText: "gamma" }],
         },
       ],
       [

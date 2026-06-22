@@ -45,14 +45,12 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.estimatedDeletions, 3);
   });
 
-  it("counts edit operations, inserted text, replacements, and patches", () => {
+  it("counts edit shorthand insertions, replacements, and patches", () => {
     const accumulator = new ToolDraftProgressAccumulator("edit");
 
-    accumulator.push(
-      '{"path":"src/app.ts","operations":[{"type":"insert_text","text":"a\\nb"}',
-    );
+    accumulator.push('{"path":"src/app.ts","insertions":[{"text":"a\\nb"}],');
     const progress = accumulator.push(
-      ',{"type":"replace_text","oldText":"old\\ntext","newText":"new"},{"type":"apply_patch","patch":"@@ -1 +1,2 @@\\n-old\\n+new\\n+extra\\n"}',
+      '"replacements":[{"oldText":"old\\ntext","newText":"new"}],"patch":"@@ -1 +1,2 @@\\n-old\\n+new\\n+extra\\n"}',
     );
 
     assert.equal(progress?.path, "src/app.ts");
@@ -122,14 +120,12 @@ describe("finalToolDraftProgress", () => {
     });
   });
 
-  it("summarizes final edit operation args", () => {
+  it("summarizes final edit shorthand args", () => {
     const progress = finalToolDraftProgress("edit", {
       path: "src/app.ts",
-      operations: [
-        { type: "insert_lines", line: 1, position: "before", text: "one\ntwo" },
-        { type: "replace_text", oldText: "old", newText: "new" },
-        { type: "apply_patch", patch: "@@ -1 +1,2 @@\n-old\n+new\n+extra\n" },
-      ],
+      lineInsertions: [{ line: 1, position: "before", text: "one\ntwo" }],
+      replacements: [{ oldText: "old", newText: "new" }],
+      patch: "@@ -1 +1,2 @@\n-old\n+new\n+extra\n",
     });
 
     assert.deepEqual(progress, {

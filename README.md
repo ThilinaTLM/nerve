@@ -34,10 +34,11 @@ pnpm desktop -- --host 0.0.0.0 --allow-remote
 pnpm desktop -- --connect http://127.0.0.1:3747 --token <token>
 ```
 
-For opt-in self-signed HTTPS LAN sharing for mobile browsers:
+For opt-in LAN remote access plus self-signed HTTPS for mobile browsers
+(binds to `0.0.0.0`, allows remote clients, and enables self-signed HTTPS):
 
 ```sh
-pnpm desktop:mobile-https
+pnpm desktop:remote-enabled
 ```
 
 To install or remove a user-space desktop launcher for this checkout:

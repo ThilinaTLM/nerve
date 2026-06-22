@@ -164,7 +164,10 @@ async function loadServerCertificate(
   }
 }
 
-function serverCertCoversHosts(cert: X509Certificate, hosts: string[]): boolean {
+function serverCertCoversHosts(
+  cert: X509Certificate,
+  hosts: string[],
+): boolean {
   const san = cert.getExtension(SubjectAlternativeNameExtension);
   if (!san) return false;
   const present = new Set<string>();

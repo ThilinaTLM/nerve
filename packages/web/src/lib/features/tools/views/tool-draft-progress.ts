@@ -243,16 +243,6 @@ type EditDraftStats = {
   estimated: boolean;
 };
 
-function isEditOperationType(value: string): boolean {
-  return (
-    value === "replace_text" ||
-    value === "insert_text" ||
-    value === "replace_lines" ||
-    value === "insert_lines" ||
-    value === "apply_patch"
-  );
-}
-
 function patchLineStats(patch: string): {
   additions: number;
   deletions: number;
@@ -266,38 +256,68 @@ function patchLineStats(patch: string): {
   return { additions, deletions };
 }
 
-function editStatsForOperations(
-  operations: unknown[],
-  estimated: boolean,
-): EditDraftStats {
-  let additions = 0;
-  let deletions = 0;
-  for (const operation of operations) {
-    const record = asRecord(operation);
-    additions += lineCount(stringField(record.newText)) ?? 0;
-    additions += lineCount(stringField(record.text)) ?? 0;
-    deletions += lineCount(stringField(record.oldText)) ?? 0;
-    const patch = stringField(record.patch);
-    if (patch) {
-      const patchStats = patchLineStats(patch);
-      additions += patchStats.additions;
-      deletions += patchStats.deletions;
-    }
-  }
-  return {
-    operations: operations.length,
-    generatedLines: additions,
-    estimatedAdditions: additions,
-    estimatedDeletions: deletions,
-    estimated,
-  };
+function arrayField(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function finalEditStats(
   args: Record<string, unknown>,
 ): EditDraftStats | undefined {
-  if (!Array.isArray(args.operations)) return undefined;
-  return editStatsForOperations(args.operations, false);
+  if (
+    !Array.isArray(args.replacements) &&
+    !Array.isArray(args.insertions) &&
+    !Array.isArray(args.lineReplacements) &&
+    !Array.isArray(args.lineInsertions) &&
+    typeof args.patch !== "string"
+  ) {
+    return undefined;
+  }
+
+  let operations = 0;
+  let additions = 0;
+  let deletions = 0;
+
+  const replacements = arrayField(args.replacements);
+  operations += replacements.length;
+  for (const replacement of replacements) {
+    const record = asRecord(replacement);
+    additions += lineCount(stringField(record.newText)) ?? 0;
+    deletions += lineCount(stringField(record.oldText)) ?? 0;
+  }
+
+  const insertions = arrayField(args.insertions);
+  operations += insertions.length;
+  for (const insertion of insertions) {
+    additions += lineCount(stringField(asRecord(insertion).text)) ?? 0;
+  }
+
+  const lineReplacements = arrayField(args.lineReplacements);
+  operations += lineReplacements.length;
+  for (const replacement of lineReplacements) {
+    additions += lineCount(stringField(asRecord(replacement).newText)) ?? 0;
+  }
+
+  const lineInsertions = arrayField(args.lineInsertions);
+  operations += lineInsertions.length;
+  for (const insertion of lineInsertions) {
+    additions += lineCount(stringField(asRecord(insertion).text)) ?? 0;
+  }
+
+  const patch = stringField(args.patch);
+  if (patch) {
+    operations += 1;
+    const patchStats = patchLineStats(patch);
+    additions += patchStats.additions;
+    deletions += patchStats.deletions;
+  }
+
+  return {
+    operations,
+    generatedLines: additions,
+    estimatedAdditions: additions,
+    estimatedDeletions: deletions,
+    estimated: false,
+  };
 }
 
 function progressEditStats(
@@ -315,9 +335,6 @@ function progressEditStats(
 }
 
 function partialEditStats(argsText: string): EditDraftStats {
-  const types = extractJsonStringValues(argsText, "type", {
-    maxChars: 64,
-  }).filter(isEditOperationType);
   const oldTextLines = lineCountsForJsonStringValues(argsText, "oldText");
   const newTextLines = lineCountsForJsonStringValues(argsText, "newText");
   const insertedTextLines = lineCountsForJsonStringValues(argsText, "text");
@@ -342,7 +359,10 @@ function partialEditStats(argsText: string): EditDraftStats {
     oldTextLines.reduce((total, count) => total + count, 0) +
     patchStats.deletions;
   return {
-    operations: types.length,
+    operations:
+      Math.max(oldTextLines.length, newTextLines.length) +
+      insertedTextLines.length +
+      patches.length,
     generatedLines: additions,
     estimatedAdditions: additions,
     estimatedDeletions: deletions,

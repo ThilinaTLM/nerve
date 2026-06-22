@@ -48,9 +48,10 @@ export type WriteToolArgs = ToolPathArgs & {
 
 export type EditToolArgs = ToolPathArgs & {
   dryRun?: unknown;
-  operations?: unknown;
-  oldText?: unknown;
-  newText?: unknown;
+  replacements?: unknown;
+  insertions?: unknown;
+  lineReplacements?: unknown;
+  lineInsertions?: unknown;
   patch?: unknown;
 };
 

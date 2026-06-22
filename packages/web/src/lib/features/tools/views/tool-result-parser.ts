@@ -54,6 +54,20 @@ export type {
   ToolView,
 } from "./tool-view-types";
 
+function arrayField(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function editShorthandOperationCount(args: Record<string, unknown>): number {
+  return (
+    arrayField(args.replacements).length +
+    arrayField(args.insertions).length +
+    arrayField(args.lineReplacements).length +
+    arrayField(args.lineInsertions).length +
+    (typeof args.patch === "string" && args.patch.length > 0 ? 1 : 0)
+  );
+}
+
 // Memoize the (zod-heavy) tool-result projection. parseToolView re-runs on
 // every card mount (tab switch / scroll into view) and on every live
 // `tool_call.updated`; caching by tool-call identity + revision lets stable
@@ -209,9 +223,7 @@ export function parseToolView(
       );
       const operations = details.success
         ? details.data.operationCount
-        : Array.isArray(args.operations)
-          ? args.operations.length
-          : 0;
+        : editShorthandOperationCount(args);
       const diff = details.success ? details.data.diff : undefined;
       const { additions, deletions } = diffStats(diff);
       return {
