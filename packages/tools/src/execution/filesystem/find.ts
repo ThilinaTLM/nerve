@@ -4,8 +4,12 @@ import { relative } from "node:path";
 import { promisify } from "node:util";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
+import {
+  boundText,
+  FILE_OUTPUT_MAX_LINE_CHARS,
+  textBoundaryDetails,
+} from "../common/output-budget.js";
 import { globToRegExp, walkFiles } from "../common/search-utils.js";
-import { truncateHead } from "../common/truncate.js";
 import {
   isErrnoException,
   pathNotFoundMessage,
@@ -114,11 +118,14 @@ function formatFind(
       `[Result limit ${limit} reached. Increase limit or refine the pattern for more results.]`,
     );
   }
-  const truncated = truncateHead(lines.join("\n"), {
+  const bounded = boundText(lines.join("\n"), {
     maxLines: Number.MAX_SAFE_INTEGER,
+    maxLineChars: FILE_OUTPUT_MAX_LINE_CHARS,
   });
   return {
-    content: truncated.text,
-    details: truncated.truncated ? { truncation: truncated } : undefined,
+    content: bounded.text,
+    details: bounded.truncated
+      ? { truncation: textBoundaryDetails(bounded) }
+      : undefined,
   };
 }

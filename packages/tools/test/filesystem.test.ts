@@ -114,15 +114,39 @@ describe("filesystem executors", () => {
     assert.match(result.content ?? "", /^bbbb/);
     assert.match(result.content ?? "", /selected output truncated/);
     assert.match(result.content ?? "", /overlong line/);
-    assert.ok(
-      Buffer.byteLength(result.content ?? "", "utf8") <
-        DEFAULT_MAX_BYTES + 1000,
-    );
+    assert.match(result.content ?? "", /byteOffset\/byteLimit/);
+    assert.ok(Buffer.byteLength(result.content ?? "", "utf8") < 6000);
     assert.equal(
       (result.details as { truncation?: { nextOffset?: number } } | undefined)
         ?.truncation?.nextOffset,
       undefined,
     );
+  });
+
+  it("reads byte windows for overlong single-line text files", async () => {
+    const project = await createTempProject();
+    await project.write(
+      "minified.js",
+      `${"a".repeat(5000)}needle${"z".repeat(5000)}`,
+    );
+
+    const result = await executeRead(
+      { path: "minified.js", byteOffset: 4995, byteLimit: 32 },
+      { cwd: project.root },
+    );
+
+    assert.match(result.content ?? "", /^aaaaaneedlezz/);
+    assert.match(result.content ?? "", /Continue with byteOffset 5027/);
+    const details = result.details as {
+      byteOffset?: number;
+      byteLimit?: number;
+      nextByteOffset?: number;
+      size?: number;
+    };
+    assert.equal(details.byteOffset, 4995);
+    assert.equal(details.byteLimit, 32);
+    assert.equal(details.nextByteOffset, 5027);
+    assert.equal(details.size, 10006);
   });
 
   it("rejects invalid and missing read paths with actionable errors", async () => {

@@ -37,10 +37,17 @@ export const truncationDetailsSchema = z
     truncated: z.boolean().optional(),
     omittedLines: z.number().optional(),
     omittedBytes: z.number().optional(),
+    truncatedLines: z.number().optional(),
     direction: z.enum(["head", "tail", "line", "head_tail"]).optional(),
     partialLine: z.boolean().optional(),
     nextOffset: z.number().optional(),
+    nextByteOffset: z.number().optional(),
     maxLines: z.number().optional(),
+    maxBytes: z.number().optional(),
+    maxLineChars: z.number().optional(),
+    byteOffset: z.number().optional(),
+    byteLimit: z.number().optional(),
+    rawResultPath: z.string().optional(),
   })
   .passthrough();
 export type TruncationDetails = z.infer<typeof truncationDetailsSchema>;
@@ -54,7 +61,9 @@ export const processStreamResultDetailsSchema = z
     truncated: z.boolean().optional(),
     omittedLines: z.number().optional(),
     omittedBytes: z.number().optional(),
+    truncatedLines: z.number().optional(),
     direction: z.enum(["head", "tail", "line", "head_tail"]).optional(),
+    maxLineChars: z.number().optional(),
     savedTo: z.string().optional(),
   })
   .passthrough();
@@ -124,6 +133,7 @@ export const bashResultDetailsSchema = z
   .object({
     truncation: truncationDetailsSchema.optional(),
     fullOutputPath: z.string().optional(),
+    rawResultPath: z.string().optional(),
     signal: z.string().nullable().optional(),
   })
   .passthrough();
@@ -143,6 +153,7 @@ export const pythonResultDetailsSchema = z
   .object({
     truncation: truncationDetailsSchema.optional(),
     fullOutputPath: z.string().optional(),
+    rawResultPath: z.string().optional(),
     signal: z.string().nullable().optional(),
     executable: z.string().optional(),
     version: z.string().optional(),

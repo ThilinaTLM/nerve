@@ -192,6 +192,7 @@ export class ToolService {
       publishToolCallUpdated: (toolCall) =>
         this.publishToolCallUpdated(toolCall),
       dispatcher: this.dispatcher,
+      storageHome: this.storage.paths.home,
       logger: this.logger,
     });
   }

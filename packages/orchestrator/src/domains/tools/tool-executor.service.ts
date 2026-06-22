@@ -3,6 +3,7 @@ import type { ApplicationLogger } from "../../logging.js";
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toolErrorDetails } from "./tool-errors.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";
+import { boundToolResultForStorage } from "./tool-result-bounds.js";
 import type { ToolRequestOptions } from "./tool-service.js";
 
 export interface ToolExecutorDeps {
@@ -13,6 +14,7 @@ export interface ToolExecutorDeps {
   ): Promise<ToolCallRecord>;
   publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void>;
   dispatcher: OrchestrationToolDispatcher;
+  storageHome: string;
   logger?: ApplicationLogger;
 }
 
@@ -43,9 +45,13 @@ export class ToolExecutorService {
         args,
         options,
       );
+      const boundedResult = await boundToolResultForStorage(result, {
+        toolCallId: toolCall.id,
+        storageHome: this.deps.storageHome,
+      });
       const completed = await this.deps.updateToolCall(toolCall.id, {
         status: "completed",
-        result,
+        result: boundedResult,
         error: undefined,
         errorDetails: undefined,
       });

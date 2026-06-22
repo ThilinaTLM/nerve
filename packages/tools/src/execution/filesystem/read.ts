@@ -2,11 +2,15 @@ import { readFile } from "node:fs/promises";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import {
+  type BoundedTextResult,
+  boundText,
+  FILE_OUTPUT_MAX_LINE_CHARS,
+  textBoundaryDetails,
+} from "../common/output-budget.js";
+import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
-  type TruncationResult,
-  truncateHead,
 } from "../common/truncate.js";
 import {
   isErrnoException,
@@ -15,6 +19,8 @@ import {
 } from "./path.js";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const READ_BYTE_DEFAULT_LIMIT = FILE_OUTPUT_MAX_LINE_CHARS;
+const READ_BYTE_MAX_LIMIT = FILE_OUTPUT_MAX_LINE_CHARS;
 
 function startsWith(buffer: Uint8Array, bytes: number[]): boolean {
   if (buffer.length < bytes.length) return false;
@@ -57,9 +63,21 @@ export async function executeRead(
     }
     throw error;
   });
+  const hasByteOffset = typeof args.byteOffset === "number";
+  const hasByteLimit = typeof args.byteLimit === "number";
+  const hasByteRange = hasByteOffset || hasByteLimit;
+  const hasExplicitLimit = typeof args.limit === "number";
+  const hasExplicitOffset = typeof args.offset === "number";
+
+  if (hasByteRange && (hasExplicitLimit || hasExplicitOffset)) {
+    throw new Error(
+      "Use either line arguments ('offset'/'limit') or byte arguments ('byteOffset'/'byteLimit'), not both.",
+    );
+  }
+
   const mimeType = detectSupportedImageMimeType(buffer);
 
-  if (mimeType) {
+  if (mimeType && !hasByteRange) {
     const content = `Read image file [${mimeType}]`;
     return {
       path,
@@ -71,10 +89,10 @@ export async function executeRead(
     };
   }
 
+  if (hasByteRange) return readByteRange(path, buffer, args);
+
   const content = buffer.toString("utf8");
   const lines = content.split(/\r?\n/);
-  const hasExplicitLimit = typeof args.limit === "number";
-  const hasExplicitOffset = typeof args.offset === "number";
   const offset = numberArg(args.offset, 1);
 
   if (hasExplicitLimit || hasExplicitOffset) {
@@ -82,25 +100,22 @@ export async function executeRead(
     const start = Math.max(0, offset - 1);
     const selected = lines.slice(start, start + limit).join("\n");
     const remaining = Math.max(0, lines.length - (start + limit));
-    const truncated = truncateHead(selected, {
-      maxLines: limit,
-      maxBytes: DEFAULT_MAX_BYTES,
-    });
+    const bounded = boundFileText(selected, { maxLines: limit });
     const messages: string[] = [];
-    if (truncated.truncated) {
-      messages.push(formatSelectedRangeTruncation(truncated));
+    if (bounded.truncated) {
+      messages.push(formatSelectedRangeTruncation(bounded));
     }
     if (remaining > 0) {
       messages.push(
-        truncated.truncated
+        bounded.truncated
           ? `[...${remaining} more lines remain after the requested range. Narrow this read range before continuing past it.]`
           : `[...${remaining} more lines. Continue with offset ${offset + limit}.]`,
       );
     }
-    const output = [truncated.text, ...messages]
+    const output = [bounded.text, ...messages]
       .filter((part) => part.length > 0)
       .join("\n\n");
-    const wasTruncated = truncated.truncated || remaining > 0;
+    const wasTruncated = bounded.truncated || remaining > 0;
     return {
       path,
       content: output,
@@ -108,11 +123,11 @@ export async function executeRead(
       details: wasTruncated
         ? {
             truncation: {
-              ...truncated,
+              ...textBoundaryDetails(bounded),
               truncated: true,
-              omittedLines: truncated.omittedLines + remaining,
+              omittedLines: bounded.omittedLines + remaining,
               nextOffset:
-                !truncated.truncated && remaining > 0
+                !bounded.truncated && remaining > 0
                   ? offset + limit
                   : undefined,
             },
@@ -121,17 +136,84 @@ export async function executeRead(
     };
   }
 
-  const truncated = truncateHead(content);
-  let output = truncated.text;
-  if (truncated.truncated) {
-    output += `\n\n[...output truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.${formatContinuationGuidance(truncated)}]`;
+  const bounded = boundFileText(content, { maxLines: DEFAULT_MAX_LINES });
+  let output = bounded.text;
+  if (bounded.truncated) {
+    output += `\n\n[...output truncated to ${DEFAULT_MAX_LINES} lines, ${formatSize(DEFAULT_MAX_BYTES)}, or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line.${formatContinuationGuidance(bounded)}]`;
   }
   return {
     path,
     content: output,
     contentBlocks: [{ type: "text", text: output }],
-    details: truncated.truncated ? { truncation: truncated } : undefined,
+    details: bounded.truncated
+      ? { truncation: textBoundaryDetails(bounded) }
+      : undefined,
   };
+}
+
+function readByteRange(
+  path: string,
+  buffer: Buffer,
+  args: Record<string, unknown>,
+): ToolExecutionResult {
+  const requestedOffset = Math.min(
+    numberArg(args.byteOffset, 0),
+    buffer.length,
+  );
+  const requestedLimit = positiveIntegerArg(
+    args.byteLimit,
+    READ_BYTE_DEFAULT_LIMIT,
+    READ_BYTE_MAX_LIMIT,
+  );
+  const requestedEnd = Math.min(
+    buffer.length,
+    requestedOffset + requestedLimit,
+  );
+  const slice = safeUtf8Slice(buffer, requestedOffset, requestedEnd);
+  const bounded = boundText(slice.text, {
+    maxBytes: requestedLimit,
+    maxLines: Number.MAX_SAFE_INTEGER,
+    maxLineChars: requestedLimit,
+  });
+  const nextByteOffset =
+    requestedEnd < buffer.length ? requestedEnd : undefined;
+  const messages: string[] = [];
+  if (bounded.truncated) {
+    messages.push(formatByteRangeTruncation(bounded));
+  }
+  if (nextByteOffset !== undefined) {
+    messages.push(
+      `[...${formatSize(buffer.length - requestedEnd)} remain after this byte range. Continue with byteOffset ${nextByteOffset}.]`,
+    );
+  }
+  const output = [bounded.text, ...messages]
+    .filter((part) => part.length > 0)
+    .join("\n\n");
+  return {
+    path,
+    content: output,
+    contentBlocks: [{ type: "text", text: output }],
+    details: {
+      byteOffset: requestedOffset,
+      byteLimit: requestedLimit,
+      actualByteOffset: slice.start,
+      actualByteEnd: slice.end,
+      size: buffer.length,
+      nextByteOffset,
+      truncation: bounded.truncated ? textBoundaryDetails(bounded) : undefined,
+    },
+  };
+}
+
+function boundFileText(
+  text: string,
+  options: { maxLines: number },
+): BoundedTextResult {
+  return boundText(text, {
+    maxLines: options.maxLines,
+    maxBytes: DEFAULT_MAX_BYTES,
+    maxLineChars: FILE_OUTPUT_MAX_LINE_CHARS,
+  });
 }
 
 function countLines(text: string): number {
@@ -139,23 +221,34 @@ function countLines(text: string): number {
   return text.split("\n").length;
 }
 
-function formatSelectedRangeTruncation(truncation: TruncationResult): string {
+function formatSelectedRangeTruncation(truncation: BoundedTextResult): string {
   const omissions = formatOmissions(truncation);
-  const guidance = truncation.partialLine
-    ? " The output ended within an overlong line; line offsets cannot continue within that line."
-    : "";
-  return `[...selected output truncated to ${formatSize(DEFAULT_MAX_BYTES)}${omissions}.${guidance}]`;
+  const guidance =
+    truncation.partialLine || truncation.truncatedLines > 0
+      ? " Use byteOffset/byteLimit to inspect overlong lines exactly."
+      : "";
+  return `[...selected output truncated to ${formatSize(DEFAULT_MAX_BYTES)} or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line${omissions}.${guidance}]`;
 }
 
-function formatContinuationGuidance(truncation: TruncationResult): string {
-  if (truncation.partialLine) {
-    return " The output ended within an overlong line; line offsets cannot continue within that line.";
+function formatByteRangeTruncation(truncation: BoundedTextResult): string {
+  const omissions = formatOmissions(truncation);
+  return `[...byte range output truncated${omissions}. Use a smaller byteLimit to inspect this range.]`;
+}
+
+function formatContinuationGuidance(truncation: BoundedTextResult): string {
+  if (truncation.partialLine || truncation.truncatedLines > 0) {
+    return " Use byteOffset/byteLimit to inspect overlong lines exactly.";
   }
   return ` Continue reading with offset ${countLines(truncation.text) + 1}.`;
 }
 
-function formatOmissions(truncation: TruncationResult): string {
+function formatOmissions(truncation: BoundedTextResult): string {
   const parts: string[] = [];
+  if (truncation.truncatedLines > 0) {
+    parts.push(
+      `${truncation.truncatedLines} overlong line${truncation.truncatedLines === 1 ? "" : "s"}`,
+    );
+  }
   if (truncation.omittedLines > 0) {
     parts.push(
       `${truncation.omittedLines} omitted line${truncation.omittedLines === 1 ? "" : "s"}`,
@@ -165,4 +258,45 @@ function formatOmissions(truncation: TruncationResult): string {
     parts.push(`${formatSize(truncation.omittedBytes)} omitted`);
   }
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
+}
+
+function positiveIntegerArg(
+  value: unknown,
+  fallback: number,
+  max: number,
+): number {
+  const number = numberArg(value, fallback);
+  if (number <= 0) return fallback;
+  return Math.min(number, max);
+}
+
+function safeUtf8Slice(
+  buffer: Buffer,
+  start: number,
+  end: number,
+): { text: string; start: number; end: number } {
+  let safeStart = Math.max(0, Math.min(start, buffer.length));
+  let safeEnd = Math.max(safeStart, Math.min(end, buffer.length));
+  while (
+    safeStart < safeEnd &&
+    isUtf8ContinuationByte(buffer[safeStart] ?? 0)
+  ) {
+    safeStart += 1;
+  }
+  while (
+    safeEnd > safeStart &&
+    safeEnd < buffer.length &&
+    isUtf8ContinuationByte(buffer[safeEnd] ?? 0)
+  ) {
+    safeEnd -= 1;
+  }
+  return {
+    text: buffer.subarray(safeStart, safeEnd).toString("utf8"),
+    start: safeStart,
+    end: safeEnd,
+  };
+}
+
+function isUtf8ContinuationByte(byte: number): boolean {
+  return (byte & 0xc0) === 0x80;
 }

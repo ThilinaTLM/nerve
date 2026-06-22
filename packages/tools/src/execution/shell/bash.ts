@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
+import { boundLiveOutputChunk } from "../common/output-budget.js";
 import { buildProcessResult } from "../common/process-result.js";
 
 export async function executeBash(
@@ -74,7 +75,7 @@ export async function executeBash(
       context.onUpdate?.({
         kind: "output",
         stream: "stdout",
-        chunk: chunk.toString("utf8"),
+        chunk: boundLiveOutputChunk(chunk.toString("utf8")),
       });
     });
     child.stderr?.on("data", (chunk: Buffer) => {
@@ -83,7 +84,7 @@ export async function executeBash(
       context.onUpdate?.({
         kind: "output",
         stream: "stderr",
-        chunk: chunk.toString("utf8"),
+        chunk: boundLiveOutputChunk(chunk.toString("utf8")),
       });
     });
     child.on("error", (error) => {

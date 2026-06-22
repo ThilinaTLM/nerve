@@ -1,4 +1,22 @@
 export {
+  appendBoundedTextNotice,
+  type BoundedTextResult,
+  boundContentBlocks,
+  boundLiveOutputChunk,
+  boundText,
+  FILE_OUTPUT_MAX_LINE_CHARS,
+  LIVE_OUTPUT_MAX_BYTES,
+  LIVE_OUTPUT_MAX_LINE_CHARS,
+  LIVE_OUTPUT_MAX_LINES,
+  MODEL_TEXT_MAX_BYTES,
+  MODEL_TEXT_MAX_LINE_CHARS,
+  MODEL_TEXT_MAX_LINES,
+  PROCESS_INLINE_MAX_LINE_CHARS,
+  type TextBoundaryDetails,
+  type TextBudget,
+  textBoundaryDetails,
+} from "./common/output-budget.js";
+export {
   buildProcessResult,
   buildProcessTextResult,
 } from "./common/process-result.js";

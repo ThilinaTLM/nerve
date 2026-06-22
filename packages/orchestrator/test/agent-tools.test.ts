@@ -18,6 +18,7 @@ import {
 import {
   activeToolNamesForAgent,
   activeToolNamesForExploreAgent,
+  contentBlocksFromResult,
 } from "../src/domains/tools/agent-tool-adapter.js";
 import { ToolService } from "../src/domains/tools/tool-service.js";
 import { storagePaths } from "../src/infrastructure/storage/index.js";
@@ -232,6 +233,16 @@ describe("agent tool definitions", () => {
         line.includes("quick grep/find/read"),
       ),
     );
+  });
+
+  it("bounds model-facing text content blocks generically", () => {
+    const blocks = contentBlocksFromResult({
+      contentBlocks: [{ type: "text", text: "x".repeat(30_000) }],
+    });
+
+    assert.equal(blocks?.[0]?.type, "text");
+    assert.ok(((blocks?.[0] as { text?: string })?.text ?? "").length < 26_000);
+    assert.match((blocks?.[0] as { text?: string })?.text ?? "", /truncated/);
   });
 
   it("uses a restricted tool allowlist for explore child agents", () => {

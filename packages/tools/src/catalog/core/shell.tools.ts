@@ -18,7 +18,7 @@ export const shellToolDefinitions = [
     name: "bash",
     label: "bash",
     description:
-      "Execute an awaited bash command in the current working directory. Returns stdout and stderr. Finite commands may auto-promote after about 60 seconds and report completion asynchronously. Large outputs are saved to a transcript file with a compact preview. Optionally provide a timeout in seconds.",
+      "Execute an awaited bash command in the current working directory. Returns stdout and stderr. Finite commands may auto-promote after about 60 seconds and report completion asynchronously. Large or overlong-line outputs are saved to a transcript file with compact bounded previews. Output is capped by line count, total byte budget, and per-line length. Optionally provide a timeout in seconds.",
     promptSnippet: "Run awaited shell commands",
     promptGuidelines: [
       "Use dedicated file tools when available: read for file contents, grep for content search, find for file discovery, and ls for directory listings.",

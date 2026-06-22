@@ -1,7 +1,11 @@
 import { readdir, stat } from "node:fs/promises";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
-import { truncateHead } from "../common/truncate.js";
+import {
+  boundText,
+  FILE_OUTPUT_MAX_LINE_CHARS,
+  textBoundaryDetails,
+} from "../common/output-budget.js";
 import {
   isErrnoException,
   pathNotFoundMessage,
@@ -43,15 +47,18 @@ export async function executeLs(
   if (dirEntries.length > entries.length) {
     content += `${content ? "\n\n" : ""}[...${dirEntries.length - entries.length} more entries. Increase limit to see more.]`;
   }
-  const truncated = truncateHead(content, {
+  const bounded = boundText(content, {
     maxLines: Number.MAX_SAFE_INTEGER,
+    maxLineChars: FILE_OUTPUT_MAX_LINE_CHARS,
   });
-  content = truncated.text;
+  content = bounded.text;
   return {
     path: root,
     entries,
     content,
     contentBlocks: [{ type: "text", text: content }],
-    details: truncated.truncated ? { truncation: truncated } : undefined,
+    details: bounded.truncated
+      ? { truncation: textBoundaryDetails(bounded) }
+      : undefined,
   };
 }

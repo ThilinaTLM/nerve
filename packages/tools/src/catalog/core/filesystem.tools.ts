@@ -14,6 +14,18 @@ const readParameters = Type.Object(
     limit: Type.Optional(
       Type.Number({ description: "Maximum number of lines to read" }),
     ),
+    byteOffset: Type.Optional(
+      Type.Number({
+        description:
+          "Byte offset to start reading from (0-indexed). Use for overlong lines or minified files; cannot be combined with offset/limit.",
+      }),
+    ),
+    byteLimit: Type.Optional(
+      Type.Number({
+        description:
+          "Maximum number of bytes to read when byteOffset/byteLimit mode is used",
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -311,7 +323,7 @@ export const filesystemToolDefinitions = [
     name: "read",
     label: "read",
     description:
-      "Read file contents. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, supports offset and limit to continue through large files. Text output is capped to a safe byte budget, so overlong lines may be truncated.",
+      "Read file contents. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, supports offset/limit for line windows and byteOffset/byteLimit for overlong lines or minified files. Text output is capped by line count, total byte budget, and per-line length.",
     promptSnippet: "Read file contents, including image files as attachments",
     promptGuidelines: ["Use read to examine files instead of cat or sed."],
     parameters: readParameters,
@@ -366,7 +378,7 @@ export const filesystemToolDefinitions = [
     name: "grep",
     label: "grep",
     description:
-      "Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore when using ripgrep.",
+      "Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore when using ripgrep. Output is capped by match count, total byte budget, and per-line length.",
     promptSnippet: "Search file contents for patterns (respects .gitignore)",
     promptGuidelines: [
       "Use grep.paths when searching multiple files or directories; use grep.path only for one file or directory.",
@@ -380,7 +392,7 @@ export const filesystemToolDefinitions = [
     name: "find",
     label: "find",
     description:
-      "Search for files by glob pattern. Returns matching file paths relative to the search directory. Respects .gitignore when using fd.",
+      "Search for files by glob pattern. Returns matching file paths relative to the search directory. Respects .gitignore when using fd. Output is capped by result count, total byte budget, and per-line length.",
     promptSnippet: "Find files by glob pattern (respects .gitignore)",
     parameters: findParameters,
     executionMode: "parallel",

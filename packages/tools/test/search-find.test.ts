@@ -65,6 +65,30 @@ if (!fileOnly) console.log(root + "/src");
     });
   });
 
+  it("caps overlong find result lines while preserving structured entries", async () => {
+    const project = await createTempProject();
+    const bin = join(project.root, "bin");
+    await mkdir(bin);
+    await writeExecutable(
+      bin,
+      "fd",
+      `
+const root = process.argv.at(-1);
+console.log(root + "/" + "a".repeat(6000) + ".ts");
+`,
+    );
+
+    await withPath(bin, async () => {
+      const result = await executeFind(
+        { path: ".", pattern: "*.ts", limit: 10 },
+        { cwd: project.root },
+      );
+      assert.equal(result.entries?.[0]?.path.length, 6003);
+      assert.ok((result.content ?? "").length < 5000);
+      assert.match(result.content ?? "", /truncated/);
+    });
+  });
+
   it("falls back to Node grep with regex, literal, ignore-case, glob, and limit behavior", async () => {
     const project = await createTempProject();
     const bin = join(project.root, "empty-bin");
@@ -145,6 +169,27 @@ if (!fileOnly) console.log(root + "/src");
       assert.deepEqual(result.matches, [
         { path: "file.ts", line: 1, text: "needle here" },
       ]);
+    });
+  });
+
+  it("caps overlong grep match text in content and structured matches", async () => {
+    const project = await createTempProject();
+    const bin = join(project.root, "empty-bin");
+    await mkdir(bin);
+    await project.write(
+      "src/long.ts",
+      `${"x".repeat(3000)}needle${"y".repeat(3000)}\n`,
+    );
+
+    await withPath(bin, async () => {
+      const result = await executeGrep(
+        { path: "src/long.ts", pattern: "needle" },
+        { cwd: project.root },
+      );
+      assert.equal(result.matches?.[0]?.line, 1);
+      assert.ok((result.matches?.[0]?.text ?? "").length < 700);
+      assert.match(result.matches?.[0]?.text ?? "", /truncated/);
+      assert.match(result.content ?? "", /matching line\(s\) truncated/);
     });
   });
 

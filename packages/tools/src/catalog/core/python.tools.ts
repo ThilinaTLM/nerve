@@ -38,7 +38,7 @@ export const pythonToolDefinitions = [
     name: "python",
     label: "python",
     description:
-      "Execute inline Python code or a Python script file in the current working directory. Returns stdout, stderr, exit metadata, truncation details, and artifact paths. Large outputs are saved to a transcript file with a compact preview. Optionally provide a timeout in seconds and non-secret env overrides.",
+      "Execute inline Python code or a Python script file in the current working directory. Returns stdout, stderr, exit metadata, truncation details, and artifact paths. Large or overlong-line outputs are saved to a transcript file with compact bounded previews. Output is capped by line count, total byte budget, and per-line length. Optionally provide a timeout in seconds and non-secret env overrides.",
     promptSnippet:
       "Execute short Python snippets or a Python script file for parsing, calculations, data inspection, and one-off transformations.",
     promptGuidelines: [
@@ -49,7 +49,7 @@ export const pythonToolDefinitions = [
       "Do not use python for long-running servers, watchers, or daemons; use task_start for those.",
       "Use env only for non-secret environment overrides; secrets must not be passed through python tool args.",
       'For large JSON, CSV, diagrams, or other generated outputs, write files under os.environ["NERVE_PYTHON_ARTIFACT_DIR"] and return the artifact path instead of dumping everything to stdout.',
-      "If stdout/stderr is still large, the tool saves the combined process output to a transcript file and returns a compact preview.",
+      "If stdout/stderr is still large or contains overlong lines, the tool saves the combined process output to a transcript file and returns a compact bounded preview.",
       "In planning mode, python is guarded against workspace file writes; artifact writes under NERVE_PYTHON_ARTIFACT_DIR are allowed.",
     ],
     parameters: pythonParameters,

@@ -5,12 +5,17 @@ import { promisify } from "node:util";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import {
+  boundText,
+  FILE_OUTPUT_MAX_LINE_CHARS,
+  textBoundaryDetails,
+} from "../common/output-budget.js";
+import {
   globToRegExp,
   resolveSearchScope,
   type SearchScope,
   walkFiles,
 } from "../common/search-utils.js";
-import { truncateHead, truncateLine } from "../common/truncate.js";
+import { GREP_MAX_LINE_LENGTH } from "../common/truncate.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -26,8 +31,10 @@ export async function executeGrep(
   const scope = await resolveSearchScope(context.cwd, args, "grep");
   const limit = Math.min(numberArg(args.limit, 100), 2000);
   const rg = await runRg(args, scope, limit).catch(() => undefined);
-  const matches = rg ?? (await fallbackGrep(args, scope, limit));
-  const formatted = formatMatches(matches, limit);
+  const rawMatches = rg ?? (await fallbackGrep(args, scope, limit));
+  const bounded = boundMatches(rawMatches);
+  const matches = bounded.matches;
+  const formatted = formatMatches(matches, limit, bounded.truncatedLines);
   return {
     path: scope.displayRoot,
     matches: matches.slice(0, limit),
@@ -48,6 +55,11 @@ async function runRg(
     "--hidden",
     "--with-filename",
   ];
+  rgArgs.push(
+    "--max-columns",
+    String(FILE_OUTPUT_MAX_LINE_CHARS),
+    "--max-columns-preview",
+  );
   if (args.ignoreCase) rgArgs.push("--ignore-case");
   if (args.literal) rgArgs.push("--fixed-strings");
   if (typeof args.glob === "string" && args.glob.length > 0) {
@@ -126,19 +138,38 @@ async function fallbackGrep(
   return matches;
 }
 
+function boundMatches(matches: GrepMatch[]): {
+  matches: GrepMatch[];
+  truncatedLines: number;
+} {
+  let truncatedLines = 0;
+  const boundedMatches = matches.map((match) => {
+    const text = boundGrepLine(match.text);
+    if (text.truncated) truncatedLines += 1;
+    return { ...match, text: text.text };
+  });
+  return { matches: boundedMatches, truncatedLines };
+}
+
+function boundGrepLine(text: string) {
+  return boundText(text, {
+    maxLines: 1,
+    maxBytes: FILE_OUTPUT_MAX_LINE_CHARS,
+    maxLineChars: GREP_MAX_LINE_LENGTH,
+  });
+}
+
 function formatMatches(
   matches: GrepMatch[],
   limit: number,
+  truncatedLines: number,
 ): {
   content: string;
   details?: unknown;
 } {
-  let truncatedLines = 0;
-  const lines = matches.slice(0, limit).map((match) => {
-    const text = truncateLine(match.text);
-    if (text.truncated) truncatedLines += 1;
-    return `${match.path}:${match.line}: ${text.text}`;
-  });
+  const lines = matches
+    .slice(0, limit)
+    .map((match) => `${match.path}:${match.line}: ${match.text}`);
   if (matches.length === 0) lines.push("No matches found.");
   if (matches.length >= limit) {
     lines.push(
@@ -149,17 +180,18 @@ function formatMatches(
   if (truncatedLines > 0) {
     lines.push(
       ``,
-      `[${truncatedLines} matching line(s) truncated to 500 characters. Use read to inspect full lines.]`,
+      `[${truncatedLines} matching line(s) truncated to ${GREP_MAX_LINE_LENGTH} characters. Use read with offset/limit or byteOffset/byteLimit to inspect full lines.]`,
     );
   }
-  const truncated = truncateHead(lines.join("\n"), {
+  const bounded = boundText(lines.join("\n"), {
     maxLines: Number.MAX_SAFE_INTEGER,
+    maxLineChars: FILE_OUTPUT_MAX_LINE_CHARS,
   });
   return {
-    content: truncated.text,
+    content: bounded.text,
     details:
-      truncated.truncated || truncatedLines > 0
-        ? { truncation: truncated, truncatedLines }
+      bounded.truncated || truncatedLines > 0
+        ? { truncation: textBoundaryDetails(bounded), truncatedLines }
         : undefined,
   };
 }

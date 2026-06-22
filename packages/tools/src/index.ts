@@ -7,16 +7,32 @@ import {
 
 export * from "./catalog/index.js";
 export {
+  appendBoundedTextNotice,
+  type BoundedTextResult,
+  boundContentBlocks,
+  boundLiveOutputChunk,
+  boundText,
   buildProcessResult,
   buildProcessTextResult,
   executeSmartEdit,
   executeTool,
+  FILE_OUTPUT_MAX_LINE_CHARS,
+  LIVE_OUTPUT_MAX_BYTES,
+  LIVE_OUTPUT_MAX_LINE_CHARS,
+  LIVE_OUTPUT_MAX_LINES,
+  MODEL_TEXT_MAX_BYTES,
+  MODEL_TEXT_MAX_LINE_CHARS,
+  MODEL_TEXT_MAX_LINES,
   normalizeSmartEditArgs,
+  PROCESS_INLINE_MAX_LINE_CHARS,
   type PythonRuntime,
   type PythonRuntimeStatus,
   resolvePythonRuntime,
   resolveToolPath,
+  type TextBoundaryDetails,
+  type TextBudget,
   ToolExecutionError,
+  textBoundaryDetails,
 } from "./execution/index.js";
 export {
   hasDangerousCommandPattern,

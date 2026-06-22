@@ -4,6 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolExecutionResult } from "../../types.js";
 import {
+  appendBoundedTextNotice,
+  boundText,
+  PROCESS_INLINE_MAX_LINE_CHARS,
+  textBoundaryDetails,
+} from "./output-budget.js";
+import {
   formatSize,
   PROCESS_INLINE_MAX_BYTES,
   PROCESS_INLINE_MAX_LINES,
@@ -25,7 +31,9 @@ export type ProcessStreamResultDetails = {
   truncated: boolean;
   omittedLines: number;
   omittedBytes: number;
+  truncatedLines: number;
   direction: TruncationDirection;
+  maxLineChars?: number;
   savedTo?: string;
 };
 
@@ -126,8 +134,10 @@ export async function buildProcessResult({
   const combinedStats = outputStats(combined);
   const hasOutput = combined.length > 0;
   const largeOutput = hasOutput && exceedsInlineLimits(combinedStats);
+  const boundedCombined = boundProcessInlineText(combined);
+  const boundedOutput = hasOutput && boundedCombined.truncated;
 
-  const fullOutputPath = largeOutput
+  const fullOutputPath = boundedOutput
     ? await writeTranscriptFile({ outputFilePrefix, text: combined, dataDir })
     : undefined;
 
@@ -144,7 +154,9 @@ export async function buildProcessResult({
     : undefined;
   const outputTruncation = outputPreview
     ? previewTruncation(outputPreview)
-    : undefined;
+    : boundedCombined.truncated
+      ? textBoundaryDetails(boundedCombined)
+      : undefined;
 
   let content = noOutputText;
   if (hasOutput && outputPreview) {
@@ -157,6 +169,23 @@ export async function buildProcessResult({
       exitCode,
       signal,
       preview: outputPreview,
+    });
+  } else if (hasOutput && boundedCombined.truncated) {
+    content = formatBoundedOutputContent({
+      exitMessagePrefix,
+      fullOutputPath: fullOutputPath ?? "",
+      combinedStats,
+      stdoutStats: outputStats(stdout),
+      stderrStats: outputStats(stderr),
+      exitCode,
+      signal,
+      boundedText: appendBoundedTextNotice(boundedCombined, {
+        label: "output",
+        recoveryHint:
+          fullOutputPath !== undefined
+            ? `Full output saved to ${fullOutputPath}.`
+            : undefined,
+      }),
     });
   } else if (hasOutput) {
     content = combined;
@@ -210,9 +239,13 @@ function buildStreamResult({
   savedTo?: string;
 }): BuiltStreamResult {
   const stats = outputStats(text);
-  const truncated = exceedsInlineLimits(stats);
-  const preview = truncated ? buildHeadTailPreview(text) : undefined;
-  const displayText = preview ? renderStreamPreview(label, preview) : text;
+  const aggregateTruncated = exceedsInlineLimits(stats);
+  const bounded = boundProcessInlineText(text);
+  const truncated = aggregateTruncated || bounded.truncated;
+  const preview = aggregateTruncated ? buildHeadTailPreview(text) : undefined;
+  const displayText = preview
+    ? renderStreamPreview(label, preview)
+    : appendBoundedTextNotice(bounded, { label });
   return {
     text: displayText,
     bytes: stats.bytes,
@@ -220,9 +253,11 @@ function buildStreamResult({
     displayedBytes: Buffer.byteLength(displayText, "utf8"),
     displayedLines: countLines(displayText),
     truncated,
-    omittedLines: preview?.omittedLines ?? 0,
-    omittedBytes: preview?.omittedBytes ?? 0,
-    direction: truncated ? "head_tail" : "tail",
+    omittedLines: preview?.omittedLines ?? bounded.omittedLines,
+    omittedBytes: preview?.omittedBytes ?? bounded.omittedBytes,
+    truncatedLines: preview ? 0 : bounded.truncatedLines,
+    direction: preview ? "head_tail" : bounded.direction,
+    maxLineChars: truncated ? bounded.maxLineChars : undefined,
     savedTo,
   };
 }
@@ -236,7 +271,9 @@ function streamDetails(stream: BuiltStreamResult): ProcessStreamResultDetails {
     truncated: stream.truncated,
     omittedLines: stream.omittedLines,
     omittedBytes: stream.omittedBytes,
+    truncatedLines: stream.truncatedLines,
     direction: stream.direction,
+    maxLineChars: stream.maxLineChars,
     savedTo: stream.savedTo,
   };
 }
@@ -253,6 +290,14 @@ function exceedsInlineLimits(stats: OutputStats): boolean {
     stats.bytes > PROCESS_INLINE_MAX_BYTES ||
     stats.lines > PROCESS_INLINE_MAX_LINES
   );
+}
+
+function boundProcessInlineText(text: string) {
+  return boundText(text, {
+    maxBytes: PROCESS_INLINE_MAX_BYTES,
+    maxLines: PROCESS_INLINE_MAX_LINES,
+    maxLineChars: PROCESS_INLINE_MAX_LINE_CHARS,
+  });
 }
 
 function buildHeadTailPreview(text: string): PreviewResult {
@@ -385,6 +430,41 @@ function formatLargeOutputContent({
     preview.text,
     "",
     "Use read with offset/limit or grep on the saved transcript to inspect specific sections.",
+  ];
+  return lines.join("\n");
+}
+
+function formatBoundedOutputContent({
+  exitMessagePrefix,
+  fullOutputPath,
+  combinedStats,
+  stdoutStats,
+  stderrStats,
+  exitCode,
+  signal,
+  boundedText,
+}: {
+  exitMessagePrefix: string;
+  fullOutputPath: string;
+  combinedStats: OutputStats;
+  stdoutStats: OutputStats;
+  stderrStats: OutputStats;
+  exitCode: number;
+  signal: NodeJS.Signals | null;
+  boundedText: string;
+}): string {
+  const lines = [
+    `${exitMessagePrefix} output contained overlong lines and was saved to:`,
+    fullOutputPath,
+    "",
+    `Combined output: ${formatStats(combinedStats)}`,
+    `stdout: ${formatStats(stdoutStats)}`,
+    `stderr: ${formatStats(stderrStats)}`,
+    `exitCode: ${exitCode}${signal ? `, signal: ${signal}` : ""}`,
+    "",
+    boundedText,
+    "",
+    "Use read with byteOffset/byteLimit, offset/limit, or grep on the saved transcript to inspect omitted content.",
   ];
   return lines.join("\n");
 }

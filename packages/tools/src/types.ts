@@ -38,6 +38,8 @@ export type ToolPathArgs = {
 export type ReadToolArgs = ToolPathArgs & {
   offset?: unknown;
   limit?: unknown;
+  byteOffset?: unknown;
+  byteLimit?: unknown;
 };
 
 export type WriteToolArgs = ToolPathArgs & {

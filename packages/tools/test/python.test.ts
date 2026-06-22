@@ -268,6 +268,30 @@ describe("python executor", () => {
     assert.match(transcript, /line 599/);
   });
 
+  it("saves overlong single-line output below aggregate limits", async (t) => {
+    const runtime = await runtimeOrSkip(t);
+    if (!runtime) return;
+    const project = await createTempProject();
+    const result = await executePython(
+      { code: "print('x' * 5000, end='')" },
+      { cwd: project.root, dataDir: project.root, pythonRuntime: runtime },
+    );
+
+    assert.match(result.content ?? "", /contained overlong lines/);
+    assert.match(result.stdout ?? "", /truncated/);
+    assert.ok((result.stdout ?? "").length < 2600);
+    const details = result.details as {
+      fullOutputPath?: string;
+      truncation?: { truncatedLines?: number };
+      streams?: { stdout?: { truncatedLines?: number } };
+    };
+    assert.ok(details.fullOutputPath);
+    assert.equal(details.truncation?.truncatedLines, 1);
+    assert.equal(details.streams?.stdout?.truncatedLines, 1);
+    const transcript = await readFile(details.fullOutputPath, "utf8");
+    assert.equal(transcript, "x".repeat(5000));
+  });
+
   it("applies non-secret env overrides and rejects sensitive env keys", async (t) => {
     const runtime = await runtimeOrSkip(t);
     if (!runtime) return;

@@ -103,6 +103,30 @@ describe("bash executor", () => {
     assert.match(transcript, /err 1/);
   });
 
+  it("saves overlong single-line output below aggregate limits", async () => {
+    const project = await createTempProject();
+    const result = await executeBash(
+      {
+        command: `${node} -e "process.stdout.write('x'.repeat(5000))"`,
+      },
+      { cwd: project.root, dataDir: project.root },
+    );
+
+    assert.match(result.content ?? "", /contained overlong lines/);
+    assert.match(result.stdout ?? "", /truncated/);
+    assert.ok((result.stdout ?? "").length < 2600);
+    const details = result.details as {
+      fullOutputPath?: string;
+      truncation?: { truncatedLines?: number };
+      streams?: { stdout?: { truncatedLines?: number } };
+    };
+    assert.ok(details.fullOutputPath);
+    assert.equal(details.truncation?.truncatedLines, 1);
+    assert.equal(details.streams?.stdout?.truncatedLines, 1);
+    const transcript = await readFile(details.fullOutputPath, "utf8");
+    assert.equal(transcript, "x".repeat(5000));
+  });
+
   it("normalizes non-zero commands instead of throwing", async () => {
     const project = await createTempProject();
     const result = await executeBash(

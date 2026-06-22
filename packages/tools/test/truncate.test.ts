@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { boundText } from "../src/execution/common/output-budget.js";
 import {
   truncateHead,
   truncateLine,
@@ -31,5 +32,18 @@ describe("PI-style truncation helpers", () => {
     const result = truncateLine("x".repeat(8), 4);
     assert.equal(result.truncated, true);
     assert.match(result.text, /^xxxx…\[truncated 4 chars\]$/);
+  });
+
+  it("bounds single overlong lines before aggregate byte limits", () => {
+    const result = boundText("x".repeat(10_000), {
+      maxBytes: 50_000,
+      maxLines: 100,
+      maxLineChars: 1000,
+    });
+
+    assert.equal(result.truncated, true);
+    assert.equal(result.truncatedLines, 1);
+    assert.ok(result.text.length < 1200);
+    assert.match(result.text, /truncated 9000 chars/);
   });
 });

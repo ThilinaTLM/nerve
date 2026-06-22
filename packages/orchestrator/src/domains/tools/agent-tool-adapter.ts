@@ -5,7 +5,15 @@ import {
   AgentToolSuspension,
 } from "@nerve/agent";
 import type { AgentRecord, ToolCallRecord, ToolName } from "@nerve/shared";
-import { allToolDefinitions, type CoreToolDefinition } from "@nerve/tools";
+import {
+  allToolDefinitions,
+  appendBoundedTextNotice,
+  boundContentBlocks,
+  boundText,
+  type CoreToolDefinition,
+  MODEL_TEXT_MAX_LINE_CHARS,
+  MODEL_TEXT_MAX_LINES,
+} from "@nerve/tools";
 import type { ToolAnchor } from "../conversations/conversation-runtime.js";
 import type { ToolService } from "./tool-service.js";
 
@@ -243,7 +251,19 @@ export function contentBlocksFromResult(
     }
     return undefined;
   }
-  return blocks;
+  const bounded = boundContentBlocks(
+    blocks,
+    {
+      maxBytes: 24_000,
+      maxLines: MODEL_TEXT_MAX_LINES,
+      maxLineChars: MODEL_TEXT_MAX_LINE_CHARS,
+    },
+    {
+      recoveryHint:
+        "Full result remains in the tool call record; use tool-specific continuation arguments, transcripts, or raw result paths when available.",
+    },
+  );
+  return bounded.contentBlocks;
 }
 
 export function formatToolResultForModel(toolCall: ToolCallRecord): string {
@@ -299,6 +319,14 @@ export function formatToolResultForModel(toolCall: ToolCallRecord): string {
 }
 
 function truncate(text: string, maxChars: number): string {
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, maxChars)}\n\n[...${text.length - maxChars} more characters truncated]`;
+  const bounded = boundText(text, {
+    maxBytes: maxChars,
+    maxLines: MODEL_TEXT_MAX_LINES,
+    maxLineChars: MODEL_TEXT_MAX_LINE_CHARS,
+  });
+  return appendBoundedTextNotice(bounded, {
+    label: "tool result",
+    recoveryHint:
+      "Full result remains in the tool call record; use tool-specific continuation arguments, transcripts, or raw result paths when available.",
+  });
 }

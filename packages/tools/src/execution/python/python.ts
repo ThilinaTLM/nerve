@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
+import { boundLiveOutputChunk } from "../common/output-budget.js";
 import { buildProcessResult } from "../common/process-result.js";
 import { pathNotFoundMessage, resolveToolPath } from "../filesystem/path.js";
 
@@ -437,7 +438,7 @@ async function runPythonProcess({
       onUpdate?.({
         kind: "output",
         stream: "stdout",
-        chunk: chunk.toString("utf8"),
+        chunk: boundLiveOutputChunk(chunk.toString("utf8")),
       });
     });
     child.stderr?.on("data", (chunk: Buffer) => {
@@ -446,7 +447,7 @@ async function runPythonProcess({
       onUpdate?.({
         kind: "output",
         stream: "stderr",
-        chunk: chunk.toString("utf8"),
+        chunk: boundLiveOutputChunk(chunk.toString("utf8")),
       });
     });
     child.on("error", (error) => {
