@@ -95,7 +95,7 @@ class OutputBuffer {
       if (!line.trim()) continue;
       this.lines.push(`[${stream}] ${line}`);
     }
-    if (this.lines.length > 80) this.lines.splice(0, this.lines.length - 80);
+    if (this.lines.length > 200) this.lines.splice(0, this.lines.length - 200);
   }
 
   tail(): string {
@@ -212,6 +212,7 @@ class DaemonSupervisor {
 
   private child?: ChildProcess;
   private childExited = false;
+  private childOutput?: OutputBuffer;
   private detachChildExit?: () => void;
   private removeParentExitHook?: () => void;
 
@@ -313,6 +314,7 @@ class DaemonSupervisor {
     const { paths, orchestratorMain, options, readinessTimeoutMs } =
       this.requireOwnedConfig();
     const output = new OutputBuffer();
+    this.childOutput = output;
     void desktopLog("info", "daemon", "Starting owned local daemon", {
       context: {
         orchestratorMain,
@@ -396,7 +398,11 @@ class DaemonSupervisor {
       this.childExited = true;
       if (this.stopped) return;
       void desktopLog("warn", "daemon", "Owned daemon child exited", {
-        context: { code, signal },
+        context: {
+          code,
+          signal,
+          output: this.childOutput?.tail() ?? "(no output)",
+        },
       });
       this.scheduleRestart(
         `Daemon process exited${formatExit({ code, signal })}.`,
@@ -573,10 +579,23 @@ class DaemonSupervisor {
   }
 }
 
+function resolveDaemonMaxOldSpaceMb(): number {
+  const raw = process.env.NERVE_DAEMON_MAX_OLD_SPACE_MB?.trim();
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 4096;
+}
+
 function buildOrchestratorEnv(options: EnsureDaemonOptions): NodeJS.ProcessEnv {
+  const nodeOptions = [
+    process.env.NODE_OPTIONS,
+    `--max-old-space-size=${resolveDaemonMaxOldSpaceMb()}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
   return {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1",
+    NODE_OPTIONS: nodeOptions,
     NERVE_HOST: options.host ?? process.env.NERVE_HOST ?? "127.0.0.1",
     ...(options.port ? { NERVE_PORT: String(options.port) } : {}),
     ...(options.httpsPort

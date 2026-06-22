@@ -65,13 +65,12 @@ async function main() {
     context: { dataDir: storage.paths.home, host, port },
   });
   const eventHydrateStartedAt = Date.now();
-  const persistedEvents = await state.events.hydrate();
-  const persistedLatestSeq = state.events.latestSeq;
+  await state.events.hydrate();
   await state.logger.info("Event log hydrated", {
     durationMs: Date.now() - eventHydrateStartedAt,
     context: {
       latestSeq: state.events.latestSeq,
-      events: persistedEvents.length,
+      bufferedEvents: state.events.replaySince(0).length,
     },
   });
   const registryHydrateStartedAt = Date.now();
@@ -88,17 +87,14 @@ async function main() {
     durationMs: Date.now() - registryHydrateStartedAt,
   });
   const indexRebuildStartedAt = Date.now();
-  await state.registry.rebuildIndex([
-    ...persistedEvents,
-    ...state.events
-      .replaySince(persistedLatestSeq)
-      .filter((event) => event.durability === "durable"),
-  ]);
+  // The events index is maintained incrementally and reconciled during
+  // hydrate(); only the derived tables need rebuilding on boot.
+  await state.registry.rebuildIndex();
   await state.logger.info("Index rebuilt", {
     durationMs: Date.now() - indexRebuildStartedAt,
     context: { ...state.index.counts() },
   });
-  await recoverInterruptedRuns(persistedEvents, {
+  await recoverInterruptedRuns(state.events.replaySince(0), {
     events: state.events,
     logger: state.logger,
     tools: state.registry.tools,

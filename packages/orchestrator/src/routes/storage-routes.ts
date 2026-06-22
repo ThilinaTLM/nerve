@@ -16,7 +16,7 @@ export function createStorageRoutes(state: OrchestratorState): Hono {
   app.post(
     "/storage/rebuild-index",
     routeHandler(async (c) => {
-      await state.registry.rebuildIndex();
+      await state.registry.rebuildIndex({ reindexEvents: true });
       return c.json({ ok: true, counts: state.index.counts() });
     }),
   );

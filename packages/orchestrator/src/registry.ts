@@ -13,7 +13,6 @@ import type {
   CreateConversationRequest,
   CreatePinnedCommandRequest,
   CreateProjectRequest,
-  EventEnvelope,
   ImportConversationRequest,
   ModelInfo,
   NavigateConversationRequest,
@@ -134,18 +133,27 @@ export class RuntimeRegistry {
     await this.services.taskNotifications.recoverPendingNotifications();
   }
 
-  async rebuildIndex(events?: EventEnvelope[]): Promise<void> {
+  /**
+   * Rebuild the derived (non-event) index tables from the in-memory records.
+   * The events_index is maintained incrementally (on publish, on prune, and
+   * reconciled at boot), so it is intentionally not touched here. Pass
+   * `{ reindexEvents: true }` to additionally rebuild the events index from the
+   * durable log (streamed in bounded batches).
+   */
+  async rebuildIndex(options?: { reindexEvents?: boolean }): Promise<void> {
     this.index.rebuild({
       projects: this.listProjects(),
       conversations: this.listConversations(),
       agents: this.listAgents(),
-      events: events ?? (await this.events.replayPersistedSince(0)),
       tasks: this.tasks.listTasks(),
       workers: this.workers.listWorkers(),
       toolCalls: this.tools.listToolCalls(),
       approvals: this.tools.listApprovals(),
       userQuestions: this.tools.listUserQuestions(),
     });
+    if (options?.reindexEvents) {
+      await this.events.reindexPersistedInto(this.index);
+    }
   }
 
   async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {

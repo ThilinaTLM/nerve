@@ -158,13 +158,14 @@ describe("IndexStore", () => {
       projects: [project],
       conversations: [conversation],
       agents: [agent],
-      events: [event],
       tasks: [task],
       workers: [worker],
       toolCalls: [toolCall],
       approvals: [approval],
       userQuestions: [question],
     });
+    // Events are indexed incrementally, not as part of rebuild().
+    store.insertEvent(event);
 
     assert.deepEqual(store.counts(), {
       projects: 1,

@@ -147,11 +147,12 @@ export function composeRuntime(
       state.entries,
     );
   const rebuildIndex = async () => {
+    // Events are indexed incrementally (publish/prune/boot reconcile); only the
+    // derived tables are rebuilt here.
     index.rebuild({
       projects: listProjects(),
       conversations: listConversations(),
       agents: listAgents(),
-      events: await events.replayPersistedSince(0),
       tasks: services.tasks.listTasks(),
       workers: services.workers.listWorkers(),
       toolCalls: services.tools.listToolCalls(),

@@ -27,7 +27,6 @@ export interface RebuildIndexInput {
   projects: ProjectRecord[];
   conversations: ConversationRecord[];
   agents: AgentRecord[];
-  events: EventEnvelope[];
   tasks?: TaskRecord[];
   workers?: WorkerRecord[];
   toolCalls?: ToolCallRecord[];
@@ -51,8 +50,26 @@ export class IndexStore {
     this.guard(() => {
       this.db.exec("PRAGMA journal_mode = WAL");
       this.db.exec("PRAGMA synchronous = NORMAL");
+      this.db.exec("PRAGMA wal_autocheckpoint = 1000");
       this.db.exec(INDEX_STORE_SCHEMA_SQL);
     });
+    // Drain any oversized WAL left by a previous large rebuild. A passive
+    // autocheckpoint reuses the WAL file in place and never shrinks it, so an
+    // explicit TRUNCATE checkpoint is required to reclaim disk space.
+    this.checkpoint();
+  }
+
+  /**
+   * Truncate the write-ahead log back to zero. Safe to call periodically; it is
+   * a no-op when the WAL is already small. Failures are swallowed because a
+   * blocked checkpoint (e.g. an open read) must not take the store unhealthy.
+   */
+  checkpoint(): void {
+    try {
+      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    } catch {
+      // Best-effort; a concurrent reader can block TRUNCATE.
+    }
   }
 
   upsertProject(project: ProjectRecord): void {
@@ -308,12 +325,110 @@ export class IndexStore {
     });
   }
 
+  /**
+   * Newest persisted event sequence, or 0 when the index holds no events.
+   */
+  latestEventSeq(): number {
+    return this.guard(() => {
+      const row = this.db
+        .prepare("SELECT seq FROM events_index ORDER BY seq DESC LIMIT 1")
+        .get() as { seq: number } | undefined;
+      return row?.seq ?? 0;
+    });
+  }
+
+  /**
+   * Most recent `limit` events ordered by ascending seq. Used to seed the
+   * EventBus in-memory ring without reading the full on-disk log.
+   */
+  recentEvents(limit: number): EventEnvelope[] {
+    return this.guard(() => {
+      const rows = this.db
+        .prepare("SELECT json FROM events_index ORDER BY seq DESC LIMIT ?")
+        .all(limit) as Array<{ json: string }>;
+      return rows.map((row) => JSON.parse(row.json) as EventEnvelope).reverse();
+    });
+  }
+
+  /**
+   * All events with seq greater than `seq`, ordered ascending. Replaces
+   * re-reading and re-parsing the entire global event log on reconnect.
+   */
+  eventsSince(seq: number): EventEnvelope[] {
+    return this.guard(() => {
+      const rows = this.db
+        .prepare("SELECT json FROM events_index WHERE seq > ? ORDER BY seq ASC")
+        .all(seq) as Array<{ json: string }>;
+      return rows.map((row) => JSON.parse(row.json) as EventEnvelope);
+    });
+  }
+
+  deleteEventsForConversations(conversationIds: Iterable<string>): void {
+    const ids = [...conversationIds];
+    if (ids.length === 0) return;
+    this.guard(() => {
+      const stmt = this.db.prepare(
+        "DELETE FROM events_index WHERE conversation_id = ?",
+      );
+      this.db.exec("BEGIN IMMEDIATE");
+      try {
+        for (const id of ids) stmt.run(id);
+        this.db.exec("COMMIT");
+      } catch (error) {
+        this.db.exec("ROLLBACK");
+        throw error;
+      }
+    });
+  }
+
+  clearEvents(): void {
+    this.guard(() => {
+      this.db.exec("DELETE FROM events_index");
+    });
+  }
+
+  /**
+   * Insert a bounded batch of events in a single transaction. Callers stream
+   * the durable log in batches so memory stays bounded during reconcile/reindex.
+   */
+  insertEventsBatch(events: EventEnvelope[]): void {
+    if (events.length === 0) return;
+    this.guard(() => {
+      const stmt = this.db.prepare(
+        `INSERT OR IGNORE INTO events_index (
+           seq, id, ts, type, project_id, conversation_id, agent_id, run_id, json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      this.db.exec("BEGIN IMMEDIATE");
+      try {
+        for (const event of events) {
+          const refs = refsForEvent(event);
+          stmt.run(
+            event.seq,
+            event.id,
+            event.ts,
+            event.type,
+            refs.projectId ?? null,
+            refs.conversationId ?? null,
+            refs.agentId ?? null,
+            refs.runId ?? null,
+            JSON.stringify(event),
+          );
+        }
+        this.db.exec("COMMIT");
+      } catch (error) {
+        this.db.exec("ROLLBACK");
+        throw error;
+      }
+    });
+  }
+
   rebuild(input: RebuildIndexInput): void {
     this.guard(() => {
       this.db.exec("BEGIN IMMEDIATE");
       try {
         this.db.exec(
-          "DELETE FROM user_questions; DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM tasks; DELETE FROM workers; DELETE FROM events_index; DELETE FROM agents; DELETE FROM conversations; DELETE FROM projects;",
+          "DELETE FROM user_questions; DELETE FROM approvals; DELETE FROM tool_calls; DELETE FROM tasks; DELETE FROM workers; DELETE FROM agents; DELETE FROM conversations; DELETE FROM projects;",
         );
 
         const upsertUserQuestion = this.db.prepare(
@@ -398,12 +513,6 @@ export class IndexStore {
              updated_at = excluded.updated_at,
              json = excluded.json`,
         );
-        const insertEvent = this.db.prepare(
-          `INSERT OR IGNORE INTO events_index (
-             seq, id, ts, type, project_id, conversation_id, agent_id, run_id, json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        );
-
         for (const question of input.userQuestions ?? []) {
           upsertUserQuestion.run(question.id, JSON.stringify(question));
         }
@@ -478,26 +587,15 @@ export class IndexStore {
             JSON.stringify(task),
           );
         }
-        for (const event of input.events) {
-          const refs = refsForEvent(event);
-          insertEvent.run(
-            event.seq,
-            event.id,
-            event.ts,
-            event.type,
-            refs.projectId ?? null,
-            refs.conversationId ?? null,
-            refs.agentId ?? null,
-            refs.runId ?? null,
-            JSON.stringify(event),
-          );
-        }
         this.db.exec("COMMIT");
       } catch (error) {
         this.db.exec("ROLLBACK");
         throw error;
       }
     });
+    // A full rebuild writes the entire dataset into the WAL in one transaction,
+    // pushing its high-water mark to hundreds of MB. Reclaim it immediately.
+    this.checkpoint();
   }
 
   counts(): IndexCounts {
