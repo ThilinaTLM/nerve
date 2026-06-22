@@ -18,10 +18,26 @@ let flushRetryDelayMs = 1_000;
 const NORMAL_FLUSH_DELAY_MS = 500;
 const MAX_FLUSH_RETRY_DELAY_MS = 10_000;
 
+const BENIGN_ERROR_PATTERNS = [
+  /ResizeObserver loop completed with undelivered notifications\./i,
+  /ResizeObserver loop limit exceeded/i,
+];
+
+function isBenignBrowserError(message: unknown): boolean {
+  return (
+    typeof message === "string" &&
+    BENIGN_ERROR_PATTERNS.some((pattern) => pattern.test(message))
+  );
+}
+
 export function installClientLogging(): void {
   if (installed || typeof window === "undefined") return;
   installed = true;
   window.addEventListener("error", (event) => {
+    const message =
+      (event.error instanceof Error ? event.error.message : undefined) ??
+      event.message;
+    if (isBenignBrowserError(message)) return;
     clientLog("error", "web-runtime", "Unhandled browser error", {
       context: {
         filename: event.filename,
