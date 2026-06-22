@@ -530,7 +530,7 @@
   font-size: var(--text-xs);
 }
 
-.storage-cleanup-control :global(input[data-slot="input"]) {
+.storage-cleanup-control input[data-slot="input"] {
   width: 4.5rem;
 }
 
