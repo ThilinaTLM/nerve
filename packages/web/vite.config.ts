@@ -4,6 +4,7 @@ import path from "node:path";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv } from "vite";
+import { VitePWA } from "vite-plugin-pwa";
 
 function nerveHome(env: Record<string, string>): string {
   return env.NERVE_HOME?.trim() || path.join(homedir(), ".nerve");
@@ -57,7 +58,63 @@ export default defineConfig(({ mode }) => {
     : undefined;
 
   return {
-    plugins: [svelte(), tailwindcss()],
+    plugins: [
+      svelte(),
+      tailwindcss(),
+      VitePWA({
+        registerType: "autoUpdate",
+        injectRegister: "auto",
+        // Keep the service worker out of `pnpm dev` so it cannot shadow the
+        // Vite `/api` + `/ws` proxy below.
+        devOptions: { enabled: false },
+        manifest: {
+          name: "Nerve",
+          short_name: "Nerve",
+          description: "UI-first local AI coding harness",
+          start_url: "/",
+          scope: "/",
+          display: "standalone",
+          orientation: "portrait",
+          background_color: "#070a10",
+          theme_color: "#070a10",
+          icons: [
+            {
+              src: "/pwa-192x192.png",
+              sizes: "192x192",
+              type: "image/png",
+              purpose: "any",
+            },
+            {
+              src: "/pwa-512x512.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "any",
+            },
+            {
+              src: "/pwa-maskable-512x512.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "maskable",
+            },
+          ],
+        },
+        workbox: {
+          globPatterns: ["**/*.{js,css,html,svg,png,webp,woff2,json}"],
+          cleanupOutdatedCaches: true,
+          // Serve the cached app shell for in-app navigations (fast + offline),
+          // but never hijack the token->cookie auth redirect, the CA download,
+          // the mobile setup page, or the dynamic API/WS endpoints.
+          navigateFallback: "/index.html",
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /^\/ws\b/,
+            /^\/mobile-setup\b/,
+            /^\/nerve-local-ca\.pem$/,
+            /[?&]token=/,
+          ],
+        },
+      }),
+    ],
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),

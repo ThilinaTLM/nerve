@@ -245,7 +245,7 @@ function mobileSetupHtml(input: {
   <body>
     <main>
       <h1>Nerve mobile HTTPS setup</h1>
-      <p>Install and trust this Nerve local CA certificate on your phone, then open the secure Nerve URL. This lets your mobile browser treat the LAN app as a secure context for microphone access.</p>
+      <p>Install and trust this Nerve local CA certificate on your phone, then open the secure Nerve URL. This lets your mobile browser treat the LAN app as a secure context and lets you install Nerve to your home screen. You only need to install the certificate once&mdash;it is reused across daemon restarts.</p>
       <div class="actions">
         <a class="button" href="${caCertUrl}">Download Nerve local CA certificate</a>
         <a class="button" href="${secureAppUrl}">Open secure Nerve</a>
@@ -255,6 +255,7 @@ function mobileSetupHtml(input: {
         <li>Install it in your phone settings and mark it trusted for websites.</li>
         <li>Return here and open the secure Nerve link.</li>
         <li>Allow microphone permission when your browser asks.</li>
+        <li>Install Nerve to your home screen: on iOS tap the Share button then <strong>Add to Home Screen</strong>; on Android open the browser menu and tap <strong>Install app</strong> / <strong>Add to Home screen</strong>.</li>
       </ol>
       <p><strong>iOS:</strong> install the downloaded profile, then enable full trust in Settings → General → About → Certificate Trust Settings.</p>
       <p><strong>Android:</strong> install the certificate from Settings → Security/Privacy → Encryption & credentials. Browser behavior varies by Android version.</p>

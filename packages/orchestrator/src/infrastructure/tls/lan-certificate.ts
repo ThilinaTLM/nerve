@@ -56,9 +56,13 @@ export async function ensureMobileHttpsTlsMaterial(
   await chmod(tlsDir, 0o700).catch(() => undefined);
 
   const ca = await ensureRootCa(tlsDir);
-  const server = await createServerCertificate(ca, normalizedHosts);
-  await writePrivateFile(join(tlsDir, "lan-server-key.pem"), server.keyPem);
-  await writePublicFile(join(tlsDir, "lan-server-cert.pem"), server.certPem);
+  const keyPath = join(tlsDir, "lan-server-key.pem");
+  const certPath = join(tlsDir, "lan-server-cert.pem");
+  const server =
+    (await loadServerCertificate(keyPath, certPath, normalizedHosts)) ??
+    (await createServerCertificate(ca, normalizedHosts));
+  await writePrivateFile(keyPath, server.keyPem);
+  await writePublicFile(certPath, server.certPem);
   await writePublicFile(join(tlsDir, "nerve-local-ca.pem"), ca.certPem);
 
   return {
@@ -139,6 +143,36 @@ async function loadRootCa(
   } catch {
     return undefined;
   }
+}
+
+async function loadServerCertificate(
+  keyPath: string,
+  certPath: string,
+  hosts: string[],
+): Promise<{ keyPem: string; certPem: string } | undefined> {
+  try {
+    const [keyPem, certPem] = await Promise.all([
+      readFile(keyPath, "utf8"),
+      readFile(certPath, "utf8"),
+    ]);
+    const cert = new X509Certificate(certPem);
+    if (expiresSoon(cert.notAfter)) return undefined;
+    if (!serverCertCoversHosts(cert, hosts)) return undefined;
+    return { keyPem, certPem };
+  } catch {
+    return undefined;
+  }
+}
+
+function serverCertCoversHosts(cert: X509Certificate, hosts: string[]): boolean {
+  const san = cert.getExtension(SubjectAlternativeNameExtension);
+  if (!san) return false;
+  const present = new Set<string>();
+  for (const name of san.names.toJSON()) {
+    if (name.type === "dns" || name.type === "ip") present.add(name.value);
+  }
+  if (present.size !== hosts.length) return false;
+  return hosts.every((host) => present.has(host));
 }
 
 async function createServerCertificate(

@@ -16,6 +16,9 @@ const contentTypes: Record<string, string> = {
   ".jpeg": "image/jpeg",
   ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8",
+  ".webmanifest": "application/manifest+json",
+  ".woff2": "font/woff2",
+  ".webp": "image/webp",
 };
 
 export function fallbackHtml(state: OrchestratorState): string {

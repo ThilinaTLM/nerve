@@ -36,4 +36,29 @@ describe("mobile HTTPS LAN certificate material", () => {
     assert.match(cert.subjectAltName ?? "", /DNS:localhost/);
     assert.match(cert.subjectAltName ?? "", /IP Address:127\.0\.0\.1/);
   });
+
+  it("reuses the leaf server certificate across restarts with the same hosts", async () => {
+    const home = await tempHome();
+    const first = await ensureMobileHttpsTlsMaterial(home, ["192.168.1.42"]);
+    const second = await ensureMobileHttpsTlsMaterial(home, ["192.168.1.42"]);
+
+    assert.equal(first.certPem, second.certPem);
+    assert.equal(first.keyPem, second.keyPem);
+    assert.equal(first.caCertPem, second.caCertPem);
+  });
+
+  it("rotates the leaf certificate when hosts change but keeps the CA stable", async () => {
+    const home = await tempHome();
+    const first = await ensureMobileHttpsTlsMaterial(home, ["192.168.1.42"]);
+    const second = await ensureMobileHttpsTlsMaterial(home, [
+      "192.168.1.42",
+      "192.168.1.99",
+    ]);
+
+    assert.notEqual(first.certPem, second.certPem);
+    assert.equal(first.caCertPem, second.caCertPem);
+
+    const cert = new X509Certificate(second.certPem);
+    assert.match(cert.subjectAltName ?? "", /IP Address:192\.168\.1\.99/);
+  });
 });
