@@ -28,7 +28,7 @@ web: dev-deps
 	$(PNPM) --filter @nerve/web dev
 
 desktop:
-	$(PNPM) --filter @nerve/desktop dev -- --host 0.0.0.0 --allow-remote $(DESKTOP_ARGS)
+	$(PNPM) --filter @nerve/desktop dev -- $(DESKTOP_ARGS)
 
 desktop-mobile-https:
 	$(MAKE) desktop DESKTOP_ARGS="--mobile-https $(DESKTOP_ARGS)"
