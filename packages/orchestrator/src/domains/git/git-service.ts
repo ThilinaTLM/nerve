@@ -30,18 +30,25 @@ import {
   listOpenPrs as listGithubOpenPrs,
 } from "./git-github-service.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";
+import {
+  branchExists as branchExistsImpl,
+  comparisonBaseRef as comparisonBaseRefImpl,
+  detectBaseBranch as detectBaseBranchImpl,
+  listBranches as listBranchesImpl,
+  mergedToBase as mergedToBaseImpl,
+} from "./git-branches.js";
 
 const MAX_DISCOVERY_DEPTH = 2;
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next"]);
 
 export class GitService {
   constructor(
-    private readonly getProject: (projectId: string) => ProjectRecord,
+    readonly getProject: (projectId: string) => ProjectRecord,
   ) {}
 
   // --- low-level exec ---
 
-  private async run(
+  async run(
     bin: "git" | "gh",
     cwd: string,
     args: string[],
@@ -49,16 +56,16 @@ export class GitService {
     return runGitCommand(bin, cwd, args);
   }
 
-  private runGit(cwd: string, args: string[]): Promise<ExecResult> {
+  runGit(cwd: string, args: string[]): Promise<ExecResult> {
     return this.run("git", cwd, args);
   }
 
-  private runGh(cwd: string, args: string[]): Promise<ExecResult> {
+  runGh(cwd: string, args: string[]): Promise<ExecResult> {
     return this.run("gh", cwd, args);
   }
 
   /** Resolve and contain a repo dir relative to the project dir. */
-  private resolveRepoDir(projectId: string, relativePath: string): string {
+  resolveRepoDir(projectId: string, relativePath: string): string {
     const project = this.getProject(projectId);
     const root = resolve(project.dir);
     const target = resolve(root, relativePath === "." ? "" : relativePath);
@@ -75,7 +82,7 @@ export class GitService {
     return target;
   }
 
-  private async isRepo(dir: string): Promise<boolean> {
+  async isRepo(dir: string): Promise<boolean> {
     try {
       const { stdout } = await this.runGit(dir, [
         "rev-parse",
@@ -87,7 +94,7 @@ export class GitService {
     }
   }
 
-  private async repoRemoteState(
+  async repoRemoteState(
     repoDir: string,
   ): Promise<{ hasRemote: boolean; hasGithubRemote: boolean }> {
     let hasRemote = false;
@@ -110,7 +117,7 @@ export class GitService {
     }
   }
 
-  private async ensureGithubRemote(repoDir: string): Promise<void> {
+  async ensureGithubRemote(repoDir: string): Promise<void> {
     const remoteState = await this.repoRemoteState(repoDir);
     if (!remoteState.hasRemote) {
       throw new HttpError(
@@ -155,7 +162,7 @@ export class GitService {
     return { projectIsRepo: false, repos };
   }
 
-  private async walkForRepos(
+  async walkForRepos(
     root: string,
     dir: string,
     depth: number,
@@ -182,7 +189,7 @@ export class GitService {
     return found;
   }
 
-  private async summarizeRepo(
+  async summarizeRepo(
     repoDir: string,
     relativePath: string,
     name: string,
@@ -220,7 +227,7 @@ export class GitService {
     };
   }
 
-  private repoName(projectId: string, relativePath: string): string {
+  repoName(projectId: string, relativePath: string): string {
     if (relativePath === ".") return this.getProject(projectId).name;
     return basename(relativePath);
   }
@@ -271,7 +278,7 @@ export class GitService {
     };
   }
 
-  private async recentCommits(repoDir: string): Promise<GitRecentCommit[]> {
+  async recentCommits(repoDir: string): Promise<GitRecentCommit[]> {
     try {
       const { stdout } = await this.runGit(repoDir, [
         "log",
@@ -299,119 +306,21 @@ export class GitService {
     projectId: string,
     relativePath: string,
   ): Promise<GitBranchListResponse> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const { stdout } = await this.runGit(repoDir, [
-      "for-each-ref",
-      "--format=%(refname)%00%(refname:short)%00%(upstream:short)%00%(HEAD)",
-      "refs/heads",
-      "refs/remotes",
-    ]);
-    const branches = stdout
-      .split("\n")
-      .filter((line) => line.length > 0)
-      .map((line): GitBranchSummary | null => {
-        const [refname, shortName, upstream, head] = line.split("\u0000");
-        if (!refname || !shortName) return null;
-        if (
-          refname.startsWith("refs/remotes/") &&
-          shortName.endsWith("/HEAD")
-        ) {
-          return null;
-        }
-        return {
-          name: shortName,
-          current: head === "*",
-          remote: refname.startsWith("refs/remotes/"),
-          upstream: upstream && upstream.length > 0 ? upstream : null,
-        };
-      })
-      .filter((branch): branch is GitBranchSummary => branch !== null)
-      .sort((a, b) => {
-        if (a.current !== b.current) return a.current ? -1 : 1;
-        if (a.remote !== b.remote) return a.remote ? 1 : -1;
-        return a.name.localeCompare(b.name);
-      });
-    return { branches };
+    return await listBranchesImpl.call(this, projectId, relativePath);
   }
-
   async detectBaseBranch(repoDir: string): Promise<string> {
-    try {
-      const { stdout } = await this.runGit(repoDir, [
-        "symbolic-ref",
-        "--quiet",
-        "refs/remotes/origin/HEAD",
-      ]);
-      const ref = stdout.trim();
-      if (ref.startsWith("refs/remotes/origin/")) {
-        return ref.slice("refs/remotes/origin/".length);
-      }
-    } catch {
-      // fall through to probing
-    }
-    for (const candidate of ["main", "master", "develop"]) {
-      if (await this.branchExists(repoDir, candidate)) return candidate;
-    }
-    try {
-      const { stdout } = await this.runGit(repoDir, [
-        "rev-parse",
-        "--abbrev-ref",
-        "HEAD",
-      ]);
-      return stdout.trim() || "main";
-    } catch {
-      return "main";
-    }
+    return await detectBaseBranchImpl.call(this, repoDir);
   }
-
-  private async branchExists(repoDir: string, name: string): Promise<boolean> {
-    try {
-      await this.runGit(repoDir, [
-        "rev-parse",
-        "--verify",
-        "--quiet",
-        `refs/heads/${name}`,
-      ]);
-      return true;
-    } catch {
-      try {
-        await this.runGit(repoDir, [
-          "rev-parse",
-          "--verify",
-          "--quiet",
-          `refs/remotes/origin/${name}`,
-        ]);
-        return true;
-      } catch {
-        return false;
-      }
-    }
+  async branchExists(repoDir: string, name: string): Promise<boolean> {
+    return await branchExistsImpl.call(this, repoDir, name);
   }
-
-  private async comparisonBaseRef(
+  async comparisonBaseRef(
     repoDir: string,
     baseBranch: string,
   ): Promise<string> {
-    for (const candidate of [
-      `refs/remotes/origin/${baseBranch}`,
-      `refs/heads/${baseBranch}`,
-      baseBranch,
-    ]) {
-      try {
-        await this.runGit(repoDir, [
-          "rev-parse",
-          "--verify",
-          "--quiet",
-          `${candidate}^{commit}`,
-        ]);
-        return candidate;
-      } catch {
-        // Try the next possible ref.
-      }
-    }
-    return baseBranch;
+    return await comparisonBaseRefImpl.call(this, repoDir, baseBranch);
   }
-
-  private async mergedToBase(
+  async mergedToBase(
     repoDir: string,
     baseBranch: string,
     state: {
@@ -420,23 +329,8 @@ export class GitService {
       onBaseBranch: boolean;
     },
   ): Promise<boolean> {
-    if (state.detached || state.onBaseBranch || !state.currentBranch) {
-      return false;
-    }
-    const baseRef = await this.comparisonBaseRef(repoDir, baseBranch);
-    try {
-      await this.runGit(repoDir, [
-        "merge-base",
-        "--is-ancestor",
-        "HEAD",
-        baseRef,
-      ]);
-      return true;
-    } catch {
-      return false;
-    }
+    return await mergedToBaseImpl.call(this, repoDir, baseBranch, state);
   }
-
   // --- workflow mutations ---
 
   async createBranch(
@@ -694,7 +588,7 @@ export class GitService {
     };
   }
 
-  private async hasUpstream(repoDir: string): Promise<boolean> {
+  async hasUpstream(repoDir: string): Promise<boolean> {
     try {
       await this.runGit(repoDir, [
         "rev-parse",
@@ -750,7 +644,7 @@ export class GitService {
     );
   }
 
-  private githubContext(): GithubServiceContext {
+  githubContext(): GithubServiceContext {
     return {
       resolveRepoDir: (projectId, relativePath) =>
         this.resolveRepoDir(projectId, relativePath),
@@ -770,7 +664,7 @@ export class GitService {
 
   // --- error mapping ---
 
-  private async mapGit<T>(fn: () => Promise<T>): Promise<T> {
+  async mapGit<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (error) {
@@ -781,7 +675,7 @@ export class GitService {
     }
   }
 
-  private async mapGh<T>(fn: () => Promise<T>): Promise<T> {
+  async mapGh<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (error) {
