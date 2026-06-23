@@ -110,7 +110,8 @@ export class ProviderCatalogStore {
   /**
    * Flatten the catalog into runtime-ready model definitions, inheriting
    * connection settings (api/baseUrl/headers/compat) from a model's custom
-   * provider. Invalid models (no resolvable api/baseUrl) are skipped.
+   * provider when present. Built-in provider models may omit connection settings;
+   * the agent runtime resolves those from pi-ai's provider catalog.
    */
   resolvedModels(): AgentCustomModel[] {
     const providerById = new Map(
@@ -121,13 +122,12 @@ export class ProviderCatalogStore {
       const provider = providerById.get(model.provider);
       const api = model.api ?? provider?.api;
       const baseUrl = model.baseUrl ?? provider?.baseUrl;
-      if (!api || !baseUrl) continue;
       resolved.push({
         provider: model.provider,
         modelId: model.modelId,
         name: model.name,
-        api,
-        baseUrl,
+        ...(api ? { api } : {}),
+        ...(baseUrl ? { baseUrl } : {}),
         reasoning: model.reasoning,
         supportedThinkingLevels: model.supportedThinkingLevels,
         thinkingLevelMap: model.thinkingLevelMap,

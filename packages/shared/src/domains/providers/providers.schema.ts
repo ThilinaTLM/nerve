@@ -2,8 +2,9 @@ import { z } from "zod";
 import { thinkingLevelSchema } from "../models/index.js";
 
 /**
- * pi-ai `KnownApi` values. Custom providers and manually-added models pick one
- * of these API implementations to talk to an endpoint.
+ * pi-ai `KnownApi` values. Custom providers pick one of these API
+ * implementations to talk to an endpoint. Manually-added models inherit this
+ * from their selected provider.
  */
 export const piApiSchema = z.enum([
   "openai-completions",
@@ -54,8 +55,9 @@ export type CustomProvider = z.infer<typeof customProviderSchema>;
 
 /**
  * A manually-added model. Connection fields (`api`/`baseUrl`/`headers`/`compat`)
- * are inherited from the model's custom provider when omitted, and are required
- * when the model targets a built-in pi-ai provider.
+ * are inherited from the selected provider when omitted: custom providers supply
+ * saved endpoint settings, while built-in pi-ai providers use their catalog
+ * defaults. The optional fields remain for persisted legacy/override data.
  */
 export const modelDefinitionSchema = z.object({
   provider: z.string().min(1),

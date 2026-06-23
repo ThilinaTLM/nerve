@@ -1,6 +1,6 @@
 <script lang="ts">
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import type { ModelDefinition, PiApi, ThinkingLevel } from "$lib/api";
+  import type { ModelDefinition, ThinkingLevel } from "$lib/api";
   import { upsertModelDefinition } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";
@@ -13,18 +13,17 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { authState } from "$lib/features/auth/state/auth-state.svelte";
   import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
-  import { PI_API_ITEMS } from "./CustomProviderDialog.svelte";
 
   type Props = {
     open?: boolean;
     model?: ModelDefinition;
-    builtInProviders?: string[];
+    providerItems?: SelectItem[];
   };
 
   let {
     open = $bindable(false),
     model,
-    builtInProviders = [],
+    providerItems = [],
   }: Props = $props();
 
   const editing = $derived(Boolean(model));
@@ -45,26 +44,25 @@
   let imageInput = $state(false);
   let contextWindow = $state(0);
   let maxTokens = $state(0);
-  let apiOverride = $state<string>("");
-  let baseUrlOverride = $state("");
   let headersText = $state("");
   let busy = $state(false);
   let error = $state<string | undefined>(undefined);
 
-  const providerItems = $derived<SelectItem[]>([
-    ...authState.customProviders.map((custom) => ({
-      value: custom.id,
-      label: custom.displayName,
-      detail: "Custom provider",
-    })),
-    ...builtInProviders.map((id) => ({
-      value: id,
-      label: id,
-      detail: "Built-in provider",
-    })),
-  ]);
+  const selectProviderItems = $derived<SelectItem[]>(
+    editing &&
+      model?.provider &&
+      !providerItems.some((item) => item.value === model.provider)
+      ? [
+          { value: model.provider, label: model.provider, detail: "Unavailable" },
+          ...providerItems,
+        ]
+      : providerItems,
+  );
   const isCustomProvider = $derived(
     authState.customProviders.some((custom) => custom.id === provider),
+  );
+  const providerAvailable = $derived(
+    providerItems.some((item) => item.value === provider),
   );
 
   $effect(() => {
@@ -77,8 +75,6 @@
     imageInput = model?.input?.includes("image") ?? false;
     contextWindow = model?.contextWindow ?? 0;
     maxTokens = model?.maxTokens ?? 0;
-    apiOverride = model?.api ?? "";
-    baseUrlOverride = model?.baseUrl ?? "";
     headersText = headersToText(model?.headers);
     error = undefined;
   });
@@ -109,16 +105,11 @@
       : [...thinking, level];
   }
 
-  // Built-in providers need explicit connection settings (no saved custom provider).
-  const needsConnection = $derived(
-    provider.length > 0 && !isCustomProvider,
-  );
   const canSubmit = $derived(
     provider.trim().length > 0 &&
+      providerAvailable &&
       modelId.trim().length > 0 &&
       name.trim().length > 0 &&
-      (!needsConnection ||
-        (apiOverride.length > 0 && baseUrlOverride.trim().length > 0)) &&
       !busy,
   );
 
@@ -138,10 +129,6 @@
         contextWindow: Math.max(0, Math.trunc(contextWindow)),
         maxTokens: Math.max(0, Math.trunc(maxTokens)),
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        ...(apiOverride ? { api: apiOverride as PiApi } : {}),
-        ...(baseUrlOverride.trim()
-          ? { baseUrl: baseUrlOverride.trim() }
-          : {}),
         ...(Object.keys(headers).length > 0 ? { headers } : {}),
       };
       await upsertModelDefinition(next);
@@ -158,13 +145,13 @@
 <Dialog
   bind:open
   title={editing ? `Edit ${model?.name}` : "Add model"}
-  description="Manually register a model for a custom or built-in provider."
+  description="Register a model under a configured or authenticated provider."
 >
   <div class="model-form">
     <div class="field">
       <Label>Provider</Label>
       <SelectField
-        items={providerItems}
+        items={selectProviderItems}
         value={provider}
         onValueChange={(value) => (provider = value)}
         placeholder="Select a provider"
@@ -184,24 +171,11 @@
       </div>
     </div>
 
-    {#if needsConnection}
-      <div class="field-grid">
-        <div class="field">
-          <Label>API type</Label>
-          <SelectField
-            items={PI_API_ITEMS}
-            value={apiOverride}
-            onValueChange={(value) => (apiOverride = value)}
-            placeholder="Select API"
-            ariaLabel="API type"
-          />
-        </div>
-        <div class="field">
-          <Label for="model-base-url">Base URL</Label>
-          <Input id="model-base-url" bind:value={baseUrlOverride} placeholder="https://api.example.com/v1" disabled={busy} />
-        </div>
-      </div>
-      <p class="field-hint">Built-in providers require an API type and base URL for the model.</p>
+    {#if provider.length > 0 && !providerAvailable}
+      <p class="field-hint" data-tone="error">
+        <TriangleAlert size={14} strokeWidth={2} />
+        This provider is not configured or authenticated.
+      </p>
     {/if}
 
     <div class="field-grid">

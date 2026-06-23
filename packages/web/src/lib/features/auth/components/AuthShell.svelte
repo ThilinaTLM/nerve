@@ -1,5 +1,6 @@
 <script lang="ts">
   import Boxes from "@lucide/svelte/icons/boxes";
+  import Cpu from "@lucide/svelte/icons/cpu";
   import Search from "@lucide/svelte/icons/search";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import type { Component } from "svelte";
@@ -18,9 +19,13 @@
     | "subscriptions"
     | "api-keys"
     | "custom-providers"
-    | "models"
+    | "custom-models"
     | "integrations";
-  type GroupId = "connections" | "catalog" | "integrations";
+  type GroupId =
+    | "connections"
+    | "custom-providers"
+    | "custom-models"
+    | "integrations";
   type GroupSection = { id: SectionId; label: string };
   type AuthGroup = {
     id: GroupId;
@@ -42,14 +47,18 @@
       ],
     },
     {
-      id: "catalog",
-      label: "Provider catalog",
-      description: "Manage custom providers and manually registered models.",
+      id: "custom-providers",
+      label: "Custom Providers",
+      description: "Manage custom and self-hosted provider endpoints.",
       icon: Boxes,
-      sections: [
-        { id: "custom-providers", label: "Custom providers" },
-        { id: "models", label: "Models" },
-      ],
+      sections: [{ id: "custom-providers", label: "Custom Providers" }],
+    },
+    {
+      id: "custom-models",
+      label: "Custom Models",
+      description: "Register models under configured or authenticated providers.",
+      icon: Cpu,
+      sections: [{ id: "custom-models", label: "Custom Models" }],
     },
     {
       id: "integrations",
@@ -177,9 +186,10 @@
       {#if activeGroup === "connections"}
         <SubscriptionsSection {authProviders} />
         <ApiKeysSection {authProviders} />
-      {:else if activeGroup === "catalog"}
+      {:else if activeGroup === "custom-providers"}
         <CustomProvidersSection {authProviders} />
-        <ModelsSection {models} />
+      {:else if activeGroup === "custom-models"}
+        <ModelsSection {models} {authProviders} />
       {:else if activeGroup === "integrations"}
         <IntegrationsSection {authProviders} />
       {/if}

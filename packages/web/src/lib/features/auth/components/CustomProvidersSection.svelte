@@ -67,7 +67,7 @@
   <header class="settings-section-header">
     <div class="settings-section-kicker"><Boxes size={14} strokeWidth={2.1} /> Custom providers</div>
     <h2>Custom providers</h2>
-    <p>Add OpenAI-compatible and other pi-ai supported endpoints (Ollama, vLLM, LM Studio, proxies, …). Add models under a provider in the Models section.</p>
+    <p>Add OpenAI-compatible and other pi-ai supported endpoints (Ollama, vLLM, LM Studio, proxies, …). Add models under a provider in Custom Models.</p>
   </header>
 
   <div class="settings-section-body">

@@ -49,7 +49,7 @@ describe("ProviderCatalogStore", () => {
     assert.deepEqual(resolved[0].headers, { "X-Test": "1", "X-Model": "2" });
   });
 
-  it("skips models with no resolvable api/baseUrl", async () => {
+  it("keeps built-in provider models without explicit connection settings", async () => {
     const store = await tempStore();
     await store.upsertModel({
       provider: "anthropic",
@@ -62,7 +62,11 @@ describe("ProviderCatalogStore", () => {
       contextWindow: 0,
       maxTokens: 0,
     });
-    assert.equal(store.resolvedModels().length, 0);
+    const resolved = store.resolvedModels();
+    assert.equal(resolved.length, 1);
+    assert.equal(resolved[0].provider, "anthropic");
+    assert.equal(resolved[0].api, undefined);
+    assert.equal(resolved[0].baseUrl, undefined);
   });
 
   it("cascades model deletion when a provider is removed", async () => {

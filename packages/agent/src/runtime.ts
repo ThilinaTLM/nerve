@@ -31,14 +31,15 @@ export interface AgentModelInfo extends AgentModelSelection {
 /**
  * A user-defined model (custom provider or manually-added model). The
  * orchestrator owns persistence; the runtime turns these into pi-ai `Model`
- * objects so unknown providers resolve without falling back to the faux model.
+ * objects. Custom providers supply explicit connection settings; manual models
+ * under built-in providers can inherit settings from pi-ai's provider catalog.
  */
 export interface AgentCustomModel {
   provider: string;
   modelId: string;
   name: string;
-  api: string;
-  baseUrl: string;
+  api?: string;
+  baseUrl?: string;
   reasoning: boolean;
   supportedThinkingLevels?: ThinkingLevel[];
   thinkingLevelMap?: Record<string, string | null>;
@@ -55,21 +56,44 @@ export interface AgentCustomModel {
   compat?: Record<string, unknown>;
 }
 
-function toPiModel(model: AgentCustomModel): Model<string> {
+function templateForCustomModel(
+  model: AgentCustomModel,
+): Model<string> | undefined {
+  if (!isKnownProvider(model.provider)) return undefined;
+  return (
+    (getModel(model.provider, model.modelId as never) as
+      | Model<string>
+      | undefined) ??
+    (getModels(model.provider)[0] as Model<string> | undefined)
+  );
+}
+
+function toPiModel(model: AgentCustomModel): Model<string> | undefined {
+  const template =
+    model.api && model.baseUrl ? undefined : templateForCustomModel(model);
+  const api = model.api ?? template?.api;
+  const baseUrl = model.baseUrl ?? template?.baseUrl;
+  if (!api || !baseUrl) return undefined;
   return {
     id: model.modelId,
     name: model.name,
-    api: model.api,
+    api,
     provider: model.provider,
-    baseUrl: model.baseUrl,
+    baseUrl,
     reasoning: model.reasoning,
-    thinkingLevelMap: model.thinkingLevelMap,
-    input: model.input ?? ["text"],
-    cost: model.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: model.contextWindow ?? 0,
-    maxTokens: model.maxTokens ?? 0,
-    headers: model.headers,
-    compat: model.compat as never,
+    thinkingLevelMap: model.thinkingLevelMap ?? template?.thinkingLevelMap,
+    input: model.input ?? template?.input ?? ["text"],
+    cost: model.cost ??
+      template?.cost ?? {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+      },
+    contextWindow: model.contextWindow ?? template?.contextWindow ?? 0,
+    maxTokens: model.maxTokens ?? template?.maxTokens ?? 0,
+    headers: { ...(template?.headers ?? {}), ...(model.headers ?? {}) },
+    compat: (model.compat ?? template?.compat) as never,
   } as Model<string>;
 }
 
@@ -105,8 +129,10 @@ function findCustomModel(
   );
 }
 
-function customModelInfo(model: AgentCustomModel): AgentModelInfo {
-  const info = getAgentModelInfo(toPiModel(model));
+function customModelInfo(model: AgentCustomModel): AgentModelInfo | undefined {
+  const resolved = toPiModel(model);
+  if (!resolved) return undefined;
+  const info = getAgentModelInfo(resolved);
   return model.supportedThinkingLevels
     ? { ...info, supportedThinkingLevels: model.supportedThinkingLevels }
     : info;
@@ -173,7 +199,8 @@ function resolveAgentModelInternal(
   customModels?: AgentCustomModel[],
 ): Model<string> {
   const custom = findCustomModel(activeCustomModels(customModels), selection);
-  if (custom) return toPiModel(custom);
+  const customResolved = custom ? toPiModel(custom) : undefined;
+  if (customResolved) return customResolved;
   if (selection && isKnownProvider(selection.provider)) {
     return getModel(
       selection.provider,
@@ -266,8 +293,8 @@ export function listAvailableModels(
       getAgentModelInfo(model as Model<string>),
     ),
   );
-  const custom = (activeCustomModels(customModels) ?? []).map((model) =>
-    customModelInfo(model),
-  );
+  const custom = (activeCustomModels(customModels) ?? [])
+    .map((model) => customModelInfo(model))
+    .filter((model): model is AgentModelInfo => Boolean(model));
   return [...faux, ...configured, ...custom];
 }

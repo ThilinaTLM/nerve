@@ -4,7 +4,11 @@
   import Plus from "@lucide/svelte/icons/plus";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import Trash2 from "@lucide/svelte/icons/trash-2";
-  import type { ModelDefinition, ModelInfo } from "$lib/api";
+  import type {
+    AuthProviderMetadata,
+    ModelDefinition,
+    ModelInfo,
+  } from "$lib/api";
   import { deleteModelDefinition } from "$lib/api";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -15,31 +19,52 @@
 
   type Props = {
     models?: ModelInfo[];
+    authProviders?: AuthProviderMetadata[];
   };
 
-  let { models = [] }: Props = $props();
+  let { models = [], authProviders = [] }: Props = $props();
 
   let dialogOpen = $state(false);
   let editing = $state<ModelDefinition | undefined>(undefined);
   let pendingDelete = $state<ModelDefinition | undefined>(undefined);
 
-  // Built-in providers (those exposed by pi-ai), used as targets for manual models.
-  const builtInProviders = $derived(
-    [
-      ...new Set(
-        models
-          .filter((model) => !model.faux)
-          .map((model) => model.provider),
-      ),
-    ]
-      .filter(
-        (id) => !authState.customProviders.some((custom) => custom.id === id),
-      )
-      .sort(),
-  );
-
   const customProviderIds = $derived(
     new Set(authState.customProviders.map((custom) => custom.id)),
+  );
+  const modelProviderIds = $derived(
+    new Set(
+      models.filter((model) => !model.faux).map((model) => model.provider),
+    ),
+  );
+  const authenticatedBuiltInProviders = $derived(
+    authProviders
+      .filter(
+        (provider) =>
+          provider.configured &&
+          modelProviderIds.has(provider.provider) &&
+          !customProviderIds.has(provider.provider),
+      )
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+  );
+  const providerItems = $derived([
+    ...authState.customProviders
+      .map((custom) => ({
+        value: custom.id,
+        label: custom.displayName,
+        detail: "Custom provider",
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    ...authenticatedBuiltInProviders.map((provider) => ({
+      value: provider.provider,
+      label: provider.displayName,
+      detail:
+        provider.credentialType === "oauth"
+          ? "Subscription login"
+          : "API key configured",
+    })),
+  ]);
+  const eligibleProviderIds = $derived(
+    new Set(providerItems.map((provider) => provider.value)),
   );
 
   const definitions = $derived(
@@ -53,18 +78,18 @@
   function providerLabel(id: string): string {
     return (
       authState.customProviders.find((custom) => custom.id === id)
-        ?.displayName ?? id
+        ?.displayName ??
+      authProviders.find((provider) => provider.provider === id)?.displayName ??
+      id
     );
   }
 
-  function isOrphan(model: ModelDefinition): boolean {
-    // A model is unusable if it targets a missing custom provider without its
-    // own api/baseUrl connection settings.
-    if (model.api && model.baseUrl) return false;
-    return !customProviderIds.has(model.provider);
+  function isUnavailable(model: ModelDefinition): boolean {
+    return !eligibleProviderIds.has(model.provider);
   }
 
   function openAdd() {
+    if (providerItems.length === 0) return;
     editing = undefined;
     dialogOpen = true;
   }
@@ -88,37 +113,41 @@
   }
 </script>
 
-<section id="auth-models" class="settings-section" data-section="models">
+<section id="auth-custom-models" class="settings-section" data-section="custom-models">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Cpu size={14} strokeWidth={2.1} /> Models</div>
-    <h2>Manual models</h2>
-    <p>Register models by hand for custom or built-in providers. They appear in the composer model picker once authenticated.</p>
+    <div class="settings-section-kicker"><Cpu size={14} strokeWidth={2.1} /> Custom models</div>
+    <h2>Custom models</h2>
+    <p>Register models under configured custom providers or authenticated built-in providers. Connection settings come from the selected provider.</p>
   </header>
 
   <div class="settings-section-body">
     <div class="settings-row providers-summary">
       <div class="settings-copy">
-        <strong>{definitions.length === 0 ? "No manual models" : `${definitions.length} added`}</strong>
+        <strong>{definitions.length === 0 ? "No custom models" : `${definitions.length} added`}</strong>
         <span>Add a model with its id, context window, and thinking capability.</span>
       </div>
-      <Button size="sm" onclick={openAdd}>
+      <Button size="sm" onclick={openAdd} disabled={providerItems.length === 0}>
         <Plus size={15} strokeWidth={2.2} />
         Add model
       </Button>
     </div>
 
     {#if definitions.length === 0}
-      <p class="settings-note">Add a model to expose it in the composer picker.</p>
+      {#if providerItems.length === 0}
+        <p class="settings-note">Add a custom provider or authenticate a built-in model provider before adding custom models.</p>
+      {:else}
+        <p class="settings-note">Add a model to expose it in the composer picker.</p>
+      {/if}
     {:else}
       <ul class="provider-list">
         {#each definitions as model (`${model.provider}:${model.modelId}`)}
-          <li class="provider-item" class:orphan={isOrphan(model)}>
+          <li class="provider-item" class:orphan={isUnavailable(model)}>
             <div class="provider-item-text">
               <strong>{model.name}</strong>
               <span>{providerLabel(model.provider)} · {model.modelId}</span>
             </div>
             <div class="provider-item-actions">
-              {#if isOrphan(model)}
+              {#if isUnavailable(model)}
                 <span class="orphan-tag"><TriangleAlert size={13} strokeWidth={2} /> Unavailable</span>
               {/if}
               {#if model.reasoning}
@@ -138,7 +167,7 @@
   </div>
 </section>
 
-<ModelDefinitionDialog bind:open={dialogOpen} model={editing} {builtInProviders} />
+<ModelDefinitionDialog bind:open={dialogOpen} model={editing} {providerItems} />
 
 <ConfirmDialog
   open={!!pendingDelete}
