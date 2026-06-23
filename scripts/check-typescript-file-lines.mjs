@@ -19,7 +19,7 @@ const EXCLUDED_PATH_PREFIXES = [
 ];
 
 function normalizePath(filePath) {
-  return filePath.split(path.sep).join("/");
+  return filePath.split(path.sep).join("/").replace(/^\.\//, "");
 }
 
 function isExcluded(filePath) {
