@@ -262,11 +262,7 @@ function evaluatePlanningModePolicy(
     };
   }
 
-  if (
-    toolName === "edit" ||
-    toolName === "legacy_edit" ||
-    toolName === "write"
-  ) {
+  if (toolName === "edit" || toolName === "write") {
     let targetPath: string;
     try {
       targetPath = resolvePlanPath(cwd, args.path);

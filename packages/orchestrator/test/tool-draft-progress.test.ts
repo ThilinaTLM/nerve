@@ -30,21 +30,6 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.lineCount, 2);
   });
 
-  it("counts legacy_edit replacements and estimated additions/deletions", () => {
-    const accumulator = new ToolDraftProgressAccumulator("legacy_edit");
-
-    accumulator.push(
-      '{"path":"src/app.ts","edits":[{"oldText":"a\\nb","newText":"c"}',
-    );
-    const progress = accumulator.push(',{"oldText":"d","newText":"e\\nf\\ng');
-
-    assert.equal(progress?.path, "src/app.ts");
-    assert.equal(progress?.replacementCount, 2);
-    assert.equal(progress?.generatedLineCount, 4);
-    assert.equal(progress?.estimatedAdditions, 4);
-    assert.equal(progress?.estimatedDeletions, 3);
-  });
-
   it("counts edit shorthand insertions, replacements, and patches", () => {
     const accumulator = new ToolDraftProgressAccumulator("edit");
 
@@ -73,14 +58,14 @@ describe("ToolDraftProgressAccumulator", () => {
   });
 
   it("returns best-effort progress for malformed partial JSON", () => {
-    const accumulator = new ToolDraftProgressAccumulator("legacy_edit");
+    const accumulator = new ToolDraftProgressAccumulator("edit");
 
     const progress = accumulator.push(
-      '{"path":"src/app.ts","edits":[{"oldText":"old\\ntext","newText":"new',
+      '{"path":"src/app.ts","replacements":[{"oldText":"old\\ntext","newText":"new',
     );
 
     assert.equal(progress?.path, "src/app.ts");
-    assert.equal(progress?.replacementCount, 1);
+    assert.equal(progress?.operationCount, 1);
     assert.equal(progress?.generatedLineCount, 1);
     assert.equal(progress?.estimatedDeletions, 2);
   });
@@ -97,25 +82,6 @@ describe("finalToolDraftProgress", () => {
       path: "src/app.ts",
       lineCount: 2,
       generatedLineCount: 2,
-      estimated: false,
-    });
-  });
-
-  it("summarizes final legacy_edit args", () => {
-    const progress = finalToolDraftProgress("legacy_edit", {
-      path: "src/app.ts",
-      edits: [
-        { oldText: "one\ntwo", newText: "three" },
-        { oldText: "four", newText: "five\nsix" },
-      ],
-    });
-
-    assert.deepEqual(progress, {
-      path: "src/app.ts",
-      replacementCount: 2,
-      generatedLineCount: 3,
-      estimatedAdditions: 3,
-      estimatedDeletions: 3,
       estimated: false,
     });
   });

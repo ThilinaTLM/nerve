@@ -120,7 +120,7 @@ describe("activeRunToLegacyLive", () => {
                     argsText: "",
                     progress: {
                       path: "src/app.ts",
-                      replacementCount: 2,
+                      operationCount: 2,
                       generatedLineCount: 5,
                       estimatedAdditions: 5,
                       estimatedDeletions: 3,
@@ -137,7 +137,7 @@ describe("activeRunToLegacyLive", () => {
     );
 
     assert.equal(live.toolDrafts[0]?.progress?.path, "src/app.ts");
-    assert.equal(live.toolDrafts[0]?.progress?.replacementCount, 2);
+    assert.equal(live.toolDrafts[0]?.progress?.operationCount, 2);
     assert.equal(live.toolDrafts[0]?.progress?.estimatedAdditions, 5);
   });
 

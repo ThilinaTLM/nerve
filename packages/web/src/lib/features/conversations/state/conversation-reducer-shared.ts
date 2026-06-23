@@ -96,7 +96,7 @@ export function toolDraftProgressFromValue(
   };
   if (typeof record.path === "string") progress.path = record.path;
   progress.lineCount = numberValue(record.lineCount);
-  progress.replacementCount = numberValue(record.replacementCount);
+  progress.operationCount = numberValue(record.operationCount);
   progress.generatedLineCount = numberValue(record.generatedLineCount);
   progress.estimatedAdditions = numberValue(record.estimatedAdditions);
   progress.estimatedDeletions = numberValue(record.estimatedDeletions);

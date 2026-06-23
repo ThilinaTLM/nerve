@@ -21,7 +21,6 @@ export type ToolDraftSummary = {
   statusText: string;
   meta: DraftMetaItem[];
   lineCount?: number;
-  replacementCount?: number;
   operationCount?: number;
   generatedLineCount?: number;
   estimatedAdditions?: number;
@@ -180,61 +179,6 @@ function summarizeWriteDraft(
   };
 }
 
-type LegacyEditDraftStats = {
-  replacements: number;
-  generatedLines: number;
-  estimatedAdditions?: number;
-  estimatedDeletions?: number;
-  estimated: boolean;
-};
-
-function finalLegacyEditStats(
-  args: Record<string, unknown>,
-): LegacyEditDraftStats | undefined {
-  if (!Array.isArray(args.edits)) return undefined;
-  let generatedLines = 0;
-  let deletedLines = 0;
-  for (const edit of args.edits) {
-    const record = asRecord(edit);
-    generatedLines += lineCount(stringField(record.newText)) ?? 0;
-    deletedLines += lineCount(stringField(record.oldText)) ?? 0;
-  }
-  return {
-    replacements: args.edits.length,
-    generatedLines,
-    estimatedAdditions: generatedLines,
-    estimatedDeletions: deletedLines,
-    estimated: false,
-  };
-}
-
-function progressLegacyEditStats(
-  draft: LiveToolCallDraft,
-): LegacyEditDraftStats | undefined {
-  const progress = draft.progress;
-  if (!progress) return undefined;
-  return {
-    replacements: progress.replacementCount ?? 0,
-    generatedLines: progress.generatedLineCount ?? 0,
-    estimatedAdditions: progress.estimatedAdditions,
-    estimatedDeletions: progress.estimatedDeletions,
-    estimated: progress.estimated,
-  };
-}
-
-function partialLegacyEditStats(argsText: string): LegacyEditDraftStats {
-  const oldTextLines = lineCountsForJsonStringValues(argsText, "oldText");
-  const newTextLines = lineCountsForJsonStringValues(argsText, "newText");
-  const replacements = Math.max(newTextLines.length, oldTextLines.length);
-  return {
-    replacements,
-    generatedLines: newTextLines.reduce((total, count) => total + count, 0),
-    estimatedAdditions: newTextLines.reduce((total, count) => total + count, 0),
-    estimatedDeletions: oldTextLines.reduce((total, count) => total + count, 0),
-    estimated: true,
-  };
-}
-
 type EditDraftStats = {
   operations: number;
   generatedLines: number;
@@ -370,46 +314,6 @@ function partialEditStats(argsText: string): EditDraftStats {
   };
 }
 
-function summarizeLegacyEditDraft(
-  draft: LiveToolCallDraft,
-  cwd?: string,
-): ToolDraftSummary {
-  const args = asRecord(draft.args);
-  const finalStats = finalLegacyEditStats(args);
-  const partialStats = draft.argsText
-    ? partialLegacyEditStats(draft.argsText)
-    : undefined;
-  const progressStats = progressLegacyEditStats(draft);
-  const stats = finalStats ??
-    partialStats ??
-    progressStats ?? {
-      replacements: 0,
-      generatedLines: 0,
-      estimated: false,
-    };
-  const meta: DraftMetaItem[] = [];
-  const additions = stats.estimatedAdditions ?? stats.generatedLines;
-  if (additions > 0) {
-    meta.push({ text: `+${additions}`, tone: "success" });
-  }
-  if (stats.estimatedDeletions !== undefined && stats.estimatedDeletions > 0) {
-    meta.push({ text: `-${stats.estimatedDeletions}`, tone: "error" });
-  }
-  return {
-    kind: "edit",
-    toolName: "legacy_edit",
-    path: firstPathFromDraft(draft, cwd),
-    statusText: draft.done ? "Submitting" : "Generating",
-    meta,
-    replacementCount: stats.replacements,
-    generatedLineCount: stats.generatedLines,
-    estimatedAdditions: stats.estimatedAdditions,
-    estimatedDeletions: stats.estimatedDeletions,
-    estimated: stats.estimated,
-    done: Boolean(draft.done),
-  };
-}
-
 function summarizeEditDraft(
   draft: LiveToolCallDraft,
   cwd?: string,
@@ -499,9 +403,6 @@ export function summarizeToolDraft(
 ): ToolDraftSummary {
   if (draft.toolName === "write") return summarizeWriteDraft(draft, cwd);
   if (draft.toolName === "edit") return summarizeEditDraft(draft, cwd);
-  if (draft.toolName === "legacy_edit") {
-    return summarizeLegacyEditDraft(draft, cwd);
-  }
   if (draft.toolName === "python") return summarizePythonDraft(draft, cwd);
   const toolName = draft.toolName ?? "tool";
   return {

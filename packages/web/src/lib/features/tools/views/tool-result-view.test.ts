@@ -285,35 +285,6 @@ describe("parseToolView", () => {
     assert.equal(view.output, "out\nerr\n");
   });
 
-  it("parses legacy_edit diff, replacement count, and +/- stats", () => {
-    const view = parseToolView(
-      toolCall(
-        "legacy_edit",
-        {
-          path: "src/x.ts",
-          edits: [
-            { oldText: "a", newText: "b" },
-            { oldText: "c", newText: "d" },
-          ],
-        },
-        {
-          path: `${CWD}/src/x.ts`,
-          details: {
-            diff: "@@ -1 +1 @@\n-a\n+b",
-            lineEnding: "\n",
-            bom: false,
-          },
-        },
-      ),
-    );
-    assert.equal(view.kind, "edit");
-    if (view.kind !== "edit") return;
-    assert.equal(view.replacements, 2);
-    assert.equal(view.diff, "@@ -1 +1 @@\n-a\n+b");
-    assert.equal(view.additions, 1);
-    assert.equal(view.deletions, 1);
-  });
-
   it("parses edit diff, operation count, dry-run flag, and +/- stats", () => {
     const view = parseToolView(
       toolCall(
@@ -340,8 +311,7 @@ describe("parseToolView", () => {
     );
     assert.equal(view.kind, "edit");
     if (view.kind !== "edit") return;
-    assert.equal(view.replacements, 1);
-    assert.equal(view.operationLabel, "operation");
+    assert.equal(view.operationCount, 1);
     assert.equal(view.dryRun, true);
     assert.equal(view.additions, 1);
     assert.equal(view.deletions, 1);
@@ -1113,15 +1083,23 @@ describe("toolPresentation", () => {
     assert.match(p.collapse?.expandLabel ?? "", /Show 4 more lines/);
   });
 
-  it("emits +/- chips for legacy_edit", () => {
+  it("emits +/- chips for edit diffs", () => {
     const p = present(
-      "legacy_edit",
-      { path: "x.ts", edits: [{ oldText: "a", newText: "b" }] },
+      "edit",
+      { path: "x.ts", replacements: [{ oldText: "a", newText: "b" }] },
       {
         path: `${CWD}/x.ts`,
-        details: { diff: "@@ -1 +1 @@\n-a\n+b", lineEnding: "\n", bom: false },
+        details: {
+          diff: "@@ -1 +1 @@\n-a\n+b",
+          lineEnding: "\n",
+          bom: false,
+          dryRun: false,
+          operationCount: 1,
+          operations: [{ index: 0, type: "replace_text", matchedBy: "unique" }],
+        },
       },
     );
+    assert.ok(p.meta.some((m) => m.text === "1 operation"));
     assert.ok(p.meta.some((m) => m.text === "+1" && m.tone === "success"));
     assert.ok(p.meta.some((m) => m.text === "−1" && m.tone === "error"));
   });
@@ -1154,7 +1132,10 @@ describe("toolPresentation", () => {
   it("marks errored edit calls with danger status", () => {
     const p = present(
       "edit",
-      { path: "x.ts", edits: [{ oldText: "a", newText: "b", note: "bad" }] },
+      {
+        path: "x.ts",
+        replacements: [{ oldText: "a", newText: "b", note: "bad" }],
+      },
       undefined,
       { status: "error", error: "Validation failed." },
     );

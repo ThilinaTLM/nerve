@@ -1,6 +1,6 @@
 import type { ConversationLiveToolDraftProgressSnapshot } from "@nerve/shared";
 
-export type ToolDraftProgressToolName = "write" | "edit" | "legacy_edit";
+export type ToolDraftProgressToolName = "write" | "edit";
 
 type TargetProperty =
   | "path"
@@ -80,16 +80,8 @@ function targetFor(
 ): TargetProperty | undefined {
   if (property === "path") return "path";
   if (toolName === "write" && property === "content") return "content";
-  if (
-    (toolName === "edit" || toolName === "legacy_edit") &&
-    property === "oldText"
-  )
-    return "oldText";
-  if (
-    (toolName === "edit" || toolName === "legacy_edit") &&
-    property === "newText"
-  )
-    return "newText";
+  if (toolName === "edit" && property === "oldText") return "oldText";
+  if (toolName === "edit" && property === "newText") return "newText";
   if (toolName === "edit" && property === "text") return "text";
   if (toolName === "edit" && property === "patch") return "patch";
   if (toolName === "edit" && property === "type") {
@@ -120,8 +112,6 @@ function hasProgress(
   return Boolean(
     snapshot.path ||
       (snapshot.lineCount !== undefined && snapshot.lineCount > 0) ||
-      (snapshot.replacementCount !== undefined &&
-        snapshot.replacementCount > 0) ||
       (snapshot.operationCount !== undefined && snapshot.operationCount > 0) ||
       (snapshot.generatedLineCount !== undefined &&
         snapshot.generatedLineCount > 0) ||
@@ -211,10 +201,6 @@ export class ToolDraftProgressAccumulator {
       activePatchDeletions;
     return {
       path,
-      replacementCount:
-        this.toolName === "legacy_edit"
-          ? Math.max(this.oldTextCount, this.newTextCount)
-          : undefined,
       operationCount:
         this.toolName === "edit"
           ? Math.max(this.oldTextCount, this.newTextCount) +
@@ -410,11 +396,7 @@ function decodeEscape(char: string): string {
 export function createToolDraftProgressAccumulator(
   toolName: string | undefined,
 ): ToolDraftProgressAccumulator | undefined {
-  if (
-    toolName === "write" ||
-    toolName === "edit" ||
-    toolName === "legacy_edit"
-  ) {
+  if (toolName === "write" || toolName === "edit") {
     return new ToolDraftProgressAccumulator(toolName);
   }
   return undefined;
@@ -431,25 +413,6 @@ export function finalToolDraftProgress(
       path,
       lineCount: lineCountValue,
       generatedLineCount: lineCountValue,
-      estimated: false,
-    };
-    return hasProgress(snapshot) ? snapshot : undefined;
-  }
-
-  if (toolName === "legacy_edit" && Array.isArray(args.edits)) {
-    let generatedLineCount = 0;
-    let deletedLineCount = 0;
-    for (const edit of args.edits) {
-      const record = asRecord(edit);
-      generatedLineCount += lineCount(stringField(record.newText)) ?? 0;
-      deletedLineCount += lineCount(stringField(record.oldText)) ?? 0;
-    }
-    const snapshot: ConversationLiveToolDraftProgressSnapshot = {
-      path: stringField(args.path),
-      replacementCount: args.edits.length,
-      generatedLineCount,
-      estimatedAdditions: generatedLineCount,
-      estimatedDeletions: deletedLineCount,
       estimated: false,
     };
     return hasProgress(snapshot) ? snapshot : undefined;

@@ -30,32 +30,6 @@ const readParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const replaceEditParameters = Type.Object(
-  {
-    oldText: Type.String({
-      description:
-        "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edit.",
-    }),
-    newText: Type.String({
-      description: "Replacement text for this targeted edit.",
-    }),
-  },
-  { additionalProperties: false },
-);
-
-const legacyEditParameters = Type.Object(
-  {
-    path: Type.String({
-      description: "Path to the file to edit (relative or absolute).",
-    }),
-    edits: Type.Array(replaceEditParameters, {
-      description:
-        "One or more targeted replacements. Each oldText is matched against the original file, not incrementally. Merge nearby changes into one edit.",
-    }),
-  },
-  { additionalProperties: false },
-);
-
 const matchModeParameters = Type.Optional(
   Type.Union(
     [
@@ -137,22 +111,20 @@ const editParameters = Type.Object(
     }),
     dryRun: Type.Optional(
       Type.Boolean({
-        description:
-          "If true, validate edits and return the diff without writing the file (default false).",
+        description: "Preview the diff without writing (default false).",
       }),
     ),
     replacements: Type.Optional(
       Type.Array(replacementParameters, {
         minItems: 1,
         description:
-          "Text replacements resolved against the original file. Use for simple or batch exact replacement.",
+          "Exact text replacements resolved against the original file.",
       }),
     ),
     insertions: Type.Optional(
       Type.Array(insertionParameters, {
         minItems: 1,
-        description:
-          "Anchor-based text insertions resolved against the original file.",
+        description: "Anchor-based text insertions against the original file.",
       }),
     ),
     lineReplacements: Type.Optional(
@@ -170,20 +142,14 @@ const editParameters = Type.Object(
     patch: Type.Optional(
       Type.String({
         description:
-          "Single-file unified diff patch. Must not be combined with other edit arrays.",
+          "Single-file unified diff; cannot combine with edit arrays.",
       }),
     ),
   },
   { additionalProperties: false },
 );
 
-type LegacyEditParametersSchema = Static<typeof legacyEditParameters>;
 type EditParameters = Static<typeof editParameters>;
-
-type LegacyEditConvenienceParameters = LegacyEditParametersSchema & {
-  oldText?: unknown;
-  newText?: unknown;
-};
 
 type EditConvenienceParameters = EditParameters & {
   replacements?: unknown;
@@ -200,37 +166,6 @@ function parseArrayArgument<T>(value: T): T {
   } catch {
     return value;
   }
-}
-
-function prepareLegacyEditArguments(
-  input: unknown,
-): LegacyEditParametersSchema {
-  if (!input || typeof input !== "object") {
-    return input as LegacyEditParametersSchema;
-  }
-  const args = {
-    ...(input as Record<string, unknown>),
-  } as LegacyEditConvenienceParameters;
-
-  if (typeof args.edits === "string") {
-    try {
-      const parsed = JSON.parse(args.edits);
-      if (Array.isArray(parsed)) {
-        args.edits = parsed as LegacyEditParametersSchema["edits"];
-      }
-    } catch {
-      // Let schema validation report the invalid value.
-    }
-  }
-
-  if (typeof args.oldText === "string" && typeof args.newText === "string") {
-    const edits = Array.isArray(args.edits) ? [...args.edits] : [];
-    edits.push({ oldText: args.oldText, newText: args.newText });
-    const { oldText: _oldText, newText: _newText, ...rest } = args;
-    return { ...rest, edits } as LegacyEditParametersSchema;
-  }
-
-  return args as LegacyEditParametersSchema;
 }
 
 function prepareEditArguments(input: unknown): EditParameters {
@@ -357,38 +292,19 @@ export const filesystemToolDefinitions = [
     name: "edit",
     label: "edit",
     description:
-      "Single-file editor with shorthand edit arrays. Supports text replacements, anchor insertions, line/range edits, single-file unified patch application, dry-run previews, optional trimmed/whitespace matching, occurrence selection, and ambiguity diagnostics. Fails instead of guessing when matches are missing or ambiguous.",
+      "Single-file editor. Defaults to exact text replacements; also supports anchor insertions, line/range edits, a single-file unified patch, dry-run previews, matchMode (trimmed/whitespace), occurrence selection, and ambiguity diagnostics. Fails instead of guessing on missing, ambiguous, or overlapping edits.",
     promptSnippet:
-      "Make single-file edits with replacements, insertions, line/range edits, dry-run previews, or a single-file patch",
+      "Make single-file edits: replacements by default, plus insertions, line/range edits, patch, dry-run, matchMode, and occurrence",
     promptGuidelines: [
-      "Use edit for single-file edits.",
-      "Use replacements for simple or batch exact replacements.",
-      "Use insertions for anchor-based insertion.",
-      "Use lineReplacements / lineInsertions when line ranges are clearer.",
+      "Use edit for existing single-file edits.",
+      "Default to replacements with exact oldText/newText; batch multiple same-file replacements in one edit call.",
+      "Each oldText/anchor must be minimal and unique; edits resolve against the original file, so merge overlapping nearby changes.",
+      "Use insertions or lineReplacements / lineInsertions when clearer; use patch only for one single-file diff.",
       "Use dryRun: true for large or risky edits before applying.",
-      'Use matchMode "trimmed" or "whitespace" only when exact matching is impractical.',
-      "If edit is ambiguous, do not guess; provide a more specific oldText/anchor, use line ranges, or set occurrence.",
-      "patch is single-file only and must not be combined with replacements, insertions, lineReplacements, or lineInsertions.",
+      'Use matchMode "trimmed" or "whitespace", or occurrence, only when exact matching is impractical or ambiguous.',
     ],
     parameters: editParameters,
     prepareArguments: prepareEditArguments,
-    executionMode: "sequential",
-  },
-  {
-    name: "legacy_edit",
-    label: "legacy_edit",
-    description:
-      "Legacy exact-replacement single-file editor. Every edits[].oldText must match a unique, non-overlapping region of the original file.",
-    promptSnippet:
-      "Use the legacy exact-replacement edit workflow with edits[].oldText/newText",
-    promptGuidelines: [
-      "Prefer edit.replacements for single-file text replacements; use legacy_edit only for compatibility with the old { edits: [...] } exact replacement interface.",
-      "When changing multiple separate locations in one file, use one legacy_edit call with multiple entries in edits[] instead of multiple calls.",
-      "Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
-      "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
-    ],
-    parameters: legacyEditParameters,
-    prepareArguments: prepareLegacyEditArguments,
     executionMode: "sequential",
   },
   {

@@ -143,8 +143,9 @@ export function toolPresentation(
     }
 
     case "edit": {
-      const label = view.operationLabel ?? "replacement";
-      const meta: MetaItem[] = [{ text: plural(view.replacements, label) }];
+      const meta: MetaItem[] = [
+        { text: plural(view.operationCount, "operation") },
+      ];
       if (view.dryRun) meta.push({ text: "preview", tone: "info" });
       if (view.additions > 0)
         meta.push({ text: `+${view.additions}`, tone: "success" });

@@ -135,21 +135,6 @@ describe("tool policy", () => {
     assert.equal(allowed.decision, "allow");
     assert.equal(allowed.normalizedArgs.path, "/tmp/nerve/plans/edit-plan.md");
 
-    const legacyAllowed = evaluateToolPolicy(
-      agent("autonomous", "planning"),
-      "legacy_edit",
-      {
-        path: "/tmp/nerve/plans/legacy-edit-plan.md",
-        edits: [{ oldText: "old", newText: "new" }],
-      },
-      { dataDir: "/tmp/nerve" },
-    );
-    assert.equal(legacyAllowed.decision, "allow");
-    assert.equal(
-      legacyAllowed.normalizedArgs.path,
-      "/tmp/nerve/plans/legacy-edit-plan.md",
-    );
-
     const denied = evaluateToolPolicy(
       agent("autonomous", "planning"),
       "edit",
@@ -161,19 +146,6 @@ describe("tool policy", () => {
     );
     assert.equal(denied.decision, "deny");
     assert.match(denied.reason, /Planning mode allows edit only/);
-
-    assert.equal(
-      evaluateToolPolicy(
-        agent("supervised", "planning"),
-        "legacy_edit",
-        {
-          path: "/tmp/nerve/plans/legacy-edit-plan.md",
-          edits: [{ oldText: "old", newText: "new" }],
-        },
-        { dataDir: "/tmp/nerve" },
-      ).decision,
-      "approval",
-    );
   });
 
   it("handles explore as a bounded agent-spawn tool", () => {

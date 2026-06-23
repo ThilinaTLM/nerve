@@ -5,7 +5,6 @@ const toolRisks: Record<ToolName, ToolRisk> = {
   bash: "command",
   python: "command",
   edit: "workspace_write",
-  legacy_edit: "workspace_write",
   write: "workspace_write",
   grep: "read",
   find: "read",

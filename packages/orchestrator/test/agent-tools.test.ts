@@ -42,7 +42,6 @@ describe("agent tool definitions", () => {
         "bash",
         "python",
         "edit",
-        "legacy_edit",
         "write",
         "grep",
         "find",
@@ -72,7 +71,6 @@ describe("agent tool definitions", () => {
       "read",
       "bash",
       "edit",
-      "legacy_edit",
       "write",
       "grep",
       "find",
@@ -95,7 +93,6 @@ describe("agent tool definitions", () => {
       "read",
       "bash",
       "edit",
-      "legacy_edit",
       "write",
       "grep",
       "find",
@@ -403,7 +400,7 @@ describe("agent tool definitions", () => {
     assert.ok(askUser.parameters);
   });
 
-  it("normalizes edit and legacy_edit convenience arguments", () => {
+  it("normalizes edit convenience arguments", () => {
     const edit = coreToolDefinitionByName("edit");
     const preparedEdit = edit.prepareArguments?.({
       path: "src/file.ts",
@@ -415,17 +412,6 @@ describe("agent tool definitions", () => {
     assert.deepEqual(preparedEdit, {
       path: "src/file.ts",
       replacements: [{ oldText: "old", newText: "new" }],
-    });
-
-    const legacyEdit = coreToolDefinitionByName("legacy_edit");
-    const preparedLegacy = legacyEdit.prepareArguments?.({
-      path: "src/file.ts",
-      oldText: "old",
-      newText: "new",
-    }) as { path: string; edits: Array<{ oldText: string; newText: string }> };
-    assert.deepEqual(preparedLegacy, {
-      path: "src/file.ts",
-      edits: [{ oldText: "old", newText: "new" }],
     });
   });
 
@@ -474,12 +460,12 @@ describe("agent tool definitions", () => {
 
     const toolCall = await service.recordProviderToolCallError(
       testAgent,
-      "legacy_edit",
+      "edit",
       {
         path: "src/file.ts",
-        edits: [{ oldText: "a", newText: "b", note: "bad" }],
+        replacements: [{ oldText: "a", newText: "b", note: "bad" }],
       },
-      "Validation failed for tool legacy_edit.",
+      "Validation failed for tool edit.",
       {
         providerToolCallId: "provider_call_1",
         sourceToolCallId: "provider_call_1",
@@ -490,10 +476,10 @@ describe("agent tool definitions", () => {
     assert.equal(toolCall.status, "error");
     assert.equal(toolCall.sourceToolCallId, "provider_call_1");
     assert.equal(toolCall.providerToolCallId, "provider_call_1");
-    assert.equal(toolCall.error, "Validation failed for tool legacy_edit.");
+    assert.equal(toolCall.error, "Validation failed for tool edit.");
     assert.deepEqual(toolCall.args, {
       path: "src/file.ts",
-      edits: [{ oldText: "a", newText: "b", note: "bad" }],
+      replacements: [{ oldText: "a", newText: "b", note: "bad" }],
     });
     assert.equal(
       service.findToolCallByProviderToolCallId("provider_call_1")?.id,
@@ -507,7 +493,7 @@ describe("agent tool definitions", () => {
       join(home, "logs", "tool-calls.jsonl"),
       "utf8",
     );
-    assert.match(rawLog, /Validation failed for tool legacy_edit/);
+    assert.match(rawLog, /Validation failed for tool edit/);
   });
 
   it("terminalizes lingering running/requested tool calls when a run ends", async () => {

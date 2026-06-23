@@ -55,12 +55,6 @@ export type EditToolArgs = ToolPathArgs & {
   patch?: unknown;
 };
 
-export type LegacyEditToolArgs = ToolPathArgs & {
-  edits?: unknown;
-  oldText?: unknown;
-  newText?: unknown;
-};
-
 export type BashToolArgs = {
   command?: unknown;
   timeout?: unknown;

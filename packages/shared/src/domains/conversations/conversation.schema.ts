@@ -256,7 +256,6 @@ export interface ConversationLiveToolDraftDoneData {
 export interface ConversationLiveToolDraftProgressSnapshot {
   path?: string;
   lineCount?: number;
-  replacementCount?: number;
   operationCount?: number;
   generatedLineCount?: number;
   estimatedAdditions?: number;

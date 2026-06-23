@@ -86,50 +86,6 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("counts partial legacy_edit replacements and generated lines", () => {
-    const summary = summarizeToolDraft(
-      draft("legacy_edit", {
-        argsText:
-          '{"path":"src/app.ts","edits":[{"oldText":"a","newText":"b\\nc"},{"oldText":"d","newText":"e',
-      }),
-    );
-
-    assert.equal(summary.kind, "edit");
-    assert.equal(summary.path, "src/app.ts");
-    assert.equal(summary.statusText, "Generating");
-    assert.equal(summary.replacementCount, 2);
-    assert.equal(summary.generatedLineCount, 3);
-    assert.deepEqual(
-      summary.meta.map((item) => item.text),
-      ["+3", "-2"],
-    );
-  });
-
-  it("uses progress snapshots for legacy_edit drafts without raw args", () => {
-    const summary = summarizeToolDraft(
-      draft("legacy_edit", {
-        progress: {
-          path: "src/live.ts",
-          replacementCount: 3,
-          generatedLineCount: 8,
-          estimatedAdditions: 8,
-          estimatedDeletions: 5,
-          estimated: true,
-        },
-      }),
-    );
-
-    assert.equal(summary.path, "src/live.ts");
-    assert.equal(summary.replacementCount, 3);
-    assert.equal(summary.generatedLineCount, 8);
-    assert.equal(summary.estimatedAdditions, 8);
-    assert.equal(summary.estimatedDeletions, 5);
-    assert.deepEqual(
-      summary.meta.map((item) => item.text),
-      ["+8", "-5"],
-    );
-  });
-
   it("uses progress snapshots for edit operation drafts without raw args", () => {
     const summary = summarizeToolDraft(
       draft("edit", {
@@ -152,46 +108,6 @@ describe("summarizeToolDraft", () => {
     assert.deepEqual(
       summary.meta.map((item) => item.text),
       ["2 operations", "+6", "-4"],
-    );
-  });
-
-  it("hides legacy_edit draft chips until non-zero counts are known", () => {
-    const summary = summarizeToolDraft(
-      draft("legacy_edit", {
-        progress: {
-          path: "src/live.ts",
-          replacementCount: 0,
-          generatedLineCount: 0,
-          estimatedAdditions: 0,
-          estimatedDeletions: 0,
-          estimated: true,
-        },
-      }),
-    );
-
-    assert.equal(summary.path, "src/live.ts");
-    assert.deepEqual(summary.meta, []);
-  });
-
-  it("uses final legacy_edit args for exact replacement and generated-line counts", () => {
-    const summary = summarizeToolDraft(
-      draft("legacy_edit", {
-        args: {
-          path: "src/app.ts",
-          edits: [
-            { oldText: "a", newText: "b\nc" },
-            { oldText: "d", newText: "" },
-          ],
-        },
-        done: true,
-      }),
-    );
-
-    assert.equal(summary.replacementCount, 2);
-    assert.equal(summary.generatedLineCount, 2);
-    assert.deepEqual(
-      summary.meta.map((item) => item.text),
-      ["+2", "-2"],
     );
   });
 

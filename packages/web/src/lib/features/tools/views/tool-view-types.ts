@@ -114,8 +114,7 @@ export type ToolView =
       kind: "edit";
       path?: string;
       relPath?: string;
-      replacements: number;
-      operationLabel?: "replacement" | "operation";
+      operationCount: number;
       additions: number;
       deletions: number;
       diff?: string;

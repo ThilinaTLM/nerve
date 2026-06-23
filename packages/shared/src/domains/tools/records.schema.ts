@@ -18,7 +18,6 @@ export const coreToolNameSchema = z.enum([
   "bash",
   "python",
   "edit",
-  "legacy_edit",
   "write",
   "grep",
   "find",

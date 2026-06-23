@@ -6,10 +6,9 @@ import {
 } from "../src/domains/agents/run/tool-draft-streaming.js";
 
 describe("tool draft argument streaming policy", () => {
-  it("does not stream large write/edit/legacy_edit tool arguments", () => {
+  it("does not stream large write/edit tool arguments", () => {
     assert.equal(shouldStreamToolDraftArguments("write"), false);
     assert.equal(shouldStreamToolDraftArguments("edit"), false);
-    assert.equal(shouldStreamToolDraftArguments("legacy_edit"), false);
   });
 
   it("does not stream before the tool name is known", () => {
@@ -29,10 +28,9 @@ describe("tool draft argument streaming policy", () => {
     }
   });
 
-  it("publishes sanitized progress for write/edit/legacy_edit drafts only", () => {
+  it("publishes sanitized progress for write/edit drafts only", () => {
     assert.equal(shouldPublishToolDraftProgress("write"), true);
     assert.equal(shouldPublishToolDraftProgress("edit"), true);
-    assert.equal(shouldPublishToolDraftProgress("legacy_edit"), true);
     assert.equal(shouldPublishToolDraftProgress("python"), false);
     assert.equal(shouldPublishToolDraftProgress("bash"), false);
     assert.equal(shouldPublishToolDraftProgress(undefined), false);

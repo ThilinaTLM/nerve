@@ -3,7 +3,6 @@ import {
   bashResultDetailsSchema,
   editOperationResultDetailsSchema,
   exploreResultSchema,
-  legacyEditResultDetailsSchema,
   pythonResultDetailsSchema,
   taskActionResultSchema,
   taskListResultSchema,
@@ -230,31 +229,11 @@ export function parseToolView(
         kind: "edit",
         path,
         relPath,
-        replacements: operations,
-        operationLabel: "operation",
+        operationCount: operations,
         additions,
         deletions,
         diff,
         dryRun: details.success ? details.data.dryRun : undefined,
-      };
-    }
-
-    case "legacy_edit": {
-      const path = resolveToolPath(result?.path ?? stringField(args.path), cwd);
-      const relPath = relativePath(path, cwd);
-      const edits = Array.isArray(args.edits) ? args.edits.length : 0;
-      const details = legacyEditResultDetailsSchema.safeParse(result?.details);
-      const diff = details.success ? details.data.diff : undefined;
-      const { additions, deletions } = diffStats(diff);
-      return {
-        kind: "edit",
-        path,
-        relPath,
-        replacements: edits,
-        operationLabel: "replacement",
-        additions,
-        deletions,
-        diff,
       };
     }
 

@@ -91,11 +91,6 @@ const baseEditResultDetailsSchema = z
   })
   .passthrough();
 
-export const legacyEditResultDetailsSchema = baseEditResultDetailsSchema;
-export type LegacyEditResultDetails = z.infer<
-  typeof legacyEditResultDetailsSchema
->;
-
 export const editOperationResultSchema = z
   .object({
     index: z.number().int().nonnegative(),

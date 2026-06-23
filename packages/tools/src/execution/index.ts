@@ -24,10 +24,6 @@ export { ToolExecutionError } from "./common/tool-error.js";
 export { executeTool } from "./core-dispatch.js";
 export { executeEdit, normalizeEditArgs } from "./filesystem/edit.js";
 export { executeFind } from "./filesystem/find.js";
-export {
-  executeLegacyEdit,
-  normalizeLegacyEditOperations,
-} from "./filesystem/legacy-edit.js";
 export { executeLs } from "./filesystem/list.js";
 export { resolveToolPath } from "./filesystem/path.js";
 export { executeRead } from "./filesystem/read.js";

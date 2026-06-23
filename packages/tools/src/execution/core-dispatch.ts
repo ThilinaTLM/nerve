@@ -2,7 +2,6 @@ import type { ToolName } from "@nerve/shared";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import { executeEdit } from "./filesystem/edit.js";
 import { executeFind } from "./filesystem/find.js";
-import { executeLegacyEdit } from "./filesystem/legacy-edit.js";
 import { executeLs } from "./filesystem/list.js";
 import { executeRead } from "./filesystem/read.js";
 import { executeGrep } from "./filesystem/search.js";
@@ -26,8 +25,6 @@ export async function executeTool(
       return executePython(args, context);
     case "edit":
       return executeEdit(args, context);
-    case "legacy_edit":
-      return executeLegacyEdit(args, context);
     case "write":
       return executeWrite(args, context);
     case "grep":

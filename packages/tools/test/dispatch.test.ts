@@ -18,12 +18,8 @@ describe("executeTool dispatch", () => {
         "edit",
         {
           path: "input.txt",
-          replacements: [{ oldText: "beta", newText: "gamma" }],
+          replacements: [{ oldText: "beta", newText: "delta" }],
         },
-      ],
-      [
-        "legacy_edit",
-        { path: "input.txt", oldText: "gamma", newText: "delta" },
       ],
       ["ls", { path: "." }],
       ["find", { path: ".", pattern: "*.txt" }],
