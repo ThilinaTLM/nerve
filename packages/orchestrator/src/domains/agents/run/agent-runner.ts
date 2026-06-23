@@ -1,51 +1,39 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
-  AgentHarness,
+  type AgentHarness,
   type AgentMessage,
   AgentToolSuspension,
   buildConversationContext,
   Conversation,
   calculateContextTokens,
   computeContextUsage,
-  convertToLlm,
   deriveAutoCompactionPolicy,
   getModelContextWindow,
-  isAgentToolSuspension,
   isContextOverflowAssistantMessage,
-  NodeExecutionEnv,
-  resolveAgentModel,
   shouldAutoCompact,
 } from "@nerve/agent";
-import {
-  type AgentRecord,
-  type ContextUsage,
-  type ConversationEntry,
-  type ConversationRecord,
-  type ConversationRunRetryExhaustedData,
-  type ConversationRunStatusDetails,
-  type CreateAgentRequest,
-  createId,
-  type PromptRequest,
-  type ToolName,
-  toolNameSchema,
+import type {
+  AgentRecord,
+  ContextUsage,
+  ConversationEntry,
+  ConversationRecord,
+  ConversationRunRetryExhaustedData,
+  ConversationRunStatusDetails,
+  CreateAgentRequest,
+  PromptRequest,
+  ToolName,
 } from "@nerve/shared";
 import type { AuthManager } from "../../../auth.js";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
 import type { ApplicationLogger } from "../../../logging.js";
-import { loadHarnessResources } from "../../../resource-loader.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import type { ConversationService } from "../../conversations/conversation-service.js";
 import type { HarnessManager } from "../../conversations/harness-manager.js";
 import type { CompactionService } from "../../conversations/operations/index.js";
-import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import type { PythonRuntimeService } from "../../runtime/python-runtime-service.js";
-import {
-  activeToolNamesForAgent,
-  createAgentToolsForAgent,
-  toolPromptMetadata,
-} from "../../tools/agent-tool-adapter.js";
+import { activeToolNamesForAgent } from "../../tools/agent-tool-adapter.js";
 import type {
   ExploreProgressUpdate,
   ToolService,
@@ -53,17 +41,10 @@ import type {
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import type { AgentSuspensionService } from "../agent-suspension.service.js";
 import type { PromptQueueRepository } from "../prompt-queue.repository.js";
+import { runAgentPromptSession } from "./agent-run-session.js";
+import { delay, isRetryableAssistantError } from "./agent-runner-shared.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
-import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
-import {
-  createToolDraftProgressAccumulator,
-  type ToolDraftProgressAccumulator,
-} from "./tool-draft-progress.js";
-import {
-  shouldPublishToolDraftProgress,
-  shouldStreamToolDraftArguments,
-} from "./tool-draft-streaming.js";
 
 export interface AgentRunnerDeps {
   storage: InitializedStorage;
@@ -100,10 +81,10 @@ const AUTO_CONTINUE_MESSAGE =
   "Continue the work using the context checkpoint above. Resume from the Next Steps and keep going until the task is complete. If everything is already finished, briefly confirm completion and stop.";
 
 export class AgentRunner {
-  private readonly subagents: SubagentRunner;
-  private readonly autoContinuationCounts = new Map<string, number>();
+  readonly subagents: SubagentRunner;
+  readonly autoContinuationCounts = new Map<string, number>();
 
-  constructor(private readonly deps: AgentRunnerDeps) {
+  constructor(readonly deps: AgentRunnerDeps) {
     this.subagents = new SubagentRunner({
       storage: deps.storage,
       events: deps.events,
@@ -122,7 +103,7 @@ export class AgentRunner {
     });
   }
 
-  private async activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]> {
+  async activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]> {
     const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
       agent.projectDir,
     );
@@ -227,8 +208,7 @@ export class AgentRunner {
     const failedMessage =
       failedEntry?.type === "message" ? failedEntry.message : undefined;
     if (
-      !failedEntry ||
-      failedEntry.type !== "message" ||
+      failedEntry?.type !== "message" ||
       failedMessage?.role !== "assistant" ||
       failedMessage.stopReason !== "error" ||
       failedEntry.parentId === null
@@ -282,678 +262,10 @@ export class AgentRunner {
     request: PromptRequest,
     options: { continue?: boolean } = {},
   ): Promise<ConversationEntry> {
-    if (this.deps.state.runs.has(agent.id)) {
-      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
-    }
-
-    // A fresh (non-continuation) prompt resets the auto-continuation budget so
-    // the runaway guard only counts back-to-back automatic continuations.
-    if (!options.continue) {
-      this.autoContinuationCounts.delete(agent.conversationId);
-    }
-
-    const runId = createId("run");
-    const runStartedAt = performance.now();
-    let abortRequested = false;
-    let lastAssistantEntry: ConversationEntry | undefined;
-    let currentTurnId: string | undefined;
-    let currentLiveMessageId: string | undefined;
-    const liveToolDraftNames = new Map<number, string | undefined>();
-    const liveToolDraftProgress = new Map<
-      number,
-      ToolDraftProgressAccumulator
-    >();
-    const pendingProviderToolCalls = new Map<
-      string,
-      { toolName: string; args: Record<string, unknown> }
-    >();
-
-    try {
-      await this.deps.logger.info("Agent run preparing", {
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        context: { behavior: request.behavior, continue: options.continue },
-      });
-      const conversation = this.deps.state.getConversation(
-        agent.conversationId,
-      );
-      const project = this.deps.state.getProject(agent.projectId);
-      const storage = await this.deps.harnessManager.openStorage(
-        conversation,
-        project.dir,
-      );
-      const harnessConversation = new Conversation(storage);
-      const initialHarnessEntryIds = new Set(
-        (await storage.getEntries()).map((entry) => entry.id),
-      );
-      let activeToolNames = await this.activeToolNamesFor(agent);
-      const model = resolveAgentModel(agent.model);
-      this.deps.subscriptionUsage.touchProvider(model.provider);
-      const env = new NodeExecutionEnv({ cwd: agent.projectDir });
-      const resources = await loadHarnessResources(agent.projectDir);
-      const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
-      const composeLatestSystemPrompt = () => {
-        const currentAgent = latestAgent();
-        const currentActiveToolNames = activeToolNamesForAgent(currentAgent, {
-          pythonAvailable: activeToolNames.includes("python"),
-        });
-        return composeAgentSystemPrompt(
-          currentAgent,
-          currentActiveToolNames,
-          toolPromptMetadata(currentActiveToolNames),
-          resources,
-          { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
-        );
-      };
-
-      let currentProviderForResponse: string | undefined;
-
-      const harness = new AgentHarness({
-        env,
-        conversation: harnessConversation,
-        resources: { skills: resources.skills },
-        tools: createAgentToolsForAgent(agent, this.deps.tools, {
-          runId,
-          resolveToolAnchor: (providerToolCallId) =>
-            this.deps.state.conversationRuntime.resolveToolAnchor(
-              runId,
-              providerToolCallId,
-            ),
-        }),
-        activeToolNames,
-        model,
-        thinkingLevel: agent.thinkingLevel,
-        getApiKeyAndHeaders: async (requestModel) => {
-          if (requestModel.provider === "nerve-faux") return undefined;
-          const apiKey = await this.deps.auth.getApiKey(requestModel.provider);
-          return apiKey ? { apiKey } : undefined;
-        },
-        systemPrompt: composeLatestSystemPrompt,
-      });
-
-      harness.subscribe(async (event) => {
-        if (event.type === "before_provider_request") {
-          currentProviderForResponse = event.model.provider;
-          this.deps.subscriptionUsage.touchProvider(event.model.provider);
-          return;
-        }
-        if (event.type === "after_provider_response") {
-          const responseProvider = currentProviderForResponse;
-          currentProviderForResponse = undefined;
-          if (responseProvider === "openai-codex") {
-            this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
-          }
-          return;
-        }
-        if (event.type === "turn_start") {
-          const turn = this.deps.state.conversationRuntime.startTurn(runId);
-          currentTurnId = turn.turnId;
-          currentLiveMessageId = undefined;
-          liveToolDraftNames.clear();
-          liveToolDraftProgress.clear();
-          pendingProviderToolCalls.clear();
-          return;
-        }
-        if (event.type === "tool_execution_start") {
-          pendingProviderToolCalls.set(event.toolCallId, {
-            toolName: event.toolName,
-            args: recordFromUnknown(event.args),
-          });
-          return;
-        }
-        if (event.type === "tool_execution_end") {
-          const started = pendingProviderToolCalls.get(event.toolCallId);
-          pendingProviderToolCalls.delete(event.toolCallId);
-          if (!event.isError) return;
-          if (
-            this.deps.tools.findToolCallByProviderToolCallId(event.toolCallId)
-          ) {
-            return;
-          }
-          const parsedToolName = toolNameSchema.safeParse(event.toolName);
-          if (!parsedToolName.success) {
-            await this.deps.logger.warn(
-              "Unknown tool call failed before execution",
-              {
-                agentId: agent.id,
-                conversationId: agent.conversationId,
-                projectId: agent.projectId,
-                runId,
-                context: {
-                  toolName: event.toolName,
-                  providerToolCallId: event.toolCallId,
-                },
-              },
-            );
-            return;
-          }
-          await this.deps.tools.recordProviderToolCallError(
-            agent,
-            parsedToolName.data as ToolName,
-            started?.args ?? {},
-            errorTextFromToolResult(event.result, event.toolName),
-            {
-              sourceToolCallId: event.toolCallId,
-              providerToolCallId: event.toolCallId,
-              runId,
-              anchor: this.deps.state.conversationRuntime.resolveToolAnchor(
-                runId,
-                event.toolCallId,
-              ),
-            },
-          );
-          return;
-        }
-        if (
-          event.type === "message_start" &&
-          event.message.role === "assistant"
-        ) {
-          if (!currentTurnId) {
-            const turn = this.deps.state.conversationRuntime.startTurn(runId);
-            currentTurnId = turn.turnId;
-          }
-          const started =
-            this.deps.state.conversationRuntime.startAssistantMessage(
-              runId,
-              currentTurnId,
-            );
-          currentLiveMessageId = started.liveMessageId;
-          liveToolDraftNames.clear();
-          liveToolDraftProgress.clear();
-          await this.deps.events.publish(
-            "conversation.live.message.started",
-            started,
-            { durability: "transient" },
-          );
-          return;
-        }
-        if (event.type === "message_update") {
-          if (!currentTurnId || !currentLiveMessageId) return;
-          const update = event.assistantMessageEvent;
-          if (update.type === "text_delta") {
-            const data = this.deps.state.conversationRuntime.applyContentDelta({
-              runId,
-              turnId: currentTurnId,
-              liveMessageId: currentLiveMessageId,
-              contentIndex: update.contentIndex,
-              kind: "text",
-              delta: update.delta,
-            });
-            await this.deps.events.publish(
-              "conversation.live.content.delta",
-              data,
-              { durability: "transient" },
-            );
-          } else if (update.type === "thinking_delta") {
-            const data = this.deps.state.conversationRuntime.applyContentDelta({
-              runId,
-              turnId: currentTurnId,
-              liveMessageId: currentLiveMessageId,
-              contentIndex: update.contentIndex,
-              kind: "thinking",
-              delta: update.delta,
-            });
-            await this.deps.events.publish(
-              "conversation.live.content.delta",
-              data,
-              { durability: "transient" },
-            );
-          } else if (update.type === "text_end") {
-            const data = this.deps.state.conversationRuntime.finishContent({
-              runId,
-              turnId: currentTurnId,
-              liveMessageId: currentLiveMessageId,
-              contentIndex: update.contentIndex,
-              kind: "text",
-              finalText: update.content,
-            });
-            await this.deps.events.publish(
-              "conversation.live.content.done",
-              data,
-              {
-                durability: "transient",
-              },
-            );
-          } else if (update.type === "thinking_end") {
-            const data = this.deps.state.conversationRuntime.finishContent({
-              runId,
-              turnId: currentTurnId,
-              liveMessageId: currentLiveMessageId,
-              contentIndex: update.contentIndex,
-              kind: "thinking",
-              finalText: update.content,
-              redacted: assistantContentRedacted(
-                update.partial,
-                update.contentIndex,
-              ),
-            });
-            await this.deps.events.publish(
-              "conversation.live.content.done",
-              data,
-              {
-                durability: "transient",
-              },
-            );
-          } else if (update.type === "toolcall_start") {
-            const draft = assistantToolCallDraft(
-              update.partial,
-              update.contentIndex,
-            );
-            liveToolDraftNames.set(update.contentIndex, draft?.name);
-            const progressAccumulator = createToolDraftProgressAccumulator(
-              draft?.name,
-            );
-            if (progressAccumulator) {
-              liveToolDraftProgress.set(
-                update.contentIndex,
-                progressAccumulator,
-              );
-            }
-            const data = this.deps.state.conversationRuntime.startToolDraft({
-              runId,
-              turnId: currentTurnId,
-              liveMessageId: currentLiveMessageId,
-              contentIndex: update.contentIndex,
-              providerToolCallId: draft?.id,
-              toolName: draft?.name,
-            });
-            await this.deps.events.publish(
-              "conversation.live.tool_draft.started",
-              data,
-              { durability: "transient" },
-            );
-          } else if (update.type === "toolcall_delta") {
-            const draft = assistantToolCallDraft(
-              update.partial,
-              update.contentIndex,
-            );
-            const toolName =
-              draft?.name ?? liveToolDraftNames.get(update.contentIndex);
-            if (draft?.name)
-              liveToolDraftNames.set(update.contentIndex, draft.name);
-            if (shouldStreamToolDraftArguments(toolName)) {
-              const data =
-                this.deps.state.conversationRuntime.applyToolDraftDelta({
-                  runId,
-                  turnId: currentTurnId,
-                  liveMessageId: currentLiveMessageId,
-                  contentIndex: update.contentIndex,
-                  delta: update.delta,
-                });
-              await this.deps.events.publish(
-                "conversation.live.tool_draft.delta",
-                data,
-                { durability: "transient" },
-              );
-              return;
-            }
-            if (!shouldPublishToolDraftProgress(toolName)) return;
-            const progressAccumulator =
-              liveToolDraftProgress.get(update.contentIndex) ??
-              createToolDraftProgressAccumulator(toolName);
-            if (!progressAccumulator) return;
-            liveToolDraftProgress.set(update.contentIndex, progressAccumulator);
-            const progress = progressAccumulator.push(update.delta);
-            if (!progress) return;
-            const data =
-              this.deps.state.conversationRuntime.applyToolDraftProgress({
-                runId,
-                turnId: currentTurnId,
-                liveMessageId: currentLiveMessageId,
-                contentIndex: update.contentIndex,
-                providerToolCallId: draft?.id,
-                toolName,
-                progress,
-              });
-            await this.deps.events.publish(
-              "conversation.live.tool_draft.progress",
-              data,
-              { durability: "transient" },
-            );
-          } else if (update.type === "toolcall_end") {
-            liveToolDraftNames.delete(update.contentIndex);
-            liveToolDraftProgress.delete(update.contentIndex);
-            const data = this.deps.state.conversationRuntime.finishToolDraft({
-              runId,
-              turnId: currentTurnId,
-              liveMessageId: currentLiveMessageId,
-              contentIndex: update.contentIndex,
-              providerToolCallId: update.toolCall.id,
-              toolName: update.toolCall.name,
-              args: update.toolCall.arguments,
-            });
-            await this.deps.events.publish(
-              "conversation.live.tool_draft.done",
-              data,
-              { durability: "transient" },
-            );
-          }
-          return;
-        }
-        if (event.type === "message_end") {
-          const liveMessageId =
-            event.message.role === "assistant"
-              ? currentLiveMessageId
-              : undefined;
-          const mirrored =
-            await this.deps.messageMirror.mirrorNewHarnessEntries(
-              agent,
-              storage,
-              initialHarnessEntryIds,
-              {
-                runId,
-                turnId: currentTurnId,
-                liveMessageId,
-              },
-            );
-          let shouldPublishContextUsage = false;
-          for (const entry of mirrored) {
-            await this.deps.events.publish("conversation.entry.appended", {
-              conversationId: agent.conversationId,
-              agentId: agent.id,
-              runId,
-              turnId: entry.turnId ?? currentTurnId,
-              liveMessageId: entry.liveMessageId,
-              entry,
-            });
-            if (entry.role === "user") {
-              await this.maybeMarkQueuedPromptDelivered(agent, runId, entry);
-              await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
-                conversation.id,
-                entry.text,
-              );
-            } else if (entry.role === "assistant") {
-              lastAssistantEntry = entry;
-              if (entry.usage) shouldPublishContextUsage = true;
-            }
-          }
-          if (shouldPublishContextUsage) {
-            await this.publishContextUsage(
-              agent.conversationId,
-              agent.id,
-              runId,
-            ).catch((error) => {
-              process.emitWarning(
-                `Context-usage publish failed for ${agent.conversationId}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-              );
-            });
-          }
-          if (event.message.role === "assistant")
-            currentLiveMessageId = undefined;
-          return;
-        }
-      });
-
-      const startedAt = new Date().toISOString();
-      this.deps.state.conversationRuntime.startRun({
-        agentId: agent.id,
-        projectId: agent.projectId,
-        conversationId: agent.conversationId,
-        runId,
-        startedAt,
-      });
-      await this.deps.events.publish("conversation.run.started", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        conversationId: agent.conversationId,
-        runId,
-        parentEntryId: conversation.activeEntryId,
-        startedAt,
-      });
-      await this.deps.logger.info("Agent run started", {
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        context: {
-          parentEntryId: conversation.activeEntryId,
-          model: model.id,
-          provider: model.provider,
-        },
-      });
-
-      this.deps.state.runs.set(agent.id, {
-        runId,
-        abort: async () => {
-          abortRequested = true;
-          this.deps.state.conversationRuntime.markAborting(runId);
-          await harness.abort();
-        },
-        messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
-        steer: (text, options) =>
-          harness.steer(text, { images: options?.images }),
-        followUp: (text, options) =>
-          harness.steer(text, { images: options?.images }),
-        updateAgentRuntimeConfig: async (updatedAgent) => {
-          const nextActiveToolNames =
-            await this.activeToolNamesFor(updatedAgent);
-          if (!sameStringList(nextActiveToolNames, activeToolNames)) {
-            activeToolNames = nextActiveToolNames;
-            await harness.setActiveTools(nextActiveToolNames);
-          }
-
-          const nextModel = resolveAgentModel(updatedAgent.model);
-          const currentModel = harness.getModel();
-          if (
-            currentModel.provider !== nextModel.provider ||
-            currentModel.id !== nextModel.id
-          ) {
-            await harness.setModel(nextModel);
-          }
-
-          if (harness.getThinkingLevel() !== updatedAgent.thinkingLevel) {
-            await harness.setThinkingLevel(updatedAgent.thinkingLevel);
-          }
-        },
-        appendExternalMessage: (input) => harness.appendExternalMessage(input),
-        enqueueHarnessMessage: (input) =>
-          harness.enqueueHarnessMessage({
-            id: input.id,
-            message: input.message,
-            timestamp: input.timestamp,
-            delivery: input.delivery,
-          }),
-      });
-      await this.deps.setAgentStatus(agent, "running");
-
-      const runAssistant = await this.runHarnessWithRetries({
-        harness,
-        conversation: harnessConversation,
-        request,
-        continue: options.continue === true,
-        runId,
-        agent,
-      });
-      const latest = this.deps.state.agents.get(agent.id);
-      this.deps.state.runs.delete(agent.id);
-      const branch = await storage.getPathToRoot(await storage.getLeafId());
-      const messages = convertToLlm(buildConversationContext(branch).messages);
-      this.deps.conversationService.setForAgent(agent.id, messages);
-      const assistantEntry = lastAssistantEntry;
-      if (!assistantEntry) {
-        throw new Error("Agent run completed without an assistant entry.");
-      }
-      if (
-        runAssistant.stopReason === "error" ||
-        runAssistant.stopReason === "aborted"
-      ) {
-        const aborted = runAssistant.stopReason === "aborted" || abortRequested;
-        if (latest)
-          await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
-        const retryExhausted = !aborted
-          ? await this.maybeAppendRetryExhaustedStatus(
-              agent,
-              runId,
-              assistantEntry,
-              runAssistant,
-            )
-          : undefined;
-        this.deps.state.conversationRuntime.failRun(runId);
-        await this.terminateRunToolCalls(runId);
-        await this.deps.events.publish("conversation.run.failed", {
-          agentId: agent.id,
-          projectId: agent.projectId,
-          runId,
-          conversationId: agent.conversationId,
-          message: runAssistant.errorMessage ?? "Agent run failed.",
-          aborted,
-          failedAt: new Date().toISOString(),
-          retryExhausted,
-        });
-        await this.deps.logger.warn("Agent run failed", {
-          agentId: agent.id,
-          conversationId: agent.conversationId,
-          projectId: agent.projectId,
-          runId,
-          durationMs: Math.round(performance.now() - runStartedAt),
-          context: {
-            finalEntryId: assistantEntry.id,
-            stopReason: runAssistant.stopReason,
-            errorMessage: runAssistant.errorMessage,
-          },
-        });
-        return assistantEntry;
-      }
-      if (latest) await this.deps.setAgentStatus(latest, "idle");
-      const completedAt = new Date().toISOString();
-      this.deps.state.conversationRuntime.completeRun(runId);
-      await this.deps.events.publish("conversation.run.completed", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId,
-        conversationId: agent.conversationId,
-        finalEntryId: assistantEntry.id,
-        completedAt,
-      });
-      await this.deps.logger.info("Agent run completed", {
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        durationMs: Math.round(performance.now() - runStartedAt),
-        context: { finalEntryId: assistantEntry.id },
-      });
-      await this.maybeAutoCompact(agent.conversationId, agent.id, runId).catch(
-        (error) => {
-          process.emitWarning(
-            `Auto-compaction failed for ${agent.conversationId}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        },
-      );
-      await this.publishContextUsage(
-        agent.conversationId,
-        agent.id,
-        runId,
-      ).catch((error) => {
-        process.emitWarning(
-          `Context-usage publish failed for ${agent.conversationId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
-      return assistantEntry;
-    } catch (error) {
-      const suspensionError = isAgentToolSuspension(error)
-        ? error
-        : this.suspensionFromWaitingToolCall(agent, runId, error);
-      if (suspensionError) {
-        this.deps.state.runs.delete(agent.id);
-        const latest = this.deps.state.agents.get(agent.id);
-        const toolCall = this.deps.tools.getToolCall(
-          suspensionError.data.toolCallId,
-        );
-        const providerToolCallId =
-          toolCall.providerToolCallId ??
-          toolCall.sourceToolCallId ??
-          suspensionError.data.toolCall?.id ??
-          suspensionError.data.toolCallId;
-        const suspension = await this.deps.suspensions.createSuspension({
-          agentId: agent.id,
-          conversationId: agent.conversationId,
-          projectId: agent.projectId,
-          runId,
-          turnId: currentTurnId,
-          liveMessageId: currentLiveMessageId,
-          assistantEntryId: lastAssistantEntry?.id,
-          toolCallId: toolCall.id,
-          providerToolCallId,
-          toolName: toolCall.toolName as "ask_user" | "plan_mode_present",
-          remainingToolCalls: (
-            suspensionError.data.remainingToolCalls ?? []
-          ).map((remaining) => ({
-            id: remaining.id,
-            name: remaining.name,
-            arguments: remaining.arguments,
-          })),
-          reason: suspensionError.data.reason,
-        });
-        if (latest) await this.deps.setAgentStatus(latest, "awaiting_user");
-        const suspendedAt = new Date().toISOString();
-        this.deps.state.conversationRuntime.completeRun(runId);
-        await this.deps.events.publish("conversation.run.suspended", {
-          agentId: agent.id,
-          projectId: agent.projectId,
-          runId,
-          conversationId: agent.conversationId,
-          suspensionId: suspension.id,
-          toolCallId: toolCall.id,
-          suspendedAt,
-          reason: suspensionError.data.reason,
-        });
-        await this.deps.logger.info("Agent run suspended", {
-          agentId: agent.id,
-          conversationId: agent.conversationId,
-          projectId: agent.projectId,
-          runId,
-          toolCallId: toolCall.id,
-          durationMs: Math.round(performance.now() - runStartedAt),
-          context: {
-            suspensionId: suspension.id,
-            reason: suspensionError.data.reason,
-          },
-        });
-        if (lastAssistantEntry) return lastAssistantEntry;
-        throw new Error("Agent run suspended without an assistant entry.");
-      }
-      this.deps.state.runs.delete(agent.id);
-      const aborted = abortRequested;
-      const latest = this.deps.state.agents.get(agent.id);
-      if (latest)
-        await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
-      this.deps.state.conversationRuntime.failRun(runId);
-      await this.terminateRunToolCalls(runId);
-      await this.deps.events.publish("conversation.run.failed", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId,
-        conversationId: agent.conversationId,
-        message: error instanceof Error ? error.message : String(error),
-        aborted,
-        failedAt: new Date().toISOString(),
-      });
-      await this.deps.logger[aborted ? "warn" : "error"](
-        aborted ? "Agent run aborted" : "Agent run failed",
-        {
-          agentId: agent.id,
-          conversationId: agent.conversationId,
-          projectId: agent.projectId,
-          runId,
-          durationMs: Math.round(performance.now() - runStartedAt),
-          context: { aborted },
-          error,
-        },
-      );
-      throw error;
-    }
+    return runAgentPromptSession.call(this, agent, request, options);
   }
 
-  private async terminateRunToolCalls(
+  async terminateRunToolCalls(
     runId: string,
     message = "Tool execution was interrupted because the agent run ended.",
   ): Promise<void> {
@@ -967,7 +279,7 @@ export class AgentRunner {
     }
   }
 
-  private async maybeAppendRetryExhaustedStatus(
+  async maybeAppendRetryExhaustedStatus(
     agent: AgentRecord,
     runId: string,
     assistantEntry: ConversationEntry,
@@ -1021,7 +333,7 @@ export class AgentRunner {
     };
   }
 
-  private async runHarnessWithRetries(input: {
+  async runHarnessWithRetries(input: {
     harness: AgentHarness;
     conversation: Conversation;
     request: PromptRequest;
@@ -1112,7 +424,7 @@ export class AgentRunner {
     }
   }
 
-  private async tryOverflowCompactionRecovery(
+  async tryOverflowCompactionRecovery(
     input: {
       conversation: Conversation;
       runId: string;
@@ -1123,7 +435,7 @@ export class AgentRunner {
   ): Promise<boolean> {
     const leafId = await input.conversation.getLeafId();
     const leaf = leafId ? await input.conversation.getEntry(leafId) : undefined;
-    if (!leaf || leaf.type !== "message" || leaf.message.role !== "assistant") {
+    if (leaf?.type !== "message" || leaf.message.role !== "assistant") {
       return false;
     }
     const failedEntryId = leaf.id;
@@ -1177,7 +489,7 @@ export class AgentRunner {
     }
   }
 
-  private async maybeMarkQueuedPromptDelivered(
+  async maybeMarkQueuedPromptDelivered(
     agent: AgentRecord,
     runId: string,
     entry: ConversationEntry,
@@ -1208,7 +520,7 @@ export class AgentRunner {
     });
   }
 
-  private suspensionFromWaitingToolCall(
+  suspensionFromWaitingToolCall(
     agent: AgentRecord,
     runId: string,
     error: unknown,
@@ -1250,7 +562,7 @@ export class AgentRunner {
     return computeContextUsage(messages, branch, contextWindow);
   }
 
-  private async publishContextUsage(
+  async publishContextUsage(
     conversationId: string,
     agentId: string,
     runId: string,
@@ -1263,7 +575,7 @@ export class AgentRunner {
     );
   }
 
-  private async maybeAutoCompact(
+  async maybeAutoCompact(
     conversationId: string,
     agentId?: string,
     runId?: string,
@@ -1319,7 +631,7 @@ export class AgentRunner {
    * Push a normal handover user message and start a continuation run after an
    * automatic compaction, bounded by a per-conversation runaway guard.
    */
-  private async continueAfterAutoCompaction(agent: AgentRecord): Promise<void> {
+  async continueAfterAutoCompaction(agent: AgentRecord): Promise<void> {
     const count = this.autoContinuationCounts.get(agent.conversationId) ?? 0;
     if (count >= MAX_AUTO_CONTINUATIONS) return;
     this.autoContinuationCounts.set(agent.conversationId, count + 1);
@@ -1336,7 +648,7 @@ export class AgentRunner {
     void this.continueAgent(agent.id).catch(() => undefined);
   }
 
-  private async appendAutoContinueMessage(
+  async appendAutoContinueMessage(
     agent: AgentRecord,
     text: string,
   ): Promise<ConversationEntry> {
@@ -1361,72 +673,4 @@ export class AgentRunner {
       { mirrorToHarness: false },
     );
   }
-}
-
-function recordFromUnknown(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function errorTextFromToolResult(result: unknown, toolName: string): string {
-  const record = recordFromUnknown(result);
-  const content = Array.isArray(record.content) ? record.content : [];
-  const text = content
-    .map((part) => {
-      const partRecord = recordFromUnknown(part);
-      return partRecord.type === "text" && typeof partRecord.text === "string"
-        ? partRecord.text
-        : "";
-    })
-    .filter(Boolean)
-    .join("\n");
-  return text.trim() || `Tool ${toolName} failed before execution.`;
-}
-
-function isRetryableAssistantError(message: AssistantMessage): boolean {
-  if (message.stopReason !== "error" || !message.errorMessage) return false;
-  const error = message.errorMessage;
-  if (
-    /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|available balance|insufficient_quota|out of budget|quota exceeded|billing|context.?length|context.?window|maximum context|too many tokens/i.test(
-      error,
-    )
-  ) {
-    return false;
-  }
-  return /overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|network.?error|connection.?error|connection.?refused|connection.?lost|websocket.?closed|websocket.?error|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|stream ended before message_stop|http2 request did not get a response|timed? out|timeout|terminated|retry delay/i.test(
-    error,
-  );
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function sameStringList(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
-}
-
-function assistantContentRedacted(
-  message: AssistantMessage,
-  contentIndex: number,
-): boolean | undefined {
-  const block = message.content[contentIndex];
-  return block?.type === "thinking" ? block.redacted : undefined;
-}
-
-function assistantToolCallDraft(
-  message: AssistantMessage,
-  contentIndex: number,
-): { id?: string; name?: string } | undefined {
-  const block = message.content[contentIndex];
-  return block?.type === "toolCall"
-    ? { id: block.id, name: block.name }
-    : undefined;
 }

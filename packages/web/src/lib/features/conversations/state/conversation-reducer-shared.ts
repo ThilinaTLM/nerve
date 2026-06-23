@@ -69,7 +69,7 @@ export function removeLiveRunStatusTranscriptItem(
   runId?: string,
 ): void {
   view.transcript = view.transcript.filter((item) => {
-    if (!item.runStatus || item.runStatus.state !== "retrying") return true;
+    if (item.runStatus?.state !== "retrying") return true;
     return Boolean(runId && item.runStatus.runId !== runId);
   });
 }

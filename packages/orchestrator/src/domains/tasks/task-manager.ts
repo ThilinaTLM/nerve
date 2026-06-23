@@ -1,31 +1,25 @@
 import type { ChildProcess } from "node:child_process";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import {
   type CancelTaskRequest,
   createId,
   type StartTaskRequest,
-  type TaskEnvInfo,
   type TaskLogEvent,
   type TaskLogQuery,
   type TaskLogQueryResponse,
   type TaskRecord,
   type TaskRuntime,
 } from "@nerve/shared";
-import {
-  boundLiveOutputChunk,
-  buildProcessResult,
-  buildProcessTextResult,
-  type ToolExecutionOutputUpdate,
-  type ToolExecutionResult,
+import type {
+  ToolExecutionOutputUpdate,
+  ToolExecutionResult,
 } from "@nerve/tools";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { ApplicationLogger } from "../../logging.js";
 import {
-  createTaskLogCursor,
   defaultTaskSupervisor,
   isActiveTaskStatus,
   type TaskLogCursor,
@@ -39,14 +33,54 @@ import {
   type TaskLaunchConfigStore,
   UnconfiguredTaskLaunchConfigStore,
 } from "./task-launch-config.store.js";
+import {
+  forceFinalizeCancelledTask as forceFinalizeCancelledTaskImpl,
+  forceFinalizeTimedOutTask as forceFinalizeTimedOutTaskImpl,
+  markTaskError as markTaskErrorImpl,
+  markTaskExited as markTaskExitedImpl,
+  resolveManagedTerminal as resolveManagedTerminalImpl,
+} from "./task-manager-finalization.js";
+import {
+  buildForegroundBashResult as buildForegroundBashResultImpl,
+  runForegroundBashWithPromotion as runForegroundBashWithPromotionImpl,
+} from "./task-manager-foreground.js";
+import {
+  cleanupOrphanedTask as cleanupOrphanedTaskImpl,
+  errorMessage as errorMessageImpl,
+  failOrphanCleanup as failOrphanCleanupImpl,
+  finalizeOrphanCleanup as finalizeOrphanCleanupImpl,
+  isRuntimeTargetAlive as isRuntimeTargetAliveImpl,
+  markHydratedRecordOrphaned as markHydratedRecordOrphanedImpl,
+  orphanCleanupValidationError as orphanCleanupValidationErrorImpl,
+  orphanedHydrateMessage as orphanedHydrateMessageImpl,
+  runtimeLogContext as runtimeLogContextImpl,
+  terminateRuntimeForCleanup as terminateRuntimeForCleanupImpl,
+  waitForRuntimeTargetExit as waitForRuntimeTargetExitImpl,
+} from "./task-manager-orphan.js";
+import {
+  captureOutput as captureOutputImpl,
+  checkReadiness as checkReadinessImpl,
+  clearReadinessWatch as clearReadinessWatchImpl,
+  flushTaskOutputBuffers as flushTaskOutputBuffersImpl,
+  isReadyUrlReachable as isReadyUrlReachableImpl,
+  markReadinessTimeout as markReadinessTimeoutImpl,
+  markRuntimeTimeout as markRuntimeTimeoutImpl,
+  markTaskReady as markTaskReadyImpl,
+  pollReadyUrl as pollReadyUrlImpl,
+  requestTermination as requestTerminationImpl,
+  scheduleReadinessTimeout as scheduleReadinessTimeoutImpl,
+  scheduleReadyUrlPolling as scheduleReadyUrlPollingImpl,
+  scheduleRuntimeTimeout as scheduleRuntimeTimeoutImpl,
+} from "./task-manager-output-readiness.js";
+import { startTask as startTaskImpl } from "./task-manager-start.js";
 
 export interface TaskManagerOptions {
   supervisor?: TaskSupervisor;
   launchConfigs?: TaskLaunchConfigStore;
 }
 
-const RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS = 5000;
-const FOREGROUND_TIMEOUT_RESULT_GRACE_MS = 500;
+const _RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS = 5000;
+const _FOREGROUND_TIMEOUT_RESULT_GRACE_MS = 500;
 
 export type ForegroundBashPromotionInput = {
   command: string;
@@ -71,7 +105,7 @@ export type ForegroundBashPromotionResult =
       elapsedMs: number;
     };
 
-interface ManagedTask extends TaskLogCursor {
+export interface ManagedTask extends TaskLogCursor {
   child?: ChildProcess;
   stopping: boolean;
   finalized: boolean;
@@ -92,18 +126,18 @@ interface ManagedTask extends TaskLogCursor {
 
 export class TaskManager {
   readonly tasks = new Map<string, TaskRecord>();
-  private readonly managed = new Map<string, ManagedTask>();
-  private readonly taskRepository: TaskRepository;
-  private readonly taskLogs: TaskLogService;
-  private readonly taskReadiness = new TaskReadinessService();
-  private readonly supervisor: TaskSupervisor;
-  private readonly launchConfigs: TaskLaunchConfigStore;
+  readonly managed = new Map<string, ManagedTask>();
+  readonly taskRepository: TaskRepository;
+  readonly taskLogs: TaskLogService;
+  readonly taskReadiness = new TaskReadinessService();
+  readonly supervisor: TaskSupervisor;
+  readonly launchConfigs: TaskLaunchConfigStore;
 
   constructor(
     storage: InitializedStorage,
-    private readonly events: EventBus,
-    private readonly index: IndexStore,
-    private readonly logger?: ApplicationLogger,
+    readonly events: EventBus,
+    readonly index: IndexStore,
+    readonly logger?: ApplicationLogger,
     options: TaskManagerOptions = {},
   ) {
     this.supervisor = options.supervisor ?? defaultTaskSupervisor;
@@ -138,7 +172,7 @@ export class TaskManager {
     await this.migrateLegacyProcesses();
   }
 
-  private async migrateLegacyProcesses(): Promise<void> {
+  async migrateLegacyProcesses(): Promise<void> {
     for (const legacy of await this.taskRepository.hydrateLegacyProcesses()) {
       if (this.findTaskByLegacyProcessId(legacy.id)) continue;
       const record = this.legacyProcessToTask(legacy);
@@ -148,13 +182,13 @@ export class TaskManager {
     }
   }
 
-  private findTaskByLegacyProcessId(processId: string): TaskRecord | undefined {
+  findTaskByLegacyProcessId(processId: string): TaskRecord | undefined {
     return [...this.tasks.values()].find(
       (task) => task.legacyProcessId === processId,
     );
   }
 
-  private legacyProcessToTask(legacy: LegacyProcessRecord): TaskRecord {
+  legacyProcessToTask(legacy: LegacyProcessRecord): TaskRecord {
     const now = new Date().toISOString();
     const id = createId("task");
     const dir = this.taskDir(id);
@@ -219,183 +253,8 @@ export class TaskManager {
       onOutput?: (update: ToolExecutionOutputUpdate) => void;
     },
   ): Promise<TaskRecord> {
-    const now = new Date().toISOString();
-    const id = createId("task");
-    const dir = this.taskDir(id);
-    await mkdir(dir, { recursive: true, mode: 0o755 });
-
-    const envInfo = buildTaskEnvInfo(request.env);
-    if (envInfo) {
-      await this.launchConfigs.write(id, {
-        version: 1,
-        env: request.env,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    const readiness = this.taskReadiness.buildReadiness(request);
-    const notify = defaultTaskNotificationsEnabled(request);
-    const injectCompletion = request.injectCompletion ?? false;
-    const restartSource = request.restartedFromTaskId
-      ? this.tasks.get(request.restartedFromTaskId)
-      : undefined;
-    const restartRootTaskId = restartSource
-      ? (restartSource.restartRootTaskId ?? restartSource.id)
-      : request.restartedFromTaskId
-        ? request.restartedFromTaskId
-        : id;
-    const restartGeneration = restartSource
-      ? (restartSource.restartGeneration ?? 0) + 1
-      : request.restartedFromTaskId
-        ? 1
-        : 0;
-    const completion =
-      request.completion ??
-      (injectCompletion
-        ? { inject: true, outputTailLineCount: 80 }
-        : request.injectCompletion === false
-          ? { inject: false, outputTailLineCount: 80 }
-          : undefined);
-    const notifications = {
-      enabled: notify,
-      ready: notify,
-      terminal: notify,
-      outputTailLineCount: 80,
-    };
-    const record: TaskRecord = {
-      id,
-      name: request.name,
-      groupId: request.groupId,
-      groupName: request.groupName,
-      workerId: request.workerId,
-      projectId: request.projectId,
-      conversationId: request.conversationId,
-      agentId: request.agentId,
-      cwd: resolve(request.cwd),
-      command: request.command,
-      envInfo,
-      status: "starting",
-      readiness,
-      stdoutPath: join(dir, "stdout.log"),
-      stderrPath: join(dir, "stderr.log"),
-      combinedPath: join(dir, "combined.log"),
-      logsPath: join(dir, "logs.jsonl"),
-      startedAt: now,
-      updatedAt: now,
-      timeoutMs: request.timeoutMs,
-      restartedFromTaskId: request.restartedFromTaskId,
-      restartRootTaskId,
-      restartGeneration,
-      origin: request.origin ?? { kind: "api" },
-      completion,
-      notifications,
-      visibility: request.visibility ?? "background",
-    };
-
-    const readinessPattern = this.taskReadiness.compilePattern(
-      request.readyPattern,
-    );
-
-    await this.upsertTask(record);
-    await this.events.publish("task.created", { task: record });
-    await this.logger?.info("Task created", {
-      taskId: record.id,
-      projectId: record.projectId,
-      conversationId: record.conversationId,
-      agentId: record.agentId,
-      context: {
-        name: record.name,
-        cwd: record.cwd,
-        command: record.command,
-        envKeyCount: record.envInfo?.keys.length ?? 0,
-      },
-    });
-
-    const spawned = this.supervisor.spawn(request.command, {
-      cwd: record.cwd,
-      env: request.env,
-    });
-    const { child, runtime } = spawned;
-    await this.updateTask(record.id, { runtime });
-
-    const closePromise = new Promise<{
-      exitCode: number | null;
-      signal: NodeJS.Signals | null;
-    }>((resolveClose) => {
-      child.once("close", (exitCode, signal) => {
-        resolveClose({ exitCode, signal });
-      });
-    });
-    let resolveTerminal: ((task: TaskRecord | undefined) => void) | undefined;
-    const terminalPromise = new Promise<TaskRecord | undefined>((resolve) => {
-      resolveTerminal = resolve;
-    });
-    const managed: ManagedTask = {
-      child,
-      ...createTaskLogCursor(await this.taskLogs.latestLogSeq(record.logsPath)),
-      stopping: false,
-      finalized: false,
-      closePromise,
-      terminalPromise,
-      resolveTerminal,
-      readinessPattern,
-      onOutput: request.onOutput,
-    };
-    managed.finalizationPromise = closePromise
-      .then(({ exitCode, signal }) =>
-        this.markTaskExited(record.id, exitCode, signal),
-      )
-      .catch(async (error: unknown) => {
-        if (this.logger) {
-          await this.logger
-            .error("Task finalization failed", {
-              taskId: record.id,
-              projectId: record.projectId,
-              conversationId: record.conversationId,
-              agentId: record.agentId,
-              error,
-            })
-            .catch(() => undefined);
-        }
-        return undefined;
-      });
-    this.managed.set(record.id, managed);
-
-    child.stdout?.on("data", (chunk) => {
-      void this.captureOutput(record.id, "stdout", chunk);
-    });
-    child.stderr?.on("data", (chunk) => {
-      void this.captureOutput(record.id, "stderr", chunk);
-    });
-    child.on("error", (error) => {
-      void this.markTaskError(record.id, error.message);
-    });
-
-    await this.updateTask(record.id, { status: "running" });
-    this.scheduleReadyUrlPolling(record.id);
-    this.scheduleReadinessTimeout(record.id);
-    this.scheduleRuntimeTimeout(record.id, request.timeoutMs);
-    await this.events.publish("task.started", {
-      task: this.getTask(record.id),
-      pid: runtime.childPid,
-      runtime,
-    });
-    await this.logger?.info("Task started", {
-      taskId: record.id,
-      projectId: record.projectId,
-      conversationId: record.conversationId,
-      agentId: record.agentId,
-      context: {
-        pid: runtime.childPid,
-        processGroupId: runtime.processGroupId,
-        platform: runtime.platform,
-      },
-    });
-
-    return this.getTask(record.id);
+    return await startTaskImpl.call(this, request);
   }
-
   async cancelTask(
     taskId: string,
     request: CancelTaskRequest = {},
@@ -575,164 +434,16 @@ export class TaskManager {
     return this.taskLogs.queryLogs(this.getTask(taskId), query);
   }
 
-  private async buildForegroundBashResult(
+  async buildForegroundBashResult(
     taskId: string,
   ): Promise<ToolExecutionResult> {
-    const task = this.getTask(taskId);
-    const [stdout, stderr, combinedFromFile] = await Promise.all([
-      readFile(task.stdoutPath).catch(() => Buffer.alloc(0)),
-      readFile(task.stderrPath).catch(() => Buffer.alloc(0)),
-      task.combinedPath
-        ? readFile(task.combinedPath).catch(() => Buffer.alloc(0))
-        : Promise.resolve(Buffer.alloc(0)),
-    ]);
-    const combined =
-      combinedFromFile.length > 0
-        ? combinedFromFile
-        : Buffer.concat([stdout, stderr]);
-    const timedOut = task.status === "timed_out";
-    return buildProcessResult({
-      stdoutChunks: stdout.length > 0 ? [stdout] : [],
-      stderrChunks: stderr.length > 0 ? [stderr] : [],
-      combinedChunks: combined.length > 0 ? [combined] : [],
-      code: task.exitCode ?? null,
-      signal: (task.signal as NodeJS.Signals | null | undefined) ?? null,
-      outputFilePrefix: "nerve-bash",
-      exitMessagePrefix: "Command",
-      dataDir: this.taskRepository.storageHome,
-      timedOut,
-      timeoutKilled: timedOut,
-      timeoutMessage: task.error,
-      details: { foregroundTaskId: task.id },
-    });
+    return await buildForegroundBashResultImpl.call(this, taskId);
   }
-
   async runForegroundBashWithPromotion(
     input: ForegroundBashPromotionInput,
   ): Promise<ForegroundBashPromotionResult> {
-    if (input.signal?.aborted) throw new Error("Command aborted.");
-
-    const startedAt = Date.now();
-    const task = await this.startTask({
-      workerId: input.workerId,
-      projectId: input.projectId,
-      conversationId: input.conversationId,
-      agentId: input.agentId,
-      cwd: input.cwd,
-      command: input.command,
-      timeoutMs: input.timeoutMs,
-      notify: false,
-      origin: input.origin,
-      completion: { inject: false, outputTailLineCount: 80 },
-      visibility: "foreground",
-      onOutput: input.onOutput,
-    });
-    const managed = this.managed.get(task.id);
-    if (!managed?.terminalPromise) {
-      throw new Error("Foreground bash task did not start correctly.");
-    }
-
-    let abortHandler: (() => void) | undefined;
-    const abortPromise = new Promise<"aborted">((resolveAbort) => {
-      abortHandler = () => resolveAbort("aborted");
-      input.signal?.addEventListener("abort", abortHandler, { once: true });
-    });
-    const promotionDelayMs = foregroundPromotionDelayMs(input);
-    let promotionTimer: NodeJS.Timeout | undefined;
-    const promotionPromise = new Promise<"promote">((resolvePromote) => {
-      promotionTimer = setTimeout(
-        () => resolvePromote("promote"),
-        promotionDelayMs,
-      );
-    });
-    const completionPromise = managed.terminalPromise.then(
-      () => "completed" as const,
-    );
-
-    let outcome: "completed" | "promote" | "aborted";
-    try {
-      outcome = await Promise.race([
-        completionPromise,
-        promotionPromise,
-        abortPromise,
-      ]);
-    } finally {
-      if (promotionTimer) clearTimeout(promotionTimer);
-      if (abortHandler)
-        input.signal?.removeEventListener("abort", abortHandler);
-    }
-
-    if (outcome === "aborted") {
-      await this.cancelTask(task.id, {
-        reason: "Foreground bash aborted.",
-      }).catch(() => undefined);
-      await this.removeTask(task.id).catch(() => undefined);
-      throw new Error("Command aborted.");
-    }
-
-    if (outcome === "completed") {
-      const result = await this.buildForegroundBashResult(task.id);
-      await this.removeTask(task.id).catch(() => undefined);
-      return { kind: "completed_foreground", result };
-    }
-
-    const latest = this.getTask(task.id);
-    if (!isActiveTaskStatus(latest.status)) {
-      const result = await this.buildForegroundBashResult(task.id);
-      await this.removeTask(task.id).catch(() => undefined);
-      return { kind: "completed_foreground", result };
-    }
-
-    const latestManaged = this.managed.get(task.id);
-    if (latestManaged) latestManaged.onOutput = undefined;
-    const promoted = await this.updateTask(task.id, {
-      visibility: "background",
-      completion: { inject: true, outputTailLineCount: 80 },
-      notifications: {
-        enabled: true,
-        ready: true,
-        terminal: true,
-        outputTailLineCount: 80,
-      },
-    });
-    await this.events.publish("task.promoted", { task: promoted });
-    const elapsedMs = Date.now() - startedAt;
-    const logs = await this.queryLogs(promoted.id, {
-      mode: "recent",
-      limit: 20,
-    });
-    const recentOutput = logs.events
-      .map(
-        (event) =>
-          `[${event.seq} ${event.stream} ${event.level}] ${event.line}`,
-      )
-      .join("\n");
-    const text = [
-      `Command is still running after ${Math.round(elapsedMs / 1000)}s, so Nerve promoted it to background task ${promoted.id}.`,
-      `Command: ${promoted.command}`,
-      `Elapsed: ${Math.round(elapsedMs / 1000)}s`,
-      "",
-      "Recent output:",
-      recentOutput || "(no captured log lines yet)",
-      "",
-      "Nerve will send an async task update when it finishes.",
-      `Inspect: task_status({ taskId: "${promoted.id}", includeLogs: true }) or task_logs({ taskId: "${promoted.id}" }).`,
-      `Cancel: task_cancel({ taskId: "${promoted.id}" }).`,
-    ].join("\n");
-    const result = await buildProcessTextResult({
-      text,
-      outputFilePrefix: "nerve-task-promotion",
-      exitMessagePrefix: "Command promotion",
-      dataDir: this.taskRepository.storageHome,
-      details: {
-        promotedToTask: true,
-        task: promoted,
-        elapsedMs,
-      },
-    });
-    return { kind: "promoted", task: promoted, result, elapsedMs };
+    return await runForegroundBashWithPromotionImpl.call(this, input);
   }
-
   async markCompletionInjected(
     taskId: string,
     entryId: string,
@@ -801,7 +512,7 @@ export class TaskManager {
     });
   }
 
-  private async envForRestart(
+  async envForRestart(
     record: TaskRecord,
   ): Promise<Record<string, string> | undefined> {
     if (!record.envInfo?.persisted) return undefined;
@@ -826,755 +537,184 @@ export class TaskManager {
     return env ? { ...env } : undefined;
   }
 
-  private async captureOutput(
+  async captureOutput(
     taskId: string,
     stream: "stdout" | "stderr",
     chunk: Buffer | string,
   ): Promise<void> {
-    const record = this.tasks.get(taskId);
-    const managed = this.managed.get(taskId);
-    if (!record || !managed) return;
-    managed.onOutput?.({
-      kind: "output",
-      stream,
-      chunk: boundLiveOutputChunk(
-        Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk,
-      ),
-    });
-    await this.taskLogs.captureOutput(
-      record,
-      managed,
-      stream,
-      chunk,
-      async (event) => this.checkReadiness(record.id, event),
-    );
+    return await captureOutputImpl.call(this, taskId, stream, chunk);
   }
-
-  private async flushTaskOutputBuffers(taskId: string): Promise<void> {
-    const record = this.tasks.get(taskId);
-    const managed = this.managed.get(taskId);
-    if (!record || !managed) return;
-
-    try {
-      await this.taskLogs.flushOutputBuffers(record, managed, async (event) =>
-        this.checkReadiness(record.id, event),
-      );
-    } catch (error) {
-      await this.logger
-        ?.warn("Task output flush failed", {
-          taskId: record.id,
-          projectId: record.projectId,
-          conversationId: record.conversationId,
-          agentId: record.agentId,
-          error,
-        })
-        .catch(() => undefined);
-    }
+  async flushTaskOutputBuffers(taskId: string): Promise<void> {
+    return await flushTaskOutputBuffersImpl.call(this, taskId);
   }
-
-  private async checkReadiness(
-    taskId: string,
-    log: TaskLogEvent,
-  ): Promise<void> {
-    const record = this.tasks.get(taskId);
-    const managed = this.managed.get(taskId);
-    if (!record || !managed || record.readiness.outcome !== "pending") return;
-    const matched = this.taskReadiness.match(
-      record,
-      managed.readinessPattern,
-      log,
-    );
-    if (!matched) return;
-    await this.markTaskReady(taskId, matched);
+  async checkReadiness(taskId: string, log: TaskLogEvent): Promise<void> {
+    return await checkReadinessImpl.call(this, taskId, log);
   }
-
-  private async markTaskReady(taskId: string, matched: string): Promise<void> {
-    const record = this.tasks.get(taskId);
-    const managed = this.managed.get(taskId);
-    if (!record || !managed || record.readiness.outcome !== "pending") return;
-    if (record.status === "stopping" || !isActiveTaskStatus(record.status))
-      return;
-    this.clearReadinessWatch(managed);
-    const ready = await this.updateTask(taskId, {
-      status: "ready",
-      readiness: {
-        ...record.readiness,
-        outcome: "ready",
-        matched,
-        readyAt: new Date().toISOString(),
-      },
-    });
-    await this.events.publish("task.ready", { task: ready, matched });
-    await this.logger?.info("Task ready", {
-      taskId: ready.id,
-      projectId: ready.projectId,
-      conversationId: ready.conversationId,
-      agentId: ready.agentId,
-      context: { matched },
-    });
+  async markTaskReady(taskId: string, matched: string): Promise<void> {
+    return await markTaskReadyImpl.call(this, taskId, matched);
   }
-
-  private scheduleReadyUrlPolling(taskId: string): void {
-    const record = this.tasks.get(taskId);
-    if (!record?.readiness.readyUrl || record.readiness.outcome !== "pending") {
-      return;
-    }
-    const managed = this.managed.get(taskId);
-    if (!managed) return;
-    managed.readinessPollAbort?.abort();
-    const abort = new AbortController();
-    managed.readinessPollAbort = abort;
-    const readyUrl = record.readiness.readyUrl;
-    void this.pollReadyUrl(taskId, readyUrl, abort.signal);
+  scheduleReadyUrlPolling(taskId: string): void {
+    scheduleReadyUrlPollingImpl.call(this, taskId);
   }
-
-  private async pollReadyUrl(
+  async pollReadyUrl(
     taskId: string,
     readyUrl: string,
     signal: AbortSignal,
   ): Promise<void> {
-    while (!signal.aborted) {
-      const record = this.tasks.get(taskId);
-      if (!record || record.readiness.outcome !== "pending") return;
-      if (await this.isReadyUrlReachable(readyUrl, signal)) {
-        await this.markTaskReady(taskId, readyUrl);
-        return;
-      }
-      try {
-        await delay(250, undefined, { signal });
-      } catch {
-        return;
-      }
-    }
+    return await pollReadyUrlImpl.call(this, taskId, readyUrl, signal);
   }
-
-  private async isReadyUrlReachable(
+  async isReadyUrlReachable(
     readyUrl: string,
     signal: AbortSignal,
   ): Promise<boolean> {
-    try {
-      await fetch(readyUrl, { method: "GET", signal });
-      return true;
-    } catch (error) {
-      if (signal.aborted) return false;
-      if (error instanceof TypeError) return false;
-      return false;
-    }
+    return await isReadyUrlReachableImpl.call(this, readyUrl, signal);
   }
-
-  private clearReadinessWatch(managed: ManagedTask | undefined): void {
-    if (!managed) return;
-    if (managed.readinessTimer) clearTimeout(managed.readinessTimer);
-    managed.readinessTimer = undefined;
-    managed.readinessPollAbort?.abort();
-    managed.readinessPollAbort = undefined;
+  clearReadinessWatch(managed: ManagedTask | undefined): void {
+    clearReadinessWatchImpl.call(this, managed);
   }
-
-  private scheduleReadinessTimeout(taskId: string): void {
-    const record = this.tasks.get(taskId);
-    if (!record || record.readiness.outcome !== "pending") return;
-    const managed = this.managed.get(taskId);
-    const timeoutMs = record.readiness.timeoutMs ?? 3000;
-    if (!managed || timeoutMs <= 0) return;
-    if (managed.readinessTimer) clearTimeout(managed.readinessTimer);
-    managed.readinessTimer = setTimeout(() => {
-      void this.markReadinessTimeout(taskId);
-    }, timeoutMs);
+  scheduleReadinessTimeout(taskId: string): void {
+    scheduleReadinessTimeoutImpl.call(this, taskId);
   }
-
-  private scheduleRuntimeTimeout(
-    taskId: string,
-    timeoutMs: number | undefined,
-  ): void {
-    if (!timeoutMs || timeoutMs <= 0) return;
-    const managed = this.managed.get(taskId);
-    if (!managed) return;
-    if (managed.runtimeTimer) clearTimeout(managed.runtimeTimer);
-    managed.runtimeTimer = setTimeout(() => {
-      void this.markRuntimeTimeout(taskId, timeoutMs);
-    }, timeoutMs);
+  scheduleRuntimeTimeout(taskId: string, timeoutMs: number | undefined): void {
+    scheduleRuntimeTimeoutImpl.call(this, taskId, timeoutMs);
   }
-
-  private async markReadinessTimeout(taskId: string): Promise<void> {
-    const record = this.tasks.get(taskId);
-    if (!record || record.readiness.outcome !== "pending") return;
-    this.clearReadinessWatch(this.managed.get(taskId));
-    const updated = await this.updateTask(taskId, {
-      readiness: { ...record.readiness, outcome: "timeout" },
-    });
-    await this.events.publish("task.ready_timeout", { task: updated });
-    await this.logger?.warn("Task readiness timed out", {
-      taskId: updated.id,
-      projectId: updated.projectId,
-      conversationId: updated.conversationId,
-      agentId: updated.agentId,
-      context: { timeoutMs: updated.readiness.timeoutMs },
-    });
+  async markReadinessTimeout(taskId: string): Promise<void> {
+    return await markReadinessTimeoutImpl.call(this, taskId);
   }
-
-  private async markRuntimeTimeout(
-    taskId: string,
-    timeoutMs: number,
-  ): Promise<void> {
-    const record = this.tasks.get(taskId);
-    const managed = this.managed.get(taskId);
-    if (!record || !managed?.child || !isActiveTaskStatus(record.status))
-      return;
-    managed.timedOut = true;
-    this.clearReadinessWatch(managed);
-    const error = `Task exceeded maximum runtime of ${timeoutMs}ms.`;
-    const stopping = await this.updateTask(taskId, {
-      status: "stopping",
-      error,
-    });
-    await this.logger?.warn("Task runtime timed out", {
-      taskId: stopping.id,
-      projectId: stopping.projectId,
-      conversationId: stopping.conversationId,
-      agentId: stopping.agentId,
-      context: { timeoutMs },
-    });
-    void this.requestTermination(stopping, managed.child, "SIGTERM", error);
-    setTimeout(() => {
-      const latest = this.tasks.get(taskId);
-      if (!latest || !isActiveTaskStatus(latest.status)) return;
-      void this.requestTermination(
-        latest,
-        managed.child as ChildProcess,
-        "SIGKILL",
-        error,
-      );
-      void this.forceFinalizeTimedOutTask(taskId, "SIGKILL", error);
-    }, RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS);
+  async markRuntimeTimeout(taskId: string, timeoutMs: number): Promise<void> {
+    return await markRuntimeTimeoutImpl.call(this, taskId, timeoutMs);
   }
-
-  private async requestTermination(
+  async requestTermination(
     record: TaskRecord,
     child: ChildProcess,
     signal: NodeJS.Signals,
     reason: string,
   ): Promise<void> {
-    try {
-      const result = await this.supervisor.terminate(child, signal);
-      if (!result.error) return;
-      if (this.logger) {
-        await this.logger
-          .warn("Task termination reported an error", {
-            taskId: record.id,
-            projectId: record.projectId,
-            conversationId: record.conversationId,
-            agentId: record.agentId,
-            context: {
-              signal,
-              reason,
-              method: result.method,
-              error: result.error,
-            },
-          })
-          .catch(() => undefined);
-      }
-    } catch (error) {
-      if (this.logger) {
-        await this.logger
-          .warn("Task termination failed", {
-            taskId: record.id,
-            projectId: record.projectId,
-            conversationId: record.conversationId,
-            agentId: record.agentId,
-            error,
-            context: { signal, reason },
-          })
-          .catch(() => undefined);
-      }
-    }
+    return await requestTerminationImpl.call(
+      this,
+      record,
+      child,
+      signal,
+      reason,
+    );
+  }
+  markHydratedRecordOrphaned(record: TaskRecord): TaskRecord {
+    return markHydratedRecordOrphanedImpl.call(this, record);
   }
 
-  private markHydratedRecordOrphaned(record: TaskRecord): TaskRecord {
-    const now = new Date().toISOString();
-    const foregroundAgentTask =
-      record.visibility === "foreground" && record.origin.kind === "agent_tool";
-    return {
-      ...record,
-      status: "orphaned",
-      visibility: foregroundAgentTask ? "background" : record.visibility,
-      completion: foregroundAgentTask
-        ? {
-            ...record.completion,
-            inject: true,
-            outputTailLineCount: record.completion?.outputTailLineCount ?? 80,
-          }
-        : record.completion,
-      notifications: foregroundAgentTask
-        ? {
-            enabled: true,
-            ready: false,
-            terminal: true,
-            outputTailLineCount:
-              record.notifications?.outputTailLineCount ??
-              record.completion?.outputTailLineCount ??
-              80,
-          }
-        : record.notifications,
-      error: this.orphanedHydrateMessage(record.runtime),
-      finishedAt: now,
-      updatedAt: now,
-    };
+  orphanedHydrateMessage(runtime: TaskRuntime | undefined): string {
+    return orphanedHydrateMessageImpl.call(this, runtime);
   }
 
-  private orphanedHydrateMessage(runtime: TaskRuntime | undefined): string {
-    if (runtime?.childPid) {
-      return `Task supervision was lost after daemon restart. Use task_cancel to attempt cleanup of PID ${runtime.childPid}.`;
-    }
-    if (runtime?.processGroupId) {
-      return `Task supervision was lost after daemon restart. Use task_cancel to attempt cleanup of process group ${runtime.processGroupId}.`;
-    }
-    return "Task supervision was lost after daemon restart, and no PID metadata was captured.";
-  }
-
-  private async cleanupOrphanedTask(
+  async cleanupOrphanedTask(
     taskId: string,
     request: CancelTaskRequest,
   ): Promise<TaskRecord> {
-    const record = this.getTask(taskId);
-    if (record.status !== "orphaned") return record;
-
-    const validationError = this.orphanCleanupValidationError(record.runtime);
-    if (validationError) {
-      await this.failOrphanCleanup(record, validationError);
-    }
-    const runtime = record.runtime as TaskRuntime;
-    const initialSignal = request.signal ?? "SIGTERM";
-    const timeoutMs = request.timeoutMs ?? 5000;
-
-    await this.events.publish("task.stop_requested", {
-      taskId: record.id,
-      signal: initialSignal,
-      orphaned: true,
-    });
-    await this.logger?.info("Orphaned task cleanup requested", {
-      taskId: record.id,
-      projectId: record.projectId,
-      conversationId: record.conversationId,
-      agentId: record.agentId,
-      context: this.runtimeLogContext(runtime, { signal: initialSignal }),
-    });
-
-    if (runtime.platform === "win32") {
-      const result = await this.terminateRuntimeForCleanup(
-        record,
-        runtime,
-        "SIGKILL",
-      );
-      if (!result.attempted || result.error) {
-        await this.failOrphanCleanup(
-          record,
-          result.error ?? "Could not clean up orphaned task runtime target.",
-          { method: result.method, signal: "SIGKILL" },
-        );
-      }
-      return this.finalizeOrphanCleanup(record.id, "SIGKILL", runtime, {
-        method: result.method,
-      });
-    }
-
-    const initialResult = await this.terminateRuntimeForCleanup(
-      record,
-      runtime,
-      initialSignal,
-    );
-    if (!initialResult.attempted || initialResult.method === "none") {
-      await this.failOrphanCleanup(
-        record,
-        initialResult.error ?? "Could not signal orphaned task runtime target.",
-        { method: initialResult.method, signal: initialSignal },
-      );
-    }
-    if (initialResult.error) {
-      await this.logger?.warn(
-        "Orphaned task cleanup signal reported an error",
-        {
-          taskId: record.id,
-          projectId: record.projectId,
-          conversationId: record.conversationId,
-          agentId: record.agentId,
-          context: this.runtimeLogContext(runtime, {
-            signal: initialSignal,
-            method: initialResult.method,
-            error: initialResult.error,
-          }),
-        },
-      );
-    }
-
-    let finalSignal = initialSignal;
-    if (!(await this.waitForRuntimeTargetExit(runtime, timeoutMs))) {
-      finalSignal = "SIGKILL";
-      const killResult = await this.terminateRuntimeForCleanup(
-        record,
-        runtime,
-        finalSignal,
-      );
-      if (!killResult.attempted || killResult.method === "none") {
-        await this.failOrphanCleanup(
-          record,
-          killResult.error ??
-            "Could not force-kill orphaned task runtime target.",
-          { method: killResult.method, signal: finalSignal },
-        );
-      }
-      if (killResult.error && (await this.isRuntimeTargetAlive(runtime))) {
-        await this.failOrphanCleanup(record, killResult.error, {
-          method: killResult.method,
-          signal: finalSignal,
-        });
-      }
-    }
-
-    return this.finalizeOrphanCleanup(record.id, finalSignal, runtime);
+    return await cleanupOrphanedTaskImpl.call(this, taskId, request);
   }
 
-  private orphanCleanupValidationError(
+  orphanCleanupValidationError(
     runtime: TaskRuntime | undefined,
   ): string | undefined {
-    if (!runtime) {
-      return "Cannot clean up orphaned task because no PID metadata was captured.";
-    }
-    if (runtime.platform !== process.platform) {
-      return `Cannot clean up task spawned on ${runtime.platform} from ${process.platform}.`;
-    }
-    if (runtime.platform === "win32" && !runtime.childPid) {
-      return "Cannot clean up orphaned task because no child PID metadata was captured.";
-    }
-    if (
-      runtime.platform !== "win32" &&
-      !runtime.processGroupId &&
-      !runtime.childPid
-    ) {
-      return "Cannot clean up orphaned task because no process-group or child PID metadata was captured.";
-    }
-    return undefined;
+    return orphanCleanupValidationErrorImpl.call(this, runtime);
   }
 
-  private async terminateRuntimeForCleanup(
+  async terminateRuntimeForCleanup(
     record: TaskRecord,
     runtime: TaskRuntime,
     signal: NodeJS.Signals,
   ) {
-    try {
-      return await this.supervisor.terminateRuntime(runtime, signal);
-    } catch (error) {
-      await this.logger?.warn("Orphaned task cleanup termination threw", {
-        taskId: record.id,
-        projectId: record.projectId,
-        conversationId: record.conversationId,
-        agentId: record.agentId,
-        error,
-        context: this.runtimeLogContext(runtime, { signal }),
-      });
-      return {
-        attempted: false,
-        method: "none" as const,
-        error: this.errorMessage(error),
-      };
-    }
+    return await terminateRuntimeForCleanupImpl.call(
+      this,
+      record,
+      runtime,
+      signal,
+    );
   }
 
-  private async waitForRuntimeTargetExit(
+  async waitForRuntimeTargetExit(
     runtime: TaskRuntime,
     timeoutMs: number,
   ): Promise<boolean> {
-    const deadline = Date.now() + Math.max(0, timeoutMs);
-    while (true) {
-      if (!(await this.isRuntimeTargetAlive(runtime))) return true;
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) return false;
-      await delay(Math.min(50, remaining));
-    }
+    return await waitForRuntimeTargetExitImpl.call(this, runtime, timeoutMs);
   }
 
-  private async isRuntimeTargetAlive(runtime: TaskRuntime): Promise<boolean> {
-    try {
-      return await this.supervisor.isRuntimeTargetAlive(runtime);
-    } catch (error) {
-      await this.logger?.warn("Orphaned task liveness check failed", {
-        error,
-        context: this.runtimeLogContext(runtime),
-      });
-      return true;
-    }
+  async isRuntimeTargetAlive(runtime: TaskRuntime): Promise<boolean> {
+    return await isRuntimeTargetAliveImpl.call(this, runtime);
   }
 
-  private async finalizeOrphanCleanup(
+  async finalizeOrphanCleanup(
     taskId: string,
     finalSignal: NodeJS.Signals,
     runtime: TaskRuntime,
     context: Record<string, unknown> = {},
   ): Promise<TaskRecord> {
-    const record = this.getTask(taskId);
-    if (record.status !== "orphaned") return record;
-    const managed = this.managed.get(taskId);
-    this.clearReadinessWatch(managed);
-    if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
-
-    const readiness =
-      record.readiness.outcome === "pending"
-        ? { ...record.readiness, outcome: "exited" as const }
-        : record.readiness;
-    const updated = await this.updateTask(taskId, {
-      status: "cancelled",
-      readiness,
-      finishedAt: new Date().toISOString(),
-      exitCode: null,
-      signal: finalSignal,
-      error: undefined,
-    });
-    this.managed.delete(taskId);
-    await this.events.publish("task.cancelled", { task: updated });
-    await this.events.publish("task.orphan_cleanup_succeeded", {
-      task: updated,
+    return await finalizeOrphanCleanupImpl.call(
+      this,
+      taskId,
+      finalSignal,
       runtime,
-      signal: finalSignal,
-      ...context,
-    });
-    await this.logger?.info("Orphaned task cleanup completed", {
-      taskId: updated.id,
-      projectId: updated.projectId,
-      conversationId: updated.conversationId,
-      agentId: updated.agentId,
-      context: this.runtimeLogContext(runtime, {
-        signal: finalSignal,
-        ...context,
-      }),
-    });
-    return updated;
+      context,
+    );
   }
 
-  private async failOrphanCleanup(
+  async failOrphanCleanup(
     record: TaskRecord,
     message: string,
     context: Record<string, unknown> = {},
   ): Promise<never> {
-    const updated = await this.updateTask(record.id, { error: message });
-    await this.events.publish("task.cleanup_failed", {
-      task: updated,
-      error: message,
-      orphaned: true,
-      ...context,
-    });
-    await this.logger?.warn("Orphaned task cleanup failed", {
-      taskId: updated.id,
-      projectId: updated.projectId,
-      conversationId: updated.conversationId,
-      agentId: updated.agentId,
-      context: this.runtimeLogContext(updated.runtime, {
-        error: message,
-        ...context,
-      }),
-    });
-    throw new Error(message);
+    return await failOrphanCleanupImpl.call(this, record, message, context);
   }
 
-  private runtimeLogContext(
+  runtimeLogContext(
     runtime: TaskRuntime | undefined,
     extra: Record<string, unknown> = {},
   ): Record<string, unknown> {
-    return {
-      pid: runtime?.childPid,
-      processGroupId: runtime?.processGroupId,
-      platform: runtime?.platform,
-      detached: runtime?.detached,
-      shell: runtime?.shell,
-      spawnedAt: runtime?.spawnedAt,
-      ...extra,
-    };
+    return runtimeLogContextImpl.call(this, runtime, extra);
   }
 
-  private errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
+  errorMessage(error: unknown): string {
+    return errorMessageImpl.call(this, error);
   }
 
-  private async forceFinalizeCancelledTask(
+  async forceFinalizeCancelledTask(
     taskId: string,
     signal: NodeJS.Signals,
     reason: string,
   ): Promise<TaskRecord> {
-    const record = this.getTask(taskId);
-    if (!isActiveTaskStatus(record.status)) return record;
-
-    const managed = this.managed.get(taskId);
-    this.clearReadinessWatch(managed);
-    if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
-    if (managed) managed.finalized = true;
-
-    await this.flushTaskOutputBuffers(taskId);
-
-    const freshRecord = this.tasks.get(taskId) ?? record;
-    const readiness =
-      freshRecord.readiness.outcome === "pending"
-        ? { ...freshRecord.readiness, outcome: "exited" as const }
-        : freshRecord.readiness;
-    const updated = await this.updateTask(taskId, {
-      status: "cancelled",
-      readiness,
-      finishedAt: new Date().toISOString(),
-      exitCode: null,
+    return await forceFinalizeCancelledTaskImpl.call(
+      this,
+      taskId,
       signal,
-    });
-    this.resolveManagedTerminal(taskId, updated);
-    this.managed.delete(taskId);
-    await this.events.publish("task.cancelled", { task: updated });
-    await this.logger?.warn("Task stop force-finalized", {
-      taskId: updated.id,
-      projectId: updated.projectId,
-      conversationId: updated.conversationId,
-      agentId: updated.agentId,
-      context: { signal, reason },
-    });
-    return updated;
+      reason,
+    );
   }
-
-  private async forceFinalizeTimedOutTask(
+  async forceFinalizeTimedOutTask(
     taskId: string,
     signal: NodeJS.Signals,
     reason: string,
   ): Promise<TaskRecord> {
-    const record = this.getTask(taskId);
-    if (!isActiveTaskStatus(record.status)) return record;
-
-    const managed = this.managed.get(taskId);
-    this.clearReadinessWatch(managed);
-    if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
-    if (managed) managed.finalized = true;
-
-    await this.flushTaskOutputBuffers(taskId);
-
-    const freshRecord = this.tasks.get(taskId) ?? record;
-    const readiness =
-      freshRecord.readiness.outcome === "pending"
-        ? { ...freshRecord.readiness, outcome: "exited" as const }
-        : freshRecord.readiness;
-    const updated = await this.updateTask(taskId, {
-      status: "timed_out",
-      readiness,
-      finishedAt: new Date().toISOString(),
-      exitCode: null,
+    return await forceFinalizeTimedOutTaskImpl.call(
+      this,
+      taskId,
       signal,
-      error: freshRecord.error ?? reason,
-    });
-    this.resolveManagedTerminal(taskId, updated);
-    this.managed.delete(taskId);
-    await this.events.publish("task.timed_out", { task: updated });
-    await this.logger?.warn("Task timeout force-finalized", {
-      taskId: updated.id,
-      projectId: updated.projectId,
-      conversationId: updated.conversationId,
-      agentId: updated.agentId,
-      context: { signal, reason },
-    });
-    return updated;
+      reason,
+    );
   }
-
-  private async markTaskExited(
+  async markTaskExited(
     taskId: string,
     exitCode: number | null,
     signal: NodeJS.Signals | null,
   ): Promise<TaskRecord | undefined> {
-    const record = this.tasks.get(taskId);
-    const managed = this.managed.get(taskId);
-    if (!record) return undefined;
-    if (!isActiveTaskStatus(record.status)) return record;
-    if (managed?.finalized) return record;
-    this.clearReadinessWatch(managed);
-    if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
-    if (managed) managed.finalized = true;
-
-    await this.flushTaskOutputBuffers(taskId);
-
-    const freshRecord = this.tasks.get(taskId);
-    if (!freshRecord) return undefined;
-    if (!isActiveTaskStatus(freshRecord.status)) return freshRecord;
-
-    const status = managed?.timedOut
-      ? "timed_out"
-      : managed?.stopping
-        ? "cancelled"
-        : exitCode === 0
-          ? "completed"
-          : "failed";
-    const readiness =
-      freshRecord.readiness.outcome === "pending"
-        ? { ...freshRecord.readiness, outcome: "exited" as const }
-        : freshRecord.readiness;
-    const updated = await this.updateTask(taskId, {
-      status,
-      readiness,
-      finishedAt: new Date().toISOString(),
-      exitCode,
-      signal,
-      error: freshRecord.error,
-    });
-    this.resolveManagedTerminal(taskId, updated);
-    this.managed.delete(taskId);
-    await this.events.publish(`task.${status}`, { task: updated });
-    await this.logger?.[
-      status === "failed" || status === "timed_out" ? "error" : "info"
-    ]("Task exited", {
-      taskId: updated.id,
-      projectId: updated.projectId,
-      conversationId: updated.conversationId,
-      agentId: updated.agentId,
-      context: { exitCode, signal, status },
-    });
-    return updated;
+    return await markTaskExitedImpl.call(this, taskId, exitCode, signal);
   }
-
-  private async markTaskError(taskId: string, message: string): Promise<void> {
-    const record = this.tasks.get(taskId);
-    const managed = this.managed.get(taskId);
-    if (!record || !isActiveTaskStatus(record.status)) return;
-    if (managed?.finalized) return;
-    this.clearReadinessWatch(managed);
-    if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
-    if (managed) managed.finalized = true;
-
-    await this.flushTaskOutputBuffers(taskId);
-
-    const freshRecord = this.tasks.get(taskId);
-    if (!freshRecord || !isActiveTaskStatus(freshRecord.status)) return;
-
-    const readiness =
-      freshRecord.readiness.outcome === "pending"
-        ? { ...freshRecord.readiness, outcome: "exited" as const }
-        : freshRecord.readiness;
-    const updated = await this.updateTask(taskId, {
-      status: "failed",
-      readiness,
-      finishedAt: new Date().toISOString(),
-      error: message,
-    });
-    this.resolveManagedTerminal(taskId, updated);
-    this.managed.delete(taskId);
-    await this.events.publish("task.failed", { task: updated, message });
-    await this.logger?.error("Task error", {
-      taskId: updated.id,
-      projectId: updated.projectId,
-      conversationId: updated.conversationId,
-      agentId: updated.agentId,
-      context: { message },
-    });
+  async markTaskError(taskId: string, message: string): Promise<void> {
+    return await markTaskErrorImpl.call(this, taskId, message);
   }
-
-  private resolveManagedTerminal(
-    taskId: string,
-    task: TaskRecord | undefined,
-  ): void {
-    const managed = this.managed.get(taskId);
-    if (!managed?.resolveTerminal) return;
-    managed.resolveTerminal(task);
-    managed.resolveTerminal = undefined;
+  resolveManagedTerminal(taskId: string, task: TaskRecord | undefined): void {
+    resolveManagedTerminalImpl.call(this, taskId, task);
   }
-
-  private async updateTask(
+  async updateTask(
     taskId: string,
     patch: Partial<Omit<TaskRecord, "id" | "startedAt">>,
   ): Promise<TaskRecord> {
@@ -1588,55 +728,19 @@ export class TaskManager {
     return updated;
   }
 
-  private async upsertTask(record: TaskRecord): Promise<void> {
+  async upsertTask(record: TaskRecord): Promise<void> {
     this.tasks.set(record.id, record);
     this.index.upsertTask(record);
     await this.writeTask(record);
   }
 
-  private async writeTask(record: TaskRecord): Promise<void> {
+  async writeTask(record: TaskRecord): Promise<void> {
     await this.taskRepository.write(record);
   }
 
-  private taskDir(taskId: string): string {
+  taskDir(taskId: string): string {
     return this.taskRepository.taskDir(taskId);
   }
-}
-
-function foregroundPromotionDelayMs(
-  input: Pick<ForegroundBashPromotionInput, "timeoutMs" | "autoPromoteAfterMs">,
-): number {
-  if (input.timeoutMs && input.timeoutMs <= input.autoPromoteAfterMs) {
-    return (
-      input.timeoutMs +
-      RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS +
-      FOREGROUND_TIMEOUT_RESULT_GRACE_MS
-    );
-  }
-  return input.autoPromoteAfterMs;
-}
-
-function defaultTaskNotificationsEnabled(
-  request: StartTaskRequest & {
-    origin?: TaskRecord["origin"];
-    completion?: TaskRecord["completion"];
-  },
-): boolean {
-  if (request.notify !== undefined) return request.notify;
-  if (request.injectCompletion === true || request.completion?.inject === true)
-    return true;
-  if (request.origin?.kind === "agent_tool") return true;
-  return Boolean(request.agentId && request.conversationId);
-}
-
-function buildTaskEnvInfo(
-  env?: Record<string, string>,
-): TaskEnvInfo | undefined {
-  const keys = Object.keys(env ?? {})
-    .filter((key) => key.length > 0)
-    .sort();
-  if (keys.length === 0) return undefined;
-  return { keys, persisted: true, redacted: true };
 }
 
 export { isActiveTaskStatus } from "./index.js";

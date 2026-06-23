@@ -48,8 +48,7 @@ export class RetryContinuationService {
     );
     const failedDetails = runFailureDetails(failedEntry?.details);
     if (
-      !failedEntry ||
-      failedEntry.role !== "assistant" ||
+      failedEntry?.role !== "assistant" ||
       failedDetails?.stopReason !== "error" ||
       !failedDetails.errorMessage
     ) {

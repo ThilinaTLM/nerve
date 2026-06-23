@@ -3,7 +3,7 @@ import {
   type ImageContent,
   streamSimple,
 } from "@earendil-works/pi-ai";
-import { runAgentLoop, runAgentLoopContinue } from "../agent-loop.js";
+import { runAgentLoop } from "../agent-loop.js";
 import { isAgentToolSuspension } from "../suspension.js";
 import type {
   AgentContext,
@@ -17,29 +17,12 @@ import type {
   ThinkingLevel,
 } from "../types.js";
 import {
-  collectEntriesForBranchSummary,
-  generateBranchSummary,
-} from "./compaction/branch-summarization.js";
-import {
-  compact,
-  DEFAULT_COMPACTION_SETTINGS,
-  prepareCompaction,
-} from "./compaction/compaction.js";
-import {
   cloneHarnessResources,
-  createModelUpdateEvent,
-  createThinkingLevelUpdateEvent,
   createToolMap,
-  prepareActiveToolsConfiguration,
-  prepareToolConfiguration,
   validateToolNames,
 } from "./configuration.js";
 import type { Conversation } from "./conversation/conversation.js";
-import { editorTextForNavigatedEntry } from "./conversation/text-extraction.js";
-import {
-  flushPendingConversationWrites as flushHarnessPendingConversationWrites,
-  queueOrWriteMessage,
-} from "./conversation-writes.js";
+import { flushPendingConversationWrites as flushHarnessPendingConversationWrites } from "./conversation-writes.js";
 import type { ExecutionEnv } from "./env/types.js";
 import { AgentHarnessError } from "./errors.js";
 import type {
@@ -52,10 +35,43 @@ import type {
   PendingConversationWrite,
 } from "./events.js";
 import {
+  abortHarnessRun,
+  getHarnessActiveTools,
+  type HarnessConfigurationState,
+  setHarnessActiveTools,
+  setHarnessModel,
+  setHarnessResources,
+  setHarnessThinkingLevel,
+  setHarnessTools,
+} from "./harness-configuration-methods.js";
+import {
+  continueHarnessRun,
+  type HarnessContinuationState,
+} from "./harness-continuation.js";
+import {
   AgentHarnessEventHub,
   normalizeHarnessError,
   normalizeHookError,
 } from "./harness-events.js";
+import {
+  type HarnessInvocationState,
+  invokePromptTemplate,
+  invokeSkill,
+} from "./harness-invocations.js";
+import {
+  compactHarnessConversation,
+  type HarnessMaintenanceContext,
+  navigateHarnessTree,
+} from "./harness-maintenance.js";
+import {
+  appendExternalHarnessMessage,
+  appendHarnessMessage,
+  enqueueHarnessMessage as enqueueHarnessQueueMessage,
+  enqueueNextTurn,
+  type HarnessQueueState,
+  type InboundQueuedMessage,
+  steerHarness,
+} from "./harness-queue-methods.js";
 import { convertToLlm } from "./messages.js";
 import type {
   AgentHarnessOptions,
@@ -64,30 +80,13 @@ import type {
   PromptTemplate,
   Skill,
 } from "./options.js";
-import { formatPromptTemplateInvocation } from "./prompt-templates.js";
 import { toError } from "./result.js";
 import { createFailureMessage, createUserMessage } from "./run/messages.js";
-import { formatSkillInvocation } from "./skills.js";
 import { cloneStreamOptions, mergeHeaders } from "./stream-options.js";
 import {
   type AgentHarnessTurnState,
   createTurnState as createAgentHarnessTurnState,
 } from "./turn-state.js";
-
-type InboundQueuedMessage = {
-  id?: string;
-  source: "user" | "harness";
-  message: AgentMessage;
-  enqueuedAt: string;
-  timestamp?: string;
-  priority?: "normal" | "high";
-  delivery?: {
-    taskId?: string;
-    event?: string;
-    pendingNotificationId?: string;
-  };
-};
-
 export class AgentHarness<
   TSkill extends Skill = Skill,
   TPromptTemplate extends PromptTemplate = PromptTemplate,
@@ -96,7 +95,7 @@ export class AgentHarness<
   readonly env: ExecutionEnv;
   private conversation: Conversation;
   private phase: AgentHarnessPhase = "idle";
-  private runAbortController?: AbortController;
+  runAbortController?: AbortController;
   private runPromise?: Promise<void>;
   private pendingConversationWrites: PendingConversationWrite[] = [];
   private model: AnyModel;
@@ -121,7 +120,6 @@ export class AgentHarness<
     { id?: string; timestamp?: string }
   >();
   private events = new AgentHarnessEventHub<TSkill, TPromptTemplate>();
-
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
     this.env = options.env;
     this.conversation = options.conversation;
@@ -139,21 +137,18 @@ export class AgentHarness<
     this.steeringQueueMode = options.steeringMode ?? "one-at-a-time";
     this.followUpQueueMode = options.followUpMode ?? "one-at-a-time";
   }
-
   private async emitOwn(
     event: AgentHarnessOwnEvent<TSkill, TPromptTemplate>,
     signal?: AbortSignal,
   ): Promise<void> {
     await this.events.emitOwn(event, signal);
   }
-
   private async emitAny(
     event: AgentHarnessEvent<TSkill, TPromptTemplate>,
     signal?: AbortSignal,
   ): Promise<void> {
     await this.events.emitAny(event, signal);
   }
-
   private async emitHook<TType extends keyof AgentHarnessEventResultMap>(
     event: Extract<AgentHarnessOwnEvent, { type: TType }>,
   ): Promise<AgentHarnessEventResultMap[TType] | undefined> {
@@ -562,132 +557,53 @@ export class AgentHarness<
   }
 
   async continue(): Promise<AssistantMessage> {
-    if (this.phase !== "idle") {
-      throw new AgentHarnessError("busy", "AgentHarness is busy");
-    }
-    this.phase = "turn";
-    const finishRunPromise = this.startRunPromise();
-    let activeTurnState = await this.createTurnState();
-    const abortController = new AbortController();
-    const getTurnState = () => activeTurnState;
-    const setTurnState = (
-      nextTurnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
-    ) => {
-      activeTurnState = nextTurnState;
-    };
-    this.runAbortController = abortController;
-    try {
-      const newMessages = await runAgentLoopContinue(
-        this.createContext(activeTurnState),
-        this.createLoopConfig(getTurnState, setTurnState),
-        (event) => this.handleAgentEvent(event, abortController.signal),
-        abortController.signal,
-        this.createStreamFn(getTurnState),
-      );
-      for (const message of [...newMessages].reverse()) {
-        if (message.role === "assistant") return message;
-      }
-      throw new AgentHarnessError(
-        "invalid_state",
-        "AgentHarness continue completed without an assistant message",
-      );
-    } catch (error) {
-      if (isAgentToolSuspension(error)) {
-        this.phase = "idle";
-        throw error;
-      }
-      try {
-        const failureMessages = await this.emitRunFailure(
-          activeTurnState.model,
-          error,
-          abortController.signal.aborted,
-          abortController.signal,
-        );
-        const assistant = [...failureMessages]
-          .reverse()
-          .find(
-            (message): message is AssistantMessage =>
-              message.role === "assistant",
-          );
-        if (assistant) return assistant;
-      } catch (failureError) {
-        const cause = new AggregateError(
-          [toError(error), toError(failureError)],
-          "Agent continuation failed and failure reporting failed",
-        );
-        throw new AgentHarnessError("unknown", cause.message, cause);
-      }
-      throw normalizeHarnessError(error, "unknown");
-    } finally {
-      try {
-        await this.flushPendingConversationWrites();
-      } finally {
-        this.runAbortController = undefined;
-        finishRunPromise();
-      }
-    }
+    return continueHarnessRun(
+      this as unknown as HarnessContinuationState<
+        TSkill,
+        TPromptTemplate,
+        TTool
+      >,
+    );
   }
 
   async skill(
     name: string,
     additionalInstructions?: string,
   ): Promise<AssistantMessage> {
-    return this.runForegroundTurn((turnState) => {
-      const skill = (turnState.resources.skills ?? []).find(
-        (candidate) => candidate.name === name,
-      );
-      if (!skill) {
-        throw new AgentHarnessError(
-          "invalid_argument",
-          `Unknown skill: ${name}`,
-        );
-      }
-      return { text: formatSkillInvocation(skill, additionalInstructions) };
-    });
+    return invokeSkill(
+      this as unknown as HarnessInvocationState<TSkill, TPromptTemplate, TTool>,
+      name,
+      additionalInstructions,
+    );
   }
 
   async promptFromTemplate(
     name: string,
     args: string[] = [],
   ): Promise<AssistantMessage> {
-    return this.runForegroundTurn((turnState) => {
-      const template = (turnState.resources.promptTemplates ?? []).find(
-        (candidate) => candidate.name === name,
-      );
-      if (!template) {
-        throw new AgentHarnessError(
-          "invalid_argument",
-          `Unknown prompt template: ${name}`,
-        );
-      }
-      return { text: formatPromptTemplateInvocation(template, args) };
-    });
+    return invokePromptTemplate(
+      this as unknown as HarnessInvocationState<TSkill, TPromptTemplate, TTool>,
+      name,
+      args,
+    );
+  }
+
+  private queueState(): HarnessQueueState {
+    return this as unknown as HarnessQueueState;
   }
 
   async steer(
     text: string,
     options?: { images?: ImageContent[] },
   ): Promise<void> {
-    if (this.phase === "idle")
-      throw new AgentHarnessError("invalid_state", "Cannot steer while idle");
-    this.steerQueue.push({
-      source: "user",
-      message: createUserMessage(text, options?.images),
-      enqueuedAt: new Date().toISOString(),
-    });
-    await this.emitQueueUpdate();
+    return steerHarness(this.queueState(), text, options);
   }
 
   async followUp(
     text: string,
     options?: { images?: ImageContent[] },
   ): Promise<void> {
-    if (this.phase === "idle")
-      throw new AgentHarnessError(
-        "invalid_state",
-        "Cannot follow up while idle",
-      );
-    await this.steer(text, options);
+    return this.steer(text, options);
   }
 
   async enqueueHarnessMessage(input: {
@@ -697,43 +613,18 @@ export class AgentHarness<
     delivery?: InboundQueuedMessage["delivery"];
     priority?: InboundQueuedMessage["priority"];
   }): Promise<void> {
-    if (this.phase === "idle") {
-      throw new AgentHarnessError(
-        "invalid_state",
-        "Cannot enqueue harness message while idle",
-      );
-    }
-    this.steerQueue.push({
-      id: input.id,
-      source: "harness",
-      message: input.message,
-      timestamp: input.timestamp,
-      enqueuedAt: new Date().toISOString(),
-      delivery: input.delivery,
-      priority: input.priority,
-    });
-    await this.emitQueueUpdate();
+    return enqueueHarnessQueueMessage(this.queueState(), input);
   }
 
   async nextTurn(
     text: string,
     options?: { images?: ImageContent[] },
   ): Promise<void> {
-    this.nextTurnQueue.push(createUserMessage(text, options?.images));
-    await this.emitQueueUpdate();
+    return enqueueNextTurn(this.queueState(), text, options);
   }
 
   async appendMessage(message: AgentMessage): Promise<void> {
-    try {
-      await queueOrWriteMessage(
-        this.phase,
-        this.pendingConversationWrites,
-        this.conversation,
-        message,
-      );
-    } catch (error) {
-      throw normalizeHarnessError(error, "conversation");
-    }
+    return appendHarnessMessage(this.queueState(), message);
   }
 
   async appendExternalMessage(input: {
@@ -741,17 +632,7 @@ export class AgentHarness<
     message: AgentMessage;
     timestamp?: string;
   }): Promise<void> {
-    try {
-      await queueOrWriteMessage(
-        this.phase,
-        this.pendingConversationWrites,
-        this.conversation,
-        input.message,
-        { id: input.id, timestamp: input.timestamp },
-      );
-    } catch (error) {
-      throw normalizeHarnessError(error, "conversation");
-    }
+    return appendExternalHarnessMessage(this.queueState(), input);
   }
 
   async compact(customInstructions?: string): Promise<{
@@ -760,72 +641,10 @@ export class AgentHarness<
     tokensBefore: number;
     details?: unknown;
   }> {
-    if (this.phase !== "idle")
-      throw new AgentHarnessError("busy", "compact() requires idle harness");
-    this.phase = "compaction";
-    try {
-      const model = this.model;
-      if (!model)
-        throw new AgentHarnessError(
-          "invalid_state",
-          "No model set for compaction",
-        );
-      const auth = await this.getApiKeyAndHeaders?.(model);
-      if (!auth)
-        throw new AgentHarnessError("auth", "No auth available for compaction");
-      const branchEntries = await this.conversation.getBranch();
-      const preparationResult = prepareCompaction(
-        branchEntries,
-        DEFAULT_COMPACTION_SETTINGS,
-      );
-      if (!preparationResult.ok) throw preparationResult.error;
-      const preparation = preparationResult.value;
-      if (!preparation)
-        throw new AgentHarnessError("compaction", "Nothing to compact");
-      const hookResult = await this.emitHook({
-        type: "conversation_before_compact",
-        preparation,
-        branchEntries,
-        customInstructions,
-        signal: new AbortController().signal,
-      });
-      if (hookResult?.cancel)
-        throw new AgentHarnessError("compaction", "Compaction cancelled");
-      const provided = hookResult?.compaction;
-      const compactResult = provided
-        ? { ok: true as const, value: provided }
-        : await compact(
-            preparation,
-            model,
-            auth.apiKey,
-            auth.headers,
-            customInstructions,
-            undefined,
-            this.thinkingLevel,
-          );
-      if (!compactResult.ok) throw compactResult.error;
-      const result = compactResult.value;
-      const entryId = await this.conversation.appendCompaction(
-        result.summary,
-        result.firstKeptEntryId,
-        result.tokensBefore,
-        result.details,
-        provided !== undefined,
-      );
-      const entry = await this.conversation.getEntry(entryId);
-      if (entry?.type === "compaction") {
-        await this.emitOwn({
-          type: "conversation_compact",
-          compactionEntry: entry,
-          fromHook: provided !== undefined,
-        });
-      }
-      return result;
-    } catch (error) {
-      throw normalizeHarnessError(error, "compaction");
-    } finally {
-      this.phase = "idle";
-    }
+    return compactHarnessConversation(
+      this.maintenanceContext(),
+      customInstructions,
+    );
   }
 
   async navigateTree(
@@ -837,116 +656,38 @@ export class AgentHarness<
       label?: string;
     },
   ): Promise<NavigateTreeResult> {
-    if (this.phase !== "idle")
-      throw new AgentHarnessError(
-        "busy",
-        "navigateTree() requires idle harness",
-      );
-    this.phase = "branch_summary";
-    try {
-      const oldLeafId = await this.conversation.getLeafId();
-      if (oldLeafId === targetId) return { cancelled: false };
-      const targetEntry = await this.conversation.getEntry(targetId);
-      if (!targetEntry)
-        throw new AgentHarnessError(
-          "invalid_argument",
-          `Entry ${targetId} not found`,
-        );
-      const { entries, commonAncestorId } =
-        await collectEntriesForBranchSummary(
-          this.conversation,
-          oldLeafId,
-          targetId,
-        );
-      const preparation = {
-        targetId,
-        oldLeafId,
-        commonAncestorId,
-        entriesToSummarize: entries,
-        userWantsSummary: options?.summarize ?? false,
-        customInstructions: options?.customInstructions,
-        replaceInstructions: options?.replaceInstructions,
-        label: options?.label,
-      };
-      const signal = new AbortController().signal;
-      const hookResult = await this.emitHook({
-        type: "conversation_before_tree",
-        preparation,
-        signal,
-      });
-      if (hookResult?.cancel) return { cancelled: true };
-      let summaryEntry: NavigateTreeResult["summaryEntry"];
-      let summaryText: string | undefined = hookResult?.summary?.summary;
-      let summaryDetails: unknown = hookResult?.summary?.details;
-      if (!summaryText && options?.summarize && entries.length > 0) {
-        const model = this.model;
-        if (!model)
-          throw new AgentHarnessError(
-            "invalid_state",
-            "No model set for branch summary",
-          );
-        const auth = await this.getApiKeyAndHeaders?.(model);
-        if (!auth)
-          throw new AgentHarnessError(
-            "auth",
-            "No auth available for branch summary",
-          );
-        const branchSummary = await generateBranchSummary(entries, {
-          model,
-          apiKey: auth.apiKey,
-          headers: auth.headers,
-          signal: new AbortController().signal,
-          customInstructions:
-            hookResult?.customInstructions ?? options?.customInstructions,
-          replaceInstructions:
-            hookResult?.replaceInstructions ?? options?.replaceInstructions,
-        });
-        if (!branchSummary.ok) {
-          if (branchSummary.error.code === "aborted")
-            return { cancelled: true };
-          throw new AgentHarnessError(
-            "branch_summary",
-            branchSummary.error.message,
-            branchSummary.error,
-          );
-        }
-        summaryText = branchSummary.value.summary;
-        summaryDetails = {
-          readFiles: branchSummary.value.readFiles,
-          modifiedFiles: branchSummary.value.modifiedFiles,
-        };
-      }
-      const { newLeafId, editorText } = editorTextForNavigatedEntry(
-        targetEntry,
-        targetId,
-      );
-      const summaryId = await this.conversation.moveTo(
-        newLeafId,
-        summaryText
-          ? {
-              summary: summaryText,
-              details: summaryDetails,
-              fromHook: hookResult?.summary !== undefined,
-            }
-          : undefined,
-      );
-      if (summaryId) {
-        const entry = await this.conversation.getEntry(summaryId);
-        if (entry?.type === "branch_summary") summaryEntry = entry;
-      }
-      await this.emitOwn({
-        type: "conversation_tree",
-        newLeafId: await this.conversation.getLeafId(),
-        oldLeafId,
-        summaryEntry,
-        fromHook: hookResult?.summary !== undefined,
-      });
-      return { cancelled: false, editorText, summaryEntry };
-    } catch (error) {
-      throw normalizeHarnessError(error, "branch_summary");
-    } finally {
-      this.phase = "idle";
-    }
+    return navigateHarnessTree(this.maintenanceContext(), targetId, options);
+  }
+
+  private maintenanceContext(): HarnessMaintenanceContext<
+    TSkill,
+    TPromptTemplate,
+    TTool
+  > {
+    return {
+      getPhase: () => this.phase,
+      setPhase: (phase) => {
+        this.phase = phase;
+      },
+      conversation: this.conversation,
+      getModel: () => this.model,
+      getThinkingLevel: () => this.thinkingLevel,
+      getApiKeyAndHeaders: this.getApiKeyAndHeaders,
+      emitHook: (event) => this.emitHook(event as never),
+      emitOwn: (event) => this.emitOwn(event as never),
+    };
+  }
+
+  private configurationState(): HarnessConfigurationState<
+    TSkill,
+    TPromptTemplate,
+    TTool
+  > {
+    return this as unknown as HarnessConfigurationState<
+      TSkill,
+      TPromptTemplate,
+      TTool
+    >;
   }
 
   getModel(): AnyModel {
@@ -954,22 +695,7 @@ export class AgentHarness<
   }
 
   async setModel(model: AnyModel): Promise<void> {
-    try {
-      const previousModel = this.model;
-      if (this.phase === "idle") {
-        await this.conversation.appendModelChange(model.provider, model.id);
-      } else {
-        this.pendingConversationWrites.push({
-          type: "model_change",
-          provider: model.provider,
-          modelId: model.id,
-        });
-      }
-      this.model = model;
-      await this.emitOwn(createModelUpdateEvent(model, previousModel, "set"));
-    } catch (error) {
-      throw normalizeHarnessError(error, "conversation");
-    }
+    return setHarnessModel(this.configurationState(), model);
   }
 
   getThinkingLevel(): ThinkingLevel {
@@ -977,21 +703,7 @@ export class AgentHarness<
   }
 
   async setThinkingLevel(level: ThinkingLevel): Promise<void> {
-    try {
-      const previousLevel = this.thinkingLevel;
-      if (this.phase === "idle") {
-        await this.conversation.appendThinkingLevelChange(level);
-      } else {
-        this.pendingConversationWrites.push({
-          type: "thinking_level_change",
-          thinkingLevel: level,
-        });
-      }
-      this.thinkingLevel = level;
-      await this.emitOwn(createThinkingLevelUpdateEvent(level, previousLevel));
-    } catch (error) {
-      throw normalizeHarnessError(error, "conversation");
-    }
+    return setHarnessThinkingLevel(this.configurationState(), level);
   }
 
   getTools(): TTool[] {
@@ -999,64 +711,15 @@ export class AgentHarness<
   }
 
   async setTools(tools: TTool[], activeToolNames?: string[]): Promise<void> {
-    try {
-      const next = prepareToolConfiguration({
-        currentTools: this.tools,
-        currentActiveToolNames: this.activeToolNames,
-        tools,
-        activeToolNames,
-        source: "set",
-      });
-      if (this.phase === "idle") {
-        await this.conversation.appendActiveToolsChange(next.activeToolNames);
-      } else {
-        this.pendingConversationWrites.push({
-          type: "active_tools_change",
-          activeToolNames: [...next.activeToolNames],
-        });
-      }
-      this.tools = next.tools;
-      this.activeToolNames = [...next.activeToolNames];
-      await this.emitOwn(next.event);
-    } catch (error) {
-      throw normalizeHarnessError(error, "invalid_argument");
-    }
+    return setHarnessTools(this.configurationState(), tools, activeToolNames);
   }
 
   getActiveTools(): TTool[] {
-    return this.activeToolNames.map((name) => {
-      const tool = this.tools.get(name);
-      if (!tool) {
-        throw new AgentHarnessError(
-          "invalid_state",
-          `Active tool ${name} is not registered`,
-        );
-      }
-      return tool;
-    });
+    return getHarnessActiveTools(this.configurationState());
   }
 
   async setActiveTools(toolNames: string[]): Promise<void> {
-    try {
-      const next = prepareActiveToolsConfiguration({
-        tools: this.tools,
-        currentActiveToolNames: this.activeToolNames,
-        activeToolNames: toolNames,
-        source: "set",
-      });
-      if (this.phase === "idle") {
-        await this.conversation.appendActiveToolsChange(next.activeToolNames);
-      } else {
-        this.pendingConversationWrites.push({
-          type: "active_tools_change",
-          activeToolNames: [...next.activeToolNames],
-        });
-      }
-      this.activeToolNames = [...next.activeToolNames];
-      await this.emitOwn(next.event);
-    } catch (error) {
-      throw normalizeHarnessError(error, "invalid_argument");
-    }
+    return setHarnessActiveTools(this.configurationState(), toolNames);
   }
 
   getSteeringMode(): QueueMode {
@@ -1082,13 +745,7 @@ export class AgentHarness<
   async setResources(
     resources: AgentHarnessResources<TSkill, TPromptTemplate>,
   ): Promise<void> {
-    const previousResources = this.getResources();
-    this.resources = cloneHarnessResources(resources);
-    await this.emitOwn({
-      type: "resources_update",
-      resources: this.getResources(),
-      previousResources,
-    });
+    return setHarnessResources(this.configurationState(), resources);
   }
 
   getStreamOptions(): AgentHarnessStreamOptions {
@@ -1102,36 +759,7 @@ export class AgentHarness<
   }
 
   async abort(): Promise<AbortResult> {
-    const clearedSteer = this.steerQueue.map((entry) => entry.message);
-    const clearedFollowUp = this.followUpQueue.map((entry) => entry.message);
-    this.steerQueue = [];
-    this.followUpQueue = [];
-    this.runAbortController?.abort();
-    const errors: Error[] = [];
-    try {
-      await this.emitQueueUpdate();
-    } catch (error) {
-      errors.push(toError(error));
-    }
-    try {
-      await this.waitForIdle();
-    } catch (error) {
-      errors.push(toError(error));
-    }
-    try {
-      await this.emitOwn({ type: "abort", clearedSteer, clearedFollowUp });
-    } catch (error) {
-      errors.push(toError(error));
-    }
-    if (errors.length > 0) {
-      const [singleError] = errors;
-      const cause =
-        errors.length === 1 && singleError
-          ? singleError
-          : new AggregateError(errors, "Abort completed with errors");
-      throw normalizeHarnessError(cause, "hook");
-    }
-    return { clearedSteer, clearedFollowUp };
+    return abortHarnessRun(this.configurationState());
   }
 
   async waitForIdle(): Promise<void> {

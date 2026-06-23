@@ -1,18 +1,12 @@
-import { execFile } from "node:child_process";
 import { type Dirent, existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
-import { promisify } from "node:util";
 import type {
   GitBranchListResponse,
   GitBranchSummary,
   GitDiscoveryResponse,
-  GithubChecksSummary,
-  GithubPr,
   GithubPrCheckoutResponse,
-  GithubPrCommit,
   GithubPrDetail,
-  GithubPrFile,
   GithubPrListResponse,
   GithubStatusResponse,
   GitMutationResponse,
@@ -22,30 +16,23 @@ import type {
   ProjectRecord,
 } from "@nerve/shared";
 import { HttpError } from "../../http/errors.js";
+import {
+  type ExecResult,
+  GitCommandError,
+  runGitCommand,
+} from "./git-command.js";
+import { isGithubRemoteUrl, parseGitRemoteUrls } from "./git-github-parsers.js";
+import {
+  checkoutPr as checkoutGithubPr,
+  type GithubServiceContext,
+  prDetail as getGithubPrDetail,
+  githubStatus as getGithubStatus,
+  listOpenPrs as listGithubOpenPrs,
+} from "./git-github-service.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";
 
-const execFileAsync = promisify(execFile);
-
-const COMMAND_TIMEOUT_MS = 20_000;
-const MAX_BUFFER = 16 * 1024 * 1024;
 const MAX_DISCOVERY_DEPTH = 2;
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next"]);
-export class GitCommandError extends Error {
-  constructor(
-    readonly command: string,
-    readonly code: number | null,
-    readonly stderr: string,
-    readonly stdout = "",
-  ) {
-    super(stderr.trim() || `${command} failed`);
-    this.name = "GitCommandError";
-  }
-}
-
-interface ExecResult {
-  stdout: string;
-  stderr: string;
-}
 
 export class GitService {
   constructor(
@@ -59,30 +46,7 @@ export class GitService {
     cwd: string,
     args: string[],
   ): Promise<ExecResult> {
-    try {
-      const { stdout, stderr } = await execFileAsync(bin, args, {
-        cwd,
-        timeout: COMMAND_TIMEOUT_MS,
-        maxBuffer: MAX_BUFFER,
-      });
-      return { stdout, stderr };
-    } catch (error) {
-      const err = error as NodeJS.ErrnoException & {
-        stdout?: string | Buffer;
-        stderr?: string;
-        code?: number | string;
-      };
-      if (err.code === "ENOENT") {
-        throw new GitCommandError(bin, null, `${bin} executable not found`);
-      }
-      const code = typeof err.code === "number" ? err.code : null;
-      throw new GitCommandError(
-        `${bin} ${args[0] ?? ""}`,
-        code,
-        err.stderr ?? err.message,
-        err.stdout?.toString() ?? "",
-      );
-    }
+    return runGitCommand(bin, cwd, args);
   }
 
   private runGit(cwd: string, args: string[]): Promise<ExecResult> {
@@ -750,131 +714,14 @@ export class GitService {
     projectId: string,
     relativePath: string,
   ): Promise<GithubStatusResponse> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const remoteState = await this.repoRemoteState(repoDir);
-    if (!remoteState.hasRemote) {
-      return {
-        available: false,
-        authenticated: false,
-        login: null,
-        reason: "No remote repository configured.",
-      };
-    }
-    if (!remoteState.hasGithubRemote) {
-      return {
-        available: false,
-        authenticated: false,
-        login: null,
-        reason: "Remote repository is not GitHub.",
-      };
-    }
-
-    try {
-      await this.runGh(repoDir, ["--version"]);
-    } catch {
-      return {
-        available: false,
-        authenticated: false,
-        login: null,
-        reason: "GitHub CLI (gh) is not installed.",
-      };
-    }
-    try {
-      const { stdout } = await this.runGh(repoDir, [
-        "api",
-        "user",
-        "--jq",
-        ".login",
-      ]);
-      const login = stdout.trim();
-      return {
-        available: true,
-        authenticated: login.length > 0,
-        login: login.length > 0 ? login : null,
-      };
-    } catch (error) {
-      return {
-        available: true,
-        authenticated: false,
-        login: null,
-        reason:
-          error instanceof GitCommandError
-            ? "Not authenticated. Run `gh auth login`."
-            : "GitHub authentication check failed.",
-      };
-    }
+    return getGithubStatus(this.githubContext(), projectId, relativePath);
   }
 
   async listOpenPrs(
     projectId: string,
     relativePath: string,
   ): Promise<GithubPrListResponse> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    await this.ensureGithubRemote(repoDir);
-    const { stdout } = await this.mapGh(() =>
-      this.runGh(repoDir, [
-        "pr",
-        "list",
-        "--state",
-        "open",
-        "--limit",
-        "50",
-        "--json",
-        "number,title,url,state,isDraft,headRefName,baseRefName,updatedAt",
-      ]),
-    );
-    const raw = JSON.parse(stdout || "[]") as Array<{
-      number: number;
-      title: string;
-      url: string;
-      state: string;
-      isDraft: boolean;
-      headRefName: string;
-      baseRefName: string;
-      updatedAt: string;
-    }>;
-    const prs = await Promise.all(
-      raw.map(async (pr): Promise<GithubPr> => {
-        const checks = await this.prChecks(repoDir, pr.number);
-        return {
-          number: pr.number,
-          title: pr.title,
-          url: pr.url,
-          state: pr.state,
-          isDraft: pr.isDraft,
-          headRefName: pr.headRefName,
-          baseRefName: pr.baseRefName,
-          updatedAt: pr.updatedAt,
-          checks,
-        };
-      }),
-    );
-    return { prs };
-  }
-
-  private async prChecks(
-    repoDir: string,
-    number: number,
-  ): Promise<GithubChecksSummary> {
-    try {
-      const { stdout } = await this.runGh(repoDir, [
-        "pr",
-        "checks",
-        String(number),
-        "--json",
-        "name,state,link",
-      ]);
-      return parseGithubChecks(stdout);
-    } catch (error) {
-      if (error instanceof GitCommandError && error.stdout.trim().length > 0) {
-        try {
-          return parseGithubChecks(error.stdout);
-        } catch {
-          // Fall through to the no-checks fallback below.
-        }
-      }
-      return noChecksSummary();
-    }
+    return listGithubOpenPrs(this.githubContext(), projectId, relativePath);
   }
 
   async prDetail(
@@ -882,76 +729,12 @@ export class GitService {
     relativePath: string,
     number: number,
   ): Promise<GithubPrDetail> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    await this.ensureGithubRemote(repoDir);
-    const { stdout } = await this.mapGh(() =>
-      this.runGh(repoDir, [
-        "pr",
-        "view",
-        String(number),
-        "--json",
-        "number,title,url,state,isDraft,headRefName,baseRefName,updatedAt,createdAt,body,author,additions,deletions,changedFiles,files,commits,mergeable,reviewDecision",
-      ]),
+    return getGithubPrDetail(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
     );
-    const raw = JSON.parse(stdout || "{}") as {
-      number: number;
-      title: string;
-      url: string;
-      state: string;
-      isDraft: boolean;
-      headRefName: string;
-      baseRefName: string;
-      updatedAt: string;
-      createdAt: string;
-      body?: string | null;
-      author?: { login?: string } | null;
-      additions?: number;
-      deletions?: number;
-      changedFiles?: number;
-      mergeable?: string | null;
-      reviewDecision?: string | null;
-      files?: Array<{ path: string; additions?: number; deletions?: number }>;
-      commits?: Array<{
-        oid: string;
-        messageHeadline?: string;
-        authoredDate?: string;
-        authors?: Array<{ name?: string }>;
-      }>;
-    };
-    const checks = await this.prChecks(repoDir, number);
-    const files: GithubPrFile[] = (raw.files ?? []).map((file) => ({
-      path: file.path,
-      additions: file.additions ?? 0,
-      deletions: file.deletions ?? 0,
-    }));
-    const commits: GithubPrCommit[] = (raw.commits ?? []).map((commit) => ({
-      oid: commit.oid,
-      abbrev: commit.oid.slice(0, 7),
-      messageHeadline: commit.messageHeadline ?? "",
-      authoredDate: commit.authoredDate,
-      authorName: commit.authors?.[0]?.name,
-    }));
-    return {
-      number: raw.number,
-      title: raw.title,
-      url: raw.url,
-      state: raw.state,
-      isDraft: raw.isDraft,
-      headRefName: raw.headRefName,
-      baseRefName: raw.baseRefName,
-      updatedAt: raw.updatedAt,
-      createdAt: raw.createdAt,
-      body: raw.body ?? "",
-      author: raw.author?.login ?? null,
-      additions: raw.additions ?? 0,
-      deletions: raw.deletions ?? 0,
-      changedFiles: raw.changedFiles ?? files.length,
-      mergeable: raw.mergeable ?? null,
-      reviewDecision: raw.reviewDecision ?? null,
-      files,
-      commits,
-      checks,
-    };
   }
 
   async checkoutPr(
@@ -959,28 +742,29 @@ export class GitService {
     relativePath: string,
     number: number,
   ): Promise<GithubPrCheckoutResponse> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    await this.ensureGithubRemote(repoDir);
-    const { files } = parsePorcelainV2(
-      (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
-    );
-    if (files.length > 0) {
-      throw new HttpError(
-        409,
-        "GIT_DIRTY_WORKTREE",
-        "Working tree has uncommitted changes. Commit or stash them before checking out a PR.",
-      );
-    }
-    await this.mapGh(() =>
-      this.runGh(repoDir, ["pr", "checkout", String(number)]),
-    );
-    return {
-      repo: await this.summarizeRepo(
-        repoDir,
-        relativePath,
-        this.repoName(projectId, relativePath),
-      ),
+    return checkoutGithubPr(
+      this.githubContext(),
+      projectId,
+      relativePath,
       number,
+    );
+  }
+
+  private githubContext(): GithubServiceContext {
+    return {
+      resolveRepoDir: (projectId, relativePath) =>
+        this.resolveRepoDir(projectId, relativePath),
+      repoRemoteState: (repoDir) => this.repoRemoteState(repoDir),
+      runGh: (repoDir, args) => this.runGh(repoDir, args),
+      runGit: (repoDir, args) => this.runGit(repoDir, args),
+      ensureGithubRemote: (repoDir) => this.ensureGithubRemote(repoDir),
+      mapGh: (fn) => this.mapGh(fn),
+      summarizeRepo: (repoDir, relativePath, name) =>
+        this.summarizeRepo(repoDir, relativePath, name),
+      repoName: (projectId, relativePath) =>
+        this.repoName(projectId, relativePath),
+      isGitCommandError: (error): error is GitCommandError =>
+        error instanceof GitCommandError,
     };
   }
 
@@ -1010,88 +794,10 @@ export class GitService {
   }
 }
 
-function isGithubHost(hostname: string): boolean {
-  const normalized = hostname.toLowerCase().replace(/\.$/, "");
-  return normalized === "github.com" || normalized === "ssh.github.com";
-}
-
-export function isGithubRemoteUrl(url: string): boolean {
-  const trimmed = url.trim();
-  if (trimmed.length === 0) return false;
-
-  try {
-    const parsed = new URL(trimmed);
-    if (parsed.hostname) return isGithubHost(parsed.hostname);
-  } catch {
-    // Fall through to SCP-like git remote syntax, e.g.
-    // `git@github.com:owner/repo.git`.
-  }
-
-  const scpLike = trimmed.match(/^(?:(?:[^@/\s]+)@)?([^:/\s]+):\S+$/);
-  return scpLike ? isGithubHost(scpLike[1] ?? "") : false;
-}
-
-export function parseGitRemoteUrls(stdout: string): string[] {
-  const urls = new Set<string>();
-  for (const line of stdout.split("\n")) {
-    const match = line.trim().match(/^\S+\s+(.+?)(?:\s+\((?:fetch|push)\))?$/);
-    const url = match?.[1]?.trim();
-    if (url) urls.add(url);
-  }
-  return [...urls];
-}
-
-type GithubCheckRunRaw = { name: string; state: string; link?: string };
-
-function noChecksSummary(): GithubChecksSummary {
-  return {
-    status: "none",
-    total: 0,
-    passed: 0,
-    failed: 0,
-    pending: 0,
-    runs: [],
-  };
-}
-
-export function parseGithubChecks(stdout: string): GithubChecksSummary {
-  const raw = JSON.parse(stdout || "[]") as GithubCheckRunRaw[];
-  return summarizeChecks(raw);
-}
-
-export function summarizeChecks(
-  runs: GithubCheckRunRaw[],
-): GithubChecksSummary {
-  let passed = 0;
-  let failed = 0;
-  let pending = 0;
-  const normalized = runs.map((run) => {
-    const state = run.state.toUpperCase();
-    if (["SUCCESS", "NEUTRAL", "SKIPPED"].includes(state)) passed += 1;
-    else if (
-      [
-        "FAILURE",
-        "ERROR",
-        "CANCELLED",
-        "TIMED_OUT",
-        "ACTION_REQUIRED",
-      ].includes(state)
-    )
-      failed += 1;
-    else pending += 1;
-    return {
-      name: run.name,
-      status: state.toLowerCase(),
-      conclusion: state.toLowerCase(),
-      url: run.link,
-    };
-  });
-  const total = normalized.length;
-  let status: GithubChecksSummary["status"] = "none";
-  if (total > 0) {
-    if (failed > 0) status = "failing";
-    else if (pending > 0) status = "pending";
-    else status = "passing";
-  }
-  return { status, total, passed, failed, pending, runs: normalized };
-}
+export { GitCommandError } from "./git-command.js";
+export {
+  isGithubRemoteUrl,
+  parseGithubChecks,
+  parseGitRemoteUrls,
+  summarizeChecks,
+} from "./git-github-parsers.js";
