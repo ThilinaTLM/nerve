@@ -59,6 +59,7 @@ export type ExploreProgressUpdate = {
   taskIndex?: number;
   taskCount?: number;
   label?: string;
+  model?: string;
   phase:
     | "queued"
     | "started"

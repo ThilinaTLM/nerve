@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { flip } from "svelte/animate";
-  import { fade } from "svelte/transition";
   import CircleAlert from "@lucide/svelte/icons/circle-alert";
   import CircleCheck from "@lucide/svelte/icons/circle-check";
   import CircleDashed from "@lucide/svelte/icons/circle-dashed";
@@ -20,7 +18,6 @@
   };
   let { toolCall, view, onOpenFile }: Props = $props();
 
-  const context = $derived((toolCall.args as { context?: unknown })?.context);
   const aggregated = $derived(aggregateExploreTasks(view));
   const tasks = $derived(aggregated.tasks);
   const summary = $derived(aggregated.summary);
@@ -33,6 +30,17 @@
     return path.split(/[\\/]/).pop() || path;
   }
 
+  /** Short, human display for a model id (drops provider + path prefixes). */
+  function modelLabel(model: string): string {
+    return model.split(/[/:]/).pop() ?? model;
+  }
+
+  /** The per-agent task description, shown only when distinct from the title. */
+  function taskSubtitle(task: (typeof tasks)[number]): string | undefined {
+    if (!task.task) return undefined;
+    return task.task === taskTitle(task) ? undefined : task.task;
+  }
+
   function taskTitle(
     task: (typeof tasks)[number],
   ): string {
@@ -43,9 +51,9 @@
     );
   }
 
+  // Model is shown as a chip next to the title, so it is omitted here.
   function reportMeta(report: NonNullable<(typeof tasks)[number]["report"]>): string | undefined {
     const parts: string[] = [];
-    if (report.model) parts.push(report.model.split(/[/:]/).pop() ?? report.model);
     if (report.usage?.turns) parts.push(`${report.usage.turns} turn${report.usage.turns === 1 ? "" : "s"}`);
     if (report.usage?.input || report.usage?.output) {
       parts.push(`${report.usage.input + report.usage.output} tokens`);
@@ -77,7 +85,6 @@
     <ol class="grid gap-1.5">
       {#each tasks as task (task.key)}
         <li
-          animate:flip={{ duration: 200 }}
           class="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5"
         >
           <span class="mt-0.5" aria-hidden="true">
@@ -95,10 +102,19 @@
           <div class="grid min-w-0 gap-1">
             <div class="flex min-w-0 items-baseline gap-2">
               <strong class="truncate text-sm font-medium leading-tight">{taskTitle(task)}</strong>
+              {#if task.model}
+                <span class="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs leading-none text-muted-foreground" title={task.model}>{modelLabel(task.model)}</span>
+              {/if}
               {#if task.count && task.count > 1 && task.index !== undefined}
-                <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{task.index + 1}/{task.count}</span>
+                <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{task.index + 1}/{task.count}</span>
               {/if}
             </div>
+            {#if task.status !== "completed"}
+              {@const subtitle = taskSubtitle(task)}
+              {#if subtitle}
+                <p class="m-0 truncate text-xs text-muted-foreground/80">{subtitle}</p>
+              {/if}
+            {/if}
 
             {#if task.status === "completed" && task.report}
               {#if task.report.summaryPreview}
@@ -111,7 +127,6 @@
               {#if task.report.reportPath}
                 <button
                   type="button"
-                  transition:fade={{ duration: 150 }}
                   class="mt-0.5 inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs font-medium text-primary hover:bg-muted"
                   onclick={() => task.report?.reportPath && onOpenFile?.(task.report.reportPath)}
                   title={task.report.reportPath}
@@ -149,9 +164,5 @@
     </p>
   {:else}
     <p class="text-sm leading-relaxed text-muted-foreground">Explore completed without report files.</p>
-  {/if}
-
-  {#if typeof context === "string" && context.length > 0}
-    <p class="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{context}</p>
   {/if}
 </div>

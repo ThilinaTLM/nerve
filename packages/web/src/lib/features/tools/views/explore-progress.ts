@@ -35,6 +35,7 @@ export function parseExploreProgressLog(text: string | undefined): {
           taskCount:
             typeof record.taskCount === "number" ? record.taskCount : undefined,
           label: stringField(record.label),
+          model: stringField(record.model),
           phase: record.phase as ExploreProgressView["phase"],
           message: record.message,
         });
@@ -74,14 +75,35 @@ function friendlyExploreAction(
   }
 }
 
+type ExploreAggregate = { tasks: ExploreTaskState[]; summary: ExploreSummary };
+
+// `parseToolViewCached` returns a stable `view` object per tool-call revision,
+// so memoizing by object identity lets the three call sites (presentation,
+// dot-tone, the component) share one computation instead of recomputing the
+// whole per-agent fold three times on every live delta.
+const aggregateCache = new WeakMap<
+  Extract<ToolView, { kind: "explore" }>,
+  ExploreAggregate
+>();
+
 /**
  * Fold explore reports + streamed progress into a stable, per-agent model so the
  * transcript view stays purely presentational. Rows are index-ordered and keyed,
- * so they never reshuffle as live updates arrive.
+ * so they never reshuffle as live updates arrive. Memoized by `view` identity.
  */
 export function aggregateExploreTasks(
   view: Extract<ToolView, { kind: "explore" }>,
-): { tasks: ExploreTaskState[]; summary: ExploreSummary } {
+): ExploreAggregate {
+  const cached = aggregateCache.get(view);
+  if (cached) return cached;
+  const result = aggregateExploreTasksUncached(view);
+  aggregateCache.set(view, result);
+  return result;
+}
+
+function aggregateExploreTasksUncached(
+  view: Extract<ToolView, { kind: "explore" }>,
+): ExploreAggregate {
   const reports = view.reports;
   const byIndex = new Map<number, ExploreProgressView[]>();
   let maxSeenIndex = -1;
@@ -144,6 +166,8 @@ export function aggregateExploreTasks(
       status === "running"
         ? friendlyExploreAction(lastTool ?? latest ?? updates[0])
         : undefined;
+    const model =
+      report?.model ?? updates.find((u) => u.model)?.model ?? latest?.model;
 
     tasks.push({
       key: `task-${index}`,
@@ -152,6 +176,7 @@ export function aggregateExploreTasks(
       label: report?.label ?? latest?.label,
       task: report?.task ?? view.task,
       agentId: report?.agentId ?? latest?.agentId,
+      model,
       status,
       currentAction: action?.text,
       currentActionMono: action?.mono ?? false,

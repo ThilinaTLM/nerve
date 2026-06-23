@@ -283,15 +283,13 @@ export function toolPresentation(
         (report) => report.reportPath,
       ).length;
       const meta: MetaItem[] = [];
+      // While running, the in-body header already shows the `{completed}/{total}
+      // agents` progress bar, so the footer only carries completed-state chips
+      // (reports / files / model / turns) plus any failure count.
       if (summary.done) {
         if (count > 0)
           meta.push({ text: plural(count, "report", "s"), tone: "success" });
         if (fileCount > 0) meta.push({ text: plural(fileCount, "file", "s") });
-      } else if (summary.total > 0) {
-        meta.push({
-          text: `${summary.completed}/${summary.total} agents`,
-          tone: "info",
-        });
       }
       if (summary.failed > 0)
         meta.push({ text: `${summary.failed} failed`, tone: "error" });

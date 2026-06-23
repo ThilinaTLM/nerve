@@ -796,6 +796,7 @@ describe("parseToolView", () => {
             taskIndex: 0,
             taskCount: 2,
             label: "api",
+            model: "anthropic/claude-haiku",
           }),
           exploreUpdate("tool_call", "read server.ts", {
             taskIndex: 0,
@@ -828,6 +829,8 @@ describe("parseToolView", () => {
     assert.equal(tasks[0]?.currentActionMono, true);
     assert.equal(tasks[0]?.actionCount, 1);
     assert.equal(tasks[0]?.label, "api");
+    // Model is surfaced from live progress before any report exists.
+    assert.equal(tasks[0]?.model, "anthropic/claude-haiku");
     // Task 1: started but no tool action yet.
     assert.equal(tasks[1]?.status, "running");
     assert.equal(tasks[1]?.currentAction, "Starting…");

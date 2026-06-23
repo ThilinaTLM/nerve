@@ -23,6 +23,7 @@ export type ExploreProgressView = {
   taskIndex?: number;
   taskCount?: number;
   label?: string;
+  model?: string;
   phase:
     | "queued"
     | "started"
@@ -44,6 +45,7 @@ export type ExploreTaskState = {
   label?: string;
   task?: string;
   agentId?: string;
+  model?: string;
   status: ExploreTaskStatus;
   /** De-noised latest activity while running. */
   currentAction?: string;

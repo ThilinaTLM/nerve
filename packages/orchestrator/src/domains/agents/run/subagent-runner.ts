@@ -277,6 +277,7 @@ export class SubagentRunner {
       taskIndex: spec.taskIndex,
       taskCount: spec.taskCount,
       label: spec.label,
+      model: exploreModelLabel(child.model),
       phase: "started",
       message: `Agent ${child.id} started.`,
     });
@@ -325,7 +326,12 @@ export class SubagentRunner {
       harness.subscribe((event) => {
         const update = exploreProgressFromHarnessEvent(event, child, spec);
         if (update) {
-          publishExploreProgress(spec.onProgress, update);
+          // Only stream `tool_call` deltas live (the meaningful "what it's
+          // doing" signal); publishing tool_result/assistant too would 2-3x the
+          // per-event transcript re-render churn. Steps below keep full detail.
+          if (update.phase === "tool_call") {
+            publishExploreProgress(spec.onProgress, update);
+          }
           if (
             update.phase === "tool_call" ||
             update.phase === "tool_result" ||
@@ -403,14 +409,6 @@ export class SubagentRunner {
         childAgentId: child.id,
         kind: spec.kind,
         summary: report,
-      });
-      publishExploreProgress(spec.onProgress, {
-        agentId: child.id,
-        taskIndex: spec.taskIndex,
-        taskCount: spec.taskCount,
-        label: spec.label,
-        phase: "assistant",
-        message: "Final report received.",
       });
       return {
         agent: child,
@@ -664,6 +662,13 @@ function publishExploreProgress(
   });
 }
 
+/** Display label for the sub-agent's model, e.g. `provider/model-id`. */
+function exploreModelLabel(
+  selection: ModelSelection | undefined,
+): string | undefined {
+  return selection ? `${selection.provider}/${selection.modelId}` : undefined;
+}
+
 function exploreProgressFromHarnessEvent(
   event: unknown,
   child: AgentRecord,
@@ -676,6 +681,7 @@ function exploreProgressFromHarnessEvent(
     taskIndex: spec.taskIndex,
     taskCount: spec.taskCount,
     label: spec.label,
+    model: exploreModelLabel(child.model),
   };
   if (record.type === "tool_call") {
     const toolName =
