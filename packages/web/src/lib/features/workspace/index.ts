@@ -1,3 +1,5 @@
+import "./state/center-tab-dispatch.svelte";
+
 export * from "./api/workspace.api";
 export {
   centerTabsExcept,

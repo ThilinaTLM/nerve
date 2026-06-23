@@ -3,6 +3,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { logsState } from "$lib/features/logs/state/log-state.svelte";
+import { notify } from "$lib/features/notifications/notify.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
@@ -17,6 +18,41 @@ export function centerTabsEqual(
   return Boolean(
     left && right && left.kind === right.kind && left.id === right.id,
   );
+}
+
+type CenterTabKind = CenterTabIdentity["kind"];
+type CenterTabOfKind<Kind extends CenterTabKind> = Extract<
+  CenterTabIdentity,
+  { kind: Kind }
+>;
+type CenterTabHandlerMap = {
+  [Kind in CenterTabKind]: (tab: CenterTabOfKind<Kind>) => void | Promise<void>;
+};
+
+const centerTabSelectHandlers: Partial<CenterTabHandlerMap> = {};
+const centerTabCloseHandlers: Partial<CenterTabHandlerMap> = {};
+
+export function registerCenterTabDispatch(handlers: {
+  select?: Partial<CenterTabHandlerMap>;
+  close?: Partial<CenterTabHandlerMap>;
+}) {
+  Object.assign(centerTabSelectHandlers, handlers.select);
+  Object.assign(centerTabCloseHandlers, handlers.close);
+}
+
+function handlerFor(
+  handlers: Partial<CenterTabHandlerMap>,
+  tab: CenterTabIdentity,
+): ((tab: CenterTabIdentity) => void | Promise<void>) | undefined {
+  return handlers[tab.kind] as
+    | ((tab: CenterTabIdentity) => void | Promise<void>)
+    | undefined;
+}
+
+function handleCenterTabError(action: "switch" | "close", caught: unknown) {
+  const message = caught instanceof Error ? caught.message : String(caught);
+  workspaceState.error = message;
+  notify.error(`Could not ${action} pane`, { description: message });
 }
 
 function syncLegacyTabFields() {
@@ -117,110 +153,22 @@ export async function selectCenterTab(tab: CenterTabIdentity | undefined) {
     setActiveCenterTab(undefined);
     return;
   }
-  switch (tab.kind) {
-    case "conversation": {
-      const { openConversation } = await import(
-        "$lib/features/conversations/state/conversation-flow.svelte"
-      );
-      await openConversation(tab.id);
-      return;
-    }
-    case "pending-conversation": {
-      const { selectPendingConversation } = await import(
-        "$lib/features/conversations/state/conversation-flow.svelte"
-      );
-      selectPendingConversation(tab.id);
-      return;
-    }
-    case "task": {
-      const { selectCenterTaskTab } = await import(
-        "$lib/features/tasks/state/task-tabs.svelte"
-      );
-      await selectCenterTaskTab(tab.id);
-      return;
-    }
-    case "file": {
-      const { selectCenterFileTab } = await import(
-        "$lib/features/filesystem/state/file-tabs.svelte"
-      );
-      await selectCenterFileTab(tab.id);
-      return;
-    }
-    case "pr": {
-      const { selectCenterPrTab } = await import(
-        "$lib/features/git/state/pr-tabs.svelte"
-      );
-      await selectCenterPrTab(tab.id);
-      return;
-    }
-    case "settings": {
-      const { selectCenterSettingsTab } = await import(
-        "$lib/features/settings/state/settings-actions.svelte"
-      );
-      await selectCenterSettingsTab();
-      return;
-    }
-    case "logs": {
-      const { selectCenterLogsTab } = await import(
-        "$lib/features/logs/state/logs.svelte"
-      );
-      selectCenterLogsTab();
-      return;
-    }
+  try {
+    const handler = handlerFor(centerTabSelectHandlers, tab);
+    if (!handler) throw new Error(`No select handler for ${tab.kind} panes`);
+    await handler(tab);
+  } catch (caught) {
+    handleCenterTabError("switch", caught);
   }
 }
 
 export async function closeCenterTab(tab: CenterTabIdentity) {
-  switch (tab.kind) {
-    case "conversation": {
-      const { closeConversationTab } = await import(
-        "$lib/features/conversations/state/conversation-flow.svelte"
-      );
-      await closeConversationTab(tab.id);
-      return;
-    }
-    case "pending-conversation": {
-      const { closePendingConversationTab } = await import(
-        "$lib/features/conversations/state/conversation-flow.svelte"
-      );
-      await closePendingConversationTab(tab.id);
-      return;
-    }
-    case "task": {
-      const { closeTaskTab } = await import(
-        "$lib/features/tasks/state/task-tabs.svelte"
-      );
-      await closeTaskTab(tab.id);
-      return;
-    }
-    case "file": {
-      const { closeFileTab } = await import(
-        "$lib/features/filesystem/state/file-tabs.svelte"
-      );
-      closeFileTab(tab.id);
-      return;
-    }
-    case "pr": {
-      const { closePrTab } = await import(
-        "$lib/features/git/state/pr-tabs.svelte"
-      );
-      closePrTab(tab.id);
-      return;
-    }
-    case "settings": {
-      const { closeSettingsTab } = await import(
-        "$lib/features/settings/state/settings-actions.svelte"
-      );
-      closeSettingsTab();
-      return;
-    }
-    case "logs": {
-      const { closeLogsTab } = await import(
-        "$lib/features/logs/state/logs.svelte"
-      );
-      closeLogsTab();
-      return;
-    }
+  try {
+    const handler = handlerFor(centerTabCloseHandlers, tab);
+    if (!handler) throw new Error(`No close handler for ${tab.kind} panes`);
+    await handler(tab);
+  } catch (caught) {
+    handleCenterTabError("close", caught);
   }
 }
 

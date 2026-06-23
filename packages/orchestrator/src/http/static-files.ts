@@ -68,6 +68,7 @@ export async function serveStatic(
         contentTypes[extname(finalPath)] ?? "application/octet-stream",
         state,
         clientAddress,
+        requestedPath,
       ),
     });
   } catch {
@@ -82,6 +83,7 @@ export async function serveStatic(
           "text/html; charset=utf-8",
           state,
           clientAddress,
+          "/index.html",
         ),
       });
     } catch {
@@ -90,6 +92,7 @@ export async function serveStatic(
           "text/html; charset=utf-8",
           state,
           clientAddress,
+          "/index.html",
         ),
       });
     }
@@ -100,12 +103,36 @@ function staticResponseHeaders(
   contentType: string,
   state: OrchestratorState,
   clientAddress?: string,
+  pathname?: string,
 ): HeadersInit {
-  const headers: Record<string, string> = { "content-type": contentType };
+  const headers: Record<string, string> = {
+    "content-type": contentType,
+    "cache-control": staticCacheControl(pathname, contentType),
+  };
   if (shouldIssueLocalUiCookie(state, clientAddress)) {
     headers["set-cookie"] = cookieHeader(state.storage.localToken);
   }
   return headers;
+}
+
+function staticCacheControl(pathname = "", contentType: string): string {
+  if (
+    pathname === "/" ||
+    pathname === "/index.html" ||
+    contentType.startsWith("text/html") ||
+    pathname === "/sw.js" ||
+    pathname === "/registerSW.js" ||
+    pathname === "/service-worker.js" ||
+    /^\/workbox-[^.]+\.js$/.test(pathname)
+  ) {
+    return "no-cache";
+  }
+
+  if (pathname.startsWith("/assets/")) {
+    return "public, max-age=31536000, immutable";
+  }
+
+  return "public, max-age=3600";
 }
 
 function shouldIssueLocalUiCookie(
