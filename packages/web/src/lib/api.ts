@@ -8,6 +8,7 @@ export type {
   ApprovalRecord,
   AuthProviderMetadata,
   ClipboardImageUploadResponse,
+  CompletionItem,
   ContextUsage,
   ConversationActiveRunSnapshot,
   ConversationEntry,

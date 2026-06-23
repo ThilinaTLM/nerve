@@ -1,4 +1,4 @@
-import type { ModelInfo, StatusResponse } from "@nerve/shared";
+import type { CompletionItem, ModelInfo, StatusResponse } from "@nerve/shared";
 import { apiGet } from "../../../core/api/client";
 
 export type ClientConfig = {
@@ -7,13 +7,7 @@ export type ClientConfig = {
   status: StatusResponse;
 };
 
-export type CompletionItem = {
-  label: string;
-  detail?: string;
-  info?: string;
-  kind: "slash" | "file" | "directory";
-  apply?: string;
-};
+export type { CompletionItem } from "@nerve/shared";
 
 export type ModelOption = ModelInfo;
 

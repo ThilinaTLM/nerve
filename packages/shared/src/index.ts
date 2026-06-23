@@ -1,6 +1,7 @@
 export * from "./core/index.js";
 export * from "./domains/agents/index.js";
 export * from "./domains/auth/index.js";
+export * from "./domains/completions/index.js";
 export * from "./domains/conversations/index.js";
 export * from "./domains/events/index.js";
 export * from "./domains/filesystem/index.js";

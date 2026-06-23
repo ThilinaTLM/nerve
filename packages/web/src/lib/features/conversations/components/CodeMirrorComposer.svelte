@@ -1,6 +1,12 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { autocompletion, completionStatus, type Completion, type CompletionContext } from "@codemirror/autocomplete";
+  import {
+    autocompletion,
+    completionStatus,
+    type Completion,
+    type CompletionContext,
+    type CompletionSection,
+  } from "@codemirror/autocomplete";
   import { markdown } from "@codemirror/lang-markdown";
   import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
   import { Compartment, EditorState, Prec } from "@codemirror/state";
@@ -19,6 +25,14 @@
     onSubmit?: () => void;
     onPasteImage?: (file: File) => Promise<string>;
   };
+
+  type ComposerCompletion = Completion & {
+    matchRanges?: readonly number[];
+    nerveKind?: CompletionItem["kind"];
+  };
+
+  const commandSection: CompletionSection = { name: "Commands", rank: 0 };
+  const projectReferenceSection: CompletionSection = { name: "Project references", rank: 10 };
 
   let {
     value,
@@ -44,14 +58,178 @@
     return [EditorState.readOnly.of(isDisabled), EditorView.editable.of(!isDisabled)];
   }
 
-  function toCompletion(item: CompletionItem): Completion {
+  function sectionFor(item: CompletionItem): CompletionSection {
+    if (item.kind === "directory" || item.kind === "file") {
+      return projectReferenceSection;
+    }
+    return commandSection;
+  }
+
+  function boostFor(item: CompletionItem): number | undefined {
+    if (item.sortScore === undefined) return undefined;
+    return Math.max(-99, Math.min(99, Math.round(item.sortScore / 160)));
+  }
+
+  function toCompletion(item: CompletionItem): ComposerCompletion {
     return {
       label: item.label,
+      displayLabel: item.displayLabel,
       detail: item.detail,
       info: item.info,
       type: item.kind === "directory" ? "folder" : item.kind === "file" ? "file" : "keyword",
       apply: item.apply ?? item.label,
+      boost: boostFor(item),
+      section: sectionFor(item),
+      matchRanges: item.matchRanges?.flatMap(([from, to]) => [from, to]),
+      nerveKind: item.kind,
     };
+  }
+
+  function getCompletionMatch(completion: Completion): readonly number[] {
+    return (completion as ComposerCompletion).matchRanges ?? [];
+  }
+
+  function completionOptionClass(completion: Completion): string {
+    const kind = (completion as ComposerCompletion).nerveKind ?? "slash";
+    return `nerve-completion-option nerve-completion-${kind}`;
+  }
+
+  // Lucide (v1.17) icon path data, mirrored from @lucide/svelte. CodeMirror's
+  // completion `render` runs in a vanilla-DOM context, so we build inline SVG
+  // with createElementNS instead of mounting @lucide/svelte components.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const lucideIcons = {
+    file: [
+      "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",
+      "M14 2v5a1 1 0 0 0 1 1h5",
+    ],
+    folder: [
+      "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
+    ],
+  } as const;
+
+  function lucideIcon(name: keyof typeof lucideIcons, size = 14): SVGSVGElement {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("width", String(size));
+    svg.setAttribute("height", String(size));
+    svg.setAttribute("aria-hidden", "true");
+    for (const d of lucideIcons[name]) {
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
+    }
+    return svg;
+  }
+
+  function appendHighlighted(
+    parent: Node,
+    text: string,
+    ranges: Array<[number, number]>,
+  ): void {
+    let cursor = 0;
+    for (const [from, to] of ranges) {
+      if (from > cursor) parent.appendChild(document.createTextNode(text.slice(cursor, from)));
+      const mark = document.createElement("span");
+      mark.className = "cm-nerve-match";
+      mark.textContent = text.slice(from, to);
+      parent.appendChild(mark);
+      cursor = to;
+    }
+    if (cursor < text.length) {
+      parent.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+  }
+
+  function renderCompletionRow(completion: Completion): Node {
+    const kind = (completion as ComposerCompletion).nerveKind;
+    const labelRanges = (completion as ComposerCompletion).matchRanges ?? [];
+
+    const row = document.createElement("span");
+    row.className = "cm-nerve-row";
+
+    const iconWrap = document.createElement("span");
+    iconWrap.className = "cm-nerve-row-icon";
+    iconWrap.appendChild(
+      kind === "directory"
+        ? lucideIcon("folder")
+        : kind === "file"
+          ? lucideIcon("file")
+          : lucideIcon("file"),
+    );
+    row.appendChild(iconWrap);
+
+    const main = document.createElement("span");
+    main.className = "cm-nerve-row-main";
+
+    if (kind === "file" || kind === "directory") {
+      // Label coordinates: index 0 is the leading "@"; index 1 onward is the
+      // project-relative path (+ trailing "/" for directories).
+      const rawLabel = completion.label ?? "";
+      const info = completion.info;
+      const rel =
+        typeof info === "string" ? info : rawLabel.replace(/^@/, "");
+      const isDir = kind === "directory";
+      const baseRel = isDir ? rel.replace(/\/+$/, "") : rel;
+      const nameStart = baseRel.lastIndexOf("/") + 1;
+      const dir = baseRel.slice(0, nameStart);
+      const name = baseRel.slice(nameStart) + (isDir ? "/" : "");
+
+      // matchRanges is stored as a flat [from, to, from, to, ...] sequence
+      // (flattened for CodeMirror's getMatch). Re-pair it, then shift from
+      // label-space into rel-space by subtracting 1 for the leading "@".
+      const relRanges: Array<[number, number]> = [];
+      for (let i = 0; i + 1 < labelRanges.length; i += 2) {
+        const a = Math.max(0, labelRanges[i] - 1);
+        const b = Math.min(baseRel.length, labelRanges[i + 1] - 1);
+        if (b > a) relRanges.push([a, b]);
+      }
+
+      if (dir) {
+        const dirEl = document.createElement("span");
+        dirEl.className = "cm-nerve-row-dir";
+        // LRM keeps the leading character anchored when direction:rtl ellipsizes
+        // the directory prefix on the left, so the closest folder stays visible.
+        dirEl.textContent = "\u200e";
+        appendHighlighted(
+          dirEl,
+          dir,
+          relRanges
+            .filter(([from]) => from < nameStart)
+            .map(([from, to]) => [from, Math.min(to, nameStart)] as [number, number]),
+        );
+        main.appendChild(dirEl);
+      }
+
+      const nameEl = document.createElement("span");
+      nameEl.className = "cm-nerve-row-name";
+      // Split ranges that cross the dir/name boundary at nameStart so the leaf
+      // portion of a spanning match is highlighted too.
+      appendHighlighted(
+        nameEl,
+        name,
+        relRanges
+          .filter(([from, to]) => to > nameStart)
+          .map(([from, to]) => [
+            Math.max(from, nameStart) - nameStart,
+            to - nameStart,
+          ] as [number, number]),
+      );
+      main.appendChild(nameEl);
+    } else {
+      const nameEl = document.createElement("span");
+      nameEl.className = "cm-nerve-row-name";
+      nameEl.textContent = completion.label ?? "";
+      main.appendChild(nameEl);
+    }
+
+    row.appendChild(main);
+    return row;
   }
 
   async function completionSource(context: CompletionContext) {
@@ -68,9 +246,16 @@
     }
 
     if (rawToken.startsWith("@")) {
+      context.addEventListener("abort", () => undefined, { onDocChange: true });
       const query = rawToken.slice(1);
       const options = (await fileCompletions?.(query) ?? []).map(toCompletion);
-      return { from: tokenStart, options };
+      if (context.aborted) return null;
+      return {
+        from: tokenStart,
+        options,
+        filter: false,
+        getMatch: getCompletionMatch,
+      };
     }
 
     if (context.explicit) {
@@ -81,7 +266,14 @@
   }
 
   function completionExtensions() {
-    return autocompletion({ override: [completionSource] });
+    return autocompletion({
+      override: [completionSource],
+      icons: false,
+      maxRenderedOptions: 80,
+      tooltipClass: () => "nerve-composer-completions",
+      optionClass: completionOptionClass,
+      addToOptions: [{ render: renderCompletionRow, position: 20 }],
+    });
   }
 
   function submit() {
@@ -182,14 +374,108 @@
             ".cm-tooltip": {
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-md)",
-              background: "var(--accent)",
-              color: "var(--foreground)",
-              boxShadow: "var(--shadow-md)",
+              background: "var(--popover)",
+              color: "var(--popover-foreground)",
+              boxShadow: "var(--shadow-lg)",
               overflow: "hidden",
             },
-            ".cm-tooltip-autocomplete ul li[aria-selected]": {
+            ".cm-tooltip-autocomplete.nerve-composer-completions": {
+              minWidth: "min(28rem, calc(100vw - 2rem))",
+              maxWidth: "min(38rem, calc(100vw - 2rem))",
+              padding: "0.25rem",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions > ul": {
+              maxHeight: "min(42vh, 22rem)",
+              padding: "0.15rem",
+              fontFamily: "var(--font-mono)",
+              scrollbarWidth: "thin",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions > ul > completion-section": {
+              borderBottom: "0",
+              color: "var(--muted-foreground)",
+              fontFamily: "var(--font-sans)",
+              fontSize: "var(--text-xs)",
+              fontWeight: "700",
+              letterSpacing: "0.02em",
+              padding: "0.35rem 0.5rem 0.2rem",
+              textTransform: "uppercase",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions > ul > li": {
+              display: "flex",
+              alignItems: "center",
+              minHeight: "1.85rem",
+              borderRadius: "var(--radius-sm)",
+              padding: "0.28rem 0.5rem",
+              color: "var(--popover-foreground)",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions > ul > li[aria-selected]": {
               background: "var(--accent)",
-              color: "var(--foreground)",
+              color: "var(--accent-foreground)",
+            },
+            // We render our own row (icon + left-truncated dir + filename); hide
+            // CodeMirror's default label/detail to avoid duplicate/clipped text.
+            ".cm-tooltip-autocomplete.nerve-composer-completions .cm-completionLabel": {
+              display: "none",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .cm-completionDetail": {
+              display: "none",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row": {
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              minWidth: "0",
+              width: "100%",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-icon": {
+              display: "inline-flex",
+              flexShrink: "0",
+              alignItems: "center",
+              color: "var(--muted-foreground)",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-directory .cm-nerve-row-icon": {
+              color: "var(--info)",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-file .cm-nerve-row-icon": {
+              color: "var(--success)",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-main": {
+              display: "flex",
+              alignItems: "baseline",
+              gap: "0.4rem",
+              flex: "1",
+              minWidth: "0",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-dir": {
+              flexShrink: "1",
+              minWidth: "0",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              direction: "rtl",
+              textAlign: "left",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--text-xs)",
+              color: "var(--muted-foreground)",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-name": {
+              flexShrink: "0",
+              whiteSpace: "nowrap",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--text-sm)",
+              fontWeight: "600",
+              color: "var(--popover-foreground)",
+            },
+            ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-match": {
+              color: "var(--primary)",
+              fontWeight: "700",
+            },
+            ".cm-tooltip.cm-completionInfo": {
+              maxWidth: "min(30rem, calc(100vw - 2rem))",
+              padding: "0.55rem 0.7rem",
+              color: "var(--popover-foreground)",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--text-xs)",
             },
             "&.cm-focused": {
               outline: "none",
