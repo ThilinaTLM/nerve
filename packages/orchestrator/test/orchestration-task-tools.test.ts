@@ -93,6 +93,36 @@ describe("orchestration task tools", () => {
     assert.equal(result.restartRootTaskId, original.id);
   });
 
+  it("routes bash through foreground auto-promotion with current agent scope", async () => {
+    let captured: Record<string, unknown> | undefined;
+    const dispatcher = await createDispatcher([], {
+      runForegroundBashWithPromotion: async (input) => {
+        captured = input as Record<string, unknown>;
+        return {
+          kind: "completed_foreground",
+          result: {
+            content: "ok",
+            contentBlocks: [{ type: "text", text: "ok" }],
+            exitCode: 0,
+          },
+        };
+      },
+    });
+
+    const result = (await dispatcher.execute(toolCall("bash"), {
+      command: "pnpm check",
+      timeout: 0,
+    })) as { content?: string };
+
+    assert.equal(result.content, "ok");
+    assert.equal(captured?.command, "pnpm check");
+    assert.equal(captured?.timeoutMs, undefined);
+    assert.equal(captured?.projectId, "proj_test");
+    assert.equal(captured?.conversationId, "conv_test");
+    assert.equal(captured?.agentId, "agent_test");
+    assert.equal(captured?.workerId, "worker_test");
+  });
+
   it("returns cancellation outcome metadata for terminal targets", async () => {
     const completed = task({
       id: "task_done",
@@ -117,6 +147,7 @@ async function createDispatcher(
   overrides: Partial<{
     restartTask: (taskId: string) => Promise<TaskRecord>;
     cancelTask: (taskId: string) => Promise<TaskRecord>;
+    runForegroundBashWithPromotion: (input: unknown) => Promise<unknown>;
   }> = {},
 ): Promise<OrchestrationToolDispatcher> {
   const root = await mkdtemp(join(tmpdir(), "nerve-task-dispatcher-"));
@@ -151,6 +182,15 @@ async function createDispatcher(
       }),
     cancelTask:
       overrides.cancelTask ?? (async (taskId: string) => tasks.getTask(taskId)),
+    runForegroundBashWithPromotion:
+      overrides.runForegroundBashWithPromotion ??
+      (async () => ({
+        kind: "completed_foreground",
+        result: {
+          content: "ok",
+          contentBlocks: [{ type: "text", text: "ok" }],
+        },
+      })),
   };
 
   return new OrchestrationToolDispatcher({
@@ -159,7 +199,12 @@ async function createDispatcher(
     tasks,
     pythonRuntime: {},
     startTask: async () => task({ id: "task_started" }),
-    getAgent: () => ({ id: "agent_test", projectDir: root, mode: "coding" }),
+    getAgent: () => ({
+      id: "agent_test",
+      workerId: "worker_test",
+      projectDir: root,
+      mode: "coding",
+    }),
     runExplore: async () => ({ reports: [] }),
     getApiKey: async () => undefined,
     plans: {},

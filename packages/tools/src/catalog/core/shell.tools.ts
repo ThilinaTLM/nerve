@@ -18,13 +18,13 @@ export const shellToolDefinitions = [
     name: "bash",
     label: "bash",
     description:
-      "Execute an awaited bash command in the current working directory. Returns stdout and stderr. Finite commands may auto-promote after about 60 seconds and report completion asynchronously. Large or overlong-line outputs are saved to a transcript file with compact bounded previews. Output is capped by line count, total byte budget, and per-line length. Optionally provide a timeout in seconds.",
+      "Run a finite shell command in the current working directory. If it is still running after about 60 seconds, Nerve returns a background task id and sends an async update when it finishes. Use timeout to cap runtime.",
     promptSnippet: "Run awaited shell commands",
     promptGuidelines: [
       "Use dedicated file tools when available: read for file contents, grep for content search, find for file discovery, and ls for directory listings.",
-      "Use bash for finite shell work whose result matters, including tests/checks/builds even when they may take minutes.",
-      "If bash auto-promotes, continue independent work or wait for the harness terminal notification; do not poll task_status just to wait.",
-      "Use task_start only for detached dev servers, watchers, listeners, and other long-lived processes.",
+      "Use bash for finite commands such as checks, tests, and builds.",
+      "If bash promotes, continue useful work or inspect once with task_status/task_logs; do not poll just to wait.",
+      "Use task_start for intentionally long-lived servers, watchers, listeners, and daemons.",
     ],
     parameters: bashParameters,
     executionMode: "sequential",

@@ -147,7 +147,12 @@ export class TaskLogService {
     onLog: (event: TaskLogEvent) => Promise<void>,
   ): Promise<void> {
     const path = stream === "stdout" ? record.stdoutPath : record.stderrPath;
-    await appendFile(path, text, "utf8");
+    await Promise.all([
+      appendFile(path, text, "utf8"),
+      record.combinedPath
+        ? appendFile(record.combinedPath, text, "utf8")
+        : Promise.resolve(),
+    ]);
 
     const { lines, remainder } = appendChunkAndTakeCompleteLines(
       cursor.lineBuffers[stream],

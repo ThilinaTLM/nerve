@@ -226,9 +226,9 @@ export const taskToolDefinitions = [
     promptSnippet:
       "Start detached background processes for long-lived commands and servers",
     promptGuidelines: [
-      "Use task_start for detached dev servers, watchers, listeners, and other long-lived processes that should keep running independently.",
-      "Do not use task_start for finite tests/checks/builds; use bash and let it auto-promote if needed.",
-      "After starting a task, continue independent work; do not poll task_status/task_logs to wait.",
+      "Use task_start for intentionally long-lived servers, watchers, listeners, and daemons.",
+      "Use bash for finite tests/checks/builds; it promotes automatically if still running after about 60 seconds.",
+      "After starting a task, continue useful work; do not poll task_status/task_logs just to wait.",
       "Readiness checks are off unless you provide readyUrl, readyOnUrl, or readyPattern.",
       "Use timeoutMs only to cap detached task runtime; readyTimeoutMs only bounds readiness detection and does not stop the process.",
       "Use task_status/task_logs only for one-off inspection or debugging when the next action depends on current state.",
@@ -245,7 +245,7 @@ export const taskToolDefinitions = [
     promptSnippet: "Inspect current task status",
     promptGuidelines: [
       "Do not call task_status repeatedly to wait for completion.",
-      "For awaited finite commands, use bash instead of task_start; promoted bash commands send async terminal notifications.",
+      "For finite commands, use bash; promoted bash commands send async terminal notifications.",
     ],
     parameters: taskStatusParameters,
     executionMode: "parallel",

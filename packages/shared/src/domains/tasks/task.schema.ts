@@ -105,6 +105,7 @@ export const taskRecordSchema = z.object({
   readiness: taskReadinessSchema,
   stdoutPath: z.string().min(1),
   stderrPath: z.string().min(1),
+  combinedPath: z.string().min(1).optional(),
   logsPath: z.string().min(1),
   startedAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

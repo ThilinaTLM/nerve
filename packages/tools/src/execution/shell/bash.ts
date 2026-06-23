@@ -4,6 +4,8 @@ import { numberArg } from "../common/args.js";
 import { boundLiveOutputChunk } from "../common/output-budget.js";
 import { buildProcessResult } from "../common/process-result.js";
 
+const FORCE_KILL_AFTER_MS = 2000;
+
 export async function executeBash(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
@@ -19,6 +21,7 @@ export async function executeBash(
   const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
   const combinedChunks: Buffer[] = [];
+  const startedAt = performance.now();
 
   return await new Promise<ToolExecutionResult>((resolve, reject) => {
     if (context.signal?.aborted) {
@@ -34,20 +37,24 @@ export async function executeBash(
     });
 
     let settled = false;
+    let timedOut = false;
+    let timeoutKilled = false;
     let timeout: NodeJS.Timeout | undefined;
+    let forceKillTimeout: NodeJS.Timeout | undefined;
     const cleanup = () => {
       if (timeout) clearTimeout(timeout);
+      if (forceKillTimeout) clearTimeout(forceKillTimeout);
       context.signal?.removeEventListener("abort", onAbort);
     };
-    const kill = () => {
+    const kill = (signal: NodeJS.Signals = "SIGTERM") => {
       try {
         if (process.platform !== "win32" && child.pid) {
-          process.kill(-child.pid, "SIGTERM");
+          process.kill(-child.pid, signal);
         } else {
-          child.kill("SIGTERM");
+          child.kill(signal);
         }
       } catch {
-        child.kill("SIGTERM");
+        child.kill(signal);
       }
     };
     const onAbort = () => {
@@ -62,10 +69,12 @@ export async function executeBash(
     if (timeoutSeconds !== undefined && timeoutSeconds > 0) {
       timeout = setTimeout(() => {
         if (settled) return;
-        kill();
-        settled = true;
-        cleanup();
-        reject(new Error(`Command timed out after ${timeoutSeconds}s.`));
+        timedOut = true;
+        timeoutKilled = true;
+        kill("SIGTERM");
+        forceKillTimeout = setTimeout(() => {
+          if (!settled) kill("SIGKILL");
+        }, FORCE_KILL_AFTER_MS);
       }, timeoutSeconds * 1000);
     }
 
@@ -104,6 +113,15 @@ export async function executeBash(
         code,
         signal,
         context.dataDir,
+        {
+          durationMs: Math.round(performance.now() - startedAt),
+          timedOut,
+          timeoutKilled,
+          timeoutMessage:
+            timeoutSeconds !== undefined
+              ? `Command timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`
+              : undefined,
+        },
       )
         .then(resolve)
         .catch(reject);
@@ -118,6 +136,12 @@ async function buildResult(
   code: number | null,
   signal: NodeJS.Signals | null,
   dataDir: string | undefined,
+  options: {
+    durationMs?: number;
+    timedOut?: boolean;
+    timeoutKilled?: boolean;
+    timeoutMessage?: string;
+  } = {},
 ): Promise<ToolExecutionResult> {
   return buildProcessResult({
     stdoutChunks,
@@ -128,5 +152,9 @@ async function buildResult(
     outputFilePrefix: "nerve-bash",
     exitMessagePrefix: "Command",
     dataDir,
+    durationMs: options.durationMs,
+    timedOut: options.timedOut,
+    timeoutKilled: options.timeoutKilled,
+    timeoutMessage: options.timeoutMessage,
   });
 }

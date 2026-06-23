@@ -1,5 +1,4 @@
 export { TaskRepository } from "./task.repository.js";
-export { TaskCompletionService } from "./task-completion.service.js";
 export type { TaskLaunchConfigStore } from "./task-launch-config.store.js";
 export {
   SecretTaskLaunchConfigStore,

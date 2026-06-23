@@ -127,6 +127,23 @@ describe("bash executor", () => {
     assert.equal(transcript, "x".repeat(5000));
   });
 
+  it("returns captured output as a structured result on timeout", async () => {
+    const project = await createTempProject();
+    const result = await executeBash(
+      {
+        command: `${node} -e "process.stdout.write('partial'); setInterval(() => {}, 1000)"`,
+        timeout: 1,
+      },
+      { cwd: project.root },
+    );
+
+    assert.equal(result.stdout, "partial");
+    assert.equal(result.exitCode, 124);
+    assert.match(result.content ?? "", /timed out/);
+    const details = result.details as { timedOut?: boolean };
+    assert.equal(details.timedOut, true);
+  });
+
   it("normalizes non-zero commands instead of throwing", async () => {
     const project = await createTempProject();
     const result = await executeBash(

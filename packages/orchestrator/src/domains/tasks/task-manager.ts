@@ -14,8 +14,10 @@ import {
   type TaskRuntime,
 } from "@nerve/shared";
 import {
+  boundLiveOutputChunk,
   buildProcessResult,
   buildProcessTextResult,
+  type ToolExecutionOutputUpdate,
   type ToolExecutionResult,
 } from "@nerve/tools";
 import type { EventBus } from "../../infrastructure/events/index.js";
@@ -43,13 +45,21 @@ export interface TaskManagerOptions {
   launchConfigs?: TaskLaunchConfigStore;
 }
 
+const RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS = 5000;
+const FOREGROUND_TIMEOUT_RESULT_GRACE_MS = 500;
+
 export type ForegroundBashPromotionInput = {
   command: string;
   cwd: string;
+  workerId?: string;
+  projectId: string;
+  conversationId: string;
+  agentId: string;
   timeoutMs?: number;
   autoPromoteAfterMs: number;
   origin: Extract<TaskRecord["origin"], { kind: "agent_tool" }>;
   signal?: AbortSignal;
+  onOutput?: (update: ToolExecutionOutputUpdate) => void;
 };
 
 export type ForegroundBashPromotionResult =
@@ -70,11 +80,14 @@ interface ManagedTask extends TaskLogCursor {
     signal: NodeJS.Signals | null;
   }>;
   finalizationPromise?: Promise<TaskRecord | undefined>;
+  terminalPromise?: Promise<TaskRecord | undefined>;
+  resolveTerminal?: (task: TaskRecord | undefined) => void;
   readinessTimer?: NodeJS.Timeout;
   readinessPollAbort?: AbortController;
   runtimeTimer?: NodeJS.Timeout;
   readinessPattern?: RegExp;
   timedOut?: boolean;
+  onOutput?: (update: ToolExecutionOutputUpdate) => void;
 }
 
 export class TaskManager {
@@ -203,6 +216,7 @@ export class TaskManager {
       origin?: TaskRecord["origin"];
       completion?: TaskRecord["completion"];
       visibility?: TaskRecord["visibility"];
+      onOutput?: (update: ToolExecutionOutputUpdate) => void;
     },
   ): Promise<TaskRecord> {
     const now = new Date().toISOString();
@@ -265,6 +279,7 @@ export class TaskManager {
       readiness,
       stdoutPath: join(dir, "stdout.log"),
       stderrPath: join(dir, "stderr.log"),
+      combinedPath: join(dir, "combined.log"),
       logsPath: join(dir, "logs.jsonl"),
       startedAt: now,
       updatedAt: now,
@@ -312,13 +327,20 @@ export class TaskManager {
         resolveClose({ exitCode, signal });
       });
     });
+    let resolveTerminal: ((task: TaskRecord | undefined) => void) | undefined;
+    const terminalPromise = new Promise<TaskRecord | undefined>((resolve) => {
+      resolveTerminal = resolve;
+    });
     const managed: ManagedTask = {
       child,
       ...createTaskLogCursor(await this.taskLogs.latestLogSeq(record.logsPath)),
       stopping: false,
       finalized: false,
       closePromise,
+      terminalPromise,
+      resolveTerminal,
       readinessPattern,
+      onOutput: request.onOutput,
     };
     managed.finalizationPromise = closePromise
       .then(({ exitCode, signal }) =>
@@ -557,11 +579,18 @@ export class TaskManager {
     taskId: string,
   ): Promise<ToolExecutionResult> {
     const task = this.getTask(taskId);
-    const [stdout, stderr] = await Promise.all([
+    const [stdout, stderr, combinedFromFile] = await Promise.all([
       readFile(task.stdoutPath).catch(() => Buffer.alloc(0)),
       readFile(task.stderrPath).catch(() => Buffer.alloc(0)),
+      task.combinedPath
+        ? readFile(task.combinedPath).catch(() => Buffer.alloc(0))
+        : Promise.resolve(Buffer.alloc(0)),
     ]);
-    const combined = Buffer.concat([stdout, stderr]);
+    const combined =
+      combinedFromFile.length > 0
+        ? combinedFromFile
+        : Buffer.concat([stdout, stderr]);
+    const timedOut = task.status === "timed_out";
     return buildProcessResult({
       stdoutChunks: stdout.length > 0 ? [stdout] : [],
       stderrChunks: stderr.length > 0 ? [stderr] : [],
@@ -571,6 +600,9 @@ export class TaskManager {
       outputFilePrefix: "nerve-bash",
       exitMessagePrefix: "Command",
       dataDir: this.taskRepository.storageHome,
+      timedOut,
+      timeoutKilled: timedOut,
+      timeoutMessage: task.error,
       details: { foregroundTaskId: task.id },
     });
   }
@@ -578,18 +610,25 @@ export class TaskManager {
   async runForegroundBashWithPromotion(
     input: ForegroundBashPromotionInput,
   ): Promise<ForegroundBashPromotionResult> {
+    if (input.signal?.aborted) throw new Error("Command aborted.");
+
     const startedAt = Date.now();
     const task = await this.startTask({
+      workerId: input.workerId,
+      projectId: input.projectId,
+      conversationId: input.conversationId,
+      agentId: input.agentId,
       cwd: input.cwd,
       command: input.command,
       timeoutMs: input.timeoutMs,
-      injectCompletion: false,
+      notify: false,
       origin: input.origin,
       completion: { inject: false, outputTailLineCount: 80 },
       visibility: "foreground",
+      onOutput: input.onOutput,
     });
     const managed = this.managed.get(task.id);
-    if (!managed?.finalizationPromise) {
+    if (!managed?.terminalPromise) {
       throw new Error("Foreground bash task did not start correctly.");
     }
 
@@ -598,22 +637,30 @@ export class TaskManager {
       abortHandler = () => resolveAbort("aborted");
       input.signal?.addEventListener("abort", abortHandler, { once: true });
     });
-    const promotionDelayMs = input.timeoutMs
-      ? Math.min(input.autoPromoteAfterMs, input.timeoutMs + 5500)
-      : input.autoPromoteAfterMs;
+    const promotionDelayMs = foregroundPromotionDelayMs(input);
+    let promotionTimer: NodeJS.Timeout | undefined;
     const promotionPromise = new Promise<"promote">((resolvePromote) => {
-      setTimeout(() => resolvePromote("promote"), promotionDelayMs);
+      promotionTimer = setTimeout(
+        () => resolvePromote("promote"),
+        promotionDelayMs,
+      );
     });
-    const completionPromise = managed.finalizationPromise.then(
+    const completionPromise = managed.terminalPromise.then(
       () => "completed" as const,
     );
 
-    const outcome = await Promise.race([
-      completionPromise,
-      promotionPromise,
-      abortPromise,
-    ]);
-    if (abortHandler) input.signal?.removeEventListener("abort", abortHandler);
+    let outcome: "completed" | "promote" | "aborted";
+    try {
+      outcome = await Promise.race([
+        completionPromise,
+        promotionPromise,
+        abortPromise,
+      ]);
+    } finally {
+      if (promotionTimer) clearTimeout(promotionTimer);
+      if (abortHandler)
+        input.signal?.removeEventListener("abort", abortHandler);
+    }
 
     if (outcome === "aborted") {
       await this.cancelTask(task.id, {
@@ -636,6 +683,8 @@ export class TaskManager {
       return { kind: "completed_foreground", result };
     }
 
+    const latestManaged = this.managed.get(task.id);
+    if (latestManaged) latestManaged.onOutput = undefined;
     const promoted = await this.updateTask(task.id, {
       visibility: "background",
       completion: { inject: true, outputTailLineCount: 80 },
@@ -650,7 +699,7 @@ export class TaskManager {
     const elapsedMs = Date.now() - startedAt;
     const logs = await this.queryLogs(promoted.id, {
       mode: "recent",
-      limit: 40,
+      limit: 20,
     });
     const recentOutput = logs.events
       .map(
@@ -659,17 +708,16 @@ export class TaskManager {
       )
       .join("\n");
     const text = [
-      `Command is still running after ${Math.round(elapsedMs / 1000)}s and was promoted to background task ${promoted.id}.`,
-      "",
+      `Command is still running after ${Math.round(elapsedMs / 1000)}s, so Nerve promoted it to background task ${promoted.id}.`,
       `Command: ${promoted.command}`,
       `Elapsed: ${Math.round(elapsedMs / 1000)}s`,
       "",
       "Recent output:",
       recentOutput || "(no captured log lines yet)",
       "",
-      "No polling is needed; Nerve will notify/continue this agent when the command reaches a terminal status.",
-      `Use task_logs with taskId "${promoted.id}" to inspect output if needed.`,
-      `Use task_cancel with taskId "${promoted.id}" to terminate it.`,
+      "Nerve will send an async task update when it finishes.",
+      `Inspect: task_status({ taskId: "${promoted.id}", includeLogs: true }) or task_logs({ taskId: "${promoted.id}" }).`,
+      `Cancel: task_cancel({ taskId: "${promoted.id}" }).`,
     ].join("\n");
     const result = await buildProcessTextResult({
       text,
@@ -786,6 +834,13 @@ export class TaskManager {
     const record = this.tasks.get(taskId);
     const managed = this.managed.get(taskId);
     if (!record || !managed) return;
+    managed.onOutput?.({
+      kind: "output",
+      stream,
+      chunk: boundLiveOutputChunk(
+        Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk,
+      ),
+    });
     await this.taskLogs.captureOutput(
       record,
       managed,
@@ -990,7 +1045,7 @@ export class TaskManager {
         error,
       );
       void this.forceFinalizeTimedOutTask(taskId, "SIGKILL", error);
-    }, 5000);
+    }, RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS);
   }
 
   private async requestTermination(
@@ -1035,12 +1090,34 @@ export class TaskManager {
   }
 
   private markHydratedRecordOrphaned(record: TaskRecord): TaskRecord {
+    const now = new Date().toISOString();
+    const foregroundAgentTask =
+      record.visibility === "foreground" && record.origin.kind === "agent_tool";
     return {
       ...record,
       status: "orphaned",
+      visibility: foregroundAgentTask ? "background" : record.visibility,
+      completion: foregroundAgentTask
+        ? {
+            ...record.completion,
+            inject: true,
+            outputTailLineCount: record.completion?.outputTailLineCount ?? 80,
+          }
+        : record.completion,
+      notifications: foregroundAgentTask
+        ? {
+            enabled: true,
+            ready: false,
+            terminal: true,
+            outputTailLineCount:
+              record.notifications?.outputTailLineCount ??
+              record.completion?.outputTailLineCount ??
+              80,
+          }
+        : record.notifications,
       error: this.orphanedHydrateMessage(record.runtime),
-      finishedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      finishedAt: now,
+      updatedAt: now,
     };
   }
 
@@ -1343,6 +1420,7 @@ export class TaskManager {
       exitCode: null,
       signal,
     });
+    this.resolveManagedTerminal(taskId, updated);
     this.managed.delete(taskId);
     await this.events.publish("task.cancelled", { task: updated });
     await this.logger?.warn("Task stop force-finalized", {
@@ -1383,6 +1461,7 @@ export class TaskManager {
       signal,
       error: freshRecord.error ?? reason,
     });
+    this.resolveManagedTerminal(taskId, updated);
     this.managed.delete(taskId);
     await this.events.publish("task.timed_out", { task: updated });
     await this.logger?.warn("Task timeout force-finalized", {
@@ -1434,6 +1513,7 @@ export class TaskManager {
       signal,
       error: freshRecord.error,
     });
+    this.resolveManagedTerminal(taskId, updated);
     this.managed.delete(taskId);
     await this.events.publish(`task.${status}`, { task: updated });
     await this.logger?.[
@@ -1472,6 +1552,7 @@ export class TaskManager {
       finishedAt: new Date().toISOString(),
       error: message,
     });
+    this.resolveManagedTerminal(taskId, updated);
     this.managed.delete(taskId);
     await this.events.publish("task.failed", { task: updated, message });
     await this.logger?.error("Task error", {
@@ -1481,6 +1562,16 @@ export class TaskManager {
       agentId: updated.agentId,
       context: { message },
     });
+  }
+
+  private resolveManagedTerminal(
+    taskId: string,
+    task: TaskRecord | undefined,
+  ): void {
+    const managed = this.managed.get(taskId);
+    if (!managed?.resolveTerminal) return;
+    managed.resolveTerminal(task);
+    managed.resolveTerminal = undefined;
   }
 
   private async updateTask(
@@ -1510,6 +1601,19 @@ export class TaskManager {
   private taskDir(taskId: string): string {
     return this.taskRepository.taskDir(taskId);
   }
+}
+
+function foregroundPromotionDelayMs(
+  input: Pick<ForegroundBashPromotionInput, "timeoutMs" | "autoPromoteAfterMs">,
+): number {
+  if (input.timeoutMs && input.timeoutMs <= input.autoPromoteAfterMs) {
+    return (
+      input.timeoutMs +
+      RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS +
+      FOREGROUND_TIMEOUT_RESULT_GRACE_MS
+    );
+  }
+  return input.autoPromoteAfterMs;
 }
 
 function defaultTaskNotificationsEnabled(

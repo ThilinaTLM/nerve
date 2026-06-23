@@ -201,14 +201,14 @@ describe("agent tool definitions", () => {
     );
     assert.ok(
       bash.promptGuidelines?.some((line) =>
-        line.includes("Use bash for finite shell work whose result matters"),
+        line.includes("Use bash for finite commands"),
       ),
     );
     assert.doesNotMatch(bash.promptSnippet ?? "", /ls, grep, find/);
     assert.match(taskStart.description, /supervised detached background tasks/);
     assert.ok(
       taskStart.promptGuidelines?.some((line) =>
-        line.includes("Do not use task_start for finite tests/checks/builds"),
+        line.includes("Use bash for finite tests/checks/builds"),
       ),
     );
     assert.equal(

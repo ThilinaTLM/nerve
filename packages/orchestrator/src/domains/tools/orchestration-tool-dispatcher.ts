@@ -50,6 +50,7 @@ import type {
 } from "./tool-service.js";
 
 const DEFAULT_BASH_AUTO_PROMOTE_AFTER_MS = 60_000;
+const MAX_BASH_TIMEOUT_MS = 86_400_000;
 
 export interface OrchestrationToolDispatcherDeps {
   storage: InitializedStorage;
@@ -159,33 +160,31 @@ export class OrchestrationToolDispatcher {
           delete args.cwd;
         }
         if (toolCall.toolName === "bash") {
-          const timeoutMs =
-            typeof args.timeout === "number" && Number.isFinite(args.timeout)
-              ? Math.max(0, args.timeout * 1000)
-              : undefined;
-          if (
-            timeoutMs === undefined ||
-            timeoutMs > DEFAULT_BASH_AUTO_PROMOTE_AFTER_MS
-          ) {
-            const promoted =
-              await this.deps.tasks.runForegroundBashWithPromotion({
-                command: stringArg(args, "command"),
-                cwd: toolCall.cwd,
-                timeoutMs,
-                autoPromoteAfterMs: DEFAULT_BASH_AUTO_PROMOTE_AFTER_MS,
-                signal: options.signal,
-                origin: {
-                  kind: "agent_tool",
-                  toolCallId: toolCall.id,
-                  providerToolCallId: toolCall.providerToolCallId,
-                  runId: toolCall.runId,
-                  turnId: toolCall.turnId,
-                  liveMessageId: toolCall.liveMessageId,
-                  contentIndex: toolCall.contentIndex,
-                },
-              });
-            return promoted.result;
-          }
+          const agent = this.deps.getAgent(toolCall.agentId);
+          const promoted = await this.deps.tasks.runForegroundBashWithPromotion(
+            {
+              command: stringArg(args, "command"),
+              cwd: toolCall.cwd,
+              workerId: agent.workerId,
+              projectId: toolCall.projectId,
+              conversationId: toolCall.conversationId,
+              agentId: toolCall.agentId,
+              timeoutMs: bashTimeoutMs(args.timeout),
+              autoPromoteAfterMs: DEFAULT_BASH_AUTO_PROMOTE_AFTER_MS,
+              signal: options.signal,
+              onOutput: executionContext.onUpdate,
+              origin: {
+                kind: "agent_tool",
+                toolCallId: toolCall.id,
+                providerToolCallId: toolCall.providerToolCallId,
+                runId: toolCall.runId,
+                turnId: toolCall.turnId,
+                liveMessageId: toolCall.liveMessageId,
+                contentIndex: toolCall.contentIndex,
+              },
+            },
+          );
+          return promoted.result;
         }
         if (toolCall.toolName === "python") {
           const agent = this.deps.getAgent(toolCall.agentId);
@@ -875,6 +874,13 @@ function newestTask(tasks: TaskRecord[]): TaskRecord {
   return [...tasks].sort((a, b) =>
     b.startedAt.localeCompare(a.startedAt),
   )[0] as TaskRecord;
+}
+
+function bashTimeoutMs(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.min(Math.max(1, Math.ceil(value * 1000)), MAX_BASH_TIMEOUT_MS);
 }
 
 function taskReferenceDetails(task: TaskRecord): Record<string, unknown> {
