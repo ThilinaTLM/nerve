@@ -8,21 +8,21 @@ import Portal from "./sheet-portal.svelte";
 import Title from "./sheet-title.svelte";
 
 export {
-  Root,
   Close,
+  Close as SheetClose,
   Content,
+  Content as SheetContent,
   Description,
+  Description as SheetDescription,
   Header,
+  Header as SheetHeader,
   Overlay,
+  Overlay as SheetOverlay,
   Portal,
-  Title,
+  Portal as SheetPortal,
+  Root,
   //
   Root as Sheet,
-  Close as SheetClose,
-  Content as SheetContent,
-  Description as SheetDescription,
-  Header as SheetHeader,
-  Overlay as SheetOverlay,
-  Portal as SheetPortal,
+  Title,
   Title as SheetTitle,
 };

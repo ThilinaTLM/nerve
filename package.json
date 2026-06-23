@@ -13,8 +13,7 @@
     "build": "pnpm -r build",
     "build:deps": "pnpm --filter @nerve/shared --filter @nerve/agent --filter @nerve/tools build",
     "check": "pnpm -r check",
-    "lint": "biome check . && pnpm lint:ts-file-lines",
-    "lint:ts-file-lines": "node scripts/check-typescript-file-lines.mjs",
+    "lint": "biome check .",
     "format": "biome format --write .",
     "test": "pnpm -r --if-present test",
     "desktop": "pnpm --filter @nerve/desktop dev --",
@@ -39,7 +38,7 @@
     "@earendil-works/pi-ai": "0.79.7"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.2.4",
+    "@biomejs/biome": "2.5.1",
     "tsx": "4.22.4",
     "typescript": "5.9.3"
   },

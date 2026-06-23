@@ -7,15 +7,15 @@ import List, {
 import Trigger from "./tabs-trigger.svelte";
 
 export {
-  Root,
   Content,
+  Content as TabsContent,
   List,
-  Trigger,
-  tabsListVariants,
-  type TabsListVariant,
+  List as TabsList,
+  Root,
   //
   Root as Tabs,
-  Content as TabsContent,
-  List as TabsList,
+  type TabsListVariant,
+  Trigger,
   Trigger as TabsTrigger,
+  tabsListVariants,
 };
