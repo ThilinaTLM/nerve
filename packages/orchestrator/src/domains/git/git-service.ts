@@ -3,7 +3,6 @@ import { readdir } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import type {
   GitBranchListResponse,
-  GitBranchSummary,
   GitDiscoveryResponse,
   GithubPrCheckoutResponse,
   GithubPrDetail,
@@ -16,6 +15,13 @@ import type {
   ProjectRecord,
 } from "@nerve/shared";
 import { HttpError } from "../../http/errors.js";
+import {
+  branchExists as branchExistsImpl,
+  comparisonBaseRef as comparisonBaseRefImpl,
+  detectBaseBranch as detectBaseBranchImpl,
+  listBranches as listBranchesImpl,
+  mergedToBase as mergedToBaseImpl,
+} from "./git-branches.js";
 import {
   type ExecResult,
   GitCommandError,
@@ -30,21 +36,12 @@ import {
   listOpenPrs as listGithubOpenPrs,
 } from "./git-github-service.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";
-import {
-  branchExists as branchExistsImpl,
-  comparisonBaseRef as comparisonBaseRefImpl,
-  detectBaseBranch as detectBaseBranchImpl,
-  listBranches as listBranchesImpl,
-  mergedToBase as mergedToBaseImpl,
-} from "./git-branches.js";
 
 const MAX_DISCOVERY_DEPTH = 2;
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next"]);
 
 export class GitService {
-  constructor(
-    readonly getProject: (projectId: string) => ProjectRecord,
-  ) {}
+  constructor(readonly getProject: (projectId: string) => ProjectRecord) {}
 
   // --- low-level exec ---
 

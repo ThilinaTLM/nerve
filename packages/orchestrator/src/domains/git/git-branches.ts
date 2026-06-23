@@ -1,7 +1,8 @@
 import type { GitBranchListResponse, GitBranchSummary } from "@nerve/shared";
 import type { GitService } from "./git-service.js";
 
-export async function listBranches(this: GitService,
+export async function listBranches(
+  this: GitService,
   projectId: string,
   relativePath: string,
 ): Promise<GitBranchListResponse> {
@@ -18,10 +19,7 @@ export async function listBranches(this: GitService,
     .map((line): GitBranchSummary | null => {
       const [refname, shortName, upstream, head] = line.split("\u0000");
       if (!refname || !shortName) return null;
-      if (
-        refname.startsWith("refs/remotes/") &&
-        shortName.endsWith("/HEAD")
-      ) {
+      if (refname.startsWith("refs/remotes/") && shortName.endsWith("/HEAD")) {
         return null;
       }
       return {
@@ -40,8 +38,10 @@ export async function listBranches(this: GitService,
   return { branches };
 }
 
-
-export async function detectBaseBranch(this: GitService, repoDir: string): Promise<string> {
+export async function detectBaseBranch(
+  this: GitService,
+  repoDir: string,
+): Promise<string> {
   try {
     const { stdout } = await this.runGit(repoDir, [
       "symbolic-ref",
@@ -70,8 +70,11 @@ export async function detectBaseBranch(this: GitService, repoDir: string): Promi
   }
 }
 
-
-export async function branchExists(this: GitService, repoDir: string, name: string): Promise<boolean> {
+export async function branchExists(
+  this: GitService,
+  repoDir: string,
+  name: string,
+): Promise<boolean> {
   try {
     await this.runGit(repoDir, [
       "rev-parse",
@@ -95,8 +98,8 @@ export async function branchExists(this: GitService, repoDir: string, name: stri
   }
 }
 
-
-export async function comparisonBaseRef(this: GitService,
+export async function comparisonBaseRef(
+  this: GitService,
   repoDir: string,
   baseBranch: string,
 ): Promise<string> {
@@ -120,8 +123,8 @@ export async function comparisonBaseRef(this: GitService,
   return baseBranch;
 }
 
-
-export async function mergedToBase(this: GitService,
+export async function mergedToBase(
+  this: GitService,
   repoDir: string,
   baseBranch: string,
   state: {
@@ -146,4 +149,3 @@ export async function mergedToBase(this: GitService,
     return false;
   }
 }
-
