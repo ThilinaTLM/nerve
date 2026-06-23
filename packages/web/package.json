@@ -38,7 +38,8 @@
     "svelte": "5.56.3",
     "svelte-sonner": "^1.1.1",
     "tailwindcss": "4.3.1",
-    "unified": "^11.0.5"
+    "unified": "^11.0.5",
+    "workbox-window": "7.4.1"
   },
   "devDependencies": {
     "@lucide/svelte": "^1.17.0",

@@ -80,6 +80,11 @@ if (!gotSingleInstanceLock) {
   });
 
   app.on("second-instance", () => {
+    void desktopLog(
+      "info",
+      "app",
+      "Existing desktop instance handled second launch",
+    );
     void showMainWindow();
   });
 
@@ -187,6 +192,7 @@ async function openMainWindow(): Promise<void> {
     await refreshDesktopSettingsFromDaemon(managedDaemon, (value) => {
       closeToTray = value;
     });
+    await clearDesktopServiceWorkerStorage(window, managedDaemon.url);
     subscribeToDaemonStatus(managedDaemon);
     trayController.updateTrayMenu();
     if (window.isDestroyed()) return;
@@ -198,6 +204,36 @@ async function openMainWindow(): Promise<void> {
     console.error(error);
     if (!window.isDestroyed())
       await window.loadURL(createDataUrl(errorHtml(error)));
+  }
+}
+
+async function clearDesktopServiceWorkerStorage(
+  window: BrowserWindowType,
+  daemonUrl: string,
+): Promise<void> {
+  if (window.isDestroyed()) return;
+  const startedAt = Date.now();
+  try {
+    const origin = new URL(daemonUrl).origin;
+    await window.webContents.session.clearStorageData({
+      origin,
+      storages: ["serviceworkers", "cachestorage"],
+    });
+    void desktopLog("info", "window", "Cleared desktop PWA cache storage", {
+      durationMs: Date.now() - startedAt,
+      context: { origin },
+    });
+  } catch (error) {
+    void desktopLog(
+      "warn",
+      "window",
+      "Failed to clear desktop PWA cache storage",
+      {
+        error,
+        durationMs: Date.now() - startedAt,
+        context: { daemonUrl },
+      },
+    );
   }
 }
 

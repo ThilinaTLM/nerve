@@ -63,7 +63,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: "autoUpdate",
-        injectRegister: "auto",
+        injectRegister: false,
         // Keep the service worker out of `pnpm dev` so it cannot shadow the
         // Vite `/api` + `/ws` proxy below.
         devOptions: { enabled: false },
