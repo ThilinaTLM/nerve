@@ -1,10 +1,10 @@
 <script lang="ts">
+  import KeyRound from "@lucide/svelte/icons/key-round";
   import Mic from "@lucide/svelte/icons/mic";
-  import Settings from "@lucide/svelte/icons/settings";
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";
-  import { openSettingsPane } from "$lib/features/settings/state/settings-actions.svelte";
+  import { openAuthPane } from "$lib/features/auth";
 
   type Props = {
     open?: boolean;
@@ -18,7 +18,7 @@
 
   function openProviderSettings() {
     closeDialog();
-    void openSettingsPane();
+    openAuthPane();
   }
 </script>
 
@@ -49,15 +49,15 @@
     </div>
 
     <p class="audio-auth-path">
-      To enable it, open <strong>Settings</strong> → <strong>Models & providers</strong> → <strong>Providers</strong>, then add <strong>OpenAI Codex</strong>.
+      To enable it, open <strong>Authentication</strong> → <strong>Subscriptions</strong>, then connect <strong>OpenAI Codex</strong>.
     </p>
   </div>
 
   {#snippet footer()}
     <Button variant="ghost" onclick={closeDialog}>Close</Button>
     <Button onclick={openProviderSettings}>
-      <Settings size={15} strokeWidth={2.1} />
-      Open settings
+      <KeyRound size={15} strokeWidth={2.1} />
+      Open authentication
     </Button>
   {/snippet}
 </Dialog>

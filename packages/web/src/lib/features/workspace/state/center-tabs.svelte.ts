@@ -1,4 +1,5 @@
 import type { CenterTabIdentity } from "$lib/core/types/state-types";
+import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
@@ -29,22 +30,28 @@ type CenterTabHandlerMap = {
   [Kind in CenterTabKind]: (tab: CenterTabOfKind<Kind>) => void | Promise<void>;
 };
 
-const centerTabSelectHandlers: Partial<CenterTabHandlerMap> = {};
-const centerTabCloseHandlers: Partial<CenterTabHandlerMap> = {};
+let centerTabSelectHandlers: CenterTabHandlerMap | undefined;
+let centerTabCloseHandlers: CenterTabHandlerMap | undefined;
 
+/**
+ * Register the select/close handler for every center tab kind. The maps are
+ * exhaustive (`CenterTabHandlerMap`, not `Partial`), so adding a new tab kind
+ * to `CenterTabIdentity` is a compile error here until a handler is supplied —
+ * preventing silently unclickable tabs.
+ */
 export function registerCenterTabDispatch(handlers: {
-  select?: Partial<CenterTabHandlerMap>;
-  close?: Partial<CenterTabHandlerMap>;
+  select: CenterTabHandlerMap;
+  close: CenterTabHandlerMap;
 }) {
-  Object.assign(centerTabSelectHandlers, handlers.select);
-  Object.assign(centerTabCloseHandlers, handlers.close);
+  centerTabSelectHandlers = handlers.select;
+  centerTabCloseHandlers = handlers.close;
 }
 
 function handlerFor(
-  handlers: Partial<CenterTabHandlerMap>,
+  handlers: CenterTabHandlerMap | undefined,
   tab: CenterTabIdentity,
 ): ((tab: CenterTabIdentity) => void | Promise<void>) | undefined {
-  return handlers[tab.kind] as
+  return handlers?.[tab.kind] as
     | ((tab: CenterTabIdentity) => void | Promise<void>)
     | undefined;
 }
@@ -70,6 +77,9 @@ function syncLegacyTabFields() {
     .map((tab) => tab.id);
   settingsState.settingsTabOpen = workspaceState.openCenterTabs.some(
     (tab) => tab.kind === "settings",
+  );
+  authState.authTabOpen = workspaceState.openCenterTabs.some(
+    (tab) => tab.kind === "auth",
   );
   logsState.logsTabOpen = workspaceState.openCenterTabs.some(
     (tab) => tab.kind === "logs",

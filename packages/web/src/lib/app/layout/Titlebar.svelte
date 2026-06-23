@@ -1,6 +1,7 @@
 <script lang="ts">
   import Copy from "@lucide/svelte/icons/copy";
   import Folder from "@lucide/svelte/icons/folder";
+  import KeyRound from "@lucide/svelte/icons/key-round";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Logs from "@lucide/svelte/icons/logs";
   import Minus from "@lucide/svelte/icons/minus";
@@ -19,9 +20,11 @@
     closeToTray?: boolean;
     quitting?: boolean;
     settingsActive?: boolean;
+    authActive?: boolean;
     logsActive?: boolean;
     onOpenProject?: () => void;
     onOpenLogs?: () => void;
+    onOpenAuth?: () => void;
     onOpenSettings?: () => void;
     onMinimize?: () => void;
     onToggleMaximize?: () => void;
@@ -35,9 +38,11 @@
     closeToTray = true,
     quitting = false,
     settingsActive = false,
+    authActive = false,
     logsActive = false,
     onOpenProject,
     onOpenLogs,
+    onOpenAuth,
     onOpenSettings,
     onMinimize,
     onToggleMaximize,
@@ -76,6 +81,17 @@
       onclick={() => onOpenLogs?.()}
     >
       <Logs size={16} strokeWidth={2.1} />
+    </Button>
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      ariaLabel="Open authentication"
+      title="Providers & authentication"
+      active={authActive}
+      pressed={authActive}
+      onclick={() => onOpenAuth?.()}
+    >
+      <KeyRound size={16} strokeWidth={2.1} />
     </Button>
     <Button
       variant="ghost"

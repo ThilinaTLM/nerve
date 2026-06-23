@@ -153,6 +153,7 @@ export class AuthManager {
 
   async listProviderMetadata(
     models: ModelInfo[],
+    customProviderNames?: ReadonlyMap<string, string>,
   ): Promise<AuthProviderMetadata[]> {
     const oauthProviders = oauthProvidersById();
     const providers = new Set<string>();
@@ -178,7 +179,10 @@ export class AuthManager {
         const credential = await this.getCredential(provider);
         return {
           provider,
-          displayName: oauthProvider?.name ?? displayNameForProvider(provider),
+          displayName:
+            oauthProvider?.name ??
+            customProviderNames?.get(provider) ??
+            displayNameForProvider(provider),
           supportsApiKey: supportsStoredApiKey(provider),
           supportsOAuth:
             provider === "openai-codex" || provider === "anthropic",

@@ -9,6 +9,7 @@ import {
   isMarkdownPath,
 } from "$lib/core/utils/file-display";
 import { agentRunningTone } from "$lib/core/utils/status";
+import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import {
   buildConversationActivityById,
   idleConversationActivity,
@@ -26,6 +27,7 @@ import {
 } from "./workspace-state.svelte";
 
 export type {
+  AuthTabModel,
   CenterTabModel,
   ConversationTabModel,
   FileTabModel,
@@ -37,6 +39,7 @@ export type {
 } from "./center-tab-models";
 
 import type {
+  AuthTabModel,
   CenterTabModel,
   ConversationTabModel,
   FileTabModel,
@@ -270,6 +273,18 @@ export const workspaceSelectors = {
         ]
       : [];
   },
+  get openAuthTabs(): AuthTabModel[] {
+    return authState.authTabOpen
+      ? [
+          {
+            kind: "auth" as const,
+            id: "auth" as const,
+            active: activeTabMatches("auth", "auth"),
+            sending: false,
+          },
+        ]
+      : [];
+  },
   get openLogsTabs(): LogsTabModel[] {
     return logsState.logsTabOpen
       ? [
@@ -319,6 +334,8 @@ export const workspaceSelectors = {
         if (model) models.push(model);
       } else if (tab.kind === "settings") {
         models.push(...this.openSettingsTabs);
+      } else if (tab.kind === "auth") {
+        models.push(...this.openAuthTabs);
       } else {
         models.push(...this.openLogsTabs);
       }

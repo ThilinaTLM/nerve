@@ -14,7 +14,7 @@
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
   import { Input } from "$lib/components/ui/input";
-  import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
+  import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
   import { encryptApiKey } from "$lib/core/utils/credential-crypto";
 
   type Props = {
@@ -51,7 +51,7 @@
       await setProviderApiKey(providerId, envelope);
       apiKey = "";
       message = `${displayName} API key saved.`;
-      await loadSettingsPanel();
+      await loadAuthPanel();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -67,7 +67,7 @@
       await deleteProviderCredential(providerId);
       apiKey = "";
       message = `${displayName} API key removed.`;
-      await loadSettingsPanel();
+      await loadAuthPanel();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -77,15 +77,15 @@
   }
 </script>
 
-<section id="settings-web-search" class="settings-section" data-section="web-search">
+<section id="auth-integrations" class="settings-section" data-section="integrations">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Search size={14} strokeWidth={2.1} /> Web Search</div>
-    <h2>Web search</h2>
+    <div class="settings-section-kicker"><Search size={14} strokeWidth={2.1} /> Integrations</div>
+    <h2>Web search (Tavily)</h2>
     <p>Configure the Tavily API key used by the web_search tool. The key is encrypted in your browser before it is stored by the orchestrator.</p>
   </header>
 
   <div class="settings-section-body">
-    <div class="settings-row web-search-summary">
+    <div class="settings-row integrations-summary">
       <div class="settings-copy">
         <strong>{configured ? `${displayName} key configured` : "Web search is not configured"}</strong>
         <span>
@@ -100,16 +100,16 @@
     </div>
 
     <form
-      class="web-search-key-form"
+      class="integrations-key-form"
       onsubmit={(event) => {
         event.preventDefault();
         void saveKey();
       }}
     >
-      <label class="web-search-key-label" for="web-search-api-key">
+      <label class="integrations-key-label" for="integrations-tavily-key">
         <span><KeyRound size={13} strokeWidth={2} /> Tavily API key</span>
         <Input
-          id="web-search-api-key"
+          id="integrations-tavily-key"
           type="password"
           autocomplete="off"
           placeholder={configured ? "Paste a replacement key" : "Paste your Tavily API key"}
@@ -118,7 +118,7 @@
         />
       </label>
 
-      <div class="web-search-actions">
+      <div class="integrations-actions">
         <Button type="submit" size="sm" disabled={busy || apiKey.trim().length === 0}>
           {#if busy}
             <Loader size={14} strokeWidth={2} class="animate-spin" />
@@ -134,12 +134,12 @@
     </form>
 
     {#if error}
-      <p class="web-search-message" data-tone="error">
+      <p class="integrations-message" data-tone="error">
         <TriangleAlert size={14} strokeWidth={2} />
         {error}
       </p>
     {:else if message}
-      <p class="web-search-message" data-tone="success">
+      <p class="integrations-message" data-tone="success">
         <CircleCheck size={14} strokeWidth={2} />
         {message}
       </p>
@@ -160,17 +160,17 @@
 />
 
 <style>
-  .web-search-summary {
+  .integrations-summary {
     align-items: center;
   }
 
-  .web-search-key-form {
+  .integrations-key-form {
     display: grid;
     gap: 0.65rem;
     max-width: 34rem;
   }
 
-  .web-search-key-label {
+  .integrations-key-label {
     display: grid;
     gap: 0.35rem;
     color: var(--muted-foreground);
@@ -178,30 +178,29 @@
     font-weight: 500;
   }
 
-  .web-search-key-label > span,
-  .web-search-message,
-  .web-search-actions {
+  .integrations-key-label > span,
+  .integrations-message,
+  .integrations-actions {
     display: flex;
     align-items: center;
     gap: 0.4rem;
   }
 
-  .web-search-actions {
+  .integrations-actions {
     flex-wrap: wrap;
   }
 
-  .web-search-message {
+  .integrations-message {
     margin: 0;
     font-size: var(--text-xs);
     line-height: 1.4;
   }
 
-  .web-search-message[data-tone="error"] {
+  .integrations-message[data-tone="error"] {
     color: var(--destructive);
   }
 
-  .web-search-message[data-tone="success"] {
+  .integrations-message[data-tone="success"] {
     color: var(--success);
   }
-
 </style>

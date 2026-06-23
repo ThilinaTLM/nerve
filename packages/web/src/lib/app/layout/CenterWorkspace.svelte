@@ -6,6 +6,7 @@
   import LogsShell from "$lib/features/logs/components/LogsShell.svelte";
   import TaskShell from "$lib/features/tasks/components/TaskShell.svelte";
   import SettingsShell from "$lib/features/settings/components/SettingsShell.svelte";
+  import { AuthShell, loadAuthPanel } from "$lib/features/auth";
   import { refreshConversationView } from "$lib/features/conversations";
   import {
     centerTabsExcept,
@@ -75,6 +76,7 @@
     else if (tab.kind === "task") void selectCenterTab(tab);
     else if (tab.kind === "file") void refreshFilePane(tab.id);
     else if (tab.kind === "pr") void refreshPrPane(tab.id);
+    else if (tab.kind === "auth") void loadAuthPanel();
     else void loadSettingsPanel();
   }
 
@@ -114,6 +116,8 @@
     <PrShell />
   {:else if activeCenterTab?.kind === "settings"}
     <SettingsShell />
+  {:else if activeCenterTab?.kind === "auth"}
+    <AuthShell />
   {:else if activeCenterTab?.kind === "logs"}
     <LogsShell />
   {/if}

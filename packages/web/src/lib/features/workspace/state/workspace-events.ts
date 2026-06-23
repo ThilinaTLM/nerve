@@ -114,6 +114,7 @@ export function shouldRefreshSettings(type: string): boolean {
   return (
     type.startsWith("settings.") ||
     type.startsWith("secrets.") ||
-    type.startsWith("auth.")
+    type.startsWith("auth.") ||
+    type.startsWith("providers.")
   );
 }

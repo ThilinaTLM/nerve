@@ -66,6 +66,14 @@ export type SettingsTabModel = {
   error?: string;
 };
 
+export type AuthTabModel = {
+  kind: "auth";
+  id: "auth";
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type LogsTabModel = {
   kind: "logs";
   id: "logs";
@@ -93,4 +101,5 @@ export type CenterTabModel =
   | FileTabModel
   | PrTabModel
   | SettingsTabModel
+  | AuthTabModel
   | LogsTabModel;

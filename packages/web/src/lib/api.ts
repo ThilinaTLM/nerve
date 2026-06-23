@@ -19,6 +19,7 @@ export type {
   ConversationTreeNode,
   CreatePinnedCommandRequest,
   CredentialKeyResponse,
+  CustomProvider,
   EncryptedSecretEnvelope,
   EventEnvelope,
   FilesystemDirectoryResponse,
@@ -39,14 +40,19 @@ export type {
   GitMutationResponse,
   GitOverviewResponse,
   GitRepoSummary,
+  ModelCost,
+  ModelDefinition,
   ModelInfo,
+  ModelInputModality,
   ModelSelection,
   OAuthFlowInfo,
   OpenProjectInEditorResponse,
+  PiApi,
   PinnedCommand,
   PlanReviewRecord,
   ProjectEditor,
   ProjectRecord,
+  ProviderCatalog,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
   QueuedPromptRecord,
@@ -64,6 +70,7 @@ export type {
   TaskLogEvent,
   TaskLogQueryResponse,
   TaskRecord,
+  ThinkingLevel,
   ToolCallRecord,
   UpdateSettingsRequest,
   UserQuestionRecord,
@@ -72,6 +79,7 @@ export * from "./core/api/client";
 export * from "./features/agents/api/agents.api";
 export * from "./features/audio/api/transcription.api";
 export * from "./features/auth/api/auth.api";
+export * from "./features/auth/api/provider-catalog.api";
 export * from "./features/config/api/config.api";
 export * from "./features/conversations/api/conversations.api";
 export * from "./features/filesystem/api/filesystem.api";

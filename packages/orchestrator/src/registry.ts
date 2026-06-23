@@ -32,6 +32,7 @@ import type {
 } from "@nerve/shared";
 import type { AuthManager } from "./auth.js";
 import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
+import type { ProviderCatalogStore } from "./domains/providers/index.js";
 import type { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
 import { HttpError } from "./http/errors.js";
 import type { EventBus } from "./infrastructure/events/index.js";
@@ -104,6 +105,7 @@ export class RuntimeRegistry {
     secrets: SecretProvider,
     private readonly subscriptionUsage: SubscriptionUsageService,
     logger: ApplicationLogger,
+    private readonly providerCatalog: ProviderCatalogStore,
   ) {
     this.services = composeRuntime(this.state, {
       storage,
@@ -122,6 +124,7 @@ export class RuntimeRegistry {
   }
 
   async hydrate(): Promise<void> {
+    await this.providerCatalog.load();
     await this.workers.hydrate();
     await this.tasks.hydrate();
     await this.tools.hydrate();
@@ -475,18 +478,24 @@ export class RuntimeRegistry {
     return this.tasks.queryLogs(taskId, query);
   }
 
+  get providers(): ProviderCatalogStore {
+    return this.providerCatalog;
+  }
+
   listModels(): ModelInfo[] {
-    return listAvailableModels().map((model) => ({
-      provider: model.provider,
-      modelId: model.modelId,
-      name: model.name,
-      label: model.provider === "nerve-faux" ? "Nerve Faux Fast" : model.name,
-      reasoning: model.reasoning,
-      supportedThinkingLevels: model.supportedThinkingLevels,
-      faux: model.provider === "nerve-faux",
-      contextWindow: model.contextWindow,
-      maxOutputTokens: model.maxOutputTokens,
-    }));
+    return listAvailableModels(this.providerCatalog.resolvedModels()).map(
+      (model) => ({
+        provider: model.provider,
+        modelId: model.modelId,
+        name: model.name,
+        label: model.provider === "nerve-faux" ? "Nerve Faux Fast" : model.name,
+        reasoning: model.reasoning,
+        supportedThinkingLevels: model.supportedThinkingLevels,
+        faux: model.provider === "nerve-faux",
+        contextWindow: model.contextWindow,
+        maxOutputTokens: model.maxOutputTokens,
+      }),
+    );
   }
 
   async listQueuedPrompts(agentId: string) {

@@ -20,9 +20,7 @@
   import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";
   import ExploreAgentSettingsSection from "./settings/sections/ExploreAgentSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
-  import ProvidersSettingsSection from "./settings/sections/ProvidersSettingsSection.svelte";
   import PythonRuntimeSettingsSection from "./settings/sections/PythonRuntimeSettingsSection.svelte";
-  import WebSearchSettingsSection from "./settings/sections/WebSearchSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
   import StorageSettingsSection from "./settings/sections/StorageSettingsSection.svelte";
@@ -33,8 +31,6 @@
     | "desktop"
     | "agents"
     | "explore"
-    | "providers"
-    | "web-search"
     | "models"
     | "server"
     | "python"
@@ -88,14 +84,10 @@
     },
     {
       id: "models",
-      label: "Models & providers",
-      description: "Authentication, web search, and the composer model scope.",
+      label: "Models",
+      description: "Choose which authenticated models appear in the composer.",
       icon: ShieldCheck,
-      sections: [
-        { id: "providers", label: "Providers" },
-        { id: "web-search", label: "Web search" },
-        { id: "models", label: "Scoped models" },
-      ],
+      sections: [{ id: "models", label: "Scoped models" }],
     },
     {
       id: "system",
@@ -127,10 +119,6 @@
 
   const activeGroupDef = $derived(
     groups.find((group) => group.id === activeGroup) ?? groups[0],
-  );
-
-  const modelAuthProviders = $derived(
-    authProviders.filter((provider) => provider.provider !== "tavily"),
   );
 
   function selectGroup(id: GroupId) {
@@ -258,8 +246,6 @@
           <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
           <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         {:else if activeGroup === "models"}
-          <ProvidersSettingsSection authProviders={modelAuthProviders} />
-          <WebSearchSettingsSection {authProviders} />
           <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         {:else if activeGroup === "system"}
           <ServerSettingsSection {settingsDraft} {onSettingsChange} />

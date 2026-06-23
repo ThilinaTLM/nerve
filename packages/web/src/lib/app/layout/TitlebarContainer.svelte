@@ -7,6 +7,7 @@
     minimizeDesktopWindow,
     toggleMaximizeDesktopWindow,
   } from "$lib/features/desktop";
+  import { openAuthPane } from "$lib/features/auth";
   import { openLogsPane } from "$lib/features/logs";
   import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
   import { workspaceSelectors, workspaceState } from "$lib/features/workspace";
@@ -48,9 +49,11 @@
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}
   quitting={desktopQuitting}
   settingsActive={activeCenterTab?.kind === "settings"}
+  authActive={activeCenterTab?.kind === "auth"}
   logsActive={activeCenterTab?.kind === "logs"}
   onOpenProject={openProjectPicker}
   onOpenLogs={() => openLogsPane()}
+  onOpenAuth={() => openAuthPane()}
   onOpenSettings={() => void openSettingsPane()}
   onMinimize={() => void minimizeDesktopWindow()}
   onToggleMaximize={() => void toggleMaximizeDesktopWindow()}

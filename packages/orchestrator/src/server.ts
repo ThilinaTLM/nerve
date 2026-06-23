@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { getConnInfo } from "@hono/node-server/conninfo";
+import { setCustomModelProvider } from "@nerve/agent";
 import {
   createId,
   type DaemonFile,
@@ -9,6 +10,7 @@ import {
 import { Hono } from "hono";
 import { AuthManager } from "./auth.js";
 import { CredentialKeyService } from "./credential-crypto.js";
+import { ProviderCatalogStore } from "./domains/providers/index.js";
 import { StorageUsageService } from "./domains/storage/index.js";
 import { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
 import {
@@ -48,6 +50,7 @@ export interface OrchestratorState {
   storageUsage: StorageUsageService;
   secrets: SecretProvider;
   auth: AuthManager;
+  providerCatalog: ProviderCatalogStore;
   credentialKey: CredentialKeyService;
   oauthFlows: OAuthFlowManager;
   subscriptionUsage: SubscriptionUsageService;
@@ -71,6 +74,8 @@ export function createOrchestratorState(
   });
   const secrets = new EncryptedFileSecretProvider(storage.paths.home);
   const auth = new AuthManager(secrets);
+  const providerCatalog = new ProviderCatalogStore(storage.paths.providersPath);
+  setCustomModelProvider(() => providerCatalog.resolvedModels());
   const credentialKey = new CredentialKeyService();
   const oauthFlows = new OAuthFlowManager(auth, events);
   const subscriptionUsage = new SubscriptionUsageService({
@@ -86,6 +91,7 @@ export function createOrchestratorState(
     secrets,
     subscriptionUsage,
     logger,
+    providerCatalog,
   );
   const storageUsage = new StorageUsageService({
     paths: storage.paths,
@@ -105,6 +111,7 @@ export function createOrchestratorState(
     storageUsage,
     secrets,
     auth,
+    providerCatalog,
     credentialKey,
     oauthFlows,
     subscriptionUsage,

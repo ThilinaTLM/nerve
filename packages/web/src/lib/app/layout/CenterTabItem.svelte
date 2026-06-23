@@ -4,6 +4,7 @@
   import Copy from "@lucide/svelte/icons/copy";
   import FileText from "@lucide/svelte/icons/file-text";
   import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+  import KeyRound from "@lucide/svelte/icons/key-round";
   import Logs from "@lucide/svelte/icons/logs";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Settings from "@lucide/svelte/icons/settings";
@@ -176,6 +177,8 @@
         <span class="tab-kind-icon"><GitPullRequest size={12} strokeWidth={2.2} aria-hidden="true" /></span>
       {:else if tab.kind === "settings"}
         <span class="tab-kind-icon"><Settings size={12} strokeWidth={2.2} aria-hidden="true" /></span>
+      {:else if tab.kind === "auth"}
+        <span class="tab-kind-icon"><KeyRound size={12} strokeWidth={2.2} aria-hidden="true" /></span>
       {:else if tab.kind === "logs"}
         <span class="tab-kind-icon"><Logs size={12} strokeWidth={2.2} aria-hidden="true" /></span>
       {/if}

@@ -9,6 +9,7 @@ export type TabIdentity = CenterTabIdentity;
 
 export function tabIdentity(tab: CenterTabModel): TabIdentity {
   if (tab.kind === "settings") return { kind: "settings", id: "settings" };
+  if (tab.kind === "auth") return { kind: "auth", id: "auth" };
   if (tab.kind === "logs") return { kind: "logs", id: "logs" };
   return { kind: tab.kind, id: tab.id };
 }
@@ -24,6 +25,7 @@ export function tabLabel(tab: CenterTabModel): string {
     );
   if (tab.kind === "pr") return `#${tab.number}`;
   if (tab.kind === "settings") return "Settings";
+  if (tab.kind === "auth") return "Authentication";
   if (tab.kind === "logs") return "Nerve Logs";
   if (tab.kind === "pending-conversation") return tab.title;
   return tab.conversation.title;
@@ -40,6 +42,7 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
       ? `#${tab.number} ${tab.title}`
       : `Pull request #${tab.number}`;
   if (tab.kind === "settings") return "Workbench settings";
+  if (tab.kind === "auth") return "Providers & authentication";
   if (tab.kind === "logs") return "Nerve application logs";
   const project = tab.project?.dir
     ? shortProjectLabel(tab.project.dir, homeDir)

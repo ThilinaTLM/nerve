@@ -14,23 +14,35 @@
   type Props = {
     open?: boolean;
     authProviders?: AuthProviderMetadata[];
+    kind?: "oauth" | "api_key" | "all";
+    excludeProviders?: string[];
     onClose?: () => void;
   };
 
-  let { open = $bindable(false), authProviders = [], onClose }: Props = $props();
+  let {
+    open = $bindable(false),
+    authProviders = [],
+    kind = "all",
+    excludeProviders = [],
+    onClose,
+  }: Props = $props();
 
   const flowController = new AddProviderFlow(() => {
     open = false;
     onClose?.();
   });
 
+  const excluded = $derived(new Set(excludeProviders));
   const available = $derived(
     [...authProviders]
-      .filter(
-        (provider) =>
-          !provider.configured &&
-          (provider.supportsOAuth || provider.supportsApiKey),
-      )
+      .filter((provider) => {
+        if (provider.configured || excluded.has(provider.provider))
+          return false;
+        if (kind === "oauth") return provider.supportsOAuth;
+        if (kind === "api_key")
+          return provider.supportsApiKey && !provider.supportsOAuth;
+        return provider.supportsOAuth || provider.supportsApiKey;
+      })
       .sort((a, b) => a.displayName.localeCompare(b.displayName)),
   );
 

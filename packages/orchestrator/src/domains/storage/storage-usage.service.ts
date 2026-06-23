@@ -469,6 +469,7 @@ function categoryForEntry(name: string): StorageCategoryKey {
     case "keys":
     case "tls":
     case "config.json":
+    case "providers.json":
     case "daemon.json":
       return "protected";
     default:

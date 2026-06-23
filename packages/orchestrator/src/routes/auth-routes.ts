@@ -15,6 +15,7 @@ export function createAuthRoutes(state: OrchestratorState): Hono {
     c.json({
       providers: await state.auth.listProviderMetadata(
         state.registry.listModels(),
+        state.providerCatalog.providerDisplayNames(),
       ),
     }),
   );
@@ -64,6 +65,7 @@ export function createAuthRoutes(state: OrchestratorState): Hono {
   app.get("/provider-keys", async (c) => {
     const providers = await state.auth.listProviderMetadata(
       state.registry.listModels(),
+      state.providerCatalog.providerDisplayNames(),
     );
     return c.json({
       keys: providers

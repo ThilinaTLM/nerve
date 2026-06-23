@@ -1,3 +1,4 @@
+import { closeAuthTab, selectCenterAuthTab } from "$lib/features/auth";
 import {
   closeConversationTab,
   closePendingConversationTab,
@@ -34,6 +35,7 @@ registerCenterTabDispatch({
     file: (tab) => selectCenterFileTab(tab.id),
     pr: (tab) => selectCenterPrTab(tab.id),
     settings: () => selectCenterSettingsTab(),
+    auth: () => selectCenterAuthTab(),
     logs: () => selectCenterLogsTab(),
   },
   close: {
@@ -43,6 +45,7 @@ registerCenterTabDispatch({
     file: (tab) => closeFileTab(tab.id),
     pr: (tab) => closePrTab(tab.id),
     settings: () => closeSettingsTab(),
+    auth: () => closeAuthTab(),
     logs: () => closeLogsTab(),
   },
 });
