@@ -5,12 +5,7 @@ import { join, resolve } from "node:path";
 import { loadSkills, NodeExecutionEnv, type Skill } from "@nerve/agent";
 import { resolveDataDir } from "./infrastructure/storage/paths.js";
 
-const CONTEXT_FILE_CANDIDATES = [
-  "AGENTS.md",
-  "AGENTS.MD",
-  "CLAUDE.md",
-  "CLAUDE.MD",
-];
+const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "AGENTS.MD"];
 const NERVE_DIR_NAME = ".nerve";
 const AGENTS_DIR_NAME = ".agents";
 

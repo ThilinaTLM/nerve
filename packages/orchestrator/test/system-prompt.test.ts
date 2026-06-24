@@ -177,6 +177,24 @@ describe("Nerve system prompt", () => {
     );
   });
 
+  it("ignores legacy Claude instruction files", async () => {
+    const cwd = await tempProject();
+    const storageHome = await tempProject();
+    const agentDir = join(storageHome, "agent");
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(join(cwd, "CLAUDE.md"), "Project Claude rule.\n");
+    await writeFile(join(cwd, "CLAUDE.MD"), "Project uppercase Claude rule.\n");
+    await writeFile(join(agentDir, "CLAUDE.md"), "Global Claude rule.\n");
+    await writeFile(
+      join(agentDir, "CLAUDE.MD"),
+      "Global uppercase Claude rule.\n",
+    );
+
+    const resources = await loadHarnessResources(cwd, { storageHome });
+
+    assert.deepEqual(resources.contextFiles, []);
+  });
+
   it("loads global Nerve agent resources from storage home", async () => {
     const cwd = await tempProject();
     const storageHome = await tempProject();
