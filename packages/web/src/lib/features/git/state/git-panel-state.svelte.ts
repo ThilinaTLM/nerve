@@ -3,6 +3,7 @@ import type {
   GithubPr,
   GithubStatusResponse,
   GitOverviewResponse,
+  GitRecentCommit,
   GitRepoSummary,
   ProjectRecord,
 } from "$lib/api";
@@ -13,31 +14,53 @@ import {
 import type { GitContext } from "$lib/core/types/state-types";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
+import {
+  branchesFingerprint,
+  changesFingerprint,
+  changesFromOverview,
+  type GitChangesState,
+  githubStatusFingerprint,
+  prsFingerprint,
+  recentCommitsFingerprint,
+  repoSummaryFingerprint,
+  reposFingerprint,
+} from "./git-panel-slices";
 
 export type FileMutation = {
   path: string;
   action: "stage" | "unstage" | "discard";
 };
 
-export type GitPanelLoadStatus = "idle" | "loading" | "refreshing" | "error";
-
-export type GitPanelRepoState = {
-  overview?: GitOverviewResponse;
-  github?: GithubStatusResponse;
-  prs: GithubPr[];
-  branches: GitBranchSummary[];
-  loadingOverview: boolean;
-  loadingPrs: boolean;
-  loadingBranches: boolean;
-  prsRequestInFlight: boolean;
+export type GitPanelOperationsState = {
   fetching: boolean;
   syncing: boolean;
   switchingBranch?: string;
   creatingBranch: boolean;
   fileMutation?: FileMutation;
   bulkMutation?: "stage-all" | "unstage-all";
-  lastOverviewFingerprint?: string;
+};
+
+export type GitPanelLoadStatus = "idle" | "loading" | "refreshing" | "error";
+
+export type GitPanelRepoState = {
+  repoSummary?: GitRepoSummary;
+  changes?: GitChangesState;
+  recentCommits: GitRecentCommit[];
+  github?: GithubStatusResponse;
+  prs: GithubPr[];
+  branches: GitBranchSummary[];
+  operations: GitPanelOperationsState;
+  loadingOverview: boolean;
+  loadingPrs: boolean;
+  loadingBranches: boolean;
+  prsRequestInFlight: boolean;
   overviewRequestInFlight: boolean;
+  lastRepoSummaryFingerprint?: string;
+  lastChangesFingerprint?: string;
+  lastRecentCommitsFingerprint?: string;
+  lastBranchesFingerprint?: string;
+  lastPrsFingerprint?: string;
+  lastGithubFingerprint?: string;
   loaded: boolean;
   loadedAt?: number;
   requestSeq: number;
@@ -54,10 +77,18 @@ export type GitPanelProjectState = {
   loadingRepos: boolean;
   refreshingRepos: boolean;
   reposRequestInFlight: boolean;
+  lastReposFingerprint?: string;
   loaded: boolean;
   loadedAt?: number;
   requestSeq: number;
   touchedAt: number;
+};
+
+export type GitOverviewPatchResult = {
+  changed: boolean;
+  repoChanged: boolean;
+  changesChanged: boolean;
+  recentCommitsChanged: boolean;
 };
 
 export const gitPanelState = $state({
@@ -72,24 +103,37 @@ export type GitPanelRefreshOptions = {
   onlyIfChanged?: boolean;
 };
 
-function createRepoState(): GitPanelRepoState {
+function createOperationsState(): GitPanelOperationsState {
   return {
-    overview: undefined,
-    github: undefined,
-    prs: [],
-    branches: [],
-    loadingOverview: false,
-    loadingPrs: false,
-    loadingBranches: false,
-    prsRequestInFlight: false,
     fetching: false,
     syncing: false,
     switchingBranch: undefined,
     creatingBranch: false,
     fileMutation: undefined,
     bulkMutation: undefined,
-    lastOverviewFingerprint: undefined,
+  };
+}
+
+function createRepoState(): GitPanelRepoState {
+  return {
+    repoSummary: undefined,
+    changes: undefined,
+    recentCommits: [],
+    github: undefined,
+    prs: [],
+    branches: [],
+    operations: createOperationsState(),
+    loadingOverview: false,
+    loadingPrs: false,
+    loadingBranches: false,
+    prsRequestInFlight: false,
     overviewRequestInFlight: false,
+    lastRepoSummaryFingerprint: undefined,
+    lastChangesFingerprint: undefined,
+    lastRecentCommitsFingerprint: undefined,
+    lastBranchesFingerprint: undefined,
+    lastPrsFingerprint: undefined,
+    lastGithubFingerprint: undefined,
     loaded: false,
     loadedAt: undefined,
     requestSeq: 0,
@@ -108,6 +152,7 @@ function createProjectState(project: ProjectRecord): GitPanelProjectState {
     loadingRepos: false,
     refreshingRepos: false,
     reposRequestInFlight: false,
+    lastReposFingerprint: undefined,
     loaded: false,
     loadedAt: undefined,
     requestSeq: 0,
@@ -141,7 +186,7 @@ export function ensureGitProjectState(
   const key = gitProjectStateKey(project.id);
   gitPanelState.projects[key] ??= createProjectState(project);
   const state = gitPanelState.projects[key];
-  state.projectDir = project.dir;
+  if (state.projectDir !== project.dir) state.projectDir = project.dir;
   touchProject(project.id);
   return state;
 }
@@ -173,48 +218,113 @@ export function errorMessage(error: unknown): string {
 export function repoMutationInProgress(
   state: GitPanelRepoState | undefined,
 ): boolean {
+  const operations = state?.operations;
   return Boolean(
-    state &&
-      (state.fetching ||
-        state.syncing ||
-        state.creatingBranch ||
-        state.switchingBranch ||
-        state.fileMutation ||
-        state.bulkMutation),
+    operations &&
+      (operations.fetching ||
+        operations.syncing ||
+        operations.creatingBranch ||
+        operations.switchingBranch ||
+        operations.fileMutation ||
+        operations.bulkMutation),
   );
 }
 
-export function overviewFingerprint(next: GitOverviewResponse): string {
-  return JSON.stringify({
-    repo: {
-      currentBranch: next.repo.currentBranch,
-      detached: next.repo.detached,
-      ahead: next.repo.ahead,
-      behind: next.repo.behind,
-      hasUpstream: next.repo.hasUpstream,
-      hasRemote: next.repo.hasRemote,
-      hasGithubRemote: next.repo.hasGithubRemote,
-      baseBranch: next.repo.baseBranch,
-      onBaseBranch: next.repo.onBaseBranch,
-      mergedToBase: next.repo.mergedToBase,
-    },
-    counts: {
-      staged: next.stagedCount,
-      unstaged: next.unstagedCount,
-      untracked: next.untrackedCount,
-      insertions: next.insertions,
-      deletions: next.deletions,
-    },
-    files: next.files.map((file) => ({
-      path: file.path,
-      renamedFrom: file.renamedFrom,
-      index: file.index,
-      worktree: file.worktree,
-      staged: file.staged,
-      untracked: file.untracked,
-    })),
-    latestCommit: next.recentCommits[0]?.hash ?? null,
-  });
+export function patchRepoSummaryState(
+  state: GitPanelRepoState,
+  next: GitRepoSummary,
+): boolean {
+  const fingerprint = repoSummaryFingerprint(next);
+  if (state.lastRepoSummaryFingerprint === fingerprint && state.repoSummary) {
+    return false;
+  }
+  state.repoSummary = next;
+  state.lastRepoSummaryFingerprint = fingerprint;
+  return true;
+}
+
+export function patchChangesState(
+  state: GitPanelRepoState,
+  next: GitChangesState,
+): boolean {
+  const fingerprint = changesFingerprint(next);
+  if (state.lastChangesFingerprint === fingerprint && state.changes) {
+    return false;
+  }
+  state.changes = next;
+  state.lastChangesFingerprint = fingerprint;
+  return true;
+}
+
+export function patchRecentCommitsState(
+  state: GitPanelRepoState,
+  next: GitRecentCommit[],
+): boolean {
+  const fingerprint = recentCommitsFingerprint(next);
+  if (state.lastRecentCommitsFingerprint === fingerprint) return false;
+  state.recentCommits = next;
+  state.lastRecentCommitsFingerprint = fingerprint;
+  return true;
+}
+
+export function patchGitOverviewState(
+  state: GitPanelRepoState,
+  next: GitOverviewResponse,
+): GitOverviewPatchResult {
+  const repoChanged = patchRepoSummaryState(state, next.repo);
+  const changesChanged = patchChangesState(state, changesFromOverview(next));
+  const recentCommitsChanged = patchRecentCommitsState(
+    state,
+    next.recentCommits,
+  );
+  const changed = repoChanged || changesChanged || recentCommitsChanged;
+  if (!state.loaded) state.loaded = true;
+  if (changed || state.loadedAt === undefined) state.loadedAt = Date.now();
+  return { changed, repoChanged, changesChanged, recentCommitsChanged };
+}
+
+export function setProjectRepos(
+  project: GitPanelProjectState,
+  repos: GitRepoSummary[],
+): boolean {
+  const fingerprint = reposFingerprint(repos);
+  if (project.lastReposFingerprint === fingerprint) return false;
+  project.repos = repos;
+  project.lastReposFingerprint = fingerprint;
+  return true;
+}
+
+export function setBranchesIfChanged(
+  state: GitPanelRepoState,
+  branches: GitBranchSummary[],
+): boolean {
+  const fingerprint = branchesFingerprint(branches);
+  if (state.lastBranchesFingerprint === fingerprint) return false;
+  state.branches = branches;
+  state.lastBranchesFingerprint = fingerprint;
+  return true;
+}
+
+export function setGithubStatusIfChanged(
+  state: GitPanelRepoState,
+  github: GithubStatusResponse | undefined,
+): boolean {
+  const fingerprint = githubStatusFingerprint(github);
+  if (state.lastGithubFingerprint === fingerprint) return false;
+  state.github = github;
+  state.lastGithubFingerprint = fingerprint;
+  return true;
+}
+
+export function setPrsIfChanged(
+  state: GitPanelRepoState,
+  prs: GithubPr[],
+): boolean {
+  const fingerprint = prsFingerprint(prs);
+  if (state.lastPrsFingerprint === fingerprint) return false;
+  state.prs = prs;
+  state.lastPrsFingerprint = fingerprint;
+  return true;
 }
 
 export function mergeRepoSummary(
@@ -223,26 +333,26 @@ export function mergeRepoSummary(
 ): void {
   const project = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!project) return;
-  const exists = project.repos.some(
+  const existing = project.repos.find(
     (repo) => repo.relativePath === next.relativePath,
   );
-  project.repos = exists
-    ? project.repos.map((repo) =>
-        repo.relativePath === next.relativePath ? next : repo,
-      )
-    : [...project.repos, next];
-  const state = project.repoStates[gitRepoStateKey(next.relativePath)];
-  if (
-    state?.overview &&
-    state.overview.repo.relativePath === next.relativePath
+  if (!existing) {
+    setProjectRepos(project, [...project.repos, next]);
+  } else if (
+    repoSummaryFingerprint(existing) !== repoSummaryFingerprint(next)
   ) {
-    state.overview = { ...state.overview, repo: next };
+    setProjectRepos(
+      project,
+      project.repos.map((repo) =>
+        repo.relativePath === next.relativePath ? next : repo,
+      ),
+    );
   }
+
+  const state = project.repoStates[gitRepoStateKey(next.relativePath)];
+  if (state) patchRepoSummaryState(state, next);
   if (state && (!next.hasRemote || !next.hasGithubRemote)) {
-    state.github = undefined;
-    state.prs = [];
-    state.loadingPrs = false;
-    state.prsRequestInFlight = false;
+    clearGithubState(projectId, state);
   }
   applyGitContextFromProject(projectId);
 }
@@ -254,7 +364,7 @@ function repoSummaryFor(
   const project = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!project) return undefined;
   return (
-    project.repoStates[gitRepoStateKey(repo)]?.overview?.repo ??
+    project.repoStates[gitRepoStateKey(repo)]?.repoSummary ??
     project.repos.find((candidate) => candidate.relativePath === repo)
   );
 }
@@ -268,11 +378,31 @@ export function clearGithubState(
   projectId: string,
   state: GitPanelRepoState,
 ): void {
-  state.github = undefined;
-  state.prs = [];
-  state.loadingPrs = false;
-  state.prsRequestInFlight = false;
-  applyGitContextFromProject(projectId);
+  let changed = false;
+  if (state.github !== undefined || state.lastGithubFingerprint !== undefined) {
+    state.github = undefined;
+    state.lastGithubFingerprint = undefined;
+    changed = true;
+  }
+  const emptyPrsFingerprint = prsFingerprint([]);
+  if (
+    state.prs.length > 0 ||
+    (state.lastPrsFingerprint !== undefined &&
+      state.lastPrsFingerprint !== emptyPrsFingerprint)
+  ) {
+    state.prs = [];
+    state.lastPrsFingerprint = emptyPrsFingerprint;
+    changed = true;
+  }
+  if (state.loadingPrs) {
+    state.loadingPrs = false;
+    changed = true;
+  }
+  if (state.prsRequestInFlight) {
+    state.prsRequestInFlight = false;
+    changed = true;
+  }
+  if (changed) applyGitContextFromProject(projectId);
 }
 
 export function storedRepo(projectId: string): string | undefined {
@@ -315,9 +445,7 @@ export function applyGitContextFromProject(projectId: string): void {
     !current ||
     current.projectId !== next.projectId ||
     gitContextFingerprint(current) !== gitContextFingerprint(next);
-  gitState.gitContext = changed
-    ? next
-    : { ...current, loadedAt: next.loadedAt };
+  if (changed) gitState.gitContext = next;
 }
 
 export function selectedGitProjectState(

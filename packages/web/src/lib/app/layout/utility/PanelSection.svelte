@@ -14,6 +14,7 @@
     actions?: Snippet;
     /** Notified after the header toggles; use for externally controlled open state. */
     onOpenChange?: (open: boolean) => void;
+    contentClass?: string;
     children: Snippet;
   };
 
@@ -24,6 +25,7 @@
     meta,
     actions,
     onOpenChange,
+    contentClass,
     children,
   }: Props = $props();
 
@@ -63,7 +65,7 @@
     {/if}
   </div>
   {#if open}
-    <div class="px-3 py-2.5">
+    <div class={cn("px-3 py-2.5", contentClass)}>
       {@render children()}
     </div>
   {/if}

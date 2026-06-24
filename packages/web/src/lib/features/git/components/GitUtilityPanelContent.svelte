@@ -37,7 +37,7 @@
     activeAgent?: AgentRecord;
   };
 
-  const GIT_OVERVIEW_AUTO_REFRESH_MS = 4_000;
+  const GIT_OVERVIEW_AUTO_REFRESH_MS = 5_000;
   const GITHUB_CHECKS_POLL_MS = 10_000;
 
   let { activeProject, activeAgent: _activeAgent }: Props = $props();
@@ -60,12 +60,14 @@
   const repos = $derived(projectState?.repos ?? []);
   const selectedRepo = $derived(projectState?.selectedRepo ?? ".");
   const current = $derived(projectState?.repoStates[gitRepoStateKey(selectedRepo)]);
-  const overview = $derived(current?.overview);
+  const repoSummary = $derived(current?.repoSummary);
+  const changes = $derived(current?.changes);
+  const operations = $derived(current?.operations);
   const github = $derived(current?.github);
   const prs = $derived(current?.prs ?? []);
   const branches = $derived(current?.branches ?? []);
   const selectedRepoSummary = $derived(
-    overview?.repo ?? repos.find((repo) => repo.relativePath === selectedRepo),
+    repoSummary ?? repos.find((repo) => repo.relativePath === selectedRepo),
   );
   const selectedRepoHasGithubRemote = $derived(
     Boolean(selectedRepoSummary?.hasRemote && selectedRepoSummary.hasGithubRemote),
@@ -81,21 +83,21 @@
   const loadingOverview = $derived(current?.loadingOverview ?? false);
   const loadingPrs = $derived(current?.loadingPrs ?? false);
   const loadingBranches = $derived(current?.loadingBranches ?? false);
-  const fetching = $derived(current?.fetching ?? false);
-  const syncing = $derived(current?.syncing ?? false);
-  const switchingBranch = $derived(current?.switchingBranch);
-  const creatingBranch = $derived(current?.creatingBranch ?? false);
-  const fileMutation = $derived(current?.fileMutation);
-  const bulkMutation = $derived(current?.bulkMutation);
+  const fetching = $derived(operations?.fetching ?? false);
+  const syncing = $derived(operations?.syncing ?? false);
+  const switchingBranch = $derived(operations?.switchingBranch);
+  const creatingBranch = $derived(operations?.creatingBranch ?? false);
+  const fileMutation = $derived(operations?.fileMutation);
+  const bulkMutation = $derived(operations?.bulkMutation);
   const refreshing = $derived(
-    refreshingRepos || (loadingOverview && Boolean(overview)),
+    refreshingRepos || (loadingOverview && Boolean(repoSummary || changes)),
   );
 
-  const stagedFiles = $derived(overview?.files.filter((file) => file.staged) ?? []);
+  const stagedFiles = $derived(changes?.files.filter((file) => file.staged) ?? []);
   const unstagedFiles = $derived(
-    overview?.files.filter((file) => file.untracked || file.worktree !== " ") ?? [],
+    changes?.files.filter((file) => file.untracked || file.worktree !== " ") ?? [],
   );
-  const currentBranchName = $derived(overview?.repo.currentBranch ?? null);
+  const currentBranchName = $derived(repoSummary?.currentBranch ?? null);
   const hasPendingChecks = $derived(hasPendingPrChecks(prs));
   const filteredBranches = $derived(
     branches.filter((branch) =>
@@ -268,7 +270,7 @@
         </Card>
       {/if}
       <GitRepoBranchSection
-        {overview}
+        {repoSummary}
         {repos}
         {selectedRepo}
         {filteredBranches}
@@ -290,7 +292,7 @@
       />
 
       <GitChangesSection
-        {overview}
+        {changes}
         {stagedFiles}
         {unstagedFiles}
         {fileMutation}

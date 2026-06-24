@@ -17,7 +17,7 @@
     statusLetter,
   } from "./git-change-format";
 
-  type Overview = {
+  type ChangesState = {
     files: GitFileChange[];
     stagedCount: number;
     unstagedCount: number;
@@ -25,7 +25,7 @@
   };
 
   type Props = {
-    overview?: Overview;
+    changes?: ChangesState;
     stagedFiles: GitFileChange[];
     unstagedFiles: GitFileChange[];
     fileMutation?: FileMutation;
@@ -43,7 +43,7 @@
   };
 
   let {
-    overview,
+    changes,
     stagedFiles,
     unstagedFiles,
     fileMutation,
@@ -60,21 +60,21 @@
 {#snippet changeRow(file: GitFileChange, group: "staged" | "unstaged")}
   {@const parts = splitPath(shortenPath(file.path))}
   {@const busy = fileMutation?.path === file.path}
-  <div class="group flex items-center gap-1.5 rounded-sm px-1.5 py-0 hover:bg-muted/40">
+  <div class="group flex min-h-5 items-center gap-1 px-1 text-xs leading-5">
     <span
       class={cn(
-        "w-3 shrink-0 text-center font-mono text-xs font-semibold leading-5",
+        "w-3 shrink-0 text-center font-mono font-semibold",
         fileTone(file),
       )}
       title={fileStatusLabel(file, group)}
     >
       {statusLetter(file, group)}
     </span>
-    <div class="min-w-0 flex-1 truncate font-mono text-xs leading-5" title={file.path}>
+    <div class="min-w-0 flex-1 truncate font-mono" title={file.path}>
       {#if parts.dir}<span class="text-muted-foreground">{parts.dir}</span>{/if}<span class="text-foreground">{parts.base}</span>
     </div>
     <div
-      class="flex w-0 shrink-0 items-center gap-0.5 overflow-hidden opacity-0 transition-all group-hover:w-auto group-hover:opacity-100 focus-within:w-auto focus-within:opacity-100"
+      class="flex w-11 shrink-0 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
     >
       {#if group === "staged"}
         <Button
@@ -128,25 +128,25 @@
   </div>
 {/snippet}
 
-<PanelSection title="Changes" icon={FilePen} bind:open>
+<PanelSection title="Changes" icon={FilePen} contentClass="px-2 py-1.5" bind:open>
   {#snippet meta()}
-    {#if overview}
-      <span>{overview.stagedCount} staged</span>
+    {#if changes}
+      <span>{changes.stagedCount} staged</span>
       <span class="text-muted-foreground/50">·</span>
-      <span>{overview.unstagedCount + overview.untrackedCount} unstaged</span>
+      <span>{changes.unstagedCount + changes.untrackedCount} unstaged</span>
     {/if}
   {/snippet}
 
-  {#if loadingOverview && !overview}
+  {#if loadingOverview && !changes}
     <div class="py-1 text-xs text-muted-foreground">Loading…</div>
-  {:else if overview}
-    {#if overview.files.length === 0}
+  {:else if changes}
+    {#if changes.files.length === 0}
       <p class="py-1 text-xs text-muted-foreground">Working tree clean.</p>
     {:else}
-      <div class="flex flex-col gap-1.5">
+      <div class="flex flex-col gap-1">
         {#if stagedFiles.length > 0}
-          <div class="flex flex-col">
-            <div class="flex items-center gap-1 px-1.5 py-px text-xs font-medium text-muted-foreground">
+          <div class="flex flex-col gap-0.5">
+            <div class="flex h-5 items-center gap-1 px-1 text-xs font-medium text-muted-foreground">
               <span>Staged</span>
               <Button
                 size="icon-xs"
@@ -171,8 +171,8 @@
           </div>
         {/if}
         {#if unstagedFiles.length > 0}
-          <div class="flex flex-col">
-            <div class="flex items-center gap-1 px-1.5 py-px text-xs font-medium text-muted-foreground">
+          <div class="flex flex-col gap-0.5">
+            <div class="flex h-5 items-center gap-1 px-1 text-xs font-medium text-muted-foreground">
               <span>Unstaged</span>
               <Button
                 size="icon-xs"

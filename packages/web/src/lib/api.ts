@@ -39,6 +39,7 @@ export type {
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
+  GitRecentCommit,
   GitRepoSummary,
   ModelCost,
   ModelDefinition,

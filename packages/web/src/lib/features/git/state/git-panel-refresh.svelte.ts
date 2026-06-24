@@ -21,10 +21,14 @@ import {
   type GitPanelRefreshOptions,
   gitPanelState,
   mergeRepoSummary,
-  overviewFingerprint,
+  patchGitOverviewState,
   repoHasGithubRemote,
   repoMutationInProgress,
   saveSelectedRepo,
+  setBranchesIfChanged,
+  setGithubStatusIfChanged,
+  setProjectRepos,
+  setPrsIfChanged,
   storedRepo,
 } from "./git-panel-state.svelte";
 
@@ -44,23 +48,39 @@ export async function refreshGitProject(
   try {
     const result = await discoverGitRepos(project.id);
     if (state.requestSeq !== requestSeq) return;
-    state.projectIsRepo = result.projectIsRepo;
-    state.repos = result.repos;
+
+    let changed = false;
+    if (state.projectIsRepo !== result.projectIsRepo) {
+      state.projectIsRepo = result.projectIsRepo;
+      changed = true;
+    }
+    changed = setProjectRepos(state, result.repos) || changed;
     for (const repo of result.repos)
       ensureGitRepoState(project.id, repo.relativePath);
+
     const stored = storedRepo(project.id);
     const currentExists = result.repos.some(
       (repo) => repo.relativePath === state.selectedRepo,
     );
     const fallback = result.repos[0]?.relativePath ?? ".";
+    let nextSelectedRepo = state.selectedRepo;
     if (stored && result.repos.some((repo) => repo.relativePath === stored)) {
-      state.selectedRepo = stored;
+      nextSelectedRepo = stored;
     } else if (!currentExists) {
-      state.selectedRepo = fallback;
+      nextSelectedRepo = fallback;
     }
-    state.loaded = true;
-    state.loadedAt = Date.now();
+    if (state.selectedRepo !== nextSelectedRepo) {
+      state.selectedRepo = nextSelectedRepo;
+      changed = true;
+    }
+
+    if (!state.loaded) {
+      state.loaded = true;
+      changed = true;
+    }
+    if (changed || state.loadedAt === undefined) state.loadedAt = Date.now();
     applyGitContextFromProject(project.id);
+
     if (result.repos.length > 0) {
       const repoState = ensureGitRepoState(project.id, state.selectedRepo);
       const refreshOptions = repoState.loaded
@@ -74,7 +94,7 @@ export async function refreshGitProject(
   } catch (error) {
     if (state.requestSeq !== requestSeq) return;
     state.discoverError = errorMessage(error);
-    if (!state.loaded) state.repos = [];
+    if (!state.loaded) setProjectRepos(state, []);
   } finally {
     if (state.requestSeq === requestSeq) {
       state.loadingRepos = false;
@@ -99,16 +119,7 @@ export async function refreshGitOverview(
     const next = await getGitOverview(projectId, repo);
     if (state.requestSeq !== requestSeq) return;
     mergeRepoSummary(projectId, next.repo);
-    const fingerprint = overviewFingerprint(next);
-    if (
-      !options.onlyIfChanged ||
-      fingerprint !== state.lastOverviewFingerprint
-    ) {
-      state.overview = next;
-    }
-    state.lastOverviewFingerprint = fingerprint;
-    state.loaded = true;
-    state.loadedAt = Date.now();
+    patchGitOverviewState(state, next);
   } catch (error) {
     if (!options.silent)
       notify.error(`Git overview failed: ${errorMessage(error)}`);
@@ -128,7 +139,7 @@ export async function refreshBranches(
   state.loadingBranches = true;
   try {
     const result = await listGitBranches(projectId, repo);
-    state.branches = result.branches;
+    setBranchesIfChanged(state, result.branches);
   } catch (error) {
     notify.error(`Could not list branches: ${errorMessage(error)}`);
   } finally {
@@ -148,21 +159,21 @@ export async function refreshGithub(
 
   try {
     const status = await getGithubStatus(projectId, repo);
-    state.github = status;
+    setGithubStatusIfChanged(state, status);
     applyGitContextFromProject(projectId);
     if (status.authenticated) {
       await refreshPrs(projectId, repo, true);
     } else {
-      state.prs = [];
+      setPrsIfChanged(state, []);
     }
   } catch (error) {
-    state.github = {
+    setGithubStatusIfChanged(state, {
       available: false,
       authenticated: false,
       login: null,
       reason: errorMessage(error),
-    };
-    state.prs = [];
+    });
+    setPrsIfChanged(state, []);
     applyGitContextFromProject(projectId);
   }
 }
@@ -182,7 +193,7 @@ export async function refreshPrs(
   if (!silent) state.loadingPrs = true;
   try {
     const result = await listGithubPrs(projectId, repo);
-    state.prs = result.prs;
+    setPrsIfChanged(state, result.prs);
   } catch (error) {
     if (!silent) notify.error(`Could not list PRs: ${errorMessage(error)}`);
   } finally {

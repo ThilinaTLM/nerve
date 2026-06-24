@@ -36,7 +36,7 @@ export const gitSelectors = {
     if (!state || state.repos.length === 0) return undefined;
     const repoState = state.repoStates[gitRepoStateKey(state.selectedRepo)];
     const repo =
-      repoState?.overview?.repo ??
+      repoState?.repoSummary ??
       state.repos.find(
         (candidate) => candidate.relativePath === state.selectedRepo,
       ) ??

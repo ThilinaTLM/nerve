@@ -7,11 +7,7 @@
   import GitBranch from "@lucide/svelte/icons/git-branch";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Search from "@lucide/svelte/icons/search";
-  import type {
-    GitBranchSummary,
-    GitOverviewResponse,
-    GitRepoSummary,
-  } from "$lib/api";
+  import type { GitBranchSummary, GitRepoSummary } from "$lib/api";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -22,7 +18,7 @@
   import { repoPathLabel } from "./git-change-format";
 
   type Props = {
-    overview?: GitOverviewResponse;
+    repoSummary?: GitRepoSummary;
     repos: GitRepoSummary[];
     selectedRepo: string;
     filteredBranches: GitBranchSummary[];
@@ -44,7 +40,7 @@
   };
 
   let {
-    overview,
+    repoSummary,
     repos,
     selectedRepo,
     filteredBranches,
@@ -80,8 +76,8 @@
 {/snippet}
 
       <PanelSection title="Repo & Branch" icon={GitBranch} actions={repoRefreshActions} bind:open>
-        {#if overview}
-          {@const repo = overview.repo}
+        {#if repoSummary}
+          {@const repo = repoSummary}
           <div class="flex flex-col gap-2">
             {#if repos.length > 1}
               <ToggleGroup

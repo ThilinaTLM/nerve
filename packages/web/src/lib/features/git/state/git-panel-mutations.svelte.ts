@@ -18,6 +18,7 @@ import {
   ensureGitRepoState,
   errorMessage,
   mergeRepoSummary,
+  setBranchesIfChanged,
 } from "./git-panel-state.svelte";
 
 export async function fetchGitRepo(
@@ -25,7 +26,7 @@ export async function fetchGitRepo(
   repo: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  state.fetching = true;
+  state.operations.fetching = true;
   try {
     const result = await fetchGit(projectId, repo);
     mergeRepoSummary(projectId, result.repo);
@@ -35,7 +36,7 @@ export async function fetchGitRepo(
   } catch (error) {
     notify.error(`Fetch failed: ${errorMessage(error)}`);
   } finally {
-    state.fetching = false;
+    state.operations.fetching = false;
   }
 }
 
@@ -44,7 +45,7 @@ export async function syncGitRepo(
   repo: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  state.syncing = true;
+  state.operations.syncing = true;
   try {
     const result = await syncGitBranch(projectId, repo);
     mergeRepoSummary(projectId, result.repo);
@@ -54,7 +55,7 @@ export async function syncGitRepo(
   } catch (error) {
     notify.error(`Sync failed: ${errorMessage(error)}`);
   } finally {
-    state.syncing = false;
+    state.operations.syncing = false;
   }
 }
 
@@ -65,11 +66,11 @@ export async function switchGitRepoBranch(
 ): Promise<boolean> {
   if (branch.current) return false;
   const state = ensureGitRepoState(projectId, repo);
-  state.switchingBranch = branch.name;
+  state.operations.switchingBranch = branch.name;
   try {
     const result = await switchGitBranch(projectId, repo, branch.name);
     mergeRepoSummary(projectId, result.repo);
-    state.branches = [];
+    setBranchesIfChanged(state, []);
     notify.success(`Switched to ${result.repo.currentBranch ?? branch.name}`);
     await Promise.all([
       refreshGitOverview(projectId, repo),
@@ -80,7 +81,7 @@ export async function switchGitRepoBranch(
     notify.error(`Switch branch failed: ${errorMessage(error)}`);
     return false;
   } finally {
-    state.switchingBranch = undefined;
+    state.operations.switchingBranch = undefined;
   }
 }
 
@@ -91,11 +92,11 @@ export async function createGitRepoBranch(
 ): Promise<boolean> {
   if (name.trim().length === 0) return false;
   const state = ensureGitRepoState(projectId, repo);
-  state.creatingBranch = true;
+  state.operations.creatingBranch = true;
   try {
     const result = await createGitBranch(projectId, repo, name.trim());
     mergeRepoSummary(projectId, result.repo);
-    state.branches = [];
+    setBranchesIfChanged(state, []);
     notify.success(`Created branch ${name.trim()}`);
     await Promise.all([
       refreshGitOverview(projectId, repo),
@@ -106,7 +107,7 @@ export async function createGitRepoBranch(
     notify.error(`Create branch failed: ${errorMessage(error)}`);
     return false;
   } finally {
-    state.creatingBranch = false;
+    state.operations.creatingBranch = false;
   }
 }
 
@@ -117,7 +118,7 @@ export async function mutateGitFile(
   action: "stage" | "unstage" | "discard",
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  state.fileMutation = { path: file.path, action };
+  state.operations.fileMutation = { path: file.path, action };
   try {
     const fn =
       action === "stage"
@@ -133,7 +134,7 @@ export async function mutateGitFile(
       `${action[0].toUpperCase()}${action.slice(1)} failed: ${errorMessage(error)}`,
     );
   } finally {
-    state.fileMutation = undefined;
+    state.operations.fileMutation = undefined;
   }
 }
 
@@ -143,14 +144,14 @@ export async function bulkStageGitFiles(
   action: "stage-all" | "unstage-all",
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  const files = state.overview?.files ?? [];
+  const files = state.changes?.files ?? [];
   const targets =
     action === "stage-all"
       ? files.filter((file) => file.untracked || file.worktree !== " ")
       : files.filter((file) => file.staged);
   if (targets.length === 0) return;
   const fn = action === "stage-all" ? stageGitFile : unstageGitFile;
-  state.bulkMutation = action;
+  state.operations.bulkMutation = action;
   try {
     for (const file of targets) {
       await fn(projectId, repo, file.path);
@@ -161,6 +162,6 @@ export async function bulkStageGitFiles(
       `${action === "stage-all" ? "Stage all" : "Unstage all"} failed: ${errorMessage(error)}`,
     );
   } finally {
-    state.bulkMutation = undefined;
+    state.operations.bulkMutation = undefined;
   }
 }
