@@ -70,3 +70,27 @@ export function assistantToolCallDraft(
     ? { id: block.id, name: block.name }
     : undefined;
 }
+
+export interface AssistantToolCallSnapshot {
+  contentIndex: number;
+  id?: string;
+  name?: string;
+  arguments: Record<string, unknown>;
+}
+
+export function assistantToolCallSnapshots(
+  message: AssistantMessage,
+): AssistantToolCallSnapshot[] {
+  return message.content.flatMap((block, contentIndex) =>
+    block.type === "toolCall"
+      ? [
+          {
+            contentIndex,
+            id: block.id,
+            name: block.name,
+            arguments: recordFromUnknown(block.arguments),
+          },
+        ]
+      : [],
+  );
+}

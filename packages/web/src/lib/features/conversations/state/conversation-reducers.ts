@@ -27,6 +27,7 @@ import {
   handleRunRetrying,
   handleToolCallUpdated,
   handleToolDraftDelta,
+  handleToolDraftDiscarded,
   handleToolDraftDone,
   handleToolDraftProgress,
   handleToolDraftStarted,
@@ -154,6 +155,9 @@ export function handleConversationEvent(
       break;
     case "conversation.live.tool_draft.done":
       handleToolDraftDone(view, event);
+      break;
+    case "conversation.live.tool_draft.discarded":
+      handleToolDraftDiscarded(view, event);
       break;
     case "conversation.live.tool_draft.progress":
       handleToolDraftProgress(view, event);

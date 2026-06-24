@@ -125,4 +125,61 @@ describe("RuntimeState", () => {
 
     assert.equal(state.agentConversationMessages, cache);
   });
+
+  it("discards live tool draft blocks and clears provider anchors", () => {
+    const state = new RuntimeState();
+    const run = state.conversationRuntime.startRun({
+      conversationId: "conv_a",
+      agentId: "agent_a",
+      projectId: "proj_a",
+      runId: "run_a",
+      startedAt: now,
+    });
+    const turn = state.conversationRuntime.startTurn(run.runId);
+    const message = state.conversationRuntime.startAssistantMessage(
+      run.runId,
+      turn.turnId,
+    );
+
+    state.conversationRuntime.startToolDraft({
+      runId: run.runId,
+      turnId: turn.turnId,
+      liveMessageId: message.liveMessageId,
+      contentIndex: 0,
+      providerToolCallId: "call_broken",
+      toolName: "grep",
+    });
+
+    assert.deepEqual(
+      state.conversationRuntime.resolveToolAnchor(run.runId, "call_broken"),
+      {
+        runId: run.runId,
+        turnId: turn.turnId,
+        liveMessageId: message.liveMessageId,
+        contentIndex: 0,
+        providerToolCallId: "call_broken",
+      },
+    );
+
+    const discarded = state.conversationRuntime.discardToolDraft({
+      runId: run.runId,
+      turnId: turn.turnId,
+      liveMessageId: message.liveMessageId,
+      contentIndex: 0,
+      reason: "abandoned",
+    });
+
+    assert.equal(discarded?.providerToolCallId, "call_broken");
+    assert.equal(discarded?.toolName, "grep");
+    assert.equal(discarded?.reason, "abandoned");
+    assert.equal(
+      state.conversationRuntime.resolveToolAnchor(run.runId, "call_broken"),
+      undefined,
+    );
+    assert.deepEqual(
+      state.conversationRuntime.snapshotForConversation("conv_a")?.turns[0]
+        ?.messages[0]?.blocks,
+      [],
+    );
+  });
 });

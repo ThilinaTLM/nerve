@@ -30,6 +30,10 @@ import {
   recordFromUnknown,
   sameStringList,
 } from "./agent-runner-shared.js";
+import {
+  LiveToolDraftReconciler,
+  type LiveToolDraftState,
+} from "./live-tool-draft-reconciliation.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
 import {
   createToolDraftProgressAccumulator,
@@ -64,6 +68,7 @@ export async function runAgentPromptSession(
   let currentLiveMessageId: string | undefined;
   const liveToolDraftNames = new Map<number, string | undefined>();
   const liveToolDraftProgress = new Map<number, ToolDraftProgressAccumulator>();
+  const liveToolDrafts = new Map<number, LiveToolDraftState>();
   const pendingProviderToolCalls = new Map<
     string,
     { toolName: string; args: Record<string, unknown> }
@@ -106,6 +111,16 @@ export async function runAgentPromptSession(
         { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
       );
     };
+
+    const liveToolDraftReconciler = new LiveToolDraftReconciler({
+      conversationRuntime: this.deps.state.conversationRuntime,
+      publish: async (type, data) => {
+        await this.deps.events.publish(type, data, { durability: "transient" });
+      },
+      runId,
+      getTurnId: () => currentTurnId,
+      getLiveMessageId: () => currentLiveMessageId,
+    });
 
     let currentProviderForResponse: string | undefined;
 
@@ -152,6 +167,7 @@ export async function runAgentPromptSession(
         currentLiveMessageId = undefined;
         liveToolDraftNames.clear();
         liveToolDraftProgress.clear();
+        liveToolDrafts.clear();
         pendingProviderToolCalls.clear();
         return;
       }
@@ -221,6 +237,7 @@ export async function runAgentPromptSession(
         currentLiveMessageId = started.liveMessageId;
         liveToolDraftNames.clear();
         liveToolDraftProgress.clear();
+        liveToolDrafts.clear();
         await this.deps.events.publish(
           "conversation.live.message.started",
           started,
@@ -301,6 +318,12 @@ export async function runAgentPromptSession(
             update.contentIndex,
           );
           liveToolDraftNames.set(update.contentIndex, draft?.name);
+          liveToolDrafts.set(update.contentIndex, {
+            contentIndex: update.contentIndex,
+            providerToolCallId: draft?.id,
+            toolName: draft?.name,
+            ended: false,
+          });
           const progressAccumulator = createToolDraftProgressAccumulator(
             draft?.name,
           );
@@ -329,6 +352,17 @@ export async function runAgentPromptSession(
             draft?.name ?? liveToolDraftNames.get(update.contentIndex);
           if (draft?.name)
             liveToolDraftNames.set(update.contentIndex, draft.name);
+          if (draft?.id || draft?.name) {
+            const current = liveToolDrafts.get(update.contentIndex) ?? {
+              contentIndex: update.contentIndex,
+              ended: false,
+            };
+            liveToolDrafts.set(update.contentIndex, {
+              ...current,
+              providerToolCallId: draft.id ?? current.providerToolCallId,
+              toolName: draft.name ?? current.toolName,
+            });
+          }
           if (shouldStreamToolDraftArguments(toolName)) {
             const data =
               this.deps.state.conversationRuntime.applyToolDraftDelta({
@@ -371,6 +405,14 @@ export async function runAgentPromptSession(
         } else if (update.type === "toolcall_end") {
           liveToolDraftNames.delete(update.contentIndex);
           liveToolDraftProgress.delete(update.contentIndex);
+          liveToolDrafts.set(update.contentIndex, {
+            ...(liveToolDrafts.get(update.contentIndex) ?? {
+              contentIndex: update.contentIndex,
+            }),
+            providerToolCallId: update.toolCall.id,
+            toolName: update.toolCall.name,
+            ended: true,
+          });
           const data = this.deps.state.conversationRuntime.finishToolDraft({
             runId,
             turnId: currentTurnId,
@@ -389,6 +431,14 @@ export async function runAgentPromptSession(
         return;
       }
       if (event.type === "message_end") {
+        if (event.message.role === "assistant" && liveToolDrafts.size > 0) {
+          await liveToolDraftReconciler.reconcile(event.message, [
+            ...liveToolDrafts.values(),
+          ]);
+          liveToolDrafts.clear();
+          liveToolDraftNames.clear();
+          liveToolDraftProgress.clear();
+        }
         const liveMessageId =
           event.message.role === "assistant" ? currentLiveMessageId : undefined;
         const mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(

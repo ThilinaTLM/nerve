@@ -30,6 +30,7 @@ import {
   updateConversationActiveEntryId,
   updateTreeNodesForEntry,
 } from "./conversation-reducer-shared";
+import { removeDiscardedToolDraft } from "./tool-draft-reducer-helpers";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
@@ -283,6 +284,26 @@ export function handleToolDraftDone(
         : undefined,
     done: true,
   });
+}
+
+export function handleToolDraftDiscarded(
+  view: ConversationViewState,
+  event: EventEnvelope<Record<string, unknown>>,
+): void {
+  ensureLiveState(
+    view,
+    typeof event.data?.runId === "string" ? event.data.runId : undefined,
+  );
+  const key = draftKey(event.data);
+  const providerToolCallId =
+    typeof event.data?.providerToolCallId === "string"
+      ? event.data.providerToolCallId
+      : undefined;
+  view.live.toolDrafts = removeDiscardedToolDraft(
+    view.live.toolDrafts,
+    key,
+    providerToolCallId,
+  );
 }
 
 export function handleToolDraftProgress(

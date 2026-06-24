@@ -277,6 +277,25 @@ export interface ConversationLiveToolDraftProgressData {
   progress: ConversationLiveToolDraftProgressSnapshot;
 }
 
+export type ConversationLiveToolDraftDiscardReason =
+  | "abandoned"
+  | "invalid"
+  | "replaced";
+
+export interface ConversationLiveToolDraftDiscardedData {
+  conversationId: string;
+  agentId: string;
+  projectId: string;
+  runId: string;
+  turnId: string;
+  liveMessageId: string;
+  contentBlockId: string;
+  contentIndex: number;
+  providerToolCallId?: string;
+  toolName?: string;
+  reason: ConversationLiveToolDraftDiscardReason;
+}
+
 export interface ConversationLiveToolOutputDeltaData {
   conversationId: string;
   agentId: string;
@@ -315,6 +334,7 @@ export type ConversationEventData =
   | ConversationLiveToolDraftDeltaData
   | ConversationLiveToolDraftDoneData
   | ConversationLiveToolDraftProgressData
+  | ConversationLiveToolDraftDiscardedData
   | ConversationLiveToolOutputDeltaData;
 
 export interface ConversationLiveTextBlockSnapshot {
@@ -423,6 +443,7 @@ export const conversationEventTypes = [
   "conversation.live.tool_draft.delta",
   "conversation.live.tool_draft.done",
   "conversation.live.tool_draft.progress",
+  "conversation.live.tool_draft.discarded",
   "conversation.live.tool_output.delta",
 ] as const;
 

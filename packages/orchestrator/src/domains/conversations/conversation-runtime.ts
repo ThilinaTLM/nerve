@@ -8,6 +8,8 @@ import {
   type ConversationLiveTextBlockSnapshot,
   type ConversationLiveToolDraftBlockSnapshot,
   type ConversationLiveToolDraftDeltaData,
+  type ConversationLiveToolDraftDiscardedData,
+  type ConversationLiveToolDraftDiscardReason,
   type ConversationLiveToolDraftDoneData,
   type ConversationLiveToolDraftProgressData,
   type ConversationLiveToolDraftProgressSnapshot,
@@ -371,6 +373,40 @@ export class ConversationRuntime {
       providerToolCallId: block.providerToolCallId,
       toolName: block.toolName,
       progress: { ...block.progress },
+    };
+  }
+
+  discardToolDraft(input: {
+    runId: string;
+    turnId: string;
+    liveMessageId: string;
+    contentIndex: number;
+    reason: ConversationLiveToolDraftDiscardReason;
+  }): ConversationLiveToolDraftDiscardedData | undefined {
+    const { run, message } = this.requireMessage(input);
+    const index = message.blocks.findIndex(
+      (block) =>
+        block.contentIndex === input.contentIndex &&
+        block.kind === "tool_call_draft",
+    );
+    const block = message.blocks[index];
+    if (block?.kind !== "tool_call_draft") return undefined;
+    if (block.providerToolCallId) {
+      this.draftAnchorByProviderToolCallId.delete(block.providerToolCallId);
+    }
+    message.blocks.splice(index, 1);
+    return {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      projectId: run.projectId,
+      runId: input.runId,
+      turnId: input.turnId,
+      liveMessageId: input.liveMessageId,
+      contentBlockId: block.contentBlockId,
+      contentIndex: input.contentIndex,
+      providerToolCallId: block.providerToolCallId,
+      toolName: block.toolName,
+      reason: input.reason,
     };
   }
 
