@@ -11,7 +11,7 @@ import {
   getModelContextWindow,
   isContextOverflowAssistantMessage,
   shouldAutoCompact,
-} from "@nerve/agent";
+} from "@nervekit/agent";
 import type {
   AgentRecord,
   ContextUsage,
@@ -23,7 +23,7 @@ import type {
   CreateAgentRequest,
   PromptRequest,
   ToolName,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { AuthManager } from "../../../auth.js";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";

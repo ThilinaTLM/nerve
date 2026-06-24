@@ -5,7 +5,7 @@ import type {
   ConversationEntry,
   ConversationRecord,
   ProjectRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { RuntimeState } from "../src/runtime/runtime-state.js";
 
 const now = "2026-01-01T00:00:00.000Z";

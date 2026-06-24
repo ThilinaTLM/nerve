@@ -1,4 +1,4 @@
-import type { GithubChecksSummary } from "@nerve/shared";
+import type { GithubChecksSummary } from "@nervekit/shared";
 
 function isGithubHost(hostname: string): boolean {
   const normalized = hostname.toLowerCase().replace(/\.$/, "");

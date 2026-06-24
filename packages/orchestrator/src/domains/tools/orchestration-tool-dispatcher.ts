@@ -6,13 +6,13 @@ import {
   type TaskLogEvent,
   type TaskRecord,
   type ToolCallRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   buildProcessTextResult,
   executeTool,
   type ToolExecutionContext,
   type ToolExecutionOutputUpdate,
-} from "@nerve/tools";
+} from "@nervekit/tools";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { ConversationRuntime } from "../conversations/conversation-runtime.js";

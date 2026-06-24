@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import type { TaskRuntime } from "@nerve/shared";
+import type { TaskRuntime } from "@nervekit/shared";
 
 const DEFAULT_HELPER_TIMEOUT_MS = 2000;
 

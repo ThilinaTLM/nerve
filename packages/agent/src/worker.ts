@@ -4,7 +4,7 @@ import {
   type AgentWorkerPromptMessage,
   type AgentWorkerServerMessage,
   agentWorkerClientMessageSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { streamAgentPrompt } from "./index.js";
 
 let currentRun:

@@ -4,7 +4,7 @@ import type {
   ConversationRecord,
   ConversationSnapshot,
   ConversationTree,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   apiDeleteNoContent,
   apiGet,

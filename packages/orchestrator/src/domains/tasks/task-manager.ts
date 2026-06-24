@@ -10,11 +10,11 @@ import {
   type TaskLogQueryResponse,
   type TaskRecord,
   type TaskRuntime,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type {
   ToolExecutionOutputUpdate,
   ToolExecutionResult,
-} from "@nerve/tools";
+} from "@nervekit/tools";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";

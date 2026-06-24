@@ -1,4 +1,8 @@
-import type { StartTaskRequest, TaskLogEvent, TaskRecord } from "@nerve/shared";
+import type {
+  StartTaskRequest,
+  TaskLogEvent,
+  TaskRecord,
+} from "@nervekit/shared";
 
 const urlPattern = /https?:\/\/[^\s)'"]+/i;
 

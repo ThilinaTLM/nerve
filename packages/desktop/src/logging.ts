@@ -5,7 +5,7 @@ import {
   type ApplicationLogLevel,
   type ApplicationLogRecord,
   createId,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 
 let seq = 0;
 

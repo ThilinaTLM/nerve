@@ -7,11 +7,13 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packDir = join(repoRoot, "release", "npm");
 const legalFiles = ["LICENSE", "NOTICE"];
 const publishPackages = [
-  ["@nerve/shared", join("packages", "shared")],
-  ["@nerve/tools", join("packages", "tools")],
-  ["@nerve/agent", join("packages", "agent")],
-  ["@nerve/orchestrator", join("packages", "orchestrator")],
-  ["@nerve/cli", join("packages", "cli")],
+  ["@nervekit/shared", join("packages", "shared")],
+  ["@nervekit/tools", join("packages", "tools")],
+  ["@nervekit/agent", join("packages", "agent")],
+  ["@nervekit/web", join("packages", "web")],
+  ["@nervekit/orchestrator", join("packages", "orchestrator")],
+  ["@nervekit/cli", join("packages", "cli")],
+  ["@nervekit/desktop", join("packages", "desktop")],
 ];
 
 const createdLegalFiles = [];
@@ -24,6 +26,22 @@ try {
       "Missing packages/orchestrator/dist/web/index.html. Run pnpm release:build before packing npm packages.",
     );
   });
+
+  await access(join(repoRoot, "packages", "web", "dist", "index.html")).catch(
+    () => {
+      throw new Error(
+        "Missing packages/web/dist/index.html. Run pnpm release:build before packing npm packages.",
+      );
+    },
+  );
+
+  await access(join(repoRoot, "packages", "desktop", "dist", "bin.js")).catch(
+    () => {
+      throw new Error(
+        "Missing packages/desktop/dist/bin.js. Run pnpm release:build before packing npm packages.",
+      );
+    },
+  );
 
   await rm(packDir, { recursive: true, force: true });
   await mkdir(packDir, { recursive: true });
@@ -40,6 +58,12 @@ try {
     .sort();
   console.log(`Packed ${packed.length} npm tarballs into ${packDir}:`);
   for (const filename of packed) console.log(`  ${filename}`);
+
+  if (packed.length !== publishPackages.length) {
+    throw new Error(
+      `Expected ${publishPackages.length} npm tarballs but found ${packed.length} in ${packDir}.`,
+    );
+  }
 } finally {
   await Promise.all(
     createdLegalFiles.map((path) => unlink(path).catch(() => undefined)),

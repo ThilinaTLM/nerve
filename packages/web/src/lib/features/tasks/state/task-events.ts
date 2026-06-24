@@ -1,4 +1,4 @@
-import type { TaskRecord } from "@nerve/shared";
+import type { TaskRecord } from "@nervekit/shared";
 import { getTaskLogs } from "$lib/api";
 import { onEvent } from "$lib/core/events/event-bus";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
-import type { AgentMessage } from "@nerve/agent";
+import type { AgentMessage } from "@nervekit/agent";
 import type {
   AgentRecord,
   ConversationEntry,
   EventEnvelope,
   TaskLogEvent,
   TaskRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { AgentRunStateMap } from "../src/domains/agents/run/run-state.js";
 import {
   TaskNotificationService,

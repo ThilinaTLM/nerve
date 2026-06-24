@@ -4,8 +4,8 @@ import {
   createId,
   type StartTaskRequest,
   type TaskRecord,
-} from "@nerve/shared";
-import type { ToolExecutionOutputUpdate } from "@nerve/tools";
+} from "@nervekit/shared";
+import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
 import { createTaskLogCursor } from "./index.js";
 import type { ManagedTask, TaskManager } from "./task-manager.js";
 import {

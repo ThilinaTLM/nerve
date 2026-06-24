@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { ConversationEntry, EventEnvelope } from "@nerve/shared";
+import type { ConversationEntry, EventEnvelope } from "@nervekit/shared";
 import { recoverInterruptedRuns } from "../src/domains/agents/run/interrupted-run-recovery.js";
 import type { AppendEntryFn } from "../src/domains/agents/run/message-mirror.js";
 import { EventBus } from "../src/infrastructure/events/index.js";

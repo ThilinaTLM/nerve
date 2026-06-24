@@ -5,7 +5,7 @@ import {
   type CreateConversationRequest,
   createId,
   expandTruncatedConversationTitle,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";

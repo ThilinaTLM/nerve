@@ -1,4 +1,4 @@
-import type { ToolName } from "@nerve/shared";
+import type { ToolName } from "@nervekit/shared";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
 import { executeEdit } from "./filesystem/edit.js";
 import { executeFind } from "./filesystem/find.js";

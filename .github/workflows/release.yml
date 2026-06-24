@@ -15,17 +15,17 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
-          version: 11.3.0
+          version: 11.8.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22.19.0
+          node-version: 24
           cache: pnpm
 
       - name: Install Linux packaging tools
@@ -47,7 +47,7 @@ jobs:
         run: pnpm release:desktop:linux
 
       - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-desktop
           path: |
@@ -58,21 +58,132 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  npm-smoke:
+    name: npm package smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.8.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build release artifacts
+        run: pnpm release:build
+
+      - name: Pack npm tarballs
+        run: pnpm release:pack:npm
+
+      - name: Verify desktop bin launcher
+        run: node packages/desktop/dist/bin.js --version
+
+  publish-npm:
+    name: Publish to npmjs.com
+    runs-on: ubuntu-latest
+    needs:
+      - build-linux
+      - npm-smoke
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.8.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Verify Node 24 and npm >= 11.5.1
+        shell: bash
+        run: |
+          node_version="$(node --version)"
+          echo "node: ${node_version}"
+          case "${node_version}" in
+            v24.*) ;;
+            *) echo "Expected Node 24, got ${node_version}" >&2; exit 1 ;;
+          esac
+          npm_version="$(npm --version)"
+          echo "npm: ${npm_version}"
+          # Trusted publishing (OIDC) requires npm >= 11.5.1.
+          if [ "$(printf '%s\n11.5.1\n' "${npm_version}" | sort -V | head -n1)" != "11.5.1" ]; then
+            echo "Upgrading npm to satisfy trusted publishing (>= 11.5.1)"
+            npm install -g npm@latest
+            echo "npm: $(npm --version)"
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build release artifacts
+        run: pnpm release:build
+
+      - name: Pack npm tarballs
+        run: node scripts/pack-npm.mjs
+
+      - name: Publish tarballs (skip already-published versions)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Publish in dependency-friendly order.
+          order=(shared tools agent web orchestrator cli desktop)
+          for pkg in "${order[@]}"; do
+            tgz="$(ls release/npm/nervekit-${pkg}-*.tgz 2>/dev/null | head -n1 || true)"
+            if [ -z "${tgz}" ]; then
+              echo "No tarball found for ${pkg}" >&2
+              exit 1
+            fi
+            name="@nervekit/${pkg}"
+            version="$(node -e "console.log(require('./packages/${pkg}/package.json').version)")"
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "Skipping ${name}@${version} (already published)"
+              continue
+            fi
+            echo "Publishing ${tgz} as ${name}@${version}"
+            npm publish "${tgz}" --provenance --access public
+          done
+
   publish:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs:
       - build-linux
+      - npm-smoke
       # Add build-windows here later so Windows assets publish into the same release.
 
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
       - name: Create release and upload artifacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: "${{ github.ref_name }}"
           name: "Nerve ${{ github.ref_name }}"

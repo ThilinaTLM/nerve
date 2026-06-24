@@ -1,4 +1,4 @@
-import { deriveConversationTitle } from "@nerve/shared";
+import { deriveConversationTitle } from "@nervekit/shared";
 import {
   type AgentRecord,
   apiPathSegment,

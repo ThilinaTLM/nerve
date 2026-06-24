@@ -3,15 +3,15 @@ import {
   type HarnessMessage,
   type HarnessTaskEvent,
   type HarnessTaskEventDetails,
-} from "@nerve/agent";
+} from "@nervekit/agent";
 import type {
   AgentRecord,
   ConversationEntry,
   EventEnvelope,
   TaskLogEvent,
   TaskRecord,
-} from "@nerve/shared";
-import { createId } from "@nerve/shared";
+} from "@nervekit/shared";
+import { createId } from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { ApplicationLogger } from "../../logging.js";
 import type { AppendEntryInput } from "../../registry/types.js";

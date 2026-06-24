@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { homedir, networkInterfaces } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type DaemonFile, daemonFileSchema } from "@nerve/shared";
+import { type DaemonFile, daemonFileSchema } from "@nervekit/shared";
 import type { EnsureDaemonOptions } from "./daemon.js";
 
 const defaultReadinessTimeoutMs = 60_000;
@@ -96,7 +96,7 @@ export function resolveReadinessTimeoutMs(): number {
 }
 
 export function resolveOrchestratorMainPath(): string {
-  const resolvedUrl = import.meta.resolve("@nerve/orchestrator/main");
+  const resolvedUrl = import.meta.resolve("@nervekit/orchestrator/main");
   return fileURLToPath(resolvedUrl);
 }
 

@@ -6,14 +6,14 @@ import {
   isAgentToolSuspension,
   NodeExecutionEnv,
   resolveAgentModel,
-} from "@nerve/agent";
+} from "@nervekit/agent";
 import type {
   AgentRecord,
   ConversationEntry,
   PromptRequest,
   ToolName,
-} from "@nerve/shared";
-import { createId, toolNameSchema } from "@nerve/shared";
+} from "@nervekit/shared";
+import { createId, toolNameSchema } from "@nervekit/shared";
 import { HttpError } from "../../../http/errors.js";
 import { loadHarnessResources } from "../../../resource-loader.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";

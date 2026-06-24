@@ -1,5 +1,5 @@
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "@nerve/agent";
+import type { AgentMessage } from "@nervekit/agent";
 import type {
   AgentRecord,
   ConversationEntry,
@@ -11,7 +11,7 @@ import type {
   ToolCallRecord,
   UpdateAgentRequest,
   UserQuestionRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type {

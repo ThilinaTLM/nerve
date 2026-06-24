@@ -1,4 +1,4 @@
-import type { CoreToolName } from "@nerve/shared";
+import type { CoreToolName } from "@nervekit/shared";
 import { filesystemToolDefinitions } from "./core/filesystem.tools.js";
 import { interactionToolDefinitions } from "./core/interaction.tools.js";
 import { pythonToolDefinitions } from "./core/python.tools.js";

@@ -1,4 +1,4 @@
-import { formatSkillsForSystemPrompt, type Skill } from "@nerve/agent";
+import { formatSkillsForSystemPrompt, type Skill } from "@nervekit/agent";
 import { promptText } from "./prompt-text.js";
 
 export interface BuildNerveSystemPromptOptions {
@@ -144,23 +144,23 @@ function buildPlanModeInstructions(planDir: string): string {
   const planDirAttribute = escapeXml(planDir.replace(/\\/g, "/"));
   return promptText`
     <plan_mode active="true" plan_dir="${planDirAttribute}">
-    Research and write a reviewed plan before any workspace edits.
+    Research the problem and produce a reviewed implementation plan before making any workspace changes.
 
     Hard rules:
-    - Use read-only tools and safe commands for research.
-    - Write/edit only Markdown plan files under the plan_dir.
-    - Do not change workspace code, install dependencies, deploy, or start long-running processes.
-    - Present the final plan with plan_mode_present; implement only after acceptance.
+    - Use only read-only tools and safe commands during research.
+    - Use write/edit tools only to create or update plan files under plan_dir.
+    - Present the final plan with plan_mode_present and obtain user approval before implementation.
 
     Workflow:
-    1. Inspect the code and relevant options.
-    2. Ask the user only for user-dependent decisions.
-    3. Write a self-contained, file-specific plan under plan_dir.
-    4. Resolve open decisions, then present it.
+    1. Inspect the codebase and evaluate implementation options.
+    2. Ask the user only when a decision depends on their requirements or preferences.
+    3. Write a self-contained, file-specific implementation plan under plan_dir.
+    4. Resolve all open decisions using ask_user and edit tools, then present the finalized plan.
 
     Plan quality:
-    - Include affected files/symbols, ordered steps, validation, risks, and migrations if relevant.
-    - Do not leave unresolved questions or decision callouts in the final plan.
+    - Include affected files/symbols, ordered implementation steps, validation, risks, and migrations when applicable.
+    - Leave no unresolved questions, placeholders, or decision callouts.
+    - Make the plan complete enough to serve as the implementation's single source of truth, enabling another agent to execute it without additional context.
     </plan_mode>
   `;
 }

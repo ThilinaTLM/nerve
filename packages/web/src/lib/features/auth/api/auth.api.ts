@@ -4,7 +4,7 @@ import type {
   EncryptedSecretEnvelope,
   OAuthFlowInfo,
   RespondOAuthFlowRequest,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   apiDelete,
   apiGet,

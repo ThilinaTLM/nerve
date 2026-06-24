@@ -8,7 +8,7 @@ import {
   type PlanReviewStatus,
   planReviewRecordSchema,
   type ToolCallRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {

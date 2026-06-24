@@ -4,7 +4,7 @@ import { delay } from "../output/prompts.js";
 
 export async function commandServe(args: string[]): Promise<void> {
   if (args.includes("--open")) void openUiWhenReady();
-  await import("@nerve/orchestrator/main");
+  await import("@nervekit/orchestrator/main");
 }
 
 async function openUiWhenReady(): Promise<void> {

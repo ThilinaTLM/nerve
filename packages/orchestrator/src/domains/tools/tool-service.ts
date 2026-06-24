@@ -9,9 +9,9 @@ import type {
   ToolName,
   UserQuestionRecord,
   UserQuestionStatus,
-} from "@nerve/shared";
-import { createId } from "@nerve/shared";
-import { allToolDescriptors, toolRiskForName } from "@nerve/tools";
+} from "@nervekit/shared";
+import { createId } from "@nervekit/shared";
+import { allToolDescriptors, toolRiskForName } from "@nervekit/tools";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";

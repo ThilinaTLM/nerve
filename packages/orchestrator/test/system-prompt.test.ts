@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { AgentRecord } from "@nerve/shared";
+import type { AgentRecord } from "@nervekit/shared";
 import { composeAgentSystemPrompt } from "../src/domains/agents/run/system-prompt-builder.js";
 import {
   activeToolNamesForAgent,
@@ -268,10 +268,13 @@ describe("Nerve system prompt", () => {
     assert.doesNotMatch(prompt, /^ +<plan_mode/m);
     assert.match(
       prompt,
-      /Write\/edit only Markdown plan files under the plan_dir/,
+      /Use write\/edit tools only to create or update plan files under plan_dir/,
     );
-    assert.match(prompt, /Present the final plan with plan_mode_present/);
-    assert.match(prompt, /^Hard rules:\n- Use read-only/m);
+    assert.match(
+      prompt,
+      /Present the final plan with plan_mode_present and obtain user approval/,
+    );
+    assert.match(prompt, /^Hard rules:\n- Use only read-only/m);
     assert.match(prompt, /^Workflow:\n1\. Inspect/m);
     assert.doesNotMatch(prompt, /plan_write/);
   });

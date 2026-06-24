@@ -3,7 +3,7 @@ import type {
   ConversationRecord,
   ProjectRecord,
   TaskRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { apiGet } from "../../../core/api/client";
 
 export type WorkspaceSnapshot = {

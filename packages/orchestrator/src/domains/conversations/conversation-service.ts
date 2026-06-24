@@ -1,11 +1,11 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { buildConversationContext, convertToLlm } from "@nerve/agent";
+import { buildConversationContext, convertToLlm } from "@nervekit/agent";
 import type {
   AgentRecord,
   ConversationEntry,
   ConversationRecord,
   ProjectRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { HarnessManager } from "./harness-manager.js";
 import type { EntryRepository } from "./index.js";
 

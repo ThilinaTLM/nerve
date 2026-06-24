@@ -2,7 +2,7 @@ import type {
   ClipboardImageUploadResponse,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { apiGet, apiPost, fileToBase64 } from "../../../core/api/client";
 
 export async function uploadClipboardImage(file: File): Promise<string> {

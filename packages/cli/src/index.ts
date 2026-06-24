@@ -1,1 +1,1 @@
-export const cliPackage = "@nerve/cli";
+export const cliPackage = "@nervekit/cli";

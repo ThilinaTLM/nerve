@@ -1,4 +1,4 @@
-import type { TaskRecord } from "@nerve/shared";
+import type { TaskRecord } from "@nervekit/shared";
 
 const urlPattern = /https?:\/\/[^\s)'"]+/i;
 

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type DaemonFile, daemonFileSchema } from "@nerve/shared";
+import { type DaemonFile, daemonFileSchema } from "@nervekit/shared";
 
 export interface DaemonConnection {
   url: string;

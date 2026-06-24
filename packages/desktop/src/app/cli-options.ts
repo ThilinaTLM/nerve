@@ -1,5 +1,12 @@
 import { app } from "../electron.js";
+import {
+  type ElectronOzonePlatform,
+  parseElectronOzonePlatform,
+} from "../shared/ozone-platform.js";
 import type { DesktopCliOptions } from "../types.js";
+
+export type { ElectronOzonePlatform };
+export { parseElectronOzonePlatform };
 
 export function parseDesktopOptions(args: string[]): DesktopCliOptions {
   const options: DesktopCliOptions = {};
@@ -90,26 +97,6 @@ function parsePort(value: string): number {
     throw new Error(`Invalid port: ${value}`);
   }
   return port;
-}
-
-type ElectronOzonePlatform = "x11" | "wayland" | "auto";
-
-export function parseElectronOzonePlatform(
-  value: string | undefined,
-): ElectronOzonePlatform | undefined {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (
-    normalized === "x11" ||
-    normalized === "wayland" ||
-    normalized === "auto"
-  ) {
-    return normalized;
-  }
-  console.warn(
-    `Ignoring invalid NERVE_ELECTRON_OZONE_PLATFORM=${JSON.stringify(value)}. Expected x11, wayland, or auto.`,
-  );
-  return undefined;
 }
 
 export function applyElectronOzonePlatform(

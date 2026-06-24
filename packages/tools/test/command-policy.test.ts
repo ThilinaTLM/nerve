@@ -48,7 +48,7 @@ describe("plan-mode bash command guard", () => {
       "pnpm check",
       "pnpm lint",
       "pnpm test",
-      "pnpm --filter @nerve/tools test",
+      "pnpm --filter @nervekit/tools test",
       "npm run lint",
       "make test",
       "echo '$(pwd)'",

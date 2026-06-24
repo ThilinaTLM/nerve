@@ -1,11 +1,11 @@
 import { resolve } from "node:path";
-import type { AgentRecord, ToolName, ToolRisk } from "@nerve/shared";
+import type { AgentRecord, ToolName, ToolRisk } from "@nervekit/shared";
 import {
   hasDangerousCommandPattern,
   isAllowedPlanModeBashCommand,
   isKnownReadOnlyCommand,
   toolRiskForName,
-} from "@nerve/tools";
+} from "@nervekit/tools";
 import {
   isPathInsidePlanDir,
   planDirForStorageHome,

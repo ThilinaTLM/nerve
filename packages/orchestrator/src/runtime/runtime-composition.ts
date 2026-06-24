@@ -2,7 +2,7 @@ import {
   DEFAULT_COMPACTION_SETTINGS,
   generateSummary,
   resolveAgentModel,
-} from "@nerve/agent";
+} from "@nervekit/agent";
 import type { AuthManager } from "../auth.js";
 import { AgentSuspensionService } from "../domains/agents/agent-suspension.service.js";
 import {

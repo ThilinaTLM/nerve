@@ -1,4 +1,4 @@
-import type { ToolCallErrorDetails } from "@nerve/shared";
+import type { ToolCallErrorDetails } from "@nervekit/shared";
 
 export class CodedToolError extends Error {
   constructor(

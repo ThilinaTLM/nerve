@@ -8,7 +8,7 @@ import type {
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { SecretProvider } from "./secrets.js";
 
 export type ApiKeyCredential = {

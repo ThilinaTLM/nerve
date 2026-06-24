@@ -6,7 +6,7 @@ import type {
   PlanReviewRecord,
   ToolCallRecord,
   UserQuestionRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { apiGet, apiPathSegment, apiPost } from "../../../core/api/client";
 
 export type ApprovalWithToolCall = ApprovalRecord & {

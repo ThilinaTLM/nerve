@@ -1,5 +1,5 @@
-import type { ToolCallRecord, UserQuestionRecord } from "@nerve/shared";
-import { createId } from "@nerve/shared";
+import type { ToolCallRecord, UserQuestionRecord } from "@nervekit/shared";
+import { createId } from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import { optionalStringArg, stringArg } from "./tool-args.js";
 import { ToolExecutionSuspended } from "./tool-execution-suspension.js";

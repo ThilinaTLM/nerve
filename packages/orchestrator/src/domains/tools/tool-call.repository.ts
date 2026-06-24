@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { ToolCallRecord } from "@nerve/shared";
+import type { ToolCallRecord } from "@nervekit/shared";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
   appendJsonLine,

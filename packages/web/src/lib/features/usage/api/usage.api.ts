@@ -1,4 +1,4 @@
-import type { SubscriptionUsage } from "@nerve/shared";
+import type { SubscriptionUsage } from "@nervekit/shared";
 import { apiGet } from "../../../core/api/client";
 
 export async function getSubscriptionUsage(): Promise<SubscriptionUsage[]> {

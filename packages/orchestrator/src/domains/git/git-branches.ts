@@ -1,4 +1,4 @@
-import type { GitBranchListResponse, GitBranchSummary } from "@nerve/shared";
+import type { GitBranchListResponse, GitBranchSummary } from "@nervekit/shared";
 import type { GitService } from "./git-service.js";
 
 export async function listBranches(

@@ -2,7 +2,7 @@ import type {
   CustomProvider,
   ModelDefinition,
   ProviderCatalog,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   apiDelete,
   apiGet,

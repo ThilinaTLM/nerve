@@ -1,4 +1,4 @@
-import { storageCleanupRequestSchema } from "@nerve/shared";
+import { storageCleanupRequestSchema } from "@nervekit/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";

@@ -11,7 +11,7 @@ import {
   todosResultSchema,
   webFetchResultDetailsSchema,
   webSearchResultDetailsSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { ToolCallRecord } from "$lib/api";
 import type { LiveToolOutput } from "$lib/core/types/state-types";
 import { LruCache } from "$lib/core/utils/lru-cache";

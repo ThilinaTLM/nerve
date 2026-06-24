@@ -1,12 +1,12 @@
 import { join } from "node:path";
 import { getConnInfo } from "@hono/node-server/conninfo";
-import { setCustomModelProvider } from "@nerve/agent";
+import { setCustomModelProvider } from "@nervekit/agent";
 import {
   createId,
   type DaemonFile,
   type MobileHttpsInfo,
   type StatusResponse,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { Hono } from "hono";
 import { AuthManager } from "./auth.js";
 import { CredentialKeyService } from "./credential-crypto.js";

@@ -1,4 +1,4 @@
-import type { AgentRecord, ModelSelection } from "@nerve/shared";
+import type { AgentRecord, ModelSelection } from "@nervekit/shared";
 import { apiPatch, apiPathSegment } from "../../../core/api/client";
 
 export async function updateAgentConfig(

@@ -1,4 +1,4 @@
-import type { ToolCallRecord } from "@nerve/shared";
+import type { ToolCallRecord } from "@nervekit/shared";
 import type { ApplicationLogger } from "../../logging.js";
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toolErrorDetails } from "./tool-errors.js";

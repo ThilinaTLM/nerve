@@ -13,7 +13,7 @@ import type {
   GitRecentCommit,
   GitRepoSummary,
   ProjectRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { HttpError } from "../../http/errors.js";
 import {
   branchExists as branchExistsImpl,

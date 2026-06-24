@@ -3,8 +3,8 @@ import {
   type AgentTool,
   type AgentToolResult,
   AgentToolSuspension,
-} from "@nerve/agent";
-import type { AgentRecord, ToolCallRecord, ToolName } from "@nerve/shared";
+} from "@nervekit/agent";
+import type { AgentRecord, ToolCallRecord, ToolName } from "@nervekit/shared";
 import {
   allToolDefinitions,
   appendBoundedTextNotice,
@@ -13,7 +13,7 @@ import {
   type CoreToolDefinition,
   MODEL_TEXT_MAX_LINE_CHARS,
   MODEL_TEXT_MAX_LINES,
-} from "@nerve/tools";
+} from "@nervekit/tools";
 import type { ToolAnchor } from "../conversations/conversation-runtime.js";
 import type { ToolService } from "./tool-service.js";
 

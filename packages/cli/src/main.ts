@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   const [command = "ui", ...args] = rawArgs;
 
   if (command === "daemon") {
-    await import("@nerve/orchestrator/main");
+    await import("@nervekit/orchestrator/main");
     return;
   }
   if (command === "serve") {

@@ -1,5 +1,5 @@
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
-import type { ContextUsage } from "@nerve/shared";
+import type { ContextUsage } from "@nervekit/shared";
 import type { AgentMessage } from "../../types.js";
 import type {
   CompactionEntry,

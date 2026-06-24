@@ -1,11 +1,11 @@
-import type { AgentCustomModel } from "@nerve/agent";
+import type { AgentCustomModel } from "@nervekit/agent";
 import {
   type CustomProvider,
   defaultProviderCatalog,
   type ModelDefinition,
   type ProviderCatalog,
   providerCatalogSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   atomicWriteJson,
   pathExists,

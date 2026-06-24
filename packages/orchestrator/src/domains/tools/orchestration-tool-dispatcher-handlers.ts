@@ -3,11 +3,11 @@ import type {
   TaskLogEvent,
   TaskRecord,
   ToolCallRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   buildProcessTextResult,
   type ToolExecutionOutputUpdate,
-} from "@nerve/tools";
+} from "@nervekit/tools";
 import { ensurePlanDir } from "../plans/plan-paths.js";
 import { isActiveTaskStatus } from "../tasks/index.js";
 import {

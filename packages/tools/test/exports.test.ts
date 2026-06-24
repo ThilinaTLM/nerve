@@ -15,7 +15,7 @@ import {
 } from "../src/index.js";
 
 describe("public source exports", () => {
-  it("keeps the intended @nerve/tools source exports available", () => {
+  it("keeps the intended @nervekit/tools source exports available", () => {
     assert.equal(typeof executeTool, "function");
     assert.equal(typeof resolveToolPath, "function");
     assert.equal(typeof toolRiskForName, "function");

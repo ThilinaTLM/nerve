@@ -4,7 +4,7 @@ import type {
   ConversationSnapshot,
   ConversationTree,
   ToolCallRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 

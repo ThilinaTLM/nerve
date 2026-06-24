@@ -1,7 +1,7 @@
 import type {
   ConversationRunStatusDetails,
   EventEnvelope,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { EventBus } from "../../../infrastructure/events/event-bus.js";
 import type { ApplicationLogger } from "../../../logging.js";
 import type { ToolService } from "../../tools/tool-service.js";

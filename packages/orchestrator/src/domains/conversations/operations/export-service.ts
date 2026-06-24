@@ -4,7 +4,7 @@ import {
   type ConversationRecord,
   escapeHtml,
   type ProjectRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 
 export interface ExportedConversationBundle {
   format: "nerve.conversation.v1";

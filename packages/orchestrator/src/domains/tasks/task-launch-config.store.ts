@@ -1,4 +1,7 @@
-import { type TaskLaunchConfig, taskLaunchConfigSchema } from "@nerve/shared";
+import {
+  type TaskLaunchConfig,
+  taskLaunchConfigSchema,
+} from "@nervekit/shared";
 import type { SecretProvider } from "../../secrets.js";
 
 export interface TaskLaunchConfigStore {

@@ -11,6 +11,6 @@ The orchestrator owns daemon runtime effects and authority boundaries: HTTP rout
   - `domains/projects/`, `domains/pinned-commands/`, `domains/human-input/`, `domains/plans/`, `domains/git/`, `domains/usage/`, `domains/transcription/`.
 - Files use the dotted `*.service.ts` / `*.repository.ts` convention within domains.
 - `infrastructure/` (storage, events, index-store), `http/`, and `routes/` are cross-cutting layers shared by the domains; only genuinely cross-cutting composition/effects files (`main.ts`, `server.ts`, `index.ts`, `registry.ts`, `auth.ts`, `oauth-flow.ts`, `secrets.ts`, `credential-crypto.ts`, `logging.ts`, `resource-loader.ts`, `nerve-system-prompt.ts`) remain at `src/` root.
-- `domains/tools/` execution plus managed task/explore-agent execution stay orchestrator-owned; `@nerve/tools` only executes local core tools and intentionally rejects orchestrator-managed capabilities.
+- `domains/tools/` execution plus managed task/explore-agent execution stay orchestrator-owned; `@nervekit/tools` only executes local core tools and intentionally rejects orchestrator-managed capabilities.
 
-Keep transport-neutral schemas in `@nerve/shared`, reusable harness/conversation mechanics in `@nerve/agent`, and frontend presentation state in `packages/web`.
+Keep transport-neutral schemas in `@nervekit/shared`, reusable harness/conversation mechanics in `@nervekit/agent`, and frontend presentation state in `packages/web`.

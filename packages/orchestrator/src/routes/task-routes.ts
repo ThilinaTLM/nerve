@@ -2,7 +2,7 @@ import {
   cancelTaskRequestSchema,
   startTaskRequestSchema,
   taskLogQuerySchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { Hono } from "hono";
 import { HttpError } from "../http/errors.js";
 import { numberQuery } from "../http/query.js";

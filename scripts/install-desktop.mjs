@@ -267,7 +267,7 @@ function ensureGeneratedIcons() {
     const source = join(iconBuildDir, `${size}x${size}.png`);
     if (!existsSync(source)) {
       throw new Error(
-        `Missing generated icon ${source}. Run pnpm --filter @nerve/desktop icons first.`,
+        `Missing generated icon ${source}. Run pnpm --filter @nervekit/desktop icons first.`,
       );
     }
   }

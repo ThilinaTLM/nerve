@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { AudioTranscriptionResponse } from "@nerve/shared";
+import type { AudioTranscriptionResponse } from "@nervekit/shared";
 import {
   AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
   audioTranscriptionResponseSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { AuthManager } from "../../auth.js";
 import { HttpError } from "../../http/errors.js";
 

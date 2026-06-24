@@ -3,14 +3,14 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { AgentRecord, ToolCallRecord } from "@nerve/shared";
-import { coreToolNameSchema, defaultSettings } from "@nerve/shared";
+import type { AgentRecord, ToolCallRecord } from "@nervekit/shared";
+import { coreToolNameSchema, defaultSettings } from "@nervekit/shared";
 import {
   allToolDefinitions,
   coreToolDefinitionByName,
   coreToolDefinitions,
   coreToolDescriptors,
-} from "@nerve/tools";
+} from "@nervekit/tools";
 import {
   exploreRunPlanArg,
   exploreSystemPrompt,

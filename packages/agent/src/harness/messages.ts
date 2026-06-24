@@ -1,5 +1,5 @@
 import type { ImageContent, Message, TextContent } from "@earendil-works/pi-ai";
-import type { TaskReadiness, TaskStatus } from "@nerve/shared";
+import type { TaskReadiness, TaskStatus } from "@nervekit/shared";
 import type { AgentMessage } from "../types.js";
 
 export const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point was compacted into the following summary:

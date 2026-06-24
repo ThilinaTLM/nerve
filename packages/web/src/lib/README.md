@@ -9,4 +9,4 @@ The web package is organized as a feature-sliced workbench frontend.
 - Cross-component UI signals are owned by the feature they belong to (e.g. composer focus/escape/mic tokens live in `features/conversations/state/composer-signals.svelte.ts`, project-search focus in `features/projects/state/project-navigator-signals.svelte.ts`, desktop quit state in `features/desktop/state/desktop-shutdown.svelte.ts`).
 - Feature event hooks register through `core/events/event-bus.ts` via `features/register-feature-events.ts`.
 - Prefer files under ~400 lines: split oversized modules into focused helpers/sub-modules and oversized components into presenter sub-components.
-- Shared schemas and protocol types stay in `@nerve/shared`; frontend code must not own secrets or daemon-side policy decisions.
+- Shared schemas and protocol types stay in `@nervekit/shared`; frontend code must not own secrets or daemon-side policy decisions.

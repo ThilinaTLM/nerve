@@ -1,35 +1,54 @@
 {
-  "name": "@nerve/desktop",
-  "version": "0.1.0-alpha.1",
-  "private": true,
+  "name": "@nervekit/desktop",
+  "version": "0.1.0",
   "description": "UI-first personal AI coding harness.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/desktop"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
   "desktopName": "nerve-desktop",
   "main": "dist/main.js",
+  "bin": {
+    "nerve-desktop": "./dist/bin.js"
+  },
+  "files": [
+    "dist/**",
+    "build/**",
+    "package.json",
+    "LICENSE",
+    "NOTICE"
+  ],
   "scripts": {
     "icons": "node scripts/generate-icons.mjs",
     "build": "pnpm run icons && tsc -b && node scripts/copy-preload.mjs",
     "check": "tsc -b --pretty false",
     "start": "node scripts/start-electron.mjs",
-    "build:deps": "pnpm --filter @nerve/shared --filter @nerve/agent --filter @nerve/tools build",
-    "dev": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && node ../../scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nerve/desktop build && node scripts/start-electron.mjs",
-    "build:package": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && node ../../scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nerve/desktop build && electron-builder --publish never",
-    "package:linux": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && node ../../scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nerve/desktop build && electron-builder --linux AppImage deb rpm --publish never"
+    "build:deps": "pnpm --filter @nervekit/shared --filter @nervekit/agent --filter @nervekit/tools build",
+    "dev": "pnpm run build:deps && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop build && node scripts/start-electron.mjs",
+    "build:package": "pnpm run build:deps && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop build && electron-builder --publish never",
+    "package:linux": "pnpm run build:deps && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop build && electron-builder --linux AppImage deb rpm --publish never"
   },
   "dependencies": {
-    "@nerve/orchestrator": "workspace:*",
-    "@nerve/shared": "workspace:*"
+    "@nervekit/orchestrator": "workspace:*",
+    "@nervekit/shared": "workspace:*",
+    "electron": "^42.0.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
-    "electron": "^42.0.0",
     "electron-builder": "^26.15.0",
     "sharp": "^0.34.5",
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.0.0"
   }
 }

@@ -5,7 +5,7 @@ import type {
   ProjectEditor,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   apiDeleteNoContent,
   apiGet,

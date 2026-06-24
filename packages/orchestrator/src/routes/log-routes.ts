@@ -2,7 +2,7 @@ import {
   applicationLogPruneRequestSchema,
   applicationLogQuerySchema,
   clientApplicationLogRequestSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { Hono } from "hono";
 import { numberQuery } from "../http/query.js";
 import { routeHandler } from "../http/responses.js";

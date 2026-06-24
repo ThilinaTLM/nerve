@@ -1,5 +1,5 @@
 import { extname, isAbsolute } from "node:path";
-import type { CompletionItem } from "@nerve/shared";
+import type { CompletionItem } from "@nervekit/shared";
 import type { FileCompletionCandidate } from "./file-completion-candidates.js";
 
 export const defaultCompletionLimit = 60;

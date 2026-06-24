@@ -1,4 +1,8 @@
-import type { CancelTaskRequest, TaskRecord, TaskRuntime } from "@nerve/shared";
+import type {
+  CancelTaskRequest,
+  TaskRecord,
+  TaskRuntime,
+} from "@nervekit/shared";
 import type { TaskManager } from "./task-manager.js";
 
 function delay(ms: number): Promise<void> {

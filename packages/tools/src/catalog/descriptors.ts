@@ -1,4 +1,4 @@
-import type { ToolDescriptor } from "@nerve/shared";
+import type { ToolDescriptor } from "@nervekit/shared";
 import { allToolDefinitions, coreToolDefinitions } from "./index.js";
 import { coreToolRiskForName } from "./risk.js";
 

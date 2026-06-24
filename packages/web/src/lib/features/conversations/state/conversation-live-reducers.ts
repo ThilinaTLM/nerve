@@ -1,4 +1,4 @@
-import { toolCallRecordSchema } from "@nerve/shared";
+import { toolCallRecordSchema } from "@nervekit/shared";
 import type {
   ConversationEntry,
   EventEnvelope,

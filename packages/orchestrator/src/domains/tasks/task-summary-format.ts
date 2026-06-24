@@ -3,7 +3,7 @@ import type {
   TaskLogEvent,
   TaskLogQueryResponse,
   TaskRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { isActiveTaskStatus } from "./task-status.js";
 
 const MAX_COMMAND_PREVIEW = 120;

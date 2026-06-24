@@ -1,4 +1,4 @@
-import type { ToolDescriptor, ToolName, ToolRisk } from "@nerve/shared";
+import type { ToolDescriptor, ToolName, ToolRisk } from "@nervekit/shared";
 import {
   allToolDescriptorsFromDefinitions,
   coreToolDescriptorsFromDefinitions,

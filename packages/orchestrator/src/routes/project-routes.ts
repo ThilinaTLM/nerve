@@ -3,7 +3,7 @@ import {
   createProjectRequestSchema,
   openProjectInEditorRequestSchema,
   pruneProjectConversationsRequestSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";

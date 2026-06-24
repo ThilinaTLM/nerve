@@ -4,7 +4,7 @@ import {
   type ConversationRecord,
   type ConversationTree,
   conversationEntrySchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   appendJsonLine,
   type InitializedStorage,

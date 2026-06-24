@@ -1,7 +1,7 @@
 import {
   upsertCustomProviderRequestSchema,
   upsertModelDefinitionRequestSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { Hono } from "hono";
 import { providerApiKeySecretName, providerOAuthSecretName } from "../auth.js";
 import { routeHandler } from "../http/responses.js";

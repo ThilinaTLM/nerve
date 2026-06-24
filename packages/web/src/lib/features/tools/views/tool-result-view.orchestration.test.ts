@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { exploreResultSchema } from "@nerve/shared";
+import { exploreResultSchema } from "@nervekit/shared";
 import { aggregateExploreTasks, parseToolView } from "./tool-result-view";
 import { CWD, exploreUpdate, toolCall } from "./tool-result-view.fixtures";
 

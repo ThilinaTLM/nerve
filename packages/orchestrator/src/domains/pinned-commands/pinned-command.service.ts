@@ -3,7 +3,7 @@ import {
   createId,
   type PinnedCommand,
   type ProjectRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { HttpError } from "../../http/errors.js";
 import type { PinnedCommandRepository } from "./pinned-command.repository.js";
 

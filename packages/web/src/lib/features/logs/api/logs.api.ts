@@ -4,7 +4,7 @@ import type {
   ApplicationLogPruneResponse,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { apiGet, apiPost } from "../../../core/api/client";
 
 export type {

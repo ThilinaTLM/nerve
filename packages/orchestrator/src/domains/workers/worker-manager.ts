@@ -6,7 +6,7 @@ import {
   type TaskRecord,
   type WorkerRecord,
   workerRecordSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {

@@ -2,7 +2,7 @@ import {
   type TodoItem,
   toolExecutionResultSchema,
   truncationDetailsSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { LiveToolOutput } from "$lib/core/types/state-types";
 import {
   relativePathForDisplay,

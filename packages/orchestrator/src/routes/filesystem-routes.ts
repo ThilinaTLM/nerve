@@ -25,7 +25,7 @@ import {
   type FilesystemSignal,
   filesystemDirectoryQuerySchema,
   filesystemFileQuerySchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../server.js";

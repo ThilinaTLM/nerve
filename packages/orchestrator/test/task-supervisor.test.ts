@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { ChildProcess, SpawnOptions, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { describe, it } from "node:test";
-import type { TaskRuntime } from "@nerve/shared";
+import type { TaskRuntime } from "@nervekit/shared";
 import {
   isTaskRuntimeTargetAlive,
   runtimeForChild,

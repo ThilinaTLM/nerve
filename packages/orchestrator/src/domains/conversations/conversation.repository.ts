@@ -3,7 +3,7 @@ import { join } from "node:path";
 import {
   type ConversationRecord,
   conversationRecordSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   atomicWriteJson,
   type InitializedStorage,

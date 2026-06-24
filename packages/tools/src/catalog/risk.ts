@@ -1,4 +1,4 @@
-import type { ToolName, ToolRisk } from "@nerve/shared";
+import type { ToolName, ToolRisk } from "@nervekit/shared";
 
 const toolRisks: Record<ToolName, ToolRisk> = {
   read: "read",

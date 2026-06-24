@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@nerve/shared";
+import type { EventEnvelope } from "@nervekit/shared";
 
 export function conversationIdForEvent(
   event: EventEnvelope,

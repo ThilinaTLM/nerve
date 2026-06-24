@@ -1,9 +1,19 @@
 {
-  "name": "@nerve/orchestrator",
-  "version": "0.1.0-alpha.1",
+  "name": "@nervekit/orchestrator",
+  "version": "0.1.0",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/orchestrator"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
   "files": [
     "dist/**",
     "LICENSE",
@@ -28,9 +38,9 @@
   "dependencies": {
     "@earendil-works/pi-ai": "0.79.7",
     "@hono/node-server": "1.19.14",
-    "@nerve/agent": "workspace:*",
-    "@nerve/shared": "workspace:*",
-    "@nerve/tools": "workspace:*",
+    "@nervekit/agent": "workspace:*",
+    "@nervekit/shared": "workspace:*",
+    "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.0.0",
     "hono": "4.12.25",
     "reflect-metadata": "^0.2.2",
@@ -43,6 +53,6 @@
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.0.0"
   }
 }

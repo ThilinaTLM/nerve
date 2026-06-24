@@ -9,7 +9,7 @@ import {
   conversationEntrySchema,
   type ImportConversationRequest,
   type ProjectRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import type { AppendConversationEntry } from "./compaction-service.js";
 

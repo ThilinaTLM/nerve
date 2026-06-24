@@ -7,7 +7,7 @@ import type {
   TaskLogEvent,
   TaskRecord,
   TodoItem,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 
 export type GrepMatchView = GrepMatch & { openPath?: string };
 export type GroupedMatches = {

@@ -1,4 +1,4 @@
-import { escapeHtml } from "@nerve/shared";
+import { escapeHtml } from "@nervekit/shared";
 
 export function createDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;

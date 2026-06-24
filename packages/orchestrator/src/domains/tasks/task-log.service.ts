@@ -4,8 +4,8 @@ import type {
   TaskLogQuery,
   TaskLogQueryResponse,
   TaskRecord,
-} from "@nerve/shared";
-import { taskLogEventSchema } from "@nerve/shared";
+} from "@nervekit/shared";
+import { taskLogEventSchema } from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import {
   appendJsonLine,

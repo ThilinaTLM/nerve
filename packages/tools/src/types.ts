@@ -3,7 +3,7 @@ import type {
   ToolExecutionResultPayload,
   ToolImageContentPayload,
   ToolTextContentPayload,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { PythonRuntime } from "./execution/python/runtime.js";
 
 export type ToolExecutionOutputUpdate = {
@@ -25,7 +25,7 @@ export type ToolExecutionContext = {
   onUpdate?: (update: ToolExecutionOutputUpdate) => void;
 };
 
-// Result contracts live in `@nerve/shared` (single source of truth shared with the web UI).
+// Result contracts live in `@nervekit/shared` (single source of truth shared with the web UI).
 export type ToolTextContent = ToolTextContentPayload;
 export type ToolImageContent = ToolImageContentPayload;
 export type ToolContentBlock = ToolContentBlockPayload;

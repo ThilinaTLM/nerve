@@ -7,7 +7,7 @@ import type {
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { apiGet, apiPathSegment, apiPost } from "../../../core/api/client";
 
 export async function discoverGitRepos(

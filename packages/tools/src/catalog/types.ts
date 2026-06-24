@@ -1,4 +1,4 @@
-import type { ToolName } from "@nerve/shared";
+import type { ToolName } from "@nervekit/shared";
 import type { Static, TSchema } from "typebox";
 
 export type CoreToolExecutionMode = "sequential" | "parallel";

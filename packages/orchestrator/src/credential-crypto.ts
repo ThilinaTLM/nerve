@@ -9,7 +9,7 @@ import {
   type CredentialKeyResponse,
   createId,
   type EncryptedSecretEnvelope,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { HttpError } from "./http/errors.js";
 
 const GCM_TAG_BYTES = 16;

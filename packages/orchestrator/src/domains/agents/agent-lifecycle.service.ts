@@ -1,12 +1,12 @@
 import { resolve } from "node:path";
-import { clampAgentThinkingLevel } from "@nerve/agent";
+import { clampAgentThinkingLevel } from "@nervekit/agent";
 import {
   type AgentRecord,
   type CreateAgentRequest,
   createId,
   type Mode,
   type UpdateAgentRequest,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";

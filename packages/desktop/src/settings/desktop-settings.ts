@@ -1,4 +1,4 @@
-import { type Settings, settingsSchema } from "@nerve/shared";
+import { type Settings, settingsSchema } from "@nervekit/shared";
 import type { ManagedDaemon } from "../daemon.js";
 import { session } from "../electron.js";
 import { desktopLog } from "../logging.js";

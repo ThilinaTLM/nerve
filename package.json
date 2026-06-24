@@ -1,6 +1,6 @@
 {
   "name": "nerve",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0",
   "private": true,
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
@@ -11,26 +11,26 @@
   ],
   "scripts": {
     "build": "pnpm -r build",
-    "build:deps": "pnpm --filter @nerve/shared --filter @nerve/agent --filter @nerve/tools build",
+    "build:deps": "pnpm --filter @nervekit/shared --filter @nervekit/agent --filter @nervekit/tools build",
     "check": "pnpm -r check",
     "lint": "biome check .",
     "format": "biome format --write .",
     "test": "pnpm -r --if-present test",
-    "desktop": "pnpm --filter @nerve/desktop dev --",
+    "desktop": "pnpm --filter @nervekit/desktop dev --",
     "desktop:remote-enabled": "pnpm desktop -- --host 0.0.0.0 --allow-remote --mobile-https",
-    "desktop:fast": "pnpm --filter @nerve/desktop start",
-    "desktop:build": "pnpm run build:deps && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nerve/desktop build",
-    "desktop:check": "pnpm --filter @nerve/desktop check",
-    "desktop:install": "pnpm --filter @nerve/desktop icons && node scripts/install-desktop.mjs install --pnpm pnpm",
+    "desktop:fast": "pnpm --filter @nervekit/desktop start",
+    "desktop:build": "pnpm run build:deps && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop build",
+    "desktop:check": "pnpm --filter @nervekit/desktop check",
+    "desktop:install": "pnpm --filter @nervekit/desktop icons && node scripts/install-desktop.mjs install --pnpm pnpm",
     "desktop:uninstall": "node scripts/install-desktop.mjs uninstall --pnpm pnpm",
-    "dev": "pnpm run build:deps && pnpm --parallel --stream --filter @nerve/orchestrator --filter @nerve/web dev",
-    "web": "pnpm run build:deps && pnpm --filter @nerve/web dev",
-    "daemon": "pnpm run build:deps && pnpm --filter @nerve/orchestrator dev",
-    "cli": "pnpm run build:deps && pnpm --filter @nerve/cli dev --",
-    "serve": "pnpm run build:deps && pnpm --filter @nerve/cli dev -- serve --open",
-    "release:build": "pnpm --filter @nerve/shared build && pnpm --filter @nerve/agent build && pnpm --filter @nerve/tools build && pnpm --filter @nerve/web build && pnpm --filter @nerve/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nerve/cli build && pnpm --filter @nerve/desktop build",
+    "dev": "pnpm run build:deps && pnpm --parallel --stream --filter @nervekit/orchestrator --filter @nervekit/web dev",
+    "web": "pnpm run build:deps && pnpm --filter @nervekit/web dev",
+    "daemon": "pnpm run build:deps && pnpm --filter @nervekit/orchestrator dev",
+    "cli": "pnpm run build:deps && pnpm --filter @nervekit/cli dev --",
+    "serve": "pnpm run build:deps && pnpm --filter @nervekit/cli dev -- serve --open",
+    "release:build": "pnpm --filter @nervekit/shared build && pnpm --filter @nervekit/agent build && pnpm --filter @nervekit/tools build && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/cli build && pnpm --filter @nervekit/desktop build",
     "release:pack:npm": "pnpm release:build && node scripts/pack-npm.mjs",
-    "release:desktop:linux": "pnpm --filter @nerve/desktop package:linux && pnpm release:checksums",
+    "release:desktop:linux": "pnpm --filter @nervekit/desktop package:linux && pnpm release:checksums",
     "release:checksums": "node scripts/checksums.mjs",
     "release:verify-tag": "node scripts/verify-release-tag.mjs"
   },
@@ -43,6 +43,6 @@
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.0.0"
   }
 }

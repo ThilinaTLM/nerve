@@ -75,7 +75,7 @@ export type {
   ToolCallRecord,
   UpdateSettingsRequest,
   UserQuestionRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 export * from "./core/api/client";
 export * from "./features/agents/api/agents.api";
 export * from "./features/audio/api/transcription.api";

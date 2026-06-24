@@ -2,7 +2,7 @@ import type {
   StartTaskRequest,
   TaskLogQueryResponse,
   TaskRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   apiDelete,
   apiGet,

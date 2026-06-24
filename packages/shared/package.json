@@ -1,9 +1,19 @@
 {
-  "name": "@nerve/shared",
-  "version": "0.1.0-alpha.1",
+  "name": "@nervekit/shared",
+  "version": "0.1.0",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
   "files": [
     "dist/**",
     "LICENSE",
@@ -27,6 +37,6 @@
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.0.0"
   }
 }

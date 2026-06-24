@@ -3,7 +3,7 @@ import {
   gitFileActionRequestSchema,
   gitRemoteOpRequestSchema,
   switchBranchRequestSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { Hono } from "hono";
 import { HttpError } from "../http/errors.js";
 import { routeHandler } from "../http/responses.js";

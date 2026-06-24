@@ -1,4 +1,4 @@
-import type { GitFileChange, GitStatusCode } from "@nerve/shared";
+import type { GitFileChange, GitStatusCode } from "@nervekit/shared";
 
 export interface PorcelainBranchInfo {
   head: string | null;

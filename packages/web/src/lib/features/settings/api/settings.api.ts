@@ -1,4 +1,4 @@
-import type { Settings, UpdateSettingsRequest } from "@nerve/shared";
+import type { Settings, UpdateSettingsRequest } from "@nervekit/shared";
 import { apiGet, apiPut } from "../../../core/api/client";
 
 export type SettingsResponse = Settings;

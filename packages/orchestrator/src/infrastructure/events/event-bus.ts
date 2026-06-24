@@ -5,7 +5,7 @@ import {
   type EventDurability,
   type EventEnvelope,
   eventEnvelopeSchema,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
   filterJsonLinesToFile,

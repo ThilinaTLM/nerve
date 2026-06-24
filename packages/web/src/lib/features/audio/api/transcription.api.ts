@@ -1,4 +1,4 @@
-import type { AudioTranscriptionResponse } from "@nerve/shared";
+import type { AudioTranscriptionResponse } from "@nervekit/shared";
 import { ApiRequestError, parseApiErrorBody } from "../../../core/api/client";
 
 function extensionForAudioType(type: string): string {

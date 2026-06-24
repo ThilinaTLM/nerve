@@ -1,4 +1,4 @@
-import type { ApplicationLogLevel } from "@nerve/shared";
+import type { ApplicationLogLevel } from "@nervekit/shared";
 
 type ClientLog = {
   level: ApplicationLogLevel;

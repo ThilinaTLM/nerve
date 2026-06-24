@@ -9,7 +9,7 @@ import {
   type ApplicationLogSource,
   applicationLogRecordSchema,
   createId,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   appendJsonLine,
   readJsonLines,

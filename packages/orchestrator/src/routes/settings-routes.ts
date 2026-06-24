@@ -1,4 +1,4 @@
-import { updateSettingsRequestSchema } from "@nerve/shared";
+import { updateSettingsRequestSchema } from "@nervekit/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import { writeSettings } from "../infrastructure/storage/index.js";

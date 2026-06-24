@@ -12,7 +12,7 @@ import {
   type TaskLaunchConfig,
   type TaskRecord,
   type TaskRuntime,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import type { TaskLaunchConfigStore } from "../../src/domains/tasks/task-launch-config.store.js";
 import { TaskManager } from "../../src/domains/tasks/task-manager.js";
 import type {

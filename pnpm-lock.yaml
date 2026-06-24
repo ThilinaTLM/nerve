@@ -30,7 +30,7 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 0.79.7
         version: 0.79.7(patch_hash=8a21b18e1d52927f1fab514629a98ad14b9606a4365dc71ee72f0c383bde5112)(ws@8.21.0)(zod@4.1.12)
-      '@nerve/shared':
+      '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
       ignore:
@@ -49,10 +49,10 @@ importers:
 
   packages/cli:
     dependencies:
-      '@nerve/orchestrator':
+      '@nervekit/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
-      '@nerve/shared':
+      '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -68,19 +68,19 @@ importers:
 
   packages/desktop:
     dependencies:
-      '@nerve/orchestrator':
+      '@nervekit/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
-      '@nerve/shared':
+      '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
+      electron:
+        specifier: ^42.0.0
+        version: 42.3.0
     devDependencies:
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
-      electron:
-        specifier: ^42.0.0
-        version: 42.3.0
       electron-builder:
         specifier: ^26.15.0
         version: 26.15.0(electron-builder-squirrel-windows@26.15.0)
@@ -99,13 +99,13 @@ importers:
       '@hono/node-server':
         specifier: 1.19.14
         version: 1.19.14(hono@4.12.25)
-      '@nerve/agent':
+      '@nervekit/agent':
         specifier: workspace:*
         version: link:../agent
-      '@nerve/shared':
+      '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
-      '@nerve/tools':
+      '@nervekit/tools':
         specifier: workspace:*
         version: link:../tools
       '@peculiar/x509':
@@ -146,7 +146,7 @@ importers:
 
   packages/tools:
     dependencies:
-      '@nerve/shared':
+      '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
       diff:
@@ -195,7 +195,7 @@ importers:
       '@fontsource/outfit':
         specifier: ^5.2.6
         version: 5.2.8
-      '@nerve/shared':
+      '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
       '@shikijs/core':
@@ -5819,7 +5819,7 @@ snapshots:
       node-gyp: 11.5.0
       ora: 5.4.1
       read-binary-file-arch: 1.0.6
-      semver: 7.7.4
+      semver: 7.8.1
       tar: 7.5.16
       yargs: 17.7.3
     transitivePeerDependencies:
@@ -6197,7 +6197,7 @@ snapshots:
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.1
 
   '@oxc-project/types@0.133.0': {}
 
@@ -7732,7 +7732,7 @@ snapshots:
       es6-error: 4.1.1
       matcher: 3.0.0
       roarr: 2.15.4
-      semver: 7.7.4
+      semver: 7.8.1
       serialize-error: 7.0.1
     optional: true
 
@@ -8592,11 +8592,11 @@ snapshots:
 
   node-abi@4.31.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.1
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.1
 
   node-domexception@1.0.0: {}
 
@@ -8616,7 +8616,7 @@ snapshots:
       make-fetch-happen: 14.0.3
       nopt: 8.1.0
       proc-log: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.1
       tar: 7.5.16
       tinyglobby: 0.2.17
       which: 5.0.0

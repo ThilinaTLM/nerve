@@ -1,4 +1,4 @@
-import type { ConversationEntry } from "@nerve/shared";
+import type { ConversationEntry } from "@nervekit/shared";
 import { HttpError } from "../../http/errors.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 

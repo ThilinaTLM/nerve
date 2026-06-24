@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { resolveToolPath } from "@nerve/tools";
+import { resolveToolPath } from "@nervekit/tools";
 
 export function planDirForStorageHome(storageHome: string): string {
   return resolve(join(storageHome, "plans"));

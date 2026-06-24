@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { GithubChecksSummary } from "@nerve/shared";
+import type { GithubChecksSummary } from "@nervekit/shared";
 import { hasPendingPrChecks, isGithubChecksPending } from "./checks";
 
 function checks(status: GithubChecksSummary["status"]): GithubChecksSummary {

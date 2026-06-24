@@ -1,10 +1,10 @@
-import type { ConversationTreeEntry } from "@nerve/agent";
+import type { ConversationTreeEntry } from "@nervekit/agent";
 import type {
   ConversationEntry,
   ConversationRecord,
   NavigateConversationRequest,
   ProjectRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import type { HarnessManager } from "../harness-manager.js";

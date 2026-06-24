@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { appendBoundedTextNotice, boundText } from "@nerve/tools";
+import { appendBoundedTextNotice, boundText } from "@nervekit/tools";
 
 const STORAGE_TEXT_MAX_BYTES = 256 * 1024;
 const STORAGE_TEXT_MAX_LINES = 5000;

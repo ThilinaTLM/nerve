@@ -1,6 +1,6 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { type AgentRecord, agentRecordSchema } from "@nerve/shared";
+import { type AgentRecord, agentRecordSchema } from "@nervekit/shared";
 import {
   atomicWriteJson,
   type InitializedStorage,

@@ -6,7 +6,7 @@ import {
 } from "../tasks/index.js";
 
 /**
- * Result contracts shared between the `@nerve/tools` executors (producers) and the
+ * Result contracts shared between the `@nervekit/tools` executors (producers) and the
  * web UI (consumers). The persisted `toolCallRecordSchema.result` stays `z.unknown()`
  * because results are heterogeneous across tools; these schemas let consumers narrow
  * a result per tool via `safeParse` without throwing on partial/legacy payloads.

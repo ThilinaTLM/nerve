@@ -1,6 +1,6 @@
 import type { Message } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "@nerve/agent";
-import type { AgentRecord, PromptRequest } from "@nerve/shared";
+import type { AgentMessage } from "@nervekit/agent";
+import type { AgentRecord, PromptRequest } from "@nervekit/shared";
 
 export interface AgentRunState {
   runId: string;

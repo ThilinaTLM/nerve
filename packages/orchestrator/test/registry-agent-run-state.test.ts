@@ -3,12 +3,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { clampAgentThinkingLevel } from "@nerve/agent";
+import { clampAgentThinkingLevel } from "@nervekit/agent";
 import type {
   ConversationEntry,
   EventEnvelope,
   ToolCallRecord,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import { HttpError } from "../src/registry.js";
 import { createOrchestratorState } from "../src/server.js";

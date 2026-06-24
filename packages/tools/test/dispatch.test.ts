@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { describe, it } from "node:test";
-import type { ToolName } from "@nerve/shared";
+import type { ToolName } from "@nervekit/shared";
 import { executeTool, resolvePythonRuntime } from "../src/execution/index.js";
 import { createTempProject } from "./helpers.js";
 

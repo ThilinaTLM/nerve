@@ -6,7 +6,7 @@ import {
   type Settings,
   settingsSchema,
   type UpdateSettingsRequest,
-} from "@nerve/shared";
+} from "@nervekit/shared";
 import {
   atomicWriteJson,
   pathExists,

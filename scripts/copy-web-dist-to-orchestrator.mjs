@@ -14,7 +14,7 @@ const orchestratorWebDist = join(
 
 await access(join(webDist, "index.html")).catch(() => {
   throw new Error(
-    `Missing built Web UI at ${webDist}. Run pnpm --filter @nerve/web build first.`,
+    `Missing built Web UI at ${webDist}. Run pnpm --filter @nervekit/web build first.`,
   );
 });
 

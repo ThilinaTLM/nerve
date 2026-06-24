@@ -1,5 +1,5 @@
-import type { CompletionItem } from "@nerve/shared";
-import { fileCompletionQuerySchema } from "@nerve/shared";
+import type { CompletionItem } from "@nervekit/shared";
+import { fileCompletionQuerySchema } from "@nervekit/shared";
 import { Hono } from "hono";
 import { FileCompletionService } from "../domains/completions/index.js";
 import { routeHandler } from "../http/responses.js";

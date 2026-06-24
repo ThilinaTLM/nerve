@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { CompletionItem, ProjectRecord } from "@nerve/shared";
+import type { CompletionItem, ProjectRecord } from "@nervekit/shared";
 import {
   directDirectoryCompletionItems,
   discoverCandidates,
