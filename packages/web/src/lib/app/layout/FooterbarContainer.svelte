@@ -18,15 +18,12 @@
   import { workspaceSelectors } from "$lib/features/workspace";
 
   const activeProject = $derived(workspaceSelectors.activeProject);
-  const activeConversation = $derived(conversationSelectors.activeConversation);
-  const activeAgent = $derived(conversationSelectors.activeAgent);
   const connection = $derived(workspaceSelectors.connection);
   const live = $derived(conversationSelectors.live);
   const pendingApprovalCount = $derived(conversationSelectors.pendingApprovalCount);
   const tasks = $derived(taskSelectors.scopedTasks);
-  const branchDepth = $derived(gitSelectors.branchDepth);
   const gitStatus = $derived(gitSelectors.gitStatus);
-  const subscriptionUsage = $derived(usageSelectors.activeSubscriptionUsage);
+  const subscriptionUsages = $derived(usageSelectors.subscriptionUsages);
   const status = $derived(workspaceSelectors.status);
   const settingsDraft = $derived(settingsSelectors.settingsDraft);
   const currentZoomLevel = $derived(
@@ -67,15 +64,13 @@
 
 <Footerbar
   {activeProject}
-  {activeConversation}
-  {activeAgent}
   {connection}
   {live}
   pendingApprovals={pendingApprovalCount}
   {tasks}
-  {branchDepth}
   {gitStatus}
-  {subscriptionUsage}
+  {subscriptionUsages}
+  {status}
   homeDir={status?.storage.home}
   zoomLevel={currentZoomLevel}
   {sidebarCollapsed}

@@ -1,18 +1,6 @@
 <script lang="ts">
-  import Activity from "@lucide/svelte/icons/activity";
-  import Bot from "@lucide/svelte/icons/bot";
-  import GitBranch from "@lucide/svelte/icons/git-branch";
-  import Radio from "@lucide/svelte/icons/radio";
-  import Terminal from "@lucide/svelte/icons/terminal";
-  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import type {
-    AgentRecord,
-    ContextUsage,
-    TaskRecord,
-    ProjectRecord,
-    ConversationRecord,
-  } from "$lib/api";
-  import { formatTokens } from "$lib/core/utils/usage";
+  import type { StatusResponse } from "$lib/api";
+  import { formatDurationMinutes } from "$lib/core/utils/usage";
   import { Badge } from "$lib/components/ui/badge";
   import Popover from "$lib/components/ui/popover-panel";
   import { StatusDot } from "$lib/components/ui/status-dot";
@@ -21,100 +9,84 @@
   type Props = {
     connection?: string;
     live?: boolean;
-    pendingApprovals?: number;
-    tasks?: TaskRecord[];
-    branchDepth?: number;
-    activeAgent?: AgentRecord;
-    activeConversation?: ConversationRecord;
-    activeProject?: ProjectRecord;
-    contextUsage?: ContextUsage;
+    status?: StatusResponse;
     side?: "top" | "bottom";
   };
 
   let {
     connection = "connecting",
     live = false,
-    pendingApprovals = 0,
-    tasks = [],
-    branchDepth = 0,
-    activeAgent,
-    activeConversation,
-    activeProject,
-    contextUsage,
+    status,
     side = "top",
   }: Props = $props();
 
-  const contextLabel = $derived.by(() => {
-    if (!contextUsage || contextUsage.contextWindow <= 0) return "—";
-    const window = formatTokens(contextUsage.contextWindow);
-    if (contextUsage.tokens == null || contextUsage.percent == null) {
-      return `?/${window}`;
-    }
-    return `${formatTokens(contextUsage.tokens)}/${window} · ${contextUsage.percent.toFixed(1)}%`;
-  });
-
-  const activeTasks = $derived(
-    tasks.filter((task) => ["starting", "running", "ready", "stopping"].includes(task.status)).length,
+  const connectionTone = $derived<StatusTone>(
+    live
+      ? "good"
+      : connection === "error"
+        ? "danger"
+        : connection === "closed"
+          ? "warn"
+          : "running",
   );
-  const connectionTone = $derived<StatusTone>(live ? "good" : connection === "error" ? "danger" : connection === "closed" ? "warn" : "neutral");
   const summary = $derived(live ? "Connected" : connection);
-  const modelLabel = $derived(activeAgent?.model ? `${activeAgent.model.provider}/${activeAgent.model.modelId}` : "model pending");
+
+  const uptime = $derived.by(() => {
+    if (!status?.startedAt) return null;
+    const started = new Date(status.startedAt).getTime();
+    if (Number.isNaN(started)) return null;
+    return formatDurationMinutes((Date.now() - started) / 60_000);
+  });
 </script>
 
-<Popover class="status-popover" triggerClass="status-trigger-wrap" ariaLabel="Open status details" {side} align="end">
+<Popover
+  class="status-popover"
+  triggerClass="status-trigger-wrap"
+      ariaLabel="Open daemon status"
+  {side}
+  align="end"
+>
   {#snippet trigger()}
-    <span class="status-trigger" title="Open status details">
+        <span class="status-trigger" title="Open daemon status">
       <StatusDot tone={connectionTone} pulse={live} />
       <span>{summary}</span>
-      {#if pendingApprovals > 0}
-        <Badge size="xs" tone="warn"><TriangleAlert size={10} strokeWidth={2.3} />{pendingApprovals}</Badge>
-      {/if}
     </span>
   {/snippet}
 
-  <div class="status-card">
-    <header>
-      <div>
-        <strong>Runtime status</strong>
-        <span>Daemon, approvals, tasks, and active agent.</span>
-      </div>
+  <div class="flex flex-col gap-3 p-3">
+    <header class="flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+            <strong class="text-sm font-semibold">Nerve daemon</strong>
       <Badge size="xs" tone={connectionTone}>{summary}</Badge>
     </header>
 
-    <div class="status-grid">
-      <section>
-        <span><StatusDot tone={connectionTone} />Connection</span>
-        <strong>{connection}</strong>
-      </section>
-      <section>
-        <span><TriangleAlert size={12} strokeWidth={2.2} />Approvals</span>
-        <strong>{pendingApprovals} pending</strong>
-      </section>
-      <section>
-        <span><Terminal size={12} strokeWidth={2.2} />Tasks</span>
-        <strong>{activeTasks}/{tasks.length} active</strong>
-      </section>
-      <section>
-        <span><GitBranch size={12} strokeWidth={2.2} />Branch depth</span>
-        <strong>{branchDepth}</strong>
-      </section>
-      <section>
-        <span><Bot size={12} strokeWidth={2.2} />Agent</span>
-        <strong>{activeAgent ? `${activeAgent.status} · ${activeAgent.mode}` : "no agent"}</strong>
-      </section>
-      <section>
-        <span>{#if live}<Radio size={12} strokeWidth={2.2} />{:else}<Activity size={12} strokeWidth={2.2} />{/if}Model</span>
-        <strong>{modelLabel}</strong>
-      </section>
-    </div>
-
-    <div class="context-list">
-      <div><span>Project</span><strong title={activeProject?.dir}>{activeProject?.name ?? "No project"}</strong></div>
-      <div><span>Conversation</span><strong title={activeConversation?.id}>{activeConversation?.title ?? "No active conversation"}</strong></div>
-      <div><span>Permission</span><strong>{activeAgent?.permissionLevel ?? activeConversation?.permissionLevel ?? "—"}</strong></div>
-      <div><span>Context</span><strong>{contextLabel}</strong></div>
-    </div>
-
+    <dl class="flex flex-col gap-2 text-xs">
+      <div class="flex items-center justify-between gap-3">
+        <dt class="text-muted-foreground">Connection</dt>
+        <dd class="flex items-center gap-1.5 font-medium">
+          <StatusDot tone={connectionTone} size="xs" />{connection}
+        </dd>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <dt class="text-muted-foreground">Version</dt>
+        <dd class="font-mono">{status?.version ?? "—"}</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <dt class="text-muted-foreground">Uptime</dt>
+        <dd class="font-medium">{uptime ?? "—"}</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <dt class="text-muted-foreground">Index</dt>
+        <dd class={status?.storage.indexHealthy ? "text-success" : "text-warning"}>
+          {status == null ? "—" : status.storage.indexHealthy ? "healthy" : "rebuilding"}
+        </dd>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <dt class="text-muted-foreground">Home</dt>
+        <dd class="min-w-0 truncate font-mono" title={status?.storage.home}>
+          {status?.storage.home ?? "—"}
+        </dd>
+      </div>
+    </dl>
   </div>
 </Popover>
 
@@ -131,6 +103,11 @@
     font-weight: 600;
   }
 
+    /* Compound selector outweighs the shared `.popover-content` width default. */
+  :global(.popover-content.status-popover) {
+    width: 16rem;
+  }
+
   :global(.status-trigger-wrap) {
     height: 100%;
   }
@@ -143,78 +120,5 @@
   :global(.status-trigger-wrap:hover) .status-trigger,
   :global(.status-trigger-wrap[data-state="open"]) .status-trigger {
     color: var(--foreground);
-  }
-
-  .status-card {
-    display: grid;
-    gap: 0.7rem;
-    padding: 0.75rem;
-  }
-
-  header {
-    display: flex;
-    align-items: start;
-    justify-content: space-between;
-    gap: 0.8rem;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    padding-bottom: 0.65rem;
-  }
-
-  header div,
-  .context-list div {
-    display: grid;
-    min-width: 0;
-    gap: 0.1rem;
-  }
-
-  header strong {
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-
-  header span,
-  .status-grid span,
-  .context-list span {
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
-
-  .status-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.42rem;
-  }
-
-  .status-grid section {
-    display: grid;
-    gap: 0.16rem;
-    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    border-radius: var(--radius-sm);
-    background: var(--input);
-    padding: 0.55rem;
-  }
-
-  .status-grid span {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-  }
-
-  .status-grid strong,
-  .context-list strong {
-    overflow: hidden;
-    color: var(--foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .context-list {
-    display: grid;
-    gap: 0.36rem;
-    border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    padding-top: 0.6rem;
   }
 </style>

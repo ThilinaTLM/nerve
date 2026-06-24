@@ -7,12 +7,11 @@
   import Terminal from "@lucide/svelte/icons/terminal";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type {
-    AgentRecord,
     TaskRecord,
     ProjectRecord,
-    ConversationRecord,
-    SubscriptionUsage,
+    StatusResponse,
   } from "$lib/api";
+  import type { SubscriptionUsageEntry } from "$lib/features/usage";
   import { shortenPath } from "$lib/core/utils/path";
   import { Button } from "$lib/components/ui/button";
   import StatusPopover from "./StatusPopover.svelte";
@@ -23,15 +22,13 @@
 
   type Props = {
     activeProject?: ProjectRecord;
-    activeConversation?: ConversationRecord;
-    activeAgent?: AgentRecord;
     connection?: string;
     live?: boolean;
     pendingApprovals?: number;
     tasks?: TaskRecord[];
-    branchDepth?: number;
     gitStatus?: GitStatus;
-    subscriptionUsage?: SubscriptionUsage;
+    subscriptionUsages?: SubscriptionUsageEntry[];
+    status?: StatusResponse;
     homeDir?: string;
     zoomLevel?: number;
     sidebarCollapsed?: boolean;
@@ -44,15 +41,13 @@
 
   let {
     activeProject,
-    activeConversation,
-    activeAgent,
     connection = "connecting",
     live = false,
     pendingApprovals = 0,
     tasks = [],
-    branchDepth = 0,
     gitStatus,
-    subscriptionUsage,
+    subscriptionUsages = [],
+    status,
     homeDir,
     zoomLevel = 0,
     sidebarCollapsed = false,
@@ -116,22 +111,12 @@
         </span>
       {/if}
 
-      <SubscriptionUsageChip usage={subscriptionUsage} />
+      <SubscriptionUsageChip usages={subscriptionUsages} />
 
       <ZoomControl {zoomLevel} {onZoomLevelChange} />
     {/if}
 
-    <StatusPopover
-      {connection}
-      {live}
-      {activeAgent}
-      {activeConversation}
-      {activeProject}
-      {tasks}
-      {branchDepth}
-      {pendingApprovals}
-      side="top"
-    />
+    <StatusPopover {connection} {live} {status} side="top" />
 
     <Button
       variant="ghost"

@@ -60,7 +60,7 @@
 {#snippet changeRow(file: GitFileChange, group: "staged" | "unstaged")}
   {@const parts = splitPath(shortenPath(file.path))}
   {@const busy = fileMutation?.path === file.path}
-  <div class="group flex min-h-5 items-center gap-1 px-1 text-xs leading-5">
+  <div class="group flex min-h-0 items-center gap-1 px-1 text-xs leading-tight">
     <span
       class={cn(
         "w-3 shrink-0 text-center font-mono font-semibold",
@@ -74,12 +74,12 @@
       {#if parts.dir}<span class="text-muted-foreground">{parts.dir}</span>{/if}<span class="text-foreground">{parts.base}</span>
     </div>
     <div
-      class="flex w-11 shrink-0 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+      class="flex w-9 shrink-0 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
     >
       {#if group === "staged"}
         <Button
           size="icon-xs"
-          class="size-5"
+          class="size-4"
           variant="ghost"
           ariaLabel={`Unstage ${file.path}`}
           title="Unstage"
@@ -95,7 +95,7 @@
       {:else}
         <Button
           size="icon-xs"
-          class="size-5"
+          class="size-4"
           variant="ghost"
           ariaLabel={`Stage ${file.path}`}
           title="Stage"
@@ -111,7 +111,7 @@
       {/if}
       <Button
         size="icon-xs"
-        class="size-5"
+        class="size-4"
         variant="ghost"
         ariaLabel={`Discard ${file.path}`}
         title="Discard"

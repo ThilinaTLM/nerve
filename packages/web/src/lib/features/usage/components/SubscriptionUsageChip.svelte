@@ -1,26 +1,27 @@
 <script lang="ts">
-  import type { SubscriptionUsage, SubscriptionWindow } from "$lib/api";
+  import type { SubscriptionWindow } from "$lib/api";
+  import type { SubscriptionUsageEntry } from "$lib/features/usage/state/usage-selectors.svelte";
   import {
-    formatDurationMinutes,
     formatResetAfterSeconds,
     formatResetAt,
     usageTone,
   } from "$lib/core/utils/usage";
+  import { cn } from "$lib/core/utils.js";
+  import { Badge } from "$lib/components/ui/badge";
   import Popover from "$lib/components/ui/popover-panel";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import type { StatusTone } from "$lib/core/utils/status";
 
   type Props = {
-    usage?: SubscriptionUsage;
+    usages?: SubscriptionUsageEntry[];
   };
 
-  let { usage }: Props = $props();
+  let { usages = [] }: Props = $props();
 
-  function windowReset(window: SubscriptionWindow | null): string | null {
+  function windowReset(window: SubscriptionWindow | null | undefined): string | null {
     if (!window) return null;
     return (
-      formatResetAt(window.resetsAt) ??
-      formatResetAfterSeconds(window.resetAfterSeconds)
+      formatResetAt(window.resetsAt) ?? formatResetAfterSeconds(window.resetAfterSeconds)
     );
   }
 
@@ -28,58 +29,101 @@
     return value == null ? "—" : `${Math.round(value)}%`;
   }
 
-  function providerLabel(provider: string | undefined): string {
+  function clampPercent(value: number | null | undefined): number {
+    if (value == null) return 0;
+    return Math.min(100, Math.max(0, value));
+  }
+
+  function providerLabel(provider: string): string {
     if (provider === "openai-codex") return "Codex";
     if (provider === "anthropic") return "Anthropic";
-    return provider ?? "Subscription";
+    return provider;
   }
 
-  function updatedLabel(value: string | undefined): string {
-    if (!value) return "—";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  /** Tailwind text color for a usage percent (neutral inherits the surrounding tone). */
+  function toneTextClass(percent: number | null | undefined): string {
+    const tone = usageTone(percent);
+    if (tone === "error") return "text-destructive";
+    if (tone === "warning") return "text-warning";
+    return "";
   }
 
-  function triggerTone(
-    sessionPercent: number | null,
-    weeklyPercent: number | null,
-  ): StatusTone {
-    const highest = Math.max(sessionPercent ?? 0, weeklyPercent ?? 0);
-    const tone = usageTone(highest);
+  /** Tailwind fill color for a usage progress bar. */
+  function toneBarClass(percent: number | null | undefined): string {
+    const tone = usageTone(percent);
+    if (tone === "error") return "bg-destructive";
+    if (tone === "warning") return "bg-warning";
+    return "bg-success";
+  }
+
+  function dotTone(percent: number | null | undefined): StatusTone {
+    const tone = usageTone(percent);
     if (tone === "error") return "danger";
     if (tone === "warning") return "warn";
     return "good";
   }
 
-  const session = $derived(usage?.session ?? null);
-  const weekly = $derived(usage?.weekly ?? null);
-  const sessionPercent = $derived(session?.usedPercent ?? null);
-  const weeklyPercent = $derived(weekly?.usedPercent ?? null);
-  const sessionReset = $derived(windowReset(session));
-  const weeklyReset = $derived(windowReset(weekly));
-  const provider = $derived(providerLabel(usage?.provider));
-  const tone = $derived(triggerTone(sessionPercent, weeklyPercent));
-  const hasData = $derived(
-    sessionPercent != null || sessionReset != null || weeklyPercent != null,
+  function updatedLabel(value: string | undefined): string | null {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  const entries = $derived(usages);
+  const hasData = $derived(entries.some((entry) => entry.usage));
+
+  // Trigger reflects the active model's provider, falling back to any with data.
+  const triggerEntry = $derived(
+    entries.find((entry) => entry.active && entry.usage) ??
+      entries.find((entry) => entry.usage),
   );
+  const triggerSessionPercent = $derived(triggerEntry?.usage?.session?.usedPercent ?? null);
+  const triggerSessionReset = $derived(windowReset(triggerEntry?.usage?.session));
+  const triggerWeeklyPercent = $derived(triggerEntry?.usage?.weekly?.usedPercent ?? null);
+  const triggerTone = $derived(
+    dotTone(Math.max(triggerSessionPercent ?? 0, triggerWeeklyPercent ?? 0)),
+  );
+
+  const lastUpdated = $derived.by(() => {
+    const stamps = entries
+      .map((entry) => entry.usage?.updatedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort();
+    return updatedLabel(stamps.at(-1));
+  });
+
   const title = $derived.by(() => {
-    if (!usage) return "";
     const lines: string[] = [];
-    lines.push(`${provider} subscription usage`);
-    if (sessionPercent != null) {
-      lines.push(
-        `Session: ${percentLabel(sessionPercent)}${sessionReset ? ` (resets ${sessionReset})` : ""}`,
-      );
-    }
-    if (weeklyPercent != null) {
-      lines.push(
-        `Weekly: ${percentLabel(weeklyPercent)}${weeklyReset ? ` (resets ${weeklyReset})` : ""}`,
-      );
+    for (const entry of entries) {
+      if (!entry.usage) continue;
+      const session = percentLabel(entry.usage.session?.usedPercent);
+      const weekly = percentLabel(entry.usage.weekly?.usedPercent);
+      lines.push(`${providerLabel(entry.provider)} — session ${session} / weekly ${weekly}`);
     }
     return lines.join("\n");
   });
 </script>
+
+{#snippet usageRow(label: string, window: SubscriptionWindow | null | undefined)}
+  {@const percent = window?.usedPercent ?? null}
+  {@const reset = windowReset(window)}
+  <div class="flex flex-col gap-1">
+    <div class="flex items-center justify-between gap-2 text-xs">
+      <span class="text-muted-foreground">{label}</span>
+      <span class={cn("font-medium tabular-nums", toneTextClass(percent))}>{percentLabel(percent)}</span>
+    </div>
+    <div class="h-1 overflow-hidden rounded-full bg-muted">
+      <div
+        class={cn("h-full rounded-full", toneBarClass(percent))}
+        style="width: {clampPercent(percent)}%"
+      ></div>
+    </div>
+    {#if reset}
+      <span class="text-xs text-muted-foreground">resets in {reset}</span>
+    {/if}
+  </div>
+{/snippet}
 
 {#if hasData}
   <Popover
@@ -91,51 +135,56 @@
   >
     {#snippet trigger()}
       <span class="subscription-trigger" {title}>
-        <StatusDot {tone} pulse={tone !== "good"} size="xs" />
-        <span class="trigger-part" data-tone={usageTone(sessionPercent)}>
-          S:{percentLabel(sessionPercent)}{#if sessionReset != null} <span class="trigger-reset">({sessionReset})</span>{/if}
+        <StatusDot tone={triggerTone} pulse={triggerTone !== "good"} size="xs" />
+        <span class={cn("trigger-part", toneTextClass(triggerSessionPercent))}>
+          S:{percentLabel(triggerSessionPercent)}{#if triggerSessionReset != null}
+            <span class="trigger-muted">({triggerSessionReset})</span>{/if}
         </span>
-        {#if weeklyPercent != null}
-          <span class="trigger-sep">/</span>
-          <span class="trigger-part" data-tone={usageTone(weeklyPercent)}>
-            W:{percentLabel(weeklyPercent)}
+        {#if triggerWeeklyPercent != null}
+          <span class="trigger-muted">/</span>
+          <span class={cn("trigger-part", toneTextClass(triggerWeeklyPercent))}>
+            W:{percentLabel(triggerWeeklyPercent)}
           </span>
         {/if}
       </span>
     {/snippet}
 
-    <div class="usage-card">
-      <header>
-        <div>
-          <strong>Subscription usage</strong>
-          <span>{provider}{#if usage?.planType} · {usage.planType}{/if}</span>
-        </div>
-        <span class="usage-pill"><StatusDot {tone} size="xs" />{provider}</span>
+    <div class="flex flex-col gap-3 p-3">
+      <header class="flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+        <strong class="text-sm font-semibold">Subscription usage</strong>
+        {#if lastUpdated}
+          <span class="text-xs text-muted-foreground">Updated {lastUpdated}</span>
+        {/if}
       </header>
 
-      <div class="usage-grid">
-        <section>
-          <span>Session usage</span>
-          <strong data-tone={usageTone(sessionPercent)}>{percentLabel(sessionPercent)}</strong>
-        </section>
-        <section>
-          <span>Session reset</span>
-          <strong>{sessionReset ?? "—"}</strong>
-        </section>
-        <section>
-          <span>Weekly usage</span>
-          <strong data-tone={usageTone(weeklyPercent)}>{percentLabel(weeklyPercent)}</strong>
-        </section>
-        <section>
-          <span>Weekly reset</span>
-          <strong>{weeklyReset ?? "—"}</strong>
-        </section>
-      </div>
+      <div class="flex flex-col gap-2.5">
+        {#each entries as entry (entry.provider)}
+          <section
+            class={cn(
+              "flex flex-col gap-2 rounded-md border border-border/60 p-2.5",
+              entry.active && "bg-muted/40",
+            )}
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="flex items-baseline gap-1.5 text-xs font-semibold">
+                {providerLabel(entry.provider)}
+                {#if entry.usage?.planType}
+                  <span class="font-normal text-muted-foreground">· {entry.usage.planType}</span>
+                {/if}
+              </span>
+              {#if entry.active}
+                <Badge size="xs" tone="neutral">Active</Badge>
+              {/if}
+            </div>
 
-      <div class="usage-list">
-        <div><span>Updated</span><strong>{updatedLabel(usage?.updatedAt)}</strong></div>
-        <div><span>Session window</span><strong>{formatDurationMinutes(session?.windowMinutes) ?? "reset countdown"}</strong></div>
-        <div><span>Weekly window</span><strong>{formatDurationMinutes(weekly?.windowMinutes) ?? "—"}</strong></div>
+            {#if entry.usage}
+              {@render usageRow("Session", entry.usage.session)}
+              {@render usageRow("Weekly", entry.usage.weekly)}
+            {:else}
+              <span class="text-xs text-muted-foreground">No data</span>
+            {/if}
+          </section>
+        {/each}
       </div>
     </div>
   </Popover>
@@ -155,6 +204,10 @@
     white-space: nowrap;
   }
 
+  .trigger-muted {
+    color: var(--muted-foreground);
+  }
+
   :global(.subscription-trigger-wrap) {
     height: 100%;
   }
@@ -167,100 +220,5 @@
   :global(.subscription-trigger-wrap:hover) .subscription-trigger,
   :global(.subscription-trigger-wrap[data-state="open"]) .subscription-trigger {
     color: var(--foreground);
-  }
-
-  .trigger-sep,
-  .trigger-reset {
-    color: var(--muted-foreground);
-  }
-
-  .trigger-part[data-tone="warning"],
-  .usage-grid strong[data-tone="warning"] {
-    color: var(--warning);
-  }
-
-  .trigger-part[data-tone="error"],
-  .usage-grid strong[data-tone="error"] {
-    color: var(--destructive);
-  }
-
-  .usage-card {
-    display: grid;
-    gap: 0.7rem;
-    padding: 0.75rem;
-  }
-
-  header {
-    display: flex;
-    align-items: start;
-    justify-content: space-between;
-    gap: 0.8rem;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    padding-bottom: 0.65rem;
-  }
-
-  header div,
-  .usage-list div {
-    display: grid;
-    min-width: 0;
-    gap: 0.1rem;
-  }
-
-  header strong {
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-
-  header span,
-  .usage-grid span,
-  .usage-list span {
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
-
-  .usage-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.32rem;
-    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    border-radius: 999px;
-    background: var(--input);
-    padding: 0.12rem 0.45rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: 600;
-  }
-
-  .usage-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.42rem;
-  }
-
-  .usage-grid section {
-    display: grid;
-    gap: 0.16rem;
-    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    border-radius: var(--radius-sm);
-    background: var(--input);
-    padding: 0.55rem;
-  }
-
-  .usage-grid strong,
-  .usage-list strong {
-    overflow: hidden;
-    color: var(--foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .usage-list {
-    display: grid;
-    gap: 0.36rem;
-    border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    padding-top: 0.6rem;
   }
 </style>

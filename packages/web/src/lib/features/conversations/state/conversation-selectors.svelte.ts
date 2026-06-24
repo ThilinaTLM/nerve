@@ -177,11 +177,15 @@ export const conversationSelectors = {
       activePendingConversation()?.sending ?? activeView()?.sending ?? false
     );
   },
-  get activeSubscriptionUsage() {
-    const provider =
+  get activeSubscriptionProvider() {
+    return (
       workspaceState.agents.find((agent) => agent.id === selection.agentId)
         ?.model?.provider ??
-      parseModelKey(conversationState.selectedModelKey)?.provider;
+      parseModelKey(conversationState.selectedModelKey)?.provider
+    );
+  },
+  get activeSubscriptionUsage() {
+    const provider = this.activeSubscriptionProvider;
     if (!provider) return undefined;
     return usageState.subscriptionUsage[provider];
   },
