@@ -1,7 +1,14 @@
-import type { EventEnvelope } from "@nerve/shared";
+import type {
+  ConversationRunStatusDetails,
+  EventEnvelope,
+} from "@nerve/shared";
 import type { EventBus } from "../../../infrastructure/events/event-bus.js";
 import type { ApplicationLogger } from "../../../logging.js";
 import type { ToolService } from "../../tools/tool-service.js";
+import type { AppendEntryFn } from "./message-mirror.js";
+
+const INTERRUPTED_MESSAGE =
+  "Agent run was interrupted because the Nerve daemon restarted.";
 
 const startedType = "conversation.run.started";
 const terminalTypes = new Set([
@@ -40,6 +47,7 @@ export async function recoverInterruptedRuns(
     events: EventBus;
     logger: ApplicationLogger;
     tools: Pick<ToolService, "terminateNonTerminalToolCallsForRun">;
+    appendEntry: AppendEntryFn;
   },
 ): Promise<number> {
   const active = new Map<string, RunRef>();
@@ -63,13 +71,50 @@ export async function recoverInterruptedRuns(
 
   const failedAt = new Date().toISOString();
   for (const run of active.values()) {
+    // Persist a continuable `interrupted` run_status entry (file-first) so the
+    // conversation shows an actionable Continue card after the restart. It is
+    // parented at the conversation's current leaf and never mirrored to the model.
+    if (run.conversationId) {
+      const details = {
+        type: "agent_run_retry_status",
+        state: "interrupted",
+        runId: run.runId,
+        errorMessage: INTERRUPTED_MESSAGE,
+        retryable: true,
+      } satisfies ConversationRunStatusDetails;
+      try {
+        const statusEntry = await deps.appendEntry(
+          {
+            conversationId: run.conversationId,
+            agentId: run.agentId,
+            runId: run.runId,
+            role: "system",
+            kind: "run_status",
+            text: INTERRUPTED_MESSAGE,
+            details,
+          },
+          { mirrorToHarness: false },
+        );
+        await deps.events.publish("conversation.entry.appended", {
+          conversationId: run.conversationId,
+          agentId: run.agentId,
+          projectId: run.projectId,
+          runId: run.runId,
+          entry: statusEntry,
+        });
+      } catch (error) {
+        await deps.logger.warn(
+          "Failed to append interrupted run status entry",
+          { context: { runId: run.runId }, error },
+        );
+      }
+    }
     await deps.events.publish("conversation.run.failed", {
       agentId: run.agentId,
       projectId: run.projectId,
       runId: run.runId,
       conversationId: run.conversationId,
-      message:
-        "Agent run was interrupted because the Nerve daemon restarted. Send a new message to continue.",
+      message: `${INTERRUPTED_MESSAGE} Click Continue to resume.`,
       aborted: true,
       interrupted: true,
       failedAt,

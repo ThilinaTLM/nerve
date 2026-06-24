@@ -394,6 +394,7 @@ export function composeRuntime(
       services.conversationLifecycle.getConversationEntries(conversationId),
     continueFromFailedTurn: (agentId, failedEntryId) =>
       services.agentRunner.continueFromFailedTurn(agentId, failedEntryId),
+    resumeRun: (agentId) => services.agentRunner.resumeRun(agentId),
   });
   services.pruneConversations = new PruneProjectConversationsService({
     getProject,

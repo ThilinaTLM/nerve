@@ -65,7 +65,11 @@ export const conversationEntryKindSchema = z.enum([
 ]);
 export type ConversationEntryKind = z.infer<typeof conversationEntryKindSchema>;
 
-export type ConversationRunStatusState = "retrying" | "retry_exhausted";
+export type ConversationRunStatusState =
+  | "retrying"
+  | "retry_exhausted"
+  | "failed"
+  | "interrupted";
 
 export interface ConversationRunStatusDetails {
   type: "agent_run_retry_status";
@@ -77,6 +81,11 @@ export interface ConversationRunStatusDetails {
   delayMs?: number;
   retryAt?: string;
   errorMessage?: string;
+  /**
+   * Whether a "Continue" affordance should be offered for this status. For the
+   * non-`retrying` states (`retry_exhausted`, `failed`, `interrupted`) this means
+   * "continuable": the run can be resumed/retried from this status entry.
+   */
   retryable?: boolean;
 }
 

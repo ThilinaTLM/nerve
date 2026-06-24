@@ -88,6 +88,48 @@ describe("entryToTranscriptItems", () => {
     assert.equal(item?.runStatus?.retryable, true);
   });
 
+  it("converts failed run status entries into transcript status items", () => {
+    const [item] = entryToTranscriptItems(
+      entry({
+        text: "Agent run failed.",
+        details: {
+          type: "agent_run_retry_status",
+          state: "failed",
+          runId: "run_01H00000000000000000000000",
+          failedEntryId: "entry_failed",
+          errorMessage: "unexpected error",
+          retryable: true,
+        },
+      }),
+    );
+
+    assert.equal(item?.kind, "run_status");
+    assert.equal(item?.runStatus?.state, "failed");
+    assert.equal(item?.runStatus?.failedEntryId, "entry_failed");
+    assert.equal(item?.runStatus?.retryable, true);
+  });
+
+  it("converts interrupted run status entries into transcript status items", () => {
+    const [item] = entryToTranscriptItems(
+      entry({
+        text: "Agent run was interrupted because the Nerve daemon restarted.",
+        details: {
+          type: "agent_run_retry_status",
+          state: "interrupted",
+          runId: "run_01H00000000000000000000000",
+          errorMessage:
+            "Agent run was interrupted because the Nerve daemon restarted.",
+          retryable: true,
+        },
+      }),
+    );
+
+    assert.equal(item?.kind, "run_status");
+    assert.equal(item?.runStatus?.state, "interrupted");
+    assert.equal(item?.runStatus?.failedEntryId, undefined);
+    assert.equal(item?.runStatus?.retryable, true);
+  });
+
   it("converts task event entries into system transcript items", () => {
     const [item] = entryToTranscriptItems(
       entry({

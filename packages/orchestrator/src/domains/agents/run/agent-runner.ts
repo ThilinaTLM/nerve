@@ -19,6 +19,7 @@ import type {
   ConversationRecord,
   ConversationRunRetryExhaustedData,
   ConversationRunStatusDetails,
+  ConversationRunStatusState,
   CreateAgentRequest,
   PromptRequest,
   ToolName,
@@ -227,6 +228,43 @@ export class AgentRunner {
     ).catch(() => undefined);
   }
 
+  /**
+   * Resume a run that ended without a clean stop (interruption or a loop exception with
+   * no re-runnable failed model turn). Inspects the conversation leaf: if it is an
+   * assistant message, rewind to its parent and re-run that turn; otherwise (a user or
+   * tool-result leaf) continue forward from the current leaf.
+   */
+  async resumeRun(agentId: string): Promise<void> {
+    const agent = this.deps.state.agents.get(agentId);
+    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    if (this.deps.state.runs.has(agent.id)) {
+      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+    }
+    const conversation = this.deps.state.getConversation(agent.conversationId);
+    const project = this.deps.state.getProject(agent.projectId);
+    const storage = await this.deps.harnessManager.openStorage(
+      conversation,
+      project.dir,
+    );
+    const leafId = await storage.getLeafId();
+    const leaf = leafId ? await storage.getEntry(leafId) : undefined;
+    if (leaf?.type === "message" && leaf.message.role === "assistant") {
+      if (leaf.parentId === null) {
+        throw new HttpError(
+          400,
+          "INVALID_RESUME_TARGET",
+          "Cannot resume from the root assistant message.",
+        );
+      }
+      await new Conversation(storage).moveTo(leaf.parentId);
+    }
+    void this.runAgentPrompt(
+      agent,
+      { text: "Continue from interrupted run." },
+      { continue: true },
+    ).catch(() => undefined);
+  }
+
   async abortAgent(agentId: string): Promise<void> {
     const agent = this.deps.state.agents.get(agentId);
     if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
@@ -279,48 +317,52 @@ export class AgentRunner {
     }
   }
 
-  async maybeAppendRetryExhaustedStatus(
-    agent: AgentRecord,
-    runId: string,
-    assistantEntry: ConversationEntry,
-    assistant: AssistantMessage,
-  ): Promise<ConversationRunRetryExhaustedData | undefined> {
-    const settings = this.deps.storage.settings.retry;
-    if (
-      !settings.enabled ||
-      settings.maxRetries <= 0 ||
-      !isRetryableAssistantError(assistant)
-    ) {
-      return undefined;
-    }
+  /**
+   * Append a durable `run_status` entry for a non-clean run ending and publish the
+   * corresponding `conversation.entry.appended` event. The entry is orchestrator-only
+   * (`mirrorToHarness: false`) so it is never sent to the model. When `parentEntryId`
+   * is omitted the entry is parented at the conversation's current leaf and becomes the
+   * new active tail.
+   */
+  private async appendRunStatusEntry(input: {
+    agent: AgentRecord;
+    runId: string;
+    state: ConversationRunStatusState;
+    text: string;
+    errorMessage?: string;
+    failedEntryId?: string;
+    parentEntryId?: string;
+    attempt?: number;
+    maxRetries?: number;
+  }): Promise<ConversationRunRetryExhaustedData> {
     const details = {
       type: "agent_run_retry_status",
-      state: "retry_exhausted",
-      runId,
-      failedEntryId: assistantEntry.id,
-      attempt: settings.maxRetries,
-      maxRetries: settings.maxRetries,
-      errorMessage: assistant.errorMessage,
+      state: input.state,
+      runId: input.runId,
+      failedEntryId: input.failedEntryId,
+      attempt: input.attempt,
+      maxRetries: input.maxRetries,
+      errorMessage: input.errorMessage,
       retryable: true,
     } satisfies ConversationRunStatusDetails;
     const statusEntry = await this.deps.appendEntry(
       {
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        runId,
-        parentEntryId: assistantEntry.id,
+        conversationId: input.agent.conversationId,
+        agentId: input.agent.id,
+        runId: input.runId,
+        ...(input.parentEntryId ? { parentEntryId: input.parentEntryId } : {}),
         role: "system",
         kind: "run_status",
-        text: `Model request failed after ${settings.maxRetries} ${settings.maxRetries === 1 ? "retry" : "retries"}.`,
+        text: input.text,
         details,
       },
       { mirrorToHarness: false },
     );
     await this.deps.events.publish("conversation.entry.appended", {
-      conversationId: agent.conversationId,
-      agentId: agent.id,
-      projectId: agent.projectId,
-      runId,
+      conversationId: input.agent.conversationId,
+      agentId: input.agent.id,
+      projectId: input.agent.projectId,
+      runId: input.runId,
       entry: statusEntry,
     });
     return {
@@ -331,6 +373,69 @@ export class AgentRunner {
       errorMessage: details.errorMessage,
       retryable: details.retryable,
     };
+  }
+
+  /**
+   * Append a continuable status entry for a failed assistant turn. Emits a
+   * `retry_exhausted` status when the failure is a retryable model error and retries
+   * are enabled (preserving existing wording), otherwise a generic `failed` status.
+   */
+  async appendRunFailureStatus(
+    agent: AgentRecord,
+    runId: string,
+    assistantEntry: ConversationEntry,
+    assistant: AssistantMessage,
+  ): Promise<ConversationRunRetryExhaustedData> {
+    const settings = this.deps.storage.settings.retry;
+    const retryExhausted =
+      settings.enabled &&
+      settings.maxRetries > 0 &&
+      isRetryableAssistantError(assistant);
+    if (retryExhausted) {
+      return this.appendRunStatusEntry({
+        agent,
+        runId,
+        state: "retry_exhausted",
+        text: `Model request failed after ${settings.maxRetries} ${settings.maxRetries === 1 ? "retry" : "retries"}.`,
+        errorMessage: assistant.errorMessage,
+        failedEntryId: assistantEntry.id,
+        parentEntryId: assistantEntry.id,
+        attempt: settings.maxRetries,
+        maxRetries: settings.maxRetries,
+      });
+    }
+    return this.appendRunStatusEntry({
+      agent,
+      runId,
+      state: "failed",
+      text: "Agent run failed.",
+      errorMessage: assistant.errorMessage,
+      failedEntryId: assistantEntry.id,
+      parentEntryId: assistantEntry.id,
+    });
+  }
+
+  /**
+   * Append a continuable `failed` status entry for an exception thrown inside the run
+   * loop. When a failed assistant entry exists it is referenced (and hidden) so Continue
+   * rewinds and re-runs that turn; otherwise the card is appended at the current leaf and
+   * Continue resumes forward.
+   */
+  async appendRunErrorStatus(
+    agent: AgentRecord,
+    runId: string,
+    message: string,
+    lastAssistantEntry?: ConversationEntry,
+  ): Promise<ConversationRunRetryExhaustedData> {
+    return this.appendRunStatusEntry({
+      agent,
+      runId,
+      state: "failed",
+      text: "Agent run failed.",
+      errorMessage: message,
+      failedEntryId: lastAssistantEntry?.id,
+      parentEntryId: lastAssistantEntry?.id,
+    });
   }
 
   async runHarnessWithRetries(input: {

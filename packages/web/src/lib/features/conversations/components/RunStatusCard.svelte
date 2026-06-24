@@ -29,7 +29,7 @@
   });
 
   const canContinue = $derived(
-    notice.state === "retry_exhausted" &&
+    notice.state !== "retrying" &&
       isLast &&
       !sending &&
       notice.retryable === true &&
@@ -38,9 +38,17 @@
   );
 
   const dotTone = $derived(notice.state === "retrying" ? "running" : "warn");
-  const headerText = $derived(
-    notice.state === "retrying" ? "model request" : "request failed",
-  );
+  const badgeText = $derived(notice.state === "retrying" ? "retrying" : "run");
+  const headerText = $derived.by(() => {
+    switch (notice.state) {
+      case "retrying":
+        return "model request";
+      case "interrupted":
+        return "interrupted";
+      default:
+        return "failed";
+    }
+  });
 
   const retrySeconds = $derived.by(() => {
     const retryAtMs = notice.retryAt ? Date.parse(notice.retryAt) : NaN;
@@ -66,20 +74,27 @@
   );
 
   const bodyText = $derived.by(() => {
+    if (notice.state === "retrying") {
+      const failure = failureText
+        ? `Request failed with ${failureText}`
+        : "Request failed";
+      const retry =
+        typeof retrySeconds === "number"
+          ? retrySeconds > 0
+            ? `retry in ${retrySeconds}s`
+            : "retrying now"
+          : "retrying soon";
+      const attempt = attemptText ? ` (${attemptText})` : "";
+      return `${failure}, ${retry}${attempt}`;
+    }
+    if (notice.state === "interrupted") {
+      const lead = failureText ?? "The run was interrupted.";
+      return `${lead} Click Continue to resume.`;
+    }
     const failure = failureText
       ? `Request failed with ${failureText}`
       : "Request failed";
-    if (notice.state !== "retrying") {
-      return `${failure}. Click Continue to retry.`;
-    }
-    const retry =
-      typeof retrySeconds === "number"
-        ? retrySeconds > 0
-          ? `retry in ${retrySeconds}s`
-          : "retrying now"
-        : "retrying soon";
-    const attempt = attemptText ? ` (${attemptText})` : "";
-    return `${failure}, ${retry}${attempt}`;
+    return `${failure}. Click Continue to retry.`;
   });
 
   function continueFromFailure() {
@@ -91,7 +106,7 @@
 <article class={`run-status-line state-${notice.state}`} aria-live="polite">
   <div class="run-status-header">
     <StatusDot tone={dotTone} pulse={notice.state === "retrying"} size="xs" class="mr-1.5 align-middle" />
-    <span class="badge">retrying</span>
+    <span class="badge">{badgeText}</span>
     <span class="arg">{headerText}</span>
   </div>
 

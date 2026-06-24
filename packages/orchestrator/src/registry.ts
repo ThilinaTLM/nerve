@@ -85,6 +85,13 @@ export class RuntimeRegistry {
     return this.services.tools;
   }
 
+  /** Append a conversation entry (used by startup interrupted-run recovery). */
+  get appendConversationEntry() {
+    return this.services.conversationLifecycle.appendEntry.bind(
+      this.services.conversationLifecycle,
+    );
+  }
+
   get git() {
     return this.services.git;
   }

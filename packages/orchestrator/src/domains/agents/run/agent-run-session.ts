@@ -537,7 +537,7 @@ export async function runAgentPromptSession(
       if (latest)
         await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
       const retryExhausted = !aborted
-        ? await this.maybeAppendRetryExhaustedStatus(
+        ? await this.appendRunFailureStatus(
             agent,
             runId,
             assistantEntry,
@@ -676,6 +676,16 @@ export async function runAgentPromptSession(
     const latest = this.deps.state.agents.get(agent.id);
     if (latest)
       await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
+    const failureMessage =
+      error instanceof Error ? error.message : String(error);
+    const errorStatus =
+      !aborted &&
+      (await this.appendRunErrorStatus(
+        agent,
+        runId,
+        failureMessage,
+        lastAssistantEntry,
+      ).catch(() => undefined));
     this.deps.state.conversationRuntime.failRun(runId);
     await this.terminateRunToolCalls(runId);
     await this.deps.events.publish("conversation.run.failed", {
@@ -683,9 +693,10 @@ export async function runAgentPromptSession(
       projectId: agent.projectId,
       runId,
       conversationId: agent.conversationId,
-      message: error instanceof Error ? error.message : String(error),
+      message: failureMessage,
       aborted,
       failedAt: new Date().toISOString(),
+      retryExhausted: errorStatus || undefined,
     });
     await this.deps.logger[aborted ? "warn" : "error"](
       aborted ? "Agent run aborted" : "Agent run failed",

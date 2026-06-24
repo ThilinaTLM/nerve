@@ -98,6 +98,7 @@ async function main() {
     events: state.events,
     logger: state.logger,
     tools: state.registry.tools,
+    appendEntry: state.registry.appendConversationEntry,
   }).catch((error) =>
     state.logger.warn("Interrupted run recovery failed", { error }),
   );

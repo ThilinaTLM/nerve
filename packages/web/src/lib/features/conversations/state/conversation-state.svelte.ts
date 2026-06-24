@@ -45,7 +45,7 @@ export type RunStatusNotice = {
   conversationId?: string;
   agentId?: string;
   runId?: string;
-  state: "retrying" | "retry_exhausted";
+  state: "retrying" | "retry_exhausted" | "failed" | "interrupted";
   failedEntryId?: string;
   attempt?: number;
   maxRetries?: number;

@@ -125,7 +125,13 @@ function runStatusNotice(
   const details = entryDetails(entry);
   if (details?.type !== "agent_run_retry_status") return undefined;
   const state = details.state;
-  if (state !== "retrying" && state !== "retry_exhausted") return undefined;
+  if (
+    state !== "retrying" &&
+    state !== "retry_exhausted" &&
+    state !== "failed" &&
+    state !== "interrupted"
+  )
+    return undefined;
   return {
     entryId: entry.id,
     conversationId: entry.conversationId,

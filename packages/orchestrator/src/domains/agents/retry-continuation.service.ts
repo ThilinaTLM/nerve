@@ -6,7 +6,14 @@ export interface RetryContinuationServiceDeps {
   state: RuntimeState;
   getConversationEntries(conversationId: string): ConversationEntry[];
   continueFromFailedTurn(agentId: string, failedEntryId: string): Promise<void>;
+  resumeRun(agentId: string): Promise<void>;
 }
+
+const CONTINUABLE_STATES = new Set([
+  "retry_exhausted",
+  "failed",
+  "interrupted",
+]);
 
 export class RetryContinuationService {
   constructor(private readonly deps: RetryContinuationServiceDeps) {}
@@ -33,32 +40,32 @@ export class RetryContinuationService {
       statusEntry.role !== "system" ||
       statusEntry.kind !== "run_status" ||
       details?.type !== "agent_run_retry_status" ||
-      details.state !== "retry_exhausted" ||
-      details.retryable !== true ||
-      !details.failedEntryId
+      typeof details.state !== "string" ||
+      !CONTINUABLE_STATES.has(details.state) ||
+      details.retryable !== true
     ) {
       throw new HttpError(
         400,
-        "INVALID_RETRY_STATUS",
-        "Entry is not a retry-exhausted status entry.",
+        "INVALID_RUN_STATUS",
+        "Entry is not a continuable run-status entry.",
       );
     }
-    const failedEntry = entries.find(
-      (entry) => entry.id === details.failedEntryId,
-    );
+    // When the status references a re-runnable failed model turn, rewind to its
+    // parent and re-run that turn. Otherwise (interruption or a loop exception with
+    // no failed model turn) resume forward from the current conversation leaf.
+    const failedEntry = details.failedEntryId
+      ? entries.find((entry) => entry.id === details.failedEntryId)
+      : undefined;
     const failedDetails = runFailureDetails(failedEntry?.details);
-    if (
-      failedEntry?.role !== "assistant" ||
-      failedDetails?.stopReason !== "error" ||
-      !failedDetails.errorMessage
-    ) {
-      throw new HttpError(
-        400,
-        "INVALID_FAILED_ENTRY",
-        "Retry status does not reference a valid failed assistant entry.",
-      );
+    const isReRunnableFailedTurn =
+      failedEntry?.role === "assistant" &&
+      failedDetails?.stopReason === "error" &&
+      Boolean(failedDetails.errorMessage);
+    if (failedEntry && isReRunnableFailedTurn) {
+      await this.deps.continueFromFailedTurn(agent.id, failedEntry.id);
+      return;
     }
-    await this.deps.continueFromFailedTurn(agent.id, details.failedEntryId);
+    await this.deps.resumeRun(agent.id);
   }
 }
 
