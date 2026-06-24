@@ -2,6 +2,7 @@ import type { TaskRecord } from "@nerve/shared";
 import { getTaskLogs } from "$lib/api";
 import { onEvent } from "$lib/core/events/event-bus";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { applyVisibleTaskRecord } from "./task-reducers";
 import { taskState } from "./task-state.svelte";
 
 export function registerTaskEventHandlers(): () => void {
@@ -29,9 +30,7 @@ function handleTaskRecordEvent(event: {
 }): void {
   const task = event.data?.task as TaskRecord | undefined;
   if (!task?.id) return;
-  const index = taskState.tasks.findIndex((item) => item.id === task.id);
-  if (index >= 0) taskState.tasks[index] = task;
-  else taskState.tasks = [task, ...taskState.tasks];
+  taskState.tasks = applyVisibleTaskRecord(taskState.tasks, task);
 }
 
 function handleTaskRemovedEvent(event: {
