@@ -282,9 +282,8 @@ export const filesystemToolDefinitions = [
     name: "read",
     label: "read",
     description:
-      "Read file contents. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, supports offset/limit for line windows and byteOffset/byteLimit for overlong lines or minified files. Text output is capped by line count, total byte budget, and per-line length.",
+      "Read text files or images. Supports line/byte windows; text output is bounded.",
     promptSnippet: "Read file contents, including image files as attachments",
-    promptGuidelines: ["Use read to examine files instead of cat or sed."],
     parameters: readParameters,
     executionMode: "parallel",
   },
@@ -292,16 +291,11 @@ export const filesystemToolDefinitions = [
     name: "edit",
     label: "edit",
     description:
-      "Single-file editor. Defaults to exact text replacements; also supports anchor insertions, line/range edits, a single-file unified patch, dry-run previews, matchMode (trimmed/whitespace), occurrence selection, and ambiguity diagnostics. Fails instead of guessing on missing, ambiguous, or overlapping edits.",
+      "Edit one existing file with replacements, insertions, line edits, or a single-file patch; fails on ambiguous edits.",
     promptSnippet:
-      "Make single-file edits: replacements by default, plus insertions, line/range edits, patch, dry-run, matchMode, and occurrence",
+      "Make single-file edits with replacements, insertions, line edits, patch, dry-run, matchMode, and occurrence",
     promptGuidelines: [
-      "Use edit for existing single-file edits.",
-      "Default to replacements with exact oldText/newText; batch multiple same-file replacements in one edit call.",
-      "Each oldText/anchor must be minimal and unique; edits resolve against the original file, so merge overlapping nearby changes.",
-      "Use insertions or lineReplacements / lineInsertions when clearer; use patch only for one single-file diff.",
-      "Use dryRun: true for large or risky edits before applying.",
-      'Use matchMode "trimmed" or "whitespace", or occurrence, only when exact matching is impractical or ambiguous.',
+      "Use edit for existing files; make unique, non-overlapping edits against the original file.",
     ],
     parameters: editParameters,
     prepareArguments: prepareEditArguments,
@@ -311,7 +305,7 @@ export const filesystemToolDefinitions = [
     name: "write",
     label: "write",
     description:
-      "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+      "Create or overwrite a file, creating parent directories as needed.",
     promptSnippet: "Create or overwrite files",
     promptGuidelines: ["Use write only for new files or complete rewrites."],
     parameters: writeParameters,
@@ -321,13 +315,8 @@ export const filesystemToolDefinitions = [
     name: "grep",
     label: "grep",
     description:
-      "Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore when using ripgrep. Output is capped by match count, total byte budget, and per-line length.",
-    promptSnippet: "Search file contents for patterns (respects .gitignore)",
-    promptGuidelines: [
-      "Use grep.paths when searching multiple files or directories; use grep.path only for one file or directory.",
-      "Do not pass multiple paths as one space-separated grep.path string.",
-      "Use grep.glob to filter searched files by pattern.",
-    ],
+      "Search file contents with regex or literal patterns; results are bounded.",
+    promptSnippet: "Search file contents for patterns",
     parameters: grepParameters,
     executionMode: "parallel",
   },
@@ -335,7 +324,7 @@ export const filesystemToolDefinitions = [
     name: "find",
     label: "find",
     description:
-      "Search for files by glob pattern. Returns matching file paths relative to the search directory. Respects .gitignore when using fd. Output is capped by result count, total byte budget, and per-line length.",
+      "Find files by glob pattern; results respect .gitignore and are bounded.",
     promptSnippet: "Find files by glob pattern (respects .gitignore)",
     parameters: findParameters,
     executionMode: "parallel",
@@ -344,7 +333,7 @@ export const filesystemToolDefinitions = [
     name: "ls",
     label: "ls",
     description:
-      "List directory contents. Returns entries sorted alphabetically, with '/' suffix for directories. Includes dotfiles.",
+      "List directory entries sorted alphabetically, including dotfiles.",
     promptSnippet: "List directory contents",
     parameters: lsParameters,
     executionMode: "parallel",

@@ -38,7 +38,7 @@ export function buildNerveSystemPrompt(
     options.mode === "planning"
       ? buildPlanModeInstructions(options.planDir ?? "Nerve plan storage")
       : "";
-  const footer = `Current date: ${date}\nCurrent working directory: ${cwd}`;
+  const environmentBlock = formatEnvironment({ date, cwd });
 
   return [
     basePrompt,
@@ -46,7 +46,7 @@ export function buildNerveSystemPrompt(
     planModeBlock,
     formatProjectInstructions(options.contextFiles ?? []),
     skillsBlock,
-    footer,
+    environmentBlock,
   ]
     .filter((section): section is string => Boolean(section?.trim()))
     .join("\n\n");
@@ -57,60 +57,83 @@ function defaultPrompt(options: {
   promptGuidelines: string[];
   mode?: "planning" | "coding";
 }): string {
-  const guidelines: string[] = [];
+  const toolRules: string[] = [];
   const seen = new Set<string>();
-  const addGuideline = (value: string) => {
+  const addToolRule = (value: string) => {
     const normalized = value.trim();
     if (!normalized || seen.has(normalized)) return;
     seen.add(normalized);
-    guidelines.push(normalized);
+    toolRules.push(normalized);
   };
 
-  const hasBash = options.selectedTools.includes("bash");
-  const hasGrep = options.selectedTools.includes("grep");
-  const hasFind = options.selectedTools.includes("find");
-  const hasLs = options.selectedTools.includes("ls");
-  if (hasBash && (!hasGrep || !hasFind || !hasLs)) {
-    addGuideline(
+  const activeTools = new Set(options.selectedTools);
+  if (
+    activeTools.has("bash") &&
+    (!activeTools.has("grep") ||
+      !activeTools.has("find") ||
+      !activeTools.has("ls"))
+  ) {
+    addToolRule(
       "Use bash for file listing/search only when dedicated grep/find/ls tools are unavailable.",
     );
   }
-  for (const guideline of options.promptGuidelines) addGuideline(guideline);
-  if (options.mode !== "planning") {
-    addGuideline(
-      "If the user asks for a plan or the task needs research before edits, call plan_mode_enter first.",
+  for (const guideline of options.promptGuidelines) addToolRule(guideline);
+  if (options.mode !== "planning" && activeTools.has("plan_mode_enter")) {
+    addToolRule(
+      "Enter plan mode before requested plans or design-heavy edits.",
     );
   }
-  addGuideline(
-    "Continue working until the user's task is complete or a blocking user decision is required.",
-  );
-  addGuideline(
-    "After each tool result, decide the next concrete action; do not stop with only 'I'll continue' prose.",
-  );
-  addGuideline(
-    "If missing input prevents progress, ask a specific question with ask_user instead of silently ending.",
-  );
-  addGuideline(
-    "Before the final response, summarize completed work and any remaining limitations.",
-  );
-  addGuideline("Be concise in your responses");
-  addGuideline("Show file paths clearly when working with files");
 
   return promptText`
-    You are an expert coding assistant operating inside Nerve, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.
+    You are Nerve's coding agent. Work in the current project, use tools safely, and keep responses concise.
 
-    ${formatToolSummary(options.selectedTools)}
+    ${formatToolsBlock(options.selectedTools)}
 
-    In addition to the tools above, you may have access to other custom tools depending on the project.
+    Tool schemas are authoritative for arguments and capabilities.
 
-    Guidelines:
-    ${formatBulletList(guidelines)}
+    ${formatTaggedBulletSection("tool_rules", combineRelatedToolRules(toolRules))}
+
+    <working_rules>
+    - Keep going until the task is done or blocked by a user decision.
+    - After each tool result, choose the next concrete action.
+    - Final responses should summarize changes, validation, and remaining limits.
+    - Show file paths clearly when discussing files.
+    </working_rules>
   `;
 }
 
-function formatToolSummary(selectedTools: string[]): string {
+function formatToolsBlock(selectedTools: string[]): string {
   const tools = selectedTools.length > 0 ? selectedTools.join(", ") : "none";
-  return `Tools available in this conversation include: ${tools}. Use the API-provided tool schemas as the source of truth for arguments and capabilities.`;
+  return ["<tools>", tools, "</tools>"].join("\n");
+}
+
+function combineRelatedToolRules(items: string[]): string[] {
+  const finiteBashRule = "Use bash for finite checks, tests, and builds.";
+  const taskStartRule =
+    "Use task_start for servers, watchers, and other long-lived processes.";
+  if (!items.includes(finiteBashRule) || !items.includes(taskStartRule)) {
+    return items;
+  }
+
+  const combinedRule =
+    "Use bash for finite checks, tests, and builds; use task_start for servers, watchers, and other long-lived processes.";
+  let inserted = false;
+  const combined: string[] = [];
+  for (const item of items) {
+    if (item !== finiteBashRule && item !== taskStartRule) {
+      combined.push(item);
+      continue;
+    }
+    if (inserted) continue;
+    combined.push(combinedRule);
+    inserted = true;
+  }
+  return combined;
+}
+
+function formatTaggedBulletSection(tag: string, items: string[]): string {
+  if (items.length === 0) return "";
+  return [`<${tag}>`, formatBulletList(items), `</${tag}>`].join("\n");
 }
 
 function formatBulletList(items: string[]): string {
@@ -118,36 +141,36 @@ function formatBulletList(items: string[]): string {
 }
 
 function buildPlanModeInstructions(planDir: string): string {
+  const planDirAttribute = escapeXml(planDir.replace(/\\/g, "/"));
   return promptText`
-    [PLAN MODE ACTIVE]
-    You are in plan mode — a research and planning mode with guarded writes.
+    <plan_mode active="true" plan_dir="${planDirAttribute}">
+    Research and write a reviewed plan before any workspace edits.
 
-    Restrictions:
-    - Use read-only research tools and planning-safe bash commands: read files, grep/find/ls, explore, web search/fetch, and planning-safe python when available.
-    - WRITE and EDIT only plan files inside ${planDir}/.
-    - NO code modifications outside the plans directory.
-    - Bash is guarded on a best-effort blacklist basis; avoid commands that modify files, install/update dependencies, deploy, or run long-running tasks.
+    Hard rules:
+    - Use read-only tools and safe commands for research.
+    - Write/edit only Markdown plan files under the plan_dir.
+    - Do not change workspace code, install dependencies, deploy, or start long-running processes.
+    - Present the final plan with plan_mode_present; implement only after acceptance.
 
-    ## Your Role
+    Workflow:
+    1. Inspect the code and relevant options.
+    2. Ask the user only for user-dependent decisions.
+    3. Write a self-contained, file-specific plan under plan_dir.
+    4. Resolve open decisions, then present it.
 
-    You are a technical partner, not an order-taker. Research first, challenge weak assumptions, propose better alternatives when justified, and ask focused questions when user intent is unclear.
+    Plan quality:
+    - Include affected files/symbols, ordered steps, validation, risks, and migrations if relevant.
+    - Do not leave unresolved questions or decision callouts in the final plan.
+    </plan_mode>
+  `;
+}
 
-    ## Workflow
-
-    1. Understand the request and clarify user-dependent decisions.
-    2. Research the codebase and relevant options before proposing implementation details.
-    3. Discuss trade-offs and resolve meaningful decisions with the user with using ask_user tool.
-    4. Draft the plan as a markdown file under ${planDir}/ using write/edit.
-    5. Refine the plan until every open question and decision is resolved.
-    6. Present the finalized plan with plan_mode_present using the plan file path. Do not implement workspace changes until the plan is accepted.
-
-    ## Plan Quality
-
-    - Name specific files, functions, types, and modules.
-    - Respect existing codebase patterns and conventions.
-    - Call out breaking changes, migrations, dependencies, ordering, and risks.
-    - Keep steps small and reviewable.
-    - The final plan must be self-contained and actionable with no unresolved question or decision callouts.
+function formatEnvironment(options: { date: string; cwd: string }): string {
+  return promptText`
+    <environment>
+    Current date: ${options.date}
+    Current working directory: ${options.cwd}
+    </environment>
   `;
 }
 

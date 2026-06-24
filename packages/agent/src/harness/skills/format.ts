@@ -18,9 +18,8 @@ export function formatSkillsForSystemPrompt(skills: Skill[]): string {
   if (visibleSkills.length === 0) return "";
 
   const lines = [
-    "The following skills provide specialized instructions for specific tasks.",
-    "Read the full skill file when the task matches its description.",
-    "When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.",
+    "Skills are optional task-specific instructions.",
+    "Read a skill file when its description matches the task; resolve relative references from that skill file's directory.",
     "",
     "<available_skills>",
   ];

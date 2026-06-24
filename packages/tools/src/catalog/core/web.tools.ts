@@ -33,7 +33,7 @@ export const webToolDefinitions = [
     name: "web_search",
     label: "Web Search",
     description:
-      "Search the web using Tavily. Requires a configured Tavily API key in Nerve Settings.",
+      "Search the web with Tavily; requires a configured API key in Nerve Settings.",
     promptSnippet: "Search the web for current external information",
     parameters: webSearchParameters,
     executionMode: "parallel",
@@ -42,7 +42,7 @@ export const webToolDefinitions = [
     name: "web_fetch",
     label: "Web Fetch",
     description:
-      "Fetch the contents of a URL. HTML is converted to markdown for readability. Large responses and binary files are saved to temp storage. Pass raw=true to skip conversion and save the raw content.",
+      "Fetch a URL. HTML converts to markdown unless raw=true; large or binary responses are saved.",
     promptSnippet: "Fetch URL contents; HTML is converted to markdown",
     parameters: webFetchParameters,
     executionMode: "parallel",

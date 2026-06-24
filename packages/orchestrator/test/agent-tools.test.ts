@@ -196,24 +196,24 @@ describe("agent tool definitions", () => {
     assert.equal(bash.promptSnippet, "Run awaited shell commands");
     assert.ok(
       bash.promptGuidelines?.some((line) =>
-        line.includes("Use dedicated file tools when available"),
+        line.includes("Prefer read/grep/find/ls over shell"),
       ),
     );
     assert.ok(
       bash.promptGuidelines?.some((line) =>
-        line.includes("Use bash for finite commands"),
+        line.includes("Use bash for finite checks"),
       ),
     );
     assert.doesNotMatch(bash.promptSnippet ?? "", /ls, grep, find/);
-    assert.match(taskStart.description, /supervised detached background tasks/);
+    assert.match(taskStart.description, /supervised background tasks/);
     assert.ok(
       taskStart.promptGuidelines?.some((line) =>
-        line.includes("Use bash for finite tests/checks/builds"),
+        line.includes("long-lived processes"),
       ),
     );
     assert.equal(
       taskStart.promptGuidelines?.some((line) =>
-        line.includes("Use task_start for tests, builds"),
+        line.includes("tests, builds"),
       ),
       false,
     );
@@ -226,9 +226,7 @@ describe("agent tool definitions", () => {
     assert.ok(explore.description.includes("context"));
     assert.ok(explore.description.includes("split_rationale"));
     assert.ok(
-      explore.promptGuidelines?.some((line) =>
-        line.includes("quick grep/find/read"),
-      ),
+      explore.promptGuidelines?.some((line) => line.includes("quick lookup")),
     );
   });
 

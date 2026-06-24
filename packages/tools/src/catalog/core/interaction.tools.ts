@@ -49,12 +49,10 @@ export const interactionToolDefinitions = [
     name: "ask_user",
     label: "Ask User",
     description:
-      "Ask the user one focused free-text question and wait for their reply. Use only when the answer depends on the user's intent, preference, decision, or unavailable context.",
+      "Ask one focused free-text question when progress depends on the user's decision or unavailable context.",
     promptSnippet: "Ask the user a focused free-text clarification question",
     promptGuidelines: [
-      "Use ask_user only when the answer must come from the user rather than the codebase, tools, or prior context.",
-      "Ask one focused question at a time. Include brief context and a recommendation when it helps the user answer.",
-      "Do not use ask_user for questions you can answer by inspecting files, running tools, or reasoning from existing conversation context.",
+      "Ask the user only for decisions or context unavailable from the repo/tools.",
     ],
     parameters: askUserParameters,
     executionMode: "sequential",
@@ -62,8 +60,7 @@ export const interactionToolDefinitions = [
   {
     name: "todos_set",
     label: "Set Todos",
-    description:
-      "Set the todo list for the current task. Replaces any existing todos. Use this at the start of a complex task to outline the steps.",
+    description: "Set or replace the todo list for the current task.",
     promptSnippet:
       "Set the todo list for the current task, replacing any existing todos",
     parameters: todosSetParameters,

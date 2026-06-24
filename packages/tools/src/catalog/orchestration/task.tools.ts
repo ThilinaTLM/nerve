@@ -222,17 +222,11 @@ export const taskToolDefinitions = [
     name: "task_start",
     label: "task_start",
     description:
-      "Start one command, or a small batch of commands, as supervised detached background tasks. Use for dev servers, watchers, listeners, and other long-lived processes.",
+      "Start supervised background tasks for servers, watchers, and other long-lived commands.",
     promptSnippet:
       "Start detached background processes for long-lived commands and servers",
     promptGuidelines: [
-      "Use task_start for intentionally long-lived servers, watchers, listeners, and daemons.",
-      "Use bash for finite tests/checks/builds; it promotes automatically if still running after about 60 seconds.",
-      "After starting a task, continue useful work; do not poll task_status/task_logs just to wait.",
-      "Readiness checks are off unless you provide readyUrl, readyOnUrl, or readyPattern.",
-      "Use timeoutMs only to cap detached task runtime; readyTimeoutMs only bounds readiness detection and does not stop the process.",
-      "Use task_status/task_logs only for one-off inspection or debugging when the next action depends on current state.",
-      "Use notify: false only when the process should be fully quiet/detached; use task_cancel to terminate persistent tasks.",
+      "Use task_start for servers, watchers, and other long-lived processes.",
     ],
     parameters: taskStartParameters,
     executionMode: "sequential",
@@ -241,11 +235,10 @@ export const taskToolDefinitions = [
     name: "task_status",
     label: "task_status",
     description:
-      "Inspect task state once for diagnostics. Not a wait mechanism. With no target, defaults to active tasks in this conversation, then recent tasks.",
+      "Inspect task state once for diagnostics; not a wait mechanism.",
     promptSnippet: "Inspect current task status",
     promptGuidelines: [
-      "Do not call task_status repeatedly to wait for completion.",
-      "For finite commands, use bash; promoted bash commands send async terminal notifications.",
+      "Do not poll task_status/task_logs; inspect once when current task state matters.",
     ],
     parameters: taskStatusParameters,
     executionMode: "parallel",
@@ -254,13 +247,8 @@ export const taskToolDefinitions = [
     name: "task_logs",
     label: "task_logs",
     description:
-      "Query captured logs from a task for debugging or requested output inspection, including recent output, errors, warnings, cursor-based updates, and first-failure context.",
+      "Inspect captured task logs for recent output, errors, warnings, or first-failure context.",
     promptSnippet: "Inspect logs from background tasks",
-    promptGuidelines: [
-      "Use task_logs to inspect task output instead of restarting a running task just to see errors.",
-      "Do not call task_logs repeatedly to wait for progress.",
-      "Use full task_... IDs, stable task names, or group IDs; do not abbreviate IDs.",
-    ],
     parameters: taskLogsParameters,
     executionMode: "parallel",
   },
@@ -268,7 +256,7 @@ export const taskToolDefinitions = [
     name: "task_cancel",
     label: "task_cancel",
     description:
-      "Terminate/clean up a running or orphaned task by task ID/name or active group. With no target, only cancels when exactly one active task exists in this conversation.",
+      "Terminate a running or orphaned task by task ID/name or group.",
     promptSnippet:
       "Cancel supervised background tasks or clean up orphaned task records",
     parameters: taskTargetParameters,
@@ -278,7 +266,7 @@ export const taskToolDefinitions = [
     name: "task_restart",
     label: "task_restart",
     description:
-      "Restart a task by task ID or stable name, preserving encrypted env overrides and launch settings captured at start.",
+      "Restart a task by ID or stable name, preserving stored launch settings.",
     promptSnippet:
       "Restart supervised background tasks while preserving stored env overrides",
     parameters: taskRestartParameters,

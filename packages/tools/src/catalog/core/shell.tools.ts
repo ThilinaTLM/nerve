@@ -18,13 +18,11 @@ export const shellToolDefinitions = [
     name: "bash",
     label: "bash",
     description:
-      "Run a finite shell command in the current working directory. If it is still running after about 60 seconds, Nerve returns a background task id and sends an async update when it finishes. Use timeout to cap runtime.",
+      "Run a finite shell command. Long commands may be promoted to a background task; use timeout to cap runtime.",
     promptSnippet: "Run awaited shell commands",
     promptGuidelines: [
-      "Use dedicated file tools when available: read for file contents, grep for content search, find for file discovery, and ls for directory listings.",
-      "Use bash for finite commands such as checks, tests, and builds.",
-      "If bash promotes, continue useful work or inspect once with task_status/task_logs; do not poll just to wait.",
-      "Use task_start for intentionally long-lived servers, watchers, listeners, and daemons.",
+      "Prefer read/grep/find/ls over shell for file inspection and search.",
+      "Use bash for finite checks, tests, and builds.",
     ],
     parameters: bashParameters,
     executionMode: "sequential",

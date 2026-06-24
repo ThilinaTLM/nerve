@@ -52,26 +52,12 @@ export const exploreToolDefinitions = [
   {
     name: "explore",
     label: "explore",
-    description: [
-      "Spawn read-only child agents to investigate the codebase and return concise reports.",
-      "Single mode: { task, context, label? }.",
-      "Parallel mode: { tasks: [{ task, label? }, ...], context, split_rationale } with 2-5 independent tasks.",
-      "Before using this tool, do your own quick grep/find/read lookup to size the problem.",
-      "Use explore only when the remaining work requires reading many files, tracing dependencies, or understanding a subsystem.",
-      "Always pass context summarizing what you already checked, what you found, and what remains unclear.",
-      "In parallel mode, use the fewest agents necessary and split only into truly independent investigations.",
-      "Do not use explore for simple lookups you can answer directly with a few read/grep/find calls.",
-    ].join(" "),
+    description:
+      "Delegate substantial read-only codebase investigations to child agents after your own quick lookup. Use single { task, context, label? } or parallel { tasks, context, split_rationale } for 2-5 independent tasks.",
     promptSnippet:
       "Delegate substantial, independent codebase investigations to read-only child agents after doing an initial lookup",
     promptGuidelines: [
-      "Before using explore, do your own quick grep/find/read lookup to size the problem and identify likely files or symbols.",
-      "Use explore only when the remaining work requires reading many files, tracing dependencies, or understanding a subsystem.",
-      "Always pass context summarizing what you already checked, what you found, and what remains unclear.",
-      "Use single-task explore for one substantial investigation.",
-      "Use tasks only for 2-5 truly independent investigations; include split_rationale explaining the split and why that agent count is appropriate.",
-      "Use the fewest explore agents necessary.",
-      "Do not use explore for simple lookups you can answer directly with a few read/grep/find calls.",
+      "Use explore only after a quick lookup, and only for substantial codebase investigations.",
     ],
     parameters: exploreParameters,
     executionMode: "parallel",

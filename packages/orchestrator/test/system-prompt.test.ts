@@ -60,25 +60,28 @@ describe("Nerve system prompt", () => {
       skills: resources.skills,
     });
 
-    assert.match(prompt, /^You are an expert coding assistant/);
-    assert.match(prompt, /inside Nerve, a coding agent harness/);
+    assert.match(prompt, /^You are Nerve's coding agent\./);
     assert.doesNotMatch(prompt, /inside pi, a coding agent harness/);
-    assert.match(
-      prompt,
-      /Tools available in this conversation include: read, bash, edit, write\./,
-    );
-    assert.match(prompt, /API-provided tool schemas/);
-    assert.match(prompt, /^Guidelines:\n- /m);
-    assert.doesNotMatch(prompt, /^ +Guidelines:/m);
+    assert.match(prompt, /<tools>\nread, bash, edit, write\n<\/tools>/);
+    assert.match(prompt, /Tool schemas are authoritative/);
+    assert.match(prompt, /^<tool_rules>\n- /m);
+    assert.doesNotMatch(prompt, /^ +<tool_rules>/m);
+    assert.doesNotMatch(prompt, /^Guidelines:/m);
     assert.doesNotMatch(prompt, /Available tools:\n- read:/);
     assert.doesNotMatch(prompt, /<project_context>/);
     assert.match(prompt, /<project_instructions path=".*AGENTS\.md">/);
     assert.match(prompt, /Project rule: prefer tests\./);
+    assert.match(prompt, /Skills are optional task-specific instructions\./);
     assert.match(prompt, /<available_skills>/);
     assert.match(prompt, /<name>review<\/name>/);
     assert.match(prompt, /<description>Review code carefully\.<\/description>/);
-    assert.match(prompt, /Current date: \d{4}-\d{2}-\d{2}/);
-    assert.ok(prompt.endsWith(`Current working directory: ${cwd}`));
+    assert.match(
+      prompt,
+      /<environment>\nCurrent date: \d{4}-\d{2}-\d{2}\nCurrent working directory: /,
+    );
+    assert.ok(
+      prompt.endsWith(`Current working directory: ${cwd}\n</environment>`),
+    );
   });
 
   it("uses only active tools in the concise tool summary", () => {
@@ -87,10 +90,7 @@ describe("Nerve system prompt", () => {
       selectedTools: ["read", "grep"],
     });
 
-    assert.match(
-      prompt,
-      /Tools available in this conversation include: read, grep\./,
-    );
+    assert.match(prompt, /<tools>\nread, grep\n<\/tools>/);
     assert.doesNotMatch(prompt, /write/);
     assert.doesNotMatch(prompt, /task_start/);
   });
@@ -105,9 +105,9 @@ describe("Nerve system prompt", () => {
       { contextFiles: [], skills: [] },
     );
 
-    assert.match(prompt, /Use dedicated file tools when available:/);
-    assert.match(prompt, /Use bash for finite commands/);
-    assert.match(prompt, /Use bash for finite tests\/checks\/builds/);
+    assert.match(prompt, /Prefer read\/grep\/find\/ls over shell/);
+    assert.match(prompt, /Use bash for finite checks, tests, and builds/);
+    assert.match(prompt, /use task_start for servers, watchers/);
     assert.doesNotMatch(
       prompt,
       /Use bash for file operations like ls, rg, find/,
@@ -261,15 +261,18 @@ describe("Nerve system prompt", () => {
     });
 
     assert.match(prompt, /Custom base prompt\./);
-    assert.match(prompt, /^\[PLAN MODE ACTIVE\]$/m);
-    assert.doesNotMatch(prompt, /^ +\[PLAN MODE ACTIVE\]/m);
     assert.match(
       prompt,
-      /WRITE and EDIT only plan files inside \/tmp\/nerve\/plans\//,
+      /<plan_mode active="true" plan_dir="\/tmp\/nerve\/plans">/,
     );
-    assert.match(prompt, /plan_mode_present using the plan file path/);
-    assert.match(prompt, /^Restrictions:\n- Use read-only/m);
-    assert.match(prompt, /^## Workflow\n\n1\. Understand/m);
+    assert.doesNotMatch(prompt, /^ +<plan_mode/m);
+    assert.match(
+      prompt,
+      /Write\/edit only Markdown plan files under the plan_dir/,
+    );
+    assert.match(prompt, /Present the final plan with plan_mode_present/);
+    assert.match(prompt, /^Hard rules:\n- Use read-only/m);
+    assert.match(prompt, /^Workflow:\n1\. Inspect/m);
     assert.doesNotMatch(prompt, /plan_write/);
   });
 
