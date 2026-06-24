@@ -143,8 +143,16 @@ function resolveToolRecord(
   return recordId ? toolCallsById.get(recordId) : undefined;
 }
 
+/** Resolve the {@link ToolCallRecord} backing a conversation entry, if any. */
+export function resolveToolCallForEntry(
+  entry: ConversationEntry,
+  toolCallsById: Map<string, ToolCallRecord>,
+): ToolCallRecord | undefined {
+  return resolveToolRecord(asRecord(entry.details), toolCallsById);
+}
+
 /** Parse the tool name(s) out of an assistant "[Tool call: name(...)]" placeholder. */
-function parseToolCallNames(text: string): string[] {
+export function parseToolCallNames(text: string): string[] {
   const match = text.trim().match(TOOL_CALL_PLACEHOLDER);
   if (!match) return [];
   return [...match[1].matchAll(/([a-z_][a-z0-9_]*)\s*\(/gi)].map((m) => m[1]);

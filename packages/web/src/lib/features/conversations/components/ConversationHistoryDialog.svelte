@@ -1,11 +1,16 @@
 <script lang="ts">
+  import FoldVertical from "@lucide/svelte/icons/fold-vertical";
+  import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
   import type {
     ConversationEntry,
     ConversationRecord,
     ConversationTreeNode,
     ToolCallRecord,
   } from "$lib/api";
+  import { buttonVariants } from "$lib/components/ui/button";
+  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
   import Dialog from "$lib/components/ui/dialog-shell";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import HistoryTab from "./HistoryTab.svelte";
 
   type Props = {
@@ -30,6 +35,8 @@
     onOpenChange,
   }: Props = $props();
 
+  let confirmCompactOpen = $state(false);
+
   function handleOpenChange(next: boolean) {
     open = next;
     onOpenChange?.(next);
@@ -50,30 +57,58 @@
 
 <Dialog
   bind:open
-  title="Conversation branches"
-  description="Jump to any point; your next message creates or continues that branch."
+  title="Conversation history"
+  description="Browse the branch tree, preview any point, then jump to or fork from it."
   class="conversation-history-dialog"
   onOpenChange={handleOpenChange}
 >
+  {#snippet headerActions()}
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+        aria-label="History actions"
+        disabled={!activeConversation}
+      >
+        <MoreHorizontal class="size-4" strokeWidth={2} />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" class="w-48">
+        <DropdownMenu.Item disabled={!activeConversation} onSelect={() => (confirmCompactOpen = true)}>
+          <FoldVertical />
+          <span>Compact context</span>
+        </DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  {/snippet}
+
   <HistoryTab
     {activeConversation}
     {treeNodes}
     {toolCalls}
     onNavigateToEntry={navigateAndClose}
     onEditEntry={editAndClose}
-    {onCompact}
   />
 </Dialog>
+
+<ConfirmDialog
+  bind:open={confirmCompactOpen}
+  title="Compact conversation"
+  description="This summarizes earlier messages to reduce context size. The full history stays available in the branch tree."
+  confirmLabel="Compact context"
+  onConfirm={() => onCompact?.()}
+/>
 
 <style>
   :global(.conversation-history-dialog) {
     top: 4vh;
+    /* Override the base dialog's vertical centering so the header stays on-screen. */
+    transform: translateX(-50%);
     width: min(1100px, calc(100vw - 48px));
     height: min(760px, calc(100vh - 48px));
-    max-height: calc(100vh - 48px);
+    max-height: calc(100vh - 8vh);
   }
 
   :global(.conversation-history-dialog .dialog-body) {
+    overflow: hidden;
     background: var(--card);
   }
 </style>
