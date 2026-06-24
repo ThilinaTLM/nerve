@@ -390,6 +390,9 @@ describe("agent tool definitions", () => {
     const prompt = exploreSystemPrompt();
     assert.ok(prompt.includes("Start with grep/find/ls"));
     assert.ok(prompt.includes("Do not ask the user questions"));
+    assert.match(prompt, /^# Findings$/m);
+    assert.match(prompt, /^## Summary\n- One to five/m);
+    assert.doesNotMatch(prompt, /^ +# Findings$/m);
   });
 
   it("defines ask_user as a sequential free-text interaction tool", () => {

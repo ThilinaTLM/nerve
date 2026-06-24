@@ -10,6 +10,7 @@ import {
   toolPromptMetadata,
 } from "../src/domains/tools/agent-tool-adapter.js";
 import { buildNerveSystemPrompt } from "../src/nerve-system-prompt.js";
+import { promptText } from "../src/prompt-text.js";
 import { loadHarnessResources } from "../src/resource-loader.js";
 
 const roots: string[] = [];
@@ -27,6 +28,18 @@ async function tempProject(): Promise<string> {
 }
 
 describe("Nerve system prompt", () => {
+  it("formats readable prompt template strings without source indentation", () => {
+    const bullets = "- first\n- second";
+
+    assert.equal(
+      promptText`
+        Heading:
+        ${bullets}
+      `,
+      "Heading:\n- first\n- second",
+    );
+  });
+
   it("renders active tool summary, context files, skills, date, and cwd", async () => {
     const cwd = await tempProject();
     const storageHome = await tempProject();
@@ -47,6 +60,7 @@ describe("Nerve system prompt", () => {
       skills: resources.skills,
     });
 
+    assert.match(prompt, /^You are an expert coding assistant/);
     assert.match(prompt, /inside Nerve, a coding agent harness/);
     assert.doesNotMatch(prompt, /inside pi, a coding agent harness/);
     assert.match(
@@ -54,6 +68,8 @@ describe("Nerve system prompt", () => {
       /Tools available in this conversation include: read, bash, edit, write\./,
     );
     assert.match(prompt, /API-provided tool schemas/);
+    assert.match(prompt, /^Guidelines:\n- /m);
+    assert.doesNotMatch(prompt, /^ +Guidelines:/m);
     assert.doesNotMatch(prompt, /Available tools:\n- read:/);
     assert.doesNotMatch(prompt, /<project_context>/);
     assert.match(prompt, /<project_instructions path=".*AGENTS\.md">/);
@@ -227,12 +243,15 @@ describe("Nerve system prompt", () => {
     });
 
     assert.match(prompt, /Custom base prompt\./);
-    assert.match(prompt, /\[PLAN MODE ACTIVE\]/);
+    assert.match(prompt, /^\[PLAN MODE ACTIVE\]$/m);
+    assert.doesNotMatch(prompt, /^ +\[PLAN MODE ACTIVE\]/m);
     assert.match(
       prompt,
       /WRITE and EDIT only plan files inside \/tmp\/nerve\/plans\//,
     );
     assert.match(prompt, /plan_mode_present using the plan file path/);
+    assert.match(prompt, /^Restrictions:\n- Use read-only/m);
+    assert.match(prompt, /^## Workflow\n\n1\. Understand/m);
     assert.doesNotMatch(prompt, /plan_write/);
   });
 
