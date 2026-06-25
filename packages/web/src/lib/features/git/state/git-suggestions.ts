@@ -13,6 +13,30 @@ function scope(set: GitRepoSummary[]): string {
     : "";
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function gitStatusCommandFor(repo: GitRepoSummary): string {
+  return repo.relativePath === "."
+    ? "git status --short --branch"
+    : `git -C ${shellQuote(repo.relativePath)} status --short --branch`;
+}
+
+function gitStatusBlock(repos: GitRepoSummary[]): string {
+  const unique = uniqueRepos(repos);
+  const command =
+    unique.length === 1
+      ? gitStatusCommandFor(unique[0])
+      : unique
+          .map(
+            (repo) =>
+              `printf '\\n## %s\\n' ${shellQuote(repo.relativePath)}\n${gitStatusCommandFor(repo)}`,
+          )
+          .join("\n");
+  return `\`\`\`!!!\n${command}\n\`\`\`\n\n`;
+}
+
 function uniqueRepos(repos: GitRepoSummary[]): GitRepoSummary[] {
   const seen = new Set<string>();
   const result: GitRepoSummary[] = [];
@@ -56,9 +80,10 @@ export function buildGitSuggestions(ctx: GitContext): GitSuggestion[] {
       id: "commit",
       label: "Commit changes",
       prompt:
-        changed.length > 1
+        gitStatusBlock(changed) +
+        (changed.length > 1
           ? `For each repository with uncommitted changes, stage and commit its changes with a clear, conventional commit message derived from that repo's own diff${scope(changed)}.`
-          : "Stage and commit the current changes with a clear, conventional commit message summarizing what changed.",
+          : "Stage and commit the current changes with a clear, conventional commit message summarizing what changed."),
     });
   }
 
@@ -67,9 +92,10 @@ export function buildGitSuggestions(ctx: GitContext): GitSuggestion[] {
       id: "commit-branch",
       label: "Commit on a feature branch",
       prompt:
-        onBaseChanged.length > 1
+        gitStatusBlock(onBaseChanged) +
+        (onBaseChanged.length > 1
           ? `Create a feature branch (reuse one descriptive branch name across repos) and commit the changes in each repository currently on its base branch${scope(onBaseChanged)}. Use a clear commit message per repo based on its diff.`
-          : "Create a new feature branch with a descriptive name, then stage and commit the current changes to it with a clear commit message.",
+          : "Create a new feature branch with a descriptive name, then stage and commit the current changes to it with a clear commit message."),
     });
   }
 
@@ -89,7 +115,7 @@ export function buildGitSuggestions(ctx: GitContext): GitSuggestion[] {
     suggestions.push({
       id: "open-pr",
       label: prRepos.length > 1 ? "Create PRs" : "Create a PR",
-      prompt: `${steps}${suffix}`,
+      prompt: `${gitStatusBlock(prRepos)}${steps}${suffix}`,
     });
   }
 

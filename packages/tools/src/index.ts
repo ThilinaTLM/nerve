@@ -14,6 +14,7 @@ export {
   boundText,
   buildProcessResult,
   buildProcessTextResult,
+  executeBash,
   executeEdit,
   executeTool,
   FILE_OUTPUT_MAX_LINE_CHARS,

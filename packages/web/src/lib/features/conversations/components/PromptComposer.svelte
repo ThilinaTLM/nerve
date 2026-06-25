@@ -3,6 +3,10 @@
   import Mic from "@lucide/svelte/icons/mic";
   import Send from "@lucide/svelte/icons/send";
   import Square from "@lucide/svelte/icons/square";
+  import {
+    hasExecutableCommandBlocks,
+    isInlineCommandPrompt,
+  } from "@nervekit/shared";
   import { uploadClipboardImage } from "$lib/api";
   import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
   import {
@@ -108,7 +112,11 @@
   const blockedForReview = $derived(pendingApproval || pendingQuestion || pendingPlan);
   const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview && !compacting));
   const editorDisabled = $derived(!interactive || !canPrompt);
-  const submitDisabled = $derived(!interactive || !canPrompt || voiceSubmitPending);
+  const commandMode = $derived(isInlineCommandPrompt(text));
+  const executableBlocks = $derived(hasExecutableCommandBlocks(text));
+  const submitDisabled = $derived(
+    !interactive || !canPrompt || voiceSubmitPending || (commandMode && sending),
+  );
   const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
   const supportsAudioRecording = $derived(voiceInputSession.isSupported());
   const micDisabled = $derived(
@@ -139,9 +147,11 @@
         ? "Transcribe and send prompt"
         : compacting
           ? "Compacting context"
-          : sending
-            ? "Queue prompt"
-            : "Send prompt",
+          : commandMode
+            ? "Run command"
+            : sending
+              ? "Queue prompt"
+              : "Send prompt",
   );
   const sendTitle = $derived(
     voiceSubmitPending
@@ -150,9 +160,13 @@
         ? "Stop recording, transcribe, and send prompt"
         : compacting
           ? "Compacting context"
-          : sending
-            ? "Queue prompt for the next agent turn"
-            : "Send prompt",
+          : commandMode
+            ? sending
+              ? "Wait for the current agent turn before running a command"
+              : "Run command"
+            : sending
+              ? "Queue prompt for the next agent turn"
+              : "Send prompt",
   );
 
   function formatElapsed(ms: number): string {
@@ -163,7 +177,14 @@
   }
 
   async function submitComposer() {
-    if (!interactive || blockedForReview || compacting || voiceSubmitPending) return;
+    if (
+      !interactive ||
+      blockedForReview ||
+      compacting ||
+      voiceSubmitPending ||
+      (commandMode && sending)
+    )
+      return;
 
     if (recording && voiceTarget) {
       voiceSubmitPending = true;
@@ -255,7 +276,7 @@
     />
   {/if}
 
-  <div class="composer-surface" data-mode={mode}>
+  <div class="composer-surface" data-mode={mode} data-command-mode={commandMode ? "true" : undefined} data-executable-blocks={executableBlocks ? "true" : undefined}>
     <div class="editor-shell">
       <ComposerToolbar
         {controlsDisabled}
@@ -372,6 +393,15 @@
   .composer-surface[data-mode="planning"]:focus-within {
     border-color: var(--success);
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--success) 35%, transparent);
+  }
+
+  .composer-surface[data-command-mode="true"] {
+    border-color: var(--info);
+  }
+
+  .composer-surface[data-command-mode="true"]:focus-within {
+    border-color: var(--info);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--info) 40%, transparent);
   }
 
   .composer[data-pending-approval="true"] .composer-surface,

@@ -78,6 +78,10 @@ describe("buildGitSuggestions", () => {
       ["open-pr"],
     );
     assert.equal(result.find((s) => s.id === "open-pr")?.label, "Create a PR");
+    assert.match(
+      result.find((s) => s.id === "open-pr")?.prompt ?? "",
+      /^```!!!\ngit status --short --branch\n```/,
+    );
   });
 
   it("drops open-pr when GitHub is unavailable", () => {
@@ -124,6 +128,8 @@ describe("buildGitSuggestions", () => {
     const openPr = result.find((s) => s.id === "open-pr");
     assert.equal(openPr?.label, "Create PRs");
     assert.match(openPr?.prompt ?? "", /api, web/);
+    assert.match(openPr?.prompt ?? "", /git -C 'api' status --short --branch/);
+    assert.match(openPr?.prompt ?? "", /git -C 'web' status --short --branch/);
   });
 
   it("does not offer open-pr or push for a clean base branch with committed changes", () => {
@@ -143,6 +149,22 @@ describe("buildGitSuggestions", () => {
     assert.deepEqual(ids(ctx([pushedFeature])), ["open-pr"]);
   });
 
+  it("shell-quotes repository paths in executable status blocks", () => {
+    const dirty = repo({
+      relativePath: "docs/site's app",
+      name: "docs",
+      dirty: true,
+      changeCount: 1,
+    });
+    const commit = buildGitSuggestions(ctx([dirty])).find(
+      (s) => s.id === "commit",
+    );
+    assert.match(
+      commit?.prompt ?? "",
+      /git -C 'docs\/site'\\''s app' status --short --branch/,
+    );
+  });
+
   it("scopes the commit prompt across multiple dirty repos", () => {
     const a = repo({
       relativePath: "api",
@@ -160,5 +182,8 @@ describe("buildGitSuggestions", () => {
       (s) => s.id === "commit",
     );
     assert.match(commit?.prompt ?? "", /for these repositories: api, web/);
+    assert.match(commit?.prompt ?? "", /^```!!!/);
+    assert.match(commit?.prompt ?? "", /git -C 'api' status --short --branch/);
+    assert.match(commit?.prompt ?? "", /git -C 'web' status --short --branch/);
   });
 });

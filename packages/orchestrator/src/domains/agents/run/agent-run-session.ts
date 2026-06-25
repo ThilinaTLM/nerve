@@ -13,7 +13,12 @@ import type {
   PromptRequest,
   ToolName,
 } from "@nervekit/shared";
-import { createId, toolNameSchema } from "@nervekit/shared";
+import {
+  createId,
+  findExecutableCommandBlocks,
+  replaceExecutableCommandBlocks,
+  toolNameSchema,
+} from "@nervekit/shared";
 import { HttpError } from "../../../http/errors.js";
 import { loadHarnessResources } from "../../../resource-loader.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
@@ -23,6 +28,7 @@ import {
   toolPromptMetadata,
 } from "../../tools/agent-tool-adapter.js";
 import type { AgentRunner } from "./agent-runner.js";
+import { inlineCommandExecutionResultText } from "./inline-command-results.js";
 import {
   assistantContentRedacted,
   assistantToolCallDraft,
@@ -63,6 +69,7 @@ export async function runAgentPromptSession(
   const runId = createId("run");
   const runStartedAt = performance.now();
   let abortRequested = false;
+  const runAbortController = new AbortController();
   let lastAssistantEntry: ConversationEntry | undefined;
   let currentTurnId: string | undefined;
   let currentLiveMessageId: string | undefined;
@@ -524,6 +531,7 @@ export async function runAgentPromptSession(
       abort: async () => {
         abortRequested = true;
         this.deps.state.conversationRuntime.markAborting(runId);
+        runAbortController.abort();
         await harness.abort();
       },
       messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
@@ -562,10 +570,16 @@ export async function runAgentPromptSession(
     });
     await this.deps.setAgentStatus(agent, "running");
 
+    const promptRequest = await expandExecutablePromptBlocks(
+      this,
+      agent,
+      request,
+      runAbortController.signal,
+    );
     const runAssistant = await this.runHarnessWithRetries({
       harness,
       conversation: harnessConversation,
-      request,
+      request: promptRequest,
       continue: options.continue === true,
       runId,
       agent,
@@ -763,3 +777,33 @@ export async function runAgentPromptSession(
     throw error;
   }
 }
+
+async function expandExecutablePromptBlocks(
+  runner: AgentRunner,
+  agent: AgentRecord,
+  request: PromptRequest,
+  signal: AbortSignal,
+): Promise<PromptRequest> {
+  const blocks = findExecutableCommandBlocks(request.text);
+  if (blocks.length === 0) return request;
+
+  const replacements = [];
+  for (const block of blocks) {
+    if (signal.aborted) throw new Error("Command execution aborted.");
+    const result = await runner.executeInlinePromptBlockCommand(
+      agent,
+      block.command,
+      { signal },
+    );
+    replacements.push({
+      block,
+      text: inlineCommandExecutionResultText(block.command, result),
+    });
+  }
+
+  return {
+    ...request,
+    text: replaceExecutableCommandBlocks(request.text, replacements),
+  };
+}
+

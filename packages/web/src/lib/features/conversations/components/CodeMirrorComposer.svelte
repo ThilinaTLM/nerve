@@ -10,7 +10,16 @@
   import { markdown } from "@codemirror/lang-markdown";
   import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
   import { Compartment, EditorState, Prec } from "@codemirror/state";
-  import { EditorView, keymap, placeholder as placeholderExtension, type ViewUpdate } from "@codemirror/view";
+  import {
+    Decoration,
+    type DecorationSet,
+    EditorView,
+    keymap,
+    placeholder as placeholderExtension,
+    ViewPlugin,
+    type ViewUpdate,
+  } from "@codemirror/view";
+  import { findExecutableCommandBlocks } from "@nervekit/shared";
   import type { CompletionItem } from "$lib/api";
   import { clientLog } from "$lib/core/logger/client-logger";
 
@@ -265,6 +274,47 @@
     return null;
   }
 
+  function executableCommandBlockDecorations(state: EditorState): DecorationSet {
+    const ranges = [];
+    const blockLine = Decoration.line({ class: "cm-executable-command-block-line" });
+    const commandMark = Decoration.mark({ class: "cm-executable-command-block-command" });
+    for (const block of findExecutableCommandBlocks(state.doc.toString())) {
+      let pos = block.start;
+      while (pos < block.end) {
+        const line = state.doc.lineAt(pos);
+        ranges.push(blockLine.range(line.from));
+        if (line.to >= block.end) break;
+        pos = line.to + 1;
+      }
+      if (block.commandEnd > block.commandStart) {
+        ranges.push(commandMark.range(block.commandStart, block.commandEnd));
+      }
+    }
+    return Decoration.set(
+      ranges.sort((a, b) => a.from - b.from || a.to - b.to),
+      true,
+    );
+  }
+
+  const executableCommandBlockHighlighter = ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+
+      constructor(view: EditorView) {
+        this.decorations = executableCommandBlockDecorations(view.state);
+      }
+
+      update(update: ViewUpdate) {
+        if (update.docChanged) {
+          this.decorations = executableCommandBlockDecorations(update.state);
+        }
+      }
+    },
+    {
+      decorations: (plugin) => plugin.decorations,
+    },
+  );
+
   function completionExtensions() {
     return autocompletion({
       override: [completionSource],
@@ -328,6 +378,7 @@
           placeholderCompartment.of(placeholderExtension(placeholder)),
           editableCompartment.of(editableExtensions(disabled)),
           completionCompartment.of(completionExtensions()),
+          executableCommandBlockHighlighter,
           Prec.highest(
             keymap.of([
               { key: "Enter", run: submitOnEnter },
@@ -365,6 +416,14 @@
             },
             ".cm-placeholder": {
               color: "color-mix(in oklab, var(--muted-foreground) 75%, transparent)",
+            },
+            ".cm-executable-command-block-line": {
+              backgroundColor: "color-mix(in oklab, var(--info) 9%, transparent)",
+            },
+            ".cm-executable-command-block-command": {
+              backgroundColor: "color-mix(in oklab, var(--info) 16%, transparent)",
+              color: "var(--foreground)",
+              borderRadius: "var(--radius-sm)",
             },
             ".cm-scroller": {
               minHeight: "92px",

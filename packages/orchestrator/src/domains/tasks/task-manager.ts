@@ -94,6 +94,7 @@ export type ForegroundBashPromotionInput = {
   origin: Extract<TaskRecord["origin"], { kind: "agent_tool" }>;
   signal?: AbortSignal;
   onOutput?: (update: ToolExecutionOutputUpdate) => void;
+  continueAfterPromotion?: boolean;
 };
 
 export type ForegroundBashPromotionResult =

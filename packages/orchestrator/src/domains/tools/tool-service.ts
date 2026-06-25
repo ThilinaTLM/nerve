@@ -50,6 +50,8 @@ export type ToolRequestOptions = {
   anchor?: ToolAnchor;
   durableSuspend?: boolean;
   hidden?: boolean;
+  continueAfterPromotedTask?: boolean;
+  useForegroundBash?: boolean;
 };
 
 export type ExploreProgressUpdate = {

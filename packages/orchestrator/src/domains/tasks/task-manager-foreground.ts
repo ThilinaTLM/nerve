@@ -127,7 +127,10 @@ export async function runForegroundBashWithPromotion(
   if (latestManaged) latestManaged.onOutput = undefined;
   const promoted = await this.updateTask(task.id, {
     visibility: "background",
-    completion: { inject: true, outputTailLineCount: 80 },
+    completion: {
+      inject: input.continueAfterPromotion !== false,
+      outputTailLineCount: 80,
+    },
     notifications: {
       enabled: true,
       ready: true,

@@ -1,4 +1,4 @@
-import { deriveConversationTitle } from "@nervekit/shared";
+import { deriveConversationTitle, isInlineCommandPrompt } from "@nervekit/shared";
 import {
   type AgentRecord,
   apiPathSegment,
@@ -182,7 +182,9 @@ async function sendPendingPrompt(
     view.error = undefined;
     view.streamingText = "";
     view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
-    view.transcript = [{ role: "user", text, optimistic: true }];
+    view.transcript = isInlineCommandPrompt(text)
+      ? []
+      : [{ role: "user", text, optimistic: true }];
     view.composerText = preservedComposerText;
     workspaceState.error = undefined;
     if (clearComposer) composerDraft.text = "";
@@ -266,10 +268,12 @@ export async function sendPromptText(
       });
       return;
     }
-    view.transcript = [
-      ...view.transcript,
-      { role: "user", text, optimistic: true },
-    ];
+    if (!isInlineCommandPrompt(text)) {
+      view.transcript = [
+        ...view.transcript,
+        { role: "user", text, optimistic: true },
+      ];
+    }
     await apiPost(`/api/agents/${apiPathSegment(agentId)}/prompt`, { text });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);

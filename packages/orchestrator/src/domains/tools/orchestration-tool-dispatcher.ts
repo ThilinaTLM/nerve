@@ -168,7 +168,7 @@ export class OrchestrationToolDispatcher {
         if (toolCall.toolName === "bash" || toolCall.toolName === "python") {
           delete args.cwd;
         }
-        if (toolCall.toolName === "bash") {
+        if (toolCall.toolName === "bash" && options.useForegroundBash !== false) {
           const agent = this.deps.getAgent(toolCall.agentId);
           const promoted = await this.deps.tasks.runForegroundBashWithPromotion(
             {
@@ -191,6 +191,8 @@ export class OrchestrationToolDispatcher {
                 liveMessageId: toolCall.liveMessageId,
                 contentIndex: toolCall.contentIndex,
               },
+              continueAfterPromotion:
+                options.continueAfterPromotedTask !== false,
             },
           );
           return promoted.result;

@@ -7,23 +7,29 @@ import {
   Conversation,
   calculateContextTokens,
   computeContextUsage,
+  convertToLlm,
   deriveAutoCompactionPolicy,
   getModelContextWindow,
   isContextOverflowAssistantMessage,
   shouldAutoCompact,
 } from "@nervekit/agent";
-import type {
-  AgentRecord,
-  ContextUsage,
-  ConversationEntry,
-  ConversationRecord,
-  ConversationRunRetryExhaustedData,
-  ConversationRunStatusDetails,
-  ConversationRunStatusState,
-  CreateAgentRequest,
-  PromptRequest,
-  ToolName,
+import {
+  type AgentRecord,
+  type ContextUsage,
+  type ConversationEntry,
+  type ConversationRecord,
+  type ConversationRunRetryExhaustedData,
+  type ConversationRunStatusDetails,
+  type ConversationRunStatusState,
+  type CreateAgentRequest,
+  createId,
+  deriveConversationTitle,
+  type PromptRequest,
+  parseInlineCommandPrompt,
+  type ToolCallRecord,
+  type ToolName,
 } from "@nervekit/shared";
+import { executeBash, type ToolExecutionResult } from "@nervekit/tools";
 import type { AuthManager } from "../../../auth.js";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
@@ -44,6 +50,11 @@ import type { AgentSuspensionService } from "../agent-suspension.service.js";
 import type { PromptQueueRepository } from "../prompt-queue.repository.js";
 import { runAgentPromptSession } from "./agent-run-session.js";
 import { delay, isRetryableAssistantError } from "./agent-runner-shared.js";
+import {
+  bashExecutionMessageForToolCall,
+  inlineCommandDisplayText,
+  inlineCommandEntryDetails,
+} from "./inline-command-results.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
 
@@ -121,7 +132,11 @@ export class AgentRunner {
         "Agent is awaiting a human-in-the-loop tool response.",
       );
     }
+    const inlineCommand = parseInlineCommandPrompt(request.text);
     const activeRun = this.deps.state.runs.get(agent.id);
+    if (activeRun && inlineCommand) {
+      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+    }
     if (activeRun) {
       const behavior = request.behavior ?? "steer";
       if (behavior === "reject-if-busy") {
@@ -174,7 +189,219 @@ export class AgentRunner {
       }
       return;
     }
+    if (inlineCommand) {
+      void this.runInlineCommandPrompt(agent, inlineCommand.command).catch(
+        () => undefined,
+      );
+      return;
+    }
     void this.runAgentPrompt(agent, request).catch(() => undefined);
+  }
+
+  async executeInlineBashCommand(
+    agent: AgentRecord,
+    command: string,
+    options: {
+      runId: string;
+      signal?: AbortSignal;
+      continueAfterPromotedTask?: boolean;
+      useForegroundBash?: boolean;
+    },
+  ): Promise<ToolCallRecord> {
+    const toolCall = await this.deps.tools.requestToolAndWait(
+      agent,
+      "bash",
+      { command },
+      {
+        runId: options.runId,
+        signal: options.signal,
+        continueAfterPromotedTask: options.continueAfterPromotedTask,
+        useForegroundBash: options.useForegroundBash,
+      },
+    );
+    if (options.signal?.aborted) throw new Error("Command execution aborted.");
+    return toolCall;
+  }
+
+  async executeInlinePromptBlockCommand(
+    agent: AgentRecord,
+    command: string,
+    options: { signal?: AbortSignal },
+  ): Promise<ToolExecutionResult> {
+    return executeBash(
+      { command },
+      {
+        cwd: agent.projectDir,
+        signal: options.signal,
+        dataDir: this.deps.storage.paths.home,
+      },
+    );
+  }
+
+  async runInlineCommandPrompt(
+    agent: AgentRecord,
+    command: string,
+  ): Promise<ConversationEntry> {
+    if (this.deps.state.runs.has(agent.id)) {
+      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+    }
+
+    const runId = createId("run");
+    const entryId = createId("entry");
+    const abortController = new AbortController();
+    let abortRequested = false;
+    const startedAt = new Date().toISOString();
+    const runStartedAt = performance.now();
+
+    try {
+      const conversation = this.deps.state.getConversation(
+        agent.conversationId,
+      );
+      const project = this.deps.state.getProject(agent.projectId);
+      this.deps.state.conversationRuntime.startRun({
+        agentId: agent.id,
+        projectId: agent.projectId,
+        conversationId: agent.conversationId,
+        runId,
+        startedAt,
+      });
+      await this.deps.events.publish("conversation.run.started", {
+        agentId: agent.id,
+        projectId: agent.projectId,
+        conversationId: agent.conversationId,
+        runId,
+        parentEntryId: conversation.activeEntryId,
+        startedAt,
+      });
+      this.deps.state.runs.set(agent.id, {
+        runId,
+        abort: () => {
+          abortRequested = true;
+          this.deps.state.conversationRuntime.markAborting(runId);
+          abortController.abort();
+        },
+        messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
+      });
+      await this.deps.setAgentStatus(agent, "running");
+
+      const toolCall = await this.executeInlineBashCommand(agent, command, {
+        runId,
+        signal: abortController.signal,
+        continueAfterPromotedTask: false,
+        useForegroundBash: false,
+      });
+      const createdAt = new Date().toISOString();
+      await this.deps.harnessManager.appendAgentMessageWithId(
+        agent,
+        entryId,
+        bashExecutionMessageForToolCall(toolCall, createdAt),
+        createdAt,
+      );
+      const entry = await this.deps.appendEntry(
+        {
+          id: entryId,
+          conversationId: agent.conversationId,
+          agentId: agent.id,
+          runId,
+          role: "system",
+          kind: "message",
+          text: inlineCommandDisplayText(toolCall),
+          details: inlineCommandEntryDetails(toolCall),
+          createdAt,
+        },
+        { mirrorToHarness: false },
+      );
+      await this.deps.events.publish("conversation.entry.appended", {
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        runId,
+        entry,
+      });
+
+      if (
+        this.deps.state.getConversationEntries(agent.conversationId).length ===
+        1
+      ) {
+        const title = deriveConversationTitle(`! ${command}`);
+        if (title) {
+          const latestConversation = this.deps.state.getConversation(
+            agent.conversationId,
+          );
+          await this.deps.updateConversation({
+            ...latestConversation,
+            title,
+            updatedAt: createdAt,
+          });
+          await this.deps.events.publish("conversation.updated", {
+            conversation: this.deps.state.conversations.get(
+              agent.conversationId,
+            ),
+          });
+        }
+      }
+
+      const storage = await this.deps.harnessManager.openStorage(
+        conversation,
+        project.dir,
+      );
+      const branch = await storage.getPathToRoot(await storage.getLeafId());
+      const messages = convertToLlm(buildConversationContext(branch).messages);
+      this.deps.conversationService.setForAgent(agent.id, messages);
+
+      const latest = this.deps.state.agents.get(agent.id);
+      if (latest) await this.deps.setAgentStatus(latest, "idle");
+      this.deps.state.runs.delete(agent.id);
+      this.deps.state.conversationRuntime.completeRun(runId);
+      const completedAt = new Date().toISOString();
+      await this.deps.events.publish("conversation.run.completed", {
+        agentId: agent.id,
+        projectId: agent.projectId,
+        runId,
+        conversationId: agent.conversationId,
+        finalEntryId: entry.id,
+        completedAt,
+      });
+      await this.deps.logger.info("Inline command run completed", {
+        agentId: agent.id,
+        conversationId: agent.conversationId,
+        projectId: agent.projectId,
+        runId,
+        durationMs: Math.round(performance.now() - runStartedAt),
+        context: { finalEntryId: entry.id },
+      });
+      return entry;
+    } catch (error) {
+      this.deps.state.runs.delete(agent.id);
+      const aborted = abortRequested || abortController.signal.aborted;
+      const latest = this.deps.state.agents.get(agent.id);
+      if (latest)
+        await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
+      this.deps.state.conversationRuntime.failRun(runId);
+      await this.terminateRunToolCalls(runId);
+      const message = error instanceof Error ? error.message : String(error);
+      await this.deps.events.publish("conversation.run.failed", {
+        agentId: agent.id,
+        projectId: agent.projectId,
+        runId,
+        conversationId: agent.conversationId,
+        message,
+        aborted,
+        failedAt: new Date().toISOString(),
+      });
+      await this.deps.logger[aborted ? "warn" : "error"](
+        aborted ? "Inline command run aborted" : "Inline command run failed",
+        {
+          agentId: agent.id,
+          conversationId: agent.conversationId,
+          projectId: agent.projectId,
+          runId,
+          durationMs: Math.round(performance.now() - runStartedAt),
+          context: { aborted },
+          error,
+        },
+      );
+      throw error;
+    }
   }
 
   async continueAgent(agentId: string): Promise<void> {

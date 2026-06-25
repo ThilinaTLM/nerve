@@ -38,6 +38,14 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+function inlineCommandPromptTexts(entry: ConversationEntry): Set<string> {
+  const details = recordValue(entry.details);
+  if (details?.type !== "inline_command_result") return new Set();
+  const command = typeof details.command === "string" ? details.command.trim() : "";
+  if (!command) return new Set();
+  return new Set([`!${command}`, `! ${command}`]);
+}
+
 function toolCallFromEntry(
   entry: ConversationEntry,
 ): ToolCallRecord | undefined {
@@ -67,11 +75,19 @@ export function handleEntryAppended(
   }
   const items = entryToTranscriptItems(entry);
   const ids = new Set(items.map((item) => item.id).filter(Boolean));
+  const inlineCommandPrompts = inlineCommandPromptTexts(entry);
   view.transcript = [
     ...view.transcript.filter((item) => !item.id || !ids.has(item.id)),
     ...items,
   ].filter((item, _index, all) => {
     if (!item.optimistic) return true;
+    if (entry.role === "user" && item.role === "user") return false;
+    if (
+      item.role === "user" &&
+      inlineCommandPrompts.has(item.text.trim())
+    ) {
+      return false;
+    }
     return !all.some(
       (candidate) =>
         !candidate.optimistic &&
@@ -333,6 +349,10 @@ export function handleToolOutputDelta(
     (stream !== "stdout" && stream !== "stderr" && stream !== "combined")
   )
     return;
+  ensureLiveState(
+    view,
+    typeof event.data?.runId === "string" ? event.data.runId : undefined,
+  );
   const previous = view.live.toolOutputByToolCallId[toolCallId];
   const expected = Number(event.data?.offset ?? previous?.text.length ?? 0);
   if (previous && previous.text.length > expected) return;
