@@ -1,0 +1,389 @@
+# Event Stream
+
+The event stream profile carries ordered domain events from the orchestrator to clients. It is optimized for live UI synchronization, reconnect/replay, and high-frequency transient updates.
+
+Version 1 uses the existing Nerve event model as the domain event payload and wraps one or more events in protocol `event.batch` messages.
+
+## Existing domain event envelope
+
+Nerve domain events use this shape:
+
+```ts
+type EventEnvelope<TData = unknown> = {
+  seq: number;
+  id: string;
+  ts: string;
+  type: string;
+  durability: "durable" | "transient";
+  data: TData;
+};
+```
+
+Requirements:
+
+- `seq` MUST be a non-negative safe integer.
+- `id` MUST be a stable event identifier and SHOULD use the `evt_` prefix.
+- `ts` MUST be an ISO 8601 UTC timestamp.
+- `type` MUST be a non-empty domain event name such as `conversation.entry.appended`.
+- `durability` MUST be `durable` or `transient`.
+- `data` MUST conform to the domain schema for `type`.
+
+## Streams
+
+A stream is an ordered sequence of events. Version 1 defines one REQUIRED stream:
+
+```text
+global
+```
+
+Unless a capability explicitly defines scoped streams, `seq` always refers to the `global` stream.
+
+Future stream identifiers SHOULD use these formats:
+
+```text
+conversation:<conversationId>
+task:<taskId>
+agent:<agentId>
+project:<projectId>
+```
+
+If future scoped streams use per-stream sequence numbers, every message involving those streams MUST include the stream identifier to avoid ambiguity.
+
+## Durable and transient events
+
+### Durable events
+
+Durable events represent application state changes that can be replayed.
+
+Requirements:
+
+- Durable events MUST be persisted or otherwise reconstructable before being acknowledged as published by the orchestrator.
+- Durable events in a stream MUST have strictly increasing `seq` values.
+- Durable events MUST be replayable by cursor while they are within the stream's retention/replay window.
+- Clients MUST apply durable events in ascending `seq` order per stream.
+- Clients MUST deduplicate durable events by `(stream, seq)`.
+
+Examples:
+
+- `conversation.entry.appended`
+- `conversation.run.started`
+- `conversation.run.completed`
+- `task.created`
+- `approval.requested`
+- `settings.updated`
+
+### Transient events
+
+Transient events represent best-effort live updates that are not required to reconstruct durable state.
+
+Requirements:
+
+- Transient events MAY be dropped under backpressure.
+- Transient events MAY be coalesced when a capability or domain rule defines how.
+- Transient events SHOULD still receive `seq` values if they share the global event bus, but clients MUST NOT require every transient `seq` to be replayable.
+- Transient events MUST NOT be the only record of durable application state.
+
+Examples:
+
+- live token/content deltas;
+- progress ticks;
+- high-frequency tool output chunks;
+- subscription usage polling updates;
+- UI hints.
+
+### Mixed durability streams
+
+The existing global stream may contain both durable and transient events. This creates an important distinction:
+
+- A gap in durable events is fatal for state correctness.
+- A missing transient event may be acceptable.
+
+To make this safe, batches include durable sequence range metadata. Clients use that metadata to validate durable ordering without assuming every numeric sequence is replayable.
+
+## `event.batch`
+
+Direction: orchestrator → client.
+
+Purpose: deliver one or more events for one stream.
+
+```ts
+type EventBatchData = {
+  stream: string;
+  batchId: string;
+  reason: "live" | "replay" | "snapshot_delta" | "catchup";
+  events: EventEnvelope[];
+  range: {
+    firstSeq: number | null;
+    lastSeq: number | null;
+    durableFirstSeq?: number | null;
+    durableLastSeq?: number | null;
+    durableCount: number;
+    transientCount: number;
+  };
+  replay?: {
+    replayId: string;
+    fromSeq: number;
+    toSeq?: number;
+    complete?: boolean;
+  };
+  compression?: {
+    algorithm: "none";
+  };
+};
+```
+
+`batchId` SHOULD use a message-like unique ID or the protocol message `id` MAY be reused if the implementation does not need a separate batch identifier.
+
+### Empty batches
+
+`events` SHOULD NOT be empty for ordinary live delivery. An empty batch MAY be sent for replay boundary signaling only if paired with `replay` metadata, but `replay.started` and `replay.complete` are preferred.
+
+If `events` is empty:
+
+- `range.firstSeq` MUST be `null`.
+- `range.lastSeq` MUST be `null`.
+- `range.durableCount` MUST be `0`.
+- `range.transientCount` MUST be `0`.
+
+### Batch ordering
+
+For a single stream, the orchestrator MUST send batches in ascending event order.
+
+Within a batch:
+
+- events MUST be sorted by `seq` ascending;
+- duplicate `seq` values MUST NOT appear;
+- `range.firstSeq` and `range.lastSeq` MUST match the first and last event `seq` values when events are present;
+- `range.durableCount` MUST equal the number of durable events in the batch;
+- `range.transientCount` MUST equal the number of transient events in the batch.
+
+### Durable range metadata
+
+`durableFirstSeq` and `durableLastSeq` describe the durable events inside the batch.
+
+- If the batch contains durable events, both fields SHOULD be present and non-null.
+- If the batch contains no durable events, both fields SHOULD be `null` or omitted.
+- `durableCount` MUST always be present.
+
+Clients use durable range metadata to detect gaps in state-changing events while allowing missing transient events.
+
+## Client dispatch rules
+
+A client receiving `event.batch` MUST follow these rules for each stream.
+
+### 1. Validate envelope and payload
+
+The client validates:
+
+- protocol envelope;
+- `event.batch` payload shape;
+- stream name;
+- batch range metadata;
+- event envelope fields;
+- event sorting and duplicate `seq` within the batch.
+
+If validation fails, the client SHOULD send `error` with code `INVALID_MESSAGE` and MAY close or request resync depending on severity.
+
+### 2. Ignore duplicate durable events
+
+If a durable event has `seq <= processedSeq` for the stream, the client MUST NOT apply it again.
+
+The client MAY still inspect the duplicate for diagnostics, but application state reducers MUST be idempotent with respect to duplicate durable events.
+
+### 3. Detect durable gaps
+
+Let `expectedDurableSeq` be the next durable event sequence the client expects. In a pure global monotonic stream, this is usually `processedSeq + 1`, but when transient events share the sequence space the client may need replay metadata or event bus knowledge to know whether missing numeric sequences are transient.
+
+For v1 global stream compatibility, clients SHOULD use this practical rule:
+
+- If the batch contains a durable event with `seq > processedSeq + 1` and the client has not been told that intervening sequences are transient or intentionally skipped, the client MUST treat it as a potential gap.
+- On a potential gap, the client MUST stop applying later durable events for that stream and request replay from `processedSeq`.
+
+The orchestrator SHOULD avoid ambiguous gaps by replaying all available events, including transient events still in memory, during short reconnects. If transient events are not replayable, the orchestrator SHOULD include `flow.update` or replay metadata indicating that durable continuity is still valid.
+
+### 4. Apply in order
+
+The client MUST apply durable events in ascending `seq` order.
+
+For transient events:
+
+- If a transient event belongs to an active live operation and arrives in order, the client SHOULD apply it.
+- If it arrives after the durable state that supersedes it, the client MAY ignore it.
+- If applying it would conflict with current durable state, the client MUST ignore it.
+
+### 5. Advance processed cursor
+
+The client advances its processed cursor only after successfully applying all durable events up to that cursor.
+
+The processed cursor MUST NOT advance past a durable event that failed validation or failed application.
+
+### 6. Acknowledge
+
+The client sends `ack` according to [Replay and Acknowledgements](./replay-and-ack.md).
+
+## Event type naming
+
+Domain event `type` names SHOULD use lowercase dot-separated names:
+
+```text
+<domain>.<entity_or_action>[.<detail>]
+```
+
+Examples:
+
+```text
+conversation.entry.appended
+conversation.run.started
+conversation.live.content.delta
+task.log
+approval.requested
+auth.providers_changed
+settings.updated
+```
+
+Guidelines:
+
+- Use nouns for entities and past-tense verbs for completed durable changes.
+- Use `.started`, `.updated`, `.completed`, `.failed`, `.cancelled` consistently.
+- Use `.live.*` for transient streaming details.
+- Avoid transport names in event types.
+- Avoid UI component names in event types.
+
+## Event payload rules
+
+Domain event payloads MUST be transport-neutral and schema-owned by shared domain packages.
+
+Payloads SHOULD:
+
+- include stable entity IDs;
+- include enough data for reducers to update local state incrementally;
+- avoid secrets and raw credentials;
+- avoid huge embedded blobs;
+- include references to files/artifacts where possible;
+- distinguish durable records from presentation hints.
+
+Payloads SHOULD NOT:
+
+- require access to orchestrator-only secrets;
+- contain transport-specific fields such as WebSocket IDs;
+- assume a particular frontend framework;
+- include unbounded logs without pagination or truncation metadata.
+
+## Batching strategy
+
+The orchestrator SHOULD batch events to balance latency and throughput.
+
+Recommended default live batching targets:
+
+| Parameter | Default |
+| --- | ---: |
+| Maximum batch delay under light load | 16 ms |
+| Maximum batch delay under heavy load | 50 ms |
+| Target max encoded batch size | 1 MiB |
+| Hard max encoded batch size | 4 MiB |
+| Target max durable events per batch | 500 |
+| Target max transient events per batch | 2,000 |
+
+The orchestrator SHOULD flush a batch immediately when:
+
+- it contains a user-visible durable event that should render promptly;
+- it reaches size or event-count limits;
+- a replay boundary requires ordering clarity;
+- the session is about to close gracefully.
+
+The orchestrator MAY use shorter batch windows for foreground conversations and longer windows for background task logs.
+
+## Coalescing transient events
+
+Transient events MAY be coalesced only when the domain defines safe semantics.
+
+Examples of safe coalescing:
+
+- multiple progress ticks → latest progress tick;
+- repeated subscription usage updates → latest usage value;
+- task output chunks → combined chunk preserving text order;
+- live content deltas → combined adjacent text delta for the same message/content index.
+
+Coalescing MUST preserve any ordering required by the domain. If coalescing cannot preserve user-visible correctness, transient events SHOULD be dropped only after sending `flow.update` indicating degraded mode or requiring resync.
+
+## Replay batches
+
+When an `event.batch` is part of replay:
+
+- `reason` MUST be `replay` or `catchup`.
+- `replay.replayId` MUST be present.
+- `replay.fromSeq` MUST be the cursor requested by the client or selected by the orchestrator.
+- Batches MUST be sent in ascending sequence order.
+- The replay operation MUST end with `replay.complete` or `replay.unavailable`.
+
+Live events that occur during replay can be handled in one of two ways:
+
+1. **Buffered live mode**
+   - Orchestrator buffers live events for the session until replay completes.
+   - After replay, buffered live events are sent in order.
+   - This is simplest for the client.
+
+2. **Marked catchup mode**
+   - Orchestrator sends replay batches and live catchup batches with explicit metadata.
+   - Client must not apply out-of-order durable events.
+   - This mode requires careful range validation.
+
+Version 1 RECOMMENDS buffered live mode for the WebSocket implementation.
+
+## Gap handling
+
+If the client detects a gap or ambiguous sequence condition, it SHOULD:
+
+1. Stop applying further durable events for that stream.
+2. Continue reading control messages if safe.
+3. Send `replay.request` from its last processed cursor.
+4. Enter a local `catching_up` or `replaying` state.
+5. If replay succeeds, resume normal processing.
+6. If replay is unavailable, load a snapshot or reload the workspace.
+
+The client MAY continue applying transient events that are known not to affect durable state, but UI implementations SHOULD prefer consistency over live visual effects during gap recovery.
+
+## Idempotency
+
+Reducers and event handlers SHOULD be idempotent for durable events. At minimum, they MUST ignore duplicates where `seq <= processedSeq`.
+
+Domain handlers SHOULD also use entity-level IDs to make repeated events safe. For example:
+
+- appending a conversation entry should be safe if the entry ID already exists;
+- updating a task should replace by task ID;
+- resolving an approval should replace by approval ID/status.
+
+## Event retention and replay window
+
+The protocol does not mandate a fixed retention size. The orchestrator MUST advertise enough replay state for the client to decide whether resume is possible:
+
+- latest stream sequence;
+- earliest replayable durable sequence when known;
+- whether snapshot recovery is required.
+
+If the client asks for replay older than available retention, the orchestrator MUST send `replay.unavailable` or `flow.update` with mode `resync_required`.
+
+## Relationship to snapshots
+
+Events are deltas. Snapshots are compact representations of current state.
+
+The protocol supports snapshot-assisted recovery but does not define every domain snapshot shape in this document.
+
+Recommended model:
+
+1. Client loads a snapshot through HTTP or a protocol `request`.
+2. Snapshot response includes `snapshotSeq`, the durable stream cursor at which the snapshot was taken.
+3. Client applies the snapshot.
+4. Client requests or receives event batches with `seq > snapshotSeq`.
+5. Client acknowledges after applying deltas.
+
+Snapshots SHOULD be used when:
+
+- replay would be too large;
+- replay history is unavailable;
+- the client is initializing a complex workspace;
+- domain state can be loaded more efficiently as a materialized view.
+
+## Event stream examples
+
+See [Examples](./examples.md) for live batch, replay batch, transient coalescing, and gap recovery examples.
