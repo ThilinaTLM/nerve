@@ -43,11 +43,28 @@
     <span class="badge">{badge}</span>
     {#if arg}
       {#if arg.openPath}
-        <button class="arg link" type="button" title={arg.text} onclick={() => onOpenFile?.(arg.openPath!, arg.line)}>{arg.text}</button>
+        <button
+          class="arg link"
+          class:whitespace-pre-wrap={arg.preserveWhitespace}
+          type="button"
+          title={arg.text}
+          onclick={() => onOpenFile?.(arg.openPath!, arg.line)}
+        >{arg.text}</button>
       {:else if arg.href}
-        <a class="arg link" href={arg.href} target="_blank" rel="noreferrer noopener" title={arg.text}>{arg.text}</a>
+        <a
+          class="arg link"
+          class:whitespace-pre-wrap={arg.preserveWhitespace}
+          href={arg.href}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={arg.text}
+        >{arg.text}</a>
       {:else}
-        <span class="arg" title={arg.text}>{arg.text}</span>
+        <span
+          class="arg"
+          class:whitespace-pre-wrap={arg.preserveWhitespace}
+          title={arg.text}
+        >{arg.text}</span>
       {/if}
     {/if}
   </div>

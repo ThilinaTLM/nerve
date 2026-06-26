@@ -21,6 +21,8 @@ export type PrimaryArg = {
   openPath?: string;
   line?: number;
   href?: string;
+  /** Preserve embedded whitespace for code/command-like values. */
+  preserveWhitespace?: boolean;
 };
 
 export type ToolPresentation = {

@@ -141,7 +141,9 @@ export function toolPresentation(
       }
       return {
         ...base,
-        primaryArg: view.command ? { text: view.command } : undefined,
+        primaryArg: view.command
+          ? { text: view.command, preserveWhitespace: true }
+          : undefined,
         meta,
         collapse: collapseFor(lines, "lines", "tail"),
       };

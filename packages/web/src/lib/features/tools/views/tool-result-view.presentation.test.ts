@@ -27,6 +27,13 @@ describe("toolPresentation", () => {
     assert.equal(p.collapse, undefined);
   });
 
+  it("preserves whitespace for multi-line bash command primary args", () => {
+    const command = "printf 'a' &&\n  printf 'b'";
+    const p = present("bash", { command }, { content: "ok", exitCode: 0 });
+    assert.equal(p.primaryArg?.text, command);
+    assert.equal(p.primaryArg?.preserveWhitespace, true);
+  });
+
   it("computes a tail collapse for long bash output", () => {
     const output = Array.from({ length: 25 }, (_, i) => `line ${i}`).join("\n");
     const p = present(
