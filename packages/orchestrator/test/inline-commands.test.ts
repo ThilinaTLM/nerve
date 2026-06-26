@@ -27,7 +27,9 @@ async function createProjectConversationAgent() {
   const storage = await initializeStorage(await tempHome("nerve-inline-cmd-"));
   const state = createOrchestratorState(storage, "127.0.0.1", 0);
   await state.registry.hydrate();
-  const project = await state.registry.createProject({ dir: storage.paths.home });
+  const project = await state.registry.createProject({
+    dir: storage.paths.home,
+  });
   const conversation = await state.registry.createConversation({
     projectId: project.id,
   });
@@ -64,9 +66,8 @@ function mockBashTool(
   state: Awaited<ReturnType<typeof createProjectConversationAgent>>["state"],
   output: string,
 ): () => void {
-  const originalRequestToolAndWait = state.registry.tools.requestToolAndWait.bind(
-    state.registry.tools,
-  );
+  const originalRequestToolAndWait =
+    state.registry.tools.requestToolAndWait.bind(state.registry.tools);
   state.registry.tools.requestToolAndWait = async (
     toolAgent,
     toolName,
@@ -100,7 +101,8 @@ function mockBashTool(
 
 describe("inline command prompts", () => {
   it("runs leading bang prompts as command-only transcript entries", async () => {
-    const { state, conversation, agent } = await createProjectConversationAgent();
+    const { state, conversation, agent } =
+      await createProjectConversationAgent();
     try {
       const restoreBashTool = mockBashTool(state, "inline-ok");
       await state.registry.promptAgent(agent.id, { text: "!printf inline-ok" });
@@ -124,7 +126,8 @@ describe("inline command prompts", () => {
   });
 
   it("expands executable prompt blocks before sending to the model", async () => {
-    const { state, conversation, agent } = await createProjectConversationAgent();
+    const { state, conversation, agent } =
+      await createProjectConversationAgent();
     const events = collectEvents(state);
     try {
       await state.registry.promptAgent(agent.id, {
@@ -146,8 +149,11 @@ describe("inline command prompts", () => {
       assert.ok(user);
       assert.ok(assistant);
       assert.doesNotMatch(user.text, /```!!!/);
-      assert.match(user.text, /printf block-ok/);
-      assert.match(user.text, /block-ok/);
+      assert.match(
+        user.text,
+        /```\n\$ printf block-ok\n\n> exit code: 0, status: completed\nblock-ok\n```/,
+      );
+      assert.equal((user.text.match(/```/g) ?? []).length, 2);
       assert.equal(
         events.some((event) => event.type === "conversation.tool_call.updated"),
         false,

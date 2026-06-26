@@ -3,7 +3,9 @@ import type { ToolCallRecord } from "@nervekit/shared";
 import type { ToolExecutionResult } from "@nervekit/tools";
 import { formatToolResultForModel } from "../../tools/agent-tool-adapter.js";
 
-export function inlineCommandEntryDetails(toolCall: ToolCallRecord): Record<string, unknown> {
+export function inlineCommandEntryDetails(
+  toolCall: ToolCallRecord,
+): Record<string, unknown> {
   return {
     type: "inline_command_result",
     command: commandFromToolCall(toolCall),
@@ -49,23 +51,30 @@ type InlineCommandResultTextInput = {
 
 function inlineCommandResultText(input: InlineCommandResultTextInput): string {
   const statusLine = [
-    `status: ${input.status}`,
     typeof input.exitCode === "number"
       ? `exit code: ${input.exitCode}`
       : undefined,
+    `status: ${input.status}`,
   ]
     .filter(Boolean)
     .join(", ");
 
-  return [
-    "Command executed:",
-    fenced(input.command, "bash"),
-    statusLine,
-    "Result:",
-    fenced(input.output || "(no output)", "text"),
-  ]
-    .filter((part) => part.length > 0)
-    .join("\n\n");
+  return fenced(
+    [
+      formatCommandTranscript(input.command),
+      "",
+      `> ${statusLine}`,
+      input.output || "(no output)",
+    ].join("\n"),
+    "",
+  );
+}
+
+function formatCommandTranscript(command: string): string {
+  const lines = (command || "(empty command)").split(/\r?\n/);
+  return lines
+    .map((line, index) => (index === 0 ? `$ ${line}` : line))
+    .join("\n");
 }
 
 export function bashExecutionMessageForToolCall(
@@ -112,7 +121,9 @@ function exitCodeFromToolCall(toolCall: ToolCallRecord): number | undefined {
   return exitCodeFromDetails(resultDetails(toolCall));
 }
 
-function resultDetails(toolCall: ToolCallRecord): Record<string, unknown> | undefined {
+function resultDetails(
+  toolCall: ToolCallRecord,
+): Record<string, unknown> | undefined {
   const result = toolCall.result;
   if (!result || typeof result !== "object") return undefined;
   const details = (result as Record<string, unknown>).details;
@@ -121,15 +132,23 @@ function resultDetails(toolCall: ToolCallRecord): Record<string, unknown> | unde
     : undefined;
 }
 
-function exitCodeFromDetails(details: Record<string, unknown> | undefined): number | undefined {
+function exitCodeFromDetails(
+  details: Record<string, unknown> | undefined,
+): number | undefined {
   return typeof details?.exitCode === "number" ? details.exitCode : undefined;
 }
 
 function fenced(text: string, info: string): string {
-  const fence = longestBacktickRun(text) >= 3 ? "`".repeat(longestBacktickRun(text) + 1) : "```";
+  const fence =
+    longestBacktickRun(text) >= 3
+      ? "`".repeat(longestBacktickRun(text) + 1)
+      : "```";
   return `${fence}${info}\n${text}\n${fence}`;
 }
 
 function longestBacktickRun(text: string): number {
-  return Math.max(0, ...Array.from(text.matchAll(/`+/g), (match) => match[0].length));
+  return Math.max(
+    0,
+    ...Array.from(text.matchAll(/`+/g), (match) => match[0].length),
+  );
 }
