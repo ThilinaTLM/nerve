@@ -1,17 +1,12 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   type AgentHarness,
-  type AgentMessage,
   AgentToolSuspension,
-  buildConversationContext,
   Conversation,
   calculateContextTokens,
-  computeContextUsage,
-  convertToLlm,
   deriveAutoCompactionPolicy,
   getModelContextWindow,
   isContextOverflowAssistantMessage,
-  shouldAutoCompact,
 } from "@nervekit/agent";
 import {
   type AgentRecord,
@@ -22,14 +17,12 @@ import {
   type ConversationRunStatusDetails,
   type ConversationRunStatusState,
   type CreateAgentRequest,
-  createId,
-  deriveConversationTitle,
   type PromptRequest,
   parseInlineCommandPrompt,
   type ToolCallRecord,
   type ToolName,
 } from "@nervekit/shared";
-import { executeBash, type ToolExecutionResult } from "@nervekit/tools";
+import type { ToolExecutionResult } from "@nervekit/tools";
 import type { AuthManager } from "../../../auth.js";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
@@ -50,11 +43,8 @@ import type { AgentSuspensionService } from "../agent-suspension.service.js";
 import type { PromptQueueRepository } from "../prompt-queue.repository.js";
 import { runAgentPromptSession } from "./agent-run-session.js";
 import { delay, isRetryableAssistantError } from "./agent-runner-shared.js";
-import {
-  bashExecutionMessageForToolCall,
-  inlineCommandDisplayText,
-  inlineCommandEntryDetails,
-} from "./inline-command-results.js";
+import { AutoCompactionRunner } from "./auto-compaction-runner.js";
+import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
 
@@ -85,15 +75,10 @@ export interface AgentRunnerDeps {
   promptQueue: PromptQueueRepository;
 }
 
-/** Max consecutive auto-continuations per conversation before stopping. */
-const MAX_AUTO_CONTINUATIONS = 3;
-
-/** Fixed handover instruction pushed after automatic compaction. */
-const AUTO_CONTINUE_MESSAGE =
-  "Continue the work using the context checkpoint above. Resume from the Next Steps and keep going until the task is complete. If everything is already finished, briefly confirm completion and stop.";
-
 export class AgentRunner {
   readonly subagents: SubagentRunner;
+  readonly inlineCommands: InlineCommandRunner;
+  readonly autoCompaction: AutoCompactionRunner;
   readonly autoContinuationCounts = new Map<string, number>();
 
   constructor(readonly deps: AgentRunnerDeps) {
@@ -113,6 +98,15 @@ export class AgentRunner {
       subscriptionUsage: deps.subscriptionUsage,
       logger: deps.logger.child({ component: "subagent-runner" }),
     });
+    this.inlineCommands = new InlineCommandRunner(
+      deps,
+      this.terminateRunToolCalls.bind(this),
+    );
+    this.autoCompaction = new AutoCompactionRunner(
+      deps,
+      this.autoContinuationCounts,
+      this.continueAgent.bind(this),
+    );
   }
 
   async activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]> {
@@ -208,19 +202,7 @@ export class AgentRunner {
       useForegroundBash?: boolean;
     },
   ): Promise<ToolCallRecord> {
-    const toolCall = await this.deps.tools.requestToolAndWait(
-      agent,
-      "bash",
-      { command },
-      {
-        runId: options.runId,
-        signal: options.signal,
-        continueAfterPromotedTask: options.continueAfterPromotedTask,
-        useForegroundBash: options.useForegroundBash,
-      },
-    );
-    if (options.signal?.aborted) throw new Error("Command execution aborted.");
-    return toolCall;
+    return this.inlineCommands.executeBashCommand(agent, command, options);
   }
 
   async executeInlinePromptBlockCommand(
@@ -228,13 +210,10 @@ export class AgentRunner {
     command: string,
     options: { signal?: AbortSignal },
   ): Promise<ToolExecutionResult> {
-    return executeBash(
-      { command },
-      {
-        cwd: agent.projectDir,
-        signal: options.signal,
-        dataDir: this.deps.storage.paths.home,
-      },
+    return this.inlineCommands.executePromptBlockCommand(
+      agent,
+      command,
+      options,
     );
   }
 
@@ -242,166 +221,7 @@ export class AgentRunner {
     agent: AgentRecord,
     command: string,
   ): Promise<ConversationEntry> {
-    if (this.deps.state.runs.has(agent.id)) {
-      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
-    }
-
-    const runId = createId("run");
-    const entryId = createId("entry");
-    const abortController = new AbortController();
-    let abortRequested = false;
-    const startedAt = new Date().toISOString();
-    const runStartedAt = performance.now();
-
-    try {
-      const conversation = this.deps.state.getConversation(
-        agent.conversationId,
-      );
-      const project = this.deps.state.getProject(agent.projectId);
-      this.deps.state.conversationRuntime.startRun({
-        agentId: agent.id,
-        projectId: agent.projectId,
-        conversationId: agent.conversationId,
-        runId,
-        startedAt,
-      });
-      await this.deps.events.publish("conversation.run.started", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        conversationId: agent.conversationId,
-        runId,
-        parentEntryId: conversation.activeEntryId,
-        startedAt,
-      });
-      this.deps.state.runs.set(agent.id, {
-        runId,
-        abort: () => {
-          abortRequested = true;
-          this.deps.state.conversationRuntime.markAborting(runId);
-          abortController.abort();
-        },
-        messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
-      });
-      await this.deps.setAgentStatus(agent, "running");
-
-      const toolCall = await this.executeInlineBashCommand(agent, command, {
-        runId,
-        signal: abortController.signal,
-        continueAfterPromotedTask: false,
-        useForegroundBash: false,
-      });
-      const createdAt = new Date().toISOString();
-      await this.deps.harnessManager.appendAgentMessageWithId(
-        agent,
-        entryId,
-        bashExecutionMessageForToolCall(toolCall, createdAt),
-        createdAt,
-      );
-      const entry = await this.deps.appendEntry(
-        {
-          id: entryId,
-          conversationId: agent.conversationId,
-          agentId: agent.id,
-          runId,
-          role: "system",
-          kind: "message",
-          text: inlineCommandDisplayText(toolCall),
-          details: inlineCommandEntryDetails(toolCall),
-          createdAt,
-        },
-        { mirrorToHarness: false },
-      );
-      await this.deps.events.publish("conversation.entry.appended", {
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        runId,
-        entry,
-      });
-
-      if (
-        this.deps.state.getConversationEntries(agent.conversationId).length ===
-        1
-      ) {
-        const title = deriveConversationTitle(`! ${command}`);
-        if (title) {
-          const latestConversation = this.deps.state.getConversation(
-            agent.conversationId,
-          );
-          await this.deps.updateConversation({
-            ...latestConversation,
-            title,
-            updatedAt: createdAt,
-          });
-          await this.deps.events.publish("conversation.updated", {
-            conversation: this.deps.state.conversations.get(
-              agent.conversationId,
-            ),
-          });
-        }
-      }
-
-      const storage = await this.deps.harnessManager.openStorage(
-        conversation,
-        project.dir,
-      );
-      const branch = await storage.getPathToRoot(await storage.getLeafId());
-      const messages = convertToLlm(buildConversationContext(branch).messages);
-      this.deps.conversationService.setForAgent(agent.id, messages);
-
-      const latest = this.deps.state.agents.get(agent.id);
-      if (latest) await this.deps.setAgentStatus(latest, "idle");
-      this.deps.state.runs.delete(agent.id);
-      this.deps.state.conversationRuntime.completeRun(runId);
-      const completedAt = new Date().toISOString();
-      await this.deps.events.publish("conversation.run.completed", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId,
-        conversationId: agent.conversationId,
-        finalEntryId: entry.id,
-        completedAt,
-      });
-      await this.deps.logger.info("Inline command run completed", {
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        durationMs: Math.round(performance.now() - runStartedAt),
-        context: { finalEntryId: entry.id },
-      });
-      return entry;
-    } catch (error) {
-      this.deps.state.runs.delete(agent.id);
-      const aborted = abortRequested || abortController.signal.aborted;
-      const latest = this.deps.state.agents.get(agent.id);
-      if (latest)
-        await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
-      this.deps.state.conversationRuntime.failRun(runId);
-      await this.terminateRunToolCalls(runId);
-      const message = error instanceof Error ? error.message : String(error);
-      await this.deps.events.publish("conversation.run.failed", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId,
-        conversationId: agent.conversationId,
-        message,
-        aborted,
-        failedAt: new Date().toISOString(),
-      });
-      await this.deps.logger[aborted ? "warn" : "error"](
-        aborted ? "Inline command run aborted" : "Inline command run failed",
-        {
-          agentId: agent.id,
-          conversationId: agent.conversationId,
-          projectId: agent.projectId,
-          runId,
-          durationMs: Math.round(performance.now() - runStartedAt),
-          context: { aborted },
-          error,
-        },
-      );
-      throw error;
-    }
+    return this.inlineCommands.runPrompt(agent, command);
   }
 
   async continueAgent(agentId: string): Promise<void> {
@@ -879,19 +699,7 @@ export class AgentRunner {
 
   /** Compute compaction-aware context-window usage for a conversation. */
   async getContextUsage(conversationId: string): Promise<ContextUsage> {
-    const conversation = this.deps.state.getConversation(conversationId);
-    const project = this.deps.state.getProject(conversation.projectId);
-    const storage = await this.deps.harnessManager.openStorage(
-      conversation,
-      project.dir,
-    );
-    const branch = await storage.getPathToRoot(await storage.getLeafId());
-    const messages = buildConversationContext(branch).messages;
-    const agent = conversation.activeAgentId
-      ? this.deps.state.agents.get(conversation.activeAgentId)
-      : undefined;
-    const contextWindow = getModelContextWindow(agent?.model);
-    return computeContextUsage(messages, branch, contextWindow);
+    return this.autoCompaction.getContextUsage(conversationId);
   }
 
   async publishContextUsage(
@@ -899,11 +707,10 @@ export class AgentRunner {
     agentId: string,
     runId: string,
   ): Promise<void> {
-    const contextUsage = await this.getContextUsage(conversationId);
-    await this.deps.events.publish(
-      "conversation.context.updated",
-      { conversationId, agentId, runId, contextUsage },
-      { durability: "transient" },
+    return this.autoCompaction.publishContextUsage(
+      conversationId,
+      agentId,
+      runId,
     );
   }
 
@@ -912,97 +719,17 @@ export class AgentRunner {
     agentId?: string,
     runId?: string,
   ): Promise<void> {
-    if (!this.deps.storage.settings.compaction.auto) return;
-    const conversation = this.deps.state.getConversation(conversationId);
-    const agent =
-      (agentId ? this.deps.state.agents.get(agentId) : undefined) ??
-      (conversation.activeAgentId
-        ? this.deps.state.agents.get(conversation.activeAgentId)
-        : undefined);
-    const contextWindow = getModelContextWindow(agent?.model);
-    if (contextWindow <= 0) return;
-
-    const project = this.deps.state.getProject(conversation.projectId);
-    const storage = await this.deps.harnessManager.openStorage(
-      conversation,
-      project.dir,
-    );
-    const branch = await storage.getPathToRoot(await storage.getLeafId());
-    const messages = buildConversationContext(branch).messages;
-    const contextUsage = computeContextUsage(messages, branch, contextWindow);
-    if (contextUsage.tokens === null) return;
-
-    const policy = deriveAutoCompactionPolicy(
-      contextWindow,
-      this.deps.storage.settings.compaction.auto,
-    );
-    if (!shouldAutoCompact(contextUsage.tokens, policy)) return;
-    await this.deps.compactionService.compactConversation(
-      conversationId,
-      {
-        instructions:
-          "Automatic compaction after the selected model approached its context window.",
-      },
-      {
-        reason: "threshold",
-        agentId: agent?.id,
-        runId,
-        contextWindow: policy.contextWindow,
-        contextTokens: contextUsage.tokens,
-        thresholdTokens: policy.thresholdTokens,
-        triggerReserveTokens: policy.triggerReserveTokens,
-        keepRecentTokens: policy.keepRecentTokens,
-      },
-    );
-    // Compaction succeeded: hand the work back to the agent so it continues
-    // from the fresh context checkpoint instead of stopping.
-    if (agent) await this.continueAfterAutoCompaction(agent);
+    return this.autoCompaction.maybeAutoCompact(conversationId, agentId, runId);
   }
 
-  /**
-   * Push a normal handover user message and start a continuation run after an
-   * automatic compaction, bounded by a per-conversation runaway guard.
-   */
   async continueAfterAutoCompaction(agent: AgentRecord): Promise<void> {
-    const count = this.autoContinuationCounts.get(agent.conversationId) ?? 0;
-    if (count >= MAX_AUTO_CONTINUATIONS) return;
-    this.autoContinuationCounts.set(agent.conversationId, count + 1);
-    const entry = await this.appendAutoContinueMessage(
-      agent,
-      AUTO_CONTINUE_MESSAGE,
-    );
-    await this.deps.events.publish("conversation.entry.appended", {
-      conversationId: entry.conversationId,
-      agentId: entry.agentId,
-      runId: entry.runId,
-      entry,
-    });
-    void this.continueAgent(agent.id).catch(() => undefined);
+    return this.autoCompaction.continueAfterAutoCompaction(agent);
   }
 
   async appendAutoContinueMessage(
     agent: AgentRecord,
     text: string,
   ): Promise<ConversationEntry> {
-    const message: AgentMessage = {
-      role: "user",
-      content: text,
-      timestamp: Date.now(),
-    };
-    const appended = await this.deps.harnessManager.appendAgentMessage(
-      agent,
-      message,
-    );
-    return this.deps.appendEntry(
-      {
-        id: appended.id,
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        role: "user",
-        text,
-        createdAt: appended.timestamp,
-      },
-      { mirrorToHarness: false },
-    );
+    return this.autoCompaction.appendAutoContinueMessage(agent, text);
   }
 }

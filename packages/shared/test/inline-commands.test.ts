@@ -36,7 +36,10 @@ describe("executable command blocks", () => {
     const [block] = findExecutableCommandBlocks(text);
     assert.ok(block);
     assert.equal(block.command, "git status --short");
-    assert.equal(text.slice(block.commandStart, block.commandEnd), "git status --short\n");
+    assert.equal(
+      text.slice(block.commandStart, block.commandEnd),
+      "git status --short\n",
+    );
     assert.equal(hasExecutableCommandBlocks(text), true);
   });
 

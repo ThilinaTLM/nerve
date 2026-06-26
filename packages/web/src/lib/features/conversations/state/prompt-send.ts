@@ -1,4 +1,7 @@
-import { deriveConversationTitle, isInlineCommandPrompt } from "@nervekit/shared";
+import {
+  deriveConversationTitle,
+  isInlineCommandPrompt,
+} from "@nervekit/shared";
 import {
   type AgentRecord,
   apiPathSegment,

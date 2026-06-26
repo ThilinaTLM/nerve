@@ -53,7 +53,11 @@ export function findExecutableCommandBlocks(
     if (!open) continue;
 
     const contentStart = line.offset + line.text.length;
-    for (let closeIndex = index + 1; closeIndex < lines.length; closeIndex += 1) {
+    for (
+      let closeIndex = index + 1;
+      closeIndex < lines.length;
+      closeIndex += 1
+    ) {
       const closeLine = lines[closeIndex];
       if (!isClosingFence(closeLine.text, open.fenceChar, open.fenceLength)) {
         continue;
@@ -80,7 +84,9 @@ export function replaceExecutableCommandBlocks(
   text: string,
   replacements: ExecutableCommandBlockReplacement[],
 ): string {
-  const ordered = [...replacements].sort((a, b) => a.block.start - b.block.start);
+  const ordered = [...replacements].sort(
+    (a, b) => a.block.start - b.block.start,
+  );
   let cursor = 0;
   let result = "";
   for (const replacement of ordered) {
