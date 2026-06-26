@@ -6,6 +6,17 @@ import { buildProcessResult } from "../common/process-result.js";
 
 const FORCE_KILL_AFTER_MS = 2000;
 
+function nonInteractiveShellEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PAGER: "cat",
+    GIT_PAGER: "cat",
+    GIT_TERMINAL_PROMPT: "0",
+    TERM: "dumb",
+    CI: process.env.CI ?? "1",
+  };
+}
+
 export async function executeBash(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
@@ -33,7 +44,8 @@ export async function executeBash(
       cwd: context.cwd,
       shell: true,
       detached: process.platform !== "win32",
-      env: process.env,
+      env: nonInteractiveShellEnv(),
+      stdio: ["ignore", "pipe", "pipe"],
     });
 
     let settled = false;

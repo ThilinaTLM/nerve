@@ -3,6 +3,20 @@ import type { TaskRuntime } from "@nervekit/shared";
 
 const DEFAULT_HELPER_TIMEOUT_MS = 2000;
 
+function nonInteractiveShellEnv(
+  overrides: Record<string, string> | undefined,
+): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PAGER: "cat",
+    GIT_PAGER: "cat",
+    GIT_TERMINAL_PROMPT: "0",
+    TERM: "dumb",
+    CI: process.env.CI ?? "1",
+    ...(overrides ?? {}),
+  };
+}
+
 export interface SpawnManagedTaskOptions {
   cwd: string;
   env?: Record<string, string>;
@@ -46,7 +60,7 @@ export function spawnManagedTask(
   const child = spawn(command, {
     cwd: options.cwd,
     shell: true,
-    env: { ...process.env, ...(options.env ?? {}) },
+    env: nonInteractiveShellEnv(options.env),
     stdio: ["ignore", "pipe", "pipe"],
     detached: process.platform !== "win32",
   });

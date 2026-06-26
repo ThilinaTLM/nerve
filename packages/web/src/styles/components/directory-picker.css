@@ -121,7 +121,7 @@
   padding: 0.5rem;
 }
 
-.group + .group {
+.picker-group + .picker-group {
   margin-top: 0.5rem;
 }
 

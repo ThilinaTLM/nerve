@@ -6,6 +6,7 @@ import type { TaskRuntime } from "@nervekit/shared";
 import {
   isTaskRuntimeTargetAlive,
   runtimeForChild,
+  spawnManagedTask,
   terminateTask,
   terminateTaskRuntime,
 } from "../src/domains/tasks/task-supervisor.js";
@@ -25,6 +26,31 @@ function fakeChild(pid = 1234): FakeChild {
   }) as FakeChild;
 }
 
+const node = JSON.stringify(process.execPath);
+
+function printEnvCommand(keys: string[]): string {
+  const script = `process.stdout.write(JSON.stringify(Object.fromEntries(${JSON.stringify(keys)}.map((key) => [key, process.env[key]]))))`;
+  return `${node} -e ${JSON.stringify(script)}`;
+}
+
+async function collectSpawnedStdout(
+  command: string,
+  env?: Record<string, string>,
+): Promise<string> {
+  const { child } = spawnManagedTask(command, { cwd: process.cwd(), env });
+  const chunks: Buffer[] = [];
+  child.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
+  const close = await new Promise<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+  }>((resolve) => {
+    child.once("close", (code, signal) => resolve({ code, signal }));
+  });
+  assert.equal(close.code, 0);
+  assert.equal(close.signal, null);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 const spawnedAt = "2026-01-02T03:04:05.000Z";
 
 function runtime(overrides: Partial<TaskRuntime> = {}): TaskRuntime {
@@ -40,6 +66,41 @@ function runtime(overrides: Partial<TaskRuntime> = {}): TaskRuntime {
 }
 
 describe("task supervisor spawn metadata", () => {
+  it("spawns with non-interactive pager-safe environment defaults", async () => {
+    const output = await collectSpawnedStdout(
+      printEnvCommand([
+        "PAGER",
+        "GIT_PAGER",
+        "GIT_TERMINAL_PROMPT",
+        "TERM",
+        "CI",
+      ]),
+    );
+    const env = JSON.parse(output) as Record<string, string>;
+
+    assert.equal(env.PAGER, "cat");
+    assert.equal(env.GIT_PAGER, "cat");
+    assert.equal(env.GIT_TERMINAL_PROMPT, "0");
+    assert.equal(env.TERM, "dumb");
+    assert.equal(env.CI, process.env.CI ?? "1");
+  });
+
+  it("allows explicit managed task env to override non-interactive defaults", async () => {
+    const output = await collectSpawnedStdout(
+      printEnvCommand(["PAGER", "GIT_TERMINAL_PROMPT", "CUSTOM_VALUE"]),
+      {
+        PAGER: "less",
+        GIT_TERMINAL_PROMPT: "1",
+        CUSTOM_VALUE: "ok",
+      },
+    );
+    const env = JSON.parse(output) as Record<string, string>;
+
+    assert.equal(env.PAGER, "less");
+    assert.equal(env.GIT_TERMINAL_PROMPT, "1");
+    assert.equal(env.CUSTOM_VALUE, "ok");
+  });
+
   it("builds non-Windows runtime metadata with process group", () => {
     const metadata = runtimeForChild(
       { pid: 1234 },

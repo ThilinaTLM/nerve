@@ -67,7 +67,7 @@
 
 <div class="picker-scroll" bind:this={listEl}>
   {#if showRecent}
-    <section class="group">
+    <section class="picker-group">
       <header class="group-head"><span>Recent</span></header>
       <div class="rows" role="listbox" aria-label="Recent projects" tabindex={-1} aria-activedescendant={selectedItem?.kind === "recent" ? activeDescendant : undefined}>
         {#each recentProjects as project, ri}
@@ -116,7 +116,7 @@
     </section>
   {/if}
 
-  <section class="group">
+  <section class="picker-group">
     <header class="group-head">
       <span>Folders</span>
       {#if !loading && filteredEntries.length}<span class="group-count">{filteredEntries.length}</span>{/if}
