@@ -2,8 +2,9 @@
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import type { TaskRecord } from "$lib/api";
   import { Badge } from "$lib/components/ui/badge";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import * as Tooltip from "$lib/components/ui/tooltip";
-  import { taskTone } from "$lib/core/utils/status";
+  import { taskPulse, taskTone } from "$lib/core/utils/status";
   import { dateTimeLabel } from "$lib/core/utils/time";
   import { taskUrl } from "$lib/features/tools/views/task";
 
@@ -25,6 +26,7 @@
     <Tooltip.Trigger>
       {#snippet child({ props })}
         <div {...props} class="flex min-w-0 items-center gap-2.5 rounded-md border bg-card px-2.5 py-2">
+          <StatusDot tone={tone} pulse={taskPulse(task.status)} size="xs" class="flex-none" />
           <div class="min-w-0 flex-1 {dense ? 'truncate' : 'whitespace-pre-wrap break-words'} font-mono text-xs text-foreground">{task.command}</div>
           {#if url}
             <a class="inline-flex min-w-0 items-center gap-1 truncate font-mono text-xs text-info hover:underline" href={url} target="_blank" rel="noreferrer noopener">

@@ -42,6 +42,7 @@
   arg={presentation.primaryArg}
   error={errorPreview}
   meta={presentation.meta}
+  footer={bodyMode !== "interactive"}
   {detailsAction}
   {onOpenFile}
 >

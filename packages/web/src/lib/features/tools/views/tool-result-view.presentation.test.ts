@@ -203,7 +203,7 @@ describe("toolPresentation", () => {
     assert.deepEqual(metaText(p.meta), []);
   });
 
-  it("shows no footer chip for a rejected plan_mode_present", () => {
+  it("keeps the generic footer empty for a rejected plan_mode_present", () => {
     const p = present(
       "plan_mode_present",
       { file_path: "/home/user/.nerve/plans/feature.md" },
@@ -234,6 +234,7 @@ describe("toolPresentation", () => {
       },
     );
     assert.equal(p.badge, "todos");
-    assert.deepEqual(metaText(p.meta), ["1/2 done"]);
+    assert.equal(p.primaryArg?.text, "1/2 done");
+    assert.deepEqual(metaText(p.meta), []);
   });
 });

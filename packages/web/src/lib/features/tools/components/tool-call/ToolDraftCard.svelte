@@ -3,8 +3,8 @@
   import { summarizeToolDraft } from "$lib/features/tools/views/tool-draft-progress";
   import { trimTextPreview } from "$lib/core/utils/text-preview";
   import { extname } from "$lib/features/tools/views/lang";
-  import { StatusDot } from "$lib/components/ui/status-dot";
   import ResultCodeBlock from "./ResultCodeBlock.svelte";
+  import ToolStatusIcon from "./ToolStatusIcon.svelte";
 
   type Props = {
     draft: LiveToolCallDraft;
@@ -31,7 +31,7 @@
 
 <article class={`tool-draft-card draft-${summary.kind}`}>
   <div class="tool-header">
-    <StatusDot tone={summary.done ? "good" : "running"} pulse={!summary.done} size="xs" class="mr-1.5 align-middle" />
+    <ToolStatusIcon tone={summary.done ? "good" : "running"} pulse={!summary.done} size={14} class="mr-1.5 align-middle" />
     <span class="badge">{summary.toolName}</span>
     {#if summary.path}
       <span class="arg" title={summary.path}>{summary.path}</span>
@@ -75,7 +75,7 @@
   {#if summary.meta.length > 0}
     <div class="chips">
       {#each summary.meta as item, i (i)}
-        <span class={`chip tone-${item.tone ?? "default"}`} class:mono={item.mono}>{item.text}</span>
+        <span class={`chip tone-${item.tone ?? "default"}`}>{item.text}</span>
       {/each}
     </div>
   {/if}
@@ -171,15 +171,12 @@
     border-radius: var(--radius-sm);
     background: var(--sidebar);
     color: var(--muted-foreground);
-    padding: 0.05rem 0.4rem;
+    padding: 0.075rem 0.45rem;
     font-size: var(--text-xs);
     line-height: 1.5;
     white-space: nowrap;
   }
 
-  .chip.mono {
-    font-family: var(--font-mono);
-  }
 
   .chip.tone-success {
     color: var(--success);

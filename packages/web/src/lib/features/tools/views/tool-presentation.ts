@@ -353,7 +353,11 @@ export function toolPresentation(
       return {
         ...base,
         badge: "todos",
-        meta: [{ text: `${view.completed}/${view.total} done` }],
+        primaryArg:
+          view.total > 0
+            ? { text: `${view.completed}/${view.total} done` }
+            : undefined,
+        meta: [],
       };
 
     case "task_action": {
@@ -416,6 +420,9 @@ export function toolPresentation(
       return { ...base, meta: [] };
 
     case "plan_mode":
+      // The presented-plan card renders its own footer (status chip + accept/
+      // reject buttons on one line) from live review state inside
+      // PlanModeToolView, so the generic footer stays empty here.
       return {
         ...base,
         badge: `plan_mode_${view.action}`,

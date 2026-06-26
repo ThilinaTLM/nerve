@@ -13,6 +13,7 @@
   import { appendTranscriptText } from "$lib/core/audio/voice-input-target";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import { Button } from "$lib/components/ui/button";
+  import ToolFooter from "./ToolFooter.svelte";
   import {
     AudioInputAuthRequiredDialog,
     chatGptAudioAuth,
@@ -202,14 +203,16 @@
           </div>
         {/if}
       </div>
-      <div class="actions">
-        <Button size="sm" type="submit" disabled={!trimmedAnswer}>
-          <Send size={14} strokeWidth={2.4} />Reply
-        </Button>
-        <Button size="sm" variant="secondary" type="button" onclick={() => onDismissUserQuestion?.(questionRecord.id)}>
-          <X size={14} strokeWidth={2.4} />Dismiss
-        </Button>
-      </div>
+      <ToolFooter>
+        {#snippet actions()}
+          <Button size="sm" type="submit" disabled={!trimmedAnswer}>
+            <Send size={14} strokeWidth={2.4} />Reply
+          </Button>
+          <Button size="sm" variant="secondary" type="button" onclick={() => onDismissUserQuestion?.(questionRecord.id)}>
+            <X size={14} strokeWidth={2.4} />Dismiss
+          </Button>
+        {/snippet}
+      </ToolFooter>
     </form>
   {:else if submittedAnswer}
     <p class="meta answer"><span class="meta-label">answer</span> {submittedAnswer}</p>
@@ -325,10 +328,5 @@
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent) inset;
   }
 
-  .actions {
-    display: flex;
-    justify-content: end;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
+
 </style>

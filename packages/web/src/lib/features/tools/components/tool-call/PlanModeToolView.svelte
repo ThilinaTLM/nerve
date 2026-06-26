@@ -10,8 +10,10 @@
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { SplitButton } from "$lib/components/ui/split-button";
   import { trimTextPreview } from "$lib/core/utils/text-preview";
+  import type { MetaItem } from "$lib/features/tools/views/tool-presentation";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
+  import ToolFooter from "./ToolFooter.svelte";
 
   type PlanAcceptTarget = "same" | "new-chat";
 
@@ -106,6 +108,15 @@
   const acceptVariant = $derived<"success" | "default">(
     accepted || acceptedInNewChat ? "success" : "default",
   );
+  const statusMeta = $derived<MetaItem[]>(
+    accepted || acceptedInNewChat
+      ? [{ text: "Accepted", tone: "success" }]
+      : rejected
+        ? [{ text: "Changes requested", tone: "error" }]
+        : pendingReview
+          ? [{ text: "Awaiting review", tone: "warning" }]
+          : [],
+  );
 
   async function acceptSame(options?: PlanReviewResolveOptions) {
     if (!planReview || !pendingReview || accepting || !onAcceptPlanReview) return;
@@ -156,7 +167,8 @@
       <pre class="m-0 whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-normal text-foreground">{preview}</pre>
     {/if}
 
-    <div class="flex flex-wrap justify-end gap-2">
+    <ToolFooter meta={statusMeta}>
+      {#snippet actions()}
       <SplitButton
         variant={acceptVariant}
         size="sm"
@@ -194,7 +206,8 @@
         {#if rejected}<Check class="size-3.5" strokeWidth={2.4} />{/if}
         Reject Plan
       </Button>
-    </div>
+      {/snippet}
+    </ToolFooter>
 
     <PlanImplementationModelDialog
       open={implementationDialog === "same"}

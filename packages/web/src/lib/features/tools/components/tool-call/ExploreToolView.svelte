@@ -2,8 +2,8 @@
   import CircleAlert from "@lucide/svelte/icons/circle-alert";
   import CircleCheck from "@lucide/svelte/icons/circle-check";
   import CircleDashed from "@lucide/svelte/icons/circle-dashed";
+  import CircleDot from "@lucide/svelte/icons/circle-dot";
   import FileText from "@lucide/svelte/icons/file-text";
-  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import SearchCode from "@lucide/svelte/icons/search-code";
   import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import {
@@ -93,7 +93,7 @@
             {:else if task.status === "failed"}
               <CircleAlert size={16} strokeWidth={2.1} class="text-destructive" />
             {:else if task.status === "running"}
-              <LoaderCircle size={16} strokeWidth={2.1} class="animate-spin text-info" />
+              <CircleDot size={16} strokeWidth={2.1} class="text-info" />
             {:else}
               <CircleDashed size={16} strokeWidth={2.1} class="text-muted-foreground" />
             {/if}
@@ -162,7 +162,7 @@
     <pre class="overflow-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-xs text-muted-foreground">{view.liveLog}</pre>
   {:else if toolCall.status === "running" || toolCall.status === "requested"}
     <p class="flex items-center gap-2 text-sm leading-relaxed text-muted-foreground">
-      <LoaderCircle size={14} strokeWidth={2.1} class="animate-spin text-info" />
+      <CircleDot size={14} strokeWidth={2.1} class="text-info" />
       Explore agents are working…
     </p>
   {:else}

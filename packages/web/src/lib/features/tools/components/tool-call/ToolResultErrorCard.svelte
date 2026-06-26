@@ -1,6 +1,6 @@
 <script lang="ts">
   import { trimTextPreview } from "$lib/core/utils/text-preview";
-  import { StatusDot } from "$lib/components/ui/status-dot";
+  import ToolStatusIcon from "./ToolStatusIcon.svelte";
 
   type Props = {
     toolName: string;
@@ -17,7 +17,7 @@
 
 <article class="tool-result-error-card">
   <div class="tool-header">
-    <StatusDot tone="danger" size="xs" class="mr-1.5 align-middle" />
+    <ToolStatusIcon tone="danger" size={14} class="mr-1.5 align-middle" />
     <span class="badge">{toolName}</span>
   </div>
   <pre class="tool-error">{errorPreview}</pre>
