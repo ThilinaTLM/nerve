@@ -1,7 +1,6 @@
 # Release checklist
 
-Nerve's public release path ships Linux desktop artifacts on GitHub Releases plus
-all `@nervekit/*` packages on npmjs.com. The first public release is `v0.1.0`.
+Nerve's public release path publishes all `@nervekit/*` packages to npmjs.com. The desktop app is distributed as the runnable `@nervekit/desktop` npm package.
 
 ## Requirements
 
@@ -29,7 +28,7 @@ Published publicly to npmjs.com under the `@nervekit` scope:
   serve the web UI through `@nervekit/orchestrator`, which embeds its own copy.
 - `@nervekit/orchestrator`
 - `@nervekit/cli`
-- `@nervekit/desktop` — runnable via `npx`/`pnpx` (see below).
+- `@nervekit/desktop` — runnable via `npx` or `pnpm dlx`.
 
 Private (never published):
 
@@ -49,7 +48,7 @@ pnpm release:build
 For npm package inspection:
 
 ```sh
-pnpm release:pack:npm
+node scripts/pack-npm.mjs
 ls release/npm           # expect 7 tarballs
 npm publish release/npm/*.tgz --dry-run --access public
 ```
@@ -62,31 +61,20 @@ node packages/desktop/dist/bin.js --help
 node packages/desktop/dist/bin.js     # launches the desktop app
 ```
 
-For Linux desktop artifacts, make sure local packaging tools such as `fakeroot` and `rpm`/`rpmbuild` are available, then run:
-
-```sh
-pnpm release:desktop:linux
-ls packages/desktop/release
-cat packages/desktop/release/SHA256SUMS
-```
-
-Smoke-test the AppImage/deb/rpm before announcing a release. At minimum verify that the desktop app starts an owned local daemon, loads the Web UI, and stops its owned daemon when quitting.
-
-## Running the desktop app via npx
+## Running the desktop app from npm
 
 ```sh
 npx @nervekit/desktop
-pnpx @nervekit/desktop
+pnpm dlx @nervekit/desktop
 ```
 
 Notes:
 
 - Works on Linux, Windows, and macOS.
 - The `electron` npm dependency downloads the platform binary on first install/run
-  (~100–200 MB), then it is cached by npm/pnpm.
-- This is an unpackaged Electron launch, not a signed macOS `.app`, Windows
-  installer, or Linux AppImage. Native installers remain GitHub Release artifacts
-  (Linux today; macOS/Windows installers are future work).
+  (~100–200 MB), then it is cached by npm or pnpm.
+- This is an unpackaged Electron launch, not a signed app bundle or native
+  installer.
 
 ## First public release: npm bootstrap
 
@@ -99,7 +87,8 @@ so the very first `@nervekit/*` publish is done manually. One time only:
 3. Run full local validation and pack the tarballs:
 
    ```sh
-   pnpm release:pack:npm
+   pnpm release:build
+   node scripts/pack-npm.mjs
    ls release/npm           # expect 7 tarballs
    ```
 
@@ -121,7 +110,7 @@ so the very first `@nervekit/*` publish is done manually. One time only:
 6. Tag and push `v0.1.0` (see below). The release workflow skips package versions
    that are already published, so re-publishing the bootstrapped `0.1.0` is a no-op.
 
-## GitHub release automation
+## GitHub Actions release automation
 
 Pushing a tag matching `v*` runs `.github/workflows/release.yml`.
 
@@ -130,11 +119,9 @@ The workflow:
 1. uses Node 24 and pnpm 11.8.0;
 2. verifies the tag matches the package version;
 3. runs `pnpm check` and `pnpm test`;
-4. builds Linux AppImage, deb, and rpm artifacts and writes `SHA256SUMS`;
-5. runs a cross-platform npm/bin smoke job on Linux, Windows, and macOS;
-6. publishes any unpublished `@nervekit/*` versions to npmjs.com via npm
-   Trusted Publishing (OIDC) with provenance (no stored npm token);
-7. creates the GitHub Release and uploads the Linux artifacts and checksums.
+4. runs a cross-platform npm/bin smoke job on Linux, Windows, and macOS;
+5. publishes any unpublished `@nervekit/*` versions to npmjs.com via npm
+   Trusted Publishing (OIDC) with provenance (no stored npm token).
 
 Create a release by pushing the tag:
 
@@ -143,16 +130,9 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Do not pre-create the GitHub Release; the workflow creates it after the build succeeds.
-
 ## Subsequent releases
 
 1. Bump the root and all workspace versions consistently.
 2. Run local validation.
 3. Push the matching `vX.Y.Z` tag.
-4. CI publishes the new package versions via OIDC and creates the GitHub Release.
-   No manual npm publish is needed once Trusted Publishers are configured.
-
-## Future Windows packaging
-
-Add a separate `build-windows` job to the release workflow and include it in the `publish` job's `needs` list. That keeps Linux and Windows artifacts attached to the same tag-created GitHub Release.
+4. CI publishes the new package versions via OIDC. No manual npm publish is needed once Trusted Publishers are configured.

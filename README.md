@@ -4,13 +4,48 @@
 
 Nerve is a UI-first local AI coding harness with an Electron desktop app, local daemon, Web UI, and CLI.
 
-> Status: alpha. APIs, storage formats, and packaging may change without migration support.
+## Use Nerve
 
-## Use Nerve from source
+The desktop app is the primary way to use Nerve locally. It starts an owned local daemon, opens the Electron shell, and serves the bundled Web UI.
+
+Run the beta desktop app with your package runner:
+
+```sh
+npx @nervekit/desktop
+pnpm dlx @nervekit/desktop
+```
+
+The first run may download Electron's platform binary through npm or pnpm; subsequent runs use the package manager cache.
+
+Pass desktop/daemon options after `--`:
+
+```sh
+npx @nervekit/desktop -- --host 0.0.0.0 --allow-remote
+npx @nervekit/desktop -- --connect http://127.0.0.1:3747 --token <token>
+pnpm dlx @nervekit/desktop -- --host 0.0.0.0 --allow-remote
+```
+
+For opt-in LAN remote access plus self-signed HTTPS for mobile browsers, run with:
+
+```sh
+npx @nervekit/desktop -- --host 0.0.0.0 --allow-remote --mobile-https
+```
+
+### Linux Wayland troubleshooting
+
+Electron may emit Chromium/Ozone Wayland messages such as `Frame latency is negative` or `Invalid state when trying to start drag`. If native Wayland also causes copy/drag freezes on your desktop environment, run the desktop shell through XWayland:
+
+```sh
+NERVE_ELECTRON_OZONE_PLATFORM=x11 npx @nervekit/desktop
+```
+
+Supported values are `x11`, `wayland`, and `auto`. Leave it unset for Electron's default platform selection.
+
+## Develop from source
 
 Requirements:
 
-- Node.js `>=22.19.0`
+- Node.js `>=24.0.0`
 - pnpm `11.x` (`packageManager` pins `pnpm@11.8.0`)
 
 Install dependencies once:
@@ -19,9 +54,7 @@ Install dependencies once:
 pnpm install
 ```
 
-### Desktop app recommended
-
-The desktop app is the primary way to use Nerve locally. It builds the required internal packages, bundles the Web UI, starts an owned local daemon, and opens the Electron shell.
+Run the desktop app from a source checkout:
 
 ```sh
 pnpm desktop
@@ -56,17 +89,7 @@ pnpm desktop:fast    # start Electron using existing build output
 pnpm desktop:check   # type-check the desktop package
 ```
 
-#### Linux Wayland troubleshooting
-
-Electron may emit Chromium/Ozone Wayland messages such as `Frame latency is negative` or `Invalid state when trying to start drag`. If native Wayland also causes copy/drag freezes on your desktop environment, run the desktop shell through XWayland:
-
-```sh
-NERVE_ELECTRON_OZONE_PLATFORM=x11 pnpm desktop
-```
-
-Supported values are `x11`, `wayland`, and `auto`. Leave it unset for Electron's default platform selection.
-
-## Browser, daemon, and CLI usage
+### Browser, daemon, and CLI usage from source
 
 Run the daemon and Web UI dev servers together:
 
