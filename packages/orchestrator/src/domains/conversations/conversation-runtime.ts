@@ -291,11 +291,18 @@ export class ConversationRuntime {
     runId: string;
     turnId: string;
     liveMessageId: string;
+    providerToolCallId?: string;
+    toolName?: string;
     contentIndex: number;
     delta: string;
   }): ConversationLiveToolDraftDeltaData {
     const { run, message } = this.requireMessage(input);
     const block = this.ensureToolDraftBlock(message, input.contentIndex);
+    block.providerToolCallId =
+      input.providerToolCallId ?? block.providerToolCallId;
+    block.toolName = input.toolName ?? block.toolName;
+    if (block.providerToolCallId)
+      this.rememberToolAnchor(input, block.providerToolCallId);
     const offset = block.argsText.length;
     block.argsText += input.delta;
     return {
@@ -308,6 +315,8 @@ export class ConversationRuntime {
       contentBlockId: block.contentBlockId,
       contentIndex: input.contentIndex,
       offset,
+      providerToolCallId: block.providerToolCallId,
+      toolName: block.toolName,
       delta: input.delta,
     };
   }
@@ -429,15 +438,22 @@ export class ConversationRuntime {
     const offset = existing?.text.length ?? 0;
     const now = new Date().toISOString();
     if (run) {
-      const output: ConversationLiveToolOutputSnapshot = capToolOutput({
-        toolCallId: input.toolCallId,
-        chunks: [
-          ...(existing?.chunks ?? []),
-          { stream: input.stream, text: input.delta, ts: now },
-        ],
-        text: `${existing?.text ?? ""}${input.delta}`,
-        updatedAt: now,
-      });
+      const output: ConversationLiveToolOutputSnapshot = capToolOutput(
+        {
+          toolCallId: input.toolCallId,
+          chunks: [
+            ...(existing?.chunks ?? []),
+            { stream: input.stream, text: input.delta, ts: now },
+          ],
+          text: `${existing?.text ?? ""}${input.delta}`,
+          updatedAt: now,
+        },
+        {
+          totalChars:
+            (existing?.outputLimits?.totalChars ?? existing?.text.length ?? 0) +
+            input.delta.length,
+        },
+      );
       run.toolOutputsByToolCallId[input.toolCallId] = output;
     }
     return {
@@ -597,7 +613,9 @@ function cloneTurn(turn: MutableTurn): ConversationLiveTurnSnapshot {
 
 function capToolOutput(
   output: ConversationLiveToolOutputSnapshot,
+  totals: { totalChars?: number } = {},
 ): ConversationLiveToolOutputSnapshot {
+  const totalChars = totals.totalChars ?? output.text.length;
   let text = output.text;
   if (text.length > MAX_LIVE_TOOL_OUTPUT_CHARS) {
     text = text.slice(text.length - MAX_LIVE_TOOL_OUTPUT_CHARS);
@@ -606,5 +624,29 @@ function capToolOutput(
     output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS
       ? output.chunks.slice(output.chunks.length - MAX_LIVE_TOOL_OUTPUT_CHUNKS)
       : output.chunks;
-  return { ...output, text, chunks };
+  const capped =
+    totalChars > text.length ||
+    output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS;
+  return {
+    ...output,
+    text,
+    chunks,
+    outputLimits: {
+      capped,
+      direction: "tail",
+      maxChars: MAX_LIVE_TOOL_OUTPUT_CHARS,
+      maxChunks: MAX_LIVE_TOOL_OUTPUT_CHUNKS,
+      totalChars,
+      displayedChars: text.length,
+      omittedChars: Math.max(0, totalChars - text.length),
+      displayedLines: countLines(text),
+      totalLines: capped ? undefined : countLines(text),
+      omittedLines: undefined,
+    },
+  };
+}
+
+function countLines(text: string): number {
+  if (text.length === 0) return 0;
+  return text.split("\n").length;
 }

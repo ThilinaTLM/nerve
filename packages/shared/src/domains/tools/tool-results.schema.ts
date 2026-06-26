@@ -31,11 +31,102 @@ export const toolContentBlockSchema = z.union([
 ]);
 export type ToolContentBlockPayload = z.infer<typeof toolContentBlockSchema>;
 
+export const textLimitDirectionSchema = z.enum([
+  "head",
+  "tail",
+  "line",
+  "head_tail",
+]);
+export type TextLimitDirection = z.infer<typeof textLimitDirectionSchema>;
+
+export const textLimitSnapshotSchema = z
+  .object({
+    truncated: z.boolean(),
+    direction: textLimitDirectionSchema.optional(),
+    originalBytes: z.number().nonnegative().optional(),
+    displayedBytes: z.number().nonnegative().optional(),
+    omittedBytes: z.number().nonnegative().optional(),
+    originalChars: z.number().nonnegative().optional(),
+    displayedChars: z.number().nonnegative().optional(),
+    omittedChars: z.number().nonnegative().optional(),
+    originalLines: z.number().nonnegative().optional(),
+    displayedLines: z.number().nonnegative().optional(),
+    omittedLines: z.number().nonnegative().optional(),
+    truncatedLines: z.number().nonnegative().optional(),
+    maxBytes: z.number().positive().optional(),
+    maxLines: z.number().positive().optional(),
+    maxLineChars: z.number().positive().optional(),
+    partialLine: z.boolean().optional(),
+  })
+  .passthrough();
+export type TextLimitSnapshotPayload = z.infer<typeof textLimitSnapshotSchema>;
+
+export const toolOutputArtifactSchema = z
+  .object({
+    kind: z.enum([
+      "full_output",
+      "raw_result",
+      "fetched_content",
+      "transcript",
+    ]),
+    path: z.string().min(1),
+    label: z.string().optional(),
+    bytes: z.number().nonnegative().optional(),
+    chars: z.number().nonnegative().optional(),
+    lines: z.number().nonnegative().optional(),
+  })
+  .passthrough();
+export type ToolOutputArtifactPayload = z.infer<
+  typeof toolOutputArtifactSchema
+>;
+
+export const liveOutputLimitSchema = z
+  .object({
+    capped: z.boolean(),
+    direction: z.literal("tail"),
+    maxChars: z.number().positive(),
+    maxChunks: z.number().positive(),
+    totalChars: z.number().nonnegative().optional(),
+    displayedChars: z.number().nonnegative().optional(),
+    omittedChars: z.number().nonnegative().optional(),
+    totalLines: z.number().nonnegative().optional(),
+    displayedLines: z.number().nonnegative().optional(),
+    omittedLines: z.number().nonnegative().optional(),
+  })
+  .passthrough();
+export type LiveOutputLimitPayload = z.infer<typeof liveOutputLimitSchema>;
+
+export const toolOutputLimitsSchema = z
+  .object({
+    execution: textLimitSnapshotSchema.optional(),
+    storage: textLimitSnapshotSchema
+      .extend({ rawResultPath: z.string().optional() })
+      .optional(),
+    model: textLimitSnapshotSchema
+      .extend({
+        contentKind: z.enum(["content_blocks", "formatted_text"]).optional(),
+      })
+      .optional(),
+    live: liveOutputLimitSchema.optional(),
+    artifacts: z.array(toolOutputArtifactSchema).optional(),
+    continuation: z
+      .object({
+        nextOffset: z.number().optional(),
+        nextByteOffset: z.number().optional(),
+        hint: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+export type ToolOutputLimitsPayload = z.infer<typeof toolOutputLimitsSchema>;
+
 /** Loose envelope covering the `details.truncation` shapes emitted by file tools. */
 export const truncationDetailsSchema = z
   .object({
     truncated: z.boolean().optional(),
     omittedLines: z.number().optional(),
+    omittedChars: z.number().optional(),
     omittedBytes: z.number().optional(),
     truncatedLines: z.number().optional(),
     direction: z.enum(["head", "tail", "line", "head_tail"]).optional(),
@@ -44,6 +135,8 @@ export const truncationDetailsSchema = z
     nextByteOffset: z.number().optional(),
     maxLines: z.number().optional(),
     maxBytes: z.number().optional(),
+    originalChars: z.number().optional(),
+    displayedChars: z.number().optional(),
     maxLineChars: z.number().optional(),
     byteOffset: z.number().optional(),
     byteLimit: z.number().optional(),
@@ -60,6 +153,7 @@ export const processStreamResultDetailsSchema = z
     displayedLines: z.number().optional(),
     truncated: z.boolean().optional(),
     omittedLines: z.number().optional(),
+    omittedChars: z.number().optional(),
     omittedBytes: z.number().optional(),
     truncatedLines: z.number().optional(),
     direction: z.enum(["head", "tail", "line", "head_tail"]).optional(),

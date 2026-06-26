@@ -1,6 +1,7 @@
 import {
   type TodoItem,
   toolExecutionResultSchema,
+  toolOutputLimitsSchema,
   truncationDetailsSchema,
 } from "@nervekit/shared";
 import type { LiveToolOutput } from "$lib/core/types/state-types";
@@ -164,6 +165,17 @@ export function resolveToolPath(
 ): string | undefined {
   if (!path) return undefined;
   return resolveDisplayPath(path, cwd);
+}
+
+export function outputLimitsFromDetails(details: unknown) {
+  const record = asRecord(details);
+  const direct = toolOutputLimitsSchema.safeParse(record.outputLimits);
+  if (direct.success) return direct.data;
+  return undefined;
+}
+
+export function outputArtifactsFromDetails(details: unknown) {
+  return outputLimitsFromDetails(details)?.artifacts ?? [];
 }
 
 export function detailsTruncated(details: unknown): boolean {

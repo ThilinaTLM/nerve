@@ -2,7 +2,13 @@ import type { StatusTone } from "$lib/components/ui/status-dot";
 
 export type MetaTone = "default" | "success" | "warning" | "error" | "info";
 
-export type MetaItem = { text: string; tone?: MetaTone; mono?: boolean };
+export type MetaItem = {
+  text: string;
+  tone?: MetaTone;
+  mono?: boolean;
+  openPath?: string;
+  href?: string;
+};
 
 export type CollapseInfo = {
   hidden: number;

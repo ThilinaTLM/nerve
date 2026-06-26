@@ -28,7 +28,6 @@ import {
   toolPromptMetadata,
 } from "../../tools/agent-tool-adapter.js";
 import type { AgentRunner } from "./agent-runner.js";
-import { inlineCommandExecutionResultText } from "./inline-command-results.js";
 import {
   assistantContentRedacted,
   assistantToolCallDraft,
@@ -36,6 +35,7 @@ import {
   recordFromUnknown,
   sameStringList,
 } from "./agent-runner-shared.js";
+import { inlineCommandExecutionResultText } from "./inline-command-results.js";
 import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,
@@ -49,7 +49,6 @@ import {
   shouldPublishToolDraftProgress,
   shouldStreamToolDraftArguments,
 } from "./tool-draft-streaming.js";
-
 export async function runAgentPromptSession(
   this: AgentRunner,
   agent: AgentRecord,
@@ -59,13 +58,11 @@ export async function runAgentPromptSession(
   if (this.deps.state.runs.has(agent.id)) {
     throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
   }
-
   // A fresh (non-continuation) prompt resets the auto-continuation budget so
   // the runaway guard only counts back-to-back automatic continuations.
   if (!options.continue) {
     this.autoContinuationCounts.delete(agent.conversationId);
   }
-
   const runId = createId("run");
   const runStartedAt = performance.now();
   let abortRequested = false;
@@ -80,7 +77,6 @@ export async function runAgentPromptSession(
     string,
     { toolName: string; args: Record<string, unknown> }
   >();
-
   try {
     await this.deps.logger.info("Agent run preparing", {
       agentId: agent.id,
@@ -118,7 +114,6 @@ export async function runAgentPromptSession(
         { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
       );
     };
-
     const liveToolDraftReconciler = new LiveToolDraftReconciler({
       conversationRuntime: this.deps.state.conversationRuntime,
       publish: async (type, data) => {
@@ -128,9 +123,7 @@ export async function runAgentPromptSession(
       getTurnId: () => currentTurnId,
       getLiveMessageId: () => currentLiveMessageId,
     });
-
     let currentProviderForResponse: string | undefined;
-
     const harness = new AgentHarness({
       env,
       conversation: harnessConversation,
@@ -153,7 +146,6 @@ export async function runAgentPromptSession(
       },
       systemPrompt: composeLatestSystemPrompt,
     });
-
     harness.subscribe(async (event) => {
       if (event.type === "before_provider_request") {
         currentProviderForResponse = event.model.provider;
@@ -377,6 +369,8 @@ export async function runAgentPromptSession(
                 turnId: currentTurnId,
                 liveMessageId: currentLiveMessageId,
                 contentIndex: update.contentIndex,
+                providerToolCallId: draft?.id,
+                toolName,
                 delta: update.delta,
               });
             await this.deps.events.publish(
@@ -497,7 +491,6 @@ export async function runAgentPromptSession(
         return;
       }
     });
-
     const startedAt = new Date().toISOString();
     this.deps.state.conversationRuntime.startRun({
       agentId: agent.id,
@@ -525,7 +518,6 @@ export async function runAgentPromptSession(
         provider: model.provider,
       },
     });
-
     this.deps.state.runs.set(agent.id, {
       runId,
       abort: async () => {
@@ -545,7 +537,6 @@ export async function runAgentPromptSession(
           activeToolNames = nextActiveToolNames;
           await harness.setActiveTools(nextActiveToolNames);
         }
-
         const nextModel = resolveAgentModel(updatedAgent.model);
         const currentModel = harness.getModel();
         if (
@@ -806,4 +797,3 @@ async function expandExecutablePromptBlocks(
     text: replaceExecutableCommandBlocks(request.text, replacements),
   };
 }
-

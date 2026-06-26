@@ -8,6 +8,7 @@ import {
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   textBoundaryDetails,
+  textLimitSnapshot,
 } from "../common/output-budget.js";
 import { globToRegExp, walkFiles } from "../common/search-utils.js";
 import {
@@ -125,7 +126,10 @@ function formatFind(
   return {
     content: bounded.text,
     details: bounded.truncated
-      ? { truncation: textBoundaryDetails(bounded) }
+      ? {
+          truncation: textBoundaryDetails(bounded),
+          outputLimits: { execution: textLimitSnapshot(bounded) },
+        }
       : undefined,
   };
 }

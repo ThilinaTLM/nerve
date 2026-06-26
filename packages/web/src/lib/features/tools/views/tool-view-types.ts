@@ -7,7 +7,14 @@ import type {
   TaskLogEvent,
   TaskRecord,
   TodoItem,
+  ToolOutputArtifactPayload,
+  ToolOutputLimitsPayload,
 } from "@nervekit/shared";
+
+export type ToolOutputInfo = {
+  outputLimits?: ToolOutputLimitsPayload;
+  outputArtifacts?: ToolOutputArtifactPayload[];
+};
 
 export type GrepMatchView = GrepMatch & { openPath?: string };
 export type GroupedMatches = {
@@ -74,6 +81,8 @@ export type ToolView =
       image?: { dataUrl: string; mimeType: string };
       content?: string;
       truncated: boolean;
+      outputLimits?: ToolOutputLimitsPayload;
+      outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
       kind: "bash";
@@ -84,6 +93,8 @@ export type ToolView =
       savedTo?: string;
       truncated: boolean;
       live?: boolean;
+      outputLimits?: ToolOutputLimitsPayload;
+      outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
       kind: "python";
@@ -111,6 +122,8 @@ export type ToolView =
         stderr?: ProcessStreamResultDetails;
         combined?: ProcessStreamResultDetails;
       };
+      outputLimits?: ToolOutputLimitsPayload;
+      outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
       kind: "edit";
@@ -197,6 +210,8 @@ export type ToolView =
       query?: string;
       answer?: string;
       results: Array<{ title: string; url: string }>;
+      outputLimits?: ToolOutputLimitsPayload;
+      outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
       kind: "web_fetch";
@@ -207,5 +222,7 @@ export type ToolView =
       savedTo?: string;
       converted: boolean;
       content?: string;
+      outputLimits?: ToolOutputLimitsPayload;
+      outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | { kind: "generic" };

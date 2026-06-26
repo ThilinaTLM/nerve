@@ -65,7 +65,25 @@
       {#if meta.length > 0}
         <div class="chips">
           {#each meta as item, i (i)}
-            <span class={`chip tone-${item.tone ?? "default"}`} class:mono={item.mono}>{item.text}</span>
+            {#if item.openPath}
+              <button
+                class={`chip chip-action tone-${item.tone ?? "default"}`}
+                class:mono={item.mono}
+                type="button"
+                title={item.openPath}
+                onclick={() => onOpenFile?.(item.openPath!)}
+              >{item.text}</button>
+            {:else if item.href}
+              <a
+                class={`chip chip-action tone-${item.tone ?? "default"}`}
+                class:mono={item.mono}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer noopener"
+              >{item.text}</a>
+            {:else}
+              <span class={`chip tone-${item.tone ?? "default"}`} class:mono={item.mono}>{item.text}</span>
+            {/if}
           {/each}
         </div>
       {/if}
@@ -165,6 +183,19 @@
     font-size: var(--text-xs);
     line-height: 1.5;
     white-space: nowrap;
+    text-decoration: none;
+  }
+
+  .chip-action {
+    cursor: pointer;
+  }
+
+  button.chip {
+    font: inherit;
+  }
+
+  .chip-action:hover {
+    text-decoration: underline;
   }
 
   .chip.mono {

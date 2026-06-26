@@ -41,6 +41,59 @@ export function toolPresentationCached(
 }
 
 /** Derive the header (badge + primary arg) and footer (meta chips) for a tool. */
+function formatCount(
+  value: number | undefined,
+  noun: string,
+): string | undefined {
+  if (value === undefined || value <= 0) return undefined;
+  return `${value.toLocaleString()} ${noun}${value === 1 ? "" : "s"}`;
+}
+
+function hasOutputArtifactPath(
+  view: ToolView,
+  path: string | undefined,
+): boolean {
+  return Boolean(
+    path &&
+      "outputArtifacts" in view &&
+      view.outputArtifacts?.some((artifact) => artifact.path === path),
+  );
+}
+
+function outputMeta(view: ToolView): MetaItem[] {
+  const limits = "outputLimits" in view ? view.outputLimits : undefined;
+  const artifacts =
+    "outputArtifacts" in view ? view.outputArtifacts : undefined;
+  const meta: MetaItem[] = [];
+  if (limits?.model?.truncated) {
+    const lines = formatCount(limits.model.omittedLines, "line");
+    const chars = formatCount(limits.model.omittedChars, "char");
+    meta.push({
+      text: ["LLM trimmed", lines ?? chars].filter(Boolean).join(" · "),
+      tone: "warning",
+    });
+  }
+  if (limits?.live?.capped) {
+    const chars = formatCount(limits.live.omittedChars, "char");
+    meta.push({
+      text: ["live tail", chars ? `${chars} omitted` : undefined]
+        .filter(Boolean)
+        .join(" · "),
+      tone: "info",
+    });
+  }
+  for (const artifact of artifacts ?? []) {
+    const label =
+      artifact.kind === "raw_result"
+        ? "raw result"
+        : artifact.kind === "fetched_content"
+          ? "fetched content"
+          : "full output";
+    meta.push({ text: label, mono: true, openPath: artifact.path });
+  }
+  return meta;
+}
+
 export function toolPresentation(
   view: ToolView,
   toolCall: ToolCallRecord,
@@ -59,6 +112,7 @@ export function toolPresentation(
       const meta: MetaItem[] = [];
       if (view.lineLabel) meta.push({ text: view.lineLabel });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
+      meta.push(...outputMeta(view));
       return {
         ...base,
         primaryArg,
@@ -77,8 +131,13 @@ export function toolPresentation(
         meta.push({ text: `signal ${view.signal}`, tone: "warning" });
       if (lines > 0) meta.push({ text: plural(lines, "line") });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
-      if (view.savedTo) {
-        meta.push({ text: `saved ${basename(view.savedTo)}`, mono: true });
+      meta.push(...outputMeta(view));
+      if (view.savedTo && !hasOutputArtifactPath(view, view.savedTo)) {
+        meta.push({
+          text: `saved ${basename(view.savedTo)}`,
+          mono: true,
+          openPath: view.savedTo,
+        });
       }
       return {
         ...base,
@@ -116,8 +175,13 @@ export function toolPresentation(
       if (view.streams?.stderr?.truncated)
         meta.push({ text: "stderr truncated", tone: "warning" });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
-      if (view.savedTo) {
-        meta.push({ text: `saved ${basename(view.savedTo)}`, mono: true });
+      meta.push(...outputMeta(view));
+      if (view.savedTo && !hasOutputArtifactPath(view, view.savedTo)) {
+        meta.push({
+          text: `saved ${basename(view.savedTo)}`,
+          mono: true,
+          openPath: view.savedTo,
+        });
       }
       const hiddenCode = Math.max(0, view.codeLineCount - COLLAPSED_LINES);
       const hiddenOutput = Math.max(0, lines - COLLAPSED_LINES);
@@ -235,8 +299,13 @@ export function toolPresentation(
       const size = formatBytes(view.size);
       if (size) meta.push({ text: size });
       if (view.converted) meta.push({ text: "markdown", tone: "info" });
-      if (view.savedTo)
-        meta.push({ text: `saved ${basename(view.savedTo)}`, mono: true });
+      if (view.savedTo && !hasOutputArtifactPath(view, view.savedTo))
+        meta.push({
+          text: `saved ${basename(view.savedTo)}`,
+          mono: true,
+          openPath: view.savedTo,
+        });
+      meta.push(...outputMeta(view));
       return {
         ...base,
         primaryArg: view.url ? { text: view.url, href: view.url } : undefined,
@@ -249,7 +318,10 @@ export function toolPresentation(
       return {
         ...base,
         primaryArg: view.query ? { text: view.query } : undefined,
-        meta: [{ text: plural(view.results.length, "result") }],
+        meta: [
+          { text: plural(view.results.length, "result") },
+          ...outputMeta(view),
+        ],
       };
 
     case "todos":

@@ -1,5 +1,6 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
+import { buildProcessTextResult } from "../common/process-result.js";
 
 interface TavilyResult {
   title: string;
@@ -74,11 +75,17 @@ export async function executeWebSearch(
     lines.push(`### ${result.title}`, result.url, "", result.content, "");
   }
   const content = lines.join("\n").trimEnd();
+  const bounded = await buildProcessTextResult({
+    text: content,
+    outputFilePrefix: "nerve-web-search",
+    exitMessagePrefix: "Web search",
+    dataDir: context.dataDir,
+  });
 
   return {
-    content,
-    contentBlocks: [{ type: "text", text: content }],
+    ...bounded,
     details: {
+      ...(bounded.details ?? {}),
       query,
       answer: data.answer,
       results: results.map((result) => ({

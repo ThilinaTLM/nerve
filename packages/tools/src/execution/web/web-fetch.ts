@@ -74,6 +74,48 @@ function formatSize(bytes: number): string {
   return `${(kb / 1024).toFixed(1)} MB`;
 }
 
+function lineCount(text: string): number {
+  if (text.length === 0) return 0;
+  return text.split(/\r?\n/).length;
+}
+
+function savedContentLimits(
+  kind: "fetched_content",
+  path: string,
+  content: Buffer | string,
+) {
+  const text = typeof content === "string" ? content : undefined;
+  const bytes =
+    typeof content === "string"
+      ? Buffer.byteLength(content, "utf8")
+      : content.byteLength;
+  return {
+    execution: {
+      truncated: true,
+      direction: "head" as const,
+      originalBytes: bytes,
+      displayedBytes: 0,
+      omittedBytes: bytes,
+      originalChars: text?.length,
+      displayedChars: 0,
+      omittedChars: text?.length,
+      originalLines: text ? lineCount(text) : undefined,
+      displayedLines: 0,
+      omittedLines: text ? lineCount(text) : undefined,
+    },
+    artifacts: [
+      {
+        kind,
+        path,
+        label: "Fetched content",
+        bytes,
+        chars: text?.length,
+        lines: text ? lineCount(text) : undefined,
+      },
+    ],
+  };
+}
+
 function timeoutSignal(
   signal: AbortSignal | undefined,
   milliseconds: number,
@@ -119,17 +161,29 @@ export async function executeWebFetch(
   const buffer = Buffer.from(await response.arrayBuffer());
   const size = buffer.byteLength;
   const ext = getExtension(contentType);
-  const details = {
+  const details: Record<string, unknown> & {
+    url: string;
+    status: number;
+    contentType: string;
+    size: number;
+    converted: boolean;
+    savedTo?: string;
+  } = {
     url,
     status: response.status,
     contentType,
     size,
     converted: false,
-    savedTo: undefined as string | undefined,
+    savedTo: undefined,
   };
 
   if (raw) {
     details.savedTo = await saveContent(context, url, ext, buffer);
+    details.outputLimits = savedContentLimits(
+      "fetched_content",
+      details.savedTo,
+      buffer,
+    );
     const content = `Raw content saved to: ${details.savedTo}\nSize: ${formatSize(size)}\nContent-Type: ${contentType}`;
     return {
       content,
@@ -140,6 +194,11 @@ export async function executeWebFetch(
 
   if (!isTextType(contentType)) {
     details.savedTo = await saveContent(context, url, ext, buffer);
+    details.outputLimits = savedContentLimits(
+      "fetched_content",
+      details.savedTo,
+      buffer,
+    );
     const content = `Binary content saved to: ${details.savedTo}\nSize: ${formatSize(size)}\nContent-Type: ${contentType}\nUse the read tool to inspect it.`;
     return {
       content,
@@ -164,6 +223,11 @@ export async function executeWebFetch(
 
   const saveExt = details.converted ? ".md" : ext;
   details.savedTo = await saveContent(context, url, saveExt, text);
+  details.outputLimits = savedContentLimits(
+    "fetched_content",
+    details.savedTo,
+    text,
+  );
   const content = `Response saved to: ${details.savedTo}\nSize: ${formatSize(Buffer.byteLength(text))}${details.converted ? " (converted to markdown)" : ""}\nThe content is large — use grep or read to inspect it.`;
   return { content, contentBlocks: [{ type: "text", text: content }], details };
 }

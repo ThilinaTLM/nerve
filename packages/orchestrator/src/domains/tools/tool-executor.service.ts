@@ -4,6 +4,7 @@ import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatche
 import { toolErrorDetails } from "./tool-errors.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";
 import { boundToolResultForStorage } from "./tool-result-bounds.js";
+import { annotateToolResultModelLimits } from "./tool-result-model-limits.js";
 import type { ToolRequestOptions } from "./tool-service.js";
 
 export interface ToolExecutorDeps {
@@ -45,10 +46,12 @@ export class ToolExecutorService {
         args,
         options,
       );
-      const boundedResult = await boundToolResultForStorage(result, {
-        toolCallId: toolCall.id,
-        storageHome: this.deps.storageHome,
-      });
+      const boundedResult = annotateToolResultModelLimits(
+        await boundToolResultForStorage(result, {
+          toolCallId: toolCall.id,
+          storageHome: this.deps.storageHome,
+        }),
+      );
       const completed = await this.deps.updateToolCall(toolCall.id, {
         status: "completed",
         result: boundedResult,

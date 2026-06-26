@@ -8,6 +8,7 @@ import {
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   textBoundaryDetails,
+  textLimitSnapshot,
 } from "../common/output-budget.js";
 import {
   globToRegExp,
@@ -191,7 +192,17 @@ function formatMatches(
     content: bounded.text,
     details:
       bounded.truncated || truncatedLines > 0
-        ? { truncation: textBoundaryDetails(bounded), truncatedLines }
+        ? {
+            truncation: textBoundaryDetails(bounded),
+            truncatedLines,
+            outputLimits: {
+              execution: {
+                ...textLimitSnapshot(bounded),
+                truncated: bounded.truncated || truncatedLines > 0,
+                truncatedLines,
+              },
+            },
+          }
         : undefined,
   };
 }

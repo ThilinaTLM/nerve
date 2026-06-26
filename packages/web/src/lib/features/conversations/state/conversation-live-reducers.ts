@@ -22,6 +22,8 @@ import {
   entryBelongsToActiveBranch,
   liveRunStatusId,
   liveTextId,
+  MAX_LIVE_TOOL_OUTPUT_CHARS,
+  MAX_LIVE_TOOL_OUTPUT_CHUNKS,
   numberValue,
   removeLiveRunStatusTranscriptItem,
   stringValue,
@@ -41,7 +43,8 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
 function inlineCommandPromptTexts(entry: ConversationEntry): Set<string> {
   const details = recordValue(entry.details);
   if (details?.type !== "inline_command_result") return new Set();
-  const command = typeof details.command === "string" ? details.command.trim() : "";
+  const command =
+    typeof details.command === "string" ? details.command.trim() : "";
   if (!command) return new Set();
   return new Set([`!${command}`, `! ${command}`]);
 }
@@ -82,10 +85,7 @@ export function handleEntryAppended(
   ].filter((item, _index, all) => {
     if (!item.optimistic) return true;
     if (entry.role === "user" && item.role === "user") return false;
-    if (
-      item.role === "user" &&
-      inlineCommandPrompts.has(item.text.trim())
-    ) {
+    if (item.role === "user" && inlineCommandPrompts.has(item.text.trim())) {
       return false;
     }
     return !all.some(
@@ -368,6 +368,15 @@ export function handleToolOutputDelta(
     ],
     text: `${previous?.text ?? ""}${delta}`,
     updatedAt,
+    outputLimits: {
+      capped: false,
+      direction: "tail",
+      maxChars: MAX_LIVE_TOOL_OUTPUT_CHARS,
+      maxChunks: MAX_LIVE_TOOL_OUTPUT_CHUNKS,
+      totalChars:
+        (previous?.outputLimits?.totalChars ?? previous?.text.length ?? 0) +
+        delta.length,
+    },
   });
   view.live.toolOutputByToolCallId = {
     ...view.live.toolOutputByToolCallId,

@@ -5,6 +5,7 @@ import {
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   textBoundaryDetails,
+  textLimitSnapshot,
 } from "../common/output-budget.js";
 import {
   isErrnoException,
@@ -58,7 +59,10 @@ export async function executeLs(
     content,
     contentBlocks: [{ type: "text", text: content }],
     details: bounded.truncated
-      ? { truncation: textBoundaryDetails(bounded) }
+      ? {
+          truncation: textBoundaryDetails(bounded),
+          outputLimits: { execution: textLimitSnapshot(bounded) },
+        }
       : undefined,
   };
 }

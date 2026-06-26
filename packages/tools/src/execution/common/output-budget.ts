@@ -1,3 +1,4 @@
+import type { TextLimitSnapshotPayload } from "@nervekit/shared";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -32,6 +33,7 @@ export type BoundedTextResult = {
   truncated: boolean;
   omittedLines: number;
   omittedBytes: number;
+  omittedChars: number;
   truncatedLines: number;
   direction: TruncationDirection;
   partialLine?: boolean;
@@ -39,8 +41,10 @@ export type BoundedTextResult = {
   maxLines: number;
   maxLineChars: number;
   originalBytes: number;
+  originalChars: number;
   originalLines: number;
   displayedBytes: number;
+  displayedChars: number;
   displayedLines: number;
 };
 
@@ -71,6 +75,7 @@ export function boundText(
     FILE_OUTPUT_MAX_LINE_CHARS,
   );
   const originalBytes = byteLength(input);
+  const originalChars = input.length;
   const originalLines = countLines(input);
   const lines = splitLines(input);
   const selected = lines.slice(0, maxLines);
@@ -97,6 +102,8 @@ export function boundText(
   omittedBytes += byteBounded.omittedBytes;
 
   const text = byteBounded.text;
+  const displayedChars = text.length;
+  const omittedChars = Math.max(0, originalChars - displayedChars);
   const truncated = omittedLines > 0 || omittedBytes > 0 || truncatedLines > 0;
   const lineOnly =
     truncatedLines > 0 &&
@@ -109,6 +116,7 @@ export function boundText(
     truncated,
     omittedLines,
     omittedBytes,
+    omittedChars,
     truncatedLines,
     direction: lineOnly ? "line" : "head",
     partialLine: byteBounded.partialLine,
@@ -116,8 +124,10 @@ export function boundText(
     maxLines,
     maxLineChars,
     originalBytes,
+    originalChars,
     originalLines,
     displayedBytes: byteLength(text),
+    displayedChars,
     displayedLines: countLines(text),
   };
 }
@@ -127,6 +137,29 @@ export function textBoundaryDetails(
 ): TextBoundaryDetails {
   const { text: _text, ...details } = bounded;
   return details;
+}
+
+export function textLimitSnapshot(
+  bounded: BoundedTextResult,
+): TextLimitSnapshotPayload {
+  return {
+    truncated: bounded.truncated,
+    direction: bounded.direction,
+    originalBytes: bounded.originalBytes,
+    displayedBytes: bounded.displayedBytes,
+    omittedBytes: bounded.omittedBytes,
+    originalChars: bounded.originalChars,
+    displayedChars: bounded.displayedChars,
+    omittedChars: bounded.omittedChars,
+    originalLines: bounded.originalLines,
+    displayedLines: bounded.displayedLines,
+    omittedLines: bounded.omittedLines,
+    truncatedLines: bounded.truncatedLines,
+    maxBytes: bounded.maxBytes,
+    maxLines: bounded.maxLines,
+    maxLineChars: bounded.maxLineChars,
+    partialLine: bounded.partialLine,
+  };
 }
 
 export function appendBoundedTextNotice(

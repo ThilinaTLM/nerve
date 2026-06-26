@@ -24,7 +24,7 @@
 
   {#if view.output.length > 0}
     <section class="grid gap-1" aria-label="Python output">
-      <ToolOutputBlock text={view.output} direction="tail" {expanded} />
+      <ToolOutputBlock text={view.output} direction="tail" {expanded} outputLimits={view.outputLimits} />
     </section>
   {:else if toolCall.status === "running"}
     <p class="m-0 text-xs text-muted-foreground">Waiting for Python output…</p>

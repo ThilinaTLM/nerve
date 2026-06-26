@@ -15,6 +15,7 @@ export {
   type TextBoundaryDetails,
   type TextBudget,
   textBoundaryDetails,
+  textLimitSnapshot,
 } from "./common/output-budget.js";
 export {
   buildProcessResult,

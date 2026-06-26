@@ -2,12 +2,15 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ToolOutputLimitsPayload } from "@nervekit/shared";
 import type { ToolExecutionResult } from "../../types.js";
 import {
   appendBoundedTextNotice,
+  type BoundedTextResult,
   boundText,
   PROCESS_INLINE_MAX_LINE_CHARS,
   textBoundaryDetails,
+  textLimitSnapshot,
 } from "./output-budget.js";
 import {
   formatSize,
@@ -218,6 +221,15 @@ export async function buildProcessResult({
       timedOut,
       timeoutKilled,
       truncation: outputTruncation,
+      outputLimits: processOutputLimits({
+        existing: (details as { outputLimits?: ToolOutputLimitsPayload })
+          .outputLimits,
+        combined,
+        combinedStats,
+        boundedCombined,
+        outputPreview,
+        fullOutputPath,
+      }),
       streams: {
         stdout: streamDetails(stdoutStream),
         stderr: streamDetails(stderrStream),
@@ -226,6 +238,65 @@ export async function buildProcessResult({
       fullOutputPath,
       signal,
     },
+  };
+}
+
+function processOutputLimits({
+  existing,
+  combined,
+  combinedStats,
+  boundedCombined,
+  outputPreview,
+  fullOutputPath,
+}: {
+  existing?: ToolOutputLimitsPayload;
+  combined: string;
+  combinedStats: OutputStats;
+  boundedCombined: BoundedTextResult;
+  outputPreview?: PreviewResult;
+  fullOutputPath?: string;
+}): ToolOutputLimitsPayload | undefined {
+  const execution = outputPreview
+    ? {
+        truncated: true,
+        direction: "head_tail" as const,
+        originalBytes: combinedStats.bytes,
+        displayedBytes: Buffer.byteLength(outputPreview.text, "utf8"),
+        omittedBytes: outputPreview.omittedBytes,
+        originalChars: combined.length,
+        displayedChars: outputPreview.text.length,
+        omittedChars: Math.max(0, combined.length - outputPreview.text.length),
+        originalLines: combinedStats.lines,
+        displayedLines: countLines(outputPreview.text),
+        omittedLines: outputPreview.omittedLines,
+        truncatedLines: 0,
+        maxBytes: PROCESS_INLINE_MAX_BYTES,
+        maxLines: PROCESS_INLINE_MAX_LINES,
+        maxLineChars: PROCESS_INLINE_MAX_LINE_CHARS,
+      }
+    : boundedCombined.truncated
+      ? textLimitSnapshot(boundedCombined)
+      : undefined;
+  const artifacts = [
+    ...(existing?.artifacts ?? []),
+    ...(fullOutputPath
+      ? [
+          {
+            kind: "full_output" as const,
+            path: fullOutputPath,
+            label: "Full output",
+            bytes: combinedStats.bytes,
+            chars: combined.length,
+            lines: combinedStats.lines,
+          },
+        ]
+      : []),
+  ];
+  if (!execution && artifacts.length === 0 && !existing) return undefined;
+  return {
+    ...existing,
+    execution: execution ?? existing?.execution,
+    artifacts: artifacts.length > 0 ? artifacts : existing?.artifacts,
   };
 }
 

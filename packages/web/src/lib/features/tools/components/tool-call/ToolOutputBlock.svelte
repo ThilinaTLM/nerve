@@ -8,6 +8,9 @@
     direction?: "head" | "tail";
     collapsedLines?: number;
     expanded?: boolean;
+    outputLimits?: {
+      live?: { capped?: boolean; omittedChars?: number; displayedLines?: number; displayedChars?: number };
+    };
   };
   let {
     text,
@@ -15,6 +18,7 @@
     direction = "head",
     collapsedLines = COLLAPSED_LINES,
     expanded = false,
+    outputLimits,
   }: Props = $props();
 
   const visible = $derived.by(() => {
@@ -26,5 +30,13 @@
       : lines.slice(0, collapsedLines).join("\n");
   });
 </script>
+
+{#if outputLimits?.live?.capped}
+  <p class="m-0 text-xs text-muted-foreground">
+    Showing latest
+    {outputLimits.live.displayedLines ?? 0} lines / {outputLimits.live.displayedChars ?? 0} chars;
+    {outputLimits.live.omittedChars ?? 0} earlier chars omitted from live preview.
+  </p>
+{/if}
 
 <ResultCodeBlock code={visible} {language} trim={false} />

@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ToolOutputLimitsPayload } from "@nervekit/shared";
 import { appendBoundedTextNotice, boundText } from "@nervekit/tools";
 
 const STORAGE_TEXT_MAX_BYTES = 256 * 1024;
@@ -11,6 +12,7 @@ type BoundSummary = {
   truncatedStrings: number;
   omittedLines: number;
   omittedBytes: number;
+  omittedChars: number;
   truncatedLines: number;
   maxBytes: number;
   maxLines: number;
@@ -58,6 +60,7 @@ function boundValue(value: unknown, path: string[]): BoundValueResult {
         truncatedStrings: 1,
         omittedLines: bounded.omittedLines,
         omittedBytes: bounded.omittedBytes,
+        omittedChars: bounded.omittedChars,
         truncatedLines: bounded.truncatedLines,
       },
     };
@@ -92,21 +95,32 @@ function attachRawResultDetails(
   rawResultPath: string,
   summary: BoundSummary,
 ): unknown {
+  const storageLimit = {
+    truncated: true,
+    omittedLines: summary.omittedLines,
+    omittedBytes: summary.omittedBytes,
+    omittedChars: summary.omittedChars,
+    truncatedLines: summary.truncatedLines,
+    maxBytes: summary.maxBytes,
+    maxLines: summary.maxLines,
+    maxLineChars: summary.maxLineChars,
+    rawResultPath,
+  };
   const details = {
     rawResultPath,
     outputLimits: {
       ...summary,
       rawResultPath,
-      truncation: {
-        truncated: true,
-        omittedLines: summary.omittedLines,
-        omittedBytes: summary.omittedBytes,
-        truncatedLines: summary.truncatedLines,
-        maxBytes: summary.maxBytes,
-        maxLines: summary.maxLines,
-        maxLineChars: summary.maxLineChars,
-      },
-    },
+      truncation: storageLimit,
+      storage: storageLimit,
+      artifacts: [
+        {
+          kind: "raw_result" as const,
+          path: rawResultPath,
+          label: "Raw result",
+        },
+      ],
+    } satisfies ToolOutputLimitsPayload & Record<string, unknown>,
   };
 
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -174,6 +188,7 @@ function emptySummary(): BoundSummary {
     truncatedStrings: 0,
     omittedLines: 0,
     omittedBytes: 0,
+    omittedChars: 0,
     truncatedLines: 0,
     maxBytes: STORAGE_TEXT_MAX_BYTES,
     maxLines: STORAGE_TEXT_MAX_LINES,
@@ -187,6 +202,7 @@ function mergeSummary(left: BoundSummary, right: BoundSummary): BoundSummary {
     truncatedStrings: left.truncatedStrings + right.truncatedStrings,
     omittedLines: left.omittedLines + right.omittedLines,
     omittedBytes: left.omittedBytes + right.omittedBytes,
+    omittedChars: left.omittedChars + right.omittedChars,
     truncatedLines: left.truncatedLines + right.truncatedLines,
     maxBytes: Math.min(left.maxBytes, right.maxBytes),
     maxLines: Math.min(left.maxLines, right.maxLines),

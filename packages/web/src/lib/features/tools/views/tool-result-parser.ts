@@ -23,6 +23,8 @@ import {
   firstTextBlock,
   groupMatchesByFile,
   imageDataUrl,
+  outputArtifactsFromDetails,
+  outputLimitsFromDetails,
   parseToolExecutionResult,
   relativePath,
   resolveToolPath,
@@ -106,6 +108,8 @@ export function parseToolView(
   const args = asRecord(toolCall.args);
   const cwd = toolCall.cwd;
   const result = parseToolExecutionResult(toolCall.result);
+  const outputLimits = outputLimitsFromDetails(result?.details);
+  const outputArtifacts = outputArtifactsFromDetails(result?.details);
 
   switch (toolCall.toolName) {
     case "read": {
@@ -124,6 +128,8 @@ export function parseToolView(
             mimeType: imageBlock.mimeType,
           },
           truncated: false,
+          outputLimits,
+          outputArtifacts,
         };
       }
       const content = result?.content;
@@ -146,6 +152,8 @@ export function parseToolView(
         lineLabel,
         content,
         truncated: detailsTruncated(result?.details),
+        outputLimits,
+        outputArtifacts,
       };
     }
 
@@ -164,6 +172,10 @@ export function parseToolView(
         savedTo: details.success ? details.data.fullOutputPath : undefined,
         truncated: detailsTruncated(result?.details),
         live: !result && Boolean(liveOutput?.text),
+        outputLimits: liveOutput?.outputLimits
+          ? { ...outputLimits, live: liveOutput.outputLimits }
+          : outputLimits,
+        outputArtifacts,
       };
     }
 
@@ -211,6 +223,10 @@ export function parseToolView(
         artifactDir: details.success ? details.data.artifactDir : undefined,
         artifacts: details.success ? details.data.artifacts : undefined,
         streams: details.success ? details.data.streams : undefined,
+        outputLimits: liveOutput?.outputLimits
+          ? { ...outputLimits, live: liveOutput.outputLimits }
+          : outputLimits,
+        outputArtifacts,
       };
     }
 
@@ -459,6 +475,8 @@ export function parseToolView(
         query,
         answer: details.success ? details.data.answer : undefined,
         results,
+        outputLimits,
+        outputArtifacts,
       };
     }
 
@@ -475,6 +493,8 @@ export function parseToolView(
         savedTo: data?.savedTo,
         converted: data?.converted ?? false,
         content: result?.content,
+        outputLimits,
+        outputArtifacts,
       };
     }
 

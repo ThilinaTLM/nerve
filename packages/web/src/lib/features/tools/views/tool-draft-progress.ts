@@ -397,6 +397,42 @@ function summarizePythonDraft(
   };
 }
 
+function firstKnownString(
+  draft: LiveToolCallDraft,
+  property: string,
+): string | undefined {
+  return (
+    stringField(asRecord(draft.args)[property]) ??
+    extractJsonStringValues(draft.argsText, property, { maxChars: 240 })[0]
+  );
+}
+
+function genericPrimaryArg(draft: LiveToolCallDraft): string | undefined {
+  const toolName = draft.toolName;
+  if (toolName === "bash") return firstKnownString(draft, "command");
+  if (toolName === "web_fetch") return firstKnownString(draft, "url");
+  if (toolName === "web_search") return firstKnownString(draft, "query");
+  if (toolName === "grep" || toolName === "find") {
+    return firstKnownString(draft, "pattern");
+  }
+  if (toolName?.startsWith("task_")) {
+    return (
+      firstKnownString(draft, "taskId") ??
+      firstKnownString(draft, "groupId") ??
+      firstKnownString(draft, "name")
+    );
+  }
+  return firstKnownString(draft, "path");
+}
+
+function genericMeta(draft: LiveToolCallDraft): DraftMetaItem[] {
+  const meta: DraftMetaItem[] = [];
+  const cwd = firstKnownString(draft, "cwd");
+  if (cwd) meta.push({ text: "cwd", tone: "info" });
+  if (draft.done) meta.push({ text: "submitted", tone: "success" });
+  return meta;
+}
+
 export function summarizeToolDraft(
   draft: LiveToolCallDraft,
   cwd?: string,
@@ -408,10 +444,11 @@ export function summarizeToolDraft(
   return {
     kind: "generic",
     toolName,
+    path: genericPrimaryArg(draft),
     statusText: draft.done
       ? `${toolName} arguments prepared.`
       : `Preparing ${toolName} arguments…`,
-    meta: draft.done ? [{ text: "submitted", tone: "success" }] : [],
+    meta: genericMeta(draft),
     done: Boolean(draft.done),
   };
 }

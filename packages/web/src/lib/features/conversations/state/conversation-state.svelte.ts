@@ -125,6 +125,18 @@ export type LiveToolOutput = {
   chunks: LiveToolOutputChunk[];
   text: string;
   updatedAt: string;
+  outputLimits?: {
+    capped: boolean;
+    direction: "tail";
+    maxChars: number;
+    maxChunks: number;
+    totalChars?: number;
+    displayedChars?: number;
+    omittedChars?: number;
+    totalLines?: number;
+    displayedLines?: number;
+    omittedLines?: number;
+  };
 };
 
 export type ConversationLiveState = {

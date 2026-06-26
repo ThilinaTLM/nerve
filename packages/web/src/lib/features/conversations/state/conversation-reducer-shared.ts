@@ -75,6 +75,7 @@ export function removeLiveRunStatusTranscriptItem(
 }
 
 export function capLiveOutput(output: LiveToolOutput): LiveToolOutput {
+  const totalChars = output.outputLimits?.totalChars ?? output.text.length;
   let text = output.text;
   if (text.length > MAX_LIVE_TOOL_OUTPUT_CHARS) {
     text = text.slice(text.length - MAX_LIVE_TOOL_OUTPUT_CHARS);
@@ -83,7 +84,31 @@ export function capLiveOutput(output: LiveToolOutput): LiveToolOutput {
     output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS
       ? output.chunks.slice(output.chunks.length - MAX_LIVE_TOOL_OUTPUT_CHUNKS)
       : output.chunks;
-  return { ...output, text, chunks };
+  const capped =
+    totalChars > text.length ||
+    output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS;
+  return {
+    ...output,
+    text,
+    chunks,
+    outputLimits: {
+      capped,
+      direction: "tail",
+      maxChars: MAX_LIVE_TOOL_OUTPUT_CHARS,
+      maxChunks: MAX_LIVE_TOOL_OUTPUT_CHUNKS,
+      totalChars,
+      displayedChars: text.length,
+      omittedChars: Math.max(0, totalChars - text.length),
+      displayedLines: countLines(text),
+      totalLines: capped ? undefined : countLines(text),
+      omittedLines: undefined,
+    },
+  };
+}
+
+function countLines(text: string): number {
+  if (text.length === 0) return 0;
+  return text.split("\n").length;
 }
 
 export function toolDraftProgressFromValue(

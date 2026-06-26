@@ -6,6 +6,7 @@ import {
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   textBoundaryDetails,
+  textLimitSnapshot,
 } from "../common/output-budget.js";
 import {
   DEFAULT_MAX_BYTES,
@@ -131,6 +132,17 @@ export async function executeRead(
                   ? offset + limit
                   : undefined,
             },
+            outputLimits: {
+              execution: {
+                ...textLimitSnapshot(bounded),
+                truncated: true,
+                omittedLines: bounded.omittedLines + remaining,
+              },
+              continuation:
+                !bounded.truncated && remaining > 0
+                  ? { nextOffset: offset + limit }
+                  : undefined,
+            },
           }
         : undefined,
     };
@@ -146,7 +158,10 @@ export async function executeRead(
     content: output,
     contentBlocks: [{ type: "text", text: output }],
     details: bounded.truncated
-      ? { truncation: textBoundaryDetails(bounded) }
+      ? {
+          truncation: textBoundaryDetails(bounded),
+          outputLimits: { execution: textLimitSnapshot(bounded) },
+        }
       : undefined,
   };
 }
@@ -201,6 +216,11 @@ function readByteRange(
       size: buffer.length,
       nextByteOffset,
       truncation: bounded.truncated ? textBoundaryDetails(bounded) : undefined,
+      outputLimits: {
+        execution: textLimitSnapshot(bounded),
+        continuation:
+          nextByteOffset !== undefined ? { nextByteOffset } : undefined,
+      },
     },
   };
 }

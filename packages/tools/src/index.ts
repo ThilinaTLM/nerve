@@ -34,6 +34,7 @@ export {
   type TextBudget,
   ToolExecutionError,
   textBoundaryDetails,
+  textLimitSnapshot,
 } from "./execution/index.js";
 export {
   hasDangerousCommandPattern,

@@ -236,6 +236,8 @@ export interface ConversationLiveToolDraftDeltaData {
   contentBlockId: string;
   contentIndex: number;
   offset: number;
+  providerToolCallId?: string;
+  toolName?: string;
   delta: string;
 }
 
@@ -381,11 +383,25 @@ export interface ConversationLiveToolOutputChunkSnapshot {
   ts: string;
 }
 
+export interface ConversationLiveToolOutputLimitsSnapshot {
+  capped: boolean;
+  direction: "tail";
+  maxChars: number;
+  maxChunks: number;
+  totalChars?: number;
+  displayedChars?: number;
+  omittedChars?: number;
+  totalLines?: number;
+  displayedLines?: number;
+  omittedLines?: number;
+}
+
 export interface ConversationLiveToolOutputSnapshot {
   toolCallId: string;
   chunks: ConversationLiveToolOutputChunkSnapshot[];
   text: string;
   updatedAt: string;
+  outputLimits?: ConversationLiveToolOutputLimitsSnapshot;
 }
 
 export interface ConversationRunRetrySnapshot {
