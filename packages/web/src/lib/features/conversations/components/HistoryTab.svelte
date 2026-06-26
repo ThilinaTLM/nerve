@@ -5,7 +5,7 @@
     ConversationEntry,
     ConversationRecord,
     ConversationTreeNode,
-    ToolCallRecord,
+    ToolCallTranscriptRecord,
   } from "$lib/api";
   import { buttonVariants } from "$lib/components/ui/button";
   import { buildHistoryGraph } from "./history-graph";
@@ -20,7 +20,7 @@
   type Props = {
     activeConversation?: ConversationRecord;
     treeNodes?: ConversationTreeNode[];
-    toolCalls?: ToolCallRecord[];
+    toolCalls?: ToolCallTranscriptRecord[];
     onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
     onEditEntry?: (entry: ConversationEntry) => void;
   };

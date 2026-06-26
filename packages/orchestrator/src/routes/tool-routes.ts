@@ -7,6 +7,7 @@ import {
   userQuestionStatusSchema,
 } from "@nervekit/shared";
 import { Hono } from "hono";
+import { toToolCallTranscriptRecord } from "../domains/tools/tool-call-transcript-preview.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
@@ -16,7 +17,19 @@ export function createToolRoutes(state: OrchestratorState): Hono {
 
   app.get("/tools", (c) => c.json({ tools: state.registry.tools.listTools() }));
   app.get("/tool-calls", (c) =>
-    c.json({ toolCalls: state.registry.tools.listToolCalls() }),
+    c.json({
+      toolCalls: state.registry.tools
+        .listToolCalls()
+        .map(toToolCallTranscriptRecord),
+    }),
+  );
+  app.get(
+    "/tool-calls/:toolCallId",
+    routeHandler(async (c) =>
+      c.json({
+        toolCall: state.registry.tools.getToolCall(routeParam(c, "toolCallId")),
+      }),
+    ),
   );
   app.get("/approvals", (c) => {
     const status = c.req.query("status");

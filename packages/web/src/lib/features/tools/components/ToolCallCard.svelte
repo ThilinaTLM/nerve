@@ -5,16 +5,19 @@
     PlanReviewRecord,
     PlanReviewResolveOptions,
     ToolCallRecord,
+    ToolCallTranscriptRecord,
     UserQuestionRecord,
   } from "$lib/api";
   import type { LiveToolOutput } from "$lib/core/types/state-types";
   import { toolPresentationCached } from "$lib/features/tools/views/tool-presentation";
   import { parseToolViewCached } from "$lib/features/tools/views/tool-result-view";
   import { toolViewComponent } from "$lib/features/tools/views/registry";
+  import { getToolCall } from "$lib/features/tools/api/tools.api";
   import ToolCallShell from "./tool-call/ToolCallShell.svelte";
+  import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallTranscriptRecord;
     liveOutput?: LiveToolOutput;
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
@@ -52,7 +55,11 @@
     onRejectPlanReview,
   }: Props = $props();
 
-  let expanded = $state(false);
+  let detailsOpen = $state(false);
+  let detailsLoading = $state(false);
+  let detailsError = $state<string | undefined>(undefined);
+  let fullToolCall = $state<ToolCallRecord | undefined>(undefined);
+  let fullToolCallPreviewUpdatedAt = $state<string | undefined>(undefined);
 
   // Kept-mounted inactive panes may receive new tool rows while hidden. Avoid
   // instantiating heavy tool bodies for those new hidden rows; once a body has
@@ -79,14 +86,33 @@
   $effect(() => {
     if (hydrateBody) bodyHydrated = true;
   });
+
+  async function openDetails() {
+    detailsOpen = true;
+    if (fullToolCall && fullToolCallPreviewUpdatedAt === toolCall.updatedAt) return;
+    detailsLoading = true;
+    detailsError = undefined;
+    try {
+      fullToolCall = await getToolCall(toolCall.id);
+      fullToolCallPreviewUpdatedAt = toolCall.updatedAt;
+    } catch (error) {
+      detailsError = error instanceof Error ? error.message : String(error);
+    } finally {
+      detailsLoading = false;
+    }
+  }
+
+  function handleDetailsOpenChange(open: boolean) {
+    detailsOpen = open;
+  }
 </script>
 
-<ToolCallShell {toolCall} {presentation} {bodyMode} {onOpenFile} bind:expanded>
+<ToolCallShell {toolCall} {presentation} {bodyMode} {onOpenFile} onOpenDetails={openDetails}>
   {#if showBody && shouldHydrateBody}
     <ToolView
       {toolCall}
       {view}
-      {expanded}
+      expanded={false}
       {onOpenFile}
       questionRecord={toolQuestion}
       planReview={toolPlanReview}
@@ -101,3 +127,25 @@
     />
   {/if}
 </ToolCallShell>
+
+<ToolCallDetailsDialog
+  open={detailsOpen}
+  previewToolCall={toolCall}
+  toolCall={fullToolCall}
+  loading={detailsLoading}
+  error={detailsError}
+  {pendingUserQuestion}
+  {pendingPlanReview}
+  {onOpenFile}
+  {planReviewModels}
+  {planReviewModelKey}
+  {planReviewThinkingLevel}
+  {onAnswerUserQuestion}
+  {onDismissUserQuestion}
+  {onAcceptPlanReview}
+  {onAcceptPlanReviewInNewChat}
+  {onRejectPlanReview}
+  onRetry={openDetails}
+  onOpenChange={handleDetailsOpenChange}
+/>
+

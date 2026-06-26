@@ -5,12 +5,13 @@ import type {
   ModelSelection,
   PlanReviewRecord,
   ToolCallRecord,
+  ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "@nervekit/shared";
 import { apiGet, apiPathSegment, apiPost } from "../../../core/api/client";
 
 export type ApprovalWithToolCall = ApprovalRecord & {
-  toolCall?: ToolCallRecord;
+  toolCall?: ToolCallTranscriptRecord;
 };
 
 export type PlanReviewResolveOptions = {
@@ -19,15 +20,24 @@ export type PlanReviewResolveOptions = {
   implementationThinkingLevel?: AgentRecord["thinkingLevel"];
 };
 
-export async function getToolCalls(): Promise<ToolCallRecord[]> {
-  return (await apiGet<{ toolCalls: ToolCallRecord[] }>("/api/tool-calls"))
-    .toolCalls;
+export async function getToolCalls(): Promise<ToolCallTranscriptRecord[]> {
+  return (
+    await apiGet<{ toolCalls: ToolCallTranscriptRecord[] }>("/api/tool-calls")
+  ).toolCalls;
+}
+
+export async function getToolCall(toolCallId: string): Promise<ToolCallRecord> {
+  return (
+    await apiGet<{ toolCall: ToolCallRecord }>(
+      `/api/tool-calls/${apiPathSegment(toolCallId)}`,
+    )
+  ).toolCall;
 }
 
 export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
   const [{ approvals }, { toolCalls }] = await Promise.all([
     apiGet<{ approvals: ApprovalRecord[] }>("/api/approvals?status=pending"),
-    apiGet<{ toolCalls: ToolCallRecord[] }>("/api/tool-calls"),
+    apiGet<{ toolCalls: ToolCallTranscriptRecord[] }>("/api/tool-calls"),
   ]);
   const byId = new Map(toolCalls.map((toolCall) => [toolCall.id, toolCall]));
   return approvals.map((approval) => ({

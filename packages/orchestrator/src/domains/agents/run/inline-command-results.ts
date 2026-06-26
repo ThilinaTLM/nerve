@@ -14,8 +14,7 @@ export function inlineCommandEntryDetails(
     isError: toolCallIsError(toolCall),
     toolRecordId: toolCall.id,
     details: {
-      toolCall,
-      result: toolCall.result,
+      toolCall: { id: toolCall.id },
     },
   };
 }

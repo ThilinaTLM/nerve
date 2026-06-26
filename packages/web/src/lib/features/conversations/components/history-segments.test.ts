@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type {
   ConversationEntry,
   ConversationTreeNode,
-  ToolCallRecord,
+  ToolCallTranscriptRecord,
 } from "$lib/api";
 import { buildHistoryGraph } from "./history-graph";
 import {
@@ -11,7 +11,7 @@ import {
   defaultExpandedSegments,
 } from "./history-segments";
 
-const noTools = new Map<string, ToolCallRecord>();
+const noTools = new Map<string, ToolCallTranscriptRecord>();
 
 function entry(
   id: string,

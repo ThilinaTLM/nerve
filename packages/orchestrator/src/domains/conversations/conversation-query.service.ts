@@ -4,9 +4,11 @@ import type {
   ConversationSnapshot,
   ConversationTree,
   ToolCallRecord,
+  ToolCallTranscriptRecord,
 } from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
+import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
@@ -83,25 +85,28 @@ export class ConversationQueryService {
     conversationId: string,
     entries: ConversationEntry[],
     activeRunId: string | undefined,
-  ): ToolCallRecord[] {
+  ): ToolCallTranscriptRecord[] {
     const runIds = new Set(
       entries.flatMap((entry) => (entry.runId ? [entry.runId] : [])),
     );
     const toolIds = toolRecordIdsFromEntries(entries);
-    return this.deps.listToolCalls().filter((toolCall) => {
-      if (toolCall.conversationId !== conversationId) return false;
-      if (toolCall.hidden) return false;
-      if (activeRunId && toolCall.runId === activeRunId) return true;
-      if (toolCall.runId && runIds.has(toolCall.runId)) return true;
-      if (toolIds.has(toolCall.id)) return true;
-      if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
-        return true;
-      if (
-        toolCall.providerToolCallId &&
-        toolIds.has(toolCall.providerToolCallId)
-      )
-        return true;
-      return false;
-    });
+    return this.deps
+      .listToolCalls()
+      .filter((toolCall) => {
+        if (toolCall.conversationId !== conversationId) return false;
+        if (toolCall.hidden) return false;
+        if (activeRunId && toolCall.runId === activeRunId) return true;
+        if (toolCall.runId && runIds.has(toolCall.runId)) return true;
+        if (toolIds.has(toolCall.id)) return true;
+        if (toolCall.sourceToolCallId && toolIds.has(toolCall.sourceToolCallId))
+          return true;
+        if (
+          toolCall.providerToolCallId &&
+          toolIds.has(toolCall.providerToolCallId)
+        )
+          return true;
+        return false;
+      })
+      .map(toToolCallTranscriptRecord);
   }
 }

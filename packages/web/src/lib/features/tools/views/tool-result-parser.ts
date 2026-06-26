@@ -12,7 +12,9 @@ import {
   webFetchResultDetailsSchema,
   webSearchResultDetailsSchema,
 } from "@nervekit/shared";
-import type { ToolCallRecord } from "$lib/api";
+import type { ToolCallRecord, ToolCallTranscriptRecord } from "$lib/api";
+export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
+
 import type { LiveToolOutput } from "$lib/core/types/state-types";
 import { LruCache } from "$lib/core/utils/lru-cache";
 import { parseExploreProgressLog } from "./explore-progress";
@@ -75,14 +77,34 @@ function editShorthandOperationCount(args: Record<string, unknown>): number {
 // cards reuse the parsed view instead of re-running schema parsing.
 const toolViewCache = new LruCache<string, ToolView>(300);
 
+function payloadSignature(value: unknown): string {
+  if (value === undefined) return "";
+  if (typeof value === "string") return `s:${value.length}`;
+  try {
+    return `j:${JSON.stringify(value)?.length ?? 0}`;
+  } catch {
+    return "u";
+  }
+}
+
 function toolViewSignature(
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallDisplayRecord,
   liveOutput?: LiveToolOutput,
 ): string {
+  const payloads = toolCall as ToolCallDisplayRecord & {
+    args?: unknown;
+    result?: unknown;
+    argsPreview?: unknown;
+    resultPreview?: unknown;
+  };
+  const mode = "result" in toolCall || "args" in toolCall ? "full" : "preview";
   return [
     toolCall.id,
     toolCall.status,
     toolCall.updatedAt,
+    mode,
+    payloadSignature(payloads.argsPreview ?? payloads.args),
+    payloadSignature(payloads.resultPreview ?? payloads.result),
     liveOutput?.updatedAt ?? "",
     liveOutput?.text.length ?? 0,
   ].join("\0");
@@ -90,7 +112,7 @@ function toolViewSignature(
 
 /** Cached wrapper around {@link parseToolView}, keyed by tool-call revision. */
 export function parseToolViewCached(
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallDisplayRecord,
   liveOutput?: LiveToolOutput,
 ): ToolView {
   const key = toolViewSignature(toolCall, liveOutput);
@@ -102,12 +124,20 @@ export function parseToolViewCached(
 }
 
 export function parseToolView(
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallDisplayRecord,
   liveOutput?: LiveToolOutput,
 ): ToolView {
-  const args = asRecord(toolCall.args);
+  const payloads = toolCall as ToolCallDisplayRecord & {
+    args?: unknown;
+    result?: unknown;
+    argsPreview?: unknown;
+    resultPreview?: unknown;
+  };
+  const rawArgs = payloads.argsPreview ?? payloads.args;
+  const rawResult = payloads.resultPreview ?? payloads.result;
+  const args = asRecord(rawArgs);
   const cwd = toolCall.cwd;
-  const result = parseToolExecutionResult(toolCall.result);
+  const result = parseToolExecutionResult(rawResult);
   const outputLimits = outputLimitsFromDetails(result?.details);
   const outputArtifacts = outputArtifactsFromDetails(result?.details);
 
@@ -160,7 +190,7 @@ export function parseToolView(
     case "bash": {
       const command = stringField(args.command);
       const details = bashResultDetailsSchema.safeParse(result?.details);
-      const output = resultOutputText(result, toolCall.result, liveOutput);
+      const output = resultOutputText(result, rawResult, liveOutput);
       return {
         kind: "bash",
         command,
@@ -190,7 +220,7 @@ export function parseToolView(
         detailScriptPath ?? scriptInputPath,
         cwd,
       );
-      const output = resultOutputText(result, toolCall.result, liveOutput);
+      const output = resultOutputText(result, rawResult, liveOutput);
       const codeLineCount = code ? code.split(/\r?\n/).length : 0;
       const inputMode = details.success
         ? (details.data.inputMode ?? (scriptPath ? "file" : "inline"))
@@ -336,7 +366,7 @@ export function parseToolView(
     }
 
     case "ask_user": {
-      const parsed = askUserResultSchema.safeParse(toolCall.result);
+      const parsed = askUserResultSchema.safeParse(rawResult);
       const data = parsed.success ? parsed.data : undefined;
       return {
         kind: "ask_user",
@@ -352,7 +382,7 @@ export function parseToolView(
 
     case "todos_set":
     case "todos_get": {
-      const parsed = todosResultSchema.safeParse(toolCall.result);
+      const parsed = todosResultSchema.safeParse(rawResult);
       const fromResult = parsed.success
         ? parsed.data.details?.todos
         : undefined;
@@ -373,7 +403,7 @@ export function parseToolView(
         | "start"
         | "cancel"
         | "restart";
-      const parsed = taskActionResultSchema.safeParse(toolCall.result);
+      const parsed = taskActionResultSchema.safeParse(rawResult);
       const task = parsed.success ? parsed.data.task : undefined;
       const tasks = parsed.success ? parsed.data.tasks : undefined;
       return {
@@ -385,7 +415,7 @@ export function parseToolView(
     }
 
     case "task_status": {
-      const result = asRecord(toolCall.result);
+      const result = asRecord(rawResult);
       const rows = Array.isArray(result.tasks) ? result.tasks : [];
       const tasks = rows
         .map((row) => {
@@ -401,7 +431,7 @@ export function parseToolView(
     }
 
     case "task_list": {
-      const parsed = taskListResultSchema.safeParse(toolCall.result);
+      const parsed = taskListResultSchema.safeParse(rawResult);
       const tasks = parsed.success ? parsed.data.tasks : [];
       return {
         kind: "task_list",
@@ -410,7 +440,7 @@ export function parseToolView(
     }
 
     case "task_logs": {
-      const parsed = taskLogsResultSchema.safeParse(toolCall.result);
+      const parsed = taskLogsResultSchema.safeParse(rawResult);
       const data = parsed.success ? parsed.data : undefined;
       const events = data?.events ?? [];
       return {
@@ -422,7 +452,7 @@ export function parseToolView(
     }
 
     case "explore": {
-      const parsed = exploreResultSchema.safeParse(toolCall.result);
+      const parsed = exploreResultSchema.safeParse(rawResult);
       const data = parsed.success ? parsed.data : undefined;
       const task = stringField(args.task);
       const liveProgress = parseExploreProgressLog(liveOutput?.text);
@@ -436,18 +466,18 @@ export function parseToolView(
     }
 
     case "plan_mode_enter": {
-      const resultRecord = asRecord(toolCall.result);
+      const resultRecord = asRecord(rawResult);
       const planDir = stringField(resultRecord.planDir);
       return {
         kind: "plan_mode",
         action: "enter",
-        summary: firstTextBlock(toolCall.result),
+        summary: firstTextBlock(rawResult),
         planPath: planDir,
       };
     }
 
     case "plan_mode_present": {
-      const resultRecord = asRecord(toolCall.result);
+      const resultRecord = asRecord(rawResult);
       const review = asRecord(resultRecord.review);
       const planPath =
         stringField(review.planPath) ?? stringField(args.file_path);
@@ -457,14 +487,14 @@ export function parseToolView(
         kind: "plan_mode",
         action: "present",
         summary:
-          stringField(resultRecord.feedback) ?? firstTextBlock(toolCall.result),
+          stringField(resultRecord.feedback) ?? firstTextBlock(rawResult),
         planPath,
         outcome,
       };
     }
 
     case "plan_mode_force_exit": {
-      const resultRecord = asRecord(toolCall.result);
+      const resultRecord = asRecord(rawResult);
       const reason = stringField(resultRecord.reason);
       return {
         kind: "plan_mode",

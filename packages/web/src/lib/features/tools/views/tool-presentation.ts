@@ -1,7 +1,7 @@
-import type { ToolCallRecord } from "$lib/api";
 import {
   basename,
-  collapseFor,
+  detailsActionFor,
+  detailsActionFromHidden,
   formatBytes,
   formatDuration,
   lineCount,
@@ -9,6 +9,7 @@ import {
   statusDot,
 } from "./tool-presentation-helpers";
 import type { MetaItem, ToolPresentation } from "./tool-presentation-types";
+import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   aggregateExploreTasks,
   COLLAPSED_LINES,
@@ -16,7 +17,7 @@ import {
 } from "./tool-result-view";
 
 export type {
-  CollapseInfo,
+  DetailsActionInfo,
   MetaItem,
   MetaTone,
   PrimaryArg,
@@ -31,7 +32,7 @@ const presentationCache = new WeakMap<ToolView, ToolPresentation>();
 /** Cached wrapper around {@link toolPresentation}, keyed by the parsed view. */
 export function toolPresentationCached(
   view: ToolView,
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallDisplayRecord,
 ): ToolPresentation {
   const cached = presentationCache.get(view);
   if (cached) return cached;
@@ -96,8 +97,17 @@ function outputMeta(view: ToolView): MetaItem[] {
 
 export function toolPresentation(
   view: ToolView,
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallDisplayRecord,
 ): ToolPresentation {
+  const previewOverflow =
+    "previewOverflow" in toolCall ? toolCall.previewOverflow : undefined;
+  const previewDetailsAction = previewOverflow
+    ? detailsActionFromHidden(
+        previewOverflow.hidden,
+        previewOverflow.noun,
+        previewOverflow.direction,
+      )
+    : undefined;
   const { tone: dotTone, pulse: dotPulse } = statusDot(toolCall, view);
   const base = { badge: toolCall.toolName, meta: [], dotTone, dotPulse };
 
@@ -117,7 +127,9 @@ export function toolPresentation(
         ...base,
         primaryArg,
         meta,
-        collapse: collapseFor(lineCount(view.content), "lines"),
+        detailsAction:
+          previewDetailsAction ??
+          detailsActionFor(lineCount(view.content), "lines"),
       };
     }
 
@@ -145,7 +157,8 @@ export function toolPresentation(
           ? { text: view.command, preserveWhitespace: true }
           : undefined,
         meta,
-        collapse: collapseFor(lines, "lines", "tail"),
+        detailsAction:
+          previewDetailsAction ?? detailsActionFor(lines, "lines", "tail"),
       };
     }
 
@@ -188,14 +201,9 @@ export function toolPresentation(
       const hiddenCode = Math.max(0, view.codeLineCount - COLLAPSED_LINES);
       const hiddenOutput = Math.max(0, lines - COLLAPSED_LINES);
       const hiddenTotal = hiddenCode + hiddenOutput;
-      const collapse =
-        hiddenTotal > 0
-          ? {
-              hidden: hiddenTotal,
-              expandLabel: `Show ${hiddenTotal} more lines`,
-              collapseLabel: "Show less",
-            }
-          : undefined;
+      const detailsAction =
+        previewDetailsAction ??
+        detailsActionFromHidden(hiddenTotal, "lines", "mixed");
       const primaryArg =
         view.inputMode === "file" && view.relScriptPath
           ? { text: view.relScriptPath, openPath: view.scriptPath }
@@ -204,7 +212,7 @@ export function toolPresentation(
         ...base,
         primaryArg,
         meta,
-        collapse,
+        detailsAction,
       };
     }
 
@@ -223,7 +231,9 @@ export function toolPresentation(
           ? { text: view.relPath, openPath: view.path }
           : undefined,
         meta,
-        collapse: collapseFor(lineCount(view.diff), "lines"),
+        detailsAction:
+          previewDetailsAction ??
+          detailsActionFor(lineCount(view.diff), "lines"),
       };
     }
 
@@ -241,7 +251,9 @@ export function toolPresentation(
           ? { text: view.relPath, openPath: view.path }
           : undefined,
         meta,
-        collapse: collapseFor(lineCount(view.content), "lines"),
+        detailsAction:
+          previewDetailsAction ??
+          detailsActionFor(lineCount(view.content), "lines"),
       };
     }
 
@@ -253,7 +265,8 @@ export function toolPresentation(
           { text: plural(view.matchCount, "match", "es") },
           { text: plural(view.fileCount, "file") },
         ],
-        collapse: collapseFor(view.matchCount, "matches"),
+        detailsAction:
+          previewDetailsAction ?? detailsActionFor(view.matchCount, "matches"),
       };
 
     case "find":
@@ -261,7 +274,8 @@ export function toolPresentation(
         ...base,
         primaryArg: view.pattern ? { text: view.pattern } : undefined,
         meta: [{ text: plural(view.count, "file") }],
-        collapse: collapseFor(view.count, "files"),
+        detailsAction:
+          previewDetailsAction ?? detailsActionFor(view.count, "files"),
       };
 
     case "ls":
@@ -275,7 +289,8 @@ export function toolPresentation(
             text: `${view.total} ${view.total === 1 ? "entry" : "entries"}`,
           },
         ],
-        collapse: collapseFor(view.total, "entries"),
+        detailsAction:
+          previewDetailsAction ?? detailsActionFor(view.total, "entries"),
       };
 
     case "task_logs": {
@@ -289,7 +304,9 @@ export function toolPresentation(
             ? { text: view.mode }
             : undefined,
         meta,
-        collapse: collapseFor(view.events.length, "events", "tail"),
+        detailsAction:
+          previewDetailsAction ??
+          detailsActionFor(view.events.length, "events", "tail"),
       };
     }
 
@@ -316,7 +333,9 @@ export function toolPresentation(
         ...base,
         primaryArg: view.url ? { text: view.url, href: view.url } : undefined,
         meta,
-        collapse: collapseFor(lineCount(view.content), "lines"),
+        detailsAction:
+          previewDetailsAction ??
+          detailsActionFor(lineCount(view.content), "lines"),
       };
     }
 
@@ -404,6 +423,7 @@ export function toolPresentation(
           ? { text: view.planPath, openPath: view.planPath }
           : undefined,
         meta: [],
+        detailsAction: previewDetailsAction,
       };
 
     default:

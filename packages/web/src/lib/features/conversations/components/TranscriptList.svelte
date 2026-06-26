@@ -8,7 +8,7 @@
     PlanReviewResolveOptions,
     ProjectRecord,
     QueuedPromptRecord,
-    ToolCallRecord,
+    ToolCallTranscriptRecord,
     UserQuestionRecord,
   } from "$lib/api";
   import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
@@ -61,7 +61,7 @@
     messageMenu: (item: TranscriptItem) => ContextMenuItem[];
     toolMenu: (
       anchorEntryId: string | undefined,
-      toolCall: ToolCallRecord,
+      toolCall: ToolCallTranscriptRecord,
     ) => ContextMenuItem[];
   };
 

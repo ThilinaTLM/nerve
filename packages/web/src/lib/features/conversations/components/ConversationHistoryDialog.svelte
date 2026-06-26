@@ -5,7 +5,7 @@
     ConversationEntry,
     ConversationRecord,
     ConversationTreeNode,
-    ToolCallRecord,
+    ToolCallTranscriptRecord,
   } from "$lib/api";
   import { buttonVariants } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
@@ -17,7 +17,7 @@
     open?: boolean;
     activeConversation?: ConversationRecord;
     treeNodes?: ConversationTreeNode[];
-    toolCalls?: ToolCallRecord[];
+    toolCalls?: ToolCallTranscriptRecord[];
     onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
     onEditEntry?: (entry: ConversationEntry) => void;
     onCompact?: () => void;

@@ -7,7 +7,7 @@ import type {
   ConversationLiveToolDraftProgressSnapshot,
   ConversationTreeNode,
   QueuedPromptRecord,
-  ToolCallRecord,
+  ToolCallTranscriptRecord,
 } from "$lib/api";
 
 export type TranscriptDisplayKind = "message" | "thinking";
@@ -154,7 +154,7 @@ export type ConversationViewState = {
   activeEntryId?: string;
   activeEntryIds: string[];
   transcript: TranscriptItem[];
-  toolCalls: ToolCallRecord[];
+  toolCalls: ToolCallTranscriptRecord[];
   treeNodes: ConversationTreeNode[];
   streamingText: string;
   live: ConversationLiveState;

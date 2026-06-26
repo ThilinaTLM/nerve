@@ -1,4 +1,4 @@
-import type { ToolCallRecord } from "$lib/api";
+import type { ToolCallTranscriptRecord } from "$lib/api";
 import {
   classifyHistoryEntry,
   type HistoryGraphRow,
@@ -104,7 +104,7 @@ function makeSegment(
  */
 export function buildHistoryVisible(
   rows: HistoryGraphRow[],
-  toolCallsById: Map<string, ToolCallRecord>,
+  toolCallsById: Map<string, ToolCallTranscriptRecord>,
   expanded: Set<string>,
 ): HistoryVisible {
   const descByIndex = rows.map((row) =>

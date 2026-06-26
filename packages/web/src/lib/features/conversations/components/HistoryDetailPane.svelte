@@ -5,7 +5,7 @@
   import Pencil from "@lucide/svelte/icons/pencil";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import UnfoldVertical from "@lucide/svelte/icons/unfold-vertical";
-  import type { ConversationEntry, ToolCallRecord } from "$lib/api";
+  import type { ConversationEntry, ToolCallTranscriptRecord } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import Markdown from "$lib/core/components/Markdown.svelte";
   import PlainText from "$lib/core/components/PlainText.svelte";
@@ -23,7 +23,7 @@
 
   type Props = {
     selection?: HistorySelection;
-    toolCallsById: Map<string, ToolCallRecord>;
+    toolCallsById: Map<string, ToolCallTranscriptRecord>;
     onNavigateToEntry?: (entryId: string | undefined, summarize?: boolean) => void;
     onEditEntry?: (entry: ConversationEntry) => void;
     onSelectRow?: (row: HistoryGraphRow) => void;
@@ -70,10 +70,16 @@
       (entry?.details as { toolName?: string } | undefined)?.toolName,
   );
   const hasArgs = $derived(
-    record?.args !== undefined && record?.args !== null && Object.keys(record.args as object).length > 0,
+    record?.argsPreview !== undefined &&
+      record?.argsPreview !== null &&
+      Object.keys(record.argsPreview as object).length > 0,
   );
   const resultText = $derived(
-    entry?.role === "system" ? entry.text : typeof record?.result === "string" ? record.result : "",
+    entry?.role === "system"
+      ? entry.text
+      : typeof record?.resultPreview === "string"
+        ? record.resultPreview
+        : "",
   );
 
   async function copyId(id: string) {
@@ -219,7 +225,7 @@
           {#if hasArgs}
             <div class="flex flex-col gap-1">
               <span class="text-xs font-medium text-muted-foreground">Arguments</span>
-              <pre class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap break-words">{pretty(record?.args)}</pre>
+              <pre class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap break-words">{pretty(record?.argsPreview)}</pre>
             </div>
           {/if}
           {#if resultText}

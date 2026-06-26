@@ -1,8 +1,8 @@
-import { toolCallRecordSchema } from "@nervekit/shared";
+import { toolCallTranscriptRecordSchema } from "@nervekit/shared";
 import type {
   ConversationEntry,
   EventEnvelope,
-  ToolCallRecord,
+  ToolCallTranscriptRecord,
 } from "$lib/api";
 import type {
   ConversationViewState,
@@ -51,11 +51,11 @@ function inlineCommandPromptTexts(entry: ConversationEntry): Set<string> {
 
 function toolCallFromEntry(
   entry: ConversationEntry,
-): ToolCallRecord | undefined {
+): ToolCallTranscriptRecord | undefined {
   const details = recordValue(entry.details);
   const nestedDetails = recordValue(details?.details);
   for (const candidate of [details?.toolCall, nestedDetails?.toolCall]) {
-    const parsed = toolCallRecordSchema.safeParse(candidate);
+    const parsed = toolCallTranscriptRecordSchema.safeParse(candidate);
     if (parsed.success) return parsed.data;
   }
   return undefined;
@@ -111,7 +111,7 @@ export function handleEntryAppended(
 
 export function handleToolCallUpdated(
   view: ConversationViewState,
-  toolCall: ToolCallRecord | undefined,
+  toolCall: ToolCallTranscriptRecord | undefined,
 ): void {
   if (!toolCall) return;
   if (toolCall.hidden) {

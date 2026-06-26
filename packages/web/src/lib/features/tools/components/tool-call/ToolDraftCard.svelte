@@ -58,7 +58,7 @@
   {:else if summary.kind === "python"}
     {#if summary.code !== undefined && summary.code.length > 0}
       <ResultCodeBlock
-        code={trimTextPreview(summary.code, { headLines: 12, tailLines: 0 }).text}
+        code={trimTextPreview(summary.code, { headLines: 10, tailLines: 0 }).text}
         language={summary.language}
         trim={false}
       />

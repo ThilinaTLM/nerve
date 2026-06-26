@@ -1,7 +1,7 @@
-import type { ToolCallRecord } from "$lib/api";
 import type { StatusTone } from "$lib/components/ui/status-dot";
 import { taskPulse, taskTone } from "$lib/core/utils/status";
-import type { CollapseInfo, MetaTone } from "./tool-presentation-types";
+import type { DetailsActionInfo, MetaTone } from "./tool-presentation-types";
+import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   aggregateExploreTasks,
   COLLAPSED_LINES,
@@ -35,23 +35,34 @@ export function lineCount(text: string | undefined): number {
   return text.length === 0 ? 0 : text.split("\n").length;
 }
 
-export function collapseFor(
+export function detailsActionFor(
   total: number,
   noun: string,
-  direction: "head" | "tail" = "head",
-): CollapseInfo | undefined {
+  direction: "head" | "tail" | "mixed" = "head",
+): DetailsActionInfo | undefined {
   const hidden = total - COLLAPSED_LINES;
   if (hidden <= 0) return undefined;
+  return detailsActionFromHidden(hidden, noun, direction);
+}
+
+export function detailsActionFromHidden(
+  hidden: number | undefined,
+  noun: string,
+  direction: "head" | "tail" | "mixed" = "head",
+): DetailsActionInfo | undefined {
+  if (!hidden || hidden <= 0) return undefined;
   const verb = direction === "tail" ? "earlier" : "more";
   return {
     hidden,
-    expandLabel: `Show ${hidden} ${verb} ${noun}`,
-    collapseLabel: "Show less",
+    label:
+      direction === "mixed"
+        ? `Show complete tool call (${hidden} more ${noun})`
+        : `Show ${hidden} ${verb} ${noun}`,
   };
 }
 
 export function statusDot(
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallDisplayRecord,
   view: ToolView,
 ): {
   tone: StatusTone;

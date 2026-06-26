@@ -2,11 +2,11 @@
   import FileIcon from "@lucide/svelte/icons/file";
   import Folder from "@lucide/svelte/icons/folder";
   import type { FileEntry } from "@nervekit/shared";
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import { COLLAPSED_LINES, type ToolView } from "$lib/features/tools/views/tool-result-view";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "ls" }>;
     expanded?: boolean;
     onOpenFile?: (path: string) => void;

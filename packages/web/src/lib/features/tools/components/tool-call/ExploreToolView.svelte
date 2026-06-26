@@ -5,14 +5,14 @@
   import FileText from "@lucide/svelte/icons/file-text";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import SearchCode from "@lucide/svelte/icons/search-code";
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import {
     aggregateExploreTasks,
     type ToolView,
   } from "$lib/features/tools/views/tool-result-view";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "explore" }>;
     onOpenFile?: (path: string, line?: number) => void;
   };
@@ -141,13 +141,16 @@
               {#if task.report?.steps?.length}
                 <p class="m-0 truncate font-mono text-xs text-muted-foreground">{task.report.steps[task.report.steps.length - 1]?.message}</p>
               {/if}
-            {:else if task.currentAction}
-              <p class="m-0 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <span class="truncate {task.currentActionMono ? 'font-mono' : ''}">{task.currentAction}</span>
-                {#if task.actionCount > 1}
-                  <span class="shrink-0 text-muted-foreground/70">· {task.actionCount} actions</span>
-                {/if}
-              </p>
+            {:else if task.status === "running"}
+              {#if task.recentActions.length > 0}
+                <div class="grid min-w-0 gap-0.5 text-xs text-muted-foreground">
+                  {#each task.recentActions as action}
+                    <p class="m-0 truncate {action.mono ? 'font-mono' : ''}">{action.text}</p>
+                  {/each}
+                </div>
+              {:else}
+                <p class="m-0 text-xs text-muted-foreground">Waiting for first tool call…</p>
+              {/if}
             {:else}
               <p class="m-0 text-xs text-muted-foreground">Queued…</p>
             {/if}

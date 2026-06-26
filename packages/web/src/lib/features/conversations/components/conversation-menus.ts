@@ -4,7 +4,7 @@ import Copy from "@lucide/svelte/icons/copy";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Pencil from "@lucide/svelte/icons/pencil";
 import TextQuote from "@lucide/svelte/icons/text-quote";
-import type { ConversationEntry, ToolCallRecord } from "$lib/api";
+import type { ConversationEntry, ToolCallTranscriptRecord } from "$lib/api";
 import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
 import type { TranscriptItem } from "$lib/core/types/state-types";
 
@@ -110,7 +110,7 @@ export function messageMenu(
 
 export function toolMenu(
   anchorEntryId: string | undefined,
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallTranscriptRecord,
   handlers: ConversationMenuHandlers,
 ): ContextMenuItem[] {
   const items: ContextMenuItem[] = [];

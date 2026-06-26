@@ -212,11 +212,13 @@ function summarizeToolCall(
     case "find":
       return `find ${quoteValue(args.pattern)}${pathSuffix(args)}`;
     case "ls":
-      return `list ${stringValue(args.path) ?? "."}`;
+      return `ls ${stringValue(args.path) ?? "."}`;
+    case "task_status":
+      return `task_status ${taskScopeLabel(args)}`;
     case "task_logs":
-      return `inspect task logs${stringValue(args.mode) ? ` (${stringValue(args.mode)})` : ""}`;
+      return `task_logs ${taskScopeLabel(args)}${modeSuffix(args)}`;
     case "task_list":
-      return "list managed tasks";
+      return `task_list ${taskListScopeLabel(args)}`;
     default:
       return `ran ${toolName}`;
   }
@@ -352,7 +354,7 @@ function pathSuffix(args: Record<string, unknown>): string {
     : [];
   if (path) return ` in ${path}`;
   if (paths.length > 0) return ` in ${paths.length} paths`;
-  return "";
+  return " in .";
 }
 
 function rangeSuffix(args: Record<string, unknown>): string {
@@ -360,6 +362,42 @@ function rangeSuffix(args: Record<string, unknown>): string {
   const limit = typeof args.limit === "number" ? args.limit : undefined;
   if (offset === undefined && limit === undefined) return "";
   return ` (${offset ?? 1}${limit ? `+${limit}` : ""})`;
+}
+
+function modeSuffix(args: Record<string, unknown>): string {
+  const mode = stringValue(args.mode);
+  return mode ? ` (${mode})` : "";
+}
+
+function taskScopeLabel(args: Record<string, unknown>): string {
+  const taskId = stringValue(args.taskId);
+  if (taskId) return taskId;
+  const taskIds = Array.isArray(args.taskIds)
+    ? args.taskIds.filter((value) => typeof value === "string")
+    : [];
+  if (taskIds.length > 0) {
+    return `${taskIds.length} task${taskIds.length === 1 ? "" : "s"}`;
+  }
+  const groupId = stringValue(args.groupId);
+  if (groupId) return `group ${groupId}`;
+  const name = stringValue(args.name);
+  if (name) return name;
+  return booleanValue(args.activeOnly) === true ? "active" : "current";
+}
+
+function taskListScopeLabel(args: Record<string, unknown>): string {
+  const parts = [booleanValue(args.activeOnly) === true ? "active" : "all"];
+  const projectId = stringValue(args.projectId);
+  const agentId = stringValue(args.agentId);
+  const groupId = stringValue(args.groupId);
+  if (projectId) parts.push(`project ${projectId}`);
+  if (agentId) parts.push(`agent ${agentId}`);
+  if (groupId) parts.push(`group ${groupId}`);
+  return parts.join(" · ");
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 export function messageRole(message: unknown): string | undefined {

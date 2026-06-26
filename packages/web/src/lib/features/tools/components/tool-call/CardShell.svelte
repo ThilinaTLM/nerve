@@ -15,8 +15,7 @@
     arg?: PrimaryArg;
     error?: string;
     meta?: MetaItem[];
-    collapse?: { expandLabel: string; collapseLabel: string };
-    expanded?: boolean;
+    detailsAction?: { label: string; onClick: () => void };
     onOpenFile?: (path: string, line?: number) => void;
     children?: Snippet;
   };
@@ -28,13 +27,12 @@
     arg,
     error,
     meta = [],
-    collapse,
-    expanded = $bindable(false),
+    detailsAction,
     onOpenFile,
     children,
   }: Props = $props();
 
-  const showFooter = $derived(meta.length > 0 || Boolean(collapse));
+  const showFooter = $derived(meta.length > 0 || Boolean(detailsAction));
 </script>
 
 <article class={`tool-card${status ? ` status-${status}` : ""}`}>
@@ -104,9 +102,9 @@
           {/each}
         </div>
       {/if}
-      {#if collapse}
-        <button class="more" type="button" onclick={() => (expanded = !expanded)}>
-          {expanded ? collapse.collapseLabel : collapse.expandLabel}
+      {#if detailsAction}
+        <button class="more" type="button" onclick={detailsAction.onClick}>
+          {detailsAction.label}
         </button>
       {/if}
     </div>

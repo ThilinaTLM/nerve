@@ -5,7 +5,7 @@
     PlanReviewRecord,
     PlanReviewResolveOptions,
     ProjectRecord,
-    ToolCallRecord,
+    ToolCallTranscriptRecord,
     UserQuestionRecord,
   } from "$lib/api";
   import ContextMenu, {
@@ -51,7 +51,7 @@
     messageMenu: (item: TranscriptItem) => ContextMenuItem[];
     toolMenu: (
       anchorEntryId: string | undefined,
-      toolCall: ToolCallRecord,
+      toolCall: ToolCallTranscriptRecord,
     ) => ContextMenuItem[];
   };
 

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type {
   ConversationEntry,
   ConversationTreeNode,
-  ToolCallRecord,
+  ToolCallTranscriptRecord,
 } from "$lib/api";
 import { buildHistoryGraph, classifyHistoryEntry } from "./history-graph";
 
@@ -88,7 +88,7 @@ describe("buildHistoryGraph", () => {
 });
 
 describe("classifyHistoryEntry", () => {
-  const noTools = new Map<string, ToolCallRecord>();
+  const noTools = new Map<string, ToolCallTranscriptRecord>();
 
   it("classifies a user message", () => {
     const d = classifyHistoryEntry(
@@ -159,7 +159,7 @@ describe("classifyHistoryEntry", () => {
   });
 
   it("flags approval-gated tool results via the tool record", () => {
-    const tools = new Map<string, ToolCallRecord>([
+    const tools = new Map<string, ToolCallTranscriptRecord>([
       [
         "tool_1",
         {
@@ -175,7 +175,7 @@ describe("classifyHistoryEntry", () => {
           approvalId: "approval_1",
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",
-        } as ToolCallRecord,
+        } as ToolCallTranscriptRecord,
       ],
     ]);
     const d = classifyHistoryEntry(

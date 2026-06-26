@@ -27,7 +27,7 @@
   }
 
   function argsPreview(approval: ApprovalWithToolCall): string {
-    const args = approval.toolCall?.args;
+    const args = approval.toolCall?.argsPreview;
     if (args === undefined) return "No arguments.";
     try {
       return JSON.stringify(args, null, 2);

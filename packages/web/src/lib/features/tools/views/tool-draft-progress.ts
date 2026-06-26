@@ -137,7 +137,7 @@ function lineCountsForJsonStringValues(
   return counts;
 }
 
-const DRAFT_PREVIEW_LINES = 8;
+const DRAFT_PREVIEW_LINES = 10;
 const DRAFT_PREVIEW_MAX_VALUE_CHARS = 24_000;
 
 type JsonStringEntry<Property extends string = string> = {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { QueuedPromptRecord } from "../agents/index.js";
 import type { ContextUsage } from "../models/index.js";
-import type { ToolCallRecord } from "../tools/index.js";
+import type { ToolCallTranscriptRecord } from "../tools/index.js";
 import type {
   ConversationEntry,
   ConversationRecord,
@@ -171,7 +171,7 @@ export interface ConversationToolCallUpdatedData {
   liveMessageId?: string;
   contentIndex?: number;
   providerToolCallId?: string;
-  toolCall: ToolCallRecord;
+  toolCall: ToolCallTranscriptRecord;
 }
 
 export interface ConversationLiveMessageStartedData {
@@ -431,7 +431,7 @@ export interface ConversationSnapshot {
   entries: ConversationEntry[];
   activeEntryIds: string[];
   tree: ConversationTree;
-  toolCalls: ToolCallRecord[];
+  toolCalls: ToolCallTranscriptRecord[];
   activeRun?: ConversationActiveRunSnapshot;
   contextUsage?: ContextUsage;
   cursorSeq: number;

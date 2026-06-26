@@ -73,10 +73,20 @@ export type {
   TaskRecord,
   ThinkingLevel,
   ToolCallRecord,
+  ToolCallTranscriptRecord,
   UpdatePinnedCommandRequest,
   UpdateSettingsRequest,
   UserQuestionRecord,
 } from "@nervekit/shared";
+
+import type {
+  ToolCallRecord as ToolCallRecordType,
+  ToolCallTranscriptRecord as ToolCallTranscriptRecordType,
+} from "@nervekit/shared";
+
+export type ToolCallDisplayRecord =
+  | ToolCallRecordType
+  | ToolCallTranscriptRecordType;
 export * from "./core/api/client";
 export * from "./features/agents/api/agents.api";
 export * from "./features/audio/api/transcription.api";

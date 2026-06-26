@@ -4,14 +4,14 @@
   import Send from "@lucide/svelte/icons/send";
   import X from "@lucide/svelte/icons/x";
   import { notify } from "$lib/features/notifications/notify.svelte";
-  import type { ToolCallRecord, UserQuestionRecord } from "$lib/api";
+  import type { UserQuestionRecord } from "$lib/api";
   import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
   import {
     voiceInputSession,
     type VoiceInputTarget,
   } from "$lib/core/audio/voice-input-session.svelte";
   import { appendTranscriptText } from "$lib/core/audio/voice-input-target";
-  import type { ToolView } from "$lib/features/tools/views/tool-result-view";
+  import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import { Button } from "$lib/components/ui/button";
   import {
     AudioInputAuthRequiredDialog,
@@ -19,7 +19,7 @@
   } from "$lib/features/audio";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "ask_user" }>;
     questionRecord?: UserQuestionRecord;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;

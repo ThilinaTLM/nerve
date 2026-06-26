@@ -2,6 +2,7 @@ import { asRecord, stringField } from "./tool-view-helpers";
 import type {
   ExploreProgressView,
   ExploreSummary,
+  ExploreTaskAction,
   ExploreTaskState,
   ExploreTaskStatus,
   ToolView,
@@ -59,19 +60,21 @@ const EXPLORE_NOISE_MESSAGES = new Set([
 
 function friendlyExploreAction(
   update: ExploreProgressView,
-): { text: string; mono: boolean } | undefined {
+): ExploreTaskAction | undefined {
+  if (EXPLORE_NOISE_MESSAGES.has(update.message)) return undefined;
   switch (update.phase) {
-    case "queued":
-      return undefined;
-    case "started":
-      return { text: "Starting\u2026", mono: false };
-    case "assistant":
-      return { text: "Thinking\u2026", mono: false };
     case "tool_call":
+      return { text: update.message, mono: true };
     case "tool_result":
       return { text: update.message, mono: true };
-    default:
+    case "assistant":
+      return { text: "Thinking\u2026", mono: false };
+    case "completed":
+    case "failed":
       return { text: update.message, mono: false };
+    case "queued":
+    case "started":
+      return undefined;
   }
 }
 
@@ -132,13 +135,11 @@ function aggregateExploreTasksUncached(
     const report = reports[index];
     const updates = byIndex.get(index) ?? [];
     const latest = updates[updates.length - 1];
-    const lastTool = [...updates]
-      .reverse()
-      .find(
-        (u) =>
-          (u.phase === "tool_call" || u.phase === "tool_result") &&
-          !EXPLORE_NOISE_MESSAGES.has(u.message),
-      );
+    const recentActions = updates
+      .map(friendlyExploreAction)
+      .filter((action): action is ExploreTaskAction => action !== undefined)
+      .slice(-3);
+    const latestAction = recentActions[recentActions.length - 1];
     const failed = updates.find((u) => u.phase === "failed");
 
     let status: ExploreTaskStatus;
@@ -162,10 +163,7 @@ function aggregateExploreTasksUncached(
       status = "queued";
     }
 
-    const action =
-      status === "running"
-        ? friendlyExploreAction(lastTool ?? latest ?? updates[0])
-        : undefined;
+    const action = status === "running" ? latestAction : undefined;
     const model =
       report?.model ?? updates.find((u) => u.model)?.model ?? latest?.model;
 
@@ -180,6 +178,7 @@ function aggregateExploreTasksUncached(
       status,
       currentAction: action?.text,
       currentActionMono: action?.mono ?? false,
+      recentActions: status === "running" ? recentActions : [],
       actionCount: updates.filter((u) => u.phase === "tool_call").length,
       report,
       error: report?.errorMessage ?? report?.summaryPreview ?? failed?.message,

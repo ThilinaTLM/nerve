@@ -2,7 +2,7 @@
   import ArrowDown from "@lucide/svelte/icons/arrow-down";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallTranscriptRecord } from "$lib/api";
   import type { TranscriptItem } from "$lib/core/types/state-types";
   import type { ConversationPaneProps } from "./conversation-pane-props";
   import { shortProjectLabel } from "$lib/core/utils/project-tree";
@@ -146,7 +146,7 @@
 
   function menuForTool(
     anchorEntryId: string | undefined,
-    toolCall: ToolCallRecord,
+    toolCall: ToolCallTranscriptRecord,
   ) {
     return toolMenu(anchorEntryId, toolCall, {
       copyText,

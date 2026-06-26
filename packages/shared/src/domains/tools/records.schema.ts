@@ -103,6 +103,31 @@ export const toolCallRecordSchema = z.object({
 });
 export type ToolCallRecord = z.infer<typeof toolCallRecordSchema>;
 
+export const toolCallPreviewOverflowSchema = z.object({
+  hidden: z.number().int().nonnegative(),
+  noun: z.string().min(1),
+  direction: z.enum(["head", "tail", "mixed"]),
+});
+export type ToolCallPreviewOverflow = z.infer<
+  typeof toolCallPreviewOverflowSchema
+>;
+
+/**
+ * Lightweight tool-call row for transcript/history rendering. Full args/result
+ * payloads are intentionally omitted and fetched on demand with GET
+ * /api/tool-calls/:toolCallId.
+ */
+export const toolCallTranscriptRecordSchema = toolCallRecordSchema
+  .omit({ args: true, result: true })
+  .extend({
+    argsPreview: z.unknown().optional(),
+    resultPreview: z.unknown().optional(),
+    previewOverflow: toolCallPreviewOverflowSchema.optional(),
+  });
+export type ToolCallTranscriptRecord = z.infer<
+  typeof toolCallTranscriptRecordSchema
+>;
+
 export const approvalStatusSchema = z.enum(["pending", "granted", "denied"]);
 export type ApprovalStatus = z.infer<typeof approvalStatusSchema>;
 

@@ -1,4 +1,4 @@
-import type { ToolCallRecord } from "$lib/api";
+import type { ToolCallTranscriptRecord } from "$lib/api";
 import type {
   CompactionNotice,
   ConversationLiveState,
@@ -14,7 +14,7 @@ export type TimelineItem =
   | {
       kind: "tool";
       key: string;
-      toolCall: ToolCallRecord;
+      toolCall: ToolCallTranscriptRecord;
       liveOutput?: LiveToolOutput;
       anchorEntryId?: string;
     }
@@ -35,12 +35,12 @@ export type TimelineItem =
  * (potentially huge) transcript or re-sorting the tool calls.
  */
 export type CommittedContext = {
-  orderedToolCalls: ToolCallRecord[];
-  toolCallsById: Map<string, ToolCallRecord>;
-  toolCallsByProviderId: Map<string, ToolCallRecord>;
-  toolCallsByRunId: Map<string, ToolCallRecord[]>;
+  orderedToolCalls: ToolCallTranscriptRecord[];
+  toolCallsById: Map<string, ToolCallTranscriptRecord>;
+  toolCallsByProviderId: Map<string, ToolCallTranscriptRecord>;
+  toolCallsByRunId: Map<string, ToolCallTranscriptRecord[]>;
   /** Live-status tools that may need an unanchored live-tail card. */
-  liveCandidateToolCalls: ToolCallRecord[];
+  liveCandidateToolCalls: ToolCallTranscriptRecord[];
   /** Tool ids already rendered as anchored committed cards. */
   consumedToolCallIds: Set<string>;
   /** Run ids that already have a committed run-status node. */
@@ -64,12 +64,15 @@ function isToolCallPlaceholder(item: TranscriptItem): boolean {
   );
 }
 
-function byCreatedAtAscending(a: ToolCallRecord, b: ToolCallRecord): number {
+function byCreatedAtAscending(
+  a: ToolCallTranscriptRecord,
+  b: ToolCallTranscriptRecord,
+): number {
   const cmp = a.createdAt.localeCompare(b.createdAt);
   return cmp !== 0 ? cmp : a.id.localeCompare(b.id);
 }
 
-function isLiveToolCall(toolCall: ToolCallRecord): boolean {
+function isLiveToolCall(toolCall: ToolCallTranscriptRecord): boolean {
   return (
     toolCall.status === "requested" ||
     toolCall.status === "pending_approval" ||
@@ -78,7 +81,7 @@ function isLiveToolCall(toolCall: ToolCallRecord): boolean {
   );
 }
 
-function toolCallAliasIds(toolCall: ToolCallRecord): string[] {
+function toolCallAliasIds(toolCall: ToolCallTranscriptRecord): string[] {
   return Array.from(
     new Set(
       [toolCall.sourceToolCallId, toolCall.providerToolCallId].filter(
@@ -89,7 +92,7 @@ function toolCallAliasIds(toolCall: ToolCallRecord): string[] {
 }
 
 function isActiveRunPlacedToolCall(
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallTranscriptRecord,
   live: ConversationLiveState | undefined,
 ): boolean {
   return Boolean(
@@ -100,7 +103,7 @@ function isActiveRunPlacedToolCall(
 }
 
 function shouldAppendUnanchoredToolCall(
-  toolCall: ToolCallRecord,
+  toolCall: ToolCallTranscriptRecord,
   liveOutput: LiveToolOutput | undefined,
   live: ConversationLiveState | undefined,
 ): boolean {
@@ -123,7 +126,7 @@ function liveOutputFor(
 }
 
 function contentIndexOf(
-  item: TranscriptItem | LiveToolCallDraft | ToolCallRecord,
+  item: TranscriptItem | LiveToolCallDraft | ToolCallTranscriptRecord,
 ): number {
   return typeof item.contentIndex === "number"
     ? item.contentIndex
@@ -133,7 +136,7 @@ function contentIndexOf(
 type LiveTimelineNode =
   | { type: "message"; item: TranscriptItem }
   | { type: "draft"; draft: LiveToolCallDraft }
-  | { type: "tool"; toolCall: ToolCallRecord };
+  | { type: "tool"; toolCall: ToolCallTranscriptRecord };
 
 function liveMessageIdFromKey(key: string | undefined): string | undefined {
   const match = key?.match(/^live:([^:]+):/);
@@ -264,7 +267,7 @@ function isHiddenByFailedRun(
  */
 export function buildCommittedTimeline(
   transcript: TranscriptItem[],
-  toolCalls: ToolCallRecord[],
+  toolCalls: ToolCallTranscriptRecord[],
 ): CommittedTimeline {
   const items: TimelineItem[] = [];
   const orderedToolCalls = toolCalls
@@ -273,9 +276,9 @@ export function buildCommittedTimeline(
   const toolCallsById = new Map(
     orderedToolCalls.map((toolCall) => [toolCall.id, toolCall]),
   );
-  const toolCallsByProviderId = new Map<string, ToolCallRecord>();
-  const toolCallsByRunId = new Map<string, ToolCallRecord[]>();
-  const liveCandidateToolCalls: ToolCallRecord[] = [];
+  const toolCallsByProviderId = new Map<string, ToolCallTranscriptRecord>();
+  const toolCallsByRunId = new Map<string, ToolCallTranscriptRecord[]>();
+  const liveCandidateToolCalls: ToolCallTranscriptRecord[] = [];
   for (const toolCall of orderedToolCalls) {
     for (const alias of toolCallAliasIds(toolCall)) {
       if (!toolCallsByProviderId.has(alias)) {
@@ -574,8 +577,10 @@ export function buildLiveTimeline(
     }
   }
 
-  const unanchoredToolCandidates = new Map<string, ToolCallRecord>();
-  const addUnanchoredCandidate = (toolCall: ToolCallRecord | undefined) => {
+  const unanchoredToolCandidates = new Map<string, ToolCallTranscriptRecord>();
+  const addUnanchoredCandidate = (
+    toolCall: ToolCallTranscriptRecord | undefined,
+  ) => {
     if (toolCall && !unanchoredToolCandidates.has(toolCall.id)) {
       unanchoredToolCandidates.set(toolCall.id, toolCall);
     }
@@ -617,7 +622,7 @@ export function buildLiveTimeline(
  */
 export function buildConversationTimeline(
   transcript: TranscriptItem[],
-  toolCalls: ToolCallRecord[],
+  toolCalls: ToolCallTranscriptRecord[],
   live?: ConversationLiveState,
 ): TimelineItem[] {
   const committed = buildCommittedTimeline(transcript, toolCalls);

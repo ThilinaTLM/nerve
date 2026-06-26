@@ -2,7 +2,7 @@ import type {
   ConversationEntry,
   EventEnvelope,
   QueuedPromptRecord,
-  ToolCallRecord,
+  ToolCallTranscriptRecord,
 } from "$lib/api";
 import type { ConversationViewState } from "$lib/core/types/state-types";
 import {
@@ -123,7 +123,7 @@ export function handleConversationEvent(
     case "conversation.tool_call.updated":
       handleToolCallUpdated(
         view,
-        event.data?.toolCall as ToolCallRecord | undefined,
+        event.data?.toolCall as ToolCallTranscriptRecord | undefined,
       );
       break;
     case "conversation.run.retrying":

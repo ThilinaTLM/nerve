@@ -1,11 +1,11 @@
 <script lang="ts">
   import Circle from "@lucide/svelte/icons/circle";
   import CircleCheck from "@lucide/svelte/icons/circle-check";
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "todos" }>;
   };
   let { view }: Props = $props();

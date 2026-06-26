@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
   import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "python" }>;
     expanded?: boolean;
   };

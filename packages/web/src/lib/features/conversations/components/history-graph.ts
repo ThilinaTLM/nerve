@@ -1,7 +1,7 @@
 import type {
   ConversationEntry,
   ConversationTreeNode,
-  ToolCallRecord,
+  ToolCallTranscriptRecord,
 } from "$lib/api";
 
 /**
@@ -133,8 +133,8 @@ function hasThinking(details: Record<string, unknown> | undefined): boolean {
 /** Resolve the tool record for a tool-result entry, if available. */
 function resolveToolRecord(
   details: Record<string, unknown> | undefined,
-  toolCallsById: Map<string, ToolCallRecord>,
-): ToolCallRecord | undefined {
+  toolCallsById: Map<string, ToolCallTranscriptRecord>,
+): ToolCallTranscriptRecord | undefined {
   if (!details) return undefined;
   const nested = asRecord(details.details);
   const nestedToolCall = asRecord(nested?.toolCall);
@@ -143,11 +143,11 @@ function resolveToolRecord(
   return recordId ? toolCallsById.get(recordId) : undefined;
 }
 
-/** Resolve the {@link ToolCallRecord} backing a conversation entry, if any. */
+/** Resolve the {@link ToolCallTranscriptRecord} backing a conversation entry, if any. */
 export function resolveToolCallForEntry(
   entry: ConversationEntry,
-  toolCallsById: Map<string, ToolCallRecord>,
-): ToolCallRecord | undefined {
+  toolCallsById: Map<string, ToolCallTranscriptRecord>,
+): ToolCallTranscriptRecord | undefined {
   return resolveToolRecord(asRecord(entry.details), toolCallsById);
 }
 
@@ -166,7 +166,7 @@ function trimPreview(text: string): string {
 /** Classify a single conversation entry into a compact, icon-driven descriptor. */
 export function classifyHistoryEntry(
   entry: ConversationEntry,
-  toolCallsById: Map<string, ToolCallRecord>,
+  toolCallsById: Map<string, ToolCallTranscriptRecord>,
 ): HistoryNodeDescriptor {
   const details = asRecord(entry.details);
   const badges: HistoryNodeBadge[] = [];

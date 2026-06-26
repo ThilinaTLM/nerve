@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import { COLLAPSED_LINES, type ToolView } from "$lib/features/tools/views/tool-result-view";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "find" }>;
     expanded?: boolean;
     onOpenFile?: (path: string) => void;

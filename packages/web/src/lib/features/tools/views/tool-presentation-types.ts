@@ -10,10 +10,9 @@ export type MetaItem = {
   href?: string;
 };
 
-export type CollapseInfo = {
+export type DetailsActionInfo = {
   hidden: number;
-  expandLabel: string;
-  collapseLabel: string;
+  label: string;
 };
 
 export type PrimaryArg = {
@@ -29,7 +28,7 @@ export type ToolPresentation = {
   badge: string;
   primaryArg?: PrimaryArg;
   meta: MetaItem[];
-  collapse?: CollapseInfo;
+  detailsAction?: DetailsActionInfo;
   /** Tone for the leading status dot. */
   dotTone: StatusTone;
   /** Pulse the leading status dot (in-flight / awaiting states). */

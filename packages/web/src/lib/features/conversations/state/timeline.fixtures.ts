@@ -1,14 +1,14 @@
-import type { ToolCallRecord } from "$lib/api";
+import type { ToolCallTranscriptRecord } from "$lib/api";
 import type { ConversationLiveState } from "$lib/core/types/state-types";
 import type { buildConversationTimeline } from "./timeline";
 
 export function toolCall(
   id: string,
   createdAt: string,
-  toolName: ToolCallRecord["toolName"] = "read",
+  toolName: ToolCallTranscriptRecord["toolName"] = "read",
   sourceToolCallId?: string,
-  overrides: Partial<ToolCallRecord> = {},
-): ToolCallRecord {
+  overrides: Partial<ToolCallTranscriptRecord> = {},
+): ToolCallTranscriptRecord {
   return {
     id,
     agentId: "agent_01H00000000000000000000000",
@@ -17,7 +17,7 @@ export function toolCall(
     toolName,
     sourceToolCallId,
     risk: "read",
-    args: {},
+    argsPreview: {},
     cwd: "/tmp/project",
     status: "completed",
     createdAt,

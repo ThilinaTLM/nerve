@@ -44,6 +44,11 @@ export type ExploreProgressView = {
 
 export type ExploreTaskStatus = "queued" | "running" | "completed" | "failed";
 
+export type ExploreTaskAction = {
+  text: string;
+  mono: boolean;
+};
+
 export type ExploreTaskState = {
   /** Stable key so rows never reshuffle. */
   key: string;
@@ -58,6 +63,8 @@ export type ExploreTaskState = {
   currentAction?: string;
   /** Whether currentAction is a concrete tool action (render as mono). */
   currentActionMono: boolean;
+  /** Recent display-safe activity lines while running. */
+  recentActions: ExploreTaskAction[];
   /** Count of tool_call updates seen (activity meter). */
   actionCount: number;
   report?: ExploreReportPayload;

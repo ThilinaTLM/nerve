@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
   import TaskRow from "./TaskRow.svelte";
 
-  type Props = { toolCall: ToolCallRecord; view: Extract<ToolView, { kind: "task_list" }> };
+  type Props = { toolCall: ToolCallDisplayRecord; view: Extract<ToolView, { kind: "task_list" }> };
   let { view }: Props = $props();
 </script>
 

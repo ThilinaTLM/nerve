@@ -5,20 +5,20 @@
     ModelInfo,
     PlanReviewRecord,
     PlanReviewResolveOptions,
-    ToolCallRecord,
   } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { SplitButton } from "$lib/components/ui/split-button";
   import { trimTextPreview } from "$lib/core/utils/text-preview";
-  import type { ToolView } from "$lib/features/tools/views/tool-result-view";
+  import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
 
   type PlanAcceptTarget = "same" | "new-chat";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "plan_mode" }>;
+    expanded?: boolean;
     planReview?: PlanReviewRecord;
     planReviewModels?: ModelInfo[];
     planReviewModelKey?: string;
@@ -37,6 +37,7 @@
   let {
     toolCall,
     view,
+    expanded = false,
     planReview,
     planReviewModels = [],
     planReviewModelKey = "",
@@ -64,7 +65,16 @@
       : undefined;
   }
 
-  const resultReview = $derived(reviewFromResult(toolCall.result));
+  function resultPayload(toolCall: ToolCallDisplayRecord): unknown {
+    const payloads = toolCall as ToolCallDisplayRecord & {
+      result?: unknown;
+      resultPreview?: unknown;
+    };
+    return payloads.resultPreview ?? payloads.result;
+  }
+
+  const rawResult = $derived(resultPayload(toolCall));
+  const resultReview = $derived(reviewFromResult(rawResult));
   const displayedReview = $derived(planReview ?? resultReview);
   const pendingReview = $derived(
     toolCall.toolName === "plan_mode_present" &&
@@ -72,7 +82,7 @@
       planReview?.status === "pending",
   );
   const reviewStatus = $derived(
-    displayedReview?.status ?? stringField(asRecord(toolCall.result).outcome),
+    displayedReview?.status ?? stringField(asRecord(rawResult).outcome),
   );
   const accepted = $derived(reviewStatus === "accepted");
   const acceptedInNewChat = $derived(reviewStatus === "accepted_in_new_chat");
@@ -80,12 +90,14 @@
     reviewStatus === "changes_requested" || reviewStatus === "discarded",
   );
   const preview = $derived(
-    trimTextPreview(displayedReview?.content ?? "", {
-      headLines: 8,
-      tailLines: 0,
-      maxChars: 1800,
-      marker: () => "… open the plan file to read the rest …",
-    }).text,
+    expanded
+      ? (displayedReview?.content ?? "")
+      : trimTextPreview(displayedReview?.content ?? "", {
+          headLines: 10,
+          tailLines: 0,
+          maxChars: 1800,
+          marker: () => "… open the plan file to read the rest …",
+        }).text,
   );
   const showPlanCard = $derived(
     toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),

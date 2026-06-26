@@ -11,7 +11,7 @@ import type {
   PlanReviewResolveOptions,
   ProjectRecord,
   QueuedPromptRecord,
-  ToolCallRecord,
+  ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "$lib/api";
 import type {
@@ -36,7 +36,7 @@ export type ConversationPaneProps = {
   pendingPlanReview?: PlanReviewRecord;
   active?: boolean;
   transcript?: TranscriptItem[];
-  toolCalls?: ToolCallRecord[];
+  toolCalls?: ToolCallTranscriptRecord[];
   treeNodes?: ConversationTreeNode[];
   streamingText?: string;
   liveState?: ConversationLiveState;

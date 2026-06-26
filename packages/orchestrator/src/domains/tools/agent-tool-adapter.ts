@@ -212,8 +212,7 @@ export function completedToolResult(
       { type: "text", text: formatToolResultForModel(toolCall) },
     ],
     details: {
-      toolCall,
-      result: toolCall.result,
+      toolCall: { id: toolCall.id },
     },
   };
 }

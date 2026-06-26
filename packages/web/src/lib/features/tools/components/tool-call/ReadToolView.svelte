@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import { extname } from "$lib/features/tools/views/lang";
   import type { ToolView } from "$lib/features/tools/views/tool-result-view";
   import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "read" }>;
     expanded?: boolean;
     onOpenFile?: (path: string, line?: number) => void;

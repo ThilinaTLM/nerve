@@ -24,7 +24,7 @@ describe("toolPresentation", () => {
     assert.equal(p.primaryArg?.text, "make build");
     assert.equal(p.primaryArg?.openPath, undefined);
     assert.ok(p.meta.some((m) => m.text === "exit 2" && m.tone === "error"));
-    assert.equal(p.collapse, undefined);
+    assert.equal(p.detailsAction, undefined);
   });
 
   it("preserves whitespace for multi-line bash command primary args", () => {
@@ -41,9 +41,9 @@ describe("toolPresentation", () => {
       { command: "x" },
       { content: output, exitCode: 0 },
     );
-    assert.ok(p.collapse);
-    assert.equal(p.collapse?.hidden, 15);
-    assert.match(p.collapse?.expandLabel ?? "", /earlier lines/);
+    assert.ok(p.detailsAction);
+    assert.equal(p.detailsAction?.hidden, 15);
+    assert.match(p.detailsAction?.label ?? "", /earlier lines/);
   });
 
   it("marks python exits and planning write guard metadata with an inline source marker", () => {
@@ -84,9 +84,9 @@ describe("toolPresentation", () => {
   it("produces a collapse toggle when the python script alone exceeds the limit", () => {
     const code = Array.from({ length: 14 }, (_, i) => `line${i}`).join("\n");
     const p = present("python", { code }, { content: "ok" });
-    assert.ok(p.collapse);
-    assert.equal(p.collapse?.hidden, 4);
-    assert.match(p.collapse?.expandLabel ?? "", /Show 4 more lines/);
+    assert.ok(p.detailsAction);
+    assert.equal(p.detailsAction?.hidden, 4);
+    assert.match(p.detailsAction?.label ?? "", /4 more lines/);
   });
 
   it("emits byte, line, and char chips for writes", () => {

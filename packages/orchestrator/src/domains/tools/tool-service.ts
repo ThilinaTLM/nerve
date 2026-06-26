@@ -32,6 +32,7 @@ import {
 } from "./index.js";
 import { InteractionSessionService } from "./interaction-session.service.js";
 import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
+import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
 
 export interface ToolExecutionResponse {
@@ -624,7 +625,7 @@ export class ToolService {
       contentIndex: toolCall.contentIndex,
       providerToolCallId:
         toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
-      toolCall,
+      toolCall: toToolCallTranscriptRecord(toolCall),
     });
   }
 

@@ -314,13 +314,66 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(tasks[0]?.status, "running");
     assert.equal(tasks[0]?.currentAction, "read server.ts");
     assert.equal(tasks[0]?.currentActionMono, true);
+    assert.deepEqual(tasks[0]?.recentActions, [
+      { text: "read server.ts", mono: true },
+    ]);
     assert.equal(tasks[0]?.actionCount, 1);
     assert.equal(tasks[0]?.label, "api");
     // Model is surfaced from live progress before any report exists.
     assert.equal(tasks[0]?.model, "anthropic/claude-haiku");
-    // Task 1: started but no tool action yet.
+    // Task 1: started but no display-safe tool action yet.
     assert.equal(tasks[1]?.status, "running");
-    assert.equal(tasks[1]?.currentAction, "Starting…");
+    assert.equal(tasks[1]?.currentAction, undefined);
+    assert.deepEqual(tasks[1]?.recentActions, []);
+  });
+
+  it("aggregates only the three most recent explore activity lines", () => {
+    const view = parseToolView(
+      toolCall(
+        "explore",
+        { task: "Investigate" },
+        { reports: [] },
+        {
+          status: "running",
+        },
+      ),
+      {
+        chunks: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        text: [
+          exploreUpdate("started", "Explore 1/1 started", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_call", "grep auth", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_call", "read auth.ts", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_call", "find login", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_call", "ls src", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+        ].join("\n"),
+      },
+    );
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    const { tasks } = aggregateExploreTasks(view);
+    assert.equal(tasks[0]?.currentAction, "ls src");
+    assert.equal(tasks[0]?.actionCount, 4);
+    assert.deepEqual(tasks[0]?.recentActions, [
+      { text: "read auth.ts", mono: true },
+      { text: "find login", mono: true },
+      { text: "ls src", mono: true },
+    ]);
   });
 
   it("aggregates explore tasks with mixed completed and failed results", () => {

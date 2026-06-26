@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ToolCallRecord } from "$lib/api";
+  import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import {
     COLLAPSED_LINES,
     type GroupedMatches,
@@ -7,7 +7,7 @@
   } from "$lib/features/tools/views/tool-result-view";
 
   type Props = {
-    toolCall: ToolCallRecord;
+    toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "grep" }>;
     expanded?: boolean;
     onOpenFile?: (path: string, line?: number) => void;

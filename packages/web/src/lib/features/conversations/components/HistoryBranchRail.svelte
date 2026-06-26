@@ -7,7 +7,7 @@
   import Layers from "@lucide/svelte/icons/layers";
   import Pencil from "@lucide/svelte/icons/pencil";
   import Sparkles from "@lucide/svelte/icons/sparkles";
-  import type { ConversationEntry, ConversationTreeNode, ToolCallRecord } from "$lib/api";
+  import type { ConversationEntry, ConversationTreeNode, ToolCallTranscriptRecord } from "$lib/api";
   import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { relativeTimeLabel } from "$lib/core/utils/time";
@@ -20,7 +20,7 @@
     items: HistoryVisibleItem[];
     visibleIndexById: Map<string, number>;
     treeNodeIds: Set<string>;
-    toolCallsById: Map<string, ToolCallRecord>;
+    toolCallsById: Map<string, ToolCallTranscriptRecord>;
     laneCount: number;
     hasConversation: boolean;
     rootActive: boolean;
