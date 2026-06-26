@@ -15,6 +15,7 @@
   import ToolDraftCard from "$lib/features/tools/components/tool-call/ToolDraftCard.svelte";
   import ToolResultErrorCard from "$lib/features/tools/components/tool-call/ToolResultErrorCard.svelte";
   import Markdown from "$lib/core/components/Markdown.svelte";
+  import PlainText from "$lib/core/components/PlainText.svelte";
   import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
   import type { TranscriptItem } from "$lib/core/types/state-types";
   import type { TimelineItem } from "$lib/features/conversations/state/timeline";
@@ -130,14 +131,18 @@
           />
         {:else if node.item.text}
           <div class="message-content">
-            <Markdown
-              text={node.item.text}
-              trimCodeBlocks={node.item.role !== "assistant"}
-              streaming={Boolean(node.item.live && !node.item.done)}
-              linkBasePath={activeProject?.dir}
-              {onOpenFile}
-              onCopy={notifyCopyResult}
-            />
+            {#if node.item.role === "user"}
+              <PlainText text={node.item.text} />
+            {:else}
+              <Markdown
+                text={node.item.text}
+                trimCodeBlocks={node.item.role !== "assistant"}
+                streaming={Boolean(node.item.live && !node.item.done)}
+                linkBasePath={activeProject?.dir}
+                {onOpenFile}
+                onCopy={notifyCopyResult}
+              />
+            {/if}
             {#if node.item.live && !node.item.done}<span
                 class="stream-caret"
                 aria-hidden="true"

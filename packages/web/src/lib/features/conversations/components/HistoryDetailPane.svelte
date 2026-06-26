@@ -8,6 +8,7 @@
   import type { ConversationEntry, ToolCallRecord } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import Markdown from "$lib/core/components/Markdown.svelte";
+  import PlainText from "$lib/core/components/PlainText.svelte";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { dateTimeLabel, relativeTimeLabel } from "$lib/core/utils/time";
   import { notify } from "$lib/features/notifications/notify.svelte";
@@ -243,7 +244,11 @@
         </div>
       {:else if entry.summary || entry.text}
         <div class="text-sm text-foreground">
-          <Markdown text={entry.summary || entry.text} trimCodeBlocks={entry.role !== "assistant"} />
+          {#if entry.role === "user"}
+            <PlainText text={entry.summary || entry.text} />
+          {:else}
+            <Markdown text={entry.summary || entry.text} trimCodeBlocks={entry.role !== "assistant"} />
+          {/if}
         </div>
         {#if thinking}
           <div class="mt-4 border-t pt-3 text-sm text-muted-foreground">
