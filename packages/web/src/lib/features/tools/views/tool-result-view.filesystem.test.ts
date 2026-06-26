@@ -116,14 +116,18 @@ describe("parseToolView filesystem read/write/edit", () => {
     assert.equal(view.deletions, 1);
   });
 
-  it("parses write byte count", () => {
+  it("parses write byte, line, and character counts", () => {
     const view = parseToolView(
       toolCall(
         "write",
-        { path: "out.txt", content: "hello" },
-        { path: `${CWD}/out.txt`, content: "Wrote 5 bytes." },
+        { path: "out.txt", content: "hello\nworld" },
+        { path: `${CWD}/out.txt`, content: "Wrote 11 bytes." },
       ),
     );
-    assert.equal(view.kind === "write" && view.bytes, 5);
+    assert.equal(view.kind, "write");
+    if (view.kind !== "write") return;
+    assert.equal(view.bytes, 11);
+    assert.equal(view.lineCount, 2);
+    assert.equal(view.charCount, 11);
   });
 });

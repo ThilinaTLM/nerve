@@ -259,11 +259,20 @@ export function parseToolView(
       const content = stringField(args.content);
       const byteMatch = result?.content?.match(/Wrote (\d+) bytes/);
       const bytes = byteMatch ? Number(byteMatch[1]) : undefined;
+      const lineCount =
+        content === undefined
+          ? undefined
+          : content.length === 0
+            ? 0
+            : content.split("\n").length;
+      const charCount = content?.length;
       return {
         kind: "write",
         path,
         relPath,
         bytes,
+        lineCount,
+        charCount,
         content,
       };
     }

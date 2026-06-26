@@ -26,6 +26,8 @@ export type ToolDraftSummary = {
   estimatedAdditions?: number;
   estimatedDeletions?: number;
   estimated?: boolean;
+  preview?: string;
+  previewLanguage?: "diff";
   code?: string;
   codeLineCount?: number;
   language?: "python";
@@ -135,6 +137,118 @@ function lineCountsForJsonStringValues(
   return counts;
 }
 
+const DRAFT_PREVIEW_LINES = 8;
+const DRAFT_PREVIEW_MAX_VALUE_CHARS = 24_000;
+
+type JsonStringEntry<Property extends string = string> = {
+  property: Property;
+  value: string;
+  complete: boolean;
+  index: number;
+};
+
+function decodeJsonEscape(char: string): string {
+  if (char === "n") return "\n";
+  if (char === "r") return "\r";
+  if (char === "t") return "\t";
+  return char;
+}
+
+function appendTail(text: string, char: string, maxChars: number): string {
+  if (text.length + char.length <= maxChars) return text + char;
+  return `${text}${char}`.slice(-maxChars);
+}
+
+function propertyAlternationPattern(properties: readonly string[]): RegExp {
+  return new RegExp(
+    `"(${properties.map(escapeRegExp).join("|")})"\\s*:\\s*"`,
+    "g",
+  );
+}
+
+function extractJsonStringEntries<const Property extends string>(
+  text: string,
+  properties: readonly Property[],
+  options: { maxChars?: number } = {},
+): JsonStringEntry<Property>[] {
+  if (properties.length === 0) return [];
+  const values: JsonStringEntry<Property>[] = [];
+  const pattern = propertyAlternationPattern(properties);
+  let match = pattern.exec(text);
+  while (match) {
+    const maxChars = options.maxChars ?? DRAFT_PREVIEW_MAX_VALUE_CHARS;
+    let value = "";
+    let complete = false;
+    let index = match.index + match[0].length;
+    while (index < text.length) {
+      const char = text[index];
+      if (char === "\\") {
+        if (index + 1 >= text.length) break;
+        value = appendTail(value, decodeJsonEscape(text[index + 1]), maxChars);
+        index += 2;
+        continue;
+      }
+      if (char === '"') {
+        complete = true;
+        break;
+      }
+      value = appendTail(value, char, maxChars);
+      index += 1;
+    }
+    values.push({
+      property: match[1] as Property,
+      value,
+      complete,
+      index: match.index,
+    });
+    match = pattern.exec(text);
+  }
+  return values.sort((a, b) => a.index - b.index);
+}
+
+function normalizeLines(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function completedLinePreviewText(
+  text: string,
+  includeTrailingLine: boolean,
+): string {
+  const normalized = normalizeLines(text);
+  if (includeTrailingLine) return normalized;
+  const lastNewline = normalized.lastIndexOf("\n");
+  if (lastNewline < 0) return "";
+  return normalized.slice(0, lastNewline);
+}
+
+function tailLinePreview(text: string, maxLines = DRAFT_PREVIEW_LINES): string {
+  if (text.length === 0) return "";
+  const lines = text.split("\n");
+  if (lines.length <= maxLines) return text;
+  const hidden = lines.length - maxLines;
+  const tail = lines.slice(-maxLines).join("\n");
+  return `… ${hidden.toLocaleString()} earlier line${hidden === 1 ? "" : "s"} …\n${tail}`;
+}
+
+function previewFromTexts(texts: string[]): string | undefined {
+  const text = texts.filter((part) => part.length > 0).join("\n");
+  return text.length > 0 ? tailLinePreview(text) : undefined;
+}
+
+function previewFromJsonEntries(
+  entries: JsonStringEntry[],
+  includeActiveTrailingLine: boolean,
+): string | undefined {
+  return previewFromTexts(
+    entries.map((entry) =>
+      completedLinePreviewText(
+        entry.value,
+        entry.complete || includeActiveTrailingLine,
+      ),
+    ),
+  );
+}
+
 function firstPathFromDraft(
   draft: LiveToolCallDraft,
   cwd?: string,
@@ -160,6 +274,15 @@ function summarizeWriteDraft(
   const progressLines =
     draft.progress?.lineCount ?? draft.progress?.generatedLineCount;
   const lines = lineCount(finalContent) ?? partialContentLines ?? progressLines;
+  const preview =
+    finalContent !== undefined
+      ? previewFromTexts([normalizeLines(finalContent)])
+      : draft.argsText
+        ? previewFromJsonEntries(
+            extractJsonStringEntries(draft.argsText, ["content"] as const),
+            Boolean(draft.done),
+          )
+        : undefined;
   const estimated =
     finalContent === undefined && Boolean(draft.progress?.estimated);
   const meta: DraftMetaItem[] = [];
@@ -175,6 +298,7 @@ function summarizeWriteDraft(
     lineCount: lines,
     generatedLineCount: lines,
     estimated,
+    preview,
     done: Boolean(draft.done),
   };
 }
@@ -264,6 +388,59 @@ function finalEditStats(
   };
 }
 
+function finalEditPreview(args: Record<string, unknown>): {
+  preview?: string;
+  previewLanguage?: "diff";
+} {
+  const parts: Array<{ property: "newText" | "text" | "patch"; text: string }> =
+    [];
+
+  for (const replacement of arrayField(args.replacements)) {
+    const text = stringField(asRecord(replacement).newText);
+    if (text !== undefined) parts.push({ property: "newText", text });
+  }
+  for (const insertion of arrayField(args.insertions)) {
+    const text = stringField(asRecord(insertion).text);
+    if (text !== undefined) parts.push({ property: "text", text });
+  }
+  for (const replacement of arrayField(args.lineReplacements)) {
+    const text = stringField(asRecord(replacement).newText);
+    if (text !== undefined) parts.push({ property: "newText", text });
+  }
+  for (const insertion of arrayField(args.lineInsertions)) {
+    const text = stringField(asRecord(insertion).text);
+    if (text !== undefined) parts.push({ property: "text", text });
+  }
+  const patch = stringField(args.patch);
+  if (patch !== undefined) parts.push({ property: "patch", text: patch });
+
+  const preview = previewFromTexts(
+    parts.map((part) => completedLinePreviewText(part.text, true)),
+  );
+  const previewLanguage =
+    parts.length > 0 && parts.every((part) => part.property === "patch")
+      ? "diff"
+      : undefined;
+  return { preview, previewLanguage };
+}
+
+function partialEditPreview(
+  argsText: string,
+  done: boolean,
+): { preview?: string; previewLanguage?: "diff" } {
+  const entries = extractJsonStringEntries(argsText, [
+    "newText",
+    "text",
+    "patch",
+  ] as const);
+  const preview = previewFromJsonEntries(entries, done);
+  const previewLanguage =
+    entries.length > 0 && entries.every((entry) => entry.property === "patch")
+      ? "diff"
+      : undefined;
+  return { preview, previewLanguage };
+}
+
 function progressEditStats(
   draft: LiveToolCallDraft,
 ): EditDraftStats | undefined {
@@ -331,6 +508,11 @@ function summarizeEditDraft(
       generatedLines: 0,
       estimated: false,
     };
+  const previewDetails = finalStats
+    ? finalEditPreview(args)
+    : draft.argsText
+      ? partialEditPreview(draft.argsText, Boolean(draft.done))
+      : {};
   const meta: DraftMetaItem[] = [];
   if (stats.operations > 0)
     meta.push({ text: plural(stats.operations, "operation") });
@@ -352,6 +534,8 @@ function summarizeEditDraft(
     estimatedAdditions: stats.estimatedAdditions,
     estimatedDeletions: stats.estimatedDeletions,
     estimated: stats.estimated,
+    preview: previewDetails.preview,
+    previewLanguage: previewDetails.previewLanguage,
     done: Boolean(draft.done),
   };
 }

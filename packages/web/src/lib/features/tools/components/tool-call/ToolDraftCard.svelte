@@ -2,6 +2,7 @@
   import type { LiveToolCallDraft } from "$lib/core/types/state-types";
   import { summarizeToolDraft } from "$lib/features/tools/views/tool-draft-progress";
   import { trimTextPreview } from "$lib/core/utils/text-preview";
+  import { extname } from "$lib/features/tools/views/lang";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
@@ -13,6 +14,9 @@
   let { draft, cwd }: Props = $props();
 
   const summary = $derived(summarizeToolDraft(draft, cwd));
+  const draftPreviewLanguage = $derived(
+    summary.previewLanguage ?? extname(summary.path),
+  );
   const genericPreview = $derived.by(() => {
     const text = draft.args
       ? JSON.stringify(draft.args, null, 2)
@@ -43,6 +47,14 @@
       <span>{summary.statusText}</span>
       <span class="progress-spinner" aria-hidden="true"></span>
     </div>
+    {#if summary.preview !== undefined && summary.preview.length > 0}
+      <ResultCodeBlock
+        code={summary.preview}
+        language={draftPreviewLanguage}
+        maxHeight="10rem"
+        trim={false}
+      />
+    {/if}
   {:else if summary.kind === "python"}
     {#if summary.code !== undefined && summary.code.length > 0}
       <ResultCodeBlock

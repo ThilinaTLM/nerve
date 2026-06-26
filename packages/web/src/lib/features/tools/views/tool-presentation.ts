@@ -231,6 +231,10 @@ export function toolPresentation(
       const meta: MetaItem[] = [];
       if (view.bytes !== undefined)
         meta.push({ text: `wrote ${view.bytes} bytes` });
+      if (view.lineCount !== undefined)
+        meta.push({ text: plural(view.lineCount, "line") });
+      if (view.charCount !== undefined)
+        meta.push({ text: plural(view.charCount, "char") });
       return {
         ...base,
         primaryArg: view.relPath

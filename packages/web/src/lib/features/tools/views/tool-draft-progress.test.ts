@@ -34,6 +34,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.path, "src/app.ts");
     assert.equal(summary.statusText, "Generating");
     assert.equal(summary.lineCount, 3);
+    assert.equal(summary.preview, "one\ntwo");
     assert.deepEqual(
       summary.meta.map((item) => item.text),
       ["+3"],
@@ -80,10 +81,36 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.path, "src/final.ts");
     assert.equal(summary.statusText, "Submitting");
     assert.equal(summary.lineCount, 2);
+    assert.equal(summary.preview, "one\ntwo");
     assert.deepEqual(
       summary.meta.map((item) => item.text),
       ["+2"],
     );
+  });
+
+  it("previews partial edit generated lines without oldText", () => {
+    const summary = summarizeToolDraft(
+      draft("edit", {
+        argsText:
+          '{"replacements":[{"oldText":"old\\nexisting","newText":"new one\\nnew two\\nnew thre',
+      }),
+    );
+
+    assert.equal(summary.kind, "edit");
+    assert.equal(summary.preview, "new one\nnew two");
+    assert.equal(summary.previewLanguage, undefined);
+  });
+
+  it("previews partial edit patch lines as diff", () => {
+    const summary = summarizeToolDraft(
+      draft("edit", {
+        argsText: '{"path":"x.ts","patch":"@@ -1 +1 @@\\n-old\\n+new',
+      }),
+    );
+
+    assert.equal(summary.kind, "edit");
+    assert.equal(summary.preview, "@@ -1 +1 @@\n-old");
+    assert.equal(summary.previewLanguage, "diff");
   });
 
   it("uses progress snapshots for edit operation drafts without raw args", () => {

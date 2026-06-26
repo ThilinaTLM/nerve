@@ -140,6 +140,8 @@ export type ToolView =
       path?: string;
       relPath?: string;
       bytes?: number;
+      lineCount?: number;
+      charCount?: number;
       content?: string;
     }
   | {

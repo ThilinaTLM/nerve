@@ -89,6 +89,20 @@ describe("toolPresentation", () => {
     assert.match(p.collapse?.expandLabel ?? "", /Show 4 more lines/);
   });
 
+  it("emits byte, line, and char chips for writes", () => {
+    const p = present(
+      "write",
+      { path: "out.txt", content: "hello\nworld" },
+      { path: `${CWD}/out.txt`, content: "Wrote 11 bytes." },
+    );
+
+    assert.deepEqual(metaText(p.meta), [
+      "wrote 11 bytes",
+      "2 lines",
+      "11 chars",
+    ]);
+  });
+
   it("emits +/- chips for edit diffs", () => {
     const p = present(
       "edit",
