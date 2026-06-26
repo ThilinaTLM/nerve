@@ -92,11 +92,14 @@ async function exists(path) {
 }
 
 function run(command, args, cwd) {
-  const executable = process.platform === "win32" ? `${command}.cmd` : command;
-  const result = spawnSync(executable, args, {
+  const result = spawnSync(command, args, {
     cwd,
     stdio: "inherit",
     env: process.env,
+    // Windows cannot reliably spawn .cmd launchers directly from Node; let the
+    // platform shell resolve pnpm's command shim there while keeping POSIX
+    // execution shell-free.
+    shell: process.platform === "win32",
   });
 
   if (result.error) throw result.error;
