@@ -9,7 +9,9 @@
     createPinnedCommand,
     deletePinnedCommand,
     getPinnedCommands,
+    updatePinnedCommand,
     type PinnedCommand,
+    type UpdatePinnedCommandRequest,
     type TaskRecord,
     type ProjectRecord,
   } from "$lib/api";
@@ -21,6 +23,7 @@
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
+  import PinnedCommandDialog from "./PinnedCommandDialog.svelte";
   import PinnedCommandItem from "./PinnedCommandItem.svelte";
   import TaskListItem from "./TaskListItem.svelte";
 
@@ -76,6 +79,10 @@
   let newPinCommand = $state("");
   let newPinLabel = $state("");
   let runningPinId = $state<string | undefined>(undefined);
+  let pinToDelete = $state<PinnedCommand | undefined>(undefined);
+  let pinToEdit = $state<PinnedCommand | undefined>(undefined);
+  let editPinOpen = $state(false);
+  let savingEditPin = $state(false);
   let lastLoadedProjectId = $state<string | undefined>(undefined);
 
   $effect(() => {
@@ -146,13 +153,36 @@
     }
   }
 
-  async function removePin(command: PinnedCommand) {
-    if (!activeProject) return;
+  async function removePin(command: PinnedCommand | undefined) {
+    if (!activeProject || !command) return;
     try {
       await deletePinnedCommand(activeProject.id, command.id);
       pinned = pinned.filter((item) => item.id !== command.id);
+      pinToDelete = undefined;
+      notify.success("Pinned task deleted");
     } catch (error) {
       notify.error(`Could not remove pinned command: ${errorMessage(error)}`);
+    }
+  }
+
+  function editPin(command: PinnedCommand) {
+    pinToEdit = command;
+    editPinOpen = true;
+  }
+
+  async function savePinEdit(input: UpdatePinnedCommandRequest) {
+    if (!activeProject || !pinToEdit) return;
+    savingEditPin = true;
+    try {
+      const updated = await updatePinnedCommand(activeProject.id, pinToEdit.id, input);
+      pinned = pinned.map((item) => (item.id === updated.id ? updated : item));
+      editPinOpen = false;
+      pinToEdit = undefined;
+      notify.success("Pinned task updated");
+    } catch (error) {
+      notify.error(`Could not update pinned command: ${errorMessage(error)}`);
+    } finally {
+      savingEditPin = false;
     }
   }
 
@@ -209,7 +239,14 @@
             </p>
           {:else}
             {#each pinned as command (command.id)}
-              <PinnedCommandItem command={command} cwd={activeProject.dir} running={runningPinId === command.id} onRun={runPin} onRemove={(item) => void removePin(item)} />
+              <PinnedCommandItem
+                command={command}
+                cwd={activeProject.dir}
+                running={runningPinId === command.id}
+                onRun={runPin}
+                onEdit={editPin}
+                onRemove={(item) => (pinToDelete = item)}
+              />
             {/each}
           {/if}
         </div>
@@ -255,6 +292,30 @@
     {/if}
   </div>
 </Tooltip.Provider>
+
+<PinnedCommandDialog
+  bind:open={editPinOpen}
+  command={pinToEdit}
+  projectCwd={activeProject?.dir}
+  saving={savingEditPin}
+  onSave={(input) => void savePinEdit(input)}
+  onOpenChange={(open) => {
+    if (!open) pinToEdit = undefined;
+  }}
+/>
+
+<ConfirmDialog
+  open={Boolean(pinToDelete)}
+  destructive
+  title="Delete pinned task?"
+  description={`This removes the pinned task "${pinToDelete?.label ?? pinToDelete?.command ?? ""}". Running tasks and captured logs are not removed.`}
+  confirmLabel="Delete"
+  onConfirm={() => void removePin(pinToDelete)}
+  onCancel={() => (pinToDelete = undefined)}
+  onOpenChange={(open) => {
+    if (!open) pinToDelete = undefined;
+  }}
+/>
 
 <ConfirmDialog
   bind:open={confirmPruneOpen}

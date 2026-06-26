@@ -3,6 +3,7 @@ import {
   createProjectRequestSchema,
   openProjectInEditorRequestSchema,
   pruneProjectConversationsRequestSchema,
+  updatePinnedCommandRequestSchema,
 } from "@nervekit/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
@@ -77,6 +78,19 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
         },
         201,
       );
+    }),
+  );
+  app.patch(
+    "/:projectId/pinned-commands/:commandId",
+    routeHandler(async (c) => {
+      const body = updatePinnedCommandRequestSchema.parse(await c.req.json());
+      return c.json({
+        command: await state.registry.updatePinnedCommand(
+          routeParam(c, "projectId"),
+          routeParam(c, "commandId"),
+          body,
+        ),
+      });
     }),
   );
   app.delete(

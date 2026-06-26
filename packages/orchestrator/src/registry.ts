@@ -28,6 +28,7 @@ import type {
   TaskLogQuery,
   ToolName,
   UpdateAgentRequest,
+  UpdatePinnedCommandRequest,
   UserQuestionStatus,
 } from "@nervekit/shared";
 import type { AuthManager } from "./auth.js";
@@ -455,6 +456,14 @@ export class RuntimeRegistry {
 
   createPinnedCommand(projectId: string, request: CreatePinnedCommandRequest) {
     return this.services.pinnedCommands.create(projectId, request);
+  }
+
+  updatePinnedCommand(
+    projectId: string,
+    commandId: string,
+    request: UpdatePinnedCommandRequest,
+  ) {
+    return this.services.pinnedCommands.update(projectId, commandId, request);
   }
 
   removePinnedCommand(projectId: string, commandId: string) {

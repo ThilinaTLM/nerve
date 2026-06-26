@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Pencil from "@lucide/svelte/icons/pencil";
   import Play from "@lucide/svelte/icons/play";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import type { PinnedCommand } from "$lib/api";
@@ -10,10 +11,20 @@
     cwd?: string;
     running?: boolean;
     onRun?: (command: PinnedCommand) => void;
+    onEdit?: (command: PinnedCommand) => void;
     onRemove?: (command: PinnedCommand) => void;
   };
 
-  let { command, cwd = "", running = false, onRun, onRemove }: Props = $props();
+  let {
+    command,
+    cwd = "",
+    running = false,
+    onRun,
+    onEdit,
+    onRemove,
+  }: Props = $props();
+
+  const label = $derived(command.label ?? command.command);
 
   function stopPropagation(event: MouseEvent) {
     event.stopPropagation();
@@ -24,16 +35,13 @@
   <Tooltip.Root>
     <Tooltip.Trigger>
       {#snippet child({ props })}
-        <button {...props} class="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2.5 py-2 text-left" type="button" onclick={() => onRun?.(command)}>
-          {#if command.label}
-            <span class="truncate text-xs font-medium text-foreground">{command.label}</span>
-          {/if}
-          <span class="truncate font-mono text-xs text-muted-foreground">{command.command}</span>
+        <button {...props} class="flex min-w-0 flex-1 rounded-md px-2.5 py-1.5 text-left" type="button">
+          <span class="truncate text-xs font-medium text-foreground">{label}</span>
         </button>
       {/snippet}
     </Tooltip.Trigger>
     <Tooltip.Content side="left" sideOffset={6} class="nav-tooltip task-tooltip">
-      {#if command.label}<span class="tt-title">{command.label}</span>{/if}
+      <span class="tt-title">{label}</span>
       <span class="tt-row"><span class="tt-key">command</span>{command.command}</span>
       <span class="tt-row"><span class="tt-key">cwd</span>{command.cwd ?? cwd}</span>
     </Tooltip.Content>
@@ -42,8 +50,8 @@
     <Button
       size="icon-xs"
       variant="ghost"
-      ariaLabel="Run command"
-      title="Run command"
+      ariaLabel="Run pinned task"
+      title="Run pinned task"
       class="text-muted-foreground hover:text-foreground"
       disabled={running}
       onclick={(event) => {
@@ -56,8 +64,21 @@
     <Button
       size="icon-xs"
       variant="ghost"
-      ariaLabel="Remove pinned command"
-      title="Remove pinned command"
+      ariaLabel="Edit pinned task"
+      title="Edit pinned task"
+      class="text-muted-foreground hover:text-foreground"
+      onclick={(event) => {
+        stopPropagation(event);
+        onEdit?.(command);
+      }}
+    >
+      <Pencil size={12} strokeWidth={2.3} />
+    </Button>
+    <Button
+      size="icon-xs"
+      variant="ghost"
+      ariaLabel="Delete pinned task"
+      title="Delete pinned task"
       class="text-muted-foreground hover:text-destructive"
       onclick={(event) => {
         stopPropagation(event);

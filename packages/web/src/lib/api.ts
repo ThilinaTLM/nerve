@@ -73,6 +73,7 @@ export type {
   TaskRecord,
   ThinkingLevel,
   ToolCallRecord,
+  UpdatePinnedCommandRequest,
   UpdateSettingsRequest,
   UserQuestionRecord,
 } from "@nervekit/shared";

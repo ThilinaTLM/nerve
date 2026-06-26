@@ -5,10 +5,12 @@ import type {
   ProjectEditor,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
+  UpdatePinnedCommandRequest,
 } from "@nervekit/shared";
 import {
   apiDeleteNoContent,
   apiGet,
+  apiPatch,
   apiPathSegment,
   apiPost,
 } from "../../../core/api/client";
@@ -54,6 +56,19 @@ export async function createPinnedCommand(
   return (
     await apiPost<{ command: PinnedCommand }>(
       `/api/projects/${apiPathSegment(projectId)}/pinned-commands`,
+      body,
+    )
+  ).command;
+}
+
+export async function updatePinnedCommand(
+  projectId: string,
+  commandId: string,
+  body: UpdatePinnedCommandRequest,
+): Promise<PinnedCommand> {
+  return (
+    await apiPatch<{ command: PinnedCommand }>(
+      `/api/projects/${apiPathSegment(projectId)}/pinned-commands/${apiPathSegment(commandId)}`,
       body,
     )
   ).command;

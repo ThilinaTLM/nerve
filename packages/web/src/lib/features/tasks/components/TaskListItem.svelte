@@ -65,7 +65,15 @@
 
   function taskMenu(): ContextMenuItem[] {
     return [
-      { label: "Open output", icon: Terminal, onSelect: () => onOpenTaskOutput?.(task.id) },
+      ...(isActive
+        ? [
+            {
+              label: "Open output",
+              icon: Terminal,
+              onSelect: () => onOpenTaskOutput?.(task.id),
+            } satisfies ContextMenuItem,
+          ]
+        : []),
       { label: "Pin command", icon: Pin, onSelect: () => onPinTask?.(task) },
       { label: "Copy command", icon: Copy, onSelect: () => onCopyCommand?.(task.command) },
       { type: "separator" },
@@ -86,7 +94,14 @@
     <Tooltip.Root>
       <Tooltip.Trigger>
         {#snippet child({ props })}
-          <button {...props} class="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-2 text-left" type="button" onclick={() => onOpenTaskOutput?.(task.id)}>
+          <button
+            {...props}
+            class="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-2 text-left"
+            type="button"
+            onclick={() => {
+              if (isActive) onOpenTaskOutput?.(task.id);
+            }}
+          >
             <StatusDot tone={taskTone(task.status)} pulse={taskPulse(task.status)} />
             <div class="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{task.command}</div>
             {#if envCount > 0}<Badge tone="neutral" size="xs" title={envKeys}>env</Badge>{/if}
