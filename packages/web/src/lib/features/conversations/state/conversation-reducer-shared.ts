@@ -125,6 +125,12 @@ export function toolDraftProgressFromValue(
   progress.generatedLineCount = numberValue(record.generatedLineCount);
   progress.estimatedAdditions = numberValue(record.estimatedAdditions);
   progress.estimatedDeletions = numberValue(record.estimatedDeletions);
+  if (typeof record.generatedPreview === "string") {
+    progress.generatedPreview = record.generatedPreview;
+  }
+  if (record.generatedPreviewLanguage === "diff") {
+    progress.generatedPreviewLanguage = "diff";
+  }
   return progress;
 }
 

@@ -13,6 +13,8 @@ type TargetProperty =
 
 const PATH_MAX_CHARS = 240;
 const PROPERTY_MAX_CHARS = 48;
+const GENERATED_PREVIEW_LINES = 10;
+const GENERATED_PREVIEW_MAX_CHARS = 8_000;
 
 class LineMetric {
   private lines = 0;
@@ -58,6 +60,50 @@ class PatchMetric {
     }
     this.line = "";
   }
+}
+
+class GeneratedPreviewTail {
+  private text = "";
+
+  append(char: string): void {
+    if (char === "\r") return;
+    this.text += char;
+    this.trim();
+  }
+
+  appendText(text: string): void {
+    for (const char of text) this.append(char);
+  }
+
+  get value(): string | undefined {
+    return this.text.length > 0 ? this.text : undefined;
+  }
+
+  private trim(): void {
+    if (this.text.length > GENERATED_PREVIEW_MAX_CHARS) {
+      this.text = this.text.slice(-GENERATED_PREVIEW_MAX_CHARS);
+    }
+
+    let newlineCount = 0;
+    for (let index = this.text.length - 1; index >= 0; index -= 1) {
+      if (this.text[index] !== "\n") continue;
+      newlineCount += 1;
+      if (newlineCount >= GENERATED_PREVIEW_LINES) {
+        this.text = this.text.slice(index + 1);
+        return;
+      }
+    }
+  }
+}
+
+function tailGeneratedPreview(texts: string[]): string | undefined {
+  const tail = new GeneratedPreviewTail();
+  for (const text of texts) {
+    if (text.length === 0) continue;
+    if (tail.value) tail.append("\n");
+    tail.appendText(text);
+  }
+  return tail.value;
 }
 
 type ActiveValue =
@@ -118,7 +164,8 @@ function hasProgress(
       (snapshot.estimatedAdditions !== undefined &&
         snapshot.estimatedAdditions > 0) ||
       (snapshot.estimatedDeletions !== undefined &&
-        snapshot.estimatedDeletions > 0),
+        snapshot.estimatedDeletions > 0) ||
+      Boolean(snapshot.generatedPreview),
   );
 }
 
@@ -158,6 +205,9 @@ export class ToolDraftProgressAccumulator {
   private activeNewTextMetric: LineMetric | undefined;
   private activeInsertedTextMetric: LineMetric | undefined;
   private activePatchMetric: PatchMetric | undefined;
+  private readonly generatedPreview = new GeneratedPreviewTail();
+  private generatedPreviewSegmentCount = 0;
+  private generatedPatchPreviewSegmentCount = 0;
   private lastSignature: string | undefined;
 
   constructor(private readonly toolName: ToolDraftProgressToolName) {}
@@ -174,6 +224,7 @@ export class ToolDraftProgressAccumulator {
 
   snapshot(): ConversationLiveToolDraftProgressSnapshot {
     const path = this.activePath ?? this.closedPath;
+    const generatedPreview = this.generatedPreview.value;
     if (this.toolName === "write") {
       const lineCount =
         this.activeContentMetric?.count ?? this.closedContentLineCount;
@@ -181,6 +232,7 @@ export class ToolDraftProgressAccumulator {
         path,
         lineCount,
         generatedLineCount: lineCount,
+        generatedPreview,
         estimated: true,
       };
     }
@@ -210,6 +262,14 @@ export class ToolDraftProgressAccumulator {
       generatedLineCount,
       estimatedAdditions: generatedLineCount,
       estimatedDeletions: deletedLineCount,
+      generatedPreview,
+      generatedPreviewLanguage:
+        generatedPreview &&
+        this.generatedPreviewSegmentCount > 0 &&
+        this.generatedPreviewSegmentCount ===
+          this.generatedPatchPreviewSegmentCount
+          ? "diff"
+          : undefined,
       estimated: true,
     };
   }
@@ -271,6 +331,12 @@ export class ToolDraftProgressAccumulator {
     }
   }
 
+  private beginGeneratedPreviewSegment(patch: boolean): void {
+    if (this.generatedPreview.value) this.generatedPreview.append("\n");
+    this.generatedPreviewSegmentCount += 1;
+    if (patch) this.generatedPatchPreviewSegmentCount += 1;
+  }
+
   private startTargetValue(property: TargetProperty): void {
     switch (property) {
       case "path":
@@ -279,6 +345,7 @@ export class ToolDraftProgressAccumulator {
         break;
       case "content": {
         const metric = new LineMetric();
+        this.beginGeneratedPreviewSegment(false);
         this.activeContentMetric = metric;
         this.activeValue = { property, metric, escaping: false };
         break;
@@ -293,6 +360,7 @@ export class ToolDraftProgressAccumulator {
       case "newText": {
         const metric = new LineMetric();
         this.newTextCount += 1;
+        this.beginGeneratedPreviewSegment(false);
         this.activeNewTextMetric = metric;
         this.activeValue = { property, metric, escaping: false };
         break;
@@ -300,6 +368,7 @@ export class ToolDraftProgressAccumulator {
       case "text": {
         const metric = new LineMetric();
         this.insertedTextCount += 1;
+        this.beginGeneratedPreviewSegment(false);
         this.activeInsertedTextMetric = metric;
         this.activeValue = { property, metric, escaping: false };
         break;
@@ -307,6 +376,7 @@ export class ToolDraftProgressAccumulator {
       case "patch": {
         const metric = new PatchMetric();
         this.patchCount += 1;
+        this.beginGeneratedPreviewSegment(true);
         this.activePatchMetric = metric;
         this.activeValue = { property, metric, escaping: false };
         break;
@@ -349,6 +419,14 @@ export class ToolDraftProgressAccumulator {
       return;
     }
     active.metric.add(char);
+    if (
+      active.property === "content" ||
+      active.property === "newText" ||
+      active.property === "text" ||
+      active.property === "patch"
+    ) {
+      this.generatedPreview.append(char);
+    }
   }
 
   private finishActiveValue(active: ActiveValue): void {
@@ -402,17 +480,60 @@ export function createToolDraftProgressAccumulator(
   return undefined;
 }
 
+function finalEditGeneratedPreview(args: Record<string, unknown>): {
+  generatedPreview?: string;
+  generatedPreviewLanguage?: "diff";
+} {
+  const parts: Array<{ text: string; patch: boolean }> = [];
+
+  for (const replacement of arrayField(args.replacements)) {
+    const text = stringField(asRecord(replacement).newText);
+    if (text !== undefined) parts.push({ text, patch: false });
+  }
+  for (const insertion of arrayField(args.insertions)) {
+    const text = stringField(asRecord(insertion).text);
+    if (text !== undefined) parts.push({ text, patch: false });
+  }
+  for (const replacement of arrayField(args.lineReplacements)) {
+    const text = stringField(asRecord(replacement).newText);
+    if (text !== undefined) parts.push({ text, patch: false });
+  }
+  for (const insertion of arrayField(args.lineInsertions)) {
+    const text = stringField(asRecord(insertion).text);
+    if (text !== undefined) parts.push({ text, patch: false });
+  }
+  const patch = stringField(args.patch);
+  if (patch !== undefined) parts.push({ text: patch, patch: true });
+
+  const generatedPreview = tailGeneratedPreview(parts.map((part) => part.text));
+  const result: {
+    generatedPreview?: string;
+    generatedPreviewLanguage?: "diff";
+  } = { generatedPreview };
+  if (
+    generatedPreview &&
+    parts.length > 0 &&
+    parts.every((part) => part.patch)
+  ) {
+    result.generatedPreviewLanguage = "diff";
+  }
+  return result;
+}
+
 export function finalToolDraftProgress(
   toolName: string,
   args: Record<string, unknown>,
 ): ConversationLiveToolDraftProgressSnapshot | undefined {
   if (toolName === "write") {
     const path = stringField(args.path);
-    const lineCountValue = lineCount(stringField(args.content));
+    const content = stringField(args.content);
+    const lineCountValue = lineCount(content);
     const snapshot: ConversationLiveToolDraftProgressSnapshot = {
       path,
       lineCount: lineCountValue,
       generatedLineCount: lineCountValue,
+      generatedPreview:
+        content !== undefined ? tailGeneratedPreview([content]) : undefined,
       estimated: false,
     };
     return hasProgress(snapshot) ? snapshot : undefined;
@@ -422,12 +543,14 @@ export function finalToolDraftProgress(
     return undefined;
   }
   const stats = editShorthandStats(args);
+  const preview = finalEditGeneratedPreview(args);
   const snapshot: ConversationLiveToolDraftProgressSnapshot = {
     path: stringField(args.path),
     operationCount: stats.operations,
     generatedLineCount: stats.additions,
     estimatedAdditions: stats.additions,
     estimatedDeletions: stats.deletions,
+    ...preview,
     estimated: false,
   };
   return hasProgress(snapshot) ? snapshot : undefined;

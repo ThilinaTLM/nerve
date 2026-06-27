@@ -15,6 +15,7 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.path, "src/app.ts");
     assert.equal(progress?.lineCount, 3);
     assert.equal(progress?.generatedLineCount, 3);
+    assert.equal(progress?.generatedPreview, "one\ntwo\nthree");
     assert.equal(progress?.estimated, true);
   });
 
@@ -45,16 +46,35 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.estimatedDeletions, 3);
   });
 
-  it("never exposes raw generated content in progress snapshots", () => {
-    const secretContent = "SECRET_CONTENT_SHOULD_NOT_LEAK";
+  it("keeps only the last 10 generated write lines in progress previews", () => {
     const accumulator = new ToolDraftProgressAccumulator("write");
+    const lines = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`);
 
     const progress = accumulator.push(
-      `{"path":"src/secret.ts","content":"${secretContent}\\nline 2`,
+      `{"path":"src/app.ts","content":"${lines.join("\\n")}`,
     );
 
-    assert.ok(progress);
-    assert.equal(JSON.stringify(progress).includes(secretContent), false);
+    assert.equal(progress?.generatedPreview, lines.slice(-10).join("\n"));
+  });
+
+  it("previews edit generated content without old text", () => {
+    const accumulator = new ToolDraftProgressAccumulator("edit");
+
+    const progress = accumulator.push(
+      '{"replacements":[{"oldText":"old secret","newText":"new one\\nnew two"}],"insertions":[{"text":"inserted"}]}',
+    );
+
+    assert.equal(progress?.generatedPreview, "new one\nnew two\ninserted");
+    assert.equal(progress?.generatedPreview?.includes("old secret"), false);
+  });
+
+  it("marks patch-only edit progress previews as diff", () => {
+    const accumulator = new ToolDraftProgressAccumulator("edit");
+
+    const progress = accumulator.push('{"patch":"@@ -1 +1 @@\\n-old\\n+new"}');
+
+    assert.equal(progress?.generatedPreview, "@@ -1 +1 @@\n-old\n+new");
+    assert.equal(progress?.generatedPreviewLanguage, "diff");
   });
 
   it("returns best-effort progress for malformed partial JSON", () => {
@@ -82,6 +102,7 @@ describe("finalToolDraftProgress", () => {
       path: "src/app.ts",
       lineCount: 2,
       generatedLineCount: 2,
+      generatedPreview: "one\ntwo",
       estimated: false,
     });
   });
@@ -100,6 +121,7 @@ describe("finalToolDraftProgress", () => {
       generatedLineCount: 5,
       estimatedAdditions: 5,
       estimatedDeletions: 2,
+      generatedPreview: "new\none\ntwo\n@@ -1 +1,2 @@\n-old\n+new\n+extra\n",
       estimated: false,
     });
   });

@@ -46,10 +46,6 @@
   </div>
 
   {#if summary.kind === "write" || summary.kind === "edit"}
-    <div class="draft-progress" aria-live="polite">
-      <span>{summary.statusText}</span>
-      <span class="progress-spinner" aria-hidden="true"></span>
-    </div>
     {#if summary.preview !== undefined && summary.preview.length > 0}
       <ResultCodeBlock
         code={summary.preview}
@@ -64,6 +60,10 @@
         maxHeight="10rem"
         trim={false}
       />
+    {:else}
+      <div class="draft-progress" aria-live="polite">
+        <span>Waiting for generated lines…</span>
+      </div>
     {/if}
   {:else if summary.kind === "python"}
     {#if summary.code !== undefined && summary.code.length > 0}

@@ -262,6 +262,8 @@ export interface ConversationLiveToolDraftProgressSnapshot {
   generatedLineCount?: number;
   estimatedAdditions?: number;
   estimatedDeletions?: number;
+  generatedPreview?: string;
+  generatedPreviewLanguage?: "diff";
   estimated: boolean;
 }
 

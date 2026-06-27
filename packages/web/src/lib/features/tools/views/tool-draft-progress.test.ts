@@ -63,6 +63,23 @@ describe("summarizeToolDraft", () => {
     );
   });
 
+  it("uses progress snapshots for write draft previews without raw args", () => {
+    const summary = summarizeToolDraft(
+      draft("write", {
+        progress: {
+          path: "src/live.ts",
+          lineCount: 2,
+          generatedLineCount: 2,
+          generatedPreview: "recent one\nrecent two",
+          estimated: true,
+        },
+      }),
+    );
+
+    assert.equal(summary.kind, "write");
+    assert.equal(summary.preview, "recent one\nrecent two");
+  });
+
   it("uses final write args for exact path and line count", () => {
     const summary = summarizeToolDraft(
       draft("write", {
@@ -136,6 +153,27 @@ describe("summarizeToolDraft", () => {
       summary.meta.map((item) => item.text),
       ["2 operations", "+6", "-4"],
     );
+  });
+
+  it("uses progress snapshots for edit draft previews without raw args", () => {
+    const summary = summarizeToolDraft(
+      draft("edit", {
+        progress: {
+          path: "src/live.ts",
+          operationCount: 1,
+          generatedLineCount: 1,
+          estimatedAdditions: 1,
+          estimatedDeletions: 1,
+          generatedPreview: "@@ -1 +1 @@\n-old\n+new",
+          generatedPreviewLanguage: "diff",
+          estimated: true,
+        },
+      }),
+    );
+
+    assert.equal(summary.kind, "edit");
+    assert.equal(summary.preview, "@@ -1 +1 @@\n-old\n+new");
+    assert.equal(summary.previewLanguage, "diff");
   });
 
   it("uses final edit shorthand args for operation and generated-line counts", () => {

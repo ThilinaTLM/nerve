@@ -274,15 +274,16 @@ function summarizeWriteDraft(
   const progressLines =
     draft.progress?.lineCount ?? draft.progress?.generatedLineCount;
   const lines = lineCount(finalContent) ?? partialContentLines ?? progressLines;
+  const progressPreview = draft.progress?.generatedPreview;
   const preview =
     finalContent !== undefined
       ? previewFromTexts([normalizeLines(finalContent)])
-      : draft.argsText
-        ? previewFromJsonEntries(
-            extractJsonStringEntries(draft.argsText, ["content"] as const),
-            Boolean(draft.done),
-          )
-        : undefined;
+      : ((draft.argsText
+          ? previewFromJsonEntries(
+              extractJsonStringEntries(draft.argsText, ["content"] as const),
+              Boolean(draft.done),
+            )
+          : undefined) ?? progressPreview);
   const estimated =
     finalContent === undefined && Boolean(draft.progress?.estimated);
   const meta: DraftMetaItem[] = [];
@@ -508,11 +509,20 @@ function summarizeEditDraft(
       generatedLines: 0,
       estimated: false,
     };
+  const progressPreviewDetails = draft.progress?.generatedPreview
+    ? {
+        preview: draft.progress.generatedPreview,
+        previewLanguage: draft.progress.generatedPreviewLanguage,
+      }
+    : {};
+  const partialPreviewDetails = draft.argsText
+    ? partialEditPreview(draft.argsText, Boolean(draft.done))
+    : undefined;
   const previewDetails = finalStats
     ? finalEditPreview(args)
-    : draft.argsText
-      ? partialEditPreview(draft.argsText, Boolean(draft.done))
-      : {};
+    : partialPreviewDetails?.preview
+      ? partialPreviewDetails
+      : progressPreviewDetails;
   const meta: DraftMetaItem[] = [];
   if (stats.operations > 0)
     meta.push({ text: plural(stats.operations, "operation") });
