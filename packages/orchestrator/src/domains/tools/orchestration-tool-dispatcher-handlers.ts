@@ -419,19 +419,19 @@ export async function requestPlanReview(
     status: "waiting_for_user",
   });
   await this.deps.publishToolCallUpdated(waitingToolCall);
-  if (!options.durableSuspend) {
-    return this.deps.plans.presentPlan(
-      waitingToolCall,
-      this.deps.getAgent(toolCall.agentId),
-      args,
-      options.signal,
-    );
-  }
-  await this.deps.plans.createPlanReview(
+  const review = await this.deps.plans.createPlanReview(
     waitingToolCall,
     this.deps.getAgent(toolCall.agentId),
     args,
   );
+  const updatedToolCall = await this.deps.updateToolCall(toolCall.id, {
+    result: this.deps.plans.planReviewResult(review),
+    status: "waiting_for_user",
+  });
+  await this.deps.publishToolCallUpdated(updatedToolCall);
+  if (!options.durableSuspend) {
+    return this.deps.plans.waitForPlanReviewResult(review.id, options.signal);
+  }
   throw new ToolExecutionSuspended();
 }
 

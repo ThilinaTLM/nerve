@@ -9,7 +9,6 @@
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { SplitButton } from "$lib/components/ui/split-button";
-  import { trimTextPreview } from "$lib/core/utils/text-preview";
   import type { MetaItem } from "$lib/features/tools/views/tool-presentation";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
@@ -25,6 +24,7 @@
     planReviewModels?: ModelInfo[];
     planReviewModelKey?: string;
     planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
+    detailsAction?: { label: string; onClick: () => void };
     onOpenFile?: (path: string, line?: number) => void;
     onAcceptPlanReview?: (
       id: string,
@@ -44,6 +44,7 @@
     planReviewModels = [],
     planReviewModelKey = "",
     planReviewThinkingLevel = "off",
+    detailsAction,
     onAcceptPlanReview,
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
@@ -75,9 +76,18 @@
     return payloads.resultPreview ?? payloads.result;
   }
 
+  function firstLines(text: string, count: number): string {
+    const lines = text.split("\n");
+    return lines.length > count ? lines.slice(0, count).join("\n") : text;
+  }
+
   const rawResult = $derived(resultPayload(toolCall));
   const resultReview = $derived(reviewFromResult(rawResult));
-  const displayedReview = $derived(planReview ?? resultReview);
+  const displayedReview = $derived(
+    planReview
+      ? { ...resultReview, ...planReview, content: resultReview?.content ?? planReview.content }
+      : resultReview,
+  );
   const pendingReview = $derived(
     toolCall.toolName === "plan_mode_present" &&
       toolCall.status === "waiting_for_user" &&
@@ -91,15 +101,13 @@
   const rejected = $derived(
     reviewStatus === "changes_requested" || reviewStatus === "discarded",
   );
+  const collapsedContent = $derived(
+    resultReview?.content ?? displayedReview?.content ?? "",
+  );
   const preview = $derived(
     expanded
       ? (displayedReview?.content ?? "")
-      : trimTextPreview(displayedReview?.content ?? "", {
-          headLines: 10,
-          tailLines: 0,
-          maxChars: 1800,
-          marker: () => "… open the plan file to read the rest …",
-        }).text,
+      : firstLines(collapsedContent, 10),
   );
   const showPlanCard = $derived(
     toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),
@@ -167,7 +175,7 @@
       <pre class="m-0 whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-normal text-foreground">{preview}</pre>
     {/if}
 
-    <ToolFooter meta={statusMeta}>
+    <ToolFooter meta={statusMeta} {detailsAction}>
       {#snippet actions()}
       <SplitButton
         variant={acceptVariant}
@@ -239,3 +247,5 @@
 {:else if view.summary}
   <p class="m-0 text-sm text-muted-foreground">{view.summary}</p>
 {/if}
+
+

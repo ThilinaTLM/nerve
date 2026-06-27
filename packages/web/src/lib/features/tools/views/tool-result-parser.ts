@@ -71,6 +71,51 @@ function editShorthandOperationCount(args: Record<string, unknown>): number {
   );
 }
 
+function countLines(text: string | undefined): number {
+  if (!text) return 0;
+  return text.length === 0 ? 0 : text.split("\n").length;
+}
+
+function previewOverflowHidden(
+  toolCall: ToolCallDisplayRecord,
+  noun: string,
+  direction?: "head" | "tail" | "mixed",
+): number {
+  const overflow =
+    "previewOverflow" in toolCall ? toolCall.previewOverflow : undefined;
+  if (!overflow || overflow.noun !== noun) return 0;
+  if (direction && overflow.direction !== direction) return 0;
+  return overflow.hidden;
+}
+
+function actualPreviewCount(
+  visible: number,
+  toolCall: ToolCallDisplayRecord,
+  noun: string,
+  direction?: "head" | "tail" | "mixed",
+): number {
+  return visible + previewOverflowHidden(toolCall, noun, direction);
+}
+
+function modelDisplayedLines(
+  outputLimits: ReturnType<typeof outputLimitsFromDetails>,
+): number | undefined {
+  return outputLimits?.model?.displayedLines;
+}
+
+function actualTextLineCount(
+  text: string | undefined,
+  toolCall: ToolCallDisplayRecord,
+  noun: string,
+  direction?: "head" | "tail" | "mixed",
+  outputLimits?: ReturnType<typeof outputLimitsFromDetails>,
+): number {
+  return (
+    modelDisplayedLines(outputLimits) ??
+    actualPreviewCount(countLines(text), toolCall, noun, direction)
+  );
+}
+
 // Memoize the (zod-heavy) tool-result projection. parseToolView re-runs on
 // every card mount (tab switch / scroll into view) and on every live
 // `tool_call.updated`; caching by tool-call identity + revision lets stable
@@ -98,6 +143,8 @@ function toolViewSignature(
     resultPreview?: unknown;
   };
   const mode = "result" in toolCall || "args" in toolCall ? "full" : "preview";
+  const overflow =
+    "previewOverflow" in toolCall ? toolCall.previewOverflow : undefined;
   return [
     toolCall.id,
     toolCall.status,
@@ -105,6 +152,7 @@ function toolViewSignature(
     mode,
     payloadSignature(payloads.argsPreview ?? payloads.args),
     payloadSignature(payloads.resultPreview ?? payloads.result),
+    overflow ? `${overflow.hidden}:${overflow.noun}:${overflow.direction}` : "",
     liveOutput?.updatedAt ?? "",
     liveOutput?.text.length ?? 0,
   ].join("\0");
@@ -166,13 +214,22 @@ export function parseToolView(
       const hasRange =
         typeof args.offset === "number" || typeof args.limit === "number";
       let lineLabel: string | undefined;
-      if (content !== undefined) {
-        const count = content.length === 0 ? 0 : content.split("\n").length;
-        if (hasRange && typeof args.offset === "number") {
+      const lineCount =
+        content === undefined
+          ? undefined
+          : actualTextLineCount(
+              content,
+              toolCall,
+              "lines",
+              "head",
+              outputLimits,
+            );
+      if (lineCount !== undefined) {
+        if (hasRange && typeof args.offset === "number" && lineCount > 0) {
           const start = args.offset as number;
-          lineLabel = `lines ${start}–${start + count - 1}`;
+          lineLabel = `lines ${start}–${start + lineCount - 1}`;
         } else {
-          lineLabel = `${count} line${count === 1 ? "" : "s"}`;
+          lineLabel = `${lineCount} line${lineCount === 1 ? "" : "s"}`;
         }
       }
       return {
@@ -180,6 +237,7 @@ export function parseToolView(
         path,
         relPath,
         lineLabel,
+        lineCount,
         content,
         truncated: detailsTruncated(result?.details),
         outputLimits,
@@ -191,6 +249,13 @@ export function parseToolView(
       const command = stringField(args.command);
       const details = bashResultDetailsSchema.safeParse(result?.details);
       const output = resultOutputText(result, rawResult, liveOutput);
+      const outputLineCount = actualTextLineCount(
+        output,
+        toolCall,
+        "lines",
+        "tail",
+        outputLimits,
+      );
       return {
         kind: "bash",
         command,
@@ -199,6 +264,7 @@ export function parseToolView(
           ? (details.data.signal ?? undefined)
           : undefined,
         output,
+        outputLineCount,
         savedTo: details.success ? details.data.fullOutputPath : undefined,
         truncated: detailsTruncated(result?.details),
         live: !result && Boolean(liveOutput?.text),
@@ -221,7 +287,16 @@ export function parseToolView(
         cwd,
       );
       const output = resultOutputText(result, rawResult, liveOutput);
-      const codeLineCount = code ? code.split(/\r?\n/).length : 0;
+      const codeLineCount = code
+        ? actualPreviewCount(countLines(code), toolCall, "lines", "head")
+        : 0;
+      const outputLineCount = actualTextLineCount(
+        output,
+        toolCall,
+        "lines",
+        "tail",
+        outputLimits,
+      );
       const inputMode = details.success
         ? (details.data.inputMode ?? (scriptPath ? "file" : "inline"))
         : scriptInputPath
@@ -239,6 +314,7 @@ export function parseToolView(
           ? (details.data.signal ?? undefined)
           : undefined,
         output,
+        outputLineCount,
         savedTo: details.success ? details.data.fullOutputPath : undefined,
         truncated: detailsTruncated(result?.details),
         live: !result && Boolean(liveOutput?.text),
@@ -270,6 +346,12 @@ export function parseToolView(
         ? details.data.operationCount
         : editShorthandOperationCount(args);
       const diff = details.success ? details.data.diff : undefined;
+      const diffLineCount = actualPreviewCount(
+        countLines(diff),
+        toolCall,
+        "lines",
+        "tail",
+      );
       const { additions, deletions } = diffStats(diff);
       return {
         kind: "edit",
@@ -279,6 +361,7 @@ export function parseToolView(
         additions,
         deletions,
         diff,
+        diffLineCount,
         dryRun: details.success ? details.data.dryRun : undefined,
       };
     }
@@ -292,9 +375,7 @@ export function parseToolView(
       const lineCount =
         content === undefined
           ? undefined
-          : content.length === 0
-            ? 0
-            : content.split("\n").length;
+          : actualPreviewCount(countLines(content), toolCall, "lines", "tail");
       const charCount = content?.length;
       return {
         kind: "write",
@@ -323,7 +404,12 @@ export function parseToolView(
       return {
         kind: "grep",
         pattern,
-        matchCount: matches.length,
+        matchCount: actualPreviewCount(
+          matches.length,
+          toolCall,
+          "matches",
+          "head",
+        ),
         fileCount: all.length,
         allMatches: all,
       };
@@ -345,7 +431,7 @@ export function parseToolView(
         pattern,
         paths,
         openPaths,
-        count: paths.length,
+        count: actualPreviewCount(paths.length, toolCall, "files", "head"),
       };
     }
 
@@ -361,7 +447,7 @@ export function parseToolView(
         path,
         relPath,
         entries,
-        total: entries.length,
+        total: actualPreviewCount(entries.length, toolCall, "entries", "head"),
       };
     }
 
@@ -447,6 +533,12 @@ export function parseToolView(
         kind: "task_logs",
         task: data?.task,
         events,
+        eventCount: actualPreviewCount(
+          events.length,
+          toolCall,
+          "events",
+          "tail",
+        ),
         mode: data?.mode,
       };
     }

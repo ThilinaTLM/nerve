@@ -1,4 +1,4 @@
-import type { ToolCallRecord } from "$lib/api";
+import type { ToolCallRecord, ToolCallTranscriptRecord } from "$lib/api";
 import { toolPresentation } from "./tool-presentation";
 import { parseToolView } from "./tool-result-view";
 
@@ -41,6 +41,29 @@ export function toolCall(
   };
 }
 
+export function transcriptToolCall(
+  toolName: ToolCallRecord["toolName"],
+  argsPreview: unknown,
+  resultPreview: unknown,
+  overrides: Partial<ToolCallTranscriptRecord> = {},
+): ToolCallTranscriptRecord {
+  return {
+    id: "tool_01H00000000000000000000001",
+    agentId: "agent_01H00000000000000000000000",
+    conversationId: "conv_01H00000000000000000000000",
+    projectId: "proj_01H0000000000000000000000",
+    toolName,
+    risk: "read",
+    argsPreview,
+    resultPreview,
+    cwd: CWD,
+    status: "completed",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 export function present(
   toolName: ToolCallRecord["toolName"],
   args: unknown,
@@ -48,6 +71,21 @@ export function present(
   overrides: Partial<ToolCallRecord> = {},
 ) {
   const tc = toolCall(toolName, args, result, overrides);
+  return toolPresentation(parseToolView(tc), tc);
+}
+
+export function presentTranscript(
+  toolName: ToolCallRecord["toolName"],
+  argsPreview: unknown,
+  resultPreview: unknown,
+  overrides: Partial<ToolCallTranscriptRecord> = {},
+) {
+  const tc = transcriptToolCall(
+    toolName,
+    argsPreview,
+    resultPreview,
+    overrides,
+  );
   return toolPresentation(parseToolView(tc), tc);
 }
 

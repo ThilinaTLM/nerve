@@ -41,12 +41,13 @@
         {/each}
       </div>
     {/if}
-    {#if actions}
-      <div class="footer-actions">{@render actions()}</div>
-    {:else if detailsAction}
+    {#if detailsAction}
       <button class="more" type="button" onclick={detailsAction.onClick}>
         {detailsAction.label}
       </button>
+    {/if}
+    {#if actions}
+      <div class="footer-actions">{@render actions()}</div>
     {/if}
   </div>
 {/if}

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { CWD, metaText, present } from "./tool-result-view.fixtures";
+import {
+  CWD,
+  metaText,
+  present,
+  presentTranscript,
+} from "./tool-result-view.fixtures";
 
 describe("toolPresentation", () => {
   it("puts the file path in the clickable primary arg for read", () => {
@@ -13,6 +18,142 @@ describe("toolPresentation", () => {
     assert.equal(p.primaryArg?.text, "src/app.ts");
     assert.equal(p.primaryArg?.openPath, `${CWD}/src/app.ts`);
     assert.deepEqual(metaText(p.meta), ["3 lines"]);
+  });
+
+  it("uses actual transcript counts instead of visible preview counts", () => {
+    const tenLines = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join(
+      "\n",
+    );
+    const entries = Array.from({ length: 10 }, (_, i) => ({
+      path: `file-${i + 1}.ts`,
+      kind: "file" as const,
+    }));
+    const task = {
+      id: "task_01H00000000000000000000000",
+      name: "dev",
+      cwd: CWD,
+      command: "pnpm dev",
+      status: "running" as const,
+      readiness: { outcome: "none" as const },
+      stdoutPath: "/x/out",
+      stderrPath: "/x/err",
+      logsPath: "/x/log",
+      startedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    const read = presentTranscript(
+      "read",
+      { path: "AGENTS.md" },
+      { path: `${CWD}/AGENTS.md`, content: tenLines },
+      { previewOverflow: { hidden: 37, noun: "lines", direction: "head" } },
+    );
+    assert.deepEqual(metaText(read.meta), ["47 lines"]);
+    assert.equal(read.detailsAction?.hidden, 37);
+
+    const ls = presentTranscript(
+      "ls",
+      { path: "." },
+      { path: CWD, entries },
+      { previewOverflow: { hidden: 16, noun: "entries", direction: "head" } },
+    );
+    assert.deepEqual(metaText(ls.meta), ["26 entries"]);
+    assert.equal(ls.detailsAction?.hidden, 16);
+
+    const grep = presentTranscript(
+      "grep",
+      { pattern: "TODO" },
+      {
+        matches: entries.map((entry, index) => ({
+          path: entry.path,
+          line: index + 1,
+          text: "TODO",
+        })),
+      },
+      { previewOverflow: { hidden: 9, noun: "matches", direction: "head" } },
+    );
+    assert.ok(metaText(grep.meta).includes("19 matches"));
+
+    const find = presentTranscript(
+      "find",
+      { pattern: "*.ts" },
+      { path: CWD, entries },
+      { previewOverflow: { hidden: 8, noun: "files", direction: "head" } },
+    );
+    assert.deepEqual(metaText(find.meta), ["18 files"]);
+
+    const bash = presentTranscript(
+      "bash",
+      { command: "pnpm test" },
+      { content: tenLines, exitCode: 0 },
+      { previewOverflow: { hidden: 12, noun: "lines", direction: "tail" } },
+    );
+    assert.deepEqual(metaText(bash.meta), ["22 lines"]);
+
+    const python = presentTranscript(
+      "python",
+      { code: "print('x')" },
+      {
+        content: tenLines,
+        exitCode: 0,
+        details: {
+          outputLimits: {
+            model: {
+              truncated: false,
+              displayedLines: 24,
+              contentKind: "content_blocks",
+            },
+          },
+        },
+      },
+      { previewOverflow: { hidden: 14, noun: "lines", direction: "tail" } },
+    );
+    assert.deepEqual(metaText(python.meta), ["1 code line", "24 lines"]);
+
+    const write = presentTranscript(
+      "write",
+      { path: "out.txt", content: tenLines },
+      { path: `${CWD}/out.txt`, content: "Wrote 100 bytes." },
+      { previewOverflow: { hidden: 5, noun: "lines", direction: "tail" } },
+    );
+    assert.ok(metaText(write.meta).includes("15 lines"));
+
+    const edit = presentTranscript(
+      "edit",
+      { path: "out.txt" },
+      {
+        path: `${CWD}/out.txt`,
+        details: {
+          diff: tenLines,
+          lineEnding: "\n",
+          bom: false,
+          dryRun: false,
+          operationCount: 1,
+          operations: [{ index: 0, type: "replace_text", matchedBy: "unique" }],
+        },
+      },
+      { previewOverflow: { hidden: 6, noun: "lines", direction: "tail" } },
+    );
+    assert.ok(metaText(edit.meta).includes("16 diff lines"));
+
+    const taskLogs = presentTranscript(
+      "task_logs",
+      {},
+      {
+        task,
+        events: Array.from({ length: 10 }, (_, index) => ({
+          seq: index + 1,
+          ts: "2026-01-01T00:00:00.000Z",
+          stream: "stdout" as const,
+          level: "info" as const,
+          line: `line ${index + 1}`,
+        })),
+        nextCursor: 10,
+        mode: "recent",
+      },
+      { previewOverflow: { hidden: 7, noun: "events", direction: "tail" } },
+    );
+    assert.ok(metaText(taskLogs.meta).includes("17 events"));
   });
 
   it("marks a non-zero bash exit with an error chip and no collapse for short output", () => {
@@ -218,6 +359,30 @@ describe("toolPresentation", () => {
     assert.equal(p.badge, "plan_mode_present");
     assert.equal(p.primaryArg?.text, "/home/user/.nerve/plans/feature.md");
     assert.deepEqual(metaText(p.meta), []);
+  });
+
+  it("uses preview overflow for plan_mode_present details action", () => {
+    const p = presentTranscript(
+      "plan_mode_present",
+      { file_path: "/home/user/.nerve/plans/feature.md" },
+      {
+        review: {
+          planPath: "/home/user/.nerve/plans/feature.md",
+          content: Array.from(
+            { length: 10 },
+            (_, index) => `line ${index + 1}`,
+          ).join("\n"),
+          status: "pending",
+        },
+        outcome: "pending",
+      },
+      {
+        previewOverflow: { hidden: 7, noun: "lines", direction: "head" },
+      },
+    );
+    assert.equal(p.badge, "plan_mode_present");
+    assert.equal(p.detailsAction?.hidden, 7);
+    assert.match(p.detailsAction?.label ?? "", /7 more lines/);
   });
 
   it("labels the badge as todos and reports progress", () => {

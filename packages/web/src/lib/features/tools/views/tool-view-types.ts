@@ -85,6 +85,7 @@ export type ToolView =
       path?: string;
       relPath?: string;
       lineLabel?: string;
+      lineCount?: number;
       image?: { dataUrl: string; mimeType: string };
       content?: string;
       truncated: boolean;
@@ -97,6 +98,7 @@ export type ToolView =
       exitCode?: number;
       signal?: string | null;
       output: string;
+      outputLineCount: number;
       savedTo?: string;
       truncated: boolean;
       live?: boolean;
@@ -113,6 +115,7 @@ export type ToolView =
       exitCode?: number;
       signal?: string | null;
       output: string;
+      outputLineCount: number;
       savedTo?: string;
       truncated: boolean;
       live?: boolean;
@@ -140,6 +143,7 @@ export type ToolView =
       additions: number;
       deletions: number;
       diff?: string;
+      diffLineCount: number;
       dryRun?: boolean;
     }
   | {
@@ -198,6 +202,7 @@ export type ToolView =
       kind: "task_logs";
       task?: TaskRecord;
       events: TaskLogEvent[];
+      eventCount: number;
       mode?: string;
     }
   | {

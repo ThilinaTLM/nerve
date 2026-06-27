@@ -7,6 +7,7 @@ import {
   userQuestionStatusSchema,
 } from "@nervekit/shared";
 import { Hono } from "hono";
+import { planReviewPreview } from "../domains/plans/plan-service.js";
 import { toToolCallTranscriptRecord } from "../domains/tools/tool-call-transcript-preview.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
@@ -108,9 +109,9 @@ export function createToolRoutes(state: OrchestratorState): Hono {
   app.get("/plan-reviews", (c) => {
     const status = planReviewStatusSchema.safeParse(c.req.query("status"));
     return c.json({
-      planReviews: state.registry.listPlanReviews(
-        status.success ? status.data : undefined,
-      ),
+      planReviews: state.registry
+        .listPlanReviews(status.success ? status.data : undefined)
+        .map(planReviewPreview),
     });
   });
   app.post(
@@ -119,16 +120,15 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       const body = resolvePlanReviewRequestSchema.parse(
         await c.req.json().catch(() => ({})),
       );
-      return c.json({
-        planReview: await state.registry.acceptPlanReview(
-          routeParam(c, "reviewId"),
-          body.feedback,
-          {
-            implementationModel: body.implementationModel,
-            implementationThinkingLevel: body.implementationThinkingLevel,
-          },
-        ),
-      });
+      const planReview = await state.registry.acceptPlanReview(
+        routeParam(c, "reviewId"),
+        body.feedback,
+        {
+          implementationModel: body.implementationModel,
+          implementationThinkingLevel: body.implementationThinkingLevel,
+        },
+      );
+      return c.json({ planReview: planReviewPreview(planReview) });
     }),
   );
   app.post(
@@ -137,16 +137,18 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       const body = resolvePlanReviewRequestSchema.parse(
         await c.req.json().catch(() => ({})),
       );
-      return c.json(
-        await state.registry.acceptPlanReviewInNewChat(
-          routeParam(c, "reviewId"),
-          body.feedback,
-          {
-            implementationModel: body.implementationModel,
-            implementationThinkingLevel: body.implementationThinkingLevel,
-          },
-        ),
+      const result = await state.registry.acceptPlanReviewInNewChat(
+        routeParam(c, "reviewId"),
+        body.feedback,
+        {
+          implementationModel: body.implementationModel,
+          implementationThinkingLevel: body.implementationThinkingLevel,
+        },
       );
+      return c.json({
+        ...result,
+        planReview: planReviewPreview(result.planReview),
+      });
     }),
   );
   app.post(
@@ -155,12 +157,11 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       const body = resolvePlanReviewRequestSchema.parse(
         await c.req.json().catch(() => ({})),
       );
-      return c.json({
-        planReview: await state.registry.rejectPlanReview(
-          routeParam(c, "reviewId"),
-          body.feedback,
-        ),
-      });
+      const planReview = await state.registry.rejectPlanReview(
+        routeParam(c, "reviewId"),
+        body.feedback,
+      );
+      return c.json({ planReview: planReviewPreview(planReview) });
     }),
   );
   app.post(
@@ -169,12 +170,11 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       const body = resolvePlanReviewRequestSchema.parse(
         await c.req.json().catch(() => ({})),
       );
-      return c.json({
-        planReview: await state.registry.requestPlanChanges(
-          routeParam(c, "reviewId"),
-          body.feedback,
-        ),
-      });
+      const planReview = await state.registry.requestPlanChanges(
+        routeParam(c, "reviewId"),
+        body.feedback,
+      );
+      return c.json({ planReview: planReviewPreview(planReview) });
     }),
   );
   app.post(
@@ -183,12 +183,11 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       const body = resolvePlanReviewRequestSchema.parse(
         await c.req.json().catch(() => ({})),
       );
-      return c.json({
-        planReview: await state.registry.discardPlanReview(
-          routeParam(c, "reviewId"),
-          body.feedback,
-        ),
-      });
+      const planReview = await state.registry.discardPlanReview(
+        routeParam(c, "reviewId"),
+        body.feedback,
+      );
+      return c.json({ planReview: planReviewPreview(planReview) });
     }),
   );
 

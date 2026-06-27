@@ -70,6 +70,11 @@
   const view = $derived(parseToolViewCached(toolCall, liveOutput));
   const presentation = $derived(toolPresentationCached(view, toolCall));
   const ToolView = $derived(toolViewComponent(view.kind));
+  const bodyDetailsAction = $derived(
+    presentation.detailsAction
+      ? { label: presentation.detailsAction.label, onClick: openDetails }
+      : undefined,
+  );
   const bodyMode = $derived<"output" | "interactive">(
     view.kind === "ask_user" || (view.kind === "plan_mode" && view.action === "present")
       ? "interactive"
@@ -114,6 +119,7 @@
       {view}
       expanded={false}
       {onOpenFile}
+      detailsAction={bodyMode === "interactive" ? bodyDetailsAction : undefined}
       questionRecord={toolQuestion}
       planReview={toolPlanReview}
       {onAnswerUserQuestion}

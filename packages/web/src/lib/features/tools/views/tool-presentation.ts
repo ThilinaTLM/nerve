@@ -129,13 +129,13 @@ export function toolPresentation(
         meta,
         detailsAction:
           previewDetailsAction ??
-          detailsActionFor(lineCount(view.content), "lines"),
+          detailsActionFor(view.lineCount ?? 0, "lines"),
       };
     }
 
     case "bash": {
       const meta: MetaItem[] = [];
-      const lines = lineCount(view.output);
+      const lines = view.outputLineCount;
       if (view.exitCode !== undefined && view.exitCode !== 0) {
         meta.push({ text: `exit ${view.exitCode}`, tone: "error" });
       }
@@ -164,7 +164,7 @@ export function toolPresentation(
 
     case "python": {
       const meta: MetaItem[] = [];
-      const lines = lineCount(view.output);
+      const lines = view.outputLineCount;
       if (view.exitCode !== undefined && view.exitCode !== 0) {
         meta.push({ text: `exit ${view.exitCode}`, tone: "error" });
       }
@@ -225,6 +225,8 @@ export function toolPresentation(
         meta.push({ text: `+${view.additions}`, tone: "success" });
       if (view.deletions > 0)
         meta.push({ text: `−${view.deletions}`, tone: "error" });
+      if (view.diffLineCount > 0)
+        meta.push({ text: plural(view.diffLineCount, "diff line") });
       return {
         ...base,
         primaryArg: view.relPath
@@ -232,8 +234,7 @@ export function toolPresentation(
           : undefined,
         meta,
         detailsAction:
-          previewDetailsAction ??
-          detailsActionFor(lineCount(view.diff), "lines"),
+          previewDetailsAction ?? detailsActionFor(view.diffLineCount, "lines"),
       };
     }
 
@@ -253,7 +254,7 @@ export function toolPresentation(
         meta,
         detailsAction:
           previewDetailsAction ??
-          detailsActionFor(lineCount(view.content), "lines"),
+          detailsActionFor(view.lineCount ?? 0, "lines"),
       };
     }
 
@@ -294,7 +295,7 @@ export function toolPresentation(
       };
 
     case "task_logs": {
-      const meta: MetaItem[] = [{ text: plural(view.events.length, "event") }];
+      const meta: MetaItem[] = [{ text: plural(view.eventCount, "event") }];
       if (view.mode) meta.push({ text: view.mode });
       return {
         ...base,
@@ -306,7 +307,7 @@ export function toolPresentation(
         meta,
         detailsAction:
           previewDetailsAction ??
-          detailsActionFor(view.events.length, "events", "tail"),
+          detailsActionFor(view.eventCount, "events", "tail"),
       };
     }
 

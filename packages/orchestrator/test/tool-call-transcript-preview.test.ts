@@ -89,4 +89,32 @@ describe("toToolCallTranscriptRecord", () => {
     assert.equal(preview.previewOverflow?.noun, "matches");
     assert.equal(preview.previewOverflow?.direction, "head");
   });
+
+  it("previews presented plan content from the head without marker text", () => {
+    const content = lines("plan", 14);
+    const preview = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "plan_mode_present",
+        risk: "interaction",
+        args: { file_path: "/tmp/project/.nerve/plans/feature.md" },
+        result: {
+          review: {
+            planPath: "/tmp/project/.nerve/plans/feature.md",
+            content,
+            status: "pending",
+          },
+          outcome: "pending",
+        },
+      }),
+    );
+
+    const review = (preview.resultPreview as { review: { content: string } })
+      .review;
+    assert.equal(review.content, lines("plan", 10));
+    assert.equal(review.content.split("\n").length, 10);
+    assert.doesNotMatch(review.content, /open the plan file/i);
+    assert.equal(preview.previewOverflow?.hidden, 4);
+    assert.equal(preview.previewOverflow?.noun, "lines");
+    assert.equal(preview.previewOverflow?.direction, "head");
+  });
 });

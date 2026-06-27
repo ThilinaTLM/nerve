@@ -34,6 +34,22 @@ export type PlanReviewResult = {
 
 const UNRESOLVED_PLAN_MARKER = /\[!(QUESTION|DECISION)\]/i;
 
+const PLAN_REVIEW_CONTENT_PREVIEW_LINES = 10;
+
+function firstLines(text: string, count: number): string {
+  const lines = text.split("\n");
+  return lines.length > count ? lines.slice(0, count).join("\n") : text;
+}
+
+export function planReviewPreview(review: PlanReviewRecord): PlanReviewRecord {
+  return review.content === undefined
+    ? review
+    : {
+        ...review,
+        content: firstLines(review.content, PLAN_REVIEW_CONTENT_PREVIEW_LINES),
+      };
+}
+
 export type SetAgentMode = (
   agentId: string,
   mode: Mode,
@@ -149,7 +165,9 @@ export class PlanService {
       updatedAt: now,
     };
     await this.upsertPlanReview(review);
-    await this.events.publish("plan_review.requested", { planReview: review });
+    await this.events.publish("plan_review.requested", {
+      planReview: planReviewPreview(review),
+    });
     return review;
   }
 
@@ -161,6 +179,14 @@ export class PlanService {
   ): Promise<PlanReviewResult> {
     const review = await this.createPlanReview(toolCall, agent, args);
     const resolved = await this.waitForPlanReview(review.id, signal);
+    return this.planReviewResult(resolved);
+  }
+
+  async waitForPlanReviewResult(
+    reviewId: string,
+    signal?: AbortSignal,
+  ): Promise<PlanReviewResult> {
+    const resolved = await this.waitForPlanReview(reviewId, signal);
     return this.planReviewResult(resolved);
   }
 
@@ -186,7 +212,9 @@ export class PlanService {
     const review = this.getPendingPlanReview(reviewId);
     await this.setAgentMode(review.agentId, "coding", "Plan accepted by user.");
     const updated = await this.resolvePlanReview(review, "accepted", feedback);
-    await this.events.publish("plan_review.accepted", { planReview: updated });
+    await this.events.publish("plan_review.accepted", {
+      planReview: planReviewPreview(updated),
+    });
     return updated;
   }
 
@@ -201,7 +229,7 @@ export class PlanService {
       feedback,
     );
     await this.events.publish("plan_review.accepted_in_new_chat", {
-      planReview: updated,
+      planReview: planReviewPreview(updated),
     });
     return updated;
   }
@@ -217,7 +245,7 @@ export class PlanService {
       feedback,
     );
     await this.events.publish("plan_review.changes_requested", {
-      planReview: updated,
+      planReview: planReviewPreview(updated),
     });
     return updated;
   }
@@ -232,7 +260,9 @@ export class PlanService {
       "changes_requested",
       feedback ?? "Plan rejected by user.",
     );
-    await this.events.publish("plan_review.rejected", { planReview: updated });
+    await this.events.publish("plan_review.rejected", {
+      planReview: planReviewPreview(updated),
+    });
     return updated;
   }
 
@@ -242,7 +272,9 @@ export class PlanService {
   ): Promise<PlanReviewRecord> {
     const review = this.getPendingPlanReview(reviewId);
     const updated = await this.resolvePlanReview(review, "discarded", feedback);
-    await this.events.publish("plan_review.discarded", { planReview: updated });
+    await this.events.publish("plan_review.discarded", {
+      planReview: planReviewPreview(updated),
+    });
     return updated;
   }
 
