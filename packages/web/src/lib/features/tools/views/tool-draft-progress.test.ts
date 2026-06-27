@@ -80,6 +80,38 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.preview, "recent one\nrecent two");
   });
 
+  it("tails partial write draft previews to the latest 10 completed lines", () => {
+    const lines = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`);
+    const summary = summarizeToolDraft(
+      draft("write", {
+        argsText: `{"path":"src/app.ts","content":"${lines.join("\\n")}`,
+      }),
+    );
+
+    assert.equal(summary.kind, "write");
+    assert.equal(summary.preview, lines.slice(1, 11).join("\n"));
+    assert.equal(summary.preview?.includes("earlier line"), false);
+  });
+
+  it("tails progress write draft previews to the latest 10 lines", () => {
+    const lines = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`);
+    const summary = summarizeToolDraft(
+      draft("write", {
+        progress: {
+          path: "src/live.ts",
+          lineCount: 12,
+          generatedLineCount: 12,
+          generatedPreview: lines.join("\n"),
+          estimated: true,
+        },
+      }),
+    );
+
+    assert.equal(summary.kind, "write");
+    assert.equal(summary.preview, lines.slice(-10).join("\n"));
+    assert.equal(summary.preview?.includes("earlier line"), false);
+  });
+
   it("uses final write args for exact path and line count", () => {
     const summary = summarizeToolDraft(
       draft("write", {
@@ -103,6 +135,21 @@ describe("summarizeToolDraft", () => {
       summary.meta.map((item) => item.text),
       ["+2"],
     );
+  });
+
+  it("tails final write draft previews to the latest 10 lines", () => {
+    const lines = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`);
+    const summary = summarizeToolDraft(
+      draft("write", {
+        args: { path: "src/final.ts", content: lines.join("\n") },
+        done: true,
+      }),
+    );
+
+    assert.equal(summary.path, "src/final.ts");
+    assert.equal(summary.lineCount, 12);
+    assert.equal(summary.preview, lines.slice(-10).join("\n"));
+    assert.equal(summary.preview?.includes("earlier line"), false);
   });
 
   it("previews partial edit generated lines without oldText", () => {
@@ -196,6 +243,44 @@ describe("summarizeToolDraft", () => {
       summary.meta.map((item) => item.text),
       ["3 operations", "+5", "-2"],
     );
+  });
+
+  it("tails final edit generated previews to the latest 10 lines without oldText", () => {
+    const replacementLines = Array.from(
+      { length: 6 },
+      (_, index) => `replacement-${index + 1}`,
+    );
+    const insertionLines = Array.from(
+      { length: 4 },
+      (_, index) => `insertion-${index + 1}`,
+    );
+    const patchLines = ["@@ -1 +1 @@", "-removed", "+added"];
+    const summary = summarizeToolDraft(
+      draft("edit", {
+        args: {
+          path: "src/app.ts",
+          replacements: [
+            {
+              oldText: "old secret should not render",
+              newText: replacementLines.join("\n"),
+            },
+          ],
+          insertions: [{ text: insertionLines.join("\n") }],
+          patch: patchLines.join("\n"),
+        },
+        done: true,
+      }),
+    );
+
+    const generatedLines = [
+      ...replacementLines,
+      ...insertionLines,
+      ...patchLines,
+    ];
+    assert.equal(summary.toolName, "edit");
+    assert.equal(summary.preview, generatedLines.slice(-10).join("\n"));
+    assert.equal(summary.preview?.includes("old secret"), false);
+    assert.equal(summary.preview?.includes("earlier line"), false);
   });
 
   it("extracts partial Python code from streamed JSON", () => {

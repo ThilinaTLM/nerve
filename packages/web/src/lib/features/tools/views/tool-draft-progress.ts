@@ -223,11 +223,9 @@ function completedLinePreviewText(
 
 function tailLinePreview(text: string, maxLines = DRAFT_PREVIEW_LINES): string {
   if (text.length === 0) return "";
-  const lines = text.split("\n");
-  if (lines.length <= maxLines) return text;
-  const hidden = lines.length - maxLines;
-  const tail = lines.slice(-maxLines).join("\n");
-  return `… ${hidden.toLocaleString()} earlier line${hidden === 1 ? "" : "s"} …\n${tail}`;
+  const lines = normalizeLines(text).split("\n");
+  if (lines.length <= maxLines) return lines.join("\n");
+  return lines.slice(-maxLines).join("\n");
 }
 
 function previewFromTexts(texts: string[]): string | undefined {
@@ -274,7 +272,9 @@ function summarizeWriteDraft(
   const progressLines =
     draft.progress?.lineCount ?? draft.progress?.generatedLineCount;
   const lines = lineCount(finalContent) ?? partialContentLines ?? progressLines;
-  const progressPreview = draft.progress?.generatedPreview;
+  const progressPreview = draft.progress?.generatedPreview
+    ? tailLinePreview(draft.progress.generatedPreview)
+    : undefined;
   const preview =
     finalContent !== undefined
       ? previewFromTexts([normalizeLines(finalContent)])
@@ -511,7 +511,7 @@ function summarizeEditDraft(
     };
   const progressPreviewDetails = draft.progress?.generatedPreview
     ? {
-        preview: draft.progress.generatedPreview,
+        preview: tailLinePreview(draft.progress.generatedPreview),
         previewLanguage: draft.progress.generatedPreviewLanguage,
       }
     : {};

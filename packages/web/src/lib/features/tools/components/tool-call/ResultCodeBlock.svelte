@@ -7,8 +7,19 @@
     language?: string;
     maxHeight?: string;
     trim?: boolean;
+    highlight?: boolean;
+    wrap?: boolean;
+    overflow?: "auto" | "hidden";
   };
-  let { code, language, maxHeight = "18rem", trim = true }: Props = $props();
+  let {
+    code,
+    language,
+    maxHeight = "18rem",
+    trim = true,
+    highlight = true,
+    wrap = true,
+    overflow = "auto",
+  }: Props = $props();
 
   let html = $state<string | undefined>(undefined);
   let htmlSignature = $state<string | undefined>(undefined);
@@ -17,6 +28,13 @@
   const signature = $derived(`${language ?? ""}\0${preview.text}`);
 
   $effect(() => {
+    if (!highlight) {
+      html = undefined;
+      htmlSignature = undefined;
+      unavailableSignature = undefined;
+      return;
+    }
+
     const currentSignature = signature;
     if (htmlSignature === currentSignature || unavailableSignature === currentSignature) return;
 
@@ -49,12 +67,22 @@
   });
 </script>
 
-{#if html && htmlSignature === signature}
-  <div class="code-block" style:max-height={maxHeight}>
+{#if highlight && html && htmlSignature === signature}
+  <div
+    class="code-block"
+    data-wrap={wrap ? "true" : "false"}
+    data-overflow={overflow}
+    style:max-height={maxHeight}
+  >
     {@html html}
   </div>
 {:else}
-  <pre class="code-block plain" style:max-height={maxHeight}>{preview.text}</pre>
+  <pre
+    class="code-block plain"
+    data-wrap={wrap ? "true" : "false"}
+    data-overflow={overflow}
+    style:max-height={maxHeight}
+  >{preview.text}</pre>
 {/if}
 
 <style>
@@ -81,6 +109,20 @@
     background: transparent !important;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  .code-block[data-wrap="false"] {
+    white-space: pre;
+    word-break: normal;
+  }
+
+  .code-block[data-wrap="false"] :global(pre) {
+    white-space: pre;
+    word-break: normal;
+  }
+
+  .code-block[data-overflow="hidden"] {
+    overflow: hidden;
   }
 
   .code-block :global(code) {

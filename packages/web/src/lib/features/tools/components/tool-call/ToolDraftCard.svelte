@@ -50,8 +50,11 @@
       <ResultCodeBlock
         code={summary.preview}
         language={draftPreviewLanguage}
-        maxHeight="10rem"
+        maxHeight="none"
         trim={false}
+        highlight={false}
+        wrap={false}
+        overflow="hidden"
       />
     {:else if draftArgsPreview}
       <ResultCodeBlock
@@ -59,6 +62,9 @@
         language={draftArgsLanguage}
         maxHeight="10rem"
         trim={false}
+        highlight={false}
+        wrap={false}
+        overflow="hidden"
       />
     {:else}
       <div class="draft-progress" aria-live="polite">
@@ -71,6 +77,9 @@
         code={trimTextPreview(summary.code, { headLines: 10, tailLines: 0 }).text}
         language={summary.language}
         trim={false}
+        highlight={false}
+        wrap={false}
+        overflow="hidden"
       />
     {:else}
       <div class="draft-progress" aria-live="polite">
@@ -83,6 +92,9 @@
           language={draftArgsLanguage}
           maxHeight="10rem"
           trim={false}
+          highlight={false}
+          wrap={false}
+          overflow="hidden"
         />
       {/if}
     {/if}
@@ -163,7 +175,7 @@
 
   pre {
     margin: 0;
-    overflow: visible;
+    overflow: hidden;
     border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
     border-radius: var(--radius-sm);
     background: var(--sidebar);
@@ -172,8 +184,8 @@
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     line-height: 1.4;
-    white-space: pre-wrap;
-    word-break: break-word;
+    white-space: pre;
+    word-break: normal;
   }
 
   .chips {
