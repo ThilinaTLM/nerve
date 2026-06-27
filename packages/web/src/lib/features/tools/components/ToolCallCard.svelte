@@ -70,11 +70,10 @@
   const view = $derived(parseToolViewCached(toolCall, liveOutput));
   const presentation = $derived(toolPresentationCached(view, toolCall));
   const ToolView = $derived(toolViewComponent(view.kind));
-  const bodyDetailsAction = $derived(
-    presentation.detailsAction
-      ? { label: presentation.detailsAction.label, onClick: openDetails }
-      : undefined,
-  );
+  const bodyDetailsAction = $derived({
+    label: presentation.detailsAction?.label ?? "Details",
+    onClick: openDetails,
+  });
   const bodyMode = $derived<"output" | "interactive">(
     view.kind === "ask_user" || (view.kind === "plan_mode" && view.action === "present")
       ? "interactive"

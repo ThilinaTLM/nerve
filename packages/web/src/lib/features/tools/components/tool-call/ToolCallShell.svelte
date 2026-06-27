@@ -23,8 +23,8 @@
   }: Props = $props();
 
   const detailsAction = $derived(
-    presentation.detailsAction && onOpenDetails
-      ? { label: presentation.detailsAction.label, onClick: onOpenDetails }
+    onOpenDetails
+      ? { label: presentation.detailsAction?.label ?? "Details", onClick: onOpenDetails }
       : undefined,
   );
   const errorPreview = $derived(

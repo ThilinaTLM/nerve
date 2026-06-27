@@ -13,6 +13,7 @@
   import { toolPresentationCached } from "$lib/features/tools/views/tool-presentation";
   import { parseToolViewCached } from "$lib/features/tools/views/tool-result-view";
   import { toolViewComponent } from "$lib/features/tools/views/registry";
+  import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
   type Props = {
     open?: boolean;
@@ -76,6 +77,35 @@
       ? pendingPlanReview
       : undefined,
   );
+  type PayloadPreview = { text: string; language?: string };
+
+  function payloadValue(
+    record: ToolCallRecord | ToolCallTranscriptRecord,
+    fullKey: "args" | "result",
+    previewKey: "argsPreview" | "resultPreview",
+  ): unknown {
+    const payloads = record as Record<string, unknown>;
+    return payloads[fullKey] ?? payloads[previewKey];
+  }
+
+  function payloadPreview(value: unknown): PayloadPreview | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value === "string") return value.length > 0 ? { text: value } : undefined;
+    try {
+      const json = JSON.stringify(value, null, 2);
+      if (json !== undefined) return { text: json, language: "json" };
+    } catch {
+      // Fall through to the string representation below.
+    }
+    return { text: String(value) };
+  }
+
+  const argsPreview = $derived(
+    payloadPreview(payloadValue(displayToolCall, "args", "argsPreview")),
+  );
+  const resultPreview = $derived(
+    payloadPreview(payloadValue(displayToolCall, "result", "resultPreview")),
+  );
   const description = $derived(
     [displayToolCall.status, presentation.primaryArg?.text]
       .filter(Boolean)
@@ -124,6 +154,40 @@
         {onAcceptPlanReviewInNewChat}
         {onRejectPlanReview}
       />
+      {#if argsPreview || resultPreview}
+        <div class="grid gap-2">
+          {#if argsPreview}
+            <details class="rounded-sm border bg-muted/20">
+              <summary class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground">
+                Arguments
+              </summary>
+              <div class="border-t p-2">
+                <ResultCodeBlock
+                  code={argsPreview.text}
+                  language={argsPreview.language}
+                  maxHeight="22rem"
+                  trim={false}
+                />
+              </div>
+            </details>
+          {/if}
+          {#if resultPreview}
+            <details class="rounded-sm border bg-muted/20">
+              <summary class="cursor-pointer px-2.5 py-2 text-xs font-medium text-muted-foreground">
+                Result
+              </summary>
+              <div class="border-t p-2">
+                <ResultCodeBlock
+                  code={resultPreview.text}
+                  language={resultPreview.language}
+                  maxHeight="22rem"
+                  trim={false}
+                />
+              </div>
+            </details>
+          {/if}
+        </div>
+      {/if}
     </div>
   {/if}
 </DialogShell>

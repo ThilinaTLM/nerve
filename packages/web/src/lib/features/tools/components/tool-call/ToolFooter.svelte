@@ -58,6 +58,7 @@
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 0.35rem 0.6rem;
+    min-width: 0;
   }
 
   .chips {
@@ -71,6 +72,7 @@
   .footer-actions {
     margin-left: auto;
     display: flex;
+    min-width: 0;
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
@@ -131,8 +133,13 @@
 
   .more {
     margin-left: auto;
-    flex: none;
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 1 auto;
     color: var(--primary);
     cursor: pointer;
+    overflow-wrap: anywhere;
+    text-align: left;
+    white-space: normal;
   }
 </style>

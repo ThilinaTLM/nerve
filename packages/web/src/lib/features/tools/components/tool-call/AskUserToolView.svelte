@@ -23,6 +23,7 @@
     toolCall: ToolCallDisplayRecord;
     view: Extract<ToolView, { kind: "ask_user" }>;
     questionRecord?: UserQuestionRecord;
+    detailsAction?: { label: string; onClick: () => void };
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
   };
@@ -30,6 +31,7 @@
     toolCall,
     view,
     questionRecord,
+    detailsAction,
     onAnswerUserQuestion,
     onDismissUserQuestion,
   }: Props = $props();
@@ -203,7 +205,7 @@
           </div>
         {/if}
       </div>
-      <ToolFooter>
+      <ToolFooter {detailsAction}>
         {#snippet actions()}
           <Button size="sm" type="submit" disabled={!trimmedAnswer}>
             <Send size={14} strokeWidth={2.4} />Reply

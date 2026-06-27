@@ -17,16 +17,19 @@
   const draftPreviewLanguage = $derived(
     summary.previewLanguage ?? extname(summary.path),
   );
-  const genericPreview = $derived.by(() => {
+  const draftArgsPreview = $derived.by(() => {
     const text = draft.args
       ? JSON.stringify(draft.args, null, 2)
-      : draft.argsText.trim() || "Waiting for arguments…";
+      : draft.argsText.trim();
+    if (!text) return undefined;
     return trimTextPreview(text, {
       headLines: 18,
       tailLines: 6,
       maxChars: 6_000,
     }).text;
   });
+  const draftArgsLanguage = $derived(draft.args || draft.argsText.trim() ? "json" : undefined);
+  const genericPreview = $derived(draftArgsPreview ?? "Waiting for arguments…");
 </script>
 
 <article class={`tool-draft-card draft-${summary.kind}`}>
@@ -54,6 +57,13 @@
         maxHeight="10rem"
         trim={false}
       />
+    {:else if draftArgsPreview}
+      <ResultCodeBlock
+        code={draftArgsPreview}
+        language={draftArgsLanguage}
+        maxHeight="10rem"
+        trim={false}
+      />
     {/if}
   {:else if summary.kind === "python"}
     {#if summary.code !== undefined && summary.code.length > 0}
@@ -67,6 +77,14 @@
         <span>{summary.statusText}</span>
         {#if !summary.done}<span class="progress-caret" aria-hidden="true"></span>{/if}
       </div>
+      {#if draftArgsPreview}
+        <ResultCodeBlock
+          code={draftArgsPreview}
+          language={draftArgsLanguage}
+          maxHeight="10rem"
+          trim={false}
+        />
+      {/if}
     {/if}
   {:else}
     <pre>{genericPreview}</pre>
