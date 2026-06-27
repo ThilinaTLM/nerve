@@ -13,6 +13,7 @@ import {
   registerFauxProvider,
   streamSimple,
 } from "@earendil-works/pi-ai";
+import { normalizeImagesForModel } from "./runtime/image-normalization.js";
 import type { ThinkingLevel } from "./types.js";
 
 export interface AgentModelSelection {
@@ -255,17 +256,19 @@ export function clampAgentThinkingLevel(
 export function streamAgentPrompt(
   input: AgentPromptInput,
 ): AsyncIterable<AssistantMessageEvent> {
-  const model = resolveAgentModel(input.model);
-  const context: Context = {
-    systemPrompt: input.systemPrompt,
-    messages: input.messages,
-  };
-  return streamSimple(model, context, {
-    signal: input.signal,
-    apiKey: input.apiKey,
-    headers: input.headers,
-    maxTokens: 4096,
-  });
+  return (async function* streamNormalizedPrompt() {
+    const model = resolveAgentModel(input.model);
+    const context: Context = {
+      systemPrompt: input.systemPrompt,
+      messages: await normalizeImagesForModel(input.messages, model),
+    };
+    yield* streamSimple(model, context, {
+      signal: input.signal,
+      apiKey: input.apiKey,
+      headers: input.headers,
+      maxTokens: 4096,
+    });
+  })();
 }
 
 const COMPLETE_MODEL_LIST_PROVIDERS = new Set<string>([

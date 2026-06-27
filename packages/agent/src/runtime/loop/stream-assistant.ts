@@ -4,6 +4,7 @@ import {
   streamSimple,
 } from "@earendil-works/pi-ai";
 import type { AgentContext, AgentLoopConfig, StreamFn } from "../../types.js";
+import { normalizeImagesForModel } from "../image-normalization.js";
 import type { AgentEventSink } from "./events.js";
 
 /**
@@ -24,7 +25,10 @@ export async function streamAssistantResponse(
   }
 
   // Convert to LLM-compatible messages (AgentMessage[] → Message[])
-  const llmMessages = await config.convertToLlm(messages);
+  const llmMessages = await normalizeImagesForModel(
+    await config.convertToLlm(messages),
+    config.model,
+  );
 
   // Build LLM context
   const llmContext: Context = {

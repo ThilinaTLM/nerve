@@ -42,6 +42,7 @@
     "@earendil-works/pi-ai": "0.79.7",
     "@nervekit/shared": "workspace:*",
     "ignore": "7.0.5",
+    "sharp": "^0.34.5",
     "typebox": "1.1.38",
     "yaml": "2.9.0"
   },
