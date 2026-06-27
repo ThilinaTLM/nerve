@@ -5,7 +5,14 @@ import { networkInterfaces } from "node:os";
 import type { Duplex } from "node:stream";
 import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
-import { serializeCrashError, writeCrashReportSync } from "./crash-reports.js";
+import {
+  type DaemonRuntimeMonitor,
+  installDaemonRuntimeMonitor,
+  installNodeDiagnosticReports,
+  serializeCrashError,
+  writeCrashReportSync,
+  writeNodeDiagnosticReport,
+} from "./crash-reports.js";
 import { recoverInterruptedRuns } from "./domains/agents/run/interrupted-run-recovery.js";
 import {
   initializeStorage,
@@ -32,8 +39,13 @@ function readFlag(name: string): boolean {
   return process.argv.includes(name);
 }
 
+let runtimeMonitor: DaemonRuntimeMonitor | undefined;
+
 async function main() {
-  const storage = await initializeStorage();
+  const dataDir = resolveDataDir();
+  installNodeDiagnosticReports(dataDir);
+  runtimeMonitor = installDaemonRuntimeMonitor(dataDir);
+  const storage = await initializeStorage(dataDir);
   const host =
     readArg("--host") ?? process.env.NERVE_HOST ?? storage.settings.server.host;
   const allowRemote =
@@ -61,7 +73,7 @@ async function main() {
   }
   const state = createOrchestratorState(storage, host, port);
   await state.logger.hydrate();
-  installCrashGuards(state.logger, storage.paths.home);
+  installCrashGuards(state.logger, storage.paths.home, runtimeMonitor);
   await state.logger.pruneRetention();
   await state.logger.info("Daemon storage initialized", {
     context: { dataDir: storage.paths.home, host, port },
@@ -227,7 +239,10 @@ async function main() {
       })
       .catch(() => undefined);
     httpsServer?.close();
-    server.close(() => process.exit(0));
+    server.close(() => {
+      runtimeMonitor?.markClean(signal);
+      process.exit(0);
+    });
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
@@ -242,6 +257,7 @@ async function main() {
 function installCrashGuards(
   logger: ReturnType<typeof createOrchestratorState>["logger"],
   dataDir: string,
+  monitor: DaemonRuntimeMonitor | undefined,
 ): void {
   let exiting = false;
   const fatal = (
@@ -260,13 +276,18 @@ function installCrashGuards(
       uptimeMs: Math.round(process.uptime() * 1000),
       error: serializeCrashError(error),
     });
+    const diagnosticReportPath = writeNodeDiagnosticReport(dataDir, error);
+    monitor?.markCrashReported(crashReportPath ?? diagnosticReportPath);
     // Hard cap so logging can never hang the exit.
     const forceExit = setTimeout(() => process.exit(1), 1000);
     forceExit.unref();
     void logger
       .error(`Daemon crashed: ${kind}`, {
         error,
-        context: crashReportPath ? { crashReportPath } : undefined,
+        context:
+          crashReportPath || diagnosticReportPath
+            ? { crashReportPath, diagnosticReportPath }
+            : undefined,
       })
       .catch(() => undefined)
       .finally(() => {
@@ -510,7 +531,8 @@ function isLoopbackHost(host: string): boolean {
 main().catch((error) => {
   console.error(error);
   const dataDir = resolveDataDir();
-  writeCrashReportSync(dataDir, {
+  installNodeDiagnosticReports(dataDir);
+  const crashReportPath = writeCrashReportSync(dataDir, {
     source: "orchestrator",
     kind: "startupError",
     message: "Daemon startup failed",
@@ -518,5 +540,7 @@ main().catch((error) => {
     uptimeMs: Math.round(process.uptime() * 1000),
     error: serializeCrashError(error),
   });
+  const diagnosticReportPath = writeNodeDiagnosticReport(dataDir, error);
+  runtimeMonitor?.markCrashReported(crashReportPath ?? diagnosticReportPath);
   process.exit(1);
 });

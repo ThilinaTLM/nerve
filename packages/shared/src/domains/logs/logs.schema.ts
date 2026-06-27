@@ -53,6 +53,7 @@ export const daemonCrashReportKindSchema = z.enum([
   "startupExit",
   "startupTimeout",
   "startupError",
+  "previousUncleanExit",
 ]);
 export type DaemonCrashReportKind = z.infer<typeof daemonCrashReportKindSchema>;
 

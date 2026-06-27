@@ -117,9 +117,11 @@ pnpm cli -- status
 pnpm cli -- run . "Summarize this project"
 ```
 
-Crash diagnostics are written under `~/.nerve/crashes` whenever the daemon
-crash guard or desktop daemon supervisor observes a fatal exit. Inspect recent
-reports without requiring a running daemon:
+Crash diagnostics are written under `~/.nerve/crashes`. The daemon records
+structured reports for handled fatal errors, enables Node diagnostic reports for
+native/runtime fatal errors, and writes a fallback report on next start if the
+previous daemon exited without a graceful shutdown. Inspect recent reports
+without requiring a running daemon:
 
 ```sh
 pnpm cli -- crashes --limit 5

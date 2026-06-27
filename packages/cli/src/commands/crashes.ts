@@ -7,7 +7,26 @@ import {
 import { dataDir } from "../daemon/connection.js";
 import { delay, readOption } from "../output/prompts.js";
 
-type CrashReportWithPath = DaemonCrashReport & { path: string };
+type NerveCrashReportWithPath = DaemonCrashReport & {
+  path: string;
+  format: "nerve";
+};
+
+type NodeDiagnosticReportWithPath = {
+  path: string;
+  format: "node-diagnostic";
+  ts: string;
+  event?: string;
+  trigger?: string;
+  pid?: number;
+  commandLine?: string[];
+  message: string;
+  stack?: string[];
+};
+
+type CrashReportWithPath =
+  | NerveCrashReportWithPath
+  | NodeDiagnosticReportWithPath;
 
 type CrashesCommandOptions = {
   limit: number;
@@ -33,10 +52,10 @@ async function readCrashReports(): Promise<CrashReportWithPath[]> {
       .map(async (file): Promise<CrashReportWithPath | undefined> => {
         const path = join(dir, file);
         try {
-          const parsed = daemonCrashReportSchema.safeParse(
-            JSON.parse(await readFile(path, "utf8")),
-          );
-          return parsed.success ? { ...parsed.data, path } : undefined;
+          const raw = JSON.parse(await readFile(path, "utf8")) as unknown;
+          const parsed = daemonCrashReportSchema.safeParse(raw);
+          if (parsed.success) return { ...parsed.data, path, format: "nerve" };
+          return parseNodeDiagnosticReport(raw, path);
         } catch {
           return undefined;
         }
@@ -47,11 +66,75 @@ async function readCrashReports(): Promise<CrashReportWithPath[]> {
     .sort((a, b) => a.ts.localeCompare(b.ts));
 }
 
+function parseNodeDiagnosticReport(
+  raw: unknown,
+  path: string,
+): NodeDiagnosticReportWithPath | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const record = raw as Record<string, unknown>;
+  const header = record.header;
+  if (!header || typeof header !== "object") return undefined;
+  const headerRecord = header as Record<string, unknown>;
+  if (headerRecord.reportVersion === undefined) return undefined;
+  const stack = record.javascriptStack;
+  const stackRecord =
+    stack && typeof stack === "object"
+      ? (stack as Record<string, unknown>)
+      : {};
+  const ts =
+    typeof headerRecord.dumpEventTime === "string"
+      ? headerRecord.dumpEventTime
+      : typeof headerRecord.dumpEventTimeStamp === "number"
+        ? new Date(headerRecord.dumpEventTimeStamp).toISOString()
+        : new Date().toISOString();
+  return {
+    path,
+    format: "node-diagnostic",
+    ts,
+    event:
+      typeof headerRecord.event === "string" ? headerRecord.event : undefined,
+    trigger:
+      typeof headerRecord.trigger === "string"
+        ? headerRecord.trigger
+        : undefined,
+    pid:
+      typeof headerRecord.processId === "number"
+        ? headerRecord.processId
+        : undefined,
+    commandLine: Array.isArray(headerRecord.commandLine)
+      ? headerRecord.commandLine.map(String)
+      : undefined,
+    message:
+      typeof stackRecord.message === "string"
+        ? stackRecord.message
+        : "Node diagnostic report",
+    stack: Array.isArray(stackRecord.stack)
+      ? stackRecord.stack.map(String)
+      : undefined,
+  };
+}
+
 function printCrashReport(report: CrashReportWithPath, json: boolean): void {
   if (json) {
     console.log(JSON.stringify(report));
     return;
   }
+  if (report.format === "node-diagnostic") {
+    const event = [report.event, report.trigger].filter(Boolean).join("/");
+    console.log(
+      `${report.ts} node-diagnostic${event ? `/${event}` : ""} ${report.message}`,
+    );
+    console.log(`  report: ${report.path}`);
+    if (report.pid) console.log(`  pid: ${report.pid}`);
+    if (report.commandLine?.length)
+      console.log(`  command: ${report.commandLine.join(" ")}`);
+    if (report.stack?.length) {
+      console.log("  stack:");
+      for (const line of report.stack) console.log(`    ${line}`);
+    }
+    return;
+  }
+
   const exit = [
     report.exitCode !== undefined
       ? `code=${String(report.exitCode)}`
@@ -78,6 +161,10 @@ function printCrashReport(report: CrashReportWithPath, json: boolean): void {
   }
 }
 
+function reportKey(report: CrashReportWithPath): string {
+  return report.format === "nerve" ? report.id : report.path;
+}
+
 function printCrashReports(
   reports: CrashReportWithPath[],
   options: CrashesCommandOptions,
@@ -93,12 +180,12 @@ export async function commandCrashes(args: string[]): Promise<void> {
   printCrashReports(reports, options);
   if (!options.follow) return;
 
-  const seen = new Set(reports.map((report) => report.id));
+  const seen = new Set(reports.map(reportKey));
   while (true) {
     await delay(1000);
     reports = await readCrashReports();
-    const next = reports.filter((report) => !seen.has(report.id));
-    for (const report of next) seen.add(report.id);
+    const next = reports.filter((report) => !seen.has(reportKey(report)));
+    for (const report of next) seen.add(reportKey(report));
     printCrashReports(next, { ...options, limit: next.length });
   }
 }
