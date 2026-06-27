@@ -185,13 +185,19 @@
   }
 
   .chip {
+    display: inline-flex;
+    min-height: 1.25rem;
+    align-items: center;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--sidebar);
     color: var(--muted-foreground);
     padding: 0.075rem 0.45rem;
+    font-family: var(--font-sans);
     font-size: var(--text-xs);
-    line-height: 1.5;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
     white-space: nowrap;
   }
 

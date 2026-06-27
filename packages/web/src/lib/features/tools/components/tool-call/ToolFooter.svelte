@@ -11,13 +11,14 @@
   };
   let { meta = [], detailsAction, onOpenFile, actions }: Props = $props();
 
+  const hasActions = $derived(Boolean(actions));
   const show = $derived(
-    meta.length > 0 || Boolean(detailsAction) || Boolean(actions),
+    meta.length > 0 || Boolean(detailsAction) || hasActions,
   );
 </script>
 
 {#if show}
-  <div class="tool-footer">
+  <div class={`tool-footer${hasActions ? " has-actions" : ""}`}>
     {#if meta.length > 0}
       <div class="chips">
         {#each meta as item, i (i)}
@@ -82,12 +83,18 @@
   /* Footer pills: meta chips and the show-more button share one visual family. */
   .chip,
   .more {
+    display: inline-flex;
+    min-height: 1.25rem;
+    align-items: center;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--sidebar);
     padding: 0.075rem 0.45rem;
+    font-family: var(--font-sans);
     font-size: var(--text-xs);
-    line-height: 1.5;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
     white-space: nowrap;
     text-decoration: none;
   }
@@ -98,12 +105,6 @@
 
   .chip-action {
     cursor: pointer;
-  }
-
-  button.chip,
-  .more {
-    font-family: inherit;
-    font-weight: inherit;
   }
 
   .chip-action:hover,
@@ -141,5 +142,9 @@
     overflow-wrap: anywhere;
     text-align: left;
     white-space: normal;
+  }
+
+  .tool-footer.has-actions .more {
+    margin-left: 0;
   }
 </style>
