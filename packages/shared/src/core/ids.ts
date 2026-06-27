@@ -21,6 +21,7 @@ export type IdPrefix =
   | "authflow"
   | "credkey"
   | "log"
+  | "crash"
   | "promptq"
   | "pin";
 

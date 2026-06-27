@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { commandAuth } from "./commands/auth.js";
+import { commandCrashes } from "./commands/crashes.js";
 import { commandServe } from "./commands/daemon.js";
 import { commandLogs } from "./commands/logs.js";
 import { commandRun } from "./commands/run.js";
@@ -15,6 +16,7 @@ Usage:
   nerve status
   nerve ui [--open]
   nerve logs [--level info] [--source orchestrator] [--limit 100] [--follow]
+  nerve crashes [--limit 10] [--follow] [--json]
   nerve run [dir] [prompt...]
   nerve auth list
   nerve auth login <provider>
@@ -56,6 +58,10 @@ async function main(): Promise<void> {
   }
   if (command === "logs") {
     await commandLogs(args);
+    return;
+  }
+  if (command === "crashes") {
+    await commandCrashes(args);
     return;
   }
   if (command === "run") {

@@ -5,9 +5,11 @@ import { networkInterfaces } from "node:os";
 import type { Duplex } from "node:stream";
 import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
+import { serializeCrashError, writeCrashReportSync } from "./crash-reports.js";
 import { recoverInterruptedRuns } from "./domains/agents/run/interrupted-run-recovery.js";
 import {
   initializeStorage,
+  resolveDataDir,
   writeDaemonFile,
 } from "./infrastructure/storage/index.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
@@ -59,7 +61,7 @@ async function main() {
   }
   const state = createOrchestratorState(storage, host, port);
   await state.logger.hydrate();
-  installCrashGuards(state.logger);
+  installCrashGuards(state.logger, storage.paths.home);
   await state.logger.pruneRetention();
   await state.logger.info("Daemon storage initialized", {
     context: { dataDir: storage.paths.home, host, port },
@@ -239,6 +241,7 @@ async function main() {
  */
 function installCrashGuards(
   logger: ReturnType<typeof createOrchestratorState>["logger"],
+  dataDir: string,
 ): void {
   let exiting = false;
   const fatal = (
@@ -249,11 +252,22 @@ function installCrashGuards(
     exiting = true;
     // Always surface to stderr (captured by the desktop daemon output buffer).
     console.error(`[nerve] fatal ${kind}:`, error);
+    const crashReportPath = writeCrashReportSync(dataDir, {
+      source: "orchestrator",
+      kind,
+      message: `Daemon crashed: ${kind}`,
+      pid: process.pid,
+      uptimeMs: Math.round(process.uptime() * 1000),
+      error: serializeCrashError(error),
+    });
     // Hard cap so logging can never hang the exit.
     const forceExit = setTimeout(() => process.exit(1), 1000);
     forceExit.unref();
     void logger
-      .error(`Daemon crashed: ${kind}`, { error })
+      .error(`Daemon crashed: ${kind}`, {
+        error,
+        context: crashReportPath ? { crashReportPath } : undefined,
+      })
       .catch(() => undefined)
       .finally(() => {
         clearTimeout(forceExit);
@@ -495,5 +509,14 @@ function isLoopbackHost(host: string): boolean {
 
 main().catch((error) => {
   console.error(error);
+  const dataDir = resolveDataDir();
+  writeCrashReportSync(dataDir, {
+    source: "orchestrator",
+    kind: "startupError",
+    message: "Daemon startup failed",
+    pid: process.pid,
+    uptimeMs: Math.round(process.uptime() * 1000),
+    error: serializeCrashError(error),
+  });
   process.exit(1);
 });

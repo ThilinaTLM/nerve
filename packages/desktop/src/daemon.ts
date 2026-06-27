@@ -1,6 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
+import type { DaemonCrashReportKind } from "@nervekit/shared";
+import { serializeCrashError, writeCrashReportSync } from "./crash-reports.js";
 import {
   assertHealthy,
   buildOrchestratorEnv,
@@ -204,6 +206,7 @@ class DaemonSupervisor {
 
   private child?: ChildProcess;
   private childExited = false;
+  private childStartedAt?: number;
   private childOutput?: OutputBuffer;
   private detachChildExit?: () => void;
   private removeParentExitHook?: () => void;
@@ -302,6 +305,34 @@ class DaemonSupervisor {
 
   // --- owned-child spawn / readiness ---
 
+  private writeOwnedCrashReport(
+    kind: DaemonCrashReportKind,
+    message: string,
+    details: {
+      exit?: ChildExit;
+      error?: unknown;
+      output?: OutputBuffer;
+      context?: Record<string, unknown>;
+    } = {},
+  ): string | undefined {
+    const paths = this.config.paths;
+    if (!paths) return undefined;
+    return writeCrashReportSync(paths.home, {
+      source: "desktop",
+      kind,
+      message,
+      pid: this.child?.pid,
+      exitCode: details.exit?.code,
+      signal: details.exit?.signal,
+      uptimeMs: this.childStartedAt
+        ? Math.max(0, Date.now() - this.childStartedAt)
+        : undefined,
+      outputTail: details.output?.tail() ?? this.childOutput?.tail(),
+      error: details.error ? serializeCrashError(details.error) : undefined,
+      context: details.context,
+    });
+  }
+
   private async spawnAndWait(): Promise<HealthyDaemon> {
     const { paths, orchestratorMain, options, readinessTimeoutMs } =
       this.requireOwnedConfig();
@@ -321,6 +352,7 @@ class DaemonSupervisor {
     });
     this.child = child;
     this.childExited = false;
+    this.childStartedAt = Date.now();
 
     child.stdout?.on("data", (chunk) => output.append("stdout", chunk));
     child.stderr?.on("data", (chunk) => output.append("stderr", chunk));
@@ -343,18 +375,37 @@ class DaemonSupervisor {
     const deadline = Date.now() + readinessTimeoutMs;
     while (Date.now() < deadline) {
       if (spawnError) {
+        const crashReportPath = this.writeOwnedCrashReport(
+          "startupError",
+          `Failed to start the Nerve daemon: ${spawnError.message}`,
+          {
+            error: spawnError,
+            output,
+            context: { orchestratorMain, readinessTimeoutMs },
+          },
+        );
         throw daemonStartupError(
           `Failed to start the Nerve daemon: ${spawnError.message}`,
           output,
-          { dataDir: paths.home, readinessTimeoutMs },
+          { dataDir: paths.home, readinessTimeoutMs, crashReportPath },
         );
       }
       if (childExit) {
-        throw daemonStartupError(
-          `Nerve daemon exited before it became ready${formatExit(childExit)}.`,
-          output,
-          { dataDir: paths.home, readinessTimeoutMs },
+        const message = `Nerve daemon exited before it became ready${formatExit(childExit)}.`;
+        const crashReportPath = this.writeOwnedCrashReport(
+          "startupExit",
+          message,
+          {
+            exit: childExit,
+            output,
+            context: { orchestratorMain, readinessTimeoutMs },
+          },
         );
+        throw daemonStartupError(message, output, {
+          dataDir: paths.home,
+          readinessTimeoutMs,
+          crashReportPath,
+        });
       }
       const daemon = await findHealthyDaemon(paths);
       if (daemon) {
@@ -367,10 +418,18 @@ class DaemonSupervisor {
     }
 
     await stopOwnedChild(child, () => this.childExited);
+    const crashReportPath = this.writeOwnedCrashReport(
+      "startupTimeout",
+      `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
+      {
+        output,
+        context: { orchestratorMain, readinessTimeoutMs },
+      },
+    );
     const error = daemonStartupError(
       `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
       output,
-      { dataDir: paths.home, readinessTimeoutMs },
+      { dataDir: paths.home, readinessTimeoutMs, crashReportPath },
     );
     void desktopLog("error", "daemon", "Owned local daemon startup timed out", {
       error,
@@ -378,6 +437,7 @@ class DaemonSupervisor {
         output: output.tail(),
         dataDir: paths.home,
         readinessTimeoutMs,
+        crashReportPath,
       },
     });
     throw error;
@@ -389,11 +449,18 @@ class DaemonSupervisor {
     const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
       this.childExited = true;
       if (this.stopped) return;
+      const output = this.childOutput?.tail() ?? "(no output)";
+      const crashReportPath = this.writeOwnedCrashReport(
+        "childExit",
+        `Daemon process exited${formatExit({ code, signal })}.`,
+        { exit: { code, signal } },
+      );
       void desktopLog("warn", "daemon", "Owned daemon child exited", {
         context: {
           code,
           signal,
-          output: this.childOutput?.tail() ?? "(no output)",
+          output,
+          crashReportPath,
         },
       });
       this.scheduleRestart(
@@ -615,7 +682,11 @@ async function stopOwnedChild(
 function daemonStartupError(
   message: string,
   output: OutputBuffer,
-  context?: { dataDir?: string; readinessTimeoutMs?: number },
+  context?: {
+    dataDir?: string;
+    readinessTimeoutMs?: number;
+    crashReportPath?: string;
+  },
 ): Error {
   const diagnostics = [
     context?.readinessTimeoutMs
@@ -628,6 +699,9 @@ function daemonStartupError(
           "logs",
           `application-${new Date().toISOString().slice(0, 10)}.jsonl`,
         )}`
+      : undefined,
+    context?.crashReportPath
+      ? `Crash report: ${context.crashReportPath}`
       : undefined,
   ].filter((line): line is string => Boolean(line));
 

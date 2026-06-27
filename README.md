@@ -117,6 +117,16 @@ pnpm cli -- status
 pnpm cli -- run . "Summarize this project"
 ```
 
+Crash diagnostics are written under `~/.nerve/crashes` whenever the daemon
+crash guard or desktop daemon supervisor observes a fatal exit. Inspect recent
+reports without requiring a running daemon:
+
+```sh
+pnpm cli -- crashes --limit 5
+pnpm cli -- crashes --follow
+pnpm cli -- logs --level error --follow
+```
+
 ## Root scripts
 
 Common repository commands:

@@ -46,6 +46,40 @@ export const applicationLogRecordSchema = z.object({
 });
 export type ApplicationLogRecord = z.infer<typeof applicationLogRecordSchema>;
 
+export const daemonCrashReportKindSchema = z.enum([
+  "uncaughtException",
+  "unhandledRejection",
+  "childExit",
+  "startupExit",
+  "startupTimeout",
+  "startupError",
+]);
+export type DaemonCrashReportKind = z.infer<typeof daemonCrashReportKindSchema>;
+
+export const daemonCrashReportSchema = z.object({
+  id: z.string().startsWith("crash_"),
+  ts: z.string().datetime(),
+  source: applicationLogSourceSchema,
+  kind: daemonCrashReportKindSchema,
+  message: z.string().min(1),
+  pid: z.number().int().positive().optional(),
+  exitCode: z.number().int().nullable().optional(),
+  signal: z.string().nullable().optional(),
+  uptimeMs: z.number().int().nonnegative().optional(),
+  dataDir: z.string().optional(),
+  error: applicationLogErrorSchema.optional(),
+  outputTail: z.string().optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
+  runtime: z
+    .object({
+      node: z.string(),
+      platform: z.string(),
+      arch: z.string(),
+    })
+    .optional(),
+});
+export type DaemonCrashReport = z.infer<typeof daemonCrashReportSchema>;
+
 export const applicationLogQuerySchema = z.object({
   level: applicationLogLevelSchema.optional(),
   source: applicationLogSourceSchema.optional(),
