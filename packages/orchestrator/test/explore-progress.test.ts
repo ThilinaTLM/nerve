@@ -42,6 +42,7 @@ function toolCallMessage(
   assert.equal(update.taskCount, 3);
   assert.equal(update.label, "api");
   assert.equal(update.model, "provider/model");
+  assert.equal(update.thinkingLevel, "off");
   return update.message;
 }
 

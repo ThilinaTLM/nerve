@@ -168,6 +168,7 @@ export function exploreProgressFromHarnessEvent(
     taskCount: spec.taskCount,
     label: spec.label,
     model: exploreModelLabel(child.model),
+    thinkingLevel: child.thinkingLevel,
   };
   if (record.type === "tool_call") {
     const toolName =

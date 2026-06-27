@@ -103,6 +103,7 @@ export interface SubagentRunOutput {
   report: string;
   usage?: ExploreUsageStatsPayload;
   model?: string;
+  thinkingLevel?: ThinkingLevel;
   stopReason?: string;
   errorMessage?: string;
   steps?: ExploreStepPayload[];
@@ -132,6 +133,7 @@ export interface ExploreReport {
   summaryPreview?: string;
   usage?: ExploreUsageStatsPayload;
   model?: string;
+  thinkingLevel?: ThinkingLevel;
   stopReason?: string;
   errorMessage?: string;
   steps?: ExploreStepPayload[];
@@ -228,6 +230,8 @@ export class SubagentRunner {
           taskIndex: index,
           taskCount: tasks.length,
           label: task.label,
+          model: output.model,
+          thinkingLevel: output.thinkingLevel,
           phase: output.status === "completed" ? "completed" : "failed",
           message:
             output.status === "completed"
@@ -244,6 +248,7 @@ export class SubagentRunner {
           summaryPreview: summaryPreview(output.report),
           usage: output.usage,
           model: output.model,
+          thinkingLevel: output.thinkingLevel,
           stopReason: output.stopReason,
           errorMessage: output.errorMessage,
           steps: output.steps,
@@ -301,6 +306,7 @@ export class SubagentRunner {
       taskCount: spec.taskCount,
       label: spec.label,
       model: exploreModelLabel(child.model),
+      thinkingLevel: child.thinkingLevel,
       phase: "started",
       message: `Agent ${child.id} started.`,
     });
@@ -439,6 +445,7 @@ export class SubagentRunner {
         report,
         usage: usage.turns > 0 ? usage : undefined,
         model: modelId,
+        thinkingLevel: child.thinkingLevel,
         stopReason,
         errorMessage,
         steps,
@@ -454,6 +461,7 @@ export class SubagentRunner {
         taskIndex: spec.taskIndex,
         taskCount: spec.taskCount,
         label: spec.label,
+        thinkingLevel: child.thinkingLevel,
         phase: "failed",
         message: aborted
           ? "Agent run aborted."
@@ -480,6 +488,7 @@ export class SubagentRunner {
         report: formatExploreFailureReport(message),
         usage: usage.turns > 0 ? usage : undefined,
         model: modelId,
+        thinkingLevel: child.thinkingLevel,
         stopReason,
         errorMessage: errorMessage ?? message,
         steps,

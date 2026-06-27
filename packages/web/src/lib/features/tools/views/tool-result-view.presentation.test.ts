@@ -324,6 +324,12 @@ describe("toolPresentation", () => {
     assert.ok(p.meta.some((m) => m.text === "markdown" && m.tone === "info"));
   });
 
+  it("does not show the explore input prompt as a primary arg", () => {
+    const p = present("explore", { task: "Investigate the web UI" }, { reports: [] });
+    assert.equal(p.badge, "explore");
+    assert.equal(p.primaryArg, undefined);
+  });
+
   it("shows no footer chip for an answered ask_user with no primary arg", () => {
     const p = present(
       "ask_user",

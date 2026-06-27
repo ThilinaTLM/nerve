@@ -31,6 +31,7 @@ export type ExploreProgressView = {
   taskCount?: number;
   label?: string;
   model?: string;
+  thinkingLevel?: string;
   phase:
     | "queued"
     | "started"
@@ -58,6 +59,7 @@ export type ExploreTaskState = {
   task?: string;
   agentId?: string;
   model?: string;
+  thinkingLevel?: string;
   status: ExploreTaskStatus;
   /** De-noised latest activity while running. */
   currentAction?: string;
@@ -65,6 +67,8 @@ export type ExploreTaskState = {
   currentActionMono: boolean;
   /** Recent display-safe activity lines while running. */
   recentActions: ExploreTaskAction[];
+  /** Latest three display messages for the sub-agent card. */
+  recentMessages: ExploreTaskAction[];
   /** Count of tool_call updates seen (activity meter). */
   actionCount: number;
   report?: ExploreReportPayload;

@@ -249,6 +249,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
             taskIndex: 0,
             taskCount: 2,
             label: "api",
+            thinkingLevel: "high",
           }),
           "legacy line",
         ].join("\n"),
@@ -259,6 +260,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(view.liveUpdates.length, 1);
     assert.equal(view.liveUpdates[0]?.message, "grep completed");
     assert.equal(view.liveUpdates[0]?.label, "api");
+    assert.equal(view.liveUpdates[0]?.thinkingLevel, "high");
     assert.equal(view.liveLog, "legacy line");
   });
 
@@ -284,6 +286,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
             taskCount: 2,
             label: "api",
             model: "anthropic/claude-haiku",
+            thinkingLevel: "medium",
           }),
           exploreUpdate("tool_call", "read server.ts", {
             taskIndex: 0,
@@ -321,6 +324,10 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(tasks[0]?.label, "api");
     // Model is surfaced from live progress before any report exists.
     assert.equal(tasks[0]?.model, "anthropic/claude-haiku");
+    assert.equal(tasks[0]?.thinkingLevel, "medium");
+    assert.deepEqual(tasks[0]?.recentMessages, [
+      { text: "read server.ts", mono: true },
+    ]);
     // Task 1: started but no display-safe tool action yet.
     assert.equal(tasks[1]?.status, "running");
     assert.equal(tasks[1]?.currentAction, undefined);
@@ -374,6 +381,11 @@ describe("parseToolView ask_user/todos/task/explore", () => {
       { text: "find login", mono: true },
       { text: "ls src", mono: true },
     ]);
+    assert.deepEqual(tasks[0]?.recentMessages, [
+      { text: "read auth.ts", mono: true },
+      { text: "find login", mono: true },
+      { text: "ls src", mono: true },
+    ]);
   });
 
   it("aggregates explore tasks with mixed completed and failed results", () => {
@@ -391,6 +403,13 @@ describe("parseToolView ask_user/todos/task/explore", () => {
               report: "done",
               reportPath: "/home/me/.nerve/explore-reports/a.md",
               summaryPreview: "Summary A",
+              model: "openai/gpt-5.5",
+              thinkingLevel: "high",
+              steps: [
+                { type: "tool_call", message: "grep card", timestamp: "2026-01-01T00:00:00.000Z" },
+                { type: "tool_call", message: "read card.ts", timestamp: "2026-01-01T00:00:01.000Z" },
+                { type: "tool_result", message: "read completed", timestamp: "2026-01-01T00:00:02.000Z" },
+              ],
             },
             {
               agentId: "agent_03H00000000000000000000000",
@@ -424,6 +443,13 @@ describe("parseToolView ask_user/todos/task/explore", () => {
       "/home/me/.nerve/explore-reports/a.md",
     );
     assert.equal(tasks[0]?.label, "alpha");
+    assert.equal(tasks[0]?.model, "openai/gpt-5.5");
+    assert.equal(tasks[0]?.thinkingLevel, "high");
+    assert.deepEqual(tasks[0]?.recentMessages, [
+      { text: "grep card", mono: true },
+      { text: "read card.ts", mono: true },
+      { text: "read completed", mono: true },
+    ]);
     assert.equal(tasks[1]?.status, "failed");
     assert.equal(tasks[1]?.error, "boom");
     assert.equal(

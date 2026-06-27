@@ -408,11 +408,7 @@ export function toolPresentation(
       if (turns > 0) meta.push({ text: plural(turns, "turn") });
       return {
         ...base,
-        primaryArg: view.task
-          ? { text: view.task }
-          : summary.total > 1
-            ? { text: `${summary.total} explore agents` }
-            : undefined,
+        primaryArg: undefined,
         meta,
       };
     }

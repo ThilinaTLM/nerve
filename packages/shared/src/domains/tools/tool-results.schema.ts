@@ -4,6 +4,7 @@ import {
   taskRecordSchema,
   taskStatusSchema,
 } from "../tasks/index.js";
+import { thinkingLevelSchema } from "../models/index.js";
 
 /**
  * Result contracts shared between the `@nervekit/tools` executors (producers) and the
@@ -400,6 +401,7 @@ export const exploreReportSchema = z.object({
   summaryPreview: z.string().optional(),
   usage: exploreUsageStatsSchema.optional(),
   model: z.string().optional(),
+  thinkingLevel: thinkingLevelSchema.optional(),
   stopReason: z.string().optional(),
   errorMessage: z.string().optional(),
   steps: z.array(exploreStepSchema).optional(),

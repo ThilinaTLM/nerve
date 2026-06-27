@@ -1,8 +1,4 @@
 <script lang="ts">
-  import CircleAlert from "@lucide/svelte/icons/circle-alert";
-  import CircleCheck from "@lucide/svelte/icons/circle-check";
-  import CircleDashed from "@lucide/svelte/icons/circle-dashed";
-  import CircleDot from "@lucide/svelte/icons/circle-dot";
   import FileText from "@lucide/svelte/icons/file-text";
   import SearchCode from "@lucide/svelte/icons/search-code";
   import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
@@ -35,20 +31,32 @@
     return model.split(/[/:]/).pop() ?? model;
   }
 
-  /** The per-agent task description, shown only when distinct from the title. */
-  function taskSubtitle(task: (typeof tasks)[number]): string | undefined {
-    if (!task.task) return undefined;
-    return task.task === taskTitle(task) ? undefined : task.task;
-  }
-
   function taskTitle(
     task: (typeof tasks)[number],
   ): string {
-    return (
-      task.label ??
-      task.task ??
-      (task.index === undefined ? "Explore" : `Explore ${task.index + 1}`)
-    );
+    return task.label ?? (task.index === undefined ? "Explore" : `Explore ${task.index + 1}`);
+  }
+
+  function modelThinkingLabel(task: (typeof tasks)[number]): string | undefined {
+    const parts: string[] = [];
+    if (task.model) parts.push(modelLabel(task.model));
+    if (task.thinkingLevel) parts.push(task.thinkingLevel);
+    return parts.length > 0 ? parts.join(" · ") : undefined;
+  }
+
+  function placeholderLine(task: (typeof tasks)[number], index: number): string {
+    if (index > 0) return "—";
+    if (task.status === "queued") return "Queued…";
+    if (task.status === "running") return "Waiting for first message…";
+    return "No recent message.";
+  }
+
+  function recentDisplayLines(task: (typeof tasks)[number]) {
+    const lines = [...task.recentMessages].slice(-3);
+    while (lines.length < 3) {
+      lines.push({ text: placeholderLine(task, lines.length), mono: false });
+    }
+    return lines;
   }
 
   // Model is shown as a chip next to the title, so it is omitted here.
@@ -84,87 +92,49 @@
   {#if tasks.length > 0}
     <ol class="grid gap-1.5">
       {#each tasks as task (task.key)}
-        <li
-          class="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5"
-        >
-          <span class="mt-0.5" aria-hidden="true">
-            {#if task.status === "completed"}
-              <CircleCheck size={16} strokeWidth={2.1} class="text-success" />
-            {:else if task.status === "failed"}
-              <CircleAlert size={16} strokeWidth={2.1} class="text-destructive" />
-            {:else if task.status === "running"}
-              <CircleDot size={16} strokeWidth={2.1} class="text-info" />
-            {:else}
-              <CircleDashed size={16} strokeWidth={2.1} class="text-muted-foreground" />
+        {@const modelThinking = modelThinkingLabel(task)}
+        <li class="grid min-w-0 gap-1 rounded-lg border border-border bg-card px-3 py-2.5">
+          <div class="flex min-w-0 items-baseline gap-2">
+            <strong class="truncate text-sm font-medium leading-tight">{taskTitle(task)}</strong>
+            {#if modelThinking}
+              <span class="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs leading-none text-muted-foreground" title={[task.model, task.thinkingLevel].filter(Boolean).join(" · ")}>{modelThinking}</span>
             {/if}
-          </span>
-
-          <div class="grid min-w-0 gap-1">
-            <div class="flex min-w-0 items-baseline gap-2">
-              <strong class="truncate text-sm font-medium leading-tight">{taskTitle(task)}</strong>
-              {#if task.model}
-                <span class="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs leading-none text-muted-foreground" title={task.model}>{modelLabel(task.model)}</span>
-              {/if}
-              {#if task.count && task.count > 1 && task.index !== undefined}
-                <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{task.index + 1}/{task.count}</span>
-              {/if}
-            </div>
-            {#if task.status !== "completed"}
-              {@const subtitle = taskSubtitle(task)}
-              {#if subtitle}
-                <p class="m-0 truncate text-xs text-muted-foreground/80">{subtitle}</p>
-              {/if}
-            {/if}
-
-            {#if task.status === "completed" && task.report}
-              {#if task.report.summaryPreview}
-                <p class="m-0 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{task.report.summaryPreview}</p>
-              {/if}
-              {@const meta = reportMeta(task.report)}
-              {#if meta}
-                <p class="m-0 text-xs text-muted-foreground">{meta}</p>
-              {/if}
-              {#if task.report.reportPath}
-                <button
-                  type="button"
-                  class="mt-0.5 inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs font-medium text-primary hover:bg-muted"
-                  onclick={() => task.report?.reportPath && onOpenFile?.(task.report.reportPath)}
-                  title={task.report.reportPath}
-                >
-                  <FileText size={13} strokeWidth={2.1} />
-                  Open report
-                  <span class="font-mono text-muted-foreground">{basename(task.report.reportPath)}</span>
-                </button>
-              {/if}
-            {:else if task.status === "failed"}
-              <p class="m-0 break-words text-sm leading-relaxed text-destructive">{task.error ?? "Explore agent failed."}</p>
-              {#if task.report?.steps?.length}
-                <p class="m-0 truncate font-mono text-xs text-muted-foreground">{task.report.steps[task.report.steps.length - 1]?.message}</p>
-              {/if}
-            {:else if task.status === "running"}
-              {#if task.recentActions.length > 0}
-                <div class="grid min-w-0 gap-0.5 text-xs text-muted-foreground">
-                  {#each task.recentActions as action}
-                    <p class="m-0 truncate {action.mono ? 'font-mono' : ''}">{action.text}</p>
-                  {/each}
-                </div>
-              {:else}
-                <p class="m-0 text-xs text-muted-foreground">Waiting for first tool call…</p>
-              {/if}
-            {:else}
-              <p class="m-0 text-xs text-muted-foreground">Queued…</p>
+            {#if task.count && task.count > 1 && task.index !== undefined}
+              <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{task.index + 1}/{task.count}</span>
             {/if}
           </div>
+
+          <div class="grid min-w-0 gap-0.5 text-xs text-muted-foreground">
+            {#each recentDisplayLines(task) as line}
+              <p class="m-0 truncate {line.mono ? 'font-mono' : ''} {line.text === '—' ? 'text-muted-foreground/60' : ''}">{line.text}</p>
+            {/each}
+          </div>
+
+          {#if task.report}
+            {@const meta = reportMeta(task.report)}
+            {#if meta}
+              <p class="m-0 text-xs text-muted-foreground">{meta}</p>
+            {/if}
+            {#if task.report.reportPath}
+              <button
+                type="button"
+                class="mt-0.5 inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs font-medium text-primary hover:bg-muted"
+                onclick={() => task.report?.reportPath && onOpenFile?.(task.report.reportPath)}
+                title={task.report.reportPath}
+              >
+                <FileText size={13} strokeWidth={2.1} />
+                Open report
+                <span class="font-mono text-muted-foreground">{basename(task.report.reportPath)}</span>
+              </button>
+            {/if}
+          {/if}
         </li>
       {/each}
     </ol>
   {:else if view.liveLog}
     <pre class="overflow-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-xs text-muted-foreground">{view.liveLog}</pre>
   {:else if toolCall.status === "running" || toolCall.status === "requested"}
-    <p class="flex items-center gap-2 text-sm leading-relaxed text-muted-foreground">
-      <CircleDot size={14} strokeWidth={2.1} class="text-info" />
-      Explore agents are working…
-    </p>
+    <p class="text-sm leading-relaxed text-muted-foreground">Explore agents are working…</p>
   {:else}
     <p class="text-sm leading-relaxed text-muted-foreground">Explore completed without report files.</p>
   {/if}

@@ -1,3 +1,4 @@
+import type { ExploreStepPayload } from "@nervekit/shared";
 import { asRecord, stringField } from "./tool-view-helpers";
 import type {
   ExploreProgressView,
@@ -37,6 +38,7 @@ export function parseExploreProgressLog(text: string | undefined): {
             typeof record.taskCount === "number" ? record.taskCount : undefined,
           label: stringField(record.label),
           model: stringField(record.model),
+          thinkingLevel: stringField(record.thinkingLevel),
           phase: record.phase as ExploreProgressView["phase"],
           message: record.message,
         });
@@ -72,10 +74,45 @@ function friendlyExploreAction(
     case "completed":
     case "failed":
       return { text: update.message, mono: false };
-    case "queued":
     case "started":
+      return update.agentId ? { text: "Started.", mono: false } : undefined;
+    case "queued":
       return undefined;
   }
+}
+
+function reportStepAction(
+  step: ExploreStepPayload,
+): ExploreTaskAction | undefined {
+  if (EXPLORE_NOISE_MESSAGES.has(step.message)) return undefined;
+  return {
+    text: step.type === "assistant" ? "Thinking\u2026" : step.message,
+    mono: step.type !== "assistant",
+  };
+}
+
+function recentTaskMessages(
+  input: Pick<ExploreTaskState, "status" | "report" | "error"> & {
+    updates: ExploreProgressView[];
+  },
+): ExploreTaskAction[] {
+  const liveMessages = input.updates
+    .map(friendlyExploreAction)
+    .filter((action): action is ExploreTaskAction => action !== undefined);
+  if (liveMessages.length > 0) return liveMessages.slice(-3);
+
+  const stepMessages = input.report?.steps
+    ?.map(reportStepAction)
+    .filter((action): action is ExploreTaskAction => action !== undefined);
+  if (stepMessages && stepMessages.length > 0) return stepMessages.slice(-3);
+
+  if (input.status === "failed" && input.error) {
+    return [{ text: input.error, mono: false }];
+  }
+  if (input.status === "completed" && input.report?.summaryPreview) {
+    return [{ text: input.report.summaryPreview, mono: false }];
+  }
+  return [];
 }
 
 type ExploreAggregate = { tasks: ExploreTaskState[]; summary: ExploreSummary };
@@ -166,6 +203,11 @@ function aggregateExploreTasksUncached(
     const action = status === "running" ? latestAction : undefined;
     const model =
       report?.model ?? updates.find((u) => u.model)?.model ?? latest?.model;
+    const thinkingLevel =
+      report?.thinkingLevel ??
+      updates.find((u) => u.thinkingLevel)?.thinkingLevel ??
+      latest?.thinkingLevel;
+    const error = report?.errorMessage ?? report?.summaryPreview ?? failed?.message;
 
     tasks.push({
       key: `task-${index}`,
@@ -175,13 +217,20 @@ function aggregateExploreTasksUncached(
       task: report?.task ?? view.task,
       agentId: report?.agentId ?? latest?.agentId,
       model,
+      thinkingLevel,
       status,
       currentAction: action?.text,
       currentActionMono: action?.mono ?? false,
       recentActions: status === "running" ? recentActions : [],
+      recentMessages: recentTaskMessages({
+        status,
+        report,
+        error,
+        updates,
+      }),
       actionCount: updates.filter((u) => u.phase === "tool_call").length,
       report,
-      error: report?.errorMessage ?? report?.summaryPreview ?? failed?.message,
+      error,
     });
   }
 

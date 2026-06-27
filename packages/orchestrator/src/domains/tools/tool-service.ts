@@ -5,6 +5,7 @@ import type {
   Mode,
   StartTaskRequest,
   TaskRecord,
+  ThinkingLevel,
   ToolCallRecord,
   ToolName,
   UserQuestionRecord,
@@ -63,6 +64,7 @@ export type ExploreProgressUpdate = {
   taskCount?: number;
   label?: string;
   model?: string;
+  thinkingLevel?: ThinkingLevel;
   phase:
     | "queued"
     | "started"
@@ -93,6 +95,7 @@ export type ExploreRunResult = {
       turns: number;
     };
     model?: string;
+    thinkingLevel?: ThinkingLevel;
     stopReason?: string;
     errorMessage?: string;
     steps?: Array<{
