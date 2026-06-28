@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { LiveToolCallDraft } from "$lib/core/types/state-types";
-import { summarizeToolDraft } from "./tool-draft-progress";
+import { DRAFT_PREVIEW_LINES, summarizeToolDraft } from "./tool-draft-progress";
 
 function draft(
   toolName: string,
@@ -20,6 +20,10 @@ function draft(
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
+}
+
+function previewLines(text: string | undefined): number {
+  return text ? text.split("\n").length : 0;
 }
 
 describe("summarizeToolDraft", () => {
@@ -422,5 +426,70 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.path, "/etc/hosts");
+  });
+
+  it("caps final generic tool argument previews to 10 lines", () => {
+    const todos = Array.from({ length: 12 }, (_, index) => ({
+      todo: `Task ${index + 1}`,
+      done: index % 2 === 0,
+    }));
+    const summary = summarizeToolDraft(
+      draft("todos_set", {
+        args: { todos },
+        done: true,
+      }),
+    );
+
+    assert.equal(summary.kind, "generic");
+    assert.equal(summary.argsPreviewLanguage, "json");
+    assert.ok(summary.argsPreview);
+    assert.ok(previewLines(summary.argsPreview) <= DRAFT_PREVIEW_LINES);
+    assert.match(summary.argsPreview, /Task 12/);
+  });
+
+  it("caps partial generic tool argument previews to 10 lines", () => {
+    const partialTasks = Array.from(
+      { length: 5 },
+      (_, index) =>
+        `{"task":"Investigate area ${index + 1} in detail","label":"Area ${index + 1}"}`,
+    ).join(",");
+    const summary = summarizeToolDraft(
+      draft("explore", {
+        argsText: `{"tasks":[${partialTasks}],"context":"Parent lookup found several relevant files and unresolved details`,
+      }),
+    );
+
+    assert.equal(summary.kind, "generic");
+    assert.equal(summary.argsPreviewLanguage, "json");
+    assert.ok(summary.argsPreview);
+    assert.ok(previewLines(summary.argsPreview) <= DRAFT_PREVIEW_LINES);
+    assert.match(summary.argsPreview, /context/);
+  });
+
+  it("provides capped argument previews for representative generic tools", () => {
+    for (const [toolName, args] of [
+      [
+        "plan_mode_present",
+        {
+          file_path: "/home/u/.nerve/plans/plan.md",
+          title: "Implementation plan",
+          summary: "A concise plan for review",
+        },
+      ],
+      ["read", { path: "src/app.ts", offset: 1, limit: 80 }],
+      [
+        "web_search",
+        { query: "Svelte ResizeObserver visual line measurement" },
+      ],
+      ["task_start", { name: "dev", command: "pnpm web", readyOnUrl: true }],
+    ] as const) {
+      const summary = summarizeToolDraft(draft(toolName, { args, done: true }));
+      assert.equal(summary.kind, "generic", toolName);
+      assert.ok(summary.argsPreview, toolName);
+      assert.ok(
+        previewLines(summary.argsPreview) <= DRAFT_PREVIEW_LINES,
+        toolName,
+      );
+    }
   });
 });

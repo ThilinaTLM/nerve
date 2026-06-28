@@ -1,5 +1,6 @@
 import type { LiveToolCallDraft } from "$lib/core/types/state-types";
 import { relativePathForDisplay } from "$lib/core/utils/path-links";
+import { draftArgsPreview } from "./tool-draft-args-preview";
 
 export type DraftMetaTone =
   | "default"
@@ -38,6 +39,8 @@ export type ToolDraftSummary = {
   inputPreview?: string;
   inputLineCount?: number;
   language?: "bash" | "python";
+  argsPreview?: string;
+  argsPreviewLanguage?: "json";
   done: boolean;
 };
 
@@ -692,23 +695,47 @@ function genericMeta(draft: LiveToolCallDraft): DraftMetaItem[] {
   return meta;
 }
 
+function withDraftArgsPreview(
+  summary: ToolDraftSummary,
+  draft: LiveToolCallDraft,
+): ToolDraftSummary {
+  return {
+    ...summary,
+    ...draftArgsPreview(draft, {
+      maxLines: DRAFT_PREVIEW_LINES,
+      maxChars: DRAFT_PREVIEW_MAX_VALUE_CHARS,
+    }),
+  };
+}
+
 export function summarizeToolDraft(
   draft: LiveToolCallDraft,
   cwd?: string,
 ): ToolDraftSummary {
-  if (draft.toolName === "write") return summarizeWriteDraft(draft, cwd);
-  if (draft.toolName === "edit") return summarizeEditDraft(draft, cwd);
-  if (draft.toolName === "bash") return summarizeBashDraft(draft);
-  if (draft.toolName === "python") return summarizePythonDraft(draft, cwd);
+  if (draft.toolName === "write") {
+    return withDraftArgsPreview(summarizeWriteDraft(draft, cwd), draft);
+  }
+  if (draft.toolName === "edit") {
+    return withDraftArgsPreview(summarizeEditDraft(draft, cwd), draft);
+  }
+  if (draft.toolName === "bash") {
+    return withDraftArgsPreview(summarizeBashDraft(draft), draft);
+  }
+  if (draft.toolName === "python") {
+    return withDraftArgsPreview(summarizePythonDraft(draft, cwd), draft);
+  }
   const toolName = draft.toolName ?? "tool";
-  return {
-    kind: "generic",
-    toolName,
-    path: genericPrimaryArg(draft),
-    statusText: draft.done
-      ? `${toolName} arguments prepared.`
-      : `Preparing ${toolName} arguments…`,
-    meta: genericMeta(draft),
-    done: Boolean(draft.done),
-  };
+  return withDraftArgsPreview(
+    {
+      kind: "generic",
+      toolName,
+      path: genericPrimaryArg(draft),
+      statusText: draft.done
+        ? `${toolName} arguments prepared.`
+        : `Preparing ${toolName} arguments…`,
+      meta: genericMeta(draft),
+      done: Boolean(draft.done),
+    },
+    draft,
+  );
 }

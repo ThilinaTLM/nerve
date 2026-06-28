@@ -2,6 +2,13 @@
   import { highlightCodeCached } from "$lib/core/highlight/highlight";
   import { ansiToHtml } from "$lib/core/terminal/ansi";
   import { trimTextPreview } from "$lib/core/utils/text-preview";
+  import {
+    computedLineHeightPixels,
+    contentWidthFromBorderBox,
+    nextFixedVisibleRows,
+    parseCssPixels,
+    visualRowsFromScrollHeight,
+  } from "./result-code-block-sizing";
 
   type Props = {
     code: string;
@@ -31,27 +38,116 @@
   let html = $state<string | undefined>(undefined);
   let htmlSignature = $state<string | undefined>(undefined);
   let unavailableSignature = $state<string | undefined>(undefined);
+  let blockEl = $state<HTMLElement | undefined>(undefined);
+  let contentEl = $state<HTMLElement | undefined>(undefined);
+  let measureFrame = $state<number | undefined>(undefined);
+
   const preview = $derived(trim ? trimTextPreview(code) : { text: code });
   const signature = $derived(`${language ?? ""}\0${preview.text}`);
   const hasFixedRows = $derived(fixedRows !== undefined && fixedRows > 0);
   const terminalHtml = $derived(ansiToHtml(preview.text));
 
-  // Monotonic grow-then-lock sizing for fixed-rows previews. The box height is
-  // driven by the visible logical line count (clamped to `fixedRows`) and a
-  // high-water mark so it never shrinks while a draft streams. Wrapping changes
-  // then only clip/scroll content (overflow hidden + tail) instead of resizing
-  // the card, which is what eliminates the streaming jitter.
-  const visibleRowCount = $derived.by(() => {
-    if (!hasFixedRows) return undefined;
+  const logicalRowCount = $derived.by(() => {
+    if (!hasFixedRows) return 1;
     const text = preview.text;
-    const lines = text.length === 0 ? 0 : text.split("\n").length;
-    return Math.min(lines, fixedRows as number);
+    const rows = text.length === 0 ? 1 : text.split("\n").length;
+    return Math.min(Math.max(rows, 1), fixedRows as number);
   });
+
   let maxVisibleRows = $state(0);
+
+  function updateVisibleRows(measuredRows?: number): void {
+    if (!hasFixedRows || fixedRows === undefined) return;
+    maxVisibleRows = nextFixedVisibleRows({
+      previousRows: maxVisibleRows,
+      measuredRows,
+      fallbackRows: logicalRowCount,
+      fixedRows,
+    });
+  }
+
+  function cancelMeasureFrame(): void {
+    if (measureFrame === undefined) return;
+    cancelAnimationFrame(measureFrame);
+    measureFrame = undefined;
+  }
+
+  function measureVisualRows(): void {
+    measureFrame = undefined;
+    if (!hasFixedRows || !blockEl || !contentEl) return;
+
+    const blockRect = blockEl.getBoundingClientRect();
+    const contentRect = contentEl.getBoundingClientRect();
+    const blockStyle = getComputedStyle(blockEl);
+    const contentWidth = contentRect.width > 0
+      ? contentRect.width
+      : contentWidthFromBorderBox({
+          borderBoxWidth: blockRect.width,
+          paddingLeft: parseCssPixels(blockStyle.paddingLeft),
+          paddingRight: parseCssPixels(blockStyle.paddingRight),
+          borderLeftWidth: parseCssPixels(blockStyle.borderLeftWidth),
+          borderRightWidth: parseCssPixels(blockStyle.borderRightWidth),
+        });
+
+    if (contentWidth <= 0) return;
+
+    const contentStyle = getComputedStyle(contentEl);
+    const lineHeightPixels = computedLineHeightPixels(
+      contentStyle.lineHeight,
+      contentStyle.fontSize,
+    );
+    updateVisibleRows(
+      visualRowsFromScrollHeight(contentEl.scrollHeight, lineHeightPixels),
+    );
+  }
+
+  function scheduleMeasure(): void {
+    if (!hasFixedRows) return;
+    if (measureFrame !== undefined) return;
+    if (typeof requestAnimationFrame === "undefined") {
+      measureVisualRows();
+      return;
+    }
+    measureFrame = requestAnimationFrame(measureVisualRows);
+  }
+
   $effect(() => {
-    const rows = visibleRowCount ?? 0;
-    if (rows > maxVisibleRows) maxVisibleRows = rows;
+    if (!hasFixedRows) {
+      maxVisibleRows = 0;
+      cancelMeasureFrame();
+      return;
+    }
+    updateVisibleRows();
   });
+
+  $effect(() => {
+    // Re-measure after content, highlighting, terminal rendering, or row caps
+    // change. Width-driven reflows are handled by the ResizeObserver below.
+    const measurementKey = `${preview.text}\0${html ?? ""}\0${terminalHtml}\0${fixedRows ?? ""}`;
+    if (!hasFixedRows || measurementKey === undefined) return;
+    scheduleMeasure();
+  });
+
+  $effect(() => {
+    if (
+      !hasFixedRows ||
+      !blockEl ||
+      !contentEl ||
+      typeof ResizeObserver === "undefined"
+    ) {
+      return;
+    }
+    const observer = new ResizeObserver(() => scheduleMeasure());
+    observer.observe(blockEl);
+    observer.observe(contentEl);
+    scheduleMeasure();
+    return () => observer.disconnect();
+  });
+
+  $effect(() => {
+    return () => cancelMeasureFrame();
+  });
+
   const fixedRowsVar = $derived(hasFixedRows ? String(fixedRows) : undefined);
   const visibleRowsVar = $derived(
     hasFixedRows ? String(Math.max(maxVisibleRows, 1)) : undefined,
@@ -99,6 +195,7 @@
 
 {#if terminal}
   <div
+    bind:this={blockEl}
     class="code-block terminal-output"
     data-terminal="true"
     data-wrap={wrap ? "true" : "false"}
@@ -108,9 +205,10 @@
     style:max-height={hasFixedRows ? undefined : maxHeight}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
-  ><div class="code-block__content">{@html terminalHtml}</div></div>
+  ><div bind:this={contentEl} class="code-block__content">{@html terminalHtml}</div></div>
 {:else if highlight && html && htmlSignature === signature}
   <div
+    bind:this={blockEl}
     class="code-block"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
@@ -119,9 +217,10 @@
     style:max-height={hasFixedRows ? undefined : maxHeight}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
-  ><div class="code-block__content">{@html html}</div></div>
+  ><div bind:this={contentEl} class="code-block__content">{@html html}</div></div>
 {:else}
   <div
+    bind:this={blockEl}
     class="code-block plain"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
@@ -130,13 +229,14 @@
     style:max-height={hasFixedRows ? undefined : maxHeight}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
-  ><pre class="code-block__content">{preview.text}</pre></div>
+  ><pre bind:this={contentEl} class="code-block__content">{preview.text}</pre></div>
 {/if}
 
 <style>
   .code-block {
-    --code-block-padding-y: 0.48rem;
-    --code-block-padding-x: 0.58rem;
+    --code-block-padding-y: 10px;
+    --code-block-padding-x: 10px;
+    --code-block-border-y: 2px;
 
     box-sizing: border-box;
     margin: 0;
@@ -185,12 +285,11 @@
   }
 
   .code-block[data-fixed-rows="true"] {
-    /* Monotonic grow-then-lock: height follows the visible (high-water) row
-     * count up to the hard `fixed-rows` cap, so streaming never resizes the
-     * card down. The transition smooths the per-line ramp and is neutralized by
-     * the global prefers-reduced-motion rule in base.css. */
-    height: calc((var(--code-block-visible-rows) * 1lh) + (var(--code-block-padding-y) * 2) + 2px);
-    max-height: calc((var(--code-block-fixed-rows) * 1lh) + (var(--code-block-padding-y) * 2) + 2px);
+    /* Monotonic grow-then-lock: height follows the rendered visual row count
+     * (including wrapping) up to the hard fixed-row cap. The calc explicitly
+     * adds the block chrome so the content area is exactly N rows tall. */
+    height: calc((var(--code-block-visible-rows) * 1lh) + (var(--code-block-padding-y) * 2) + var(--code-block-border-y));
+    max-height: calc((var(--code-block-fixed-rows) * 1lh) + (var(--code-block-padding-y) * 2) + var(--code-block-border-y));
     transition: height 140ms ease-out;
   }
 

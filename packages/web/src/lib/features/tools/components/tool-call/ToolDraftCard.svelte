@@ -4,7 +4,6 @@
     DRAFT_PREVIEW_LINES,
     summarizeToolDraft,
   } from "$lib/features/tools/views/tool-draft-progress";
-  import { trimTextPreview } from "$lib/core/utils/text-preview";
   import { extname } from "$lib/features/tools/views/lang";
   import ResultCodeBlock from "./ResultCodeBlock.svelte";
   import ToolStatusIcon from "./ToolStatusIcon.svelte";
@@ -20,20 +19,8 @@
   const draftPreviewLanguage = $derived(
     summary.previewLanguage ?? extname(summary.path),
   );
-  const draftArgsPreview = $derived.by(() => {
-    const text = draft.args
-      ? JSON.stringify(draft.args, null, 2)
-      : draft.argsText.trim();
-    if (!text) return undefined;
-    return trimTextPreview(text, {
-      headLines: 18,
-      tailLines: 6,
-      maxChars: 6_000,
-    }).text;
-  });
-  const draftArgsLanguage = $derived(
-    draft.args || draft.argsText.trim() ? "json" : undefined,
-  );
+  const draftArgsPreview = $derived(summary.argsPreview);
+  const draftArgsLanguage = $derived(summary.argsPreviewLanguage);
   const isExecutionDraft = $derived(
     summary.kind === "bash" || summary.kind === "python",
   );
