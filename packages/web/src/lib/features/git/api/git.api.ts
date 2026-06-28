@@ -111,6 +111,18 @@ export async function fetchGit(
   );
 }
 
+export async function switchBaseAndPullGit(
+  projectId: string,
+  repo: string,
+): Promise<GitMutationResponse> {
+  return apiPost<GitMutationResponse>(
+    `/api/projects/${apiPathSegment(projectId)}/git/switch-base-and-pull`,
+    {
+      repo,
+    },
+  );
+}
+
 export async function stageGitFile(
   projectId: string,
   repo: string,

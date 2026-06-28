@@ -33,7 +33,10 @@ export type FileMutation = {
 
 export type GitPanelOperationsState = {
   fetching: boolean;
+  pulling: boolean;
+  pushing: boolean;
   syncing: boolean;
+  switchingBaseAndPulling: boolean;
   switchingBranch?: string;
   creatingBranch: boolean;
   fileMutation?: FileMutation;
@@ -106,7 +109,10 @@ export type GitPanelRefreshOptions = {
 function createOperationsState(): GitPanelOperationsState {
   return {
     fetching: false,
+    pulling: false,
+    pushing: false,
     syncing: false,
+    switchingBaseAndPulling: false,
     switchingBranch: undefined,
     creatingBranch: false,
     fileMutation: undefined,
@@ -222,7 +228,10 @@ export function repoMutationInProgress(
   return Boolean(
     operations &&
       (operations.fetching ||
+        operations.pulling ||
+        operations.pushing ||
         operations.syncing ||
+        operations.switchingBaseAndPulling ||
         operations.creatingBranch ||
         operations.switchingBranch ||
         operations.fileMutation ||

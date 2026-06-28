@@ -507,6 +507,89 @@ export class GitService {
     };
   }
 
+  async switchBaseAndPull(
+    projectId: string,
+    relativePath: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const repo = await this.summarizeRepo(
+      repoDir,
+      relativePath,
+      this.repoName(projectId, relativePath),
+    );
+    if (repo.dirty) {
+      throw new HttpError(
+        409,
+        "GIT_DIRTY_WORKTREE",
+        "Working tree has uncommitted changes. Commit or stash them before switching branches.",
+      );
+    }
+    if (!repo.hasRemote) {
+      throw new HttpError(
+        409,
+        "GIT_NO_REMOTE",
+        "This repository does not have a remote configured.",
+      );
+    }
+
+    const baseBranch = await this.detectBaseBranch(repoDir);
+    let localBaseExists = false;
+    try {
+      await this.runGit(repoDir, [
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        `refs/heads/${baseBranch}`,
+      ]);
+      localBaseExists = true;
+    } catch {
+      localBaseExists = false;
+    }
+
+    if (localBaseExists) {
+      await this.mapGit(() => this.runGit(repoDir, ["switch", baseBranch]));
+    } else {
+      let remoteBaseExists = false;
+      try {
+        await this.runGit(repoDir, [
+          "rev-parse",
+          "--verify",
+          "--quiet",
+          `refs/remotes/origin/${baseBranch}`,
+        ]);
+        remoteBaseExists = true;
+      } catch {
+        remoteBaseExists = false;
+      }
+      if (!remoteBaseExists) {
+        throw new HttpError(
+          404,
+          "GIT_BRANCH_NOT_FOUND",
+          `Base branch '${baseBranch}' was not found locally or on origin.`,
+        );
+      }
+      await this.mapGit(() =>
+        this.runGit(repoDir, ["switch", "--track", `origin/${baseBranch}`]),
+      );
+    }
+
+    if (!(await this.hasUpstream(repoDir))) {
+      throw new HttpError(
+        409,
+        "GIT_NO_UPSTREAM",
+        `Base branch '${baseBranch}' has no upstream to pull from.`,
+      );
+    }
+    await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
   async push(
     projectId: string,
     relativePath: string,

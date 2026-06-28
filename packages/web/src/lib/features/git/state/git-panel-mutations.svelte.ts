@@ -3,7 +3,10 @@ import {
   createGitBranch,
   discardGitFile,
   fetchGit,
+  pullGit,
+  pushGit,
   stageGitFile,
+  switchBaseAndPullGit,
   switchGitBranch,
   syncGitBranch,
   unstageGitFile,
@@ -21,6 +24,15 @@ import {
   setBranchesIfChanged,
 } from "./git-panel-state.svelte";
 
+async function refreshAfterRemoteMutation(
+  projectId: string,
+  repo: string,
+): Promise<void> {
+  const state = ensureGitRepoState(projectId, repo);
+  await refreshGitOverview(projectId, repo);
+  if (state.github?.authenticated) await refreshPrs(projectId, repo, true);
+}
+
 export async function fetchGitRepo(
   projectId: string,
   repo: string,
@@ -31,12 +43,47 @@ export async function fetchGitRepo(
     const result = await fetchGit(projectId, repo);
     mergeRepoSummary(projectId, result.repo);
     notify.success("Fetched from remote");
-    await refreshGitOverview(projectId, repo);
-    if (state.github?.authenticated) await refreshPrs(projectId, repo, true);
+    await refreshAfterRemoteMutation(projectId, repo);
   } catch (error) {
     notify.error(`Fetch failed: ${errorMessage(error)}`);
   } finally {
     state.operations.fetching = false;
+  }
+}
+
+export async function pullGitRepo(
+  projectId: string,
+  repo: string,
+): Promise<void> {
+  const state = ensureGitRepoState(projectId, repo);
+  state.operations.pulling = true;
+  try {
+    const result = await pullGit(projectId, repo);
+    mergeRepoSummary(projectId, result.repo);
+    notify.success("Pulled from upstream");
+    await refreshAfterRemoteMutation(projectId, repo);
+  } catch (error) {
+    notify.error(`Pull failed: ${errorMessage(error)}`);
+  } finally {
+    state.operations.pulling = false;
+  }
+}
+
+export async function pushGitRepo(
+  projectId: string,
+  repo: string,
+): Promise<void> {
+  const state = ensureGitRepoState(projectId, repo);
+  state.operations.pushing = true;
+  try {
+    const result = await pushGit(projectId, repo);
+    mergeRepoSummary(projectId, result.repo);
+    notify.success("Pushed to upstream");
+    await refreshAfterRemoteMutation(projectId, repo);
+  } catch (error) {
+    notify.error(`Push failed: ${errorMessage(error)}`);
+  } finally {
+    state.operations.pushing = false;
   }
 }
 
@@ -50,12 +97,33 @@ export async function syncGitRepo(
     const result = await syncGitBranch(projectId, repo);
     mergeRepoSummary(projectId, result.repo);
     notify.success("Branch synced");
-    await refreshGitOverview(projectId, repo);
-    if (state.github?.authenticated) await refreshPrs(projectId, repo, true);
+    await refreshAfterRemoteMutation(projectId, repo);
   } catch (error) {
     notify.error(`Sync failed: ${errorMessage(error)}`);
   } finally {
     state.operations.syncing = false;
+  }
+}
+
+export async function switchBaseAndPullGitRepo(
+  projectId: string,
+  repo: string,
+): Promise<void> {
+  const state = ensureGitRepoState(projectId, repo);
+  state.operations.switchingBaseAndPulling = true;
+  try {
+    const result = await switchBaseAndPullGit(projectId, repo);
+    mergeRepoSummary(projectId, result.repo);
+    setBranchesIfChanged(state, []);
+    notify.success(`Switched to ${result.repo.baseBranch} and pulled`);
+    await Promise.all([
+      refreshAfterRemoteMutation(projectId, repo),
+      refreshGithub(projectId, repo),
+    ]);
+  } catch (error) {
+    notify.error(`Switch and pull failed: ${errorMessage(error)}`);
+  } finally {
+    state.operations.switchingBaseAndPulling = false;
   }
 }
 

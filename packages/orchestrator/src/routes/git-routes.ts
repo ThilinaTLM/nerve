@@ -5,10 +5,10 @@ import {
   switchBranchRequestSchema,
 } from "@nervekit/shared";
 import { Hono } from "hono";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { HttpError } from "../http/errors.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 function prNumberParam(value: string | undefined): number {
   const number = Number(value);
@@ -179,6 +179,21 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       );
       return c.json(
         await state.registry.git.fetch(routeParam(c, "projectId"), body.repo),
+      );
+    }),
+  );
+
+  app.post(
+    "/projects/:projectId/git/switch-base-and-pull",
+    routeHandler(async (c) => {
+      const body = gitRemoteOpRequestSchema.parse(
+        await c.req.json().catch(() => ({})),
+      );
+      return c.json(
+        await state.registry.git.switchBaseAndPull(
+          routeParam(c, "projectId"),
+          body.repo,
+        ),
       );
     }),
   );

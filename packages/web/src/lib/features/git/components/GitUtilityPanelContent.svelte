@@ -17,10 +17,13 @@
     fetchGitRepo,
     gitPanelState,
     mutateGitFile,
+    pullGitRepo,
+    pushGitRepo,
     refreshBranches,
     refreshPrs,
     selectGitProject,
     selectGitRepo,
+    switchBaseAndPullGitRepo,
     syncGitRepo,
     switchGitRepoBranch,
   } from "$lib/features/git/state/git-panel.svelte";
@@ -84,7 +87,12 @@
   const loadingPrs = $derived(current?.loadingPrs ?? false);
   const loadingBranches = $derived(current?.loadingBranches ?? false);
   const fetching = $derived(operations?.fetching ?? false);
+  const pulling = $derived(operations?.pulling ?? false);
+  const pushing = $derived(operations?.pushing ?? false);
   const syncing = $derived(operations?.syncing ?? false);
+  const switchingBaseAndPulling = $derived(
+    operations?.switchingBaseAndPulling ?? false,
+  );
   const switchingBranch = $derived(operations?.switchingBranch);
   const creatingBranch = $derived(operations?.creatingBranch ?? false);
   const fileMutation = $derived(operations?.fileMutation);
@@ -127,9 +135,24 @@
     await fetchGitRepo(activeProject.id, repo);
   }
 
+  async function onPull(repo: string) {
+    if (!activeProject) return;
+    await pullGitRepo(activeProject.id, repo);
+  }
+
+  async function onPush(repo: string) {
+    if (!activeProject) return;
+    await pushGitRepo(activeProject.id, repo);
+  }
+
   async function onSync(repo: string) {
     if (!activeProject) return;
     await syncGitRepo(activeProject.id, repo);
+  }
+
+  async function onSwitchBaseAndPull(repo: string) {
+    if (!activeProject) return;
+    await switchBaseAndPullGitRepo(activeProject.id, repo);
   }
 
   async function onSwitchBranch(repo: string, branch: GitBranchSummary) {
@@ -278,7 +301,10 @@
         {switchingBranch}
         {creatingBranch}
         {fetching}
+        {pulling}
+        {pushing}
         {syncing}
+        {switchingBaseAndPulling}
         {refreshing}
         bind:branchFilter
         bind:newBranchName
@@ -288,7 +314,10 @@
         onSwitchBranch={onSwitchBranch}
         onCreateBranch={onCreateBranch}
         onFetch={onFetch}
+        onPull={onPull}
+        onPush={onPush}
         onSync={onSync}
+        onSwitchBaseAndPull={onSwitchBaseAndPull}
       />
 
       <GitChangesSection
