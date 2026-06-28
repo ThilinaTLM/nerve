@@ -6,6 +6,7 @@
     code: string;
     language?: string;
     maxHeight?: string;
+    fixedRows?: number;
     trim?: boolean;
     highlight?: boolean;
     wrap?: boolean;
@@ -15,6 +16,7 @@
     code,
     language,
     maxHeight = "18rem",
+    fixedRows,
     trim = true,
     highlight = true,
     wrap = true,
@@ -26,6 +28,7 @@
   let unavailableSignature = $state<string | undefined>(undefined);
   const preview = $derived(trim ? trimTextPreview(code) : { text: code });
   const signature = $derived(`${language ?? ""}\0${preview.text}`);
+  const hasFixedRows = $derived(fixedRows !== undefined && fixedRows > 0);
 
   $effect(() => {
     if (!highlight) {
@@ -72,7 +75,9 @@
     class="code-block"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
+    data-fixed-rows={hasFixedRows ? "true" : undefined}
     style:max-height={maxHeight}
+    style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
   >
     {@html html}
   </div>
@@ -81,19 +86,25 @@
     class="code-block plain"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
+    data-fixed-rows={hasFixedRows ? "true" : undefined}
     style:max-height={maxHeight}
+    style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
   >{preview.text}</pre>
 {/if}
 
 <style>
   .code-block {
+    --code-block-padding-y: 0.48rem;
+    --code-block-padding-x: 0.58rem;
+
+    box-sizing: border-box;
     margin: 0;
     overflow: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--sidebar);
     color: var(--sidebar-foreground);
-    padding: 0.48rem 0.58rem;
+    padding: var(--code-block-padding-y) var(--code-block-padding-x);
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     line-height: 1.4;
@@ -123,6 +134,10 @@
 
   .code-block[data-overflow="hidden"] {
     overflow: hidden;
+  }
+
+  .code-block[data-fixed-rows="true"] {
+    height: calc((var(--code-block-fixed-rows) * 1lh) + (var(--code-block-padding-y) * 2) + 2px);
   }
 
   .code-block :global(code) {

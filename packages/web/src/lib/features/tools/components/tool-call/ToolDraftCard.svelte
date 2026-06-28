@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { LiveToolCallDraft } from "$lib/core/types/state-types";
-  import { summarizeToolDraft } from "$lib/features/tools/views/tool-draft-progress";
+  import {
+    DRAFT_PREVIEW_LINES,
+    summarizeToolDraft,
+  } from "$lib/features/tools/views/tool-draft-progress";
   import { trimTextPreview } from "$lib/core/utils/text-preview";
   import { extname } from "$lib/features/tools/views/lang";
   import ResultCodeBlock from "./ResultCodeBlock.svelte";
@@ -30,6 +33,12 @@
   });
   const draftArgsLanguage = $derived(draft.args || draft.argsText.trim() ? "json" : undefined);
   const genericPreview = $derived(draftArgsPreview ?? "Waiting for arguments…");
+  const previewFixedRows = $derived(
+    (summary.kind === "write" || summary.kind === "edit") &&
+      (summary.generatedLineCount ?? 0) > DRAFT_PREVIEW_LINES
+      ? DRAFT_PREVIEW_LINES
+      : undefined,
+  );
 </script>
 
 <article class={`tool-draft-card draft-${summary.kind}`}>
@@ -55,6 +64,7 @@
         highlight={false}
         wrap={false}
         overflow="hidden"
+        fixedRows={previewFixedRows}
       />
     {:else if draftArgsPreview}
       <ResultCodeBlock
