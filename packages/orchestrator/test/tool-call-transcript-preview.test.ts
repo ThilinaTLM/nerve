@@ -90,6 +90,45 @@ describe("toToolCallTranscriptRecord", () => {
     assert.equal(preview.previewOverflow?.direction, "head");
   });
 
+  it("omits image data from read transcript previews", () => {
+    const preview = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "read",
+        risk: "read",
+        args: { path: "image.png" },
+        result: {
+          content: "Read image file [image/png]",
+          contentBlocks: [
+            { type: "image", mimeType: "image/png", data: "base64-payload" },
+          ],
+        },
+      }),
+    );
+
+    const result = preview.resultPreview as {
+      contentBlocks: Array<Record<string, unknown>>;
+    };
+    assert.equal(result.contentBlocks[0]?.type, "text");
+    assert.equal("data" in (result.contentBlocks[0] ?? {}), false);
+    assert.match(String(result.contentBlocks[0]?.text), /Image omitted/);
+  });
+
+  it("caps long single-line read previews by characters", () => {
+    const preview = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "read",
+        risk: "read",
+        args: { path: "bundle.js" },
+        result: { content: "x".repeat(9000) },
+      }),
+    );
+
+    const result = preview.resultPreview as { content: string };
+    assert.equal(result.content.length, 8 * 1024);
+    assert.equal(preview.previewOverflow?.noun, "characters");
+    assert.equal(preview.previewOverflow?.hidden, 9000 - 8 * 1024);
+  });
+
   it("previews presented plan content from the head without marker text", () => {
     const content = lines("plan", 14);
     const preview = toToolCallTranscriptRecord(

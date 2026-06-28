@@ -3,8 +3,8 @@ import type { ToolCallRecord } from "@nervekit/shared";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
   appendJsonLine,
+  forEachJsonLine,
   type InitializedStorage,
-  readJsonLines,
   rewriteJsonLines,
 } from "../../infrastructure/storage/index.js";
 
@@ -79,19 +79,14 @@ export class ToolCallRepository {
   }
 
   private async readLatest(): Promise<ToolCallRecord[]> {
-    const values = await readJsonLines<ToolCallRecord>(this.path()).catch(
-      () => [],
-    );
-    return latestById(values);
+    const byId = new Map<string, ToolCallRecord>();
+    await forEachJsonLine<ToolCallRecord>(this.path(), (toolCall) => {
+      byId.set(toolCall.id, toolCall);
+    }).catch(() => undefined);
+    return [...byId.values()];
   }
 
   private path(): string {
     return join(this.storage.paths.home, "logs", "tool-calls.jsonl");
   }
-}
-
-function latestById<T extends { id: string }>(values: T[]): T[] {
-  const byId = new Map<string, T>();
-  for (const value of values) byId.set(value.id, value);
-  return [...byId.values()];
 }

@@ -4,6 +4,7 @@ import {
   planReviewStatusSchema,
   resolveApprovalRequestSchema,
   resolvePlanReviewRequestSchema,
+  toolCallStatusSchema,
   userQuestionStatusSchema,
 } from "@nervekit/shared";
 import { Hono } from "hono";
@@ -13,17 +14,33 @@ import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
 import type { OrchestratorState } from "../server.js";
 
+const MAX_TOOL_CALL_LIST_LIMIT = 1_000;
+
+function parseLimit(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return Math.min(parsed, MAX_TOOL_CALL_LIST_LIMIT);
+}
+
 export function createToolRoutes(state: OrchestratorState): Hono {
   const app = new Hono();
 
   app.get("/tools", (c) => c.json({ tools: state.registry.tools.listTools() }));
-  app.get("/tool-calls", (c) =>
-    c.json({
-      toolCalls: state.registry.tools
-        .listToolCalls()
-        .map(toToolCallTranscriptRecord),
-    }),
-  );
+  app.get("/tool-calls", (c) => {
+    const status = toolCallStatusSchema.safeParse(c.req.query("status"));
+    const limit = parseLimit(c.req.query("limit"));
+    let toolCalls = state.registry.tools.listToolCalls();
+    if (status.success) {
+      toolCalls = toolCalls.filter(
+        (toolCall) => toolCall.status === status.data,
+      );
+    }
+    if (limit !== undefined) toolCalls = toolCalls.slice(0, limit);
+    return c.json({
+      toolCalls: toolCalls.map(toToolCallTranscriptRecord),
+    });
+  });
   app.get(
     "/tool-calls/:toolCallId",
     routeHandler(async (c) =>

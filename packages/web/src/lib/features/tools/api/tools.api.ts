@@ -37,7 +37,9 @@ export async function getToolCall(toolCallId: string): Promise<ToolCallRecord> {
 export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
   const [{ approvals }, { toolCalls }] = await Promise.all([
     apiGet<{ approvals: ApprovalRecord[] }>("/api/approvals?status=pending"),
-    apiGet<{ toolCalls: ToolCallTranscriptRecord[] }>("/api/tool-calls"),
+    apiGet<{ toolCalls: ToolCallTranscriptRecord[] }>(
+      "/api/tool-calls?status=pending_approval&limit=200",
+    ),
   ]);
   const byId = new Map(toolCalls.map((toolCall) => [toolCall.id, toolCall]));
   return approvals.map((approval) => ({

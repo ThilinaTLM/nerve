@@ -6,20 +6,39 @@ import type {
 } from "@nervekit/shared";
 
 const PREVIEW_COUNT = 10;
+const MAX_PREVIEW_CHARS = 8 * 1024;
 
 type Overflow = NonNullable<ToolCallTranscriptRecord["previewOverflow"]>;
 
-type Preview<T> = { value: T; hidden: number };
+type Preview<T> = {
+  value: T;
+  hidden: number;
+  hiddenLines?: number;
+  hiddenChars?: number;
+};
+
+type UnknownPreview = {
+  value: unknown;
+  hiddenLines: number;
+  hiddenChars: number;
+  hiddenItems: number;
+};
 
 function firstLines(
   text: string | undefined,
   count = PREVIEW_COUNT,
 ): Preview<string | undefined> {
-  if (text === undefined) return { value: undefined, hidden: 0 };
-  const lines = text.split("\n");
+  if (text === undefined) return emptyTextPreview(undefined);
+  const lineEnd = endAfterFirstLines(text, count);
+  const charEnd = Math.min(lineEnd, MAX_PREVIEW_CHARS);
+  const value = text.slice(0, charEnd);
+  const hiddenLines = countLinesFrom(text, lineEnd);
+  const hiddenChars = Math.max(0, text.length - charEnd);
   return {
-    value: lines.length > count ? lines.slice(0, count).join("\n") : text,
-    hidden: Math.max(0, lines.length - count),
+    value,
+    hidden: visibleHiddenCount(hiddenLines, hiddenChars),
+    hiddenLines,
+    hiddenChars,
   };
 }
 
@@ -27,14 +46,17 @@ function lastLines(
   text: string | undefined,
   count = PREVIEW_COUNT,
 ): Preview<string | undefined> {
-  if (text === undefined) return { value: undefined, hidden: 0 };
-  const lines = text.split("\n");
+  if (text === undefined) return emptyTextPreview(undefined);
+  const lineStart = startBeforeLastLines(text, count);
+  const charStart = Math.max(lineStart, text.length - MAX_PREVIEW_CHARS);
+  const value = text.slice(charStart);
+  const hiddenLines = countLinesUntil(text, lineStart);
+  const hiddenChars = Math.max(0, charStart);
   return {
-    value:
-      lines.length > count
-        ? lines.slice(lines.length - count).join("\n")
-        : text,
-    hidden: Math.max(0, lines.length - count),
+    value,
+    hidden: visibleHiddenCount(hiddenLines, hiddenChars),
+    hiddenLines,
+    hiddenChars,
   };
 }
 
@@ -58,6 +80,59 @@ function lastItems<T>(
     value: items.length > count ? items.slice(items.length - count) : items,
     hidden: Math.max(0, items.length - count),
   };
+}
+
+function emptyTextPreview<T extends string | undefined>(value: T): Preview<T> {
+  return { value, hidden: 0, hiddenLines: 0, hiddenChars: 0 };
+}
+
+function visibleHiddenCount(hiddenLines: number, hiddenChars: number): number {
+  return hiddenLines > 0 ? hiddenLines : hiddenChars;
+}
+
+function endAfterFirstLines(text: string, count: number): number {
+  if (count <= 0) return 0;
+  let lines = 1;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] !== "\n") continue;
+    if (lines >= count) return index;
+    lines += 1;
+  }
+  return text.length;
+}
+
+function startBeforeLastLines(text: string, count: number): number {
+  if (count <= 0) return text.length;
+  let lines = 1;
+  for (let index = text.length - 1; index >= 0; index -= 1) {
+    if (text[index] !== "\n") continue;
+    lines += 1;
+    if (lines > count) return index + 1;
+  }
+  return 0;
+}
+
+function countLinesFrom(text: string, offset: number): number {
+  if (offset >= text.length) return 0;
+  let start = offset;
+  if (text[start] === "\n") start += 1;
+  if (start >= text.length) return 0;
+  let lines = 1;
+  for (let index = start; index < text.length; index += 1) {
+    if (text[index] === "\n") lines += 1;
+  }
+  return lines;
+}
+
+function countLinesUntil(text: string, offset: number): number {
+  if (offset <= 0) return 0;
+  const end = Math.min(offset - 1, text.length);
+  if (end <= 0) return 0;
+  let lines = 1;
+  for (let index = 0; index < end; index += 1) {
+    if (text[index] === "\n") lines += 1;
+  }
+  return lines;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -94,14 +169,15 @@ function withTextContent(
   result: Record<string, unknown>,
   text: string | undefined,
 ): Record<string, unknown> {
-  if (text === undefined) return result;
+  if (text === undefined)
+    return sanitizePreviewValue(result) as Record<string, unknown>;
   const next: Record<string, unknown> = { ...result, content: text };
   delete next.stdout;
   delete next.stderr;
   const blocks = arrayField<Record<string, unknown>>(next.contentBlocks);
   if (blocks) {
     next.contentBlocks = blocks.map((block) =>
-      block.type === "text" ? { ...block, text } : imagePlaceholder(block),
+      block.type === "text" ? { ...block, text } : sanitizePreviewValue(block),
     );
   }
   return next;
@@ -120,18 +196,53 @@ function imagePlaceholder(
 function previewContentBlocks(result: Record<string, unknown>): {
   result: Record<string, unknown>;
   hidden: number;
+  hiddenLines: number;
+  hiddenChars: number;
 } {
   const blocks = arrayField<Record<string, unknown>>(result.contentBlocks);
-  if (!blocks) return { result, hidden: 0 };
-  let hidden = 0;
+  if (!blocks) {
+    return {
+      result: sanitizePreviewValue(result) as Record<string, unknown>,
+      hidden: 0,
+      hiddenLines: 0,
+      hiddenChars: 0,
+    };
+  }
+  let hiddenLines = 0;
+  let hiddenChars = 0;
   const nextBlocks = blocks.map((block) => {
     if (block.type === "image") return imagePlaceholder(block);
-    if (block.type !== "text" || typeof block.text !== "string") return block;
+    if (block.type !== "text" || typeof block.text !== "string") {
+      return sanitizePreviewValue(block);
+    }
     const preview = firstLines(block.text);
-    hidden += preview.hidden;
+    hiddenLines += preview.hiddenLines ?? 0;
+    hiddenChars += preview.hiddenChars ?? 0;
     return { ...block, text: preview.value ?? "" };
   });
-  return { result: { ...result, contentBlocks: nextBlocks }, hidden };
+  return {
+    result: {
+      ...(sanitizePreviewValue(result) as Record<string, unknown>),
+      contentBlocks: nextBlocks,
+    },
+    hidden: visibleHiddenCount(hiddenLines, hiddenChars),
+    hiddenLines,
+    hiddenChars,
+  };
+}
+
+function sanitizePreviewValue(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizePreviewValue(item));
+  }
+  const recordValue = value as Record<string, unknown>;
+  if (recordValue.type === "image") return imagePlaceholder(recordValue);
+  const next: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(recordValue)) {
+    next[key] = sanitizePreviewValue(nested);
+  }
+  return next;
 }
 
 function assignPathArgs(
@@ -141,35 +252,57 @@ function assignPathArgs(
   return next;
 }
 
-function previewUnknown(value: unknown): {
-  value: unknown;
-  hiddenLines: number;
-} {
+function previewUnknown(value: unknown): UnknownPreview {
   if (typeof value === "string") {
     const preview = firstLines(value);
-    return { value: preview.value, hiddenLines: preview.hidden };
+    return {
+      value: preview.value,
+      hiddenLines: preview.hiddenLines ?? 0,
+      hiddenChars: preview.hiddenChars ?? 0,
+      hiddenItems: 0,
+    };
   }
   if (Array.isArray(value)) {
-    const preview = firstItems(value);
-    return { value: preview.value, hiddenLines: preview.hidden };
+    const items = firstItems(value);
+    let hiddenLines = 0;
+    let hiddenChars = 0;
+    const previewItems = items.value?.map((item) => {
+      const preview = previewUnknown(item);
+      hiddenLines += preview.hiddenLines;
+      hiddenChars += preview.hiddenChars;
+      return preview.value;
+    });
+    return {
+      value: previewItems,
+      hiddenLines,
+      hiddenChars,
+      hiddenItems: items.hidden,
+    };
   }
-  if (!value || typeof value !== "object") return { value, hiddenLines: 0 };
+  if (!value || typeof value !== "object") {
+    return { value, hiddenLines: 0, hiddenChars: 0, hiddenItems: 0 };
+  }
+  const recordValue = value as Record<string, unknown>;
+  if (recordValue.type === "image") {
+    return {
+      value: imagePlaceholder(recordValue),
+      hiddenLines: 0,
+      hiddenChars: 0,
+      hiddenItems: 0,
+    };
+  }
   let hiddenLines = 0;
+  let hiddenChars = 0;
+  let hiddenItems = 0;
   const next: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(value)) {
-    if (typeof nested === "string") {
-      const preview = firstLines(nested);
-      next[key] = preview.value;
-      hiddenLines += preview.hidden;
-    } else if (Array.isArray(nested)) {
-      const preview = firstItems(nested);
-      next[key] = preview.value;
-      hiddenLines += preview.hidden;
-    } else {
-      next[key] = nested;
-    }
+  for (const [key, nested] of Object.entries(recordValue)) {
+    const preview = previewUnknown(nested);
+    next[key] = preview.value;
+    hiddenLines += preview.hiddenLines;
+    hiddenChars += preview.hiddenChars;
+    hiddenItems += preview.hiddenItems;
   }
-  return { value: next, hiddenLines };
+  return { value: next, hiddenLines, hiddenChars, hiddenItems };
 }
 
 function overflow(
@@ -178,6 +311,43 @@ function overflow(
   direction: Overflow["direction"],
 ): Overflow | undefined {
   return hidden > 0 ? { hidden, noun, direction } : undefined;
+}
+
+function textOverflowStats(previews: Array<Preview<unknown>>): {
+  hidden: number;
+  noun: string;
+} {
+  const hiddenLines = previews.reduce(
+    (total, preview) => total + (preview.hiddenLines ?? 0),
+    0,
+  );
+  const hiddenChars = previews.reduce(
+    (total, preview) => total + (preview.hiddenChars ?? 0),
+    0,
+  );
+  if (hiddenLines > 0) return { hidden: hiddenLines, noun: "lines" };
+  return { hidden: hiddenChars, noun: "characters" };
+}
+
+function unknownOverflowStats(previews: UnknownPreview[]): {
+  hidden: number;
+  noun: string;
+} {
+  const hiddenItems = previews.reduce(
+    (total, preview) => total + preview.hiddenItems,
+    0,
+  );
+  if (hiddenItems > 0) return { hidden: hiddenItems, noun: "items" };
+  const hiddenLines = previews.reduce(
+    (total, preview) => total + preview.hiddenLines,
+    0,
+  );
+  if (hiddenLines > 0) return { hidden: hiddenLines, noun: "lines" };
+  const hiddenChars = previews.reduce(
+    (total, preview) => total + preview.hiddenChars,
+    0,
+  );
+  return { hidden: hiddenChars, noun: "characters" };
 }
 
 function sortEntries(
@@ -209,16 +379,16 @@ export function toToolCallTranscriptRecord(
         const text = stringField(resultRecord.content);
         if (text !== undefined) {
           const preview = firstLines(text);
-          resultPreview = { ...resultRecord, content: preview.value };
-          hidden = preview.hidden;
+          resultPreview = withTextContent(resultRecord, preview.value);
+          ({ hidden, noun } = textOverflowStats([preview]));
         } else {
           const blocks = previewContentBlocks(resultRecord);
           resultPreview = blocks.result;
           hidden = blocks.hidden;
+          noun = blocks.hiddenLines > 0 ? "lines" : "characters";
         }
       }
       direction = "head";
-      noun = "lines";
       break;
     }
 
@@ -255,8 +425,7 @@ export function toToolCallTranscriptRecord(
       argsPreview = { ...argsRecord, command: command.value };
       const output = lastLines(outputText(resultRecord));
       resultPreview = withTextContent(resultRecord, output.value);
-      hidden = command.hidden + output.hidden;
-      noun = "lines";
+      ({ hidden, noun } = textOverflowStats([command, output]));
       direction =
         command.hidden > 0 && output.hidden > 0
           ? "mixed"
@@ -274,8 +443,7 @@ export function toToolCallTranscriptRecord(
           : { ...argsRecord, code: code.value };
       const output = lastLines(outputText(resultRecord));
       resultPreview = withTextContent(resultRecord, output.value);
-      hidden = code.hidden + output.hidden;
-      noun = "lines";
+      ({ hidden, noun } = textOverflowStats([code, output]));
       direction =
         code.hidden > 0 && output.hidden > 0
           ? "mixed"
@@ -291,8 +459,7 @@ export function toToolCallTranscriptRecord(
         content.value === undefined
           ? argsRecord
           : { ...argsRecord, content: content.value };
-      hidden = content.hidden;
-      noun = "lines";
+      ({ hidden, noun } = textOverflowStats([content]));
       direction = "tail";
       break;
     }
@@ -306,8 +473,7 @@ export function toToolCallTranscriptRecord(
             ? resultRecord.details
             : { ...record(resultRecord.details), diff: diff.value },
       };
-      hidden = diff.hidden;
-      noun = "lines";
+      ({ hidden, noun } = textOverflowStats([diff]));
       direction = "tail";
       break;
     }
@@ -331,8 +497,7 @@ export function toToolCallTranscriptRecord(
             ? resultRecord.review
             : { ...review, content: content.value },
       };
-      hidden = content.hidden;
-      noun = "lines";
+      ({ hidden, noun } = textOverflowStats([content]));
       direction = "head";
       break;
     }
@@ -342,8 +507,7 @@ export function toToolCallTranscriptRecord(
       const resultBound = previewUnknown(result);
       argsPreview = argsBound.value;
       resultPreview = resultBound.value;
-      hidden = argsBound.hiddenLines + resultBound.hiddenLines;
-      noun = "items";
+      ({ hidden, noun } = unknownOverflowStats([argsBound, resultBound]));
       direction = "head";
     }
   }
