@@ -29,10 +29,10 @@ const spec = {
 
 function toolCallMessage(
   toolName: string,
-  input: Record<string, unknown>,
+  args: Record<string, unknown>,
 ): string {
   const update = exploreProgressFromHarnessEvent(
-    { type: "tool_call", toolName, input },
+    { type: "tool_execution_start", toolName, args },
     child,
     spec,
   );
@@ -87,5 +87,52 @@ describe("explore progress formatting", () => {
       }),
       "task_list active · project proj_01H00000000000000000000000 · agent agent_02H00000000000000000000000",
     );
+  });
+
+  it("formats tool execution results without relying on hidden child tool-call records", () => {
+    const update = exploreProgressFromHarnessEvent(
+      {
+        type: "tool_execution_end",
+        toolName: "grep",
+        result: {
+          content: [{ type: "text", text: "grep output" }],
+          details: {},
+        },
+        isError: false,
+      },
+      child,
+      spec,
+    );
+    assert.ok(update);
+    assert.equal(update.phase, "tool_result");
+    assert.equal(update.message, "grep completed");
+  });
+
+  it("formats failed tool execution results with the first text block", () => {
+    const update = exploreProgressFromHarnessEvent(
+      {
+        type: "tool_execution_end",
+        toolName: "read",
+        result: {
+          content: [{ type: "text", text: "path not found" }],
+          details: {},
+        },
+        isError: true,
+      },
+      child,
+      spec,
+    );
+    assert.ok(update);
+    assert.equal(update.phase, "tool_result");
+    assert.equal(update.message, "read failed: path not found");
+  });
+
+  it("suppresses assistant starts so Thinking noise cannot dominate progress", () => {
+    const update = exploreProgressFromHarnessEvent(
+      { type: "message_start", message: { role: "assistant" } },
+      child,
+      spec,
+    );
+    assert.equal(update, undefined);
   });
 });

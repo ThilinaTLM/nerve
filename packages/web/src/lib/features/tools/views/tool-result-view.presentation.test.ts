@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { toolPresentation } from "./tool-presentation";
+import { parseToolView } from "./tool-result-view";
 import {
   CWD,
+  exploreUpdate,
   metaText,
   present,
   presentTranscript,
+  toolCall,
 } from "./tool-result-view.fixtures";
 
 describe("toolPresentation", () => {
@@ -333,14 +337,43 @@ describe("toolPresentation", () => {
     assert.ok(p.meta.some((m) => m.text === "markdown" && m.tone === "info"));
   });
 
-  it("does not show the explore input prompt as a primary arg", () => {
+  it("shows the explore agent count instead of the input prompt", () => {
     const p = present(
       "explore",
       { task: "Investigate the web UI" },
-      { reports: [] },
+      {
+        reports: [
+          {
+            agentId: "agent_02H00000000000000000000000",
+            task: "Trace UI flow",
+            status: "completed",
+            report: "Done",
+          },
+        ],
+      },
     );
     assert.equal(p.badge, "explore");
-    assert.equal(p.primaryArg, undefined);
+    assert.equal(p.primaryArg?.text, "1/1 agent");
+    assert.notEqual(p.primaryArg?.text, "Investigate the web UI");
+  });
+
+  it("shows live explore progress count beside the tool name", () => {
+    const tc = toolCall(
+      "explore",
+      { task: "Investigate the web UI" },
+      { reports: [] },
+      { status: "running" },
+    );
+    const view = parseToolView(tc, {
+      chunks: [],
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      text: exploreUpdate("queued", "Starting 2 explore agents.", {
+        taskCount: 2,
+      }),
+    });
+    const p = toolPresentation(view, tc);
+    assert.equal(p.badge, "explore");
+    assert.equal(p.primaryArg?.text, "0/2 agents");
   });
 
   it("keeps explore footer chips focused on high-signal status", () => {
@@ -376,6 +409,7 @@ describe("toolPresentation", () => {
         ],
       },
     );
+    assert.equal(p.primaryArg?.text, "2/2 agents");
     assert.deepEqual(metaText(p.meta), ["1 failed"]);
     assert.equal(p.meta[0]?.tone, "error");
   });

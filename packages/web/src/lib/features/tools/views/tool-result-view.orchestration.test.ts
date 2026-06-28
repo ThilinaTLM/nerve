@@ -318,14 +318,12 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(summary.completed, 0);
     assert.equal(summary.done, false);
     assert.equal(tasks.length, 2);
-    // Task 0: shows the latest three bounded progress lines, including thinking.
+    // Task 0: keeps concrete tool activity and ignores generic completion noise.
     assert.equal(tasks[0]?.status, "running");
-    assert.equal(tasks[0]?.currentAction, "Thinking…");
-    assert.equal(tasks[0]?.currentActionMono, false);
+    assert.equal(tasks[0]?.currentAction, "read server.ts");
+    assert.equal(tasks[0]?.currentActionMono, true);
     assert.deepEqual(tasks[0]?.recentActions, [
       { text: "read server.ts", mono: true },
-      { text: "read completed", mono: true },
-      { text: "Thinking…", mono: false },
     ]);
     assert.equal(tasks[0]?.actionCount, 1);
     assert.equal(tasks[0]?.label, "api");
@@ -334,13 +332,109 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(tasks[0]?.thinkingLevel, "medium");
     assert.deepEqual(tasks[0]?.recentMessages, [
       { text: "read server.ts", mono: true },
-      { text: "read completed", mono: true },
-      { text: "Thinking…", mono: false },
     ]);
     // Task 1: started but no display-safe tool action yet.
     assert.equal(tasks[1]?.status, "running");
     assert.equal(tasks[1]?.currentAction, undefined);
     assert.deepEqual(tasks[1]?.recentActions, []);
+  });
+
+  it("suppresses assistant-only explore activity lines", () => {
+    const view = parseToolView(
+      toolCall(
+        "explore",
+        { task: "Investigate" },
+        { reports: [] },
+        {
+          status: "running",
+        },
+      ),
+      {
+        chunks: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        text: [
+          exploreUpdate("started", "Explore 1/1 started", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("assistant", "Assistant response started.", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("assistant", "Assistant response started.", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("assistant", "Assistant response started.", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+        ].join("\n"),
+      },
+    );
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    const { tasks } = aggregateExploreTasks(view);
+    assert.equal(tasks[0]?.status, "running");
+    assert.equal(tasks[0]?.currentAction, undefined);
+    assert.deepEqual(tasks[0]?.recentActions, []);
+    assert.deepEqual(tasks[0]?.recentMessages, []);
+  });
+
+  it("keeps recent explore activity focused on concrete tool calls", () => {
+    const view = parseToolView(
+      toolCall(
+        "explore",
+        { task: "Investigate" },
+        { reports: [] },
+        {
+          status: "running",
+        },
+      ),
+      {
+        chunks: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        text: [
+          exploreUpdate("started", "Explore 1/1 started", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_call", "read api.ts", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_result", "read completed", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_call", "read service.ts", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_result", "read completed", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_call", 'grep "auth" in src', {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+          exploreUpdate("tool_result", "grep completed with 4 matches", {
+            taskIndex: 0,
+            taskCount: 1,
+          }),
+        ].join("\n"),
+      },
+    );
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    const { tasks } = aggregateExploreTasks(view);
+    assert.equal(tasks[0]?.currentAction, 'grep "auth" in src');
+    assert.deepEqual(tasks[0]?.recentMessages, [
+      { text: "read api.ts", mono: true },
+      { text: "read service.ts", mono: true },
+      { text: 'grep "auth" in src', mono: true },
+    ]);
   });
 
   it("aggregates only the three most recent explore activity lines", () => {
@@ -469,7 +563,6 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.deepEqual(tasks[0]?.recentMessages, [
       { text: "grep card", mono: true },
       { text: "read card.ts", mono: true },
-      { text: "read completed", mono: true },
     ]);
     assert.equal(tasks[1]?.status, "failed");
     assert.equal(tasks[1]?.error, "boom");

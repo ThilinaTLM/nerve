@@ -57,6 +57,12 @@ export function parseExploreProgressLog(text: string | undefined): {
 
 const EXPLORE_NOISE_MESSAGES = new Set(["Final report received."]);
 
+function isLowSignalToolResultMessage(message: string): boolean {
+  return (
+    /\bcompleted\b/i.test(message) && !/\b(?:failed|error)\b/i.test(message)
+  );
+}
+
 function friendlyExploreAction(
   update: ExploreProgressView,
 ): ExploreTaskAction | undefined {
@@ -65,9 +71,11 @@ function friendlyExploreAction(
     case "tool_call":
       return { text: update.message, mono: true };
     case "tool_result":
-      return { text: update.message, mono: true };
+      return isLowSignalToolResultMessage(update.message)
+        ? undefined
+        : { text: update.message, mono: true };
     case "assistant":
-      return { text: "Thinking\u2026", mono: false };
+      return undefined;
     case "completed":
     case "failed":
       return { text: update.message, mono: false };
@@ -82,10 +90,14 @@ function reportStepAction(
   step: ExploreStepPayload,
 ): ExploreTaskAction | undefined {
   if (EXPLORE_NOISE_MESSAGES.has(step.message)) return undefined;
-  return {
-    text: step.type === "assistant" ? "Thinking\u2026" : step.message,
-    mono: step.type !== "assistant",
-  };
+  if (step.type === "assistant") return undefined;
+  if (
+    step.type === "tool_result" &&
+    isLowSignalToolResultMessage(step.message)
+  ) {
+    return undefined;
+  }
+  return { text: step.message, mono: true };
 }
 
 function recentTaskMessages(

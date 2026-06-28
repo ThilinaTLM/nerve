@@ -170,33 +170,35 @@ export function exploreProgressFromHarnessEvent(
     model: exploreModelLabel(child.model),
     thinkingLevel: child.thinkingLevel,
   };
-  if (record.type === "tool_call") {
+  // `harness.subscribe` receives AgentEvent tool execution lifecycle events,
+  // not the type-specific tool_call/tool_result hook events.
+  if (record.type === "tool_execution_start") {
     const toolName =
       typeof record.toolName === "string" ? record.toolName : "tool";
     return {
       ...base,
       phase: "tool_call",
-      message: summarizeToolCall(toolName, asRecord(record.input) ?? {}),
+      message: summarizeToolCall(toolName, asRecord(record.args) ?? {}),
     };
   }
-  if (record.type === "tool_result") {
+  if (record.type === "tool_execution_end") {
     const toolName =
       typeof record.toolName === "string" ? record.toolName : "tool";
     return {
       ...base,
       phase: "tool_result",
-      message: summarizeToolResult(toolName, record.details),
+      message: summarizeToolResult(
+        toolName,
+        record.result,
+        record.isError === true,
+      ),
     };
   }
   if (
     record.type === "message_start" &&
     messageRole(record.message) === "assistant"
   ) {
-    return {
-      ...base,
-      phase: "assistant",
-      message: "Assistant response started.",
-    };
+    return undefined;
   }
   return undefined;
 }
@@ -225,8 +227,19 @@ function summarizeToolCall(
   }
 }
 
-function summarizeToolResult(toolName: string, details: unknown): string {
-  const result = asRecord(asRecord(details)?.result);
+function summarizeToolResult(
+  toolName: string,
+  toolResult: unknown,
+  isError = false,
+): string {
+  if (isError) {
+    const message = firstToolResultText(toolResult);
+    return message
+      ? `${toolName} failed: ${truncateInline(message, 120)}`
+      : `${toolName} failed`;
+  }
+  const details = asRecord(asRecord(toolResult)?.details);
+  const result = asRecord(details?.result) ?? details;
   if (toolName === "grep") {
     const matches = Array.isArray(result?.matches)
       ? result.matches.length
@@ -253,6 +266,16 @@ function summarizeToolResult(toolName: string, details: unknown): string {
   }
   if (toolName === "read") return "read completed";
   return `${toolName} completed`;
+}
+
+function firstToolResultText(toolResult: unknown): string | undefined {
+  const content = asRecord(toolResult)?.content;
+  if (!Array.isArray(content)) return undefined;
+  for (const block of content) {
+    const record = asRecord(block);
+    if (record?.type === "text") return stringValue(record.text);
+  }
+  return undefined;
 }
 
 export function asRecord(value: unknown): Record<string, unknown> | undefined {

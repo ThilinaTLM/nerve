@@ -402,9 +402,13 @@ export function toolPresentation(
       // explore rows; keep the generic footer reserved for high-signal status.
       if (summary.failed > 0)
         meta.push({ text: `${summary.failed} failed`, tone: "error" });
+      const finished = summary.completed + summary.failed;
+      const countLabel = `${finished}/${summary.total} ${
+        summary.total === 1 ? "agent" : "agents"
+      }`;
       return {
         ...base,
-        primaryArg: undefined,
+        primaryArg: summary.total > 0 ? { text: countLabel } : undefined,
         meta,
       };
     }

@@ -1,6 +1,5 @@
 <script lang="ts">
   import FileText from "@lucide/svelte/icons/file-text";
-  import SearchCode from "@lucide/svelte/icons/search-code";
   import type { ToolCallDisplayRecord } from "$lib/features/tools/views/tool-result-view";
   import {
     aggregateExploreTasks,
@@ -16,12 +15,6 @@
 
   const aggregated = $derived(aggregateExploreTasks(view));
   const tasks = $derived(aggregated.tasks);
-  const summary = $derived(aggregated.summary);
-  const showHeader = $derived(summary.total > 1);
-  const progressPct = $derived(
-    summary.total > 0 ? Math.round((summary.completed / summary.total) * 100) : 0,
-  );
-
   function basename(path: string): string {
     return path.split(/[\\/]/).pop() || path;
   }
@@ -44,19 +37,17 @@
     return parts.length > 0 ? parts.join(" · ") : undefined;
   }
 
-  function placeholderLine(task: (typeof tasks)[number], index: number): string {
-    if (index > 0) return "—";
+  function placeholderLine(task: (typeof tasks)[number]): string {
     if (task.status === "queued") return "Queued…";
-    if (task.status === "running") return "Waiting for first message…";
-    return "No recent message.";
+    if (task.status === "running") return "Waiting for first tool…";
+    return "No recent activity.";
   }
 
   function recentDisplayLines(task: (typeof tasks)[number]) {
     const lines = [...task.recentMessages].slice(-3);
-    while (lines.length < 3) {
-      lines.push({ text: placeholderLine(task, lines.length), mono: false });
-    }
-    return lines;
+    return lines.length > 0
+      ? lines
+      : [{ text: placeholderLine(task), mono: false }];
   }
 
   function pluralCount(value: number, noun: string): string {
@@ -76,25 +67,7 @@
   }
 </script>
 
-<div class="grid gap-2.5">
-  {#if showHeader}
-    <header class="grid gap-1.5">
-      <div class="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
-        <span class="flex min-w-0 items-center gap-2">
-          <SearchCode size={14} strokeWidth={2.1} />
-          {summary.done ? "Explored codebase" : "Exploring codebase"}
-        </span>
-        <span class="tabular-nums">{summary.completed}/{summary.total} agents</span>
-      </div>
-      <div class="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-        <div
-          class="h-full rounded-full transition-[width] duration-500 ease-out {summary.failed > 0 && summary.done ? 'bg-warning' : summary.done ? 'bg-success' : 'bg-info'}"
-          style={`width: ${progressPct}%`}
-        ></div>
-      </div>
-    </header>
-  {/if}
-
+<div class="grid gap-1.5">
   {#if tasks.length > 0}
     <ol class="grid gap-1.5">
       {#each tasks as task (task.key)}
@@ -126,7 +99,7 @@
 
           <div class="grid min-w-0 gap-0.5 text-xs text-muted-foreground">
             {#each recentDisplayLines(task) as line}
-              <p class="m-0 truncate {line.mono ? 'font-mono' : ''} {line.text === '—' ? 'text-muted-foreground/60' : ''}">{line.text}</p>
+              <p class="m-0 truncate {line.mono ? 'font-mono' : ''}">{line.text}</p>
             {/each}
           </div>
 
