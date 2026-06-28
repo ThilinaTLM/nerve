@@ -1,6 +1,6 @@
 import type { AgentRecord } from "@nervekit/shared";
-import { buildNerveSystemPrompt } from "../../../nerve-system-prompt.js";
-import { loadHarnessResources } from "../../../resource-loader.js";
+import { buildNerveSystemPrompt } from "../prompting/nerve-system-prompt.js";
+import { loadHarnessResources } from "../prompting/resource-loader.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {
   activeToolNamesForAgent,

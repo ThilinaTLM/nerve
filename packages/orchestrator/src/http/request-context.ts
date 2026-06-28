@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { ApplicationLogger } from "../logging.js";
+import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 
 interface RequestContext {
   requestId: string;

@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { HttpError } from "../http/errors.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 function prNumberParam(value: string | undefined): number {
   const number = Number(value);

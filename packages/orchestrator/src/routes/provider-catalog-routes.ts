@@ -3,10 +3,10 @@ import {
   upsertModelDefinitionRequestSchema,
 } from "@nervekit/shared";
 import { Hono } from "hono";
-import { providerApiKeySecretName, providerOAuthSecretName } from "../auth.js";
+import { providerApiKeySecretName, providerOAuthSecretName } from "../domains/auth/index.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 async function publishChanged(
   state: OrchestratorState,

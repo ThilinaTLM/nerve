@@ -13,8 +13,8 @@ import type {
 } from "@nervekit/shared";
 import { createId } from "@nervekit/shared";
 import type { EventBus } from "../../infrastructure/events/index.js";
-import type { ApplicationLogger } from "../../logging.js";
-import type { AppendEntryInput } from "../../registry/types.js";
+import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { AppendEntryInput } from "../../runtime/types.js";
 import type { AgentRunStateMap } from "../agents/run/run-state.js";
 import type { HarnessManager } from "../conversations/harness-manager.js";
 import type { TaskManager } from "./task-manager.js";

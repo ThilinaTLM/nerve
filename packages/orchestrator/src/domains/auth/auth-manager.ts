@@ -9,7 +9,7 @@ import type {
   ModelInfo,
   ModelSelection,
 } from "@nervekit/shared";
-import type { SecretProvider } from "./secrets.js";
+import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 
 export type ApiKeyCredential = {
   type: "api_key";

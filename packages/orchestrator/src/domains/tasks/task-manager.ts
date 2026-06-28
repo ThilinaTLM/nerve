@@ -19,7 +19,7 @@ import type {
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../../logging.js";
+import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import {
   defaultTaskSupervisor,
   isActiveTaskStatus,

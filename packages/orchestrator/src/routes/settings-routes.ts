@@ -2,7 +2,7 @@ import { updateSettingsRequestSchema } from "@nervekit/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import { writeSettings } from "../infrastructure/storage/index.js";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 export function createSettingsRoutes(state: OrchestratorState): Hono {
   const app = new Hono();

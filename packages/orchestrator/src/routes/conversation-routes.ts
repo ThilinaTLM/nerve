@@ -7,7 +7,7 @@ import {
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 function conversationExportHeaders(
   conversationId: string,

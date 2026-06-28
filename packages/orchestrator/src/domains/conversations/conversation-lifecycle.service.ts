@@ -12,7 +12,7 @@ import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
-} from "../../registry/types.js";
+} from "../../runtime/types.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";

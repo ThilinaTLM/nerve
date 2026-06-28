@@ -5,7 +5,7 @@ import type {
   ExploreUsageStatsPayload,
   ModelSelection,
 } from "@nervekit/shared";
-import { promptText } from "../../../prompt-text.js";
+import { promptText } from "../prompting/prompt-text.js";
 import type { ExploreProgressUpdate } from "../../tools/tool-service.js";
 import type {
   ExploreReport,

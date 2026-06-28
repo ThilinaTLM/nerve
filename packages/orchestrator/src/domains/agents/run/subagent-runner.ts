@@ -21,14 +21,14 @@ import type {
   WorkspaceScope,
 } from "@nervekit/shared";
 import { createId } from "@nervekit/shared";
-import type { AuthManager } from "../../../auth.js";
+import type { AuthManager } from "../../auth/index.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import {
   type InitializedStorage,
   pathExists,
 } from "../../../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../../../logging.js";
-import { loadHarnessResources } from "../../../resource-loader.js";
+import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
+import { loadHarnessResources } from "../prompting/resource-loader.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import type { HarnessManager } from "../../conversations/harness-manager.js";
 import {

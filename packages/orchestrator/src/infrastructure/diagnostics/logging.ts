@@ -14,7 +14,7 @@ import {
   appendJsonLine,
   readJsonLines,
   rewriteJsonLines,
-} from "./infrastructure/storage/index.js";
+} from "../storage/index.js";
 
 export type ApplicationLogContext = Partial<
   Pick<

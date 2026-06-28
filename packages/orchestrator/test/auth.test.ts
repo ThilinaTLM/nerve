@@ -3,8 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { AuthManager } from "../src/auth.js";
-import { EncryptedFileSecretProvider } from "../src/secrets.js";
+import { AuthManager } from "../src/domains/auth/index.js";
+import { EncryptedFileSecretProvider } from "../src/infrastructure/secrets/index.js";
 
 const roots: string[] = [];
 

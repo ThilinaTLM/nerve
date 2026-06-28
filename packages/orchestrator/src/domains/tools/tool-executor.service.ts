@@ -1,5 +1,5 @@
 import type { ToolCallRecord } from "@nervekit/shared";
-import type { ApplicationLogger } from "../../logging.js";
+import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toolErrorDetails } from "./tool-errors.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";

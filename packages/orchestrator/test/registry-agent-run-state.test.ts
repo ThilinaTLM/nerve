@@ -10,8 +10,8 @@ import type {
   ToolCallRecord,
 } from "@nervekit/shared";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
-import { HttpError } from "../src/registry.js";
-import { createOrchestratorState } from "../src/server.js";
+import { HttpError } from "../src/http/errors.js";
+import { createOrchestratorState } from "../src/app/orchestrator-state.js";
 
 const roots: string[] = [];
 const modelA = { provider: "nerve-faux", modelId: "faux-fast" } as const;

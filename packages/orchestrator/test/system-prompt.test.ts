@@ -9,9 +9,9 @@ import {
   activeToolNamesForAgent,
   toolPromptMetadata,
 } from "../src/domains/tools/agent-tool-adapter.js";
-import { buildNerveSystemPrompt } from "../src/nerve-system-prompt.js";
-import { promptText } from "../src/prompt-text.js";
-import { loadHarnessResources } from "../src/resource-loader.js";
+import { buildNerveSystemPrompt } from "../src/domains/agents/prompting/index.js";
+import { promptText } from "../src/domains/agents/prompting/index.js";
+import { loadHarnessResources } from "../src/domains/agents/prompting/index.js";
 
 const roots: string[] = [];
 

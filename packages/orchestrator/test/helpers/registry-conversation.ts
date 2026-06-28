@@ -9,7 +9,7 @@ import {
   type TaskRecord,
 } from "@nervekit/shared";
 import { initializeStorage } from "../../src/infrastructure/storage/index.js";
-import { createOrchestratorState } from "../../src/server.js";
+import { createOrchestratorState } from "../../src/app/orchestrator-state.js";
 
 const roots: string[] = [];
 

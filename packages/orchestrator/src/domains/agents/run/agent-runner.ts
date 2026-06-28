@@ -23,11 +23,11 @@ import {
   type ToolName,
 } from "@nervekit/shared";
 import type { ToolExecutionResult } from "@nervekit/tools";
-import type { AuthManager } from "../../../auth.js";
+import type { AuthManager } from "../../auth/index.js";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../../../logging.js";
+import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import type { ConversationService } from "../../conversations/conversation-service.js";
 import type { HarnessManager } from "../../conversations/harness-manager.js";

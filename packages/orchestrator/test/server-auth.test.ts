@@ -15,7 +15,8 @@ import type {
   EncryptedSecretEnvelope,
 } from "@nervekit/shared";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
-import { createApp, createOrchestratorState } from "../src/server.js";
+import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import { createApp } from "../src/app/server.js";
 
 const roots: string[] = [];
 

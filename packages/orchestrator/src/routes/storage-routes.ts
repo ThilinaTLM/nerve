@@ -1,7 +1,7 @@
 import { storageCleanupRequestSchema } from "@nervekit/shared";
 import { Hono } from "hono";
 import { routeHandler } from "../http/responses.js";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 export function createStorageRoutes(state: OrchestratorState): Hono {
   const app = new Hono();

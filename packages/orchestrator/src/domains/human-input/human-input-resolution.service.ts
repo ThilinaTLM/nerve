@@ -17,7 +17,7 @@ import type { EventBus } from "../../infrastructure/events/index.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
-} from "../../registry/types.js";
+} from "../../runtime/types.js";
 import type { AgentSuspensionService } from "../agents/agent-suspension.service.js";
 import { agentMessageText } from "../agents/run/index.js";
 import type { HarnessManager } from "../conversations/harness-manager.js";

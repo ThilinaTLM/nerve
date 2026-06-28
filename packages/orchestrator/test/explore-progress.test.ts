@@ -49,8 +49,12 @@ function toolCallMessage(
 describe("explore progress formatting", () => {
   it("formats read/search/list tool calls as concise one-liners", () => {
     assert.equal(
-      toolCallMessage("read", { path: "src/server.ts", offset: 10, limit: 5 }),
-      "read src/server.ts (10+5)",
+      toolCallMessage("read", {
+        path: "src/app/server.ts",
+        offset: 10,
+        limit: 5,
+      }),
+      "read src/app/server.ts (10+5)",
     );
     assert.equal(
       toolCallMessage("grep", { pattern: "auth", path: "src" }),

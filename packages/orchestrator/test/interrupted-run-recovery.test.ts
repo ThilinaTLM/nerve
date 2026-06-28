@@ -7,7 +7,7 @@ import type { ConversationEntry, EventEnvelope } from "@nervekit/shared";
 import { recoverInterruptedRuns } from "../src/domains/agents/run/interrupted-run-recovery.js";
 import type { AppendEntryFn } from "../src/domains/agents/run/message-mirror.js";
 import { EventBus } from "../src/infrastructure/events/index.js";
-import { ApplicationLogger } from "../src/logging.js";
+import { ApplicationLogger } from "../src/infrastructure/diagnostics/index.js";
 
 const roots: string[] = [];
 

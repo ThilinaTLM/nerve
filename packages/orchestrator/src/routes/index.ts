@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { createAgentRoutes } from "./agent-routes.js";
 import { createAuthRoutes } from "./auth-routes.js";
 import { createCompletionRoutes } from "./completion-routes.js";

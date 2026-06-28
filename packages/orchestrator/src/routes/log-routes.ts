@@ -6,7 +6,7 @@ import {
 import { Hono } from "hono";
 import { numberQuery } from "../http/query.js";
 import { routeHandler } from "../http/responses.js";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 export function createLogRoutes(state: OrchestratorState): Hono {
   const app = new Hono();

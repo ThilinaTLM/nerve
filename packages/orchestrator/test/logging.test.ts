@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { ApplicationLogger, serializeError } from "../src/logging.js";
+import { ApplicationLogger, serializeError } from "../src/infrastructure/diagnostics/index.js";
 
 const roots: string[] = [];
 

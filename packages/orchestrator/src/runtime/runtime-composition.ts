@@ -3,7 +3,7 @@ import {
   generateSummary,
   resolveAgentModel,
 } from "@nervekit/agent";
-import type { AuthManager } from "../auth.js";
+import type { AuthManager } from "../domains/auth/index.js";
 import { AgentSuspensionService } from "../domains/agents/agent-suspension.service.js";
 import {
   AgentLifecycleService,
@@ -53,12 +53,12 @@ import { WorkerManager } from "../domains/workers/worker-manager.js";
 import type { EventBus } from "../infrastructure/events/index.js";
 import type { IndexStore } from "../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../logging.js";
+import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
-} from "../registry/types.js";
-import type { SecretProvider } from "../secrets.js";
+} from "./types.js";
+import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { RuntimeState } from "./runtime-state.js";
 
 export interface RuntimeDeps {

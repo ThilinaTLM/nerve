@@ -2,7 +2,7 @@ import {
   type TaskLaunchConfig,
   taskLaunchConfigSchema,
 } from "@nervekit/shared";
-import type { SecretProvider } from "../../secrets.js";
+import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 
 export interface TaskLaunchConfigStore {
   write(taskId: string, config: TaskLaunchConfig): Promise<void>;

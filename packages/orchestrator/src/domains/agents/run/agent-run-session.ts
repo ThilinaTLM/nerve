@@ -20,7 +20,7 @@ import {
   toolNameSchema,
 } from "@nervekit/shared";
 import { HttpError } from "../../../http/errors.js";
-import { loadHarnessResources } from "../../../resource-loader.js";
+import { loadHarnessResources } from "../prompting/resource-loader.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {
   activeToolNamesForAgent,

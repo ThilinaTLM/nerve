@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { serveStatic } from "../src/http/static-files.js";
-import type { OrchestratorState } from "../src/server.js";
+import type { OrchestratorState } from "../src/app/orchestrator-state.js";
 
 let previousWebDist: string | undefined;
 let tempDir: string | undefined;

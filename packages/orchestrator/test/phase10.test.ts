@@ -7,9 +7,9 @@ import {
   initializeStorage,
   writeSettings,
 } from "../src/infrastructure/storage/index.js";
-import { providerEnvVar } from "../src/registry.js";
-import { EncryptedFileSecretProvider } from "../src/secrets.js";
-import { createOrchestratorState } from "../src/server.js";
+import { providerEnvVarName } from "../src/domains/auth/index.js";
+import { EncryptedFileSecretProvider } from "../src/infrastructure/secrets/index.js";
+import { createOrchestratorState } from "../src/app/orchestrator-state.js";
 
 const roots: string[] = [];
 
@@ -64,7 +64,7 @@ describe("phase 10 hardening helpers", () => {
 
     assert.equal(await secrets.get("provider:openai:apiKey"), "sk-test");
     assert.deepEqual(await secrets.list(), ["provider:openai:apiKey"]);
-    assert.equal(providerEnvVar("openai"), "OPENAI_API_KEY");
+    assert.equal(providerEnvVarName("openai"), "OPENAI_API_KEY");
 
     await secrets.delete("provider:openai:apiKey");
     assert.equal(await secrets.get("provider:openai:apiKey"), undefined);

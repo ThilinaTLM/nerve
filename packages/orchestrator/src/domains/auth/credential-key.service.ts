@@ -10,7 +10,7 @@ import {
   createId,
   type EncryptedSecretEnvelope,
 } from "@nervekit/shared";
-import { HttpError } from "./http/errors.js";
+import { HttpError } from "../../http/errors.js";
 
 const GCM_TAG_BYTES = 16;
 

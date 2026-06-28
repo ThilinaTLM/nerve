@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 export function createModelRoutes(state: OrchestratorState): Hono {
   const app = new Hono();

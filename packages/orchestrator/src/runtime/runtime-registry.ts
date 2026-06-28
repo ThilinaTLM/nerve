@@ -31,22 +31,21 @@ import type {
   UpdatePinnedCommandRequest,
   UserQuestionStatus,
 } from "@nervekit/shared";
-import type { AuthManager } from "./auth.js";
-import { providerApiKeySecretName, providerEnvVarName } from "./auth.js";
-import type { ProviderCatalogStore } from "./domains/providers/index.js";
-import type { SubscriptionUsageService } from "./domains/usage/subscription-usage-service.js";
-import { HttpError } from "./http/errors.js";
-import type { EventBus } from "./infrastructure/events/index.js";
-import type { IndexStore } from "./infrastructure/index-store/index.js";
-import type { InitializedStorage } from "./infrastructure/storage/index.js";
-import type { ApplicationLogger } from "./logging.js";
-import type { AppendEntryInput, AppendEntryOptions } from "./registry/types.js";
+import type { AuthManager } from "../domains/auth/index.js";
+import type { ProviderCatalogStore } from "../domains/providers/index.js";
+import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
+import { HttpError } from "../http/errors.js";
+import type { EventBus } from "../infrastructure/events/index.js";
+import type { IndexStore } from "../infrastructure/index-store/index.js";
+import type { InitializedStorage } from "../infrastructure/storage/index.js";
+import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
+import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 import {
   composeRuntime,
   type RuntimeServices,
-} from "./runtime/runtime-composition.js";
-import { RuntimeState } from "./runtime/runtime-state.js";
-import type { SecretProvider } from "./secrets.js";
+} from "./runtime-composition.js";
+import { RuntimeState } from "./runtime-state.js";
+import type { SecretProvider } from "../infrastructure/secrets/index.js";
 
 export class RuntimeRegistry {
   private readonly state = new RuntimeState();
@@ -589,12 +588,3 @@ export class RuntimeRegistry {
   }
 }
 
-export { errorResponse, HttpError } from "./http/errors.js";
-
-export function providerSecretName(provider: string): string {
-  return providerApiKeySecretName(provider);
-}
-
-export function providerEnvVar(provider: string): string {
-  return providerEnvVarName(provider);
-}

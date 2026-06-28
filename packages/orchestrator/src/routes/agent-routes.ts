@@ -9,7 +9,7 @@ import { Hono } from "hono";
 import { buildAgentSystemPrompt } from "../domains/agents/run/system-prompt-builder.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
-import type { OrchestratorState } from "../server.js";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 export function createAgentRoutes(state: OrchestratorState): Hono {
   const app = new Hono();

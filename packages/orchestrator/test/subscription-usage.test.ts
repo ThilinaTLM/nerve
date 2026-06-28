@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { SubscriptionUsage } from "@nervekit/shared";
-import type { AuthManager } from "../src/auth.js";
+import type { AuthManager } from "../src/domains/auth/index.js";
 import { parseAnthropicUsageResponse } from "../src/domains/usage/anthropic-client.js";
 import {
   mergeCodexUsage,

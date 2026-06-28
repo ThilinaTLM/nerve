@@ -12,7 +12,7 @@ import {
   serializeCrashError,
   writeCrashReportSync,
   writeNodeDiagnosticReport,
-} from "./crash-reports.js";
+} from "./infrastructure/diagnostics/index.js";
 import { recoverInterruptedRuns } from "./domains/agents/run/interrupted-run-recovery.js";
 import {
   initializeStorage,
@@ -21,11 +21,10 @@ import {
 } from "./infrastructure/storage/index.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
 import {
-  createApp,
   createOrchestratorState,
-  isWebSocketAuthorized,
   toDaemonFile,
-} from "./server.js";
+} from "./app/orchestrator-state.js";
+import { createApp, isWebSocketAuthorized } from "./app/server.js";
 
 function readArg(name: string): string | undefined {
   const prefix = `${name}=`;

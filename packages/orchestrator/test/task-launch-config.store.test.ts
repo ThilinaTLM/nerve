@@ -4,7 +4,7 @@ import {
   SecretTaskLaunchConfigStore,
   taskLaunchConfigSecretName,
 } from "../src/domains/tasks/task-launch-config.store.js";
-import type { SecretProvider } from "../src/secrets.js";
+import type { SecretProvider } from "../src/infrastructure/secrets/index.js";
 
 class MemorySecretProvider implements SecretProvider {
   readonly values = new Map<string, string>();

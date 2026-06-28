@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import type { EventEnvelope, ToolCallRecord } from "@nervekit/shared";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
-import { HttpError } from "../src/registry.js";
-import { createOrchestratorState } from "../src/server.js";
+import { HttpError } from "../src/http/errors.js";
+import { createOrchestratorState } from "../src/app/orchestrator-state.js";
 
 const roots: string[] = [];
 const model = { provider: "nerve-faux", modelId: "faux-fast" } as const;
