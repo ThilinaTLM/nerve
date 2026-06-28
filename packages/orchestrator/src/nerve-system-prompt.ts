@@ -152,15 +152,17 @@ function buildPlanModeInstructions(planDir: string): string {
     - Present the final plan with plan_mode_present and obtain user approval before implementation.
 
     Workflow:
-    1. Inspect the codebase and evaluate implementation options.
+    1. Inspect the codebase and evaluate viable implementation options.
     2. Ask the user only when a decision depends on their requirements or preferences.
     3. Write a self-contained, file-specific implementation plan under plan_dir.
-    4. Resolve all open decisions using ask_user and edit tools, then present the finalized plan.
+    4. Resolve all open decisions using ask_user tool, then use edit tool to update the plan.
+    5. Present the finalized plan.
 
     Plan quality:
     - Include affected files/symbols, ordered implementation steps, validation, risks, and migrations when applicable.
     - Leave no unresolved questions, placeholders, or decision callouts.
     - Make the plan complete enough to serve as the implementation's single source of truth, enabling another agent to execute it without additional context.
+    - When multiple viable approaches exist, compare them and get user feedback before choosing one.
     </plan_mode>
   `;
 }
