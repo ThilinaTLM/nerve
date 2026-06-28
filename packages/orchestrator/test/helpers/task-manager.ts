@@ -10,6 +10,7 @@ import {
   createId,
   type StartTaskRequest,
   type TaskLaunchConfig,
+  type TaskListeningPort,
   type TaskRecord,
   type TaskRuntime,
 } from "@nervekit/shared";
@@ -152,6 +153,12 @@ export type FakeSupervisorOptions = {
     | undefined
     | Promise<TerminateTaskResult | undefined>;
   isRuntimeTargetAlive?: (runtime: TaskRuntime) => boolean | Promise<boolean>;
+  inspectRuntimeListeningPorts?: (
+    runtime: TaskRuntime,
+  ) => TaskListeningPort[] | Promise<TaskListeningPort[]>;
+  inspectPortListeners?: (
+    ports: TaskListeningPort[],
+  ) => TaskListeningPort[] | Promise<TaskListeningPort[]>;
 };
 
 export function fakeSupervisor(options: FakeSupervisorOptions): {
@@ -198,6 +205,12 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
       },
       async isRuntimeTargetAlive(targetRuntime) {
         return options.isRuntimeTargetAlive?.(targetRuntime) ?? false;
+      },
+      async inspectRuntimeListeningPorts(targetRuntime) {
+        return options.inspectRuntimeListeningPorts?.(targetRuntime) ?? [];
+      },
+      async inspectPortListeners(ports) {
+        return options.inspectPortListeners?.(ports) ?? [];
       },
     },
   };

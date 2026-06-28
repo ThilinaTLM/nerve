@@ -325,7 +325,11 @@ describe("toolPresentation", () => {
   });
 
   it("does not show the explore input prompt as a primary arg", () => {
-    const p = present("explore", { task: "Investigate the web UI" }, { reports: [] });
+    const p = present(
+      "explore",
+      { task: "Investigate the web UI" },
+      { reports: [] },
+    );
     assert.equal(p.badge, "explore");
     assert.equal(p.primaryArg, undefined);
   });

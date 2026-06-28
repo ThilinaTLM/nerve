@@ -4,6 +4,7 @@ import { EventEmitter } from "node:events";
 import { describe, it } from "node:test";
 import type { TaskRuntime } from "@nervekit/shared";
 import {
+  defaultTaskSupervisor,
   isTaskRuntimeTargetAlive,
   runtimeForChild,
   spawnManagedTask,
@@ -133,6 +134,16 @@ describe("task supervisor spawn metadata", () => {
       shell: true,
       spawnedAt,
     });
+  });
+});
+
+describe("task supervisor port inspection", () => {
+  it("exposes a safe listening-port inspector hook", async () => {
+    const ports = await defaultTaskSupervisor.inspectRuntimeListeningPorts(
+      runtime({ platform: process.platform }),
+    );
+
+    assert.equal(Array.isArray(ports), true);
   });
 });
 

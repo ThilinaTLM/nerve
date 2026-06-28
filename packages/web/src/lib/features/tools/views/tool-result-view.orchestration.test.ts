@@ -406,9 +406,21 @@ describe("parseToolView ask_user/todos/task/explore", () => {
               model: "openai/gpt-5.5",
               thinkingLevel: "high",
               steps: [
-                { type: "tool_call", message: "grep card", timestamp: "2026-01-01T00:00:00.000Z" },
-                { type: "tool_call", message: "read card.ts", timestamp: "2026-01-01T00:00:01.000Z" },
-                { type: "tool_result", message: "read completed", timestamp: "2026-01-01T00:00:02.000Z" },
+                {
+                  type: "tool_call",
+                  message: "grep card",
+                  timestamp: "2026-01-01T00:00:00.000Z",
+                },
+                {
+                  type: "tool_call",
+                  message: "read card.ts",
+                  timestamp: "2026-01-01T00:00:01.000Z",
+                },
+                {
+                  type: "tool_result",
+                  message: "read completed",
+                  timestamp: "2026-01-01T00:00:02.000Z",
+                },
               ],
             },
             {

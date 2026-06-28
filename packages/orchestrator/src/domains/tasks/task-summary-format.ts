@@ -4,6 +4,7 @@ import type {
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/shared";
+import { formatListeningPort } from "./task-port-inspector.js";
 import { isActiveTaskStatus } from "./task-status.js";
 
 const MAX_COMMAND_PREVIEW = 120;
@@ -24,6 +25,15 @@ export function taskLabel(task: TaskRecord): string {
 
 export function taskCommandPreview(task: TaskRecord): string {
   return truncateTaskText(task.command, MAX_COMMAND_PREVIEW);
+}
+
+export function formatTaskPorts(task: TaskRecord): string | undefined {
+  const ports = task.runtime?.listeningPorts;
+  if (!ports || ports.length === 0) return undefined;
+  return (
+    ports.slice(0, 6).map(formatListeningPort).join(", ") +
+    (ports.length > 6 ? ` (+${ports.length - 6} more)` : "")
+  );
 }
 
 export function formatReadiness(task: TaskRecord): string | undefined {
@@ -53,6 +63,8 @@ export function oneLineTaskSummary(
   if (task.signal) parts.push(`signal=${task.signal}`);
   if (options.nextCursor !== undefined)
     parts.push(`cursor=${options.nextCursor}`);
+  const ports = formatTaskPorts(task);
+  if (ports) parts.push(`ports=${ports}`);
   if (task.error)
     parts.push(`error=${truncateTaskText(task.error, MAX_ERROR_PREVIEW)}`);
   if (!task.name && options.includeCommandForUnnamed !== false) {
@@ -82,6 +94,8 @@ export function formatTaskStartSummary(input: {
     if (readiness) bits.push(readiness);
     if (task.readiness.readyUrl)
       bits.push(`readyUrl=${task.readiness.readyUrl}`);
+    const ports = formatTaskPorts(task);
+    if (ports) bits.push(`ports=${ports}`);
     lines.push(bits.join("; "));
   }
   lines.push(

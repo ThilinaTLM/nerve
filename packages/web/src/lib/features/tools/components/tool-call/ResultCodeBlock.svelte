@@ -1,5 +1,6 @@
 <script lang="ts">
   import { highlightCodeCached } from "$lib/core/highlight/highlight";
+  import { ansiToHtml } from "$lib/core/terminal/ansi";
   import { trimTextPreview } from "$lib/core/utils/text-preview";
 
   type Props = {
@@ -11,6 +12,7 @@
     highlight?: boolean;
     wrap?: boolean;
     overflow?: "auto" | "hidden";
+    terminal?: boolean;
   };
   let {
     code,
@@ -21,6 +23,7 @@
     highlight = true,
     wrap = true,
     overflow = "auto",
+    terminal = false,
   }: Props = $props();
 
   let html = $state<string | undefined>(undefined);
@@ -29,9 +32,10 @@
   const preview = $derived(trim ? trimTextPreview(code) : { text: code });
   const signature = $derived(`${language ?? ""}\0${preview.text}`);
   const hasFixedRows = $derived(fixedRows !== undefined && fixedRows > 0);
+  const terminalHtml = $derived(ansiToHtml(preview.text));
 
   $effect(() => {
-    if (!highlight) {
+    if (terminal || !highlight) {
       html = undefined;
       htmlSignature = undefined;
       unavailableSignature = undefined;
@@ -70,7 +74,17 @@
   });
 </script>
 
-{#if highlight && html && htmlSignature === signature}
+{#if terminal}
+  <div
+    class="code-block terminal-output"
+    data-terminal="true"
+    data-wrap={wrap ? "true" : "false"}
+    data-overflow={overflow}
+    data-fixed-rows={hasFixedRows ? "true" : undefined}
+    style:max-height={maxHeight}
+    style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
+  >{@html terminalHtml}</div>
+{:else if highlight && html && htmlSignature === signature}
   <div
     class="code-block"
     data-wrap={wrap ? "true" : "false"}
@@ -108,6 +122,12 @@
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     line-height: 1.4;
+  }
+
+  .code-block[data-terminal="true"] {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.22;
   }
 
   .code-block.plain {

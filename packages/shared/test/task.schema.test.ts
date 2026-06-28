@@ -158,6 +158,15 @@ describe("tool task result metadata", () => {
           outcome: "cancelled",
           status: "cancelled",
           message: "dev cancelled with SIGTERM.",
+          releasedPorts: [
+            {
+              protocol: "tcp",
+              address: "127.0.0.1",
+              port: 3000,
+              pid: 1234,
+              detectedAt: "2026-01-02T03:04:07.000Z",
+            },
+          ],
         },
       ],
     });
@@ -201,7 +210,29 @@ describe("taskRecordSchema runtime metadata", () => {
           detached: true,
           shell: true,
           spawnedAt: "2026-01-02T03:04:06.000Z",
+          listeningPorts: [
+            {
+              protocol: "tcp",
+              address: "127.0.0.1",
+              port: 3000,
+              pid: 1234,
+              processGroupId: 1234,
+              processStartTimeTicks: 123456,
+              detectedAt: "2026-01-02T03:04:07.000Z",
+            },
+          ],
         },
+        lastOrphanCleanupReleasedPorts: [
+          {
+            protocol: "tcp",
+            address: "127.0.0.1",
+            port: 3000,
+            pid: 1234,
+            processGroupId: 1234,
+            processStartTimeTicks: 123456,
+            detectedAt: "2026-01-02T03:04:07.000Z",
+          },
+        ],
       }),
     );
 

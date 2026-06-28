@@ -10,6 +10,7 @@ import {
 } from "@nervekit/tools";
 import { ensurePlanDir } from "../plans/plan-paths.js";
 import { isActiveTaskStatus } from "../tasks/index.js";
+import { formatListeningPort } from "../tasks/task-port-inspector.js";
 import {
   formatTaskCancelSummary,
   formatTaskLogsSummary,
@@ -500,13 +501,30 @@ function classifyCancelResult(
 ): TaskCancelResultPayload {
   const taskName = after.name ?? before.name;
   const label = taskName ? `${taskName} (${after.id})` : after.id;
+  const releasedPorts =
+    before.status === "orphaned" ? after.lastOrphanCleanupReleasedPorts : [];
+  const portWarning =
+    releasedPorts && releasedPorts.length > 0
+      ? ` ⚠ Released listening port(s): ${releasedPorts
+          .map(formatListeningPort)
+          .join(", ")}.`
+      : "";
   const base = {
     taskId: after.id,
     taskName,
     requestedSignal,
     status: after.status,
+    releasedPorts:
+      releasedPorts && releasedPorts.length > 0 ? releasedPorts : undefined,
   };
 
+  if (before.status === "orphaned" && after.status === "cancelled") {
+    return {
+      ...base,
+      outcome: "cancelled",
+      message: `${label} orphan cleanup cancelled with ${after.signal ?? requestedSignal}.${portWarning}`,
+    };
+  }
   if (!isActiveTaskStatus(before.status)) {
     return {
       ...base,
@@ -520,8 +538,8 @@ function classifyCancelResult(
       ...base,
       outcome: forced ? "force_cancelled" : "cancelled",
       message: forced
-        ? `${label} did not stop after ${requestedSignal}; force-cancelled with SIGKILL.`
-        : `${label} cancelled with ${after.signal ?? requestedSignal}.`,
+        ? `${label} did not stop after ${requestedSignal}; force-cancelled with SIGKILL.${portWarning}`
+        : `${label} cancelled with ${after.signal ?? requestedSignal}.${portWarning}`,
     };
   }
   if (!isActiveTaskStatus(after.status)) {

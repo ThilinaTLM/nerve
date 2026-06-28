@@ -11,6 +11,7 @@ export function registerTaskEventHandlers(): () => void {
     onEvent("task.removed", handleTaskRemovedEvent),
     onEvent("task.created", handleTaskRecordEvent),
     onEvent("task.started", handleTaskRecordEvent),
+    onEvent("task.runtime_updated", handleTaskRecordEvent),
     onEvent("task.ready", handleTaskRecordEvent),
     onEvent("task.ready_timeout", handleTaskRecordEvent),
     onEvent("task.promoted", handleTaskRecordEvent),

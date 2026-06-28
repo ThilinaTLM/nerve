@@ -207,7 +207,8 @@ function aggregateExploreTasksUncached(
       report?.thinkingLevel ??
       updates.find((u) => u.thinkingLevel)?.thinkingLevel ??
       latest?.thinkingLevel;
-    const error = report?.errorMessage ?? report?.summaryPreview ?? failed?.message;
+    const error =
+      report?.errorMessage ?? report?.summaryPreview ?? failed?.message;
 
     tasks.push({
       key: `task-${index}`,

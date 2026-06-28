@@ -1,5 +1,9 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import type { TaskRuntime } from "@nervekit/shared";
+import type { TaskListeningPort, TaskRuntime } from "@nervekit/shared";
+import {
+  inspectPortListeners,
+  inspectRuntimeListeningPorts,
+} from "./task-port-inspector.js";
 
 const DEFAULT_HELPER_TIMEOUT_MS = 2000;
 
@@ -51,6 +55,12 @@ export interface TaskSupervisor {
     signal: NodeJS.Signals,
   ): Promise<TerminateTaskResult>;
   isRuntimeTargetAlive(runtime: TaskRuntime): Promise<boolean>;
+  inspectRuntimeListeningPorts(
+    runtime: TaskRuntime,
+  ): Promise<TaskListeningPort[]>;
+  inspectPortListeners(
+    ports: TaskListeningPort[],
+  ): Promise<TaskListeningPort[]>;
 }
 
 export function spawnManagedTask(
@@ -179,6 +189,8 @@ export const defaultTaskSupervisor: TaskSupervisor = {
   terminate: terminateTask,
   terminateRuntime: terminateTaskRuntime,
   isRuntimeTargetAlive: isTaskRuntimeTargetAlive,
+  inspectRuntimeListeningPorts,
+  inspectPortListeners,
 };
 
 function signalDirectChild(

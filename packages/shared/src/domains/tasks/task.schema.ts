@@ -27,6 +27,17 @@ export const taskReadinessSchema = z.object({
 });
 export type TaskReadiness = z.infer<typeof taskReadinessSchema>;
 
+export const taskListeningPortSchema = z.object({
+  protocol: z.enum(["tcp", "tcp6"]),
+  address: z.string().min(1),
+  port: z.number().int().positive().max(65_535),
+  pid: z.number().int().positive().optional(),
+  processGroupId: z.number().int().positive().optional(),
+  processStartTimeTicks: z.number().int().nonnegative().optional(),
+  detectedAt: z.string().datetime(),
+});
+export type TaskListeningPort = z.infer<typeof taskListeningPortSchema>;
+
 export const taskRuntimeSchema = z.object({
   platform: z.string().min(1),
   childPid: z.number().int().positive().optional(),
@@ -34,6 +45,7 @@ export const taskRuntimeSchema = z.object({
   detached: z.boolean(),
   shell: z.boolean(),
   spawnedAt: z.string().datetime(),
+  listeningPorts: z.array(taskListeningPortSchema).optional(),
 });
 export type TaskRuntime = z.infer<typeof taskRuntimeSchema>;
 
@@ -119,6 +131,7 @@ export const taskRecordSchema = z.object({
   restartGeneration: z.number().int().nonnegative().optional(),
   legacyProcessId: z.string().startsWith("proc_").optional(),
   runtime: taskRuntimeSchema.optional(),
+  lastOrphanCleanupReleasedPorts: z.array(taskListeningPortSchema).optional(),
   origin: taskOriginSchema.default({ kind: "api" }),
   completion: taskCompletionInjectionSchema.optional(),
   notifications: taskNotificationStateSchema.optional(),

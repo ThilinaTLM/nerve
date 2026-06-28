@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { TaskLogEvent } from "$lib/api";
   import { VirtualScroller } from "$lib/components/ui/virtual-list";
+  import TerminalText from "./TerminalText.svelte";
 
   type LineItem = {
     key: string | number;
@@ -34,7 +35,7 @@
   <VirtualScroller
     {items}
     getKey={(item) => item.key}
-    estimateSize={() => 18}
+    estimateSize={() => 16}
     anchor={followOutput ? "end" : "start"}
     {followOutput}
     viewportClass="log-list"
@@ -42,7 +43,7 @@
     {#snippet row({ item })}
       <div
         class={`log-line${item.level ? ` level-${item.level}` : ""}${item.stream === "stderr" ? " stderr" : ""}`}
-      >{item.text || "\u00A0"}</div>
+      ><TerminalText text={item.text || "\u00A0"} stream={item.stream} level={item.level} /></div>
     {/snippet}
   </VirtualScroller>
 </div>
@@ -61,7 +62,7 @@
     padding: 0.42rem 0.55rem;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
-    line-height: 1.4;
+    line-height: 1.22;
   }
 
   .log-line {

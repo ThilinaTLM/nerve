@@ -12,7 +12,7 @@
 </script>
 
 {#if view.output.length > 0}
-  <ToolOutputBlock text={view.output} direction="tail" {expanded} outputLimits={view.outputLimits} />
+  <ToolOutputBlock text={view.output} direction="tail" {expanded} outputLimits={view.outputLimits} terminal />
 {:else if toolCall.status === "running"}
   <p class="m-0 text-xs text-muted-foreground">Waiting for command output…</p>
 {/if}

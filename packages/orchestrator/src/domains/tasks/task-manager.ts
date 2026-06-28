@@ -5,6 +5,7 @@ import {
   type CancelTaskRequest,
   createId,
   type StartTaskRequest,
+  type TaskListeningPort,
   type TaskLogEvent,
   type TaskLogQuery,
   type TaskLogQueryResponse,
@@ -49,10 +50,13 @@ import {
   errorMessage as errorMessageImpl,
   failOrphanCleanup as failOrphanCleanupImpl,
   finalizeOrphanCleanup as finalizeOrphanCleanupImpl,
+  inspectPortListenersForCleanup as inspectPortListenersForCleanupImpl,
   isRuntimeTargetAlive as isRuntimeTargetAliveImpl,
+  listeningPortsForOrphanCleanup as listeningPortsForOrphanCleanupImpl,
   markHydratedRecordOrphaned as markHydratedRecordOrphanedImpl,
   orphanCleanupValidationError as orphanCleanupValidationErrorImpl,
   orphanedHydrateMessage as orphanedHydrateMessageImpl,
+  releaseOrphanedListeningPorts as releaseOrphanedListeningPortsImpl,
   runtimeLogContext as runtimeLogContextImpl,
   terminateRuntimeForCleanup as terminateRuntimeForCleanupImpl,
   waitForRuntimeTargetExit as waitForRuntimeTargetExitImpl,
@@ -638,6 +642,35 @@ export class TaskManager {
     timeoutMs: number,
   ): Promise<boolean> {
     return await waitForRuntimeTargetExitImpl.call(this, runtime, timeoutMs);
+  }
+
+  async listeningPortsForOrphanCleanup(
+    record: TaskRecord,
+    runtime: TaskRuntime,
+  ): Promise<TaskListeningPort[]> {
+    return await listeningPortsForOrphanCleanupImpl.call(this, record, runtime);
+  }
+
+  async releaseOrphanedListeningPorts(
+    record: TaskRecord,
+    cleanupPorts: TaskListeningPort[],
+  ): Promise<TaskListeningPort[]> {
+    return await releaseOrphanedListeningPortsImpl.call(
+      this,
+      record,
+      cleanupPorts,
+    );
+  }
+
+  async inspectPortListenersForCleanup(
+    record: TaskRecord,
+    cleanupPorts: TaskListeningPort[],
+  ): Promise<TaskListeningPort[]> {
+    return await inspectPortListenersForCleanupImpl.call(
+      this,
+      record,
+      cleanupPorts,
+    );
   }
 
   async isRuntimeTargetAlive(runtime: TaskRuntime): Promise<boolean> {

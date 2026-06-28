@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { thinkingLevelSchema } from "../models/index.js";
 import {
+  taskListeningPortSchema,
   taskLogQueryResponseSchema,
   taskRecordSchema,
   taskStatusSchema,
 } from "../tasks/index.js";
-import { thinkingLevelSchema } from "../models/index.js";
 
 /**
  * Result contracts shared between the `@nervekit/tools` executors (producers) and the
@@ -340,6 +341,7 @@ export const taskCancelResultSchema = z.object({
   outcome: taskCancelOutcomeSchema,
   status: taskStatusSchema.optional(),
   message: z.string(),
+  releasedPorts: z.array(taskListeningPortSchema).optional(),
 });
 export type TaskCancelResultPayload = z.infer<typeof taskCancelResultSchema>;
 

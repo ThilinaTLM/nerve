@@ -12,6 +12,13 @@ export {
   TaskLogService,
 } from "./task-log.service.js";
 export { TaskNotificationService } from "./task-notification.service.js";
+export {
+  dedupeListeningPorts,
+  formatListeningPort,
+  inspectPortListeners,
+  inspectRuntimeListeningPorts,
+  isSameProcessIdentity,
+} from "./task-port-inspector.js";
 export { TaskReadinessService } from "./task-readiness.service.js";
 export {
   isActiveTaskStatus,

@@ -63,6 +63,65 @@ describe("task manager orphan cleanup", () => {
     assert.deepEqual(runtimeTerminateSignals, ["SIGTERM"]);
   });
 
+  it("records released ports after orphan cleanup", async () => {
+    const listeningPort = {
+      protocol: "tcp" as const,
+      address: "127.0.0.1",
+      port: 34567,
+      pid: 1234,
+      processGroupId: process.platform === "win32" ? undefined : 1234,
+      processStartTimeTicks: 999,
+      detectedAt: "2026-01-02T03:04:06.000Z",
+    };
+    const runtime = runtimeMetadata({ listeningPorts: [listeningPort] });
+    const { supervisor } = fakeSupervisor({
+      runtime,
+      isRuntimeTargetAlive: () => false,
+      inspectPortListeners: () => [],
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const record = await seedTaskRecord(storage, { runtime });
+    await manager.hydrate();
+
+    const stopped = await manager.cancelTask(record.id);
+
+    assert.deepEqual(
+      stopped.lastOrphanCleanupReleasedPorts,
+      process.platform === "win32" ? [] : [listeningPort],
+    );
+  });
+
+  it("does not report a released port when a different process owns it", async () => {
+    const listeningPort = {
+      protocol: "tcp" as const,
+      address: "127.0.0.1",
+      port: 34568,
+      pid: 1234,
+      processGroupId: process.platform === "win32" ? undefined : 1234,
+      processStartTimeTicks: 999,
+      detectedAt: "2026-01-02T03:04:06.000Z",
+    };
+    const otherOwner = {
+      ...listeningPort,
+      pid: 4321,
+      processGroupId: process.platform === "win32" ? undefined : 4321,
+      processStartTimeTicks: 1000,
+    };
+    const runtime = runtimeMetadata({ listeningPorts: [listeningPort] });
+    const { supervisor } = fakeSupervisor({
+      runtime,
+      isRuntimeTargetAlive: () => false,
+      inspectPortListeners: () => [otherOwner],
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const record = await seedTaskRecord(storage, { runtime });
+    await manager.hydrate();
+
+    const stopped = await manager.cancelTask(record.id);
+
+    assert.deepEqual(stopped.lastOrphanCleanupReleasedPorts, []);
+  });
+
   it("keeps old orphaned records without runtime metadata and surfaces an error", async () => {
     const { supervisor } = fakeSupervisor({});
     const { manager, storage } = await createManager(supervisor);

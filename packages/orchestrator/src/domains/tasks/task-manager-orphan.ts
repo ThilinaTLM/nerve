@@ -1,9 +1,15 @@
 import type {
   CancelTaskRequest,
+  TaskListeningPort,
   TaskRecord,
   TaskRuntime,
 } from "@nervekit/shared";
 import type { TaskManager } from "./task-manager.js";
+import {
+  dedupeListeningPorts,
+  formatListeningPort,
+  isSameProcessIdentity,
+} from "./task-port-inspector.js";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
@@ -71,6 +77,10 @@ export async function cleanupOrphanedTask(
   }
   const runtime = record.runtime as TaskRuntime;
   const initialSignal = request.signal ?? "SIGTERM";
+  const cleanupPorts = await this.listeningPortsForOrphanCleanup(
+    record,
+    runtime,
+  );
   const timeoutMs = request.timeoutMs ?? 5000;
 
   await this.events.publish("task.stop_requested", {
@@ -99,8 +109,13 @@ export async function cleanupOrphanedTask(
         { method: result.method, signal: "SIGKILL" },
       );
     }
+    const releasedPorts = await this.releaseOrphanedListeningPorts(
+      record,
+      cleanupPorts,
+    );
     return this.finalizeOrphanCleanup(record.id, "SIGKILL", runtime, {
       method: result.method,
+      releasedPorts,
     });
   }
 
@@ -154,7 +169,13 @@ export async function cleanupOrphanedTask(
     }
   }
 
-  return this.finalizeOrphanCleanup(record.id, finalSignal, runtime);
+  const releasedPorts = await this.releaseOrphanedListeningPorts(
+    record,
+    cleanupPorts,
+  );
+  return this.finalizeOrphanCleanup(record.id, finalSignal, runtime, {
+    releasedPorts,
+  });
 }
 
 export function orphanCleanupValidationError(
@@ -234,6 +255,114 @@ export async function isRuntimeTargetAlive(
   }
 }
 
+export async function listeningPortsForOrphanCleanup(
+  this: TaskManager,
+  record: TaskRecord,
+  runtime: TaskRuntime,
+): Promise<TaskListeningPort[]> {
+  const persisted = runtime.listeningPorts ?? [];
+  try {
+    const detected =
+      await this.supervisor.inspectRuntimeListeningPorts(runtime);
+    return dedupeListeningPorts([...persisted, ...detected]);
+  } catch (error) {
+    await this.logger?.warn("Orphaned task listening-port inspection failed", {
+      taskId: record.id,
+      projectId: record.projectId,
+      conversationId: record.conversationId,
+      agentId: record.agentId,
+      error,
+      context: this.runtimeLogContext(runtime),
+    });
+    return dedupeListeningPorts(persisted);
+  }
+}
+
+export async function releaseOrphanedListeningPorts(
+  this: TaskManager,
+  record: TaskRecord,
+  cleanupPorts: TaskListeningPort[],
+): Promise<TaskListeningPort[]> {
+  if (cleanupPorts.length === 0 || process.platform === "win32") return [];
+  let current = await this.inspectPortListenersForCleanup(record, cleanupPorts);
+  const killedPids = new Set<number>();
+  for (const expected of cleanupPorts) {
+    for (const actual of current) {
+      if (!isSameProcessIdentity(expected, actual) || !actual.pid) continue;
+      if (killedPids.has(actual.pid)) continue;
+      killedPids.add(actual.pid);
+      try {
+        process.kill(actual.pid, "SIGKILL");
+        await this.logger?.warn("Released orphaned task listening port", {
+          taskId: record.id,
+          projectId: record.projectId,
+          conversationId: record.conversationId,
+          agentId: record.agentId,
+          context: {
+            port: formatListeningPort(actual),
+            pid: actual.pid,
+            processGroupId: actual.processGroupId,
+          },
+        });
+      } catch (error) {
+        await this.logger?.warn(
+          "Failed to release orphaned task listening port",
+          {
+            taskId: record.id,
+            projectId: record.projectId,
+            conversationId: record.conversationId,
+            agentId: record.agentId,
+            error,
+            context: {
+              port: formatListeningPort(actual),
+              pid: actual.pid,
+              processGroupId: actual.processGroupId,
+            },
+          },
+        );
+      }
+    }
+  }
+  if (killedPids.size > 0) await delay(100);
+  current = await this.inspectPortListenersForCleanup(record, cleanupPorts);
+  return dedupeListeningPorts(
+    cleanupPorts.filter(
+      (expected) => !current.some((actual) => sameEndpoint(expected, actual)),
+    ),
+  );
+}
+
+function sameEndpoint(
+  left: TaskListeningPort,
+  right: TaskListeningPort,
+): boolean {
+  return (
+    left.protocol === right.protocol &&
+    left.address === right.address &&
+    left.port === right.port
+  );
+}
+
+export async function inspectPortListenersForCleanup(
+  this: TaskManager,
+  record: TaskRecord,
+  cleanupPorts: TaskListeningPort[],
+): Promise<TaskListeningPort[]> {
+  try {
+    return await this.supervisor.inspectPortListeners(cleanupPorts);
+  } catch (error) {
+    await this.logger?.warn("Orphaned task port-listener recheck failed", {
+      taskId: record.id,
+      projectId: record.projectId,
+      conversationId: record.conversationId,
+      agentId: record.agentId,
+      error,
+      context: { ports: cleanupPorts.map(formatListeningPort) },
+    });
+    return cleanupPorts;
+  }
+}
+
 export async function finalizeOrphanCleanup(
   this: TaskManager,
   taskId: string,
@@ -251,6 +380,7 @@ export async function finalizeOrphanCleanup(
     record.readiness.outcome === "pending"
       ? { ...record.readiness, outcome: "exited" as const }
       : record.readiness;
+  const releasedPorts = taskListeningPortsFromContext(context.releasedPorts);
   const updated = await this.updateTask(taskId, {
     status: "cancelled",
     readiness,
@@ -258,6 +388,7 @@ export async function finalizeOrphanCleanup(
     exitCode: null,
     signal: finalSignal,
     error: undefined,
+    lastOrphanCleanupReleasedPorts: releasedPorts,
   });
   this.managed.delete(taskId);
   await this.events.publish("task.cancelled", { task: updated });
@@ -306,6 +437,10 @@ export async function failOrphanCleanup(
   throw new Error(message);
 }
 
+function taskListeningPortsFromContext(value: unknown): TaskListeningPort[] {
+  return Array.isArray(value) ? (value as TaskListeningPort[]) : [];
+}
+
 export function runtimeLogContext(
   this: TaskManager,
   runtime: TaskRuntime | undefined,
@@ -318,6 +453,7 @@ export function runtimeLogContext(
     detached: runtime?.detached,
     shell: runtime?.shell,
     spawnedAt: runtime?.spawnedAt,
+    listeningPorts: runtime?.listeningPorts?.map(formatListeningPort),
     ...extra,
   };
 }

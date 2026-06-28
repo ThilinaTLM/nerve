@@ -144,6 +144,48 @@ describe("orchestration task tools", () => {
     assert.equal(result.cancelResults[0]?.outcome, "already_terminal");
     assert.match(result.cancelResults[0]?.message ?? "", /already completed/);
   });
+
+  it("warns when orphan cleanup releases listening ports", async () => {
+    const orphaned = task({
+      id: "task_orphaned",
+      name: "dev",
+      status: "orphaned",
+    });
+    const cancelled = task({
+      ...orphaned,
+      status: "cancelled",
+      signal: "SIGTERM",
+      lastOrphanCleanupReleasedPorts: [
+        {
+          protocol: "tcp",
+          address: "127.0.0.1",
+          port: 3000,
+          pid: 1234,
+          detectedAt: "2026-01-02T03:04:06.000Z",
+        },
+      ],
+    });
+    const dispatcher = await createDispatcher([orphaned], {
+      cancelTask: async () => cancelled,
+    });
+
+    const result = (await dispatcher.execute(toolCall("task_cancel"), {
+      taskId: orphaned.id,
+    })) as {
+      cancelResults: Array<{
+        outcome: string;
+        message: string;
+        releasedPorts?: Array<{ port: number }>;
+      }>;
+    };
+
+    assert.equal(result.cancelResults[0]?.outcome, "cancelled");
+    assert.equal(result.cancelResults[0]?.releasedPorts?.[0]?.port, 3000);
+    assert.match(
+      result.cancelResults[0]?.message ?? "",
+      /⚠ Released listening port\(s\): 127\.0\.0\.1:3000\/tcp/,
+    );
+  });
 });
 
 async function createDispatcher(

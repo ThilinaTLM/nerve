@@ -3,7 +3,9 @@ import { join, resolve } from "node:path";
 import {
   createId,
   type StartTaskRequest,
+  type TaskListeningPort,
   type TaskRecord,
+  type TaskRuntime,
 } from "@nervekit/shared";
 import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
 import { createTaskLogCursor } from "./index.js";
@@ -12,6 +14,11 @@ import {
   buildTaskEnvInfo,
   defaultTaskNotificationsEnabled,
 } from "./task-manager-utils.js";
+import {
+  dedupeListeningPorts,
+  formatListeningPort,
+} from "./task-port-inspector.js";
+import { isActiveTaskStatus } from "./task-status.js";
 
 export async function startTask(
   this: TaskManager,
@@ -186,6 +193,7 @@ export async function startTask(
     pid: runtime.childPid,
     runtime,
   });
+  scheduleListeningPortDetection(this, record.id, runtime);
   await this.logger?.info("Task started", {
     taskId: record.id,
     projectId: record.projectId,
@@ -199,4 +207,62 @@ export async function startTask(
   });
 
   return this.getTask(record.id);
+}
+
+function scheduleListeningPortDetection(
+  manager: TaskManager,
+  taskId: string,
+  runtime: TaskRuntime,
+): void {
+  for (const delayMs of [250, 1000, 2500]) {
+    const timer = setTimeout(() => {
+      void detectListeningPorts(manager, taskId, runtime).catch((error) => {
+        void manager.logger?.debug?.("Task listening-port detection failed", {
+          taskId,
+          error,
+        });
+      });
+    }, delayMs);
+    timer.unref?.();
+  }
+}
+
+async function detectListeningPorts(
+  manager: TaskManager,
+  taskId: string,
+  runtime: TaskRuntime,
+): Promise<void> {
+  const current = manager.tasks.get(taskId);
+  if (!current || !isActiveTaskStatus(current.status)) return;
+
+  const detected = await manager.supervisor.inspectRuntimeListeningPorts(
+    current.runtime ?? runtime,
+  );
+  if (detected.length === 0) return;
+
+  const fresh = manager.tasks.get(taskId);
+  if (!fresh?.runtime || !isActiveTaskStatus(fresh.status)) return;
+  const merged = mergeListeningPorts(fresh.runtime.listeningPorts, detected);
+  if ((fresh.runtime.listeningPorts ?? []).length === merged.length) return;
+
+  const updated = await manager.updateTask(taskId, {
+    runtime: { ...fresh.runtime, listeningPorts: merged },
+  });
+  await manager.events.publish("task.runtime_updated", { task: updated });
+  await manager.logger?.info("Task listening ports detected", {
+    taskId: updated.id,
+    projectId: updated.projectId,
+    conversationId: updated.conversationId,
+    agentId: updated.agentId,
+    context: {
+      ports: merged.map(formatListeningPort),
+    },
+  });
+}
+
+function mergeListeningPorts(
+  existing: TaskListeningPort[] | undefined,
+  detected: TaskListeningPort[],
+): TaskListeningPort[] {
+  return dedupeListeningPorts([...(existing ?? []), ...detected]);
 }

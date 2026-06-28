@@ -11,6 +11,7 @@
     outputLimits?: {
       live?: { capped?: boolean; omittedChars?: number; displayedLines?: number; displayedChars?: number };
     };
+    terminal?: boolean;
   };
   let {
     text,
@@ -19,6 +20,7 @@
     collapsedLines = COLLAPSED_LINES,
     expanded = false,
     outputLimits,
+    terminal = false,
   }: Props = $props();
 
   const visible = $derived.by(() => {
@@ -39,4 +41,4 @@
   </p>
 {/if}
 
-<ResultCodeBlock code={visible} {language} trim={false} />
+<ResultCodeBlock code={visible} {language} trim={false} {terminal} />
