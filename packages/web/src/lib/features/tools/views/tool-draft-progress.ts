@@ -14,8 +14,10 @@ export type DraftMetaItem = {
   mono?: boolean;
 };
 
+export type ExecutionDraftKind = "bash" | "python";
+
 export type ToolDraftSummary = {
-  kind: "write" | "edit" | "python" | "generic";
+  kind: "write" | "edit" | ExecutionDraftKind | "generic";
   toolName: string;
   path?: string;
   statusText: string;
@@ -28,9 +30,14 @@ export type ToolDraftSummary = {
   estimated?: boolean;
   preview?: string;
   previewLanguage?: "diff";
+  command?: string;
   code?: string;
   codeLineCount?: number;
-  language?: "python";
+  inputMode?: "inline" | "file";
+  inlineInput?: string;
+  inputPreview?: string;
+  inputLineCount?: number;
+  language?: "bash" | "python";
   done: boolean;
 };
 
@@ -226,6 +233,27 @@ function tailLinePreview(text: string, maxLines = DRAFT_PREVIEW_LINES): string {
   const lines = normalizeLines(text).split("\n");
   if (lines.length <= maxLines) return lines.join("\n");
   return lines.slice(-maxLines).join("\n");
+}
+
+function isOneLine(text: string): boolean {
+  return !normalizeLines(text).includes("\n");
+}
+
+function inlineInputPreview(text: string | undefined): {
+  inlineInput?: string;
+  inputPreview?: string;
+  inputLineCount?: number;
+} {
+  if (text === undefined || text.length === 0) return {};
+  const normalized = normalizeLines(text);
+  const inputLineCount = lineCount(normalized);
+  if (isOneLine(normalized)) {
+    return { inlineInput: normalized, inputLineCount };
+  }
+  return {
+    inputPreview: tailLinePreview(normalized),
+    inputLineCount,
+  };
 }
 
 function previewFromTexts(texts: string[]): string | undefined {
@@ -550,6 +578,38 @@ function summarizeEditDraft(
   };
 }
 
+function summarizeBashDraft(draft: LiveToolCallDraft): ToolDraftSummary {
+  const args = asRecord(draft.args);
+  const finalCommand = stringField(args.command);
+  const partialCommand = extractJsonStringEntries(draft.argsText, [
+    "command",
+  ] as const)[0]?.value;
+  const command = finalCommand ?? partialCommand;
+  const input = inlineInputPreview(command);
+  const commandLineCount = lineCount(command);
+  const hasCommand = command !== undefined && command.length > 0;
+  const meta: DraftMetaItem[] = [];
+  if (commandLineCount !== undefined && commandLineCount > 1) {
+    meta.push({ text: plural(commandLineCount, "command line"), tone: "info" });
+  }
+  if (draft.done) meta.push({ text: "submitted", tone: "success" });
+  return {
+    kind: "bash",
+    toolName: "bash",
+    statusText: hasCommand
+      ? draft.done
+        ? "Submitting command…"
+        : "Generating command…"
+      : "Waiting for command…",
+    meta,
+    command,
+    inputMode: "inline",
+    ...input,
+    language: "bash",
+    done: Boolean(draft.done),
+  };
+}
+
 function summarizePythonDraft(
   draft: LiveToolCallDraft,
   cwd?: string,
@@ -557,35 +617,40 @@ function summarizePythonDraft(
   const args = asRecord(draft.args);
   const path = firstPathFromDraft(draft, cwd);
   const finalCode = stringField(args.code);
-  const partialCode = extractJsonStringValues(draft.argsText, "code", {
-    maxChars: 24_000,
-  })[0];
+  const partialCode = extractJsonStringEntries(draft.argsText, [
+    "code",
+  ] as const)[0]?.value;
   const code = finalCode ?? partialCode;
+  const input = inlineInputPreview(code);
   const codeLineCount = lineCount(code);
   const hasCode = code !== undefined && code.length > 0;
   const hasPath = path !== undefined && path.length > 0;
+  const inputMode = hasPath && !hasCode ? "file" : "inline";
   const meta: DraftMetaItem[] = [];
   if (codeLineCount !== undefined && codeLineCount > 0) {
     meta.push({ text: plural(codeLineCount, "code line"), tone: "info" });
   }
-  if (hasPath) meta.push({ text: "file", tone: "info" });
+  if (hasPath && !hasCode) meta.push({ text: "file", tone: "info" });
   if (draft.done) meta.push({ text: "submitted", tone: "success" });
   return {
     kind: "python",
     toolName: "python",
-    path,
-    statusText: hasPath
-      ? draft.done
-        ? "Submitting Python file…"
-        : "Preparing Python file…"
-      : hasCode
+    path: inputMode === "file" ? path : undefined,
+    statusText:
+      inputMode === "file"
         ? draft.done
-          ? "Submitting Python code…"
-          : "Generating Python code…"
-        : "Waiting for Python code or path…",
+          ? "Submitting Python file…"
+          : "Preparing Python file…"
+        : hasCode
+          ? draft.done
+            ? "Submitting Python code…"
+            : "Generating Python code…"
+          : "Waiting for Python code or path…",
     meta,
     code,
     codeLineCount,
+    inputMode,
+    ...input,
     language: "python",
     done: Boolean(draft.done),
   };
@@ -633,6 +698,7 @@ export function summarizeToolDraft(
 ): ToolDraftSummary {
   if (draft.toolName === "write") return summarizeWriteDraft(draft, cwd);
   if (draft.toolName === "edit") return summarizeEditDraft(draft, cwd);
+  if (draft.toolName === "bash") return summarizeBashDraft(draft);
   if (draft.toolName === "python") return summarizePythonDraft(draft, cwd);
   const toolName = draft.toolName ?? "tool";
   return {

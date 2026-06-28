@@ -9,14 +9,14 @@
     expanded?: boolean;
   };
   let { toolCall, view, expanded = false }: Props = $props();
+
+  const inlineCodeIsMultiline = $derived(
+    view.inputMode !== "file" && Boolean(view.code?.match(/[\r\n]/)),
+  );
 </script>
 
 <div class="grid gap-1.5">
-  {#if view.inputMode === "file" && view.relScriptPath}
-    <p class="m-0 text-xs text-muted-foreground">
-      Python script file: <code class="font-mono text-foreground">{view.relScriptPath}</code>
-    </p>
-  {:else if view.code && view.code.length > 0}
+  {#if view.code && inlineCodeIsMultiline}
     <section class="grid gap-1" aria-label="Python script">
       <ToolOutputBlock text={view.code} language="python" {expanded} />
     </section>
@@ -24,7 +24,14 @@
 
   {#if view.output.length > 0}
     <section class="grid gap-1" aria-label="Python output">
-      <ToolOutputBlock text={view.output} direction="tail" {expanded} outputLimits={view.outputLimits} terminal />
+      <ToolOutputBlock
+        text={view.output}
+        direction="tail"
+        collapsedLines={10}
+        {expanded}
+        outputLimits={view.outputLimits}
+        terminal
+      />
     </section>
   {:else if toolCall.status === "running"}
     <p class="m-0 text-xs text-muted-foreground">Waiting for Python output…</p>

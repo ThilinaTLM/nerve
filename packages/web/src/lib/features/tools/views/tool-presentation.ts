@@ -50,6 +50,12 @@ function formatCount(
   return `${value.toLocaleString()} ${noun}${value === 1 ? "" : "s"}`;
 }
 
+function isOneLine(text: string | undefined): boolean {
+  return Boolean(
+    text && !text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").includes("\n"),
+  );
+}
+
 function hasOutputArtifactPath(
   view: ToolView,
   path: string | undefined,
@@ -151,14 +157,23 @@ export function toolPresentation(
           openPath: view.savedTo,
         });
       }
+      const commandLines = lineCount(view.command);
+      const hiddenInput = Math.max(0, commandLines - COLLAPSED_LINES);
+      const hiddenOutput = Math.max(0, lines - COLLAPSED_LINES);
+      const hiddenTotal = hiddenInput + hiddenOutput;
       return {
         ...base,
         primaryArg: view.command
-          ? { text: view.command, preserveWhitespace: true }
+          ? isOneLine(view.command)
+            ? { text: view.command }
+            : { text: "inline" }
           : undefined,
         meta,
         detailsAction:
-          previewDetailsAction ?? detailsActionFor(lines, "lines", "tail"),
+          previewDetailsAction ??
+          (hiddenInput > 0
+            ? detailsActionFromHidden(hiddenTotal, "lines", "mixed")
+            : detailsActionFor(lines, "lines", "tail")),
       };
     }
 
@@ -207,7 +222,9 @@ export function toolPresentation(
       const primaryArg =
         view.inputMode === "file" && view.relScriptPath
           ? { text: view.relScriptPath, openPath: view.scriptPath }
-          : { text: "inline" };
+          : view.code && isOneLine(view.code)
+            ? { text: view.code }
+            : { text: "inline" };
       return {
         ...base,
         primaryArg,

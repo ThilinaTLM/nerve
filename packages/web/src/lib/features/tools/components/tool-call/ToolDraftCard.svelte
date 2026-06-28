@@ -31,11 +31,30 @@
       maxChars: 6_000,
     }).text;
   });
-  const draftArgsLanguage = $derived(draft.args || draft.argsText.trim() ? "json" : undefined);
+  const draftArgsLanguage = $derived(
+    draft.args || draft.argsText.trim() ? "json" : undefined,
+  );
   const genericPreview = $derived(draftArgsPreview ?? "Waiting for arguments…");
+  const isExecutionDraft = $derived(
+    summary.kind === "bash" || summary.kind === "python",
+  );
+  const headerArg = $derived.by(() => {
+    if (summary.path) return summary.path;
+    if (isExecutionDraft) {
+      return summary.inlineInput ??
+        (summary.inputMode === "inline" ? "inline" : undefined);
+    }
+    if (summary.kind === "generic") return summary.path;
+    return undefined;
+  });
   const previewFixedRows = $derived(
     (summary.kind === "write" || summary.kind === "edit") &&
       (summary.generatedLineCount ?? 0) > DRAFT_PREVIEW_LINES
+      ? DRAFT_PREVIEW_LINES
+      : undefined,
+  );
+  const executionPreviewFixedRows = $derived(
+    isExecutionDraft && (summary.inputLineCount ?? 0) > DRAFT_PREVIEW_LINES
       ? DRAFT_PREVIEW_LINES
       : undefined,
   );
@@ -45,10 +64,8 @@
   <div class="tool-header">
     <ToolStatusIcon tone={summary.done ? "good" : "running"} pulse={!summary.done} size={14} class="mr-1.5 align-middle" />
     <span class="badge">{summary.toolName}</span>
-    {#if summary.path}
-      <span class="arg" title={summary.path}>{summary.path}</span>
-    {:else if summary.kind === "python"}
-      <span class="arg">inline</span>
+    {#if headerArg}
+      <span class="arg" title={headerArg}>{headerArg}</span>
     {:else if summary.kind === "generic"}
       <span class="arg">Preparing arguments…</span>
     {/if}
@@ -81,17 +98,18 @@
         <span>Waiting for generated lines…</span>
       </div>
     {/if}
-  {:else if summary.kind === "python"}
-    {#if summary.code !== undefined && summary.code.length > 0}
+  {:else if isExecutionDraft}
+    {#if summary.inputPreview !== undefined && summary.inputPreview.length > 0}
       <ResultCodeBlock
-        code={trimTextPreview(summary.code, { headLines: 10, tailLines: 0 }).text}
+        code={summary.inputPreview}
         language={summary.language}
         trim={false}
         highlight={false}
         wrap={false}
         overflow="hidden"
+        fixedRows={executionPreviewFixedRows}
       />
-    {:else}
+    {:else if !summary.inlineInput}
       <div class="draft-progress" aria-live="polite">
         <span>{summary.statusText}</span>
         {#if !summary.done}<span class="progress-caret" aria-hidden="true"></span>{/if}

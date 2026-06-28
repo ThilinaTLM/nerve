@@ -168,11 +168,11 @@ describe("toolPresentation", () => {
     assert.equal(p.detailsAction, undefined);
   });
 
-  it("preserves whitespace for multi-line bash command primary args", () => {
+  it("uses an inline marker for multi-line bash command primary args", () => {
     const command = "printf 'a' &&\n  printf 'b'";
     const p = present("bash", { command }, { content: "ok", exitCode: 0 });
-    assert.equal(p.primaryArg?.text, command);
-    assert.equal(p.primaryArg?.preserveWhitespace, true);
+    assert.equal(p.primaryArg?.text, "inline");
+    assert.equal(p.primaryArg?.preserveWhitespace, undefined);
   });
 
   it("computes a tail collapse for long bash output", () => {
@@ -205,6 +205,15 @@ describe("toolPresentation", () => {
       p.meta.some((m) => m.text === "writes off" && m.tone === "warning"),
     );
     assert.equal(p.dotTone, "danger");
+  });
+
+  it("uses one-line inline Python code as the primary arg", () => {
+    const p = present(
+      "python",
+      { code: "print('x')" },
+      { content: "x", exitCode: 0 },
+    );
+    assert.equal(p.primaryArg?.text, "print('x')");
   });
 
   it("uses the script path as python primary arg for file mode", () => {

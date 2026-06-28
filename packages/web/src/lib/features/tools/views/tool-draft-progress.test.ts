@@ -283,6 +283,35 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.preview?.includes("earlier line"), false);
   });
 
+  it("shows one-line bash commands inline in the draft header", () => {
+    const summary = summarizeToolDraft(
+      draft("bash", {
+        argsText: '{"command":"pnpm test"',
+      }),
+    );
+
+    assert.equal(summary.kind, "bash");
+    assert.equal(summary.command, "pnpm test");
+    assert.equal(summary.inlineInput, "pnpm test");
+    assert.equal(summary.inputPreview, undefined);
+    assert.equal(summary.inputLineCount, 1);
+  });
+
+  it("tails multi-line bash command draft previews to the latest 10 lines", () => {
+    const lines = Array.from({ length: 12 }, (_, index) => `cmd-${index + 1}`);
+    const summary = summarizeToolDraft(
+      draft("bash", {
+        argsText: `{"command":"${lines.join("\\n")}`,
+      }),
+    );
+
+    assert.equal(summary.kind, "bash");
+    assert.equal(summary.inlineInput, undefined);
+    assert.equal(summary.inputPreview, lines.slice(-10).join("\n"));
+    assert.equal(summary.inputPreview?.includes("omitted"), false);
+    assert.equal(summary.inputLineCount, 12);
+  });
+
   it("extracts partial Python code from streamed JSON", () => {
     const summary = summarizeToolDraft(
       draft("python", {
@@ -315,6 +344,21 @@ describe("summarizeToolDraft", () => {
       summary.meta.map((item) => item.text),
       ["2 code lines", "submitted"],
     );
+  });
+
+  it("tails multi-line Python draft previews to the latest 10 lines", () => {
+    const lines = Array.from({ length: 12 }, (_, index) => `py-${index + 1}`);
+    const summary = summarizeToolDraft(
+      draft("python", {
+        args: { code: lines.join("\n") },
+      }),
+    );
+
+    assert.equal(summary.kind, "python");
+    assert.equal(summary.inlineInput, undefined);
+    assert.equal(summary.inputPreview, lines.slice(-10).join("\n"));
+    assert.equal(summary.inputPreview?.includes("omitted"), false);
+    assert.equal(summary.inputLineCount, 12);
   });
 
   it("summarizes Python file path drafts", () => {
