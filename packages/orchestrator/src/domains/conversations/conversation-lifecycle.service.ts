@@ -146,10 +146,17 @@ export class ConversationLifecycleService {
     entries.push(entry);
     this.state.entries.set(input.conversationId, entries);
     await this.entryRepository.append(entry);
+    const lastUserMessageAt =
+      entry.role === "user" &&
+      (!conversation.lastUserMessageAt ||
+        entry.createdAt > conversation.lastUserMessageAt)
+        ? entry.createdAt
+        : conversation.lastUserMessageAt;
     await this.updateConversation({
       ...conversation,
       activeEntryId: entry.id,
       updatedAt: entry.createdAt,
+      lastUserMessageAt,
     });
     if (options.mirrorToHarness !== false)
       await this.harnessManager.appendEntry(entry);
@@ -165,14 +172,20 @@ export class ConversationLifecycleService {
         storedConversation.title,
         entries.find((entry) => entry.role === "user")?.text ?? "",
       );
-      const conversation = expandedTitle
-        ? { ...storedConversation, title: expandedTitle }
-        : storedConversation;
+      const lastUserMessageAt = latestUserEntryCreatedAt(entries);
+      const conversation: ConversationRecord = {
+        ...storedConversation,
+        ...(expandedTitle ? { title: expandedTitle } : {}),
+        ...(lastUserMessageAt ? { lastUserMessageAt } : {}),
+      };
+      const shouldWrite =
+        Boolean(expandedTitle) ||
+        storedConversation.lastUserMessageAt !== conversation.lastUserMessageAt;
 
       this.state.conversations.set(conversation.id, conversation);
       this.index.upsertConversation(conversation);
       this.state.entries.set(conversation.id, entries);
-      if (expandedTitle) await this.writeConversation(conversation);
+      if (shouldWrite) await this.writeConversation(conversation);
     }
   }
 
@@ -182,4 +195,13 @@ export class ConversationLifecycleService {
     this.index.upsertConversation(conversation);
     await this.conversationRepository.write(conversation);
   }
+}
+
+function latestUserEntryCreatedAt(
+  entries: ConversationEntry[],
+): string | undefined {
+  return entries
+    .filter((entry) => entry.role === "user")
+    .map((entry) => entry.createdAt)
+    .sort((a, b) => b.localeCompare(a))[0];
 }

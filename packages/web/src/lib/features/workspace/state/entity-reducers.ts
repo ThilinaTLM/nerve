@@ -2,6 +2,7 @@ import type {
   AgentRecord,
   ApprovalRecord,
   ApprovalWithToolCall,
+  ConversationEntry,
   ConversationRecord,
   EventEnvelope,
   PlanReviewRecord,
@@ -50,6 +51,17 @@ function isApprovalRecord(value: unknown): value is ApprovalRecord {
   );
 }
 
+function isConversationEntry(value: unknown): value is ConversationEntry {
+  const candidate = recordValue(value);
+  return Boolean(
+    candidate &&
+      typeof candidate.id === "string" &&
+      typeof candidate.conversationId === "string" &&
+      typeof candidate.role === "string" &&
+      typeof candidate.createdAt === "string",
+  );
+}
+
 function isUserQuestionRecord(value: unknown): value is UserQuestionRecord {
   const candidate = recordValue(value);
   return Boolean(
@@ -94,6 +106,31 @@ export function upsertConversationRecord(
 export function removeConversationRecord(conversationId: string): void {
   workspaceState.conversations = workspaceState.conversations.filter(
     (conversation) => conversation.id !== conversationId,
+  );
+}
+
+export function patchConversationForEntry(entry: ConversationEntry): void {
+  const index = workspaceState.conversations.findIndex(
+    (candidate) => candidate.id === entry.conversationId,
+  );
+  if (index === -1) return;
+  const current = workspaceState.conversations[index];
+  if (!current) return;
+  const lastUserMessageAt =
+    entry.role === "user" &&
+    (!current.lastUserMessageAt || entry.createdAt > current.lastUserMessageAt)
+      ? entry.createdAt
+      : current.lastUserMessageAt;
+  workspaceState.conversations = workspaceState.conversations.map(
+    (candidate) =>
+      candidate.id === entry.conversationId
+        ? {
+            ...candidate,
+            activeEntryId: entry.id,
+            updatedAt: entry.createdAt,
+            lastUserMessageAt,
+          }
+        : candidate,
   );
 }
 
@@ -192,12 +229,18 @@ export function applyEntityEvent(
   const data = event.data ?? {};
   const agent = recordValue(data.agent);
   const conversation = recordValue(data.conversation);
+  const entry = recordValue(data.entry);
   const approval = recordValue(data.approval);
   const question = recordValue(data.question);
   const planReview = recordValue(data.planReview);
 
   if (isConversationRecord(conversation))
     upsertConversationRecord(conversation);
+  if (
+    event.type === "conversation.entry.appended" &&
+    isConversationEntry(entry)
+  )
+    patchConversationForEntry(entry);
   if (event.type === "conversation.deleted") {
     const conversationId =
       stringValue(data.conversationId) ?? stringValue(data.id);

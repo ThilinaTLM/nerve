@@ -50,6 +50,7 @@ export function appendRegistryEntry(
     parentEntryId?: string | null;
     role: ConversationEntry["role"];
     text: string;
+    createdAt?: string;
   },
 ): Promise<ConversationEntry> {
   return (

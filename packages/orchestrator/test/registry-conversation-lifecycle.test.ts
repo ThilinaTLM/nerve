@@ -60,12 +60,72 @@ describe("RuntimeRegistry conversation lifecycle", () => {
     const repaired = state.registry.getConversation(oldConversationId);
     assert.equal(repaired.title, text);
     assert.equal(repaired.updatedAt, createdAt);
+    assert.equal(repaired.lastUserMessageAt, createdAt);
 
     const persisted = JSON.parse(
       await readFile(join(conversationDir, "conversation.json"), "utf8"),
     ) as ConversationRecord;
     assert.equal(persisted.title, text);
     assert.equal(persisted.updatedAt, createdAt);
+    assert.equal(persisted.lastUserMessageAt, createdAt);
+  });
+
+  it("tracks last user message time separately from conversation updates", async () => {
+    const state = await createState("nerve-registry-last-user-message-");
+    try {
+      const project = await state.registry.createProject({
+        dir: state.storage.paths.home,
+      });
+      const conversation = await state.registry.createConversation({
+        projectId: project.id,
+      });
+
+      await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "First prompt",
+        createdAt: "2026-01-01T00:01:00.000Z",
+      });
+      assert.equal(
+        state.registry.getConversation(conversation.id).lastUserMessageAt,
+        "2026-01-01T00:01:00.000Z",
+      );
+
+      await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "assistant",
+        text: "Assistant response",
+        createdAt: "2026-01-01T00:02:00.000Z",
+      });
+      assert.equal(
+        state.registry.getConversation(conversation.id).lastUserMessageAt,
+        "2026-01-01T00:01:00.000Z",
+      );
+
+      await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "Second prompt",
+        createdAt: "2026-01-01T00:03:00.000Z",
+      });
+      assert.equal(
+        state.registry.getConversation(conversation.id).lastUserMessageAt,
+        "2026-01-01T00:03:00.000Z",
+      );
+
+      await appendRegistryEntry(state, {
+        conversationId: conversation.id,
+        role: "user",
+        text: "Imported older prompt",
+        createdAt: "2026-01-01T00:00:30.000Z",
+      });
+      assert.equal(
+        state.registry.getConversation(conversation.id).lastUserMessageAt,
+        "2026-01-01T00:03:00.000Z",
+      );
+    } finally {
+      state.index.close();
+    }
   });
 
   it("creates projects, conversations, and agents through public APIs", async () => {

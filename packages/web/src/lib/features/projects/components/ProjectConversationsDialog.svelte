@@ -43,7 +43,7 @@
   let filter = $state("");
   let searchInputEl = $state<HTMLInputElement | null>(null);
 
-  // Rows are always sorted newest-first by buildConversationRows.
+  // Rows are sorted by latest user message by buildConversationRows.
   const rows = $derived(
     buildConversationRows({ conversations, agents, projectIds, filter }),
   );

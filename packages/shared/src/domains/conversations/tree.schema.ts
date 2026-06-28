@@ -11,6 +11,7 @@ export const conversationRecordSchema = z.object({
   activeEntryId: z.string().startsWith("entry_").optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  lastUserMessageAt: z.string().datetime().optional(),
 });
 export type ConversationRecord = z.infer<typeof conversationRecordSchema>;
 

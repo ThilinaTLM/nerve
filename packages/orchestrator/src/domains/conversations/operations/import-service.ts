@@ -96,6 +96,7 @@ export class ImportService {
           ? entryIdMap.get(entry.fromEntryId)
           : undefined,
         details: entry.details,
+        createdAt: entry.createdAt,
       });
       entryIdMap.set(entry.id, imported.id);
       importedEntries.push(imported);

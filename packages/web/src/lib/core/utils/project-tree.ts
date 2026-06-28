@@ -15,7 +15,7 @@ export type ProjectGroup = {
   totalRows: number;
   /** Display label: folder name, or a disambiguated short path on name clashes. */
   label: string;
-  updatedAt: string;
+  sortAt: string;
 };
 
 export type ProjectGroupResult = {
@@ -115,6 +115,35 @@ export function activeConversationAgent(
   );
 }
 
+export function conversationLastUserSortAt(
+  conversation: ConversationRecord,
+): string {
+  return conversation.lastUserMessageAt ?? conversation.createdAt;
+}
+
+function compareConversationsByLastUserMessageDesc(
+  a: ConversationRecord,
+  b: ConversationRecord,
+): number {
+  const sortCompare = conversationLastUserSortAt(b).localeCompare(
+    conversationLastUserSortAt(a),
+  );
+  if (sortCompare !== 0) return sortCompare;
+  const createdCompare = b.createdAt.localeCompare(a.createdAt);
+  if (createdCompare !== 0) return createdCompare;
+  const titleCompare = a.title.localeCompare(b.title);
+  if (titleCompare !== 0) return titleCompare;
+  return a.id.localeCompare(b.id);
+}
+
+function compareProjectGroupsDesc(a: ProjectGroup, b: ProjectGroup): number {
+  const sortCompare = b.sortAt.localeCompare(a.sortAt);
+  if (sortCompare !== 0) return sortCompare;
+  const createdCompare = b.project.createdAt.localeCompare(a.project.createdAt);
+  if (createdCompare !== 0) return createdCompare;
+  return a.key.localeCompare(b.key);
+}
+
 export function buildConversationRows(options: {
   conversations: ConversationRecord[];
   agents: AgentRecord[];
@@ -137,7 +166,7 @@ export function buildConversationRows(options: {
       agent: activeConversationAgent(conversation, agents),
     }))
     .sort((a, b) =>
-      b.conversation.updatedAt.localeCompare(a.conversation.updatedAt),
+      compareConversationsByLastUserMessageDesc(a.conversation, b.conversation),
     );
 }
 
@@ -162,9 +191,9 @@ export function buildProjectGroups(options: {
     const existing = byDir.get(key);
     if (existing) {
       existing.projects.push(project);
-      if (project.updatedAt > existing.updatedAt)
-        existing.updatedAt = project.updatedAt;
-      if (project.updatedAt > existing.project.updatedAt)
+      if (project.createdAt > existing.sortAt)
+        existing.sortAt = project.createdAt;
+      if (project.createdAt > existing.project.createdAt)
         existing.project = project;
     } else {
       byDir.set(key, {
@@ -175,7 +204,7 @@ export function buildProjectGroups(options: {
         hiddenRows: 0,
         totalRows: 0,
         label: projectFolderName(project.dir),
-        updatedAt: project.updatedAt,
+        sortAt: project.createdAt,
       });
     }
   }
@@ -192,20 +221,20 @@ export function buildProjectGroups(options: {
       hiddenRows: 0,
       totalRows: 0,
       label: projectFolderName(project.dir),
-      updatedAt: project.updatedAt,
+      sortAt: project.createdAt,
     };
     group.rows.push({
       conversation,
       agent: activeConversationAgent(conversation, agents),
     });
-    if (conversation.updatedAt > group.updatedAt)
-      group.updatedAt = conversation.updatedAt;
+    const conversationSortAt = conversationLastUserSortAt(conversation);
+    if (conversationSortAt > group.sortAt) group.sortAt = conversationSortAt;
     byDir.set(key, group);
   }
 
   const sorted = [...byDir.values()]
     .filter((group) => projectGroupMatches(group, query))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .sort(compareProjectGroupsDesc);
 
   const hiddenProjects = Math.max(0, sorted.length - maxProjects);
 
@@ -219,7 +248,7 @@ export function buildProjectGroups(options: {
 
   const groups = sorted.slice(0, maxProjects).map((group) => {
     const rows = group.rows.sort((a, b) =>
-      b.conversation.updatedAt.localeCompare(a.conversation.updatedAt),
+      compareConversationsByLastUserMessageDesc(a.conversation, b.conversation),
     );
     const folder = projectFolderName(group.project.dir);
     const label =

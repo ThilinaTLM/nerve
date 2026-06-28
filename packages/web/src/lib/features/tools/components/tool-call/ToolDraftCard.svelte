@@ -47,18 +47,6 @@
     if (summary.kind === "generic") return summary.path;
     return undefined;
   });
-  const previewFixedRows = $derived(
-    (summary.kind === "write" || summary.kind === "edit") &&
-      (summary.generatedLineCount ?? 0) > DRAFT_PREVIEW_LINES
-      ? DRAFT_PREVIEW_LINES
-      : undefined,
-  );
-  const executionPreviewFixedRows = $derived(
-    isExecutionDraft && (summary.inputLineCount ?? 0) > DRAFT_PREVIEW_LINES
-            ? DRAFT_PREVIEW_LINES
-      : undefined,
-  );
-
   // Transient settle only on a real drafting -> done change. Initialize the
   // tracker to the current value so a draft that mounts already done does not
   // fire a spurious settle.
@@ -98,22 +86,23 @@
       <ResultCodeBlock
         code={summary.preview}
         language={draftPreviewLanguage}
-        maxHeight="none"
         trim={false}
         highlight={false}
-        wrap={false}
+        wrap
         overflow="hidden"
-        fixedRows={previewFixedRows}
+        tail
+        fixedRows={DRAFT_PREVIEW_LINES}
       />
     {:else if draftArgsPreview}
       <ResultCodeBlock
         code={draftArgsPreview}
         language={draftArgsLanguage}
-        maxHeight="10rem"
         trim={false}
         highlight={false}
-        wrap={false}
+        wrap
         overflow="hidden"
+        tail
+        fixedRows={DRAFT_PREVIEW_LINES}
       />
     {:else}
       <div class="draft-progress" aria-live="polite">
@@ -127,9 +116,10 @@
         language={summary.language}
         trim={false}
         highlight={false}
-        wrap={false}
+        wrap
         overflow="hidden"
-        fixedRows={executionPreviewFixedRows}
+        tail
+        fixedRows={DRAFT_PREVIEW_LINES}
       />
     {:else if !summary.inlineInput}
       <div class="draft-progress" aria-live="polite">
@@ -140,11 +130,12 @@
         <ResultCodeBlock
           code={draftArgsPreview}
           language={draftArgsLanguage}
-          maxHeight="10rem"
           trim={false}
           highlight={false}
-          wrap={false}
+          wrap
           overflow="hidden"
+          tail
+          fixedRows={DRAFT_PREVIEW_LINES}
         />
       {/if}
     {/if}

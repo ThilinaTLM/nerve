@@ -13,6 +13,7 @@
     wrap?: boolean;
     overflow?: "auto" | "hidden";
     terminal?: boolean;
+    tail?: boolean;
   };
   let {
     code,
@@ -24,6 +25,7 @@
     wrap = true,
     overflow = "auto",
     terminal = false,
+    tail = false,
   }: Props = $props();
 
   let html = $state<string | undefined>(undefined);
@@ -81,29 +83,30 @@
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
-    style:max-height={maxHeight}
+    data-tail={tail ? "true" : undefined}
+    style:max-height={hasFixedRows ? undefined : maxHeight}
     style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
-  >{@html terminalHtml}</div>
+  ><div class="code-block__content">{@html terminalHtml}</div></div>
 {:else if highlight && html && htmlSignature === signature}
   <div
     class="code-block"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
-    style:max-height={maxHeight}
+    data-tail={tail ? "true" : undefined}
+    style:max-height={hasFixedRows ? undefined : maxHeight}
     style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
-  >
-    {@html html}
-  </div>
+  ><div class="code-block__content">{@html html}</div></div>
 {:else}
-  <pre
+  <div
     class="code-block plain"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
-    style:max-height={maxHeight}
+    data-tail={tail ? "true" : undefined}
+    style:max-height={hasFixedRows ? undefined : maxHeight}
     style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
-  >{preview.text}</pre>
+  ><pre class="code-block__content">{preview.text}</pre></div>
 {/if}
 
 <style>
@@ -124,30 +127,31 @@
     line-height: 1.4;
   }
 
-  .code-block[data-terminal="true"] {
+  .code-block__content {
+    margin: 0;
+    font: inherit;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  .code-block__content :global(pre) {
+    margin: 0;
+    background: transparent !important;
+    white-space: inherit;
+    word-break: inherit;
+  }
+
+  .code-block[data-terminal="true"] {
     line-height: 1.22;
   }
 
-  .code-block.plain {
+  .code-block[data-terminal="true"] .code-block__content {
     white-space: pre-wrap;
     word-break: break-word;
   }
 
-  .code-block :global(pre) {
-    margin: 0;
-    background: transparent !important;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  .code-block[data-wrap="false"] {
-    white-space: pre;
-    word-break: normal;
-  }
-
-  .code-block[data-wrap="false"] :global(pre) {
+  .code-block[data-wrap="false"] .code-block__content,
+  .code-block[data-wrap="false"] .code-block__content :global(pre) {
     white-space: pre;
     word-break: normal;
   }
@@ -157,7 +161,13 @@
   }
 
   .code-block[data-fixed-rows="true"] {
-    height: calc((var(--code-block-fixed-rows) * 1lh) + (var(--code-block-padding-y) * 2) + 2px);
+    max-height: calc((var(--code-block-fixed-rows) * 1lh) + (var(--code-block-padding-y) * 2) + 2px);
+  }
+
+  .code-block[data-tail="true"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
   }
 
   .code-block :global(code) {
