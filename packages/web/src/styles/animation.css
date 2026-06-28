@@ -69,6 +69,32 @@
   }
 }
 
+/* Bottom-only reveal for live/waiting transcript surfaces
+ * (TranscriptList.svelte waiting-entry). Opacity/transform only. */
+@keyframes transcript-live-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* One-shot settle when a live/running surface becomes terminal
+ * (TranscriptRow, ToolDraftCard, CardShell). Opacity/transform only. */
+@keyframes transcript-state-settle {
+  from {
+    opacity: 0.72;
+    transform: translateY(0.12rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Directory picker skeleton shimmer (directory-picker.css). */
 @keyframes picker-sheen {
   from {

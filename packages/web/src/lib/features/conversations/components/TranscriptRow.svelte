@@ -76,6 +76,36 @@
     messageMenu,
     toolMenu,
   }: Props = $props();
+
+  // Lifecycle for normal message rows. `running` while a live assistant message
+  // streams, `complete` once the same live message is done, `static` for
+  // persisted/non-live rows and user/system rows.
+  const messageState = $derived.by<"running" | "complete" | "static">(() => {
+    if (node.kind !== "message") return "static";
+    const item = node.item;
+    if (item.role === "assistant" && item.live) {
+      return item.done ? "complete" : "running";
+    }
+    return "static";
+  });
+
+  // Transient one-shot settle, only on a real running -> complete change.
+  // Initialize the tracker to the current value so an already-complete row
+  // mounting (scrollback, reload, recycled VirtualScroller instance) does not
+  // fire a spurious settle.
+  let settling = $state(false);
+  let previousMessageState: "running" | "complete" | "static" | undefined;
+  $effect(() => {
+    const current = messageState;
+    if (previousMessageState === undefined) {
+      previousMessageState = current;
+      return;
+    }
+    if (previousMessageState === "running" && current === "complete") {
+      settling = true;
+    }
+    previousMessageState = current;
+  });
 </script>
 
 {#if node.kind === "tool"}
@@ -122,6 +152,11 @@
   >
     <article
       class={`transcript-entry ${node.item.role} ${node.item.displayKind === "thinking" ? "thinking-entry" : ""} ${node.item.live ? "streaming" : ""}`}
+      class:state-settling={settling}
+      data-state={messageState}
+      onanimationend={(event) => {
+        if (event.target === event.currentTarget) settling = false;
+      }}
     >
       <div class="message-body">
         {#if node.item.displayKind === "thinking"}
@@ -203,5 +238,11 @@
     margin-top: 0.18rem;
     background: var(--primary);
     animation: pulse 1s steps(2, start) infinite;
+  }
+
+  /* Brief opacity/transform settle when a live message becomes terminal.
+   * Neutralized by the global prefers-reduced-motion rule in base.css. */
+  .transcript-entry.state-settling {
+    animation: transcript-state-settle 180ms ease-out;
   }
 </style>

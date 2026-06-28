@@ -55,12 +55,34 @@
   );
   const executionPreviewFixedRows = $derived(
     isExecutionDraft && (summary.inputLineCount ?? 0) > DRAFT_PREVIEW_LINES
-      ? DRAFT_PREVIEW_LINES
+            ? DRAFT_PREVIEW_LINES
       : undefined,
   );
+
+  // Transient settle only on a real drafting -> done change. Initialize the
+  // tracker to the current value so a draft that mounts already done does not
+  // fire a spurious settle.
+  let settling = $state(false);
+  let previousDone: boolean | undefined;
+  $effect(() => {
+    const done = summary.done;
+    if (previousDone === undefined) {
+      previousDone = done;
+      return;
+    }
+    if (!previousDone && done) settling = true;
+    previousDone = done;
+  });
 </script>
 
-<article class={`tool-draft-card draft-${summary.kind}`}>
+<article
+  class={`tool-draft-card draft-${summary.kind}`}
+  class:state-settling={settling}
+  data-state={summary.done ? "complete" : "drafting"}
+  onanimationend={(event) => {
+    if (event.target === event.currentTarget) settling = false;
+  }}
+>
   <div class="tool-header">
     <ToolStatusIcon tone={summary.done ? "good" : "running"} pulse={!summary.done} size={14} class="mr-1.5 align-middle" />
     <span class="badge">{summary.toolName}</span>
@@ -146,6 +168,12 @@
     width: 100%;
     padding: 0.6rem 0.75rem;
     background: color-mix(in oklab, var(--background) 94%, var(--sidebar));
+  }
+
+  /* Brief opacity/transform settle when the draft completes.
+   * Neutralized by the global prefers-reduced-motion rule in base.css. */
+  .tool-draft-card.state-settling {
+    animation: transcript-state-settle 180ms ease-out;
   }
 
   .tool-header {

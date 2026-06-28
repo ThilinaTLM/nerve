@@ -9,7 +9,7 @@
   import ToolFooter from "./ToolFooter.svelte";
 
   type Props = {
-    /** Status suffix used for the `status-*` card class (styling hook). */
+    /** Tool-call status; mapped to a `data-state` lifecycle styling hook. */
     status?: string;
     dotTone: StatusTone;
     dotPulse?: boolean;
@@ -40,9 +40,56 @@
     onOpenFile,
     children,
   }: Props = $props();
+
+  // Lightweight lifecycle derived from the (exhaustive) tool-call status enum.
+  const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(
+    () => {
+      switch (status) {
+        case "requested":
+        case "pending_approval":
+        case "waiting_for_user":
+        case "running":
+          return "running";
+        case "completed":
+          return "complete";
+        case "error":
+        case "denied":
+          return "error";
+        default:
+          return "idle";
+      }
+    },
+  );
+
+  // Transient settle only on a real running -> terminal change. Initialize the
+  // tracker to the current value so a card that mounts already terminal does
+  // not fire a spurious settle.
+  let settling = $state(false);
+  let previousLifecycle: "running" | "complete" | "error" | "idle" | undefined;
+  $effect(() => {
+    const current = lifecycle;
+    if (previousLifecycle === undefined) {
+      previousLifecycle = current;
+      return;
+    }
+    if (
+      previousLifecycle === "running" &&
+      (current === "complete" || current === "error")
+    ) {
+      settling = true;
+    }
+    previousLifecycle = current;
+  });
 </script>
 
-<article class={`tool-card${status ? ` status-${status}` : ""}`}>
+<article
+  class="tool-card"
+  class:state-settling={settling}
+  data-state={lifecycle}
+  onanimationend={(event) => {
+    if (event.target === event.currentTarget) settling = false;
+  }}
+>
   <div class="tool-header">
     <ToolStatusIcon tone={dotTone} pulse={dotPulse} size={14} class="mr-1.5 align-middle" />
     <span class="badge">{badge}</span>
@@ -93,6 +140,12 @@
     gap: 0.4rem;
     width: 100%;
     padding: 0.6rem 0.75rem;
+  }
+
+  /* Brief opacity/transform settle when a running tool reaches a terminal
+   * state. Neutralized by the global prefers-reduced-motion rule in base.css. */
+  .tool-card.state-settling {
+    animation: transcript-state-settle 180ms ease-out;
   }
 
   /* Inline flow so a long arg wraps flush to the left edge (no hanging indent). */

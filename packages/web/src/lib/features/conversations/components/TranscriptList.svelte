@@ -216,6 +216,10 @@
     width: 100%;
     min-width: 0;
     padding: 0.75rem;
+    /* Bottom-only reveal: this surface only exists while sending before live
+     * timeline nodes arrive, so the enter never replays during scrolling.
+     * Neutralized by the global prefers-reduced-motion rule in base.css. */
+    animation: transcript-live-enter 180ms ease-out;
   }
 
   .waiting-entry .message-body {
