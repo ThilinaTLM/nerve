@@ -343,6 +343,43 @@ describe("toolPresentation", () => {
     assert.equal(p.primaryArg, undefined);
   });
 
+  it("keeps explore footer chips focused on high-signal status", () => {
+    const p = present(
+      "explore",
+      {},
+      {
+        reports: [
+          {
+            agentId: "agent_02H00000000000000000000000",
+            task: "Trace API flow",
+            status: "completed",
+            report: "Done",
+            reportPath: "/home/user/.nerve/explore-reports/api.md",
+            model: "openai/gpt-5.5",
+            usage: {
+              input: 10,
+              output: 20,
+              cacheRead: 0,
+              cacheWrite: 0,
+              totalTokens: 30,
+              cost: 0,
+              turns: 2,
+            },
+          },
+          {
+            agentId: "agent_03H00000000000000000000000",
+            task: "Trace UI flow",
+            status: "failed",
+            report: "Failed",
+            errorMessage: "boom",
+          },
+        ],
+      },
+    );
+    assert.deepEqual(metaText(p.meta), ["1 failed"]);
+    assert.equal(p.meta[0]?.tone, "error");
+  });
+
   it("shows no footer chip for an answered ask_user with no primary arg", () => {
     const p = present(
       "ask_user",

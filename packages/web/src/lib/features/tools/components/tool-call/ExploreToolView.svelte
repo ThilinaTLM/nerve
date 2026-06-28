@@ -59,14 +59,20 @@
     return lines;
   }
 
-  // Model is shown as a chip next to the title, so it is omitted here.
-  function reportMeta(report: NonNullable<(typeof tasks)[number]["report"]>): string | undefined {
-    const parts: string[] = [];
-    if (report.usage?.turns) parts.push(`${report.usage.turns} turn${report.usage.turns === 1 ? "" : "s"}`);
-    if (report.usage?.input || report.usage?.output) {
-      parts.push(`${report.usage.input + report.usage.output} tokens`);
-    }
-    return parts.length > 0 ? parts.join(" · ") : undefined;
+  function pluralCount(value: number, noun: string): string {
+    return `${value.toLocaleString()} ${noun}${value === 1 ? "" : "s"}`;
+  }
+
+  function usageChips(report: NonNullable<(typeof tasks)[number]["report"]>): string[] {
+    const chips: string[] = [];
+    if (report.usage?.turns) chips.push(pluralCount(report.usage.turns, "turn"));
+    const tokenCount = report.usage
+      ? report.usage.totalTokens > 0
+        ? report.usage.totalTokens
+        : report.usage.input + report.usage.output
+      : 0;
+    if (tokenCount > 0) chips.push(pluralCount(tokenCount, "token"));
+    return chips;
   }
 </script>
 
@@ -94,13 +100,27 @@
       {#each tasks as task (task.key)}
         {@const modelThinking = modelThinkingLabel(task)}
         <li class="grid min-w-0 gap-1 rounded-lg border border-border bg-card px-3 py-2.5">
-          <div class="flex min-w-0 items-baseline gap-2">
-            <strong class="truncate text-sm font-medium leading-tight">{taskTitle(task)}</strong>
-            {#if modelThinking}
-              <span class="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs leading-none text-muted-foreground" title={[task.model, task.thinkingLevel].filter(Boolean).join(" · ")}>{modelThinking}</span>
-            {/if}
+          <div class="flex min-w-0 items-center gap-2">
+            <div class="flex min-w-0 flex-1 items-center gap-2">
+              <strong class="min-w-0 truncate text-sm font-medium leading-tight">{taskTitle(task)}</strong>
+              {#if modelThinking}
+                <span class="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs leading-none text-muted-foreground" title={[task.model, task.thinkingLevel].filter(Boolean).join(" · ")}>{modelThinking}</span>
+              {/if}
+              {#if task.report?.reportPath}
+                <button
+                  type="button"
+                  class="inline-flex min-w-0 shrink items-center gap-1 rounded border border-border bg-muted/30 px-1.5 py-0.5 text-xs font-medium leading-none text-primary hover:bg-muted"
+                  onclick={() => task.report?.reportPath && onOpenFile?.(task.report.reportPath)}
+                  title={task.report.reportPath}
+                  aria-label={`Open report ${basename(task.report.reportPath)}`}
+                >
+                  <FileText size={12} strokeWidth={2.1} class="shrink-0" />
+                  <span class="min-w-0 truncate font-mono">{basename(task.report.reportPath)}</span>
+                </button>
+              {/if}
+            </div>
             {#if task.count && task.count > 1 && task.index !== undefined}
-              <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{task.index + 1}/{task.count}</span>
+              <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{task.index + 1}/{task.count}</span>
             {/if}
           </div>
 
@@ -111,21 +131,13 @@
           </div>
 
           {#if task.report}
-            {@const meta = reportMeta(task.report)}
-            {#if meta}
-              <p class="m-0 text-xs text-muted-foreground">{meta}</p>
-            {/if}
-            {#if task.report.reportPath}
-              <button
-                type="button"
-                class="mt-0.5 inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs font-medium text-primary hover:bg-muted"
-                onclick={() => task.report?.reportPath && onOpenFile?.(task.report.reportPath)}
-                title={task.report.reportPath}
-              >
-                <FileText size={13} strokeWidth={2.1} />
-                Open report
-                <span class="font-mono text-muted-foreground">{basename(task.report.reportPath)}</span>
-              </button>
+            {@const chips = usageChips(task.report)}
+            {#if chips.length > 0}
+              <div class="flex min-w-0 flex-wrap gap-1 pt-0.5">
+                {#each chips as chip}
+                  <span class="inline-flex min-h-5 items-center rounded border border-border bg-sidebar px-1.5 py-0.5 text-xs font-medium leading-none tabular-nums text-muted-foreground">{chip}</span>
+                {/each}
+              </div>
             {/if}
           {/if}
         </li>

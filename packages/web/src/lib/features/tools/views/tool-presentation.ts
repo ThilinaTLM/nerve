@@ -397,32 +397,11 @@ export function toolPresentation(
 
     case "explore": {
       const { summary } = aggregateExploreTasks(view);
-      const count = view.reports.length;
-      const fileCount = view.reports.filter(
-        (report) => report.reportPath,
-      ).length;
       const meta: MetaItem[] = [];
-      // While running, the in-body header already shows the `{completed}/{total}
-      // agents` progress bar, so the footer only carries completed-state chips
-      // (reports / files / model / turns) plus any failure count.
-      if (summary.done) {
-        if (count > 0)
-          meta.push({ text: plural(count, "report", "s"), tone: "success" });
-        if (fileCount > 0) meta.push({ text: plural(fileCount, "file", "s") });
-      }
+      // Per-agent report paths, model, turns, and token usage render inside the
+      // explore rows; keep the generic footer reserved for high-signal status.
       if (summary.failed > 0)
         meta.push({ text: `${summary.failed} failed`, tone: "error" });
-      const models = [
-        ...new Set(view.reports.map((report) => report.model).filter(Boolean)),
-      ];
-      if (models.length === 1 && models[0]) {
-        meta.push({ text: basename(models[0]) });
-      }
-      const turns = view.reports.reduce(
-        (sum, report) => sum + (report.usage?.turns ?? 0),
-        0,
-      );
-      if (turns > 0) meta.push({ text: plural(turns, "turn") });
       return {
         ...base,
         primaryArg: undefined,

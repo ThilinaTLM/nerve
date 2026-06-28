@@ -21,15 +21,14 @@ import type {
   WorkspaceScope,
 } from "@nervekit/shared";
 import { createId } from "@nervekit/shared";
-import type { AuthManager } from "../../auth/index.js";
+import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import {
   type InitializedStorage,
   pathExists,
 } from "../../../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
-import { loadHarnessResources } from "../prompting/resource-loader.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
+import type { AuthManager } from "../../auth/index.js";
 import type { HarnessManager } from "../../conversations/harness-manager.js";
 import {
   activeToolNamesForExploreAgent,
@@ -40,6 +39,7 @@ import type {
   ToolService,
 } from "../../tools/tool-service.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
+import { loadHarnessResources } from "../prompting/resource-loader.js";
 
 export {
   exploreRunPlanArg,
@@ -355,17 +355,16 @@ export class SubagentRunner {
       harness.subscribe((event) => {
         const update = exploreProgressFromHarnessEvent(event, child, spec);
         if (update) {
-          // Only stream `tool_call` deltas live (the meaningful "what it's
-          // doing" signal); publishing tool_result/assistant too would 2-3x the
-          // per-event transcript re-render churn. Steps below keep full detail.
-          if (update.phase === "tool_call") {
-            publishExploreProgress(spec.onProgress, update);
-          }
+          // Stream bounded phase-level progress live (not token deltas) so the
+          // parent transcript can show useful recent activity while child agents
+          // are thinking, calling tools, and receiving tool results. Steps below
+          // keep the same detail for completed/reloaded cards.
           if (
             update.phase === "tool_call" ||
             update.phase === "tool_result" ||
             update.phase === "assistant"
           ) {
+            publishExploreProgress(spec.onProgress, update);
             pushExploreStep(steps, {
               type: update.phase === "assistant" ? "assistant" : update.phase,
               toolName: toolNameFromHarnessEvent(event),

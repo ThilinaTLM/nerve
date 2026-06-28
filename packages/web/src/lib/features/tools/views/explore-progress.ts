@@ -55,10 +55,7 @@ export function parseExploreProgressLog(text: string | undefined): {
   };
 }
 
-const EXPLORE_NOISE_MESSAGES = new Set([
-  "Assistant response started.",
-  "Final report received.",
-]);
+const EXPLORE_NOISE_MESSAGES = new Set(["Final report received."]);
 
 function friendlyExploreAction(
   update: ExploreProgressView,

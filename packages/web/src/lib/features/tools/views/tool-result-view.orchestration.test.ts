@@ -293,6 +293,11 @@ describe("parseToolView ask_user/todos/task/explore", () => {
             taskCount: 2,
             label: "api",
           }),
+          exploreUpdate("tool_result", "read completed", {
+            taskIndex: 0,
+            taskCount: 2,
+            label: "api",
+          }),
           exploreUpdate("assistant", "Assistant response started.", {
             taskIndex: 0,
             taskCount: 2,
@@ -313,12 +318,14 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(summary.completed, 0);
     assert.equal(summary.done, false);
     assert.equal(tasks.length, 2);
-    // Task 0: prefers the concrete tool action over the "assistant" noise line.
+    // Task 0: shows the latest three bounded progress lines, including thinking.
     assert.equal(tasks[0]?.status, "running");
-    assert.equal(tasks[0]?.currentAction, "read server.ts");
-    assert.equal(tasks[0]?.currentActionMono, true);
+    assert.equal(tasks[0]?.currentAction, "Thinking…");
+    assert.equal(tasks[0]?.currentActionMono, false);
     assert.deepEqual(tasks[0]?.recentActions, [
       { text: "read server.ts", mono: true },
+      { text: "read completed", mono: true },
+      { text: "Thinking…", mono: false },
     ]);
     assert.equal(tasks[0]?.actionCount, 1);
     assert.equal(tasks[0]?.label, "api");
@@ -327,6 +334,8 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(tasks[0]?.thinkingLevel, "medium");
     assert.deepEqual(tasks[0]?.recentMessages, [
       { text: "read server.ts", mono: true },
+      { text: "read completed", mono: true },
+      { text: "Thinking…", mono: false },
     ]);
     // Task 1: started but no display-safe tool action yet.
     assert.equal(tasks[1]?.status, "running");
