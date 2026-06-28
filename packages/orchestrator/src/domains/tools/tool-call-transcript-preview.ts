@@ -502,6 +502,14 @@ export function toToolCallTranscriptRecord(
       break;
     }
 
+    case "todos_set":
+    case "todos_get": {
+      // Todo lists are short, presentational checklists. Keep the full list in
+      // both previews so the timeline card and the composer todo chip can
+      // reflect every item and an accurate completed/total count.
+      break;
+    }
+
     default: {
       const argsBound = previewUnknown(args);
       const resultBound = previewUnknown(result);

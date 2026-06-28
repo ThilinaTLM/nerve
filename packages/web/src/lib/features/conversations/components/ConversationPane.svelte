@@ -13,6 +13,7 @@
   } from "$lib/features/conversations/state/timeline";
   import { Button } from "$lib/components/ui/button";
   import PromptComposer from "./PromptComposer.svelte";
+  import { currentTodosForAgent } from "./composer-todos";
   import TranscriptList from "./TranscriptList.svelte";
   import { messageMenu, toolMenu } from "./conversation-menus";
   import { createConversationScrollController } from "./conversation-scroll.svelte";
@@ -77,6 +78,7 @@
     onOpenHistory,
   }: ConversationPaneProps = $props();
 
+  const composerTodos = $derived(currentTodosForAgent(toolCalls, activeAgent?.id));
   const conversationOpen = $derived(Boolean(activeConversation || pendingConversationActive));
   const activeProjectLabel = $derived(activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined);
   // Incremental projection: `committed` only recomputes when transcript/toolCalls
@@ -219,6 +221,7 @@
         {selectedModelKey}
         {contextUsage}
         {contextWindow}
+        todos={composerTodos}
         focusToken={composerFocusToken}
         {composerEscapeToken}
         {micShortcutToken}

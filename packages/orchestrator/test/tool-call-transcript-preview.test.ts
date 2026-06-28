@@ -90,6 +90,32 @@ describe("toToolCallTranscriptRecord", () => {
     assert.equal(preview.previewOverflow?.direction, "head");
   });
 
+  it("keeps the full todo list in todos_set previews without truncation", () => {
+    const todos = Array.from({ length: 14 }, (_, index) => ({
+      todo: `task ${index + 1}`,
+      done: index % 2 === 0,
+    }));
+    const preview = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "todos_set",
+        risk: "interaction",
+        args: { todos },
+        result: { details: { todos } },
+      }),
+    );
+
+    assert.deepEqual(
+      (preview.argsPreview as { todos: unknown[] }).todos,
+      todos,
+    );
+    assert.deepEqual(
+      (preview.resultPreview as { details: { todos: unknown[] } }).details
+        .todos,
+      todos,
+    );
+    assert.equal(preview.previewOverflow, undefined);
+  });
+
   it("omits image data from read transcript previews", () => {
     const preview = toToolCallTranscriptRecord(
       toolCall({

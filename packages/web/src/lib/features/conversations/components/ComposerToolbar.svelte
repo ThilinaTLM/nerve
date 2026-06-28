@@ -3,10 +3,12 @@
   import Shield from "@lucide/svelte/icons/shield";
   import Zap from "@lucide/svelte/icons/zap";
   import type { AgentRecord, ContextUsage, ModelInfo } from "$lib/api";
+  import type { TodoItem } from "@nervekit/shared";
   import Popover from "$lib/components/ui/popover-panel";
   import type { Component } from "svelte";
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
+  import TodoProgressChip from "./TodoProgressChip.svelte";
 
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
@@ -33,6 +35,7 @@
     thinkingShortcut?: string;
     contextUsage?: ContextUsage;
     contextWindow: number;
+    todos: TodoItem[];
     models: ModelInfo[];
     selectedModelKey: string;
     thinkingLevel: ThinkingLevel;
@@ -57,6 +60,7 @@
     thinkingShortcut,
     contextUsage,
     contextWindow,
+    todos,
     models,
     selectedModelKey,
     thinkingLevel,
@@ -163,6 +167,8 @@
     {modeLabel}
   </button>
 
+  <TodoProgressChip {todos} />
+
   <ContextProgressBadge {contextUsage} {contextWindow} />
 
   <ComposerModelPicker
@@ -197,6 +203,16 @@
 
   .composer-tabs :global(.context-usage-tab) {
     margin-left: auto;
+  }
+
+  /* When the todo chip is present it owns the auto margin so the two chips
+     group together at the left edge of the right-aligned cluster. */
+  .composer-tabs :global(.todo-progress-tab) {
+    margin-left: auto;
+  }
+
+  .composer-tabs :global(.todo-progress-tab) + :global(.context-usage-tab) {
+    margin-left: 0;
   }
 
   .permission-tab-inner {

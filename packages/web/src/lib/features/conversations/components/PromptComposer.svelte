@@ -50,6 +50,7 @@
     selectedModelKey = "",
     contextUsage,
     contextWindow = 0,
+    todos = [],
     focusToken = 0,
     composerEscapeToken = 0,
     micShortcutToken = 0,
@@ -292,6 +293,7 @@
         {thinkingShortcut}
         {contextUsage}
         {contextWindow}
+        {todos}
         {models}
         {selectedModelKey}
         {thinkingLevel}
