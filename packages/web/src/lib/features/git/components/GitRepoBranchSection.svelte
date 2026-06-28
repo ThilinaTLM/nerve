@@ -138,30 +138,32 @@
   {#if repoSummary}
     {@const repo = repoSummary}
     <div class="flex flex-col gap-2.5">
-      <div class="flex flex-col gap-1">
-        <ToggleGroup
-          type="single"
-          value={selectedRepo}
-          variant="outline"
-          size="sm"
-          spacing={1}
-          class="flex w-full flex-wrap items-start gap-1"
-          onValueChange={(value) => {
-            if (value) onSelectRepo(value);
-          }}
-        >
-          {#each repos as candidate (candidate.relativePath)}
-            <ToggleGroupItem
-              value={candidate.relativePath}
-              aria-label={`Switch to ${repoPathLabel(candidate)}`}
-              title={repoPathLabel(candidate)}
-              class="h-6 max-w-28 min-w-0 rounded-md px-2 text-xs data-[state=on]:border-primary/40 data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
-            >
-              <span class="block truncate font-mono">{repoButtonLabel(candidate, repos)}</span>
-            </ToggleGroupItem>
-          {/each}
-        </ToggleGroup>
-      </div>
+      {#if repos.length > 1}
+        <div class="flex flex-col gap-1">
+          <ToggleGroup
+            type="single"
+            value={selectedRepo}
+            variant="outline"
+            size="sm"
+            spacing={1}
+            class="flex w-full flex-wrap items-start gap-1"
+            onValueChange={(value) => {
+              if (value) onSelectRepo(value);
+            }}
+          >
+            {#each repos as candidate (candidate.relativePath)}
+              <ToggleGroupItem
+                value={candidate.relativePath}
+                aria-label={`Switch to ${repoPathLabel(candidate)}`}
+                title={repoPathLabel(candidate)}
+                class="h-6 max-w-28 min-w-0 rounded-md px-2 text-xs data-[state=on]:border-primary/40 data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+              >
+                <span class="block truncate font-mono">{repoButtonLabel(candidate, repos)}</span>
+              </ToggleGroupItem>
+            {/each}
+          </ToggleGroup>
+        </div>
+      {/if}
 
       <div class="flex flex-col gap-1">
         <div class="flex min-w-0 flex-wrap items-center gap-2">
