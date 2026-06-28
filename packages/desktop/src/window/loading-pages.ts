@@ -59,6 +59,10 @@ function shellStyles(): string {
       --text-sm: 0.875rem;
       --text-xl: 1.25rem;
       font-family: var(--font-sans);
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-kerning: normal;
     }
     @media (prefers-color-scheme: dark) {
       :root {

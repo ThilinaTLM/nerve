@@ -1,12 +1,21 @@
 import { app } from "../electron.js";
 import {
+  type ElectronFontRenderHinting,
+  parseElectronFontRenderHinting,
+  resolveElectronFontRenderHinting,
+} from "../shared/font-rendering.js";
+import {
   type ElectronOzonePlatform,
   parseElectronOzonePlatform,
 } from "../shared/ozone-platform.js";
 import type { DesktopCliOptions } from "../types.js";
 
-export type { ElectronOzonePlatform };
-export { parseElectronOzonePlatform };
+export type { ElectronFontRenderHinting, ElectronOzonePlatform };
+export {
+  parseElectronFontRenderHinting,
+  parseElectronOzonePlatform,
+  resolveElectronFontRenderHinting,
+};
 
 export function parseDesktopOptions(args: string[]): DesktopCliOptions {
   const options: DesktopCliOptions = {};
@@ -104,4 +113,11 @@ export function applyElectronOzonePlatform(
 ): void {
   if (process.platform !== "linux" || !platform) return;
   app.commandLine.appendSwitch("ozone-platform", platform);
+}
+
+export function applyElectronFontRenderHinting(
+  hinting: ElectronFontRenderHinting | undefined,
+): void {
+  if (process.platform !== "linux" || !hinting || hinting === "system") return;
+  app.commandLine.appendSwitch("font-render-hinting", hinting);
 }

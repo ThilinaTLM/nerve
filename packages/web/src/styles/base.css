@@ -11,6 +11,10 @@
   html {
     @apply font-sans;
     font-size: calc(var(--text-base) * var(--nerve-zoom-scale, 1));
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-kerning: normal;
   }
 
   /* Layout essentials (app shell relies on a full-height, non-scrolling root). */

@@ -1,7 +1,9 @@
 import {
+  applyElectronFontRenderHinting,
   applyElectronOzonePlatform,
   parseDesktopOptions,
   parseElectronOzonePlatform,
+  resolveElectronFontRenderHinting,
 } from "./app/cli-options.js";
 import {
   type DaemonStatus,
@@ -36,7 +38,11 @@ const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const electronOzonePlatform = parseElectronOzonePlatform(
   process.env.NERVE_ELECTRON_OZONE_PLATFORM,
 );
+const electronFontRenderHinting = resolveElectronFontRenderHinting(
+  process.env.NERVE_ELECTRON_FONT_RENDER_HINTING,
+);
 applyElectronOzonePlatform(electronOzonePlatform);
+applyElectronFontRenderHinting(electronFontRenderHinting);
 
 let mainWindow: BrowserWindowType | undefined;
 let managedDaemon: ManagedDaemon | undefined;

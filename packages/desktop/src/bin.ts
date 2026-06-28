@@ -7,6 +7,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { resolveElectronFontRenderHinting } from "./shared/font-rendering.js";
 import { parseElectronOzonePlatform } from "./shared/ozone-platform.js";
 
 const require = createRequire(import.meta.url);
@@ -47,6 +48,7 @@ if (forwardedArgs.includes("--help") || forwardedArgs.includes("-h")) {
       "",
       "Environment:",
       "  NERVE_ELECTRON_OZONE_PLATFORM=x11|wayland|auto  (Linux only)",
+      "  NERVE_ELECTRON_FONT_RENDER_HINTING=system|none|slight|medium|full  (Linux only; default: slight)",
       "",
     ].join("\n"),
   );
@@ -67,9 +69,15 @@ delete env.ELECTRON_RUN_AS_NODE;
 const ozonePlatform = parseElectronOzonePlatform(
   process.env.NERVE_ELECTRON_OZONE_PLATFORM,
 );
+const fontRenderHinting = resolveElectronFontRenderHinting(
+  process.env.NERVE_ELECTRON_FONT_RENDER_HINTING,
+);
 const linuxSwitches = [
   "--class=nerve",
   ...(ozonePlatform ? [`--ozone-platform=${ozonePlatform}`] : []),
+  ...(fontRenderHinting && fontRenderHinting !== "system"
+    ? [`--font-render-hinting=${fontRenderHinting}`]
+    : []),
 ];
 const electronArgs =
   process.platform === "linux"
