@@ -28,7 +28,9 @@ For a stream `S`, `processedSeq = N` means:
 - the client needs durable events with `seq > N` to catch up;
 - transient events at or below `N` are not required for state recovery.
 
-A client MUST NOT advance a processed cursor past a durable event that failed validation or application.
+`processedSeq` is a **durable recovery cursor**, not the highest raw event sequence received. It MAY equal the `seq` of the latest applied durable event, or a snapshot cursor produced by the orchestrator. It MUST NOT advance merely because the client received, queued, or applied a transient event.
+
+A client MUST NOT advance a processed cursor past a durable event that failed validation or application. If transient events share the global sequence space, a client advances `processedSeq` only when a durable event or snapshot/replay continuity metadata proves durable state is complete through that sequence.
 
 ## Received, persisted, rendered, and processed
 
@@ -86,7 +88,7 @@ Requirements:
 
 Recommended UI ack behavior:
 
-- send ack immediately after replay completion if any durable events were applied;
+- send ack immediately after replay completion if any durable events were applied or continuity metadata advanced the processed cursor;
 - send ack after each durable batch in low-volume periods;
 - during high-volume periods, coalesce acks for up to 250 ms;
 - send ack when pending unacked durable events reaches 100;
@@ -129,6 +131,7 @@ Semantics:
 - `fromSeq` is the client's processed cursor. The orchestrator sends events with `seq > fromSeq`.
 - `toSeq` is optional. If omitted, the orchestrator replays through a consistent latest cursor and then continues live delivery.
 - `includeTransientIfAvailable` asks the orchestrator to include transient events still available in memory. It does not require transient persistence.
+- If transient events are omitted, the replay response MUST still prove durable continuity through range metadata on replay batches and `replay.complete`.
 
 Requirements:
 
@@ -152,8 +155,11 @@ type ReplayStartedData = {
     fromSeq: number;
     toSeq: number;
     latestSeq: number;
+    durableFromSeq?: number;
+    durableToSeq?: number;
     estimatedEvents?: number;
     source: "memory" | "index" | "log" | "snapshot" | "mixed";
+    transientPolicy?: "included_if_available" | "omitted" | "coalesced";
   }>;
 };
 ```
@@ -163,6 +169,8 @@ Requirements:
 - `fromSeq` MUST match the cursor after which events will be sent.
 - `toSeq` MUST identify the replay high-water mark selected by the orchestrator.
 - Live events with `seq > toSeq` MUST be buffered or delivered later in a way that preserves durable order.
+- `durableFromSeq` and `durableToSeq`, when present, identify the durable event range expected in the replay.
+- `transientPolicy` communicates whether transient events may appear in replay batches. It does not change durable correctness requirements.
 - `source` is informational and useful for diagnostics.
 
 ## Replay event batches
@@ -175,6 +183,8 @@ Requirements:
 - Each batch MUST contain only events with `seq > fromSeq` and `seq <= toSeq` for the selected replay range, unless the orchestrator marks a subsequent catchup range explicitly.
 - The client MUST apply replay batches before later live batches for the same stream.
 - Duplicate durable events within replay MUST be ignored if already processed.
+- Replay batches MAY omit transient events that are unavailable or not required, but MUST include the durable continuity metadata defined in [Event Stream](./event-stream.md).
+- Replay MUST NOT silently omit durable events inside the requested range. If a required durable event cannot be served, the orchestrator MUST send `replay.unavailable`.
 
 ## `replay.complete`
 
@@ -191,9 +201,15 @@ type ReplayCompleteData = {
     fromSeq: number;
     toSeq: number;
     latestSeq: number;
+    durableCompleteThroughSeq: number;
     sentEvents: number;
     sentDurableEvents: number;
     sentTransientEvents: number;
+    omittedTransientRanges?: Array<{
+      fromSeq: number;
+      toSeq: number;
+      reason: "unavailable" | "dropped" | "coalesced" | "not_required";
+    }>;
   }>;
   liveDelivery: "continued" | "resuming" | "requires_ready";
 };
@@ -202,6 +218,7 @@ type ReplayCompleteData = {
 Requirements:
 
 - The orchestrator MUST send `replay.complete` only after all replay batches for the replay range have been sent.
+- `durableCompleteThroughSeq` MUST be the durable recovery cursor the client can reach after successfully applying the replayed durable events.
 - The client SHOULD validate that it has processed all durable events in the replay range before returning to live mode.
 - The client SHOULD send `ack` after processing replay completion if its processed cursor advanced.
 
@@ -270,11 +287,13 @@ A client detects a gap when it cannot prove durable continuity.
 
 Examples:
 
-- next durable event `seq` is greater than expected;
-- `event.batch.range.durableFirstSeq` jumps unexpectedly;
-- replay completes but the client did not receive a required durable event;
+- `event.batch.range.previousDurableSeq` is greater than the client's `processedSeq`;
+- a batch containing durable events omits required continuity metadata;
+- replay completes without proving durable continuity through the selected range;
 - batch range metadata is inconsistent;
 - client state reducer rejects a durable event due to missing prerequisite state.
+
+A numeric jump such as `durableFirstSeq > processedSeq + 1` is not a gap by itself when the sender proves that skipped sequences were transient or otherwise non-durable.
 
 On gap detection, the client SHOULD send:
 
@@ -312,13 +331,14 @@ Recommended flow:
 1. Client detects it needs recovery from `processedSeq = N`.
 2. Client sends `replay.request` with `preferSnapshot: true`.
 3. Orchestrator sends `replay.unavailable` with recovery `load_snapshot`, or sends a `response` to a snapshot request if using HTTP/protocol RPC.
-4. Client loads snapshot containing `snapshotSeq = M`.
-5. Client replaces local materialized state with snapshot state.
-6. Client sends `replay.request` from `M` or reconnects with `hello.resume` cursor `M`.
-7. Orchestrator sends deltas with `seq > M`.
-8. Client applies deltas and acknowledges.
+4. Client loads snapshot containing cursor `M` for each affected stream.
+5. Client replaces the affected local materialized state with snapshot state.
+6. Client sets its processed cursor for each affected stream to the snapshot cursor.
+7. Client sends `replay.request` from `M` or reconnects with `hello.resume` cursor `M`.
+8. Orchestrator sends deltas with `seq > M`.
+9. Client applies deltas and acknowledges.
 
-Snapshot responses MUST include the stream cursor at which the snapshot is valid.
+Snapshot responses MUST include the stream cursor at which the snapshot is valid. A snapshot cursor has the same meaning as `processedSeq`: durable state is complete through that sequence, and transient events at or below that sequence are not required.
 
 ## Server use of acknowledgements
 

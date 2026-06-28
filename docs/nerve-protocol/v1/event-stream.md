@@ -93,12 +93,21 @@ Examples:
 
 ### Mixed durability streams
 
-The existing global stream may contain both durable and transient events. This creates an important distinction:
+The existing global stream may contain both durable and transient events in the same numeric `seq` space. This creates an important distinction:
 
 - A gap in durable events is fatal for state correctness.
 - A missing transient event may be acceptable.
+- A numeric jump in `seq` is not, by itself, proof of a durable gap when the skipped events are transient or otherwise not required for state reconstruction.
 
-To make this safe, batches include durable sequence range metadata. Clients use that metadata to validate durable ordering without assuming every numeric sequence is replayable.
+To make this safe, batches include durable continuity metadata. Clients use that metadata to validate durable ordering without assuming every numeric sequence is replayable.
+
+### Durable continuity
+
+Durable continuity is the proof that a client has all durable events needed to reconstruct state up to a cursor, even when transient events in the same numeric sequence space were omitted.
+
+For v1, the authoritative durable recovery cursor is still a global `seq` value, but it advances only when durable state is known to be complete through that sequence. A client MUST NOT advance its processed cursor merely because it received a transient event.
+
+The orchestrator MUST provide enough continuity metadata for every batch that contains durable events, and for replay batches that omit transient events, so the client can decide whether the first non-duplicate durable event follows the client's processed cursor.
 
 ## `event.batch`
 
@@ -119,6 +128,17 @@ type EventBatchData = {
     durableLastSeq?: number | null;
     durableCount: number;
     transientCount: number;
+    previousDurableSeq?: number | null;
+    durableCompleteThroughSeq?: number;
+    skippedNonDurableRanges?: Array<{
+      fromSeq: number;
+      toSeq: number;
+      reason:
+        | "transient_unavailable"
+        | "transient_dropped"
+        | "coalesced"
+        | "not_required";
+    }>;
   };
   replay?: {
     replayId: string;
@@ -155,17 +175,25 @@ Within a batch:
 - duplicate `seq` values MUST NOT appear;
 - `range.firstSeq` and `range.lastSeq` MUST match the first and last event `seq` values when events are present;
 - `range.durableCount` MUST equal the number of durable events in the batch;
-- `range.transientCount` MUST equal the number of transient events in the batch.
+- `range.transientCount` MUST equal the number of transient events in the batch;
+- if the batch contains durable events, `range.previousDurableSeq` MUST identify the durable event immediately before `range.durableFirstSeq` or `0` if none exists;
+- if present, `range.durableCompleteThroughSeq` MUST be greater than or equal to `range.durableLastSeq` when durable events are present and MUST NOT claim continuity past an unknown durable gap.
 
-### Durable range metadata
+### Durable range and continuity metadata
 
 `durableFirstSeq` and `durableLastSeq` describe the durable events inside the batch.
 
-- If the batch contains durable events, both fields SHOULD be present and non-null.
+- If the batch contains durable events, both fields MUST be present and non-null.
 - If the batch contains no durable events, both fields SHOULD be `null` or omitted.
 - `durableCount` MUST always be present.
 
-Clients use durable range metadata to detect gaps in state-changing events while allowing missing transient events.
+`previousDurableSeq` is the durable event sequence that immediately precedes `durableFirstSeq` in the stream. If the first durable event in the stream is in this batch, `previousDurableSeq` MUST be `0`. If the sender cannot prove the previous durable sequence for a batch that contains durable events, it MUST send `replay.unavailable` or `flow.update` with `mode: "resync_required"` instead of sending an ambiguous durable batch.
+
+`durableCompleteThroughSeq` is the highest sequence through which the sender asserts durable state is complete after applying this batch and all prior accepted batches for the stream. When a batch contains durable events, it SHOULD be equal to `durableLastSeq`. For transient-only batches it MAY advance over transient-only ranges if the sender can prove no omitted durable events exist in that range.
+
+`skippedNonDurableRanges` is optional diagnostic metadata describing numeric `seq` ranges intentionally omitted from this batch because they are not required for durable state. It MUST NOT be used to hide missing durable events.
+
+Clients use durable range and continuity metadata to detect gaps in state-changing events while allowing missing transient events.
 
 ## Client dispatch rules
 
@@ -178,7 +206,7 @@ The client validates:
 - protocol envelope;
 - `event.batch` payload shape;
 - stream name;
-- batch range metadata;
+- batch range and durable continuity metadata;
 - event envelope fields;
 - event sorting and duplicate `seq` within the batch.
 
@@ -192,14 +220,20 @@ The client MAY still inspect the duplicate for diagnostics, but application stat
 
 ### 3. Detect durable gaps
 
-Let `expectedDurableSeq` be the next durable event sequence the client expects. In a pure global monotonic stream, this is usually `processedSeq + 1`, but when transient events share the sequence space the client may need replay metadata or event bus knowledge to know whether missing numeric sequences are transient.
+A client detects durable gaps using continuity metadata, not raw numeric adjacency.
 
-For v1 global stream compatibility, clients SHOULD use this practical rule:
+For each stream, let `processedSeq` be the client's durable recovery cursor. For the first non-duplicate durable event in a batch:
 
-- If the batch contains a durable event with `seq > processedSeq + 1` and the client has not been told that intervening sequences are transient or intentionally skipped, the client MUST treat it as a potential gap.
-- On a potential gap, the client MUST stop applying later durable events for that stream and request replay from `processedSeq`.
+- if `range.previousDurableSeq` is present, it MUST be less than or equal to `processedSeq` for the client to apply that durable event;
+- if `range.previousDurableSeq` is greater than `processedSeq`, the client is missing at least one durable event and MUST treat this as a gap;
+- if `range.previousDurableSeq` is missing for a batch that contains durable events, the client MUST treat the batch as ambiguous and request replay or resynchronization;
+- duplicate durable events with `seq <= processedSeq` remain safe to ignore.
 
-The orchestrator SHOULD avoid ambiguous gaps by replaying all available events, including transient events still in memory, during short reconnects. If transient events are not replayable, the orchestrator SHOULD include `flow.update` or replay metadata indicating that durable continuity is still valid.
+A client MUST NOT infer a durable gap solely because `durableFirstSeq > processedSeq + 1`. The skipped numeric sequences may be transient events that are not required for recovery.
+
+On a durable gap or ambiguous continuity, the client MUST stop applying later durable events for that stream and request replay from `processedSeq`, or load a snapshot if instructed.
+
+The orchestrator SHOULD avoid ambiguous gaps by replaying all available events, including transient events still in memory, during short reconnects. If transient events are not replayable, the orchestrator MUST include continuity metadata proving that durable continuity is still valid, or require snapshot/resync recovery.
 
 ### 4. Apply in order
 
@@ -213,9 +247,9 @@ For transient events:
 
 ### 5. Advance processed cursor
 
-The client advances its processed cursor only after successfully applying all durable events up to that cursor.
+The client advances its processed cursor only after successfully applying all durable events up to that cursor, or after applying a snapshot/replay batch whose continuity metadata proves durable state is complete through that cursor.
 
-The processed cursor MUST NOT advance past a durable event that failed validation or failed application.
+The processed cursor MUST NOT advance past a durable event that failed validation or failed application. It also MUST NOT advance solely because a transient event was received.
 
 ### 6. Acknowledge
 
@@ -372,9 +406,9 @@ The protocol supports snapshot-assisted recovery but does not define every domai
 Recommended model:
 
 1. Client loads a snapshot through HTTP or a protocol `request`.
-2. Snapshot response includes `snapshotSeq`, the durable stream cursor at which the snapshot was taken.
-3. Client applies the snapshot.
-4. Client requests or receives event batches with `seq > snapshotSeq`.
+2. Snapshot response includes `cursor.streams`, the durable stream cursors at which the snapshot is valid.
+3. Client applies the snapshot and sets its processed cursor for each affected stream to the snapshot cursor.
+4. Client requests or receives event batches with `seq` greater than the relevant snapshot cursor.
 5. Client acknowledges after applying deltas.
 
 Snapshots SHOULD be used when:

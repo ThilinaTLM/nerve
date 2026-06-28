@@ -157,13 +157,13 @@ Transport buffer thresholds are hints. Processed ack lag is more important for d
 
 ## Ack lag
 
-Ack lag is the difference between the latest durable sequence sent or queued and the client's processed cursor.
+Ack lag is the difference between the latest durable recovery cursor sent or queued and the client's processed cursor.
 
 ```text
-ackLag = latestDurableSeqSentOrQueued - processedSeq
+ackLag = max(0, latestDurableRecoveryCursorSentOrQueued - processedSeq)
 ```
 
-Ack lag indicates how far the client is behind in application processing.
+Ack lag indicates how far the client is behind in durable application processing. In mixed durable/transient streams, it is a cursor-distance heuristic rather than an exact count of durable events.
 
 Recommended thresholds:
 

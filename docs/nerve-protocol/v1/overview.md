@@ -23,11 +23,13 @@ Nerve Protocol v1 aims to provide:
    - Events are sent in batches to reduce frame overhead and JSON parse pressure.
    - Transient bursty events can be coalesced or dropped under load.
    - Durable state-changing events remain ordered and replayable.
+   - Mixed durable/transient streams carry explicit continuity metadata so missing transient sequences do not look like durable state gaps.
 
 3. **Explicit delivery state**
    - Clients acknowledge what they have processed, not merely what they have received.
+   - Processed cursors are durable recovery cursors, not highest-received raw event sequences.
    - The orchestrator can detect slow clients and make backpressure decisions.
-   - Clients can detect gaps and request replay or resynchronization.
+   - Clients can detect gaps and request replay, snapshot recovery, or resynchronization.
 
 4. **Transport neutrality**
    - Protocol messages do not depend on WebSocket-specific concepts.
@@ -42,6 +44,7 @@ Nerve Protocol v1 aims to provide:
 6. **Operational clarity**
    - Error codes are stable and machine-readable.
    - Flow state is visible through `flow.update` messages.
+   - Snapshot recovery has an explicit cursor contract.
    - Logging/tracing metadata can correlate client and orchestrator behavior without leaking secrets.
 
 7. **Incremental adoption**
@@ -69,9 +72,10 @@ Nerve Protocol v1 does not attempt to provide:
    - The HTTP mapping is an optional profile for new or migrated APIs.
    - Existing REST endpoints can coexist with protocol-enveloped endpoints.
 
-5. **A mandatory binary encoding**
+5. **A mandatory binary encoding or attachment transport**
    - JSON is the required baseline encoding.
    - MessagePack, CBOR, or other encodings can be negotiated in future versions or capabilities.
+   - Large uploads, downloads, multipart bodies, and binary attachments can remain out-of-band HTTP resources in v1.
 
 6. **Transport-level security replacement**
    - Authentication, authorization, TLS, origin restrictions, and token handling remain transport-binding responsibilities.
@@ -186,11 +190,13 @@ Implementations MUST preserve these invariants:
    - Transient events SHOULD NOT be required to reconstruct durable application state.
 
 6. **Acknowledgements mean processed**
-   - An `ack` cursor means the client has applied all durable events up to that cursor for that stream.
+   - An `ack` cursor means the client has applied all durable events up to that cursor for that stream, or loaded a trusted snapshot valid at that cursor.
    - A client MUST NOT acknowledge a durable event sequence before the effects are safely reflected in its local application state.
+   - A client MUST NOT advance an ack cursor only because a transient event was received.
 
 7. **Gaps are explicit failures**
-   - If a client observes a durable sequence gap, it MUST stop applying later durable events for that stream and request replay or resynchronization.
+   - If a client cannot prove durable continuity, it MUST stop applying later durable events for that stream and request replay, snapshot recovery, or resynchronization.
+   - A numeric jump in the shared `seq` space is not a durable gap when continuity metadata proves skipped events were transient or non-required.
 
 8. **Backpressure is explicit**
    - A peer that intentionally degrades, drops transient events, or requires resync MUST communicate this through protocol messages when the transport is still usable.
@@ -217,7 +223,7 @@ Nerve Protocol v1 keeps this architecture but replaces ad-hoc WebSocket frames w
 - current heartbeat frame → `heartbeat`;
 - current `?since=` reconnect cursor → `hello.resume` and/or transport query compatibility;
 - current HTTP `/api/events?since=` replay → protocol replay endpoint or `replay.request` over the stream;
-- current `lastEventSeq` tracking → processed `ack` cursor.
+- current `lastEventSeq` tracking → processed durable `ack` cursor, distinct from highest received sequence.
 
 ## Versioning model
 
@@ -240,7 +246,8 @@ Example capabilities:
 - `flow.backpressure`;
 - `http.envelope`;
 - `encoding.json`;
-- `snapshot.workspace`.
+- `snapshot.workspace`;
+- `snapshot.conversation`.
 
 The baseline v1 WebSocket profile requires `encoding.json`, `event.batch`, `event.replay`, and `event.ack.processed`.
 

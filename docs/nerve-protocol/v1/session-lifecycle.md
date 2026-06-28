@@ -113,7 +113,8 @@ Requirements:
 - `capabilities` MUST include `encoding.json`.
 - A UI client using event streaming MUST include `event.batch`, `event.replay`, and `event.ack.processed`.
 - `resume.streams` SHOULD be used for v1; `resume.lastProcessedSeq` MAY be used as shorthand for the `global` stream.
-- The client MUST NOT claim a processed cursor greater than the highest durable event it has applied.
+- The client MUST NOT claim a processed cursor greater than the highest durable event it has applied or the cursor of a trusted snapshot it has loaded.
+- The client MUST NOT use the highest received transient event sequence as a resume cursor.
 - The client SHOULD generate a stable `client.id` for the installation/profile and a new `client.instanceId` for each browser tab/window process.
 
 Recommended UI client capabilities:
@@ -185,9 +186,12 @@ Requirements:
 - `streams` MUST include the `global` stream for event-streaming sessions.
 - `resume.mode` determines the next expected step:
   - `live`: server can begin at current live tail; no replay required.
-  - `replay`: server will replay events from `replayFromSeq` after `ready` or after explicit `replay.request`, depending on policy.
-  - `snapshot_required`: client cursor is too old or incompatible; client must load a snapshot before live deltas.
+  - `replay`: for the v1 WebSocket binding, server starts replay from `replayFromSeq` after receiving `ready`.
+  - `snapshot_required`: client cursor is too old or incompatible; client must load a snapshot before applying live deltas.
   - `fresh`: no resume cursor was supplied; server starts from the current live tail unless the client explicitly requests history.
+- For `resume.mode: "replay"`, the client MUST send `ready`; it SHOULD NOT also send a `replay.request` for the same resume range unless the server fails to start replay or a later gap is detected.
+- For `resume.mode: "fresh"`, clients that need initial materialized state SHOULD load snapshots or resource state before applying live deltas. `fresh` does not imply that historical durable state was delivered.
+- `StreamState.durableSeq` is the latest durable recovery cursor known by the orchestrator for that stream. It may be lower than `latestSeq` when transient events were most recently published.
 
 ## `ready`
 
@@ -318,17 +322,19 @@ Outcomes:
    - Live delivery starts at the current tail unless the client requests history.
 
 2. **Live resume without replay**
-   - Client cursor equals or exceeds current latest seq for requested streams.
+   - Client cursor equals the current durable recovery cursor for requested streams, or is otherwise proven compatible with the current durable state.
    - Orchestrator returns `resume.mode: "live"`.
 
 3. **Replay resume**
    - Client cursor is behind and replay is available.
    - Orchestrator returns `resume.mode: "replay"` and `replayFromSeq`.
+   - For the v1 WebSocket binding, the orchestrator starts `replay.started` after the client sends `ready`, then sends replay batches and `replay.complete` before resuming live delivery for that stream.
 
 4. **Snapshot required**
    - Client cursor is too old, missing, or incompatible with available replay.
    - Orchestrator returns `resume.mode: "snapshot_required"`.
    - Client MUST obtain a snapshot before applying live deltas unless a domain-specific recovery flow says otherwise.
+   - A snapshot response MUST provide cursors that become the client's processed cursors for affected streams.
 
 ## Reconnect strategy
 
@@ -345,7 +351,7 @@ Clients SHOULD use exponential backoff with jitter for reconnects. Recommended v
 
 A client SHOULD reconnect immediately after local page reload if the orchestrator is expected to be running, but SHOULD still avoid tight loops when auth, DNS, TLS, or startup errors persist.
 
-On reconnect, a client MUST use its latest processed durable cursor, not merely its latest received batch cursor.
+On reconnect, a client MUST use its latest processed durable cursor or trusted snapshot cursor, not merely its latest received batch cursor.
 
 ## Authentication and authorization handoff
 

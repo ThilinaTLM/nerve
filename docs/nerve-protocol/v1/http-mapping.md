@@ -110,7 +110,34 @@ auth.provider.setKey
 snapshot.workspace.get
 ```
 
-HTTP method mapping:
+## Method registry
+
+Protocol RPC method names SHOULD be registered in shared code with their request and response schemas before they are used by multiple clients. The registry is the authoritative place to map `data.method` to domain schemas and orchestrator handlers.
+
+Recommended top-level method namespaces matching current Nerve features:
+
+| Namespace | Examples | Notes |
+| --- | --- | --- |
+| `workspace.*` | `workspace.get`, `workspace.refresh` | Materialized UI state and broad refreshes. |
+| `snapshot.*` | `snapshot.workspace.get`, `snapshot.conversation.get` | Snapshot recovery and initial state. |
+| `conversation.*` | `conversation.create`, `conversation.sendPrompt`, `conversation.compact` | Conversation lifecycle and run commands. |
+| `agent.*` | `agent.create`, `agent.configure`, `agent.abortRun` | Agent and run controls. |
+| `task.*` | `task.start`, `task.cancel`, `task.restart` | Long-running task commands. |
+| `approval.*` | `approval.grant`, `approval.deny` | Tool approval decisions. |
+| `userQuestion.*` | `userQuestion.answer`, `userQuestion.dismiss` | Human input flows. |
+| `planReview.*` | `planReview.accept`, `planReview.requestChanges` | Plan review decisions. |
+| `settings.*` | `settings.get`, `settings.update` | Settings reads and writes. |
+| `auth.*` | `auth.provider.setKey`, `auth.oauth.start` | Auth metadata and secure flows. |
+| `providerCatalog.*` | `providerCatalog.upsertProvider` | Custom providers and models. |
+| `project.*` | `project.create`, `project.delete` | Project lifecycle. |
+| `filesystem.*` | `filesystem.listDirectories`, `filesystem.getFile` | File metadata/text reads; large/binary content may remain HTTP resources. |
+| `git.*` | `git.overview`, `git.pull`, `git.checkoutPr` | Git and GitHub operations. |
+| `log.*` | `log.query`, `log.prune` | Application logs. |
+| `storage.*` | `storage.usage`, `storage.cleanup` | Storage inspection and maintenance. |
+
+Existing REST/resource endpoints MAY remain canonical for any of these namespaces in v1. Adding a method name to this registry does not require removing the corresponding REST endpoint.
+
+### HTTP method mapping
 
 - Protocol RPC requests SHOULD use HTTP `POST`, even for reads, because the envelope includes method dispatch and may carry complex params.
 - Resource-specific protocol endpoints MAY use normal HTTP verbs.
@@ -129,7 +156,7 @@ type ResponseData = {
   cursor?: {
     streams: StreamCursor[];
   };
-  events?: EventEnvelope[];
+  eventBatches?: EventBatchData[];
 };
 ```
 
@@ -147,16 +174,18 @@ If a response returns materialized state that corresponds to event stream state,
 
 Example: a workspace snapshot response includes the stream sequence at which the snapshot is valid. The client then applies event deltas after that cursor.
 
-### Response events
+### Response event batches
 
 A response MAY include domain events that were produced by the request, but event streaming over WebSocket remains the preferred delivery path for live UI updates.
 
-If events are included in an HTTP response:
+If events are included in an HTTP response, they MUST be carried as `eventBatches` using the same `EventBatchData` shape as `event.batch` messages, including stream, range, and durable continuity metadata. Bare `EventEnvelope[]` arrays are not sufficient as a replay or synchronization contract because they do not prove durable continuity.
 
-- they MUST use the same `EventEnvelope` schema;
-- they MUST be ordered;
-- the client MUST deduplicate them against stream-delivered events;
-- the response SHOULD include cursor metadata.
+Rules:
+
+- each event inside a batch MUST use the same `EventEnvelope` schema;
+- batches MUST be ordered per stream;
+- clients MUST deduplicate included events against stream-delivered events;
+- the response SHOULD include `cursor.streams` when included events or result data correspond to materialized state.
 
 ## Error responses
 
@@ -278,13 +307,35 @@ Request body:
 
 Response options:
 
-- a single `response` containing events and cursor metadata for small ranges;
+- a single `response` containing `eventBatches` and cursor metadata for small ranges;
 - NDJSON stream of `replay.started`, `event.batch`, and `replay.complete` messages for large ranges;
 - `replay.unavailable` for unsatisfied ranges.
 
 ## Snapshot over HTTP
 
 A snapshot endpoint SHOULD return materialized domain state and cursor metadata.
+
+Snapshot methods MUST follow this generic contract at the `response.data` level:
+
+```ts
+type SnapshotResponseData<TResult = unknown> = ResponseData & {
+  result: TResult;
+  cursor: {
+    streams: StreamCursor[];
+  };
+};
+```
+
+The `cursor.streams` values are durable recovery cursors. After applying the snapshot, the client sets its processed cursor for each affected stream to the snapshot cursor and applies only deltas with `seq` greater than that cursor.
+
+Baseline v1 snapshot methods:
+
+| Method | Purpose |
+| --- | --- |
+| `snapshot.workspace.get` | Returns the materialized workspace state needed by the main UI, including projects/conversations/tasks/agents/tool-interaction summaries as defined by shared domain schemas. |
+| `snapshot.conversation.get` | Returns one conversation's materialized state, entries/tree/runtime state, and cursor metadata. |
+
+Additional domain snapshots MAY be added through the method registry when a narrower recovery boundary is useful.
 
 Example response body as a protocol `response`:
 
@@ -312,6 +363,20 @@ Example response body as a protocol `response`:
 ```
 
 The client MUST apply only event deltas with `seq > snapshot cursor` after loading the snapshot.
+
+## Binary and attachment boundary
+
+Nerve Protocol v1 does not define a general binary frame, multipart upload, or large-download profile. Current and future features that transfer large or binary bodies SHOULD remain resource-oriented HTTP endpoints unless a future capability defines an attachment profile.
+
+Examples that SHOULD stay out-of-band in v1:
+
+- audio upload for transcription;
+- clipboard image upload;
+- conversation exports or other downloadable files;
+- large binary file reads;
+- provider-specific payloads that are already handled by secure HTTP flows.
+
+Protocol messages MAY carry metadata, operation IDs, cursors, and resulting events for these operations, but they SHOULD NOT embed large base64 payloads. Secret-submission APIs MUST continue using their documented secure handling path and MUST NOT put raw secrets in protocol metadata.
 
 ## Eventual consistency between HTTP and WebSocket
 

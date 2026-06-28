@@ -180,7 +180,7 @@ Validation:
 - Wrap live events in `event.batch`.
 - Start with one event per batch if simpler.
 - Then add short-window batching.
-- Include range metadata.
+- Include range and durable continuity metadata (`previousDurableSeq`, `durableCompleteThroughSeq`).
 - UI unwraps batches and feeds existing event bus.
 
 Validation:
@@ -205,8 +205,10 @@ Validation:
 ### Phase 5: Replay protocol
 
 - Replace or supplement `?since=` query replay with `hello.resume` and `replay.request`.
+- For resume handshakes with `resume.mode: "replay"`, start replay after client `ready`.
 - Orchestrator sends `replay.started`, replay `event.batch`, and `replay.complete`.
 - During replay, buffer live events for the session and deliver after replay.
+- Replay batches prove durable continuity even when transient events are omitted.
 
 Validation:
 
@@ -234,6 +236,7 @@ Validation:
 - Add protocol error schema to HTTP errors where useful.
 - Add optional `/api/protocol/v1` endpoint or resource-specific protocol endpoints.
 - Start with replay/snapshot or complex operations that benefit most.
+- Keep binary upload/download endpoints as resource-oriented HTTP unless a future attachment profile is added.
 
 Validation:
 
@@ -275,7 +278,7 @@ on event published:
 
 flush session:
   sort by seq if needed
-  build event.batch payload with range metadata
+  build event.batch payload with range and durable continuity metadata
   send protocol message if transport buffer below hard limit
   update sent cursor metrics
 ```
@@ -317,15 +320,17 @@ If the frontend event bus batches delivery by animation frame or microtask, send
 
 ## Gap detection implementation notes
 
-Initial implementation can be conservative:
+Initial protocol implementation should use durable continuity metadata, not raw numeric adjacency:
 
-- if a durable event arrives with `seq <= processedSeq`, ignore it;
-- if a durable event arrives with `seq > processedSeq + 1`, request replay from `processedSeq`;
-- while replay is pending, buffer or ignore later live durable events;
+- if a durable event arrives with `seq <= processedSeq`, ignore it as a duplicate;
+- for the first non-duplicate durable event in a batch, require `range.previousDurableSeq <= processedSeq`;
+- if `range.previousDurableSeq > processedSeq`, request replay from `processedSeq`;
+- if a durable batch omits required continuity metadata, treat it as ambiguous and request replay or resync;
+- while replay is pending, buffer or ignore later live durable events for that stream;
 - if replay returns duplicates, ignore duplicates;
-- if replay unavailable, reload snapshot/workspace.
+- if replay unavailable, reload the relevant snapshot/workspace.
 
-If transient events share the sequence space and create false positives, add server-provided durable continuity metadata or classify contiguous durable ranges explicitly.
+Do not use `seq > processedSeq + 1` as a gap test in the mixed durable/transient global stream. Transient events may legitimately occupy skipped numeric sequence values and may not be replayable.
 
 ## Backpressure implementation notes
 
@@ -360,7 +365,7 @@ Recommended first transient policy:
 
 - handshake success/failure;
 - capability negotiation;
-- event batch range metadata;
+- event batch range and durable continuity metadata;
 - ack cursor monotonicity;
 - replay from memory;
 - replay from persisted/index;
@@ -421,6 +426,6 @@ These are choices to make when implementing, not gaps in the v1 protocol spec:
 - whether initial protocol support uses the same `/ws` path or adds `/ws/v1` during development;
 - how much local cursor state the browser persists across reloads;
 - which HTTP APIs should adopt protocol envelopes first;
-- how snapshots are shaped per domain.
+- exact snapshot result shapes per domain, as long as they include the required cursor contract.
 
 The protocol documents define the compatible message semantics for whichever implementation choices are selected.

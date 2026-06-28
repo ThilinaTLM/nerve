@@ -195,7 +195,9 @@ All examples use the baseline JSON envelope:
       "durableFirstSeq": 12011,
       "durableLastSeq": 12011,
       "durableCount": 1,
-      "transientCount": 1
+      "transientCount": 1,
+      "previousDurableSeq": 12010,
+      "durableCompleteThroughSeq": 12011
     }
   }
 }
@@ -227,7 +229,9 @@ After applying durable event `12011`, the client acknowledges its processed curs
 }
 ```
 
-## 4. Replay after reconnect
+## 4. Explicit replay request after gap detection
+
+During the initial WebSocket resume handshake, `resume.mode: "replay"` causes the server to start replay after `ready`. A client sends `replay.request` explicitly for in-session gap recovery, manual refresh, or snapshot-delta recovery.
 
 ### Client requests replay
 
@@ -242,7 +246,7 @@ After applying durable event `12011`, the client acknowledges its processed curs
     "sessionId": "ses_01JZ905PX86A7JVAETQWKC4PZ9",
     "replayId": "rpl_01JZ905T89TE9WHVV2EJGR8B15",
     "streams": [{ "stream": "global", "fromSeq": 12011 }],
-    "reason": "resume",
+    "reason": "gap_detected",
     "preferences": {
       "maxEvents": 10000,
       "maxBytes": 4194304,
@@ -272,8 +276,11 @@ After applying durable event `12011`, the client acknowledges its processed curs
         "fromSeq": 12011,
         "toSeq": 12020,
         "latestSeq": 12020,
+        "durableFromSeq": 12013,
+        "durableToSeq": 12020,
         "estimatedEvents": 9,
-        "source": "memory"
+        "source": "memory",
+        "transientPolicy": "included_if_available"
       }
     ]
   }
@@ -327,7 +334,16 @@ After applying durable event `12011`, the client acknowledges its processed curs
       "durableFirstSeq": 12013,
       "durableLastSeq": 12014,
       "durableCount": 2,
-      "transientCount": 0
+      "transientCount": 0,
+      "previousDurableSeq": 12011,
+      "durableCompleteThroughSeq": 12014,
+      "skippedNonDurableRanges": [
+        {
+          "fromSeq": 12012,
+          "toSeq": 12012,
+          "reason": "transient_unavailable"
+        }
+      ]
     },
     "replay": {
       "replayId": "rpl_01JZ905T89TE9WHVV2EJGR8B15",
@@ -356,6 +372,7 @@ After applying durable event `12011`, the client acknowledges its processed curs
         "fromSeq": 12011,
         "toSeq": 12020,
         "latestSeq": 12020,
+        "durableCompleteThroughSeq": 12020,
         "sentEvents": 9,
         "sentDurableEvents": 4,
         "sentTransientEvents": 5
