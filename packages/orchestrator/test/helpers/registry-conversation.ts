@@ -8,8 +8,8 @@ import {
   createId,
   type TaskRecord,
 } from "@nervekit/shared";
-import { initializeStorage } from "../../src/infrastructure/storage/index.js";
 import { createOrchestratorState } from "../../src/app/orchestrator-state.js";
+import { initializeStorage } from "../../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
 

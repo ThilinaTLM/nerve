@@ -12,8 +12,8 @@ import type {
   TaskRecord,
 } from "@nervekit/shared";
 import { createId } from "@nervekit/shared";
-import type { EventBus } from "../../infrastructure/events/index.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { EventBus } from "../../infrastructure/events/index.js";
 import type { AppendEntryInput } from "../../runtime/types.js";
 import type { AgentRunStateMap } from "../agents/run/run-state.js";
 import type { HarnessManager } from "../conversations/harness-manager.js";

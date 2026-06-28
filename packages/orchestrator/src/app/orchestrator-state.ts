@@ -14,14 +14,14 @@ import {
 import { ProviderCatalogStore } from "../domains/providers/index.js";
 import { StorageUsageService } from "../domains/storage/index.js";
 import { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
+import { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import { EventBus } from "../infrastructure/events/index.js";
 import { IndexStore } from "../infrastructure/index-store/index.js";
-import type { InitializedStorage } from "../infrastructure/storage/index.js";
-import { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import {
   EncryptedFileSecretProvider,
   type SecretProvider,
 } from "../infrastructure/secrets/index.js";
+import type { InitializedStorage } from "../infrastructure/storage/index.js";
 import { RuntimeRegistry } from "../runtime/runtime-registry.js";
 import { version } from "./version.js";
 

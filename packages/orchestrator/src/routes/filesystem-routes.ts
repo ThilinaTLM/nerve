@@ -27,8 +27,8 @@ import {
   filesystemFileQuerySchema,
 } from "@nervekit/shared";
 import { Hono } from "hono";
-import { routeHandler } from "../http/responses.js";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
+import { routeHandler } from "../http/responses.js";
 
 async function pathExists(path: string): Promise<boolean> {
   try {

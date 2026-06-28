@@ -3,8 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { ConversationEntry, ConversationRecord } from "@nervekit/shared";
-import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import {
   appendRegistryEntry,
   createdAt,

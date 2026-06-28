@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { serveStatic } from "../src/http/static-files.js";
 import type { OrchestratorState } from "../src/app/orchestrator-state.js";
+import { serveStatic } from "../src/http/static-files.js";
 
 let previousWebDist: string | undefined;
 let tempDir: string | undefined;

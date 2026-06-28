@@ -91,7 +91,14 @@
   }}
 >
   <div class="tool-header">
-    <ToolStatusIcon tone={dotTone} pulse={dotPulse} size={14} class="mr-1.5 align-middle" />
+    <ToolStatusIcon
+      tone={dotTone}
+      pulse={dotPulse}
+      waitingForUser={status === "waiting_for_user"}
+      label={status === "waiting_for_user" ? "Waiting for user feedback" : undefined}
+      size={14}
+      class="mr-1.5 align-middle"
+    />
     <span class="badge">{badge}</span>
     {#if arg}
       {#if arg.openPath}

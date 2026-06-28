@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import {
-  statusResponse,
   type OrchestratorState,
+  statusResponse,
 } from "../app/orchestrator-state.js";
 
 export function createStatusRoutes(state: OrchestratorState): Hono {

@@ -3,7 +3,6 @@ import {
   generateSummary,
   resolveAgentModel,
 } from "@nervekit/agent";
-import type { AuthManager } from "../domains/auth/index.js";
 import { AgentSuspensionService } from "../domains/agents/agent-suspension.service.js";
 import {
   AgentLifecycleService,
@@ -13,6 +12,7 @@ import {
   RetryContinuationService,
 } from "../domains/agents/index.js";
 import { AgentRunner, MessageMirror } from "../domains/agents/run/index.js";
+import type { AuthManager } from "../domains/auth/index.js";
 import { ConversationService } from "../domains/conversations/conversation-service.js";
 import { HarnessManager } from "../domains/conversations/harness-manager.js";
 import {
@@ -50,16 +50,13 @@ import { TaskManager } from "../domains/tasks/task-manager.js";
 import { ToolService } from "../domains/tools/tool-service.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
+import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../infrastructure/events/index.js";
 import type { IndexStore } from "../infrastructure/index-store/index.js";
-import type { InitializedStorage } from "../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
-import type {
-  AppendEntryInput,
-  AppendEntryOptions,
-} from "./types.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
+import type { InitializedStorage } from "../infrastructure/storage/index.js";
 import type { RuntimeState } from "./runtime-state.js";
+import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;

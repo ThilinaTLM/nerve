@@ -1,9 +1,9 @@
 import type { CompletionItem } from "@nervekit/shared";
 import { fileCompletionQuerySchema } from "@nervekit/shared";
 import { Hono } from "hono";
+import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { FileCompletionService } from "../domains/completions/index.js";
 import { routeHandler } from "../http/responses.js";
-import type { OrchestratorState } from "../app/orchestrator-state.js";
 
 const slashCompletionItems: CompletionItem[] = [
   {

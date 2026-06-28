@@ -2,8 +2,8 @@ import type {
   ConversationRunStatusDetails,
   EventEnvelope,
 } from "@nervekit/shared";
-import type { EventBus } from "../../../infrastructure/events/event-bus.js";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
+import type { EventBus } from "../../../infrastructure/events/event-bus.js";
 import type { ToolService } from "../../tools/tool-service.js";
 import type { AppendEntryFn } from "./message-mirror.js";
 

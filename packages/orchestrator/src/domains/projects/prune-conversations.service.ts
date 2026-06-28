@@ -6,8 +6,8 @@ import type {
   PruneProjectConversationsResponse,
   TaskRecord,
 } from "@nervekit/shared";
-import type { EventBus } from "../../infrastructure/events/index.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { EventBus } from "../../infrastructure/events/index.js";
 import type { ConversationRepository } from "../conversations/index.js";
 
 export interface PruneConversationsTaskPort {

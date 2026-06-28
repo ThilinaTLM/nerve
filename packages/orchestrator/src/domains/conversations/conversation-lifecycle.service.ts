@@ -9,11 +9,11 @@ import {
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../../runtime/types.js";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
 import type { HarnessManager } from "./harness-manager.js";

@@ -4,14 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import type { AgentRecord } from "@nervekit/shared";
+import {
+  buildNerveSystemPrompt,
+  loadHarnessResources,
+  promptText,
+} from "../src/domains/agents/prompting/index.js";
 import { composeAgentSystemPrompt } from "../src/domains/agents/run/system-prompt-builder.js";
 import {
   activeToolNamesForAgent,
   toolPromptMetadata,
 } from "../src/domains/tools/agent-tool-adapter.js";
-import { buildNerveSystemPrompt } from "../src/domains/agents/prompting/index.js";
-import { promptText } from "../src/domains/agents/prompting/index.js";
-import { loadHarnessResources } from "../src/domains/agents/prompting/index.js";
 
 const roots: string[] = [];
 

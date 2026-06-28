@@ -35,17 +35,14 @@ import type { AuthManager } from "../domains/auth/index.js";
 import type { ProviderCatalogStore } from "../domains/providers/index.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { HttpError } from "../http/errors.js";
+import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../infrastructure/events/index.js";
 import type { IndexStore } from "../infrastructure/index-store/index.js";
-import type { InitializedStorage } from "../infrastructure/storage/index.js";
-import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
-import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
-import {
-  composeRuntime,
-  type RuntimeServices,
-} from "./runtime-composition.js";
-import { RuntimeState } from "./runtime-state.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
+import type { InitializedStorage } from "../infrastructure/storage/index.js";
+import { composeRuntime, type RuntimeServices } from "./runtime-composition.js";
+import { RuntimeState } from "./runtime-state.js";
+import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 
 export class RuntimeRegistry {
   private readonly state = new RuntimeState();
@@ -587,4 +584,3 @@ export class RuntimeRegistry {
     );
   }
 }
-

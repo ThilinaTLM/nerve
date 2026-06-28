@@ -1,3 +1,4 @@
+import type { TodoItem } from "@nervekit/shared";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -9,7 +10,6 @@ import type {
   ProjectRecord,
   UserQuestionRecord,
 } from "$lib/api";
-import type { TodoItem } from "@nervekit/shared";
 import type { PendingConversationState } from "$lib/core/types/state-types";
 import type { GitSuggestion } from "$lib/features/git/state/git-context.svelte";
 

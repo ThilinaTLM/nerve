@@ -6,6 +6,12 @@ import type { Duplex } from "node:stream";
 import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
 import {
+  createOrchestratorState,
+  toDaemonFile,
+} from "./app/orchestrator-state.js";
+import { createApp, isWebSocketAuthorized } from "./app/server.js";
+import { recoverInterruptedRuns } from "./domains/agents/run/interrupted-run-recovery.js";
+import {
   type DaemonRuntimeMonitor,
   installDaemonRuntimeMonitor,
   installNodeDiagnosticReports,
@@ -13,18 +19,12 @@ import {
   writeCrashReportSync,
   writeNodeDiagnosticReport,
 } from "./infrastructure/diagnostics/index.js";
-import { recoverInterruptedRuns } from "./domains/agents/run/interrupted-run-recovery.js";
 import {
   initializeStorage,
   resolveDataDir,
   writeDaemonFile,
 } from "./infrastructure/storage/index.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
-import {
-  createOrchestratorState,
-  toDaemonFile,
-} from "./app/orchestrator-state.js";
-import { createApp, isWebSocketAuthorized } from "./app/server.js";
 
 function readArg(name: string): string | undefined {
   const prefix = `${name}=`;

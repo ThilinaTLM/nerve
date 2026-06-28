@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { OrchestratorState } from "../src/app/orchestrator-state.js";
 import { HttpError } from "../src/http/errors.js";
 import { createProjectRoutes } from "../src/routes/project-routes.js";
-import type { OrchestratorState } from "../src/app/orchestrator-state.js";
 import { createAuthenticatedApp } from "./helpers/server-routes.js";
 
 describe("orchestrator server project and conversation routes", () => {
