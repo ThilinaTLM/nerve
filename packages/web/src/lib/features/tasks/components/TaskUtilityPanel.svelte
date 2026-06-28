@@ -61,12 +61,14 @@
   const isActive = (task: TaskRecord) => ACTIVE.has(task.status);
 
   const running = $derived(tasks.filter(isActive));
+  const hasRunningTasks = $derived(running.length > 0);
   const orphaned = $derived(tasks.filter((task) => task.status === "orphaned"));
   const finished = $derived(
     tasks.filter((task) => !isActive(task) && task.status !== "orphaned"),
   );
 
   let pinnedSectionOpen = $state(true);
+  let previousHasRunningTasks = $state<boolean | undefined>(undefined);
   let runningSectionOpen = $state(true);
   let orphanedSectionOpen = $state(true);
   let finishedSectionOpen = $state(false);
@@ -84,6 +86,13 @@
   let editPinOpen = $state(false);
   let savingEditPin = $state(false);
   let lastLoadedProjectId = $state<string | undefined>(undefined);
+
+  $effect(() => {
+    const current = hasRunningTasks;
+    if (previousHasRunningTasks === current) return;
+    previousHasRunningTasks = current;
+    pinnedSectionOpen = !current;
+  });
 
   $effect(() => {
     const projectId = activeProject?.id;

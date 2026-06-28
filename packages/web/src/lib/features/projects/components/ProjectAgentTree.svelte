@@ -25,6 +25,11 @@
     getShortcutAriaLabel,
     getShortcutLabel,
   } from "$lib/core/shortcuts/registry";
+  import {
+    loadProjectGroupCollapseState,
+    saveProjectGroupCollapseState,
+    type ProjectGroupCollapseState,
+  } from "$lib/features/projects/state/project-group-collapse";
   import type {
     DeleteTarget,
     ProjectAgentTreeProps,
@@ -61,7 +66,9 @@
   let filter = $state("");
   let searchInputEl = $state<HTMLInputElement | null>(null);
   let lastSearchFocusToken = 0;
-  let collapsed = $state<Record<string, boolean>>({});
+  let collapsed = $state<ProjectGroupCollapseState>(
+    loadProjectGroupCollapseState(),
+  );
   let pendingDelete = $state<DeleteTarget | undefined>(undefined);
   let pendingPrune = $state<PruneTarget | undefined>(undefined);
   let pendingConversations = $state<ProjectGroup | undefined>(undefined);
@@ -79,6 +86,12 @@
 
   function requestDelete(target: DeleteTarget) {
     pendingDelete = target;
+  }
+
+  function setProjectGroupOpen(groupKey: string, open: boolean) {
+    if (open) delete collapsed[groupKey];
+    else collapsed[groupKey] = true;
+    saveProjectGroupCollapseState({ ...collapsed });
   }
 
   const menuContext = $derived<ProjectTreeMenuContext>({
@@ -146,7 +159,7 @@
               title={group.label}
               icon={Folder}
               open={!collapsed[group.key]}
-              onOpenChange={(open) => (collapsed[group.key] = !open)}
+              onOpenChange={(open) => setProjectGroupOpen(group.key, open)}
             >
               {#snippet meta()}
                 {#if group.totalRows > 0}

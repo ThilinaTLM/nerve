@@ -34,7 +34,6 @@
   const draftArgsLanguage = $derived(
     draft.args || draft.argsText.trim() ? "json" : undefined,
   );
-  const genericPreview = $derived(draftArgsPreview ?? "Waiting for arguments…");
   const isExecutionDraft = $derived(
     summary.kind === "bash" || summary.kind === "python",
   );
@@ -139,8 +138,22 @@
         />
       {/if}
     {/if}
+  {:else if draftArgsPreview}
+    <ResultCodeBlock
+      code={draftArgsPreview}
+      language={draftArgsLanguage}
+      trim={false}
+      highlight={false}
+      wrap
+      overflow="hidden"
+      tail
+      fixedRows={DRAFT_PREVIEW_LINES}
+    />
   {:else}
-    <pre>{genericPreview}</pre>
+    <div class="draft-progress" aria-live="polite">
+      <span>Waiting for arguments…</span>
+      {#if !summary.done}<span class="progress-caret" aria-hidden="true"></span>{/if}
+    </div>
   {/if}
 
   {#if summary.meta.length > 0}
@@ -218,21 +231,6 @@
     height: 0.9rem;
     background: var(--primary);
     animation: pulse 1s steps(2, start) infinite;
-  }
-
-  pre {
-    margin: 0;
-    overflow: hidden;
-    border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--sidebar-foreground);
-    padding: 0.5rem 0.58rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: 1.4;
-    white-space: pre;
-    word-break: normal;
   }
 
   .chips {

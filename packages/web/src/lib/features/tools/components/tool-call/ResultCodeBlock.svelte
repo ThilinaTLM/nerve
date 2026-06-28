@@ -36,6 +36,27 @@
   const hasFixedRows = $derived(fixedRows !== undefined && fixedRows > 0);
   const terminalHtml = $derived(ansiToHtml(preview.text));
 
+  // Monotonic grow-then-lock sizing for fixed-rows previews. The box height is
+  // driven by the visible logical line count (clamped to `fixedRows`) and a
+  // high-water mark so it never shrinks while a draft streams. Wrapping changes
+  // then only clip/scroll content (overflow hidden + tail) instead of resizing
+  // the card, which is what eliminates the streaming jitter.
+  const visibleRowCount = $derived.by(() => {
+    if (!hasFixedRows) return undefined;
+    const text = preview.text;
+    const lines = text.length === 0 ? 0 : text.split("\n").length;
+    return Math.min(lines, fixedRows as number);
+  });
+  let maxVisibleRows = $state(0);
+  $effect(() => {
+    const rows = visibleRowCount ?? 0;
+    if (rows > maxVisibleRows) maxVisibleRows = rows;
+  });
+  const fixedRowsVar = $derived(hasFixedRows ? String(fixedRows) : undefined);
+  const visibleRowsVar = $derived(
+    hasFixedRows ? String(Math.max(maxVisibleRows, 1)) : undefined,
+  );
+
   $effect(() => {
     if (terminal || !highlight) {
       html = undefined;
@@ -85,7 +106,8 @@
     data-fixed-rows={hasFixedRows ? "true" : undefined}
     data-tail={tail ? "true" : undefined}
     style:max-height={hasFixedRows ? undefined : maxHeight}
-    style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
+    style:--code-block-fixed-rows={fixedRowsVar}
+    style:--code-block-visible-rows={visibleRowsVar}
   ><div class="code-block__content">{@html terminalHtml}</div></div>
 {:else if highlight && html && htmlSignature === signature}
   <div
@@ -95,7 +117,8 @@
     data-fixed-rows={hasFixedRows ? "true" : undefined}
     data-tail={tail ? "true" : undefined}
     style:max-height={hasFixedRows ? undefined : maxHeight}
-    style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
+    style:--code-block-fixed-rows={fixedRowsVar}
+    style:--code-block-visible-rows={visibleRowsVar}
   ><div class="code-block__content">{@html html}</div></div>
 {:else}
   <div
@@ -105,7 +128,8 @@
     data-fixed-rows={hasFixedRows ? "true" : undefined}
     data-tail={tail ? "true" : undefined}
     style:max-height={hasFixedRows ? undefined : maxHeight}
-    style:--code-block-fixed-rows={hasFixedRows ? String(fixedRows) : undefined}
+    style:--code-block-fixed-rows={fixedRowsVar}
+    style:--code-block-visible-rows={visibleRowsVar}
   ><pre class="code-block__content">{preview.text}</pre></div>
 {/if}
 
@@ -161,7 +185,13 @@
   }
 
   .code-block[data-fixed-rows="true"] {
+    /* Monotonic grow-then-lock: height follows the visible (high-water) row
+     * count up to the hard `fixed-rows` cap, so streaming never resizes the
+     * card down. The transition smooths the per-line ramp and is neutralized by
+     * the global prefers-reduced-motion rule in base.css. */
+    height: calc((var(--code-block-visible-rows) * 1lh) + (var(--code-block-padding-y) * 2) + 2px);
     max-height: calc((var(--code-block-fixed-rows) * 1lh) + (var(--code-block-padding-y) * 2) + 2px);
+    transition: height 140ms ease-out;
   }
 
   .code-block[data-tail="true"] {
