@@ -26,7 +26,7 @@
 
 <style>
   .thinking-block {
-    margin: 0 0 0.65rem;
+    margin: 0;
     color: var(--muted-foreground);
     font-size: var(--text-sm);
     font-style: italic;
