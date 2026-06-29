@@ -1,4 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+
 """Create a Nerve release tag in one step.
 
 Bumps the root and workspace package.json versions, commits the change,
