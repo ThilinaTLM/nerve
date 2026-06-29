@@ -28,7 +28,20 @@ export const gitSelectors = {
     if (active?.kind !== "pr") return undefined;
     return gitState.prViews[prViewKey(active.id)];
   },
-  get gitStatus(): { branch: string; dirty: boolean } | undefined {
+  get gitStatus():
+    | {
+        branch: string;
+        dirty: boolean;
+        changeCount: number;
+        ahead: number | null;
+        behind: number | null;
+        detached: boolean;
+        hasUpstream: boolean;
+        relativePath: string;
+        repoName: string;
+        repoCount: number;
+      }
+    | undefined {
     const projectId = workspaceSelectors.activeProject?.id;
     const state = projectId
       ? gitPanelState.projects[gitProjectStateKey(projectId)]
@@ -41,7 +54,18 @@ export const gitSelectors = {
         (candidate) => candidate.relativePath === state.selectedRepo,
       ) ??
       state.repos[0];
-    return { branch: repo.currentBranch ?? "detached", dirty: repo.dirty };
+    return {
+      branch: repo.currentBranch ?? "detached",
+      dirty: repo.dirty,
+      changeCount: repo.changeCount,
+      ahead: repo.ahead,
+      behind: repo.behind,
+      detached: repo.detached,
+      hasUpstream: repo.hasUpstream,
+      relativePath: repo.relativePath,
+      repoName: repo.name,
+      repoCount: state.repos.length,
+    };
   },
   get gitSuggestions(): GitSuggestion[] {
     const ctx = gitState.gitContext;

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import ArrowDown from "@lucide/svelte/icons/arrow-down";
+  import ArrowUp from "@lucide/svelte/icons/arrow-up";
+  import Diff from "@lucide/svelte/icons/diff";
   import GitBranch from "@lucide/svelte/icons/git-branch";
   import PanelLeft from "@lucide/svelte/icons/panel-left";
   import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
@@ -18,7 +21,18 @@
   import SubscriptionUsageChip from "$lib/features/usage/components/SubscriptionUsageChip.svelte";
   import ZoomControl from "./ZoomControl.svelte";
 
-  type GitStatus = { branch: string; dirty: boolean };
+  type GitStatus = {
+    branch: string;
+    dirty: boolean;
+    changeCount: number;
+    ahead: number | null;
+    behind: number | null;
+    detached: boolean;
+    hasUpstream: boolean;
+    relativePath: string;
+    repoName: string;
+    repoCount: number;
+  };
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -66,10 +80,32 @@
   const projectPath = $derived(
     activeProject ? shortenPath(activeProject.dir, homeDir) : "No project",
   );
+
+  function changeCountLabel(count: number): string {
+    return `${count} ${count === 1 ? "change" : "changes"}`;
+  }
+
+  function gitStatusTitle(status: GitStatus): string {
+    const details = [
+      status.detached ? "Detached HEAD" : `Branch: ${status.branch}`,
+    ];
+    if (status.repoCount > 1) {
+      details.unshift(
+        `Repo: ${status.relativePath === "." ? status.repoName : status.relativePath}`,
+      );
+    }
+    if (status.changeCount > 0) {
+      details.push(changeCountLabel(status.changeCount));
+    }
+    if ((status.ahead ?? 0) > 0) details.push(`${status.ahead} ahead`);
+    if ((status.behind ?? 0) > 0) details.push(`${status.behind} behind`);
+    if (!status.hasUpstream && !status.detached) details.push("No upstream");
+    return details.join(" • ");
+  }
 </script>
 
 <footer class="footerbar">
-  <div class="footer-group">
+  <div class="footer-group footer-left">
     <Button
       variant="ghost"
       size="icon-sm"
@@ -85,18 +121,33 @@
         <PanelLeftClose size={13} strokeWidth={2.1} aria-hidden="true" />
       {/if}
     </Button>
-    <span class="footer-path" title={activeProject?.dir}>{projectPath}</span>
+    <span class="footer-project-path" title={activeProject?.dir}>{projectPath}</span>
+
+    {#if !phone && gitStatus}
+      <span class="footer-chip footer-git" title={gitStatusTitle(gitStatus)}>
+        <GitBranch size={12} strokeWidth={2.1} aria-hidden="true" />
+        <span class="footer-git-branch">{gitStatus.branch}{gitStatus.dirty ? "*" : ""}</span>
+        {#if gitStatus.changeCount > 0}
+          <span class="footer-git-detail" aria-label={changeCountLabel(gitStatus.changeCount)}>
+            <Diff size={11} strokeWidth={2.1} aria-hidden="true" />{gitStatus.changeCount}
+          </span>
+        {/if}
+        {#if (gitStatus.ahead ?? 0) > 0}
+          <span class="footer-git-detail" aria-label={`${gitStatus.ahead} ahead`}>
+            <ArrowUp size={11} strokeWidth={2.1} aria-hidden="true" />{gitStatus.ahead}
+          </span>
+        {/if}
+        {#if (gitStatus.behind ?? 0) > 0}
+          <span class="footer-git-detail" aria-label={`${gitStatus.behind} behind`}>
+            <ArrowDown size={11} strokeWidth={2.1} aria-hidden="true" />{gitStatus.behind}
+          </span>
+        {/if}
+      </span>
+    {/if}
   </div>
 
   <div class="footer-group footer-right">
     {#if !phone}
-      {#if gitStatus}
-        <span class="footer-chip" title="Git branch">
-          <GitBranch size={12} strokeWidth={2.1} aria-hidden="true" />
-          <span>{gitStatus.branch}{gitStatus.dirty ? "*" : ""}</span>
-        </span>
-      {/if}
-
       {#if activeTasks > 0}
         <span class="footer-chip" title="Running tasks">
           <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
@@ -161,6 +212,11 @@
     padding-left: 0.15rem;
   }
 
+  .footer-left {
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
   .footer-right {
     flex: none;
     gap: 0;
@@ -178,7 +234,8 @@
     border-left: 0;
   }
 
-  .footer-path {
+  .footer-project-path {
+    flex: 0 1 auto;
     overflow: hidden;
     min-width: 0;
     text-overflow: ellipsis;
@@ -197,6 +254,31 @@
   }
 
   .footer-chip :global(svg) {
+    color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
+  }
+
+  .footer-git {
+    min-width: 0;
+    border-left: 1px solid var(--border);
+  }
+
+  .footer-git-branch {
+    overflow: hidden;
+    min-width: 0;
+    max-width: min(16rem, 30vw);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+  }
+
+  .footer-git-detail {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    color: var(--muted-foreground);
+  }
+
+  .footer-git-detail :global(svg) {
     color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
   }
 
