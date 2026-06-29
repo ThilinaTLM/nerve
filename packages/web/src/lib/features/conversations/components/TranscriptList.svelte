@@ -1,6 +1,5 @@
 <script lang="ts">
   import Folder from "@lucide/svelte/icons/folder";
-  import ListPlus from "@lucide/svelte/icons/list-plus";
   import type {
     AgentRecord,
     ModelInfo,
@@ -18,6 +17,7 @@
   } from "$lib/components/ui/virtual-list";
   import type { TranscriptItem } from "$lib/core/types/state-types";
   import type { TimelineItem } from "$lib/features/conversations/state/timeline";
+  import QueuedPromptRow from "./QueuedPromptRow.svelte";
   import TranscriptRow from "./TranscriptRow.svelte";
 
   type TranscriptRowItem =
@@ -58,6 +58,10 @@
     ) => void | Promise<void>;
     onRejectPlanReview?: (id: string) => void;
     onContinueFromFailure?: (statusEntryId: string) => void;
+    onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+    onMoveQueuedPromptToComposer?: (
+      prompt: QueuedPromptRecord,
+    ) => void | Promise<void>;
     messageMenu: (item: TranscriptItem) => ContextMenuItem[];
     toolMenu: (
       anchorEntryId: string | undefined,
@@ -92,6 +96,8 @@
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
     onContinueFromFailure,
+    onDiscardQueuedPrompt,
+    onMoveQueuedPromptToComposer,
     messageMenu,
     toolMenu,
   }: Props = $props();
@@ -188,11 +194,11 @@
           </div>
         </article>
       {:else}
-        <div class="queued-prompt">
-          <ListPlus size={14} strokeWidth={2.2} />
-          <span class="queued-label">Queued</span>
-          <span class="queued-text">{item.prompt.text}</span>
-        </div>
+        <QueuedPromptRow
+          prompt={item.prompt}
+          onDiscard={onDiscardQueuedPrompt}
+          onMoveToComposer={onMoveQueuedPromptToComposer}
+        />
       {/if}
     {/snippet}
   </VirtualScroller>
@@ -248,32 +254,6 @@
     animation: pulse 1s steps(2, start) infinite;
   }
 
-  .queued-prompt {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    justify-self: end;
-    margin-left: auto;
-    max-width: min(42rem, 82%);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius);
-    background: var(--muted);
-    color: var(--muted-foreground);
-    padding: 0.45rem 0.65rem;
-    font-size: var(--text-xs);
-  }
-
-  .queued-label {
-    font-weight: 600;
-    color: var(--foreground);
-  }
-
-  .queued-text {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 
   .empty-run {
     display: grid;

@@ -64,12 +64,17 @@ import {
   navigateHarnessTree,
 } from "./harness-maintenance.js";
 import {
+  coalesceQueuedUserEntries,
+  takeQueuedMessageEntries,
+} from "./harness-queue-coalescing.js";
+import {
   appendExternalHarnessMessage,
   appendHarnessMessage,
   enqueueHarnessMessage as enqueueHarnessQueueMessage,
   enqueueNextTurn,
   type HarnessQueueState,
   type InboundQueuedMessage,
+  removeQueuedHarnessMessage,
   steerHarness,
 } from "./harness-queue-methods.js";
 import { convertToLlm } from "./messages.js";
@@ -269,19 +274,22 @@ export class AgentHarness<
     queue: InboundQueuedMessage[],
     mode: QueueMode,
   ): Promise<AgentMessage[]> {
-    const entries = mode === "all" ? queue.splice(0) : queue.splice(0, 1);
+    const entries = takeQueuedMessageEntries(queue, mode);
     if (entries.length === 0) return [];
     try {
       await this.emitQueueUpdate();
-      for (const entry of entries) {
-        if (entry.id || entry.timestamp) {
-          this.queuedMessageWrites.set(entry.message, {
+      const groups = coalesceQueuedUserEntries(entries);
+      for (const group of groups) {
+        if (group.entries.length !== 1) continue;
+        const [entry] = group.entries;
+        if (entry?.source === "harness" && (entry.id || entry.timestamp)) {
+          this.queuedMessageWrites.set(group.message, {
             id: entry.id,
             timestamp: entry.timestamp,
           });
         }
       }
-      return entries.map((entry) => entry.message);
+      return groups.map((group) => group.message);
     } catch (error) {
       queue.unshift(...entries);
       throw normalizeHookError(error);
@@ -594,16 +602,20 @@ export class AgentHarness<
 
   async steer(
     text: string,
-    options?: { images?: ImageContent[] },
+    options?: { images?: ImageContent[]; id?: string },
   ): Promise<void> {
     return steerHarness(this.queueState(), text, options);
   }
 
   async followUp(
     text: string,
-    options?: { images?: ImageContent[] },
+    options?: { images?: ImageContent[]; id?: string },
   ): Promise<void> {
     return this.steer(text, options);
+  }
+
+  async removeQueuedMessage(id: string): Promise<boolean> {
+    return removeQueuedHarnessMessage(this.queueState(), id);
   }
 
   async enqueueHarnessMessage(input: {

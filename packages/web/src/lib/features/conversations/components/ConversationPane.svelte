@@ -73,6 +73,8 @@
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
     onContinueFromFailure,
+    onDiscardQueuedPrompt,
+    onMoveQueuedPromptToComposer,
     onNavigateToEntry,
     onEditEntry,
     onOpenHistory,
@@ -190,6 +192,8 @@
         {onAcceptPlanReviewInNewChat}
         {onRejectPlanReview}
         {onContinueFromFailure}
+        {onDiscardQueuedPrompt}
+        {onMoveQueuedPromptToComposer}
         messageMenu={menuForMessage}
         toolMenu={menuForTool}
       />

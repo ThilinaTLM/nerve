@@ -529,10 +529,11 @@ export async function runAgentPromptSession(
         await harness.abort();
       },
       messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
-      steer: (text, options) =>
-        harness.steer(text, { images: options?.images }),
-      followUp: (text, options) =>
-        harness.steer(text, { images: options?.images }),
+      steer: (text, options, queuedPromptId) =>
+        harness.steer(text, { images: options?.images, id: queuedPromptId }),
+      followUp: (text, options, queuedPromptId) =>
+        harness.steer(text, { images: options?.images, id: queuedPromptId }),
+      removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
       updateAgentRuntimeConfig: async (updatedAgent) => {
         const nextActiveToolNames = await this.activeToolNamesFor(updatedAgent);
         if (!sameStringList(nextActiveToolNames, activeToolNames)) {
@@ -769,7 +770,6 @@ export async function runAgentPromptSession(
     throw error;
   }
 }
-
 async function expandExecutablePromptBlocks(
   runner: AgentRunner,
   agent: AgentRecord,

@@ -33,17 +33,34 @@ export type HarnessQueueState = {
 export async function steerHarness(
   state: HarnessQueueState,
   text: string,
-  options?: { images?: ImageContent[] },
+  options?: { images?: ImageContent[]; id?: string },
 ): Promise<void> {
   if (state.phase === "idle") {
     throw new AgentHarnessError("invalid_state", "Cannot steer while idle");
   }
   state.steerQueue.push({
+    id: options?.id,
     source: "user",
     message: createUserMessage(text, options?.images),
     enqueuedAt: new Date().toISOString(),
   });
   await state.emitQueueUpdate();
+}
+
+export async function removeQueuedHarnessMessage(
+  state: HarnessQueueState,
+  id: string,
+): Promise<boolean> {
+  const index = state.steerQueue.findIndex((entry) => entry.id === id);
+  if (index === -1) return false;
+  const [entry] = state.steerQueue.splice(index, 1);
+  try {
+    await state.emitQueueUpdate();
+    return true;
+  } catch (error) {
+    if (entry) state.steerQueue.splice(index, 0, entry);
+    throw normalizeHarnessError(error, "unknown");
+  }
 }
 
 export async function enqueueHarnessMessage(

@@ -19,6 +19,7 @@ import {
   type CreateAgentRequest,
   type PromptRequest,
   parseInlineCommandPrompt,
+  type QueuedPromptRecord,
   type ToolCallRecord,
   type ToolName,
 } from "@nervekit/shared";
@@ -649,19 +650,35 @@ export class AgentRunner {
     runId: string,
     entry: ConversationEntry,
   ): Promise<void> {
-    const queuedPrompt = (await this.deps.promptQueue.pendingForAgent(agent.id))
-      .filter(
-        (candidate) =>
-          candidate.runId === runId &&
-          (candidate.status === "accepted" || candidate.status === "queued") &&
-          candidate.text === entry.text,
-      )
-      .at(0);
-    if (!queuedPrompt) return;
+    const pendingPrompts = (
+      await this.deps.promptQueue.pendingForAgent(agent.id)
+    ).filter((candidate) => queuedPromptBelongsToRun(candidate, runId));
+    const exactPrompt = pendingPrompts.find(
+      (candidate) => candidate.text === entry.text,
+    );
+    if (exactPrompt) {
+      await this.markQueuedPromptDelivered(agent, runId, exactPrompt, entry.id);
+      return;
+    }
+    const coalescedPrompts = queuedPromptsMatchingJoinedText(
+      pendingPrompts,
+      entry.text,
+    );
+    for (const prompt of coalescedPrompts) {
+      await this.markQueuedPromptDelivered(agent, runId, prompt, entry.id);
+    }
+  }
+
+  private async markQueuedPromptDelivered(
+    agent: AgentRecord,
+    runId: string,
+    queuedPrompt: QueuedPromptRecord,
+    entryId: string,
+  ): Promise<void> {
     const delivered = await this.deps.promptQueue.markDelivered(
       queuedPrompt.id,
       agent.id,
-      entry.id,
+      entryId,
     );
     if (!delivered) return;
     this.deps.state.conversationRuntime.removeQueuedPrompt(runId, delivered.id);
@@ -671,7 +688,7 @@ export class AgentRunner {
       projectId: agent.projectId,
       runId,
       queuedPrompt: delivered,
-      entryId: entry.id,
+      entryId,
     });
   }
 
@@ -735,4 +752,31 @@ export class AgentRunner {
   ): Promise<ConversationEntry> {
     return this.autoCompaction.appendAutoContinueMessage(agent, text);
   }
+}
+
+function queuedPromptBelongsToRun(
+  prompt: QueuedPromptRecord,
+  runId: string,
+): boolean {
+  return (
+    prompt.runId === runId &&
+    (prompt.status === "accepted" || prompt.status === "queued")
+  );
+}
+
+function queuedPromptsMatchingJoinedText(
+  prompts: QueuedPromptRecord[],
+  text: string,
+): QueuedPromptRecord[] {
+  const matches: QueuedPromptRecord[] = [];
+  for (const prompt of prompts) {
+    matches.push(prompt);
+    if (matches.length < 2) continue;
+    const joined = matches
+      .map((candidate) => candidate.text.trimEnd())
+      .join("\n\n");
+    if (joined === text) return matches;
+    if (!text.startsWith(joined)) return [];
+  }
+  return [];
 }

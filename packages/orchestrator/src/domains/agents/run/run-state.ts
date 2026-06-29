@@ -16,6 +16,7 @@ export interface AgentRunState {
     options?: PromptRequest,
     queuedPromptId?: string,
   ) => Promise<void>;
+  removeQueuedPrompt?: (queuedPromptId: string) => Promise<boolean>;
   updateAgentRuntimeConfig?: (agent: AgentRecord) => Promise<void>;
   appendExternalMessage?: (input: {
     id: string;

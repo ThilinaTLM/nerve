@@ -1,4 +1,9 @@
 <script lang="ts">
+  import {
+    apiDelete,
+    apiPathSegment,
+    type QueuedPromptRecord,
+  } from "$lib/api";
   import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
   import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
   import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
@@ -52,6 +57,7 @@
   import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
   import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
   import { refreshPromptSuggestions } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
+  import { notify } from "$lib/features/notifications/notify.svelte";
   import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/components/PromptSuggestionTrustDialog.svelte";
   import type { ComposerSuggestion } from "./composer-suggestion";
   import {
@@ -296,6 +302,39 @@
       sendPromptText(suggestion.prompt, { clearComposer: false }),
     );
   }
+
+  async function cancelQueuedPrompt(prompt: QueuedPromptRecord): Promise<boolean> {
+    try {
+      await apiDelete<{ queuedPrompt: QueuedPromptRecord }>(
+        `/api/agents/${apiPathSegment(prompt.agentId)}/prompt-queue/${apiPathSegment(prompt.id)}`,
+      );
+      const targetView = ensureConversationView(prompt.conversationId);
+      targetView.queuedPrompts = targetView.queuedPrompts.filter(
+        (candidate) => candidate.id !== prompt.id,
+      );
+      return true;
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      notify.error("Queued prompt action failed", { description: message });
+      return false;
+    }
+  }
+
+  function discardQueuedPrompt(prompt: QueuedPromptRecord) {
+    void runActivePaneAction(async () => {
+      if (!(await cancelQueuedPrompt(prompt))) return;
+      notify.message("Queued prompt discarded");
+    });
+  }
+
+  function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
+    void runActivePaneAction(async () => {
+      if (!(await cancelQueuedPrompt(prompt))) return;
+      setPaneComposerText(prompt.text);
+      focusComposer();
+      notify.success("Moved queued prompt to composer");
+    });
+  }
 </script>
 
 <ConversationPane
@@ -372,6 +411,8 @@
   onContinueFromFailure={(id) => {
     void runActivePaneAction(() => continueFromFailure(id));
   }}
+  onDiscardQueuedPrompt={discardQueuedPrompt}
+  onMoveQueuedPromptToComposer={moveQueuedPromptToComposer}
   onNavigateToEntry={(entryId, summarize) => {
     void jumpToConversationEntry(entryId, summarize);
   }}

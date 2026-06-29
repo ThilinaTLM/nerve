@@ -85,6 +85,10 @@ export type ConversationPaneProps = {
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void;
+  onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  onMoveQueuedPromptToComposer?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
   onContinueFromFailure?: (statusEntryId: string) => void;
   onNavigateToEntry?: (
     entryId: string | undefined,

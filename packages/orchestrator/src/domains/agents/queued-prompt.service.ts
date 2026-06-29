@@ -35,6 +35,9 @@ export class QueuedPromptService {
       );
     }
     if (cancelled.status === "cancelled") {
+      await this.deps.state.runs
+        .get(agent.id)
+        ?.removeQueuedPrompt?.(cancelled.id);
       this.deps.state.conversationRuntime.removeQueuedPrompt(
         cancelled.runId,
         cancelled.id,
