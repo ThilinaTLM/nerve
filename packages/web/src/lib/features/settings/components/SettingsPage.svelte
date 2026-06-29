@@ -7,6 +7,7 @@
   import Server from "@lucide/svelte/icons/server";
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import Sparkles from "@lucide/svelte/icons/sparkles";
+  import Wrench from "@lucide/svelte/icons/wrench";
   import type {
     AuthProviderMetadata,
     ModelInfo,
@@ -21,7 +22,7 @@
   import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";
   import ExploreAgentSettingsSection from "./settings/sections/ExploreAgentSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
-  import PythonRuntimeSettingsSection from "./settings/sections/PythonRuntimeSettingsSection.svelte";
+  import ToolsSettingsSection from "./settings/sections/ToolsSettingsSection.svelte";
   import PromptSuggestionsSettingsSection from "./settings/sections/PromptSuggestionsSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
@@ -35,11 +36,11 @@
     | "explore"
     | "prompt-suggestions"
     | "models"
+    | "tools"
     | "server"
-    | "python"
     | "storage"
     | "runtime";
-  type GroupId = "workbench" | "agents" | "suggestions" | "models" | "system";
+  type GroupId = "workbench" | "agents" | "suggestions" | "models" | "tools" | "system";
   type GroupSection = { id: SectionId; label: string };
   type SettingsGroup = {
     id: GroupId;
@@ -95,12 +96,17 @@
       sections: [{ id: "models", label: "Scoped models" }],
     },
     {
+      id: "tools",
+      label: "Tools",
+      icon: Wrench,
+      sections: [{ id: "tools", label: "Tool configuration" }],
+    },
+    {
       id: "system",
       label: "System",
       icon: Server,
       sections: [
         { id: "server", label: "Server" },
-        { id: "python", label: "Python" },
         { id: "storage", label: "Storage" },
         { id: "runtime", label: "Diagnostics" },
       ],
@@ -248,9 +254,10 @@
             <PromptSuggestionsSettingsSection />
           {:else if activeGroup.id === "models"}
             <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+          {:else if activeGroup.id === "tools"}
+            <ToolsSettingsSection {settingsDraft} {status} {authProviders} {onSettingsChange} />
           {:else if activeGroup.id === "system"}
             <ServerSettingsSection {settingsDraft} {onSettingsChange} />
-            <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />
             <StorageSettingsSection />
             <GeneralSettingsSection {status} />
           {/if}

@@ -20,6 +20,7 @@ describe("settings schema", () => {
       thinkingLevel: "off",
     });
     assert.deepEqual(settings.runtime, {});
+    assert.deepEqual(settings.tools.disabled, []);
     assert.equal(settings.compaction.auto, true);
   });
 
@@ -29,6 +30,7 @@ describe("settings schema", () => {
       defaultThinkingLevel: undefined,
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
+      tools: undefined,
     });
 
     assert.equal(settings.defaultThinkingLevel, "off");
@@ -37,6 +39,7 @@ describe("settings schema", () => {
     assert.equal(settings.lastAgentSelection.permissionLevel, "autonomous");
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
+    assert.deepEqual(settings.tools.disabled, []);
   });
 
   it("strips legacy compaction token fields while backfilling auto default", () => {
@@ -51,18 +54,24 @@ describe("settings schema", () => {
     assert.deepEqual(settings.compaction, { auto: true });
   });
 
-  it("accepts runtime update settings", () => {
+  it("accepts runtime and tool update settings", () => {
     const parsed = updateSettingsRequestSchema.parse({
       runtime: {
         pythonExecutablePath: "/usr/bin/python3",
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
       },
+      tools: { disabled: ["web_search", "web_fetch", "python"] },
     });
     assert.equal(parsed.runtime?.pythonExecutablePath, "/usr/bin/python3");
     assert.equal(
       parsed.runtime?.shellPath,
       "C:\\Program Files\\Git\\bin\\bash.exe",
     );
+    assert.deepEqual(parsed.tools?.disabled, [
+      "web_search",
+      "web_fetch",
+      "python",
+    ]);
     const cleared = updateSettingsRequestSchema.parse({
       runtime: { pythonExecutablePath: null, shellPath: null },
     });

@@ -4,7 +4,12 @@ import {
   type AgentToolResult,
   AgentToolSuspension,
 } from "@nervekit/agent";
-import type { AgentRecord, ToolCallRecord, ToolName } from "@nervekit/shared";
+import type {
+  AgentRecord,
+  ToolCallRecord,
+  ToolName,
+  UserConfigurableToolName,
+} from "@nervekit/shared";
 import {
   allToolDefinitions,
   appendBoundedTextNotice,
@@ -57,8 +62,14 @@ export function activeToolNamesForExploreAgent(): ToolName[] {
 
 export function activeToolNamesForAgent(
   agent: AgentRecord,
-  options: { pythonAvailable?: boolean } = {},
+  options: {
+    pythonAvailable?: boolean;
+    disabledToolNames?: readonly UserConfigurableToolName[];
+  } = {},
 ): ToolName[] {
+  const finish = (tools: ToolName[]) =>
+    filterDisabledUserTools(tools, options.disabledToolNames);
+
   if (agent.permissionLevel === "read_only") {
     const tools: ToolName[] = [
       "read",
@@ -76,12 +87,12 @@ export function activeToolNamesForAgent(
     if (agent.mode === "planning") {
       tools.push("plan_mode_present", "plan_mode_force_exit");
     }
-    return tools;
+    return finish(tools);
   }
   const pythonTools: ToolName[] =
     options.pythonAvailable === true ? ["python"] : [];
   if (agent.mode === "planning") {
-    return [
+    return finish([
       "read",
       "bash",
       ...pythonTools,
@@ -102,9 +113,9 @@ export function activeToolNamesForAgent(
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",
-    ];
+    ]);
   }
-  return [
+  return finish([
     "read",
     "bash",
     ...pythonTools,
@@ -126,7 +137,16 @@ export function activeToolNamesForAgent(
     "web_search",
     "web_fetch",
     "plan_mode_enter",
-  ];
+  ]);
+}
+
+function filterDisabledUserTools(
+  tools: ToolName[],
+  disabledToolNames: readonly UserConfigurableToolName[] | undefined,
+): ToolName[] {
+  if (!disabledToolNames || disabledToolNames.length === 0) return tools;
+  const disabled = new Set<ToolName>(disabledToolNames);
+  return tools.filter((tool) => !disabled.has(tool));
 }
 
 export function toolPromptMetadata(

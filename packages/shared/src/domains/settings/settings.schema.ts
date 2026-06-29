@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/index.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
+import { userConfigurableToolNameSchema } from "../tools/index.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;
@@ -25,6 +26,10 @@ export type AgentSelectionSettings = z.infer<
 const runtimeSettingsSchema = z.object({
   pythonExecutablePath: z.string().trim().min(1).optional(),
   shellPath: z.string().trim().min(1).optional(),
+});
+
+const toolSettingsSchema = z.object({
+  disabled: z.array(userConfigurableToolNameSchema).default([]),
 });
 
 export const settingsSchema = z.object({
@@ -68,6 +73,7 @@ export const settingsSchema = z.object({
     baseDelayMs: z.number().int().positive().default(2000),
   }),
   runtime: runtimeSettingsSchema.default({}),
+  tools: toolSettingsSchema.default({ disabled: [] }),
   scopedModels: z.array(modelSelectionSchema).default([]),
 });
 export type Settings = z.infer<typeof settingsSchema>;
@@ -111,6 +117,7 @@ export const defaultSettings: Settings = {
     baseDelayMs: 2000,
   },
   runtime: {},
+  tools: { disabled: [] },
   scopedModels: [],
 };
 
@@ -175,6 +182,11 @@ export const updateSettingsRequestSchema = z.object({
     .object({
       pythonExecutablePath: z.string().trim().min(1).nullable().optional(),
       shellPath: z.string().trim().min(1).nullable().optional(),
+    })
+    .optional(),
+  tools: z
+    .object({
+      disabled: z.array(userConfigurableToolNameSchema).optional(),
     })
     .optional(),
   scopedModels: z.array(modelSelectionSchema).optional(),

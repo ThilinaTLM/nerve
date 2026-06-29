@@ -1,7 +1,6 @@
 <script lang="ts">
   import Boxes from "@lucide/svelte/icons/boxes";
   import Cpu from "@lucide/svelte/icons/cpu";
-  import Search from "@lucide/svelte/icons/search";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import type { Component } from "svelte";
   import { tick } from "svelte";
@@ -11,7 +10,6 @@
   import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
   import ApiKeysSection from "./ApiKeysSection.svelte";
   import CustomProvidersSection from "./CustomProvidersSection.svelte";
-  import IntegrationsSection from "./IntegrationsSection.svelte";
   import ModelsSection from "./ModelsSection.svelte";
   import SubscriptionsSection from "./SubscriptionsSection.svelte";
 
@@ -19,13 +17,8 @@
     | "subscriptions"
     | "api-keys"
     | "custom-providers"
-    | "custom-models"
-    | "integrations";
-  type GroupId =
-    | "connections"
-    | "custom-providers"
-    | "custom-models"
-    | "integrations";
+    | "custom-models";
+  type GroupId = "connections" | "custom-providers" | "custom-models";
   type GroupSection = { id: SectionId; label: string };
   type AuthGroup = {
     id: GroupId;
@@ -55,12 +48,6 @@
       label: "Custom Models",
       icon: Cpu,
       sections: [{ id: "custom-models", label: "Custom Models" }],
-    },
-    {
-      id: "integrations",
-      label: "Integrations",
-      icon: Search,
-      sections: [{ id: "integrations", label: "Web search" }],
     },
   ];
 
@@ -183,8 +170,6 @@
         <CustomProvidersSection {authProviders} />
       {:else if activeGroup === "custom-models"}
         <ModelsSection {models} {authProviders} />
-      {:else if activeGroup === "integrations"}
-        <IntegrationsSection {authProviders} />
       {/if}
     </div>
   </ScrollArea>

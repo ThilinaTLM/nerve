@@ -281,7 +281,7 @@ describe("Nerve system prompt", () => {
     assert.doesNotMatch(prompt, /plan_write/);
   });
 
-  it("exposes web tools to coding/planning agents but not read-only agents", () => {
+  it("omits user-disabled tools from active tools and prompt summaries", () => {
     assert.ok(activeToolNamesForAgent(testAgent()).includes("web_search"));
     assert.ok(activeToolNamesForAgent(testAgent()).includes("web_fetch"));
     assert.ok(
@@ -294,6 +294,25 @@ describe("Nerve system prompt", () => {
         testAgent({ permissionLevel: "read_only" }),
       ).includes("web_search"),
     );
+
+    const activeToolNames = activeToolNamesForAgent(testAgent(), {
+      pythonAvailable: true,
+      disabledToolNames: ["web_search", "web_fetch", "python"],
+    });
+    assert.ok(!activeToolNames.includes("web_search"));
+    assert.ok(!activeToolNames.includes("web_fetch"));
+    assert.ok(!activeToolNames.includes("python"));
+
+    const prompt = composeAgentSystemPrompt(
+      testAgent(),
+      activeToolNames,
+      toolPromptMetadata(activeToolNames),
+      { contextFiles: [], skills: [] },
+    );
+    assert.match(prompt, /<tools>/);
+    assert.doesNotMatch(prompt, /web_search/);
+    assert.doesNotMatch(prompt, /web_fetch/);
+    assert.doesNotMatch(prompt, /python/);
   });
 
   it("does not expose orchestration metadata", () => {

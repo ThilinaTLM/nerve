@@ -66,6 +66,37 @@ describe("agent tool definitions", () => {
     }
   });
 
+  it("filters user-disabled configurable tools", () => {
+    assert.ok(
+      !activeToolNamesForAgent(agent("autonomous"), {
+        disabledToolNames: ["web_search", "web_fetch"],
+      }).includes("web_search"),
+    );
+    assert.ok(
+      !activeToolNamesForAgent(agent("autonomous"), {
+        disabledToolNames: ["web_search", "web_fetch"],
+      }).includes("web_fetch"),
+    );
+    assert.ok(
+      activeToolNamesForAgent(agent("autonomous"), {
+        disabledToolNames: ["web_search", "web_fetch"],
+      }).includes("bash"),
+    );
+    assert.deepEqual(
+      activeToolNamesForAgent(agent("autonomous"), {
+        pythonAvailable: true,
+        disabledToolNames: ["python"],
+      }).slice(0, 2),
+      ["read", "bash"],
+    );
+    assert.ok(
+      !activeToolNamesForAgent(agent("autonomous"), {
+        pythonAvailable: true,
+        disabledToolNames: ["python"],
+      }).includes("python"),
+    );
+  });
+
   it("uses expected default active tools", () => {
     const codingTools = [
       "read",

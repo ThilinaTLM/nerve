@@ -33,8 +33,14 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     routeHandler(async (c) => {
       const agentId = routeParam(c, "agentId");
       const agent = state.registry.getAgent(agentId);
+      const pythonAvailable =
+        await state.registry.pythonRuntime.isAvailableForProject(
+          agent.projectDir,
+        );
       const prompt = await buildAgentSystemPrompt(agent, {
         storageHome: state.storage.paths.home,
+        pythonAvailable,
+        disabledToolNames: state.storage.settings.tools.disabled,
       });
       return c.body(prompt, 200, {
         "Content-Type": "text/markdown; charset=utf-8",

@@ -1,4 +1,4 @@
-import type { AgentRecord } from "@nervekit/shared";
+import type { AgentRecord, UserConfigurableToolName } from "@nervekit/shared";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {
   activeToolNamesForAgent,
@@ -14,9 +14,16 @@ import { loadHarnessResources } from "../prompting/resource-loader.js";
  */
 export async function buildAgentSystemPrompt(
   agent: AgentRecord,
-  options: { storageHome?: string } = {},
+  options: {
+    storageHome?: string;
+    pythonAvailable?: boolean;
+    disabledToolNames?: readonly UserConfigurableToolName[];
+  } = {},
 ): Promise<string> {
-  const activeToolNames = activeToolNamesForAgent(agent);
+  const activeToolNames = activeToolNamesForAgent(agent, {
+    pythonAvailable: options.pythonAvailable,
+    disabledToolNames: options.disabledToolNames,
+  });
   const promptMetadata = toolPromptMetadata(activeToolNames);
   const resources = await loadHarnessResources(agent.projectDir, {
     storageHome: options.storageHome,

@@ -30,6 +30,15 @@ export const coreToolNameSchema = z.enum([
 ]);
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 
+export const userConfigurableToolNameSchema = z.enum([
+  "web_search",
+  "web_fetch",
+  "python",
+]);
+export type UserConfigurableToolName = z.infer<
+  typeof userConfigurableToolNameSchema
+>;
+
 export const orchestrationToolNameSchema = z.enum([
   "task_start",
   "task_status",

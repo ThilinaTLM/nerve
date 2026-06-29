@@ -113,7 +113,10 @@ export class AgentRunner {
     const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
       agent.projectDir,
     );
-    return activeToolNamesForAgent(agent, { pythonAvailable });
+    return activeToolNamesForAgent(agent, {
+      pythonAvailable,
+      disabledToolNames: this.deps.storage.settings.tools.disabled,
+    });
   }
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {

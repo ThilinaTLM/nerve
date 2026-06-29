@@ -106,6 +106,7 @@ export async function runAgentPromptSession(
       const currentAgent = latestAgent();
       const currentActiveToolNames = activeToolNamesForAgent(currentAgent, {
         pythonAvailable: activeToolNames.includes("python"),
+        disabledToolNames: this.deps.storage.settings.tools.disabled,
       });
       return composeAgentSystemPrompt(
         currentAgent,
@@ -546,7 +547,6 @@ export async function runAgentPromptSession(
         ) {
           await harness.setModel(nextModel);
         }
-
         if (harness.getThinkingLevel() !== updatedAgent.thinkingLevel) {
           await harness.setThinkingLevel(updatedAgent.thinkingLevel);
         }

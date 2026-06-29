@@ -177,6 +177,12 @@ function mergeSettingsPatch(
       ...(patch.runtime ?? {}),
     };
   }
+  if (base?.tools || patch.tools) {
+    next.tools = {
+      ...(base?.tools ?? {}),
+      ...(patch.tools ?? {}),
+    };
+  }
   return next;
 }
 
