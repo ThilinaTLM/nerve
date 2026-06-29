@@ -88,7 +88,7 @@ def main() -> int:
 
     version = args.version.lstrip("v")
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[-.A-Za-z0-9]+)?", version):
-        print(f"Invalid version: {args.version}", file=sys.stderr)
+        print(f"Invalid version: {args.version}", file=sys.stderr, flush=True)
         return 1
 
     tag = f"v{version}"
@@ -97,11 +97,11 @@ def main() -> int:
 
     branch = current_branch()
     if branch != args.branch and not args.force_branch:
-        print(f"Must be on the {args.branch} branch (currently on {branch}). Use --force-branch to override.", file=sys.stderr)
+        print(f"Must be on the {args.branch} branch (currently on {branch}). Use --force-branch to override.", file=sys.stderr, flush=True)
         return 1
 
     if not working_tree_clean():
-        print("Working tree is not clean. Commit or stash changes first.", file=sys.stderr)
+        print("Working tree is not clean. Commit or stash changes first.", file=sys.stderr, flush=True)
         return 1
 
     # Update versions.
@@ -109,10 +109,10 @@ def main() -> int:
     for path in package_json_files():
         if update_version(path, version):
             updated.append(path)
-            print(f"  updated {path.relative_to(REPO_ROOT)} -> {version}")
+            print(f"  updated {path.relative_to(REPO_ROOT)} -> {version}", flush=True)
 
     if not updated:
-        print("No package.json files were updated.", file=sys.stderr)
+        print("No package.json files were updated.", file=sys.stderr, flush=True)
         return 1
 
     # Commit.
@@ -120,36 +120,36 @@ def main() -> int:
     commit_message = f"chore(release): bump version to {tag}"
     run(["git", "commit", "-m", commit_message])
     commit = run(["git", "rev-parse", "HEAD"], capture=True)
-    print(f"  committed {commit[:12]}: {commit_message}")
+    print(f"  committed {commit[:12]}: {commit_message}", flush=True)
 
     # Remove existing tag locally and remotely.
     if tag_exists_locally(tag):
         run(["git", "tag", "-d", tag])
-        print(f"  deleted local tag {tag}")
+        print(f"  deleted local tag {tag}", flush=True)
 
     if tag_exists_remote(tag):
         run(["git", "push", "--delete", "origin", tag])
-        print(f"  deleted remote tag {tag}")
+        print(f"  deleted remote tag {tag}", flush=True)
 
     # Create annotated tag.
     run(["git", "tag", "-a", tag, "-m", tag_message])
-    print(f"  created annotated tag {tag}: {tag_message}")
+    print(f"  created annotated tag {tag}: {tag_message}", flush=True)
 
     # Verify.
     try:
         run(["pnpm", "release:verify-tag", "--", tag])
-        print(f"  verified {tag} against workspace versions")
+        print(f"  verified {tag} against workspace versions", flush=True)
     except subprocess.CalledProcessError as exc:
-        print(f"  tag verification failed: {exc}", file=sys.stderr)
+        print(f"  tag verification failed: {exc}", file=sys.stderr, flush=True)
         return 1
 
-    print()
-    print("Review the commit/tag, then push:")
-    print(f"  git show {tag}")
-    print(f"  git push origin {branch} {tag}")
+    print(flush=True)
+    print("Review the commit/tag, then push:", flush=True)
+    print(f"  git show {tag}", flush=True)
+    print(f"  git push origin {branch} {tag}", flush=True)
     if tag_exists_remote(tag):
         # Should not happen because we deleted it, but be explicit if the user re-runs.
-        print(f"  (if origin already has {tag}, push with --force)")
+        print(f"  (if origin already has {tag}, push with --force)", flush=True)
 
     return 0
 
