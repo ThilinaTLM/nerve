@@ -53,6 +53,11 @@ export type {
   PlanReviewRecord,
   ProjectEditor,
   ProjectRecord,
+  PromptSuggestion,
+  PromptSuggestionDiagnostic,
+  PromptSuggestionListResponse,
+  PromptSuggestionStatus,
+  PromptSuggestionTrustRequest,
   ProviderCatalog,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
@@ -75,6 +80,7 @@ export type {
   ToolCallRecord,
   ToolCallTranscriptRecord,
   UpdatePinnedCommandRequest,
+  UpdatePromptSuggestionTrustRequest,
   UpdateSettingsRequest,
   UserQuestionRecord,
 } from "@nervekit/shared";
@@ -98,6 +104,7 @@ export * from "./features/filesystem/api/filesystem.api";
 export * from "./features/git/api/git.api";
 export * from "./features/logs/api/logs.api";
 export * from "./features/projects/api/projects.api";
+export * from "./features/prompt-suggestions/api/prompt-suggestions.api";
 export * from "./features/settings/api/settings.api";
 export * from "./features/tasks/api/tasks.api";
 export * from "./features/tools/api/tools.api";

@@ -123,6 +123,12 @@ importers:
       ws:
         specifier: 8.21.0
         version: 8.21.0
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
     devDependencies:
       '@types/node':
         specifier: 24.10.1

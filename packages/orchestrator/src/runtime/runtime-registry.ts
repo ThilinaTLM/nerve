@@ -93,6 +93,10 @@ export class RuntimeRegistry {
     return this.services.git;
   }
 
+  get promptSuggestions() {
+    return this.services.promptSuggestions;
+  }
+
   get editors() {
     return this.services.editors;
   }
@@ -130,6 +134,7 @@ export class RuntimeRegistry {
   async hydrate(): Promise<void> {
     await this.providerCatalog.load();
     await this.workers.hydrate();
+    await this.promptSuggestions.hydrate();
     await this.tasks.hydrate();
     await this.tools.hydrate();
     await this.plans.hydrate();

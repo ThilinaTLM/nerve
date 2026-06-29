@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Braces from "@lucide/svelte/icons/braces";
   import type { Settings, StatusResponse, UpdateSettingsRequest } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -41,9 +40,7 @@
 
 <section id="settings-python" class="settings-section" data-section="python">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Braces size={14} strokeWidth={2.1} /> Python</div>
-    <h2>Python runtime</h2>
-    <p>Configure the interpreter used by the native python tool. The tool is hidden when no runtime is available.</p>
+    <h2>Python</h2>
   </header>
 
   <div class="settings-section-body">
@@ -75,7 +72,6 @@
     <div class="settings-row settings-row-stacked">
       <div class="settings-copy">
         <strong>Manual executable path</strong>
-        <span>Leave empty to auto-detect project virtualenvs or Python on PATH.</span>
       </div>
       <div class="settings-field-grid">
         <label class="wide">

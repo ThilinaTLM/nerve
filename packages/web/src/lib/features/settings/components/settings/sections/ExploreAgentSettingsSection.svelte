@@ -1,5 +1,4 @@
 <script lang="ts">
-  import SearchCode from "@lucide/svelte/icons/search-code";
   import type {
     AuthProviderMetadata,
     ModelInfo,
@@ -70,9 +69,7 @@
 
 <section id="settings-explore" class="settings-section" data-section="explore">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><SearchCode size={14} strokeWidth={2.1} /> Explore agent</div>
-    <h2>Codebase exploration delegate</h2>
-    <p>Configure the specialized read-only agent used by the explore tool.</p>
+    <h2>Explore agent</h2>
   </header>
 
   <div class="settings-section-body">
@@ -80,7 +77,6 @@
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
           <strong>Explore model</strong>
-          <span>The model used when parent agents delegate codebase exploration.</span>
         </div>
         <SelectField
           items={modelItems}
@@ -93,7 +89,6 @@
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
           <strong>Thinking level</strong>
-          <span>Reasoning budget for explore reports.</span>
         </div>
         <SelectField
           items={thinkingItems}
@@ -105,7 +100,7 @@
     </div>
 
     <div class="permission-table" role="table" aria-label="Explore agent fixed policy">
-      <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Explore policy</span></div>
+      <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Policy</span></div>
       <div role="row"><span>Permission</span><strong>Read only</strong></div>
       <div role="row"><span>Mode</span><strong>Coding</strong></div>
       <div role="row"><span>Working directory</span><strong>Same as parent</strong></div>

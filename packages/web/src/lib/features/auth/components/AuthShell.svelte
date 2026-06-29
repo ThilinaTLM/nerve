@@ -30,7 +30,6 @@
   type AuthGroup = {
     id: GroupId;
     label: string;
-    description: string;
     icon: Component;
     sections: GroupSection[];
   };
@@ -39,7 +38,6 @@
     {
       id: "connections",
       label: "Connections",
-      description: "Connect subscription logins and provider API keys.",
       icon: Sparkles,
       sections: [
         { id: "subscriptions", label: "Subscriptions" },
@@ -49,21 +47,18 @@
     {
       id: "custom-providers",
       label: "Custom Providers",
-      description: "Manage custom and self-hosted provider endpoints.",
       icon: Boxes,
       sections: [{ id: "custom-providers", label: "Custom Providers" }],
     },
     {
       id: "custom-models",
       label: "Custom Models",
-      description: "Register models under configured or authenticated providers.",
       icon: Cpu,
       sections: [{ id: "custom-models", label: "Custom Models" }],
     },
     {
       id: "integrations",
       label: "Integrations",
-      description: "Configure external services used by tools.",
       icon: Search,
       sections: [{ id: "integrations", label: "Web search" }],
     },
@@ -143,7 +138,6 @@
   <aside class="settings-sidebar" aria-label="Authentication sections">
     <div class="settings-sidebar-title">
       <strong>Authentication</strong>
-      <span>Providers &amp; keys</span>
     </div>
     <nav class="settings-nav">
       {#each groups as group}
@@ -165,7 +159,6 @@
     <div class="settings-main">
       <header class="settings-panel-header">
         <h2>{activeGroupDef.label}</h2>
-        <p>{activeGroupDef.description}</p>
         {#if activeGroupDef.sections.length > 1}
           <div class="settings-subnav" role="tablist" aria-label="{activeGroupDef.label} sections">
             {#each activeGroupDef.sections as section}

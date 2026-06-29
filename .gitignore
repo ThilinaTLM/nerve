@@ -11,6 +11,12 @@ release/
 .env.*
 !.env.example
 
+# Editor & Agents
+.vscode
+.zed
+.nerve
+.pi
+
 # Python
 __pycache__/
 *.pyc

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Server from "@lucide/svelte/icons/server";
   import type { Settings, UpdateSettingsRequest } from "$lib/api";
   import { Input } from "$lib/components/ui/input";
   import Switch from "$lib/components/ui/switch-field";
@@ -33,9 +32,7 @@
 
 <section id="settings-server" class="settings-section" data-section="server">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Server size={14} strokeWidth={2.1} /> Server</div>
-    <h2>Server binding</h2>
-    <p>Host, port, and remote access settings are persisted immediately but apply after daemon restart.</p>
+    <h2>Server</h2>
   </header>
   <div class="settings-section-body">
     <div class="settings-field-grid">
@@ -65,7 +62,6 @@
         class="settings-full-switch"
         bind:checked={settingsDraft.server.allowRemote}
         label="Allow remote connections"
-        description="Keep local binding unless remote access is required."
         onCheckedChange={(checked) => {
           settingsDraft.server.allowRemote = checked;
           onSettingsChange?.({ server: { allowRemote: checked } }, { immediate: true });

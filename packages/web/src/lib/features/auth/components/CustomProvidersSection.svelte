@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Boxes from "@lucide/svelte/icons/boxes";
   import Pencil from "@lucide/svelte/icons/pencil";
   import Plus from "@lucide/svelte/icons/plus";
   import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -65,17 +64,11 @@
 
 <section id="auth-custom-providers" class="settings-section" data-section="custom-providers">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Boxes size={14} strokeWidth={2.1} /> Custom providers</div>
     <h2>Custom providers</h2>
-    <p>Add OpenAI-compatible and other pi-ai supported endpoints (Ollama, vLLM, LM Studio, proxies, …). Add models under a provider in Custom Models.</p>
   </header>
 
   <div class="settings-section-body">
     <div class="settings-row providers-summary">
-      <div class="settings-copy">
-        <strong>{providers.length === 0 ? "No custom providers" : `${providers.length} configured`}</strong>
-        <span>Custom providers expose their models to the composer once you add models.</span>
-      </div>
       <Button size="sm" onclick={openAdd}>
         <Plus size={15} strokeWidth={2.2} />
         Add provider

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import HardDrive from "@lucide/svelte/icons/hard-drive";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import type { StorageCleanupRequest, StorageUsageResponse } from "$lib/api";
@@ -134,11 +133,7 @@
 
 <section id="settings-storage" class="settings-section" data-section="storage">
   <header class="settings-section-header">
-    <div class="settings-section-kicker">
-      <HardDrive size={14} strokeWidth={2.1} /> Storage
-    </div>
-    <h2>Storage usage</h2>
-    <p>Disk used by Nerve under its data directory, and tools to free up space.</p>
+    <h2>Storage</h2>
   </header>
 
   <div class="settings-section-body">
@@ -199,7 +194,6 @@
         <div class="settings-row settings-row-stacked">
           <div class="settings-copy">
             <strong>Largest conversations</strong>
-            <span>Prune old conversations below to reclaim this space.</span>
           </div>
           <ul class="storage-largest">
             {#each usage.conversations.largest as conversation (conversation.conversationId)}
@@ -217,10 +211,7 @@
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
           <strong>Free up space</strong>
-          <span>
-            Select what to remove. Conversation pruning skips active conversations and
-            keeps credentials and configuration intact.
-          </span>
+          <span>Select what to remove.</span>
         </div>
 
         <div class="storage-cleanup">

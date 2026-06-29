@@ -21,6 +21,7 @@
   import ExploreAgentSettingsSection from "./settings/sections/ExploreAgentSettingsSection.svelte";
   import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
   import PythonRuntimeSettingsSection from "./settings/sections/PythonRuntimeSettingsSection.svelte";
+  import PromptSuggestionsSettingsSection from "./settings/sections/PromptSuggestionsSettingsSection.svelte";
   import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
   import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
   import StorageSettingsSection from "./settings/sections/StorageSettingsSection.svelte";
@@ -31,6 +32,7 @@
     | "desktop"
     | "agents"
     | "explore"
+    | "prompt-suggestions"
     | "models"
     | "server"
     | "python"
@@ -41,7 +43,6 @@
   type SettingsGroup = {
     id: GroupId;
     label: string;
-    description: string;
     icon: Component;
     sections: GroupSection[];
   };
@@ -65,7 +66,6 @@
     {
       id: "workbench",
       label: "Workbench",
-      description: "Appearance and desktop window behavior.",
       icon: Monitor,
       sections: [
         { id: "appearance", label: "Appearance" },
@@ -75,24 +75,22 @@
     {
       id: "agents",
       label: "Agents",
-      description: "Defaults for new agents and the codebase explore delegate.",
       icon: Bot,
       sections: [
         { id: "agents", label: "Defaults" },
         { id: "explore", label: "Explore agent" },
+        { id: "prompt-suggestions", label: "Prompt suggestions" },
       ],
     },
     {
       id: "models",
       label: "Models",
-      description: "Choose which authenticated models appear in the composer.",
       icon: ShieldCheck,
       sections: [{ id: "models", label: "Scoped models" }],
     },
     {
       id: "system",
       label: "System",
-      description: "Server binding, Python runtime, and daemon diagnostics.",
       icon: Server,
       sections: [
         { id: "server", label: "Server" },
@@ -194,7 +192,6 @@
   <aside class="settings-sidebar" aria-label="Settings sections">
     <div class="settings-sidebar-title">
       <strong>Settings</strong>
-      <span>Auto-saved</span>
     </div>
     <nav class="settings-nav">
       {#each groups as group}
@@ -221,7 +218,6 @@
       {#if settingsDraft}
         <header class="settings-panel-header">
           <h2>{activeGroupDef.label}</h2>
-          <p>{activeGroupDef.description}</p>
           {#if activeGroupDef.sections.length > 1}
             <div class="settings-subnav" role="tablist" aria-label="{activeGroupDef.label} sections">
               {#each activeGroupDef.sections as section}
@@ -245,6 +241,7 @@
         {:else if activeGroup === "agents"}
           <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
           <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+          <PromptSuggestionsSettingsSection />
         {:else if activeGroup === "models"}
           <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
         {:else if activeGroup === "system"}

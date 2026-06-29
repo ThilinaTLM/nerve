@@ -2,7 +2,6 @@
   import CircleCheck from "@lucide/svelte/icons/circle-check";
   import KeyRound from "@lucide/svelte/icons/key-round";
   import Loader from "@lucide/svelte/icons/loader-circle";
-  import Search from "@lucide/svelte/icons/search";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { AuthProviderMetadata } from "$lib/api";
   import {
@@ -10,7 +9,6 @@
     getCredentialKey,
     setProviderApiKey,
   } from "$lib/api";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
   import { Input } from "$lib/components/ui/input";
@@ -79,26 +77,10 @@
 
 <section id="auth-integrations" class="settings-section" data-section="integrations">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Search size={14} strokeWidth={2.1} /> Integrations</div>
-    <h2>Web search (Tavily)</h2>
-    <p>Configure the Tavily API key used by the web_search tool. The key is encrypted in your browser before it is stored by the orchestrator.</p>
+    <h2>Web search</h2>
   </header>
 
   <div class="settings-section-body">
-    <div class="settings-row integrations-summary">
-      <div class="settings-copy">
-        <strong>{configured ? `${displayName} key configured` : "Web search is not configured"}</strong>
-        <span>
-          {configured
-            ? "Agents can search current external information with Tavily."
-            : "Add a Tavily key to enable the web_search tool."}
-        </span>
-      </div>
-      <Badge tone={configured ? "good" : "neutral"} size="sm">
-        {configured ? "Configured" : "Missing key"}
-      </Badge>
-    </div>
-
     <form
       class="integrations-key-form"
       onsubmit={(event) => {
@@ -160,10 +142,6 @@
 />
 
 <style>
-  .integrations-summary {
-    align-items: center;
-  }
-
   .integrations-key-form {
     display: grid;
     gap: 0.65rem;

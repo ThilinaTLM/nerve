@@ -53,9 +53,9 @@
     permissionLevel = "autonomous",
     slashCompletions = [],
     fileCompletions,
-    gitSuggestions = [],
-    onSendGitSuggestion,
-    onDraftGitSuggestion,
+    composerSuggestions = [],
+    onSendSuggestion,
+    onDraftSuggestion,
     onComposerChange,
     onSubmit,
     onAnswerUserQuestion,
@@ -230,9 +230,9 @@
         {permissionLevel}
         {slashCompletions}
         {fileCompletions}
-        {gitSuggestions}
-        {onSendGitSuggestion}
-        {onDraftGitSuggestion}
+        {composerSuggestions}
+        {onSendSuggestion}
+        {onDraftSuggestion}
         onChange={onComposerChange}
         {onSubmit}
         {onAbort}

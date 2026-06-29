@@ -28,6 +28,7 @@ const dataSubdirs = [
   "approvals",
   "user-questions",
   "logs",
+  "prompt-suggestions",
 ] as const;
 
 export interface InitializedStorage {

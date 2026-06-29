@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Activity from "@lucide/svelte/icons/activity";
   import type { StatusResponse } from "$lib/api";
 
   type Props = {
@@ -11,9 +10,7 @@
 
 <section id="settings-runtime" class="settings-section settings-section-muted" data-section="runtime">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Activity size={14} strokeWidth={2.1} /> Diagnostics</div>
-    <h2>Daemon state</h2>
-    <p>Read-only runtime metadata from the orchestrator.</p>
+    <h2>Diagnostics</h2>
   </header>
   <div class="settings-section-body">
     <div class="stat-grid">

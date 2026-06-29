@@ -1,7 +1,6 @@
 <script lang="ts">
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 
-  import Bot from "@lucide/svelte/icons/bot";
   import type {
     AuthProviderMetadata,
     ModelInfo,
@@ -162,16 +161,14 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
 
 <section id="settings-agents" class="settings-section" data-section="agents">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Bot size={14} strokeWidth={2.1} /> Agents</div>
-    <h2>Default behavior and policy</h2>
-    <p>Choose how new top-level agents pick their mode, permission, model, and thinking budget.</p>
+    <h2>Defaults</h2>
   </header>
   <div class="settings-section-body">
     <Switch
       class="settings-full-switch"
       checked={settingsDraft.rememberLastAgentSelection}
       label="Use last selections for new agents"
-      description="When enabled, new conversations reuse the last mode, permission, model, and thinking level you selected in the composer."
+      description="Reuse the last composer selections for new conversations."
       onCheckedChange={onRememberLastSelectionChange}
     />
 
@@ -179,7 +176,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       class="settings-full-switch"
       checked={settingsDraft.compaction.auto}
       label="Auto-compact long conversations"
-      description="Automatically summarize older context when the selected model approaches its context window."
+      description="Summarize older context as the model approaches its context window."
       onCheckedChange={onAutoCompactionChange}
     />
 
@@ -187,7 +184,6 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
           <strong>Root mode</strong>
-          <span>The fixed starting workflow when last selections are disabled.</span>
         </div>
         <RadioGroup
           items={modeItems}
@@ -203,7 +199,6 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
           <strong>Root permission</strong>
-          <span>The fixed approval policy when last selections are disabled.</span>
         </div>
         <RadioGroup
           items={permissionItems}
@@ -220,7 +215,6 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
           <strong>Root model</strong>
-          <span>The fixed model for new top-level agents when last selections are disabled.</span>
         </div>
         <SelectField
           items={modelItems}
@@ -233,7 +227,6 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
           <strong>Thinking level</strong>
-          <span>The fixed reasoning budget when last selections are disabled.</span>
         </div>
         <SelectField
           items={thinkingItems}
@@ -245,7 +238,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
     </div>
 
     <div class="permission-table" role="table" aria-label="Default agent permissions">
-      <div role="row"><span role="columnheader">Capability</span><span role="columnheader">New-agent policy</span></div>
+      <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Policy</span></div>
       <div role="row"><span>File system read</span><strong>Allowed</strong></div>
       <div role="row"><span>File system write</span><strong>{writePolicy(effectivePermissionLevel)}</strong></div>
       <div role="row">

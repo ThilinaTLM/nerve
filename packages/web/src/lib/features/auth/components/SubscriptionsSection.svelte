@@ -1,6 +1,5 @@
 <script lang="ts">
   import Plus from "@lucide/svelte/icons/plus";
-  import Sparkles from "@lucide/svelte/icons/sparkles";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { AuthProviderMetadata } from "$lib/api";
   import { deleteProviderCredential } from "$lib/api";
@@ -44,17 +43,11 @@
 
 <section id="auth-subscriptions" class="settings-section" data-section="subscriptions">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Sparkles size={14} strokeWidth={2.1} /> Subscriptions</div>
-    <h2>Subscription logins</h2>
-    <p>Connect a ChatGPT or Anthropic subscription with an OAuth login. Secrets are exchanged directly between the orchestrator and the provider.</p>
+    <h2>Subscriptions</h2>
   </header>
 
   <div class="settings-section-body">
     <div class="settings-row providers-summary">
-      <div class="settings-copy">
-        <strong>{subscriptions.length === 0 ? "No subscriptions connected" : `${subscriptions.length} connected`}</strong>
-        <span>Use a subscription login to authenticate models without an API key.</span>
-      </div>
       <Button size="sm" onclick={() => (addOpen = true)}>
         <Plus size={15} strokeWidth={2.2} />
         Connect subscription
@@ -62,7 +55,7 @@
     </div>
 
     {#if subscriptions.length === 0}
-      <p class="settings-note">Connect a subscription to start authenticating models.</p>
+      <p class="settings-note">Connect a subscription to authenticate models.</p>
     {:else}
       <ul class="provider-list">
         {#each subscriptions as provider (provider.provider)}

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Cpu from "@lucide/svelte/icons/cpu";
   import Pencil from "@lucide/svelte/icons/pencil";
   import Plus from "@lucide/svelte/icons/plus";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
@@ -115,17 +114,11 @@
 
 <section id="auth-custom-models" class="settings-section" data-section="custom-models">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Cpu size={14} strokeWidth={2.1} /> Custom models</div>
     <h2>Custom models</h2>
-    <p>Register models under configured custom providers or authenticated built-in providers. Connection settings come from the selected provider.</p>
   </header>
 
   <div class="settings-section-body">
     <div class="settings-row providers-summary">
-      <div class="settings-copy">
-        <strong>{definitions.length === 0 ? "No custom models" : `${definitions.length} added`}</strong>
-        <span>Add a model with its id, context window, and thinking capability.</span>
-      </div>
       <Button size="sm" onclick={openAdd} disabled={providerItems.length === 0}>
         <Plus size={15} strokeWidth={2.2} />
         Add model
@@ -134,7 +127,7 @@
 
     {#if definitions.length === 0}
       {#if providerItems.length === 0}
-        <p class="settings-note">Add a custom provider or authenticate a built-in model provider before adding custom models.</p>
+        <p class="settings-note">Authenticate a provider before adding custom models.</p>
       {:else}
         <p class="settings-note">Add a model to expose it in the composer picker.</p>
       {/if}

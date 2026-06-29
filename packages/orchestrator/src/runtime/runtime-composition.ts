@@ -41,6 +41,10 @@ import {
   ProjectRepository,
   PruneProjectConversationsService,
 } from "../domains/projects/index.js";
+import {
+  PromptSuggestionService,
+  PromptSuggestionTrustRepository,
+} from "../domains/prompt-suggestions/index.js";
 import { PythonRuntimeService } from "../domains/runtime/python-runtime-service.js";
 import {
   SecretTaskLaunchConfigStore,
@@ -77,6 +81,7 @@ export interface RuntimeServices {
   suspensions: AgentSuspensionService;
   tools: ToolService;
   git: GitService;
+  promptSuggestions: PromptSuggestionService;
   pinnedCommands: PinnedCommandService;
   harnessManager: HarnessManager;
   conversationService: ConversationService;
@@ -310,6 +315,20 @@ export function composeRuntime(
   );
   services.suspensions = new AgentSuspensionService(storage, events);
   services.git = new GitService(getProject);
+  const promptSuggestionTrustRepository = new PromptSuggestionTrustRepository(
+    storage,
+    index,
+  );
+  services.promptSuggestions = new PromptSuggestionService({
+    storage,
+    events,
+    trustRepository: promptSuggestionTrustRepository,
+    git: services.git,
+    getProject,
+    listProjects,
+    getConversation,
+    getAgent,
+  });
   services.tools = new ToolService(
     storage,
     events,

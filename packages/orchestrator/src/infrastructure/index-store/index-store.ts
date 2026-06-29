@@ -23,6 +23,18 @@ export interface IndexCounts {
   userQuestions: number;
 }
 
+export interface PromptSuggestionTrustIndexRecord {
+  trustId: string;
+  sourceKind: "user" | "project";
+  path: string;
+  name: string;
+  label: string;
+  predicateHash: string;
+  status: "allowed" | "denied";
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RebuildIndexInput {
   projects: ProjectRecord[];
   conversations: ConversationRecord[];
@@ -315,6 +327,93 @@ export class IndexStore {
   deleteUserQuestion(id: string): void {
     this.guard(() => {
       this.db.prepare("DELETE FROM user_questions WHERE id = ?").run(id);
+    });
+  }
+
+  upsertPromptSuggestionTrust(record: PromptSuggestionTrustIndexRecord): void {
+    this.guard(() => {
+      this.db
+        .prepare(
+          `INSERT INTO prompt_suggestion_trust (
+             trust_id, source_kind, path, name, label, predicate_hash,
+             status, created_at, updated_at, json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(trust_id) DO UPDATE SET
+             source_kind = excluded.source_kind,
+             path = excluded.path,
+             name = excluded.name,
+             label = excluded.label,
+             predicate_hash = excluded.predicate_hash,
+             status = excluded.status,
+             updated_at = excluded.updated_at,
+             json = excluded.json`,
+        )
+        .run(
+          record.trustId,
+          record.sourceKind,
+          record.path,
+          record.name,
+          record.label,
+          record.predicateHash,
+          record.status,
+          record.createdAt,
+          record.updatedAt,
+          JSON.stringify(record),
+        );
+    });
+  }
+
+  deletePromptSuggestionTrust(trustId: string): void {
+    this.guard(() => {
+      this.db
+        .prepare("DELETE FROM prompt_suggestion_trust WHERE trust_id = ?")
+        .run(trustId);
+    });
+  }
+
+  listPromptSuggestionTrust(): PromptSuggestionTrustIndexRecord[] {
+    return this.guard(() => {
+      const rows = this.db
+        .prepare("SELECT json FROM prompt_suggestion_trust ORDER BY path, name")
+        .all() as Array<{ json: string }>;
+      return rows.map(
+        (row) => JSON.parse(row.json) as PromptSuggestionTrustIndexRecord,
+      );
+    });
+  }
+
+  replacePromptSuggestionTrust(
+    records: PromptSuggestionTrustIndexRecord[],
+  ): void {
+    this.guard(() => {
+      const stmt = this.db.prepare(
+        `INSERT INTO prompt_suggestion_trust (
+           trust_id, source_kind, path, name, label, predicate_hash,
+           status, created_at, updated_at, json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      this.db.exec("BEGIN IMMEDIATE");
+      try {
+        this.db.exec("DELETE FROM prompt_suggestion_trust");
+        for (const record of records) {
+          stmt.run(
+            record.trustId,
+            record.sourceKind,
+            record.path,
+            record.name,
+            record.label,
+            record.predicateHash,
+            record.status,
+            record.createdAt,
+            record.updatedAt,
+            JSON.stringify(record),
+          );
+        }
+        this.db.exec("COMMIT");
+      } catch (error) {
+        this.db.exec("ROLLBACK");
+        throw error;
+      }
     });
   }
 

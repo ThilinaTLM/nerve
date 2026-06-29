@@ -1,6 +1,5 @@
 <script lang="ts">
   import Plus from "@lucide/svelte/icons/plus";
-  import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import X from "@lucide/svelte/icons/x";
   import type {
@@ -77,11 +76,6 @@
   );
   const staleCount = $derived(scopedEntries.filter((entry) => entry.stale).length);
   const activeCount = $derived(scopedEntries.length - staleCount);
-  const summary = $derived(
-    scopeActive
-      ? `Showing ${activeCount} of ${availableModels.length} authenticated models in the composer.`
-      : "All authenticated models are shown in the composer.",
-  );
 
   function commitScopedModels(next: ModelSelection[]) {
     settingsDraft.scopedModels = next;
@@ -101,17 +95,11 @@
 
 <section id="settings-models" class="settings-section" data-section="models">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><SlidersHorizontal size={14} strokeWidth={2.1} /> Scoped Models</div>
-    <h2>Composer model scope</h2>
-    <p>Keep the model picker focused on the authenticated models you regularly use.</p>
+    <h2>Scoped models</h2>
   </header>
 
   <div class="settings-section-body">
     <div class="settings-row scoped-models-summary">
-      <div class="settings-copy">
-        <strong>{scopeActive ? "Scoped picker" : "All models"}</strong>
-        <span>{summary}</span>
-      </div>
       <div class="scoped-models-actions">
         {#if scopeActive}
           <Button variant="ghost" size="sm" onclick={clearScope}>Clear</Button>

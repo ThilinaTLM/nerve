@@ -11,7 +11,7 @@ import type {
   UserQuestionRecord,
 } from "$lib/api";
 import type { PendingConversationState } from "$lib/core/types/state-types";
-import type { GitSuggestion } from "$lib/features/git/state/git-context.svelte";
+import type { ComposerSuggestion } from "./composer-suggestion";
 
 export type Mode = AgentRecord["mode"];
 export type PermissionLevel = AgentRecord["permissionLevel"];
@@ -43,9 +43,9 @@ export type PromptComposerProps = {
   permissionLevel?: PermissionLevel;
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
-  gitSuggestions?: GitSuggestion[];
-  onSendGitSuggestion?: (suggestion: GitSuggestion) => void;
-  onDraftGitSuggestion?: (suggestion: GitSuggestion) => void;
+  composerSuggestions?: ComposerSuggestion[];
+  onSendSuggestion?: (suggestion: ComposerSuggestion) => void;
+  onDraftSuggestion?: (suggestion: ComposerSuggestion) => void;
   onChange?: (value: string) => void;
   onSubmit?: () => void;
   onAbort?: () => void;

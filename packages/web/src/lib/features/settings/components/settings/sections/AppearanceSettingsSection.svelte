@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Monitor from "@lucide/svelte/icons/monitor";
   import type { Settings, UpdateSettingsRequest } from "$lib/api";
   import type { ThemePreference } from "$lib/app/layout/layout-state.svelte";
   import RadioGroup from "$lib/components/ui/radio-group-field";
@@ -23,15 +22,12 @@
 
 <section id="settings-appearance" class="settings-section" data-section="appearance">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><Monitor size={14} strokeWidth={2.1} /> Appearance</div>
-    <h2>Theme</h2>
-    <p>Choose how Nerve renders the workbench. Theme changes apply immediately.</p>
+    <h2>Appearance</h2>
   </header>
   <div class="settings-section-body">
     <div class="settings-row settings-row-stacked">
       <div class="settings-copy">
         <strong>Color theme</strong>
-        <span>Dark is the primary theme; light remains a compatibility fallback.</span>
       </div>
       <RadioGroup
         items={themeItems}

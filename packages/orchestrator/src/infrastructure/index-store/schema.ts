@@ -77,6 +77,19 @@ export const INDEX_STORE_SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     json TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS prompt_suggestion_trust (
+    trust_id TEXT PRIMARY KEY,
+    source_kind TEXT NOT NULL,
+    path TEXT NOT NULL,
+    name TEXT NOT NULL,
+    label TEXT NOT NULL,
+    predicate_hash TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    json TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS prompt_suggestion_trust_path ON prompt_suggestion_trust(path);
   CREATE INDEX IF NOT EXISTS events_index_type_ts ON events_index(type, ts);
   CREATE INDEX IF NOT EXISTS events_index_conversation_seq ON events_index(conversation_id, seq);
   CREATE INDEX IF NOT EXISTS events_index_agent_seq ON events_index(agent_id, seq);

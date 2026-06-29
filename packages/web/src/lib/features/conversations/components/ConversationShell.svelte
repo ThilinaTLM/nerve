@@ -43,7 +43,17 @@
   } from "$lib/features/conversations/state/composer-config.svelte";
   import { ensureConversationView } from "$lib/features/conversations/state/state";
   import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+  import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
+  import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
+  import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
   import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
+  import { gitState } from "$lib/features/git/state/git-state.svelte";
+  import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
+  import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
+  import { refreshPromptSuggestions } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
+  import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/components/PromptSuggestionTrustDialog.svelte";
+  import type { ComposerSuggestion } from "./composer-suggestion";
   import {
     completeFiles,
     newConversationInProject,
@@ -175,6 +185,27 @@
       0,
   );
   const gitSuggestions = $derived(active ? gitSelectors.gitSuggestions : []);
+  const gitSuggestionIcons = {
+    commit: GitCommitHorizontal,
+    "commit-branch": GitBranchPlus,
+    "open-pr": GitPullRequest,
+  } as const;
+  const composerSuggestions = $derived.by<ComposerSuggestion[]>(() => [
+    ...gitSuggestions.map((suggestion) => ({
+      ...suggestion,
+      icon: gitSuggestionIcons[suggestion.id],
+    })),
+    ...promptSuggestionsState.suggestions.map((suggestion) => ({
+      id: `file:${suggestion.id}`,
+      label: suggestion.label,
+      prompt: suggestion.prompt,
+      icon: Sparkles,
+    })),
+  ]);
+  const gitSuggestionRefreshKey = $derived.by(() => {
+    const ctx = gitState.gitContext;
+    return ctx ? `${ctx.projectId}:${gitContextFingerprint(ctx)}` : "none";
+  });
   const slashCompletions = $derived(
     active ? conversationState.slashCompletions : [],
   );
@@ -242,7 +273,16 @@
     void openFilePane({ projectId: activeProject.id, path, line });
   }
 
-  function applyGitSuggestion(suggestion: { prompt: string }) {
+  $effect(() => {
+    if (!active || !activeProject?.id) return;
+    gitSuggestionRefreshKey;
+    void refreshPromptSuggestions(activeProject.id, {
+      conversationId,
+      agentId: activeAgent?.id,
+    });
+  });
+
+  function applySuggestion(suggestion: { prompt: string }) {
     const current = activeComposerText.trim();
     setPaneComposerText(
       current
@@ -251,7 +291,7 @@
     );
   }
 
-  function sendGitSuggestion(suggestion: { prompt: string }) {
+  function sendSuggestion(suggestion: { prompt: string }) {
     void runActivePaneAction(() =>
       sendPromptText(suggestion.prompt, { clearComposer: false }),
     );
@@ -281,9 +321,9 @@
   live={workspaceState.connection === "live"}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
   composerText={activeComposerText}
-  {gitSuggestions}
-  onSendGitSuggestion={sendGitSuggestion}
-  onDraftGitSuggestion={applyGitSuggestion}
+  {composerSuggestions}
+  onSendSuggestion={sendSuggestion}
+  onDraftSuggestion={applySuggestion}
   models={usableModels}
   {selectedModelKey}
   thinkingLevel={selectedThinkingLevel}
@@ -341,4 +381,10 @@
   onOpenHistory={() => {
     void runActivePaneAction(openConversationHistory);
   }}
+/>
+
+<PromptSuggestionTrustDialog
+  projectId={activeProject?.id}
+  {conversationId}
+  agentId={activeAgent?.id}
 />

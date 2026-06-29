@@ -19,7 +19,7 @@ import type {
   PendingConversationState,
   TranscriptItem,
 } from "$lib/core/types/state-types";
-import type { GitSuggestion } from "$lib/features/git/state/git-context.svelte";
+import type { ComposerSuggestion } from "./composer-suggestion";
 
 export type ConversationPaneProps = {
   activeProject?: ProjectRecord;
@@ -59,9 +59,9 @@ export type ConversationPaneProps = {
   permissionLevel?: AgentRecord["permissionLevel"];
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
-  gitSuggestions?: GitSuggestion[];
-  onSendGitSuggestion?: (suggestion: GitSuggestion) => void;
-  onDraftGitSuggestion?: (suggestion: GitSuggestion) => void;
+  composerSuggestions?: ComposerSuggestion[];
+  onSendSuggestion?: (suggestion: ComposerSuggestion) => void;
+  onDraftSuggestion?: (suggestion: ComposerSuggestion) => void;
   onComposerChange?: (value: string) => void;
   onSubmit?: () => void;
   onAnswerUserQuestion?: (questionId: string, answer: string) => void;

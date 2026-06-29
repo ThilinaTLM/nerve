@@ -1,5 +1,4 @@
 <script lang="ts">
-  import KeyRound from "@lucide/svelte/icons/key-round";
   import Plus from "@lucide/svelte/icons/plus";
   import type { AuthProviderMetadata } from "$lib/api";
   import { deleteProviderCredential } from "$lib/api";
@@ -53,17 +52,11 @@
 
 <section id="auth-api-keys" class="settings-section" data-section="api-keys">
   <header class="settings-section-header">
-    <div class="settings-section-kicker"><KeyRound size={14} strokeWidth={2.1} /> API keys</div>
-    <h2>Provider API keys</h2>
-    <p>Add API keys for model providers. Keys are encrypted in your browser before being sent to the orchestrator.</p>
+    <h2>API keys</h2>
   </header>
 
   <div class="settings-section-body">
     <div class="settings-row providers-summary">
-      <div class="settings-copy">
-        <strong>{apiKeys.length === 0 ? "No API keys configured" : `${apiKeys.length} configured`}</strong>
-        <span>Add a key for OpenAI, Anthropic, Google, Groq, OpenRouter, xAI, and more.</span>
-      </div>
       <Button size="sm" onclick={() => (addOpen = true)}>
         <Plus size={15} strokeWidth={2.2} />
         Add API key
