@@ -2,6 +2,7 @@
   import type { Settings, StatusResponse, UpdateSettingsRequest } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import SettingsSectionCard from "../SettingsSectionCard.svelte";
 
   type SettingsChange = (
     patch: UpdateSettingsRequest,
@@ -38,12 +39,7 @@
   }
 </script>
 
-<section id="settings-python" class="settings-section" data-section="python">
-  <header class="settings-section-header">
-    <h2>Python</h2>
-  </header>
-
-  <div class="settings-section-body">
+<SettingsSectionCard section="python" title="Python">
     <div class="stat-grid">
       <section>
         <span>Status</span>
@@ -91,5 +87,4 @@
     </div>
 
     <p class="settings-note">Planning-mode Python runs with file-write guardrails. This is not a hard security sandbox.</p>
-  </div>
-</section>
+</SettingsSectionCard>

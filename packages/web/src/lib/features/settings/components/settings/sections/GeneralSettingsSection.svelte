@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { StatusResponse } from "$lib/api";
+  import SettingsSectionCard from "../SettingsSectionCard.svelte";
 
   type Props = {
     status?: StatusResponse;
@@ -8,11 +9,7 @@
   let { status }: Props = $props();
 </script>
 
-<section id="settings-runtime" class="settings-section settings-section-muted" data-section="runtime">
-  <header class="settings-section-header">
-    <h2>Diagnostics</h2>
-  </header>
-  <div class="settings-section-body">
+<SettingsSectionCard section="runtime" title="Diagnostics" muted>
     <div class="stat-grid">
       <section><span>Daemon</span><strong>{status?.daemonId ?? "not loaded"}</strong></section>
       <section><span>Version</span><strong>{status?.version ?? "—"}</strong></section>
@@ -25,5 +22,4 @@
         <span>SQLite</span><strong title={status?.storage.sqlitePath}>{status?.storage.sqlitePath ?? "—"}</strong>
       </section>
     </div>
-  </div>
-</section>
+</SettingsSectionCard>

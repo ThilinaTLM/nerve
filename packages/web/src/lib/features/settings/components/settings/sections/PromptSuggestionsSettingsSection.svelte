@@ -3,6 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { selection } from "$lib/features/workspace/state/selection.svelte";
+  import SettingsSectionCard from "../SettingsSectionCard.svelte";
   import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
   import {
     refreshPromptSuggestionStatuses,
@@ -33,13 +34,11 @@
   }
 </script>
 
-<section id="settings-prompt-suggestions" class="settings-section" data-section="prompt-suggestions">
-  <header class="settings-section-header">
-    <h2>Prompt suggestions</h2>
-    <p>Review local Markdown suggestions and JavaScript enable predicates.</p>
-  </header>
-
-  <div class="settings-section-body">
+<SettingsSectionCard
+  section="prompt-suggestions"
+  title="Prompt suggestions"
+  description="Review local Markdown suggestions and JavaScript enable predicates."
+>
     <p class="settings-note">JavaScript trust is tied to the predicate content hash. Editing the predicate requires approval again.</p>
 
     {#if statuses.length === 0}
@@ -72,5 +71,4 @@
         {/each}
       </div>
     {/if}
-  </div>
-</section>
+</SettingsSectionCard>

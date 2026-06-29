@@ -2,6 +2,7 @@
   import type { Settings, UpdateSettingsRequest } from "$lib/api";
   import type { ThemePreference } from "$lib/app/layout/layout-state.svelte";
   import RadioGroup from "$lib/components/ui/radio-group-field";
+  import SettingsSectionCard from "../SettingsSectionCard.svelte";
   import { themeItems } from "../options";
 
   type Props = {
@@ -20,11 +21,7 @@
   }
 </script>
 
-<section id="settings-appearance" class="settings-section" data-section="appearance">
-  <header class="settings-section-header">
-    <h2>Appearance</h2>
-  </header>
-  <div class="settings-section-body">
+<SettingsSectionCard section="appearance" title="Appearance">
     <div class="settings-row settings-row-stacked">
       <div class="settings-copy">
         <strong>Color theme</strong>
@@ -37,5 +34,4 @@
         onValueChange={setThemePreference}
       />
     </div>
-  </div>
-</section>
+</SettingsSectionCard>

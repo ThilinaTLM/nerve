@@ -2,6 +2,7 @@
   import type { Component } from "svelte";
   import { tick } from "svelte";
   import Bot from "@lucide/svelte/icons/bot";
+  import Lightbulb from "@lucide/svelte/icons/lightbulb";
   import Monitor from "@lucide/svelte/icons/monitor";
   import Server from "@lucide/svelte/icons/server";
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
@@ -38,7 +39,7 @@
     | "python"
     | "storage"
     | "runtime";
-  type GroupId = "workbench" | "agents" | "models" | "system";
+  type GroupId = "workbench" | "agents" | "suggestions" | "models" | "system";
   type GroupSection = { id: SectionId; label: string };
   type SettingsGroup = {
     id: GroupId;
@@ -77,10 +78,15 @@
       label: "Agents",
       icon: Bot,
       sections: [
-        { id: "agents", label: "Defaults" },
+        { id: "agents", label: "Default agent" },
         { id: "explore", label: "Explore agent" },
-        { id: "prompt-suggestions", label: "Prompt suggestions" },
       ],
+    },
+    {
+      id: "suggestions",
+      label: "Suggestions",
+      icon: Lightbulb,
+      sections: [{ id: "prompt-suggestions", label: "Prompt suggestions" }],
     },
     {
       id: "models",
@@ -112,18 +118,14 @@
     onThemeChange,
   }: Props = $props();
 
-  let activeGroup = $state<GroupId>("workbench");
-  let activeSubsection = $state<SectionId>("appearance");
-
-  const activeGroupDef = $derived(
-    groups.find((group) => group.id === activeGroup) ?? groups[0],
-  );
+  let activeGroup = $state<SettingsGroup>(groups[0]);
+  let activeSubsection = $state<SectionId>(groups[0].sections[0].id);
 
   function selectGroup(id: GroupId) {
-    if (id === activeGroup) return;
-    activeGroup = id;
-    const first = groups.find((group) => group.id === id)?.sections[0];
-    if (first) activeSubsection = first.id;
+    if (id === activeGroup.id) return;
+    const next = groups.find((group) => group.id === id) ?? groups[0];
+    activeGroup = next;
+    activeSubsection = next.sections[0].id;
     void scrollPanelToTop();
   }
 
@@ -141,7 +143,7 @@
 
   // Scroll-spy: highlight the sub-nav chip matching the section in view.
   $effect(() => {
-    const group = activeGroupDef;
+    const sections = activeGroup.sections;
     const ready = !!settingsDraft;
     if (!ready) return;
 
@@ -152,7 +154,7 @@
       await tick();
       if (cancelled) return;
       const root = document.querySelector<HTMLElement>(".settings-viewport");
-      const elements = group.sections
+      const elements = sections
         .map((section) => document.getElementById(`settings-${section.id}`))
         .filter((element): element is HTMLElement => element !== null);
       if (elements.length === 0) return;
@@ -198,8 +200,8 @@
         {@const Icon = group.icon}
         <button
           type="button"
-          class:active={activeGroup === group.id}
-          aria-current={activeGroup === group.id ? "page" : undefined}
+          class:active={activeGroup.id === group.id}
+          aria-current={activeGroup.id === group.id ? "page" : undefined}
           onclick={() => selectGroup(group.id)}
         >
           <Icon size={16} strokeWidth={2} />
@@ -216,40 +218,43 @@
   <ScrollArea class="settings-scroll" viewportClass="settings-viewport" type="auto">
     <div class="settings-main">
       {#if settingsDraft}
-        <header class="settings-panel-header">
-          <h2>{activeGroupDef.label}</h2>
-          {#if activeGroupDef.sections.length > 1}
-            <div class="settings-subnav" role="tablist" aria-label="{activeGroupDef.label} sections">
-              {#each activeGroupDef.sections as section}
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeSubsection === section.id}
-                  class:active={activeSubsection === section.id}
-                  onclick={() => scrollToSubsection(section.id)}
-                >
-                  {section.label}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </header>
+        {#key activeGroup.id}
+          <header class="settings-panel-header">
+            <h2>{activeGroup.label}</h2>
+            {#if activeGroup.sections.length > 1}
+              <div class="settings-subnav" role="tablist" aria-label="{activeGroup.label} sections">
+                {#each activeGroup.sections as section}
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeSubsection === section.id}
+                    class:active={activeSubsection === section.id}
+                    onclick={() => scrollToSubsection(section.id)}
+                  >
+                    {section.label}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </header>
 
-        {#if activeGroup === "workbench"}
-          <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
-          <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
-        {:else if activeGroup === "agents"}
-          <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-          <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-          <PromptSuggestionsSettingsSection />
-        {:else if activeGroup === "models"}
-          <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-        {:else if activeGroup === "system"}
-          <ServerSettingsSection {settingsDraft} {onSettingsChange} />
-          <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />
-          <StorageSettingsSection />
-          <GeneralSettingsSection {status} />
-        {/if}
+          {#if activeGroup.id === "workbench"}
+            <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
+            <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
+          {:else if activeGroup.id === "agents"}
+            <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+            <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+          {:else if activeGroup.id === "suggestions"}
+            <PromptSuggestionsSettingsSection />
+          {:else if activeGroup.id === "models"}
+            <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+          {:else if activeGroup.id === "system"}
+            <ServerSettingsSection {settingsDraft} {onSettingsChange} />
+            <PythonRuntimeSettingsSection {settingsDraft} {status} {onSettingsChange} />
+            <StorageSettingsSection />
+            <GeneralSettingsSection {status} />
+          {/if}
+        {/key}
       {:else}
         <section class="app-empty-state settings-loading">
           <Sparkles size={28} strokeWidth={1.8} />

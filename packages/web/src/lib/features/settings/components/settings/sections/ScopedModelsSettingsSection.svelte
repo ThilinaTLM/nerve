@@ -10,6 +10,7 @@
     UpdateSettingsRequest,
   } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
+  import SettingsSectionCard from "../SettingsSectionCard.svelte";
   import {
     authenticatedRealModelOptions,
     modelDisplayName,
@@ -93,12 +94,7 @@
   }
 </script>
 
-<section id="settings-models" class="settings-section" data-section="models">
-  <header class="settings-section-header">
-    <h2>Scoped models</h2>
-  </header>
-
-  <div class="settings-section-body">
+<SettingsSectionCard section="models" title="Scoped models">
     <div class="settings-row scoped-models-summary">
       <div class="scoped-models-actions">
         {#if scopeActive}
@@ -149,8 +145,7 @@
         </p>
       {/if}
     {/if}
-  </div>
-</section>
+</SettingsSectionCard>
 
 <AddScopedModelsDialog
   bind:open={dialogOpen}

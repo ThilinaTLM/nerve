@@ -2,6 +2,7 @@
   import type { Settings, UpdateSettingsRequest } from "$lib/api";
   import { Input } from "$lib/components/ui/input";
   import Switch from "$lib/components/ui/switch-field";
+  import SettingsSectionCard from "../SettingsSectionCard.svelte";
 
   type SettingsChange = (
     patch: UpdateSettingsRequest,
@@ -30,11 +31,7 @@
   }
 </script>
 
-<section id="settings-server" class="settings-section" data-section="server">
-  <header class="settings-section-header">
-    <h2>Server</h2>
-  </header>
-  <div class="settings-section-body">
+<SettingsSectionCard section="server" title="Server">
     <div class="settings-field-grid">
       <label>
         <span>Host</span>
@@ -70,5 +67,4 @@
     </div>
 
     <p class="settings-note">Restart the daemon after changing host, port, or remote access.</p>
-  </div>
-</section>
+</SettingsSectionCard>

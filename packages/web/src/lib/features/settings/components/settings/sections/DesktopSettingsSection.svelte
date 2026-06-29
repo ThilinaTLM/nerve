@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Settings, UpdateSettingsRequest } from "$lib/api";
   import Switch from "$lib/components/ui/switch-field";
+  import SettingsSectionCard from "../SettingsSectionCard.svelte";
 
   type SettingsChange = (
     patch: UpdateSettingsRequest,
@@ -15,11 +16,7 @@
   let { settingsDraft, onSettingsChange }: Props = $props();
 </script>
 
-<section id="settings-desktop" class="settings-section" data-section="desktop">
-  <header class="settings-section-header">
-    <h2>Desktop</h2>
-  </header>
-  <div class="settings-section-body">
+<SettingsSectionCard section="desktop" title="Desktop">
     <div class="settings-row">
       <Switch
         class="settings-full-switch"
@@ -32,5 +29,4 @@
         }}
       />
     </div>
-  </div>
-</section>
+</SettingsSectionCard>

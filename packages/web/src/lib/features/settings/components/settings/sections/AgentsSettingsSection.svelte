@@ -7,12 +7,16 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
     Settings,
     UpdateSettingsRequest,
   } from "$lib/api";
+  import Info from "@lucide/svelte/icons/info";
   import RadioGroup from "$lib/components/ui/radio-group-field";
-  import SelectField, { type SelectItem } from "$lib/components/ui/select-field";
   import Switch from "$lib/components/ui/switch-field";
+  import * as Tooltip from "$lib/components/ui/tooltip";
+  import { Button } from "$lib/components/ui/button";
   import { clampThinkingLevelForModel } from "$lib/features/conversations/state/agent-selection-defaults";
+  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
   import {
-    contextualModelLabel,
+    modelDisplayName,
     modelKey,
     parseModelKey,
     providerDisplayName,
@@ -48,32 +52,18 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       ? availableModels.find((model) => modelKey(model) === modelKey(defaultModel))
       : undefined;
   });
-  const defaultModelKey = $derived(
-    savedDefaultModelInfo ? modelKey(savedDefaultModelInfo) : "auto",
-  );
   const defaultModelInfo = $derived(savedDefaultModelInfo ?? availableModels[0]);
   const effectivePermissionLevel = $derived(
     settingsDraft.rememberLastAgentSelection
       ? settingsDraft.lastAgentSelection.permissionLevel
       : settingsDraft.defaultPermissionLevel,
   );
-  const modelItems = $derived<SelectItem[]>([
-    {
-      value: "auto",
-      label: "First available scoped model",
-      detail: "Use the first configured model allowed by Scoped Models",
-    },
-    ...availableModels.map((model) => ({
-      value: modelKey(model),
-      label: contextualModelLabel(model, availableModels),
-      detail: `${providerDisplayName(model.provider)} · ${model.modelId}`,
-    })),
-  ]);
-  const thinkingItems = $derived<SelectItem[]>(
-    (defaultModelInfo?.supportedThinkingLevels?.length
+  let modelDialogOpen = $state(false);
+
+  const fallbackThinkingLevels = $derived<Settings["defaultThinkingLevel"][]>(
+    defaultModelInfo?.supportedThinkingLevels?.length
       ? defaultModelInfo.supportedThinkingLevels
-      : ["off"]
-    ).map((level) => ({ value: level, label: level })),
+      : ["off"],
   );
   const defaultThinkingLevel = $derived(
     clampThinkingLevelForModel(
@@ -96,31 +86,35 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
     return "Policy-managed";
   }
 
-  function updateDefaultThinkingLevel(
-    thinkingLevel: Settings["defaultThinkingLevel"],
-  ) {
-    settingsDraft.defaultThinkingLevel = thinkingLevel;
-    onSettingsChange?.({ defaultThinkingLevel: thinkingLevel }, { immediate: true });
-  }
-
-  function onDefaultModelChange(value: string) {
-    const model = value === "auto" ? undefined : parseModelKey(value);
-    const selectedInfo = model
-      ? availableModels.find((candidate) => modelKey(candidate) === modelKey(model))
-      : availableModels[0];
-    const thinkingLevel = clampThinkingLevelForModel(
-      settingsDraft.defaultThinkingLevel,
-      selectedInfo,
-    );
-    settingsDraft.defaultModel = model;
-    settingsDraft.defaultThinkingLevel = thinkingLevel;
+  function saveDefaultModel(selection: {
+    model?: Settings["defaultModel"];
+    thinkingLevel: Settings["defaultThinkingLevel"];
+  }) {
+    settingsDraft.defaultModel = selection.model;
+    settingsDraft.defaultThinkingLevel = selection.thinkingLevel;
     onSettingsChange?.(
       {
-        defaultModel: model ?? null,
-        defaultThinkingLevel: thinkingLevel,
+        defaultModel: selection.model ?? null,
+        defaultThinkingLevel: selection.thinkingLevel,
       },
       { immediate: true },
     );
+  }
+
+  function rootModelTitle(): string {
+    if (savedDefaultModelInfo) return modelDisplayName(savedDefaultModelInfo);
+    return "First available scoped model";
+  }
+
+  function rootModelMeta(): string {
+    const thinking = defaultThinkingLevel;
+    if (savedDefaultModelInfo) {
+      return `${providerDisplayName(savedDefaultModelInfo.provider)} · ${savedDefaultModelInfo.modelId} · ${thinking}`;
+    }
+    if (defaultModelInfo) {
+      return `Currently ${modelDisplayName(defaultModelInfo)} · ${thinking}`;
+    }
+    return `No scoped model available · ${thinking}`;
   }
 
   function onAutoCompactionChange(checked: boolean) {
@@ -159,11 +153,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
   }
 </script>
 
-<section id="settings-agents" class="settings-section" data-section="agents">
-  <header class="settings-section-header">
-    <h2>Defaults</h2>
-  </header>
-  <div class="settings-section-body">
+<SettingsSectionCard section="agents" title="Default agent">
     <Switch
       class="settings-full-switch"
       checked={settingsDraft.rememberLastAgentSelection}
@@ -180,15 +170,17 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       onCheckedChange={onAutoCompactionChange}
     />
 
-    <div class="settings-control-grid">
+    <div class="settings-control-stack">
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
-          <strong>Root mode</strong>
+          <strong>Default mode</strong>
         </div>
         <RadioGroup
+          class="settings-radio-two"
           items={modeItems}
           value={settingsDraft.defaultMode}
-          ariaLabel="Default root mode"
+          orientation="horizontal"
+          ariaLabel="Default mode"
           onValueChange={(value) => {
             const next = value as Settings["defaultMode"];
             settingsDraft.defaultMode = next;
@@ -196,14 +188,17 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
           }}
         />
       </div>
+
       <div class="settings-row settings-row-stacked">
         <div class="settings-copy">
-          <strong>Root permission</strong>
+          <strong>Default permission</strong>
         </div>
         <RadioGroup
+          class="settings-radio-three"
           items={permissionItems}
           value={settingsDraft.defaultPermissionLevel}
-          ariaLabel="Default root permission"
+          orientation="horizontal"
+          ariaLabel="Default permission"
           onValueChange={(value) => {
             const next = value as Settings["defaultPermissionLevel"];
             settingsDraft.defaultPermissionLevel = next;
@@ -211,40 +206,59 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
           }}
         />
       </div>
-
-      <div class="settings-row settings-row-stacked">
-        <div class="settings-copy">
-          <strong>Root model</strong>
-        </div>
-        <SelectField
-          items={modelItems}
-          value={defaultModelKey}
-          ariaLabel="Default root model"
-          onValueChange={onDefaultModelChange}
-        />
-      </div>
-
-      <div class="settings-row settings-row-stacked">
-        <div class="settings-copy">
-          <strong>Thinking level</strong>
-        </div>
-        <SelectField
-          items={thinkingItems}
-          value={defaultThinkingLevel}
-          ariaLabel="Default root thinking level"
-          onValueChange={(value) => updateDefaultThinkingLevel(value as Settings["defaultThinkingLevel"])}
-        />
-      </div>
     </div>
 
-    <div class="permission-table" role="table" aria-label="Default agent permissions">
-      <div role="row"><span role="columnheader">Capability</span><span role="columnheader">Policy</span></div>
-      <div role="row"><span>File system read</span><strong>Allowed</strong></div>
-      <div role="row"><span>File system write</span><strong>{writePolicy(effectivePermissionLevel)}</strong></div>
-      <div role="row">
-        <span>Terminal command execution</span><strong>{commandPolicy(effectivePermissionLevel)}</strong>
+    <div class="settings-model-summary">
+      <div class="settings-copy">
+        <strong>Default model</strong>
+        <span>Choose the model and thinking level together.</span>
       </div>
-      <div role="row"><span>Network access</span><strong>Tool-dependent</strong></div>
+      <div class="settings-model-summary-main">
+        <span class="settings-model-summary-text">
+          <strong>{rootModelTitle()}</strong>
+          <span>{rootModelMeta()}</span>
+        </span>
+        <span class="settings-model-actions">
+          <Tooltip.Provider delayDuration={200}>
+            <Tooltip.Root>
+              <Tooltip.Trigger>
+                {#snippet child({ props })}
+                  <button
+                    type="button"
+                    class="settings-info-trigger"
+                    aria-label="Default agent policy"
+                    {...props}
+                  >
+                    <Info size={14} strokeWidth={2.1} />
+                  </button>
+                {/snippet}
+              </Tooltip.Trigger>
+              <Tooltip.Content side="top" class="settings-policy-tooltip">
+                <div class="settings-policy-tooltip-row"><span>File system read</span><strong>Allowed</strong></div>
+                <div class="settings-policy-tooltip-row"><span>File system write</span><strong>{writePolicy(effectivePermissionLevel)}</strong></div>
+                <div class="settings-policy-tooltip-row"><span>Terminal commands</span><strong>{commandPolicy(effectivePermissionLevel)}</strong></div>
+                <div class="settings-policy-tooltip-row"><span>Network access</span><strong>Tool-dependent</strong></div>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
+          <Button size="sm" variant="outline" onclick={() => (modelDialogOpen = true)}>Change model</Button>
+        </span>
+      </div>
     </div>
-  </div>
-</section>
+</SettingsSectionCard>
+
+<SingleModelSelectionDialog
+  bind:open={modelDialogOpen}
+  title="Choose default model"
+  description="Search available scoped models, choose one model, then select its thinking level."
+  models={availableModels}
+  selectedModel={settingsDraft.defaultModel}
+  selectedThinkingLevel={defaultThinkingLevel}
+  fallbackOption={{
+    label: "First available scoped model",
+    detail: "Use the first configured model allowed by Scoped Models",
+  }}
+  fallbackThinkingLevels={fallbackThinkingLevels}
+  confirmLabel="Save default model"
+  onSave={saveDefaultModel}
+/>
