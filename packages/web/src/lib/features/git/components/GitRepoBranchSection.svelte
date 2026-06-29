@@ -270,7 +270,8 @@
                 {:else}
                   <ArrowDown />
                 {/if}
-                Pull {#if (repo.behind ?? 0) > 0}<span class="font-mono">{repo.behind}</span>{/if}
+                {#if (repo.behind ?? 0) > 0}<span class="font-mono tabular-nums">{repo.behind}</span>{/if}
+                Pull
               </Button>
             {/if}
             {#if showPush(repo)}
@@ -287,7 +288,8 @@
                 {:else}
                   <ArrowUp />
                 {/if}
-                Push {#if (repo.ahead ?? 0) > 0}<span class="font-mono">{repo.ahead}</span>{/if}
+                {#if (repo.ahead ?? 0) > 0}<span class="font-mono tabular-nums">{repo.ahead}</span>{/if}
+                Push
               </Button>
             {/if}
             <Button
