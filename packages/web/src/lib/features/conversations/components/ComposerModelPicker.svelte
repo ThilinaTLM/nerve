@@ -46,6 +46,24 @@
     return level === "off" ? "Off" : level[0].toUpperCase() + level.slice(1);
   }
 
+  function thinkingLevelShortLabel(level: ThinkingLevel): string {
+    switch (level) {
+      case "minimal":
+        return "Mi";
+      case "low":
+        return "L";
+      case "medium":
+        return "M";
+      case "high":
+        return "H";
+      case "xhigh":
+        return "XH";
+      case "off":
+      default:
+        return "Off";
+    }
+  }
+
   const thinkingLevels = $derived<ThinkingLevel[]>(
     selectedModel?.supportedThinkingLevels?.length ? selectedModel.supportedThinkingLevels : ["off"],
   );
@@ -57,6 +75,9 @@
   );
   const triggerSuffix = $derived(
     hasThinking && thinkingLevel !== "off" ? thinkingLevelLabel(thinkingLevel) : undefined,
+  );
+  const triggerShortSuffix = $derived(
+    hasThinking && thinkingLevel !== "off" ? thinkingLevelShortLabel(thinkingLevel) : undefined,
   );
   const triggerTitle = $derived(
     `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${runtimeChangeHint ? ` · ${runtimeChangeHint}` : ""}${shortcutLabel ? ` · Cycle thinking ${shortcutLabel}` : ""}`,
@@ -97,6 +118,7 @@
     <span class="model-tab-inner" class:disabled aria-disabled={disabled}>
       <span class="model-tab-label">{triggerLabel}</span>
       {#if triggerSuffix}<span class="model-tab-suffix">({triggerSuffix})</span>{/if}
+      {#if triggerShortSuffix}<span class="model-tab-short-suffix">({triggerShortSuffix})</span>{/if}
       <ChevronDown size={12} strokeWidth={2.2} />
     </span>
   {/snippet}
@@ -167,9 +189,29 @@
     white-space: nowrap;
   }
 
-  .model-tab-suffix {
+  .model-tab-suffix,
+  .model-tab-short-suffix {
     flex: none;
     color: var(--muted-foreground);
+  }
+
+  .model-tab-short-suffix {
+    display: none;
+  }
+
+  @media (max-width: 639px) {
+    .model-tab-inner {
+      max-width: clamp(5.75rem, 34vw, 9rem);
+      gap: 0.22rem;
+    }
+
+    .model-tab-suffix {
+      display: none;
+    }
+
+    .model-tab-short-suffix {
+      display: inline;
+    }
   }
 
   .model-picker {

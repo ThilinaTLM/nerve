@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ClipboardList from "@lucide/svelte/icons/clipboard-list";
+  import Code2 from "@lucide/svelte/icons/code-2";
   import Lock from "@lucide/svelte/icons/lock";
   import Shield from "@lucide/svelte/icons/shield";
   import Zap from "@lucide/svelte/icons/zap";
@@ -164,7 +166,14 @@
     aria-keyshortcuts={modeShortcutAria}
     onclick={toggleMode}
   >
-    {modeLabel}
+    <span class="mode-tab-icon" aria-hidden="true">
+      {#if mode === "planning"}
+        <ClipboardList size={13} strokeWidth={2.2} />
+      {:else}
+        <Code2 size={13} strokeWidth={2.2} />
+      {/if}
+    </span>
+    <span class="mode-tab-label">{modeLabel}</span>
   </button>
 
   <TodoProgressChip {todos} />
@@ -223,6 +232,27 @@
 
   .permission-tab-inner.disabled {
     opacity: 0.6;
+  }
+
+  .mode-tab-icon {
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (max-width: 639px) {
+    .mode-tab {
+      width: 1.9rem;
+      padding: 0;
+    }
+
+    .mode-tab-icon {
+      display: inline-flex;
+    }
+
+    .mode-tab-label {
+      display: none;
+    }
   }
 
   .permission-menu {

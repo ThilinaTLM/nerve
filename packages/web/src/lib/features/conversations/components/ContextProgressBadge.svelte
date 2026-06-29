@@ -108,4 +108,10 @@
   .context-usage-tab[data-tone="error"] .ctx-percent {
     color: var(--destructive);
   }
+
+  @media (max-width: 639px) {
+    .ctx-window {
+      display: none;
+    }
+  }
 </style>

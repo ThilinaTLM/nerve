@@ -52,8 +52,9 @@
 /* Phone: enlarge composer tap targets for touch. */
 @media (max-width: 639px) {
   .composer-tab {
+    gap: 0.2rem;
     height: 1.9rem;
-    padding: 0 0.75rem;
+    padding: 0 0.5rem;
   }
 
   .permission-tab {
