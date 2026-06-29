@@ -71,10 +71,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Create a Nerve release tag.")
     parser.add_argument("version", help="Release version without the 'v' prefix (e.g. 0.3.0).")
     parser.add_argument(
-        "-m", "--message",
-        help="Tag annotation message. Defaults to 'v<version> - <date>'.",
-    )
-    parser.add_argument(
         "--branch",
         default="main",
         help="Branch the release must be made from (default: main).",
@@ -93,7 +89,7 @@ def main() -> int:
 
     tag = f"v{version}"
     today = datetime.date.today().isoformat()
-    tag_message = args.message or f"{tag} - {today}"
+    tag_message = f"{tag} - {today}"
 
     branch = current_branch()
     if branch != args.branch and not args.force_branch:
