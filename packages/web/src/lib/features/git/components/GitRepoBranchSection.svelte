@@ -165,111 +165,78 @@
         </div>
       {/if}
 
-      <div class="flex flex-col gap-1">
-        <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <Popover.Root bind:open={branchPopoverOpen}>
-            <Popover.Trigger
-              class={cn(
-                "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                repo.detached && "text-muted-foreground",
-              )}
-            >
-              <GitBranch size={12} strokeWidth={2.2} class="shrink-0" />
-              <span class="truncate font-mono">{repo.currentBranch ?? "(detached)"}</span>
-              <ChevronDown size={12} strokeWidth={2.2} class="shrink-0 text-muted-foreground" />
-            </Popover.Trigger>
-            <Popover.Content align="start" collisionPadding={8} class="w-[min(360px,calc(100vw-2rem))] gap-3 p-3">
-              <div class="flex flex-col gap-0.5">
-                <div class="text-xs font-medium text-foreground">Switch branch</div>
-                <div class="text-xs text-muted-foreground">
-                  Current: <span class="font-mono text-foreground">{repo.currentBranch ?? "detached"}</span>
-                </div>
+      <Popover.Root bind:open={branchPopoverOpen}>
+        <Popover.Trigger
+          class={cn(
+            "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+            repo.detached && "text-muted-foreground",
+          )}
+        >
+          <GitBranch size={12} strokeWidth={2.2} class="shrink-0" />
+          <span class="truncate font-mono">{repo.currentBranch ?? "(detached)"}</span>
+          <ChevronDown size={12} strokeWidth={2.2} class="shrink-0 text-muted-foreground" />
+        </Popover.Trigger>
+        <Popover.Content align="start" collisionPadding={8} class="w-[min(360px,calc(100vw-2rem))] gap-3 p-3">
+          <div class="flex flex-col gap-0.5">
+            <div class="text-xs font-medium text-foreground">Switch branch</div>
+            <div class="text-xs text-muted-foreground">
+              Current: <span class="font-mono text-foreground">{repo.currentBranch ?? "detached"}</span>
+            </div>
+          </div>
+          <div class="relative">
+            <Search size={13} strokeWidth={2.1} class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input bind:value={branchFilter} placeholder="Filter branches" class="h-8 pl-7 text-xs" />
+          </div>
+          <div class="max-h-56 overflow-y-auto rounded-md border">
+            {#if loadingBranches}
+              <div class="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+                <LoaderCircle size={13} class="animate-spin" /> Loading branches…
               </div>
-              <div class="relative">
-                <Search size={13} strokeWidth={2.1} class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input bind:value={branchFilter} placeholder="Filter branches" class="h-8 pl-7 text-xs" />
-              </div>
-              <div class="max-h-56 overflow-y-auto rounded-md border">
-                {#if loadingBranches}
-                  <div class="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-                    <LoaderCircle size={13} class="animate-spin" /> Loading branches…
-                  </div>
-                {:else if filteredBranches.length === 0}
-                  <div class="px-3 py-2 text-xs text-muted-foreground">No branches found.</div>
-                {:else}
-                  {#each filteredBranches as branch (branch.name)}
-                    <button
-                      type="button"
-                      class="flex w-full items-center gap-2 border-b px-2.5 py-1.5 text-left text-xs last:border-b-0 hover:bg-muted/60 disabled:opacity-60"
-                      disabled={branch.current || switchingBranch === branch.name}
-                      onclick={() => void onSwitchBranch(selectedRepo, branch)}
-                    >
-                      {#if switchingBranch === branch.name}
-                        <LoaderCircle size={13} class="animate-spin text-muted-foreground" />
-                      {:else if branch.current}
-                        <Check size={13} class="text-success" />
-                      {:else}
-                        <GitBranch size={13} class="text-muted-foreground" />
-                      {/if}
-                      <span class="min-w-0 flex-1 truncate font-mono text-foreground">{branch.name}</span>
-                      {#if branch.remote}
-                        <Badge tone="neutral" size="xs">remote</Badge>
-                      {/if}
-                    </button>
-                  {/each}
-                {/if}
-              </div>
-              <div class="flex flex-col gap-1.5 border-t pt-3">
-                <div class="text-xs font-medium text-foreground">Create from current</div>
-                <div class="flex gap-1.5">
-                  <Input bind:value={newBranchName} placeholder="feature/branch-name" class="h-8 font-mono text-xs" />
-                  <Button
-                    size="sm"
-                    disabled={creatingBranch || newBranchName.trim().length === 0}
-                    onclick={() => void onCreateBranch(selectedRepo)}
-                  >
-                    {#if creatingBranch}
-                      <LoaderCircle class="animate-spin" />
-                    {:else}
-                      <GitBranch />
-                    {/if}
-                    Create
-                  </Button>
-                </div>
-              </div>
-            </Popover.Content>
-          </Popover.Root>
-
-          <div class="flex min-w-0 flex-wrap items-center gap-1 text-xs">
-            {#if !repo.hasRemote}
-              <span class="text-muted-foreground">local only</span>
-            {:else if !repo.hasUpstream}
-              <span class="text-muted-foreground">no upstream</span>
-            {:else if (repo.ahead ?? 0) === 0 && (repo.behind ?? 0) === 0}
-              <span class="flex items-center gap-0.5 text-muted-foreground">
-                <Check size={12} strokeWidth={2.2} /> up to date
-              </span>
+            {:else if filteredBranches.length === 0}
+              <div class="px-3 py-2 text-xs text-muted-foreground">No branches found.</div>
             {:else}
-              {#if (repo.ahead ?? 0) > 0}
-                <Badge tone="running" size="xs">
-                  <ArrowUp size={11} strokeWidth={2.4} /> {repo.ahead}
-                </Badge>
-              {/if}
-              {#if (repo.behind ?? 0) > 0}
-                <Badge tone="warn" size="xs">
-                  <ArrowDown size={11} strokeWidth={2.4} /> {repo.behind}
-                </Badge>
-              {/if}
-            {/if}
-            {#if repo.detached}
-              <Badge tone="warn" size="xs">detached</Badge>
-            {/if}
-            {#if repo.dirty}
-              <Badge tone="neutral" size="xs">dirty</Badge>
+              {#each filteredBranches as branch (branch.name)}
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 border-b px-2.5 py-1.5 text-left text-xs last:border-b-0 hover:bg-muted/60 disabled:opacity-60"
+                  disabled={branch.current || switchingBranch === branch.name}
+                  onclick={() => void onSwitchBranch(selectedRepo, branch)}
+                >
+                  {#if switchingBranch === branch.name}
+                    <LoaderCircle size={13} class="animate-spin text-muted-foreground" />
+                  {:else if branch.current}
+                    <Check size={13} class="text-success" />
+                  {:else}
+                    <GitBranch size={13} class="text-muted-foreground" />
+                  {/if}
+                  <span class="min-w-0 flex-1 truncate font-mono text-foreground">{branch.name}</span>
+                  {#if branch.remote}
+                    <Badge tone="neutral" size="xs">remote</Badge>
+                  {/if}
+                </button>
+              {/each}
             {/if}
           </div>
-        </div>
-      </div>
+          <div class="flex flex-col gap-1.5 border-t pt-3">
+            <div class="text-xs font-medium text-foreground">Create from current</div>
+            <div class="flex gap-1.5">
+              <Input bind:value={newBranchName} placeholder="feature/branch-name" class="h-8 font-mono text-xs" />
+              <Button
+                size="sm"
+                disabled={creatingBranch || newBranchName.trim().length === 0}
+                onclick={() => void onCreateBranch(selectedRepo)}
+              >
+                {#if creatingBranch}
+                  <LoaderCircle class="animate-spin" />
+                {:else}
+                  <GitBranch />
+                {/if}
+                Create
+              </Button>
+            </div>
+          </div>
+        </Popover.Content>
+      </Popover.Root>
 
       <div class="flex flex-col gap-1">
         {#if repo.hasRemote}
@@ -303,7 +270,7 @@
                 {:else}
                   <ArrowDown />
                 {/if}
-                Pull
+                Pull {#if (repo.behind ?? 0) > 0}<span class="font-mono">{repo.behind}</span>{/if}
               </Button>
             {/if}
             {#if showPush(repo)}
@@ -320,7 +287,7 @@
                 {:else}
                   <ArrowUp />
                 {/if}
-                Push
+                Push {#if (repo.ahead ?? 0) > 0}<span class="font-mono">{repo.ahead}</span>{/if}
               </Button>
             {/if}
             <Button
