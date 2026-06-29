@@ -56,6 +56,31 @@ describe("task manager foreground bash auto-promotion", () => {
     );
   });
 
+  it("passes configured runtime shellPath to foreground task spawn", async () => {
+    const child = fakeChild();
+    const { supervisor, spawnCalls } = fakeSupervisor({ child });
+    const { manager, storage, events } = await createManager(supervisor);
+    storage.settings.runtime.shellPath = "/custom/bash";
+    const startedEvent = waitForTaskEvent(events, "task.started");
+
+    const run = manager.runForegroundBashWithPromotion({
+      command: "pnpm check",
+      cwd: storage.paths.home,
+      projectId: "proj_test",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      autoPromoteAfterMs: 1000,
+      origin: { kind: "agent_tool", toolCallId: "tool_test" },
+    });
+    const started = await startedEvent;
+    child.emitClose(0, null);
+    await run;
+
+    assert.equal(spawnCalls[0]?.command, "pnpm check");
+    assert.equal(spawnCalls[0]?.options.shellPath, "/custom/bash");
+    assert.equal(started.command, "pnpm check");
+  });
+
   it("returns normal bash output and removes the hidden task when it finishes before promotion", async () => {
     const child = fakeChild();
     const { supervisor } = fakeSupervisor({ child });

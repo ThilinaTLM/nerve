@@ -7,7 +7,9 @@ const taskStartItemParameters = Type.Object(
     cwd: Type.Optional(
       Type.String({ description: "Working directory relative to the project" }),
     ),
-    command: Type.String({ description: "Command to start and supervise" }),
+    command: Type.String({
+      description: "Bash-compatible command to start and supervise",
+    }),
     env: Type.Optional(
       Type.Record(Type.String(), Type.String(), {
         description:
@@ -56,7 +58,9 @@ const taskStartParameters = Type.Object(
       Type.String({ description: "Working directory relative to the project" }),
     ),
     command: Type.Optional(
-      Type.String({ description: "Command to start and supervise" }),
+      Type.String({
+        description: "Bash-compatible command to start and supervise",
+      }),
     ),
     env: Type.Optional(
       Type.Record(Type.String(), Type.String(), {
@@ -222,11 +226,11 @@ export const taskToolDefinitions = [
     name: "task_start",
     label: "task_start",
     description:
-      "Start supervised background tasks for servers, watchers, and other long-lived commands.",
+      "Start supervised background tasks for servers, watchers, and other long-lived Bash-compatible commands.",
     promptSnippet:
       "Start detached background processes for long-lived commands and servers",
     promptGuidelines: [
-      "Use task_start for servers, watchers, and other long-lived processes.",
+      "Use task_start for servers, watchers, and other long-lived processes. Commands run in the same Bash-compatible shell runtime as bash.",
     ],
     parameters: taskStartParameters,
     executionMode: "sequential",

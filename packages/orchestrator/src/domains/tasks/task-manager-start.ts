@@ -127,6 +127,7 @@ export async function startTask(
   const spawned = this.supervisor.spawn(request.command, {
     cwd: record.cwd,
     env: request.env,
+    shellPath: this.storage.settings.runtime.shellPath,
   });
   const { child, runtime } = spawned;
   await this.updateTask(record.id, { runtime });

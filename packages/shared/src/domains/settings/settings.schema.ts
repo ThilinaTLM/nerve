@@ -24,6 +24,7 @@ export type AgentSelectionSettings = z.infer<
 
 const runtimeSettingsSchema = z.object({
   pythonExecutablePath: z.string().trim().min(1).optional(),
+  shellPath: z.string().trim().min(1).optional(),
 });
 
 export const settingsSchema = z.object({
@@ -173,6 +174,7 @@ export const updateSettingsRequestSchema = z.object({
   runtime: z
     .object({
       pythonExecutablePath: z.string().trim().min(1).nullable().optional(),
+      shellPath: z.string().trim().min(1).nullable().optional(),
     })
     .optional(),
   scopedModels: z.array(modelSelectionSchema).optional(),

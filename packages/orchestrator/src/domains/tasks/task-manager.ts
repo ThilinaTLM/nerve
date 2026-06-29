@@ -139,7 +139,7 @@ export class TaskManager {
   readonly launchConfigs: TaskLaunchConfigStore;
 
   constructor(
-    storage: InitializedStorage,
+    readonly storage: InitializedStorage,
     readonly events: EventBus,
     readonly index: IndexStore,
     readonly logger?: ApplicationLogger,

@@ -98,7 +98,8 @@ export async function runAgentPromptSession(
     let activeToolNames = await this.activeToolNamesFor(agent);
     const model = resolveAgentModel(agent.model);
     this.deps.subscriptionUsage.touchProvider(model.provider);
-    const env = new NodeExecutionEnv({ cwd: agent.projectDir });
+    const shellPath = this.deps.storage.settings.runtime.shellPath;
+    const env = new NodeExecutionEnv({ cwd: agent.projectDir, shellPath });
     const resources = await loadHarnessResources(agent.projectDir);
     const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
     const composeLatestSystemPrompt = () => {

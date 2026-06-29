@@ -161,6 +161,7 @@ export class OrchestrationToolDispatcher {
           cwd: toolCall.cwd,
           signal: options.signal,
           dataDir: this.deps.storage.paths.home,
+          shellPath: this.deps.storage.settings.runtime.shellPath,
           getApiKey: this.deps.getApiKey,
           onUpdate: (update) =>
             this.publishToolExecutionUpdate(toolCall, update, options.runId),

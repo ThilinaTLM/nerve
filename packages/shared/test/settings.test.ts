@@ -51,19 +51,23 @@ describe("settings schema", () => {
     assert.deepEqual(settings.compaction, { auto: true });
   });
 
-  it("accepts python runtime update settings", () => {
+  it("accepts runtime update settings", () => {
+    const parsed = updateSettingsRequestSchema.parse({
+      runtime: {
+        pythonExecutablePath: "/usr/bin/python3",
+        shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
+      },
+    });
+    assert.equal(parsed.runtime?.pythonExecutablePath, "/usr/bin/python3");
     assert.equal(
-      updateSettingsRequestSchema.parse({
-        runtime: { pythonExecutablePath: "/usr/bin/python3" },
-      }).runtime?.pythonExecutablePath,
-      "/usr/bin/python3",
+      parsed.runtime?.shellPath,
+      "C:\\Program Files\\Git\\bin\\bash.exe",
     );
-    assert.equal(
-      updateSettingsRequestSchema.parse({
-        runtime: { pythonExecutablePath: null },
-      }).runtime?.pythonExecutablePath,
-      null,
-    );
+    const cleared = updateSettingsRequestSchema.parse({
+      runtime: { pythonExecutablePath: null, shellPath: null },
+    });
+    assert.equal(cleared.runtime?.pythonExecutablePath, null);
+    assert.equal(cleared.runtime?.shellPath, null);
   });
 
   it("accepts python runtime status", () => {

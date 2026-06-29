@@ -34,5 +34,10 @@ export { executePython } from "./python/python.js";
 export type { PythonRuntime, PythonRuntimeStatus } from "./python/runtime.js";
 export { resolvePythonRuntime } from "./python/runtime.js";
 export { executeBash } from "./shell/bash.js";
+export {
+  type ResolveBashShellConfigOptions,
+  resolveBashShellConfig,
+  type ShellConfig,
+} from "./shell/shell-config.js";
 export { executeWebFetch } from "./web/web-fetch.js";
 export { executeWebSearch } from "./web/web-search.js";

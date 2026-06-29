@@ -101,6 +101,7 @@ export async function writeSettings(
         ...(patch.runtime.pythonExecutablePath === null
           ? { pythonExecutablePath: undefined }
           : {}),
+        ...(patch.runtime.shellPath === null ? { shellPath: undefined } : {}),
       }
     : undefined;
   const next = settingsSchema.parse({

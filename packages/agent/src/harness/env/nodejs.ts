@@ -178,7 +178,12 @@ async function getShellConfig(
     if (bashOnPath) {
       return ok({ shell: bashOnPath, args: ["-c"] });
     }
-    return err(new ExecutionError("shell_unavailable", "No bash shell found"));
+    return err(
+      new ExecutionError(
+        "shell_unavailable",
+        "No bash shell found. Install Git for Windows, MSYS2, or Cygwin; add bash.exe to PATH; or set runtime.shellPath in Nerve settings.",
+      ),
+    );
   }
 
   if (await pathExists("/bin/bash")) {

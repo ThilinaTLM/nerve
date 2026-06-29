@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/shared";
+import { resolveBashShellConfig } from "@nervekit/tools";
 import {
   inspectPortListeners,
   inspectRuntimeListeningPorts,
@@ -24,6 +25,7 @@ function nonInteractiveShellEnv(
 export interface SpawnManagedTaskOptions {
   cwd: string;
   env?: Record<string, string>;
+  shellPath?: string;
 }
 
 export interface SpawnedManagedTask {
@@ -67,12 +69,13 @@ export function spawnManagedTask(
   command: string,
   options: SpawnManagedTaskOptions,
 ): SpawnedManagedTask {
-  const child = spawn(command, {
+  const shellConfig = resolveBashShellConfig({ shellPath: options.shellPath });
+  const child = spawn(shellConfig.shell, [...shellConfig.args, command], {
     cwd: options.cwd,
-    shell: true,
     env: nonInteractiveShellEnv(options.env),
     stdio: ["ignore", "pipe", "pipe"],
     detached: process.platform !== "win32",
+    windowsHide: true,
   });
   return { child, runtime: runtimeForChild(child, process.platform) };
 }

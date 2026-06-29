@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import type { ChildProcess, SpawnOptions, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { TaskRuntime } from "@nervekit/shared";
 import {
@@ -37,8 +40,13 @@ function printEnvCommand(keys: string[]): string {
 async function collectSpawnedStdout(
   command: string,
   env?: Record<string, string>,
+  shellPath?: string,
 ): Promise<string> {
-  const { child } = spawnManagedTask(command, { cwd: process.cwd(), env });
+  const { child } = spawnManagedTask(command, {
+    cwd: process.cwd(),
+    env,
+    shellPath,
+  });
   const chunks: Buffer[] = [];
   child.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
   const close = await new Promise<{
@@ -84,6 +92,25 @@ describe("task supervisor spawn metadata", () => {
     assert.equal(env.GIT_TERMINAL_PROMPT, "0");
     assert.equal(env.TERM, "dumb");
     assert.equal(env.CI, process.env.CI ?? "1");
+  });
+
+  it("uses configured shellPath for managed task commands", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "nerve-task-shell-"));
+    const shellPath = join(dir, "fake-shell");
+    await writeFile(
+      shellPath,
+      `#!${process.execPath}\nprocess.stdout.write('managed shell:' + process.argv.slice(2).join('|'))`,
+      "utf8",
+    );
+    await chmod(shellPath, 0o755);
+
+    const output = await collectSpawnedStdout(
+      "pnpm check",
+      undefined,
+      shellPath,
+    );
+
+    assert.equal(output, "managed shell:-c|pnpm check");
   });
 
   it("allows explicit managed task env to override non-interactive defaults", async () => {

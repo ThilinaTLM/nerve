@@ -60,6 +60,7 @@ export class InlineCommandRunner {
         cwd: agent.projectDir,
         signal: options.signal,
         dataDir: this.deps.storage.paths.home,
+        shellPath: this.deps.storage.settings.runtime.shellPath,
       },
     );
   }

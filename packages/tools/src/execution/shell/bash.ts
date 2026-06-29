@@ -3,6 +3,7 @@ import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { boundLiveOutputChunk } from "../common/output-budget.js";
 import { buildProcessResult } from "../common/process-result.js";
+import { resolveBashShellConfig } from "./shell-config.js";
 
 const FORCE_KILL_AFTER_MS = 2000;
 
@@ -40,13 +41,20 @@ export async function executeBash(
       return;
     }
 
-    const child = spawn(args.command as string, {
-      cwd: context.cwd,
-      shell: true,
-      detached: process.platform !== "win32",
-      env: nonInteractiveShellEnv(),
-      stdio: ["ignore", "pipe", "pipe"],
+    const shellConfig = resolveBashShellConfig({
+      shellPath: context.shellPath,
     });
+    const child = spawn(
+      shellConfig.shell,
+      [...shellConfig.args, args.command as string],
+      {
+        cwd: context.cwd,
+        detached: process.platform !== "win32",
+        env: nonInteractiveShellEnv(),
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
 
     let settled = false;
     let timedOut = false;

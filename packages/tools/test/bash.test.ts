@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { executeBash } from "../src/execution/index.js";
-import { createTempProject } from "./helpers.js";
+import { createTempProject, writeExecutable } from "./helpers.js";
 
 const node = JSON.stringify(process.execPath);
 
@@ -29,6 +29,22 @@ describe("bash executor", () => {
     assert.equal(env.GIT_TERMINAL_PROMPT, "0");
     assert.equal(env.TERM, "dumb");
     assert.equal(env.CI, process.env.CI ?? "1");
+  });
+
+  it("uses configured shellPath instead of the platform default shell", async () => {
+    const project = await createTempProject();
+    const shellPath = await writeExecutable(
+      project.root,
+      "fake-shell",
+      "process.stdout.write('custom shell:' + process.argv.slice(2).join('|'))",
+    );
+    const result = await executeBash(
+      { command: "echo from-command" },
+      { cwd: project.root, shellPath },
+    );
+
+    assert.equal(result.stdout, "custom shell:-c|echo from-command");
+    assert.equal(result.exitCode, 0);
   });
 
   it("returns stdout, stderr, and exitCode for successful commands", async () => {

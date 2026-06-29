@@ -109,7 +109,7 @@ describe("Nerve system prompt", () => {
 
     assert.match(prompt, /Prefer read\/grep\/find\/ls over shell/);
     assert.match(prompt, /Use bash for finite checks, tests, and builds/);
-    assert.match(prompt, /use task_start for servers, watchers/);
+    assert.match(prompt, /Use task_start for servers, watchers/);
     assert.doesNotMatch(
       prompt,
       /Use bash for file operations like ls, rg, find/,

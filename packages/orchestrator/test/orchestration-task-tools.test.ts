@@ -3,10 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type {
-  TaskLogQuery,
-  TaskRecord,
-  ToolCallRecord,
+import {
+  defaultSettings,
+  type TaskLogQuery,
+  type TaskRecord,
+  type ToolCallRecord,
 } from "@nervekit/shared";
 import { OrchestrationToolDispatcher } from "../src/domains/tools/orchestration-tool-dispatcher.js";
 import { CodedToolError } from "../src/domains/tools/tool-errors.js";
@@ -240,7 +241,7 @@ async function createDispatcher(
   };
 
   return new OrchestrationToolDispatcher({
-    storage: { paths: { home: root } },
+    storage: { paths: { home: root }, settings: defaultSettings },
     events: {},
     tasks,
     pythonRuntime: {},

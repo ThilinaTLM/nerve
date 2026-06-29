@@ -330,7 +330,10 @@ export class SubagentRunner {
       const conversation = new Conversation(storage);
       const model = resolveAgentModel(child.model);
       this.deps.subscriptionUsage.touchProvider(model.provider);
-      const env = new NodeExecutionEnv({ cwd: child.projectDir });
+      const env = new NodeExecutionEnv({
+        cwd: child.projectDir,
+        shellPath: this.deps.storage.settings.runtime.shellPath,
+      });
       const resources = await loadHarnessResources(child.projectDir);
       const activeToolNames = activeToolNamesForExploreAgent();
       const harness = new AgentHarness({
@@ -546,7 +549,10 @@ export class SubagentRunner {
     const childDir = join(this.deps.storage.paths.home, "agents", child.id);
     await mkdir(childDir, { recursive: true, mode: 0o700 });
     const childPath = join(childDir, "conversation.jsonl");
-    const env = new NodeExecutionEnv({ cwd: child.projectDir });
+    const env = new NodeExecutionEnv({
+      cwd: child.projectDir,
+      shellPath: this.deps.storage.settings.runtime.shellPath,
+    });
     if (historyMode === "copy_parent") {
       const parentPath = this.deps.harnessManager.conversationPath(
         child.conversationId,

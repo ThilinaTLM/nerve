@@ -16,6 +16,7 @@ export type ToolExecutionContext = {
   cwd: string;
   signal?: AbortSignal;
   dataDir?: string;
+  shellPath?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   pythonRuntime?: PythonRuntime;
   pythonPolicy?: {
