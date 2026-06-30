@@ -35,7 +35,7 @@ export function errorHtml(error: unknown): string {
   <body>
     <main class="error">
       <h1 class="error-title">Daemon unavailable</h1>
-      <p class="status">Could not start the local daemon. Use the Nerve tray menu → “Restart Daemon” to try again.</p>
+      <p class="status">Could not start or load the local daemon. Use the Nerve tray menu → “Restart Daemon” to try again. Logs are in ~/.nerve/logs/desktop-YYYY-MM-DD.jsonl and crash reports are in ~/.nerve/crashes. In corporate proxy environments, ensure Electron was rebuilt through the proxy and NO_PROXY includes localhost,127.0.0.1,::1.</p>
       <pre>${escapeHtml(message)}</pre>
     </main>
   </body>

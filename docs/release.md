@@ -70,11 +70,14 @@ pnpm dlx @nervekit/desktop
 
 Notes:
 
-- Works on Linux, Windows, and macOS.
+- The npm/unpackaged desktop launcher can run on Linux, Windows, and macOS.
 - The `electron` npm dependency downloads the platform binary on first install/run
   (~100–200 MB), then it is cached by npm or pnpm.
 - This is an unpackaged Electron launch, not a signed app bundle or native
   installer.
+- Release packaging currently targets Linux only. Signed/notarized macOS `.app`
+  or DMG packaging is future work and is not required for source development or
+  the npm launcher.
 
 ## First public release: npm bootstrap
 

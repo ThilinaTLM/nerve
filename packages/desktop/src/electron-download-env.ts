@@ -1,7 +1,13 @@
 // Node-safe helpers for Electron's platform-binary download path.
 // This module must not import Electron; it runs before `require("electron")`.
 
-const loopbackNoProxyEntries = ["localhost", "127.0.0.1", "::1"];
+export const loopbackNoProxyEntries = ["localhost", "127.0.0.1", "::1"];
+export const chromiumLoopbackProxyBypassRules = [
+  "<local>",
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+].join(",");
 
 export interface ElectronDownloadEnvPreparation {
   proxyConfigured: boolean;
@@ -9,6 +15,16 @@ export interface ElectronDownloadEnvPreparation {
   copiedFromPackageManagerConfig: string[];
   noProxyUpdated: boolean;
   nodeExtraCaCertsFromPackageManagerCafile: boolean;
+}
+
+export interface ElectronProxyPreparationLog {
+  proxyConfigured: boolean;
+  enabledElectronGetProxy: boolean;
+  copiedFromPackageManagerConfig: string[];
+  noProxyUpdated: boolean;
+  nodeExtraCaCertsFromPackageManagerCafile: boolean;
+  envPresent: Record<string, boolean>;
+  noProxyContainsLoopback: Record<string, boolean>;
 }
 
 /**
@@ -64,16 +80,20 @@ export function prepareElectronDownloadEnv(
     proxyConfigured && !firstEnvValue(env, ["ELECTRON_GET_USE_PROXY"]);
   if (enabledElectronGetProxy) env.ELECTRON_GET_USE_PROXY = "true";
 
-  const existingNoProxy = firstEnvValue(env, ["NO_PROXY", "no_proxy"]);
-  const noProxyBase = existingNoProxy ?? npmNoProxy ?? "";
+  const existingNoProxy = firstEnvValue(env, ["NO_PROXY"]);
+  const existingLowerNoProxy = firstEnvValue(env, ["no_proxy"]);
+  const noProxyBase = mergeNoProxySources([
+    existingNoProxy,
+    existingLowerNoProxy,
+    npmNoProxy,
+  ]);
   const mergedNoProxy = mergeNoProxy(noProxyBase);
-  const shouldSetNoProxy = proxyConfigured || Boolean(noProxyBase);
-  const noProxyUpdated = shouldSetNoProxy && mergedNoProxy !== noProxyBase;
-  if (shouldSetNoProxy) {
-    env.NO_PROXY = mergedNoProxy;
-    if (!existingNoProxy && npmNoProxy) {
-      copiedFromPackageManagerConfig.push("NO_PROXY");
-    }
+  const noProxyUpdated =
+    env.NO_PROXY !== mergedNoProxy || env.no_proxy !== mergedNoProxy;
+  env.NO_PROXY = mergedNoProxy;
+  env.no_proxy = mergedNoProxy;
+  if (!existingNoProxy && !existingLowerNoProxy && npmNoProxy) {
+    copiedFromPackageManagerConfig.push("NO_PROXY");
   }
 
   const nodeExtraCaCertsFromPackageManagerCafile =
@@ -110,10 +130,45 @@ export function formatElectronDownloadFailure(error: unknown): string {
     "  pnpm desktop",
     "",
     "If your company mirrors Electron artifacts, also set ELECTRON_MIRROR.",
+    "Set NERVE_DEBUG_PROXY=1 for redacted desktop proxy diagnostics.",
     errorMessage ? `Original error: ${errorMessage}` : undefined,
   ]
     .filter((line): line is string => line !== undefined)
     .join("\n");
+}
+
+export function formatProxyPreparationForLog(
+  preparation: ElectronDownloadEnvPreparation,
+  env: NodeJS.ProcessEnv = process.env,
+): ElectronProxyPreparationLog {
+  return {
+    proxyConfigured: preparation.proxyConfigured,
+    enabledElectronGetProxy: preparation.enabledElectronGetProxy,
+    copiedFromPackageManagerConfig: preparation.copiedFromPackageManagerConfig,
+    noProxyUpdated: preparation.noProxyUpdated,
+    nodeExtraCaCertsFromPackageManagerCafile:
+      preparation.nodeExtraCaCertsFromPackageManagerCafile,
+    envPresent: Object.fromEntries(
+      [
+        "HTTPS_PROXY",
+        "https_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+        "NO_PROXY",
+        "no_proxy",
+        "NODE_EXTRA_CA_CERTS",
+        "ELECTRON_GET_USE_PROXY",
+        "ELECTRON_MIRROR",
+      ].map((name) => [name, Boolean(env[name]?.trim())]),
+    ),
+    noProxyContainsLoopback: Object.fromEntries(
+      loopbackNoProxyEntries.map((entry) => [
+        entry,
+        noProxyContains(env.NO_PROXY, entry) ||
+          noProxyContains(env.no_proxy, entry),
+      ]),
+    ),
+  };
 }
 
 function firstEnvValue(
@@ -125,6 +180,21 @@ function firstEnvValue(
     if (value) return value;
   }
   return undefined;
+}
+
+function mergeNoProxySources(values: Array<string | undefined>): string {
+  const entries: string[] = [];
+  const normalizedEntries = new Set<string>();
+  for (const value of values) {
+    for (const entry of (value ?? "").split(",")) {
+      const trimmed = entry.trim();
+      const normalized = trimmed.toLowerCase();
+      if (!trimmed || normalizedEntries.has(normalized)) continue;
+      entries.push(trimmed);
+      normalizedEntries.add(normalized);
+    }
+  }
+  return entries.join(",");
 }
 
 function mergeNoProxy(value: string): string {
@@ -141,6 +211,14 @@ function mergeNoProxy(value: string): string {
     normalizedEntries.add(entry.toLowerCase());
   }
   return entries.join(",");
+}
+
+function noProxyContains(value: string | undefined, entry: string): boolean {
+  const normalizedEntry = entry.toLowerCase();
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .includes(normalizedEntry);
 }
 
 function sanitizeErrorMessage(error: unknown): string | undefined {

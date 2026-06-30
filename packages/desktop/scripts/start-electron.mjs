@@ -3,13 +3,15 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import {
   formatElectronDownloadFailure,
+  formatProxyPreparationForLog,
   prepareElectronDownloadEnv,
 } from "../dist/electron-download-env.js";
 
 const require = createRequire(import.meta.url);
 
 const cwd = fileURLToPath(new URL("..", import.meta.url));
-prepareElectronDownloadEnv(process.env);
+const proxyPreparation = prepareElectronDownloadEnv(process.env);
+logProxyPreparation(proxyPreparation);
 const electronPath = resolveElectronPath();
 
 const env = { ...process.env };
@@ -27,6 +29,13 @@ const electronArgs =
   process.platform === "linux"
     ? [...linuxSwitches, ".", ...forwardedArgs]
     : [".", ...forwardedArgs];
+
+function logProxyPreparation(preparation) {
+  if (process.env.NERVE_DEBUG_PROXY !== "1") return;
+  console.error(
+    `[nerve] desktop proxy preparation ${JSON.stringify(formatProxyPreparationForLog(preparation, process.env))}`,
+  );
+}
 
 function parseElectronOzonePlatform(value) {
   const normalized = value?.trim().toLowerCase();

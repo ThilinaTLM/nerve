@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import {
   formatElectronDownloadFailure,
+  formatProxyPreparationForLog,
   prepareElectronDownloadEnv,
 } from "./electron-download-env.js";
 import { resolveElectronFontRenderHinting } from "./shared/font-rendering.js";
@@ -54,17 +55,28 @@ if (forwardedArgs.includes("--help") || forwardedArgs.includes("-h")) {
       "  NERVE_ELECTRON_OZONE_PLATFORM=x11|wayland|auto  (Linux only)",
       "  NERVE_ELECTRON_FONT_RENDER_HINTING=system|none|slight|medium|full  (Linux only; default: slight)",
       "  ELECTRON_GET_USE_PROXY=true with HTTPS_PROXY/HTTP_PROXY/NO_PROXY  (corporate proxy downloads)",
+      "  NERVE_DEBUG_PROXY=1  Print redacted proxy diagnostics during startup",
       "",
     ].join("\n"),
   );
   process.exit(0);
 }
 
-prepareElectronDownloadEnv(process.env);
+const proxyPreparation = prepareElectronDownloadEnv(process.env);
+logProxyPreparation(proxyPreparation);
 
 // The electron npm package resolves to the platform binary path when required
 // from a plain Node process.
 const electronPath = resolveElectronPath();
+
+function logProxyPreparation(
+  preparation: ReturnType<typeof prepareElectronDownloadEnv>,
+): void {
+  if (process.env.NERVE_DEBUG_PROXY !== "1") return;
+  console.error(
+    `[nerve] desktop proxy preparation ${JSON.stringify(formatProxyPreparationForLog(preparation, process.env))}`,
+  );
+}
 
 function resolveElectronPath(): string {
   try {

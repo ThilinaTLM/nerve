@@ -31,6 +31,7 @@
     "icons": "node scripts/generate-icons.mjs",
     "build": "pnpm run icons && tsc -b && node scripts/copy-preload.mjs",
     "check": "tsc -b --pretty false",
+    "test": "tsx --test \"test/**/*.test.ts\"",
     "start": "node scripts/start-electron.mjs",
     "build:deps": "pnpm --filter @nervekit/shared --filter @nervekit/agent --filter @nervekit/tools build",
     "dev": "pnpm run build:deps && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop build && node scripts/start-electron.mjs",
@@ -46,6 +47,7 @@
     "@types/node": "24.10.1",
     "electron-builder": "^26.15.0",
     "sharp": "^0.34.5",
+    "tsx": "4.22.4",
     "typescript": "5.9.3"
   },
   "engines": {

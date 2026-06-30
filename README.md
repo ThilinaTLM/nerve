@@ -17,7 +17,7 @@ pnpm dlx @nervekit/desktop
 
 The first run may download Electron's platform binary through npm or pnpm; subsequent runs use the package manager cache.
 
-### Corporate proxy / Electron binary download troubleshooting
+### Corporate proxy / Electron desktop troubleshooting
 
 This applies on Linux, Windows, and macOS. `pnpm install` can succeed while the
 Electron platform binary is still missing; in that case `pnpm desktop` (or
@@ -64,8 +64,20 @@ rebuild. Cache locations are `~/.cache/electron` on Linux,
 `~/Library/Caches/electron` on macOS, and `%LOCALAPPDATA%\electron\Cache` on
 Windows.
 
+The desktop launcher also forces loopback proxy bypass for the local daemon. If
+macOS System Settings uses a corporate proxy or PAC file, keep `NO_PROXY` set to
+include `localhost,127.0.0.1,::1` for shell-launched development, then run with
+redacted proxy diagnostics when needed:
+
+```sh
+NERVE_DEBUG_PROXY=1 pnpm desktop
+```
+
 Desktop logs are written to `~/.nerve/logs/desktop-YYYY-MM-DD.jsonl`; crash
 reports are written to `~/.nerve/crashes`.
+
+Source development via `pnpm desktop` is supported on macOS. A signed/notarized
+macOS `.app` or DMG release package is not configured yet.
 
 Pass desktop/daemon options after `--`:
 

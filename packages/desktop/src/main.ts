@@ -12,7 +12,8 @@ import {
   type ManagedDaemon,
 } from "./daemon.js";
 import type { BrowserWindowType } from "./electron.js";
-import { app, BrowserWindow, nativeTheme } from "./electron.js";
+import { app, BrowserWindow, nativeTheme, session } from "./electron.js";
+import { chromiumLoopbackProxyBypassRules } from "./electron-download-env.js";
 import { showDesktopNotification } from "./ipc/notifications-ipc.js";
 import { registerDesktopIpc, windowState } from "./ipc/window-ipc.js";
 import { desktopLog } from "./logging.js";
@@ -97,7 +98,15 @@ if (!gotSingleInstanceLock) {
   app
     .whenReady()
     .then(async () => {
-      void desktopLog("info", "app", "Electron app ready");
+      void desktopLog("info", "app", "Electron app ready", {
+        context: {
+          platform: process.platform,
+          arch: process.arch,
+          electron: process.versions.electron,
+          chrome: process.versions.chrome,
+        },
+      });
+      await configureDesktopNetworkSession();
       trayController.ensureTray();
       nativeTheme.on("updated", trayController.updateTrayIcon);
       await openMainWindow();
@@ -115,6 +124,12 @@ if (!gotSingleInstanceLock) {
 
   app.on("window-all-closed", () => {
     if (appQuitting && process.platform !== "darwin") app.quit();
+  });
+
+  app.on("child-process-gone", (_event, details) => {
+    void desktopLog("error", "app", "Electron child process gone", {
+      context: details as unknown as Record<string, unknown>,
+    });
   });
 
   app.on("before-quit", (event) => {
@@ -163,6 +178,64 @@ if (!gotSingleInstanceLock) {
 
   process.on("SIGINT", (signal) => requestQuit({ source: "signal", signal }));
   process.on("SIGTERM", (signal) => requestQuit({ source: "signal", signal }));
+}
+
+async function configureDesktopNetworkSession(): Promise<void> {
+  const startedAt = Date.now();
+  try {
+    await session.defaultSession.setProxy({
+      mode: "system",
+      proxyBypassRules: chromiumLoopbackProxyBypassRules,
+    });
+    await session.defaultSession.forceReloadProxyConfig();
+    const loopbackProxy = await resolveSessionProxyForLog("http://127.0.0.1/");
+    void desktopLog("info", "network", "Configured desktop proxy bypass", {
+      durationMs: Date.now() - startedAt,
+      context: {
+        proxyBypassRules: chromiumLoopbackProxyBypassRules,
+        loopbackProxy,
+      },
+    });
+  } catch (error) {
+    void desktopLog("warn", "network", "Failed to configure proxy bypass", {
+      error,
+      durationMs: Date.now() - startedAt,
+      context: { proxyBypassRules: chromiumLoopbackProxyBypassRules },
+    });
+  }
+}
+
+async function resolveSessionProxyForLog(url: string): Promise<string> {
+  try {
+    return redactProxyDescription(
+      await session.defaultSession.resolveProxy(url),
+    );
+  } catch (error) {
+    void desktopLog("warn", "network", "Failed to resolve session proxy", {
+      error,
+      context: { url: redactUrlForLog(url) },
+    });
+    return "unavailable";
+  }
+}
+
+function redactProxyDescription(value: string): string {
+  return value
+    .replace(/(https?:\/\/)([^\s/@]+)@/gi, "$1[redacted]@")
+    .replace(/\b([A-Z]+)\s+([^\s/@]+:[^\s/@]+@)/g, "$1 [redacted]@");
+}
+
+function redactUrlForLog(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) {
+      url.username = "redacted";
+      url.password = "";
+    }
+    return url.toString();
+  } catch {
+    return value.replace(/(https?:\/\/)([^\s/@]+)@/gi, "$1[redacted]@");
+  }
 }
 
 async function openMainWindow(): Promise<void> {
@@ -310,6 +383,34 @@ function createMainWindow(): BrowserWindowType {
 }
 
 function installWindowLifecycle(window: BrowserWindowType): void {
+  window.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return;
+      void desktopLog("error", "window", "Main frame load failed", {
+        context: {
+          errorCode,
+          errorDescription,
+          url: redactUrlForLog(validatedURL),
+        },
+      });
+    },
+  );
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    void desktopLog("error", "window", "Renderer process gone", {
+      context: details as unknown as Record<string, unknown>,
+    });
+  });
+
+  window.on("unresponsive", () => {
+    void desktopLog("warn", "window", "Window became unresponsive");
+  });
+
+  window.on("responsive", () => {
+    void desktopLog("info", "window", "Window became responsive");
+  });
+
   window.on("close", (event) => {
     if (appQuitting) return;
     event.preventDefault();
