@@ -5,6 +5,8 @@
   type JiraView = Extract<ToolView, { kind: "jira" }>;
   type JiraIssue = JiraView["issues"][number];
   type JiraTransition = JiraView["transitions"][number];
+  type JiraUser = JiraView["users"][number];
+  type JiraField = JiraView["fields"][number];
 
   type Props = {
     toolCall: ToolCallDisplayRecord;
@@ -20,6 +22,12 @@
   const transitionRows = $derived(
     expanded ? view.transitions : view.transitions.slice(0, COLLAPSED_LINES),
   );
+  const userRows = $derived(
+    expanded ? view.users : view.users.slice(0, COLLAPSED_LINES),
+  );
+  const fieldRows = $derived(
+    expanded ? view.fields : view.fields.slice(0, COLLAPSED_LINES),
+  );
   const messageLines = $derived(
     expanded ? view.messageLines : view.messageLines.slice(0, COLLAPSED_LINES),
   );
@@ -27,12 +35,19 @@
     expanded ? (view.updatedFields ?? []) : (view.updatedFields ?? []).slice(0, COLLAPSED_LINES),
   );
   const hasStructuredBody = $derived(
-    messageLines.length > 0 || issueRows.length > 0 || transitionRows.length > 0 || updatedFields.length > 0,
+    messageLines.length > 0 ||
+      issueRows.length > 0 ||
+      transitionRows.length > 0 ||
+      userRows.length > 0 ||
+      fieldRows.length > 0 ||
+      updatedFields.length > 0,
   );
 
   function statusText(): string {
     if (toolCall.status === "running" || toolCall.status === "requested") {
       switch (view.action) {
+        case "search_users":
+          return "Searching Jira users…";
         case "search_issues":
           return "Searching Jira issues…";
         case "get_issue":
@@ -59,6 +74,15 @@
 
   function transitionLabel(transition: JiraTransition): string {
     return transition.name ?? "(unnamed)";
+  }
+
+  function userLabel(user: JiraUser): string {
+    return user.displayName ?? user.emailAddress ?? user.accountId;
+  }
+
+  function fieldChips(field: JiraField): string[] {
+    return [field.type, field.required ? "required" : undefined, field.custom ? "custom" : undefined]
+      .filter((value): value is string => Boolean(value));
   }
 </script>
 
@@ -102,6 +126,54 @@
             <span class="text-xs font-medium text-sidebar-foreground">{transitionLabel(transition)}</span>
             {#if transition.to}
               <span class="text-xs text-muted-foreground">→ {transition.to}</span>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    {#if userRows.length > 0}
+      <div class="grid gap-1.5">
+        {#each userRows as user (user.accountId)}
+          <div class="grid gap-1 rounded-sm border bg-sidebar px-2.5 py-2">
+            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span class="font-mono text-xs font-semibold text-primary">{user.accountId}</span>
+              <span class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground">{userLabel(user)}</span>
+            </div>
+            {#if user.emailAddress || user.active === false || user.accountType}
+              <div class="flex flex-wrap gap-1">
+                {#if user.emailAddress}
+                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">{user.emailAddress}</span>
+                {/if}
+                {#if user.accountType}
+                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">{user.accountType}</span>
+                {/if}
+                {#if user.active === false}
+                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">inactive</span>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    {#if fieldRows.length > 0}
+      <div class="grid gap-1.5">
+        {#each fieldRows as field (field.id)}
+          <div class="grid gap-1 rounded-sm border bg-sidebar px-2.5 py-2">
+            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span class="font-mono text-xs font-semibold text-primary">{field.id}</span>
+              {#if field.name}
+                <span class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground">{field.name}</span>
+              {/if}
+            </div>
+            {#if fieldChips(field).length > 0}
+              <div class="flex flex-wrap gap-1">
+                {#each fieldChips(field) as chip (chip)}
+                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">{chip}</span>
+                {/each}
+              </div>
             {/if}
           </div>
         {/each}

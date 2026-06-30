@@ -3,9 +3,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
+  JiraFieldSummaryPayload,
   JiraIssueSummaryPayload,
   JiraProjectSummaryPayload,
   JiraTransitionSummaryPayload,
+  JiraUserSummaryPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/shared";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
@@ -161,6 +163,89 @@ export function summarizeJiraTransition(
   }) as JiraTransitionSummaryPayload;
 }
 
+export function summarizeJiraUser(
+  value: unknown,
+): JiraUserSummaryPayload | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const accountId = stringField(record.accountId);
+  if (!accountId) return undefined;
+  return compactRecord({
+    accountId,
+    displayName: truncateField(displayNameOf(record)),
+    emailAddress: truncateField(stringField(record.emailAddress)),
+    active: typeof record.active === "boolean" ? record.active : undefined,
+    accountType: truncateField(stringField(record.accountType)),
+  }) as JiraUserSummaryPayload;
+}
+
+export function summarizeJiraField(
+  value: unknown,
+  fallbackId?: string,
+): JiraFieldSummaryPayload | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const schema = asRecord(record.schema);
+  const id = stringField(record.id) ?? stringField(record.key) ?? fallbackId;
+  if (!id) return undefined;
+  return compactRecord({
+    id,
+    key: truncateField(stringField(record.key)),
+    name: truncateField(
+      stringField(record.name) ?? stringField(record.fieldId),
+    ),
+    required:
+      typeof record.required === "boolean" ? record.required : undefined,
+    type: truncateField(
+      stringField(schema.type) ??
+        stringField(schema.system) ??
+        stringField(schema.custom),
+    ),
+    custom: typeof record.custom === "boolean" ? record.custom : undefined,
+    allowedValues: summarizeAllowedValues(record.allowedValues),
+  }) as JiraFieldSummaryPayload;
+}
+
+export function summarizeJiraAttachment(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const id = stringField(record.id);
+  if (!id) return undefined;
+  return compactRecord({
+    id,
+    filename: truncateField(stringField(record.filename)),
+    mimeType: truncateField(stringField(record.mimeType)),
+    size: typeof record.size === "number" ? record.size : undefined,
+    author: truncateField(displayNameOf(record.author)),
+    created: truncateField(stringField(record.created)),
+  });
+}
+
+export function formatUserSummaryLine(summary: JiraUserSummaryPayload): string {
+  const parts = [
+    summary.accountId,
+    summary.displayName,
+    summary.emailAddress,
+    summary.active === false ? "inactive" : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `- ${parts}`;
+}
+
+export function formatFieldSummaryLine(
+  summary: JiraFieldSummaryPayload,
+): string {
+  const required = summary.required ? " · required" : "";
+  const type = summary.type ? ` · ${summary.type}` : "";
+  const allowed = summary.allowedValues?.length
+    ? ` · allowed: ${summary.allowedValues.join(", ")}`
+    : "";
+  return `- ${summary.id}${summary.name ? ` · ${summary.name}` : ""}${type}${required}${allowed}`;
+}
+
 export function issueLine(issue: unknown): string {
   const summary = summarizeJiraIssue(issue);
   return summary ? formatIssueSummaryLine(summary) : JSON.stringify(issue);
@@ -221,6 +306,23 @@ function displayNameOf(value: unknown): string | undefined {
   return typeof record.displayName === "string"
     ? record.displayName
     : nameOf(value);
+}
+
+function summarizeAllowedValues(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const names = value
+    .map((item) =>
+      truncateField(
+        nameOf(item) ??
+          (item && typeof item === "object"
+            ? stringField((item as Record<string, unknown>).value)
+            : undefined) ??
+          stringField(item),
+      ),
+    )
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 10);
+  return names.length > 0 ? names : undefined;
 }
 
 function compactRecord(

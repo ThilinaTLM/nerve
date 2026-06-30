@@ -8,6 +8,49 @@ const stringArray = (description: string) =>
   Type.Array(Type.String(), { description });
 const unknownRecord = (description: string) =>
   Type.Record(Type.String(), Type.Any(), { description });
+const positiveInteger = (description: string, maximum = 100) =>
+  Type.Number({ description, minimum: 0, maximum });
+
+const visibilityObject = Type.Object(
+  {
+    type: Type.String({ description: "Jira comment visibility type" }),
+    value: Type.String({ description: "Jira comment visibility value" }),
+  },
+  { additionalProperties: false },
+);
+
+const searchUsersParameters = Type.Object(
+  {
+    query: Type.String({ description: "User name, email, or account query" }),
+    project_key: Type.Optional(
+      Type.String({
+        description:
+          "Project key for assignable user search; defaults from settings",
+      }),
+    ),
+    issue_key: Type.Optional(
+      Type.String({ description: "Issue key for assignable user search" }),
+    ),
+    max_results: Type.Optional(
+      Type.Number({
+        description: "Maximum users to return (default: 10, max: 50)",
+        minimum: 1,
+        maximum: 50,
+      }),
+    ),
+    include_inactive: Type.Optional(
+      Type.Boolean({
+        description: "Include inactive users where Jira supports it",
+      }),
+    ),
+    save_to_file: Type.Optional(
+      Type.Boolean({
+        description: "Save the raw JSON response (default: true)",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
 
 const searchIssuesParameters = Type.Object(
   {
@@ -26,6 +69,9 @@ const searchIssuesParameters = Type.Object(
       Type.String({ description: "Continuation token from a previous search" }),
     ),
     expand: Type.Optional(stringArray("Jira expand values")),
+    validate_query: Type.Optional(
+      Type.Boolean({ description: "Best-effort JQL validation before search" }),
+    ),
     save_to_file: Type.Optional(
       Type.Boolean({
         description: "Whether to save the raw JSON response (default: true)",
@@ -45,6 +91,41 @@ const getIssueParameters = Type.Object(
     ),
     include_transitions: Type.Optional(
       Type.Boolean({ description: "Fetch available workflow transitions" }),
+    ),
+    include_editmeta: Type.Optional(
+      Type.Boolean({ description: "Fetch edit metadata for the issue" }),
+    ),
+    include_worklogs: Type.Optional(
+      Type.Boolean({ description: "Fetch issue worklogs" }),
+    ),
+    include_changelog: Type.Optional(
+      Type.Boolean({ description: "Fetch issue changelog entries" }),
+    ),
+    include_remote_links: Type.Optional(
+      Type.Boolean({ description: "Fetch remote links for the issue" }),
+    ),
+    include_attachments: Type.Optional(
+      Type.Boolean({
+        description: "Include attachment metadata from issue fields",
+      }),
+    ),
+    comment_limit: Type.Optional(
+      positiveInteger("Maximum comments to fetch", 100),
+    ),
+    comment_start_at: Type.Optional(
+      positiveInteger("Comment pagination start", 100000),
+    ),
+    worklog_limit: Type.Optional(
+      positiveInteger("Maximum worklogs to fetch", 100),
+    ),
+    worklog_start_at: Type.Optional(
+      positiveInteger("Worklog pagination start", 100000),
+    ),
+    changelog_limit: Type.Optional(
+      positiveInteger("Maximum changelog entries to fetch", 100),
+    ),
+    changelog_start_at: Type.Optional(
+      positiveInteger("Changelog pagination start", 100000),
     ),
     save_to_file: Type.Optional(
       Type.Boolean({
@@ -70,6 +151,35 @@ const getProjectParameters = Type.Object(
     ),
     include_versions: Type.Optional(
       Type.Boolean({ description: "Include project versions" }),
+    ),
+    include_issue_types: Type.Optional(
+      Type.Boolean({ description: "Include project issue types" }),
+    ),
+    include_create_meta: Type.Optional(
+      Type.Boolean({
+        description: "Include create metadata and required fields",
+      }),
+    ),
+    issue_type_id: Type.Optional(
+      Type.String({ description: "Issue type id for create metadata" }),
+    ),
+    issue_type_name: Type.Optional(
+      Type.String({ description: "Issue type name for create metadata" }),
+    ),
+    include_fields: Type.Optional(
+      Type.Boolean({ description: "Include Jira field metadata" }),
+    ),
+    field_query: Type.Optional(
+      Type.String({ description: "Filter field metadata by query" }),
+    ),
+    field_limit: Type.Optional(
+      positiveInteger("Maximum fields to return", 100),
+    ),
+    include_priorities: Type.Optional(
+      Type.Boolean({ description: "Include Jira priorities" }),
+    ),
+    include_resolutions: Type.Optional(
+      Type.Boolean({ description: "Include Jira resolutions" }),
     ),
     save_to_file: Type.Optional(
       Type.Boolean({
@@ -105,7 +215,18 @@ const createIssueParameters = Type.Object(
     assignee_account_id: Type.Optional(
       Type.String({ description: "Jira accountId to assign" }),
     ),
+    assignee_query: Type.Optional(
+      Type.String({ description: "Resolve one assignable Jira user by query" }),
+    ),
     components: Type.Optional(stringArray("Component names")),
+    dry_run: Type.Optional(
+      Type.Boolean({
+        description: "Return the create payload without mutating",
+      }),
+    ),
+    return_issue: Type.Optional(
+      Type.Boolean({ description: "Fetch and summarize the created issue" }),
+    ),
     fields: Type.Optional(
       unknownRecord("Additional raw Jira fields to merge into fields"),
     ),
@@ -126,10 +247,31 @@ const updateIssueParameters = Type.Object(
     assignee_account_id: Type.Optional(
       Type.String({ description: "Jira accountId to assign" }),
     ),
+    assignee_query: Type.Optional(
+      Type.String({ description: "Resolve one assignable Jira user by query" }),
+    ),
     labels: Type.Optional(stringArray("Replacement labels")),
     priority: Type.Optional(Type.String({ description: "Priority name" })),
     fields: Type.Optional(
       unknownRecord("Additional raw Jira fields to merge into fields"),
+    ),
+    update: Type.Optional(
+      unknownRecord(
+        "Raw Jira update operations to merge into the update payload",
+      ),
+    ),
+    notify_users: Type.Optional(
+      Type.Boolean({ description: "Whether Jira should notify users" }),
+    ),
+    dry_run: Type.Optional(
+      Type.Boolean({
+        description: "Return the update payload without mutating",
+      }),
+    ),
+    return_issue: Type.Optional(
+      Type.Boolean({
+        description: "Fetch and summarize the issue after updating",
+      }),
     ),
   },
   { additionalProperties: false },
@@ -143,6 +285,12 @@ const addCommentParameters = Type.Object(
     ),
     body_adf: Type.Optional(
       unknownRecord("Raw Atlassian Document Format comment body"),
+    ),
+    visibility: Type.Optional(visibilityObject),
+    return_comment: Type.Optional(
+      Type.Boolean({
+        description: "Include created comment metadata in the result",
+      }),
     ),
   },
   { additionalProperties: false },
@@ -165,8 +313,14 @@ const transitionIssueParameters = Type.Object(
         description: "Optional plain text comment to add during transition",
       }),
     ),
+    comment_adf: Type.Optional(
+      unknownRecord("Optional ADF comment to add during transition"),
+    ),
     fields: Type.Optional(
       unknownRecord("Additional fields for the transition payload"),
+    ),
+    update: Type.Optional(
+      unknownRecord("Additional update operations for the transition payload"),
     ),
     dry_run: Type.Optional(
       Type.Boolean({
@@ -178,6 +332,16 @@ const transitionIssueParameters = Type.Object(
 );
 
 export const jiraToolDefinitions = [
+  {
+    name: "jira_search_users",
+    label: "Jira Search Users",
+    description:
+      "Search Jira Cloud users and assignable users to discover accountIds.",
+    promptSnippet: "Find Jira users/accountIds before assigning tickets",
+    promptGuidelines: [jiraGuideline],
+    parameters: searchUsersParameters,
+    executionMode: "parallel",
+  },
   {
     name: "jira_search_issues",
     label: "Jira Search Issues",
@@ -192,7 +356,7 @@ export const jiraToolDefinitions = [
     name: "jira_get_issue",
     label: "Jira Get Issue",
     description:
-      "Fetch one Jira issue, optionally including comments and transitions.",
+      "Fetch one Jira issue, optionally including comments, transitions, edit metadata, worklogs, changelog, remote links, and attachment metadata.",
     promptSnippet: "Fetch a Jira issue by key or ID",
     promptGuidelines: [jiraGuideline],
     parameters: getIssueParameters,
@@ -202,7 +366,7 @@ export const jiraToolDefinitions = [
     name: "jira_get_project",
     label: "Jira Get Project",
     description:
-      "Fetch Jira project metadata, optionally including statuses, components, and versions.",
+      "Fetch Jira project metadata, optionally including statuses, components, versions, issue types, create metadata, fields, priorities, and resolutions.",
     promptSnippet: "Fetch Jira project metadata",
     promptGuidelines: [jiraGuideline],
     parameters: getProjectParameters,

@@ -10,11 +10,13 @@ import {
 import {
   buildJiraTextResult,
   displayLimitNotice,
+  formatFieldSummaryLine,
   formatIssueSummaryLine,
   formatTransitionSummaryLine,
   issueLine,
   JIRA_FIELD_DISPLAY_LIMIT,
-  nameOf,
+  summarizeJiraAttachment,
+  summarizeJiraField,
   summarizeJiraIssue,
   summarizeJiraProject,
   summarizeJiraTransition,
@@ -22,6 +24,27 @@ import {
   transitionLine,
   writeJiraArtifact,
 } from "./format.js";
+import {
+  applyCommonFields,
+  boundedNumber,
+  fetchJiraFields,
+  fieldsFromProjectResult,
+  issueTypeIdFromName,
+  matchTransition,
+  maybeResolveAssignee,
+  optionalBoolean,
+  optionalString,
+  optionalStringArray,
+  rawFields,
+  rawOptionalRecord,
+  requiredString,
+  summarizeTransitionFields,
+  transitionSummary,
+  validateJql,
+  valuesFromJiraList,
+} from "./helpers.js";
+
+export { executeJiraSearchUsers } from "./users.js";
 
 const DEFAULT_SEARCH_FIELDS = [
   "summary",
@@ -65,6 +88,12 @@ export async function executeJiraSearchIssues(
   if (nextPageToken) body.nextPageToken = nextPageToken;
   if (expand && expand.length > 0) body.expand = expand;
 
+  let validation: unknown;
+  if (args.validate_query === true) {
+    validation = await validateJql(connection, jql, context).catch((error) => ({
+      warning: error instanceof Error ? error.message : String(error),
+    }));
+  }
   const data = await jiraRequest<JiraSearchResponse>(connection, {
     method: "POST",
     path: "/search/jql",
@@ -110,6 +139,7 @@ export async function executeJiraSearchIssues(
       total,
       nextPageToken: data.nextPageToken,
       issues: displayed.items,
+      validation,
     },
   });
 }
@@ -121,21 +151,61 @@ export async function executeJiraGetIssue(
   const connection = await requireJiraConnection(context);
   const issueKey = requiredString(args.issue_key, "issue_key");
   const fields = optionalStringArray(args.fields) ?? DEFAULT_SEARCH_FIELDS;
+  const issueFields =
+    args.include_attachments === true && !fields.includes("attachment")
+      ? [...fields, "attachment"]
+      : fields;
   const expand = optionalStringArray(args.expand);
   const issue = await jiraRequest<JiraIssueResponse>(connection, {
     path: `/issue/${pathSegment(issueKey)}`,
-    query: { fields, expand },
+    query: { fields: issueFields, expand },
     signal: context.signal,
   });
   const result: Record<string, unknown> = { issue };
   if (args.include_comments === true) {
     result.comments = await jiraRequest(connection, {
       path: `/issue/${pathSegment(issueKey)}/comment`,
+      query: {
+        startAt: boundedNumber(args.comment_start_at, 0, 0, 100000),
+        maxResults: boundedNumber(args.comment_limit, 50, 1, 100),
+      },
       signal: context.signal,
     });
   }
   if (args.include_transitions === true) {
     result.transitions = await getTransitions(connection, issueKey, context);
+  }
+  if (args.include_editmeta === true) {
+    result.editmeta = await jiraRequest(connection, {
+      path: `/issue/${pathSegment(issueKey)}/editmeta`,
+      signal: context.signal,
+    });
+  }
+  if (args.include_worklogs === true) {
+    result.worklogs = await jiraRequest(connection, {
+      path: `/issue/${pathSegment(issueKey)}/worklog`,
+      query: {
+        startAt: boundedNumber(args.worklog_start_at, 0, 0, 100000),
+        maxResults: boundedNumber(args.worklog_limit, 50, 1, 100),
+      },
+      signal: context.signal,
+    });
+  }
+  if (args.include_changelog === true) {
+    result.changelog = await jiraRequest(connection, {
+      path: `/issue/${pathSegment(issueKey)}/changelog`,
+      query: {
+        startAt: boundedNumber(args.changelog_start_at, 0, 0, 100000),
+        maxResults: boundedNumber(args.changelog_limit, 50, 1, 100),
+      },
+      signal: context.signal,
+    });
+  }
+  if (args.include_remote_links === true) {
+    result.remoteLinks = await jiraRequest(connection, {
+      path: `/issue/${pathSegment(issueKey)}/remotelink`,
+      signal: context.signal,
+    });
   }
   const artifact = await maybeArtifact(
     context,
@@ -154,6 +224,45 @@ export async function executeJiraGetIssue(
       includedCounts.comments = comments.length;
       lines.push(`Comments: ${comments.length}`);
     }
+  }
+  const attachments = (issue.fields as { attachment?: unknown[] } | undefined)
+    ?.attachment;
+  if (Array.isArray(attachments)) {
+    const attachmentSummaries = attachments.flatMap((attachment) => {
+      const summary = summarizeJiraAttachment(attachment);
+      return summary ? [summary] : [];
+    });
+    includedCounts.attachments = attachmentSummaries.length;
+    lines.push(`Attachments: ${attachmentSummaries.length}`);
+  }
+  if (result.editmeta && typeof result.editmeta === "object") {
+    const fieldsRecord = (
+      result.editmeta as { fields?: Record<string, unknown> }
+    ).fields;
+    if (fieldsRecord && typeof fieldsRecord === "object") {
+      includedCounts.editmetaFields = Object.keys(fieldsRecord).length;
+      lines.push(`Edit fields: ${Object.keys(fieldsRecord).length}`);
+    }
+  }
+  if (result.worklogs && typeof result.worklogs === "object") {
+    const worklogs = (result.worklogs as { worklogs?: unknown[] }).worklogs;
+    if (Array.isArray(worklogs)) {
+      includedCounts.worklogs = worklogs.length;
+      lines.push(`Worklogs: ${worklogs.length}`);
+    }
+  }
+  if (result.changelog && typeof result.changelog === "object") {
+    const histories =
+      (result.changelog as { values?: unknown[]; histories?: unknown[] })
+        .values ?? (result.changelog as { histories?: unknown[] }).histories;
+    if (Array.isArray(histories)) {
+      includedCounts.changelog = histories.length;
+      lines.push(`Changelog entries: ${histories.length}`);
+    }
+  }
+  if (Array.isArray(result.remoteLinks)) {
+    includedCounts.remoteLinks = result.remoteLinks.length;
+    lines.push(`Remote links: ${result.remoteLinks.length}`);
   }
   let transitionSummaries: NonNullable<
     ReturnType<typeof summarizeJiraTransition>
@@ -239,6 +348,47 @@ export async function executeJiraGetProject(
       signal: context.signal,
     });
   }
+  if (args.include_issue_types === true || args.include_create_meta === true) {
+    result.issueTypes = Array.isArray(project.issueTypes)
+      ? project.issueTypes
+      : await jiraRequest(connection, {
+          path: `/issue/createmeta/${pathSegment(projectKey)}/issuetypes`,
+          signal: context.signal,
+        }).catch(() => undefined);
+  }
+  if (args.include_create_meta === true) {
+    const issueTypeId =
+      optionalString(args.issue_type_id) ??
+      issueTypeIdFromName(
+        result.issueTypes,
+        optionalString(args.issue_type_name),
+      );
+    result.createMeta = issueTypeId
+      ? await jiraRequest(connection, {
+          path: `/issue/createmeta/${pathSegment(projectKey)}/issuetypes/${pathSegment(issueTypeId)}`,
+          signal: context.signal,
+        })
+      : result.issueTypes;
+  }
+  if (args.include_fields === true) {
+    result.fields = await fetchJiraFields(connection, {
+      query: optionalString(args.field_query),
+      maxResults: boundedNumber(args.field_limit, 50, 1, 100),
+      signal: context.signal,
+    });
+  }
+  if (args.include_priorities === true) {
+    result.priorities = await jiraRequest(connection, {
+      path: "/priority",
+      signal: context.signal,
+    });
+  }
+  if (args.include_resolutions === true) {
+    result.resolutions = await jiraRequest(connection, {
+      path: "/resolution",
+      signal: context.signal,
+    });
+  }
   const artifact = await maybeArtifact(
     context,
     "get-project",
@@ -256,12 +406,47 @@ export async function executeJiraGetProject(
       lines.push(`${key}: ${value.length}`);
     }
   }
+  const issueTypes = valuesFromJiraList(result.issueTypes);
+  if (issueTypes.length > 0) {
+    includedCounts.issueTypes = issueTypes.length;
+    lines.push(`issueTypes: ${issueTypes.length}`);
+  }
+  const rawFields = fieldsFromProjectResult(result);
+  const fieldSummaries = rawFields.flatMap((field) => {
+    const summary = summarizeJiraField(field);
+    return summary ? [summary] : [];
+  });
+  const displayedFields = takeDisplayItems(fieldSummaries);
+  if (fieldSummaries.length > 0) {
+    includedCounts.fields = fieldSummaries.length;
+    lines.push(
+      `fields: ${fieldSummaries.length}`,
+      ...displayedFields.items.map(formatFieldSummaryLine),
+    );
+  }
+  for (const [key, label] of [
+    ["priorities", "priorities"],
+    ["resolutions", "resolutions"],
+  ] as const) {
+    const value = result[key];
+    if (Array.isArray(value)) {
+      includedCounts[key] = value.length;
+      lines.push(`${label}: ${value.length}`);
+    }
+  }
   if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
   return buildJiraTextResult({
     text: lines.join("\n"),
     context,
     artifact,
-    details: { projectKey, project: projectSummary, includedCounts },
+    details: {
+      projectKey,
+      project: projectSummary,
+      includedCounts,
+      fields: displayedFields.items,
+      fieldCount: fieldSummaries.length || undefined,
+      displayedFieldCount: displayedFields.displayed || undefined,
+    },
   });
 }
 
@@ -293,14 +478,45 @@ export async function executeJiraCreateIssue(
   const parentKey = optionalString(args.parent_key);
   if (parentKey) fields.parent = { key: parentKey };
   applyCommonFields(fields, args);
+  const resolvedAssignee = await maybeResolveAssignee(connection, args, {
+    projectKey,
+    signal: context.signal,
+  });
+  if (resolvedAssignee)
+    fields.assignee = { accountId: resolvedAssignee.accountId };
+
+  const payload = { fields };
+  if (args.dry_run === true) {
+    return buildJiraTextResult({
+      text: `Dry run: Jira issue would be created in ${projectKey}.`,
+      context,
+      details: {
+        dryRun: true,
+        projectKey,
+        issueType,
+        summary,
+        payload,
+        resolvedAssignee,
+      },
+    });
+  }
 
   const data = await jiraRequest<Record<string, unknown>>(connection, {
     method: "POST",
     path: "/issue",
-    body: { fields },
+    body: payload,
     signal: context.signal,
   });
   const key = typeof data.key === "string" ? data.key : "(unknown)";
+  const createdIssue =
+    args.return_issue === true && typeof data.key === "string"
+      ? await jiraRequest<JiraIssueResponse>(connection, {
+          path: `/issue/${pathSegment(data.key)}`,
+          query: { fields: DEFAULT_SEARCH_FIELDS },
+          signal: context.signal,
+        })
+      : undefined;
+  const issueSummary = summarizeJiraIssue(createdIssue);
   return buildJiraTextResult({
     text: `Created Jira issue ${key}.`,
     context,
@@ -311,6 +527,8 @@ export async function executeJiraCreateIssue(
       projectKey,
       issueType,
       summary,
+      issue: issueSummary,
+      resolvedAssignee,
     },
   });
 }
@@ -332,19 +550,45 @@ export async function executeJiraUpdateIssue(
   });
   if (description) fields.description = description;
   applyCommonFields(fields, args);
-  if (Object.keys(fields).length === 0) {
+  const resolvedAssignee = await maybeResolveAssignee(connection, args, {
+    issueKey,
+    signal: context.signal,
+  });
+  if (resolvedAssignee)
+    fields.assignee = { accountId: resolvedAssignee.accountId };
+  const update = rawOptionalRecord(args.update, "update");
+  if (Object.keys(fields).length === 0 && Object.keys(update).length === 0) {
     throw new ToolExecutionError(
       "JIRA_EMPTY_UPDATE",
-      "jira_update_issue requires at least one field to update.",
+      "jira_update_issue requires at least one field or update operation.",
     );
+  }
+  const payload: Record<string, unknown> = {};
+  if (Object.keys(fields).length > 0) payload.fields = fields;
+  if (Object.keys(update).length > 0) payload.update = update;
+  if (args.dry_run === true) {
+    return buildJiraTextResult({
+      text: `Dry run: Jira issue ${issueKey} would be updated.`,
+      context,
+      details: { dryRun: true, issueKey, payload, resolvedAssignee },
+    });
   }
   await jiraRequest(connection, {
     method: "PUT",
     path: `/issue/${pathSegment(issueKey)}`,
-    body: { fields },
+    query: { notifyUsers: optionalBoolean(args.notify_users) },
+    body: payload,
     signal: context.signal,
   });
-  const updatedFields = Object.keys(fields);
+  const returnedIssue =
+    args.return_issue === true
+      ? await jiraRequest<JiraIssueResponse>(connection, {
+          path: `/issue/${pathSegment(issueKey)}`,
+          query: { fields: DEFAULT_SEARCH_FIELDS },
+          signal: context.signal,
+        })
+      : undefined;
+  const updatedFields = [...Object.keys(fields), ...Object.keys(update)];
   const displayedFields = updatedFields.slice(0, JIRA_FIELD_DISPLAY_LIMIT);
   const fieldNotice =
     updatedFields.length > displayedFields.length
@@ -357,6 +601,8 @@ export async function executeJiraUpdateIssue(
       issueKey,
       updatedFields: displayedFields,
       updatedFieldCount: updatedFields.length,
+      issue: summarizeJiraIssue(returnedIssue),
+      resolvedAssignee,
     },
   });
 }
@@ -378,16 +624,23 @@ export async function executeJiraAddComment(
       "JIRA_COMMENT_REQUIRED",
       "Provide body or body_adf.",
     );
+  const payload: Record<string, unknown> = { body };
+  const visibility = rawOptionalRecord(args.visibility, "visibility");
+  if (Object.keys(visibility).length > 0) payload.visibility = visibility;
   const data = await jiraRequest<Record<string, unknown>>(connection, {
     method: "POST",
     path: `/issue/${pathSegment(issueKey)}/comment`,
-    body: { body },
+    body: payload,
     signal: context.signal,
   });
   return buildJiraTextResult({
     text: `Added comment to Jira issue ${issueKey}.`,
     context,
-    details: { issueKey, commentId: data.id },
+    details: {
+      issueKey,
+      commentId: data.id,
+      comment: args.return_comment === true ? data : undefined,
+    },
   });
 }
 
@@ -406,16 +659,26 @@ export async function executeJiraTransitionIssue(
     ? transitionsResponse.transitions
     : [];
   const transitionArg = optionalString(args.transition);
-  if (args.dry_run === true || !transitionArg) {
+  if (!transitionArg) {
     const transitionSummaries = transitions.flatMap((transition) => {
       const summary = summarizeJiraTransition(transition);
       return summary ? [summary] : [];
     });
     const displayed = takeDisplayItems(transitionSummaries);
+    const transitionFields = transitions.flatMap((transition) =>
+      summarizeTransitionFields(transition),
+    );
+    const displayedFields = takeDisplayItems(transitionFields);
     const lines = [
       `Available transitions for ${issueKey}:`,
       ...displayed.items.map(formatTransitionSummaryLine),
     ];
+    if (displayedFields.items.length > 0) {
+      lines.push(
+        "Transition fields:",
+        ...displayedFields.items.map(formatFieldSummaryLine),
+      );
+    }
     const limitNotice = displayLimitNotice({
       noun: "transition",
       total: transitionSummaries.length,
@@ -430,6 +693,9 @@ export async function executeJiraTransitionIssue(
         transitions: displayed.items,
         transitionCount: transitionSummaries.length,
         displayedTransitionCount: displayed.displayed,
+        fields: displayedFields.items,
+        fieldCount: transitionFields.length || undefined,
+        displayedFieldCount: displayedFields.displayed || undefined,
       },
     });
   }
@@ -449,33 +715,56 @@ export async function executeJiraTransitionIssue(
     transition: { id: String(transitionRecord.id) },
   };
   if (Object.keys(fields).length > 0) body.fields = fields;
-  const comment = optionalString(args.comment);
-  if (comment)
-    body.update = {
-      comment: [
+  const update = rawOptionalRecord(args.update, "update");
+  const commentBody = adfFromEither({
+    text: args.comment,
+    adf: args.comment_adf,
+    textName: "comment",
+    adfName: "comment_adf",
+  });
+  if (Object.keys(update).length > 0 || commentBody) {
+    body.update = { ...update };
+    if (commentBody) {
+      (body.update as Record<string, unknown>).comment = [
         {
           add: {
-            body: adfFromEither({
-              text: comment,
-              adf: undefined,
-              textName: "comment",
-              adfName: "comment_adf",
-            }),
+            body: commentBody,
           },
         },
-      ],
-    };
+      ];
+    }
+  }
+  const transitionSummaryDetails = summarizeJiraTransition(transition);
+  const transitionFields = summarizeTransitionFields(transition);
+  if (args.dry_run === true) {
+    return buildJiraTextResult({
+      text: `Dry run: Jira issue ${issueKey} would transition via ${transitionSummaryDetails ? formatTransitionSummaryLine(transitionSummaryDetails) : transitionLine(transition)}.`,
+      context,
+      details: {
+        dryRun: true,
+        issueKey,
+        transition: transitionSummaryDetails,
+        fields: transitionFields,
+        fieldCount: transitionFields.length || undefined,
+        payload: body,
+      },
+    });
+  }
   await jiraRequest(connection, {
     method: "POST",
     path: `/issue/${pathSegment(issueKey)}/transitions`,
     body,
     signal: context.signal,
   });
-  const transitionSummaryDetails = summarizeJiraTransition(transition);
   return buildJiraTextResult({
     text: `Transitioned Jira issue ${issueKey} via ${transitionSummaryDetails ? formatTransitionSummaryLine(transitionSummaryDetails) : transitionLine(transition)}.`,
     context,
-    details: { issueKey, transition: transitionSummaryDetails },
+    details: {
+      issueKey,
+      transition: transitionSummaryDetails,
+      fields: transitionFields,
+      fieldCount: transitionFields.length || undefined,
+    },
   });
 }
 
@@ -501,94 +790,4 @@ async function maybeArtifact(
 > {
   if (saveToFile === false) return undefined;
   return writeJiraArtifact(context, kind, payload);
-}
-
-function requiredString(value: unknown, name: string): string {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`${name} must be a non-empty string.`);
-  }
-  return value.trim();
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : undefined;
-}
-
-function optionalStringArray(value: unknown): string[] | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value)) throw new Error("Expected an array of strings.");
-  return value
-    .filter(
-      (item): item is string =>
-        typeof item === "string" && item.trim().length > 0,
-    )
-    .map((item) => item.trim());
-}
-
-function boundedNumber(
-  value: unknown,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
-  return Math.min(max, Math.max(min, Math.floor(value)));
-}
-
-function rawFields(value: unknown): Record<string, unknown> {
-  if (value === undefined) return {};
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("fields must be an object.");
-  }
-  return { ...(value as Record<string, unknown>) };
-}
-
-function applyCommonFields(
-  fields: Record<string, unknown>,
-  args: Record<string, unknown>,
-) {
-  const labels = optionalStringArray(args.labels);
-  if (labels) fields.labels = labels;
-  const priority = optionalString(args.priority);
-  if (priority) fields.priority = { name: priority };
-  const assignee = optionalString(args.assignee_account_id);
-  if (assignee) fields.assignee = { accountId: assignee };
-  const components = optionalStringArray(args.components);
-  if (components) fields.components = components.map((name) => ({ name }));
-}
-
-function matchTransition(
-  transitions: unknown[],
-  query: string,
-): unknown | undefined {
-  const normalized = normalize(query);
-  return transitions.find((transition) => {
-    if (!transition || typeof transition !== "object") return false;
-    const record = transition as Record<string, unknown>;
-    const id = String(record.id ?? "");
-    const name = typeof record.name === "string" ? record.name : "";
-    const to = nameOf(record.to) ?? "";
-    return (
-      id === query ||
-      normalize(name) === normalized ||
-      normalize(to) === normalized
-    );
-  });
-}
-
-function transitionSummary(transition: unknown): Record<string, unknown> {
-  if (!transition || typeof transition !== "object")
-    return { value: transition };
-  const record = transition as Record<string, unknown>;
-  return {
-    id: record.id,
-    name: record.name,
-    to: nameOf(record.to),
-  };
-}
-
-function normalize(value: string): string {
-  return value.trim().toLowerCase();
 }

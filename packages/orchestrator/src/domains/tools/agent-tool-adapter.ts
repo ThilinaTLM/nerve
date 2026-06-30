@@ -94,7 +94,12 @@ export function activeToolNamesForAgent(
     options.pythonAvailable === true ? ["python"] : [];
   const jiraReadTools: ToolName[] =
     options.jiraEnabled === true
-      ? ["jira_search_issues", "jira_get_issue", "jira_get_project"]
+      ? [
+          "jira_search_users",
+          "jira_search_issues",
+          "jira_get_issue",
+          "jira_get_project",
+        ]
       : [];
   const jiraMutationTools: ToolName[] =
     options.jiraEnabled === true

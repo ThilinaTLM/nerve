@@ -1,8 +1,10 @@
 import {
+  jiraFieldSummarySchema,
   jiraIssueSummarySchema,
   jiraProjectSummarySchema,
   jiraResultDetailsSchema,
   jiraTransitionSummarySchema,
+  jiraUserSummarySchema,
 } from "@nervekit/shared";
 import type { LiveToolOutput } from "$lib/core/types/state-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
@@ -62,6 +64,14 @@ export function parseJiraView(
     transitionsFromDetails.length > 0
       ? transitionsFromDetails
       : transitionLines;
+  const users = jiraArray(details.users, parseJiraUserSummary).slice(
+    0,
+    JIRA_DISPLAY_ITEM_LIMIT,
+  );
+  const fields = jiraArray(details.fields, parseJiraFieldSummary).slice(
+    0,
+    JIRA_FIELD_DISPLAY_LIMIT,
+  );
   const includedCounts = jiraIncludedCounts(details.includedCounts, content);
   const updatedFields = arrayField(details.updatedFields)
     .filter((field): field is string => typeof field === "string")
@@ -100,6 +110,13 @@ export function parseJiraView(
       (issues.length > 0 ? issues.length : undefined),
     total: numberField(details.total),
     nextPageToken: stringField(details.nextPageToken),
+    users,
+    userCount:
+      numberField(details.userCount) ??
+      (users.length > 0 ? users.length : undefined),
+    displayedUserCount:
+      numberField(details.displayedUserCount) ??
+      (users.length > 0 ? users.length : undefined),
     project: parseJiraProjectSummary(details.project, projectKey),
     includedCounts,
     updatedFields,
@@ -109,6 +126,13 @@ export function parseJiraView(
     commentId: stringField(details.commentId),
     transition: parseJiraTransitionSummary(details.transition),
     transitions,
+    fields,
+    fieldCount:
+      numberField(details.fieldCount) ??
+      (fields.length > 0 ? fields.length : undefined),
+    displayedFieldCount:
+      numberField(details.displayedFieldCount) ??
+      (fields.length > 0 ? fields.length : undefined),
     transitionCount:
       numberField(details.transitionCount) ??
       (transitions.length > 0 ? transitions.length : undefined),
@@ -122,6 +146,8 @@ export function parseJiraView(
 
 function jiraAction(toolName: string): JiraToolAction | undefined {
   switch (toolName) {
+    case "jira_search_users":
+      return "search_users";
     case "jira_search_issues":
       return "search_issues";
     case "jira_get_issue":
@@ -245,6 +271,38 @@ function parseJiraTransitionSummary(value: unknown) {
   };
 }
 
+function parseJiraUserSummary(value: unknown) {
+  const parsed = jiraUserSummarySchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  const record = asRecord(value);
+  const accountId = stringField(record.accountId);
+  if (!accountId) return undefined;
+  return {
+    accountId,
+    displayName: compactText(jiraDisplayNameOf(record)),
+    emailAddress: compactText(stringField(record.emailAddress)),
+    active: typeof record.active === "boolean" ? record.active : undefined,
+    accountType: compactText(stringField(record.accountType)),
+  };
+}
+
+function parseJiraFieldSummary(value: unknown) {
+  const parsed = jiraFieldSummarySchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  const record = asRecord(value);
+  const id = stringField(record.id) ?? stringField(record.key);
+  if (!id) return undefined;
+  return {
+    id,
+    name: compactText(stringField(record.name)),
+    key: compactText(stringField(record.key)),
+    required:
+      typeof record.required === "boolean" ? record.required : undefined,
+    type: compactText(stringField(record.type)),
+    custom: typeof record.custom === "boolean" ? record.custom : undefined,
+  };
+}
+
 function jiraDetailsRecord(details: unknown): Record<string, unknown> {
   const parsed = jiraResultDetailsSchema.safeParse(details);
   return parsed.success
@@ -328,12 +386,20 @@ function parseJiraIncludedCounts(
   if (!content) return undefined;
   const counts: Record<string, number> = {};
   for (const line of content.split(/\r?\n/)) {
-    const match = /^(Comments|statuses|components|versions):\s+(\d+)\s*$/i.exec(
-      line.trim(),
-    );
+    const match =
+      /^(Comments|statuses|components|versions|issueTypes|fields|priorities|resolutions|Worklogs|Attachments|Remote links|Changelog entries|Edit fields):\s+(\d+)\s*$/i.exec(
+        line.trim(),
+      );
     if (!match) continue;
     const key = match[1].toLowerCase();
-    counts[key === "comments" ? "comments" : key] = Number(match[2]);
+    const normalizedKey = key
+      .replace("remote links", "remoteLinks")
+      .replace("changelog entries", "changelog")
+      .replace("edit fields", "editmetaFields")
+      .replace("issuetypes", "issueTypes");
+    counts[normalizedKey === "comments" ? "comments" : normalizedKey] = Number(
+      match[2],
+    );
   }
   return Object.keys(counts).length > 0 ? counts : undefined;
 }
@@ -365,6 +431,15 @@ function jiraIncludedCounts(
     "statuses",
     "components",
     "versions",
+    "issueTypes",
+    "fields",
+    "priorities",
+    "resolutions",
+    "worklogs",
+    "changelog",
+    "remoteLinks",
+    "attachments",
+    "editmetaFields",
   ] as const) {
     const count = numberField(record[key]);
     if (count !== undefined) counts[key] = count;

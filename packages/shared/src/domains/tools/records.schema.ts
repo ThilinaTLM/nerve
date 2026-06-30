@@ -27,6 +27,7 @@ export const coreToolNameSchema = z.enum([
   "todos_get",
   "web_search",
   "web_fetch",
+  "jira_search_users",
   "jira_search_issues",
   "jira_get_issue",
   "jira_get_project",

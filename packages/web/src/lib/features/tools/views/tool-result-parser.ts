@@ -596,6 +596,7 @@ export function parseToolView(
       };
     }
 
+    case "jira_search_users":
     case "jira_search_issues":
     case "jira_get_issue":
     case "jira_get_project":

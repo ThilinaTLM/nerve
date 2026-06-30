@@ -14,6 +14,7 @@ const toolRisks: Record<ToolName, ToolRisk> = {
   todos_get: "read",
   web_search: "network",
   web_fetch: "network",
+  jira_search_users: "network",
   jira_search_issues: "network",
   jira_get_issue: "network",
   jira_get_project: "network",

@@ -12,6 +12,7 @@ import {
   executeJiraGetIssue,
   executeJiraGetProject,
   executeJiraSearchIssues,
+  executeJiraSearchUsers,
   executeJiraTransitionIssue,
   executeJiraUpdateIssue,
 } from "./jira/jira.js";
@@ -46,6 +47,8 @@ export async function executeTool(
       return executeWebSearch(args, context);
     case "web_fetch":
       return executeWebFetch(args, context);
+    case "jira_search_users":
+      return executeJiraSearchUsers(args, context);
     case "jira_search_issues":
       return executeJiraSearchIssues(args, context);
     case "jira_get_issue":

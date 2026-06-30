@@ -189,13 +189,41 @@ describe("executeTool dispatch", () => {
           statusText: "Created",
         });
       }
+      if (url.pathname.endsWith("/user/assignable/search")) {
+        return new Response(
+          JSON.stringify([
+            {
+              accountId: "abc-123",
+              displayName: "Jane Doe",
+              emailAddress: "jane@example.com",
+              active: true,
+            },
+          ]),
+          { status: 200, statusText: "OK" },
+        );
+      }
       if (
         url.pathname.endsWith("/issue/PROJ-1/transitions") &&
         init?.method === "GET"
       ) {
         return new Response(
           JSON.stringify({
-            transitions: [{ id: "31", name: "Done", to: { name: "Done" } }],
+            transitions: [
+              {
+                id: "31",
+                name: "Done",
+                to: { name: "Done" },
+                fields: {
+                  resolution: {
+                    id: "resolution",
+                    name: "Resolution",
+                    required: true,
+                    schema: { type: "resolution" },
+                    allowedValues: [{ name: "Fixed" }],
+                  },
+                },
+              },
+            ],
           }),
           { status: 200, statusText: "OK" },
         );
@@ -272,12 +300,36 @@ describe("executeTool dispatch", () => {
       assert.ok(artifact?.path);
       assert.match(await readFile(artifact.path, "utf8"), /PROJ-1/);
 
+      const users = await executeTool(
+        "jira_search_users",
+        { query: "Jane", project_key: "PROJ", max_results: 5 },
+        context,
+      );
+      assert.match(users.content ?? "", /abc-123/);
+
       const issue = await executeTool(
         "jira_get_issue",
         { issue_key: "PROJ-1" },
         context,
       );
       assert.match(issue.content ?? "", /PROJ-1/);
+
+      const dryRunCreate = await executeTool(
+        "jira_create_issue",
+        {
+          issue_type: "Task",
+          summary: "Preview only",
+          assignee_query: "Jane Doe",
+          dry_run: true,
+        },
+        context,
+      );
+      assert.match(dryRunCreate.content ?? "", /Dry run/);
+      assert.equal(
+        (dryRunCreate.details as { resolvedAssignee?: { accountId?: string } })
+          .resolvedAssignee?.accountId,
+        "abc-123",
+      );
 
       const created = await executeTool(
         "jira_create_issue",
@@ -296,6 +348,22 @@ describe("executeTool dispatch", () => {
         context,
       );
       assert.match(comment.content ?? "", /Added comment/);
+
+      const transitionPreview = await executeTool(
+        "jira_transition_issue",
+        {
+          issue_key: "PROJ-1",
+          transition: "Done",
+          resolution: "Fixed",
+          dry_run: true,
+        },
+        context,
+      );
+      assert.match(transitionPreview.content ?? "", /Dry run/);
+      assert.equal(
+        (transitionPreview.details as { fieldCount?: number }).fieldCount,
+        1,
+      );
 
       const transitioned = await executeTool(
         "jira_transition_issue",

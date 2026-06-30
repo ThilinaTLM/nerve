@@ -2,10 +2,12 @@ import type {
   ExploreReportPayload,
   FileEntry,
   GrepMatch,
+  JiraFieldSummaryPayload,
   JiraIncludedCountsPayload,
   JiraIssueSummaryPayload,
   JiraProjectSummaryPayload,
   JiraTransitionSummaryPayload,
+  JiraUserSummaryPayload,
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
   TaskLogEvent,
@@ -21,6 +23,7 @@ export type ToolOutputInfo = {
 };
 
 export type JiraToolAction =
+  | "search_users"
   | "search_issues"
   | "get_issue"
   | "get_project"
@@ -254,6 +257,9 @@ export type ToolView =
       displayedIssueCount?: number;
       total?: number;
       nextPageToken?: string;
+      users: JiraUserSummaryPayload[];
+      userCount?: number;
+      displayedUserCount?: number;
       project?: JiraProjectSummaryPayload;
       includedCounts?: JiraIncludedCountsPayload;
       updatedFields?: string[];
@@ -261,6 +267,9 @@ export type ToolView =
       commentId?: string;
       transition?: JiraTransitionSummaryPayload;
       transitions: JiraTransitionSummaryPayload[];
+      fields: JiraFieldSummaryPayload[];
+      fieldCount?: number;
+      displayedFieldCount?: number;
       transitionCount?: number;
       displayedTransitionCount?: number;
       outputLimits?: ToolOutputLimitsPayload;

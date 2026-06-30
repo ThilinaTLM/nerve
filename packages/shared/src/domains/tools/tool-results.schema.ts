@@ -349,6 +349,30 @@ export type JiraTransitionSummaryPayload = z.infer<
   typeof jiraTransitionSummarySchema
 >;
 
+export const jiraUserSummarySchema = z
+  .object({
+    accountId: z.string().min(1),
+    displayName: jiraTextDisplaySchema.optional(),
+    emailAddress: jiraTextDisplaySchema.optional(),
+    active: z.boolean().optional(),
+    accountType: jiraTextDisplaySchema.optional(),
+  })
+  .passthrough();
+export type JiraUserSummaryPayload = z.infer<typeof jiraUserSummarySchema>;
+
+export const jiraFieldSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    name: jiraTextDisplaySchema.optional(),
+    key: jiraTextDisplaySchema.optional(),
+    required: z.boolean().optional(),
+    type: jiraTextDisplaySchema.optional(),
+    custom: z.boolean().optional(),
+    allowedValues: z.array(jiraTextDisplaySchema).optional(),
+  })
+  .passthrough();
+export type JiraFieldSummaryPayload = z.infer<typeof jiraFieldSummarySchema>;
+
 export const jiraIncludedCountsSchema = z
   .object({
     comments: z.number().int().nonnegative().optional(),
@@ -356,6 +380,15 @@ export const jiraIncludedCountsSchema = z
     statuses: z.number().int().nonnegative().optional(),
     components: z.number().int().nonnegative().optional(),
     versions: z.number().int().nonnegative().optional(),
+    issueTypes: z.number().int().nonnegative().optional(),
+    fields: z.number().int().nonnegative().optional(),
+    priorities: z.number().int().nonnegative().optional(),
+    resolutions: z.number().int().nonnegative().optional(),
+    worklogs: z.number().int().nonnegative().optional(),
+    changelog: z.number().int().nonnegative().optional(),
+    remoteLinks: z.number().int().nonnegative().optional(),
+    attachments: z.number().int().nonnegative().optional(),
+    editmetaFields: z.number().int().nonnegative().optional(),
   })
   .passthrough();
 export type JiraIncludedCountsPayload = z.infer<
@@ -370,6 +403,9 @@ export const jiraResultDetailsSchema = z
     total: z.number().int().nonnegative().optional(),
     nextPageToken: z.string().optional(),
     issues: z.array(jiraIssueSummarySchema).optional(),
+    users: z.array(jiraUserSummarySchema).optional(),
+    userCount: z.number().int().nonnegative().optional(),
+    displayedUserCount: z.number().int().nonnegative().optional(),
     issue: jiraIssueSummarySchema.optional(),
     issueKey: z.string().optional(),
     projectKey: z.string().optional(),
@@ -384,6 +420,13 @@ export const jiraResultDetailsSchema = z
     commentId: z.string().optional(),
     transition: jiraTransitionSummarySchema.optional(),
     transitions: z.array(jiraTransitionSummarySchema).optional(),
+    fields: z.array(jiraFieldSummarySchema).optional(),
+    fieldCount: z.number().int().nonnegative().optional(),
+    displayedFieldCount: z.number().int().nonnegative().optional(),
+    payload: z.unknown().optional(),
+    dryRun: z.boolean().optional(),
+    resolvedAssignee: jiraUserSummarySchema.optional(),
+    comment: z.unknown().optional(),
     transitionCount: z.number().int().nonnegative().optional(),
     displayedTransitionCount: z.number().int().nonnegative().optional(),
   })

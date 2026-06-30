@@ -34,9 +34,10 @@
 
   const jiraProviderId = "jira";
   const jiraTools: ToolSummary[] = [
+    { name: "jira_search_users", description: "Find users and accountIds for assignments." },
     { name: "jira_search_issues", description: "Search issues with JQL and saved raw JSON." },
-    { name: "jira_get_issue", description: "Fetch an issue with optional comments and transitions." },
-    { name: "jira_get_project", description: "Fetch project metadata for issue creation and workflow context." },
+    { name: "jira_get_issue", description: "Fetch issues with comments, transitions, worklogs, changelog, links, and metadata." },
+    { name: "jira_get_project", description: "Fetch project, issue type, create-field, priority, resolution, and field metadata." },
     { name: "jira_create_issue", description: "Create tasks, stories, bugs, epics, or subtasks." },
     { name: "jira_update_issue", description: "Update common issue fields and raw Jira fields." },
     { name: "jira_add_comment", description: "Add comments from plain text or ADF." },

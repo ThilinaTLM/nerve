@@ -51,6 +51,7 @@ describe("agent tool definitions", () => {
         "todos_get",
         "web_search",
         "web_fetch",
+        "jira_search_users",
         "jira_search_issues",
         "jira_get_issue",
         "jira_get_project",
@@ -210,6 +211,7 @@ describe("agent tool definitions", () => {
         jiraEnabled: true,
       }).filter((name) => name.startsWith("jira_")),
       [
+        "jira_search_users",
         "jira_search_issues",
         "jira_get_issue",
         "jira_get_project",
@@ -224,7 +226,12 @@ describe("agent tool definitions", () => {
         { ...agent("autonomous"), mode: "planning" },
         { jiraEnabled: true },
       ).filter((name) => name.startsWith("jira_")),
-      ["jira_search_issues", "jira_get_issue", "jira_get_project"],
+      [
+        "jira_search_users",
+        "jira_search_issues",
+        "jira_get_issue",
+        "jira_get_project",
+      ],
     );
     assert.equal(
       activeToolNamesForAgent(agent("read_only"), { jiraEnabled: true }).some(
