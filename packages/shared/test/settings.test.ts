@@ -21,6 +21,7 @@ describe("settings schema", () => {
     });
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
+    assert.equal(settings.tools.jira.enabled, false);
     assert.equal(settings.compaction.auto, true);
   });
 
@@ -40,6 +41,7 @@ describe("settings schema", () => {
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
+    assert.equal(settings.tools.jira.enabled, false);
   });
 
   it("strips legacy compaction token fields while backfilling auto default", () => {
@@ -54,13 +56,31 @@ describe("settings schema", () => {
     assert.deepEqual(settings.compaction, { auto: true });
   });
 
+  it("backfills Jira defaults when older configs only have disabled tools", () => {
+    const settings = settingsSchema.parse({
+      ...defaultSettings,
+      tools: { disabled: ["web_search"] },
+    });
+
+    assert.deepEqual(settings.tools.disabled, ["web_search"]);
+    assert.deepEqual(settings.tools.jira, { enabled: false });
+  });
+
   it("accepts runtime and tool update settings", () => {
     const parsed = updateSettingsRequestSchema.parse({
       runtime: {
         pythonExecutablePath: "/usr/bin/python3",
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
       },
-      tools: { disabled: ["web_search", "web_fetch", "python"] },
+      tools: {
+        disabled: ["web_search", "web_fetch", "python"],
+        jira: {
+          enabled: true,
+          siteUrl: "https://example.atlassian.net",
+          email: "user@example.com",
+          defaultProjectKey: "PROJ",
+        },
+      },
     });
     assert.equal(parsed.runtime?.pythonExecutablePath, "/usr/bin/python3");
     assert.equal(
@@ -72,11 +92,19 @@ describe("settings schema", () => {
       "web_fetch",
       "python",
     ]);
+    assert.equal(parsed.tools?.jira?.enabled, true);
+    assert.equal(parsed.tools?.jira?.siteUrl, "https://example.atlassian.net");
+    assert.equal(parsed.tools?.jira?.email, "user@example.com");
+    assert.equal(parsed.tools?.jira?.defaultProjectKey, "PROJ");
     const cleared = updateSettingsRequestSchema.parse({
       runtime: { pythonExecutablePath: null, shellPath: null },
+      tools: { jira: { siteUrl: null, email: null, defaultProjectKey: null } },
     });
     assert.equal(cleared.runtime?.pythonExecutablePath, null);
     assert.equal(cleared.runtime?.shellPath, null);
+    assert.equal(cleared.tools?.jira?.siteUrl, null);
+    assert.equal(cleared.tools?.jira?.email, null);
+    assert.equal(cleared.tools?.jira?.defaultProjectKey, null);
   });
 
   it("accepts python runtime status", () => {

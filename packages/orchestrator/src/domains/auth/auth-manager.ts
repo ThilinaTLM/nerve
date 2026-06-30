@@ -35,6 +35,7 @@ export function providerOAuthSecretName(provider: string): string {
 
 function displayNameForProvider(provider: string): string {
   const known: Record<string, string> = {
+    jira: "Jira",
     tavily: "Tavily",
   };
   return known[provider] ?? provider;
@@ -47,6 +48,7 @@ export function providerEnvVarName(provider: string): string {
     groq: "GROQ_API_KEY",
     openai: "OPENAI_API_KEY",
     openrouter: "OPENROUTER_API_KEY",
+    jira: "JIRA_API_TOKEN",
     tavily: "TAVILY_API_KEY",
     xai: "XAI_API_KEY",
   };
@@ -161,6 +163,7 @@ export class AuthManager {
       if (model.provider !== "nerve-faux") providers.add(model.provider);
     }
     providers.add("tavily");
+    providers.add("jira");
     for (const provider of oauthProviders.keys()) {
       if (provider === "openai-codex" || provider === "anthropic") {
         providers.add(provider);

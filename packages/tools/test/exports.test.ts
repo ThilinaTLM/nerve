@@ -33,5 +33,12 @@ describe("public source exports", () => {
     assert.equal(toolRiskForName("todos_get"), "read");
     assert.equal(toolRiskForName("web_search"), "network");
     assert.equal(toolRiskForName("web_fetch"), "network");
+    assert.equal(toolRiskForName("jira_search_issues"), "network");
+    assert.equal(toolRiskForName("jira_get_issue"), "network");
+    assert.equal(toolRiskForName("jira_get_project"), "network");
+    assert.equal(toolRiskForName("jira_create_issue"), "command");
+    assert.equal(toolRiskForName("jira_update_issue"), "command");
+    assert.equal(toolRiskForName("jira_add_comment"), "command");
+    assert.equal(toolRiskForName("jira_transition_issue"), "command");
   });
 });

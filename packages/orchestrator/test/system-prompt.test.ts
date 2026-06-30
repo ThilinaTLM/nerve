@@ -315,6 +315,44 @@ describe("Nerve system prompt", () => {
     assert.doesNotMatch(prompt, /python/);
   });
 
+  it("includes Jira tools and guideline only when Jira is enabled", () => {
+    const agent = testAgent();
+    const disabledTools = activeToolNamesForAgent(agent);
+    const disabledPrompt = composeAgentSystemPrompt(
+      agent,
+      disabledTools,
+      toolPromptMetadata(disabledTools),
+      { contextFiles: [], skills: [] },
+    );
+    assert.doesNotMatch(disabledPrompt, /jira_search_issues/);
+    assert.doesNotMatch(disabledPrompt, /Use Jira tools for ticket work/);
+
+    const enabledTools = activeToolNamesForAgent(agent, { jiraEnabled: true });
+    const enabledPrompt = composeAgentSystemPrompt(
+      agent,
+      enabledTools,
+      toolPromptMetadata(enabledTools),
+      { contextFiles: [], skills: [] },
+    );
+    assert.match(enabledPrompt, /jira_search_issues/);
+    assert.match(enabledPrompt, /jira_transition_issue/);
+    assert.match(enabledPrompt, /Use Jira tools for ticket work/);
+  });
+
+  it("omits Jira mutation tools from planning prompts", () => {
+    const agent = testAgent({ mode: "planning" });
+    const tools = activeToolNamesForAgent(agent, { jiraEnabled: true });
+    const prompt = composeAgentSystemPrompt(
+      agent,
+      tools,
+      toolPromptMetadata(tools),
+      { contextFiles: [], skills: [] },
+    );
+    assert.match(prompt, /jira_search_issues/);
+    assert.doesNotMatch(prompt, /jira_create_issue/);
+    assert.doesNotMatch(prompt, /jira_transition_issue/);
+  });
+
   it("does not expose orchestration metadata", () => {
     const agent = testAgent();
     const activeToolNames = activeToolNamesForAgent(agent);

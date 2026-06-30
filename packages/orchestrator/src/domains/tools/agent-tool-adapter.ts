@@ -65,6 +65,7 @@ export function activeToolNamesForAgent(
   options: {
     pythonAvailable?: boolean;
     disabledToolNames?: readonly UserConfigurableToolName[];
+    jiraEnabled?: boolean;
   } = {},
 ): ToolName[] {
   const finish = (tools: ToolName[]) =>
@@ -91,6 +92,19 @@ export function activeToolNamesForAgent(
   }
   const pythonTools: ToolName[] =
     options.pythonAvailable === true ? ["python"] : [];
+  const jiraReadTools: ToolName[] =
+    options.jiraEnabled === true
+      ? ["jira_search_issues", "jira_get_issue", "jira_get_project"]
+      : [];
+  const jiraMutationTools: ToolName[] =
+    options.jiraEnabled === true
+      ? [
+          "jira_create_issue",
+          "jira_update_issue",
+          "jira_add_comment",
+          "jira_transition_issue",
+        ]
+      : [];
   if (agent.mode === "planning") {
     return finish([
       "read",
@@ -110,6 +124,7 @@ export function activeToolNamesForAgent(
       "todos_get",
       "web_search",
       "web_fetch",
+      ...jiraReadTools,
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",
@@ -136,6 +151,8 @@ export function activeToolNamesForAgent(
     "todos_get",
     "web_search",
     "web_fetch",
+    ...jiraReadTools,
+    ...jiraMutationTools,
     "plan_mode_enter",
   ]);
 }

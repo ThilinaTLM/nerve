@@ -117,6 +117,7 @@ export class AgentRunner {
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
       disabledToolNames: this.deps.storage.settings.tools.disabled,
+      jiraEnabled: this.deps.storage.settings.tools.jira.enabled,
     });
   }
 

@@ -1,6 +1,7 @@
 import type { CoreToolName } from "@nervekit/shared";
 import { filesystemToolDefinitions } from "./core/filesystem.tools.js";
 import { interactionToolDefinitions } from "./core/interaction.tools.js";
+import { jiraToolDefinitions } from "./core/jira.tools.js";
 import { pythonToolDefinitions } from "./core/python.tools.js";
 import { shellToolDefinitions } from "./core/shell.tools.js";
 import { webToolDefinitions } from "./core/web.tools.js";
@@ -11,6 +12,7 @@ import type { CoreToolDefinition } from "./types.js";
 
 export * from "./core/filesystem.tools.js";
 export * from "./core/interaction.tools.js";
+export * from "./core/jira.tools.js";
 export * from "./core/python.tools.js";
 export * from "./core/shell.tools.js";
 export * from "./core/web.tools.js";
@@ -31,6 +33,7 @@ export const coreToolDefinitions: CoreToolDefinition[] = [
   ...remainingFilesystemToolDefinitions,
   ...interactionToolDefinitions,
   ...webToolDefinitions,
+  ...jiraToolDefinitions,
 ];
 
 export const orchestrationToolDefinitions: CoreToolDefinition[] = [

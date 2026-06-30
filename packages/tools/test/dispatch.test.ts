@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { describe, it } from "node:test";
 import type { ToolName } from "@nervekit/shared";
@@ -137,6 +139,192 @@ describe("executeTool dispatch", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it("dispatches Jira tools with configured auth and writes search artifacts", async () => {
+    const project = await createTempProject();
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ url: URL; init?: RequestInit }> = [];
+    globalThis.fetch = (async (input, init) => {
+      const url = new URL(String(input));
+      calls.push({ url, init });
+      const auth =
+        init?.headers && (init.headers as Record<string, string>).Authorization;
+      assert.match(String(auth), /^Basic /);
+      assert.equal(
+        Buffer.from(String(auth).replace(/^Basic\s+/, ""), "base64").toString(
+          "utf8",
+        ),
+        "user@example.com:test-token",
+      );
+      assert.doesNotMatch(JSON.stringify(init), /test-token/);
+
+      if (url.pathname.endsWith("/search/jql")) {
+        assert.equal(init?.method, "POST");
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        assert.equal(body.jql, "project = PROJ ORDER BY updated DESC");
+        return new Response(
+          JSON.stringify({
+            issues: [
+              {
+                key: "PROJ-1",
+                fields: {
+                  summary: "One",
+                  status: { name: "To Do" },
+                  issuetype: { name: "Task" },
+                },
+              },
+            ],
+            nextPageToken: "next-token",
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      if (
+        url.pathname.endsWith("/issue/PROJ-1/comment") &&
+        init?.method === "POST"
+      ) {
+        return new Response(JSON.stringify({ id: "10001" }), {
+          status: 201,
+          statusText: "Created",
+        });
+      }
+      if (
+        url.pathname.endsWith("/issue/PROJ-1/transitions") &&
+        init?.method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            transitions: [{ id: "31", name: "Done", to: { name: "Done" } }],
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      if (
+        url.pathname.endsWith("/issue/PROJ-1/transitions") &&
+        init?.method === "POST"
+      ) {
+        const body = JSON.parse(String(init?.body)) as {
+          transition?: { id?: string };
+        };
+        assert.equal(body.transition?.id, "31");
+        return new Response(null, { status: 204, statusText: "No Content" });
+      }
+      if (url.pathname.endsWith("/issue/PROJ-1")) {
+        return new Response(
+          JSON.stringify({
+            key: "PROJ-1",
+            fields: {
+              summary: "One",
+              status: { name: "To Do" },
+              issuetype: { name: "Task" },
+            },
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      if (url.pathname.endsWith("/issue") && init?.method === "POST") {
+        const body = JSON.parse(String(init?.body)) as {
+          fields?: Record<string, unknown>;
+        };
+        assert.equal(
+          (body.fields?.project as { key?: string } | undefined)?.key,
+          "PROJ",
+        );
+        return new Response(JSON.stringify({ id: "10000", key: "PROJ-2" }), {
+          status: 201,
+          statusText: "Created",
+        });
+      }
+      throw new Error(
+        `Unexpected Jira fetch: ${init?.method ?? "GET"} ${url.pathname}`,
+      );
+    }) as typeof fetch;
+
+    const context = {
+      cwd: project.root,
+      dataDir: project.root,
+      getApiKey: async (provider: string) =>
+        provider === "jira" ? "test-token" : undefined,
+      getProviderConfig: async (provider: string) =>
+        provider === "jira"
+          ? {
+              enabled: true,
+              siteUrl: "https://example.atlassian.net/",
+              email: "user@example.com",
+              defaultProjectKey: "PROJ",
+            }
+          : undefined,
+    };
+
+    try {
+      const search = await executeTool(
+        "jira_search_issues",
+        { jql: "project = PROJ ORDER BY updated DESC", max_results: 1 },
+        context,
+      );
+      assert.match(search.content ?? "", /PROJ-1/);
+      const artifact = (
+        search.details as {
+          outputLimits?: { artifacts?: Array<{ path: string }> };
+        }
+      ).outputLimits?.artifacts?.[0];
+      assert.ok(artifact?.path);
+      assert.match(await readFile(artifact.path, "utf8"), /PROJ-1/);
+
+      const issue = await executeTool(
+        "jira_get_issue",
+        { issue_key: "PROJ-1" },
+        context,
+      );
+      assert.match(issue.content ?? "", /PROJ-1/);
+
+      const created = await executeTool(
+        "jira_create_issue",
+        {
+          issue_type: "Task",
+          summary: "Created by test",
+          description: "Hello",
+        },
+        context,
+      );
+      assert.match(created.content ?? "", /PROJ-2/);
+
+      const comment = await executeTool(
+        "jira_add_comment",
+        { issue_key: "PROJ-1", body: "Looks good" },
+        context,
+      );
+      assert.match(comment.content ?? "", /Added comment/);
+
+      const transitioned = await executeTool(
+        "jira_transition_issue",
+        { issue_key: "PROJ-1", transition: "Done" },
+        context,
+      );
+      assert.match(transitioned.content ?? "", /Transitioned/);
+      assert.ok(calls.length >= 6);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("rejects Jira tools when Jira is not configured", async () => {
+    await assert.rejects(
+      executeTool(
+        "jira_search_issues",
+        { jql: "project = PROJ" },
+        {
+          cwd: process.cwd(),
+          getApiKey: async () => undefined,
+          getProviderConfig: async () => ({ enabled: false }),
+        },
+      ),
+      (error: unknown) =>
+        error instanceof Error &&
+        "code" in error &&
+        (error as { code?: string }).code === "JIRA_NOT_CONFIGURED",
+    );
   });
 
   it("rejects web_search when the stored Tavily key is missing", async () => {

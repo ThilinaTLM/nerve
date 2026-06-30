@@ -27,6 +27,13 @@ export const coreToolNameSchema = z.enum([
   "todos_get",
   "web_search",
   "web_fetch",
+  "jira_search_issues",
+  "jira_get_issue",
+  "jira_get_project",
+  "jira_create_issue",
+  "jira_update_issue",
+  "jira_add_comment",
+  "jira_transition_issue",
 ]);
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 

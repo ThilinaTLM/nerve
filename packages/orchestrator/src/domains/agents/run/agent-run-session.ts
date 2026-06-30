@@ -107,6 +107,7 @@ export async function runAgentPromptSession(
       const currentActiveToolNames = activeToolNamesForAgent(currentAgent, {
         pythonAvailable: activeToolNames.includes("python"),
         disabledToolNames: this.deps.storage.settings.tools.disabled,
+        jiraEnabled: this.deps.storage.settings.tools.jira.enabled,
       });
       return composeAgentSystemPrompt(
         currentAgent,
@@ -778,7 +779,6 @@ async function expandExecutablePromptBlocks(
 ): Promise<PromptRequest> {
   const blocks = findExecutableCommandBlocks(request.text);
   if (blocks.length === 0) return request;
-
   const replacements = [];
   for (const block of blocks) {
     if (signal.aborted) throw new Error("Command execution aborted.");

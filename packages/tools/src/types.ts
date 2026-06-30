@@ -18,6 +18,7 @@ export type ToolExecutionContext = {
   dataDir?: string;
   shellPath?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
+  getProviderConfig?: (provider: string) => Promise<unknown>;
   pythonRuntime?: PythonRuntime;
   pythonPolicy?: {
     allowNetwork: boolean;
@@ -96,3 +97,5 @@ export type WebFetchToolArgs = {
   url?: unknown;
   raw?: unknown;
 };
+
+export type JiraToolArgs = Record<string, unknown>;

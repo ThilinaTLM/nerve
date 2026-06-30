@@ -105,6 +105,24 @@ export async function writeSettings(
         ...(patch.runtime.shellPath === null ? { shellPath: undefined } : {}),
       }
     : undefined;
+  const jiraPatch = patch.tools?.jira
+    ? {
+        ...patch.tools.jira,
+        ...(patch.tools.jira.siteUrl === null ? { siteUrl: undefined } : {}),
+        ...(patch.tools.jira.email === null ? { email: undefined } : {}),
+        ...(patch.tools.jira.defaultProjectKey === null
+          ? { defaultProjectKey: undefined }
+          : {}),
+      }
+    : undefined;
+  const toolsPatch = patch.tools
+    ? {
+        ...patch.tools,
+        ...(jiraPatch
+          ? { jira: { ...storage.settings.tools.jira, ...jiraPatch } }
+          : {}),
+      }
+    : undefined;
   const next = settingsSchema.parse({
     ...storage.settings,
     ...patch,
@@ -127,7 +145,7 @@ export async function writeSettings(
     logging: { ...storage.settings.logging, ...(patch.logging ?? {}) },
     retry: { ...storage.settings.retry, ...(patch.retry ?? {}) },
     runtime: { ...storage.settings.runtime, ...(runtimePatch ?? {}) },
-    tools: { ...storage.settings.tools, ...(patch.tools ?? {}) },
+    tools: { ...storage.settings.tools, ...(toolsPatch ?? {}) },
   });
   await atomicWriteJson(storage.paths.configPath, next, 0o600);
   storage.settings = next;

@@ -76,6 +76,45 @@ describe("tool policy", () => {
     );
   });
 
+  it("classifies Jira tools with planning-mode behavior", () => {
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "jira_search_issues",
+        { jql: "project = PROJ" },
+        { dataDir: "/tmp/nerve" },
+      ).risk,
+      "network",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "jira_create_issue",
+        { issue_type: "Task", summary: "Test" },
+        { dataDir: "/tmp/nerve" },
+      ).risk,
+      "command",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous", "planning"),
+        "jira_get_issue",
+        { issue_key: "PROJ-1" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous", "planning"),
+        "jira_transition_issue",
+        { issue_key: "PROJ-1", transition: "Done" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "deny",
+    );
+  });
+
   it("handles python as a command tool with planning-mode guardrails", () => {
     assert.equal(
       evaluateToolPolicy(

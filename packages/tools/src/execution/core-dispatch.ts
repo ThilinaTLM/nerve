@@ -6,6 +6,15 @@ import { executeLs } from "./filesystem/list.js";
 import { executeRead } from "./filesystem/read.js";
 import { executeGrep } from "./filesystem/search.js";
 import { executeWrite } from "./filesystem/write.js";
+import {
+  executeJiraAddComment,
+  executeJiraCreateIssue,
+  executeJiraGetIssue,
+  executeJiraGetProject,
+  executeJiraSearchIssues,
+  executeJiraTransitionIssue,
+  executeJiraUpdateIssue,
+} from "./jira/jira.js";
 import { executePython } from "./python/python.js";
 import { executeBash } from "./shell/bash.js";
 import { executeWebFetch } from "./web/web-fetch.js";
@@ -37,6 +46,20 @@ export async function executeTool(
       return executeWebSearch(args, context);
     case "web_fetch":
       return executeWebFetch(args, context);
+    case "jira_search_issues":
+      return executeJiraSearchIssues(args, context);
+    case "jira_get_issue":
+      return executeJiraGetIssue(args, context);
+    case "jira_get_project":
+      return executeJiraGetProject(args, context);
+    case "jira_create_issue":
+      return executeJiraCreateIssue(args, context);
+    case "jira_update_issue":
+      return executeJiraUpdateIssue(args, context);
+    case "jira_add_comment":
+      return executeJiraAddComment(args, context);
+    case "jira_transition_issue":
+      return executeJiraTransitionIssue(args, context);
     case "ask_user":
       throw new Error(
         "ask_user is executed by the orchestrator user-interaction service.",

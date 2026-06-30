@@ -22,7 +22,7 @@
   const customIds = $derived(
     new Set(authState.customProviders.map((provider) => provider.id)),
   );
-  const reserved = $derived(new Set(["tavily", ...customIds]));
+  const reserved = $derived(new Set(["tavily", "jira", ...customIds]));
 
   const apiKeys = $derived(
     authProviders

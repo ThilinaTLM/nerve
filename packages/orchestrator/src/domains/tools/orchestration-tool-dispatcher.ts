@@ -163,6 +163,10 @@ export class OrchestrationToolDispatcher {
           dataDir: this.deps.storage.paths.home,
           shellPath: this.deps.storage.settings.runtime.shellPath,
           getApiKey: this.deps.getApiKey,
+          getProviderConfig: async (provider) =>
+            provider === "jira"
+              ? this.deps.storage.settings.tools.jira
+              : undefined,
           onUpdate: (update) =>
             this.publishToolExecutionUpdate(toolCall, update, options.runId),
         };

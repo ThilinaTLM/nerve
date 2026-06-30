@@ -51,6 +51,13 @@ describe("agent tool definitions", () => {
         "todos_get",
         "web_search",
         "web_fetch",
+        "jira_search_issues",
+        "jira_get_issue",
+        "jira_get_project",
+        "jira_create_issue",
+        "jira_update_issue",
+        "jira_add_comment",
+        "jira_transition_issue",
       ],
     );
 
@@ -188,6 +195,42 @@ describe("agent tool definitions", () => {
         "plan_mode_present",
         "plan_mode_force_exit",
       ],
+    );
+  });
+
+  it("gates Jira active tools behind the Jira module setting", () => {
+    const defaultCoding = activeToolNamesForAgent(agent("autonomous"));
+    assert.equal(
+      defaultCoding.some((name) => name.startsWith("jira_")),
+      false,
+    );
+
+    assert.deepEqual(
+      activeToolNamesForAgent(agent("autonomous"), {
+        jiraEnabled: true,
+      }).filter((name) => name.startsWith("jira_")),
+      [
+        "jira_search_issues",
+        "jira_get_issue",
+        "jira_get_project",
+        "jira_create_issue",
+        "jira_update_issue",
+        "jira_add_comment",
+        "jira_transition_issue",
+      ],
+    );
+    assert.deepEqual(
+      activeToolNamesForAgent(
+        { ...agent("autonomous"), mode: "planning" },
+        { jiraEnabled: true },
+      ).filter((name) => name.startsWith("jira_")),
+      ["jira_search_issues", "jira_get_issue", "jira_get_project"],
+    );
+    assert.equal(
+      activeToolNamesForAgent(agent("read_only"), { jiraEnabled: true }).some(
+        (name) => name.startsWith("jira_"),
+      ),
+      false,
     );
   });
 

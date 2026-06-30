@@ -28,8 +28,16 @@ const runtimeSettingsSchema = z.object({
   shellPath: z.string().trim().min(1).optional(),
 });
 
+export const jiraToolSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  siteUrl: z.string().trim().url().optional(),
+  email: z.string().trim().email().optional(),
+  defaultProjectKey: z.string().trim().min(1).optional(),
+});
+
 const toolSettingsSchema = z.object({
   disabled: z.array(userConfigurableToolNameSchema).default([]),
+  jira: jiraToolSettingsSchema.default({ enabled: false }),
 });
 
 export const settingsSchema = z.object({
@@ -73,7 +81,7 @@ export const settingsSchema = z.object({
     baseDelayMs: z.number().int().positive().default(2000),
   }),
   runtime: runtimeSettingsSchema.default({}),
-  tools: toolSettingsSchema.default({ disabled: [] }),
+  tools: toolSettingsSchema.default({ disabled: [], jira: { enabled: false } }),
   scopedModels: z.array(modelSelectionSchema).default([]),
 });
 export type Settings = z.infer<typeof settingsSchema>;
@@ -117,7 +125,7 @@ export const defaultSettings: Settings = {
     baseDelayMs: 2000,
   },
   runtime: {},
-  tools: { disabled: [] },
+  tools: { disabled: [], jira: { enabled: false } },
   scopedModels: [],
 };
 
@@ -187,6 +195,14 @@ export const updateSettingsRequestSchema = z.object({
   tools: z
     .object({
       disabled: z.array(userConfigurableToolNameSchema).optional(),
+      jira: z
+        .object({
+          enabled: z.boolean().optional(),
+          siteUrl: z.string().trim().url().nullable().optional(),
+          email: z.string().trim().email().nullable().optional(),
+          defaultProjectKey: z.string().trim().min(1).nullable().optional(),
+        })
+        .optional(),
     })
     .optional(),
   scopedModels: z.array(modelSelectionSchema).optional(),

@@ -35,7 +35,6 @@ describe("AuthManager", () => {
     assert.equal(await auth.credentialType("openai-codex"), "oauth");
     assert.equal(await auth.getApiKey("openai-codex"), "access-token");
   });
-
   it("treats API keys and OAuth credentials as mutually exclusive", async () => {
     const auth = new AuthManager(
       new EncryptedFileSecretProvider(await tempHome()),
@@ -50,5 +49,19 @@ describe("AuthManager", () => {
 
     assert.equal(await auth.credentialType("anthropic"), "api_key");
     assert.equal(await auth.getApiKey("anthropic"), "sk-ant-api-test");
+  });
+
+  it("includes Jira provider metadata", async () => {
+    const auth = new AuthManager(
+      new EncryptedFileSecretProvider(await tempHome()),
+    );
+    await auth.setApiKey("jira", "jira-token");
+
+    const providers = await auth.listProviderMetadata([]);
+    const jira = providers.find((provider) => provider.provider === "jira");
+    assert.ok(jira);
+    assert.equal(jira.displayName, "Jira");
+    assert.equal(jira.supportsApiKey, true);
+    assert.equal(jira.configured, true);
   });
 });
