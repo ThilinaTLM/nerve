@@ -428,8 +428,7 @@ export class OrchestrationToolDispatcher {
       optionalBoundedIntegerArg(args.limit, "limit", { min: 1, max: 500 }) ??
       20;
     const projectId = optionalStringArg(args.projectId) ?? toolCall.projectId;
-    const conversationId =
-      optionalStringArg(args.conversationId) ?? toolCall.conversationId;
+    const conversationId = optionalStringArg(args.conversationId);
     const agentId = optionalStringArg(args.agentId);
     const groupId = optionalStringArg(args.groupId);
     let tasks = this.deps.tasks

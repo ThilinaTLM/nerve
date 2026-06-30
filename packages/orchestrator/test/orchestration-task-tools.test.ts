@@ -21,6 +21,60 @@ after(async () => {
 });
 
 describe("orchestration task tools", () => {
+  it("lists active project tasks without a conversation by default", async () => {
+    const projectTask = task({
+      id: "task_project_scoped",
+      name: "web-dev",
+      status: "running",
+      conversationId: undefined,
+      agentId: undefined,
+    });
+    const otherProjectTask = task({
+      id: "task_other_project",
+      status: "running",
+      projectId: "proj_other",
+      conversationId: undefined,
+      agentId: undefined,
+    });
+    const dispatcher = await createDispatcher([projectTask, otherProjectTask]);
+
+    const result = (await dispatcher.execute(toolCall("task_list"), {
+      activeOnly: true,
+    })) as { tasks: TaskRecord[] };
+
+    assert.deepEqual(
+      result.tasks.map((item) => item.id),
+      [projectTask.id],
+    );
+  });
+
+  it("inspects active project tasks without a conversation by default", async () => {
+    const projectTask = task({
+      id: "task_project_scoped",
+      name: "web-dev",
+      status: "running",
+      conversationId: undefined,
+      agentId: undefined,
+    });
+    const otherProjectTask = task({
+      id: "task_other_project",
+      status: "running",
+      projectId: "proj_other",
+      conversationId: undefined,
+      agentId: undefined,
+    });
+    const dispatcher = await createDispatcher([projectTask, otherProjectTask]);
+
+    const result = (await dispatcher.execute(toolCall("task_status"), {
+      activeOnly: true,
+    })) as { tasks: Array<{ task: TaskRecord }> };
+
+    assert.deepEqual(
+      result.tasks.map((item) => item.task.id),
+      [projectTask.id],
+    );
+  });
+
   it("resolves restarted same-lineage task names to the latest generation", async () => {
     const rootTask = task({
       id: "task_root",

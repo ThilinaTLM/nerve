@@ -177,11 +177,7 @@ export function tasksInScope(
 ): TaskRecord[] {
   return this.deps.tasks
     .listTasks()
-    .filter(
-      (task) =>
-        task.projectId === toolCall.projectId &&
-        task.conversationId === toolCall.conversationId,
-    );
+    .filter((task) => task.projectId === toolCall.projectId);
 }
 
 export function defaultStatusTasks(
