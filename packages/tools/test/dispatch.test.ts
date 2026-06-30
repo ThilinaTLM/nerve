@@ -134,7 +134,12 @@ describe("executeTool dispatch", () => {
       assert.deepEqual(
         (result.details as { results?: Array<{ title: string }> } | undefined)
           ?.results?.[0],
-        { title: "Nerve", url: "https://example.test/nerve" },
+        {
+          title: "Nerve",
+          url: "https://example.test/nerve",
+          content: "A result snippet.",
+          score: 0.9,
+        },
       );
     } finally {
       globalThis.fetch = originalFetch;

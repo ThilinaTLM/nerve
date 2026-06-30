@@ -124,6 +124,7 @@ export function summarizeJiraIssue(
     summary: truncateField(stringField(fields.summary)),
     issueType: truncateField(nameOf(fields.issuetype)),
     status: truncateField(nameOf(fields.status)),
+    statusCategory: statusCategoryKeyOf(fields.status),
     assignee: truncateField(displayNameOf(fields.assignee)),
     priority: truncateField(nameOf(fields.priority)),
     updated: truncateField(stringField(fields.updated)),
@@ -160,6 +161,7 @@ export function summarizeJiraTransition(
     id,
     name: truncateField(stringField(record.name)),
     to: truncateField(nameOf(record.to) ?? stringField(record.to)),
+    toStatusCategory: statusCategoryKeyOf(record.to),
   }) as JiraTransitionSummaryPayload;
 }
 
@@ -270,6 +272,13 @@ export function nameOf(value: unknown): string | undefined {
   if (!value || typeof value !== "object") return undefined;
   const name = (value as Record<string, unknown>).name;
   return typeof name === "string" ? name : undefined;
+}
+
+function statusCategoryKeyOf(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const category = (value as Record<string, unknown>).statusCategory;
+  if (!category || typeof category !== "object") return undefined;
+  return stringField((category as Record<string, unknown>).key);
 }
 
 export function transitionLine(value: unknown): string {

@@ -26,6 +26,18 @@ function maxResultsArg(value: unknown): number {
   return Math.min(20, Math.max(1, parsed));
 }
 
+const SNIPPET_MAX_CHARS = 300;
+
+/** Bound the per-result snippet so structured details stay small. */
+function snippet(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length === 0) return undefined;
+  return normalized.length <= SNIPPET_MAX_CHARS
+    ? normalized
+    : `${normalized.slice(0, SNIPPET_MAX_CHARS - 1)}…`;
+}
+
 function timeoutSignal(
   signal: AbortSignal | undefined,
   milliseconds: number,
@@ -91,6 +103,8 @@ export async function executeWebSearch(
       results: results.map((result) => ({
         title: result.title,
         url: result.url,
+        content: snippet(result.content),
+        score: typeof result.score === "number" ? result.score : undefined,
       })),
     },
   };

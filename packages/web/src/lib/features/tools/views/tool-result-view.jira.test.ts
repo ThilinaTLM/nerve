@@ -148,6 +148,57 @@ describe("Jira tool views", () => {
     assert.deepEqual(metaText(update.meta), ["2 fields updated"]);
   });
 
+  it("surfaces authoritative status category on parsed issues", () => {
+    const tc = toolCall(
+      "jira_search_issues",
+      { jql: "project = NER" },
+      {
+        details: {
+          jql: "project = NER",
+          issueCount: 1,
+          issues: [
+            {
+              key: "NER-1",
+              issueType: "Bug",
+              status: "In Progress",
+              statusCategory: "indeterminate",
+              summary: "Broken",
+            },
+          ],
+        },
+      },
+    );
+    const view = parseToolView(tc);
+    assert.equal(view.kind, "jira");
+    if (view.kind !== "jira") return;
+    assert.equal(view.issues[0]?.statusCategory, "indeterminate");
+  });
+
+  it("parses dry-run create details and adds a preview chip", () => {
+    const tc = toolCall(
+      "jira_create_issue",
+      { project_key: "NER", issue_type: "Task", summary: "New" },
+      {
+        content: "Dry run: Jira issue would be created in NER.",
+        details: {
+          dryRun: true,
+          projectKey: "NER",
+          issueType: "Task",
+          summary: "New",
+          resolvedAssignee: { accountId: "acc-1", displayName: "Jane Doe" },
+        },
+      },
+    );
+    const view = parseToolView(tc);
+    assert.equal(view.kind, "jira");
+    if (view.kind !== "jira") return;
+    assert.equal(view.dryRun, true);
+    assert.equal(view.resolvedAssignee?.displayName, "Jane Doe");
+
+    const presentation = toolPresentation(view, tc);
+    assert.ok(metaText(presentation.meta).includes("preview"));
+  });
+
   it("offers details when inline Jira rows exceed the collapsed body", () => {
     const issues = Array.from({ length: 12 }, (_, index) => ({
       key: `NER-${index + 1}`,

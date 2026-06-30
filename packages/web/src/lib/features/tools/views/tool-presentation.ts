@@ -395,6 +395,7 @@ export function toolPresentation(
 
     case "jira": {
       const meta: MetaItem[] = [];
+      if (view.dryRun) meta.push({ text: "preview", tone: "info" });
       const countChip = (count: number | undefined, noun: string) => {
         if (count !== undefined) meta.push({ text: plural(count, noun) });
       };
@@ -489,6 +490,7 @@ export function toolPresentation(
           { text: plural(view.results.length, "result") },
           ...outputMeta(view),
         ],
+        detailsAction: detailsActionFor(view.results.length, "results"),
       };
 
     case "todos":

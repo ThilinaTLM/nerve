@@ -119,6 +119,8 @@ export function parseJiraView(
       (users.length > 0 ? users.length : undefined),
     project: parseJiraProjectSummary(details.project, projectKey),
     includedCounts,
+    dryRun: typeof details.dryRun === "boolean" ? details.dryRun : undefined,
+    resolvedAssignee: parseJiraUserSummary(details.resolvedAssignee),
     updatedFields,
     updatedFieldCount:
       numberField(details.updatedFieldCount) ??
@@ -237,6 +239,9 @@ function parseJiraIssueSummary(value: unknown) {
     summary: compactText(stringField(fields.summary)),
     issueType: compactText(jiraNameOf(fields.issuetype)),
     status: compactText(jiraNameOf(fields.status)),
+    statusCategory: compactText(
+      stringField(asRecord(asRecord(fields.status).statusCategory).key),
+    ),
     assignee: compactText(jiraDisplayNameOf(fields.assignee)),
     priority: compactText(jiraNameOf(fields.priority)),
     updated: compactText(stringField(fields.updated)),
@@ -268,6 +273,9 @@ function parseJiraTransitionSummary(value: unknown) {
     id,
     name: compactText(stringField(record.name)),
     to: compactText(jiraNameOf(record.to) ?? stringField(record.to)),
+    toStatusCategory: compactText(
+      stringField(asRecord(asRecord(record.to).statusCategory).key),
+    ),
   };
 }
 

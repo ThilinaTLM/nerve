@@ -293,7 +293,14 @@ export type GrepMatch = z.infer<typeof grepMatchSchema>;
 export const webSearchResultDetailsSchema = z.object({
   query: z.string(),
   answer: z.string().optional(),
-  results: z.array(z.object({ title: z.string(), url: z.string() })),
+  results: z.array(
+    z.object({
+      title: z.string(),
+      url: z.string(),
+      content: z.string().optional(),
+      score: z.number().optional(),
+    }),
+  ),
 });
 export type WebSearchResultDetails = z.infer<
   typeof webSearchResultDetailsSchema
@@ -318,6 +325,7 @@ export const jiraIssueSummarySchema = z
     summary: jiraTextDisplaySchema.optional(),
     issueType: jiraTextDisplaySchema.optional(),
     status: jiraTextDisplaySchema.optional(),
+    statusCategory: jiraTextDisplaySchema.optional(),
     assignee: jiraTextDisplaySchema.optional(),
     priority: jiraTextDisplaySchema.optional(),
     updated: jiraTextDisplaySchema.optional(),
@@ -343,6 +351,7 @@ export const jiraTransitionSummarySchema = z
     id: z.string().min(1),
     name: jiraTextDisplaySchema.optional(),
     to: jiraTextDisplaySchema.optional(),
+    toStatusCategory: jiraTextDisplaySchema.optional(),
   })
   .passthrough();
 export type JiraTransitionSummaryPayload = z.infer<

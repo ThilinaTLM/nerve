@@ -262,6 +262,8 @@ export type ToolView =
       displayedUserCount?: number;
       project?: JiraProjectSummaryPayload;
       includedCounts?: JiraIncludedCountsPayload;
+      dryRun?: boolean;
+      resolvedAssignee?: JiraUserSummaryPayload;
       updatedFields?: string[];
       updatedFieldCount?: number;
       commentId?: string;
@@ -279,7 +281,12 @@ export type ToolView =
       kind: "web_search";
       query?: string;
       answer?: string;
-      results: Array<{ title: string; url: string }>;
+      results: Array<{
+        title: string;
+        url: string;
+        content?: string;
+        score?: number;
+      }>;
       outputLimits?: ToolOutputLimitsPayload;
       outputArtifacts?: ToolOutputArtifactPayload[];
     }

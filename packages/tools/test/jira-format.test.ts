@@ -34,6 +34,7 @@ describe("Jira result formatting", () => {
     assert.equal(summary.key, "NER-123");
     assert.equal(summary.issueType, "Bug");
     assert.equal(summary.status, "In Progress");
+    assert.equal(summary.statusCategory, "indeterminate");
     assert.equal(summary.assignee, "Jane Doe");
     assert.equal(summary.priority, "High");
     assert.equal(summary.summary?.length, JIRA_TEXT_FIELD_MAX_CHARS);
@@ -73,6 +74,11 @@ describe("Jira result formatting", () => {
       fields: { resolution: { required: true } },
     });
 
-    assert.deepEqual(summary, { id: "31", name: "Done", to: "Done" });
+    assert.deepEqual(summary, {
+      id: "31",
+      name: "Done",
+      to: "Done",
+      toStatusCategory: "done",
+    });
   });
 });

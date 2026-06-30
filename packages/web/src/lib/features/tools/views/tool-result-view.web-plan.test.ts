@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "$lib/api";
+import { toolPresentation } from "./tool-presentation";
 import { parseToolView } from "./tool-result-view";
 import { toolCall } from "./tool-result-view.fixtures";
 
@@ -65,7 +66,14 @@ describe("parseToolView plan and web tools", () => {
           details: {
             query: "nerve agent",
             answer: "It searches.",
-            results: [{ title: "Result", url: "https://example.test" }],
+            results: [
+              {
+                title: "Result",
+                url: "https://example.test",
+                content: "A short snippet.",
+                score: 0.9,
+              },
+            ],
           },
         },
       ),
@@ -74,8 +82,24 @@ describe("parseToolView plan and web tools", () => {
     if (view.kind !== "web_search") return;
     assert.equal(view.answer, "It searches.");
     assert.equal(view.results.length, 1);
+    assert.equal(view.results[0]?.content, "A short snippet.");
+    assert.equal(view.results[0]?.score, 0.9);
   });
 
+  it("offers a details action when web_search results exceed the collapsed body", () => {
+    const results = Array.from({ length: 14 }, (_, index) => ({
+      title: `Result ${index + 1}`,
+      url: `https://example.test/${index + 1}`,
+    }));
+    const tc = toolCall(
+      "web_search",
+      { query: "many" },
+      { details: { query: "many", results } },
+    );
+    const presentation = toolPresentation(parseToolView(tc), tc);
+    assert.equal(presentation.detailsAction?.hidden, 4);
+    assert.match(presentation.detailsAction?.label ?? "", /4 more results/);
+  });
   it("parses web_fetch details and content", () => {
     const view = parseToolView(
       toolCall(

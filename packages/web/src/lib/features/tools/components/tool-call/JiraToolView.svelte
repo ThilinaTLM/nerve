@@ -1,12 +1,20 @@
 <script lang="ts">
+  import CircleCheck from "@lucide/svelte/icons/circle-check";
+  import FlaskConical from "@lucide/svelte/icons/flask-conical";
+  import MessageSquare from "@lucide/svelte/icons/message-square";
+  import type { JiraIssueSummaryPayload } from "@nervekit/shared";
+  import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import { COLLAPSED_LINES } from "$lib/features/tools/views/tool-result-view";
+  import JiraBanner from "./JiraBanner.svelte";
+  import JiraFieldRow from "./JiraFieldRow.svelte";
+  import JiraIssueCard from "./JiraIssueCard.svelte";
+  import JiraMetricStrip from "./JiraMetricStrip.svelte";
+  import JiraProjectHeader from "./JiraProjectHeader.svelte";
+  import JiraTransitionRow from "./JiraTransitionRow.svelte";
+  import JiraUserCard from "./JiraUserCard.svelte";
 
   type JiraView = Extract<ToolView, { kind: "jira" }>;
-  type JiraIssue = JiraView["issues"][number];
-  type JiraTransition = JiraView["transitions"][number];
-  type JiraUser = JiraView["users"][number];
-  type JiraField = JiraView["fields"][number];
 
   type Props = {
     toolCall: ToolCallDisplayRecord;
@@ -15,35 +23,39 @@
   };
   let { toolCall, view, expanded = false }: Props = $props();
 
-  const issueRows = $derived.by(() => {
-    const rows = view.issue ? [view.issue, ...view.issues.filter((issue) => issue.key !== view.issue?.key)] : view.issues;
-    return expanded ? rows : rows.slice(0, COLLAPSED_LINES);
-  });
-  const transitionRows = $derived(
-    expanded ? view.transitions : view.transitions.slice(0, COLLAPSED_LINES),
-  );
-  const userRows = $derived(
-    expanded ? view.users : view.users.slice(0, COLLAPSED_LINES),
-  );
-  const fieldRows = $derived(
-    expanded ? view.fields : view.fields.slice(0, COLLAPSED_LINES),
-  );
-  const messageLines = $derived(
-    expanded ? view.messageLines : view.messageLines.slice(0, COLLAPSED_LINES),
-  );
-  const updatedFields = $derived(
-    expanded ? (view.updatedFields ?? []) : (view.updatedFields ?? []).slice(0, COLLAPSED_LINES),
-  );
-  const hasStructuredBody = $derived(
-    messageLines.length > 0 ||
-      issueRows.length > 0 ||
-      transitionRows.length > 0 ||
-      userRows.length > 0 ||
-      fieldRows.length > 0 ||
-      updatedFields.length > 0,
-  );
+  // Per-action collapsed row budgets anchored on the shared COLLAPSED_LINES (10)
+  // so long Jira responses never flood the card. The Details dialog passes
+  // expanded=true to reveal the full (backend-capped) set.
+  const ISSUE_LIMIT = COLLAPSED_LINES;
+  const USER_LIMIT = COLLAPSED_LINES;
+  const FIELD_LIMIT = 8;
+  const TRANSITION_LIMIT = 8;
+  const TRANSITION_LIST_TRANSITIONS = 6;
+  const TRANSITION_LIST_FIELDS = 4;
+  const UPDATED_FIELD_LIMIT = 12;
 
-  function statusText(): string {
+  const siteUrl = $derived(settingsState.settingsDraft?.tools?.jira?.siteUrl);
+
+  function cap<T>(items: T[], limit: number): T[] {
+    return expanded ? items : items.slice(0, limit);
+  }
+
+  // Header issue: prefer the structured summary, else synthesize a minimal card.
+  const headerIssue = $derived.by<JiraIssueSummaryPayload | undefined>(() => {
+    if (view.issue) return view.issue;
+    if (!view.issueKey) return undefined;
+    return {
+      key: view.issueKey,
+      summary: view.summary,
+      issueType: view.issueType,
+    };
+  });
+
+  const assigneeFallback = $derived(view.resolvedAssignee?.displayName);
+  const bannerText = $derived(view.messageLines[0]);
+  const updatedFields = $derived(cap(view.updatedFields ?? [], UPDATED_FIELD_LIMIT));
+
+  function fallbackText(): string {
     if (toolCall.status === "running" || toolCall.status === "requested") {
       switch (view.action) {
         case "search_users":
@@ -67,129 +79,136 @@
     return "No Jira summary available. Open Details for raw arguments and result.";
   }
 
-  function issueChips(issue: JiraIssue): string[] {
-    return [issue.issueType, issue.status, issue.priority, issue.assignee ? `assignee ${issue.assignee}` : undefined, issue.updated]
-      .filter((value): value is string => Boolean(value));
-  }
-
-  function transitionLabel(transition: JiraTransition): string {
-    return transition.name ?? "(unnamed)";
-  }
-
-  function userLabel(user: JiraUser): string {
-    return user.displayName ?? user.emailAddress ?? user.accountId;
-  }
-
-  function fieldChips(field: JiraField): string[] {
-    return [field.type, field.required ? "required" : undefined, field.custom ? "custom" : undefined]
-      .filter((value): value is string => Boolean(value));
-  }
+  // Whether the chosen action branch will render any structured content.
+  const hasBody = $derived.by(() => {
+    switch (view.action) {
+      case "search_issues":
+        return view.issues.length > 0;
+      case "search_users":
+        return view.users.length > 0;
+      case "get_issue":
+        return Boolean(headerIssue) || view.transitions.length > 0;
+      case "get_project":
+        return Boolean(view.project) || view.fields.length > 0;
+      case "create_issue":
+      case "update_issue":
+      case "add_comment":
+        return Boolean(bannerText || headerIssue);
+      case "transition_issue":
+        return Boolean(
+          bannerText || view.transition || view.transitions.length > 0,
+        );
+      default:
+        return false;
+    }
+  });
 </script>
 
-{#if hasStructuredBody}
+{#if hasBody}
   <div class="grid gap-2">
-    {#if messageLines.length > 0}
-      <div class="rounded-sm border bg-sidebar px-2.5 py-2 text-xs leading-normal text-sidebar-foreground">
-        {#each messageLines as line, index (`message-${index}`)}
-          <p class="m-0 break-words">{line}</p>
-        {/each}
-      </div>
-    {/if}
+    {#if view.action === "search_issues"}
+      {#each cap(view.issues, ISSUE_LIMIT) as issue (issue.key)}
+        <JiraIssueCard {issue} {siteUrl} />
+      {/each}
 
-    {#if issueRows.length > 0}
-      <div class="grid gap-1.5">
-        {#each issueRows as issue (issue.key)}
-          <div class="grid gap-1 rounded-sm border bg-sidebar px-2.5 py-2">
-            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span class="font-mono text-xs font-semibold text-primary">{issue.key}</span>
-              {#if issue.summary}
-                <span class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground">{issue.summary}</span>
-              {/if}
-            </div>
-            {#if issueChips(issue).length > 0}
-              <div class="flex flex-wrap gap-1">
-                {#each issueChips(issue) as chip (chip)}
-                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">{chip}</span>
-                {/each}
-              </div>
-            {/if}
+    {:else if view.action === "search_users"}
+      {#each cap(view.users, USER_LIMIT) as user (user.accountId)}
+        <JiraUserCard {user} />
+      {/each}
+
+    {:else if view.action === "get_issue"}
+      {#if headerIssue}
+        <JiraIssueCard issue={headerIssue} {siteUrl} />
+      {/if}
+      {#if view.includedCounts}
+        <JiraMetricStrip counts={view.includedCounts} />
+      {/if}
+      {#if view.transitions.length > 0}
+        <span class="text-xs font-medium text-muted-foreground">Transitions</span>
+        {#each cap(view.transitions, TRANSITION_LIMIT) as transition (transition.id)}
+          <JiraTransitionRow {transition} />
+        {/each}
+      {/if}
+
+    {:else if view.action === "get_project"}
+      {#if view.project}
+        <JiraProjectHeader project={view.project} />
+      {/if}
+      {#if view.includedCounts}
+        <JiraMetricStrip counts={view.includedCounts} />
+      {/if}
+      {#if view.fields.length > 0}
+        <span class="text-xs font-medium text-muted-foreground">Fields</span>
+        {#each cap(view.fields, FIELD_LIMIT) as field (field.id)}
+          <JiraFieldRow {field} />
+        {/each}
+      {/if}
+
+    {:else if view.action === "create_issue"}
+      {#if bannerText}
+        <JiraBanner
+          text={bannerText}
+          tone={view.dryRun ? "info" : "success"}
+          icon={view.dryRun ? FlaskConical : CircleCheck}
+        />
+      {/if}
+      {#if headerIssue}
+        <JiraIssueCard issue={headerIssue} {siteUrl} {assigneeFallback} />
+      {/if}
+
+    {:else if view.action === "update_issue"}
+      {#if bannerText}
+        <JiraBanner
+          text={bannerText}
+          tone={view.dryRun ? "info" : "success"}
+          icon={view.dryRun ? FlaskConical : CircleCheck}
+        />
+      {/if}
+      {#if updatedFields.length > 0}
+        <div class="grid gap-1">
+          <span class="text-xs font-medium text-muted-foreground">Updated fields</span>
+          <div class="flex flex-wrap gap-1.5">
+            {#each updatedFields as field (field)}
+              <span class="rounded-sm border bg-sidebar px-1.5 py-0.5 font-mono text-xs text-muted-foreground">{field}</span>
+            {/each}
           </div>
-        {/each}
-      </div>
-    {/if}
+        </div>
+      {/if}
+      {#if view.issue}
+        <JiraIssueCard issue={view.issue} {siteUrl} {assigneeFallback} />
+      {/if}
 
-    {#if transitionRows.length > 0}
-      <div class="grid gap-1.5">
-        {#each transitionRows as transition (transition.id)}
-          <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 rounded-sm border bg-sidebar px-2.5 py-2">
-            <span class="font-mono text-xs font-semibold text-primary">{transition.id}</span>
-            <span class="text-xs font-medium text-sidebar-foreground">{transitionLabel(transition)}</span>
-            {#if transition.to}
-              <span class="text-xs text-muted-foreground">→ {transition.to}</span>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    {/if}
+    {:else if view.action === "add_comment"}
+      {#if bannerText}
+        <JiraBanner text={bannerText} icon={MessageSquare} />
+      {/if}
 
-    {#if userRows.length > 0}
-      <div class="grid gap-1.5">
-        {#each userRows as user (user.accountId)}
-          <div class="grid gap-1 rounded-sm border bg-sidebar px-2.5 py-2">
-            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span class="font-mono text-xs font-semibold text-primary">{user.accountId}</span>
-              <span class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground">{userLabel(user)}</span>
-            </div>
-            {#if user.emailAddress || user.active === false || user.accountType}
-              <div class="flex flex-wrap gap-1">
-                {#if user.emailAddress}
-                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">{user.emailAddress}</span>
-                {/if}
-                {#if user.accountType}
-                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">{user.accountType}</span>
-                {/if}
-                {#if user.active === false}
-                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">inactive</span>
-                {/if}
-              </div>
-            {/if}
-          </div>
+    {:else if view.action === "transition_issue"}
+      {#if view.transition}
+        <JiraBanner
+          text={view.dryRun
+            ? `Preview — ${view.issueKey ?? "issue"} would transition`
+            : `Transitioned ${view.issueKey ?? "issue"}`}
+          tone={view.dryRun ? "info" : "success"}
+          icon={view.dryRun ? FlaskConical : CircleCheck}
+        />
+        <JiraTransitionRow transition={view.transition} />
+      {:else if view.transitions.length > 0}
+        <span class="text-xs font-medium text-muted-foreground">Available transitions</span>
+        {#each cap(view.transitions, TRANSITION_LIST_TRANSITIONS) as transition (transition.id)}
+          <JiraTransitionRow {transition} />
         {/each}
-      </div>
-    {/if}
-
-    {#if fieldRows.length > 0}
-      <div class="grid gap-1.5">
-        {#each fieldRows as field (field.id)}
-          <div class="grid gap-1 rounded-sm border bg-sidebar px-2.5 py-2">
-            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span class="font-mono text-xs font-semibold text-primary">{field.id}</span>
-              {#if field.name}
-                <span class="min-w-0 break-words text-xs font-medium leading-snug text-sidebar-foreground">{field.name}</span>
-              {/if}
-            </div>
-            {#if fieldChips(field).length > 0}
-              <div class="flex flex-wrap gap-1">
-                {#each fieldChips(field) as chip (chip)}
-                  <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground">{chip}</span>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    {/if}
-
-    {#if updatedFields.length > 0}
-      <div class="flex flex-wrap gap-1.5 rounded-sm border bg-sidebar px-2.5 py-2">
-        {#each updatedFields as field (field)}
-          <span class="rounded-sm border bg-muted/30 px-1.5 py-0.5 font-mono text-xs text-muted-foreground">{field}</span>
-        {/each}
-      </div>
+        {#if view.fields.length > 0}
+          <span class="text-xs font-medium text-muted-foreground">Transition fields</span>
+          {#each cap(view.fields, TRANSITION_LIST_FIELDS) as field (field.id)}
+            <JiraFieldRow {field} />
+          {/each}
+        {/if}
+      {/if}
     {/if}
   </div>
 {:else}
   <div class="rounded-sm border bg-sidebar px-2.5 py-2 text-xs text-muted-foreground">
-    {statusText()}
+    {fallbackText()}
   </div>
 {/if}
