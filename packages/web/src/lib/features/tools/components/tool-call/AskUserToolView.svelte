@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, tick } from "svelte";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mic from "@lucide/svelte/icons/mic";
   import Send from "@lucide/svelte/icons/send";
@@ -10,9 +11,16 @@
     voiceInputSession,
     type VoiceInputTarget,
   } from "$lib/core/audio/voice-input-session.svelte";
-  import { appendTranscriptText } from "$lib/core/audio/voice-input-target";
+  import {
+    appendTranscriptText,
+    voiceInputTargetKey,
+  } from "$lib/core/audio/voice-input-target";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import { Button } from "$lib/components/ui/button";
+  import {
+    getShortcutAriaLabel,
+    getShortcutLabel,
+  } from "$lib/core/shortcuts/registry";
   import ToolFooter from "./ToolFooter.svelte";
   import {
     AudioInputAuthRequiredDialog,
@@ -45,6 +53,14 @@
 
   let answer = $state("");
   let audioAuthDialogOpen = $state(false);
+  let replyInputEl = $state<HTMLTextAreaElement | undefined>(undefined);
+  let lastAutoFocusedQuestionId = $state<string | undefined>(undefined);
+  let registeredTargetKey: string | undefined;
+  let registeredTarget: VoiceInputTarget | undefined;
+  let unregisterVoiceTarget: (() => void) | undefined;
+
+  const micShortcut = getShortcutLabel("composer.toggleMic");
+  const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
   const pending = $derived(
     toolCall.status === "waiting_for_user" && questionRecord?.status === "pending",
   );
@@ -61,10 +77,12 @@
     questionRecord?.dismissedReason ?? view.dismissedReason,
   );
   const trimmedAnswer = $derived(answer.trim());
+  const voiceTargetId = $derived(
+    pending && questionRecord ? questionRecord.id : undefined,
+  );
 
   const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
-    const id = questionRecord?.id ?? toolCall.id;
-    return id ? { kind: "ask-user", id } : undefined;
+    return voiceTargetId ? { kind: "ask-user", id: voiceTargetId } : undefined;
   });
   const recording = $derived(
     Boolean(voiceTarget && voiceInputSession.isTargetActive(voiceTarget) && voiceInputSession.recording),
@@ -84,7 +102,7 @@
   );
   const micTitle = $derived(
     recording
-      ? `Stop recording (${formatElapsed(voiceInputSession.elapsedMs)} / ${formatElapsed(voiceInputSession.maxDurationMs)}) — right-click to cancel`
+      ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — right-click to cancel (${formatElapsed(voiceInputSession.elapsedMs)} / ${formatElapsed(voiceInputSession.maxDurationMs)})`
       : voiceBusyElsewhere
         ? "Voice recording is active elsewhere"
         : voiceInputSession.retryAttempt > 0 && voiceTarget && voiceInputSession.isTargetActive(voiceTarget)
@@ -93,24 +111,51 @@
             ? "Transcribing audio…"
             : !chatGptAudioConfigured
               ? "Connect ChatGPT to use voice input"
-              : "Record voice reply",
+              : micShortcut
+                ? `Record voice reply (${micShortcut})`
+                : "Record voice reply",
   );
+
+  function clearRegisteredVoiceTarget(cancelActive: boolean): void {
+    const target = registeredTarget;
+    unregisterVoiceTarget?.();
+    unregisterVoiceTarget = undefined;
+    registeredTarget = undefined;
+    registeredTargetKey = undefined;
+    if (cancelActive && target) void voiceInputSession.cancelIfTarget(target);
+  }
 
   $effect(() => {
     const target = voiceTarget;
-    if (!target) return;
-    const unregister = voiceInputSession.registerTargetHandlers(target, {
+    const targetKey = target ? voiceInputTargetKey(target) : undefined;
+    if (targetKey === registeredTargetKey) return;
+
+    clearRegisteredVoiceTarget(true);
+    if (!target || !targetKey) return;
+
+    registeredTarget = target;
+    registeredTargetKey = targetKey;
+    unregisterVoiceTarget = voiceInputSession.registerTargetHandlers(target, {
       appendTranscript: (transcript) => {
         answer = appendTranscriptText(answer, transcript);
       },
       onError: (message) =>
         notify.error("Voice input failed", { description: message }),
     });
-    return () => {
-      unregister();
-      void voiceInputSession.cancelIfTarget(target);
-    };
   });
+
+  $effect(() => {
+    const questionId = pending && questionRecord ? questionRecord.id : undefined;
+    if (!questionId || questionId === lastAutoFocusedQuestionId) return;
+    lastAutoFocusedQuestionId = questionId;
+    void tick().then(() => {
+      if (pending && questionRecord?.id === questionId) {
+        replyInputEl?.focus({ preventScroll: true });
+      }
+    });
+  });
+
+  onDestroy(() => clearRegisteredVoiceTarget(true));
 
   function formatElapsed(ms: number): string {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -136,6 +181,32 @@
       return;
     }
     void voiceInputSession.toggle(voiceTarget);
+  }
+
+  function handleReplyKeydown(event: KeyboardEvent) {
+    const vKey = event.key.toLowerCase() === "v" || event.code === "KeyV";
+    if (
+      vKey &&
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      toggleRecording();
+      return;
+    }
+
+    const enterKey = event.key === "Enter" || event.code === "NumpadEnter";
+    if (
+      enterKey &&
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      submitAnswer();
+    }
   }
 
   function handleMicContextMenu(event: MouseEvent) {
@@ -169,10 +240,12 @@
       <div class="reply-field">
         <textarea
           class="reply-input"
+          bind:this={replyInputEl}
           bind:value={answer}
           rows="3"
           placeholder={questionRecord.placeholder ?? "Reply to the agent's question"}
           aria-label="Reply to agent question"
+          onkeydown={handleReplyKeydown}
         ></textarea>
         {#if supportsAudioRecording}
           <div class="reply-voice-controls">
@@ -194,6 +267,7 @@
               onclick={toggleRecording}
               oncontextmenu={handleMicContextMenu}
               aria-label={recording ? "Stop recording; right-click to cancel" : chatGptAudioConfigured ? "Record voice reply" : "Connect ChatGPT to use voice input"}
+              aria-keyshortcuts={micShortcutAria}
               title={micTitle}
             >
               {#if transcribing}
