@@ -42,6 +42,12 @@
     "python",
   ];
 
+  const fileInspectionTools: ToolSummary[] = [
+    { name: "read", description: "Read text files or images with bounded output." },
+    { name: "ls", description: "List directory entries sorted alphabetically, including dotfiles." },
+    { name: "find", description: "Find files by glob pattern while respecting .gitignore." },
+    { name: "grep", description: "Search file contents with regex or literal patterns." },
+  ];
   const fileEditingTools: ToolSummary[] = [
     { name: "write", description: "Create or overwrite files when workspace writes are allowed." },
     { name: "edit", description: "Patch existing files with replacements, insertions, or diffs." },
@@ -227,6 +233,15 @@
     {/each}
   </ul>
 {/snippet}
+
+<SettingsSectionCard
+  section="tools-file-inspection"
+  title="File inspection"
+  description="Read, list, find, and search workspace files without modifying them."
+>
+  {#snippet actions()}{@render alwaysOnSwitch("File inspection tools are always enabled")}{/snippet}
+  {@render toolList(fileInspectionTools)}
+</SettingsSectionCard>
 
 <SettingsSectionCard
   section="tools"
