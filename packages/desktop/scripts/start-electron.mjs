@@ -1,8 +1,17 @@
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import electronPath from "electron";
+import {
+  formatElectronDownloadFailure,
+  prepareElectronDownloadEnv,
+} from "../dist/electron-download-env.js";
+
+const require = createRequire(import.meta.url);
 
 const cwd = fileURLToPath(new URL("..", import.meta.url));
+prepareElectronDownloadEnv(process.env);
+const electronPath = resolveElectronPath();
+
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
@@ -33,6 +42,15 @@ function parseElectronOzonePlatform(value) {
     `Ignoring invalid NERVE_ELECTRON_OZONE_PLATFORM=${JSON.stringify(value)}. Expected x11, wayland, or auto.`,
   );
   return undefined;
+}
+
+function resolveElectronPath() {
+  try {
+    return require("electron");
+  } catch (error) {
+    console.error(formatElectronDownloadFailure(error));
+    process.exit(1);
+  }
 }
 
 const child = spawn(electronPath, electronArgs, {

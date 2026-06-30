@@ -4,6 +4,7 @@ patchedDependencies:
   '@earendil-works/pi-ai@0.79.7': patches/@earendil-works__pi-ai@0.79.7.patch
 allowBuilds:
   '@google/genai': true
+  electron: true
   electron-winstaller: true
   esbuild: true
   protobufjs: true

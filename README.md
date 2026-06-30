@@ -17,6 +17,56 @@ pnpm dlx @nervekit/desktop
 
 The first run may download Electron's platform binary through npm or pnpm; subsequent runs use the package manager cache.
 
+### Corporate proxy / Electron binary download troubleshooting
+
+This applies on Linux, Windows, and macOS. `pnpm install` can succeed while the
+Electron platform binary is still missing; in that case `pnpm desktop` (or
+`pnpm run desktop`) may fail when the `electron` package tries to download from
+Electron's release host.
+
+If your network requires a corporate proxy, configure the Electron downloader and
+then rebuild Electron:
+
+```sh
+export ELECTRON_GET_USE_PROXY=true
+export HTTPS_PROXY=http://proxy.example.com:8080
+export HTTP_PROXY=$HTTPS_PROXY
+export NO_PROXY=localhost,127.0.0.1,::1
+export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem  # only for TLS interception
+pnpm --filter @nervekit/desktop rebuild electron
+pnpm desktop
+```
+
+PowerShell:
+
+```powershell
+$env:ELECTRON_GET_USE_PROXY = "true"
+$env:HTTPS_PROXY = "http://proxy.example.com:8080"
+$env:HTTP_PROXY = $env:HTTPS_PROXY
+$env:NO_PROXY = "localhost,127.0.0.1,::1"
+$env:NODE_EXTRA_CA_CERTS = "C:\path\to\corporate-ca.pem" # only for TLS interception
+pnpm --filter @nervekit/desktop rebuild electron
+pnpm desktop
+```
+
+If you keep proxy settings in pnpm config, use user-level config rather than a
+repo `.npmrc` with secrets:
+
+```sh
+pnpm config set proxy http://proxy.example.com:8080
+pnpm config set https-proxy http://proxy.example.com:8080
+pnpm config set cafile /path/to/corporate-ca.pem
+```
+
+If your company mirrors Electron artifacts, set `ELECTRON_MIRROR` to that mirror
+before rebuilding. If a partial download was cached, clear Electron's cache and
+rebuild. Cache locations are `~/.cache/electron` on Linux,
+`~/Library/Caches/electron` on macOS, and `%LOCALAPPDATA%\electron\Cache` on
+Windows.
+
+Desktop logs are written to `~/.nerve/logs/desktop-YYYY-MM-DD.jsonl`; crash
+reports are written to `~/.nerve/crashes`.
+
 Pass desktop/daemon options after `--`:
 
 ```sh

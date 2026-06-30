@@ -7,6 +7,10 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import {
+  formatElectronDownloadFailure,
+  prepareElectronDownloadEnv,
+} from "./electron-download-env.js";
 import { resolveElectronFontRenderHinting } from "./shared/font-rendering.js";
 import { parseElectronOzonePlatform } from "./shared/ozone-platform.js";
 
@@ -49,15 +53,27 @@ if (forwardedArgs.includes("--help") || forwardedArgs.includes("-h")) {
       "Environment:",
       "  NERVE_ELECTRON_OZONE_PLATFORM=x11|wayland|auto  (Linux only)",
       "  NERVE_ELECTRON_FONT_RENDER_HINTING=system|none|slight|medium|full  (Linux only; default: slight)",
+      "  ELECTRON_GET_USE_PROXY=true with HTTPS_PROXY/HTTP_PROXY/NO_PROXY  (corporate proxy downloads)",
       "",
     ].join("\n"),
   );
   process.exit(0);
 }
 
+prepareElectronDownloadEnv(process.env);
+
 // The electron npm package resolves to the platform binary path when required
 // from a plain Node process.
-const electronPath = require("electron") as string;
+const electronPath = resolveElectronPath();
+
+function resolveElectronPath(): string {
+  try {
+    return require("electron") as string;
+  } catch (error) {
+    console.error(formatElectronDownloadFailure(error));
+    process.exit(1);
+  }
+}
 
 // dist/bin.js lives in <packageRoot>/dist, so ".." is the package root that
 // contains the built Electron app entry (dist/main.js) referenced by `main`.
