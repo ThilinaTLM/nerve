@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import MoveUp from "@lucide/svelte/icons/move-up";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
@@ -18,6 +19,7 @@
     onReload?: () => void;
     onQueryChange?: (value: string) => void;
     onSubmit?: (event: Event) => void;
+    onBack?: () => void;
   };
 
   let {
@@ -30,10 +32,17 @@
     onReload,
     onQueryChange,
     onSubmit,
+    onBack,
   }: Props = $props();
 </script>
 
 <div class="path-bar">
+  {#if onBack}
+    <Button variant="ghost" size="icon-sm" title="Back to recents" ariaLabel="Back to recents" onclick={onBack}>
+      <ArrowLeft size={15} strokeWidth={2.2} />
+    </Button>
+    <span class="path-tools-sep" aria-hidden="true"></span>
+  {/if}
   <nav class="crumbs" aria-label="Current location">
     {#each crumbs as crumb, i}
       {#if i > 0}<ChevronRight class="crumb-sep" size={13} strokeWidth={2.2} aria-hidden="true" />{/if}

@@ -1,5 +1,6 @@
 .project-picker-dialog {
   width: min(680px, calc(100vw - 24px));
+  min-height: min(82vh, 520px);
   max-height: min(82vh, 720px);
 }
 
@@ -173,10 +174,6 @@
   color: var(--muted-foreground);
 }
 
-.recent-row > svg {
-  color: var(--primary);
-}
-
 .row-main {
   display: grid;
   min-width: 0;
@@ -224,31 +221,6 @@
 }
 
 /* Inline row actions */
-.row-open {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  padding: 0.1rem 0.4rem;
-  color: var(--foreground);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity 120ms ease,
-    background 120ms ease,
-    border-color 120ms ease;
-}
-
-.row-open:hover {
-  border-color: var(--primary);
-  background: var(--accent);
-}
-
 .row-drill {
   display: inline-grid;
   place-items: center;
@@ -270,11 +242,8 @@
   color: var(--foreground);
 }
 
-.row:hover .row-open,
-.row.selected .row-open,
 .row:hover .row-drill,
 .row.selected .row-drill,
-.row-open:focus-visible,
 .row-drill:focus-visible {
   opacity: 1;
 }
@@ -309,7 +278,8 @@
   animation: picker-sheen 1.2s ease-in-out infinite;
 }
 
-.empty {
+.empty,
+.recent-empty {
   display: grid;
   place-items: center;
   min-height: 12rem;
@@ -318,14 +288,151 @@
   text-align: center;
 }
 
-.empty p {
+.recent-empty {
+  min-height: 10rem;
+}
+
+.empty p,
+.recent-empty p {
   margin: 0.3rem 0 0;
   color: var(--foreground);
   font-size: var(--text-sm);
 }
 
-.empty span {
+.empty span,
+.recent-empty span {
   font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* Recent mode: card grid */
+.picker-body.recent-mode {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.4rem;
+}
+
+.recent-card-trigger {
+  display: contents;
+}
+
+.recent-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 0.7rem 0.75rem;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.recent-card-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--primary) 14%, transparent);
+  color: var(--primary);
+  transition: background 120ms ease;
+}
+
+.recent-card:hover,
+.recent-card:focus-visible,
+.recent-card.selected {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+  background: color-mix(in oklab, var(--accent) 65%, var(--card));
+  box-shadow: var(--shadow-sm);
+  outline: none;
+}
+
+.recent-card:hover .recent-card-icon,
+.recent-card:focus-visible .recent-card-icon,
+.recent-card.selected .recent-card-icon {
+  background: color-mix(in oklab, var(--primary) 22%, transparent);
+}
+
+.recent-card-body {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.recent-card-title strong {
+  display: block;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.recent-card-dot {
+  color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+}
+
+.recent-card-path {
+  overflow: hidden;
+  color: color-mix(in oklab, var(--muted-foreground) 85%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-browse-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  padding: 0.55rem 0.65rem;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.recent-browse-hint:hover,
+.recent-browse-hint:focus-visible {
+  border-color: var(--primary);
+  background: var(--accent);
+  outline: none;
+}
+
+.recent-footer-hint {
+  flex: 1;
+  color: var(--muted-foreground);
   font-size: var(--text-xs);
 }
 

@@ -1,6 +1,8 @@
 <script lang="ts">
+  import FolderSearch from "@lucide/svelte/icons/folder-search";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
+  import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";
   import {
     listDirectories,
@@ -16,6 +18,7 @@
   import DirectoryPickerFooter from "./DirectoryPickerFooter.svelte";
   import DirectoryPickerList from "./DirectoryPickerList.svelte";
   import DirectoryPickerSearch from "./DirectoryPickerSearch.svelte";
+  import RecentProjectsView from "./RecentProjectsView.svelte";
   import { expandHome, signalMeta, uniqueSignals } from "./directory-picker-helpers";
   import type { FilesystemEntry, NavItem } from "./directory-picker-types";
   type Props = {
@@ -36,15 +39,19 @@
     onSelect,
     onForget,
   }: Props = $props();
+  type Mode = "recent" | "browse";
+  let mode = $state<Mode>("recent");
   let query = $state("");
   let listing = $state<FilesystemDirectoryResponse | undefined>(undefined);
   let loading = $state(false);
   let error = $state<string | undefined>(undefined);
   let showHidden = $state(false);
   let selectedIndex = $state(-1);
+  let recentSelectedIndex = $state(-1);
   let wasOpen = $state(false);
   let previousShowHidden = $state(false);
   let listEl = $state<HTMLDivElement | undefined>(undefined);
+  let recentScrollEl = $state<HTMLDivElement | undefined>(undefined);
   const openedProjectKeys = $derived.by(() => new Set(projects.map((project) => pathKey(project.dir))));
   const conversationCounts = $derived.by(() => {
     const counts = new Map<string, number>();
@@ -63,8 +70,21 @@
         seen.add(key);
         return true;
       })
-      .slice(0, 7);
+      .slice(0, 24);
   });
+  const pathQuery = $derived(looksLikePath(query.trim()));
+  const filteredRecents = $derived.by(() => {
+    if (pathQuery) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return recentProjects;
+    return recentProjects.filter(
+      (project) =>
+        project.name.toLowerCase().includes(q) || project.dir.toLowerCase().includes(q),
+    );
+  });
+  const recentActiveDescendant = $derived(
+    recentSelectedIndex >= 0 ? `recent:${filteredRecents[recentSelectedIndex]?.id}` : undefined,
+  );
   const filteredEntries = $derived.by(() => {
     const entries = listing?.entries ?? [];
     const q = query.trim();
@@ -72,26 +92,18 @@
     const lower = q.toLowerCase();
     return entries.filter((entry) => entry.name.toLowerCase().includes(lower));
   });
-  const showRecent = $derived(recentProjects.length > 0 && !query.trim());
-  const navItems = $derived.by<NavItem[]>(() => {
-    const items: NavItem[] = [];
-    if (showRecent) {
-      for (const project of recentProjects) {
-        items.push({ kind: "recent", id: `recent:${project.id}`, path: project.dir, project });
-      }
-    }
-    for (const entry of filteredEntries) {
-      items.push({ kind: "folder", id: `folder:${entry.path}`, path: entry.path, entry });
-    }
-    return items;
-  });
-  const recentCount = $derived(showRecent ? recentProjects.length : 0);
+  const navItems = $derived.by<NavItem[]>(() =>
+    filteredEntries.map((entry) => ({
+      kind: "folder",
+      id: `folder:${entry.path}`,
+      path: entry.path,
+      entry,
+    })),
+  );
   const selectedItem = $derived<NavItem | undefined>(
     selectedIndex >= 0 ? navItems[selectedIndex] : undefined,
   );
-  const selectedFolder = $derived<FilesystemEntry | undefined>(
-    selectedItem?.kind === "folder" ? selectedItem.entry : undefined,
-  );
+  const selectedFolder = $derived<FilesystemEntry | undefined>(selectedItem?.entry);
   const openTargetPath = $derived(selectedItem?.path ?? listing?.path ?? "");
   const openTargetSignals = $derived(
     uniqueSignals(selectedFolder?.signals ?? (selectedItem ? [] : listing?.signals)),
@@ -125,6 +137,23 @@
       listEl?.querySelector(".row.selected")?.scrollIntoView({ block: "nearest" });
     });
   }
+  function scrollRecentIntoView() {
+    requestAnimationFrame(() => {
+      recentScrollEl?.querySelector(".recent-card.selected")?.scrollIntoView({ block: "nearest" });
+    });
+  }
+  function enterBrowse(path?: string) {
+    mode = "browse";
+    query = "";
+    selectedIndex = -1;
+    if (path) void load(path);
+    else if (!listing) void load(homeDir || undefined);
+  }
+  function enterRecent() {
+    mode = "recent";
+    query = "";
+    recentSelectedIndex = -1;
+  }
   function handleOpenChange(next: boolean) {
     open = next;
     if (!next) onClose?.();
@@ -134,10 +163,15 @@
     const q = query.trim();
     if (!q) return;
     if (looksLikePath(q)) {
-      void load(expandHome(q, homeDir));
+      enterBrowse(expandHome(q, homeDir));
       return;
     }
-    const first = navItems.find((item) => item.kind === "folder");
+    if (mode === "recent") {
+      const target = filteredRecents[recentSelectedIndex >= 0 ? recentSelectedIndex : 0];
+      if (target) void onSelect?.(target.dir);
+      return;
+    }
+    const first = navItems[0];
     if (first) void load(first.path);
   }
   async function openTarget() {
@@ -145,16 +179,20 @@
     if (!path) return;
     await onSelect?.(path);
   }
-  /** Commit a nav item: recents open immediately, folders drill in. */
-  function activateItem(item: NavItem) {
-    if (item.kind === "recent") void onSelect?.(item.path);
-    else void load(item.path);
-  }
-  function handleRowKeydown(event: KeyboardEvent, index: number, item: NavItem) {
+  function handleFolderRowKeydown(event: KeyboardEvent, index: number, item: NavItem) {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
+      event.stopPropagation();
       selectedIndex = index;
-      activateItem(item);
+      void load(item.path);
+    }
+  }
+  function handleRecentRowKeydown(event: KeyboardEvent, index: number, project: ProjectRecord) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.stopPropagation();
+      recentSelectedIndex = index;
+      void onSelect?.(project.dir);
     }
   }
   async function copyPath(path: string) {
@@ -165,7 +203,40 @@
       notify.error("Could not copy to clipboard");
     }
   }
-  function handleKeydown(event: KeyboardEvent) {
+  function handleRecentKeydown(event: KeyboardEvent) {
+    const target = event.target as HTMLElement | null;
+    const inInput = target?.tagName === "INPUT";
+    const count = filteredRecents.length;
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        if (count) {
+          recentSelectedIndex = recentSelectedIndex < 0 ? 0 : Math.min(recentSelectedIndex + 1, count - 1);
+          scrollRecentIntoView();
+        }
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        if (count) {
+          recentSelectedIndex = recentSelectedIndex <= 0 ? 0 : recentSelectedIndex - 1;
+          scrollRecentIntoView();
+        }
+        break;
+      case "Enter":
+        if (inInput) return;
+        event.preventDefault();
+        if (pathQuery) {
+          enterBrowse(expandHome(query, homeDir));
+          return;
+        }
+        {
+          const target2 = filteredRecents[recentSelectedIndex >= 0 ? recentSelectedIndex : 0];
+          if (target2) void onSelect?.(target2.dir);
+        }
+        break;
+    }
+  }
+  function handleBrowseKeydown(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null;
     const inInput = target?.tagName === "INPUT";
     const count = navItems.length;
@@ -196,7 +267,7 @@
           void openTarget();
         } else if (!inInput && selectedItem) {
           event.preventDefault();
-          activateItem(selectedItem);
+          void load(selectedItem.path);
         }
         break;
       case "ArrowLeft":
@@ -213,8 +284,18 @@
         break;
     }
   }
+  function handleKeydown(event: KeyboardEvent) {
+    if (mode === "recent") handleRecentKeydown(event);
+    else handleBrowseKeydown(event);
+  }
   $effect(() => {
-    if (open && !wasOpen) void load(listing?.path || undefined);
+    if (open && !wasOpen) {
+      mode = recentProjects.length ? "recent" : "browse";
+      recentSelectedIndex = -1;
+      selectedIndex = -1;
+      query = "";
+      void load(listing?.path || undefined);
+    }
     wasOpen = open;
   });
   $effect(() => {
@@ -228,53 +309,80 @@
   class="project-picker-dialog"
   onOpenChange={handleOpenChange}
 >
-  <div class="picker-body" role="presentation" onkeydown={handleKeydown}>
-    <DirectoryPickerSearch
-      {crumbs}
-      {loading}
-      parent={listing?.parent}
-      bind:query
-      bind:showHidden
-      onLoad={(path) => void load(path)}
-      onReload={reloadCurrent}
-      onQueryChange={() => (selectedIndex = -1)}
-      onSubmit={handleSubmit}
-    />
-    {#if error}
-      <p class="picker-error">{error}</p>
+  <div class="picker-body" class:recent-mode={mode === "recent"} role="presentation" onkeydown={handleKeydown}>
+    {#if mode === "recent"}
+      <RecentProjectsView
+        bind:scrollEl={recentScrollEl}
+        recentProjects={filteredRecents}
+        totalRecentCount={recentProjects.length}
+        bind:query
+        {pathQuery}
+        selectedIndex={recentSelectedIndex}
+        activeDescendant={recentActiveDescendant}
+        {homeDir}
+        {loading}
+        {conversationCountFor}
+        onOpen={(path) => void onSelect?.(path)}
+        onNewChat={(path) => void onSelect?.(path)}
+        onCopyPath={(path) => void copyPath(path)}
+        {onForget}
+        onBrowsePath={() => enterBrowse(expandHome(query, homeDir))}
+        onQueryChange={() => (recentSelectedIndex = -1)}
+        onSubmit={handleSubmit}
+        onSelectedIndexChange={(index) => (recentSelectedIndex = index)}
+        onRowKeydown={handleRecentRowKeydown}
+      />
+    {:else}
+      <DirectoryPickerSearch
+        {crumbs}
+        {loading}
+        parent={listing?.parent}
+        bind:query
+        bind:showHidden
+        onLoad={(path) => void load(path)}
+        onReload={reloadCurrent}
+        onQueryChange={() => (selectedIndex = -1)}
+        onSubmit={handleSubmit}
+        onBack={recentProjects.length ? enterRecent : undefined}
+      />
+      {#if error}
+        <p class="picker-error">{error}</p>
+      {/if}
+      <DirectoryPickerList
+        bind:listEl
+        {filteredEntries}
+        {loading}
+        {query}
+        {selectedIndex}
+        {selectedItem}
+        {activeDescendant}
+        {signalMeta}
+        {isOpened}
+        {uniqueSignals}
+        load={(path) => void load(path)}
+        onSelectedIndexChange={(index) => (selectedIndex = index)}
+        onRowKeydown={handleFolderRowKeydown}
+      />
     {/if}
-    <DirectoryPickerList
-      bind:listEl
-      {showRecent}
-      {recentProjects}
-      {filteredEntries}
-      {loading}
-      {query}
-      {selectedIndex}
-      {selectedItem}
-      {activeDescendant}
-      {recentCount}
-      {signalMeta}
-      {homeDir}
-      {isOpened}
-      {conversationCountFor}
-      {uniqueSignals}
-      load={(path) => void load(path)}
-      copyPath={(path) => void copyPath(path)}
-      {onSelect}
-      {onForget}
-      onSelectedIndexChange={(index) => (selectedIndex = index)}
-      onRowKeydown={handleRowKeydown}
-    />
   </div>
   {#snippet footer()}
-    <DirectoryPickerFooter
-      path={openTargetPath}
-      {homeDir}
-      signals={openTargetSignals}
-      {signalMeta}
-      {loading}
-      onOpen={() => void openTarget()}
-    />
+    {#if mode === "recent"}
+      <span class="recent-footer-hint">
+        {recentProjects.length} recent project{recentProjects.length === 1 ? "" : "s"}
+      </span>
+      <Button variant="outline" size="sm" onclick={() => enterBrowse()}>
+        <FolderSearch size={14} strokeWidth={2.2} />
+        Browse
+      </Button>
+    {:else}
+      <DirectoryPickerFooter
+        path={openTargetPath}
+        {homeDir}
+        signals={openTargetSignals}
+        {signalMeta}
+        {loading}
+        onOpen={() => void openTarget()}
+      />
+    {/if}
   {/snippet}
 </Dialog>
