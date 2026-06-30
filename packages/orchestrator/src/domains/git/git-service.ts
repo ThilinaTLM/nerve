@@ -452,11 +452,8 @@ export class GitService {
     relativePath: string,
   ): Promise<GitMutationResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const repo = await this.summarizeRepo(
-      repoDir,
-      relativePath,
-      this.repoName(projectId, relativePath),
-    );
+    const repoName = this.repoName(projectId, relativePath);
+    let repo = await this.summarizeRepo(repoDir, relativePath, repoName);
     if (repo.detached || !repo.currentBranch) {
       throw new HttpError(
         409,
@@ -464,6 +461,7 @@ export class GitService {
         "Cannot sync a detached HEAD. Check out a branch first.",
       );
     }
+    const currentBranch = repo.currentBranch;
     if (!repo.hasRemote) {
       throw new HttpError(
         409,
@@ -471,39 +469,40 @@ export class GitService {
         "This repository does not have a remote configured.",
       );
     }
+
+    await this.mapGit(() => this.runGit(repoDir, ["fetch", "--prune"]));
+    repo = await this.summarizeRepo(repoDir, relativePath, repoName);
+
     if (!repo.hasUpstream) {
       await this.mapGit(() =>
-        this.runGit(repoDir, [
-          "push",
-          "-u",
-          "origin",
-          repo.currentBranch ?? "",
-        ]),
+        this.runGit(repoDir, ["push", "-u", "origin", currentBranch]),
       );
-    } else {
-      if ((repo.behind ?? 0) > 0) {
-        const { files } = parsePorcelainV2(
-          (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
-        );
-        if (files.length > 0) {
-          throw new HttpError(
-            409,
-            "GIT_DIRTY_WORKTREE",
-            "Working tree has uncommitted changes. Commit or stash them before syncing.",
-          );
-        }
-        await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
-      }
-      if ((repo.ahead ?? 0) > 0) {
-        await this.mapGit(() => this.runGit(repoDir, ["push"]));
-      }
+      return {
+        repo: await this.summarizeRepo(repoDir, relativePath, repoName),
+      };
     }
+
+    if ((repo.behind ?? 0) > 0) {
+      const { files } = parsePorcelainV2(
+        (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
+      );
+      if (files.length > 0) {
+        throw new HttpError(
+          409,
+          "GIT_DIRTY_WORKTREE",
+          "Working tree has uncommitted changes. Commit or stash them before syncing.",
+        );
+      }
+      await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
+      repo = await this.summarizeRepo(repoDir, relativePath, repoName);
+    }
+
+    if ((repo.ahead ?? 0) > 0) {
+      await this.mapGit(() => this.runGit(repoDir, ["push"]));
+    }
+
     return {
-      repo: await this.summarizeRepo(
-        repoDir,
-        relativePath,
-        this.repoName(projectId, relativePath),
-      ),
+      repo: await this.summarizeRepo(repoDir, relativePath, repoName),
     };
   }
 

@@ -18,6 +18,15 @@
   import { cn } from "$lib/core/utils.js";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
   import { repoButtonLabel, repoPathLabel } from "./git-change-format";
+  import {
+    basePullDisabled,
+    pullDisabled,
+    pushDisabled,
+    remoteActionDisabled,
+    showPull,
+    showPush,
+    syncDisabled,
+  } from "./git-remote-actions";
 
   type Props = {
     repoSummary?: GitRepoSummary;
@@ -78,43 +87,6 @@
   const remoteActionInProgress = $derived(
     fetching || pulling || pushing || syncing || switchingBaseAndPulling,
   );
-
-  function remoteActionDisabled(repo: GitRepoSummary): boolean {
-    return remoteActionInProgress || !repo.hasRemote;
-  }
-
-  function pullDisabled(repo: GitRepoSummary): boolean {
-    return (
-      remoteActionDisabled(repo) ||
-      repo.detached ||
-      !repo.hasUpstream ||
-      repo.dirty
-    );
-  }
-
-  function pushDisabled(repo: GitRepoSummary): boolean {
-    return remoteActionDisabled(repo) || repo.detached;
-  }
-
-  function syncDisabled(repo: GitRepoSummary): boolean {
-    return remoteActionDisabled(repo) || repo.detached;
-  }
-
-  function basePullDisabled(repo: GitRepoSummary): boolean {
-    return remoteActionDisabled(repo) || repo.dirty;
-  }
-
-  function showPull(repo: GitRepoSummary): boolean {
-    const ahead = repo.ahead ?? 0;
-    const behind = repo.behind ?? 0;
-    return repo.hasUpstream && !repo.detached && behind > 0 && ahead === 0;
-  }
-
-  function showPush(repo: GitRepoSummary): boolean {
-    const ahead = repo.ahead ?? 0;
-    const behind = repo.behind ?? 0;
-    return !repo.detached && ((ahead > 0 && behind === 0) || !repo.hasUpstream);
-  }
 
   function showBasePull(repo: GitRepoSummary): boolean {
     return !repo.detached && !repo.onBaseBranch;
@@ -239,96 +211,99 @@
       </Popover.Root>
 
       <div class="flex flex-col gap-1">
-        {#if repo.hasRemote}
-          <div class="flex flex-wrap items-center gap-1">
+        <div class="flex flex-wrap items-center gap-1">
+          <Button
+            size="xs"
+            variant="outline"
+            ariaLabel="Fetch from remote"
+            title={repo.hasRemote ? "Fetch from remote and prune deleted refs" : "Add a remote before fetching"}
+            disabled={remoteActionDisabled(repo, remoteActionInProgress)}
+            onclick={() => void onFetch(selectedRepo)}
+          >
+            {#if fetching}
+              <LoaderCircle class="animate-spin" />
+            {:else}
+              <CloudDownload />
+            {/if}
+            Fetch
+          </Button>
+          {#if showPull(repo)}
             <Button
               size="xs"
               variant="outline"
-              ariaLabel="Fetch from remote"
-              title="Fetch from remote and prune deleted refs"
-              disabled={remoteActionDisabled(repo)}
-              onclick={() => void onFetch(selectedRepo)}
+              ariaLabel="Pull current branch"
+              title={repo.dirty ? "Commit or stash changes before pulling" : "Pull current branch with fast-forward only"}
+              disabled={pullDisabled(repo, remoteActionInProgress)}
+              onclick={() => void onPull(selectedRepo)}
             >
-              {#if fetching}
+              {#if pulling}
                 <LoaderCircle class="animate-spin" />
               {:else}
-                <CloudDownload />
+                <ArrowDown />
               {/if}
-              Fetch
+              {#if (repo.behind ?? 0) > 0}<span class="font-mono tabular-nums">{repo.behind}</span>{/if}
+              Pull
             </Button>
-            {#if showPull(repo)}
-              <Button
-                size="xs"
-                variant="outline"
-                ariaLabel="Pull current branch"
-                title={repo.dirty ? "Commit or stash changes before pulling" : "Pull current branch with fast-forward only"}
-                disabled={pullDisabled(repo)}
-                onclick={() => void onPull(selectedRepo)}
-              >
-                {#if pulling}
-                  <LoaderCircle class="animate-spin" />
-                {:else}
-                  <ArrowDown />
-                {/if}
-                {#if (repo.behind ?? 0) > 0}<span class="font-mono tabular-nums">{repo.behind}</span>{/if}
-                Pull
-              </Button>
-            {/if}
-            {#if showPush(repo)}
-              <Button
-                size="xs"
-                variant="outline"
-                ariaLabel="Push current branch"
-                title="Push current branch; sets upstream when needed"
-                disabled={pushDisabled(repo)}
-                onclick={() => void onPush(selectedRepo)}
-              >
-                {#if pushing}
-                  <LoaderCircle class="animate-spin" />
-                {:else}
-                  <ArrowUp />
-                {/if}
-                {#if (repo.ahead ?? 0) > 0}<span class="font-mono tabular-nums">{repo.ahead}</span>{/if}
-                Push
-              </Button>
-            {/if}
+          {/if}
+          {#if showPush(repo)}
             <Button
               size="xs"
               variant="outline"
-              ariaLabel="Sync current branch"
-              title="Pull then push the current branch when needed"
-              disabled={syncDisabled(repo)}
-              onclick={() => void onSync(selectedRepo)}
+              ariaLabel="Push current branch"
+              title="Push current branch"
+              disabled={pushDisabled(repo, remoteActionInProgress)}
+              onclick={() => void onPush(selectedRepo)}
             >
-              {#if syncing}
+              {#if pushing}
                 <LoaderCircle class="animate-spin" />
               {:else}
-                <RefreshCw />
+                <ArrowUp />
               {/if}
-              Sync
+              {#if (repo.ahead ?? 0) > 0}<span class="font-mono tabular-nums">{repo.ahead}</span>{/if}
+              Push
             </Button>
-            {#if showBasePull(repo)}
-              <Button
-                size="xs"
-                variant="outline"
-                ariaLabel={`Switch to ${repo.baseBranch} and pull`}
-                title={repo.dirty
-                  ? "Commit or stash changes before switching branches"
-                  : `Switch to ${repo.baseBranch} and pull with fast-forward only`}
-                disabled={basePullDisabled(repo)}
-                onclick={() => void onSwitchBaseAndPull(selectedRepo)}
-              >
-                {#if switchingBaseAndPulling}
-                  <LoaderCircle class="animate-spin" />
-                {:else}
-                  <GitCompareArrows />
-                {/if}
-                <span class="font-mono">{repo.baseBranch}</span>
-                + pull
-              </Button>
+          {/if}
+          <Button
+            size="xs"
+            variant="outline"
+            ariaLabel="Sync current branch"
+            title={!repo.hasRemote
+              ? "Add a remote before syncing"
+              : repo.detached
+                ? "Check out a branch before syncing"
+                : "Fetch, then pull and push the current branch when needed"}
+            disabled={syncDisabled(repo, remoteActionInProgress)}
+            onclick={() => void onSync(selectedRepo)}
+          >
+            {#if syncing}
+              <LoaderCircle class="animate-spin" />
+            {:else}
+              <RefreshCw />
             {/if}
-          </div>
-        {:else}
+            Sync
+          </Button>
+          {#if showBasePull(repo)}
+            <Button
+              size="xs"
+              variant="outline"
+              ariaLabel={`Switch to ${repo.baseBranch} and pull`}
+              title={repo.dirty
+                ? "Commit or stash changes before switching branches"
+                : `Switch to ${repo.baseBranch} and pull with fast-forward only`}
+              disabled={basePullDisabled(repo, remoteActionInProgress)}
+              onclick={() => void onSwitchBaseAndPull(selectedRepo)}
+            >
+              {#if switchingBaseAndPulling}
+                <LoaderCircle class="animate-spin" />
+              {:else}
+                <GitCompareArrows />
+              {/if}
+              <span class="font-mono">{repo.baseBranch}</span>
+              + pull
+            </Button>
+          {/if}
+        </div>
+        {#if !repo.hasRemote}
           <div class="rounded-md border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
             Remote actions are unavailable for local-only repositories.
           </div>

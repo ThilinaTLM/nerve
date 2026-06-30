@@ -33,6 +33,10 @@ async function refreshAfterRemoteMutation(
   if (state.github?.authenticated) await refreshPrs(projectId, repo, true);
 }
 
+function notifyGitFailure(title: string, error: unknown): void {
+  notify.error(title, { description: errorMessage(error) });
+}
+
 export async function fetchGitRepo(
   projectId: string,
   repo: string,
@@ -45,7 +49,7 @@ export async function fetchGitRepo(
     notify.success("Fetched from remote");
     await refreshAfterRemoteMutation(projectId, repo);
   } catch (error) {
-    notify.error(`Fetch failed: ${errorMessage(error)}`);
+    notifyGitFailure("Fetch failed", error);
   } finally {
     state.operations.fetching = false;
   }
@@ -63,7 +67,7 @@ export async function pullGitRepo(
     notify.success("Pulled from upstream");
     await refreshAfterRemoteMutation(projectId, repo);
   } catch (error) {
-    notify.error(`Pull failed: ${errorMessage(error)}`);
+    notifyGitFailure("Pull failed", error);
   } finally {
     state.operations.pulling = false;
   }
@@ -81,7 +85,7 @@ export async function pushGitRepo(
     notify.success("Pushed to upstream");
     await refreshAfterRemoteMutation(projectId, repo);
   } catch (error) {
-    notify.error(`Push failed: ${errorMessage(error)}`);
+    notifyGitFailure("Push failed", error);
   } finally {
     state.operations.pushing = false;
   }
@@ -99,7 +103,7 @@ export async function syncGitRepo(
     notify.success("Branch synced");
     await refreshAfterRemoteMutation(projectId, repo);
   } catch (error) {
-    notify.error(`Sync failed: ${errorMessage(error)}`);
+    notifyGitFailure("Sync failed", error);
   } finally {
     state.operations.syncing = false;
   }
@@ -121,7 +125,7 @@ export async function switchBaseAndPullGitRepo(
       refreshGithub(projectId, repo),
     ]);
   } catch (error) {
-    notify.error(`Switch and pull failed: ${errorMessage(error)}`);
+    notifyGitFailure("Switch and pull failed", error);
   } finally {
     state.operations.switchingBaseAndPulling = false;
   }
@@ -146,7 +150,7 @@ export async function switchGitRepoBranch(
     ]);
     return true;
   } catch (error) {
-    notify.error(`Switch branch failed: ${errorMessage(error)}`);
+    notifyGitFailure("Switch branch failed", error);
     return false;
   } finally {
     state.operations.switchingBranch = undefined;
@@ -172,7 +176,7 @@ export async function createGitRepoBranch(
     ]);
     return true;
   } catch (error) {
-    notify.error(`Create branch failed: ${errorMessage(error)}`);
+    notifyGitFailure("Create branch failed", error);
     return false;
   } finally {
     state.operations.creatingBranch = false;
@@ -198,8 +202,9 @@ export async function mutateGitFile(
     mergeRepoSummary(projectId, result.repo);
     await refreshGitOverview(projectId, repo);
   } catch (error) {
-    notify.error(
-      `${action[0].toUpperCase()}${action.slice(1)} failed: ${errorMessage(error)}`,
+    notifyGitFailure(
+      `${action[0].toUpperCase()}${action.slice(1)} failed`,
+      error,
     );
   } finally {
     state.operations.fileMutation = undefined;
@@ -226,8 +231,9 @@ export async function bulkStageGitFiles(
     }
     await refreshGitOverview(projectId, repo);
   } catch (error) {
-    notify.error(
-      `${action === "stage-all" ? "Stage all" : "Unstage all"} failed: ${errorMessage(error)}`,
+    notifyGitFailure(
+      `${action === "stage-all" ? "Stage all" : "Unstage all"} failed`,
+      error,
     );
   } finally {
     state.operations.bulkMutation = undefined;
