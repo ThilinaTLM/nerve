@@ -8,7 +8,11 @@ import {
   plural,
   statusDot,
 } from "./tool-presentation-helpers";
-import type { MetaItem, ToolPresentation } from "./tool-presentation-types";
+import type {
+  MetaItem,
+  PrimaryArg,
+  ToolPresentation,
+} from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   aggregateExploreTasks,
@@ -65,6 +69,38 @@ function hasOutputArtifactPath(
       "outputArtifacts" in view &&
       view.outputArtifacts?.some((artifact) => artifact.path === path),
   );
+}
+
+function jiraPrimaryArg(
+  view: Extract<ToolView, { kind: "jira" }>,
+): PrimaryArg | undefined {
+  switch (view.action) {
+    case "search_issues":
+      return view.jql ? { text: view.jql } : undefined;
+    case "get_project": {
+      const label = view.project?.name
+        ? `${view.project.key} · ${view.project.name}`
+        : (view.projectKey ?? view.project?.key);
+      return label ? { text: label } : undefined;
+    }
+    case "create_issue":
+      return view.issueKey
+        ? { text: view.issueKey }
+        : view.summary
+          ? {
+              text: view.issueType
+                ? `${view.issueType} · ${view.summary}`
+                : view.summary,
+            }
+          : undefined;
+    case "get_issue":
+    case "update_issue":
+    case "add_comment":
+    case "transition_issue":
+      return view.issueKey ? { text: view.issueKey } : undefined;
+    default:
+      return undefined;
+  }
 }
 
 function outputMeta(view: ToolView): MetaItem[] {
@@ -354,6 +390,94 @@ export function toolPresentation(
         detailsAction:
           previewDetailsAction ??
           detailsActionFor(lineCount(view.content), "lines"),
+      };
+    }
+
+    case "jira": {
+      const meta: MetaItem[] = [];
+      const countChip = (count: number | undefined, noun: string) => {
+        if (count !== undefined) meta.push({ text: plural(count, noun) });
+      };
+      switch (view.action) {
+        case "search_issues":
+          countChip(view.issueCount ?? view.issues.length, "issue");
+          if (view.total !== undefined && view.total !== view.issueCount) {
+            meta.push({ text: `${view.total} total` });
+          }
+          if (view.nextPageToken)
+            meta.push({ text: "next page", tone: "info" });
+          break;
+        case "get_issue":
+          if (view.issue?.issueType) meta.push({ text: view.issue.issueType });
+          if (view.issue?.status) meta.push({ text: view.issue.status });
+          if (view.issue?.assignee)
+            meta.push({ text: `assignee ${view.issue.assignee}` });
+          if (view.includedCounts?.comments !== undefined) {
+            countChip(view.includedCounts.comments, "comment");
+          }
+          if (view.includedCounts?.transitions !== undefined) {
+            countChip(view.includedCounts.transitions, "transition");
+          }
+          break;
+        case "get_project":
+          if (view.project?.projectTypeKey)
+            meta.push({ text: view.project.projectTypeKey });
+          if (view.includedCounts?.statuses !== undefined) {
+            meta.push({ text: `${view.includedCounts.statuses} statuses` });
+          }
+          if (view.includedCounts?.components !== undefined) {
+            countChip(view.includedCounts.components, "component");
+          }
+          if (view.includedCounts?.versions !== undefined) {
+            countChip(view.includedCounts.versions, "version");
+          }
+          break;
+        case "create_issue":
+          if (view.projectKey)
+            meta.push({ text: `project ${view.projectKey}`, mono: true });
+          if (view.issueType) meta.push({ text: view.issueType });
+          break;
+        case "update_issue": {
+          const updated = view.updatedFieldCount ?? view.updatedFields?.length;
+          if (updated !== undefined)
+            meta.push({ text: `${plural(updated, "field")} updated` });
+          break;
+        }
+        case "add_comment":
+          if (view.commentId)
+            meta.push({ text: `comment ${view.commentId}`, mono: true });
+          break;
+        case "transition_issue":
+          if (view.transition?.name) meta.push({ text: view.transition.name });
+          if (view.transition?.to)
+            meta.push({ text: `to ${view.transition.to}` });
+          if (!view.transition)
+            countChip(
+              view.transitionCount ?? view.transitions.length,
+              "transition",
+            );
+          break;
+      }
+      meta.push(...outputMeta(view));
+      const detailsAction =
+        previewDetailsAction ??
+        detailsActionFor(
+          view.issues.length > COLLAPSED_LINES
+            ? view.issues.length
+            : view.transitions.length > COLLAPSED_LINES
+              ? view.transitions.length
+              : view.contentLineCount,
+          view.issues.length > COLLAPSED_LINES
+            ? "issues"
+            : view.transitions.length > COLLAPSED_LINES
+              ? "transitions"
+              : "lines",
+        );
+      return {
+        ...base,
+        primaryArg: jiraPrimaryArg(view),
+        meta,
+        detailsAction,
       };
     }
 

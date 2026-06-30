@@ -1,6 +1,7 @@
 <script lang="ts">
   import type {
     AgentRecord,
+    ApprovalWithToolCall,
     ModelInfo,
     PlanReviewRecord,
     PlanReviewResolveOptions,
@@ -28,6 +29,7 @@
     node: TimelineItem;
     sending: boolean;
     activeProject?: ProjectRecord;
+    approvals?: ApprovalWithToolCall[];
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
     hydrateToolBodies?: boolean;
@@ -38,6 +40,8 @@
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
+    onGrantApproval?: (id: string) => void;
+    onDenyApproval?: (id: string) => void;
     onAcceptPlanReview?: (
       id: string,
       options?: PlanReviewResolveOptions,
@@ -59,6 +63,7 @@
     node,
     sending,
     activeProject,
+    approvals = [],
     pendingUserQuestion,
     pendingPlanReview,
     hydrateToolBodies = true,
@@ -69,6 +74,8 @@
     onOpenFile,
     onAnswerUserQuestion,
     onDismissUserQuestion,
+    onGrantApproval,
+    onDenyApproval,
     onAcceptPlanReview,
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
@@ -116,6 +123,11 @@
     <ToolCallCard
       toolCall={node.toolCall}
       liveOutput={node.liveOutput}
+      pendingApproval={approvals.find(
+        (approval) =>
+          approval.toolCallId === node.toolCall.id &&
+          approval.status === "pending",
+      )}
       {pendingUserQuestion}
       hydrateBody={hydrateToolBodies}
       {pendingPlanReview}
@@ -125,6 +137,8 @@
       {planReviewThinkingLevel}
       {onAnswerUserQuestion}
       {onDismissUserQuestion}
+      {onGrantApproval}
+      {onDenyApproval}
       {onAcceptPlanReview}
       {onAcceptPlanReviewInNewChat}
       {onRejectPlanReview}

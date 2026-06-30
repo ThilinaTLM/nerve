@@ -18,6 +18,7 @@ export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
 import type { LiveToolOutput } from "$lib/core/types/state-types";
 import { LruCache } from "$lib/core/utils/lru-cache";
 import { parseExploreProgressLog } from "./explore-progress";
+import { parseJiraView } from "./jira-result-view";
 import {
   asRecord,
   detailsTruncated,
@@ -594,6 +595,15 @@ export function parseToolView(
         summary: reason,
       };
     }
+
+    case "jira_search_issues":
+    case "jira_get_issue":
+    case "jira_get_project":
+    case "jira_create_issue":
+    case "jira_update_issue":
+    case "jira_add_comment":
+    case "jira_transition_issue":
+      return parseJiraView(toolCall, args, rawResult, liveOutput);
 
     case "web_search": {
       const details = webSearchResultDetailsSchema.safeParse(result?.details);

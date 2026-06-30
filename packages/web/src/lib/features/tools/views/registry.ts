@@ -6,6 +6,7 @@ import ExploreToolView from "$lib/features/tools/components/tool-call/ExploreToo
 import FindToolView from "$lib/features/tools/components/tool-call/FindToolView.svelte";
 import GenericToolView from "$lib/features/tools/components/tool-call/GenericToolView.svelte";
 import GrepToolView from "$lib/features/tools/components/tool-call/GrepToolView.svelte";
+import JiraToolView from "$lib/features/tools/components/tool-call/JiraToolView.svelte";
 import LsToolView from "$lib/features/tools/components/tool-call/LsToolView.svelte";
 import PlanModeToolView from "$lib/features/tools/components/tool-call/PlanModeToolView.svelte";
 import PythonToolView from "$lib/features/tools/components/tool-call/PythonToolView.svelte";
@@ -38,6 +39,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   task_logs: TaskLogsToolView,
   explore: ExploreToolView,
   plan_mode: PlanModeToolView,
+  jira: JiraToolView,
   web_search: WebSearchToolView,
   web_fetch: WebFetchToolView,
   generic: GenericToolView,

@@ -466,6 +466,40 @@ describe("summarizeToolDraft", () => {
     assert.match(summary.argsPreview, /context/);
   });
 
+  it("summarizes Jira draft arguments without expanding large bodies", () => {
+    const search = summarizeToolDraft(
+      draft("jira_search_issues", {
+        args: {
+          jql: "project = NER ORDER BY updated DESC",
+          max_results: 15,
+          fields: ["summary", "status"],
+        },
+        done: true,
+      }),
+    );
+
+    assert.equal(search.kind, "generic");
+    assert.equal(search.path, "project = NER ORDER BY updated DESC");
+    assert.deepEqual(
+      search.meta.map((item) => item.text),
+      ["max 15", "2 fields", "submitted"],
+    );
+    assert.ok(search.argsPreview);
+    assert.ok(previewLines(search.argsPreview) <= DRAFT_PREVIEW_LINES);
+
+    const transition = summarizeToolDraft(
+      draft("jira_transition_issue", {
+        args: { issue_key: "NER-1", transition: "Done", dry_run: true },
+      }),
+    );
+
+    assert.equal(transition.path, "NER-1");
+    assert.deepEqual(
+      transition.meta.map((item) => item.text),
+      ["Done", "dry run"],
+    );
+  });
+
   it("provides capped argument previews for representative generic tools", () => {
     for (const [toolName, args] of [
       [

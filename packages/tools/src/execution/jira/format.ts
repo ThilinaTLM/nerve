@@ -2,8 +2,18 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type {
+  JiraIssueSummaryPayload,
+  JiraProjectSummaryPayload,
+  JiraTransitionSummaryPayload,
+  ToolOutputLimitsPayload,
+} from "@nervekit/shared";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { buildProcessTextResult } from "../common/process-result.js";
+
+export const JIRA_DISPLAY_ITEM_LIMIT = 20;
+export const JIRA_FIELD_DISPLAY_LIMIT = 20;
+export const JIRA_TEXT_FIELD_MAX_CHARS = 300;
 
 export async function writeJiraArtifact(
   context: ToolExecutionContext,
@@ -38,15 +48,16 @@ export async function buildJiraTextResult({
   details?: Record<string, unknown>;
   artifact?: { path: string; bytes: number; chars: number; lines: number };
 }): Promise<ToolExecutionResult> {
+  const existingOutputLimits = details.outputLimits as
+    | ToolOutputLimitsPayload
+    | undefined;
   const outputLimits = artifact
     ? {
-        ...((details.outputLimits as Record<string, unknown> | undefined) ??
-          {}),
+        ...(existingOutputLimits ?? {}),
         artifacts: [
-          ...(((details.outputLimits as { artifacts?: unknown[] } | undefined)
-            ?.artifacts as unknown[] | undefined) ?? []),
+          ...(existingOutputLimits?.artifacts ?? []),
           {
-            kind: "raw_result",
+            kind: "raw_result" as const,
             path: artifact.path,
             label: "Raw Jira JSON",
             bytes: artifact.bytes,
@@ -55,7 +66,7 @@ export async function buildJiraTextResult({
           },
         ],
       }
-    : details.outputLimits;
+    : existingOutputLimits;
   return buildProcessTextResult({
     text,
     outputFilePrefix: "nerve-jira",
@@ -65,31 +76,143 @@ export async function buildJiraTextResult({
   });
 }
 
-export function issueLine(issue: unknown): string {
-  if (!issue || typeof issue !== "object") return JSON.stringify(issue);
+export function takeDisplayItems<T>(
+  items: T[],
+  limit = JIRA_DISPLAY_ITEM_LIMIT,
+): { items: T[]; total: number; displayed: number; omitted: number } {
+  const total = items.length;
+  const displayedItems = items.slice(0, limit);
+  return {
+    items: displayedItems,
+    total,
+    displayed: displayedItems.length,
+    omitted: Math.max(0, total - displayedItems.length),
+  };
+}
+
+export function displayLimitNotice({
+  noun,
+  total,
+  displayed,
+  artifactPath,
+}: {
+  noun: string;
+  total: number;
+  displayed: number;
+  artifactPath?: string;
+}): string | undefined {
+  if (total <= displayed) return undefined;
+  const plural = total === 1 ? noun : `${noun}s`;
+  return artifactPath
+    ? `Showing first ${displayed} of ${total} ${plural}; full Jira response is saved to ${artifactPath}.`
+    : `Showing first ${displayed} of ${total} ${plural}; narrow the query or save raw JSON for full details.`;
+}
+
+export function summarizeJiraIssue(
+  issue: unknown,
+): JiraIssueSummaryPayload | undefined {
+  if (!issue || typeof issue !== "object") return undefined;
   const record = issue as Record<string, unknown>;
-  const fields = (record.fields ?? {}) as Record<string, unknown>;
-  const status = nameOf(fields.status);
-  const assignee = displayNameOf(fields.assignee);
-  const summary = typeof fields.summary === "string" ? fields.summary : "";
-  const type = nameOf(fields.issuetype);
-  const key =
-    typeof record.key === "string" ? record.key : String(record.id ?? "?");
-  const parts = [
+  const fields = asRecord(record.fields);
+  const key = stringField(record.key) ?? stringField(record.id);
+  if (!key) return undefined;
+  return compactRecord({
     key,
-    type,
-    status,
-    assignee ? `assignee: ${assignee}` : undefined,
+    id: stringField(record.id),
+    summary: truncateField(stringField(fields.summary)),
+    issueType: truncateField(nameOf(fields.issuetype)),
+    status: truncateField(nameOf(fields.status)),
+    assignee: truncateField(displayNameOf(fields.assignee)),
+    priority: truncateField(nameOf(fields.priority)),
+    updated: truncateField(stringField(fields.updated)),
+  }) as JiraIssueSummaryPayload;
+}
+
+export function summarizeJiraProject(
+  project: unknown,
+  fallbackKey?: string,
+): JiraProjectSummaryPayload | undefined {
+  if (!project || typeof project !== "object") {
+    return fallbackKey ? { key: fallbackKey } : undefined;
+  }
+  const record = project as Record<string, unknown>;
+  const key = stringField(record.key) ?? fallbackKey ?? stringField(record.id);
+  if (!key) return undefined;
+  return compactRecord({
+    key,
+    id: stringField(record.id),
+    name: truncateField(stringField(record.name)),
+    projectTypeKey: truncateField(stringField(record.projectTypeKey)),
+    lead: truncateField(displayNameOf(record.lead)),
+  }) as JiraProjectSummaryPayload;
+}
+
+export function summarizeJiraTransition(
+  value: unknown,
+): JiraTransitionSummaryPayload | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const id = stringField(record.id);
+  if (!id) return undefined;
+  return compactRecord({
+    id,
+    name: truncateField(stringField(record.name)),
+    to: truncateField(nameOf(record.to) ?? stringField(record.to)),
+  }) as JiraTransitionSummaryPayload;
+}
+
+export function issueLine(issue: unknown): string {
+  const summary = summarizeJiraIssue(issue);
+  return summary ? formatIssueSummaryLine(summary) : JSON.stringify(issue);
+}
+
+export function formatIssueSummaryLine(
+  summary: JiraIssueSummaryPayload,
+): string {
+  const parts = [
+    summary.key,
+    summary.issueType,
+    summary.status,
+    summary.priority ? `priority: ${summary.priority}` : undefined,
+    summary.assignee ? `assignee: ${summary.assignee}` : undefined,
   ]
     .filter(Boolean)
     .join(" · ");
-  return `- ${parts}${summary ? ` — ${summary}` : ""}`;
+  return `- ${parts}${summary.summary ? ` — ${summary.summary}` : ""}`;
 }
 
 export function nameOf(value: unknown): string | undefined {
   if (!value || typeof value !== "object") return undefined;
   const name = (value as Record<string, unknown>).name;
   return typeof name === "string" ? name : undefined;
+}
+
+export function transitionLine(value: unknown): string {
+  const summary = summarizeJiraTransition(value);
+  return summary ? formatTransitionSummaryLine(summary) : JSON.stringify(value);
+}
+
+export function formatTransitionSummaryLine(
+  summary: JiraTransitionSummaryPayload,
+): string {
+  return `- ${summary.id} · ${summary.name ?? "(unnamed)"}${summary.to ? ` → ${summary.to}` : ""}`;
+}
+
+function truncateField(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= JIRA_TEXT_FIELD_MAX_CHARS) return normalized;
+  return `${normalized.slice(0, JIRA_TEXT_FIELD_MAX_CHARS - 1)}…`;
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function displayNameOf(value: unknown): string | undefined {
@@ -100,12 +223,10 @@ function displayNameOf(value: unknown): string | undefined {
     : nameOf(value);
 }
 
-export function transitionLine(value: unknown): string {
-  if (!value || typeof value !== "object") return JSON.stringify(value);
-  const record = value as Record<string, unknown>;
-  const to = nameOf(record.to);
-  const id =
-    typeof record.id === "string" ? record.id : String(record.id ?? "?");
-  const name = typeof record.name === "string" ? record.name : "(unnamed)";
-  return `- ${id} · ${name}${to ? ` → ${to}` : ""}`;
+function compactRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).filter(([, value]) => value !== undefined),
+  );
 }

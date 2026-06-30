@@ -53,6 +53,4 @@ export type PromptComposerProps = {
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
   onPermissionChange?: (value: PermissionLevel) => void;
-  onGrantApproval?: (id: string) => void;
-  onDenyApproval?: (id: string) => void;
 };

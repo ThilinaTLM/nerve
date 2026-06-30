@@ -19,7 +19,6 @@
     AudioInputAuthRequiredDialog,
     chatGptAudioAuth,
   } from "$lib/features/audio";
-  import ApprovalStrip from "./ApprovalStrip.svelte";
   import PromptSuggestionChips from "./PromptSuggestionChips.svelte";
   import ComposerToolbar from "./ComposerToolbar.svelte";
   import {
@@ -69,8 +68,6 @@
     onThinkingLevelChange,
     onModeChange,
     onPermissionChange,
-    onGrantApproval,
-    onDenyApproval,
   }: PromptComposerProps = $props();
 
   let editorFocusToken = $state(0);
@@ -267,8 +264,6 @@
 </script>
 
 <form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
-  <ApprovalStrip {approvals} {onGrantApproval} {onDenyApproval} />
-
   {#if composerSuggestions.length > 0 && !blockedForReview && !sending && !compacting && canPrompt}
     <PromptSuggestionChips
       suggestions={composerSuggestions}

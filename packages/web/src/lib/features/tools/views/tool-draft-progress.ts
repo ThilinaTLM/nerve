@@ -1,5 +1,6 @@
 import type { LiveToolCallDraft } from "$lib/core/types/state-types";
 import { relativePathForDisplay } from "$lib/core/utils/path-links";
+import { jiraDraftMeta, jiraDraftPrimaryArg } from "./jira-draft-progress";
 import { draftArgsPreview } from "./tool-draft-args-preview";
 
 export type DraftMetaTone =
@@ -674,6 +675,8 @@ function genericPrimaryArg(draft: LiveToolCallDraft): string | undefined {
   if (toolName === "bash") return firstKnownString(draft, "command");
   if (toolName === "web_fetch") return firstKnownString(draft, "url");
   if (toolName === "web_search") return firstKnownString(draft, "query");
+  const jiraArg = jiraDraftPrimaryArg(draft, firstKnownString);
+  if (jiraArg !== undefined) return jiraArg;
   if (toolName === "grep" || toolName === "find") {
     return firstKnownString(draft, "pattern");
   }
@@ -689,6 +692,9 @@ function genericPrimaryArg(draft: LiveToolCallDraft): string | undefined {
 
 function genericMeta(draft: LiveToolCallDraft): DraftMetaItem[] {
   const meta: DraftMetaItem[] = [];
+  if (draft.toolName?.startsWith("jira_")) {
+    meta.push(...jiraDraftMeta(draft, firstKnownString));
+  }
   const cwd = firstKnownString(draft, "cwd");
   if (cwd) meta.push({ text: "cwd", tone: "info" });
   if (draft.done) meta.push({ text: "submitted", tone: "success" });

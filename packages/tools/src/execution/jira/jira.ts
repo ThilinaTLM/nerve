@@ -9,8 +9,16 @@ import {
 } from "./client.js";
 import {
   buildJiraTextResult,
+  displayLimitNotice,
+  formatIssueSummaryLine,
+  formatTransitionSummaryLine,
   issueLine,
+  JIRA_FIELD_DISPLAY_LIMIT,
   nameOf,
+  summarizeJiraIssue,
+  summarizeJiraProject,
+  summarizeJiraTransition,
+  takeDisplayItems,
   transitionLine,
   writeJiraArtifact,
 } from "./format.js";
@@ -70,13 +78,27 @@ export async function executeJiraSearchIssues(
     args.save_to_file,
   );
   const issues = Array.isArray(data.issues) ? data.issues : [];
+  const summarizedIssues = issues.flatMap((issue) => {
+    const summary = summarizeJiraIssue(issue);
+    return summary ? [summary] : [];
+  });
+  const displayed = takeDisplayItems(summarizedIssues);
+  const total = typeof data.total === "number" ? data.total : undefined;
   const lines = [
-    `Jira search returned ${issues.length} issue${issues.length === 1 ? "" : "s"}.`,
+    `Jira search returned ${issues.length} issue${issues.length === 1 ? "" : "s"}${total !== undefined ? ` (total ${total})` : ""}.`,
   ];
-  if (typeof data.total === "number") lines[0] += ` Total: ${data.total}.`;
   if (data.nextPageToken) lines.push(`Next page token: ${data.nextPageToken}`);
+  const limitNotice = displayLimitNotice({
+    noun: "issue",
+    total: summarizedIssues.length,
+    displayed: displayed.displayed,
+    artifactPath: artifact?.path,
+  });
+  if (limitNotice) lines.push(limitNotice);
   if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
-  lines.push("", ...issues.map(issueLine));
+  if (displayed.items.length > 0) {
+    lines.push("", ...displayed.items.map(formatIssueSummaryLine));
+  }
   return buildJiraTextResult({
     text: lines.join("\n").trimEnd(),
     context,
@@ -84,7 +106,10 @@ export async function executeJiraSearchIssues(
     details: {
       jql,
       issueCount: issues.length,
+      displayedIssueCount: displayed.displayed,
+      total,
       nextPageToken: data.nextPageToken,
+      issues: displayed.items,
     },
   });
 }
@@ -118,16 +143,47 @@ export async function executeJiraGetIssue(
     result,
     args.save_to_file,
   );
-  const lines = [issueLine(issue)];
+  const issueSummary = summarizeJiraIssue(issue);
+  const lines = [
+    issueSummary ? formatIssueSummaryLine(issueSummary) : issueLine(issue),
+  ];
+  const includedCounts: Record<string, number> = {};
   if (result.comments && typeof result.comments === "object") {
     const comments = (result.comments as { comments?: unknown[] }).comments;
-    if (Array.isArray(comments)) lines.push(`Comments: ${comments.length}`);
+    if (Array.isArray(comments)) {
+      includedCounts.comments = comments.length;
+      lines.push(`Comments: ${comments.length}`);
+    }
   }
+  let transitionSummaries: NonNullable<
+    ReturnType<typeof summarizeJiraTransition>
+  >[] = [];
+  let displayedTransitionCount: number | undefined;
+  let transitionCount: number | undefined;
   if (result.transitions && typeof result.transitions === "object") {
     const transitions = (result.transitions as JiraTransitionsResponse)
       .transitions;
     if (Array.isArray(transitions)) {
-      lines.push("Available transitions:", ...transitions.map(transitionLine));
+      transitionSummaries = transitions.flatMap((transition) => {
+        const summary = summarizeJiraTransition(transition);
+        return summary ? [summary] : [];
+      });
+      const displayed = takeDisplayItems(transitionSummaries);
+      transitionCount = transitionSummaries.length;
+      displayedTransitionCount = displayed.displayed;
+      includedCounts.transitions = transitionSummaries.length;
+      lines.push(
+        "Available transitions:",
+        ...displayed.items.map(formatTransitionSummaryLine),
+      );
+      const limitNotice = displayLimitNotice({
+        noun: "transition",
+        total: transitionSummaries.length,
+        displayed: displayed.displayed,
+        artifactPath: artifact?.path,
+      });
+      if (limitNotice) lines.push(limitNotice);
+      transitionSummaries = displayed.items;
     }
   }
   if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
@@ -135,7 +191,15 @@ export async function executeJiraGetIssue(
     text: lines.join("\n"),
     context,
     artifact,
-    details: { issueKey },
+    details: {
+      issueKey,
+      issue: issueSummary,
+      includedCounts,
+      transitions:
+        transitionSummaries.length > 0 ? transitionSummaries : undefined,
+      transitionCount,
+      displayedTransitionCount,
+    },
   });
 }
 
@@ -181,18 +245,23 @@ export async function executeJiraGetProject(
     result,
     args.save_to_file,
   );
-  const name = typeof project.name === "string" ? project.name : projectKey;
+  const projectSummary = summarizeJiraProject(project, projectKey);
+  const name = projectSummary?.name ?? projectKey;
   const lines = [`Jira project ${projectKey}: ${name}`];
+  const includedCounts: Record<string, number> = {};
   for (const key of ["statuses", "components", "versions"] as const) {
     const value = result[key];
-    if (Array.isArray(value)) lines.push(`${key}: ${value.length}`);
+    if (Array.isArray(value)) {
+      includedCounts[key] = value.length;
+      lines.push(`${key}: ${value.length}`);
+    }
   }
   if (artifact) lines.push(`Raw JSON saved to: ${artifact.path}`);
   return buildJiraTextResult({
     text: lines.join("\n"),
     context,
     artifact,
-    details: { projectKey },
+    details: { projectKey, project: projectSummary, includedCounts },
   });
 }
 
@@ -235,7 +304,14 @@ export async function executeJiraCreateIssue(
   return buildJiraTextResult({
     text: `Created Jira issue ${key}.`,
     context,
-    details: { issueKey: data.key, id: data.id, self: data.self },
+    details: {
+      issueKey: data.key,
+      id: data.id,
+      self: data.self,
+      projectKey,
+      issueType,
+      summary,
+    },
   });
 }
 
@@ -268,10 +344,20 @@ export async function executeJiraUpdateIssue(
     body: { fields },
     signal: context.signal,
   });
+  const updatedFields = Object.keys(fields);
+  const displayedFields = updatedFields.slice(0, JIRA_FIELD_DISPLAY_LIMIT);
+  const fieldNotice =
+    updatedFields.length > displayedFields.length
+      ? ` Showing first ${displayedFields.length} of ${updatedFields.length} updated fields.`
+      : "";
   return buildJiraTextResult({
-    text: `Updated Jira issue ${issueKey}.`,
+    text: `Updated Jira issue ${issueKey}.${fieldNotice}`,
     context,
-    details: { issueKey, updatedFields: Object.keys(fields) },
+    details: {
+      issueKey,
+      updatedFields: displayedFields,
+      updatedFieldCount: updatedFields.length,
+    },
   });
 }
 
@@ -321,13 +407,30 @@ export async function executeJiraTransitionIssue(
     : [];
   const transitionArg = optionalString(args.transition);
   if (args.dry_run === true || !transitionArg) {
+    const transitionSummaries = transitions.flatMap((transition) => {
+      const summary = summarizeJiraTransition(transition);
+      return summary ? [summary] : [];
+    });
+    const displayed = takeDisplayItems(transitionSummaries);
+    const lines = [
+      `Available transitions for ${issueKey}:`,
+      ...displayed.items.map(formatTransitionSummaryLine),
+    ];
+    const limitNotice = displayLimitNotice({
+      noun: "transition",
+      total: transitionSummaries.length,
+      displayed: displayed.displayed,
+    });
+    if (limitNotice) lines.push(limitNotice);
     return buildJiraTextResult({
-      text: [
-        `Available transitions for ${issueKey}:`,
-        ...transitions.map(transitionLine),
-      ].join("\n"),
+      text: lines.join("\n"),
       context,
-      details: { issueKey, transitions },
+      details: {
+        issueKey,
+        transitions: displayed.items,
+        transitionCount: transitionSummaries.length,
+        displayedTransitionCount: displayed.displayed,
+      },
     });
   }
   const transition = matchTransition(transitions, transitionArg);
@@ -368,10 +471,11 @@ export async function executeJiraTransitionIssue(
     body,
     signal: context.signal,
   });
+  const transitionSummaryDetails = summarizeJiraTransition(transition);
   return buildJiraTextResult({
-    text: `Transitioned Jira issue ${issueKey} via ${transitionLine(transition)}.`,
+    text: `Transitioned Jira issue ${issueKey} via ${transitionSummaryDetails ? formatTransitionSummaryLine(transitionSummaryDetails) : transitionLine(transition)}.`,
     context,
-    details: { issueKey, transition: transitionSummary(transition) },
+    details: { issueKey, transition: transitionSummaryDetails },
   });
 }
 

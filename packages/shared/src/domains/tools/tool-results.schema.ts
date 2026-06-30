@@ -309,6 +309,87 @@ export const webFetchResultDetailsSchema = z.object({
 });
 export type WebFetchResultDetails = z.infer<typeof webFetchResultDetailsSchema>;
 
+export const jiraTextDisplaySchema = z.string().max(500);
+
+export const jiraIssueSummarySchema = z
+  .object({
+    key: z.string().min(1),
+    id: z.string().optional(),
+    summary: jiraTextDisplaySchema.optional(),
+    issueType: jiraTextDisplaySchema.optional(),
+    status: jiraTextDisplaySchema.optional(),
+    assignee: jiraTextDisplaySchema.optional(),
+    priority: jiraTextDisplaySchema.optional(),
+    updated: jiraTextDisplaySchema.optional(),
+  })
+  .passthrough();
+export type JiraIssueSummaryPayload = z.infer<typeof jiraIssueSummarySchema>;
+
+export const jiraProjectSummarySchema = z
+  .object({
+    key: z.string().min(1),
+    id: z.string().optional(),
+    name: jiraTextDisplaySchema.optional(),
+    projectTypeKey: jiraTextDisplaySchema.optional(),
+    lead: jiraTextDisplaySchema.optional(),
+  })
+  .passthrough();
+export type JiraProjectSummaryPayload = z.infer<
+  typeof jiraProjectSummarySchema
+>;
+
+export const jiraTransitionSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    name: jiraTextDisplaySchema.optional(),
+    to: jiraTextDisplaySchema.optional(),
+  })
+  .passthrough();
+export type JiraTransitionSummaryPayload = z.infer<
+  typeof jiraTransitionSummarySchema
+>;
+
+export const jiraIncludedCountsSchema = z
+  .object({
+    comments: z.number().int().nonnegative().optional(),
+    transitions: z.number().int().nonnegative().optional(),
+    statuses: z.number().int().nonnegative().optional(),
+    components: z.number().int().nonnegative().optional(),
+    versions: z.number().int().nonnegative().optional(),
+  })
+  .passthrough();
+export type JiraIncludedCountsPayload = z.infer<
+  typeof jiraIncludedCountsSchema
+>;
+
+export const jiraResultDetailsSchema = z
+  .object({
+    jql: z.string().optional(),
+    issueCount: z.number().int().nonnegative().optional(),
+    displayedIssueCount: z.number().int().nonnegative().optional(),
+    total: z.number().int().nonnegative().optional(),
+    nextPageToken: z.string().optional(),
+    issues: z.array(jiraIssueSummarySchema).optional(),
+    issue: jiraIssueSummarySchema.optional(),
+    issueKey: z.string().optional(),
+    projectKey: z.string().optional(),
+    project: jiraProjectSummarySchema.optional(),
+    includedCounts: jiraIncludedCountsSchema.optional(),
+    issueType: jiraTextDisplaySchema.optional(),
+    summary: jiraTextDisplaySchema.optional(),
+    id: z.string().optional(),
+    self: z.string().optional(),
+    updatedFields: z.array(z.string()).optional(),
+    updatedFieldCount: z.number().int().nonnegative().optional(),
+    commentId: z.string().optional(),
+    transition: jiraTransitionSummarySchema.optional(),
+    transitions: z.array(jiraTransitionSummarySchema).optional(),
+    transitionCount: z.number().int().nonnegative().optional(),
+    displayedTransitionCount: z.number().int().nonnegative().optional(),
+  })
+  .passthrough();
+export type JiraResultDetailsPayload = z.infer<typeof jiraResultDetailsSchema>;
+
 /** File-tool result envelope (read/write/edit/grep/find/ls/bash/python/web_fetch/web_search). */
 export const toolExecutionResultSchema = z.object({
   content: z.string().optional(),

@@ -94,8 +94,12 @@
     <ToolStatusIcon
       tone={dotTone}
       pulse={dotPulse}
-      waitingForUser={status === "waiting_for_user"}
-      label={status === "waiting_for_user" ? "Waiting for user feedback" : undefined}
+      waitingForUser={status === "waiting_for_user" || status === "pending_approval"}
+      label={status === "waiting_for_user"
+        ? "Waiting for user feedback"
+        : status === "pending_approval"
+          ? "Approval required"
+          : undefined}
       size={14}
       class="mr-1.5 align-middle"
     />

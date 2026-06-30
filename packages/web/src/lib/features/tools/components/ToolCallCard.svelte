@@ -1,6 +1,7 @@
 <script lang="ts">
   import type {
     AgentRecord,
+    ApprovalWithToolCall,
     ModelInfo,
     PlanReviewRecord,
     PlanReviewResolveOptions,
@@ -15,10 +16,12 @@
   import { getToolCall } from "$lib/features/tools/api/tools.api";
   import ToolCallShell from "./tool-call/ToolCallShell.svelte";
   import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
+  import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
 
   type Props = {
     toolCall: ToolCallTranscriptRecord;
     liveOutput?: LiveToolOutput;
+    pendingApproval?: ApprovalWithToolCall;
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
     hydrateBody?: boolean;
@@ -28,6 +31,8 @@
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
+    onGrantApproval?: (id: string) => void;
+    onDenyApproval?: (id: string) => void;
     onAcceptPlanReview?: (
       id: string,
       options?: PlanReviewResolveOptions,
@@ -41,6 +46,7 @@
   let {
     toolCall,
     liveOutput,
+    pendingApproval,
     pendingUserQuestion,
     pendingPlanReview,
     hydrateBody = true,
@@ -50,6 +56,8 @@
     onOpenFile,
     onAnswerUserQuestion,
     onDismissUserQuestion,
+    onGrantApproval,
+    onDenyApproval,
     onAcceptPlanReview,
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
@@ -74,10 +82,18 @@
     label: presentation.detailsAction?.label ?? "Details",
     onClick: openDetails,
   });
+  const toolApproval = $derived(
+    pendingApproval?.toolCallId === toolCall.id &&
+      toolCall.status === "pending_approval"
+      ? pendingApproval
+      : undefined,
+  );
+  const hilInteractive = $derived(
+    view.kind === "ask_user" ||
+      (view.kind === "plan_mode" && view.action === "present"),
+  );
   const bodyMode = $derived<"output" | "interactive">(
-    view.kind === "ask_user" || (view.kind === "plan_mode" && view.action === "present")
-      ? "interactive"
-      : "output",
+    hilInteractive || toolApproval ? "interactive" : "output",
   );
   const showBody = $derived(toolCall.status !== "error" && toolCall.status !== "denied");
   const toolQuestion = $derived(
@@ -118,7 +134,7 @@
       {view}
       expanded={false}
       {onOpenFile}
-      detailsAction={bodyMode === "interactive" ? bodyDetailsAction : undefined}
+      detailsAction={hilInteractive ? bodyDetailsAction : undefined}
       questionRecord={toolQuestion}
       planReview={toolPlanReview}
       {onAnswerUserQuestion}
@@ -129,6 +145,14 @@
       {onAcceptPlanReview}
       {onAcceptPlanReviewInNewChat}
       {onRejectPlanReview}
+    />
+  {/if}
+  {#if showBody && toolApproval}
+    <ApprovalPrompt
+      approval={toolApproval}
+      detailsAction={bodyDetailsAction}
+      {onGrantApproval}
+      {onDenyApproval}
     />
   {/if}
 </ToolCallShell>

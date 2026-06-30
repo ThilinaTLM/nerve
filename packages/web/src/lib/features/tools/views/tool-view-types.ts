@@ -2,6 +2,10 @@ import type {
   ExploreReportPayload,
   FileEntry,
   GrepMatch,
+  JiraIncludedCountsPayload,
+  JiraIssueSummaryPayload,
+  JiraProjectSummaryPayload,
+  JiraTransitionSummaryPayload,
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
   TaskLogEvent,
@@ -15,6 +19,15 @@ export type ToolOutputInfo = {
   outputLimits?: ToolOutputLimitsPayload;
   outputArtifacts?: ToolOutputArtifactPayload[];
 };
+
+export type JiraToolAction =
+  | "search_issues"
+  | "get_issue"
+  | "get_project"
+  | "create_issue"
+  | "update_issue"
+  | "add_comment"
+  | "transition_issue";
 
 export type GrepMatchView = GrepMatch & { openPath?: string };
 export type GroupedMatches = {
@@ -222,6 +235,36 @@ export type ToolView =
       summary?: string;
       planPath?: string;
       outcome?: string;
+    }
+  | {
+      kind: "jira";
+      action: JiraToolAction;
+      toolName: string;
+      content?: string;
+      contentLineCount: number;
+      messageLines: string[];
+      jql?: string;
+      issueKey?: string;
+      projectKey?: string;
+      issueType?: string;
+      summary?: string;
+      issue?: JiraIssueSummaryPayload;
+      issues: JiraIssueSummaryPayload[];
+      issueCount?: number;
+      displayedIssueCount?: number;
+      total?: number;
+      nextPageToken?: string;
+      project?: JiraProjectSummaryPayload;
+      includedCounts?: JiraIncludedCountsPayload;
+      updatedFields?: string[];
+      updatedFieldCount?: number;
+      commentId?: string;
+      transition?: JiraTransitionSummaryPayload;
+      transitions: JiraTransitionSummaryPayload[];
+      transitionCount?: number;
+      displayedTransitionCount?: number;
+      outputLimits?: ToolOutputLimitsPayload;
+      outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
       kind: "web_search";

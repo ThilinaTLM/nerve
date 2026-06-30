@@ -2,6 +2,7 @@
   import Folder from "@lucide/svelte/icons/folder";
   import type {
     AgentRecord,
+    ApprovalWithToolCall,
     ModelInfo,
     PlanReviewRecord,
     PlanReviewResolveOptions,
@@ -38,6 +39,7 @@
     followBottom?: boolean;
     activeProject?: ProjectRecord;
     activeProjectLabel?: string;
+    approvals?: ApprovalWithToolCall[];
     pendingUserQuestion?: UserQuestionRecord;
     pendingPlanReview?: PlanReviewRecord;
     active?: boolean;
@@ -48,6 +50,8 @@
     onOpenFile?: (path: string, line?: number) => void;
     onAnswerUserQuestion?: (questionId: string, answer: string) => void;
     onDismissUserQuestion?: (questionId: string) => void;
+    onGrantApproval?: (id: string) => void;
+    onDenyApproval?: (id: string) => void;
     onAcceptPlanReview?: (
       id: string,
       options?: PlanReviewResolveOptions,
@@ -82,6 +86,7 @@
     followBottom = true,
     activeProject,
     activeProjectLabel,
+    approvals = [],
     pendingUserQuestion,
     pendingPlanReview,
     active = true,
@@ -92,6 +97,8 @@
     onOpenFile,
     onAnswerUserQuestion,
     onDismissUserQuestion,
+    onGrantApproval,
+    onDenyApproval,
     onAcceptPlanReview,
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
@@ -169,6 +176,7 @@
           {sending}
           hydrateToolBodies={active}
           {activeProject}
+          {approvals}
           {pendingUserQuestion}
           {pendingPlanReview}
           {lastTimelineKey}
@@ -178,6 +186,8 @@
           {onOpenFile}
           {onAnswerUserQuestion}
           {onDismissUserQuestion}
+          {onGrantApproval}
+          {onDenyApproval}
           {onAcceptPlanReview}
           {onAcceptPlanReviewInNewChat}
           {onRejectPlanReview}

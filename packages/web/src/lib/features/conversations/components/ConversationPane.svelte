@@ -178,6 +178,7 @@
         followBottom={active ? scroll.followBottom : false}
         {activeProject}
         {activeProjectLabel}
+        {approvals}
         {pendingUserQuestion}
         {pendingPlanReview}
         {active}
@@ -188,6 +189,8 @@
         {onOpenFile}
         {onAnswerUserQuestion}
         {onDismissUserQuestion}
+        {onGrantApproval}
+        {onDenyApproval}
         {onAcceptPlanReview}
         {onAcceptPlanReviewInNewChat}
         {onRejectPlanReview}
@@ -244,8 +247,6 @@
         {onThinkingLevelChange}
         {onModeChange}
         {onPermissionChange}
-        {onGrantApproval}
-        {onDenyApproval}
       />
     </div>
   {:else}
