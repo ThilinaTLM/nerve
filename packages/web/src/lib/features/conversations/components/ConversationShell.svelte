@@ -131,6 +131,14 @@
       return Boolean(agentId && review.agentId === agentId);
     });
   });
+  const activeApprovals = $derived.by(() => {
+    const agentId = activeAgent?.id;
+    return workspaceState.approvals.filter((approval) => {
+      if (conversationId && approval.conversationId === conversationId)
+        return true;
+      return Boolean(agentId && approval.agentId === agentId);
+    });
+  });
   const planReviewAgent = $derived(
     pendingPlanReview
       ? workspaceState.agents.find(
@@ -348,7 +356,7 @@
   conversations={workspaceState.conversations}
   agents={workspaceState.agents}
   homeDir={workspaceState.status?.storage.home}
-  approvals={workspaceState.approvals}
+  approvals={activeApprovals}
   {pendingUserQuestion}
   {pendingPlanReview}
   transcript={view?.transcript ?? []}

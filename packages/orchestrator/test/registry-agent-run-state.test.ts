@@ -101,8 +101,39 @@ describe("RuntimeRegistry agent run state", () => {
     }
   });
 
-  it("still rejects permission config updates while an agent is running", async () => {
+  it("allows permission updates while an agent is running", async () => {
     const { state, agent } = await createProjectConversationAgent();
+    let runtimePermission: typeof agent.permissionLevel | undefined;
+    try {
+      state.registry.runs.set(agent.id, {
+        runId: "run_01HN0000000000000000000000",
+        abort: () => undefined,
+        messages: [],
+        updateAgentRuntimeConfig: async (updated) => {
+          runtimePermission = updated.permissionLevel;
+        },
+      });
+
+      const updated = await state.registry.configureAgent(agent.id, {
+        permissionLevel: "supervised",
+      });
+
+      assert.equal(updated.permissionLevel, "supervised");
+      assert.equal(
+        state.registry.getAgent(agent.id).permissionLevel,
+        "supervised",
+      );
+      assert.equal(runtimePermission, "supervised");
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("uses the latest running permission level for subsequent tool calls", async () => {
+    const { state, agent } = await createProjectConversationAgent();
+    const supervised = await state.registry.configureAgent(agent.id, {
+      permissionLevel: "supervised",
+    });
     try {
       state.registry.runs.set(agent.id, {
         runId: "run_01HN0000000000000000000000",
@@ -110,16 +141,31 @@ describe("RuntimeRegistry agent run state", () => {
         messages: [],
       });
 
-      await assert.rejects(
-        () =>
-          state.registry.configureAgent(agent.id, {
-            permissionLevel: "supervised",
-          }),
-        (error) =>
-          error instanceof HttpError &&
-          error.status === 409 &&
-          error.code === "AGENT_BUSY",
+      const approvalResponse = await state.registry.requestTool(
+        supervised.id,
+        "write",
+        {
+          path: "needs-approval.txt",
+          content: "blocked",
+        },
       );
+      assert.equal(approvalResponse.toolCall.status, "pending_approval");
+      assert.ok(approvalResponse.approval);
+
+      await state.registry.configureAgent(agent.id, {
+        permissionLevel: "autonomous",
+      });
+      const allowedResponse = await state.registry.requestTool(
+        agent.id,
+        "write",
+        {
+          path: "allowed.txt",
+          content: "ok",
+        },
+      );
+
+      assert.equal(allowedResponse.approval, undefined);
+      assert.equal(allowedResponse.toolCall.status, "completed");
     } finally {
       state.index.close();
     }

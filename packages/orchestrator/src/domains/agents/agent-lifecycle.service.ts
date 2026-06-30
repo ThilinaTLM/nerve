@@ -31,11 +31,12 @@ function isModeOnlyUpdate(
   );
 }
 
-function isRuntimeModelUpdate(request: UpdateAgentRequest): boolean {
+function isRuntimeConfigUpdate(request: UpdateAgentRequest): boolean {
   return (
-    request.permissionLevel === undefined &&
     request.mode === undefined &&
-    (request.model !== undefined || request.thinkingLevel !== undefined)
+    (request.permissionLevel !== undefined ||
+      request.model !== undefined ||
+      request.thinkingLevel !== undefined)
   );
 }
 
@@ -173,11 +174,12 @@ export class AgentLifecycleService {
         );
       }
 
-      if (isRuntimeModelUpdate(request)) {
+      if (isRuntimeConfigUpdate(request)) {
         const model =
           request.model === null ? undefined : (request.model ?? agent.model);
         const updated: AgentRecord = {
           ...agent,
+          permissionLevel: request.permissionLevel ?? agent.permissionLevel,
           model,
           thinkingLevel: clampAgentThinkingLevel(
             model,
