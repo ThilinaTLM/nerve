@@ -1,9 +1,31 @@
+import type { BadgeTone } from "$lib/components/ui/badge";
+
 export type ConfluenceTone =
   | "default"
   | "success"
   | "warning"
   | "info"
   | "muted";
+
+const TONE_TO_BADGE: Record<ConfluenceTone, BadgeTone> = {
+  success: "good",
+  warning: "warn",
+  info: "running",
+  muted: "neutral",
+  default: "neutral",
+};
+
+export function confluenceStatusBadgeTone(
+  status: string | undefined,
+): BadgeTone {
+  return TONE_TO_BADGE[confluenceStatusTone(status)];
+}
+
+export function confluenceOutcomeBadgeTone(
+  status: string | undefined,
+): BadgeTone {
+  return TONE_TO_BADGE[confluenceOutcomeTone(status)];
+}
 
 export function confluenceStatusTone(
   status: string | undefined,

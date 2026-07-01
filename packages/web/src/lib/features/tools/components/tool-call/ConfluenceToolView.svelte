@@ -1,14 +1,16 @@
 <script lang="ts">
   import CircleCheck from "@lucide/svelte/icons/circle-check";
   import Database from "@lucide/svelte/icons/database";
-  import FileText from "@lucide/svelte/icons/file-text";
   import FlaskConical from "@lucide/svelte/icons/flask-conical";
-  import Paperclip from "@lucide/svelte/icons/paperclip";
   import type { Component } from "svelte";
   import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-  import { confluenceBytesLabel, confluencePageUrl } from "$lib/features/tools/views/confluence-display";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import { COLLAPSED_LINES } from "$lib/features/tools/views/tool-result-view";
+  import ConfluenceAttachmentRow from "./ConfluenceAttachmentRow.svelte";
+  import ConfluenceMetricStrip from "./ConfluenceMetricStrip.svelte";
+  import ConfluenceOutcomeRow from "./ConfluenceOutcomeRow.svelte";
+  import ConfluencePageRow from "./ConfluencePageRow.svelte";
+  import ConfluenceSpaceRow from "./ConfluenceSpaceRow.svelte";
 
   type ConfluenceView = Extract<ToolView, { kind: "confluence" }>;
 
@@ -16,8 +18,9 @@
     toolCall: ToolCallDisplayRecord;
     view: ConfluenceView;
     expanded?: boolean;
+    onOpenFile?: (path: string, line?: number) => void;
   };
-  let { toolCall, view, expanded = false }: Props = $props();
+  let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
 
   const ITEM_LIMIT = COLLAPSED_LINES;
   const siteUrl = $derived(settingsState.settingsDraft?.tools?.confluence?.siteUrl);
@@ -25,10 +28,6 @@
 
   function cap<T>(items: T[]): T[] {
     return expanded ? items : items.slice(0, ITEM_LIMIT);
-  }
-
-  function fullUrl(webui: string | undefined): string | undefined {
-    return confluencePageUrl(siteUrl, webui);
   }
 
   function fallbackText(): string {
@@ -65,9 +64,15 @@
         view.attachments.length > 0 ||
         view.attachment ||
         view.outcomes.length > 0 ||
-        view.downloadDir ||
-        view.manifestPath,
+        view.includedCounts,
     ),
+  );
+
+  // Keep a banner only where it adds information beyond the structured cards:
+  // dry-run previews and the publish summary. Success banners for
+  // get/create/update/upload duplicate the header + status icon and are dropped.
+  const showBanner = $derived(
+    Boolean(bannerText) && (view.dryRun || view.action === "publish_pages"),
   );
 
   type BannerTone = "success" | "info" | "default";
@@ -80,6 +85,11 @@
   }
 
   const BannerIcon = $derived(bannerIcon());
+
+  const pages = $derived(view.pages.length > 0 ? view.pages : view.page ? [view.page] : []);
+  const attachments = $derived(
+    view.attachments.length > 0 ? view.attachments : view.attachment ? [view.attachment] : [],
+  );
 </script>
 
 {#snippet banner(text: string)}
@@ -95,111 +105,35 @@
   </div>
 {/snippet}
 
-{#snippet pageCard(page: NonNullable<ConfluenceView["page"]>)}
-  <div class="rounded-sm border bg-sidebar px-2.5 py-2">
-    <div class="flex min-w-0 items-start gap-2">
-      <FileText size={14} strokeWidth={2} class="mt-0.5 shrink-0 text-info" />
-      <div class="min-w-0 flex-1 space-y-1">
-        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span class="font-mono text-xs font-semibold text-sidebar-foreground">{page.id}</span>
-          {#if page.status}
-            <span class="rounded-sm border bg-background px-1.5 py-0.5 text-xs text-muted-foreground">{page.status}</span>
-          {/if}
-          {#if page.versionNumber !== undefined}
-            <span class="rounded-sm border bg-background px-1.5 py-0.5 text-xs text-muted-foreground">v{page.versionNumber}</span>
-          {/if}
-        </div>
-        {#if page.title}
-          <div class="break-words text-sm font-medium text-sidebar-foreground">{page.title}</div>
-        {/if}
-        <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          {#if page.spaceKey}<span>Space {page.spaceKey}</span>{/if}
-          {#if page.parentId}<span>Parent <code>{page.parentId}</code></span>{/if}
-          {#if page.storagePath}<span>Body <code>{page.storagePath}</code></span>{/if}
-          {#if page.markdownPath}<span>Markdown <code>{page.markdownPath}</code></span>{/if}
-        </div>
-        {#if fullUrl(page.webui)}
-          <a class="text-xs text-info underline-offset-2 hover:underline" href={fullUrl(page.webui)} target="_blank" rel="noreferrer">Open in Confluence</a>
-        {/if}
-      </div>
-    </div>
-  </div>
-{/snippet}
-
-{#snippet spaceCard(space: NonNullable<ConfluenceView["space"]>)}
-  <div class="rounded-sm border bg-sidebar px-2.5 py-2">
-    <div class="flex min-w-0 items-start gap-2">
-      <Database size={14} strokeWidth={2} class="mt-0.5 shrink-0 text-info" />
-      <div class="min-w-0 flex-1">
-        <div class="flex flex-wrap items-center gap-1.5">
-          {#if space.key}<span class="font-mono text-xs font-semibold text-sidebar-foreground">{space.key}</span>{/if}
-          <span class="font-mono text-xs text-muted-foreground">{space.id}</span>
-          {#if space.status}<span class="rounded-sm border bg-background px-1.5 py-0.5 text-xs text-muted-foreground">{space.status}</span>{/if}
-        </div>
-        {#if space.name}<div class="mt-1 text-sm font-medium text-sidebar-foreground">{space.name}</div>{/if}
-        {#if space.type}<div class="mt-1 text-xs text-muted-foreground">{space.type}</div>{/if}
-      </div>
-    </div>
-  </div>
-{/snippet}
-
-{#snippet attachmentRow(attachment: NonNullable<ConfluenceView["attachment"]>)}
-  <div class="flex min-w-0 items-center gap-2 rounded-sm border bg-sidebar px-2.5 py-2">
-    <Paperclip size={14} strokeWidth={2} class="shrink-0 text-muted-foreground" />
-    <div class="min-w-0 flex-1">
-      <div class="truncate text-sm font-medium text-sidebar-foreground">{attachment.filename ?? attachment.title ?? attachment.id ?? "attachment"}</div>
-      <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {#if attachment.mediaType}<span>{attachment.mediaType}</span>{/if}
-        {#if confluenceBytesLabel(attachment.fileSize)}<span>{confluenceBytesLabel(attachment.fileSize)}</span>{/if}
-        {#if attachment.versionNumber !== undefined}<span>v{attachment.versionNumber}</span>{/if}
-        {#if attachment.path}<code>{attachment.path}</code>{/if}
-      </div>
-      {#if attachment.snippet}<code class="mt-1 block break-all text-xs text-muted-foreground">{attachment.snippet}</code>{/if}
-    </div>
-  </div>
-{/snippet}
-
 {#if hasBody}
   <div class="grid gap-2">
-    {#if bannerText}
+    {#if showBanner && bannerText}
       {@render banner(bannerText)}
-    {/if}
-
-    {#if view.downloadDir || view.manifestPath || view.pagesJsonlPath}
-      <div class="rounded-sm border bg-sidebar px-2.5 py-2 text-xs text-muted-foreground">
-        {#if view.downloadDir}<div>Bundle: <code>{view.downloadDir}</code></div>{/if}
-        {#if view.manifestPath}<div>Manifest: <code>{view.manifestPath}</code></div>{/if}
-        {#if view.pagesJsonlPath}<div>Pages JSONL: <code>{view.pagesJsonlPath}</code></div>{/if}
-      </div>
     {/if}
 
     {#if view.action === "search_spaces"}
       {#each cap(view.spaces) as space (space.id)}
-        {@render spaceCard(space)}
+        <ConfluenceSpaceRow {space} />
       {/each}
     {:else if view.action === "publish_pages"}
       {#each cap(view.outcomes) as outcome, index (`${outcome.index ?? index}-${outcome.id ?? outcome.title ?? index}`)}
-        <div class="rounded-sm border bg-sidebar px-2.5 py-2 text-xs">
-          <div class="flex flex-wrap items-center gap-1.5">
-            <span class="font-medium text-sidebar-foreground">{outcome.status ?? outcome.operation ?? "row"}</span>
-            {#if outcome.id}<code>{outcome.id}</code>{/if}
-            {#if outcome.title}<span class="text-muted-foreground">{outcome.title}</span>{/if}
-          </div>
-          {#if outcome.message}<div class="mt-1 text-muted-foreground">{outcome.message}</div>{/if}
-        </div>
+        <ConfluenceOutcomeRow {outcome} {expanded} />
       {/each}
     {:else if view.action === "upload_attachment"}
-      {#each cap(view.attachments.length > 0 ? view.attachments : view.attachment ? [view.attachment] : []) as attachment (attachment.id ?? attachment.fileId ?? attachment.filename)}
-        {@render attachmentRow(attachment)}
+      {#each cap(attachments) as attachment (attachment.id ?? attachment.fileId ?? attachment.filename)}
+        <ConfluenceAttachmentRow {attachment} {expanded} {onOpenFile} />
       {/each}
     {:else}
-      {#each cap(view.pages.length > 0 ? view.pages : view.page ? [view.page] : []) as page (page.id)}
-        {@render pageCard(page)}
+      {#each cap(pages) as page (page.id)}
+        <ConfluencePageRow {page} {siteUrl} {expanded} {onOpenFile} />
       {/each}
+      {#if view.action === "get_page" && view.includedCounts}
+        <ConfluenceMetricStrip counts={view.includedCounts} />
+      {/if}
       {#if view.attachments.length > 0}
         <span class="text-xs font-medium text-muted-foreground">Attachments</span>
         {#each cap(view.attachments) as attachment (attachment.id ?? attachment.fileId ?? attachment.filename)}
-          {@render attachmentRow(attachment)}
+          <ConfluenceAttachmentRow {attachment} {expanded} {onOpenFile} />
         {/each}
       {/if}
     {/if}

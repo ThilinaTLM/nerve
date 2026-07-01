@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 import {
   confluenceBytesLabel,
   confluenceInitials,
+  confluenceOutcomeBadgeTone,
   confluenceOutcomeTone,
   confluencePageUrl,
+  confluenceStatusBadgeTone,
   confluenceStatusTone,
 } from "./confluence-display";
 
@@ -15,6 +17,15 @@ describe("confluence display helpers", () => {
     assert.equal(confluenceStatusTone(undefined), "muted");
     assert.equal(confluenceOutcomeTone("updated"), "success");
     assert.equal(confluenceOutcomeTone("dry_run"), "warning");
+  });
+
+  it("maps tones to badge tones", () => {
+    assert.equal(confluenceStatusBadgeTone("current"), "good");
+    assert.equal(confluenceStatusBadgeTone("draft"), "warn");
+    assert.equal(confluenceStatusBadgeTone(undefined), "neutral");
+    assert.equal(confluenceOutcomeBadgeTone("updated"), "good");
+    assert.equal(confluenceOutcomeBadgeTone("dry_run"), "warn");
+    assert.equal(confluenceOutcomeBadgeTone("error"), "warn");
   });
 
   it("builds URLs, initials, and byte labels", () => {

@@ -550,23 +550,28 @@ export function toolPresentation(
               openPath: view.downloadDir,
             });
           }
+          if (view.manifestPath) {
+            meta.push({
+              text: "manifest",
+              mono: true,
+              openPath: view.manifestPath,
+            });
+          }
+          if (view.pagesJsonlPath) {
+            meta.push({
+              text: "pages.jsonl",
+              mono: true,
+              openPath: view.pagesJsonlPath,
+            });
+          }
           break;
         case "get_page":
-          if (view.page?.status) meta.push({ text: view.page.status });
-          if (view.page?.versionNumber !== undefined) {
-            meta.push({ text: `v${view.page.versionNumber}` });
-          }
-          if (view.includedCounts?.attachments !== undefined) {
-            countChip(view.includedCounts.attachments, "attachment");
-          }
+          // Status, version, and include-counts render in the page row and
+          // metric strip; the footer stays limited to output artifacts.
           break;
         case "create_page":
         case "update_page":
-          if (view.spaceKey)
-            meta.push({ text: `space ${view.spaceKey}`, mono: true });
-          if (view.page?.versionNumber !== undefined) {
-            meta.push({ text: `v${view.page.versionNumber}` });
-          }
+          // Space key and version render in the page row's chip line.
           break;
         case "publish_pages":
           countChip(view.outcomeCount ?? view.outcomes.length, "outcome");
