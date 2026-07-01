@@ -15,6 +15,9 @@ Relevant current files:
 
 The implementation should preserve these strengths while replacing ad-hoc WebSocket frames with protocol messages.
 
+Current implementation status is tracked in `implementation-status.md`. The active implementation uses a clean Protocol v1 `/ws`, cursor-bearing snapshot endpoints, and selected `/api/protocol/v1` HTTP methods while leaving binary, secret, OAuth, upload, export, and large file flows out-of-band.
+
+
 ## Proposed shared package layout
 
 Protocol schemas should live in `packages/shared` so orchestrator, UI, desktop, CLI, and tests use the same types.

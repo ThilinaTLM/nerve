@@ -1,5 +1,7 @@
 # Current Feature Coverage
 
+> Implementation status: see `implementation-status.md` for the current v1 alignment checklist, including snapshot cursors, replay/backpressure hardening, and selected HTTP RPC methods.
+
 This document maps Nerve Protocol v1 to the features that exist in the current Nerve application. It is an implementation coverage guide, not a mandate to convert every HTTP route into protocol RPC.
 
 ## Coverage principle

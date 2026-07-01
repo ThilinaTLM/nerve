@@ -92,6 +92,51 @@ describe("EventBus", () => {
     );
   });
 
+  it("reports durable continuity across transient sequence gaps", async () => {
+    const home = await tempHome();
+    const index = makeIndex(home);
+    const bus = new EventBus(home, index);
+    const first = await bus.publish("project.created", { projectId: "p1" });
+    await bus.publish(
+      "conversation.live.delta",
+      { conversationId: "conv_x" },
+      { durability: "transient" },
+    );
+    const second = await bus.publish("project.created", { projectId: "p2" });
+
+    assert.equal(await bus.previousDurableSeqBefore(second.seq), first.seq);
+    assert.deepEqual(await bus.durableStatsBetween(first.seq, second.seq), {
+      firstSeq: second.seq,
+      lastSeq: second.seq,
+      count: 1,
+    });
+    assert.deepEqual(await bus.canReplayDurableRange(first.seq, second.seq), {
+      available: true,
+      stats: { firstSeq: second.seq, lastSeq: second.seq, count: 1 },
+    });
+  });
+
+  it("serves protocol replay from memory with transient events when available", async () => {
+    const home = await tempHome();
+    const bus = new EventBus(home);
+    const durable = await bus.publish("project.created", { projectId: "p1" });
+    const transient = await bus.publish(
+      "conversation.live.delta",
+      { conversationId: "conv_x" },
+      { durability: "transient" },
+    );
+
+    const replay = await bus.replayForProtocolSince(0, {
+      includeTransientIfAvailable: true,
+    });
+
+    assert.equal(replay.source, "memory");
+    assert.deepEqual(
+      replay.events.map((event) => event.seq),
+      [durable.seq, transient.seq],
+    );
+  });
+
   it("reconciles durable log entries missing from the index on hydrate", async () => {
     const home = await tempHome();
     const index = makeIndex(home);

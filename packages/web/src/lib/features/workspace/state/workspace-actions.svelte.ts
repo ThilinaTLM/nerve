@@ -7,9 +7,6 @@ import {
   deleteConversation,
   deleteProject,
   getFileCompletions,
-  getPendingApprovals,
-  getPendingPlanReviews,
-  getPendingUserQuestions,
   getSlashCompletions,
   getTaskLogs,
   getWorkspaceSnapshot,
@@ -36,31 +33,30 @@ export async function loadWorkspaceState() {
     queryKey: queryKeys.workspace,
     queryFn: getWorkspaceSnapshot,
   });
-  const agents = mergeAgentsByUpdatedAt(snapshot.agents, workspaceState.agents);
-  workspaceState.projects = snapshot.projects;
-  workspaceState.conversations = snapshot.conversations;
+  const agents = mergeAgentsByUpdatedAt(
+    snapshot.snapshot.agents,
+    workspaceState.agents,
+  );
+  workspaceState.projects = snapshot.snapshot.projects;
+  workspaceState.conversations = snapshot.snapshot.conversations;
   workspaceState.agents = agents;
-  taskState.tasks = snapshot.tasks;
-  syncSelectedAgentConfig(agents, snapshot.conversations);
+  taskState.tasks = snapshot.snapshot.tasks;
+  workspaceState.approvals = snapshot.snapshot.approvals;
+  workspaceState.userQuestions = snapshot.snapshot.userQuestions;
+  workspaceState.planReviews = snapshot.snapshot.planReviews;
+  syncSelectedAgentConfig(agents, snapshot.snapshot.conversations);
   const conversationIds = new Set(
-    snapshot.conversations.map((conversation) => conversation.id),
+    snapshot.snapshot.conversations.map((conversation) => conversation.id),
   );
   const staleOpenTabIds = conversationState.openConversationTabIds.filter(
     (conversationId) => !conversationIds.has(conversationId),
   );
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
   taskState.selectedTaskId = taskState.selectedTaskId ?? taskState.tasks[0]?.id;
-  const [approvals, userQuestions, planReviews] = await Promise.all([
-    getPendingApprovals(),
-    getPendingUserQuestions(),
-    getPendingPlanReviews(),
-  ]);
-  workspaceState.approvals = approvals;
-  workspaceState.userQuestions = userQuestions;
-  workspaceState.planReviews = planReviews;
   if (taskState.selectedTaskId) {
     taskState.taskLogs = await getTaskLogs(taskState.selectedTaskId);
   }
+  return snapshot.cursor;
 }
 
 function syncSelectedAgentConfig(

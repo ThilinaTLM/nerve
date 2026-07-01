@@ -7,6 +7,17 @@ export type WorkbenchEventHandler = (
 
 const handlersByType = new Map<string, Set<WorkbenchEventHandler>>();
 const anyHandlers = new Set<WorkbenchEventHandler>();
+export type EventsFlushedHandler = (events: WorkbenchEvent[]) => void;
+const flushHandlers = new Set<EventsFlushedHandler>();
+
+export function onEventsFlushed(handler: EventsFlushedHandler): () => void {
+  flushHandlers.add(handler);
+  return () => flushHandlers.delete(handler);
+}
+
+export function pendingEventCount(): number {
+  return eventQueue.length;
+}
 
 export function onEvent(
   type: string,
@@ -48,6 +59,7 @@ export function dispatchEvent(event: WorkbenchEvent): void {
 export function clearEventHandlers(): void {
   handlersByType.clear();
   anyHandlers.clear();
+  flushHandlers.clear();
   eventQueue.length = 0;
   flushScheduled = false;
 }
@@ -89,10 +101,21 @@ export function enqueueEvent(event: WorkbenchEvent): void {
  * deterministic teardown (disconnect) and in tests.
  */
 export function flushEvents(): void {
+  const delivered: WorkbenchEvent[] = [];
   for (let index = 0; index < eventQueue.length; index += 1) {
-    dispatchEvent(eventQueue[index] as WorkbenchEvent);
+    const event = eventQueue[index] as WorkbenchEvent;
+    delivered.push(event);
+    dispatchEvent(event);
   }
   eventQueue.length = 0;
+  if (delivered.length === 0) return;
+  for (const handler of flushHandlers) {
+    try {
+      handler(delivered);
+    } catch (caught) {
+      console.error("Workbench event flush handler failed", caught);
+    }
+  }
 }
 
 function reportHandlerError(event: WorkbenchEvent, error: unknown): void {

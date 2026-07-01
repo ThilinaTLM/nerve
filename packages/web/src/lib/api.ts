@@ -64,6 +64,7 @@ export type {
   QueuedPromptRecord,
   RespondOAuthFlowRequest,
   Settings,
+  SnapshotCursor,
   StartTaskRequest,
   StatusResponse,
   StorageCategoryUsage,

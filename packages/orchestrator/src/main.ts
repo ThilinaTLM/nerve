@@ -2,14 +2,13 @@ import { rm } from "node:fs/promises";
 import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import { networkInterfaces } from "node:os";
-import type { Duplex } from "node:stream";
 import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
 import {
   createOrchestratorState,
   toDaemonFile,
 } from "./app/orchestrator-state.js";
-import { createApp, isWebSocketAuthorized } from "./app/server.js";
+import { createApp } from "./app/server.js";
 import { recoverInterruptedRuns } from "./domains/agents/run/interrupted-run-recovery.js";
 import {
   type DaemonRuntimeMonitor,
@@ -25,6 +24,7 @@ import {
   writeDaemonFile,
 } from "./infrastructure/storage/index.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
+import { installProtocolWebSocketUpgrade } from "./protocol/protocol-websocket.js";
 
 function readArg(name: string): string | undefined {
   const prefix = `${name}=`;
@@ -197,9 +197,20 @@ async function main() {
     : undefined;
 
   const webSockets = new WebSocketServer({ noServer: true });
-  installWebSocketUpgrade(server, webSockets, state, storage.localToken);
-  if (httpsServer)
-    installWebSocketUpgrade(httpsServer, webSockets, state, storage.localToken);
+  const protocolSessions = installProtocolWebSocketUpgrade(
+    server,
+    webSockets,
+    state,
+    storage.localToken,
+  );
+  const httpsProtocolSessions = httpsServer
+    ? installProtocolWebSocketUpgrade(
+        httpsServer,
+        webSockets,
+        state,
+        storage.localToken,
+      )
+    : undefined;
   const stopHeartbeat = startWebSocketHeartbeat(webSockets);
   let shuttingDown = false;
 
@@ -229,6 +240,12 @@ async function main() {
       .catch(() => undefined);
     state.subscriptionUsage.stop();
     stopHeartbeat();
+    for (const session of [
+      ...protocolSessions,
+      ...(httpsProtocolSessions ?? []),
+    ]) {
+      session.shutdown("Daemon shutting down");
+    }
     closeWebSocketClients(webSockets);
     webSockets.close();
     state.index.close();
@@ -300,114 +317,15 @@ function installCrashGuards(
   );
 }
 
-function installWebSocketUpgrade(
-  server: ReturnType<typeof serve>,
-  webSockets: WebSocketServer,
-  state: ReturnType<typeof createOrchestratorState>,
-  token: string,
-): void {
-  server.on("upgrade", (request, socket: Duplex, head) => {
-    const url = new URL(
-      request.url ?? "/",
-      `http://${state.host}:${state.port}`,
-    );
-    if (url.pathname !== "/ws") {
-      socket.destroy();
-      return;
-    }
-    if (!isWebSocketAuthorized(request, token)) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-    webSockets.handleUpgrade(request, socket, head, (ws) => {
-      markWebSocketAlive(ws);
-      ws.on("pong", () => markWebSocketAlive(ws));
-      const sinceParam = url.searchParams.get("since");
-      const since = sinceParam === null ? undefined : Number(sinceParam);
-      const hasSince = since !== undefined && Number.isFinite(since);
-      const replayAfter = hasSince ? (since as number) : state.events.latestSeq;
-      // Serve the backlog from the in-memory ring whenever the cursor is within
-      // the buffered window; only fall back to the (potentially huge) persisted
-      // event log for cursors older than what we still hold in memory.
-      const bufferedFloor = state.events.bufferedFloorSeq();
-      const canReplayFromMemory =
-        hasSince && (bufferedFloor === 0 || replayAfter >= bufferedFloor - 1);
-      let replayReady = !hasSince || canReplayFromMemory;
-      let maxSentSeq = replayAfter;
-      const pendingLive: Array<unknown> = [];
-      const sendEvent = (event: unknown) => {
-        if (ws.readyState !== WebSocket.OPEN) return;
-        ws.send(JSON.stringify(event));
-      };
-      const unsubscribe = state.events.subscribe((event) => {
-        if (event.seq <= replayAfter || event.seq <= maxSentSeq) return;
-        if (!replayReady) {
-          pendingLive.push(event);
-          return;
-        }
-        maxSentSeq = event.seq;
-        sendEvent(event);
-      });
-      ws.on("close", unsubscribe);
-
-      if (hasSince && canReplayFromMemory) {
-        for (const event of state.events.replaySince(replayAfter)) {
-          if (event.seq <= maxSentSeq) continue;
-          maxSentSeq = event.seq;
-          sendEvent(event);
-        }
-      } else if (!replayReady) {
-        void state.events
-          .replayPersistedSince(replayAfter)
-          .then((events) => {
-            for (const event of events) {
-              if (event.seq <= maxSentSeq) continue;
-              maxSentSeq = event.seq;
-              sendEvent(event);
-            }
-            replayReady = true;
-            const sortedPending = pendingLive.splice(0).sort((a, b) => {
-              const left = (a as { seq?: number }).seq ?? 0;
-              const right = (b as { seq?: number }).seq ?? 0;
-              return left - right;
-            });
-            for (const event of sortedPending) {
-              const seq = (event as { seq?: number }).seq ?? 0;
-              if (seq <= maxSentSeq) continue;
-              maxSentSeq = seq;
-              sendEvent(event);
-            }
-          })
-          .catch((error) => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.close(
-                1011,
-                error instanceof Error ? error.message : "Replay failed",
-              );
-            }
-          });
-      }
-    });
-  });
-}
-
 const heartbeatIntervalMs = 30_000;
 type AliveSocket = WebSocket & { isAlive?: boolean };
-
-function markWebSocketAlive(ws: WebSocket): void {
-  (ws as AliveSocket).isAlive = true;
-}
-
 /**
  * Detect half-open sockets (sleep/wake, NIC drops, dead peers that never sent a
  * close frame). Each interval we terminate clients that did not answer the
- * previous ping, then ping the rest. A tiny app-level `heartbeat` frame is also
- * sent so browser clients (which answer protocol pings invisibly to JS) can run
- * their own liveness watchdog and force a reconnect when the daemon is gone.
+ * previous ping, then ping the rest. Protocol sessions send app-level heartbeat
+ * messages from their session timers.
  */
 function startWebSocketHeartbeat(webSockets: WebSocketServer): () => void {
-  const heartbeatFrame = JSON.stringify({ type: "heartbeat" });
   const interval = setInterval(() => {
     for (const client of webSockets.clients) {
       const alive = client as AliveSocket;
@@ -419,7 +337,6 @@ function startWebSocketHeartbeat(webSockets: WebSocketServer): () => void {
       if (client.readyState === WebSocket.OPEN) {
         try {
           client.ping();
-          client.send(heartbeatFrame);
         } catch {
           client.terminate();
         }

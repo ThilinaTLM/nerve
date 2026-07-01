@@ -25,6 +25,26 @@ export interface PublishEventOptions {
   durability?: EventDurability;
 }
 
+export type ProtocolReplaySource = "memory" | "index" | "log";
+
+export interface ProtocolReplayOptions {
+  toSeq?: number;
+  includeTransientIfAvailable?: boolean;
+}
+
+export interface ProtocolReplayResult {
+  events: EventEnvelope[];
+  source: ProtocolReplaySource;
+  replayAvailableFromSeq: number;
+}
+
+export interface DurableContinuityInfo {
+  previousDurableSeq: number;
+  durableFirstSeq?: number;
+  durableLastSeq?: number;
+  durableCount: number;
+}
+
 export class EventBus {
   #seq = 0;
   #latestDurableSeq = 0;
@@ -204,9 +224,151 @@ export class EventBus {
   }
 
   async replayPersistedSince(seq = 0): Promise<EventEnvelope[]> {
+    return (await this.replayPersistedSinceWithSource(seq)).events;
+  }
+
+  async previousDurableSeqBefore(seq: number): Promise<number> {
+    const inMemory = [...this.#events]
+      .reverse()
+      .find((event) => event.durability === "durable" && event.seq < seq);
+    if (inMemory) return inMemory.seq;
     if (this.index?.isHealthy) {
       try {
-        return this.index.eventsSince(seq);
+        return this.index.previousEventSeqBefore(seq);
+      } catch {
+        // Fall back to log scan below.
+      }
+    }
+    let previous = 0;
+    for (const path of [
+      `${this.globalEventsPath()}.1`,
+      this.globalEventsPath(),
+    ]) {
+      await forEachJsonLine<unknown>(path, (raw) => {
+        const result = eventEnvelopeSchema.safeParse(raw);
+        if (!result.success) return;
+        const event = result.data as EventEnvelope;
+        if (event.durability === "durable" && event.seq < seq) {
+          previous = Math.max(previous, event.seq);
+        }
+      });
+    }
+    return previous;
+  }
+
+  async durableStatsBetween(
+    fromExclusive: number,
+    toInclusive: number,
+  ): Promise<{ firstSeq?: number; lastSeq?: number; count: number }> {
+    if (toInclusive <= fromExclusive) return { count: 0 };
+    if (this.index?.isHealthy) {
+      try {
+        return this.index.eventStatsBetween(fromExclusive, toInclusive);
+      } catch {
+        // Fall back to log scan below.
+      }
+    }
+    let firstSeq: number | undefined;
+    let lastSeq: number | undefined;
+    let count = 0;
+    for (const path of [
+      `${this.globalEventsPath()}.1`,
+      this.globalEventsPath(),
+    ]) {
+      await forEachJsonLine<unknown>(path, (raw) => {
+        const result = eventEnvelopeSchema.safeParse(raw);
+        if (!result.success) return;
+        const event = result.data as EventEnvelope;
+        if (
+          event.durability !== "durable" ||
+          event.seq <= fromExclusive ||
+          event.seq > toInclusive
+        )
+          return;
+        firstSeq =
+          firstSeq === undefined ? event.seq : Math.min(firstSeq, event.seq);
+        lastSeq =
+          lastSeq === undefined ? event.seq : Math.max(lastSeq, event.seq);
+        count += 1;
+      });
+    }
+    return { firstSeq, lastSeq, count };
+  }
+
+  async canReplayDurableRange(
+    fromSeq: number,
+    toSeq: number,
+  ): Promise<{
+    available: boolean;
+    reason?:
+      | "cursor_too_old"
+      | "cursor_ahead_of_server"
+      | "storage_unavailable";
+    stats: { firstSeq?: number; lastSeq?: number; count: number };
+  }> {
+    if (fromSeq > this.#latestDurableSeq) {
+      return {
+        available: false,
+        reason: "cursor_ahead_of_server",
+        stats: { count: 0 },
+      };
+    }
+    const stats = await this.durableStatsBetween(fromSeq, toSeq);
+    if (stats.count === 0) return { available: true, stats };
+    const previous = await this.previousDurableSeqBefore(
+      stats.firstSeq ?? toSeq + 1,
+    );
+    if (previous > fromSeq) {
+      return { available: false, reason: "cursor_too_old", stats };
+    }
+    return { available: true, stats };
+  }
+
+  async replayForProtocolSince(
+    seq = 0,
+    options: ProtocolReplayOptions = {},
+  ): Promise<ProtocolReplayResult> {
+    const bufferedFloor = this.bufferedFloorSeq();
+    const canReplayFromMemory = bufferedFloor === 0 || seq >= bufferedFloor - 1;
+    const limitToRange = (events: EventEnvelope[]) =>
+      events
+        .filter((event) => event.seq > seq)
+        .filter(
+          (event) => options.toSeq === undefined || event.seq <= options.toSeq,
+        )
+        .filter(
+          (event) =>
+            event.durability === "durable" ||
+            options.includeTransientIfAvailable,
+        )
+        .sort((a, b) => a.seq - b.seq);
+
+    if (canReplayFromMemory) {
+      return {
+        events: limitToRange(this.replaySince(seq)),
+        source: "memory",
+        replayAvailableFromSeq: bufferedFloor === 0 ? 0 : bufferedFloor - 1,
+      };
+    }
+
+    const persisted = await this.replayPersistedSinceWithSource(seq);
+    return {
+      events: limitToRange(persisted.events),
+      source: persisted.source,
+      replayAvailableFromSeq: 0,
+    };
+  }
+
+  private async replayPersistedSinceWithSource(
+    seq = 0,
+  ): Promise<ProtocolReplayResult> {
+    if (this.index?.isHealthy) {
+      try {
+        return {
+          events: this.index.eventsSince(seq),
+          source: "index",
+          replayAvailableFromSeq: 0,
+        };
       } catch {
         // Fall back to reading the log file below.
       }
@@ -214,11 +376,15 @@ export class EventBus {
     const events = await readJsonLines<unknown>(this.globalEventsPath()).catch(
       () => [],
     );
-    return events
-      .map((event) => eventEnvelopeSchema.safeParse(event))
-      .filter((result) => result.success && result.data.seq > seq)
-      .map((result) => result.data as EventEnvelope)
-      .sort((a, b) => a.seq - b.seq);
+    return {
+      events: events
+        .map((event) => eventEnvelopeSchema.safeParse(event))
+        .filter((result) => result.success && result.data.seq > seq)
+        .map((result) => result.data as EventEnvelope)
+        .sort((a, b) => a.seq - b.seq),
+      source: "log",
+      replayAvailableFromSeq: 0,
+    };
   }
 
   async removeEventsForConversations(

@@ -23,7 +23,14 @@ export const workspaceState = $state({
   status: undefined as StatusResponse | undefined,
   config: undefined as ClientConfig | undefined,
   connection: "connecting",
-  lastEventSeq: 0,
+  receivedEventSeq: 0,
+  processedEventSeq: 0,
+  protocolSessionId: undefined as string | undefined,
+  protocolFlowMode: "normal" as
+    | "normal"
+    | "catching_up"
+    | "degraded"
+    | "resync_required",
   error: undefined as string | undefined,
   projects: [] as ProjectRecord[],
   conversations: [] as ConversationRecord[],

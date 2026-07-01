@@ -4,6 +4,7 @@ import type {
   ConversationRecord,
   ConversationSnapshot,
   ConversationTree,
+  SnapshotCursor,
 } from "@nervekit/shared";
 import {
   apiDeleteNoContent,
@@ -11,15 +12,27 @@ import {
   apiPathSegment,
   apiPost,
 } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
+
+export type ConversationSnapshotWithCursor = {
+  snapshot: ConversationSnapshot;
+  cursor: SnapshotCursor;
+};
+
+export async function getConversationSnapshotWithCursor(
+  conversationId: string,
+): Promise<ConversationSnapshotWithCursor> {
+  const { result } = await protocolRequest<ConversationSnapshotWithCursor>(
+    "snapshot.conversation.get",
+    { conversationId },
+  );
+  return result;
+}
 
 export async function getConversationSnapshot(
   conversationId: string,
 ): Promise<ConversationSnapshot> {
-  return (
-    await apiGet<{ snapshot: ConversationSnapshot }>(
-      `/api/conversations/${apiPathSegment(conversationId)}/snapshot`,
-    )
-  ).snapshot;
+  return (await getConversationSnapshotWithCursor(conversationId)).snapshot;
 }
 
 export async function getConversationContextUsage(

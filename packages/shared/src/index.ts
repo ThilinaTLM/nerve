@@ -12,6 +12,7 @@ export * from "./domains/pinned-commands/index.js";
 export * from "./domains/plans/index.js";
 export * from "./domains/projects/index.js";
 export * from "./domains/prompt-suggestions/index.js";
+export * from "./domains/protocol/index.js";
 export * from "./domains/providers/index.js";
 export * from "./domains/settings/index.js";
 export * from "./domains/status/index.js";

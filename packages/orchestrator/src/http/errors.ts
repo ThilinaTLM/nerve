@@ -3,6 +3,10 @@ export class HttpError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    readonly options: {
+      retryable?: boolean;
+      recovery?: { action: string; retryAfterMs?: number; method?: string };
+    } = {},
   ) {
     super(message);
   }
@@ -11,7 +15,14 @@ export class HttpError extends Error {
 export function errorResponse(error: unknown): Response {
   if (error instanceof HttpError) {
     return Response.json(
-      { error: { code: error.code, message: error.message } },
+      {
+        error: {
+          code: error.code,
+          message: error.message,
+          retryable: error.options.retryable,
+          recovery: error.options.recovery,
+        },
+      },
       { status: error.status },
     );
   }

@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
+import { getConversationSnapshotResponse } from "../protocol/snapshots.js";
 
 function conversationExportHeaders(
   conversationId: string,
@@ -73,11 +74,12 @@ export function createConversationRoutes(state: OrchestratorState): Hono {
   app.get(
     "/conversations/:conversationId/snapshot",
     routeHandler(async (c) =>
-      c.json({
-        snapshot: await state.registry.getConversationSnapshot(
+      c.json(
+        await getConversationSnapshotResponse(
+          state,
           routeParam(c, "conversationId"),
         ),
-      }),
+      ),
     ),
   );
   app.get(

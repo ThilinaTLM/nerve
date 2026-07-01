@@ -10,7 +10,9 @@ import { createLogRoutes } from "./log-routes.js";
 import { createModelRoutes } from "./model-routes.js";
 import { createProjectRoutes } from "./project-routes.js";
 import { createPromptSuggestionRoutes } from "./prompt-suggestion-routes.js";
+import { createProtocolRoutes } from "./protocol-routes.js";
 import { createProviderCatalogRoutes } from "./provider-catalog-routes.js";
+
 import { createSettingsRoutes } from "./settings-routes.js";
 import { createStatusRoutes } from "./status-routes.js";
 import { createStorageRoutes } from "./storage-routes.js";
@@ -18,6 +20,7 @@ import { createTaskRoutes } from "./task-routes.js";
 import { createToolRoutes } from "./tool-routes.js";
 import { createTranscriptionRoutes } from "./transcription-routes.js";
 import { createWorkerRoutes } from "./worker-routes.js";
+import { createWorkspaceRoutes } from "./workspace-routes.js";
 
 export { createAgentRoutes } from "./agent-routes.js";
 export { createAuthRoutes } from "./auth-routes.js";
@@ -29,7 +32,9 @@ export { createLogRoutes } from "./log-routes.js";
 export { createModelRoutes } from "./model-routes.js";
 export { createProjectRoutes } from "./project-routes.js";
 export { createPromptSuggestionRoutes } from "./prompt-suggestion-routes.js";
+export { createProtocolRoutes } from "./protocol-routes.js";
 export { createProviderCatalogRoutes } from "./provider-catalog-routes.js";
+
 export { createSettingsRoutes } from "./settings-routes.js";
 export { createStatusRoutes } from "./status-routes.js";
 export { createStorageRoutes } from "./storage-routes.js";
@@ -37,18 +42,23 @@ export { createTaskRoutes } from "./task-routes.js";
 export { createToolRoutes } from "./tool-routes.js";
 export { createTranscriptionRoutes } from "./transcription-routes.js";
 export { createWorkerRoutes } from "./worker-routes.js";
+export { createWorkspaceRoutes } from "./workspace-routes.js";
 
 export function mountApiRoutes(app: Hono, state: OrchestratorState): void {
   app.route("/api", createStatusRoutes(state));
   app.route("/api", createSettingsRoutes(state));
   app.route("/api", createAuthRoutes(state));
   app.route("/api", createProviderCatalogRoutes(state));
+  app.route("/api", createProtocolRoutes(state));
+
   app.route("/api", createPromptSuggestionRoutes(state));
   app.route("/api", createStorageRoutes(state));
   app.route("/api", createModelRoutes(state));
   app.route("/api", createToolRoutes(state));
   app.route("/api", createTranscriptionRoutes(state));
   app.route("/api", createWorkerRoutes(state));
+  app.route("/api", createWorkspaceRoutes(state));
+
   app.route("/api", createLogRoutes(state));
   app.route("/api", createTaskRoutes(state));
   app.route("/api", createCompletionRoutes(state));

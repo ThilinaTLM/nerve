@@ -8,6 +8,7 @@ import {
   flushEvents,
   onAnyEvent,
   onEvent,
+  onEventsFlushed,
 } from "./event-bus";
 
 function event(type: string, seq = 1): WorkbenchEvent {
@@ -79,6 +80,24 @@ describe("event bus", () => {
     flushEvents();
 
     assert.deepEqual(seen, [1, 2]);
+  });
+
+  it("notifies flush observers after dispatch including events enqueued during flush", () => {
+    const seen: number[] = [];
+    const flushed: number[][] = [];
+    onAnyEvent((candidate) => {
+      seen.push(candidate.seq);
+      if (candidate.seq === 1) enqueueEvent(event("content.delta", 2));
+    });
+    onEventsFlushed((events) => {
+      flushed.push(events.map((candidate) => candidate.seq));
+    });
+
+    enqueueEvent(event("content.delta", 1));
+    flushEvents();
+
+    assert.deepEqual(seen, [1, 2]);
+    assert.deepEqual(flushed, [[1, 2]]);
   });
 
   it("clearEventHandlers removes buffered events", () => {

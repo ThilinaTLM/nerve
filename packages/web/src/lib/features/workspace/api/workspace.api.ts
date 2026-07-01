@@ -1,32 +1,44 @@
 import type {
   AgentRecord,
+  ApprovalRecord,
   ConversationRecord,
+  PlanReviewRecord,
   ProjectRecord,
+  SnapshotCursor,
   TaskRecord,
+  UserQuestionRecord,
+  WorkerRecord,
 } from "@nervekit/shared";
-import { apiGet } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export type WorkspaceSnapshot = {
   projects: ProjectRecord[];
   conversations: ConversationRecord[];
   agents: AgentRecord[];
   tasks: TaskRecord[];
+  approvals: ApprovalRecord[];
+  userQuestions: UserQuestionRecord[];
+  planReviews: PlanReviewRecord[];
+  workers?: WorkerRecord[];
 };
 
-export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
-  const [projectResponse, conversationResponse, agentResponse, taskResponse] =
-    await Promise.all([
-      apiGet<{ projects: ProjectRecord[] }>("/api/projects"),
-      apiGet<{ conversations: ConversationRecord[] }>("/api/conversations"),
-      apiGet<{ agents: AgentRecord[] }>("/api/agents"),
-      apiGet<{ tasks: TaskRecord[] }>("/api/tasks"),
-    ]);
+export type WorkspaceSnapshotResponse = {
+  snapshot: WorkspaceSnapshot;
+  cursor: SnapshotCursor;
+};
+
+export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshotResponse> {
+  const { result: response } = await protocolRequest<WorkspaceSnapshotResponse>(
+    "snapshot.workspace.get",
+    {},
+  );
   return {
-    projects: projectResponse.projects,
-    conversations: [...conversationResponse.conversations].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    ),
-    agents: agentResponse.agents,
-    tasks: taskResponse.tasks,
+    ...response,
+    snapshot: {
+      ...response.snapshot,
+      conversations: [...response.snapshot.conversations].sort((a, b) =>
+        b.updatedAt.localeCompare(a.updatedAt),
+      ),
+    },
   };
 }

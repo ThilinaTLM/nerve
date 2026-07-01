@@ -478,6 +478,40 @@ export class IndexStore {
     });
   }
 
+  previousEventSeqBefore(seq: number): number {
+    return this.guard(() => {
+      const row = this.db
+        .prepare(
+          "SELECT seq FROM events_index WHERE seq < ? ORDER BY seq DESC LIMIT 1",
+        )
+        .get(seq) as { seq: number } | undefined;
+      return row?.seq ?? 0;
+    });
+  }
+
+  eventStatsBetween(
+    fromExclusive: number,
+    toInclusive: number,
+  ): { firstSeq?: number; lastSeq?: number; count: number } {
+    return this.guard(() => {
+      const row = this.db
+        .prepare(
+          `SELECT MIN(seq) AS firstSeq, MAX(seq) AS lastSeq, COUNT(*) AS count
+           FROM events_index WHERE seq > ? AND seq <= ?`,
+        )
+        .get(fromExclusive, toInclusive) as {
+        firstSeq: number | null;
+        lastSeq: number | null;
+        count: number;
+      };
+      return {
+        firstSeq: row.firstSeq ?? undefined,
+        lastSeq: row.lastSeq ?? undefined,
+        count: row.count,
+      };
+    });
+  }
+
   deleteEventsForConversations(conversationIds: Iterable<string>): void {
     const ids = [...conversationIds];
     if (ids.length === 0) return;
