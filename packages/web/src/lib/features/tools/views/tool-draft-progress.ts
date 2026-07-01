@@ -269,6 +269,38 @@ function previewFromTexts(texts: string[]): string | undefined {
   return text.length > 0 ? tailLinePreview(text) : undefined;
 }
 
+type DiffPreviewPart = {
+  text: string;
+  kind: "added" | "removed" | "patch";
+  complete: boolean;
+};
+
+function prefixDiffLines(text: string, prefix: "+" | "-"): string {
+  const normalized = normalizeLines(text);
+  if (normalized.length === 0) return "";
+  return normalized
+    .split("\n")
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
+}
+
+function diffPreviewFromParts(
+  parts: DiffPreviewPart[],
+  includeActiveTrailingLine: boolean,
+): string | undefined {
+  const preview = previewFromTexts(
+    parts.map((part) => {
+      const text = completedLinePreviewText(
+        part.text,
+        part.complete || includeActiveTrailingLine,
+      );
+      if (part.kind === "patch") return text;
+      return prefixDiffLines(text, part.kind === "added" ? "+" : "-");
+    }),
+  );
+  return preview;
+}
+
 function previewFromJsonEntries(
   entries: JsonStringEntry[],
   includeActiveTrailingLine: boolean,
@@ -429,36 +461,37 @@ function finalEditPreview(args: Record<string, unknown>): {
   preview?: string;
   previewLanguage?: "diff";
 } {
-  const parts: Array<{ property: "newText" | "text" | "patch"; text: string }> =
-    [];
+  const parts: DiffPreviewPart[] = [];
 
   for (const replacement of arrayField(args.replacements)) {
-    const text = stringField(asRecord(replacement).newText);
-    if (text !== undefined) parts.push({ property: "newText", text });
+    const record = asRecord(replacement);
+    const oldText = stringField(record.oldText);
+    const newText = stringField(record.newText);
+    if (oldText !== undefined) {
+      parts.push({ text: oldText, kind: "removed", complete: true });
+    }
+    if (newText !== undefined) {
+      parts.push({ text: newText, kind: "added", complete: true });
+    }
   }
   for (const insertion of arrayField(args.insertions)) {
     const text = stringField(asRecord(insertion).text);
-    if (text !== undefined) parts.push({ property: "text", text });
+    if (text !== undefined) parts.push({ text, kind: "added", complete: true });
   }
   for (const replacement of arrayField(args.lineReplacements)) {
     const text = stringField(asRecord(replacement).newText);
-    if (text !== undefined) parts.push({ property: "newText", text });
+    if (text !== undefined) parts.push({ text, kind: "added", complete: true });
   }
   for (const insertion of arrayField(args.lineInsertions)) {
     const text = stringField(asRecord(insertion).text);
-    if (text !== undefined) parts.push({ property: "text", text });
+    if (text !== undefined) parts.push({ text, kind: "added", complete: true });
   }
   const patch = stringField(args.patch);
-  if (patch !== undefined) parts.push({ property: "patch", text: patch });
+  if (patch !== undefined)
+    parts.push({ text: patch, kind: "patch", complete: true });
 
-  const preview = previewFromTexts(
-    parts.map((part) => completedLinePreviewText(part.text, true)),
-  );
-  const previewLanguage =
-    parts.length > 0 && parts.every((part) => part.property === "patch")
-      ? "diff"
-      : undefined;
-  return { preview, previewLanguage };
+  const preview = diffPreviewFromParts(parts, true);
+  return { preview, previewLanguage: preview ? "diff" : undefined };
 }
 
 function partialEditPreview(
@@ -466,16 +499,25 @@ function partialEditPreview(
   done: boolean,
 ): { preview?: string; previewLanguage?: "diff" } {
   const entries = extractJsonStringEntries(argsText, [
+    "oldText",
     "newText",
     "text",
     "patch",
   ] as const);
-  const preview = previewFromJsonEntries(entries, done);
-  const previewLanguage =
-    entries.length > 0 && entries.every((entry) => entry.property === "patch")
-      ? "diff"
-      : undefined;
-  return { preview, previewLanguage };
+  const preview = diffPreviewFromParts(
+    entries.map((entry) => ({
+      text: entry.value,
+      kind:
+        entry.property === "oldText"
+          ? "removed"
+          : entry.property === "patch"
+            ? "patch"
+            : "added",
+      complete: entry.complete,
+    })),
+    done,
+  );
+  return { preview, previewLanguage: preview ? "diff" : undefined };
 }
 
 function progressEditStats(

@@ -156,7 +156,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.preview?.includes("earlier line"), false);
   });
 
-  it("previews partial edit generated lines without oldText", () => {
+  it("previews partial edit replacements as diff lines", () => {
     const summary = summarizeToolDraft(
       draft("edit", {
         argsText:
@@ -165,8 +165,8 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "edit");
-    assert.equal(summary.preview, "new one\nnew two");
-    assert.equal(summary.previewLanguage, undefined);
+    assert.equal(summary.preview, "-old\n-existing\n+new one\n+new two");
+    assert.equal(summary.previewLanguage, "diff");
   });
 
   it("previews partial edit patch lines as diff", () => {
@@ -249,7 +249,23 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("tails final edit generated previews to the latest 10 lines without oldText", () => {
+  it("previews final edit replacements with removed and added lines", () => {
+    const summary = summarizeToolDraft(
+      draft("edit", {
+        args: {
+          path: "src/app.ts",
+          replacements: [{ oldText: "old", newText: "new" }],
+        },
+        done: true,
+      }),
+    );
+
+    assert.equal(summary.toolName, "edit");
+    assert.equal(summary.preview, "-old\n+new");
+    assert.equal(summary.previewLanguage, "diff");
+  });
+
+  it("tails final edit diff previews to the latest 10 lines", () => {
     const replacementLines = Array.from(
       { length: 6 },
       (_, index) => `replacement-${index + 1}`,
@@ -277,12 +293,14 @@ describe("summarizeToolDraft", () => {
     );
 
     const generatedLines = [
-      ...replacementLines,
-      ...insertionLines,
+      "-old secret should not render",
+      ...replacementLines.map((line) => `+${line}`),
+      ...insertionLines.map((line) => `+${line}`),
       ...patchLines,
     ];
     assert.equal(summary.toolName, "edit");
     assert.equal(summary.preview, generatedLines.slice(-10).join("\n"));
+    assert.equal(summary.previewLanguage, "diff");
     assert.equal(summary.preview?.includes("old secret"), false);
     assert.equal(summary.preview?.includes("earlier line"), false);
   });
