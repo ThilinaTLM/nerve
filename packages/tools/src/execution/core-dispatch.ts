@@ -1,5 +1,15 @@
 import type { ToolName } from "@nervekit/shared";
 import type { ToolExecutionContext, ToolExecutionResult } from "../types.js";
+import {
+  executeConfluenceCreatePage,
+  executeConfluenceDownloadPages,
+  executeConfluenceGetPage,
+  executeConfluencePublishPages,
+  executeConfluenceSearchPages,
+  executeConfluenceSearchSpaces,
+  executeConfluenceUpdatePage,
+  executeConfluenceUploadAttachment,
+} from "./confluence/confluence.js";
 import { executeEdit } from "./filesystem/edit.js";
 import { executeFind } from "./filesystem/find.js";
 import { executeLs } from "./filesystem/list.js";
@@ -63,6 +73,22 @@ export async function executeTool(
       return executeJiraAddComment(args, context);
     case "jira_transition_issue":
       return executeJiraTransitionIssue(args, context);
+    case "confluence_search_spaces":
+      return executeConfluenceSearchSpaces(args, context);
+    case "confluence_search_pages":
+      return executeConfluenceSearchPages(args, context);
+    case "confluence_get_page":
+      return executeConfluenceGetPage(args, context);
+    case "confluence_download_pages":
+      return executeConfluenceDownloadPages(args, context);
+    case "confluence_create_page":
+      return executeConfluenceCreatePage(args, context);
+    case "confluence_update_page":
+      return executeConfluenceUpdatePage(args, context);
+    case "confluence_publish_pages":
+      return executeConfluencePublishPages(args, context);
+    case "confluence_upload_attachment":
+      return executeConfluenceUploadAttachment(args, context);
     case "ask_user":
       throw new Error(
         "ask_user is executed by the orchestrator user-interaction service.",

@@ -32,16 +32,16 @@
     onSettingsChange?: SettingsChange;
   };
 
-  const jiraProviderId = "jira";
-  const jiraTools: ToolSummary[] = [
-    { name: "jira_search_users", description: "Find users and accountIds for assignments." },
-    { name: "jira_search_issues", description: "Search issues with JQL and saved raw JSON." },
-    { name: "jira_get_issue", description: "Fetch issues with comments, transitions, worklogs, changelog, links, and metadata." },
-    { name: "jira_get_project", description: "Fetch project, issue type, create-field, priority, resolution, and field metadata." },
-    { name: "jira_create_issue", description: "Create tasks, stories, bugs, epics, or subtasks." },
-    { name: "jira_update_issue", description: "Update common issue fields and raw Jira fields." },
-    { name: "jira_add_comment", description: "Add comments from plain text or ADF." },
-    { name: "jira_transition_issue", description: "Discover or execute workflow transitions." },
+  const confluenceProviderId = "confluence";
+  const confluenceTools: ToolSummary[] = [
+    { name: "confluence_search_spaces", description: "List or resolve visible Confluence spaces." },
+    { name: "confluence_search_pages", description: "Find pages with filters, CQL, or text search." },
+    { name: "confluence_get_page", description: "Fetch a page with storage body, metadata, children, and attachments." },
+    { name: "confluence_download_pages", description: "Download pages into editable JSONL and storage XML artifacts." },
+    { name: "confluence_create_page", description: "Create pages from storage XML, body files, or page rows." },
+    { name: "confluence_update_page", description: "Update pages with version-conflict protection." },
+    { name: "confluence_publish_pages", description: "Publish edited JSONL page rows." },
+    { name: "confluence_upload_attachment", description: "Upload or update media and file attachments." },
   ];
 
   let { settingsDraft, authProviders = [], onSettingsChange }: Props = $props();
@@ -54,23 +54,31 @@
   let siteUrlDraft = $state("");
   let emailDraft = $state("");
   let tokenDraft = $state("");
-  let projectKeyDraft = $state("");
+  let spaceKeyDraft = $state("");
 
-  const jiraSettings = $derived(settingsDraft.tools?.jira ?? { enabled: false });
-  const jiraProvider = $derived(
-    authProviders.find((provider) => provider.provider === jiraProviderId),
+  const confluenceSettings = $derived(settingsDraft.tools?.confluence ?? { enabled: false });
+  const confluenceProvider = $derived(
+    authProviders.find((provider) => provider.provider === confluenceProviderId),
   );
   const tokenConfigured = $derived(
-    jiraProvider?.configured && jiraProvider.credentialType === "api_key",
+    confluenceProvider?.configured && confluenceProvider.credentialType === "api_key",
   );
   const hasRequiredConfig = $derived(
-    Boolean(jiraSettings.siteUrl && jiraSettings.email && tokenConfigured),
+    Boolean(confluenceSettings.siteUrl && confluenceSettings.email && tokenConfigured),
   );
 
+  function ensureTools() {
+    settingsDraft.tools ??= {
+      disabled: [],
+      jira: { enabled: false },
+      confluence: { enabled: false },
+    };
+  }
+
   function openDialog() {
-    siteUrlDraft = jiraSettings.siteUrl ?? "";
-    emailDraft = jiraSettings.email ?? "";
-    projectKeyDraft = jiraSettings.defaultProjectKey ?? "";
+    siteUrlDraft = confluenceSettings.siteUrl ?? "";
+    emailDraft = confluenceSettings.email ?? "";
+    spaceKeyDraft = confluenceSettings.defaultSpaceKey ?? "";
     tokenDraft = "";
     error = undefined;
     message = undefined;
@@ -83,28 +91,24 @@
     const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
       ? trimmed
       : `https://${trimmed}`;
-    return withScheme.replace(/\/+$/, "");
+    return withScheme.replace(/\/+$/, "").replace(/\/wiki$/i, "");
   }
 
   async function refreshAuthProviders() {
     settingsState.authProviders = await getAuthProviders();
   }
 
-  function saveJiraEnabled(enabled: boolean) {
+  function saveConfluenceEnabled(enabled: boolean) {
     if (enabled && !hasRequiredConfig) return;
-    settingsDraft.tools ??= {
-      disabled: [],
-      jira: { enabled: false },
-      confluence: { enabled: false },
-    };
-    settingsDraft.tools.jira = { ...jiraSettings, enabled };
-    onSettingsChange?.({ tools: { jira: { enabled } } }, { immediate: true });
+    ensureTools();
+    settingsDraft.tools.confluence = { ...confluenceSettings, enabled };
+    onSettingsChange?.({ tools: { confluence: { enabled } } }, { immediate: true });
   }
 
   async function saveConfig() {
     const siteUrl = normalizeSiteUrl(siteUrlDraft);
     const email = emailDraft.trim() || undefined;
-    const defaultProjectKey = projectKeyDraft.trim() || undefined;
+    const defaultSpaceKey = spaceKeyDraft.trim() || undefined;
     const token = tokenDraft.trim();
     busy = true;
     error = undefined;
@@ -113,33 +117,29 @@
       if (token) {
         const credentialKey = await getCredentialKey();
         const envelope = await encryptApiKey(token, credentialKey);
-        await setProviderApiKey(jiraProviderId, envelope);
+        await setProviderApiKey(confluenceProviderId, envelope);
         tokenDraft = "";
       }
-      settingsDraft.tools ??= {
-        disabled: [],
-        jira: { enabled: false },
-        confluence: { enabled: false },
-      };
-      settingsDraft.tools.jira = {
-        ...jiraSettings,
+      ensureTools();
+      settingsDraft.tools.confluence = {
+        ...confluenceSettings,
         siteUrl,
         email,
-        defaultProjectKey,
+        defaultSpaceKey,
       };
       onSettingsChange?.(
         {
           tools: {
-            jira: {
+            confluence: {
               siteUrl: siteUrl ?? null,
               email: email ?? null,
-              defaultProjectKey: defaultProjectKey ?? null,
+              defaultSpaceKey: defaultSpaceKey ?? null,
             },
           },
         },
         { immediate: true },
       );
-      message = "Jira configuration saved.";
+      message = "Confluence configuration saved.";
       await refreshAuthProviders();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -153,16 +153,12 @@
     error = undefined;
     message = undefined;
     try {
-      await deleteProviderCredential(jiraProviderId);
+      await deleteProviderCredential(confluenceProviderId);
       tokenDraft = "";
-      settingsDraft.tools ??= {
-        disabled: [],
-        jira: { enabled: false },
-        confluence: { enabled: false },
-      };
-      settingsDraft.tools.jira = { ...jiraSettings, enabled: false };
-      onSettingsChange?.({ tools: { jira: { enabled: false } } }, { immediate: true });
-      message = "Jira API token removed. Jira tools are disabled.";
+      ensureTools();
+      settingsDraft.tools.confluence = { ...confluenceSettings, enabled: false };
+      onSettingsChange?.({ tools: { confluence: { enabled: false } } }, { immediate: true });
+      message = "Confluence API token removed. Confluence tools are disabled.";
       await refreshAuthProviders();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -173,24 +169,24 @@
   }
 </script>
 
-{#snippet jiraSwitch()}
+{#snippet confluenceSwitch()}
   <ToggleSwitch
-    checked={jiraSettings.enabled}
+    checked={confluenceSettings.enabled}
     disabled={!hasRequiredConfig}
-    aria-label="Enable Jira tools"
-    onCheckedChange={(checked) => saveJiraEnabled(checked)}
+    aria-label="Enable Confluence tools"
+    onCheckedChange={(checked) => saveConfluenceEnabled(checked)}
   />
 {/snippet}
 
 <SettingsSectionCard
-  section="tools-jira"
-  title="Jira"
-  description="Disabled-by-default Jira Cloud tools for ticket search, creation, updates, comments, and workflow transitions."
+  section="tools-confluence"
+  title="Confluence"
+  description="Disabled-by-default Confluence Cloud tools for page discovery, storage-XML edit loops, publishing, and attachments."
 >
-  {#snippet actions()}{@render jiraSwitch()}{/snippet}
+  {#snippet actions()}{@render confluenceSwitch()}{/snippet}
 
-  <ul class="settings-tool-list" aria-label="Jira tools">
-    {#each jiraTools as tool}
+  <ul class="settings-tool-list" aria-label="Confluence tools">
+    {#each confluenceTools as tool}
       <li class="settings-tool-item">
         <Wrench size={13} strokeWidth={2} aria-hidden="true" />
         <span><code>{tool.name}</code>{tool.description}</span>
@@ -202,8 +198,8 @@
     <div class="settings-copy">
       <strong>Connection</strong>
       <span>
-        {#if jiraSettings.siteUrl && jiraSettings.email}
-          {jiraSettings.siteUrl} · {jiraSettings.email}{jiraSettings.defaultProjectKey ? ` · ${jiraSettings.defaultProjectKey}` : ""}
+        {#if confluenceSettings.siteUrl && confluenceSettings.email}
+          {confluenceSettings.siteUrl} · {confluenceSettings.email}{confluenceSettings.defaultSpaceKey ? ` · ${confluenceSettings.defaultSpaceKey}` : ""}
         {:else}
           Site URL and Atlassian account email are required.
         {/if}
@@ -215,7 +211,7 @@
   <div class="settings-credential-summary">
     <div class="settings-copy">
       <strong>API token</strong>
-      <span>{tokenConfigured ? "•••••••• configured" : "Required before Jira tools can be enabled."}</span>
+      <span>{tokenConfigured ? "•••••••• configured" : "Required before Confluence tools can be enabled."}</span>
     </div>
     {#if tokenConfigured}
       <Button size="sm" variant="outline" onclick={() => (removeTokenOpen = true)}>Remove token</Button>
@@ -227,7 +223,7 @@
   {#if !hasRequiredConfig}
     <p class="settings-inline-message" data-tone="warning">
       <TriangleAlert size={14} strokeWidth={2} />
-      Configure site URL, email, and API token before enabling Jira tools.
+      Configure site URL, email, and API token before enabling Confluence tools.
     </p>
   {/if}
   {#if error}
@@ -246,9 +242,9 @@
 <Dialog.Root bind:open={dialogOpen}>
   <Dialog.Content class="settings-runtime-dialog">
     <Dialog.Header>
-      <Dialog.Title>Configure Jira</Dialog.Title>
+      <Dialog.Title>Configure Confluence</Dialog.Title>
       <Dialog.Description>
-        Store Jira Cloud connection details. The API token is encrypted before it is sent to the daemon.
+        Store Confluence Cloud connection details. The API token is encrypted before it is sent to the daemon.
       </Dialog.Description>
     </Dialog.Header>
 
@@ -259,28 +255,28 @@
         void saveConfig();
       }}
     >
-      <label class="settings-key-label" for="tools-jira-site-url">
-        <span>Jira site URL</span>
-        <Input id="tools-jira-site-url" bind:value={siteUrlDraft} placeholder="https://example.atlassian.net" disabled={busy} />
+      <label class="settings-key-label" for="tools-confluence-site-url">
+        <span>Confluence site URL</span>
+        <Input id="tools-confluence-site-url" bind:value={siteUrlDraft} placeholder="https://example.atlassian.net" disabled={busy} />
       </label>
-      <label class="settings-key-label" for="tools-jira-email">
+      <label class="settings-key-label" for="tools-confluence-email">
         <span>Atlassian account email</span>
-        <Input id="tools-jira-email" type="email" bind:value={emailDraft} placeholder="name@example.com" disabled={busy} />
+        <Input id="tools-confluence-email" type="email" bind:value={emailDraft} placeholder="name@example.com" disabled={busy} />
       </label>
-      <label class="settings-key-label" for="tools-jira-token">
-        <span><KeyRound size={13} strokeWidth={2} /> Jira API token</span>
+      <label class="settings-key-label" for="tools-confluence-token">
+        <span><KeyRound size={13} strokeWidth={2} /> Confluence API token</span>
         <Input
-          id="tools-jira-token"
+          id="tools-confluence-token"
           type="password"
           autocomplete="off"
           bind:value={tokenDraft}
-          placeholder={tokenConfigured ? "Paste a replacement token" : "Paste your Jira API token"}
+          placeholder={tokenConfigured ? "Paste a replacement token" : "Paste your Confluence API token"}
           disabled={busy}
         />
       </label>
-      <label class="settings-key-label" for="tools-jira-project-key">
-        <span>Default project key</span>
-        <Input id="tools-jira-project-key" bind:value={projectKeyDraft} placeholder="Optional, e.g. PROJ" disabled={busy} />
+      <label class="settings-key-label" for="tools-confluence-space-key">
+        <span>Default space key</span>
+        <Input id="tools-confluence-space-key" bind:value={spaceKeyDraft} placeholder="Optional, e.g. DEV" disabled={busy} />
       </label>
 
       {#if tokenConfigured}
@@ -317,8 +313,8 @@
 
 <ConfirmDialog
   open={removeTokenOpen}
-  title="Remove Jira API token?"
-  description="This removes the stored Jira API token and disables the Jira tools module."
+  title="Remove Confluence API token?"
+  description="This removes the stored Confluence API token and disables the Confluence tools module."
   confirmLabel="Remove"
   destructive
   onConfirm={() => void removeToken()}

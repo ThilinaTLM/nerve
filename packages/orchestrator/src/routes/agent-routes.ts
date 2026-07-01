@@ -42,6 +42,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
         pythonAvailable,
         disabledToolNames: state.storage.settings.tools.disabled,
         jiraEnabled: state.storage.settings.tools.jira.enabled,
+        confluenceEnabled: state.storage.settings.tools.confluence.enabled,
       });
       return c.body(prompt, 200, {
         "Content-Type": "text/markdown; charset=utf-8",

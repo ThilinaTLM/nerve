@@ -118,6 +118,7 @@ export class AgentRunner {
       pythonAvailable,
       disabledToolNames: this.deps.storage.settings.tools.disabled,
       jiraEnabled: this.deps.storage.settings.tools.jira.enabled,
+      confluenceEnabled: this.deps.storage.settings.tools.confluence.enabled,
     });
   }
 

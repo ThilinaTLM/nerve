@@ -353,6 +353,47 @@ describe("Nerve system prompt", () => {
     assert.doesNotMatch(prompt, /jira_transition_issue/);
   });
 
+  it("includes Confluence tools and guideline only when Confluence is enabled", () => {
+    const agent = testAgent();
+    const disabledTools = activeToolNamesForAgent(agent);
+    const disabledPrompt = composeAgentSystemPrompt(
+      agent,
+      disabledTools,
+      toolPromptMetadata(disabledTools),
+      { contextFiles: [], skills: [] },
+    );
+    assert.doesNotMatch(disabledPrompt, /confluence_search_pages/);
+    assert.doesNotMatch(disabledPrompt, /Use Confluence tools only/);
+
+    const enabledTools = activeToolNamesForAgent(agent, {
+      confluenceEnabled: true,
+    });
+    const enabledPrompt = composeAgentSystemPrompt(
+      agent,
+      enabledTools,
+      toolPromptMetadata(enabledTools),
+      { contextFiles: [], skills: [] },
+    );
+    assert.match(enabledPrompt, /confluence_search_pages/);
+    assert.match(enabledPrompt, /confluence_upload_attachment/);
+    assert.match(enabledPrompt, /Use Confluence tools only/);
+  });
+
+  it("omits Confluence mutation tools from planning prompts", () => {
+    const agent = testAgent({ mode: "planning" });
+    const tools = activeToolNamesForAgent(agent, { confluenceEnabled: true });
+    const prompt = composeAgentSystemPrompt(
+      agent,
+      tools,
+      toolPromptMetadata(tools),
+      { contextFiles: [], skills: [] },
+    );
+    assert.match(prompt, /confluence_search_pages/);
+    assert.match(prompt, /confluence_download_pages/);
+    assert.doesNotMatch(prompt, /confluence_create_page/);
+    assert.doesNotMatch(prompt, /confluence_upload_attachment/);
+  });
+
   it("does not expose orchestration metadata", () => {
     const agent = testAgent();
     const activeToolNames = activeToolNamesForAgent(agent);

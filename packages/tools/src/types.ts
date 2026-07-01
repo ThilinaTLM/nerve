@@ -99,3 +99,4 @@ export type WebFetchToolArgs = {
 };
 
 export type JiraToolArgs = Record<string, unknown>;
+export type ConfluenceToolArgs = Record<string, unknown>;

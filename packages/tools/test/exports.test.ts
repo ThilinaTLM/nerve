@@ -41,5 +41,13 @@ describe("public source exports", () => {
     assert.equal(toolRiskForName("jira_update_issue"), "command");
     assert.equal(toolRiskForName("jira_add_comment"), "command");
     assert.equal(toolRiskForName("jira_transition_issue"), "command");
+    assert.equal(toolRiskForName("confluence_search_spaces"), "network");
+    assert.equal(toolRiskForName("confluence_search_pages"), "network");
+    assert.equal(toolRiskForName("confluence_get_page"), "network");
+    assert.equal(toolRiskForName("confluence_download_pages"), "network");
+    assert.equal(toolRiskForName("confluence_create_page"), "command");
+    assert.equal(toolRiskForName("confluence_update_page"), "command");
+    assert.equal(toolRiskForName("confluence_publish_pages"), "command");
+    assert.equal(toolRiskForName("confluence_upload_attachment"), "command");
   });
 });

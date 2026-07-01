@@ -71,6 +71,53 @@ function hasOutputArtifactPath(
   );
 }
 
+function confluencePrimaryArg(
+  view: Extract<ToolView, { kind: "confluence" }>,
+): PrimaryArg | undefined {
+  switch (view.action) {
+    case "search_spaces":
+      return view.query ? { text: view.query } : undefined;
+    case "search_pages":
+      return view.cql
+        ? { text: view.cql }
+        : view.query
+          ? { text: view.query }
+          : undefined;
+    case "download_pages":
+      return view.downloadDir
+        ? { text: basename(view.downloadDir), openPath: view.downloadDir }
+        : view.pageId
+          ? { text: view.pageId }
+          : undefined;
+    case "publish_pages":
+      return view.inputPath
+        ? { text: basename(view.inputPath), openPath: view.inputPath }
+        : undefined;
+    case "upload_attachment":
+      return view.attachment?.filename
+        ? { text: view.attachment.filename }
+        : view.pageId
+          ? { text: view.pageId }
+          : undefined;
+    case "get_page":
+    case "create_page":
+    case "update_page":
+      return view.page?.title
+        ? {
+            text: view.page.id
+              ? `${view.page.id} · ${view.page.title}`
+              : view.page.title,
+          }
+        : view.pageId
+          ? { text: view.pageId }
+          : view.title
+            ? { text: view.title }
+            : undefined;
+    default:
+      return undefined;
+  }
+}
+
 function jiraPrimaryArg(
   view: Extract<ToolView, { kind: "jira" }>,
 ): PrimaryArg | undefined {
@@ -477,6 +524,84 @@ export function toolPresentation(
       return {
         ...base,
         primaryArg: jiraPrimaryArg(view),
+        meta,
+        detailsAction,
+      };
+    }
+
+    case "confluence": {
+      const meta: MetaItem[] = [];
+      if (view.dryRun) meta.push({ text: "preview", tone: "info" });
+      const countChip = (count: number | undefined, noun: string) => {
+        if (count !== undefined) meta.push({ text: plural(count, noun) });
+      };
+      switch (view.action) {
+        case "search_spaces":
+          countChip(view.spaceCount ?? view.spaces.length, "space");
+          break;
+        case "search_pages":
+        case "download_pages":
+          countChip(view.pageCount ?? view.pages.length, "page");
+          if (view.bodyFormat) meta.push({ text: view.bodyFormat });
+          if (view.downloadDir) {
+            meta.push({
+              text: "bundle",
+              mono: true,
+              openPath: view.downloadDir,
+            });
+          }
+          break;
+        case "get_page":
+          if (view.page?.status) meta.push({ text: view.page.status });
+          if (view.page?.versionNumber !== undefined) {
+            meta.push({ text: `v${view.page.versionNumber}` });
+          }
+          if (view.includedCounts?.attachments !== undefined) {
+            countChip(view.includedCounts.attachments, "attachment");
+          }
+          break;
+        case "create_page":
+        case "update_page":
+          if (view.spaceKey)
+            meta.push({ text: `space ${view.spaceKey}`, mono: true });
+          if (view.page?.versionNumber !== undefined) {
+            meta.push({ text: `v${view.page.versionNumber}` });
+          }
+          break;
+        case "publish_pages":
+          countChip(view.outcomeCount ?? view.outcomes.length, "outcome");
+          break;
+        case "upload_attachment":
+          countChip(
+            view.attachmentCount ?? view.attachments.length,
+            "attachment",
+          );
+          if (view.pageId)
+            meta.push({ text: `page ${view.pageId}`, mono: true });
+          break;
+      }
+      meta.push(...outputMeta(view));
+      const detailsAction =
+        previewDetailsAction ??
+        detailsActionFor(
+          view.pages.length > COLLAPSED_LINES
+            ? view.pages.length
+            : view.spaces.length > COLLAPSED_LINES
+              ? view.spaces.length
+              : view.outcomes.length > COLLAPSED_LINES
+                ? view.outcomes.length
+                : view.contentLineCount,
+          view.pages.length > COLLAPSED_LINES
+            ? "pages"
+            : view.spaces.length > COLLAPSED_LINES
+              ? "spaces"
+              : view.outcomes.length > COLLAPSED_LINES
+                ? "outcomes"
+                : "lines",
+        );
+      return {
+        ...base,
+        primaryArg: confluencePrimaryArg(view),
         meta,
         detailsAction,
       };

@@ -442,6 +442,133 @@ export const jiraResultDetailsSchema = z
   .passthrough();
 export type JiraResultDetailsPayload = z.infer<typeof jiraResultDetailsSchema>;
 
+export const confluenceTextDisplaySchema = z.string().max(500);
+
+export const confluenceSpaceSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    key: confluenceTextDisplaySchema.optional(),
+    name: confluenceTextDisplaySchema.optional(),
+    type: confluenceTextDisplaySchema.optional(),
+    status: confluenceTextDisplaySchema.optional(),
+    homepageId: z.string().optional(),
+  })
+  .passthrough();
+export type ConfluenceSpaceSummaryPayload = z.infer<
+  typeof confluenceSpaceSummarySchema
+>;
+
+export const confluencePageSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    title: confluenceTextDisplaySchema.optional(),
+    spaceId: z.string().optional(),
+    spaceKey: confluenceTextDisplaySchema.optional(),
+    parentId: z.string().optional(),
+    status: confluenceTextDisplaySchema.optional(),
+    versionNumber: z.number().int().nonnegative().optional(),
+    webui: z.string().optional(),
+    storagePath: z.string().optional(),
+    markdownPath: z.string().optional(),
+    attachmentDir: z.string().optional(),
+  })
+  .passthrough();
+export type ConfluencePageSummaryPayload = z.infer<
+  typeof confluencePageSummarySchema
+>;
+
+export const confluenceAttachmentSummarySchema = z
+  .object({
+    id: z.string().optional(),
+    fileId: z.string().optional(),
+    filename: confluenceTextDisplaySchema.optional(),
+    title: confluenceTextDisplaySchema.optional(),
+    mediaType: confluenceTextDisplaySchema.optional(),
+    fileSize: z.number().int().nonnegative().optional(),
+    versionNumber: z.number().int().nonnegative().optional(),
+    downloadLink: z.string().optional(),
+    path: z.string().optional(),
+    snippet: z.string().optional(),
+  })
+  .passthrough();
+export type ConfluenceAttachmentSummaryPayload = z.infer<
+  typeof confluenceAttachmentSummarySchema
+>;
+
+export const confluenceIncludedCountsSchema = z
+  .object({
+    pages: z.number().int().nonnegative().optional(),
+    spaces: z.number().int().nonnegative().optional(),
+    labels: z.number().int().nonnegative().optional(),
+    properties: z.number().int().nonnegative().optional(),
+    operations: z.number().int().nonnegative().optional(),
+    versions: z.number().int().nonnegative().optional(),
+    directChildren: z.number().int().nonnegative().optional(),
+    attachments: z.number().int().nonnegative().optional(),
+    downloadedAttachments: z.number().int().nonnegative().optional(),
+  })
+  .passthrough();
+export type ConfluenceIncludedCountsPayload = z.infer<
+  typeof confluenceIncludedCountsSchema
+>;
+
+export const confluencePublishOutcomeSchema = z
+  .object({
+    index: z.number().int().nonnegative().optional(),
+    operation: confluenceTextDisplaySchema.optional(),
+    id: z.string().optional(),
+    title: confluenceTextDisplaySchema.optional(),
+    status: z
+      .enum(["created", "updated", "dry_run", "skipped", "error"])
+      .optional(),
+    message: z.string().optional(),
+    errorCode: z.string().optional(),
+  })
+  .passthrough();
+export type ConfluencePublishOutcomePayload = z.infer<
+  typeof confluencePublishOutcomeSchema
+>;
+
+export const confluenceResultDetailsSchema = z
+  .object({
+    action: confluenceTextDisplaySchema.optional(),
+    query: confluenceTextDisplaySchema.optional(),
+    cql: z.string().optional(),
+    pageId: z.string().optional(),
+    spaceId: z.string().optional(),
+    spaceKey: confluenceTextDisplaySchema.optional(),
+    title: confluenceTextDisplaySchema.optional(),
+    status: confluenceTextDisplaySchema.optional(),
+    bodyFormat: confluenceTextDisplaySchema.optional(),
+    spaces: z.array(confluenceSpaceSummarySchema).optional(),
+    space: confluenceSpaceSummarySchema.optional(),
+    spaceCount: z.number().int().nonnegative().optional(),
+    displayedSpaceCount: z.number().int().nonnegative().optional(),
+    pages: z.array(confluencePageSummarySchema).optional(),
+    page: confluencePageSummarySchema.optional(),
+    pageCount: z.number().int().nonnegative().optional(),
+    displayedPageCount: z.number().int().nonnegative().optional(),
+    attachments: z.array(confluenceAttachmentSummarySchema).optional(),
+    attachment: confluenceAttachmentSummarySchema.optional(),
+    attachmentCount: z.number().int().nonnegative().optional(),
+    displayedAttachmentCount: z.number().int().nonnegative().optional(),
+    includedCounts: confluenceIncludedCountsSchema.optional(),
+    downloadDir: z.string().optional(),
+    manifestPath: z.string().optional(),
+    pagesJsonlPath: z.string().optional(),
+    inputPath: z.string().optional(),
+    outcomes: z.array(confluencePublishOutcomeSchema).optional(),
+    outcomeCount: z.number().int().nonnegative().optional(),
+    displayedOutcomeCount: z.number().int().nonnegative().optional(),
+    payload: z.unknown().optional(),
+    dryRun: z.boolean().optional(),
+    outputLimits: toolOutputLimitsSchema.optional(),
+  })
+  .passthrough();
+export type ConfluenceResultDetailsPayload = z.infer<
+  typeof confluenceResultDetailsSchema
+>;
+
 /** File-tool result envelope (read/write/edit/grep/find/ls/bash/python/web_fetch/web_search). */
 export const toolExecutionResultSchema = z.object({
   content: z.string().optional(),

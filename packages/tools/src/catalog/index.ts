@@ -1,4 +1,5 @@
 import type { CoreToolName } from "@nervekit/shared";
+import { confluenceToolDefinitions } from "./core/confluence.tools.js";
 import { filesystemToolDefinitions } from "./core/filesystem.tools.js";
 import { interactionToolDefinitions } from "./core/interaction.tools.js";
 import { jiraToolDefinitions } from "./core/jira.tools.js";
@@ -10,6 +11,7 @@ import { planModeToolDefinitions } from "./orchestration/plan-mode.tools.js";
 import { taskToolDefinitions } from "./orchestration/task.tools.js";
 import type { CoreToolDefinition } from "./types.js";
 
+export * from "./core/confluence.tools.js";
 export * from "./core/filesystem.tools.js";
 export * from "./core/interaction.tools.js";
 export * from "./core/jira.tools.js";
@@ -34,6 +36,7 @@ export const coreToolDefinitions: CoreToolDefinition[] = [
   ...interactionToolDefinitions,
   ...webToolDefinitions,
   ...jiraToolDefinitions,
+  ...confluenceToolDefinitions,
 ];
 
 export const orchestrationToolDefinitions: CoreToolDefinition[] = [

@@ -115,11 +115,31 @@ export async function writeSettings(
           : {}),
       }
     : undefined;
+  const confluencePatch = patch.tools?.confluence
+    ? {
+        ...patch.tools.confluence,
+        ...(patch.tools.confluence.siteUrl === null
+          ? { siteUrl: undefined }
+          : {}),
+        ...(patch.tools.confluence.email === null ? { email: undefined } : {}),
+        ...(patch.tools.confluence.defaultSpaceKey === null
+          ? { defaultSpaceKey: undefined }
+          : {}),
+      }
+    : undefined;
   const toolsPatch = patch.tools
     ? {
         ...patch.tools,
         ...(jiraPatch
           ? { jira: { ...storage.settings.tools.jira, ...jiraPatch } }
+          : {}),
+        ...(confluencePatch
+          ? {
+              confluence: {
+                ...storage.settings.tools.confluence,
+                ...confluencePatch,
+              },
+            }
           : {}),
       }
     : undefined;

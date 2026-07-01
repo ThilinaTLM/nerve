@@ -1,4 +1,9 @@
 import type {
+  ConfluenceAttachmentSummaryPayload,
+  ConfluenceIncludedCountsPayload,
+  ConfluencePageSummaryPayload,
+  ConfluencePublishOutcomePayload,
+  ConfluenceSpaceSummaryPayload,
   ExploreReportPayload,
   FileEntry,
   GrepMatch,
@@ -31,6 +36,16 @@ export type JiraToolAction =
   | "update_issue"
   | "add_comment"
   | "transition_issue";
+
+export type ConfluenceToolAction =
+  | "search_spaces"
+  | "search_pages"
+  | "get_page"
+  | "download_pages"
+  | "create_page"
+  | "update_page"
+  | "publish_pages"
+  | "upload_attachment";
 
 export type GrepMatchView = GrepMatch & { openPath?: string };
 export type GroupedMatches = {
@@ -274,6 +289,45 @@ export type ToolView =
       displayedFieldCount?: number;
       transitionCount?: number;
       displayedTransitionCount?: number;
+      outputLimits?: ToolOutputLimitsPayload;
+      outputArtifacts?: ToolOutputArtifactPayload[];
+    }
+  | {
+      kind: "confluence";
+      action: ConfluenceToolAction;
+      toolName: string;
+      content?: string;
+      contentLineCount: number;
+      messageLines: string[];
+      query?: string;
+      cql?: string;
+      pageId?: string;
+      spaceId?: string;
+      spaceKey?: string;
+      title?: string;
+      status?: string;
+      bodyFormat?: string;
+      spaces: ConfluenceSpaceSummaryPayload[];
+      space?: ConfluenceSpaceSummaryPayload;
+      spaceCount?: number;
+      displayedSpaceCount?: number;
+      pages: ConfluencePageSummaryPayload[];
+      page?: ConfluencePageSummaryPayload;
+      pageCount?: number;
+      displayedPageCount?: number;
+      attachments: ConfluenceAttachmentSummaryPayload[];
+      attachment?: ConfluenceAttachmentSummaryPayload;
+      attachmentCount?: number;
+      displayedAttachmentCount?: number;
+      includedCounts?: ConfluenceIncludedCountsPayload;
+      downloadDir?: string;
+      manifestPath?: string;
+      pagesJsonlPath?: string;
+      inputPath?: string;
+      outcomes: ConfluencePublishOutcomePayload[];
+      outcomeCount?: number;
+      displayedOutcomeCount?: number;
+      dryRun?: boolean;
       outputLimits?: ToolOutputLimitsPayload;
       outputArtifacts?: ToolOutputArtifactPayload[];
     }

@@ -1,6 +1,7 @@
 import type { Component } from "svelte";
 import AskUserToolView from "$lib/features/tools/components/tool-call/AskUserToolView.svelte";
 import BashToolView from "$lib/features/tools/components/tool-call/BashToolView.svelte";
+import ConfluenceToolView from "$lib/features/tools/components/tool-call/ConfluenceToolView.svelte";
 import EditToolView from "$lib/features/tools/components/tool-call/EditToolView.svelte";
 import ExploreToolView from "$lib/features/tools/components/tool-call/ExploreToolView.svelte";
 import FindToolView from "$lib/features/tools/components/tool-call/FindToolView.svelte";
@@ -40,6 +41,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   explore: ExploreToolView,
   plan_mode: PlanModeToolView,
   jira: JiraToolView,
+  confluence: ConfluenceToolView,
   web_search: WebSearchToolView,
   web_fetch: WebFetchToolView,
   generic: GenericToolView,

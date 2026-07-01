@@ -19,12 +19,14 @@ export async function buildAgentSystemPrompt(
     pythonAvailable?: boolean;
     disabledToolNames?: readonly UserConfigurableToolName[];
     jiraEnabled?: boolean;
+    confluenceEnabled?: boolean;
   } = {},
 ): Promise<string> {
   const activeToolNames = activeToolNamesForAgent(agent, {
     pythonAvailable: options.pythonAvailable,
     disabledToolNames: options.disabledToolNames,
     jiraEnabled: options.jiraEnabled,
+    confluenceEnabled: options.confluenceEnabled,
   });
   const promptMetadata = toolPromptMetadata(activeToolNames);
   const resources = await loadHarnessResources(agent.projectDir, {

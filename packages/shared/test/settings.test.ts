@@ -22,6 +22,7 @@ describe("settings schema", () => {
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
     assert.equal(settings.tools.jira.enabled, false);
+    assert.equal(settings.tools.confluence.enabled, false);
     assert.equal(settings.compaction.auto, true);
   });
 
@@ -42,6 +43,7 @@ describe("settings schema", () => {
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
     assert.equal(settings.tools.jira.enabled, false);
+    assert.equal(settings.tools.confluence.enabled, false);
   });
 
   it("strips legacy compaction token fields while backfilling auto default", () => {
@@ -56,7 +58,7 @@ describe("settings schema", () => {
     assert.deepEqual(settings.compaction, { auto: true });
   });
 
-  it("backfills Jira defaults when older configs only have disabled tools", () => {
+  it("backfills tool provider defaults when older configs only have disabled tools", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
       tools: { disabled: ["web_search"] },
@@ -64,6 +66,7 @@ describe("settings schema", () => {
 
     assert.deepEqual(settings.tools.disabled, ["web_search"]);
     assert.deepEqual(settings.tools.jira, { enabled: false });
+    assert.deepEqual(settings.tools.confluence, { enabled: false });
   });
 
   it("accepts runtime and tool update settings", () => {
@@ -79,6 +82,12 @@ describe("settings schema", () => {
           siteUrl: "https://example.atlassian.net",
           email: "user@example.com",
           defaultProjectKey: "PROJ",
+        },
+        confluence: {
+          enabled: true,
+          siteUrl: "https://example.atlassian.net",
+          email: "user@example.com",
+          defaultSpaceKey: "DEV",
         },
       },
     });
@@ -96,15 +105,28 @@ describe("settings schema", () => {
     assert.equal(parsed.tools?.jira?.siteUrl, "https://example.atlassian.net");
     assert.equal(parsed.tools?.jira?.email, "user@example.com");
     assert.equal(parsed.tools?.jira?.defaultProjectKey, "PROJ");
+    assert.equal(parsed.tools?.confluence?.enabled, true);
+    assert.equal(
+      parsed.tools?.confluence?.siteUrl,
+      "https://example.atlassian.net",
+    );
+    assert.equal(parsed.tools?.confluence?.email, "user@example.com");
+    assert.equal(parsed.tools?.confluence?.defaultSpaceKey, "DEV");
     const cleared = updateSettingsRequestSchema.parse({
       runtime: { pythonExecutablePath: null, shellPath: null },
-      tools: { jira: { siteUrl: null, email: null, defaultProjectKey: null } },
+      tools: {
+        jira: { siteUrl: null, email: null, defaultProjectKey: null },
+        confluence: { siteUrl: null, email: null, defaultSpaceKey: null },
+      },
     });
     assert.equal(cleared.runtime?.pythonExecutablePath, null);
     assert.equal(cleared.runtime?.shellPath, null);
     assert.equal(cleared.tools?.jira?.siteUrl, null);
     assert.equal(cleared.tools?.jira?.email, null);
     assert.equal(cleared.tools?.jira?.defaultProjectKey, null);
+    assert.equal(cleared.tools?.confluence?.siteUrl, null);
+    assert.equal(cleared.tools?.confluence?.email, null);
+    assert.equal(cleared.tools?.confluence?.defaultSpaceKey, null);
   });
 
   it("accepts python runtime status", () => {

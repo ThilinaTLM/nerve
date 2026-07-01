@@ -51,11 +51,12 @@ describe("AuthManager", () => {
     assert.equal(await auth.getApiKey("anthropic"), "sk-ant-api-test");
   });
 
-  it("includes Jira provider metadata", async () => {
+  it("includes Atlassian provider metadata", async () => {
     const auth = new AuthManager(
       new EncryptedFileSecretProvider(await tempHome()),
     );
     await auth.setApiKey("jira", "jira-token");
+    await auth.setApiKey("confluence", "confluence-token");
 
     const providers = await auth.listProviderMetadata([]);
     const jira = providers.find((provider) => provider.provider === "jira");
@@ -63,5 +64,13 @@ describe("AuthManager", () => {
     assert.equal(jira.displayName, "Jira");
     assert.equal(jira.supportsApiKey, true);
     assert.equal(jira.configured, true);
+    const confluence = providers.find(
+      (provider) => provider.provider === "confluence",
+    );
+    assert.ok(confluence);
+    assert.equal(confluence.displayName, "Confluence");
+    assert.equal(confluence.supportsApiKey, true);
+    assert.equal(confluence.configured, true);
+    assert.equal(confluence.envVar, "CONFLUENCE_API_TOKEN");
   });
 });

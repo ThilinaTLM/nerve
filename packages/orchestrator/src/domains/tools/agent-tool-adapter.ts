@@ -66,6 +66,7 @@ export function activeToolNamesForAgent(
     pythonAvailable?: boolean;
     disabledToolNames?: readonly UserConfigurableToolName[];
     jiraEnabled?: boolean;
+    confluenceEnabled?: boolean;
   } = {},
 ): ToolName[] {
   const finish = (tools: ToolName[]) =>
@@ -110,6 +111,24 @@ export function activeToolNamesForAgent(
           "jira_transition_issue",
         ]
       : [];
+  const confluenceReadTools: ToolName[] =
+    options.confluenceEnabled === true
+      ? [
+          "confluence_search_spaces",
+          "confluence_search_pages",
+          "confluence_get_page",
+          "confluence_download_pages",
+        ]
+      : [];
+  const confluenceMutationTools: ToolName[] =
+    options.confluenceEnabled === true
+      ? [
+          "confluence_create_page",
+          "confluence_update_page",
+          "confluence_publish_pages",
+          "confluence_upload_attachment",
+        ]
+      : [];
   if (agent.mode === "planning") {
     return finish([
       "read",
@@ -130,6 +149,7 @@ export function activeToolNamesForAgent(
       "web_search",
       "web_fetch",
       ...jiraReadTools,
+      ...confluenceReadTools,
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",
@@ -158,6 +178,8 @@ export function activeToolNamesForAgent(
     "web_fetch",
     ...jiraReadTools,
     ...jiraMutationTools,
+    ...confluenceReadTools,
+    ...confluenceMutationTools,
     "plan_mode_enter",
   ]);
 }

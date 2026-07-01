@@ -76,7 +76,7 @@ describe("tool policy", () => {
     );
   });
 
-  it("classifies Jira tools with planning-mode behavior", () => {
+  it("classifies Jira and Confluence tools with planning-mode behavior", () => {
     assert.equal(
       evaluateToolPolicy(
         agent("autonomous"),
@@ -109,6 +109,42 @@ describe("tool policy", () => {
         agent("autonomous", "planning"),
         "jira_transition_issue",
         { issue_key: "PROJ-1", transition: "Done" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "deny",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "confluence_search_pages",
+        { cql: "type = page" },
+        { dataDir: "/tmp/nerve" },
+      ).risk,
+      "network",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous"),
+        "confluence_update_page",
+        { page_id: "123", body: "<p>Test</p>" },
+        { dataDir: "/tmp/nerve" },
+      ).risk,
+      "command",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous", "planning"),
+        "confluence_get_page",
+        { page_id: "123" },
+        { dataDir: "/tmp/nerve" },
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateToolPolicy(
+        agent("autonomous", "planning"),
+        "confluence_publish_pages",
+        { input_path: "/tmp/pages.jsonl" },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "deny",

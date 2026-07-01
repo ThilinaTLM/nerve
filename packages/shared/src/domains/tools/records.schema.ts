@@ -35,6 +35,14 @@ export const coreToolNameSchema = z.enum([
   "jira_update_issue",
   "jira_add_comment",
   "jira_transition_issue",
+  "confluence_search_spaces",
+  "confluence_search_pages",
+  "confluence_get_page",
+  "confluence_download_pages",
+  "confluence_create_page",
+  "confluence_update_page",
+  "confluence_publish_pages",
+  "confluence_upload_attachment",
 ]);
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 

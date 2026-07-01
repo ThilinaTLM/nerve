@@ -19,6 +19,7 @@
   import { encryptApiKey } from "$lib/core/utils/credential-crypto";
   import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
   import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import ConfluenceToolsSettingsCard from "./ConfluenceToolsSettingsCard.svelte";
   import JiraToolsSettingsCard from "./JiraToolsSettingsCard.svelte";
 
   type SettingsChange = (
@@ -116,7 +117,11 @@
     names: ConfigurableToolName[],
     enabled: boolean,
   ) {
-    settingsDraft.tools ??= { disabled: [], jira: { enabled: false } };
+    settingsDraft.tools ??= {
+      disabled: [],
+      jira: { enabled: false },
+      confluence: { enabled: false },
+    };
     const next = new Set(settingsDraft.tools.disabled);
     for (const name of names) {
       if (enabled) next.delete(name);
@@ -300,6 +305,7 @@
 </SettingsSectionCard>
 
 <JiraToolsSettingsCard {settingsDraft} {authProviders} {onSettingsChange} />
+<ConfluenceToolsSettingsCard {settingsDraft} {authProviders} {onSettingsChange} />
 
 <SettingsSectionCard
   section="tools-tasks"

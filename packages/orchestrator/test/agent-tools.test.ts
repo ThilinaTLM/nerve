@@ -59,6 +59,14 @@ describe("agent tool definitions", () => {
         "jira_update_issue",
         "jira_add_comment",
         "jira_transition_issue",
+        "confluence_search_spaces",
+        "confluence_search_pages",
+        "confluence_get_page",
+        "confluence_download_pages",
+        "confluence_create_page",
+        "confluence_update_page",
+        "confluence_publish_pages",
+        "confluence_upload_attachment",
       ],
     );
 
@@ -199,10 +207,14 @@ describe("agent tool definitions", () => {
     );
   });
 
-  it("gates Jira active tools behind the Jira module setting", () => {
+  it("gates Jira and Confluence active tools behind module settings", () => {
     const defaultCoding = activeToolNamesForAgent(agent("autonomous"));
     assert.equal(
       defaultCoding.some((name) => name.startsWith("jira_")),
+      false,
+    );
+    assert.equal(
+      defaultCoding.some((name) => name.startsWith("confluence_")),
       false,
     );
 
@@ -222,6 +234,21 @@ describe("agent tool definitions", () => {
       ],
     );
     assert.deepEqual(
+      activeToolNamesForAgent(agent("autonomous"), {
+        confluenceEnabled: true,
+      }).filter((name) => name.startsWith("confluence_")),
+      [
+        "confluence_search_spaces",
+        "confluence_search_pages",
+        "confluence_get_page",
+        "confluence_download_pages",
+        "confluence_create_page",
+        "confluence_update_page",
+        "confluence_publish_pages",
+        "confluence_upload_attachment",
+      ],
+    );
+    assert.deepEqual(
       activeToolNamesForAgent(
         { ...agent("autonomous"), mode: "planning" },
         { jiraEnabled: true },
@@ -233,10 +260,28 @@ describe("agent tool definitions", () => {
         "jira_get_project",
       ],
     );
+    assert.deepEqual(
+      activeToolNamesForAgent(
+        { ...agent("autonomous"), mode: "planning" },
+        { confluenceEnabled: true },
+      ).filter((name) => name.startsWith("confluence_")),
+      [
+        "confluence_search_spaces",
+        "confluence_search_pages",
+        "confluence_get_page",
+        "confluence_download_pages",
+      ],
+    );
     assert.equal(
       activeToolNamesForAgent(agent("read_only"), { jiraEnabled: true }).some(
         (name) => name.startsWith("jira_"),
       ),
+      false,
+    );
+    assert.equal(
+      activeToolNamesForAgent(agent("read_only"), {
+        confluenceEnabled: true,
+      }).some((name) => name.startsWith("confluence_")),
       false,
     );
   });

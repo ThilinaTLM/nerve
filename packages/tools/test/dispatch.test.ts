@@ -382,6 +382,248 @@ describe("executeTool dispatch", () => {
     }
   });
 
+  it("dispatches Confluence tools with configured auth and artifacts", async () => {
+    const project = await createTempProject();
+    const bodyFile = await project.write("body.storage.xml", "<p>Updated</p>");
+    const uploadFile = await project.write("image.png", "fake image");
+    const pageRowPath = await project.write(
+      "pages.jsonl",
+      `${JSON.stringify({
+        schemaVersion: "nerve.confluence.page.v1",
+        id: "123",
+        title: "Home",
+        spaceId: "space-1",
+        version: { number: 7 },
+        body: { representation: "storage", value: "<p>Published</p>" },
+      })}\n`,
+    );
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ url: URL; init?: RequestInit }> = [];
+    globalThis.fetch = (async (input, init) => {
+      const url = new URL(String(input));
+      calls.push({ url, init });
+      const auth =
+        init?.headers && (init.headers as Record<string, string>).Authorization;
+      assert.match(String(auth), /^Basic /);
+      assert.equal(
+        Buffer.from(String(auth).replace(/^Basic\s+/, ""), "base64").toString(
+          "utf8",
+        ),
+        "user@example.com:confluence-token",
+      );
+
+      if (url.pathname === "/wiki/api/v2/spaces") {
+        return new Response(
+          JSON.stringify({
+            results: [{ id: "space-1", key: "DEV", name: "Developers" }],
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      if (url.pathname === "/wiki/api/v2/pages" && init?.method !== "POST") {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "123",
+                title: "Home",
+                spaceId: "space-1",
+                space: { key: "DEV" },
+                status: "current",
+                version: { number: 7 },
+              },
+            ],
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      if (url.pathname === "/wiki/rest/api/search") {
+        return new Response(
+          JSON.stringify({
+            results: [{ content: { id: "123", title: "Home" } }],
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      if (url.pathname === "/wiki/api/v2/pages" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { title?: string };
+        assert.equal(body.title, "Created");
+        return new Response(JSON.stringify({ id: "124", title: "Created" }), {
+          status: 201,
+          statusText: "Created",
+        });
+      }
+      if (url.pathname === "/wiki/api/v2/pages/123/attachments") {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "att-1",
+                title: "image.png",
+                mediaType: "image/png",
+                fileSize: 9,
+                downloadLink: "/download/image.png",
+              },
+            ],
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      if (url.pathname === "/download/image.png") {
+        return new Response("fake image", { status: 200, statusText: "OK" });
+      }
+      if (url.pathname === "/wiki/api/v2/pages/123") {
+        if (init?.method === "PUT") {
+          const body = JSON.parse(String(init.body)) as {
+            version?: { number?: number };
+          };
+          assert.equal(body.version?.number, 8);
+          return new Response(
+            JSON.stringify({
+              id: "123",
+              title: "Home",
+              version: { number: 8 },
+            }),
+            { status: 200, statusText: "OK" },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            id: "123",
+            title: "Home",
+            spaceId: "space-1",
+            space: { key: "DEV" },
+            status: "current",
+            version: { number: 7 },
+            body: {
+              storage: { representation: "storage", value: "<p>Home</p>" },
+            },
+            _links: { webui: "/spaces/DEV/pages/123/Home" },
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      if (
+        url.pathname === "/wiki/rest/api/content/123/child/attachment" &&
+        init?.method === "PUT"
+      ) {
+        assert.equal(
+          (init.headers as Record<string, string>)["X-Atlassian-Token"],
+          "nocheck",
+        );
+        assert.equal(
+          (init.headers as Record<string, string>)["Content-Type"],
+          undefined,
+        );
+        assert.ok(init.body instanceof FormData);
+        return new Response(
+          JSON.stringify({
+            results: [{ id: "att-1", title: "image.png", metadata: {} }],
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      }
+      throw new Error(
+        `Unexpected Confluence fetch: ${init?.method ?? "GET"} ${url.pathname}`,
+      );
+    }) as typeof fetch;
+
+    const context = {
+      cwd: project.root,
+      dataDir: project.root,
+      getApiKey: async (provider: string) =>
+        provider === "confluence" ? "confluence-token" : undefined,
+      getProviderConfig: async (provider: string) =>
+        provider === "confluence"
+          ? {
+              enabled: true,
+              siteUrl: "https://example.atlassian.net/wiki/",
+              email: "user@example.com",
+              defaultSpaceKey: "DEV",
+            }
+          : undefined,
+    };
+
+    try {
+      const spaces = await executeTool(
+        "confluence_search_spaces",
+        { query: "dev", limit: 1 },
+        context,
+      );
+      assert.match(spaces.content ?? "", /Developers/);
+
+      const pages = await executeTool(
+        "confluence_search_pages",
+        { space_key: "DEV", limit: 1 },
+        context,
+      );
+      assert.match(pages.content ?? "", /Home/);
+
+      const page = await executeTool(
+        "confluence_get_page",
+        { page_id: "123", include_attachments: true, markdown: true },
+        context,
+      );
+      assert.match(page.content ?? "", /Home/);
+      const pageArtifact = (
+        page.details as {
+          outputLimits?: { artifacts?: Array<{ path: string }> };
+        }
+      ).outputLimits?.artifacts?.[0];
+      assert.ok(pageArtifact?.path);
+      assert.match(await readFile(pageArtifact.path, "utf8"), /Home/);
+
+      const download = await executeTool(
+        "confluence_download_pages",
+        { page_id: "123", markdown: true, include_attachments: true },
+        context,
+      );
+      assert.match(download.content ?? "", /Pages JSONL/);
+      const pagesJsonlPath = (download.details as { pagesJsonlPath?: string })
+        .pagesJsonlPath;
+      assert.ok(pagesJsonlPath);
+      assert.match(await readFile(pagesJsonlPath, "utf8"), /<p>Home<\/p>/);
+
+      const createPreview = await executeTool(
+        "confluence_create_page",
+        { title: "Created", body: "<p>Created</p>", dry_run: true },
+        context,
+      );
+      assert.match(createPreview.content ?? "", /Dry run/);
+
+      const created = await executeTool(
+        "confluence_create_page",
+        { title: "Created", body: "<p>Created</p>" },
+        context,
+      );
+      assert.match(created.content ?? "", /124/);
+
+      const updatePreview = await executeTool(
+        "confluence_update_page",
+        { page_id: "123", body_file: bodyFile, dry_run: true },
+        context,
+      );
+      assert.match(updatePreview.content ?? "", /version 8/);
+
+      const publishPreview = await executeTool(
+        "confluence_publish_pages",
+        { input_path: pageRowPath, dry_run: true },
+        context,
+      );
+      assert.match(publishPreview.content ?? "", /Would update/);
+
+      const upload = await executeTool(
+        "confluence_upload_attachment",
+        { page_id: "123", file_path: uploadFile },
+        context,
+      );
+      assert.match(upload.content ?? "", /Storage XML image snippet/);
+      assert.ok(calls.length >= 8);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("rejects Jira tools when Jira is not configured", async () => {
     await assert.rejects(
       executeTool(
@@ -397,6 +639,24 @@ describe("executeTool dispatch", () => {
         error instanceof Error &&
         "code" in error &&
         (error as { code?: string }).code === "JIRA_NOT_CONFIGURED",
+    );
+  });
+
+  it("rejects Confluence tools when Confluence is not configured", async () => {
+    await assert.rejects(
+      executeTool(
+        "confluence_search_pages",
+        { cql: "type = page" },
+        {
+          cwd: process.cwd(),
+          getApiKey: async () => undefined,
+          getProviderConfig: async () => ({ enabled: false }),
+        },
+      ),
+      (error: unknown) =>
+        error instanceof Error &&
+        "code" in error &&
+        (error as { code?: string }).code === "CONFLUENCE_NOT_CONFIGURED",
     );
   });
 

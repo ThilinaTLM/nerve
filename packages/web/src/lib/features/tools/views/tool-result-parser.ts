@@ -17,6 +17,7 @@ export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
 
 import type { LiveToolOutput } from "$lib/core/types/state-types";
 import { LruCache } from "$lib/core/utils/lru-cache";
+import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";
 import { parseJiraView } from "./jira-result-view";
 import {
@@ -605,6 +606,16 @@ export function parseToolView(
     case "jira_add_comment":
     case "jira_transition_issue":
       return parseJiraView(toolCall, args, rawResult, liveOutput);
+
+    case "confluence_search_spaces":
+    case "confluence_search_pages":
+    case "confluence_get_page":
+    case "confluence_download_pages":
+    case "confluence_create_page":
+    case "confluence_update_page":
+    case "confluence_publish_pages":
+    case "confluence_upload_attachment":
+      return parseConfluenceView(toolCall, args, rawResult, liveOutput);
 
     case "web_search": {
       const details = webSearchResultDetailsSchema.safeParse(result?.details);

@@ -35,6 +35,7 @@ export function providerOAuthSecretName(provider: string): string {
 
 function displayNameForProvider(provider: string): string {
   const known: Record<string, string> = {
+    confluence: "Confluence",
     jira: "Jira",
     tavily: "Tavily",
   };
@@ -48,6 +49,7 @@ export function providerEnvVarName(provider: string): string {
     groq: "GROQ_API_KEY",
     openai: "OPENAI_API_KEY",
     openrouter: "OPENROUTER_API_KEY",
+    confluence: "CONFLUENCE_API_TOKEN",
     jira: "JIRA_API_TOKEN",
     tavily: "TAVILY_API_KEY",
     xai: "XAI_API_KEY",
@@ -164,6 +166,7 @@ export class AuthManager {
     }
     providers.add("tavily");
     providers.add("jira");
+    providers.add("confluence");
     for (const provider of oauthProviders.keys()) {
       if (provider === "openai-codex" || provider === "anthropic") {
         providers.add(provider);

@@ -500,6 +500,38 @@ describe("summarizeToolDraft", () => {
     );
   });
 
+  it("summarizes Confluence draft arguments", () => {
+    const search = summarizeToolDraft(
+      draft("confluence_search_pages", {
+        args: { cql: "type = page", limit: 10, space_key: "DEV" },
+        done: true,
+      }),
+    );
+
+    assert.equal(search.kind, "generic");
+    assert.equal(search.path, "type = page");
+    assert.deepEqual(
+      search.meta.map((item) => item.text),
+      ["max 10", "space DEV", "submitted"],
+    );
+
+    const publish = summarizeToolDraft(
+      draft("confluence_publish_pages", {
+        args: {
+          input_path: "/tmp/pages.jsonl",
+          dry_run: true,
+          create_missing: true,
+        },
+      }),
+    );
+
+    assert.equal(publish.path, "/tmp/pages.jsonl");
+    assert.deepEqual(
+      publish.meta.map((item) => item.text),
+      ["dry run", "create missing"],
+    );
+  });
+
   it("provides capped argument previews for representative generic tools", () => {
     for (const [toolName, args] of [
       [

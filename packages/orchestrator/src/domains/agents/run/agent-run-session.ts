@@ -108,6 +108,7 @@ export async function runAgentPromptSession(
         pythonAvailable: activeToolNames.includes("python"),
         disabledToolNames: this.deps.storage.settings.tools.disabled,
         jiraEnabled: this.deps.storage.settings.tools.jira.enabled,
+        confluenceEnabled: this.deps.storage.settings.tools.confluence.enabled,
       });
       return composeAgentSystemPrompt(
         currentAgent,
@@ -792,7 +793,6 @@ async function expandExecutablePromptBlocks(
       text: inlineCommandExecutionResultText(block.command, result),
     });
   }
-
   return {
     ...request,
     text: replaceExecutableCommandBlocks(request.text, replacements),

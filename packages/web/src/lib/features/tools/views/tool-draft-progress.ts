@@ -1,5 +1,9 @@
 import type { LiveToolCallDraft } from "$lib/core/types/state-types";
 import { relativePathForDisplay } from "$lib/core/utils/path-links";
+import {
+  confluenceDraftMeta,
+  confluenceDraftPrimaryArg,
+} from "./confluence-draft-progress";
 import { jiraDraftMeta, jiraDraftPrimaryArg } from "./jira-draft-progress";
 import { draftArgsPreview } from "./tool-draft-args-preview";
 
@@ -677,6 +681,8 @@ function genericPrimaryArg(draft: LiveToolCallDraft): string | undefined {
   if (toolName === "web_search") return firstKnownString(draft, "query");
   const jiraArg = jiraDraftPrimaryArg(draft, firstKnownString);
   if (jiraArg !== undefined) return jiraArg;
+  const confluenceArg = confluenceDraftPrimaryArg(draft, firstKnownString);
+  if (confluenceArg !== undefined) return confluenceArg;
   if (toolName === "grep" || toolName === "find") {
     return firstKnownString(draft, "pattern");
   }
@@ -694,6 +700,9 @@ function genericMeta(draft: LiveToolCallDraft): DraftMetaItem[] {
   const meta: DraftMetaItem[] = [];
   if (draft.toolName?.startsWith("jira_")) {
     meta.push(...jiraDraftMeta(draft, firstKnownString));
+  }
+  if (draft.toolName?.startsWith("confluence_")) {
+    meta.push(...confluenceDraftMeta(draft, firstKnownString));
   }
   const cwd = firstKnownString(draft, "cwd");
   if (cwd) meta.push({ text: "cwd", tone: "info" });
