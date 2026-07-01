@@ -12,6 +12,7 @@ import {
   protocolErrorMessageSchema,
   protocolMethodNameSchema,
   protocolMethodParamsSchema,
+  protocolMethodResultSchema,
   replayCompleteMessageSchema,
   replayRequestMessageSchema,
   snapshotCursorSchema,
@@ -182,6 +183,28 @@ describe("Protocol v1 shared schemas", () => {
         note: "ok",
       }).success,
       true,
+    );
+    assert.equal(
+      protocolMethodParamsSchema("git.file.stage").safeParse({
+        projectId: "proj_test",
+        repo: ".",
+        path: "src/index.ts",
+      }).success,
+      true,
+    );
+    assert.equal(
+      protocolMethodParamsSchema("project.conversations.prune").safeParse({
+        projectId: "proj_test",
+        strategy: "keepLatest",
+        keepLatest: 10,
+      }).success,
+      true,
+    );
+    assert.equal(
+      protocolMethodResultSchema("approval.grant").safeParse({
+        toolCall: { not: "a tool call" },
+      }).success,
+      false,
     );
     assert.equal(
       workspaceSnapshotResponseSchema.safeParse({

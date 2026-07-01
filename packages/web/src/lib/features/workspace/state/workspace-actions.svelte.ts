@@ -1,9 +1,9 @@
 import {
   type AgentRecord,
   apiPathSegment,
-  apiPost,
   type CompletionItem,
   type ConversationRecord,
+  createProject,
   deleteConversation,
   deleteProject,
   getFileCompletions,
@@ -12,7 +12,6 @@ import {
   getWorkspaceSnapshot,
   openProjectInEditor,
   type ProjectEditor,
-  type ProjectRecord,
   type PruneProjectConversationsRequest,
   pruneProjectConversations,
 } from "$lib/api";
@@ -213,10 +212,7 @@ export async function pruneProjectConversationsAndRefresh(
 export async function createConversationForDirectory(dir: string) {
   workspaceState.error = undefined;
   try {
-    const { project } = await apiPost<{ project: ProjectRecord }>(
-      "/api/projects",
-      { dir },
-    );
+    const project = await createProject(dir);
     workspaceState.projects = [
       project,
       ...workspaceState.projects.filter(

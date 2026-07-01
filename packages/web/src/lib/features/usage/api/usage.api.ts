@@ -1,8 +1,11 @@
 import type { SubscriptionUsage } from "@nervekit/shared";
-import { apiGet } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function getSubscriptionUsage(): Promise<SubscriptionUsage[]> {
   return (
-    await apiGet<{ usage: SubscriptionUsage[] }>("/api/usage/subscription")
-  ).usage;
+    await protocolRequest<{ usage: SubscriptionUsage[] }>(
+      "usage.subscription.get",
+      {},
+    )
+  ).result.usage;
 }

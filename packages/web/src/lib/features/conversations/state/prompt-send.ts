@@ -4,12 +4,11 @@ import {
 } from "@nervekit/shared";
 import {
   type AgentRecord,
-  apiPathSegment,
-  apiPost,
   type ConversationRecord,
   deleteConversation,
   updateAgentConfig,
 } from "$lib/api";
+import { protocolRequest } from "$lib/core/protocol/http-client";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { pendingConversationKey } from "$lib/core/state/state-keys";
 import type {
@@ -83,14 +82,16 @@ export async function ensureAgent(): Promise<string> {
     return selection.agentId;
   }
   if (selection.projectId && selection.conversationId) {
-    const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
-      projectId: selection.projectId,
-      conversationId: selection.conversationId,
-      model: selectedModel(),
-      thinkingLevel: selectedThinkingLevel(),
-      mode: conversationState.selectedMode,
-      permissionLevel: conversationState.selectedPermissionLevel,
-    });
+    const { agent } = (
+      await protocolRequest<{ agent: AgentRecord }>("agent.create", {
+        projectId: selection.projectId,
+        conversationId: selection.conversationId,
+        model: selectedModel(),
+        thinkingLevel: selectedThinkingLevel(),
+        mode: conversationState.selectedMode,
+        permissionLevel: conversationState.selectedPermissionLevel,
+      })
+    ).result;
     selection.agentId = agent.id;
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
@@ -146,23 +147,27 @@ async function sendPendingPrompt(
   let view: ConversationViewState | undefined;
   let createdConversationId: string | undefined;
   try {
-    const { conversation } = await apiPost<{
-      conversation: ConversationRecord;
-    }>("/api/conversations", {
-      projectId: pending.projectId,
-      title: deriveConversationTitle(text),
-      mode: pending.mode,
-      permissionLevel: pending.permissionLevel,
-    });
+    const { conversation } = (
+      await protocolRequest<{
+        conversation: ConversationRecord;
+      }>("conversation.create", {
+        projectId: pending.projectId,
+        title: deriveConversationTitle(text),
+        mode: pending.mode,
+        permissionLevel: pending.permissionLevel,
+      })
+    ).result;
     createdConversationId = conversation.id;
-    const { agent } = await apiPost<{ agent: AgentRecord }>("/api/agents", {
-      projectId: pending.projectId,
-      conversationId: conversation.id,
-      model: selectedModel(),
-      thinkingLevel: pending.thinkingLevel,
-      mode: pending.mode,
-      permissionLevel: pending.permissionLevel,
-    });
+    const { agent } = (
+      await protocolRequest<{ agent: AgentRecord }>("agent.create", {
+        projectId: pending.projectId,
+        conversationId: conversation.id,
+        model: selectedModel(),
+        thinkingLevel: pending.thinkingLevel,
+        mode: pending.mode,
+        permissionLevel: pending.permissionLevel,
+      })
+    ).result;
 
     upsertConversationRecord(conversation);
     upsertAgentRecord(agent);
@@ -194,7 +199,10 @@ async function sendPendingPrompt(
     persistConversationTabs();
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    await apiPost(`/api/agents/${apiPathSegment(agent.id)}/prompt`, { text });
+    await protocolRequest<{ ok: true }>("agent.prompt", {
+      agentId: agent.id,
+      text,
+    });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     if (view) {
@@ -265,7 +273,8 @@ export async function sendPromptText(
       composerDraft.text = "";
     }
     if (queueWhileRunning) {
-      await apiPost(`/api/agents/${apiPathSegment(agentId)}/prompt`, {
+      await protocolRequest<{ ok: true }>("agent.prompt", {
+        agentId,
         text,
         behavior: "steer",
       });
@@ -277,7 +286,7 @@ export async function sendPromptText(
         { role: "user", text, optimistic: true },
       ];
     }
-    await apiPost(`/api/agents/${apiPathSegment(agentId)}/prompt`, { text });
+    await protocolRequest<{ ok: true }>("agent.prompt", { agentId, text });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.error = message;

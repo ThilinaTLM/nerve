@@ -8,34 +8,40 @@ import type {
   GitMutationResponse,
   GitOverviewResponse,
 } from "@nervekit/shared";
-import { apiGet, apiPathSegment, apiPost } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function discoverGitRepos(
   projectId: string,
 ): Promise<GitDiscoveryResponse> {
-  return apiGet<GitDiscoveryResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/repos`,
-  );
+  return (
+    await protocolRequest<GitDiscoveryResponse>("git.repos.discover", {
+      projectId,
+    })
+  ).result;
 }
 
 export async function getGitOverview(
   projectId: string,
   repo: string,
 ): Promise<GitOverviewResponse> {
-  const params = new URLSearchParams({ repo });
-  return apiGet<GitOverviewResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/overview?${params.toString()}`,
-  );
+  return (
+    await protocolRequest<GitOverviewResponse>("git.overview.get", {
+      projectId,
+      repo,
+    })
+  ).result;
 }
 
 export async function listGitBranches(
   projectId: string,
   repo: string,
 ): Promise<GitBranchListResponse> {
-  const params = new URLSearchParams({ repo });
-  return apiGet<GitBranchListResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/branches?${params.toString()}`,
-  );
+  return (
+    await protocolRequest<GitBranchListResponse>("git.branches.list", {
+      projectId,
+      repo,
+    })
+  ).result;
 }
 
 export async function createGitBranch(
@@ -43,13 +49,13 @@ export async function createGitBranch(
   repo: string,
   name: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/branch`,
-    {
+  return (
+    await protocolRequest<GitMutationResponse>("git.branch.create", {
+      projectId,
       repo,
       name,
-    },
-  );
+    })
+  ).result;
 }
 
 export async function switchGitBranch(
@@ -57,70 +63,61 @@ export async function switchGitBranch(
   repo: string,
   name: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/switch-branch`,
-    { repo, name },
-  );
+  return (
+    await protocolRequest<GitMutationResponse>("git.branch.switch", {
+      projectId,
+      repo,
+      name,
+    })
+  ).result;
 }
 
 export async function syncGitBranch(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/sync`,
-    {
-      repo,
-    },
-  );
+  return (
+    await protocolRequest<GitMutationResponse>("git.sync", { projectId, repo })
+  ).result;
 }
 
 export async function pushGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/push`,
-    {
-      repo,
-    },
-  );
+  return (
+    await protocolRequest<GitMutationResponse>("git.push", { projectId, repo })
+  ).result;
 }
 
 export async function pullGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/pull`,
-    {
-      repo,
-    },
-  );
+  return (
+    await protocolRequest<GitMutationResponse>("git.pull", { projectId, repo })
+  ).result;
 }
 
 export async function fetchGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/fetch`,
-    {
-      repo,
-    },
-  );
+  return (
+    await protocolRequest<GitMutationResponse>("git.fetch", { projectId, repo })
+  ).result;
 }
 
 export async function switchBaseAndPullGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/switch-base-and-pull`,
-    {
+  return (
+    await protocolRequest<GitMutationResponse>("git.switchBaseAndPull", {
+      projectId,
       repo,
-    },
-  );
+    })
+  ).result;
 }
 
 export async function stageGitFile(
@@ -128,10 +125,13 @@ export async function stageGitFile(
   repo: string,
   path: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/stage-file`,
-    { repo, path },
-  );
+  return (
+    await protocolRequest<GitMutationResponse>("git.file.stage", {
+      projectId,
+      repo,
+      path,
+    })
+  ).result;
 }
 
 export async function unstageGitFile(
@@ -139,10 +139,13 @@ export async function unstageGitFile(
   repo: string,
   path: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/unstage-file`,
-    { repo, path },
-  );
+  return (
+    await protocolRequest<GitMutationResponse>("git.file.unstage", {
+      projectId,
+      repo,
+      path,
+    })
+  ).result;
 }
 
 export async function discardGitFile(
@@ -150,30 +153,37 @@ export async function discardGitFile(
   repo: string,
   path: string,
 ): Promise<GitMutationResponse> {
-  return apiPost<GitMutationResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/git/discard-file`,
-    { repo, path },
-  );
+  return (
+    await protocolRequest<GitMutationResponse>("git.file.discard", {
+      projectId,
+      repo,
+      path,
+    })
+  ).result;
 }
 
 export async function getGithubStatus(
   projectId: string,
   repo: string,
 ): Promise<GithubStatusResponse> {
-  const params = new URLSearchParams({ repo });
-  return apiGet<GithubStatusResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/github/status?${params.toString()}`,
-  );
+  return (
+    await protocolRequest<GithubStatusResponse>("github.status.get", {
+      projectId,
+      repo,
+    })
+  ).result;
 }
 
 export async function listGithubPrs(
   projectId: string,
   repo: string,
 ): Promise<GithubPrListResponse> {
-  const params = new URLSearchParams({ repo });
-  return apiGet<GithubPrListResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/github/prs?${params.toString()}`,
-  );
+  return (
+    await protocolRequest<GithubPrListResponse>("github.pr.list", {
+      projectId,
+      repo,
+    })
+  ).result;
 }
 
 export async function getGithubPr(
@@ -181,10 +191,13 @@ export async function getGithubPr(
   repo: string,
   number: number,
 ): Promise<GithubPrDetail> {
-  const params = new URLSearchParams({ repo });
-  return apiGet<GithubPrDetail>(
-    `/api/projects/${apiPathSegment(projectId)}/github/pr/${apiPathSegment(number)}?${params.toString()}`,
-  );
+  return (
+    await protocolRequest<GithubPrDetail>("github.pr.get", {
+      projectId,
+      repo,
+      number,
+    })
+  ).result;
 }
 
 export async function checkoutGithubPr(
@@ -192,8 +205,11 @@ export async function checkoutGithubPr(
   repo: string,
   number: number,
 ): Promise<GithubPrCheckoutResponse> {
-  return apiPost<GithubPrCheckoutResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/github/pr/${apiPathSegment(number)}/checkout`,
-    { repo },
-  );
+  return (
+    await protocolRequest<GithubPrCheckoutResponse>("github.pr.checkout", {
+      projectId,
+      repo,
+      number,
+    })
+  ).result;
 }

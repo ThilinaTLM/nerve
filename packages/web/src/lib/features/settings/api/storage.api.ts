@@ -3,14 +3,17 @@ import type {
   StorageCleanupResponse,
   StorageUsageResponse,
 } from "$lib/api";
-import { apiGet, apiPost } from "$lib/core/api/client";
+import { protocolRequest } from "$lib/core/protocol/http-client";
 
-export function getStorageUsage(): Promise<StorageUsageResponse> {
-  return apiGet<StorageUsageResponse>("/api/storage/usage");
+export async function getStorageUsage(): Promise<StorageUsageResponse> {
+  return (await protocolRequest<StorageUsageResponse>("storage.usage.get", {}))
+    .result;
 }
 
-export function runStorageCleanup(
+export async function runStorageCleanup(
   body: StorageCleanupRequest,
 ): Promise<StorageCleanupResponse> {
-  return apiPost<StorageCleanupResponse>("/api/storage/cleanup", body);
+  return (
+    await protocolRequest<StorageCleanupResponse>("storage.cleanup", body)
+  ).result;
 }

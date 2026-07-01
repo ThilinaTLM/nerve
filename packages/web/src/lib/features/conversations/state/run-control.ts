@@ -1,4 +1,5 @@
-import { apiPathSegment, apiPost, compactConversation } from "$lib/api";
+import { compactConversation } from "$lib/api";
+import { protocolRequest } from "$lib/core/protocol/http-client";
 import { queryClient, queryKeys } from "$lib/core/query";
 import type { CompactionNotice } from "$lib/core/types/state-types";
 import { notify } from "$lib/features/notifications/notify.svelte";
@@ -14,13 +15,11 @@ export async function navigateToEntry(
 ) {
   if (!selection.conversationId) return;
   const conversationId = selection.conversationId;
-  await apiPost(
-    `/api/conversations/${apiPathSegment(conversationId)}/navigate`,
-    {
-      activeEntryId: entryId ?? null,
-      summarize,
-    },
-  );
+  await protocolRequest<{ conversation: unknown }>("conversation.navigate", {
+    conversationId,
+    activeEntryId: entryId ?? null,
+    summarize,
+  });
   await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
   await loadWorkspaceState();
   await openConversation(conversationId);
@@ -66,12 +65,10 @@ export async function continueFromFailure(statusEntryId: string) {
   view.error = undefined;
   workspaceState.error = undefined;
   try {
-    await apiPost(
-      `/api/agents/${apiPathSegment(selection.agentId)}/continue-from-failure`,
-      {
-        statusEntryId,
-      },
-    );
+    await protocolRequest<{ ok: true }>("agent.continueFromFailure", {
+      agentId: selection.agentId,
+      statusEntryId,
+    });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.sending = false;
@@ -86,7 +83,9 @@ export async function abortActiveRun() {
   const view = selection.conversationId
     ? ensureConversationView(selection.conversationId)
     : undefined;
-  await apiPost(`/api/agents/${apiPathSegment(selection.agentId)}/abort`, {});
+  await protocolRequest<{ ok: true }>("agent.abort", {
+    agentId: selection.agentId,
+  });
   if (view) {
     view.sending = false;
     view.streamingText = "";

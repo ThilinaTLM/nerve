@@ -3,42 +3,53 @@ import type {
   ModelDefinition,
   ProviderCatalog,
 } from "@nervekit/shared";
-import {
-  apiDelete,
-  apiGet,
-  apiPathSegment,
-  apiPut,
-} from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function getProviderCatalog(): Promise<ProviderCatalog> {
-  return apiGet<ProviderCatalog>("/api/providers/catalog");
+  return (await protocolRequest<ProviderCatalog>("providerCatalog.get", {}))
+    .result;
 }
 
 export async function upsertCustomProvider(
   provider: CustomProvider,
 ): Promise<ProviderCatalog> {
-  return apiPut<ProviderCatalog>("/api/providers/custom", provider);
+  return (
+    await protocolRequest<ProviderCatalog>(
+      "providerCatalog.custom.upsert",
+      provider,
+    )
+  ).result;
 }
 
 export async function deleteCustomProvider(
   id: string,
 ): Promise<ProviderCatalog> {
-  return apiDelete<ProviderCatalog>(
-    `/api/providers/custom/${apiPathSegment(id)}`,
-  );
+  return (
+    await protocolRequest<ProviderCatalog>("providerCatalog.custom.delete", {
+      id,
+    })
+  ).result;
 }
 
 export async function upsertModelDefinition(
   model: ModelDefinition,
 ): Promise<ProviderCatalog> {
-  return apiPut<ProviderCatalog>("/api/providers/models", model);
+  return (
+    await protocolRequest<ProviderCatalog>(
+      "providerCatalog.model.upsert",
+      model,
+    )
+  ).result;
 }
 
 export async function deleteModelDefinition(
   provider: string,
   modelId: string,
 ): Promise<ProviderCatalog> {
-  return apiDelete<ProviderCatalog>(
-    `/api/providers/models/${apiPathSegment(provider)}/${apiPathSegment(modelId)}`,
-  );
+  return (
+    await protocolRequest<ProviderCatalog>("providerCatalog.model.delete", {
+      provider,
+      modelId,
+    })
+  ).result;
 }

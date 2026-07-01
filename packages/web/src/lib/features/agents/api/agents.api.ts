@@ -1,5 +1,5 @@
 import type { AgentRecord, ModelSelection } from "@nervekit/shared";
-import { apiPatch, apiPathSegment } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function updateAgentConfig(
   agentId: string,
@@ -11,11 +11,11 @@ export async function updateAgentConfig(
   },
 ): Promise<AgentRecord> {
   return (
-    await apiPatch<{ agent: AgentRecord }>(
-      `/api/agents/${apiPathSegment(agentId)}`,
-      patch,
-    )
-  ).agent;
+    await protocolRequest<{ agent: AgentRecord }>("agent.configure", {
+      agentId,
+      ...patch,
+    })
+  ).result.agent;
 }
 
 export async function updateAgentModel(

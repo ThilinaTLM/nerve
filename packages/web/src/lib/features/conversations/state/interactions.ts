@@ -2,13 +2,13 @@ import {
   acceptPlanReview,
   acceptPlanReviewInNewChat,
   answerUserQuestion,
-  apiPathSegment,
-  apiPost,
+  denyApprovalRequest,
   discardPlanReview,
   dismissUserQuestion as dismissUserQuestionRequest,
   getPendingApprovals,
   getPendingPlanReviews,
   getPendingUserQuestions,
+  grantApprovalRequest,
   type PlanReviewResolveOptions,
   rejectPlanReview,
   requestPlanChanges,
@@ -21,15 +21,13 @@ import { refreshConversationView } from "./selection";
 import { openConversation } from "./tabs";
 
 export async function grantApproval(approvalId: string) {
-  await apiPost(`/api/approvals/${apiPathSegment(approvalId)}/grant`, {});
+  await grantApprovalRequest(approvalId);
   workspaceState.approvals = await getPendingApprovals();
   notify.success("Approval granted");
 }
 
 export async function denyApproval(approvalId: string) {
-  await apiPost(`/api/approvals/${apiPathSegment(approvalId)}/deny`, {
-    note: "Denied from UI.",
-  });
+  await denyApprovalRequest(approvalId, "Denied from UI.");
   workspaceState.approvals = await getPendingApprovals();
   notify.message("Approval denied");
 }

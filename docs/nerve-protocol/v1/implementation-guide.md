@@ -445,17 +445,19 @@ HTTP protocol RPC support is **not** required for this definition of done. Selec
 
 ## Rollout checklist
 
-- [ ] Shared schemas committed.
-- [ ] Protocol docs linked from relevant developer docs.
-- [ ] WebSocket server supports `hello`/`welcome`.
-- [ ] UI client sends `hello`.
-- [ ] `event.batch` live delivery enabled.
-- [ ] UI tracks processed cursor separately from received cursor.
-- [ ] Ack messages enabled.
-- [ ] Replay messages enabled.
-- [ ] Backpressure metrics logged.
-- [ ] Transient coalescing policy enabled.
-- [ ] Legacy raw WebSocket mode removed after migration.
+Current implementation status is tracked in [Implementation Status](./implementation-status.md). The original rollout checklist is now complete for the v1 WebSocket profile and safe JSON HTTP RPC coverage:
+
+- [x] Shared schemas committed.
+- [x] Protocol docs linked from relevant developer docs.
+- [x] WebSocket server supports `hello`/`welcome`.
+- [x] UI client sends `hello`.
+- [x] `event.batch` live delivery enabled.
+- [x] UI tracks processed cursor separately from received cursor.
+- [x] Ack messages enabled.
+- [x] Replay messages enabled.
+- [x] Backpressure metrics logged.
+- [x] Transient coalescing policy enabled.
+- [x] Legacy raw WebSocket mode removed after migration.
 
 ## Open design choices for implementation time
 

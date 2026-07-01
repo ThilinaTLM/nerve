@@ -1,9 +1,6 @@
 <script lang="ts">
-  import {
-    apiDelete,
-    apiPathSegment,
-    type QueuedPromptRecord,
-  } from "$lib/api";
+  import { type QueuedPromptRecord } from "$lib/api";
+  import { protocolRequest } from "$lib/core/protocol/http-client";
   import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
   import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
   import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
@@ -313,8 +310,9 @@
 
   async function cancelQueuedPrompt(prompt: QueuedPromptRecord): Promise<boolean> {
     try {
-      await apiDelete<{ queuedPrompt: QueuedPromptRecord }>(
-        `/api/agents/${apiPathSegment(prompt.agentId)}/prompt-queue/${apiPathSegment(prompt.id)}`,
+      await protocolRequest<{ queuedPrompt: QueuedPromptRecord }>(
+        "agent.promptQueue.cancel",
+        { agentId: prompt.agentId, queuedPromptId: prompt.id },
       );
       const targetView = ensureConversationView(prompt.conversationId);
       targetView.queuedPrompts = targetView.queuedPrompts.filter(

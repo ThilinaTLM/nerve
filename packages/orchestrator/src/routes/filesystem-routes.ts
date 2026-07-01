@@ -142,7 +142,10 @@ async function saveClipboardImage(input: unknown) {
   return { path: filePath };
 }
 
-async function directoryListing(path: string | undefined, showHidden = false) {
+export async function directoryListing(
+  path: string | undefined,
+  showHidden = false,
+) {
   const target = resolve(path?.trim() || homedir() || tmpdir());
   const info = await stat(target);
   if (!info.isDirectory()) {

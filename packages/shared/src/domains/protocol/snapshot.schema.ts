@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { agentRecordSchema } from "../agents/index.js";
-import { conversationRecordSchema } from "../conversations/index.js";
+import {
+  conversationRecordSchema,
+  conversationSnapshotSchema,
+} from "../conversations/index.js";
 import { planReviewRecordSchema } from "../plans/index.js";
 import { projectRecordSchema } from "../projects/index.js";
 import { taskRecordSchema } from "../tasks/index.js";
@@ -45,7 +48,7 @@ export type WorkspaceSnapshotResponse = z.infer<
 >;
 
 export const conversationSnapshotResponseSchema = snapshotResponseSchema(
-  z.unknown(),
+  conversationSnapshotSchema,
 );
 export type ConversationSnapshotResponse<TSnapshot = unknown> = {
   snapshot: TSnapshot;

@@ -3,50 +3,63 @@ import type {
   OpenProjectInEditorResponse,
   PinnedCommand,
   ProjectEditor,
+  ProjectRecord,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
   UpdatePinnedCommandRequest,
 } from "@nervekit/shared";
-import {
-  apiDeleteNoContent,
-  apiGet,
-  apiPatch,
-  apiPathSegment,
-  apiPost,
-} from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
+
+export async function createProject(dir: string): Promise<ProjectRecord> {
+  return (
+    await protocolRequest<{ project: ProjectRecord }>("project.create", { dir })
+  ).result.project;
+}
+
+export async function getProject(projectId: string): Promise<ProjectRecord> {
+  return (
+    await protocolRequest<{ project: ProjectRecord }>("project.get", {
+      projectId,
+    })
+  ).result.project;
+}
 
 export async function deleteProject(projectId: string): Promise<void> {
-  await apiDeleteNoContent(`/api/projects/${apiPathSegment(projectId)}`);
+  await protocolRequest<{ ok: true }>("project.delete", { projectId });
 }
 
 export async function pruneProjectConversations(
   projectId: string,
   request: PruneProjectConversationsRequest,
 ): Promise<PruneProjectConversationsResponse> {
-  return apiPost<PruneProjectConversationsResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/conversations/prune`,
-    request,
-  );
+  return (
+    await protocolRequest<PruneProjectConversationsResponse>(
+      "project.conversations.prune",
+      { projectId, ...request },
+    )
+  ).result;
 }
 
 export async function openProjectInEditor(
   projectId: string,
   editor: ProjectEditor,
 ): Promise<OpenProjectInEditorResponse> {
-  return apiPost<OpenProjectInEditorResponse>(
-    `/api/projects/${apiPathSegment(projectId)}/open-editor`,
-    { editor },
-  );
+  return (
+    await protocolRequest<OpenProjectInEditorResponse>("project.openEditor", {
+      projectId,
+      editor,
+    })
+  ).result;
 }
 
 export async function getPinnedCommands(
   projectId: string,
 ): Promise<PinnedCommand[]> {
   return (
-    await apiGet<{ commands: PinnedCommand[] }>(
-      `/api/projects/${apiPathSegment(projectId)}/pinned-commands`,
-    )
-  ).commands;
+    await protocolRequest<{ commands: PinnedCommand[] }>("pinnedCommand.list", {
+      projectId,
+    })
+  ).result.commands;
 }
 
 export async function createPinnedCommand(
@@ -54,11 +67,11 @@ export async function createPinnedCommand(
   body: CreatePinnedCommandRequest,
 ): Promise<PinnedCommand> {
   return (
-    await apiPost<{ command: PinnedCommand }>(
-      `/api/projects/${apiPathSegment(projectId)}/pinned-commands`,
-      body,
-    )
-  ).command;
+    await protocolRequest<{ command: PinnedCommand }>("pinnedCommand.create", {
+      projectId,
+      ...body,
+    })
+  ).result.command;
 }
 
 export async function updatePinnedCommand(
@@ -67,18 +80,20 @@ export async function updatePinnedCommand(
   body: UpdatePinnedCommandRequest,
 ): Promise<PinnedCommand> {
   return (
-    await apiPatch<{ command: PinnedCommand }>(
-      `/api/projects/${apiPathSegment(projectId)}/pinned-commands/${apiPathSegment(commandId)}`,
-      body,
-    )
-  ).command;
+    await protocolRequest<{ command: PinnedCommand }>("pinnedCommand.update", {
+      projectId,
+      commandId,
+      ...body,
+    })
+  ).result.command;
 }
 
 export async function deletePinnedCommand(
   projectId: string,
   commandId: string,
 ): Promise<void> {
-  await apiDeleteNoContent(
-    `/api/projects/${apiPathSegment(projectId)}/pinned-commands/${apiPathSegment(commandId)}`,
-  );
+  await protocolRequest<{ ok: true }>("pinnedCommand.delete", {
+    projectId,
+    commandId,
+  });
 }

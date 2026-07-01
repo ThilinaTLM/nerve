@@ -1,16 +1,16 @@
 # Current Feature Coverage
 
-> Implementation status: see `implementation-status.md` for the current v1 alignment checklist, including snapshot cursors, replay/backpressure hardening, and selected HTTP RPC methods.
+> Implementation status: see `implementation-status.md` for the current v1 alignment checklist, including snapshot cursors, replay/backpressure hardening, and safe frontend-used JSON HTTP RPC methods.
 
 This document maps Nerve Protocol v1 to the features that exist in the current Nerve application. It is an implementation coverage guide, not a mandate to convert every HTTP route into protocol RPC.
 
 ## Coverage principle
 
-A current Nerve feature is compatible with Protocol v1 when it satisfies the relevant parts of this contract:
+A current Nerve feature is compatible with Protocol v1 when it satisfies the relevant parts of this contract. The current UI prefers Protocol RPC for safe JSON APIs and intentionally keeps bootstrap, secret, OAuth, binary/upload/download, and large log flows REST/out-of-band:
 
 1. **Command or resource path**
    - The feature is invoked through an existing REST/resource endpoint, a future protocol `request`, or a transport-specific command channel.
-   - Existing REST endpoints MAY remain canonical in v1.
+   - Existing REST endpoints MAY remain available for compatibility, but the frontend SHOULD prefer explicit Protocol RPC methods for safe JSON operations.
 
 2. **Event-stream synchronization**
    - User-visible state changes that need live UI updates are represented as domain events and delivered over `event.batch`.
@@ -29,7 +29,7 @@ A current Nerve feature is compatible with Protocol v1 when it satisfies the rel
 
 ## Current route and API coverage matrix
 
-The table below describes how existing route families fit into v1. "REST/resource" means the current endpoint shape can remain. "RPC candidate" means a future protocol `request` method may be useful, not required.
+The table below describes how existing route families fit into v1. "REST/resource" means the endpoint remains intentionally resource-oriented or out-of-band. "Protocol RPC" means the current frontend uses `/api/protocol/v1` for that safe JSON operation while the REST route may remain available.
 
 | Current area | Existing route family | v1 posture | Notes |
 | --- | --- | --- | --- |
@@ -109,6 +109,9 @@ transcription.*
 ```
 
 Adding one of these method names does not imply the matching REST endpoint must be removed.
+
+Implemented Protocol RPC coverage currently includes the safe frontend-used methods in these families: `settings.*`, `auth.providers.*`, `providerCatalog.*`, `storage.*`, `model.*`, `usage.*`, `tool.*`, `toolCall.*`, `approval.*`, `userQuestion.*`, `planReview.*`, `conversation.*`, `agent.*`, `project.*`, `pinnedCommand.*`, `task.*`, `git.*`, `github.*`, `promptSuggestion.*`, `completion.*`, `filesystem.directories.*`, `worker.*`, and `applicationLog.prune`.
+
 
 ## Current event family coverage matrix
 

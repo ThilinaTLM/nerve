@@ -12,11 +12,15 @@ import {
   apiPost,
   apiPut,
 } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
   return (
-    await apiGet<{ providers: AuthProviderMetadata[] }>("/api/auth/providers")
-  ).providers;
+    await protocolRequest<{ providers: AuthProviderMetadata[] }>(
+      "auth.providers.list",
+      {},
+    )
+  ).result.providers;
 }
 
 export async function getCredentialKey(): Promise<CredentialKeyResponse> {

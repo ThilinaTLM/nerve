@@ -3,12 +3,8 @@ import type {
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/shared";
-import {
-  apiDelete,
-  apiGet,
-  apiPathSegment,
-  apiPost,
-} from "../../../core/api/client";
+import { apiGet, apiPathSegment } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function getTaskLogs(
   taskId: string,
@@ -21,31 +17,27 @@ export async function getTaskLogs(
 }
 
 export async function startTask(body: StartTaskRequest): Promise<TaskRecord> {
-  return (await apiPost<{ task: TaskRecord }>("/api/tasks", body)).task;
+  return (await protocolRequest<{ task: TaskRecord }>("task.start", body))
+    .result.task;
 }
 
 export async function cancelTask(taskId: string): Promise<TaskRecord> {
   return (
-    await apiPost<{ task: TaskRecord }>(
-      `/api/tasks/${apiPathSegment(taskId)}/cancel`,
-      {},
-    )
-  ).task;
+    await protocolRequest<{ task: TaskRecord }>("task.cancel", { taskId })
+  ).result.task;
 }
 
 export async function restartTask(taskId: string): Promise<TaskRecord> {
   return (
-    await apiPost<{ task: TaskRecord }>(
-      `/api/tasks/${apiPathSegment(taskId)}/restart`,
-      {},
-    )
-  ).task;
+    await protocolRequest<{ task: TaskRecord }>("task.restart", { taskId })
+  ).result.task;
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
-  await apiDelete<{ removed: boolean }>(`/api/tasks/${apiPathSegment(taskId)}`);
+  await protocolRequest<{ removed: true }>("task.delete", { taskId });
 }
 
 export async function pruneTasks(): Promise<{ removed: string[] }> {
-  return apiPost<{ removed: string[] }>("/api/tasks/prune", {});
+  return (await protocolRequest<{ removed: string[] }>("task.prune", {}))
+    .result;
 }

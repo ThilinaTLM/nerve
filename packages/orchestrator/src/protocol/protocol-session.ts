@@ -467,6 +467,7 @@ export class ProtocolSession {
       return;
     }
     this.#queue.enqueueLive(event);
+    this.#queue.coalesceTransientOverflow(PROTOCOL_LIMITS.maxQueuedTransient);
     this.#queue.dropTransientOverflow(PROTOCOL_LIMITS.maxQueuedTransient);
     this.scheduleFlush();
   }

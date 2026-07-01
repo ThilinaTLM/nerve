@@ -5,7 +5,8 @@ import type {
   ApplicationLogQueryResponse,
   ApplicationLogSource,
 } from "@nervekit/shared";
-import { apiGet, apiPost } from "../../../core/api/client";
+import { apiGet } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export type {
   ApplicationLogLevel,
@@ -39,5 +40,10 @@ export async function getApplicationLogs(
 export async function pruneApplicationLogs(
   request: ApplicationLogPruneRequest,
 ): Promise<ApplicationLogPruneResponse> {
-  return apiPost<ApplicationLogPruneResponse>("/api/logs/prune", request);
+  return (
+    await protocolRequest<ApplicationLogPruneResponse>(
+      "applicationLog.prune",
+      request,
+    )
+  ).result;
 }

@@ -9,12 +9,12 @@ The HTTP mapping has two goals:
 
 ## Compatibility position
 
-The protocol does **not** require rewriting all HTTP endpoints.
+The protocol does **not** require rewriting every HTTP endpoint. The current UI uses protocol-enveloped RPC for safe JSON reads/mutations, while resource-oriented REST remains intentional for bootstrap, secret submission, OAuth browser flows, uploads/downloads, binary/file bodies, and large paginated logs.
 
 Recommended migration model:
 
-- Keep existing resource-oriented HTTP endpoints where they are simple and stable.
-- Add protocol-enveloped HTTP endpoints for APIs that benefit from correlation, idempotency, typed errors, streaming, or future transport portability.
+- Keep resource-oriented HTTP endpoints for out-of-band payloads and client bootstrap.
+- Add protocol-enveloped HTTP endpoints for safe JSON APIs that benefit from correlation, idempotency, typed errors, or future transport portability.
 - Reuse protocol error codes and metadata even in non-enveloped endpoints where practical.
 
 ## Content types
@@ -150,7 +150,7 @@ Recommended top-level method namespaces matching current Nerve features:
 | `storage.*` | `storage.get`, `storage.rebuildIndex`, `storage.usage`, `storage.cleanup` | Storage inspection and maintenance. |
 | `transcription.*` | `transcription.audio.transcribe` | Metadata/result method only; audio upload remains out-of-band in v1. |
 
-Existing REST/resource endpoints MAY remain canonical for any of these namespaces in v1. Adding a method name to this registry does not require removing the corresponding REST endpoint. Method additions and future namespace changes SHOULD follow [Extension Model](./extension-model.md#method-registry-governance).
+Existing REST/resource endpoints MAY remain available for compatibility, but safe frontend-used JSON operations now have explicit registered Protocol RPC methods. Adding a method name to this registry does not require removing the corresponding REST endpoint. Method additions and future namespace changes SHOULD follow [Extension Model](./extension-model.md#method-registry-governance).
 
 ### HTTP method mapping
 
@@ -163,12 +163,13 @@ Current HTTP APIs can be grouped by how they should participate in v1:
 
 | Route family | Recommended v1 posture |
 | --- | --- |
-| Status/client config/completions/catalog reads | Keep REST unless envelope metadata becomes useful. |
-| Workspace and conversation snapshots | Keep REST or add protocol RPC, but include cursor metadata when used for recovery. |
-| Approvals, user questions, plan reviews, task control, agent run control | Good protocol RPC candidates because they are small user actions with clear events. |
-| Git, storage maintenance, provider catalog, settings | Optional RPC candidates; keep policy and secret handling in orchestrator layers. |
+| Status/client config | Keep REST for bootstrap before protocol setup. |
+| Workspace and conversation snapshots | Protocol RPC implemented; snapshots include cursor metadata. |
+| Completions/catalog reads | Protocol RPC implemented for frontend-used JSON reads where safe. |
+| Approvals, user questions, plan reviews, task control, agent run control | Protocol RPC implemented. |
+| Git, storage maintenance, provider catalog, settings | Protocol RPC implemented for safe JSON operations; secret handling remains out-of-band. |
 | Audio upload, clipboard images, conversation exports, system prompt export, large file/image reads | Keep out-of-band resource endpoints in v1. |
-| Logs and task logs | Keep paginated/bounded REST; optionally add RPC query methods later. |
+| Logs and task logs | Keep query/client append REST for paginated/bounded diagnostic flows; `applicationLog.prune` uses Protocol RPC. |
 
 See [Feature Coverage](./feature-coverage.md) for the complete current route-family coverage matrix.
 

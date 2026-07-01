@@ -1,16 +1,17 @@
 import type { Settings, UpdateSettingsRequest } from "@nervekit/shared";
-import { apiGet, apiPut } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export type SettingsResponse = Settings;
 export type { UpdateSettingsRequest };
 
 export async function getSettings(): Promise<Settings> {
-  return apiGet<Settings>("/api/settings");
+  return (await protocolRequest<Settings>("settings.get", {})).result;
 }
 
 export async function updateSettings(
   patch: UpdateSettingsRequest,
 ): Promise<Settings> {
-  return (await apiPut<{ settings: Settings }>("/api/settings", patch))
-    .settings;
+  return (
+    await protocolRequest<{ settings: Settings }>("settings.update", patch)
+  ).result.settings;
 }

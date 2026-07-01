@@ -8,7 +8,7 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "@nervekit/shared";
-import { apiGet, apiPathSegment, apiPost } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export type ApprovalWithToolCall = ApprovalRecord & {
   toolCall?: ToolCallTranscriptRecord;
@@ -22,24 +22,30 @@ export type PlanReviewResolveOptions = {
 
 export async function getToolCalls(): Promise<ToolCallTranscriptRecord[]> {
   return (
-    await apiGet<{ toolCalls: ToolCallTranscriptRecord[] }>("/api/tool-calls")
-  ).toolCalls;
+    await protocolRequest<{ toolCalls: ToolCallTranscriptRecord[] }>(
+      "toolCall.list",
+      {},
+    )
+  ).result.toolCalls;
 }
 
 export async function getToolCall(toolCallId: string): Promise<ToolCallRecord> {
   return (
-    await apiGet<{ toolCall: ToolCallRecord }>(
-      `/api/tool-calls/${apiPathSegment(toolCallId)}`,
-    )
-  ).toolCall;
+    await protocolRequest<{ toolCall: ToolCallRecord }>("toolCall.get", {
+      toolCallId,
+    })
+  ).result.toolCall;
 }
 
 export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
   const [{ approvals }, { toolCalls }] = await Promise.all([
-    apiGet<{ approvals: ApprovalRecord[] }>("/api/approvals?status=pending"),
-    apiGet<{ toolCalls: ToolCallTranscriptRecord[] }>(
-      "/api/tool-calls?status=pending_approval&limit=200",
-    ),
+    protocolRequest<{ approvals: ApprovalRecord[] }>("approval.list", {
+      status: "pending",
+    }).then((response) => response.result),
+    protocolRequest<{ toolCalls: ToolCallTranscriptRecord[] }>(
+      "toolCall.list",
+      { status: "pending_approval", limit: 200 },
+    ).then((response) => response.result),
   ]);
   const byId = new Map(toolCalls.map((toolCall) => [toolCall.id, toolCall]));
   return approvals.map((approval) => ({
@@ -50,18 +56,44 @@ export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
 
 export async function getPendingUserQuestions(): Promise<UserQuestionRecord[]> {
   return (
-    await apiGet<{ questions: UserQuestionRecord[] }>(
-      "/api/user-questions?status=pending",
+    await protocolRequest<{ questions: UserQuestionRecord[] }>(
+      "userQuestion.list",
+      { status: "pending" },
     )
-  ).questions;
+  ).result.questions;
 }
 
 export async function getPendingPlanReviews(): Promise<PlanReviewRecord[]> {
   return (
-    await apiGet<{ planReviews: PlanReviewRecord[] }>(
-      "/api/plan-reviews?status=pending",
+    await protocolRequest<{ planReviews: PlanReviewRecord[] }>(
+      "planReview.list",
+      { status: "pending" },
     )
-  ).planReviews;
+  ).result.planReviews;
+}
+
+export async function grantApprovalRequest(
+  approvalId: string,
+  note?: string,
+): Promise<ToolCallRecord> {
+  return (
+    await protocolRequest<{ toolCall: ToolCallRecord }>("approval.grant", {
+      approvalId,
+      note,
+    })
+  ).result.toolCall;
+}
+
+export async function denyApprovalRequest(
+  approvalId: string,
+  note?: string,
+): Promise<ToolCallRecord> {
+  return (
+    await protocolRequest<{ toolCall: ToolCallRecord }>("approval.deny", {
+      approvalId,
+      note,
+    })
+  ).result.toolCall;
 }
 
 export async function acceptPlanReview(
@@ -69,11 +101,11 @@ export async function acceptPlanReview(
   options: PlanReviewResolveOptions = {},
 ): Promise<PlanReviewRecord> {
   return (
-    await apiPost<{ planReview: PlanReviewRecord }>(
-      `/api/plan-reviews/${apiPathSegment(reviewId)}/accept`,
-      options,
+    await protocolRequest<{ planReview: PlanReviewRecord }>(
+      "planReview.accept",
+      { reviewId, ...options },
     )
-  ).planReview;
+  ).result.planReview;
 }
 
 export async function acceptPlanReviewInNewChat(
@@ -84,10 +116,13 @@ export async function acceptPlanReviewInNewChat(
   conversation: ConversationRecord;
   agent: AgentRecord;
 }> {
-  return apiPost(
-    `/api/plan-reviews/${apiPathSegment(reviewId)}/accept-in-new-chat`,
-    options,
-  );
+  return (
+    await protocolRequest<{
+      planReview: PlanReviewRecord;
+      conversation: ConversationRecord;
+      agent: AgentRecord;
+    }>("planReview.acceptInNewChat", { reviewId, ...options })
+  ).result;
 }
 
 export async function rejectPlanReview(
@@ -95,11 +130,11 @@ export async function rejectPlanReview(
   feedback?: string,
 ): Promise<PlanReviewRecord> {
   return (
-    await apiPost<{ planReview: PlanReviewRecord }>(
-      `/api/plan-reviews/${apiPathSegment(reviewId)}/reject`,
-      { feedback },
+    await protocolRequest<{ planReview: PlanReviewRecord }>(
+      "planReview.reject",
+      { reviewId, feedback },
     )
-  ).planReview;
+  ).result.planReview;
 }
 
 export async function requestPlanChanges(
@@ -107,11 +142,11 @@ export async function requestPlanChanges(
   feedback?: string,
 ): Promise<PlanReviewRecord> {
   return (
-    await apiPost<{ planReview: PlanReviewRecord }>(
-      `/api/plan-reviews/${apiPathSegment(reviewId)}/request-changes`,
-      { feedback },
+    await protocolRequest<{ planReview: PlanReviewRecord }>(
+      "planReview.requestChanges",
+      { reviewId, feedback },
     )
-  ).planReview;
+  ).result.planReview;
 }
 
 export async function discardPlanReview(
@@ -119,11 +154,11 @@ export async function discardPlanReview(
   feedback?: string,
 ): Promise<PlanReviewRecord> {
   return (
-    await apiPost<{ planReview: PlanReviewRecord }>(
-      `/api/plan-reviews/${apiPathSegment(reviewId)}/discard`,
-      { feedback },
+    await protocolRequest<{ planReview: PlanReviewRecord }>(
+      "planReview.discard",
+      { reviewId, feedback },
     )
-  ).planReview;
+  ).result.planReview;
 }
 
 export async function answerUserQuestion(
@@ -131,11 +166,11 @@ export async function answerUserQuestion(
   answer: string,
 ): Promise<UserQuestionRecord> {
   return (
-    await apiPost<{ question: UserQuestionRecord }>(
-      `/api/user-questions/${apiPathSegment(questionId)}/answer`,
-      { answer },
+    await protocolRequest<{ question: UserQuestionRecord }>(
+      "userQuestion.answer",
+      { questionId, answer },
     )
-  ).question;
+  ).result.question;
 }
 
 export async function dismissUserQuestion(
@@ -143,9 +178,9 @@ export async function dismissUserQuestion(
   reason?: string,
 ): Promise<UserQuestionRecord> {
   return (
-    await apiPost<{ question: UserQuestionRecord }>(
-      `/api/user-questions/${apiPathSegment(questionId)}/dismiss`,
-      { reason },
+    await protocolRequest<{ question: UserQuestionRecord }>(
+      "userQuestion.dismiss",
+      { questionId, reason },
     )
-  ).question;
+  ).result.question;
 }

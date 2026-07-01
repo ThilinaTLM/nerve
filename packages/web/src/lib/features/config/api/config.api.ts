@@ -4,6 +4,7 @@ import type {
   StatusResponse,
 } from "@nervekit/shared";
 import { apiGet } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export type ClientConfig = {
   url: string;
@@ -20,12 +21,17 @@ export async function getClientConfig(): Promise<ClientConfig> {
 }
 
 export async function getModels(): Promise<ModelInfo[]> {
-  return (await apiGet<{ models: ModelInfo[] }>("/api/models")).models;
+  return (await protocolRequest<{ models: ModelInfo[] }>("model.list", {}))
+    .result.models;
 }
 
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
-  return (await apiGet<{ items: CompletionItem[] }>("/api/completions/slash"))
-    .items;
+  return (
+    await protocolRequest<{ items: CompletionItem[] }>(
+      "completion.slash.list",
+      {},
+    )
+  ).result.items;
 }
 
 export async function getFileCompletions(
@@ -33,10 +39,10 @@ export async function getFileCompletions(
   query: string,
 ): Promise<CompletionItem[]> {
   if (!projectId) return [];
-  const params = new URLSearchParams({ projectId, q: query });
   return (
-    await apiGet<{ items: CompletionItem[] }>(
-      `/api/completions/files?${params.toString()}`,
+    await protocolRequest<{ items: CompletionItem[] }>(
+      "completion.files.list",
+      { projectId, q: query },
     )
-  ).items;
+  ).result.items;
 }

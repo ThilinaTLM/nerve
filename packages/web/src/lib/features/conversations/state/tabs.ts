@@ -1,5 +1,6 @@
-import { apiGet, apiPathSegment, type ConversationRecord } from "$lib/api";
+import type { ConversationRecord } from "$lib/api";
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
+import { protocolRequest } from "$lib/core/protocol/http-client";
 import {
   conversationViewKey,
   pendingConversationKey,
@@ -35,10 +36,11 @@ export async function openConversation(conversationId: string) {
       (candidate) => candidate.id === conversationId,
     ) ??
     (
-      await apiGet<{ conversation: ConversationRecord }>(
-        `/api/conversations/${apiPathSegment(conversationId)}`,
+      await protocolRequest<{ conversation: ConversationRecord }>(
+        "conversation.get",
+        { conversationId },
       )
-    ).conversation;
+    ).result.conversation;
   addConversationTab(conversation.id);
   conversationState.activeConversationTabId = conversation.id;
   setActiveCenterTab({ kind: "conversation", id: conversation.id });

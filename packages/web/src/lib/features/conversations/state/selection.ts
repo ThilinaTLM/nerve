@@ -1,9 +1,8 @@
 import {
   type AgentRecord,
-  apiGet,
-  apiPathSegment,
   type ConversationRecord,
   getConversationSnapshot,
+  getProject,
   type ProjectRecord,
 } from "$lib/api";
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
@@ -43,12 +42,7 @@ async function projectForConversation(
   return (
     workspaceState.projects.find(
       (candidate) => candidate.id === conversation.projectId,
-    ) ??
-    (
-      await apiGet<{ project: ProjectRecord }>(
-        `/api/projects/${apiPathSegment(conversation.projectId)}`,
-      )
-    ).project
+    ) ?? (await getProject(conversation.projectId))
   );
 }
 

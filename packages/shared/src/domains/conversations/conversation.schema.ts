@@ -1,11 +1,20 @@
 import { z } from "zod";
-import type { QueuedPromptRecord } from "../agents/index.js";
-import type { ContextUsage } from "../models/index.js";
-import type { ToolCallTranscriptRecord } from "../tools/index.js";
-import type {
-  ConversationEntry,
-  ConversationRecord,
-  ConversationTree,
+import {
+  type QueuedPromptRecord,
+  queuedPromptRecordSchema,
+} from "../agents/index.js";
+import { type ContextUsage, contextUsageSchema } from "../models/index.js";
+import {
+  type ToolCallTranscriptRecord,
+  toolCallTranscriptRecordSchema,
+} from "../tools/index.js";
+import {
+  type ConversationEntry,
+  type ConversationRecord,
+  type ConversationTree,
+  conversationEntrySchema,
+  conversationRecordSchema,
+  conversationTreeSchema,
 } from "./tree.schema.js";
 
 export const runIdSchema = z.string().startsWith("run_");
@@ -439,6 +448,124 @@ export interface ConversationSnapshot {
   cursorSeq: number;
   generatedAt: string;
 }
+
+export const conversationLiveToolDraftProgressSnapshotSchema = z.object({
+  path: z.string().optional(),
+  lineCount: z.number().int().nonnegative().optional(),
+  operationCount: z.number().int().nonnegative().optional(),
+  generatedLineCount: z.number().int().nonnegative().optional(),
+  estimatedAdditions: z.number().int().nonnegative().optional(),
+  estimatedDeletions: z.number().int().nonnegative().optional(),
+  generatedPreview: z.string().optional(),
+  generatedPreviewLanguage: z.literal("diff").optional(),
+  estimated: z.boolean(),
+});
+
+export const conversationLiveTextBlockSnapshotSchema = z.object({
+  kind: z.enum(["text", "thinking"]),
+  contentBlockId: contentBlockIdSchema,
+  contentIndex: z.number().int().nonnegative(),
+  text: z.string(),
+  done: z.boolean(),
+  redacted: z.boolean().optional(),
+});
+
+export const conversationLiveToolDraftBlockSnapshotSchema = z.object({
+  kind: z.literal("tool_call_draft"),
+  contentBlockId: contentBlockIdSchema,
+  contentIndex: z.number().int().nonnegative(),
+  providerToolCallId: z.string().min(1).optional(),
+  toolName: z.string().min(1).optional(),
+  argsText: z.string(),
+  args: z.record(z.string(), z.unknown()).optional(),
+  progress: conversationLiveToolDraftProgressSnapshotSchema.optional(),
+  done: z.boolean(),
+});
+
+export const conversationLiveContentBlockSnapshotSchema = z.discriminatedUnion(
+  "kind",
+  [
+    conversationLiveTextBlockSnapshotSchema,
+    conversationLiveToolDraftBlockSnapshotSchema,
+  ],
+);
+
+export const conversationLiveMessageSnapshotSchema = z.object({
+  liveMessageId: liveMessageIdSchema,
+  messageOrdinal: z.number().int().nonnegative(),
+  startedAt: z.string().datetime(),
+  blocks: z.array(conversationLiveContentBlockSnapshotSchema),
+});
+
+export const conversationLiveTurnSnapshotSchema = z.object({
+  turnId: turnIdSchema,
+  ordinal: z.number().int().nonnegative(),
+  messages: z.array(conversationLiveMessageSnapshotSchema),
+});
+
+export const conversationLiveToolOutputChunkSnapshotSchema = z.object({
+  stream: z.enum(["stdout", "stderr", "combined"]),
+  text: z.string(),
+  ts: z.string().datetime(),
+});
+
+export const conversationLiveToolOutputLimitsSnapshotSchema = z.object({
+  capped: z.boolean(),
+  direction: z.literal("tail"),
+  maxChars: z.number().int().nonnegative(),
+  maxChunks: z.number().int().nonnegative(),
+  totalChars: z.number().int().nonnegative().optional(),
+  displayedChars: z.number().int().nonnegative().optional(),
+  omittedChars: z.number().int().nonnegative().optional(),
+  totalLines: z.number().int().nonnegative().optional(),
+  displayedLines: z.number().int().nonnegative().optional(),
+  omittedLines: z.number().int().nonnegative().optional(),
+});
+
+export const conversationLiveToolOutputSnapshotSchema = z.object({
+  toolCallId: z.string().startsWith("tool_"),
+  chunks: z.array(conversationLiveToolOutputChunkSnapshotSchema),
+  text: z.string(),
+  updatedAt: z.string().datetime(),
+  outputLimits: conversationLiveToolOutputLimitsSnapshotSchema.optional(),
+});
+
+export const conversationRunRetrySnapshotSchema = z.object({
+  attempt: z.number().int().positive(),
+  maxRetries: z.number().int().positive(),
+  delayMs: z.number().int().nonnegative(),
+  retryAt: z.string().datetime(),
+  errorMessage: z.string().optional(),
+  failedEntryId: z.string().startsWith("entry_").optional(),
+});
+
+export const conversationActiveRunSnapshotSchema = z.object({
+  runId: runIdSchema,
+  agentId: z.string().startsWith("agent_"),
+  projectId: z.string().startsWith("proj_"),
+  conversationId: z.string().startsWith("conv_"),
+  status: z.enum(["running", "retrying", "aborting"]),
+  startedAt: z.string().datetime(),
+  turns: z.array(conversationLiveTurnSnapshotSchema),
+  toolOutputsByToolCallId: z.record(
+    z.string(),
+    conversationLiveToolOutputSnapshotSchema,
+  ),
+  queuedPrompts: z.array(queuedPromptRecordSchema),
+  retry: conversationRunRetrySnapshotSchema.optional(),
+});
+
+export const conversationSnapshotSchema = z.object({
+  conversation: conversationRecordSchema,
+  entries: z.array(conversationEntrySchema),
+  activeEntryIds: z.array(z.string().startsWith("entry_")),
+  tree: conversationTreeSchema,
+  toolCalls: z.array(toolCallTranscriptRecordSchema),
+  activeRun: conversationActiveRunSnapshotSchema.optional(),
+  contextUsage: contextUsageSchema.optional(),
+  cursorSeq: z.number().int().nonnegative(),
+  generatedAt: z.string().datetime(),
+});
 
 export const conversationEventTypes = [
   "conversation.run.started",

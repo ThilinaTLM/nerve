@@ -209,6 +209,17 @@ The orchestrator SHOULD prefer this order:
 
 The orchestrator SHOULD include drop counts in the next `flow.update` or heartbeat stats when drops are significant.
 
+### Implemented v1 coalescing policy
+
+The current implementation coalesces transient queue overflow before dropping:
+
+- `usage.subscription.updated`: keep the latest update per provider.
+- `conversation.live.content.delta` and `conversation.live.tool_draft.delta`: concatenate adjacent contiguous deltas for the same conversation/run/turn/live message/content block.
+- `conversation.live.tool_output.delta`: concatenate adjacent contiguous output deltas for the same conversation/tool call/stream.
+- Progress-like transient updates (`*.progress`, selected `*.updated`, retry/progress events): keep the latest update per stable target key when one is present.
+
+Coalescing never applies to durable events. `coalescedTransientEvents` counts the number of original transient events removed from the session queue by merging or latest-wins replacement. If coalescing cannot bring the queue under the transient limit, oldest remaining transient events may still be dropped and counted separately.
+
 ## Durable event pressure
 
 Durable event pressure cannot be solved by dropping events. Options are:

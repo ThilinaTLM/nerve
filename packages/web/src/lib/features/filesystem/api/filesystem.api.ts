@@ -4,6 +4,7 @@ import type {
   FilesystemFileResponse,
 } from "@nervekit/shared";
 import { apiGet, apiPost, fileToBase64 } from "../../../core/api/client";
+import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function uploadClipboardImage(file: File): Promise<string> {
   const response = await apiPost<ClipboardImageUploadResponse>(
@@ -21,13 +22,12 @@ export async function listDirectories(
   path?: string,
   showHidden = false,
 ): Promise<FilesystemDirectoryResponse> {
-  const params = new URLSearchParams();
-  if (path) params.set("path", path);
-  if (showHidden) params.set("showHidden", "true");
-  const suffix = params.toString();
-  return apiGet<FilesystemDirectoryResponse>(
-    `/api/filesystem/directories${suffix ? `?${suffix}` : ""}`,
-  );
+  return (
+    await protocolRequest<FilesystemDirectoryResponse>(
+      "filesystem.directories.list",
+      { path, showHidden },
+    )
+  ).result;
 }
 
 export async function getFileContent(
