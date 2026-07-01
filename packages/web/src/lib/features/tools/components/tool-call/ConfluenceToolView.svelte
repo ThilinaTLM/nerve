@@ -6,7 +6,7 @@
   import Paperclip from "@lucide/svelte/icons/paperclip";
   import type { Component } from "svelte";
   import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-  import { confluenceBytesLabel } from "$lib/features/tools/views/confluence-display";
+  import { confluenceBytesLabel, confluencePageUrl } from "$lib/features/tools/views/confluence-display";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import { COLLAPSED_LINES } from "$lib/features/tools/views/tool-result-view";
 
@@ -28,11 +28,7 @@
   }
 
   function fullUrl(webui: string | undefined): string | undefined {
-    if (!webui) return undefined;
-    if (/^https?:\/\//i.test(webui)) return webui;
-    return siteUrl
-      ? `${siteUrl.replace(/\/+$/, "")}${webui.startsWith("/") ? "" : "/"}${webui}`
-      : undefined;
+    return confluencePageUrl(siteUrl, webui);
   }
 
   function fallbackText(): string {

@@ -332,10 +332,15 @@ export function extractBodyRepresentation(
 
 export function pageWebUrl(siteUrl: string, page: unknown): string | undefined {
   const summary = summarizeConfluencePage(page);
-  if (!summary?.webui) return undefined;
-  return summary.webui.startsWith("http")
-    ? summary.webui
-    : `${siteUrl}${summary.webui}`;
+  const webui = summary?.webui;
+  if (!webui) return undefined;
+  if (/^https?:\/\//i.test(webui)) return webui;
+
+  const baseUrl = siteUrl.replace(/\/+$/, "").replace(/\/wiki$/i, "");
+  const path = webui.startsWith("/") ? webui : `/${webui}`;
+  const wikiPath =
+    path === "/wiki" || path.startsWith("/wiki/") ? path : `/wiki${path}`;
+  return `${baseUrl}${wikiPath}`;
 }
 
 export function truncateField(value: string | undefined): string | undefined {

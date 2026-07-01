@@ -4,6 +4,7 @@ import {
   CONFLUENCE_DISPLAY_ITEM_LIMIT,
   displayLimitNotice,
   formatPageSummaryLine,
+  pageWebUrl,
   summarizeConfluenceAttachment,
   summarizeConfluencePage,
   takeDisplayItems,
@@ -55,6 +56,30 @@ describe("Confluence result formatting", () => {
         artifactPath: "/tmp/confluence.json",
       }) ?? "",
       /Showing first 20 of 23 pages; full Confluence response is saved to \/tmp\/confluence\.json\./,
+    );
+  });
+
+  it("builds Confluence page URLs under the /wiki context", () => {
+    const page = {
+      id: "123",
+      title: "How to deploy",
+      _links: { webui: "/spaces/DEV/pages/123/How+to+deploy" },
+    };
+
+    assert.equal(
+      pageWebUrl("https://example.atlassian.net", page),
+      "https://example.atlassian.net/wiki/spaces/DEV/pages/123/How+to+deploy",
+    );
+    assert.equal(
+      pageWebUrl("https://example.atlassian.net/wiki", page),
+      "https://example.atlassian.net/wiki/spaces/DEV/pages/123/How+to+deploy",
+    );
+    assert.equal(
+      pageWebUrl("https://example.atlassian.net", {
+        ...page,
+        _links: { webui: "/wiki/spaces/DEV/pages/123/How+to+deploy" },
+      }),
+      "https://example.atlassian.net/wiki/spaces/DEV/pages/123/How+to+deploy",
     );
   });
 

@@ -144,17 +144,26 @@ export async function confluenceDownload(
   downloadLink: string,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const url = new URL(
-    downloadLink.startsWith("http")
-      ? downloadLink
-      : `${connection.siteUrl}${downloadLink.startsWith("/") ? "" : "/"}${downloadLink}`,
-  );
+  const url = resolveConfluenceDownloadUrl(connection, downloadLink);
   const response = await fetch(url, {
     headers: { Authorization: basicAuth(connection) },
     signal: timeoutSignal(signal, 60_000),
   });
   if (!response.ok) await throwConfluenceError(response);
   return new Uint8Array(await response.arrayBuffer());
+}
+
+function resolveConfluenceDownloadUrl(
+  connection: ConfluenceConnection,
+  downloadLink: string,
+): URL {
+  const trimmed = downloadLink.trim();
+  if (/^https?:\/\//i.test(trimmed)) return new URL(trimmed);
+
+  const path = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  const wikiPath =
+    path === "/wiki" || path.startsWith("/wiki/") ? path : `/wiki${path}`;
+  return new URL(`${connection.siteUrl}${wikiPath}`);
 }
 
 function appendQuery(url: URL, query: Record<string, QueryValue> | undefined) {

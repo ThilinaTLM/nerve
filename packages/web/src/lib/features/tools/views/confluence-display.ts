@@ -33,7 +33,12 @@ export function confluencePageUrl(
   if (!webui) return undefined;
   if (/^https?:\/\//i.test(webui)) return webui;
   if (!siteUrl) return undefined;
-  return `${siteUrl.replace(/\/+$/, "")}${webui.startsWith("/") ? "" : "/"}${webui}`;
+
+  const baseUrl = siteUrl.replace(/\/+$/, "").replace(/\/wiki$/i, "");
+  const path = webui.startsWith("/") ? webui : `/${webui}`;
+  const wikiPath =
+    path === "/wiki" || path.startsWith("/wiki/") ? path : `/wiki${path}`;
+  return `${baseUrl}${wikiPath}`;
 }
 
 export function confluenceInitials(value: string | undefined): string {
