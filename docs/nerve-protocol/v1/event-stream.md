@@ -195,6 +195,22 @@ Within a batch:
 
 Clients use durable range and continuity metadata to detect gaps in state-changing events while allowing missing transient events.
 
+### Computing continuity in the current global stream
+
+The current Nerve global stream assigns `seq` values to both durable and transient events. A protocol adapter that builds `event.batch` messages MUST compute durable continuity from durable events, not from raw numeric adjacency.
+
+For a batch containing durable events, the orchestrator must know the durable event immediately before `durableFirstSeq`. It can derive this from one of these sources:
+
+- the in-memory event ring, when it contains the relevant preceding durable event;
+- the persisted durable event index/log;
+- a snapshot cursor that proves durable state is complete through a sequence;
+- domain-specific knowledge that no durable event exists before the first durable event in the stream.
+
+If the adapter cannot prove `previousDurableSeq` for a durable batch, it MUST NOT send the batch as ordinary live/replay data. It must instead replay from a known cursor, require a snapshot, or send `replay.unavailable` / `flow.update` with `mode: "resync_required"`.
+
+For transient-only batches, the adapter MAY omit durable continuity fields or set `durableCompleteThroughSeq` only when it can prove no durable event was skipped in the advertised range. A client MUST NOT advance its processed durable cursor solely because it received a transient-only batch.
+
+
 ## Client dispatch rules
 
 A client receiving `event.batch` MUST follow these rules for each stream.
@@ -282,6 +298,53 @@ Guidelines:
 - Use `.live.*` for transient streaming details.
 - Avoid transport names in event types.
 - Avoid UI component names in event types.
+
+Current Nerve event names that contain underscores, such as `user_question.*`, `plan_review.*`, and `prompt_suggestions.*`, are valid existing domain event names. They do not need to be renamed for Protocol v1. New event families SHOULD prefer the dot-separated style above.
+
+## Current Nerve event families
+
+The following current event families are in scope for Protocol v1. This table is a coverage guide; exact payload schemas remain owned by their domains.
+
+| Event family | Typical durability | Purpose and recovery notes |
+| --- | --- | --- |
+| `daemon.*` | durable | Daemon lifecycle/status diagnostics. |
+| `project.*` | durable | Project creation, deletion, and project-level maintenance such as conversation pruning. |
+| `conversation.created`, `conversation.updated`, `conversation.deleted`, `conversation.imported` | durable | Workspace conversation list updates. |
+| `conversation.entry.appended` | durable | Transcript entry state; reducers should be idempotent by entry ID. |
+| `conversation.run.*` | durable for lifecycle; transient only for non-required progress | Run start/completion/failure/suspension must be recoverable. Retry/progress details may be transient if final durable state reconstructs the view. |
+| `conversation.prompt.*` | durable | Queued prompt state. |
+| `conversation.tool_call.updated` | durable | Tool call transcript and approval-related updates. |
+| `conversation.compaction.*`, `conversation.compacted`, `conversation.context.updated`, `conversation.navigated`, `conversation.branch_summarized` | durable or transient by domain semantics | Conversation refresh/context/compaction state. Final materialized changes must be durable or snapshot-backed. |
+| `conversation.live.*` | transient | Streaming assistant content, thinking, tool drafts, tool output, and live progress. May be coalesced/dropped when durable final entries or snapshots repair state. |
+| `agent.*` | durable, except explicit progress-style events may be transient | Agent lifecycle, configuration, mode/status, subagent/explore progress. |
+| `agent.suspension.*` | durable | Suspended/awaiting-user state. |
+| `worker.*` | durable | Worker inventory/lifecycle. |
+| `task.*` | durable for lifecycle; transient only for non-required progress | Task list, foreground state, logs, readiness, cancellation, orphan cleanup. |
+| `approval.*` | durable | Pending and resolved approval state. |
+| `user_question.*` | durable | Human question request/answer/dismiss state. |
+| `plan_review.*` | durable | Plan review lifecycle and decisions. |
+| `settings.*` | durable | Settings refresh; payloads must not include secrets. |
+| `auth.*` | durable metadata only | Auth/provider metadata refresh and OAuth flow status; no provider tokens. |
+| `secrets.*` | durable metadata only | Secret state changed; payloads must identify provider/key metadata only, never secret values. |
+| `providers.*` | durable | Provider/model catalog refresh. |
+| `prompt_suggestions.*` | durable | Prompt suggestion trust/status refresh. |
+| `usage.subscription.updated` | transient | Subscription usage display; polling can repair missed updates. |
+| `policy.*` | durable or diagnostic by domain | Policy/approval diagnostics; payloads must be redacted and bounded. |
+
+### Event registration checklist
+
+When adding or changing a domain event, document and test:
+
+- event `type` string;
+- durability (`durable` or `transient`);
+- payload schema owner in `packages/shared`;
+- required entity IDs for reducers and correlation;
+- reducer idempotency behavior for duplicate durable events;
+- whether the event affects workspace, conversation, task, settings/auth, or notification materialized state;
+- snapshot relationship for recovery;
+- coalescing/drop policy if transient;
+- safe logging/redaction behavior;
+- expected producer and consumer modules.
 
 ## Event payload rules
 

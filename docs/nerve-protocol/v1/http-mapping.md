@@ -118,29 +118,59 @@ Recommended top-level method namespaces matching current Nerve features:
 
 | Namespace | Examples | Notes |
 | --- | --- | --- |
+| `status.*` | `status.get` | Daemon status reads. Usually clearer as REST. |
+| `clientConfig.*` | `clientConfig.get` | Bootstrap metadata such as API and WebSocket URLs. Usually stays REST because clients need it before protocol setup. |
 | `workspace.*` | `workspace.get`, `workspace.refresh` | Materialized UI state and broad refreshes. |
 | `snapshot.*` | `snapshot.workspace.get`, `snapshot.conversation.get` | Snapshot recovery and initial state. |
-| `conversation.*` | `conversation.create`, `conversation.sendPrompt`, `conversation.compact` | Conversation lifecycle and run commands. |
-| `agent.*` | `agent.create`, `agent.configure`, `agent.abortRun` | Agent and run controls. |
-| `task.*` | `task.start`, `task.cancel`, `task.restart` | Long-running task commands. |
-| `approval.*` | `approval.grant`, `approval.deny` | Tool approval decisions. |
-| `userQuestion.*` | `userQuestion.answer`, `userQuestion.dismiss` | Human input flows. |
-| `planReview.*` | `planReview.accept`, `planReview.requestChanges` | Plan review decisions. |
+| `project.*` | `project.create`, `project.delete`, `project.openEditor`, `project.pruneConversations` | Project lifecycle and maintenance. |
+| `pinnedCommand.*` | `pinnedCommand.create`, `pinnedCommand.update`, `pinnedCommand.delete` | Project-scoped pinned command management. |
+| `conversation.*` | `conversation.create`, `conversation.import`, `conversation.sendPrompt`, `conversation.navigate`, `conversation.compact`, `conversation.export` | Conversation lifecycle and run commands. Exports should remain resource downloads. |
+| `agent.*` | `agent.create`, `agent.configure`, `agent.prompt`, `agent.abortRun`, `agent.continueFromFailure`, `agent.requestTool` | Agent and run controls. Tool requests remain policy-gated in the orchestrator. |
+| `task.*` | `task.start`, `task.cancel`, `task.restart`, `task.prune`, `task.delete` | Long-running task commands. |
+| `taskLog.*` | `taskLog.query` | Paginated task output/log reads. |
+| `tool.*` | `tool.list` | Tool catalog metadata. |
+| `toolCall.*` | `toolCall.list`, `toolCall.get` | Tool call and transcript records. |
+| `approval.*` | `approval.grant`, `approval.deny` | Tool approval decisions. Strong RPC candidates. |
+| `userQuestion.*` | `userQuestion.answer`, `userQuestion.dismiss` | Human input flows. Strong RPC candidates. |
+| `planReview.*` | `planReview.accept`, `planReview.acceptInNewChat`, `planReview.requestChanges`, `planReview.reject`, `planReview.discard` | Plan review decisions. Strong RPC candidates. |
 | `settings.*` | `settings.get`, `settings.update` | Settings reads and writes. |
-| `auth.*` | `auth.provider.setKey`, `auth.oauth.start` | Auth metadata and secure flows. |
-| `providerCatalog.*` | `providerCatalog.upsertProvider` | Custom providers and models. |
-| `project.*` | `project.create`, `project.delete` | Project lifecycle. |
-| `filesystem.*` | `filesystem.listDirectories`, `filesystem.getFile` | File metadata/text reads; large/binary content may remain HTTP resources. |
-| `git.*` | `git.overview`, `git.pull`, `git.checkoutPr` | Git and GitHub operations. |
-| `log.*` | `log.query`, `log.prune` | Application logs. |
-| `storage.*` | `storage.usage`, `storage.cleanup` | Storage inspection and maintenance. |
+| `auth.*` | `auth.providers.get`, `auth.provider.delete`, `auth.provider.setKey`, `auth.provider.deleteKey`, `auth.credentialKey.get` | Auth metadata and secure credential flows. Raw secrets must use the secure credential path. |
+| `auth.oauth.*` | `auth.oauth.start`, `auth.oauth.get`, `auth.oauth.respond`, `auth.oauth.cancel` | OAuth flow metadata. Browser redirects/tokens stay transport/security specific. |
+| `providerCatalog.*` | `providerCatalog.get`, `providerCatalog.upsertProvider`, `providerCatalog.deleteProvider` | Custom providers. |
+| `providerCatalog.model.*` | `providerCatalog.model.upsert`, `providerCatalog.model.delete` | Custom provider model definitions. |
+| `promptSuggestion.*` | `promptSuggestion.listForProject`, `promptSuggestion.listStatuses`, `promptSuggestion.updateTrust` | Prompt suggestion discovery and trust updates. |
+| `model.*` | `model.list` | Model catalog reads. |
+| `usage.*` | `usage.subscription.get` | Usage reads; live usage updates can be transient events. |
+| `worker.*` | `worker.list`, `worker.get` | Worker inventory reads. |
+| `filesystem.*` | `filesystem.listDirectories`, `filesystem.getFile`, `filesystem.saveClipboardImage` | File metadata/text reads; large/binary bodies remain HTTP resources. |
+| `git.*` | `git.discoverRepos`, `git.overview`, `git.listBranches`, `git.createBranch`, `git.switchBranch`, `git.stageFile`, `git.pull`, `git.push`, `git.fetch` | Git operations. Mutations are policy-sensitive and can be long-running. |
+| `github.*` | `github.status`, `github.listPrs`, `github.prDetail`, `github.checkoutPr` | GitHub PR and status operations. |
+| `completion.*` | `completion.slash`, `completion.files` | Request/response completions. Usually clearer as REST. |
+| `applicationLog.*` | `applicationLog.query`, `applicationLog.prune`, `applicationLog.clientAppend` | Application/client logs. Must be bounded and redacted. |
+| `storage.*` | `storage.get`, `storage.rebuildIndex`, `storage.usage`, `storage.cleanup` | Storage inspection and maintenance. |
+| `transcription.*` | `transcription.audio.transcribe` | Metadata/result method only; audio upload remains out-of-band in v1. |
 
-Existing REST/resource endpoints MAY remain canonical for any of these namespaces in v1. Adding a method name to this registry does not require removing the corresponding REST endpoint.
+Existing REST/resource endpoints MAY remain canonical for any of these namespaces in v1. Adding a method name to this registry does not require removing the corresponding REST endpoint. Method additions and future namespace changes SHOULD follow [Extension Model](./extension-model.md#method-registry-governance).
 
 ### HTTP method mapping
 
 - Protocol RPC requests SHOULD use HTTP `POST`, even for reads, because the envelope includes method dispatch and may carry complex params.
 - Resource-specific protocol endpoints MAY use normal HTTP verbs.
+
+### Current route family migration posture
+
+Current HTTP APIs can be grouped by how they should participate in v1:
+
+| Route family | Recommended v1 posture |
+| --- | --- |
+| Status/client config/completions/catalog reads | Keep REST unless envelope metadata becomes useful. |
+| Workspace and conversation snapshots | Keep REST or add protocol RPC, but include cursor metadata when used for recovery. |
+| Approvals, user questions, plan reviews, task control, agent run control | Good protocol RPC candidates because they are small user actions with clear events. |
+| Git, storage maintenance, provider catalog, settings | Optional RPC candidates; keep policy and secret handling in orchestrator layers. |
+| Audio upload, clipboard images, conversation exports, system prompt export, large file/image reads | Keep out-of-band resource endpoints in v1. |
+| Logs and task logs | Keep paginated/bounded REST; optionally add RPC query methods later. |
+
+See [Feature Coverage](./feature-coverage.md) for the complete current route-family coverage matrix.
 
 ## `response`
 
@@ -173,6 +203,9 @@ Requirements:
 If a response returns materialized state that corresponds to event stream state, it SHOULD include `cursor.streams`.
 
 Example: a workspace snapshot response includes the stream sequence at which the snapshot is valid. The client then applies event deltas after that cursor.
+
+Protocol-compatible REST/resource endpoints that are not wrapped in a `response` message SHOULD use the same cursor meaning when they return materialized state used for recovery. For example, a plain JSON endpoint can return `{ snapshot, cursor: { streams: [...] } }`. The wrapper is optional; the cursor contract is not optional once the response is used as a recovery snapshot.
+
 
 ### Response event batches
 
@@ -375,6 +408,9 @@ Examples that SHOULD stay out-of-band in v1:
 - conversation exports or other downloadable files;
 - large binary file reads;
 - provider-specific payloads that are already handled by secure HTTP flows.
+
+Current secret-sensitive flows such as provider API key submission and OAuth token exchange MUST continue using their dedicated secure handling paths. Current file/audio/image/export flows SHOULD return bounded metadata, paths, operation IDs, or resource URLs that can be referenced by events or responses; they SHOULD NOT be embedded into protocol messages as unbounded base64 or multipart content.
+
 
 Protocol messages MAY carry metadata, operation IDs, cursors, and resulting events for these operations, but they SHOULD NOT embed large base64 payloads. Secret-submission APIs MUST continue using their documented secure handling path and MUST NOT put raw secrets in protocol metadata.
 

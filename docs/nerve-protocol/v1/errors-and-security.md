@@ -183,6 +183,8 @@ Requirements:
 - Protocol envelopes MUST NOT place auth tokens inside `data`, `meta`, or tracing fields.
 - HTTP status codes SHOULD align with protocol error codes.
 
+Existing REST/resource endpoints that are not wrapped in protocol envelopes SHOULD still use protocol-compatible error codes where practical. For example, a REST validation failure can remain an HTTP `400` while using an error body/code that maps to `VALIDATION_FAILED`; an authorization denial can map to `POLICY_DENIED`; an unavailable replay range can map to `REPLAY_UNAVAILABLE` or `CURSOR_TOO_OLD`.
+
 ## Authorization and policy
 
 The orchestrator owns dangerous capabilities, secrets, tools, policies, and storage. UI clients are not trusted to enforce safety.
@@ -210,6 +212,12 @@ Forbidden in protocol metadata and ordinary event payloads:
 
 If a domain operation must submit a secret, it MUST use a dedicated secure API and documented encryption/handling path. The decrypted secret MUST remain in orchestrator/tool layers.
 
+Current secret-sensitive examples:
+
+- Provider API key submission MUST use the credential encryption/public-key path or another documented secure endpoint. The event stream may publish `secrets.provider_key_set` or `auth.providers_changed` metadata, never the key.
+- OAuth flows may expose flow IDs, provider IDs, status, and user-facing instructions. Access tokens, refresh tokens, authorization codes, cookies, and provider headers MUST remain in auth/orchestrator internals.
+- Tool execution requests may include user-supplied arguments, but policy checks and secret injection happen in the orchestrator/tool layer. Frontend code must not receive resolved provider credentials or dangerous hidden capability details.
+
 ## Redaction
 
 Implementations SHOULD redact fields whose names match secret-like patterns before logging:
@@ -230,6 +238,8 @@ private-key
 
 Redaction SHOULD be recursive and bounded. Very large payloads SHOULD be summarized by size and schema name rather than logged.
 
+Logs and client-submitted diagnostic logs MUST be bounded and redacted before storage or protocol forwarding. Protocol errors should reference log IDs, task IDs, artifact paths, or trace IDs rather than embedding large stack traces, command output, or file contents.
+
 ## Origin and remote access
 
 For browser clients:
@@ -241,6 +251,12 @@ For browser clients:
 - CORS policy SHOULD be narrow.
 
 Protocol messages do not replace these transport/browser protections.
+
+Feature-specific security examples:
+
+- Filesystem reads and Git operations must be authorized and resolved by the orchestrator against known project roots or explicit policy. Protocol schemas do not make a path safe.
+- Audio upload, clipboard images, conversation exports, and large file reads should remain resource endpoints with explicit size/content-type limits in v1.
+- GitHub/OAuth operations may involve browser redirects or provider credentials; protocol messages should carry only safe status and correlation metadata.
 
 ## TLS and secure contexts
 

@@ -149,6 +149,20 @@ The existing frontend event bus can remain the internal dispatch mechanism. Prot
 
 ## Incremental migration phases
 
+### Phase 0: Coverage alignment
+
+- Use [Feature Coverage](./feature-coverage.md) as the checklist for current route families, event families, snapshots, and out-of-band flows.
+- Confirm which REST/resource endpoints remain canonical in v1.
+- Identify which initial materialized loads need cursor metadata before they can serve as recovery snapshots.
+- Confirm that current event reducers can receive the same `EventEnvelope` domain events after protocol `event.batch` unwrapping.
+- Do not block the event-stream implementation on converting every HTTP endpoint to protocol RPC.
+
+Validation:
+
+- current route families are accounted for in docs or issue tracker;
+- current event families have durability expectations;
+- out-of-band binary/secret flows are explicitly excluded from protocol messages.
+
 ### Phase 1: Shared schemas and examples
 
 - Add shared protocol schemas and type exports.
@@ -403,6 +417,28 @@ pnpm test
 ```
 
 Run targeted tests as they are added for shared protocol schemas and orchestrator/web protocol clients.
+
+## Definition of done for v1 event-stream implementation
+
+The v1 WebSocket event-stream profile is implemented when:
+
+- shared protocol schemas exist in `packages/shared` and are imported by orchestrator/UI code;
+- the server accepts protocol clients through `hello` and replies with `welcome` or protocol `error`;
+- the client sends `ready` before high-volume event delivery;
+- live domain events are delivered as `event.batch` messages;
+- event batches include valid range counts and durable continuity metadata;
+- current UI event reducers receive equivalent domain `EventEnvelope` objects after batch unwrapping;
+- the UI tracks highest received sequence separately from processed durable cursor;
+- the UI advances processed cursor only after reducers apply durable events or after a trusted snapshot cursor;
+- the UI sends `ack` after processing durable events and uses processed cursors on reconnect;
+- replay works for cursors served from memory and persisted durable history;
+- replay unavailability triggers snapshot/full reload recovery instead of skipping durable events;
+- protocol heartbeat/liveness behavior replaces the legacy `{ type: "heartbeat" }` frame for protocol clients;
+- initial backpressure metrics and flow-state logging exist, even before aggressive transient dropping is enabled;
+- current REST/resource endpoints remain functional throughout migration;
+- protocol and legacy WebSocket frames are not mixed on the same connection.
+
+HTTP protocol RPC support is **not** required for this definition of done. Selected HTTP endpoints can adopt protocol envelopes later when it reduces duplication or improves idempotency/correlation.
 
 ## Rollout checklist
 

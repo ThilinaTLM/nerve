@@ -267,6 +267,32 @@ Requirements:
 - The client MUST NOT continue applying later durable events for affected streams until it completes the specified recovery action.
 - If `recovery.action` is `load_snapshot`, the snapshot MUST include or lead to a valid post-snapshot event cursor.
 
+## Client recovery checklists
+
+### Workspace reload recovery
+
+When the whole workbench needs recovery, the client SHOULD:
+
+1. Stop applying durable events for affected streams.
+2. Load a workspace snapshot or equivalent materialized resource set.
+3. Read `cursor.streams` from the snapshot response.
+4. Replace local materialized workspace state with the snapshot.
+5. Set processed cursors to the snapshot cursors.
+6. Send `ack` or reconnect with `hello.resume` using those cursors.
+7. Apply only event batches whose durable events are newer than the snapshot cursor.
+
+### Conversation reload recovery
+
+When only one conversation view needs recovery, the client SHOULD:
+
+1. Stop applying durable conversation events for that view.
+2. Load `snapshot.conversation.get` or the equivalent conversation snapshot resource.
+3. Replace conversation-local entries/tree/runtime state covered by the snapshot.
+4. Set the affected stream cursor to the snapshot cursor if the snapshot covers global recovery for that view.
+5. Request replay/deltas from the snapshot cursor if needed.
+6. Ignore duplicate durable events at or below the snapshot cursor.
+7. Continue using durable workspace-level events for unrelated state only if their continuity is still proven.
+
 ## Replay sources
 
 The orchestrator can satisfy replay from multiple sources:
@@ -339,6 +365,22 @@ Recommended flow:
 9. Client applies deltas and acknowledges.
 
 Snapshot responses MUST include the stream cursor at which the snapshot is valid. A snapshot cursor has the same meaning as `processedSeq`: durable state is complete through that sequence, and transient events at or below that sequence are not required.
+
+This requirement applies to both protocol `response` messages and plain REST/resource snapshot endpoints. A REST endpoint does not need to wrap its body in `NerveMessage` to be protocol-compatible, but if the client uses that response as a recovery snapshot, the response MUST include cursor metadata with the same semantics.
+
+Example plain JSON shape:
+
+```json
+{
+  "snapshot": { "conversations": [], "tasks": [] },
+  "cursor": {
+    "streams": [{ "stream": "global", "processedSeq": 12500 }]
+  }
+}
+```
+
+Replay can be unavailable because durable history is outside retention, a rotated event log no longer contains the requested range, the index is unavailable, or the cursor belongs to a different orchestrator data directory. In all of these cases the recovery path is snapshot or full reload, not skipping durable events.
+
 
 ## Server use of acknowledgements
 

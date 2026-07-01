@@ -638,3 +638,196 @@ Client may send a final ack or final cursors:
   }
 }
 ```
+
+## 12. Protocol-compatible REST snapshot with cursor metadata
+
+A REST/resource endpoint can participate in protocol recovery without wrapping its body in `NerveMessage`. The important part is the cursor contract.
+
+```http
+GET /api/conversations/conv_123/snapshot HTTP/1.1
+Accept: application/json
+```
+
+```json
+{
+  "snapshot": {
+    "conversation": {
+      "id": "conv_123",
+      "projectId": "proj_123",
+      "title": "Protocol implementation"
+    },
+    "entries": [
+      {
+        "id": "entry_1",
+        "conversationId": "conv_123",
+        "role": "user",
+        "createdAt": "2026-06-26T12:12:30.000Z"
+      }
+    ],
+    "queuedPrompts": []
+  },
+  "cursor": {
+    "streams": [{ "stream": "global", "processedSeq": 12600 }]
+  }
+}
+```
+
+After applying this snapshot, the client treats durable state as complete through `12600` and applies only later deltas.
+
+## 13. Out-of-band binary flow with protocol-visible state
+
+Audio upload remains a multipart REST operation in v1. The protocol stream may carry safe progress/result metadata, but not the audio bytes.
+
+```http
+POST /api/transcription/audio HTTP/1.1
+Content-Type: multipart/form-data; boundary=...
+```
+
+```json
+{
+  "text": "Please summarize the latest task logs."
+}
+```
+
+If transcription becomes asynchronous later, the HTTP response can return an operation ID and the event stream can publish a safe event:
+
+```json
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_01JZ90Q4Q8JVA2KAG6T2WHZD5E",
+  "kind": "event.batch",
+  "ts": "2026-06-26T12:13:00.000Z",
+  "data": {
+    "stream": "global",
+    "batchId": "bat_01JZ90Q4NGW5N3A3V6HE9B2G5Q",
+    "reason": "live",
+    "events": [
+      {
+        "seq": 12601,
+        "id": "evt_01JZ90Q4MZ7R9DE8G4VD6DBFZF",
+        "ts": "2026-06-26T12:13:00.000Z",
+        "type": "transcription.completed",
+        "durability": "durable",
+        "data": {
+          "operationId": "op_123",
+          "textLength": 39
+        }
+      }
+    ],
+    "range": {
+      "firstSeq": 12601,
+      "lastSeq": 12601,
+      "durableFirstSeq": 12601,
+      "durableLastSeq": 12601,
+      "durableCount": 1,
+      "transientCount": 0,
+      "previousDurableSeq": 12600,
+      "durableCompleteThroughSeq": 12601
+    }
+  }
+}
+```
+
+## 14. Current underscore-named event family
+
+Current domain event names such as `user_question.*`, `plan_review.*`, and `prompt_suggestions.*` remain valid. They are carried like any other domain event.
+
+```json
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_01JZ90R54A8G6P5H4B7Z8JKN3Q",
+  "kind": "event.batch",
+  "ts": "2026-06-26T12:14:00.000Z",
+  "data": {
+    "stream": "global",
+    "batchId": "bat_01JZ90R50KWXHYSMXHPP2YB1V1",
+    "reason": "live",
+    "events": [
+      {
+        "seq": 12602,
+        "id": "evt_01JZ90R4YQAH0HYK2RJ5ZFWXSS",
+        "ts": "2026-06-26T12:14:00.000Z",
+        "type": "user_question.requested",
+        "durability": "durable",
+        "data": {
+          "question": {
+            "id": "question_123",
+            "conversationId": "conv_123",
+            "status": "pending",
+            "question": "Which branch should I target?"
+          }
+        }
+      }
+    ],
+    "range": {
+      "firstSeq": 12602,
+      "lastSeq": 12602,
+      "durableFirstSeq": 12602,
+      "durableLastSeq": 12602,
+      "durableCount": 1,
+      "transientCount": 0,
+      "previousDurableSeq": 12601,
+      "durableCompleteThroughSeq": 12602
+    }
+  }
+}
+```
+
+## 15. Optional RPC candidate for a small mutation
+
+Approval decisions are good protocol RPC candidates because they are small, user-initiated mutations with clear events. The existing REST endpoint can remain canonical while this method is added later.
+
+### Request
+
+```json
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_01JZ90S8T0CRYQHGJH3A7RFGFZ",
+  "kind": "request",
+  "ts": "2026-06-26T12:15:00.000Z",
+  "traceId": "trc_01JZ90S8MX3KGANV2T9B89V4R2",
+  "data": {
+    "method": "approval.grant",
+    "params": {
+      "approvalId": "apr_123",
+      "note": "Approved for the current project directory."
+    },
+    "idempotencyKey": "idem_cli_approve_apr_123_001",
+    "expect": {
+      "response": "single",
+      "events": true
+    }
+  }
+}
+```
+
+### Response
+
+```json
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_01JZ90SAG6E1RYT1AA60A7BCN0",
+  "kind": "response",
+  "ts": "2026-06-26T12:15:00.030Z",
+  "replyTo": "msg_01JZ90S8T0CRYQHGJH3A7RFGFZ",
+  "correlationId": "msg_01JZ90S8T0CRYQHGJH3A7RFGFZ",
+  "traceId": "trc_01JZ90S8MX3KGANV2T9B89V4R2",
+  "data": {
+    "ok": true,
+    "method": "approval.grant",
+    "result": {
+      "toolCall": {
+        "id": "tool_123",
+        "status": "approved"
+      }
+    }
+  }
+}
+```
+
+A later WebSocket `event.batch` should carry `approval.granted` and any related `conversation.tool_call.updated` event. The client deduplicates against any optimistic local update by entity ID and event sequence.
+

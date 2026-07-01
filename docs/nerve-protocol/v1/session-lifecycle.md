@@ -57,6 +57,8 @@ For the WebSocket v1 binding:
 
 The server MAY support a compatibility mode where legacy clients receive raw event frames. A protocol v1 client MUST send `hello`; after `hello`, all frames MUST use the protocol envelope.
 
+During development, an implementation MAY either negotiate protocol mode on the existing `/ws` path or expose a temporary `/ws/v1` path. The final product SHOULD avoid permanent duplicate WebSocket APIs unless there is a clear deployment need. Whichever path is used, protocol and legacy frames MUST NOT be mixed on one connection.
+
 ## `hello`
 
 Direction: client → orchestrator.
@@ -191,6 +193,7 @@ Requirements:
   - `fresh`: no resume cursor was supplied; server starts from the current live tail unless the client explicitly requests history.
 - For `resume.mode: "replay"`, the client MUST send `ready`; it SHOULD NOT also send a `replay.request` for the same resume range unless the server fails to start replay or a later gap is detected.
 - For `resume.mode: "fresh"`, clients that need initial materialized state SHOULD load snapshots or resource state before applying live deltas. `fresh` does not imply that historical durable state was delivered.
+- A browser UI workbench normally treats `fresh` as permission to start live delivery only after it has loaded initial workspace resources or a snapshot with cursor metadata. Starting from the live tail without initial state is valid only for clients that do not need historical materialized state.
 - `StreamState.durableSeq` is the latest durable recovery cursor known by the orchestrator for that stream. It may be lower than `latestSeq` when transient events were most recently published.
 
 ## `ready`
@@ -285,6 +288,9 @@ A session is a logical protocol conversation over a transport connection.
 - A reconnect usually creates a new `sessionId`.
 - `client.id` identifies an installation/profile and can survive reconnects.
 - `client.instanceId` identifies a tab/window/process and SHOULD change when that runtime starts fresh.
+
+Client IDs and locally stored cursors SHOULD be scoped to the orchestrator identity or data directory identity when possible. If a browser profile connects to a different Nerve daemon or a reset data directory, stale cursors can be ahead of the server or refer to unrelated state; the orchestrator must reject incompatible cursors and the client should load a fresh snapshot.
+
 
 The protocol does not require server-side session resurrection. Resume correctness is based on event cursors, not on preserving a previous session object.
 
