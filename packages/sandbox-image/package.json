@@ -32,10 +32,12 @@
   },
   "dependencies": {
     "@nervekit/shared": "workspace:*",
+    "ws": "8.18.3",
     "yaml": "2.9.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "@types/ws": "8.18.1",
     "tsx": "4.22.4",
     "typescript": "5.9.3"
   },
