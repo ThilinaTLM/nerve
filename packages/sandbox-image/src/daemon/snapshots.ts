@@ -3,13 +3,25 @@ import { Redactor } from "../security/redaction.js";
 export function buildSandboxSnapshot(input: {
   config?: SandboxConfigV1;
   configDigest?: string;
+  instanceId: string;
   status: string;
+  connected?: boolean;
+  stale?: boolean;
+  updatedAt?: string;
+  lastEventSeq?: number;
+  lastEventAt?: string;
   connectivity?: unknown;
   conversations?: unknown[];
+  agents?: unknown[];
   runs?: unknown[];
-  cursors?: unknown;
+  replayCursors?: unknown[];
   toolGroups?: unknown[];
   setup?: unknown;
+  models?: unknown[];
+  secretStores?: unknown[];
+  credentials?: unknown[];
+  network?: unknown;
+  limitations?: string[];
 }): Record<string, unknown> {
   const redactor = new Redactor();
   return redactor.redact({

@@ -1,6 +1,7 @@
 import type {
   ContextFileStatus,
   SandboxConfigV1,
+  SandboxRunStatus,
   SkillStatus,
   StartupSetupStatus,
 } from "@nervekit/shared";
@@ -10,6 +11,7 @@ import type { ResolvedModelRuntime } from "../models/model-runtime.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
 import { SandboxCommandRouter } from "./command-router.js";
 import { DaemonStatusMachine } from "./daemon-status.js";
+import { SandboxCommandError } from "./errors.js";
 import { buildSandboxSnapshot } from "./snapshots.js";
 
 export type SandboxDaemonRecoveredState = {
@@ -44,37 +46,68 @@ export class SandboxDaemon {
     this.status.transition("ready");
   }
   private registerBuiltins(): void {
-    this.router.register("sandbox.status.get", async () => ({
-      sandboxId: this.config.identity?.sandboxId,
-      instanceId: this.instanceId,
-      status: this.status.status,
-      configDigest: this.configDigest,
-      startedAt: this.startedAt,
-      updatedAt: new Date().toISOString(),
-      setup: this.recovered.setup,
-      skills: this.recovered.skills,
-      toolGroups: [],
-      cursors: await this.state?.events.ackState(),
-      connectivity: { state: "connected", connectedAt: this.startedAt },
-      conversations: summarizeConversations((await this.runs?.list()) ?? []),
-      runs: (await this.runs?.list()) ?? [],
-    }));
+    this.router.register("sandbox.status.get", async () => {
+      const runs = (await this.runs?.list()) ?? [];
+      const ack = await this.state?.events.ackState();
+      const modelSummaries = this.modelSummaries();
+      return {
+        sandboxId: this.config.identity?.sandboxId,
+        instanceId: this.instanceId,
+        status: this.status.status,
+        connected: true,
+        stale: false,
+        configDigest: this.configDigest,
+        startedAt: this.startedAt,
+        updatedAt: new Date().toISOString(),
+        setup: this.recovered.setup,
+        skills: this.recovered.skills,
+        toolGroups: [],
+        models: modelSummaries,
+        cursors: ack,
+        connectivity: { state: "connected", connectedAt: this.startedAt },
+        conversations: summarizeConversations(runs),
+        agents: summarizeAgents(runs, modelSummaries[0]),
+        runs: summarizeRuns(runs),
+      };
+    });
     this.router.register("sandbox.snapshot.get", async () =>
       buildSandboxSnapshot({
         config: this.config,
         configDigest: this.configDigest,
+        instanceId: this.instanceId,
         status: this.status.status,
+        connected: true,
+        stale: false,
+        updatedAt: new Date().toISOString(),
         connectivity: { state: "connected", connectedAt: this.startedAt },
         conversations: summarizeConversations((await this.runs?.list()) ?? []),
-        runs: (await this.runs?.list()) ?? [],
+        agents: summarizeAgents(
+          (await this.runs?.list()) ?? [],
+          this.modelSummaries()[0],
+        ),
+        runs: summarizeRuns((await this.runs?.list()) ?? []),
         toolGroups: [],
         setup: this.recovered.setup,
+        models: this.modelSummaries(),
       }),
     );
     this.router.register("sandbox.run.start", async (params) => {
+      const parsed = params as { prompt?: string; behavior?: string };
+      const initialPrompt = this.config.agent.initialPrompt;
+      if (!parsed.prompt && !initialPrompt)
+        throw new SandboxCommandError(
+          "VALIDATION_FAILED",
+          "sandbox.run.start requires prompt or agent.initialPrompt",
+        );
+      if (this.recovered.modelRuntime?.degraded)
+        throw new SandboxCommandError(
+          "UNAVAILABLE",
+          "No usable model provider is available for this sandbox",
+        );
       const accepted = await this.acceptCommand("sandbox.run.start", params);
       const run = await this.runs?.start({
         ...(params as Record<string, unknown>),
+        prompt: parsed.prompt ?? initialPrompt,
         commandId: accepted.commandId,
       });
       return {
@@ -127,6 +160,32 @@ export class SandboxDaemon {
     return (await this.acceptCommand(method, params)).commandId;
   }
 
+  private modelSummaries(): Array<{
+    provider: string;
+    model?: string;
+    active: boolean;
+    status: "available" | "unavailable" | "degraded" | "skipped";
+    limitations?: string[];
+  }> {
+    const runtime = this.recovered.modelRuntime;
+    if (!runtime)
+      return [
+        {
+          provider: this.config.agent.mainModel.provider,
+          model: this.config.agent.mainModel.model,
+          active: true,
+          status: "available",
+        },
+      ];
+    return runtime.models.map((model, index) => ({
+      provider: model.provider,
+      model: model.model,
+      active: index === 0,
+      status: runtime.degraded ? "degraded" : "available",
+      limitations: model.limitations.length ? model.limitations : undefined,
+    }));
+  }
+
   private async acceptCommand(
     method: string,
     params: unknown,
@@ -146,23 +205,120 @@ export class SandboxDaemon {
   }
 }
 
-function summarizeConversations(
-  runs: Array<{ conversationId: string; agentId: string; updatedAt: string }>,
-) {
+type RunLike = {
+  conversationId: string;
+  agentId: string;
+  runId?: string;
+  status?: string;
+  updatedAt: string;
+  createdAt?: string;
+  terminalAt?: string;
+  behavior?: unknown;
+  prompt?: unknown;
+  error?: unknown;
+};
+
+function summarizeConversations(runs: RunLike[]) {
   const summaries = new Map<
     string,
-    { conversationId: string; agentIds: string[]; updatedAt: string }
+    {
+      conversationId: string;
+      agentIds: string[];
+      updatedAt: string;
+      activeRunIds: string[];
+    }
   >();
   for (const run of runs) {
     const current = summaries.get(run.conversationId) ?? {
       conversationId: run.conversationId,
       agentIds: [],
       updatedAt: run.updatedAt,
+      activeRunIds: [],
     };
     if (!current.agentIds.includes(run.agentId))
       current.agentIds.push(run.agentId);
+    if (
+      run.runId &&
+      run.status &&
+      !["completed", "failed", "cancelled"].includes(run.status)
+    )
+      current.activeRunIds.push(run.runId);
     if (run.updatedAt > current.updatedAt) current.updatedAt = run.updatedAt;
     summaries.set(run.conversationId, current);
   }
   return Array.from(summaries.values());
+}
+
+function summarizeAgents(runs: RunLike[], model?: unknown) {
+  const agents = new Map<
+    string,
+    {
+      conversationId: string;
+      agentId: string;
+      model?: unknown;
+      updatedAt?: string;
+    }
+  >();
+  for (const run of runs) {
+    const key = `${run.conversationId}/${run.agentId}`;
+    const current = agents.get(key) ?? {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      model,
+      updatedAt: run.updatedAt,
+    };
+    if (!current.updatedAt || run.updatedAt > current.updatedAt)
+      current.updatedAt = run.updatedAt;
+    agents.set(key, current);
+  }
+  return Array.from(agents.values());
+}
+
+function summarizeRuns(runs: RunLike[]) {
+  return runs.map((run) => ({
+    conversationId: run.conversationId,
+    agentId: run.agentId,
+    runId: run.runId ?? "run_unknown",
+    status: normalizeRunStatus(run.status),
+    behavior:
+      run.behavior === "follow_up" || run.behavior === "steer"
+        ? run.behavior
+        : "start",
+    promptSummary:
+      typeof run.prompt === "string" && run.prompt
+        ? run.prompt.slice(0, 120)
+        : undefined,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    terminalAt: run.terminalAt,
+    error: isRedactedError(run.error) ? run.error : undefined,
+    transcriptRefs: run.runId
+      ? [`transcript://${run.conversationId}/${run.agentId}/${run.runId}`]
+      : undefined,
+  }));
+}
+
+function normalizeRunStatus(status: string | undefined): SandboxRunStatus {
+  if (
+    status === "queued" ||
+    status === "running" ||
+    status === "waiting_for_input" ||
+    status === "waiting_for_approval" ||
+    status === "completed" ||
+    status === "failed" ||
+    status === "cancelled"
+  )
+    return status;
+  return "failed";
+}
+
+function isRedactedError(
+  value: unknown,
+): value is { code: string; message: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { code?: unknown }).code === "string" &&
+    typeof (value as { message?: unknown }).message === "string"
+  );
 }

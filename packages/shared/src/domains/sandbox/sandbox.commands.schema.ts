@@ -1,8 +1,12 @@
 import { z } from "zod";
 import {
+  artifactRefSchema,
+  boundedTextSchema,
   controllerConnectivityStatusSchema,
   degradedStatusSchema,
+  isoDateTimeSchema,
   networkPolicyStatusSchema,
+  redactedErrorSchema,
   sandboxAgentIdSchema,
   sandboxCommandIdSchema,
   sandboxConversationIdSchema,
@@ -206,117 +210,275 @@ export const sandboxApprovalResolveResultSchema =
     decision: z.enum(["grant", "deny"]),
   });
 
-const sandboxConversationSummarySchema = z.object({
+export const sandboxModelStatusSummarySchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1).optional(),
+  active: z.boolean(),
+  status: z.enum(["available", "unavailable", "degraded", "skipped"]),
+  limitations: z.array(z.string().min(1)).optional(),
+});
+export type SandboxModelStatusSummary = z.infer<
+  typeof sandboxModelStatusSummarySchema
+>;
+
+export const sandboxCredentialStatusSummarySchema = z.object({
+  provider: z.string().min(1),
+  group: z.string().min(1).optional(),
+  credentialType: z.string().min(1),
+  status: z.enum([
+    "available",
+    "unavailable",
+    "expired",
+    "refreshing",
+    "failed",
+    "skipped",
+  ]),
+  expiresAt: isoDateTimeSchema.optional(),
+  persisted: z.enum(["state", "file", "none", "not_applicable"]).optional(),
+  updatedAt: isoDateTimeSchema.optional(),
+});
+export type SandboxCredentialStatusSummary = z.infer<
+  typeof sandboxCredentialStatusSummarySchema
+>;
+
+export const sandboxSecretStoreStatusSummarySchema = secretStoreStatusSchema;
+export type SandboxSecretStoreStatusSummary = z.infer<
+  typeof sandboxSecretStoreStatusSummarySchema
+>;
+
+export const sandboxSetupStatusSummarySchema = z.object({
+  git: startupSetupStatusSchema.optional(),
+  github: startupSetupStatusSchema.optional(),
+  boot: startupSetupStatusSchema.optional(),
+  skills: startupSetupStatusSchema.optional(),
+});
+export type SandboxSetupStatusSummary = z.infer<
+  typeof sandboxSetupStatusSummarySchema
+>;
+
+export const sandboxNetworkPolicySummarySchema = networkPolicyStatusSchema;
+export type SandboxNetworkPolicySummary = z.infer<
+  typeof sandboxNetworkPolicySummarySchema
+>;
+
+export const sandboxToolGroupStatusSummarySchema = toolGroupStatusSchema;
+export type SandboxToolGroupStatusSummary = z.infer<
+  typeof sandboxToolGroupStatusSummarySchema
+>;
+
+export const sandboxConversationSnapshotSchema = z.object({
   conversationId: sandboxConversationIdSchema,
   agentIds: z.array(sandboxAgentIdSchema).optional(),
   title: z.string().min(1).optional(),
-  updatedAt: z.string().datetime().optional(),
+  createdAt: isoDateTimeSchema.optional(),
+  updatedAt: isoDateTimeSchema.optional(),
+  activeRunIds: z.array(sandboxRunIdSchema).optional(),
 });
+export type SandboxConversationSnapshot = z.infer<
+  typeof sandboxConversationSnapshotSchema
+>;
 
-const sandboxRunSummarySchema = z.object({
+export const sandboxAgentSnapshotSchema = z.object({
+  conversationId: sandboxConversationIdSchema,
+  agentId: sandboxAgentIdSchema,
+  model: sandboxModelStatusSummarySchema.optional(),
+  permissionLevel: z.string().min(1).optional(),
+  parentAgentId: sandboxAgentIdSchema.optional(),
+  childAgentIds: z.array(sandboxAgentIdSchema).optional(),
+  createdAt: isoDateTimeSchema.optional(),
+  updatedAt: isoDateTimeSchema.optional(),
+});
+export type SandboxAgentSnapshot = z.infer<typeof sandboxAgentSnapshotSchema>;
+
+export const sandboxTranscriptSummaryEntrySchema = z.object({
+  entryId: z.string().min(1),
+  index: z.number().int().nonnegative().safe().optional(),
+  role: z.enum(["user", "assistant", "tool", "system"]),
+  summary: z.string().min(1).optional(),
+  content: boundedTextSchema.optional(),
+  artifactRefs: z.array(artifactRefSchema).optional(),
+  createdAt: isoDateTimeSchema.optional(),
+});
+export type SandboxTranscriptSummaryEntry = z.infer<
+  typeof sandboxTranscriptSummaryEntrySchema
+>;
+
+export const sandboxToolCallSummarySchema = z.object({
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1),
+  group: z.string().min(1).optional(),
+  status: z.enum([
+    "requested",
+    "waiting_for_approval",
+    "started",
+    "completed",
+    "failed",
+    "cancelled",
+  ]),
+  displayArgs: z.unknown().optional(),
+  summary: z.string().min(1).optional(),
+  artifactRefs: z.array(artifactRefSchema).optional(),
+  requestedAt: isoDateTimeSchema.optional(),
+  startedAt: isoDateTimeSchema.optional(),
+  completedAt: isoDateTimeSchema.optional(),
+  error: redactedErrorSchema.optional(),
+});
+export type SandboxToolCallSummary = z.infer<
+  typeof sandboxToolCallSummarySchema
+>;
+
+export const sandboxWaitSummarySchema = z.object({
+  waitId: z.string().min(1),
+  kind: z.enum(["input", "approval"]),
+  status: z.enum([
+    "waiting",
+    "submitted",
+    "granted",
+    "denied",
+    "cancelled",
+    "expired",
+  ]),
+  question: boundedTextSchema.optional(),
+  toolCallId: z.string().min(1).optional(),
+  approvalScope: z
+    .enum(["single_call", "same_tool_same_args", "run"])
+    .optional(),
+  risks: z.array(z.string().min(1)).optional(),
+  reason: z.string().min(1).optional(),
+  createdAt: isoDateTimeSchema,
+  resolvedAt: isoDateTimeSchema.optional(),
+});
+export type SandboxWaitSummary = z.infer<typeof sandboxWaitSummarySchema>;
+
+export const sandboxCheckpointSummarySchema = z.object({
+  checkpointId: z.string().min(1),
+  status: sandboxRunStatusSchema,
+  summary: boundedTextSchema.optional(),
+  stateRef: z.string().min(1).optional(),
+  createdAt: isoDateTimeSchema,
+});
+export type SandboxCheckpointSummary = z.infer<
+  typeof sandboxCheckpointSummarySchema
+>;
+
+export const sandboxRunSnapshotSchema = z.object({
   conversationId: sandboxConversationIdSchema,
   agentId: sandboxAgentIdSchema,
   runId: sandboxRunIdSchema,
   status: sandboxRunStatusSchema,
-  updatedAt: z.string().datetime().optional(),
+  behavior: z.enum(["start", "follow_up", "steer"]).optional(),
+  promptSummary: z.string().min(1).optional(),
+  createdAt: isoDateTimeSchema.optional(),
+  updatedAt: isoDateTimeSchema.optional(),
+  terminalAt: isoDateTimeSchema.optional(),
+  error: redactedErrorSchema.optional(),
+  transcriptRefs: z.array(z.string().min(1)).optional(),
+  toolCallRefs: z.array(z.string().min(1)).optional(),
+  checkpointRefs: z.array(z.string().min(1)).optional(),
+  waits: z.array(sandboxWaitSummarySchema).optional(),
+  transcript: z.array(sandboxTranscriptSummaryEntrySchema).optional(),
+  toolCalls: z.array(sandboxToolCallSummarySchema).optional(),
+  checkpoints: z.array(sandboxCheckpointSummarySchema).optional(),
 });
-const sandboxModelStatusSchema = z.object({
-  provider: z.string().min(1),
-  model: z.string().min(1).optional(),
-  active: z.boolean(),
-  status: z
-    .enum(["available", "unavailable", "degraded", "skipped"])
-    .optional(),
-  limitations: z.array(z.string().min(1)).optional(),
-});
+export type SandboxRunSnapshot = z.infer<typeof sandboxRunSnapshotSchema>;
 
-const sandboxCredentialStatusSummarySchema = z.object({
-  provider: z.string().min(1),
-  group: z.string().min(1).optional(),
-  credentialType: z.string().min(1),
-  status: z.enum(["available", "unavailable", "expired", "failed", "skipped"]),
-  expiresAt: z.string().datetime().optional(),
-});
-
-const sandboxReplayCursorSummarySchema = z.object({
+export const sandboxReplayCursorSummarySchema = z.object({
   stream: z.string().min(1),
   processedSeq: z.number().int().nonnegative().safe(),
+  updatedAt: isoDateTimeSchema.optional(),
 });
+export type SandboxReplayCursorSummary = z.infer<
+  typeof sandboxReplayCursorSummarySchema
+>;
+
+export const sandboxManagerStalenessSummarySchema = z.object({
+  stale: z.boolean(),
+  reason: z.string().min(1).optional(),
+  asOf: isoDateTimeSchema,
+  lastConnectedAt: isoDateTimeSchema.optional(),
+  disconnectedAt: isoDateTimeSchema.optional(),
+  ageMs: z.number().int().nonnegative().safe().optional(),
+});
+export type SandboxManagerStalenessSummary = z.infer<
+  typeof sandboxManagerStalenessSummarySchema
+>;
+
+export const sandboxControllerSessionSummarySchema = z.object({
+  sessionId: z.string().min(1).optional(),
+  instanceId: sandboxInstanceIdSchema.optional(),
+  status: z.enum(["connected", "disconnected", "closed"]).optional(),
+  connectedAt: isoDateTimeSchema.optional(),
+  disconnectedAt: isoDateTimeSchema.optional(),
+  closeCode: z.number().int().safe().optional(),
+  closeReason: z.string().min(1).optional(),
+  acceptedCapabilities: z.array(z.string().min(1)).optional(),
+});
+export type SandboxControllerSessionSummary = z.infer<
+  typeof sandboxControllerSessionSummarySchema
+>;
 
 export const sandboxStatusGetResultSchema = z.object({
   sandboxId: z.string().min(1).optional(),
   instanceId: sandboxInstanceIdSchema,
   status: sandboxDaemonStatusSchema,
+  connected: z.boolean(),
+  stale: z.boolean().optional(),
+  staleness: sandboxManagerStalenessSummarySchema.optional(),
+  lastEventSeq: z.number().int().nonnegative().safe().optional(),
+  lastEventAt: isoDateTimeSchema.optional(),
+  lastSession: sandboxControllerSessionSummarySchema.optional(),
+  limitations: z.array(z.string().min(1)).optional(),
   configDigest: z.string().min(1).optional(),
-  startedAt: z.string().datetime().optional(),
-  updatedAt: z.string().datetime(),
+  startedAt: isoDateTimeSchema.optional(),
+  updatedAt: isoDateTimeSchema,
   degraded: degradedStatusSchema.optional(),
   connectivity: controllerConnectivityStatusSchema.optional(),
-  setup: z
-    .object({
-      git: startupSetupStatusSchema.optional(),
-      github: startupSetupStatusSchema.optional(),
-      boot: startupSetupStatusSchema.optional(),
-      skills: startupSetupStatusSchema.optional(),
-    })
-    .optional(),
+  setup: sandboxSetupStatusSummarySchema.optional(),
   skills: z.array(skillStatusSchema).optional(),
-  toolGroups: z.array(toolGroupStatusSchema).optional(),
-  models: z.array(sandboxModelStatusSchema).optional(),
-  secretStores: z.array(secretStoreStatusSchema).optional(),
+  toolGroups: z.array(sandboxToolGroupStatusSummarySchema).optional(),
+  models: z.array(sandboxModelStatusSummarySchema).optional(),
+  secretStores: z.array(sandboxSecretStoreStatusSummarySchema).optional(),
   credentials: z.array(sandboxCredentialStatusSummarySchema).optional(),
-  network: networkPolicyStatusSchema.optional(),
+  network: sandboxNetworkPolicySummarySchema.optional(),
 
   cursors: z
     .object({
-      streams: z.array(
-        z.object({
-          stream: z.string().min(1),
-          processedSeq: z.number().int().nonnegative().safe(),
-        }),
-      ),
+      streams: z.array(sandboxReplayCursorSummarySchema),
     })
     .optional(),
-  conversations: z.array(sandboxConversationSummarySchema).optional(),
-  runs: z.array(sandboxRunSummarySchema).optional(),
+  conversations: z.array(sandboxConversationSnapshotSchema).optional(),
+  agents: z.array(sandboxAgentSnapshotSchema).optional(),
+  runs: z.array(sandboxRunSnapshotSchema).optional(),
   config: z.unknown().optional(),
 });
 export type SandboxStatusGetResult = z.infer<
   typeof sandboxStatusGetResultSchema
 >;
 
-const sandboxConversationSnapshotSchema =
-  sandboxConversationSummarySchema.extend({
-    agents: z.array(z.unknown()).optional(),
-  });
-
-const sandboxRunSnapshotSchema = sandboxRunSummarySchema.extend({
-  transcript: z.array(z.unknown()).optional(),
-  toolCalls: z.array(z.unknown()).optional(),
-  checkpoints: z.array(z.unknown()).optional(),
-});
-
 export const sandboxSnapshotResultSchema = z.object({
   sandboxId: z.string().min(1).optional(),
   instanceId: sandboxInstanceIdSchema,
   status: sandboxDaemonStatusSchema,
+  connected: z.boolean(),
+  stale: z.boolean().optional(),
+  staleness: sandboxManagerStalenessSummarySchema.optional(),
+  lastEventSeq: z.number().int().nonnegative().safe().optional(),
+  lastEventAt: isoDateTimeSchema.optional(),
+  lastSession: sandboxControllerSessionSummarySchema.optional(),
+  limitations: z.array(z.string().min(1)).optional(),
   conversations: z.array(sandboxConversationSnapshotSchema),
+  agents: z.array(sandboxAgentSnapshotSchema).optional(),
   runs: z.array(sandboxRunSnapshotSchema),
   configDigest: z.string().min(1).optional(),
   config: z.unknown().optional(),
-  toolGroups: z.array(toolGroupStatusSchema).optional(),
+  toolGroups: z.array(sandboxToolGroupStatusSummarySchema).optional(),
   skills: z.array(skillStatusSchema).optional(),
-  models: z.array(sandboxModelStatusSchema).optional(),
-  secretStores: z.array(secretStoreStatusSchema).optional(),
+  models: z.array(sandboxModelStatusSummarySchema).optional(),
+  secretStores: z.array(sandboxSecretStoreStatusSummarySchema).optional(),
   credentials: z.array(sandboxCredentialStatusSummarySchema).optional(),
-  network: networkPolicyStatusSchema.optional(),
+  network: sandboxNetworkPolicySummarySchema.optional(),
   replayCursors: z.array(sandboxReplayCursorSummarySchema).optional(),
-  setup: z
-    .object({
-      git: startupSetupStatusSchema.optional(),
-      github: startupSetupStatusSchema.optional(),
-    })
-    .optional(),
+  setup: sandboxSetupStatusSummarySchema.optional(),
   connectivity: controllerConnectivityStatusSchema.optional(),
 });
 export type SandboxSnapshotResult = z.infer<typeof sandboxSnapshotResultSchema>;

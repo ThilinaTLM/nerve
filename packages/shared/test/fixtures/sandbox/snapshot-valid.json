@@ -2,11 +2,34 @@
   "sandboxId": "sbx_1",
   "instanceId": "inst_1",
   "status": "ready",
+  "connected": true,
+  "stale": false,
+  "lastEventSeq": 8,
+  "lastEventAt": "2026-06-26T12:00:00.000Z",
+  "lastSession": {
+    "sessionId": "sess_1",
+    "instanceId": "inst_1",
+    "status": "connected",
+    "connectedAt": "2026-06-26T11:59:00.000Z"
+  },
   "conversations": [
     {
       "conversationId": "conv_1",
       "agentIds": ["agent_1"],
-      "updatedAt": "2026-06-26T12:00:00.000Z"
+      "updatedAt": "2026-06-26T12:00:00.000Z",
+      "activeRunIds": []
+    }
+  ],
+  "agents": [
+    {
+      "conversationId": "conv_1",
+      "agentId": "agent_1",
+      "model": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-5",
+        "active": true,
+        "status": "available"
+      }
     }
   ],
   "runs": [
@@ -16,15 +39,32 @@
       "runId": "run_1",
       "status": "completed",
       "updatedAt": "2026-06-26T12:00:00.000Z",
+      "transcriptRefs": ["transcript://conv_1/agent_1/run_1"],
+      "toolCallRefs": ["tool://tool_1"],
+      "checkpointRefs": ["checkpoint://checkpoint_1"],
       "transcript": [
-        { "entryId": "entry_1", "role": "assistant", "summary": "Done" }
+        {
+          "entryId": "entry_1",
+          "index": 0,
+          "role": "assistant",
+          "summary": "Done",
+          "createdAt": "2026-06-26T12:00:00.000Z"
+        }
       ],
       "toolCalls": [
         {
           "toolCallId": "tool_1",
           "toolName": "read",
           "status": "completed",
-          "summary": "Read file"
+          "summary": "Read file",
+          "completedAt": "2026-06-26T12:00:00.000Z"
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpointId": "checkpoint_1",
+          "status": "completed",
+          "createdAt": "2026-06-26T12:00:00.000Z"
         }
       ]
     }
@@ -37,5 +77,10 @@
       "active": true,
       "tools": ["read"]
     }
-  ]
+  ],
+  "replayCursors": [{ "stream": "sandbox", "processedSeq": 8 }],
+  "connectivity": {
+    "state": "connected",
+    "connectedAt": "2026-06-26T11:59:00.000Z"
+  }
 }

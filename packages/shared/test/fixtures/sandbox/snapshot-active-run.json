@@ -1,0 +1,48 @@
+{
+  "sandboxId": "sbx_active",
+  "instanceId": "inst_active",
+  "status": "running",
+  "connected": true,
+  "stale": false,
+  "lastEventSeq": 21,
+  "lastEventAt": "2026-06-26T12:00:10.000Z",
+  "conversations": [
+    {
+      "conversationId": "conv_active",
+      "agentIds": ["agent_main"],
+      "activeRunIds": ["run_active"]
+    }
+  ],
+  "agents": [{ "conversationId": "conv_active", "agentId": "agent_main" }],
+  "runs": [
+    {
+      "conversationId": "conv_active",
+      "agentId": "agent_main",
+      "runId": "run_active",
+      "status": "running",
+      "updatedAt": "2026-06-26T12:00:10.000Z",
+      "transcript": [
+        {
+          "entryId": "entry_user",
+          "index": 0,
+          "role": "user",
+          "summary": "Build the project"
+        },
+        {
+          "entryId": "entry_assistant",
+          "index": 1,
+          "role": "assistant",
+          "summary": "Inspecting files"
+        }
+      ],
+      "toolCalls": [
+        {
+          "toolCallId": "tool_read",
+          "toolName": "read",
+          "status": "completed",
+          "summary": "Read package metadata"
+        }
+      ]
+    }
+  ]
+}

@@ -6,7 +6,12 @@ import {
   type ServerResponse,
 } from "node:http";
 import path from "node:path";
-import { sandboxConfigV1Schema } from "@nervekit/shared";
+import {
+  type ManagedSandboxRecord,
+  sandboxConfigV1Schema,
+  sandboxSnapshotResultSchema,
+  sandboxStatusGetResultSchema,
+} from "@nervekit/shared";
 import { parse as parseYaml } from "yaml";
 import {
   commandRequestSchema,
@@ -53,18 +58,26 @@ async function handle(
   if (req.method === "GET" && path === "/health")
     return json(res, 200, ok({ version: sandboxManagerVersion }));
   if (req.method === "GET" && path === "/api/sandboxes")
-    return json(res, 200, ok(await state.sandboxes.list()));
+    return json(
+      res,
+      200,
+      ok((await state.sandboxes.list()).map(publicSandboxRecord)),
+    );
   if (req.method === "POST" && path === "/api/sandboxes") {
     const rawBody = await readJson(req);
     const body = createSandboxRequestSchema.parse(rawBody);
-    const result = await withIdempotency(state, req, path, rawBody, () =>
-      createSandboxRecord(state, body.config, body.image),
+    const result = await withIdempotency(state, req, path, rawBody, async () =>
+      publicSandboxRecord(
+        await createSandboxRecord(state, body.config, body.image),
+      ),
     );
     return json(res, result.replayed ? 200 : 201, ok(result.value));
   }
   const sandboxMatch = path.match(/^\/api\/sandboxes\/([^/]+)$/);
-  if (req.method === "GET" && sandboxMatch)
-    return json(res, 200, ok(await state.sandboxes.get(sandboxMatch[1])));
+  if (req.method === "GET" && sandboxMatch) {
+    const record = await state.sandboxes.get(sandboxMatch[1]);
+    return json(res, 200, ok(record ? publicSandboxRecord(record) : undefined));
+  }
   if (req.method === "DELETE" && sandboxMatch) {
     const body = {
       force:
@@ -77,10 +90,19 @@ async function handle(
     const result = await withIdempotency(state, req, path, body, async () => {
       const removed = await state.supervisor.remove(sandboxMatch[1], body);
       await state.sandboxes.delete(sandboxMatch[1]);
-      return removed;
+      return publicSandboxRecord(removed);
     });
     return json(res, 200, ok(result.value));
   }
+  const latestSessionMatch = path.match(
+    /^\/api\/sandboxes\/([^/]+)\/sessions\/latest$/,
+  );
+  if (req.method === "GET" && latestSessionMatch)
+    return json(
+      res,
+      200,
+      ok(sessionSummary(await state.sessions.get(latestSessionMatch[1]))),
+    );
   const actionMatch = path.match(
     /^\/api\/sandboxes\/([^/]+)\/(start|stop|restart|logs|status|snapshot)$/,
   );
@@ -96,8 +118,8 @@ async function handle(
     }
     if (req.method === "POST" && action === "stop") {
       const body = await readJson(req);
-      const result = await withIdempotency(state, req, path, body, () =>
-        state.supervisor.stop(sandboxId),
+      const result = await withIdempotency(state, req, path, body, async () =>
+        publicSandboxRecord(await state.supervisor.stop(sandboxId)),
       );
       return json(res, 200, ok(result.value));
     }
@@ -221,7 +243,9 @@ async function startSandbox(
     ...spec,
     instanceId: record.instanceId ?? spec.instanceId,
   };
-  return state.supervisor.start(sandboxId, stableSpec);
+  return publicSandboxRecord(
+    await state.supervisor.start(sandboxId, stableSpec),
+  );
 }
 async function collectLogs(
   state: ManagerState,
@@ -263,13 +287,21 @@ async function sandboxStatus(
   sandboxId: string,
 ): Promise<unknown> {
   const session = controller.getSession(sandboxId);
-  if (session)
-    return session.forwarder.send(session.socket, "sandbox.status.get", {});
-  return {
-    record: await state.sandboxes.get(sandboxId),
-    session: await state.sessions.get(sandboxId),
-    connected: false,
-  };
+  if (session) {
+    const result = await session.forwarder.send(
+      session.socket,
+      "sandbox.status.get",
+      {},
+    );
+    return sandboxStatusGetResultSchema.parse({
+      connected: true,
+      stale: false,
+      ...(isObjectRecord(result) ? result : {}),
+    });
+  }
+  return sandboxStatusGetResultSchema.parse(
+    await managerDerivedStatus(state, sandboxId),
+  );
 }
 async function sandboxSnapshot(
   state: ManagerState,
@@ -277,15 +309,172 @@ async function sandboxSnapshot(
   sandboxId: string,
 ): Promise<unknown> {
   const session = controller.getSession(sandboxId);
-  if (session)
-    return session.forwarder.send(session.socket, "sandbox.snapshot.get", {});
+  if (session) {
+    const result = await session.forwarder.send(
+      session.socket,
+      "sandbox.snapshot.get",
+      {},
+    );
+    return sandboxSnapshotResultSchema.parse({
+      connected: true,
+      stale: false,
+      ...(isObjectRecord(result) ? result : {}),
+    });
+  }
+  return sandboxSnapshotResultSchema.parse(
+    await managerDerivedSnapshot(state, sandboxId),
+  );
+}
+async function managerDerivedStatus(
+  state: ManagerState,
+  sandboxId: string,
+): Promise<Record<string, unknown>> {
+  const record = await state.sandboxes.get(sandboxId);
+  if (!record) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
+  const session = await state.sessions.get(sandboxId);
+  const events = await state.events.list(sandboxId);
+  const lastEvent = events
+    .filter((event) => typeof event.seq === "number" || event.ts)
+    .sort((a, b) => Number(a.seq ?? -1) - Number(b.seq ?? -1))
+    .at(-1);
+  const now = new Date().toISOString();
+  const disconnectedAt = session?.disconnectedAt ?? record.stoppedAt;
   return {
-    record: await state.sandboxes.get(sandboxId),
-    events: await state.events.list(sandboxId),
-    session: await state.sessions.get(sandboxId),
+    sandboxId: record.sandboxId,
+    instanceId: record.instanceId ?? "unknown",
+    status: daemonStatusFromRecord(record, session?.state),
     connected: false,
+    stale: true,
+    staleness: {
+      stale: true,
+      reason: session ? "controller_disconnected" : "no_controller_session",
+      asOf: now,
+      lastConnectedAt: session?.updatedAt,
+      disconnectedAt,
+      ageMs: disconnectedAt
+        ? Math.max(0, Date.now() - Date.parse(disconnectedAt))
+        : undefined,
+    },
+    lastEventSeq: lastEvent?.seq,
+    lastEventAt: lastEvent?.ts,
+    lastSession: sessionSummary(session),
+    limitations: [
+      "Status is manager-derived because no controller session is connected",
+    ],
+    configDigest: record.configDigest,
+    startedAt: record.startedAt,
+    updatedAt: record.updatedAt,
+    connectivity: {
+      state:
+        session?.state === "reconnecting" ? "reconnecting" : "disconnected",
+      connectedAt: session?.updatedAt,
+      disconnectedAt,
+      lastErrorCode: record.lastError?.code,
+    },
+    cursors: cursorSummary(session?.cursors),
+    conversations: [],
+    agents: [],
+    runs: [],
   };
 }
+
+async function managerDerivedSnapshot(
+  state: ManagerState,
+  sandboxId: string,
+): Promise<Record<string, unknown>> {
+  const status = await managerDerivedStatus(state, sandboxId);
+  const events = await state.events.list(sandboxId);
+  return {
+    ...status,
+    conversations: [],
+    agents: [],
+    runs: [],
+    replayCursors: cursorSummary((await state.sessions.get(sandboxId))?.cursors)
+      ?.streams,
+    lastEventSeq: events.at(-1)?.seq ?? status.lastEventSeq,
+    lastEventAt: events.at(-1)?.ts ?? status.lastEventAt,
+  };
+}
+
+function daemonStatusFromRecord(
+  record: ManagedSandboxRecord,
+  sessionState?: string,
+): string {
+  if (sessionState === "reconnecting") return "reconnecting";
+  if (record.observedState === "running") return "reconnecting";
+  if (
+    record.observedState === "starting" ||
+    record.observedState === "creating"
+  )
+    return "booting";
+  if (record.observedState === "failed") return "failed";
+  if (record.observedState === "stopping") return "stopping";
+  return "reconnecting";
+}
+
+function sessionSummary(
+  session: Awaited<ReturnType<ManagerState["sessions"]["get"]>>,
+) {
+  if (!session) return undefined;
+  return {
+    sessionId: session.sessionId,
+    status:
+      session.state === "exited"
+        ? "closed"
+        : session.state === "reconnecting"
+          ? "disconnected"
+          : session.state,
+    connectedAt: session.updatedAt,
+    disconnectedAt: session.disconnectedAt,
+    closeCode: session.closeCode,
+    closeReason: session.closeReason,
+    acceptedCapabilities: session.capabilities,
+  };
+}
+
+function cursorSummary(
+  cursors: unknown,
+): { streams: Array<{ stream: string; processedSeq: number }> } | undefined {
+  if (
+    cursors &&
+    typeof cursors === "object" &&
+    Array.isArray((cursors as { streams?: unknown }).streams)
+  ) {
+    const streams = (cursors as { streams: unknown[] }).streams.flatMap(
+      (cursor) => {
+        if (
+          cursor &&
+          typeof cursor === "object" &&
+          typeof (cursor as { stream?: unknown }).stream === "string" &&
+          typeof (cursor as { processedSeq?: unknown }).processedSeq ===
+            "number"
+        )
+          return [
+            {
+              stream: (cursor as { stream: string }).stream,
+              processedSeq: (cursor as { processedSeq: number }).processedSeq,
+            },
+          ];
+        return [];
+      },
+    );
+    return { streams };
+  }
+  return undefined;
+}
+
+function publicSandboxRecord(
+  record: ManagedSandboxRecord,
+): ManagedSandboxRecord {
+  return record.controller
+    ? { ...record, controller: { ...record.controller, token: "[REDACTED]" } }
+    : record;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 async function withIdempotency<T>(
   state: ManagerState,
   req: IncomingMessage,
