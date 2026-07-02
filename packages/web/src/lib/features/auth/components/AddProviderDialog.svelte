@@ -173,6 +173,19 @@
                 disabled={flowController.busy}
               />
             </form>
+          {:else if flowController.flow.status === "failed"}
+            <div class="oauth-failed">
+              <p class="oauth-error-text">The login attempt ended before credentials were saved.</p>
+              <p class="oauth-hint">
+                Fix any proxy or certificate settings, then start a fresh login. Authorization codes are one-time and may be tied to the ended login attempt.
+                {#if flowController.flow.provider === "openai-codex"}
+                  If local redirects are blocked, choose device-code login when prompted.
+                {/if}
+              </p>
+              <Button variant="outline" disabled={flowController.busy} onclick={() => void flowController.restartOAuth()}>
+                Start a fresh login
+              </Button>
+            </div>
           {:else if flowController.flow.status === "succeeded"}
             <p class="oauth-success">Connected to {flowController.flow.providerName}.</p>
           {:else}
@@ -340,6 +353,18 @@
     font-family: var(--font-mono);
     font-size: var(--text-base);
     letter-spacing: 0.12em;
+  }
+
+  .oauth-failed {
+    display: grid;
+    gap: 0.55rem;
+    justify-items: start;
+  }
+
+  .oauth-error-text {
+    margin: 0;
+    color: var(--destructive);
+    font-size: var(--text-sm);
   }
 
   .oauth-success {

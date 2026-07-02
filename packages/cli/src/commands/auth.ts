@@ -145,7 +145,7 @@ async function driveOAuthFlow(initialFlow: OAuthFlowInfo): Promise<void> {
       return;
     }
     if (flow.status === "failed") {
-      throw new Error(flow.error ?? flow.message ?? "OAuth login failed.");
+      throw new Error(flow.message ?? flow.error ?? "OAuth login failed.");
     }
     if (flow.status === "cancelled") {
       throw new Error(flow.message ?? "OAuth login cancelled.");

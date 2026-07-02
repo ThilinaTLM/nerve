@@ -38,9 +38,83 @@ function readFlag(name: string): boolean {
   return process.argv.includes(name);
 }
 
+const loopbackNoProxyEntries = ["localhost", "127.0.0.1", "::1"];
+
+function prepareEnterpriseNetworkEnvironment(): void {
+  const proxyConfigured = Boolean(
+    firstEnvValue([
+      "HTTPS_PROXY",
+      "https_proxy",
+      "HTTP_PROXY",
+      "http_proxy",
+      "npm_config_https_proxy",
+      "npm_config_http_proxy",
+      "npm_config_proxy",
+    ]),
+  );
+
+  if (proxyConfigured && !firstEnvValue(["NODE_USE_ENV_PROXY"])) {
+    process.env.NODE_USE_ENV_PROXY = "1";
+  }
+  if (!firstEnvValue(["NODE_USE_SYSTEM_CA"])) {
+    process.env.NODE_USE_SYSTEM_CA = "1";
+  }
+
+  const mergedNoProxy = mergeNoProxy(
+    mergeNoProxySources([
+      process.env.NO_PROXY,
+      process.env.no_proxy,
+      process.env.npm_config_noproxy,
+      process.env.npm_config_no_proxy,
+    ]),
+  );
+  process.env.NO_PROXY = mergedNoProxy;
+  process.env.no_proxy = mergedNoProxy;
+}
+
+function firstEnvValue(names: readonly string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function mergeNoProxySources(values: Array<string | undefined>): string {
+  const entries: string[] = [];
+  const normalizedEntries = new Set<string>();
+  for (const value of values) {
+    for (const entry of (value ?? "").split(",")) {
+      const trimmed = entry.trim();
+      const normalized = trimmed.toLowerCase();
+      if (!trimmed || normalizedEntries.has(normalized)) continue;
+      entries.push(trimmed);
+      normalizedEntries.add(normalized);
+    }
+  }
+  return entries.join(",");
+}
+
+function mergeNoProxy(value: string): string {
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const normalizedEntries = new Set(
+    entries.map((entry) => entry.toLowerCase()),
+  );
+  for (const entry of loopbackNoProxyEntries) {
+    if (normalizedEntries.has(entry.toLowerCase())) continue;
+    entries.push(entry);
+    normalizedEntries.add(entry.toLowerCase());
+  }
+  return entries.join(",");
+}
+
 let runtimeMonitor: DaemonRuntimeMonitor | undefined;
 
 async function main() {
+  prepareEnterpriseNetworkEnvironment();
   const dataDir = resolveDataDir();
   installNodeDiagnosticReports(dataDir);
   runtimeMonitor = installDaemonRuntimeMonitor(dataDir);

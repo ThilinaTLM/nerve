@@ -55,6 +55,8 @@ if (forwardedArgs.includes("--help") || forwardedArgs.includes("-h")) {
       "  NERVE_ELECTRON_OZONE_PLATFORM=x11|wayland|auto  (Linux only)",
       "  NERVE_ELECTRON_FONT_RENDER_HINTING=system|none|slight|medium|full  (Linux only; default: slight)",
       "  ELECTRON_GET_USE_PROXY=true with HTTPS_PROXY/HTTP_PROXY/NO_PROXY  (corporate proxy downloads)",
+      "  NODE_USE_ENV_PROXY=1 and NODE_USE_SYSTEM_CA=1 are enabled automatically when needed",
+      "  NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem  (explicit TLS interception CA bundle)",
       "  NERVE_DEBUG_PROXY=1  Print redacted proxy diagnostics during startup",
       "",
     ].join("\n"),

@@ -128,6 +128,14 @@ export class AddProviderFlow {
     }
   }
 
+  async restartOAuth(): Promise<void> {
+    const provider = this.selected;
+    if (!provider) return;
+    this.promptValue = "";
+    this.flow = undefined;
+    await this.beginOAuth(provider);
+  }
+
   async beginOAuth(provider: AuthProviderMetadata): Promise<void> {
     this.step = "oauth";
     this.busy = true;

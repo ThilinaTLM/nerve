@@ -20,8 +20,12 @@ describe("prepareElectronDownloadEnv", () => {
     assert.equal(env.HTTP_PROXY, "http://user:secret@proxy.example.com:8080");
     assert.equal(env.ELECTRON_GET_USE_PROXY, "true");
     assert.equal(env.NODE_EXTRA_CA_CERTS, "/tmp/corp-ca.pem");
+    assert.equal(env.NODE_USE_ENV_PROXY, "1");
+    assert.equal(env.NODE_USE_SYSTEM_CA, "1");
     assert.equal(result.proxyConfigured, true);
     assert.equal(result.enabledElectronGetProxy, true);
+    assert.equal(result.enabledNodeEnvProxy, true);
+    assert.equal(result.enabledNodeSystemCa, true);
     assert.deepEqual(result.copiedFromPackageManagerConfig, [
       "HTTPS_PROXY",
       "HTTP_PROXY",
@@ -36,6 +40,8 @@ describe("prepareElectronDownloadEnv", () => {
       npm_config_proxy: "http://npm.example.com:8080",
       ELECTRON_GET_USE_PROXY: "false",
       NODE_EXTRA_CA_CERTS: "/tmp/existing-ca.pem",
+      NODE_USE_ENV_PROXY: "0",
+      NODE_USE_SYSTEM_CA: "0",
       npm_config_cafile: "/tmp/npm-ca.pem",
     };
 
@@ -45,7 +51,11 @@ describe("prepareElectronDownloadEnv", () => {
     assert.equal(env.HTTP_PROXY, "http://standard.example.com:8080");
     assert.equal(env.ELECTRON_GET_USE_PROXY, "false");
     assert.equal(env.NODE_EXTRA_CA_CERTS, "/tmp/existing-ca.pem");
+    assert.equal(env.NODE_USE_ENV_PROXY, "0");
+    assert.equal(env.NODE_USE_SYSTEM_CA, "0");
     assert.equal(result.enabledElectronGetProxy, false);
+    assert.equal(result.enabledNodeEnvProxy, false);
+    assert.equal(result.enabledNodeSystemCa, false);
     assert.deepEqual(result.copiedFromPackageManagerConfig, []);
   });
 
@@ -73,7 +83,10 @@ describe("prepareElectronDownloadEnv", () => {
 
     assert.equal(env.NO_PROXY, "localhost,127.0.0.1,::1");
     assert.equal(env.no_proxy, "localhost,127.0.0.1,::1");
+    assert.equal(env.NODE_USE_SYSTEM_CA, "1");
     assert.equal(result.proxyConfigured, false);
+    assert.equal(result.enabledNodeEnvProxy, false);
+    assert.equal(result.enabledNodeSystemCa, true);
     assert.equal(result.noProxyUpdated, true);
   });
 
@@ -86,6 +99,8 @@ describe("prepareElectronDownloadEnv", () => {
     const serialized = JSON.stringify(log);
 
     assert.equal(log.envPresent.HTTPS_PROXY, true);
+    assert.equal(log.envPresent.NODE_USE_ENV_PROXY, true);
+    assert.equal(log.envPresent.NODE_USE_SYSTEM_CA, true);
     assert.equal(log.noProxyContainsLoopback.localhost, true);
     assert.equal(serialized.includes("secret"), false);
     assert.equal(serialized.includes("proxy.example.com"), false);

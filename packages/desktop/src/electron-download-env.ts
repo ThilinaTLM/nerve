@@ -12,6 +12,8 @@ export const chromiumLoopbackProxyBypassRules = [
 export interface ElectronDownloadEnvPreparation {
   proxyConfigured: boolean;
   enabledElectronGetProxy: boolean;
+  enabledNodeEnvProxy: boolean;
+  enabledNodeSystemCa: boolean;
   copiedFromPackageManagerConfig: string[];
   noProxyUpdated: boolean;
   nodeExtraCaCertsFromPackageManagerCafile: boolean;
@@ -20,6 +22,8 @@ export interface ElectronDownloadEnvPreparation {
 export interface ElectronProxyPreparationLog {
   proxyConfigured: boolean;
   enabledElectronGetProxy: boolean;
+  enabledNodeEnvProxy: boolean;
+  enabledNodeSystemCa: boolean;
   copiedFromPackageManagerConfig: string[];
   noProxyUpdated: boolean;
   nodeExtraCaCertsFromPackageManagerCafile: boolean;
@@ -80,6 +84,13 @@ export function prepareElectronDownloadEnv(
     proxyConfigured && !firstEnvValue(env, ["ELECTRON_GET_USE_PROXY"]);
   if (enabledElectronGetProxy) env.ELECTRON_GET_USE_PROXY = "true";
 
+  const enabledNodeEnvProxy =
+    proxyConfigured && !firstEnvValue(env, ["NODE_USE_ENV_PROXY"]);
+  if (enabledNodeEnvProxy) env.NODE_USE_ENV_PROXY = "1";
+
+  const enabledNodeSystemCa = !firstEnvValue(env, ["NODE_USE_SYSTEM_CA"]);
+  if (enabledNodeSystemCa) env.NODE_USE_SYSTEM_CA = "1";
+
   const existingNoProxy = firstEnvValue(env, ["NO_PROXY"]);
   const existingLowerNoProxy = firstEnvValue(env, ["no_proxy"]);
   const noProxyBase = mergeNoProxySources([
@@ -107,6 +118,8 @@ export function prepareElectronDownloadEnv(
   return {
     proxyConfigured,
     enabledElectronGetProxy,
+    enabledNodeEnvProxy,
+    enabledNodeSystemCa,
     copiedFromPackageManagerConfig,
     noProxyUpdated,
     nodeExtraCaCertsFromPackageManagerCafile,
@@ -123,7 +136,9 @@ export function formatElectronDownloadFailure(error: unknown): string {
     "  HTTPS_PROXY=http://proxy.example.com:8080",
     "  HTTP_PROXY=http://proxy.example.com:8080",
     "  NO_PROXY=localhost,127.0.0.1,::1",
-    "  NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem   # if TLS is intercepted",
+    "  NODE_USE_ENV_PROXY=1                           # enables Node fetch proxy env support",
+    "  NODE_USE_SYSTEM_CA=1                            # trusts OS corporate CAs when supported",
+    "  NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem   # explicit CA bundle if TLS is intercepted",
     "",
     "Then retry from a source checkout:",
     "  pnpm --filter @nervekit/desktop rebuild electron",
@@ -144,6 +159,8 @@ export function formatProxyPreparationForLog(
   return {
     proxyConfigured: preparation.proxyConfigured,
     enabledElectronGetProxy: preparation.enabledElectronGetProxy,
+    enabledNodeEnvProxy: preparation.enabledNodeEnvProxy,
+    enabledNodeSystemCa: preparation.enabledNodeSystemCa,
     copiedFromPackageManagerConfig: preparation.copiedFromPackageManagerConfig,
     noProxyUpdated: preparation.noProxyUpdated,
     nodeExtraCaCertsFromPackageManagerCafile:
@@ -157,6 +174,8 @@ export function formatProxyPreparationForLog(
         "NO_PROXY",
         "no_proxy",
         "NODE_EXTRA_CA_CERTS",
+        "NODE_USE_ENV_PROXY",
+        "NODE_USE_SYSTEM_CA",
         "ELECTRON_GET_USE_PROXY",
         "ELECTRON_MIRROR",
       ].map((name) => [name, Boolean(env[name]?.trim())]),

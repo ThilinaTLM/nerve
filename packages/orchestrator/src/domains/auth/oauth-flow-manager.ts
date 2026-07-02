@@ -33,6 +33,59 @@ function now(): string {
   return new Date().toISOString();
 }
 
+const OAUTH_MANUAL_FALLBACK_HINT =
+  "If the browser lands on a proxy/certificate error page or the callback does not complete, copy the final redirect URL from the address bar or paste the authorization code here.";
+
+function oauthManualFallbackInstructions(
+  instructions: string | undefined,
+): string {
+  if (!instructions) return OAUTH_MANUAL_FALLBACK_HINT;
+  if (instructions.includes(OAUTH_MANUAL_FALLBACK_HINT)) return instructions;
+  return `${instructions}\n\n${OAUTH_MANUAL_FALLBACK_HINT}`;
+}
+
+export function formatOAuthLoginFailure(
+  providerId: string,
+  message: string,
+): string {
+  const hint = oauthFailureHint(providerId, message);
+  return hint ? `${message}\n\n${hint}` : message;
+}
+
+function oauthFailureHint(
+  providerId: string,
+  message: string,
+): string | undefined {
+  const normalized = message.toLowerCase();
+  if (isTlsTrustFailure(normalized)) {
+    return [
+      "This looks like a TLS certificate trust failure during OAuth token exchange. In corporate proxy environments, make sure the corporate root CA is trusted by Node. Nerve Desktop enables Node system CA trust for owned daemons; if your company provides a PEM bundle, set NODE_EXTRA_CA_CERTS before starting Nerve, then start a fresh login.",
+      "The authorization code may already be tied to the ended PKCE flow, so retrying with a new login is safer than pasting a stale code after this failure.",
+    ].join(" ");
+  }
+  if (isNetworkOrProxyFailure(normalized)) {
+    return [
+      "This looks like a network or proxy failure during OAuth token exchange. Ensure HTTPS_PROXY/HTTP_PROXY and NO_PROXY are available to the Nerve process, then start a fresh login.",
+      providerId === "openai-codex"
+        ? "If local browser redirects are blocked, choose device-code login when restarting the OpenAI Codex login."
+        : "If the browser callback itself is blocked, paste the final redirect URL while the login prompt is still active.",
+    ].join(" ");
+  }
+  return undefined;
+}
+
+function isTlsTrustFailure(normalizedMessage: string): boolean {
+  return /self[_ -]signed|self signed certificate|unable_to_verify|unable to verify|cert[_ -]in[_ -]chain|certificate chain|depth_zero_self_signed_cert|unable_to_get_issuer_cert/i.test(
+    normalizedMessage,
+  );
+}
+
+function isNetworkOrProxyFailure(normalizedMessage: string): boolean {
+  return /fetch failed|etimedout|econnreset|econnrefused|enotfound|eai_again|proxy|tunnel|connect timeout|socket hang up/i.test(
+    normalizedMessage,
+  );
+}
+
 function terminal(status: OAuthFlowInfo["status"]): boolean {
   return (
     status === "succeeded" || status === "failed" || status === "cancelled"
@@ -184,7 +237,12 @@ export class OAuthFlowManager {
       },
       onPrompt: (prompt) => this.handlePrompt(flow, prompt),
       onProgress: (message) => {
-        void this.update(flow, { status: "progress", message });
+        void this.update(flow, {
+          status: "progress",
+          message,
+          authUrl: flow.info.authUrl,
+          instructions: flow.info.instructions,
+        });
       },
       onManualCodeInput: () => this.waitForManualCode(flow),
       onSelect: (prompt) => this.handleSelect(flow, prompt),
@@ -257,9 +315,9 @@ export class OAuthFlowManager {
     await this.update(flow, {
       status: "auth_url",
       message:
-        "Open the login URL, then complete authentication in your browser.",
+        "Open the login URL, then complete authentication in your browser. You can also paste the final redirect URL or authorization code here if the browser callback does not complete.",
       authUrl: info.url,
-      instructions: info.instructions,
+      instructions: oauthManualFallbackInstructions(info.instructions),
       promptId: undefined,
       options: undefined,
       deviceCode: undefined,
@@ -271,10 +329,13 @@ export class OAuthFlowManager {
     const promptId = createId("authflow");
     const response = await this.waitForResponse(flow, {
       status: "prompt",
-      message: "Paste redirect URL or authorization code.",
+      message:
+        "Paste the final redirect URL or authorization code if the browser callback does not complete.",
       promptId,
       placeholder: "Paste redirect URL or authorization code",
       options: undefined,
+      authUrl: flow.info.authUrl,
+      instructions: oauthManualFallbackInstructions(flow.info.instructions),
       deviceCode: undefined,
       allowEmpty: undefined,
     });
@@ -307,7 +368,7 @@ export class OAuthFlowManager {
     await this.update(flow, {
       status: "failed",
       error: message,
-      message: `Login failed: ${message}`,
+      message: `Login failed: ${formatOAuthLoginFailure(flow.provider.id, message)}`,
       promptId: undefined,
       options: undefined,
       authUrl: undefined,
