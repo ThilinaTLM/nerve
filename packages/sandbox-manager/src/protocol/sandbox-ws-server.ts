@@ -22,6 +22,37 @@ import {
   SandboxSessionRegistry,
 } from "./sandbox-session.js";
 
+const CONTROLLER_CAPABILITIES = new Set([
+  "encoding.json",
+  "event.batch",
+  "event.replay",
+  "event.ack.processed",
+  "flow.backpressure",
+  "sandbox.runtime.v1",
+  "sandbox.commands.v1",
+  "sandbox.events.v1",
+  "sandbox.snapshots.v1",
+  "sandbox.models.pi_ai.v1",
+  "sandbox.credentials.oauth_refresh.v1",
+  "sandbox.secret_stores.v1",
+  "sandbox.git_config.v1",
+  "sandbox.github_config.v1",
+  "sandbox.tool_groups.v1",
+  "sandbox.tools.web_search.v1",
+  "sandbox.tools.jira.v1",
+  "sandbox.tools.confluence.v1",
+  "sandbox.skills.v1",
+  "sandbox.disconnect_exit.v1",
+  "sandbox.multi_agent_state.v1",
+  "sandbox.network.egress_policy.v1",
+]);
+
+function acceptedCapabilities(advertised: readonly string[]): string[] {
+  return advertised.filter((capability) =>
+    CONTROLLER_CAPABILITIES.has(capability),
+  );
+}
+
 export class SandboxWsServer {
   readonly sessions = new SandboxSessionRegistry();
   private readonly wss = new WebSocketServer({ noServer: true });
@@ -107,6 +138,7 @@ export class SandboxWsServer {
         }
         const sessionId = `sess_${randomUUID()}`;
         const now = new Date().toISOString();
+        const capabilities = acceptedCapabilities(hello.capabilities);
         const forwarder = new CommandForwarder();
         session = {
           sandboxId,
@@ -124,6 +156,7 @@ export class SandboxWsServer {
           state: "connected",
           updatedAt: now,
           cursors: hello.resume?.cursors,
+          capabilities,
         });
         await this.state.sandboxes.put({
           ...record,
@@ -142,6 +175,7 @@ export class SandboxWsServer {
             version: 1,
             accepted: true,
             sessionId,
+            acceptedCapabilities: capabilities,
             heartbeatIntervalMs: 15_000,
             replay: {
               required: true,

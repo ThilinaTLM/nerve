@@ -70,11 +70,37 @@ describe("sandbox manager websocket protocol", async () => {
         role: "agent",
         sandboxId: record.sandboxId,
         instanceId: record.instanceId,
-        capabilities: ["status"],
+        capabilities: [
+          "encoding.json",
+          "event.batch",
+          "event.replay",
+          "event.ack.processed",
+          "flow.backpressure",
+          "sandbox.runtime.v1",
+          "sandbox.commands.v1",
+          "sandbox.events.v1",
+          "sandbox.snapshots.v1",
+          "unsupported.future",
+        ],
       }),
     );
     const welcome = await onceJson(ws);
     assert.equal(welcome.type, "welcome");
+    assert.deepEqual(
+      (welcome.acceptedCapabilities as string[]).filter(
+        (capability) =>
+          capability.startsWith("sandbox.") || capability.startsWith("event."),
+      ),
+      [
+        "event.batch",
+        "event.replay",
+        "event.ack.processed",
+        "sandbox.runtime.v1",
+        "sandbox.commands.v1",
+        "sandbox.events.v1",
+        "sandbox.snapshots.v1",
+      ],
+    );
     ws.send(
       JSON.stringify({
         type: "event.batch",

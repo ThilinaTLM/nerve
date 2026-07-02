@@ -14,7 +14,7 @@ export class SandboxStateStores {
     );
     this.events = new EventOutbox(
       path.join(stateDir, "events", "outbox.jsonl"),
-      path.join(stateDir, "controller", "ack.json"),
+      path.join(stateDir, "events", "ack.json"),
     );
     this.status = new JsonStore(path.join(stateDir, "status.json"));
     this.connectivity = new JsonStore(

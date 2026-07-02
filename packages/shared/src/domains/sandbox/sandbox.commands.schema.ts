@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   controllerConnectivityStatusSchema,
   degradedStatusSchema,
+  networkPolicyStatusSchema,
   sandboxAgentIdSchema,
   sandboxCommandIdSchema,
   sandboxConversationIdSchema,
@@ -9,6 +10,7 @@ import {
   sandboxInstanceIdSchema,
   sandboxRunIdSchema,
   sandboxRunStatusSchema,
+  secretStoreStatusSchema,
   skillStatusSchema,
   startupSetupStatusSchema,
   toolGroupStatusSchema,
@@ -218,6 +220,28 @@ const sandboxRunSummarySchema = z.object({
   status: sandboxRunStatusSchema,
   updatedAt: z.string().datetime().optional(),
 });
+const sandboxModelStatusSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1).optional(),
+  active: z.boolean(),
+  status: z
+    .enum(["available", "unavailable", "degraded", "skipped"])
+    .optional(),
+  limitations: z.array(z.string().min(1)).optional(),
+});
+
+const sandboxCredentialStatusSummarySchema = z.object({
+  provider: z.string().min(1),
+  group: z.string().min(1).optional(),
+  credentialType: z.string().min(1),
+  status: z.enum(["available", "unavailable", "expired", "failed", "skipped"]),
+  expiresAt: z.string().datetime().optional(),
+});
+
+const sandboxReplayCursorSummarySchema = z.object({
+  stream: z.string().min(1),
+  processedSeq: z.number().int().nonnegative().safe(),
+});
 
 export const sandboxStatusGetResultSchema = z.object({
   sandboxId: z.string().min(1).optional(),
@@ -238,6 +262,11 @@ export const sandboxStatusGetResultSchema = z.object({
     .optional(),
   skills: z.array(skillStatusSchema).optional(),
   toolGroups: z.array(toolGroupStatusSchema).optional(),
+  models: z.array(sandboxModelStatusSchema).optional(),
+  secretStores: z.array(secretStoreStatusSchema).optional(),
+  credentials: z.array(sandboxCredentialStatusSummarySchema).optional(),
+  network: networkPolicyStatusSchema.optional(),
+
   cursors: z
     .object({
       streams: z.array(
@@ -276,6 +305,12 @@ export const sandboxSnapshotResultSchema = z.object({
   configDigest: z.string().min(1).optional(),
   config: z.unknown().optional(),
   toolGroups: z.array(toolGroupStatusSchema).optional(),
+  skills: z.array(skillStatusSchema).optional(),
+  models: z.array(sandboxModelStatusSchema).optional(),
+  secretStores: z.array(secretStoreStatusSchema).optional(),
+  credentials: z.array(sandboxCredentialStatusSummarySchema).optional(),
+  network: networkPolicyStatusSchema.optional(),
+  replayCursors: z.array(sandboxReplayCursorSummarySchema).optional(),
   setup: z
     .object({
       git: startupSetupStatusSchema.optional(),

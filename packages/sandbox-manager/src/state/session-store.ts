@@ -6,6 +6,7 @@ export type SandboxSessionRecord = {
   state: "connected" | "reconnecting" | "disconnected" | "exited";
   updatedAt: string;
   cursors?: unknown;
+  capabilities?: string[];
   disconnectedAt?: string;
   closeCode?: number;
   closeReason?: string;

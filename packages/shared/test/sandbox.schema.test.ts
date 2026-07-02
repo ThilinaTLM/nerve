@@ -126,6 +126,71 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
+  it("hardens v1 config validation for providers, secret cycles, and raw credentials", () => {
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        modelCatalog: {
+          providers: [{ id: "corp", baseUrl: "https://llm.example.test" }],
+          models: [{ provider: "corp", model: "chat" }],
+        },
+        agent: { mainModel: { provider: "corp", model: "chat" } },
+      }).success,
+      false,
+    );
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        secretStores: {
+          stores: {
+            main: {
+              type: "http_kv",
+              endpoint: "https://secrets.example.test",
+              auth: {
+                type: "bearer",
+                token: { kv: { store: "main", key: "token" } },
+              },
+            },
+          },
+        },
+      }).success,
+      false,
+    );
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        modelCatalog: {
+          providers: [
+            {
+              id: "corp",
+              api: "openai-compatible",
+              baseUrl: "https://llm.example.test",
+              credential: { type: "bearer", token: { env: "CORP_TOKEN" } },
+            },
+          ],
+          models: [{ provider: "corp", model: "chat" }],
+        },
+        agent: { mainModel: { provider: "corp", model: "chat" } },
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        modelCatalog: {
+          providers: [
+            {
+              id: "corp",
+              builtin: true,
+              headers: { authorization: "sk-abcdefghijklmnopqrstuvwxyz" },
+            },
+          ],
+        },
+      }).success,
+      false,
+    );
+  });
+
   it("keeps canonical JSON stable across object key order", () => {
     assert.equal(
       sandboxCanonicalJson({ b: 2, a: { d: 4, c: 3 } }),
@@ -249,7 +314,7 @@ describe("Sandbox shared schemas", () => {
         commandId: "cmd_1",
         messageId: "msg_1",
         method: "sandbox.run.start",
-        paramsHash: "stable:abc",
+        paramsHash: `sha256:${"a".repeat(64)}`,
         params: {},
         acceptedAt: ts,
         status: "accepted",
