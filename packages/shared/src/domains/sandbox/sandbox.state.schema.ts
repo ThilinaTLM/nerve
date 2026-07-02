@@ -1,13 +1,20 @@
 import { z } from "zod";
 import {
   boundedTextSchema,
+  contextFileStatusSchema,
+  controllerConnectivityStatusSchema,
   isoDateTimeSchema,
+  networkPolicyStatusSchema,
   redactedErrorSchema,
   sandboxAgentIdSchema,
   sandboxCommandIdSchema,
   sandboxConversationIdSchema,
   sandboxRunIdSchema,
   sandboxRunStatusSchema,
+  secretStoreStatusSchema,
+  skillStatusSchema,
+  startupSetupStatusSchema,
+  toolGroupStatusSchema,
 } from "./sandbox.common.schema.js";
 
 export const sandboxOutboxRecordSchema = z.object({
@@ -29,7 +36,7 @@ export const sandboxCommandRecordSchema = z.object({
   commandId: sandboxCommandIdSchema,
   messageId: z.string().min(1),
   method: z.string().min(1),
-  paramsHash: z.string().regex(/^(sha256|stable):/),
+  paramsHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   params: z.unknown(),
   acceptedAt: isoDateTimeSchema,
   status: z.enum([
@@ -49,6 +56,32 @@ export const sandboxCommandRecordSchema = z.object({
 });
 export type SandboxCommandRecord = z.infer<typeof sandboxCommandRecordSchema>;
 
+export const sandboxCommandDecisionRecordSchema = z.object({
+  commandId: sandboxCommandIdSchema,
+  method: z.string().min(1).optional(),
+  paramsHash: z
+    .string()
+    .regex(/^sha256:[a-f0-9]{64}$/)
+    .optional(),
+  decision: z.enum([
+    "accepted",
+    "duplicate",
+    "conflict",
+    "rejected",
+    "completed",
+    "failed",
+    "cancelled",
+    "recovered",
+  ]),
+  reason: z.string().min(1).optional(),
+  resultRef: z.string().min(1).optional(),
+  decidedAt: isoDateTimeSchema,
+  error: redactedErrorSchema.optional(),
+});
+export type SandboxCommandDecisionRecord = z.infer<
+  typeof sandboxCommandDecisionRecordSchema
+>;
+
 export const sandboxCommandResultRecordSchema = z.object({
   commandId: sandboxCommandIdSchema,
   method: z.string().min(1),
@@ -58,7 +91,7 @@ export const sandboxCommandResultRecordSchema = z.object({
   completedAt: isoDateTimeSchema,
   responseHash: z
     .string()
-    .regex(/^(sha256|stable):/)
+    .regex(/^sha256:[a-f0-9]{64}$/)
     .optional(),
 });
 export type SandboxCommandResultRecord = z.infer<
@@ -196,6 +229,139 @@ export const sandboxAckStateSchema = z.object({
   updatedAt: isoDateTimeSchema,
 });
 export type SandboxAckState = z.infer<typeof sandboxAckStateSchema>;
+
+export const sandboxCheckpointRecordSchema = z.object({
+  checkpointId: z.string().min(1),
+  conversationId: sandboxConversationIdSchema,
+  agentId: sandboxAgentIdSchema,
+  runId: sandboxRunIdSchema,
+  status: sandboxRunStatusSchema,
+  createdAt: isoDateTimeSchema,
+  transcriptSeq: z.number().int().nonnegative().safe().optional(),
+  toolCallIds: z.array(z.string().min(1)).optional(),
+  stateRef: z.string().min(1).optional(),
+  summary: boundedTextSchema.optional(),
+});
+export type SandboxCheckpointRecord = z.infer<
+  typeof sandboxCheckpointRecordSchema
+>;
+
+export const sandboxCredentialStatusRecordSchema = z.object({
+  provider: z.string().min(1),
+  group: z.string().min(1).optional(),
+  credentialType: z.string().min(1),
+  status: z.enum([
+    "available",
+    "unavailable",
+    "expired",
+    "refreshing",
+    "failed",
+    "skipped",
+  ]),
+  expiresAt: isoDateTimeSchema.optional(),
+  persisted: z.enum(["state", "file", "none", "not_applicable"]).optional(),
+  updatedAt: isoDateTimeSchema,
+  error: redactedErrorSchema.optional(),
+});
+export type SandboxCredentialStatusRecord = z.infer<
+  typeof sandboxCredentialStatusRecordSchema
+>;
+
+export const sandboxCredentialStatusFileSchema = z.object({
+  credentials: z.array(sandboxCredentialStatusRecordSchema),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxCredentialStatusFile = z.infer<
+  typeof sandboxCredentialStatusFileSchema
+>;
+
+export const sandboxSecretStoreStatusFileSchema = z.object({
+  stores: z.array(secretStoreStatusSchema),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxSecretStoreStatusFile = z.infer<
+  typeof sandboxSecretStoreStatusFileSchema
+>;
+
+export const sandboxSecretStoreCacheMetadataSchema = z.object({
+  storeId: z.string().min(1),
+  entries: z.number().int().nonnegative().safe(),
+  maxEntries: z.number().int().nonnegative().safe().optional(),
+  ttlMs: z.number().int().nonnegative().safe().optional(),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxSecretStoreCacheMetadata = z.infer<
+  typeof sandboxSecretStoreCacheMetadataSchema
+>;
+
+export const sandboxSetupStatusFileSchema = z.object({
+  git: startupSetupStatusSchema.optional(),
+  github: startupSetupStatusSchema.optional(),
+  boot: startupSetupStatusSchema.optional(),
+  skills: startupSetupStatusSchema.optional(),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxSetupStatusFile = z.infer<
+  typeof sandboxSetupStatusFileSchema
+>;
+
+export const sandboxSkillContextFileSchema = z.object({
+  contextFiles: z.array(contextFileStatusSchema),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxSkillContextFile = z.infer<
+  typeof sandboxSkillContextFileSchema
+>;
+
+export const sandboxSkillLoadedFileSchema = z.object({
+  skills: z.array(skillStatusSchema),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxSkillLoadedFile = z.infer<
+  typeof sandboxSkillLoadedFileSchema
+>;
+
+export const sandboxSkillDiagnosticRecordSchema = z.object({
+  level: z.enum(["info", "warn", "error"]),
+  message: z.string().min(1),
+  path: z.string().min(1).optional(),
+  createdAt: isoDateTimeSchema,
+});
+export type SandboxSkillDiagnosticRecord = z.infer<
+  typeof sandboxSkillDiagnosticRecordSchema
+>;
+
+export const sandboxControllerConnectivityRecordSchema =
+  controllerConnectivityStatusSchema.extend({ updatedAt: isoDateTimeSchema });
+export type SandboxControllerConnectivityRecord = z.infer<
+  typeof sandboxControllerConnectivityRecordSchema
+>;
+
+export const sandboxAgentRelationshipRecordSchema = z.object({
+  conversationId: sandboxConversationIdSchema,
+  parentAgentId: sandboxAgentIdSchema,
+  childAgentId: sandboxAgentIdSchema,
+  parentRunId: sandboxRunIdSchema.optional(),
+  relationship: z.enum(["explore", "subagent"]),
+  createdAt: isoDateTimeSchema,
+  summary: boundedTextSchema.optional(),
+});
+export type SandboxAgentRelationshipRecord = z.infer<
+  typeof sandboxAgentRelationshipRecordSchema
+>;
+
+export const sandboxProtectedStateSummarySchema = z.object({
+  credentials: z.array(sandboxCredentialStatusRecordSchema).optional(),
+  secretStores: z.array(secretStoreStatusSchema).optional(),
+  setup: sandboxSetupStatusFileSchema.optional(),
+  connectivity: sandboxControllerConnectivityRecordSchema.optional(),
+  network: networkPolicyStatusSchema.optional(),
+  toolGroups: z.array(toolGroupStatusSchema).optional(),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxProtectedStateSummary = z.infer<
+  typeof sandboxProtectedStateSummarySchema
+>;
 
 export const sandboxStateLayoutVersionSchema = z.object({
   format: z.literal("nerve-sandbox-state"),

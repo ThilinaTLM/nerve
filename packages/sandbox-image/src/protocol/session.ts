@@ -10,6 +10,39 @@ export type ProtocolSessionState =
   | "connected"
   | "reconnecting"
   | "closed";
+const REQUIRED_CAPABILITIES = [
+  "encoding.json",
+  "event.batch",
+  "event.replay",
+  "event.ack.processed",
+  "flow.backpressure",
+  "sandbox.runtime.v1",
+  "sandbox.commands.v1",
+  "sandbox.events.v1",
+  "sandbox.snapshots.v1",
+] as const;
+
+export function sandboxDaemonCapabilities(config: SandboxConfigV1): string[] {
+  const capabilities = new Set<string>(REQUIRED_CAPABILITIES);
+  capabilities.add("sandbox.models.pi_ai.v1");
+  if (config.secretStores?.stores) capabilities.add("sandbox.secret_stores.v1");
+  if (config.git?.enabled !== false) capabilities.add("sandbox.git_config.v1");
+  if (config.github?.enabled) capabilities.add("sandbox.github_config.v1");
+  if (config.tools?.groups) capabilities.add("sandbox.tool_groups.v1");
+  if (config.tools?.groups?.web?.enabled)
+    capabilities.add("sandbox.tools.web_search.v1");
+  if (config.tools?.groups?.jira?.enabled)
+    capabilities.add("sandbox.tools.jira.v1");
+  if (config.tools?.groups?.confluence?.enabled)
+    capabilities.add("sandbox.tools.confluence.v1");
+  if (config.skills?.enabled !== false) capabilities.add("sandbox.skills.v1");
+  if ((config.controller.disconnectPolicy?.mode ?? "exit_self") === "exit_self")
+    capabilities.add("sandbox.disconnect_exit.v1");
+  capabilities.add("sandbox.multi_agent_state.v1");
+  if (config.security?.network)
+    capabilities.add("sandbox.network.egress_policy.v1");
+  return Array.from(capabilities).sort();
+}
 
 export class ProtocolSession {
   state: ProtocolSessionState = "disconnected";
@@ -88,7 +121,7 @@ export class ProtocolSession {
       role: "agent",
       sandboxId: this.config.identity?.sandboxId ?? "unknown",
       instanceId: this.instanceId,
-      capabilities: ["status", "snapshot", "events", "commands"],
+      capabilities: sandboxDaemonCapabilities(this.config),
       resume: { cursors: ack.streams, lastAckedSeq: processedSeq },
     });
   }
@@ -98,6 +131,16 @@ export class ProtocolSession {
     [key: string]: unknown;
   }): Promise<void> {
     if (message.type === "welcome") {
+      const accepted = Array.isArray(message.acceptedCapabilities)
+        ? new Set(message.acceptedCapabilities.map(String))
+        : new Set<string>();
+      for (const capability of REQUIRED_CAPABILITIES) {
+        if (!accepted.has(capability)) {
+          throw new Error(
+            `Required sandbox capability was not accepted: ${capability}`,
+          );
+        }
+      }
       this.sessionId = String(message.sessionId);
       this.state = "connected";
       this.connectedAt = new Date().toISOString();

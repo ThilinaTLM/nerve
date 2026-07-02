@@ -20,6 +20,8 @@ import { runGitSetup } from "./setup/git-setup.js";
 import { runGithubSetup } from "./setup/github-setup.js";
 import { loadContextFiles } from "./skills/context-loader.js";
 import { loadSkills } from "./skills/skills-loader.js";
+import { SandboxStateCorruptionError } from "./state/corruption.js";
+import { recoverSandboxState } from "./state/recovery.js";
 import { SandboxStateStores } from "./state/sandbox-state.js";
 import { resolveSandboxRuntimePaths } from "./state/state-layout.js";
 import {
@@ -63,6 +65,7 @@ export async function runSandboxEntrypoint(
   );
   const stores = new SandboxStateStores(paths.stateDir);
   await stores.load();
+  const recoveredState = await recoverSandboxState(configDigest, paths);
   const instanceId = env.NERVE_SANDBOX_INSTANCE_ID ?? `inst_${Date.now()}`;
   const emitStartup = async (
     type: string,
@@ -76,7 +79,7 @@ export async function runSandboxEntrypoint(
     });
   };
 
-  // 6. run preflight
+  // 6. run preflight after recovery has reconstructed durable state.
   await stage(emitStartup, "sandbox.preflight", () =>
     runSandboxPreflight(config, paths),
   );
@@ -90,6 +93,39 @@ export async function runSandboxEntrypoint(
   const modelRuntime = await stage(emitStartup, "sandbox.models", () =>
     resolveModelRuntime(config),
   );
+  await emitStartup("sandbox.config.loaded", {
+    status: recoveredState.configChanged ? "degraded" : "loaded",
+    effectiveDefaults: {
+      workspaceDir: paths.workspaceDir,
+      stateDir: paths.stateDir,
+      disconnectPolicy: config.controller.disconnectPolicy ?? {
+        mode: "exit_self",
+        exitAfterMs: 300_000,
+      },
+    },
+    models: [
+      {
+        provider: config.agent.mainModel.provider,
+        model: config.agent.mainModel.model,
+        active: true,
+      },
+    ],
+    toolGroups: Object.entries(config.tools?.groups ?? {}).map(
+      ([group, value]) => ({
+        group,
+        configured: true,
+        active: value?.enabled !== false,
+        tools: value?.tools?.enabled ?? [],
+      }),
+    ),
+    secretStores: Object.keys(config.secretStores?.stores ?? {}).map((id) => ({
+      id,
+      status: "skipped",
+    })),
+    limitations: recoveredState.configChanged
+      ? ["state was recovered with a changed config digest"]
+      : undefined,
+  });
 
   // 9. initialize secret stores
   await emitStartup("sandbox.secret_store.checked", {
@@ -155,7 +191,9 @@ export async function runSandboxEntrypoint(
   await emitStartup("sandbox.ready", {
     status,
     readyAt: new Date().toISOString(),
-    recovered: stores.commands.list().length > 0,
+    recovered:
+      recoveredState.commands.length > 0 ||
+      recoveredState.unackedEvents.length > 0,
     daemonStatus: daemon.status.status,
     cursor: { streams: [{ stream: "sandbox", processedSeq: 0 }] },
   });
@@ -223,6 +261,7 @@ function redactedError(error: unknown): { code: string; message: string } {
 export function sandboxEntrypointExitCode(error: unknown): number {
   if (error instanceof SandboxConfigLoadError) return error.exitCode;
   if (error instanceof SandboxStateError) return error.exitCode;
+  if (error instanceof SandboxStateCorruptionError) return error.exitCode;
   if (error instanceof SandboxPreflightError) return error.exitCode;
   if (error instanceof SandboxStartupError) return error.exitCode;
   if (error instanceof Error && /secret|credential|kv/i.test(error.message))

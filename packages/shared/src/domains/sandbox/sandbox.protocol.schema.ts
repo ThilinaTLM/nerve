@@ -45,6 +45,7 @@ export const sandboxProtocolWelcomeSchema = z.object({
   accepted: z.literal(true),
   sessionId: z.string().min(1),
   controllerId: z.string().min(1).optional(),
+  acceptedCapabilities: z.array(z.string().min(1)),
   replay: z
     .object({
       required: z.boolean(),

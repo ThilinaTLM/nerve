@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: Sandbox v1 config schema intentionally centralizes cross-field validation.
 import { z } from "zod";
 
 const extensionRecordSchema = z.record(z.string(), z.unknown());
@@ -578,6 +579,7 @@ export const sandboxConfigV1Schema = z
       names.add(phase.name);
     }
 
+    validateSecretStoreAuthCycles(config, context);
     validateOauthRefresh(config, context);
     validateControllerDisconnect(config, context);
     validateModelReferences(config, context);
@@ -671,11 +673,18 @@ function validateModelReferences(
     config.modelCatalog?.providers ?? []
   ).entries()) {
     if (provider.builtin) continue;
-    if (!provider.api && !provider.baseUrl) {
+    if (!provider.api) {
       context.addIssue({
         code: "custom",
-        path: ["modelCatalog", "providers", index],
-        message: "custom model providers require api or baseUrl",
+        path: ["modelCatalog", "providers", index, "api"],
+        message: "custom model providers require api",
+      });
+    }
+    if (!provider.baseUrl) {
+      context.addIssue({
+        code: "custom",
+        path: ["modelCatalog", "providers", index, "baseUrl"],
+        message: "custom model providers require baseUrl",
       });
     }
   }
@@ -698,6 +707,16 @@ function validateModelReferences(
         message: `selected ${label} must reference a built-in provider or modelCatalog entry`,
       });
     }
+    const customProvider = (config.modelCatalog?.providers ?? []).find(
+      (provider) => provider.id === selection.provider && !provider.builtin,
+    );
+    if (customProvider && !customProvider.credential) {
+      context.addIssue({
+        code: "custom",
+        path: ["modelCatalog", "providers"],
+        message: `custom provider selected by ${label} requires credential`,
+      });
+    }
   }
 }
 
@@ -706,6 +725,15 @@ function validateCredentialToolGroups(
   context: z.RefinementCtx,
 ): void {
   const groups = config.tools?.groups;
+  const web = groups?.web;
+  if (web?.enabled && web.provider === "tavily" && !web.credential) {
+    context.addIssue({
+      code: "custom",
+      path: ["tools", "groups", "web", "credential"],
+      message: "web provider tavily requires credential when enabled",
+    });
+  }
+
   for (const group of ["jira", "confluence"] as const) {
     const value = groups?.[group];
     if (!value?.enabled) continue;
@@ -732,6 +760,43 @@ function validateCredentialToolGroups(
       });
     }
   }
+}
+
+function validateSecretStoreAuthCycles(
+  config: SandboxConfigV1,
+  context: z.RefinementCtx,
+): void {
+  const stores = config.secretStores?.stores ?? {};
+  for (const [storeId, store] of Object.entries(stores)) {
+    const refs = collectSecretStoreRefs(store.auth);
+    if (refs.has(storeId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["secretStores", "stores", storeId, "auth"],
+        message: "secret-store auth must not reference the same store",
+      });
+    }
+  }
+}
+
+function collectSecretStoreRefs(
+  value: unknown,
+  refs = new Set<string>(),
+): Set<string> {
+  if (!value || typeof value !== "object") return refs;
+  if (Array.isArray(value)) {
+    for (const entry of value) collectSecretStoreRefs(entry, refs);
+    return refs;
+  }
+  const record = value as Record<string, unknown>;
+  const kv = record.kv;
+  if (kv && typeof kv === "object" && !Array.isArray(kv)) {
+    const store = (kv as Record<string, unknown>).store;
+    if (typeof store === "string") refs.add(store);
+  }
+  for (const entry of Object.values(record))
+    collectSecretStoreRefs(entry, refs);
+  return refs;
 }
 
 function validateNoRawSecretLikeValues(

@@ -1,10 +1,12 @@
-import { access, chmod, mkdir, rm } from "node:fs/promises";
+import { access, chmod, mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { SandboxConfigV1 } from "@nervekit/shared";
+import { stringify as stringifyYaml } from "yaml";
 import { canonicalJson } from "../config/digest.js";
 import { StateLock, StateLockConflictError } from "./file-lock.js";
 import { atomicWriteFile } from "./json-store.js";
 import {
+  initialStateFiles,
   resolveSandboxRuntimePaths,
   type SandboxRuntimePaths,
   stateSubdirectories,
@@ -40,6 +42,9 @@ export async function initializeSandboxState(
       await mkdir(directory, { recursive: true });
     }
     await protectDirectory(paths.credentialsDir);
+    await protectDirectory(paths.credentialsOAuthDir);
+    await protectDirectory(paths.credentialsSshDir);
+    await protectDirectory(paths.credentialsGpgDir);
     await protectDirectory(paths.secretCacheDir);
     await assertWritable(paths.stateDir);
     const lock = await StateLock.acquire(paths.stateDir);
@@ -54,6 +59,10 @@ export async function initializeSandboxState(
       `${canonicalJson(config)}\n`,
     );
     await atomicWriteFile(
+      path.join(paths.configDir, "sanitized.yaml"),
+      stringifyYaml(config),
+    );
+    await atomicWriteFile(
       path.join(paths.configDir, "digest.txt"),
       `${configDigest}\n`,
     );
@@ -65,10 +74,7 @@ export async function initializeSandboxState(
       path.join(paths.stateDir, "status.json"),
       `${JSON.stringify({ status: "ready", configDigest, updatedAt: now }, null, 2)}\n`,
     );
-    await atomicWriteFile(
-      path.join(paths.stateDir, "controller", "connectivity.json"),
-      `${JSON.stringify({ state: "reconnecting", reconnectAttempts: 0, updatedAt: now }, null, 2)}\n`,
-    );
+    await writeInitialStateFiles(paths, now);
   } catch (error) {
     if (error instanceof StateLockConflictError) {
       throw new SandboxStateError(error.message, error.exitCode, error);
@@ -86,6 +92,105 @@ export async function initializeSandboxState(
     stateDir: paths.stateDir,
     workspaceDir: paths.workspaceDir,
   };
+}
+
+async function writeInitialStateFiles(
+  paths: SandboxRuntimePaths,
+  now: string,
+): Promise<void> {
+  const defaults = new Map<string, { data: string; mode?: number }>([
+    [
+      path.join(paths.controllerDir, "session.json"),
+      {
+        data: `${JSON.stringify({ status: "disconnected", updatedAt: now }, null, 2)}\n`,
+        mode: 0o600,
+      },
+    ],
+    [
+      path.join(paths.controllerDir, "cursors.json"),
+      {
+        data: `${JSON.stringify({ streams: [], updatedAt: now }, null, 2)}\n`,
+        mode: 0o600,
+      },
+    ],
+    [
+      path.join(paths.controllerDir, "connectivity.json"),
+      {
+        data: `${JSON.stringify({ state: "reconnecting", reconnectAttempts: 0, updatedAt: now }, null, 2)}\n`,
+        mode: 0o600,
+      },
+    ],
+    [
+      path.join(paths.credentialsDir, "status.json"),
+      {
+        data: `${JSON.stringify({ credentials: [], updatedAt: now }, null, 2)}\n`,
+        mode: 0o600,
+      },
+    ],
+    [
+      path.join(paths.secretsDir, "stores.json"),
+      {
+        data: `${JSON.stringify({ stores: [], updatedAt: now }, null, 2)}\n`,
+        mode: 0o600,
+      },
+    ],
+    [
+      path.join(paths.secretsDir, "status.json"),
+      {
+        data: `${JSON.stringify({ stores: [], updatedAt: now }, null, 2)}\n`,
+        mode: 0o600,
+      },
+    ],
+    [
+      path.join(paths.setupDir, "git.json"),
+      {
+        data: `${JSON.stringify({ configured: false, status: "skipped", updatedAt: now }, null, 2)}\n`,
+      },
+    ],
+    [
+      path.join(paths.setupDir, "github.json"),
+      {
+        data: `${JSON.stringify({ configured: false, status: "skipped", updatedAt: now }, null, 2)}\n`,
+      },
+    ],
+    [path.join(paths.commandsDir, "inbox.jsonl"), { data: "", mode: 0o600 }],
+    [
+      path.join(paths.commandsDir, "decisions.jsonl"),
+      { data: "", mode: 0o600 },
+    ],
+    [path.join(paths.eventsDir, "outbox.jsonl"), { data: "" }],
+    [
+      path.join(paths.eventsDir, "ack.json"),
+      { data: `${JSON.stringify({ streams: [], updatedAt: now }, null, 2)}\n` },
+    ],
+    [
+      path.join(paths.skillsDir, "context-files.json"),
+      {
+        data: `${JSON.stringify({ contextFiles: [], updatedAt: now }, null, 2)}\n`,
+      },
+    ],
+    [
+      path.join(paths.skillsDir, "loaded.json"),
+      { data: `${JSON.stringify({ skills: [], updatedAt: now }, null, 2)}\n` },
+    ],
+    [path.join(paths.skillsDir, "diagnostics.jsonl"), { data: "" }],
+    [path.join(paths.bootDir, "attempts.jsonl"), { data: "" }],
+    [path.join(paths.bootDir, "latest.log"), { data: "" }],
+  ]);
+  for (const filePath of initialStateFiles(paths)) {
+    if (await exists(filePath)) continue;
+    const entry = defaults.get(filePath);
+    if (entry) await atomicWriteFile(filePath, entry.data, entry.mode);
+  }
+}
+
+async function exists(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function effectiveConfigSummary(
