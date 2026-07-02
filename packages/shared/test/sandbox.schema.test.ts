@@ -81,6 +81,38 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
+  it("rejects invalid sandbox v1 config combinations", () => {
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        boot: {
+          script: "pnpm install",
+          phases: [{ name: "install", script: "pnpm install" }],
+        },
+      }).success,
+      false,
+    );
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        controller: {
+          ...minimalConfig().controller,
+          disconnectPolicy: { mode: "stay_reconnecting", exitAfterMs: 1000 },
+        },
+      }).success,
+      false,
+    );
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        tools: {
+          groups: { jira: { enabled: true, siteUrl: "https://jira.test" } },
+        },
+      }).success,
+      false,
+    );
+  });
+
   it("validates representative command parameter shapes", () => {
     assert.equal(
       sandboxRunStartParamsSchema.safeParse({

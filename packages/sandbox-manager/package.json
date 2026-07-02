@@ -10,15 +10,24 @@
     "LICENSE",
     "NOTICE"
   ],
+  "bin": {
+    "nerve-sandbox-manager": "./dist/main.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./main": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
     }
   },
   "scripts": {
     "build": "tsc -b",
-    "check": "tsc -b --pretty false"
+    "check": "tsc -b --pretty false",
+    "dev": "tsx src/main.ts",
+    "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@nervekit/shared": "workspace:*",
@@ -26,6 +35,7 @@
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "tsx": "4.22.4",
     "typescript": "5.9.3"
   },
   "engines": {
