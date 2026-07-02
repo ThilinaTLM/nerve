@@ -2,6 +2,18 @@ import { z } from "zod";
 
 const extensionRecordSchema = z.record(z.string(), z.unknown());
 const stringRecordSchema = z.record(z.string(), z.string());
+const builtinModelProviders = new Set([
+  "anthropic",
+  "openai",
+  "google",
+  "xai",
+  "ollama",
+  "openrouter",
+]);
+const secretLikeKeyPattern =
+  /(api[_-]?key|token|secret|password|authorization|cookie|private[_-]?key)/i;
+const secretLikeValuePattern =
+  /^(sk-[A-Za-z0-9_-]{12,}|[A-Za-z0-9_-]{32,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
 
 export const sandboxSecretKvRefSchema = z.object({
   store: z.string().min(1).optional(),
@@ -547,6 +559,13 @@ export const sandboxConfigV1Schema = z
       });
     }
     const phases = config.boot?.phases ?? [];
+    if (config.boot?.script && phases.length > 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["boot"],
+        message: "boot.script and boot.phases are mutually exclusive",
+      });
+    }
     const names = new Set<string>();
     for (const phase of phases) {
       if (names.has(phase.name)) {
@@ -558,6 +577,12 @@ export const sandboxConfigV1Schema = z
       }
       names.add(phase.name);
     }
+
+    validateOauthRefresh(config, context);
+    validateControllerDisconnect(config, context);
+    validateModelReferences(config, context);
+    validateCredentialToolGroups(config, context);
+    validateNoRawSecretLikeValues(config, context);
   });
 export type SandboxConfigV1 = z.infer<typeof sandboxConfigV1Schema>;
 
@@ -571,4 +596,188 @@ function containsKvRefWithoutStore(value: unknown): boolean {
     if (typeof ref.key === "string" && ref.store === undefined) return true;
   }
   return Object.values(record).some(containsKvRefWithoutStore);
+}
+
+function validateOauthRefresh(
+  config: SandboxConfigV1,
+  context: z.RefinementCtx,
+): void {
+  walk(config, (value, path) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const record = value as Record<string, unknown>;
+    if (record.type !== "oauth") return;
+    const refresh = record.refresh;
+    if (!refresh || typeof refresh !== "object" || Array.isArray(refresh))
+      return;
+    const refreshRecord = refresh as Record<string, unknown>;
+    if (refreshRecord.persist === "file" && !refreshRecord.file) {
+      context.addIssue({
+        code: "custom",
+        path: [...path, "refresh", "file"],
+        message: "oauth refresh.persist=file requires refresh.file",
+      });
+    }
+  });
+}
+
+function validateControllerDisconnect(
+  config: SandboxConfigV1,
+  context: z.RefinementCtx,
+): void {
+  const policy = config.controller.disconnectPolicy;
+  if (!policy) return;
+  if (policy.mode === "exit_self" && policy.exitAfterMs === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["controller", "disconnectPolicy", "exitAfterMs"],
+      message: "exit_self disconnect policy requires exitAfterMs",
+    });
+  }
+  if (policy.mode === "stay_reconnecting" && policy.exitAfterMs !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["controller", "disconnectPolicy", "exitAfterMs"],
+      message: "stay_reconnecting must not configure exitAfterMs",
+    });
+  }
+  const reconnect = config.controller.websocket.reconnect;
+  if (
+    reconnect?.minDelayMs !== undefined &&
+    reconnect.maxDelayMs !== undefined &&
+    reconnect.minDelayMs > reconnect.maxDelayMs
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["controller", "websocket", "reconnect"],
+      message: "reconnect minDelayMs must be <= maxDelayMs",
+    });
+  }
+}
+
+function validateModelReferences(
+  config: SandboxConfigV1,
+  context: z.RefinementCtx,
+): void {
+  const customProviders = new Set(
+    (config.modelCatalog?.providers ?? []).map((provider) => provider.id),
+  );
+  const customModels = new Set(
+    (config.modelCatalog?.models ?? []).map(
+      (model) => `${model.provider}\u0000${model.model}`,
+    ),
+  );
+
+  for (const [index, provider] of (
+    config.modelCatalog?.providers ?? []
+  ).entries()) {
+    if (provider.builtin) continue;
+    if (!provider.api && !provider.baseUrl) {
+      context.addIssue({
+        code: "custom",
+        path: ["modelCatalog", "providers", index],
+        message: "custom model providers require api or baseUrl",
+      });
+    }
+  }
+
+  for (const [label, selection] of [
+    ["mainModel", config.agent.mainModel],
+    ["exploreModel", config.agent.exploreModel],
+  ] as const) {
+    if (!selection) continue;
+    const providerKnown =
+      builtinModelProviders.has(selection.provider) ||
+      customProviders.has(selection.provider);
+    const modelKnown =
+      builtinModelProviders.has(selection.provider) ||
+      customModels.has(`${selection.provider}\u0000${selection.model}`);
+    if (!providerKnown || !modelKnown) {
+      context.addIssue({
+        code: "custom",
+        path: ["agent", label],
+        message: `selected ${label} must reference a built-in provider or modelCatalog entry`,
+      });
+    }
+  }
+}
+
+function validateCredentialToolGroups(
+  config: SandboxConfigV1,
+  context: z.RefinementCtx,
+): void {
+  const groups = config.tools?.groups;
+  for (const group of ["jira", "confluence"] as const) {
+    const value = groups?.[group];
+    if (!value?.enabled) continue;
+    const url = value.siteUrl ?? value.baseUrl;
+    if (!url) {
+      context.addIssue({
+        code: "custom",
+        path: ["tools", "groups", group, "siteUrl"],
+        message: `${group} requires siteUrl or baseUrl when enabled`,
+      });
+    }
+    if (!value.email) {
+      context.addIssue({
+        code: "custom",
+        path: ["tools", "groups", group, "email"],
+        message: `${group} requires email when enabled`,
+      });
+    }
+    if (!value.credential) {
+      context.addIssue({
+        code: "custom",
+        path: ["tools", "groups", group, "credential"],
+        message: `${group} requires credential when enabled`,
+      });
+    }
+  }
+}
+
+function validateNoRawSecretLikeValues(
+  config: SandboxConfigV1,
+  context: z.RefinementCtx,
+): void {
+  walk(config, (value, path) => {
+    if (typeof value !== "string" || path.length === 0) return;
+    const key = String(path.at(-1));
+    const parentKey = String(path.at(-2) ?? "");
+    if (key === "env" || key === "file" || key === "key" || key === "version") {
+      return;
+    }
+    if (parentKey === "headers" && secretLikeKeyPattern.test(key)) {
+      context.addIssue({
+        code: "custom",
+        path,
+        message:
+          "secret-like header values must be provided through SecretRef credentials, not raw config",
+      });
+      return;
+    }
+    if (secretLikeKeyPattern.test(key) && secretLikeValuePattern.test(value)) {
+      context.addIssue({
+        code: "custom",
+        path,
+        message: "raw secret-like values are not allowed in sandbox config",
+      });
+    }
+  });
+}
+
+function walk(
+  value: unknown,
+  visitor: (value: unknown, path: (string | number)[]) => void,
+  path: (string | number)[] = [],
+): void {
+  visitor(value, path);
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    for (const [index, entry] of value.entries()) {
+      walk(entry, visitor, [...path, index]);
+    }
+    return;
+  }
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    walk(entry, visitor, [...path, key]);
+  }
 }

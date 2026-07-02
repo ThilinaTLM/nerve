@@ -1,0 +1,14 @@
+import type { ManagedSandboxRecord } from "@nervekit/shared";
+
+export function shouldPreserveRecord(record: ManagedSandboxRecord): boolean {
+  return Boolean(
+    record.retention?.preserveFailed && record.observedState === "failed",
+  );
+}
+
+export function retentionElapsed(
+  record: ManagedSandboxRecord,
+  now = new Date(),
+): boolean {
+  return Boolean(record.gcAfter && Date.parse(record.gcAfter) <= now.getTime());
+}

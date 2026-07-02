@@ -48,7 +48,7 @@ export async function loadSandboxConfig(
   if (!result.success) {
     throw new SandboxConfigLoadError(
       `Invalid sandbox config at ${path}: ${result.error.message}`,
-      12,
+      10,
       result.error,
     );
   }
