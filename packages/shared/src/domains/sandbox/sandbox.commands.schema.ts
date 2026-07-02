@@ -361,6 +361,77 @@ export type SandboxCheckpointSummary = z.infer<
   typeof sandboxCheckpointSummarySchema
 >;
 
+export const sandboxRunExecutionSummarySchema = z.object({
+  executionId: z.string().min(1),
+  attempt: z.number().int().positive().safe().optional(),
+  status: z
+    .enum([
+      "starting",
+      "streaming",
+      "waiting",
+      "completed",
+      "failed",
+      "cancelled",
+      "superseded",
+    ])
+    .optional(),
+  recoverability: z
+    .enum(["checkpoint", "retryable", "manual", "none"])
+    .optional(),
+  lastCheckpointId: z.string().min(1).optional(),
+  startedAt: isoDateTimeSchema.optional(),
+  lastDeltaAt: isoDateTimeSchema.optional(),
+  completedAt: isoDateTimeSchema.optional(),
+  terminalReason: z.string().min(1).optional(),
+  error: redactedErrorSchema.optional(),
+});
+export type SandboxRunExecutionSummary = z.infer<
+  typeof sandboxRunExecutionSummarySchema
+>;
+
+export const sandboxChildAgentSummarySchema = z.object({
+  conversationId: sandboxConversationIdSchema.optional(),
+  parentAgentId: sandboxAgentIdSchema.optional(),
+  childAgentId: sandboxAgentIdSchema,
+  parentRunId: sandboxRunIdSchema.optional(),
+  childRunId: sandboxRunIdSchema.optional(),
+  relationship: z.enum(["explore", "subagent"]),
+  depth: z.number().int().nonnegative().safe().optional(),
+  label: z.string().min(1).optional(),
+  status: z
+    .enum(["queued", "running", "completed", "failed", "cancelled"])
+    .optional(),
+  summary: boundedTextSchema.optional(),
+  createdAt: isoDateTimeSchema.optional(),
+  updatedAt: isoDateTimeSchema.optional(),
+});
+export type SandboxChildAgentSummary = z.infer<
+  typeof sandboxChildAgentSummarySchema
+>;
+
+export const sandboxTaskSummarySchema = z.object({
+  taskId: z.string().min(1),
+  name: z.string().min(1).optional(),
+  commandSummary: z.string().min(1).optional(),
+  status: z.enum([
+    "queued",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "orphaned",
+  ]),
+  startedAt: isoDateTimeSchema.optional(),
+  completedAt: isoDateTimeSchema.optional(),
+  exitCode: z.number().int().safe().optional(),
+  logCursor: z.string().min(1).optional(),
+  logRef: z.string().min(1).optional(),
+  logBytes: z.number().int().nonnegative().safe().optional(),
+  truncated: z.boolean().optional(),
+  error: redactedErrorSchema.optional(),
+});
+export type SandboxTaskSummary = z.infer<typeof sandboxTaskSummarySchema>;
+
 export const sandboxRunSnapshotSchema = z.object({
   conversationId: sandboxConversationIdSchema,
   agentId: sandboxAgentIdSchema,
@@ -375,10 +446,18 @@ export const sandboxRunSnapshotSchema = z.object({
   transcriptRefs: z.array(z.string().min(1)).optional(),
   toolCallRefs: z.array(z.string().min(1)).optional(),
   checkpointRefs: z.array(z.string().min(1)).optional(),
+  lastCheckpointId: z.string().min(1).optional(),
+  recoverability: z
+    .enum(["not_needed", "checkpoint", "retryable", "manual", "none"])
+    .optional(),
+  continueEligible: z.boolean().optional(),
   waits: z.array(sandboxWaitSummarySchema).optional(),
   transcript: z.array(sandboxTranscriptSummaryEntrySchema).optional(),
   toolCalls: z.array(sandboxToolCallSummarySchema).optional(),
   checkpoints: z.array(sandboxCheckpointSummarySchema).optional(),
+  executions: z.array(sandboxRunExecutionSummarySchema).optional(),
+  childAgents: z.array(sandboxChildAgentSummarySchema).optional(),
+  tasks: z.array(sandboxTaskSummarySchema).optional(),
 });
 export type SandboxRunSnapshot = z.infer<typeof sandboxRunSnapshotSchema>;
 
@@ -417,6 +496,39 @@ export type SandboxControllerSessionSummary = z.infer<
   typeof sandboxControllerSessionSummarySchema
 >;
 
+export const sandboxHardeningSummarySchema = z.object({
+  encryptionAtRest: z
+    .object({
+      status: z.enum([
+        "enabled",
+        "development_cleartext",
+        "unavailable",
+        "unknown",
+      ]),
+      keyId: z.string().min(1).optional(),
+      warning: z.string().min(1).optional(),
+    })
+    .optional(),
+  lifecycle: z
+    .object({
+      reconcileOnStartup: z.boolean().optional(),
+      reconcileIntervalMs: z.number().int().nonnegative().safe().optional(),
+      gcIntervalMs: z.number().int().nonnegative().safe().optional(),
+      orphanPolicy: z.string().min(1).optional(),
+    })
+    .optional(),
+  protocol: z
+    .object({
+      heartbeatTimeoutMs: z.number().int().positive().safe().optional(),
+      commandQueueLimit: z.number().int().nonnegative().safe().optional(),
+      eventQueueLimit: z.number().int().nonnegative().safe().optional(),
+    })
+    .optional(),
+});
+export type SandboxHardeningSummary = z.infer<
+  typeof sandboxHardeningSummarySchema
+>;
+
 export const sandboxStatusGetResultSchema = z.object({
   sandboxId: z.string().min(1).optional(),
   instanceId: sandboxInstanceIdSchema,
@@ -440,6 +552,8 @@ export const sandboxStatusGetResultSchema = z.object({
   secretStores: z.array(sandboxSecretStoreStatusSummarySchema).optional(),
   credentials: z.array(sandboxCredentialStatusSummarySchema).optional(),
   network: sandboxNetworkPolicySummarySchema.optional(),
+  tasks: z.array(sandboxTaskSummarySchema).optional(),
+  hardening: sandboxHardeningSummarySchema.optional(),
 
   cursors: z
     .object({
@@ -480,6 +594,8 @@ export const sandboxSnapshotResultSchema = z.object({
   replayCursors: z.array(sandboxReplayCursorSummarySchema).optional(),
   setup: sandboxSetupStatusSummarySchema.optional(),
   connectivity: controllerConnectivityStatusSchema.optional(),
+  tasks: z.array(sandboxTaskSummarySchema).optional(),
+  hardening: sandboxHardeningSummarySchema.optional(),
 });
 export type SandboxSnapshotResult = z.infer<typeof sandboxSnapshotResultSchema>;
 

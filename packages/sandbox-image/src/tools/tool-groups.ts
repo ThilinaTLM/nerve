@@ -8,7 +8,14 @@ const defaults: Record<string, string[]> = {
   todos: ["todos_set", "todos_get"],
   web: ["web_search", "web_fetch"],
   explore: ["explore"],
-  taskManagement: ["task_start", "task_status", "task_logs", "task_cancel"],
+  taskManagement: [
+    "task_start",
+    "task_status",
+    "task_logs",
+    "task_cancel",
+    "task_restart",
+    "task_list",
+  ],
 };
 export function computeToolGroupStatus(
   config: SandboxConfigV1,

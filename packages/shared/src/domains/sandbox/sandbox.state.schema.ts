@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  artifactRefSchema,
   boundedTextSchema,
   contextFileStatusSchema,
   controllerConnectivityStatusSchema,
@@ -132,8 +133,42 @@ export const sandboxRunStateRecordSchema = z.object({
   updatedAt: isoDateTimeSchema,
   terminalAt: isoDateTimeSchema.optional(),
   error: redactedErrorSchema.optional(),
+  lastCheckpointId: z.string().min(1).optional(),
+  recoverability: z
+    .enum(["not_needed", "checkpoint", "retryable", "manual", "none"])
+    .optional(),
+  terminalReason: z.string().min(1).optional(),
 });
 export type SandboxRunStateRecord = z.infer<typeof sandboxRunStateRecordSchema>;
+
+export const sandboxRunExecutionRecordSchema = z.object({
+  conversationId: sandboxConversationIdSchema,
+  agentId: sandboxAgentIdSchema,
+  runId: sandboxRunIdSchema,
+  executionId: z.string().min(1),
+  attempt: z.number().int().positive().safe().default(1),
+  providerRequestId: z.string().min(1).optional(),
+  abortRef: z.string().min(1).optional(),
+  lastCheckpointId: z.string().min(1).optional(),
+  recoverability: z.enum(["checkpoint", "retryable", "manual", "none"]),
+  status: z.enum([
+    "starting",
+    "streaming",
+    "waiting",
+    "completed",
+    "failed",
+    "cancelled",
+    "superseded",
+  ]),
+  startedAt: isoDateTimeSchema,
+  lastDeltaAt: isoDateTimeSchema.optional(),
+  completedAt: isoDateTimeSchema.optional(),
+  terminalReason: z.string().min(1).optional(),
+  error: redactedErrorSchema.optional(),
+});
+export type SandboxRunExecutionRecord = z.infer<
+  typeof sandboxRunExecutionRecordSchema
+>;
 
 export const sandboxTranscriptEntrySchema = z.object({
   entryId: z.string().min(1),
@@ -155,15 +190,49 @@ export const sandboxToolCallRecordSchema = z.object({
   agentId: sandboxAgentIdSchema,
   runId: sandboxRunIdSchema,
   toolName: z.string().min(1),
-  status: z.enum(["requested", "started", "completed", "failed"]),
+  status: z.enum([
+    "requested",
+    "waiting_for_approval",
+    "started",
+    "completed",
+    "failed",
+    "cancelled",
+  ]),
   args: z.unknown().optional(),
+  displayArgs: z.unknown().optional(),
+  artifactRefs: z.array(artifactRefSchema).optional(),
+  approvalId: z.string().min(1).optional(),
+  lifecycleSeq: z.number().int().nonnegative().safe().optional(),
+  redactionVersion: z.number().int().nonnegative().safe().optional(),
   result: z.unknown().optional(),
   error: redactedErrorSchema.optional(),
   requestedAt: isoDateTimeSchema,
   startedAt: isoDateTimeSchema.optional(),
   completedAt: isoDateTimeSchema.optional(),
+  cancelledAt: isoDateTimeSchema.optional(),
 });
 export type SandboxToolCallRecord = z.infer<typeof sandboxToolCallRecordSchema>;
+
+export const sandboxWaitResolutionRecordSchema = z.object({
+  waitId: z.string().min(1),
+  kind: z.enum(["input", "approval"]),
+  conversationId: sandboxConversationIdSchema,
+  agentId: sandboxAgentIdSchema,
+  runId: sandboxRunIdSchema,
+  commandId: sandboxCommandIdSchema.optional(),
+  decisionHash: z
+    .string()
+    .regex(/^sha256:[a-f0-9]{64}$/)
+    .optional(),
+  status: z.enum(["submitted", "granted", "denied", "cancelled", "expired"]),
+  resolvedAt: isoDateTimeSchema,
+  checkpointId: z.string().min(1).optional(),
+  transcriptEntryId: z.string().min(1).optional(),
+  error: redactedErrorSchema.optional(),
+});
+export type SandboxWaitResolutionRecord = z.infer<
+  typeof sandboxWaitResolutionRecordSchema
+>;
 
 export const sandboxInputWaitRecordSchema = z.object({
   requestId: z.string().min(1),
@@ -172,9 +241,15 @@ export const sandboxInputWaitRecordSchema = z.object({
   runId: sandboxRunIdSchema,
   question: boundedTextSchema,
   placeholder: z.string().optional(),
-  status: z.enum(["waiting", "submitted", "cancelled"]),
+  status: z.enum(["waiting", "submitted", "cancelled", "expired"]),
   createdAt: isoDateTimeSchema,
+  expiresAt: isoDateTimeSchema.optional(),
   resolvedAt: isoDateTimeSchema.optional(),
+  cancelledAt: isoDateTimeSchema.optional(),
+  resumeCommandId: sandboxCommandIdSchema.optional(),
+  answerTranscriptEntryId: z.string().min(1).optional(),
+  checkpointId: z.string().min(1).optional(),
+  redactedDisplay: boundedTextSchema.optional(),
   response: boundedTextSchema.optional(),
 });
 export type SandboxInputWaitRecord = z.infer<
@@ -190,22 +265,82 @@ export const sandboxApprovalWaitRecordSchema = z.object({
   risk: z.array(z.string().min(1)),
   reason: z.string().min(1),
   normalizedArgs: z.unknown(),
-  status: z.enum(["waiting", "granted", "denied", "cancelled"]),
+  displayArgs: z.unknown().optional(),
+  status: z.enum(["waiting", "granted", "denied", "cancelled", "expired"]),
+  selectedScope: z
+    .enum(["single_call", "same_tool_same_args", "run"])
+    .optional(),
+  resolutionCommandId: sandboxCommandIdSchema.optional(),
+  resolutionReason: z.string().min(1).optional(),
+  appliesTo: z.array(z.string().min(1)).optional(),
+  checkpointId: z.string().min(1).optional(),
+  denialError: redactedErrorSchema.optional(),
   createdAt: isoDateTimeSchema,
   resolvedAt: isoDateTimeSchema.optional(),
+  cancelledAt: isoDateTimeSchema.optional(),
 });
 export type SandboxApprovalWaitRecord = z.infer<
   typeof sandboxApprovalWaitRecordSchema
 >;
 
+export const sandboxTaskRecordSchema = z.object({
+  taskId: z.string().min(1),
+  name: z.string().min(1).optional(),
+  command: z.string().min(1),
+  cwd: z.string().min(1).optional(),
+  status: z.enum([
+    "queued",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "orphaned",
+  ]),
+  startedAt: isoDateTimeSchema.optional(),
+  completedAt: isoDateTimeSchema.optional(),
+  exitCode: z.number().int().safe().optional(),
+  signal: z.string().min(1).optional(),
+  timeoutAt: isoDateTimeSchema.optional(),
+  maxRuntimeMs: z.number().int().positive().safe().optional(),
+  logRef: z.string().min(1).optional(),
+  logBytes: z.number().int().nonnegative().safe().optional(),
+  truncated: z.boolean().optional(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+  error: redactedErrorSchema.optional(),
+});
+export type SandboxTaskRecord = z.infer<typeof sandboxTaskRecordSchema>;
+
+export const sandboxTaskLogCursorSchema = z.object({
+  taskId: z.string().min(1),
+  cursor: z.string().min(1),
+  offset: z.number().int().nonnegative().safe().optional(),
+  line: z.number().int().nonnegative().safe().optional(),
+  bytes: z.number().int().nonnegative().safe().optional(),
+  complete: z.boolean().optional(),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxTaskLogCursor = z.infer<typeof sandboxTaskLogCursorSchema>;
+
 export const sandboxControllerSessionRecordSchema = z.object({
   sessionId: z.string().min(1),
   instanceId: z.string().min(1),
   status: z.enum(["connected", "disconnected", "closed"]),
+  acceptedCapabilities: z.array(z.string().min(1)).optional(),
   connectedAt: isoDateTimeSchema,
+  lastHeartbeatAt: isoDateTimeSchema.optional(),
   disconnectedAt: isoDateTimeSchema.optional(),
   closeCode: z.number().int().safe().optional(),
   closeReason: z.string().min(1).optional(),
+  reconnectAttempts: z.number().int().nonnegative().safe().optional(),
+  lastError: redactedErrorSchema.optional(),
+  queue: z
+    .object({
+      pendingBatches: z.number().int().nonnegative().safe().optional(),
+      pendingEvents: z.number().int().nonnegative().safe().optional(),
+      pendingBytes: z.number().int().nonnegative().safe().optional(),
+    })
+    .optional(),
   cursors: z
     .array(
       z.object({
@@ -342,8 +477,15 @@ export const sandboxAgentRelationshipRecordSchema = z.object({
   parentAgentId: sandboxAgentIdSchema,
   childAgentId: sandboxAgentIdSchema,
   parentRunId: sandboxRunIdSchema.optional(),
+  childRunId: sandboxRunIdSchema.optional(),
   relationship: z.enum(["explore", "subagent"]),
+  depth: z.number().int().nonnegative().safe().optional(),
+  label: z.string().min(1).optional(),
+  status: z
+    .enum(["queued", "running", "completed", "failed", "cancelled"])
+    .optional(),
   createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema.optional(),
   summary: boundedTextSchema.optional(),
 });
 export type SandboxAgentRelationshipRecord = z.infer<

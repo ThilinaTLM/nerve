@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { isoDateTimeSchema } from "./sandbox.common.schema.js";
+import {
+  isoDateTimeSchema,
+  redactedErrorSchema,
+} from "./sandbox.common.schema.js";
 
 export const managedSandboxObservedStateSchema = z.enum([
   "unknown",
@@ -90,6 +93,52 @@ export const managedSandboxRecordSchema = z.object({
     .optional(),
 });
 export type ManagedSandboxRecord = z.infer<typeof managedSandboxRecordSchema>;
+
+export const managerOutboundCommandRecordSchema = z.object({
+  requestId: z.string().min(1),
+  sandboxId: z.string().min(1),
+  sessionId: z.string().min(1).optional(),
+  method: z.string().min(1),
+  paramsHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+  paramsSummary: z.unknown().optional(),
+  status: z.enum([
+    "queued",
+    "sent",
+    "completed",
+    "failed",
+    "timed_out",
+    "cancelled",
+  ]),
+  createdAt: isoDateTimeSchema,
+  sentAt: isoDateTimeSchema.optional(),
+  timeoutAt: isoDateTimeSchema.optional(),
+  completedAt: isoDateTimeSchema.optional(),
+  resultRef: z.string().min(1).optional(),
+  error: redactedErrorSchema.optional(),
+});
+export type ManagerOutboundCommandRecord = z.infer<
+  typeof managerOutboundCommandRecordSchema
+>;
+
+export const managerLifecycleRequestRecordSchema = z.object({
+  requestId: z.string().min(1),
+  sandboxId: z.string().min(1).optional(),
+  route: z.string().min(1),
+  method: z.string().min(1),
+  actor: z.string().min(1).optional(),
+  paramsHash: z
+    .string()
+    .regex(/^sha256:[a-f0-9]{64}$/)
+    .optional(),
+  status: z.enum(["accepted", "running", "completed", "failed", "conflict"]),
+  createdAt: isoDateTimeSchema,
+  completedAt: isoDateTimeSchema.optional(),
+  resultRef: z.string().min(1).optional(),
+  error: redactedErrorSchema.optional(),
+});
+export type ManagerLifecycleRequestRecord = z.infer<
+  typeof managerLifecycleRequestRecordSchema
+>;
 
 export const runtimeNetworkSpecSchema = z.object({
   mode: z.string().min(1),

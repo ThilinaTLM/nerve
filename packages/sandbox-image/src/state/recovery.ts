@@ -136,17 +136,23 @@ function reconcileRuns(runs: SandboxRunStateRecord[]): SandboxRunStateRecord[] {
     if (run.status === "running") {
       return {
         ...run,
-        status: "failed",
+        status: "recoverable_failed",
         updatedAt: now,
         terminalAt: now,
+        recoverability: "retryable",
         error: {
           code: "RECOVERED_IN_FLIGHT_RUN",
           message:
-            "Run was in flight during restart and was not marked successful.",
+            "Run was in flight during restart and requires explicit continue before retry.",
           retryable: true,
         },
       };
     }
+    if (
+      run.status === "waiting_for_input" ||
+      run.status === "waiting_for_approval"
+    )
+      return { ...run, updatedAt: now };
     if (run.status === "queued") return { ...run, updatedAt: now };
     return run;
   });

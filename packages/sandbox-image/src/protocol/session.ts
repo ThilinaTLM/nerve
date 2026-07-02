@@ -51,7 +51,10 @@ export class ProtocolSession {
   disconnectedAt?: string;
   private client?: SandboxWebSocketClient;
   private heartbeat?: NodeJS.Timeout;
+  private heartbeatTimeout?: NodeJS.Timeout;
   private reconnectAttempts = 0;
+  private acceptedCapabilities: string[] = [];
+  private lastHeartbeatAt?: string;
   private stopping = false;
 
   constructor(
@@ -70,6 +73,7 @@ export class ProtocolSession {
   async stop(): Promise<void> {
     this.stopping = true;
     if (this.heartbeat) clearInterval(this.heartbeat);
+    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout);
     this.client?.send({
       type: "goodbye",
       reason: "shutdown",
@@ -77,10 +81,14 @@ export class ProtocolSession {
     });
     this.client?.close();
     this.state = "closed";
+    await this.persistConnectivity("shutting_down", {
+      closeReason: "shutdown",
+    });
   }
 
   private async connect(): Promise<void> {
     this.state = this.reconnectAttempts > 0 ? "reconnecting" : "connecting";
+    await this.persistConnectivity(this.state);
     const token = await new SecretResolver(
       this.config,
       undefined,
@@ -142,9 +150,12 @@ export class ProtocolSession {
         }
       }
       this.sessionId = String(message.sessionId);
+      this.acceptedCapabilities = Array.from(accepted).sort();
       this.state = "connected";
       this.connectedAt = new Date().toISOString();
+      this.lastHeartbeatAt = this.connectedAt;
       this.reconnectAttempts = 0;
+      await this.persistConnectivity("connected");
       this.daemon.start();
       this.client?.send({
         type: "ready",
@@ -155,19 +166,32 @@ export class ProtocolSession {
       });
       await this.emitStartupEvent();
       await this.flushUnacked();
-      this.startHeartbeat(
-        Number(
-          message.heartbeatIntervalMs ??
-            this.config.controller.websocket.heartbeatIntervalMs ??
-            15_000,
-        ),
+      const heartbeatIntervalMs = Number(
+        message.heartbeatIntervalMs ??
+          this.config.controller.websocket.heartbeatIntervalMs ??
+          15_000,
+      );
+      this.startHeartbeat(heartbeatIntervalMs);
+      this.startHeartbeatTimeout(
+        Number(message.heartbeatTimeoutMs ?? heartbeatIntervalMs * 3),
+      );
+      return;
+    }
+    if (message.type === "heartbeat") {
+      this.lastHeartbeatAt = new Date().toISOString();
+      await this.persistConnectivity(
+        this.state === "connected" ? "connected" : "reconnecting",
       );
       return;
     }
     if (message.type === "ack") {
+      this.lastHeartbeatAt = new Date().toISOString();
       await this.stores.events.ack(
         String(message.stream),
         Number(message.processedSeq),
+      );
+      await this.persistConnectivity(
+        this.state === "connected" ? "connected" : "reconnecting",
       );
       return;
     }
@@ -220,6 +244,53 @@ export class ProtocolSession {
     }, intervalMs);
   }
 
+  private startHeartbeatTimeout(timeoutMs: number): void {
+    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout);
+    this.heartbeatTimeout = setTimeout(() => {
+      if (this.stopping || this.state !== "connected") return;
+      const now = Date.now();
+      const last = this.lastHeartbeatAt
+        ? Date.parse(this.lastHeartbeatAt)
+        : Date.parse(this.connectedAt ?? new Date().toISOString());
+      if (now - last < timeoutMs) {
+        this.startHeartbeatTimeout(timeoutMs - (now - last));
+        return;
+      }
+      this.client?.close();
+      this.state = "reconnecting";
+      this.disconnectedAt = new Date().toISOString();
+      void this.persistConnectivity("reconnecting", {
+        lastErrorCode: "HEARTBEAT_TIMEOUT",
+        closeReason: "manager heartbeat timeout",
+      });
+    }, timeoutMs);
+    this.heartbeatTimeout.unref();
+  }
+
+  private async persistConnectivity(
+    state:
+      | "connecting"
+      | "connected"
+      | "reconnecting"
+      | "disconnected"
+      | "shutting_down",
+    extra: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.stores.connectivity.write({
+      state,
+      sessionId: this.sessionId,
+      acceptedCapabilities: this.acceptedCapabilities.length
+        ? this.acceptedCapabilities
+        : undefined,
+      connectedAt: this.connectedAt,
+      disconnectedAt: this.disconnectedAt,
+      lastHeartbeatAt: this.lastHeartbeatAt,
+      reconnectAttempts: this.reconnectAttempts,
+      updatedAt: new Date().toISOString(),
+      ...extra,
+    });
+  }
+
   private async flushUnacked(): Promise<void> {
     const ack = await this.stores.events.ackState();
     const processedSeq = Math.max(
@@ -244,9 +315,11 @@ export class ProtocolSession {
   private async onDisconnect(): Promise<void> {
     if (this.stopping || this.state === "closed") return;
     if (this.heartbeat) clearInterval(this.heartbeat);
+    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout);
     this.disconnectedAt = new Date().toISOString();
     this.state = "reconnecting";
     this.reconnectAttempts += 1;
+    await this.persistConnectivity("reconnecting");
     const policy = this.config.controller.disconnectPolicy;
     if (policy?.mode === "exit_self") {
       setTimeout(() => {

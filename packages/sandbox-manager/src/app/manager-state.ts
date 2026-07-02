@@ -22,8 +22,16 @@ export class ManagerState {
     );
     this.events = new EventStore(path.join(config.storageDir, "events"));
     this.sessions = new SessionStore(path.join(config.storageDir, "sessions"));
+    const mode = config.mode ?? "development";
     this.secrets = new FileKvSecretStore(
       path.join(config.storageDir, "secrets"),
+      {
+        mode,
+        encryptionKey: config.encryptionKey,
+        keyId: config.encryptionKeyRef,
+        allowCleartextSecretsInDevelopment:
+          config.allowCleartextSecretsInDevelopment ?? mode === "development",
+      },
     );
     this.driver =
       config.backend === "podman" ? new PodmanDriver() : new DockerDriver();
@@ -36,5 +44,6 @@ export class ManagerState {
           mkdir(path.join(this.config.storageDir, dir), { recursive: true }),
       ),
     );
+    await this.secrets.assertReady();
   }
 }

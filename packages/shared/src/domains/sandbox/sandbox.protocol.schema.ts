@@ -28,6 +28,31 @@ export const sandboxProtocolResumeSchema = z.object({
 });
 export type SandboxProtocolResume = z.infer<typeof sandboxProtocolResumeSchema>;
 
+export const sandboxProtocolQueueStatusSchema = z.object({
+  pendingBatches: z.number().int().nonnegative().safe().optional(),
+  pendingEvents: z.number().int().nonnegative().safe().optional(),
+  pendingCommands: z.number().int().nonnegative().safe().optional(),
+  pendingBytes: z.number().int().nonnegative().safe().optional(),
+  maxBatches: z.number().int().nonnegative().safe().optional(),
+  maxEvents: z.number().int().nonnegative().safe().optional(),
+  maxCommands: z.number().int().nonnegative().safe().optional(),
+  maxBytes: z.number().int().nonnegative().safe().optional(),
+  overflowed: z.boolean().optional(),
+  overflowedAt: isoDateTimeSchema.optional(),
+});
+export type SandboxProtocolQueueStatus = z.infer<
+  typeof sandboxProtocolQueueStatusSchema
+>;
+
+export const sandboxProtocolRetryHintSchema = z.object({
+  retryable: z.boolean(),
+  retryAfterMs: z.number().int().nonnegative().safe().optional(),
+  reconnect: z.boolean().optional(),
+});
+export type SandboxProtocolRetryHint = z.infer<
+  typeof sandboxProtocolRetryHintSchema
+>;
+
 export const sandboxProtocolHelloSchema = z.object({
   type: z.literal("hello"),
   version: sandboxProtocolVersionSchema.default(1),
@@ -51,9 +76,14 @@ export const sandboxProtocolWelcomeSchema = z.object({
       required: z.boolean(),
       fromSeq: z.number().int().nonnegative().safe().optional(),
       cursors: z.array(sandboxProtocolCursorSchema).optional(),
+      limit: z.number().int().positive().safe().optional(),
+      complete: z.boolean().optional(),
     })
     .optional(),
   heartbeatIntervalMs: z.number().int().positive().safe().optional(),
+  heartbeatTimeoutMs: z.number().int().positive().safe().optional(),
+  queue: sandboxProtocolQueueStatusSchema.optional(),
+  retryHint: sandboxProtocolRetryHintSchema.optional(),
 });
 export type SandboxProtocolWelcome = z.infer<
   typeof sandboxProtocolWelcomeSchema
@@ -72,7 +102,9 @@ export const sandboxProtocolHeartbeatSchema = z.object({
   type: z.literal("heartbeat"),
   ts: isoDateTimeSchema,
   status: z.string().min(1).optional(),
+  sessionId: z.string().min(1).optional(),
   cursors: z.array(sandboxProtocolCursorSchema).optional(),
+  queue: sandboxProtocolQueueStatusSchema.optional(),
 });
 export type SandboxProtocolHeartbeat = z.infer<
   typeof sandboxProtocolHeartbeatSchema
@@ -114,6 +146,8 @@ export const sandboxProtocolEventBatchSchema = z
     lastSeq: z.number().int().positive().safe().optional(),
     events: z.array(sandboxProtocolEventSchema).min(1),
     replay: z.boolean().optional(),
+    queue: sandboxProtocolQueueStatusSchema.optional(),
+    bytes: z.number().int().nonnegative().safe().optional(),
   })
   .superRefine((batch, ctx) => {
     const seqs = batch.events.map((event) => event.seq);
@@ -155,6 +189,8 @@ export const sandboxProtocolAckSchema = z.object({
   stream: z.string().min(1),
   processedSeq: z.number().int().nonnegative().safe(),
   accepted: z.number().int().nonnegative().safe().optional(),
+  queue: sandboxProtocolQueueStatusSchema.optional(),
+  retryHint: sandboxProtocolRetryHintSchema.optional(),
 });
 export type SandboxProtocolAck = z.infer<typeof sandboxProtocolAckSchema>;
 
@@ -163,6 +199,12 @@ export const sandboxProtocolRequestSchema = z.object({
   id: z.string().min(1),
   method: sandboxCommandMethodSchema,
   params: z.unknown().optional(),
+  paramsHash: z
+    .string()
+    .regex(/^sha256:[a-f0-9]{64}$/)
+    .optional(),
+  sentAt: isoDateTimeSchema.optional(),
+  timeoutAt: isoDateTimeSchema.optional(),
 });
 export type SandboxProtocolRequest = z.infer<
   typeof sandboxProtocolRequestSchema
@@ -184,13 +226,17 @@ export const sandboxProtocolErrorSchema = z.object({
     code: z.string().min(1),
     message: z.string().min(1),
     retryable: z.boolean().optional(),
+    retryAfterMs: z.number().int().nonnegative().safe().optional(),
   }),
+  retryHint: sandboxProtocolRetryHintSchema.optional(),
 });
 export type SandboxProtocolError = z.infer<typeof sandboxProtocolErrorSchema>;
 
 export const sandboxProtocolGoodbyeSchema = z.object({
   type: z.literal("goodbye"),
   reason: z.string().min(1).optional(),
+  code: z.string().min(1).optional(),
+  retryHint: sandboxProtocolRetryHintSchema.optional(),
   ts: isoDateTimeSchema.optional(),
 });
 export type SandboxProtocolGoodbye = z.infer<
@@ -202,6 +248,7 @@ export const sandboxProtocolReplayRequestSchema = z.object({
   stream: z.string().min(1).default("sandbox"),
   afterSeq: z.number().int().nonnegative().safe(),
   limit: z.number().int().positive().safe().max(1000).optional(),
+  reason: z.string().min(1).optional(),
 });
 export type SandboxProtocolReplayRequest = z.infer<
   typeof sandboxProtocolReplayRequestSchema
@@ -213,9 +260,25 @@ export const sandboxProtocolReplayResponseSchema = z.object({
   afterSeq: z.number().int().nonnegative().safe(),
   events: z.array(sandboxProtocolEventSchema),
   complete: z.boolean(),
+  queue: sandboxProtocolQueueStatusSchema.optional(),
+  retryHint: sandboxProtocolRetryHintSchema.optional(),
 });
 export type SandboxProtocolReplayResponse = z.infer<
   typeof sandboxProtocolReplayResponseSchema
+>;
+
+export const sandboxProtocolFlowUpdateSchema = z.object({
+  type: z.literal("flow.update"),
+  stream: z.string().min(1).default("sandbox"),
+  queue: sandboxProtocolQueueStatusSchema,
+  reason: z
+    .enum(["normal", "backpressure", "overflow", "drain", "degraded"])
+    .optional(),
+  retryHint: sandboxProtocolRetryHintSchema.optional(),
+  ts: isoDateTimeSchema.optional(),
+});
+export type SandboxProtocolFlowUpdate = z.infer<
+  typeof sandboxProtocolFlowUpdateSchema
 >;
 
 export const sandboxProtocolMessageSchema = z.discriminatedUnion("type", [
@@ -231,6 +294,7 @@ export const sandboxProtocolMessageSchema = z.discriminatedUnion("type", [
   sandboxProtocolGoodbyeSchema,
   sandboxProtocolReplayRequestSchema,
   sandboxProtocolReplayResponseSchema,
+  sandboxProtocolFlowUpdateSchema,
 ]);
 export type SandboxProtocolMessage = z.infer<
   typeof sandboxProtocolMessageSchema

@@ -1,16 +1,13 @@
 import path from "node:path";
+import type { SandboxApprovalWaitRecord } from "@nervekit/shared";
 import { JsonlStore } from "../state/jsonl-store.js";
 
-export type ApprovalRequest = {
+export type ApprovalScope = "single_call" | "same_tool_same_args" | "run";
+
+export type ApprovalRequest = SandboxApprovalWaitRecord & {
   id: string;
-  runId?: string;
   tool?: string;
   args?: unknown;
-  toolCallId?: string;
-  reason?: string;
-  risk?: string[];
-  normalizedArgs?: unknown;
-  createdAt: string;
   resolved?: { decision: "grant" | "deny"; note?: string; resolvedAt: string };
 };
 
@@ -26,15 +23,39 @@ export class ApprovalWaiter {
     if (!this.store) return;
     this.approvals.clear();
     for (const request of await this.store.readAll()) {
-      this.approvals.set(request.id, request);
+      this.approvals.set(
+        request.id ?? request.approvalId,
+        normalizeApproval(request),
+      );
     }
   }
   async request(
-    input: Omit<ApprovalRequest, "createdAt">,
+    input: Partial<ApprovalRequest> & {
+      id: string;
+      toolCallId?: string;
+      reason?: string;
+      risk?: string[];
+      normalizedArgs?: unknown;
+    },
   ): Promise<ApprovalRequest> {
     const existing = this.approvals.get(input.id);
     if (existing) return existing;
-    const request = { ...input, createdAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const request = normalizeApproval({
+      ...input,
+      id: input.id,
+      approvalId: input.approvalId ?? input.id,
+      toolCallId: input.toolCallId ?? input.id,
+      conversationId: input.conversationId ?? "conv_unknown",
+      agentId: input.agentId ?? "agent_main",
+      runId: input.runId ?? "run_unknown",
+      risk: input.risk ?? ["policy"],
+      reason: input.reason ?? "approval required",
+      normalizedArgs: input.normalizedArgs ?? input.args ?? {},
+      displayArgs: input.displayArgs ?? input.normalizedArgs ?? input.args,
+      status: "waiting",
+      createdAt: input.createdAt ?? now,
+    });
     this.approvals.set(request.id, request);
     await this.store?.append(request);
     return request;
@@ -43,23 +64,124 @@ export class ApprovalWaiter {
     id: string,
     decision: "grant" | "deny",
     note?: string,
+    options: {
+      selectedScope?: ApprovalScope;
+      commandId?: string;
+      checkpointId?: string;
+    } = {},
   ): Promise<ApprovalRequest> {
     const current = this.approvals.get(id);
     if (!current) throw new Error(`Unknown approval: ${id}`);
-    if (current.resolved) {
-      if (current.resolved.decision !== decision)
+    const status = decision === "grant" ? "granted" : "denied";
+    if (current.status === "granted" || current.status === "denied") {
+      const currentDecision = current.status === "granted" ? "grant" : "deny";
+      if (
+        currentDecision !== decision ||
+        current.selectedScope !== options.selectedScope
+      )
         throw new Error(`Conflicting approval resolution: ${id}`);
       return current;
     }
-    const next = {
+    if (current.status !== "waiting")
+      throw new Error(`Approval already resolved: ${id}`);
+    const next = normalizeApproval({
       ...current,
+      status,
+      selectedScope: options.selectedScope,
+      resolutionCommandId: options.commandId,
+      resolutionReason: note,
+      checkpointId: options.checkpointId,
+      denialError:
+        decision === "deny"
+          ? { code: "POLICY_DENIED", message: note ?? "Approval denied" }
+          : undefined,
+      resolvedAt: new Date().toISOString(),
       resolved: { decision, note, resolvedAt: new Date().toISOString() },
-    };
+    });
     this.approvals.set(id, next);
     await this.store?.append(next);
     return next;
   }
+  async cancelRun(scope: {
+    conversationId?: string;
+    agentId?: string;
+    runId: string;
+  }): Promise<ApprovalRequest[]> {
+    const cancelled: ApprovalRequest[] = [];
+    for (const approval of this.approvals.values()) {
+      if (approval.status !== "waiting") continue;
+      if (
+        scope.conversationId &&
+        approval.conversationId !== scope.conversationId
+      )
+        continue;
+      if (scope.agentId && approval.agentId !== scope.agentId) continue;
+      if (approval.runId !== scope.runId) continue;
+      const next = normalizeApproval({
+        ...approval,
+        status: "cancelled",
+        cancelledAt: new Date().toISOString(),
+        resolvedAt: new Date().toISOString(),
+      });
+      this.approvals.set(approval.id, next);
+      await this.store?.append(next);
+      cancelled.push(next);
+    }
+    return cancelled;
+  }
+  pendingForRun(scope: {
+    conversationId?: string;
+    agentId?: string;
+    runId: string;
+  }): ApprovalRequest[] {
+    return this.list().filter(
+      (approval) =>
+        approval.status === "waiting" &&
+        (!scope.conversationId ||
+          approval.conversationId === scope.conversationId) &&
+        (!scope.agentId || approval.agentId === scope.agentId) &&
+        approval.runId === scope.runId,
+    );
+  }
+  resolutionForToolCall(toolCallId: string): ApprovalRequest | undefined {
+    return this.list().find(
+      (approval) =>
+        approval.toolCallId === toolCallId &&
+        (approval.status === "granted" || approval.status === "denied"),
+    );
+  }
   list(): ApprovalRequest[] {
     return Array.from(this.approvals.values());
   }
+}
+
+function normalizeApproval(
+  input: Partial<ApprovalRequest> & { id?: string; approvalId?: string },
+): ApprovalRequest {
+  const approvalId = input.approvalId ?? input.id ?? `approval_${Date.now()}`;
+  return {
+    id: input.id ?? approvalId,
+    approvalId,
+    toolCallId: input.toolCallId ?? approvalId,
+    conversationId: input.conversationId ?? "conv_unknown",
+    agentId: input.agentId ?? "agent_main",
+    runId: input.runId ?? "run_unknown",
+    risk: input.risk ?? ["policy"],
+    reason: input.reason ?? "approval required",
+    normalizedArgs: input.normalizedArgs ?? {},
+    displayArgs: input.displayArgs,
+    status: input.status ?? "waiting",
+    selectedScope: input.selectedScope,
+    resolutionCommandId: input.resolutionCommandId,
+    resolutionReason: input.resolutionReason,
+    appliesTo: input.appliesTo,
+    checkpointId: input.checkpointId,
+    denialError: input.denialError,
+    createdAt: input.createdAt ?? new Date().toISOString(),
+    resolvedAt: input.resolvedAt,
+    cancelledAt: input.cancelledAt,
+    tool: input.tool,
+    args: input.args,
+    resolved: input.resolved,
+  };
 }

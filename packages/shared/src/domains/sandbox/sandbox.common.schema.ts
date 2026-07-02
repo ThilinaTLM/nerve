@@ -15,6 +15,7 @@ export const sandboxRunStatusSchema = z.enum([
   "waiting_for_approval",
   "completed",
   "failed",
+  "recoverable_failed",
   "cancelled",
 ]);
 export type SandboxRunStatus = z.infer<typeof sandboxRunStatusSchema>;
@@ -75,11 +76,33 @@ export const degradedStatusSchema = z.object({
 export type DegradedStatus = z.infer<typeof degradedStatusSchema>;
 
 export const controllerConnectivityStatusSchema = z.object({
-  state: z.enum(["connected", "reconnecting", "disconnected", "shutting_down"]),
+  state: z.enum([
+    "connecting",
+    "connected",
+    "reconnecting",
+    "disconnected",
+    "shutting_down",
+  ]),
+  sessionId: z.string().min(1).optional(),
+  acceptedCapabilities: z.array(z.string().min(1)).optional(),
   connectedAt: isoDateTimeSchema.optional(),
   disconnectedAt: isoDateTimeSchema.optional(),
+  closeCode: z.number().int().safe().optional(),
+  closeReason: z.string().min(1).optional(),
+  lastHeartbeatAt: isoDateTimeSchema.optional(),
   lastErrorCode: z.string().min(1).optional(),
+  lastError: redactedErrorSchema.optional(),
   reconnectAttempts: z.number().int().nonnegative().safe().optional(),
+  outboundQueue: z
+    .object({
+      pendingBatches: z.number().int().nonnegative().safe().optional(),
+      pendingEvents: z.number().int().nonnegative().safe().optional(),
+      pendingBytes: z.number().int().nonnegative().safe().optional(),
+      maxEvents: z.number().int().nonnegative().safe().optional(),
+      maxBytes: z.number().int().nonnegative().safe().optional(),
+      overflowedAt: isoDateTimeSchema.optional(),
+    })
+    .optional(),
   exitAfterMs: z.number().int().nonnegative().safe().optional(),
   exitAt: isoDateTimeSchema.optional(),
 });

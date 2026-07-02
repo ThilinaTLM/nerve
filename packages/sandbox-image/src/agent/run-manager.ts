@@ -1,11 +1,13 @@
 import { Redactor } from "../security/redaction.js";
 import type { EventOutbox } from "../state/event-outbox.js";
+import { RunExecutionStore } from "./run-execution-store.js";
 import type { RunState, RunStateStore } from "./run-state-store.js";
 import { TranscriptStore } from "./transcript-store.js";
 
 export class RunManager {
   private counter = 0;
   private readonly transcript: TranscriptStore;
+  private readonly executions: RunExecutionStore;
   private readonly redactor: Redactor;
   constructor(
     private readonly store: RunStateStore,
@@ -14,6 +16,7 @@ export class RunManager {
     redactor = new Redactor({ secrets: [] }),
   ) {
     this.transcript = new TranscriptStore(stateDir);
+    this.executions = new RunExecutionStore(stateDir);
     this.redactor = redactor;
   }
   async start(input: {
@@ -39,6 +42,16 @@ export class RunManager {
       behavior: input.behavior ?? "start",
     };
     await this.store.write(state);
+    await this.executions.write({
+      conversationId,
+      agentId,
+      runId,
+      executionId: `exec_${Date.now()}_${this.counter}`,
+      attempt: 1,
+      recoverability: "retryable",
+      status: "starting",
+      startedAt: now,
+    });
     if (input.prompt) {
       await this.transcript.append(state, {
         entryId: `entry_${Date.now()}_0`,

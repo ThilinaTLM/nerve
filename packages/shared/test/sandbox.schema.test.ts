@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import {
   managedContainerCreateSpecSchema,
   managedSandboxRecordSchema,
+  managerOutboundCommandRecordSchema,
   sandboxAckStateSchema,
   sandboxCanonicalJson,
   sandboxCommandRecordSchema,
@@ -13,14 +14,18 @@ import {
   sandboxProtocolCursorSchema,
   sandboxProtocolEventBatchSchema,
   sandboxProtocolEventSchema,
+  sandboxProtocolFlowUpdateSchema,
   sandboxProtocolHelloSchema,
+  sandboxRunExecutionRecordSchema,
   sandboxRunStartParamsSchema,
   sandboxSecretRefSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetParamsSchema,
   sandboxStatusGetResultSchema,
+  sandboxTaskRecordSchema,
   sandboxToolCallRecordSchema,
   sandboxTranscriptEntrySchema,
+  sandboxWaitResolutionRecordSchema,
 } from "../src/index.js";
 
 const ts = "2026-06-26T12:00:00.000Z";
@@ -243,6 +248,15 @@ describe("Sandbox shared schemas", () => {
       }).success,
       false,
     );
+    assert.equal(
+      sandboxProtocolFlowUpdateSchema.safeParse({
+        type: "flow.update",
+        stream: "sandbox",
+        queue: { pendingEvents: 5, maxEvents: 100 },
+        reason: "backpressure",
+      }).success,
+      true,
+    );
   });
 
   it("validates representative command parameter shapes", () => {
@@ -358,7 +372,58 @@ describe("Sandbox shared schemas", () => {
         runId: "run_1",
         toolName: "read",
         status: "completed",
+        displayArgs: { path: "README.md" },
+        artifactRefs: [{ path: "artifacts/tool_1/result.txt" }],
+        lifecycleSeq: 3,
+        redactionVersion: 1,
         requestedAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxWaitResolutionRecordSchema.safeParse({
+        waitId: "wait_1",
+        kind: "input",
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        runId: "run_1",
+        commandId: "cmd_2",
+        status: "submitted",
+        resolvedAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxRunExecutionRecordSchema.safeParse({
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        runId: "run_1",
+        executionId: "exec_1",
+        recoverability: "checkpoint",
+        status: "streaming",
+        startedAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxTaskRecordSchema.safeParse({
+        taskId: "task_1",
+        command: "pnpm check",
+        status: "running",
+        createdAt: ts,
+        updatedAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      managerOutboundCommandRecordSchema.safeParse({
+        requestId: "req_1",
+        sandboxId: "sbx_1",
+        method: "sandbox.status.get",
+        paramsHash: `sha256:${"b".repeat(64)}`,
+        status: "sent",
+        createdAt: ts,
+        sentAt: ts,
       }).success,
       true,
     );
