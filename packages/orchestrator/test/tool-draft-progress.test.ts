@@ -57,15 +57,29 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.generatedPreview, lines.slice(-10).join("\n"));
   });
 
-  it("previews edit generated content without old text", () => {
+  it("previews edit replacements and insertions as diff lines", () => {
     const accumulator = new ToolDraftProgressAccumulator("edit");
 
     const progress = accumulator.push(
       '{"replacements":[{"oldText":"old secret","newText":"new one\\nnew two"}],"insertions":[{"text":"inserted"}]}',
     );
 
-    assert.equal(progress?.generatedPreview, "new one\nnew two\ninserted");
-    assert.equal(progress?.generatedPreview?.includes("old secret"), false);
+    assert.equal(
+      progress?.generatedPreview,
+      "-old secret\n+new one\n+new two\n+inserted",
+    );
+    assert.equal(progress?.generatedPreviewLanguage, "diff");
+  });
+
+  it("previews insertion-only edit progress as additions", () => {
+    const accumulator = new ToolDraftProgressAccumulator("edit");
+
+    const progress = accumulator.push(
+      '{"insertions":[{"text":"first\\nsecond"}]}',
+    );
+
+    assert.equal(progress?.generatedPreview, "+first\n+second");
+    assert.equal(progress?.generatedPreviewLanguage, "diff");
   });
 
   it("marks patch-only edit progress previews as diff", () => {
@@ -88,6 +102,8 @@ describe("ToolDraftProgressAccumulator", () => {
     assert.equal(progress?.operationCount, 1);
     assert.equal(progress?.generatedLineCount, 1);
     assert.equal(progress?.estimatedDeletions, 2);
+    assert.equal(progress?.generatedPreview, "-old\n-text\n+new");
+    assert.equal(progress?.generatedPreviewLanguage, "diff");
   });
 });
 
@@ -121,7 +137,9 @@ describe("finalToolDraftProgress", () => {
       generatedLineCount: 5,
       estimatedAdditions: 5,
       estimatedDeletions: 2,
-      generatedPreview: "new\none\ntwo\n@@ -1 +1,2 @@\n-old\n+new\n+extra\n",
+      generatedPreview:
+        "-old\n+new\n+one\n+two\n@@ -1 +1,2 @@\n-old\n+new\n+extra\n",
+      generatedPreviewLanguage: "diff",
       estimated: false,
     });
   });

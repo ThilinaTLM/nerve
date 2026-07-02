@@ -215,7 +215,7 @@ describe("summarizeToolDraft", () => {
           generatedLineCount: 1,
           estimatedAdditions: 1,
           estimatedDeletions: 1,
-          generatedPreview: "@@ -1 +1 @@\n-old\n+new",
+          generatedPreview: "-old\n+new",
           generatedPreviewLanguage: "diff",
           estimated: true,
         },
@@ -223,7 +223,7 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "edit");
-    assert.equal(summary.preview, "@@ -1 +1 @@\n-old\n+new");
+    assert.equal(summary.preview, "-old\n+new");
     assert.equal(summary.previewLanguage, "diff");
   });
 

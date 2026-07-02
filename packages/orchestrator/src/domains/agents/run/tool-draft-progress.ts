@@ -106,6 +106,8 @@ function tailGeneratedPreview(texts: string[]): string | undefined {
   return tail.value;
 }
 
+type DiffPreviewPrefix = "+" | "-";
+
 type ActiveValue =
   | { property: "path"; text: string; escaping: boolean }
   | { property: "operationType"; text: string; escaping: boolean }
@@ -113,6 +115,8 @@ type ActiveValue =
       property: "content" | "oldText" | "newText" | "text";
       metric: LineMetric;
       escaping: boolean;
+      previewPrefix?: DiffPreviewPrefix;
+      previewLineStart: boolean;
     }
   | { property: "patch"; metric: PatchMetric; escaping: boolean };
 
@@ -207,7 +211,6 @@ export class ToolDraftProgressAccumulator {
   private activePatchMetric: PatchMetric | undefined;
   private readonly generatedPreview = new GeneratedPreviewTail();
   private generatedPreviewSegmentCount = 0;
-  private generatedPatchPreviewSegmentCount = 0;
   private lastSignature: string | undefined;
 
   constructor(private readonly toolName: ToolDraftProgressToolName) {}
@@ -264,10 +267,7 @@ export class ToolDraftProgressAccumulator {
       estimatedDeletions: deletedLineCount,
       generatedPreview,
       generatedPreviewLanguage:
-        generatedPreview &&
-        this.generatedPreviewSegmentCount > 0 &&
-        this.generatedPreviewSegmentCount ===
-          this.generatedPatchPreviewSegmentCount
+        generatedPreview && this.generatedPreviewSegmentCount > 0
           ? "diff"
           : undefined,
       estimated: true,
@@ -331,10 +331,9 @@ export class ToolDraftProgressAccumulator {
     }
   }
 
-  private beginGeneratedPreviewSegment(patch: boolean): void {
+  private beginGeneratedPreviewSegment(): void {
     if (this.generatedPreview.value) this.generatedPreview.append("\n");
     this.generatedPreviewSegmentCount += 1;
-    if (patch) this.generatedPatchPreviewSegmentCount += 1;
   }
 
   private startTargetValue(property: TargetProperty): void {
@@ -345,38 +344,62 @@ export class ToolDraftProgressAccumulator {
         break;
       case "content": {
         const metric = new LineMetric();
-        this.beginGeneratedPreviewSegment(false);
+        this.beginGeneratedPreviewSegment();
         this.activeContentMetric = metric;
-        this.activeValue = { property, metric, escaping: false };
+        this.activeValue = {
+          property,
+          metric,
+          escaping: false,
+          previewLineStart: true,
+        };
         break;
       }
       case "oldText": {
         const metric = new LineMetric();
         this.oldTextCount += 1;
+        this.beginGeneratedPreviewSegment();
         this.activeOldTextMetric = metric;
-        this.activeValue = { property, metric, escaping: false };
+        this.activeValue = {
+          property,
+          metric,
+          escaping: false,
+          previewPrefix: "-",
+          previewLineStart: true,
+        };
         break;
       }
       case "newText": {
         const metric = new LineMetric();
         this.newTextCount += 1;
-        this.beginGeneratedPreviewSegment(false);
+        this.beginGeneratedPreviewSegment();
         this.activeNewTextMetric = metric;
-        this.activeValue = { property, metric, escaping: false };
+        this.activeValue = {
+          property,
+          metric,
+          escaping: false,
+          previewPrefix: "+",
+          previewLineStart: true,
+        };
         break;
       }
       case "text": {
         const metric = new LineMetric();
         this.insertedTextCount += 1;
-        this.beginGeneratedPreviewSegment(false);
+        this.beginGeneratedPreviewSegment();
         this.activeInsertedTextMetric = metric;
-        this.activeValue = { property, metric, escaping: false };
+        this.activeValue = {
+          property,
+          metric,
+          escaping: false,
+          previewPrefix: "+",
+          previewLineStart: true,
+        };
         break;
       }
       case "patch": {
         const metric = new PatchMetric();
         this.patchCount += 1;
-        this.beginGeneratedPreviewSegment(true);
+        this.beginGeneratedPreviewSegment();
         this.activePatchMetric = metric;
         this.activeValue = { property, metric, escaping: false };
         break;
@@ -419,14 +442,25 @@ export class ToolDraftProgressAccumulator {
       return;
     }
     active.metric.add(char);
-    if (
-      active.property === "content" ||
-      active.property === "newText" ||
-      active.property === "text" ||
-      active.property === "patch"
-    ) {
+    if (active.property === "patch") {
       this.generatedPreview.append(char);
+      return;
     }
+    this.appendTextPreviewChar(active, char);
+  }
+
+  private appendTextPreviewChar(
+    active: Extract<
+      ActiveValue,
+      { property: "content" | "oldText" | "newText" | "text" }
+    >,
+    char: string,
+  ): void {
+    if (active.previewPrefix && active.previewLineStart) {
+      this.generatedPreview.append(active.previewPrefix);
+    }
+    this.generatedPreview.append(char);
+    active.previewLineStart = char === "\n";
   }
 
   private finishActiveValue(active: ActiveValue): void {
@@ -480,44 +514,48 @@ export function createToolDraftProgressAccumulator(
   return undefined;
 }
 
+function prefixDiffPreviewLines(text: string, prefix: DiffPreviewPrefix): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
+}
+
 function finalEditGeneratedPreview(args: Record<string, unknown>): {
   generatedPreview?: string;
   generatedPreviewLanguage?: "diff";
 } {
-  const parts: Array<{ text: string; patch: boolean }> = [];
+  const parts: string[] = [];
 
   for (const replacement of arrayField(args.replacements)) {
-    const text = stringField(asRecord(replacement).newText);
-    if (text !== undefined) parts.push({ text, patch: false });
+    const record = asRecord(replacement);
+    const oldText = stringField(record.oldText);
+    if (oldText !== undefined) parts.push(prefixDiffPreviewLines(oldText, "-"));
+    const newText = stringField(record.newText);
+    if (newText !== undefined) parts.push(prefixDiffPreviewLines(newText, "+"));
   }
   for (const insertion of arrayField(args.insertions)) {
     const text = stringField(asRecord(insertion).text);
-    if (text !== undefined) parts.push({ text, patch: false });
+    if (text !== undefined) parts.push(prefixDiffPreviewLines(text, "+"));
   }
   for (const replacement of arrayField(args.lineReplacements)) {
     const text = stringField(asRecord(replacement).newText);
-    if (text !== undefined) parts.push({ text, patch: false });
+    if (text !== undefined) parts.push(prefixDiffPreviewLines(text, "+"));
   }
   for (const insertion of arrayField(args.lineInsertions)) {
     const text = stringField(asRecord(insertion).text);
-    if (text !== undefined) parts.push({ text, patch: false });
+    if (text !== undefined) parts.push(prefixDiffPreviewLines(text, "+"));
   }
   const patch = stringField(args.patch);
-  if (patch !== undefined) parts.push({ text: patch, patch: true });
+  if (patch !== undefined) parts.push(patch);
 
-  const generatedPreview = tailGeneratedPreview(parts.map((part) => part.text));
-  const result: {
-    generatedPreview?: string;
-    generatedPreviewLanguage?: "diff";
-  } = { generatedPreview };
-  if (
-    generatedPreview &&
-    parts.length > 0 &&
-    parts.every((part) => part.patch)
-  ) {
-    result.generatedPreviewLanguage = "diff";
-  }
-  return result;
+  const generatedPreview = tailGeneratedPreview(parts);
+  return {
+    generatedPreview,
+    generatedPreviewLanguage: generatedPreview ? "diff" : undefined,
+  };
 }
 
 export function finalToolDraftProgress(
