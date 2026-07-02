@@ -1,0 +1,26 @@
+# Sandbox v1 scaffold image. Build from the repository root after running package builds.
+FROM node:24-bookworm-slim
+
+RUN groupadd --system sandbox \
+  && useradd --system --gid sandbox --home-dir /home/sandbox --create-home --shell /usr/sbin/nologin sandbox \
+  && mkdir -p /agent /agent/skills /workspace /state /tmp /secrets /credentials \
+  && chown -R sandbox:sandbox /workspace /state /tmp /credentials /home/sandbox \
+  && chmod 0755 /agent /agent/skills \
+  && chmod 0700 /state /credentials
+
+WORKDIR /agent
+RUN npm install --omit=dev --no-package-lock yaml@2.9.0
+COPY packages/shared/dist /agent/node_modules/@nervekit/shared/dist
+COPY packages/shared/package.json /agent/node_modules/@nervekit/shared/package.json
+COPY packages/sandbox-image/dist /agent/dist
+COPY packages/sandbox-image/package.json /agent/package.json
+
+ENV NODE_ENV=production
+ENV NERVE_SANDBOX_CONFIG=/etc/nerve/sandbox.yaml
+USER sandbox:sandbox
+WORKDIR /workspace
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node /agent/dist/main.js healthcheck >/dev/null || exit 1
+
+ENTRYPOINT ["node", "/agent/dist/main.js"]

@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+import {
+  runSandboxEntrypoint,
+  sandboxEntrypointErrorMessage,
+  sandboxEntrypointExitCode,
+} from "./entrypoint.js";
+import { sandboxHealthcheck } from "./healthcheck.js";
+
+async function main(): Promise<void> {
+  const command = process.argv[2];
+  if (command === "healthcheck") {
+    console.log(JSON.stringify(sandboxHealthcheck()));
+    return;
+  }
+  if (command === "--help" || command === "-h") {
+    console.log("Usage: nerve-sandbox [healthcheck]");
+    return;
+  }
+  const result = await runSandboxEntrypoint();
+  console.log(JSON.stringify(result));
+}
+
+main().catch((error) => {
+  console.error(sandboxEntrypointErrorMessage(error));
+  process.exitCode = sandboxEntrypointExitCode(error);
+});
