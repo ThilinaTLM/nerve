@@ -165,8 +165,16 @@ export class SandboxWsServer {
       }
     });
 
-    ws.on("close", () => void this.handleClose(sandboxId, session));
-    ws.on("error", () => void this.handleClose(sandboxId, session));
+    ws.on(
+      "close",
+      (code, reason) =>
+        void this.handleClose(sandboxId, session, code, reason.toString()),
+    );
+    ws.on(
+      "error",
+      (error) =>
+        void this.handleClose(sandboxId, session, undefined, error.message),
+    );
   }
 
   private async handleMessage(
@@ -269,15 +277,21 @@ export class SandboxWsServer {
   private async handleClose(
     sandboxId: string,
     session?: ConnectedSandboxSession,
+    closeCode?: number,
+    closeReason?: string,
   ): Promise<void> {
     if (!session) return;
     this.sessions.delete(sandboxId, session.sessionId);
     session.forwarder.failAll(new Error("Sandbox session disconnected"));
+    const now = new Date().toISOString();
     await this.state.sessions.put({
       sandboxId,
       sessionId: session.sessionId,
       state: "disconnected",
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
+      disconnectedAt: now,
+      closeCode,
+      closeReason,
     });
   }
 }

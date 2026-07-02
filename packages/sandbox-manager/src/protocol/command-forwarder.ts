@@ -14,6 +14,7 @@ type Pending = {
 
 export class CommandForwarder {
   private readonly pending = new Map<string, Pending>();
+  constructor(private readonly maxPending = 100) {}
 
   send(
     socket: CommandSocket,
@@ -22,15 +23,17 @@ export class CommandForwarder {
     id = `req_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     timeoutMs = 30_000,
   ): Promise<unknown> {
-    socket.send(
-      encodeProtocolMessage({ type: "request", id, method, params } as never),
-    );
+    if (this.pending.size >= this.maxPending)
+      return Promise.reject(new Error("Sandbox command queue is full"));
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Sandbox command timed out: ${id}`));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timeout });
+      socket.send(
+        encodeProtocolMessage({ type: "request", id, method, params } as never),
+      );
     });
   }
 

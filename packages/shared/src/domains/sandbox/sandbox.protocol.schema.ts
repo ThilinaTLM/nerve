@@ -5,6 +5,7 @@ import {
   sandboxIdSchema,
   sandboxInstanceIdSchema,
 } from "./sandbox.common.schema.js";
+import { sandboxEventPayloadSchemas } from "./sandbox.events.schema.js";
 
 export const sandboxProtocolVersionSchema = z.literal(1);
 export type SandboxProtocolVersion = z.infer<
@@ -85,7 +86,22 @@ export const sandboxProtocolEventSchema = z
     durability: z.enum(["durable", "transient"]).optional(),
     data: z.unknown().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((event, ctx) => {
+    const schema = (sandboxEventPayloadSchemas as Record<string, z.ZodType>)[
+      event.type
+    ];
+    if (!schema) return;
+    const result = schema.safeParse(event.data ?? {});
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({
+          ...issue,
+          path: ["data", ...issue.path],
+        });
+      }
+    }
+  });
 export type SandboxProtocolEvent = z.infer<typeof sandboxProtocolEventSchema>;
 
 export const sandboxProtocolEventBatchSchema = z

@@ -50,6 +50,15 @@ describe("sandbox image durable state foundations", () => {
         /IDEMPOTENCY_CONFLICT/,
       );
 
+      await inbox.complete("cmd_1", { ok: true });
+      const duplicateWithResult = await inbox.accept({
+        commandId: "cmd_1",
+        messageId: "msg_4",
+        method: "sandbox.run.start",
+        params: { prompt: "hi", commandId: "cmd_1" },
+      });
+      assert.equal(duplicateWithResult.result?.status, "completed");
+
       const outbox = new EventOutbox(
         path.join(dir, "outbox.jsonl"),
         path.join(dir, "ack.json"),

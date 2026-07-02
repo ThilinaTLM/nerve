@@ -60,7 +60,7 @@ export class SandboxSupervisor {
         updatedAt: new Date().toISOString(),
         lastError: {
           code: "START_FAILED",
-          message: error instanceof Error ? error.message : String(error),
+          message: redactErrorMessage(error),
         },
       };
       await this.store.put(failed);
@@ -117,4 +117,12 @@ export class SandboxSupervisor {
     if (!record) throw new Error(`Unknown sandbox record: ${sandboxId}`);
     return record;
   }
+}
+
+function redactErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(
+    /(token|secret|password|api[_-]?key)=\S+/gi,
+    "$1=[REDACTED]",
+  );
 }

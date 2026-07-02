@@ -5,6 +5,10 @@ import type { ManagedSandboxRecord, SandboxConfigV1 } from "@nervekit/shared";
 import { sandboxConfigDigestStable } from "@nervekit/shared";
 import type { ManagerState } from "../app/manager-state.js";
 import { materializeSandboxConfig } from "../config/materialize-sandbox-config.js";
+import {
+  buildSecretPolicy,
+  writeSecretPolicy,
+} from "../secrets/secret-policy.js";
 import { VolumeManager } from "../storage/volume-manager.js";
 
 export async function createSandboxRecord(
@@ -77,6 +81,10 @@ export async function createSandboxRecord(
     createdAt: now,
     updatedAt: now,
   };
+  await writeSecretPolicy(
+    path.join(state.config.storageDir, "secret-policies"),
+    buildSecretPolicy(sandboxId, materializedConfig),
+  );
   await state.sandboxes.put(record);
   return record;
 }

@@ -6,6 +6,9 @@ export type SandboxSessionRecord = {
   state: "connected" | "reconnecting" | "disconnected" | "exited";
   updatedAt: string;
   cursors?: unknown;
+  disconnectedAt?: string;
+  closeCode?: number;
+  closeReason?: string;
 };
 export class SessionStore {
   constructor(private readonly rootDir: string) {}

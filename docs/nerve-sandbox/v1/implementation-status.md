@@ -1,22 +1,29 @@
-# Sandbox v1 implementation status
+# Nerve Sandbox v1 non-UI implementation status
 
-This implementation adds the non-UI Sandbox v1 foundations:
+| Area | Status | Notes |
+| --- | --- | --- |
+| Shared protocol/state schemas | Complete for v1 foundation | Durable command/result, run, transcript, tool-call, wait, session, cursor schemas are exported from `packages/shared`; known protocol event payloads validate by type while unknown event types remain forward-compatible. |
+| Startup pipeline | Complete for deterministic local daemon path | Entrypoint runs ordered config/state/preflight/model/secrets/setup/skills/boot/session/ready stages and maps documented exit codes. |
+| Tool runtime policy | Complete for local adapter foundation | Sandbox adapter mediates `packages/tools`, enforces group/read-only/path/symlink/timeout/env/long-running policy, persists redacted tool records, and checkpoints approval waits. |
+| Agent run persistence | Complete for durable v1 harness shell | Run state, transcript, cancel events, summaries, and recovery reads are file-first under `/state/conversations`. Model execution hooks are ready for deeper harness streaming integration. |
+| Manager lifecycle APIs | Complete for v1 HTTP control plane | Create/start/stop/restart/delete/status/snapshot/logs/commands support materialized config, recorded runtime refs, idempotency, bounded/redacted logs, and disconnected fallbacks. |
+| Manager secret policy/audit | Complete | Per-sandbox KV policy is generated from config refs, daemon resolves require controller token, policy violations are rejected, and audit records redact key names/values. |
+| Reconciliation/GC/orphans | Complete for fake-driver and runtime-driver flows | Reconciler updates observed state from inspections, self-exit 22 is surfaced as reconnecting, GC honors failed preservation, and orphan policy supports adopt/stop/remove/ignore. |
+| Protocol recovery/flow control | Complete for v1 baseline | Command idempotency stores results/conflicts, manager command forwarding has bounded pending queues/timeouts, event replay/dedupe is durable, and close reasons are stored. |
+| Image build/smoke | Guarded | Dockerfile and smoke coverage detect Docker/Podman at runtime and skip clearly when unavailable. Full operator smoke requires a configured runtime image. |
 
-- shared sandbox config/command/event/state/manager schema tightening and stable canonical digest helpers;
-- sandbox image state layout, single-writer lock, atomic JSON/JSONL stores, command idempotency, event outbox/ack persistence, redaction, preflight, health status, secrets, model catalog, boot/setup/skills/tool/agent skeletons, and protocol message primitives;
-- Dockerfile hardening labels, non-root runtime, immutable `/agent`, and healthcheck against daemon state;
-- sandbox manager service bootstrap with loopback-only default binding, file-first stores, HTTP APIs, file KV secrets, event ingestion/deduplication, Docker/Podman CLI drivers, launch-spec materialization, orphan discovery, and basic lifecycle/GC foundations.
-
-Local smoke test outline:
+## Operational commands
 
 ```sh
-pnpm --filter @nervekit/shared build
-pnpm --filter @nervekit/agent build
-pnpm --filter @nervekit/tools build
-pnpm --filter @nervekit/sandbox-image build
-pnpm --filter @nervekit/sandbox-manager build
-NERVE_SANDBOX_MANAGER_API_KEY=dev pnpm --filter @nervekit/sandbox-manager dev
-curl -H 'authorization: Bearer dev' http://127.0.0.1:7869/health
+pnpm --filter @nervekit/shared check
+pnpm --filter @nervekit/sandbox-image check
+pnpm --filter @nervekit/sandbox-manager check
+pnpm --filter @nervekit/shared test
+pnpm --filter @nervekit/sandbox-image test
+pnpm --filter @nervekit/sandbox-manager test
+pnpm lint
+pnpm check
+pnpm test
 ```
 
-Docker/Podman operations report backend unavailability clearly when the CLI is missing.
+Container smoke tests are guarded and run as part of the sandbox-manager test suite; they skip with a clear message when neither Docker nor Podman is reachable.

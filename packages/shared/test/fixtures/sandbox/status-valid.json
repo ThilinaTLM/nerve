@@ -1,0 +1,34 @@
+{
+  "sandboxId": "sbx_1",
+  "instanceId": "inst_1",
+  "status": "ready",
+  "updatedAt": "2026-06-26T12:00:00.000Z",
+  "setup": {
+    "git": { "configured": true, "status": "completed" }
+  },
+  "toolGroups": [
+    {
+      "group": "fileInspection",
+      "configured": true,
+      "active": true,
+      "tools": ["read", "grep"]
+    }
+  ],
+  "cursors": { "streams": [{ "stream": "sandbox", "processedSeq": 5 }] },
+  "conversations": [
+    {
+      "conversationId": "conv_1",
+      "agentIds": ["agent_1"],
+      "updatedAt": "2026-06-26T12:00:00.000Z"
+    }
+  ],
+  "runs": [
+    {
+      "conversationId": "conv_1",
+      "agentId": "agent_1",
+      "runId": "run_1",
+      "status": "completed",
+      "updatedAt": "2026-06-26T12:00:00.000Z"
+    }
+  ]
+}
