@@ -51,6 +51,7 @@
     thinkingLevel = "off",
     mode = "coding",
     permissionLevel = "autonomous",
+    approvalPolicy = { autoApproveReadOnly: true },
     slashCompletions = [],
     fileCompletions,
     composerSuggestions = [],
@@ -67,6 +68,7 @@
     onThinkingLevelChange,
     onModeChange,
     onPermissionChange,
+    onApprovalPolicyChange,
     onGrantApproval,
     onDenyApproval,
     onAcceptPlanReview,
@@ -235,6 +237,7 @@
         {thinkingLevel}
         {mode}
         {permissionLevel}
+        {approvalPolicy}
         {slashCompletions}
         {fileCompletions}
         {composerSuggestions}
@@ -247,6 +250,7 @@
         {onThinkingLevelChange}
         {onModeChange}
         {onPermissionChange}
+        {onApprovalPolicyChange}
       />
     </div>
   {:else}

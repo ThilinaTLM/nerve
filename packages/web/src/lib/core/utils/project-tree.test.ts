@@ -28,6 +28,7 @@ function conversation(
     title: id,
     mode: "coding",
     permissionLevel: "autonomous",
+    approvalPolicy: { autoApproveReadOnly: true },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...rest,

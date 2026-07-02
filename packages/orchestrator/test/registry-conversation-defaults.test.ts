@@ -26,15 +26,29 @@ describe("RuntimeRegistry conversation defaults", () => {
         modelId: "claude-sonnet-4-5",
       });
       assert.equal(first.lastAgentSelection.permissionLevel, "autonomous");
+      assert.equal(
+        first.lastAgentSelection.approvalPolicy.autoApproveReadOnly,
+        true,
+      );
 
       const second = await writeSettings(state.storage, {
         defaultModel: null,
-        lastAgentSelection: { model: null, permissionLevel: "read_only" },
+        defaultApprovalPolicy: { autoApproveReadOnly: false },
+        lastAgentSelection: {
+          model: null,
+          permissionLevel: "read_only",
+          approvalPolicy: { autoApproveReadOnly: false },
+        },
       });
       assert.equal(second.defaultModel, undefined);
       assert.equal(second.lastAgentSelection.model, undefined);
       assert.equal(second.lastAgentSelection.mode, "planning");
       assert.equal(second.lastAgentSelection.permissionLevel, "read_only");
+      assert.equal(second.defaultApprovalPolicy.autoApproveReadOnly, false);
+      assert.equal(
+        second.lastAgentSelection.approvalPolicy.autoApproveReadOnly,
+        false,
+      );
     } finally {
       state.index.close();
     }
@@ -46,6 +60,7 @@ describe("RuntimeRegistry conversation defaults", () => {
       await writeSettings(state.storage, {
         defaultMode: "planning",
         defaultPermissionLevel: "supervised",
+        defaultApprovalPolicy: { autoApproveReadOnly: false },
         defaultModel: { provider: "nerve-faux", modelId: "faux-fast" },
         defaultThinkingLevel: "off",
       });
@@ -62,6 +77,8 @@ describe("RuntimeRegistry conversation defaults", () => {
 
       assert.equal(conversation.mode, "planning");
       assert.equal(conversation.permissionLevel, "supervised");
+      assert.equal(conversation.approvalPolicy.autoApproveReadOnly, false);
+      assert.equal(agent.approvalPolicy.autoApproveReadOnly, false);
       assert.deepEqual(agent.model, {
         provider: "nerve-faux",
         modelId: "faux-fast",
@@ -80,6 +97,7 @@ describe("RuntimeRegistry conversation defaults", () => {
         lastAgentSelection: {
           mode: "planning",
           permissionLevel: "read_only",
+          approvalPolicy: { autoApproveReadOnly: false },
           model: { provider: "nerve-faux", modelId: "faux-fast" },
           thinkingLevel: "off",
         },
@@ -97,6 +115,8 @@ describe("RuntimeRegistry conversation defaults", () => {
 
       assert.equal(conversation.mode, "planning");
       assert.equal(conversation.permissionLevel, "read_only");
+      assert.equal(conversation.approvalPolicy.autoApproveReadOnly, false);
+      assert.equal(agent.approvalPolicy.autoApproveReadOnly, false);
       assert.deepEqual(agent.model, {
         provider: "nerve-faux",
         modelId: "faux-fast",
@@ -134,12 +154,14 @@ describe("RuntimeRegistry conversation defaults", () => {
         thinkingLevel: "off",
         mode: "coding",
         permissionLevel: "supervised",
+        approvalPolicy: { autoApproveReadOnly: false },
       });
 
       assert.equal(conversation.mode, "coding");
       assert.equal(conversation.permissionLevel, "autonomous");
       assert.equal(agent.mode, "coding");
       assert.equal(agent.permissionLevel, "supervised");
+      assert.equal(agent.approvalPolicy.autoApproveReadOnly, false);
       assert.deepEqual(agent.model, {
         provider: "nerve-faux",
         modelId: "faux-fast",

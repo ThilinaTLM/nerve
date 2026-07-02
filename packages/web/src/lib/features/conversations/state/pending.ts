@@ -28,6 +28,7 @@ export function openPendingConversation(project: ProjectRecord) {
         selectedThinkingLevel: conversationState.selectedThinkingLevel,
         selectedMode: conversationState.selectedMode,
         selectedPermissionLevel: conversationState.selectedPermissionLevel,
+        selectedApprovalPolicy: conversationState.selectedApprovalPolicy,
       };
   conversationState.pendingConversations[pendingConversationKey(id)] = {
     id,
@@ -39,6 +40,7 @@ export function openPendingConversation(project: ProjectRecord) {
     thinkingLevel: defaults.selectedThinkingLevel,
     mode: defaults.selectedMode,
     permissionLevel: defaults.selectedPermissionLevel,
+    approvalPolicy: defaults.selectedApprovalPolicy,
     sending: false,
     createdAt: new Date().toISOString(),
   };
@@ -59,6 +61,7 @@ export function selectPendingConversation(pendingId: string) {
   conversationState.selectedThinkingLevel = pending.thinkingLevel;
   conversationState.selectedMode = pending.mode;
   conversationState.selectedPermissionLevel = pending.permissionLevel;
+  conversationState.selectedApprovalPolicy = pending.approvalPolicy;
   clearTranscriptState();
   workspaceState.error = pending.error;
 }

@@ -56,6 +56,7 @@
     thinkingLevel = "off",
     mode = "coding",
     permissionLevel = "autonomous",
+    approvalPolicy = { autoApproveReadOnly: true },
     slashCompletions = [],
     fileCompletions,
     composerSuggestions = [],
@@ -68,6 +69,7 @@
     onThinkingLevelChange,
     onModeChange,
     onPermissionChange,
+    onApprovalPolicyChange,
   }: PromptComposerProps = $props();
 
   let editorFocusToken = $state(0);
@@ -280,6 +282,7 @@
         {modelDisabled}
         {mode}
         {permissionLevel}
+        {approvalPolicy}
         {modeLabel}
         {permissionShortcut}
         {permissionShortcutAria}
@@ -297,6 +300,7 @@
         {onModelChange}
         {onThinkingLevelChange}
         {onPermissionChange}
+        {onApprovalPolicyChange}
       />
 
       <CodeMirrorComposer

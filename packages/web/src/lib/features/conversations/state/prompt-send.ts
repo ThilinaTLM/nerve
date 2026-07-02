@@ -63,14 +63,22 @@ export async function ensureAgent(): Promise<string> {
       needsModel,
       needsMode,
       needsPermission,
+      needsApprovalPolicy,
       needsThinking,
     } = agentNeedsComposerUpdate(agent);
-    if (needsModel || needsMode || needsPermission || needsThinking) {
+    if (
+      needsModel ||
+      needsMode ||
+      needsPermission ||
+      needsApprovalPolicy ||
+      needsThinking
+    ) {
       const updated = await updateAgentConfig(selection.agentId, {
         model: desired ?? null,
         thinkingLevel,
         mode: conversationState.selectedMode,
         permissionLevel: conversationState.selectedPermissionLevel,
+        approvalPolicy: conversationState.selectedApprovalPolicy,
       }).catch(() => undefined);
       if (updated) {
         conversationState.selectedThinkingLevel = updated.thinkingLevel;
@@ -90,6 +98,7 @@ export async function ensureAgent(): Promise<string> {
         thinkingLevel: selectedThinkingLevel(),
         mode: conversationState.selectedMode,
         permissionLevel: conversationState.selectedPermissionLevel,
+        approvalPolicy: conversationState.selectedApprovalPolicy,
       })
     ).result;
     selection.agentId = agent.id;
@@ -140,6 +149,7 @@ async function sendPendingPrompt(
   pending.thinkingLevel = selectedThinkingLevel();
   pending.mode = conversationState.selectedMode;
   pending.permissionLevel = conversationState.selectedPermissionLevel;
+  pending.approvalPolicy = conversationState.selectedApprovalPolicy;
   pending.sending = true;
   pending.error = undefined;
   workspaceState.error = undefined;
@@ -155,6 +165,7 @@ async function sendPendingPrompt(
         title: deriveConversationTitle(text),
         mode: pending.mode,
         permissionLevel: pending.permissionLevel,
+        approvalPolicy: pending.approvalPolicy,
       })
     ).result;
     createdConversationId = conversation.id;
@@ -166,6 +177,7 @@ async function sendPendingPrompt(
         thinkingLevel: pending.thinkingLevel,
         mode: pending.mode,
         permissionLevel: pending.permissionLevel,
+        approvalPolicy: pending.approvalPolicy,
       })
     ).result;
 

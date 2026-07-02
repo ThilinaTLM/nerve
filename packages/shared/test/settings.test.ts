@@ -12,11 +12,15 @@ describe("settings schema", () => {
     const settings = settingsSchema.parse(defaultSettings);
 
     assert.equal(settings.defaultThinkingLevel, "off");
+    assert.deepEqual(settings.defaultApprovalPolicy, {
+      autoApproveReadOnly: true,
+    });
     assert.equal(settings.defaultModel, undefined);
     assert.equal(settings.rememberLastAgentSelection, false);
     assert.deepEqual(settings.lastAgentSelection, {
       mode: "coding",
       permissionLevel: "autonomous",
+      approvalPolicy: { autoApproveReadOnly: true },
       thinkingLevel: "off",
     });
     assert.deepEqual(settings.runtime, {});
@@ -30,15 +34,23 @@ describe("settings schema", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
       defaultThinkingLevel: undefined,
+      defaultApprovalPolicy: undefined,
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
       tools: undefined,
     });
 
     assert.equal(settings.defaultThinkingLevel, "off");
+    assert.deepEqual(settings.defaultApprovalPolicy, {
+      autoApproveReadOnly: true,
+    });
     assert.equal(settings.rememberLastAgentSelection, false);
     assert.equal(settings.lastAgentSelection.mode, "coding");
     assert.equal(settings.lastAgentSelection.permissionLevel, "autonomous");
+    assert.equal(
+      settings.lastAgentSelection.approvalPolicy.autoApproveReadOnly,
+      true,
+    );
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
@@ -75,6 +87,10 @@ describe("settings schema", () => {
         pythonExecutablePath: "/usr/bin/python3",
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
       },
+      defaultApprovalPolicy: { autoApproveReadOnly: false },
+      lastAgentSelection: {
+        approvalPolicy: { autoApproveReadOnly: false },
+      },
       tools: {
         disabled: ["web_search", "web_fetch", "python"],
         jira: {
@@ -91,6 +107,11 @@ describe("settings schema", () => {
         },
       },
     });
+    assert.equal(parsed.defaultApprovalPolicy?.autoApproveReadOnly, false);
+    assert.equal(
+      parsed.lastAgentSelection?.approvalPolicy?.autoApproveReadOnly,
+      false,
+    );
     assert.equal(parsed.runtime?.pythonExecutablePath, "/usr/bin/python3");
     assert.equal(
       parsed.runtime?.shellPath,

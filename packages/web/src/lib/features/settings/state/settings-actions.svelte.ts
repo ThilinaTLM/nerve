@@ -108,6 +108,7 @@ export async function loadSettingsPanel() {
   if (activeAgent) {
     conversationState.selectedMode = activeAgent.mode;
     conversationState.selectedPermissionLevel = activeAgent.permissionLevel;
+    conversationState.selectedApprovalPolicy = activeAgent.approvalPolicy;
     const activeModel = activeAgent.model;
     if (
       activeModel &&
@@ -124,6 +125,8 @@ export async function loadSettingsPanel() {
     conversationState.selectedMode = defaultSelection.selectedMode;
     conversationState.selectedPermissionLevel =
       defaultSelection.selectedPermissionLevel;
+    conversationState.selectedApprovalPolicy =
+      defaultSelection.selectedApprovalPolicy;
     conversationState.selectedModelKey = defaultSelection.selectedModelKey;
     conversationState.selectedThinkingLevel =
       defaultSelection.selectedThinkingLevel;
@@ -157,6 +160,21 @@ function mergeSettingsPatch(
     next.lastAgentSelection = {
       ...(base?.lastAgentSelection ?? {}),
       ...(patch.lastAgentSelection ?? {}),
+      ...(base?.lastAgentSelection?.approvalPolicy ||
+      patch.lastAgentSelection?.approvalPolicy
+        ? {
+            approvalPolicy: {
+              ...(base?.lastAgentSelection?.approvalPolicy ?? {}),
+              ...(patch.lastAgentSelection?.approvalPolicy ?? {}),
+            },
+          }
+        : {}),
+    };
+  }
+  if (base?.defaultApprovalPolicy || patch.defaultApprovalPolicy) {
+    next.defaultApprovalPolicy = {
+      ...(base?.defaultApprovalPolicy ?? {}),
+      ...(patch.defaultApprovalPolicy ?? {}),
     };
   }
   if (base?.exploreAgent || patch.exploreAgent) {

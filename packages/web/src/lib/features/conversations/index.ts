@@ -9,6 +9,7 @@ export {
   THINKING_LEVEL_ORDER,
 } from "./state/agent-selection-defaults";
 export {
+  setComposerApprovalPolicy,
   setComposerMode,
   setComposerPermission,
   setComposerThinkingLevel,

@@ -147,6 +147,27 @@ export async function setComposerPermission(
   );
 }
 
+export async function setComposerApprovalPolicy(
+  approvalPolicy: AgentRecord["approvalPolicy"],
+) {
+  conversationState.selectedApprovalPolicy = approvalPolicy;
+  const pending = activePendingComposerConversation();
+  if (pending) pending.approvalPolicy = approvalPolicy;
+  rememberLastAgentSelection({ approvalPolicy });
+  if (!selection.agentId) return;
+  const agent = await updateAgentConfig(selection.agentId, { approvalPolicy });
+  workspaceState.agents = workspaceState.agents.map((candidate) =>
+    candidate.id === agent.id ? agent : candidate,
+  );
+}
+
+function approvalPoliciesEqual(
+  left: AgentRecord["approvalPolicy"] | undefined,
+  right: AgentRecord["approvalPolicy"],
+): boolean {
+  return left?.autoApproveReadOnly === right.autoApproveReadOnly;
+}
+
 export function agentNeedsComposerUpdate(agent: AgentRecord | undefined) {
   const desired = selectedModel();
   const thinkingLevel = selectedThinkingLevel();
@@ -157,6 +178,10 @@ export function agentNeedsComposerUpdate(agent: AgentRecord | undefined) {
   const needsMode = agent?.mode !== conversationState.selectedMode;
   const needsPermission =
     agent?.permissionLevel !== conversationState.selectedPermissionLevel;
+  const needsApprovalPolicy = !approvalPoliciesEqual(
+    agent?.approvalPolicy,
+    conversationState.selectedApprovalPolicy,
+  );
   const needsThinking = agent?.thinkingLevel !== thinkingLevel;
   return {
     desired,
@@ -164,6 +189,7 @@ export function agentNeedsComposerUpdate(agent: AgentRecord | undefined) {
     needsModel,
     needsMode,
     needsPermission,
+    needsApprovalPolicy,
     needsThinking,
   };
 }

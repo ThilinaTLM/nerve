@@ -40,6 +40,7 @@ export class ConversationLifecycleService {
       : {
           mode: this.storage.settings.defaultMode,
           permissionLevel: this.storage.settings.defaultPermissionLevel,
+          approvalPolicy: this.storage.settings.defaultApprovalPolicy,
         };
     const conversation: ConversationRecord = {
       id: createId("conv"),
@@ -48,6 +49,10 @@ export class ConversationLifecycleService {
       mode: request.mode ?? defaultSelection.mode,
       permissionLevel:
         request.permissionLevel ?? defaultSelection.permissionLevel,
+      approvalPolicy: {
+        ...defaultSelection.approvalPolicy,
+        ...(request.approvalPolicy ?? {}),
+      },
       createdAt: now,
       updatedAt: now,
     };

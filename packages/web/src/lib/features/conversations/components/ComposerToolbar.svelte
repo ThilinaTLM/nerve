@@ -7,6 +7,7 @@
   import type { AgentRecord, ContextUsage, ModelInfo } from "$lib/api";
   import type { TodoItem } from "@nervekit/shared";
   import Popover from "$lib/components/ui/popover-panel";
+  import Switch from "$lib/components/ui/switch-field";
   import type { Component } from "svelte";
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
@@ -15,6 +16,7 @@
   type Mode = AgentRecord["mode"];
   type PermissionLevel = AgentRecord["permissionLevel"];
   type ThinkingLevel = AgentRecord["thinkingLevel"];
+  type ApprovalPolicy = AgentRecord["approvalPolicy"];
 
   type PermissionOption = {
     value: PermissionLevel;
@@ -29,6 +31,7 @@
     modelDisabled: boolean;
     mode: Mode;
     permissionLevel: PermissionLevel;
+    approvalPolicy: ApprovalPolicy;
     modeLabel: string;
     permissionShortcut?: string;
     permissionShortcutAria?: string;
@@ -46,6 +49,7 @@
     onModelChange?: (value: string) => void;
     onThinkingLevelChange?: (value: ThinkingLevel) => void;
     onPermissionChange?: (value: PermissionLevel) => void;
+    onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
   };
 
   let {
@@ -54,6 +58,7 @@
     modelDisabled,
     mode,
     permissionLevel,
+    approvalPolicy,
     modeLabel,
     permissionShortcut,
     permissionShortcutAria,
@@ -71,9 +76,10 @@
     onModelChange,
     onThinkingLevelChange,
     onPermissionChange,
+    onApprovalPolicyChange,
   }: Props = $props();
 
-  const permissionOptions: PermissionOption[] = [
+  const permissionOptions = $derived<PermissionOption[]>([
     {
       value: "read_only",
       label: "Read only",
@@ -83,7 +89,9 @@
     {
       value: "supervised",
       label: "Supervised",
-      detail: "Ask before non-read tool calls",
+      detail: approvalPolicy.autoApproveReadOnly
+        ? "Ask before non-read tool calls"
+        : "Ask before read and non-read tool calls",
       icon: Shield,
     },
     {
@@ -92,7 +100,7 @@
       detail: "Allow tool calls without approval",
       icon: Zap,
     },
-  ];
+  ]);
 
   const activePermission = $derived(
     permissionOptions.find((option) => option.value === permissionLevel) ??
@@ -108,6 +116,10 @@
 
   function toggleMode() {
     onModeChange?.(mode === "coding" ? "planning" : "coding");
+  }
+
+  function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
+    onApprovalPolicyChange?.({ ...approvalPolicy, autoApproveReadOnly });
   }
 </script>
 
@@ -153,6 +165,17 @@
           </li>
         {/each}
       </ul>
+      {#if permissionLevel === "supervised"}
+        <div class="permission-policy">
+          <Switch
+            checked={approvalPolicy.autoApproveReadOnly}
+            disabled={controlsDisabled}
+            label="Auto-approve read-only tools"
+            description="Allow read, grep, find, ls, todos, and task status/log/list without prompting."
+            onCheckedChange={setAutoApproveReadOnly}
+          />
+        </div>
+      {/if}
     </div>
   </Popover>
 
@@ -276,6 +299,11 @@
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  .permission-policy {
+    border-top: 1px solid var(--border);
+    padding-top: 0.45rem;
   }
 
   .permission-row {

@@ -71,6 +71,7 @@ function syncSelectedAgentConfig(
     conversationState.selectedThinkingLevel = activeAgent.thinkingLevel;
     conversationState.selectedMode = activeAgent.mode;
     conversationState.selectedPermissionLevel = activeAgent.permissionLevel;
+    conversationState.selectedApprovalPolicy = activeAgent.approvalPolicy;
     return;
   }
 
@@ -83,6 +84,7 @@ function syncSelectedAgentConfig(
   conversationState.selectedMode = activeConversation.mode;
   conversationState.selectedPermissionLevel =
     activeConversation.permissionLevel;
+  conversationState.selectedApprovalPolicy = activeConversation.approvalPolicy;
 }
 
 export async function loadSlashCommands() {

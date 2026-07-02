@@ -38,6 +38,7 @@
     setActiveComposerText,
   } from "$lib/features/conversations/state/prompt-send";
   import {
+    setComposerApprovalPolicy,
     setComposerMode,
     setComposerModel,
     setComposerPermission,
@@ -172,6 +173,12 @@
       activeAgent?.permissionLevel ??
       activeConversation?.permissionLevel ??
       conversationState.selectedPermissionLevel,
+  );
+  const selectedApprovalPolicy = $derived(
+    activePendingConversation?.approvalPolicy ??
+      activeAgent?.approvalPolicy ??
+      activeConversation?.approvalPolicy ??
+      conversationState.selectedApprovalPolicy,
   );
   const activeComposerText = $derived(
     activePendingConversation?.composerText ?? view?.composerText ?? "",
@@ -377,6 +384,7 @@
   {planReviewThinkingLevel}
   mode={selectedMode}
   permissionLevel={selectedPermissionLevel}
+  approvalPolicy={selectedApprovalPolicy}
   {slashCompletions}
   contextUsage={view?.contextUsage}
   {contextWindow}
@@ -407,6 +415,9 @@
   }}
   onPermissionChange={(value) => {
     void runActivePaneAction(() => setComposerPermission(value));
+  }}
+  onApprovalPolicyChange={(value) => {
+    void runActivePaneAction(() => setComposerApprovalPolicy(value));
   }}
   onGrantApproval={(id) => void grantApproval(id)}
   onDenyApproval={(id) => void denyApproval(id)}

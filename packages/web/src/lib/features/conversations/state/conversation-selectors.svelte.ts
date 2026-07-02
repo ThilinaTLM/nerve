@@ -120,6 +120,9 @@ export const conversationSelectors = {
   get selectedPermissionLevel() {
     return conversationState.selectedPermissionLevel;
   },
+  get selectedApprovalPolicy() {
+    return conversationState.selectedApprovalPolicy;
+  },
   get activeContextUsage() {
     return activeView()?.contextUsage;
   },

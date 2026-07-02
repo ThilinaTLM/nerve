@@ -13,9 +13,21 @@ export const permissionLevelSchema = z.enum([
 ]);
 export type PermissionLevel = z.infer<typeof permissionLevelSchema>;
 
+export const approvalPolicySchema = z.object({
+  autoApproveReadOnly: z.boolean().default(true),
+});
+export type ApprovalPolicy = z.infer<typeof approvalPolicySchema>;
+export const defaultApprovalPolicy: ApprovalPolicy = {
+  autoApproveReadOnly: true,
+};
+const approvalPolicyPatchSchema = z.object({
+  autoApproveReadOnly: z.boolean().optional(),
+});
+
 export const agentSelectionSettingsSchema = z.object({
   mode: modeSchema.default("coding"),
   permissionLevel: permissionLevelSchema.default("autonomous"),
+  approvalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema.default("off"),
 });
@@ -51,12 +63,14 @@ const toolSettingsSchema = z.object({
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
+  defaultApprovalPolicy: approvalPolicySchema.default(defaultApprovalPolicy),
   defaultModel: modelSelectionSchema.optional(),
   defaultThinkingLevel: thinkingLevelSchema.default("off"),
   rememberLastAgentSelection: z.boolean().default(false),
   lastAgentSelection: agentSelectionSettingsSchema.default({
     mode: "coding",
     permissionLevel: "autonomous",
+    approvalPolicy: defaultApprovalPolicy,
     thinkingLevel: "off",
   }),
   exploreAgent: z.object({
@@ -101,11 +115,13 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
   defaultMode: "coding",
   defaultPermissionLevel: "autonomous",
+  defaultApprovalPolicy,
   defaultThinkingLevel: "off",
   rememberLastAgentSelection: false,
   lastAgentSelection: {
     mode: "coding",
     permissionLevel: "autonomous",
+    approvalPolicy: defaultApprovalPolicy,
     thinkingLevel: "off",
   },
   exploreAgent: {
@@ -148,6 +164,7 @@ export const defaultSettings: Settings = {
 export const updateSettingsRequestSchema = z.object({
   defaultMode: modeSchema.optional(),
   defaultPermissionLevel: permissionLevelSchema.optional(),
+  defaultApprovalPolicy: approvalPolicyPatchSchema.optional(),
   defaultModel: modelSelectionSchema.nullable().optional(),
   defaultThinkingLevel: thinkingLevelSchema.optional(),
   rememberLastAgentSelection: z.boolean().optional(),
@@ -155,6 +172,7 @@ export const updateSettingsRequestSchema = z.object({
     .object({
       mode: modeSchema.optional(),
       permissionLevel: permissionLevelSchema.optional(),
+      approvalPolicy: approvalPolicyPatchSchema.optional(),
       model: modelSelectionSchema.nullable().optional(),
       thinkingLevel: thinkingLevelSchema.optional(),
     })

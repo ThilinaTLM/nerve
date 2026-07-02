@@ -70,13 +70,7 @@ export function evaluateToolPolicy(
   }
 
   if (risk === "read") {
-    return {
-      decision: "allow",
-      risk,
-      reason: "Read-only tool call is allowed.",
-      normalizedArgs,
-      cwd,
-    };
+    return evaluateReadRiskPolicy(agent, risk, normalizedArgs, cwd);
   }
 
   if (agent.permissionLevel === "read_only") {
@@ -103,6 +97,34 @@ export function evaluateToolPolicy(
     decision: "allow",
     risk,
     reason: `Autonomous agent may run '${risk}' tool calls without approval.`,
+    normalizedArgs,
+    cwd,
+  };
+}
+
+function evaluateReadRiskPolicy(
+  agent: AgentRecord,
+  risk: ToolRisk,
+  normalizedArgs: Record<string, unknown>,
+  cwd: string,
+): PolicyEvaluation {
+  if (
+    agent.permissionLevel === "supervised" &&
+    agent.approvalPolicy.autoApproveReadOnly === false
+  ) {
+    return {
+      decision: "approval",
+      risk,
+      reason:
+        "Supervised agent requires approval for read-only tool calls because auto-approve read-only tools is disabled.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+  return {
+    decision: "allow",
+    risk,
+    reason: "Read-only tool call is allowed.",
     normalizedArgs,
     cwd,
   };
@@ -158,13 +180,7 @@ function evaluatePlanningModePolicy(
       };
     }
     if (risk === "read") {
-      return {
-        decision: "allow",
-        risk,
-        reason: "Planning-mode read-only bash command is allowed.",
-        normalizedArgs,
-        cwd,
-      };
+      return evaluateReadRiskPolicy(agent, risk, normalizedArgs, cwd);
     }
     if (agent.permissionLevel === "read_only") {
       return {
@@ -195,13 +211,7 @@ function evaluatePlanningModePolicy(
   }
 
   if (risk === "read") {
-    return {
-      decision: "allow",
-      risk,
-      reason: "Planning-mode read-only tool call is allowed.",
-      normalizedArgs,
-      cwd,
-    };
+    return evaluateReadRiskPolicy(agent, risk, normalizedArgs, cwd);
   }
 
   if (risk === "network") {

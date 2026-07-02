@@ -58,6 +58,11 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       ? settingsDraft.lastAgentSelection.permissionLevel
       : settingsDraft.defaultPermissionLevel,
   );
+  const effectiveApprovalPolicy = $derived(
+    settingsDraft.rememberLastAgentSelection
+      ? settingsDraft.lastAgentSelection.approvalPolicy
+      : settingsDraft.defaultApprovalPolicy,
+  );
   let modelDialogOpen = $state(false);
 
   const fallbackThinkingLevels = $derived<Settings["defaultThinkingLevel"][]>(
@@ -71,6 +76,14 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       defaultModelInfo,
     ),
   );
+
+  function readPolicy(permission: Settings["defaultPermissionLevel"] | undefined): string {
+    if (
+      permission === "supervised" &&
+      !effectiveApprovalPolicy.autoApproveReadOnly
+    ) return "Approval required";
+    return "Allowed";
+  }
 
   function writePolicy(permission: Settings["defaultPermissionLevel"] | undefined): string {
     if (permission === "read_only") return "Denied";
@@ -136,6 +149,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
     const lastAgentSelection = {
       mode: conversationState.selectedMode,
       permissionLevel: conversationState.selectedPermissionLevel,
+      approvalPolicy: conversationState.selectedApprovalPolicy,
       ...(model ? { model } : {}),
       thinkingLevel: conversationState.selectedThinkingLevel,
     } satisfies Settings["lastAgentSelection"];
@@ -168,6 +182,20 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
       label="Auto-compact long conversations"
       description="Summarize older context as the model approaches its context window."
       onCheckedChange={onAutoCompactionChange}
+    />
+
+    <Switch
+      class="settings-full-switch"
+      checked={settingsDraft.defaultApprovalPolicy.autoApproveReadOnly}
+      label="Auto-approve read-only tools in supervised mode"
+      description="Let supervised agents read files, search, list directories, and inspect task status without prompting."
+      onCheckedChange={(autoApproveReadOnly) => {
+        settingsDraft.defaultApprovalPolicy.autoApproveReadOnly = autoApproveReadOnly;
+        onSettingsChange?.(
+          { defaultApprovalPolicy: { autoApproveReadOnly } },
+          { immediate: true },
+        );
+      }}
     />
 
     <div class="settings-control-stack">
@@ -234,7 +262,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
                 {/snippet}
               </Tooltip.Trigger>
               <Tooltip.Content side="top" class="settings-policy-tooltip">
-                <div class="settings-policy-tooltip-row"><span>File system read</span><strong>Allowed</strong></div>
+                <div class="settings-policy-tooltip-row"><span>File system read</span><strong>{readPolicy(effectivePermissionLevel)}</strong></div>
                 <div class="settings-policy-tooltip-row"><span>File system write</span><strong>{writePolicy(effectivePermissionLevel)}</strong></div>
                 <div class="settings-policy-tooltip-row"><span>Terminal commands</span><strong>{commandPolicy(effectivePermissionLevel)}</strong></div>
                 <div class="settings-policy-tooltip-row"><span>Network access</span><strong>Tool-dependent</strong></div>

@@ -57,6 +57,7 @@ export type ConversationPaneProps = {
   thinkingLevel?: AgentRecord["thinkingLevel"];
   mode?: AgentRecord["mode"];
   permissionLevel?: AgentRecord["permissionLevel"];
+  approvalPolicy?: AgentRecord["approvalPolicy"];
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];
@@ -74,6 +75,7 @@ export type ConversationPaneProps = {
   onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
   onModeChange?: (value: AgentRecord["mode"]) => void;
   onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
+  onApprovalPolicyChange?: (value: AgentRecord["approvalPolicy"]) => void;
   onGrantApproval?: (id: string) => void;
   onDenyApproval?: (id: string) => void;
   onAcceptPlanReview?: (

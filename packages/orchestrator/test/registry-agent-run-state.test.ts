@@ -129,6 +129,34 @@ describe("RuntimeRegistry agent run state", () => {
     }
   });
 
+  it("allows approval policy updates while an agent is running", async () => {
+    const { state, agent } = await createProjectConversationAgent();
+    let runtimeApprovalPolicy: typeof agent.approvalPolicy | undefined;
+    try {
+      state.registry.runs.set(agent.id, {
+        runId: "run_01HN0000000000000000000000",
+        abort: () => undefined,
+        messages: [],
+        updateAgentRuntimeConfig: async (updated) => {
+          runtimeApprovalPolicy = updated.approvalPolicy;
+        },
+      });
+
+      const updated = await state.registry.configureAgent(agent.id, {
+        approvalPolicy: { autoApproveReadOnly: false },
+      });
+
+      assert.equal(updated.approvalPolicy.autoApproveReadOnly, false);
+      assert.equal(
+        state.registry.getAgent(agent.id).approvalPolicy.autoApproveReadOnly,
+        false,
+      );
+      assert.equal(runtimeApprovalPolicy?.autoApproveReadOnly, false);
+    } finally {
+      state.index.close();
+    }
+  });
+
   it("uses the latest running permission level for subsequent tool calls", async () => {
     const { state, agent } = await createProjectConversationAgent();
     const supervised = await state.registry.configureAgent(agent.id, {

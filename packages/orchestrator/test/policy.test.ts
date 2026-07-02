@@ -6,6 +6,9 @@ import { evaluateToolPolicy } from "../src/domains/tools/policy.js";
 function agent(
   permissionLevel: PermissionLevel,
   mode: AgentRecord["mode"] = "coding",
+  approvalPolicy: AgentRecord["approvalPolicy"] = {
+    autoApproveReadOnly: true,
+  },
 ): AgentRecord {
   return {
     id: "agent_01HN0000000000000000000000",
@@ -16,6 +19,7 @@ function agent(
     rootAgentId: "agent_01HN0000000000000000000000",
     mode,
     permissionLevel,
+    approvalPolicy,
     workspaceScope: { roots: ["/tmp/project"] },
     budget: { depth: 0, maxDepth: 3, maxRuns: 8, usedRuns: 0 },
     status: "idle",
@@ -25,6 +29,50 @@ function agent(
 }
 
 describe("tool policy", () => {
+  it("applies supervised read-only auto-approval policy", () => {
+    const supervisedDefault = evaluateToolPolicy(
+      agent("supervised"),
+      "read",
+      { path: "README.md" },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(supervisedDefault.decision, "allow");
+    assert.equal(supervisedDefault.risk, "read");
+
+    const supervisedStrict = evaluateToolPolicy(
+      agent("supervised", "coding", { autoApproveReadOnly: false }),
+      "grep",
+      { pattern: "todo", path: "." },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(supervisedStrict.decision, "approval");
+    assert.equal(supervisedStrict.risk, "read");
+    assert.match(
+      supervisedStrict.reason,
+      /auto-approve read-only tools is disabled/,
+    );
+
+    const readOnlyStrict = evaluateToolPolicy(
+      agent("read_only", "coding", { autoApproveReadOnly: false }),
+      "find",
+      { pattern: "**/*.ts" },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(readOnlyStrict.decision, "allow");
+
+    const mutatingStrict = evaluateToolPolicy(
+      agent("supervised", "coding", { autoApproveReadOnly: false }),
+      "edit",
+      {
+        path: "src/app.ts",
+        lineInsertions: [{ line: 1, position: "after", text: "ok" }],
+      },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(mutatingStrict.decision, "approval");
+    assert.equal(mutatingStrict.risk, "workspace_write");
+  });
+
   it("classifies web tools as network with normal permission handling", () => {
     assert.equal(
       evaluateToolPolicy(
@@ -300,6 +348,15 @@ describe("tool policy", () => {
     );
     assert.equal(supervisedReadOnlyCommand.decision, "allow");
     assert.equal(supervisedReadOnlyCommand.risk, "read");
+
+    const supervisedStrictReadOnlyCommand = evaluateToolPolicy(
+      agent("supervised", "planning", { autoApproveReadOnly: false }),
+      "bash",
+      { command: "git status --short" },
+      { dataDir: "/tmp/nerve" },
+    );
+    assert.equal(supervisedStrictReadOnlyCommand.decision, "approval");
+    assert.equal(supervisedStrictReadOnlyCommand.risk, "read");
 
     for (const command of [
       "find . -delete",

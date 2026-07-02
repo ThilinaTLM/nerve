@@ -64,6 +64,8 @@ export async function applyActiveConversationSelection(
   conversationState.selectedMode = conversationAgent?.mode ?? conversation.mode;
   conversationState.selectedPermissionLevel =
     conversationAgent?.permissionLevel ?? conversation.permissionLevel;
+  conversationState.selectedApprovalPolicy =
+    conversationAgent?.approvalPolicy ?? conversation.approvalPolicy;
 }
 
 export async function refreshConversationView(conversationId: string) {
