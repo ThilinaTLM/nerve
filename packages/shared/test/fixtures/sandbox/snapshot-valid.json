@@ -1,0 +1,41 @@
+{
+  "sandboxId": "sbx_1",
+  "instanceId": "inst_1",
+  "status": "ready",
+  "conversations": [
+    {
+      "conversationId": "conv_1",
+      "agentIds": ["agent_1"],
+      "updatedAt": "2026-06-26T12:00:00.000Z"
+    }
+  ],
+  "runs": [
+    {
+      "conversationId": "conv_1",
+      "agentId": "agent_1",
+      "runId": "run_1",
+      "status": "completed",
+      "updatedAt": "2026-06-26T12:00:00.000Z",
+      "transcript": [
+        { "entryId": "entry_1", "role": "assistant", "summary": "Done" }
+      ],
+      "toolCalls": [
+        {
+          "toolCallId": "tool_1",
+          "toolName": "read",
+          "status": "completed",
+          "summary": "Read file"
+        }
+      ]
+    }
+  ],
+  "configDigest": "sha256:abc",
+  "toolGroups": [
+    {
+      "group": "fileInspection",
+      "configured": true,
+      "active": true,
+      "tools": ["read"]
+    }
+  ]
+}

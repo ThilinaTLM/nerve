@@ -31,7 +31,9 @@
     "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
+    "@nervekit/agent": "workspace:*",
     "@nervekit/shared": "workspace:*",
+    "@nervekit/tools": "workspace:*",
     "ws": "8.18.3",
     "yaml": "2.9.0"
   },

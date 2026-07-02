@@ -8,6 +8,8 @@ export function buildSandboxSnapshot(input: {
   conversations?: unknown[];
   runs?: unknown[];
   cursors?: unknown;
+  toolGroups?: unknown[];
+  setup?: unknown;
 }): Record<string, unknown> {
   const redactor = new Redactor();
   return redactor.redact({

@@ -2,14 +2,17 @@ export function sandboxCanonicalJson(value: unknown): string {
   return JSON.stringify(canonicalize(value));
 }
 
-export function sandboxSha256Digest(value: unknown): string {
-  // Transport-neutral stable digest helper for schemas/tests. Runtime packages use
-  // Node crypto for true SHA-256 when cryptographic strength is required.
-  return `sha256:${stableHexDigest(sandboxCanonicalJson(value))}`;
+export function sandboxStableDigest(value: unknown): string {
+  // Transport-neutral non-cryptographic stable digest helper for schemas/tests.
+  // Runtime packages use Node crypto for true SHA-256 where cryptographic
+  // strength is required.
+  return `stable:${stableHexDigest(sandboxCanonicalJson(value))}`;
 }
 
-export const sandboxCommandParamsHash = sandboxSha256Digest;
-export const sandboxConfigDigestStable = sandboxSha256Digest;
+/** @deprecated Use sandboxStableDigest. This is not a cryptographic SHA-256. */
+export const sandboxSha256Digest = sandboxStableDigest;
+export const sandboxCommandParamsHash = sandboxStableDigest;
+export const sandboxConfigDigestStable = sandboxStableDigest;
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);

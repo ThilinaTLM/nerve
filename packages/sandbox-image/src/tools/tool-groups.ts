@@ -12,6 +12,7 @@ const defaults: Record<string, string[]> = {
 };
 export function computeToolGroupStatus(
   config: SandboxConfigV1,
+  runtime: { readOnly?: boolean; unavailable?: string[] } = {},
 ): ToolGroupStatus[] {
   const groups = config.tools?.groups ?? {};
   return Object.entries(defaults).map(([group, tools]) => {
@@ -27,17 +28,25 @@ export function computeToolGroupStatus(
       >
     )[group];
     const active =
-      (conf?.enabled !== false &&
-        config.agent.permissionLevel !== "read_only") ||
-      group === "fileInspection" ||
-      group === "explore";
+      conf?.enabled !== false &&
+      (!runtime.readOnly ||
+        group === "fileInspection" ||
+        group === "explore") &&
+      (config.agent.permissionLevel !== "read_only" ||
+        group === "fileInspection" ||
+        group === "explore");
     const enabled = conf?.tools?.enabled ?? tools;
     const disabled = new Set(conf?.tools?.disabled ?? []);
     return {
       group,
       configured,
       active,
-      tools: enabled.filter((tool) => !disabled.has(tool)),
+      tools: enabled.filter(
+        (tool) => !disabled.has(tool) && !runtime.unavailable?.includes(tool),
+      ),
+      unavailableTools: enabled.filter((tool) =>
+        runtime.unavailable?.includes(tool),
+      ),
       credentialType: conf?.credential?.type as
         | ToolGroupStatus["credentialType"]
         | undefined,

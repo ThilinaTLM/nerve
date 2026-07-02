@@ -1,16 +1,26 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 import {
   managedContainerCreateSpecSchema,
   managedSandboxRecordSchema,
+  sandboxAckStateSchema,
   sandboxCanonicalJson,
+  sandboxCommandRecordSchema,
   sandboxConfigV1Schema,
   sandboxEventPayloadSchemas,
+  sandboxProtocolCursorSchema,
   sandboxProtocolEventBatchSchema,
+  sandboxProtocolEventSchema,
   sandboxProtocolHelloSchema,
   sandboxRunStartParamsSchema,
   sandboxSecretRefSchema,
+  sandboxSnapshotResultSchema,
   sandboxStatusGetParamsSchema,
+  sandboxStatusGetResultSchema,
+  sandboxToolCallRecordSchema,
+  sandboxTranscriptEntrySchema,
 } from "../src/index.js";
 
 const ts = "2026-06-26T12:00:00.000Z";
@@ -210,6 +220,97 @@ describe("Sandbox shared schemas", () => {
           { kind: "bind", source: "/tmp/workspace", target: "/workspace" },
           { kind: "bind", source: "/tmp/state", target: "/state" },
         ],
+      }).success,
+      true,
+    );
+  });
+
+  it("validates hardened state and snapshot fixtures", () => {
+    const status = JSON.parse(
+      readFileSync(
+        path.join(process.cwd(), "test/fixtures/sandbox/status-valid.json"),
+        "utf8",
+      ),
+    );
+    const snapshot = JSON.parse(
+      readFileSync(
+        path.join(process.cwd(), "test/fixtures/sandbox/snapshot-valid.json"),
+        "utf8",
+      ),
+    );
+    assert.equal(sandboxStatusGetResultSchema.safeParse(status).success, true);
+    assert.equal(sandboxSnapshotResultSchema.safeParse(snapshot).success, true);
+    assert.equal(
+      /secret|token|password|api[_-]?key/i.test(JSON.stringify(snapshot)),
+      false,
+    );
+    assert.equal(
+      sandboxCommandRecordSchema.safeParse({
+        commandId: "cmd_1",
+        messageId: "msg_1",
+        method: "sandbox.run.start",
+        paramsHash: "stable:abc",
+        params: {},
+        acceptedAt: ts,
+        status: "accepted",
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxTranscriptEntrySchema.safeParse({
+        entryId: "entry_1",
+        index: 0,
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        runId: "run_1",
+        role: "assistant",
+        content: { text: "hello" },
+        createdAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxToolCallRecordSchema.safeParse({
+        toolCallId: "tool_1",
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        runId: "run_1",
+        toolName: "read",
+        status: "completed",
+        requestedAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxProtocolCursorSchema.safeParse({
+        stream: "sandbox",
+        processedSeq: 1,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxAckStateSchema.safeParse({ stream: "sandbox", processedSeq: 1 })
+        .success,
+      false,
+    );
+  });
+
+  it("validates known protocol event payloads and allows unknown event types", () => {
+    assert.equal(
+      sandboxProtocolEventSchema.safeParse({
+        seq: 1,
+        ts,
+        type: "sandbox.ready",
+        data: { invalid: true },
+      }).success,
+      false,
+    );
+    assert.equal(
+      sandboxProtocolEventSchema.safeParse({
+        seq: 1,
+        ts,
+        type: "future.event",
+        data: { anything: true },
       }).success,
       true,
     );

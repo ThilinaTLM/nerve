@@ -3,15 +3,18 @@ FROM node:24-bookworm-slim
 LABEL org.nerve.sandbox.spec="v1" \
   org.nerve.sandbox.runtime.version="0.6.0"
 
-RUN groupadd --system sandbox \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates python3 python3-venv python3-pip \
+  && rm -rf /var/lib/apt/lists/* \
+  && groupadd --system sandbox \
   && useradd --system --gid sandbox --home-dir /home/sandbox --create-home --shell /usr/sbin/nologin sandbox \
   && mkdir -p /agent /agent/skills /workspace /state /tmp /secrets /credentials \
   && chown -R sandbox:sandbox /workspace /state /tmp /credentials /home/sandbox \
-  && chmod 0755 /agent /agent/skills \
+  && chmod 0555 /agent /agent/skills \
   && chmod 0700 /state /credentials
 
 WORKDIR /agent
-RUN npm install --omit=dev --no-package-lock yaml@2.9.0
+RUN npm install --omit=dev --no-package-lock yaml@2.9.0 ws@8.18.3
 COPY packages/shared/dist /agent/node_modules/@nervekit/shared/dist
 COPY packages/shared/package.json /agent/node_modules/@nervekit/shared/package.json
 COPY packages/agent/dist /agent/node_modules/@nervekit/agent/dist

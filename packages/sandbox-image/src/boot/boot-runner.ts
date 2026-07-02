@@ -14,6 +14,14 @@ export async function runBootPlan(
     stateDir: string;
     resolver?: SecretResolver;
     redactor?: Redactor;
+    eventSink?: {
+      append(input: {
+        type: string;
+        durability: "durable" | "transient";
+        data: unknown;
+      }): Promise<unknown>;
+    };
+    instanceId?: string;
   },
 ): Promise<void> {
   const attempts = new JsonlStore<Record<string, unknown>>(
@@ -26,6 +34,19 @@ export async function runBootPlan(
       index,
       status: "started",
       startedAt,
+    });
+    await opts.eventSink?.append({
+      type: "sandbox.boot.started",
+      durability: "durable",
+      data: {
+        instanceId: opts.instanceId ?? "unknown",
+        phase: phase.name,
+        index,
+        startedAt,
+        timeoutMs: phase.timeoutMs,
+        runAs: phase.runAs ?? "sandbox",
+        network: phase.network ?? "inherit",
+      },
     });
     const env: Record<string, string> = {};
     for (const [key, ref] of Object.entries(phase.env ?? {}))
@@ -42,19 +63,38 @@ export async function runBootPlan(
       path.join(opts.stateDir, "boot", "latest.log"),
       redactor.redactText(`${result.stdout}\n${result.stderr}`),
     );
-    await attempts.append({
+    const completedAt = new Date().toISOString();
+    const status = result.timedOut
+      ? "timeout"
+      : result.code === 0
+        ? "completed"
+        : "failed";
+    const record = {
       phase: phase.name,
       index,
-      status: result.timedOut
-        ? "timeout"
-        : result.code === 0
-          ? "completed"
-          : "failed",
+      status,
       startedAt,
-      completedAt: new Date().toISOString(),
+      completedAt,
       exitCode: result.code,
       stdout: redactor.redactText(result.stdout),
       stderr: redactor.redactText(result.stderr),
+    };
+    await attempts.append(record);
+    await opts.eventSink?.append({
+      type: "sandbox.boot.completed",
+      durability: "durable",
+      data: {
+        instanceId: opts.instanceId ?? "unknown",
+        ...record,
+        stdout: {
+          text: record.stdout,
+          bytes: Buffer.byteLength(record.stdout),
+        },
+        stderr: {
+          text: record.stderr,
+          bytes: Buffer.byteLength(record.stderr),
+        },
+      },
     });
     if (result.code !== 0 && config.boot?.onFailure !== "continue_readonly")
       throw new Error(`Boot phase failed: ${phase.name}`);

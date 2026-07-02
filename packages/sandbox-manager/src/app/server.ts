@@ -1,9 +1,11 @@
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import path from "node:path";
 import { sandboxConfigV1Schema } from "@nervekit/shared";
 import { parse as parseYaml } from "yaml";
 import {
@@ -53,27 +55,31 @@ async function handle(
   if (req.method === "GET" && path === "/api/sandboxes")
     return json(res, 200, ok(await state.sandboxes.list()));
   if (req.method === "POST" && path === "/api/sandboxes") {
-    const body = createSandboxRequestSchema.parse(await readJson(req));
-    return json(
-      res,
-      201,
-      ok(await createSandboxRecord(state, body.config, body.image)),
+    const rawBody = await readJson(req);
+    const body = createSandboxRequestSchema.parse(rawBody);
+    const result = await withIdempotency(state, req, path, rawBody, () =>
+      createSandboxRecord(state, body.config, body.image),
     );
+    return json(res, result.replayed ? 200 : 201, ok(result.value));
   }
   const sandboxMatch = path.match(/^\/api\/sandboxes\/([^/]+)$/);
   if (req.method === "GET" && sandboxMatch)
     return json(res, 200, ok(await state.sandboxes.get(sandboxMatch[1])));
   if (req.method === "DELETE" && sandboxMatch) {
-    const removed = await state.supervisor.remove(sandboxMatch[1], {
+    const body = {
       force:
         url.searchParams.get("force") === "1" ||
         url.searchParams.get("force") === "true",
       removeVolumes:
         url.searchParams.get("removeVolumes") === "1" ||
         url.searchParams.get("removeVolumes") === "true",
+    };
+    const result = await withIdempotency(state, req, path, body, async () => {
+      const removed = await state.supervisor.remove(sandboxMatch[1], body);
+      await state.sandboxes.delete(sandboxMatch[1]);
+      return removed;
     });
-    await state.sandboxes.delete(sandboxMatch[1]);
-    return json(res, 200, ok(removed));
+    return json(res, 200, ok(result.value));
   }
   const actionMatch = path.match(
     /^\/api\/sandboxes\/([^/]+)\/(start|stop|restart|logs|status|snapshot)$/,
@@ -81,16 +87,30 @@ async function handle(
   if (actionMatch) {
     const sandboxId = actionMatch[1];
     const action = actionMatch[2];
-    if (req.method === "POST" && action === "start")
-      return json(res, 200, ok(await startSandbox(state, sandboxId)));
-    if (req.method === "POST" && action === "stop")
-      return json(res, 200, ok(await state.supervisor.stop(sandboxId)));
+    if (req.method === "POST" && action === "start") {
+      const body = await readJson(req);
+      const result = await withIdempotency(state, req, path, body, () =>
+        startSandbox(state, sandboxId),
+      );
+      return json(res, 200, ok(result.value));
+    }
+    if (req.method === "POST" && action === "stop") {
+      const body = await readJson(req);
+      const result = await withIdempotency(state, req, path, body, () =>
+        state.supervisor.stop(sandboxId),
+      );
+      return json(res, 200, ok(result.value));
+    }
     if (req.method === "POST" && action === "restart") {
-      await state.supervisor.stop(sandboxId).catch(() => undefined);
-      return json(res, 200, ok(await startSandbox(state, sandboxId)));
+      const body = await readJson(req);
+      const result = await withIdempotency(state, req, path, body, async () => {
+        await state.supervisor.stop(sandboxId).catch(() => undefined);
+        return startSandbox(state, sandboxId);
+      });
+      return json(res, 200, ok(result.value));
     }
     if (req.method === "GET" && action === "logs")
-      return json(res, 200, ok(await collectLogs(state, sandboxId)));
+      return json(res, 200, ok(await collectLogs(state, sandboxId, url)));
     if (req.method === "GET" && action === "status")
       return json(
         res,
@@ -206,6 +226,7 @@ async function startSandbox(
 async function collectLogs(
   state: ManagerState,
   sandboxId: string,
+  url: URL,
 ): Promise<{
   chunks: Array<{ stream: string; chunk: string; ts?: string }>;
   truncated: boolean;
@@ -216,10 +237,19 @@ async function collectLogs(
   const chunks: Array<{ stream: string; chunk: string; ts?: string }> = [];
   let bytes = 0;
   let truncated = false;
-  for await (const chunk of collector.logs(record.containerRef)) {
+  const maxBytes = Math.min(
+    Number(url.searchParams.get("maxBytes") ?? 256 * 1024),
+    1024 * 1024,
+  );
+  const tail = url.searchParams.get("tail");
+  const since = url.searchParams.get("since") ?? undefined;
+  for await (const chunk of collector.logs(record.containerRef, {
+    tail: tail ? Number(tail) : undefined,
+    since,
+  })) {
     const redacted = redactText(chunk.chunk);
     bytes += Buffer.byteLength(redacted);
-    if (bytes > 256 * 1024) {
+    if (bytes > maxBytes) {
       truncated = true;
       break;
     }
@@ -256,6 +286,55 @@ async function sandboxSnapshot(
     connected: false,
   };
 }
+async function withIdempotency<T>(
+  state: ManagerState,
+  req: IncomingMessage,
+  route: string,
+  body: unknown,
+  run: () => Promise<T>,
+): Promise<{ value: T; replayed: boolean }> {
+  const key = String(
+    req.headers["idempotency-key"] ??
+      (body as { idempotencyKey?: unknown })?.idempotencyKey ??
+      "",
+  );
+  if (!key) return { value: await run(), replayed: false };
+  const hash = createHash("sha256")
+    .update(JSON.stringify({ method: req.method, route, body }))
+    .digest("hex");
+  const dir = path.join(state.config.storageDir, "idempotency");
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, `${Buffer.from(key).toString("base64url")}.json`);
+  try {
+    const stored = JSON.parse(await readFile(file, "utf8")) as {
+      hash: string;
+      value: T;
+    };
+    if (stored.hash !== hash)
+      throw new HttpError(
+        409,
+        "Idempotency key reused with different request",
+        "IDEMPOTENCY_CONFLICT",
+      );
+    return { value: stored.value, replayed: true };
+  } catch (error) {
+    if (
+      !(
+        typeof error === "object" &&
+        error &&
+        "code" in error &&
+        (error as { code?: unknown }).code === "ENOENT"
+      )
+    )
+      throw error;
+  }
+  const value = await run();
+  await writeFile(file, `${JSON.stringify({ hash, value }, null, 2)}\n`, {
+    mode: 0o600,
+  });
+  return { value, replayed: false };
+}
+
 async function readJson(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of req)

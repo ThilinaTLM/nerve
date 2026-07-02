@@ -17,6 +17,11 @@ export function errorResponse(error: unknown): {
       status: error.status,
       body: { error: { code: error.code, message: error.message } },
     };
+  if (error instanceof Error && error.name === "SecretPolicyError")
+    return {
+      status: 403,
+      body: { error: { code: "FORBIDDEN", message: error.message } },
+    };
   return {
     status: 500,
     body: {

@@ -1,4 +1,4 @@
-import type { ManagedContainerRef } from "@nervekit/shared";
+import type { LogReadOptions, ManagedContainerRef } from "@nervekit/shared";
 import type {
   ContainerRuntimeDriver,
   LogChunk,
@@ -7,7 +7,13 @@ import type {
 export class LogCollector {
   constructor(private readonly driver: ContainerRuntimeDriver) {}
 
-  logs(ref: ManagedContainerRef): AsyncIterable<LogChunk> {
-    return this.driver.logs(ref, { tail: 500 });
+  logs(
+    ref: ManagedContainerRef,
+    options: LogReadOptions = {},
+  ): AsyncIterable<LogChunk> {
+    return this.driver.logs(ref, {
+      tail: options.tail ?? 500,
+      since: options.since,
+    });
   }
 }

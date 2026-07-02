@@ -9,6 +9,7 @@ import {
   sandboxInstanceIdSchema,
   sandboxRunIdSchema,
   sandboxRunStatusSchema,
+  skillStatusSchema,
   startupSetupStatusSchema,
   toolGroupStatusSchema,
 } from "./sandbox.common.schema.js";
@@ -227,6 +228,26 @@ export const sandboxStatusGetResultSchema = z.object({
   updatedAt: z.string().datetime(),
   degraded: degradedStatusSchema.optional(),
   connectivity: controllerConnectivityStatusSchema.optional(),
+  setup: z
+    .object({
+      git: startupSetupStatusSchema.optional(),
+      github: startupSetupStatusSchema.optional(),
+      boot: startupSetupStatusSchema.optional(),
+      skills: startupSetupStatusSchema.optional(),
+    })
+    .optional(),
+  skills: z.array(skillStatusSchema).optional(),
+  toolGroups: z.array(toolGroupStatusSchema).optional(),
+  cursors: z
+    .object({
+      streams: z.array(
+        z.object({
+          stream: z.string().min(1),
+          processedSeq: z.number().int().nonnegative().safe(),
+        }),
+      ),
+    })
+    .optional(),
   conversations: z.array(sandboxConversationSummarySchema).optional(),
   runs: z.array(sandboxRunSummarySchema).optional(),
   config: z.unknown().optional(),

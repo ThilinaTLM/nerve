@@ -148,9 +148,15 @@ importers:
 
   packages/sandbox-image:
     dependencies:
+      '@nervekit/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
+      '@nervekit/tools':
+        specifier: workspace:*
+        version: link:../tools
       ws:
         specifier: 8.18.3
         version: 8.18.3
