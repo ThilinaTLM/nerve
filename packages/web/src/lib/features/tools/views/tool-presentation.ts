@@ -122,6 +122,8 @@ function jiraPrimaryArg(
   view: Extract<ToolView, { kind: "jira" }>,
 ): PrimaryArg | undefined {
   switch (view.action) {
+    case "search_users":
+      return view.query ? { text: view.query } : undefined;
     case "search_issues":
       return view.jql ? { text: view.jql } : undefined;
     case "get_project": {
@@ -447,6 +449,12 @@ export function toolPresentation(
         if (count !== undefined) meta.push({ text: plural(count, noun) });
       };
       switch (view.action) {
+        case "search_users":
+          countChip(view.userCount ?? view.users.length, "user");
+          if (view.projectKey)
+            meta.push({ text: `project ${view.projectKey}`, mono: true });
+          if (view.issueKey) meta.push({ text: view.issueKey, mono: true });
+          break;
         case "search_issues":
           countChip(view.issueCount ?? view.issues.length, "issue");
           if (view.total !== undefined && view.total !== view.issueCount) {
@@ -512,14 +520,18 @@ export function toolPresentation(
         detailsActionFor(
           view.issues.length > COLLAPSED_LINES
             ? view.issues.length
-            : view.transitions.length > COLLAPSED_LINES
-              ? view.transitions.length
-              : view.contentLineCount,
+            : view.users.length > COLLAPSED_LINES
+              ? view.users.length
+              : view.transitions.length > COLLAPSED_LINES
+                ? view.transitions.length
+                : view.contentLineCount,
           view.issues.length > COLLAPSED_LINES
             ? "issues"
-            : view.transitions.length > COLLAPSED_LINES
-              ? "transitions"
-              : "lines",
+            : view.users.length > COLLAPSED_LINES
+              ? "users"
+              : view.transitions.length > COLLAPSED_LINES
+                ? "transitions"
+                : "lines",
         );
       return {
         ...base,

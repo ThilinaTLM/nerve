@@ -65,6 +65,32 @@ describe("Jira tool views", () => {
     assert.equal(presentation.meta.at(-1)?.openPath, "/tmp/jira/search.json");
   });
 
+  it("parses Jira user search query for header presentation", () => {
+    const tc = toolCall(
+      "jira_search_users",
+      { query: "alex", project_key: "NER" },
+      {
+        details: {
+          query: "alex",
+          projectKey: "NER",
+          userCount: 1,
+          users: [{ accountId: "acc-1", displayName: "Alex Doe" }],
+        },
+      },
+    );
+    const view = parseToolView(tc);
+    assert.equal(view.kind, "jira");
+    if (view.kind !== "jira") return;
+    assert.equal(view.query, "alex");
+
+    const presentation = toolPresentation(view, tc);
+    assert.equal(presentation.primaryArg?.text, "alex");
+    assert.deepEqual(metaText(presentation.meta).slice(0, 2), [
+      "1 user",
+      "project NER",
+    ]);
+  });
+
   it("falls back to historical Jira text output for issue and transitions", () => {
     const view = parseToolView(
       toolCall(

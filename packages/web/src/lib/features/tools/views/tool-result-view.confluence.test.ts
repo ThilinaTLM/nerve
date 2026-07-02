@@ -33,6 +33,27 @@ describe("Confluence tool result view", () => {
     assert.deepEqual(metaText(presentation.meta).slice(0, 1), ["1 page"]);
   });
 
+  it("parses Confluence search cursors", () => {
+    const view = parseToolView(
+      toolCall(
+        "confluence_search_spaces",
+        { query: "docs" },
+        {
+          details: {
+            action: "search_spaces",
+            query: "docs",
+            spaces: [{ id: "space-1", key: "DOC", name: "Docs" }],
+            spaceCount: 1,
+            nextCursor: "cursor-2",
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "confluence");
+    if (view.kind !== "confluence") return;
+    assert.equal(view.nextCursor, "cursor-2");
+  });
+
   it("parses download paths and publish outcomes", () => {
     const downloadView = parseToolView(
       toolCall(

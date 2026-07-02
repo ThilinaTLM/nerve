@@ -5,6 +5,12 @@
     summarizeToolDraft,
   } from "$lib/features/tools/views/tool-draft-progress";
   import { extname } from "$lib/features/tools/views/lang";
+  import {
+    confluenceDraftSummaryBody,
+    isConfluenceToolName,
+    isJiraToolName,
+    jiraDraftSummaryBody,
+  } from "$lib/features/tools/views/atlassian-tool-summary";
   import ResultCodeBlock from "./ResultCodeBlock.svelte";
   import ToolStatusIcon from "./ToolStatusIcon.svelte";
 
@@ -24,6 +30,11 @@
   const isExecutionDraft = $derived(
     summary.kind === "bash" || summary.kind === "python",
   );
+  const atlassianDraftSummary = $derived.by(() => {
+    if (isJiraToolName(draft.toolName)) return jiraDraftSummaryBody(draft);
+    if (isConfluenceToolName(draft.toolName)) return confluenceDraftSummaryBody(draft);
+    return undefined;
+  });
   const headerArg = $derived.by(() => {
     if (summary.path) return summary.path;
     if (isExecutionDraft) {
@@ -125,6 +136,15 @@
         />
       {/if}
     {/if}
+  {:else if atlassianDraftSummary}
+    <ResultCodeBlock
+      code={atlassianDraftSummary}
+      trim={false}
+      highlight={false}
+      wrap
+      overflow="hidden"
+      fixedRows={DRAFT_PREVIEW_LINES}
+    />
   {:else if draftArgsPreview}
     <ResultCodeBlock
       code={draftArgsPreview}

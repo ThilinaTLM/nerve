@@ -261,6 +261,7 @@ export type ToolView =
       content?: string;
       contentLineCount: number;
       messageLines: string[];
+      query?: string;
       jql?: string;
       issueKey?: string;
       projectKey?: string;
@@ -285,6 +286,7 @@ export type ToolView =
       transition?: JiraTransitionSummaryPayload;
       transitions: JiraTransitionSummaryPayload[];
       fields: JiraFieldSummaryPayload[];
+      payload?: unknown;
       fieldCount?: number;
       displayedFieldCount?: number;
       transitionCount?: number;
@@ -324,10 +326,12 @@ export type ToolView =
       manifestPath?: string;
       pagesJsonlPath?: string;
       inputPath?: string;
+      nextCursor?: string;
       outcomes: ConfluencePublishOutcomePayload[];
       outcomeCount?: number;
       displayedOutcomeCount?: number;
       dryRun?: boolean;
+      payload?: unknown;
       outputLimits?: ToolOutputLimitsPayload;
       outputArtifacts?: ToolOutputArtifactPayload[];
     }

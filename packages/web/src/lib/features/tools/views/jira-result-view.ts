@@ -89,6 +89,7 @@ export function parseJiraView(
       outputLimits,
     ),
     messageLines: jiraMessageLines(content),
+    query: stringField(details.query) ?? stringField(args.query),
     jql: stringField(details.jql) ?? stringField(args.jql),
     issueKey:
       stringField(details.issueKey) ??
@@ -129,6 +130,7 @@ export function parseJiraView(
     transition: parseJiraTransitionSummary(details.transition),
     transitions,
     fields,
+    payload: details.payload,
     fieldCount:
       numberField(details.fieldCount) ??
       (fields.length > 0 ? fields.length : undefined),

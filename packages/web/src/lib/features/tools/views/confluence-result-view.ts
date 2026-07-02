@@ -123,6 +123,7 @@ export function parseConfluenceView(
     manifestPath: stringField(details.manifestPath),
     pagesJsonlPath: stringField(details.pagesJsonlPath),
     inputPath: stringField(details.inputPath) ?? stringField(args.input_path),
+    nextCursor: stringField(details.nextCursor),
     outcomes: outcomes.slice(0, CONFLUENCE_DISPLAY_ITEM_LIMIT),
     outcomeCount:
       numberField(details.outcomeCount) ??
@@ -133,6 +134,7 @@ export function parseConfluenceView(
         ? Math.min(outcomes.length, CONFLUENCE_DISPLAY_ITEM_LIMIT)
         : undefined),
     dryRun: typeof details.dryRun === "boolean" ? details.dryRun : undefined,
+    payload: details.payload,
     outputLimits,
     outputArtifacts,
   };
