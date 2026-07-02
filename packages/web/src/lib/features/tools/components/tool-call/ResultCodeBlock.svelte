@@ -391,12 +391,10 @@
   }
 
   .diff-line[data-tone="add"] {
-    background: color-mix(in oklab, var(--success) 12%, transparent);
     color: var(--success);
   }
 
   .diff-line[data-tone="delete"] {
-    background: color-mix(in oklab, var(--destructive) 12%, transparent);
     color: var(--destructive);
   }
 
