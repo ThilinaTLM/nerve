@@ -4,6 +4,10 @@ import type { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
+import {
+  sandboxSnapshotResultSchema,
+  sandboxStatusGetResultSchema,
+} from "@nervekit/shared";
 import { ManagerState } from "../src/app/manager-state.js";
 import { createManagerServer } from "../src/app/server.js";
 
@@ -73,6 +77,56 @@ describe("sandbox manager lifecycle api hardening", () => {
     }
   });
 
+  it("returns redacted disconnected status and snapshot contracts", async () => {
+    const storageDir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-status-"),
+    );
+    const state = new ManagerState({
+      host: "127.0.0.1",
+      port: 0,
+      allowRemoteBind: false,
+      storageDir,
+      backend: "docker",
+    });
+    await state.init();
+    const server = createManagerServer(state);
+    await listen(server);
+    const address = server.address();
+    assert.equal(typeof address, "object");
+    try {
+      const create = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes`,
+        { method: "POST", body: JSON.stringify({ config }) },
+      );
+      const record = (await create.json()).data as { sandboxId: string };
+      const statusResponse = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes/${record.sandboxId}/status`,
+      );
+      const status = (await statusResponse.json()).data;
+      assert.equal(status.connected, false);
+      assert.equal(status.stale, true);
+      assert.equal(
+        sandboxStatusGetResultSchema.safeParse(status).success,
+        true,
+      );
+      assert.equal(JSON.stringify(status).includes("ntok_"), false);
+
+      const snapshotResponse = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes/${record.sandboxId}/snapshot`,
+      );
+      const snapshot = (await snapshotResponse.json()).data;
+      assert.equal(snapshot.connected, false);
+      assert.equal(
+        sandboxSnapshotResultSchema.safeParse(snapshot).success,
+        true,
+      );
+      assert.equal(JSON.stringify(snapshot).includes("ntok_"), false);
+    } finally {
+      await closeServer(server);
+      await rm(storageDir, { recursive: true, force: true });
+    }
+  });
+
   it("enforces per-sandbox secret policy and redacted audit", async () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-secret-"),
@@ -99,11 +153,14 @@ describe("sandbox manager lifecycle api hardening", () => {
         sandboxId: string;
         controller: { token: string };
       };
+      assert.equal(record.controller.token, "[REDACTED]");
+      const stored = await state.sandboxes.get(record.sandboxId);
+      assert.ok(stored?.controller?.token);
       const ok = await fetch(
         `http://127.0.0.1:${address.port}/api/sandboxes/${record.sandboxId}/secrets/resolve`,
         {
           method: "POST",
-          headers: { authorization: `Bearer ${record.controller.token}` },
+          headers: { authorization: `Bearer ${stored.controller.token}` },
           body: JSON.stringify({ key: "github-token" }),
         },
       );
@@ -112,7 +169,7 @@ describe("sandbox manager lifecycle api hardening", () => {
         `http://127.0.0.1:${address.port}/api/sandboxes/${record.sandboxId}/secrets/resolve`,
         {
           method: "POST",
-          headers: { authorization: `Bearer ${record.controller.token}` },
+          headers: { authorization: `Bearer ${stored.controller.token}` },
           body: JSON.stringify({ key: "other-token" }),
         },
       );

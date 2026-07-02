@@ -1,0 +1,27 @@
+{
+  "sandboxId": "sbx_failed",
+  "instanceId": "inst_failed",
+  "status": "failed",
+  "connected": false,
+  "stale": true,
+  "staleness": {
+    "stale": true,
+    "reason": "startup_failed",
+    "asOf": "2026-06-26T12:00:00.000Z"
+  },
+  "updatedAt": "2026-06-26T12:00:00.000Z",
+  "limitations": ["startup failed before controller connection"],
+  "setup": {
+    "git": {
+      "configured": true,
+      "status": "failed",
+      "error": { "code": "GIT_SETUP_FAILED", "message": "Git setup failed" }
+    },
+    "boot": {
+      "configured": true,
+      "status": "failed",
+      "error": { "code": "BOOT_FAILED", "message": "Boot phase failed" }
+    }
+  },
+  "runs": []
+}

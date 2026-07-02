@@ -1,0 +1,40 @@
+{
+  "sandboxId": "sbx_degraded",
+  "instanceId": "inst_degraded",
+  "status": "degraded",
+  "connected": true,
+  "stale": false,
+  "updatedAt": "2026-06-26T12:00:00.000Z",
+  "degraded": {
+    "degraded": true,
+    "reason": "boot failed; read-only tools enabled",
+    "since": "2026-06-26T11:58:00.000Z",
+    "limitations": ["mutating tools unavailable", "runs require model provider"]
+  },
+  "limitations": ["read-only degraded mode"],
+  "toolGroups": [
+    {
+      "group": "fileInspection",
+      "configured": true,
+      "active": true,
+      "tools": ["read", "grep", "find", "ls"]
+    },
+    {
+      "group": "shell",
+      "configured": true,
+      "active": false,
+      "tools": [],
+      "unavailableTools": ["bash", "python"],
+      "limitations": ["disabled by degraded read-only policy"]
+    }
+  ],
+  "models": [
+    {
+      "provider": "none",
+      "active": false,
+      "status": "unavailable",
+      "limitations": ["no model provider configured"]
+    }
+  ],
+  "runs": []
+}

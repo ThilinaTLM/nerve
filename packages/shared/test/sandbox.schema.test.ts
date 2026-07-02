@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
@@ -24,6 +24,17 @@ import {
 } from "../src/index.js";
 
 const ts = "2026-06-26T12:00:00.000Z";
+
+function containsSensitiveValue(value: unknown): boolean {
+  if (typeof value === "string")
+    return /(sk-[a-z0-9_-]{8,}|ghp_[a-z0-9_]{8,}|bearer\s+[a-z0-9_.-]+|password=|api[_-]?key=|token=)/i.test(
+      value,
+    );
+  if (Array.isArray(value)) return value.some(containsSensitiveValue);
+  if (value && typeof value === "object")
+    return Object.values(value).some(containsSensitiveValue);
+  return false;
+}
 
 function minimalConfig() {
   return {
@@ -291,24 +302,29 @@ describe("Sandbox shared schemas", () => {
   });
 
   it("validates hardened state and snapshot fixtures", () => {
-    const status = JSON.parse(
-      readFileSync(
-        path.join(process.cwd(), "test/fixtures/sandbox/status-valid.json"),
-        "utf8",
-      ),
-    );
-    const snapshot = JSON.parse(
-      readFileSync(
-        path.join(process.cwd(), "test/fixtures/sandbox/snapshot-valid.json"),
-        "utf8",
-      ),
-    );
-    assert.equal(sandboxStatusGetResultSchema.safeParse(status).success, true);
-    assert.equal(sandboxSnapshotResultSchema.safeParse(snapshot).success, true);
-    assert.equal(
-      /secret|token|password|api[_-]?key/i.test(JSON.stringify(snapshot)),
-      false,
-    );
+    const fixturesDir = path.join(process.cwd(), "test/fixtures/sandbox");
+    const fixtures = readdirSync(fixturesDir)
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => ({
+        file,
+        value: JSON.parse(readFileSync(path.join(fixturesDir, file), "utf8")),
+      }));
+    for (const fixture of fixtures) {
+      const schema = fixture.file.startsWith("status-")
+        ? sandboxStatusGetResultSchema
+        : sandboxSnapshotResultSchema;
+      const result = schema.safeParse(fixture.value);
+      assert.equal(result.success, true, fixture.file);
+      assert.equal(containsSensitiveValue(fixture.value), false, fixture.file);
+    }
+    const status = fixtures.find(
+      (fixture) => fixture.file === "status-valid.json",
+    )?.value;
+    const snapshot = fixtures.find(
+      (fixture) => fixture.file === "snapshot-valid.json",
+    )?.value;
+    assert.ok(status);
+    assert.ok(snapshot);
     assert.equal(
       sandboxCommandRecordSchema.safeParse({
         commandId: "cmd_1",
