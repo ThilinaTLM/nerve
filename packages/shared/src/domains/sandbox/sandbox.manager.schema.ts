@@ -45,6 +45,13 @@ export type ManagedSandboxRetention = z.infer<
   typeof managedSandboxRetentionSchema
 >;
 
+export const managedContainerRefSchema = z.object({
+  kind: z.string().min(1),
+  id: z.string().min(1),
+  name: z.string().min(1).optional(),
+});
+export type ManagedContainerRef = z.infer<typeof managedContainerRefSchema>;
+
 export const managedSandboxRecordSchema = z.object({
   sandboxId: z.string().min(1),
   instanceId: z.string().min(1).optional(),
@@ -63,12 +70,24 @@ export const managedSandboxRecordSchema = z.object({
   workspaceRef: volumeRefSchema,
   stateRef: volumeRefSchema,
   secretMountRefs: z.array(volumeRefSchema).optional(),
+  configRef: volumeRefSchema.optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
   startedAt: isoDateTimeSchema.optional(),
   stoppedAt: isoDateTimeSchema.optional(),
   gcAfter: isoDateTimeSchema.optional(),
   retention: managedSandboxRetentionSchema.optional(),
+  controller: z
+    .object({
+      token: z.string().min(1),
+      url: z.string().min(1).optional(),
+      sessionId: z.string().min(1).optional(),
+    })
+    .optional(),
+  containerRef: managedContainerRefSchema.optional(),
+  lastError: z
+    .object({ code: z.string().min(1), message: z.string().min(1) })
+    .optional(),
 });
 export type ManagedSandboxRecord = z.infer<typeof managedSandboxRecordSchema>;
 
@@ -137,13 +156,6 @@ export const managedContainerCreateSpecSchema = z.object({
 export type ManagedContainerCreateSpec = z.infer<
   typeof managedContainerCreateSpecSchema
 >;
-
-export const managedContainerRefSchema = z.object({
-  kind: z.string().min(1),
-  id: z.string().min(1),
-  name: z.string().min(1).optional(),
-});
-export type ManagedContainerRef = z.infer<typeof managedContainerRefSchema>;
 
 export const managedContainerStatusSchema = z.object({
   ref: managedContainerRefSchema,

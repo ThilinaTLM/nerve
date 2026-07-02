@@ -17,7 +17,15 @@ async function main(): Promise<void> {
     return;
   }
   const result = await runSandboxEntrypoint();
-  console.log(JSON.stringify(result));
+  console.log(
+    JSON.stringify({
+      status: result.status,
+      configDigest: result.configDigest,
+      configPath: result.configPath,
+      stateDir: result.stateDir,
+      workspaceDir: result.workspaceDir,
+    }),
+  );
 }
 
 main().catch((error) => {

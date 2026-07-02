@@ -3,8 +3,11 @@ import { describe, it } from "node:test";
 import {
   managedContainerCreateSpecSchema,
   managedSandboxRecordSchema,
+  sandboxCanonicalJson,
   sandboxConfigV1Schema,
   sandboxEventPayloadSchemas,
+  sandboxProtocolEventBatchSchema,
+  sandboxProtocolHelloSchema,
   sandboxRunStartParamsSchema,
   sandboxSecretRefSchema,
   sandboxStatusGetParamsSchema,
@@ -108,6 +111,49 @@ describe("Sandbox shared schemas", () => {
         tools: {
           groups: { jira: { enabled: true, siteUrl: "https://jira.test" } },
         },
+      }).success,
+      false,
+    );
+  });
+
+  it("keeps canonical JSON stable across object key order", () => {
+    assert.equal(
+      sandboxCanonicalJson({ b: 2, a: { d: 4, c: 3 } }),
+      sandboxCanonicalJson({ a: { c: 3, d: 4 }, b: 2 }),
+    );
+  });
+
+  it("validates sandbox controller protocol messages", () => {
+    assert.equal(
+      sandboxProtocolHelloSchema.safeParse({
+        type: "hello",
+        version: 1,
+        role: "agent",
+        sandboxId: "sbx_1",
+        instanceId: "inst_1",
+        capabilities: ["status"],
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxProtocolHelloSchema.safeParse({
+        type: "hello",
+        version: 1,
+        role: "controller",
+        sandboxId: "sbx_1",
+        instanceId: "inst_1",
+        capabilities: ["status"],
+      }).success,
+      false,
+    );
+    assert.equal(
+      sandboxProtocolEventBatchSchema.safeParse({
+        type: "event.batch",
+        batchId: "batch_1",
+        stream: "sandbox",
+        firstSeq: 2,
+        lastSeq: 2,
+        events: [{ seq: 1, ts, type: "sandbox.ready" }],
       }).success,
       false,
     );

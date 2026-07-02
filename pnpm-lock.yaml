@@ -148,6 +148,9 @@ importers:
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
+      ws:
+        specifier: 8.18.3
+        version: 8.18.3
       yaml:
         specifier: 2.9.0
         version: 2.9.0
@@ -155,6 +158,9 @@ importers:
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
       tsx:
         specifier: 4.22.4
         version: 4.22.4
@@ -167,6 +173,9 @@ importers:
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
+      ws:
+        specifier: 8.18.3
+        version: 8.18.3
       yaml:
         specifier: 2.9.0
         version: 2.9.0
@@ -174,6 +183,12 @@ importers:
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: 4.22.4
+        version: 4.22.4
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -4698,6 +4713,18 @@ packages:
 
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
+
+  ws@8.18.3:
+    resolution: {integrity: sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
 
   ws@8.21.0:
     resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
@@ -9984,6 +10011,8 @@ snapshots:
       strip-ansi: 7.2.0
 
   wrappy@1.0.2: {}
+
+  ws@8.18.3: {}
 
   ws@8.21.0: {}
 
