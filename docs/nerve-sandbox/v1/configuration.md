@@ -1,6 +1,8 @@
 # Configuration
 
-A sandbox is configured by one YAML document. The document describes identity, model catalog, agent model selection, controller WebSocket settings, secret references and key-value secret stores, top-level Git/GitHub setup, model-callable tool groups, skills/context resources, boot behavior, storage, resources, and security policy.
+A sandbox is configured by one YAML document. The document describes identity, model catalog, agent model selection, controller WebSocket settings, controller disconnect behavior, secret references and key-value secret stores, top-level Git/GitHub setup, model-callable tool groups, skills/context resources, boot behavior, storage, resources, and security policy.
+
+Manager-only settings such as container runtime driver selection, host volume source paths, manager database retention, and frontend auth are not part of the sandbox YAML unless explicitly documented. The manager materializes those concerns into mounts, environment variables, secret refs, and controller endpoints before launching the sandbox.
 
 The configuration is an input contract for the sandbox daemon. It is not an authorization boundary by itself; the daemon and container runtime MUST enforce the declared policy.
 
@@ -83,7 +85,7 @@ Requirements:
 
 - `env` MUST name an environment variable available to the sandbox daemon.
 - `file` MUST reference a mounted file path, normally under read-only `/secrets` or a protected manager-provided credential mount.
-- `kv` MUST reference a configured key-value secret store by key. If `store` is omitted, `secretStores.defaultStore` MUST resolve to a configured store.
+- `kv` MUST reference a configured key-value secret store by key. If `store` is omitted, `secretStores.defaultStore` MUST be present and MUST resolve to a configured store. Implementations MUST NOT infer a singleton store implicitly.
 - Secret values MUST be resolved lazily, only when the daemon or a tool actually needs the secret.
 - Resolved secret values MUST be redacted from logs, events, transcripts, errors, snapshots, and config digests.
 - Secret files SHOULD be readable only by the sandbox user and SHOULD NOT be under `/workspace`.
@@ -287,7 +289,7 @@ Requirements:
 
 - Built-in provider/model IDs SHOULD resolve through the runtime's bundled pi-ai catalog.
 - Built-in providers do not need to list models explicitly unless the manager is overriding metadata, adding aliases, or enabling a provider-specific credential not available by other means.
-- Custom providers MUST define enough provider-level information to create a client, typically `api`, `baseUrl`, and `credential`.
+- Custom providers MUST define enough provider-level information to create a client: `api`, `baseUrl`, and `credential`, unless the provider is explicitly marked unavailable by an implementation-specific extension and is not selected by any agent.
 - Custom OpenAI-, Gemini-, and Anthropic-compatible providers SHOULD use the corresponding `*-compatible` API values when the exact pi-ai built-in API does not apply.
 - `modelCatalog.models` is REQUIRED only for custom models unknown to the bundled catalog or for model metadata overrides.
 - `headers` MUST NOT contain raw secret values. Sensitive headers SHOULD be represented as `credential` values or injected by the provider client at execution time.
@@ -358,6 +360,14 @@ type ControllerConfig = {
     headers?: Record<string, string>;
   };
   auth: ApiKeyAuthConfig;
+  disconnectPolicy?: ControllerDisconnectPolicy;
+};
+
+type ControllerDisconnectPolicy = {
+  /** Default: exit_self. */
+  mode?: "exit_self" | "stay_reconnecting";
+  /** Default: 300000. Required to be finite for production exit_self. */
+  exitAfterMs?: number;
 };
 
 type ApiKeyAuthConfig = {
@@ -375,11 +385,15 @@ type ReconnectConfig = {
 };
 ```
 
-Controller transport auth requirements:
+Controller transport auth and disconnect requirements:
 
 - `controller.auth.type` MUST be `api_key` in baseline v1.
 - The API key MUST be used only for WebSocket connection setup and MUST NOT appear in protocol payloads.
 - A v1 implementation MUST reject `controller.auth.type: oauth` unless it explicitly advertises an experimental controller-transport OAuth capability.
+- `controller.disconnectPolicy.mode` defaults to `exit_self`.
+- `controller.disconnectPolicy.exitAfterMs` defaults to `300000`.
+- In production, `exit_self` MUST use a finite positive timeout. `stay_reconnecting` is an unsafe/dev or specialized controller mode and MUST be reported in effective config limitations.
+- On retryable controller disconnect, the sandbox enters reconnecting state. If it cannot establish a valid protocol session before `exitAfterMs`, it MUST exit itself after persisting local shutdown state when possible.
 
 ## Tool group configuration
 
@@ -470,7 +484,7 @@ type ConfluenceToolGroupConfig = ToolGroupConfig & {
 };
 ```
 
-Jira and Confluence tools are disabled unless the group is enabled and required URL, identity, and credential fields are configured. Atlassian API tokens are represented as `credential.type: api_key`; OAuth may be used only by implementations that support Atlassian OAuth refresh from provided bundles. Mutation tools SHOULD require approval in `supervised` mode.
+Jira and Confluence tools are disabled unless the group is enabled and required URL, identity, and credential fields are configured. When `jira.enabled: true`, either `siteUrl` or `baseUrl`, `email`, and `credential` are REQUIRED. When `confluence.enabled: true`, either `siteUrl` or `baseUrl`, `email`, and `credential` are REQUIRED. Atlassian API tokens are represented as `credential.type: api_key`; OAuth may be used only by implementations that support Atlassian OAuth refresh from provided bundles. Mutation tools SHOULD require approval in `supervised` mode.
 
 ### Shell, Python, task management, and explore groups
 
@@ -659,7 +673,9 @@ Boot requirements:
 - `runAs: root` is an unsafe/dev profile and MUST emit a visible security warning. It SHOULD be rejected in production profiles.
 - Boot writes MUST be limited to `/workspace`, `/tmp`, `/state`, and configured cache/credential mounts.
 - Boot MUST NOT write to `/agent` or `/agent/skills`.
-- Language package manager access is governed by `boot.network`, `security.network`, advertised firewall policy, and explicit credential injection through `SecretRef` values. There is no top-level `dependencies` block in v1.
+- Language package manager access is governed by the intersection of `boot.network`, `boot.phases[*].network`, `security.network`, advertised firewall policy, and explicit credential injection through `SecretRef` values. Boot network modes MUST NOT expand global network policy. There is no top-level `dependencies` block in v1.
+- `boot.script` and `boot.phases` SHOULD NOT both be set. Implementations SHOULD reject configs that set both unless they document deterministic ordering; the recommended ordering is `boot.script` as a phase named `default` before `boot.phases`.
+- `boot.phases[*].name` values MUST be unique.
 - Package-manager caches SHOULD live under `/state/cache/dependencies` or an implementation-documented protected cache path.
 - Private registry tokens MUST be injected only into the package manager invocation or temporary config under protected state.
 
@@ -767,6 +783,8 @@ If omitted, implementations SHOULD use these defaults:
 | `controller.auth.header` | `Authorization` |
 | `controller.auth.scheme` | `Bearer` |
 | `controller.websocket.heartbeatIntervalMs` | `30000` |
+| `controller.disconnectPolicy.mode` | `exit_self` |
+| `controller.disconnectPolicy.exitAfterMs` | `300000` |
 | `git.enabled` | `false` unless configured |
 | `github.enabled` | `false` unless configured |
 | `tools.groups.fileInspection.enabled` | `true` |
@@ -1109,10 +1127,13 @@ Common validation failures include:
 - raw-secret-like values placed directly in YAML credential fields;
 - `controller.auth.type` other than `api_key` in baseline v1;
 - `credential.type: oauth` without a source/access token or usable refresh material for a provider that requires refresh;
-- `kv` secret refs without a resolvable store or with recursive secret-store auth;
+- `kv` secret refs without an explicit store and no `secretStores.defaultStore`, without a resolvable store, or with recursive secret-store auth;
 - secret-store endpoint/auth configuration unsupported by the runtime;
 - agent model selectors that reference unknown providers, unknown models, or unsupported thinking levels;
 - tool group enabled without required URL/identity/credential fields;
+- custom provider selected by an agent without required `api`, `baseUrl`, or credential;
+- duplicate boot phase names;
+- `controller.disconnectPolicy.exitAfterMs` missing/non-finite in production `exit_self` mode;
 - Git or GitHub keys under `/workspace`;
 - Git/GitHub startup setup requested but network policy cannot allow required hosts or report enforcement;
 - root boot in production profile;

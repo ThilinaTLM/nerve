@@ -42,14 +42,17 @@ The image MUST provide an entrypoint that performs this sequence:
 5. Recover any existing local journals, refreshed credentials, secret-store status, Git/GitHub setup status, skill diagnostics, conversations, agents, runs, and checkpoints.
 6. Initialize protected state directories such as `/state/credentials`, `/state/cache/secrets`, and dependency caches.
 7. Apply container-visible security setup that can be enforced from inside the container.
-8. Validate credential references and secret-store definitions without logging values; verify required stores are reachable only when needed for startup-critical credentials.
+8. Initialize secret resolvers and secret-store clients without logging values; resolve only startup-critical secret-store/controller auth at this point.
 9. Resolve model catalog provider/model metadata and verify selected `agent.mainModel`/`agent.exploreModel` selectors.
-10. Apply top-level Git/GitHub setup, including identity, signing state, remotes, CLI/API auth, and optional clone.
-11. Load `AGENTS.md` context files and configured `SKILL.md` resources. If Git clone populated `/workspace`, loading MUST occur after clone.
-12. Run optional boot phases if configured.
-13. Start the sandbox daemon.
-14. Connect to the controller WebSocket.
-15. Resume or announce the latest durable sandbox state.
+10. Apply top-level Git setup, including identity, signing state, remotes, credentials, safe-directory config, and optional clone.
+11. Apply top-level GitHub setup, including CLI/API auth and default repo metadata.
+12. Load `AGENTS.md` context files and configured `SKILL.md` resources. If Git clone populated `/workspace`, loading MUST occur after clone.
+13. Run optional custom boot phases if configured.
+14. Start the sandbox daemon event loop.
+15. Connect to the controller WebSocket.
+16. Resume or announce the latest durable sandbox state.
+
+See [Boot Sequence](./boot-sequence.md) for the normative startup state machine.
 
 The entrypoint MUST NOT start the agent before config validation, startup setup, resource loading, and required boot phases succeed or enter an explicitly configured degraded state.
 
@@ -75,6 +78,7 @@ Reserved environment variables:
 | `NERVE_SANDBOX_STATE_DIR` | Optional override for `/state`. |
 | `NERVE_SANDBOX_WORKSPACE_DIR` | Optional override for `/workspace`. |
 | `NERVE_SANDBOX_LOG_LEVEL` | Optional log-level override. |
+| `NERVE_SANDBOX_CONTROLLER_EXIT_AFTER_MS` | Optional manager-provided override for controller disconnect self-exit, subject to YAML validation. |
 
 Provider/tool/controller/secret-store secrets MAY also be supplied through environment variables named by the config's `SecretRef` values. The sandbox MUST NOT enumerate and forward all environment variables to model providers or tool processes; secrets must be injected only where explicitly configured.
 
@@ -136,7 +140,7 @@ Requirements:
 
 ## Boot phase
 
-If `boot.script` or `boot.phases` is configured, the entrypoint runs boot after Git/GitHub setup and resource loading, but before accepting commands.
+If `boot.script` or `boot.phases` is configured, the entrypoint runs custom boot phases after secret resolver initialization, Git setup, GitHub setup, and resource loading, but before accepting commands. Boot phase semantics are defined in [Boot Sequence](./boot-sequence.md).
 
 Requirements:
 
@@ -212,6 +216,18 @@ Requirements:
 - A failed refresh or secret-store fetch MUST NOT corrupt the last valid credential bundle or cache metadata.
 - Credential and secret cache files MUST NOT be exposed through ordinary file tools, snapshots, transcripts, or artifact exports.
 
+## Controller disconnect self-exit
+
+A sandbox daemon MUST not run indefinitely when detached from its manager/controller. When the controller WebSocket is lost for a retryable reason, the daemon enters reconnecting state. If it cannot establish a valid protocol session within `controller.disconnectPolicy.exitAfterMs`, default `300000` ms, it MUST exit itself.
+
+Requirements:
+
+- The disconnect timer starts when an established protocol session is lost or a retryable connection/session error occurs.
+- Successful WebSocket authentication and `welcome` reset the timer.
+- During reconnecting state, the sandbox SHOULD continue bounded local cleanup and checkpointing but MUST NOT start new controller-commanded runs.
+- Before exiting, the sandbox SHOULD persist controller connectivity status under `/state`, enqueue shutdown events when possible, and close tool processes.
+- The manager is responsible for observing exit and garbage-collecting the container according to retention policy.
+
 ## Healthcheck
 
 The image SHOULD expose a local healthcheck command, for example:
@@ -234,7 +250,7 @@ A healthy sandbox means:
 - context/skill loading completed or diagnostics were recorded;
 - conversation/agent/run state was recovered or initialized;
 - the daemon event loop is responsive;
-- the controller WebSocket is connected or reconnecting according to policy.
+- the controller WebSocket is connected or reconnecting according to policy, and if reconnecting the disconnect grace period has not expired.
 
 A healthcheck MUST NOT require raw secrets to be printed or sent.
 
@@ -248,13 +264,14 @@ Recommended exit codes:
 | `10` | Config validation failed. |
 | `11` | Required mount missing or not writable/readable as required. |
 | `12` | State lock conflict. |
-| `13` | Boot script failed. |
+| `13` | Boot phase failed. |
 | `14` | Security setup failed. |
 | `15` | Required credential or secret-store value unavailable or unrefreshable before ready. |
 | `16` | Skill/context loading failed in fail-closed mode. |
 | `17` | Git/GitHub startup setup failed. |
 | `20` | Controller authentication failed. |
 | `21` | Controller protocol/session rejected. |
+| `22` | Controller disconnect grace period expired; sandbox self-exited. |
 | `30` | Unrecoverable state corruption. |
 
 ## Image labels

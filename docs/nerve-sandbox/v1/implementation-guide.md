@@ -9,15 +9,17 @@ A future implementation could use modules such as:
 ```text
 packages/shared/src/domains/sandbox/
   config.schema.ts
+  commands.schema.ts
+  events.schema.ts
+  snapshots.schema.ts
   credentials.schema.ts
   secret-stores.schema.ts
-  protocol.schema.ts
-  events.schema.ts
+  manager.schema.ts
   state.schema.ts
   skills.schema.ts
   setup.schema.ts
 
-packages/sandbox/
+packages/sandbox-image/
   src/entrypoint.ts
   src/config/load-config.ts
   src/config/digest.ts
@@ -42,9 +44,30 @@ packages/sandbox/
   src/security/network-policy.ts
   src/boot/boot-runner.ts
   src/skills/skills-loader.ts
+  Dockerfile
+
+packages/sandbox-manager/
+  src/api/http-server.ts
+  src/api/protocol-ws.ts
+  src/drivers/container-runtime-driver.ts
+  src/drivers/docker-driver.ts
+  src/drivers/podman-driver.ts
+  src/drivers/ecs-driver.ts
+  src/secrets/kv-secret-store.ts
+  src/lifecycle/sandbox-supervisor.ts
+  src/lifecycle/garbage-collector.ts
+  src/state/manager-store.ts
+  src/config/materialize-sandbox-config.ts
+  src/events/manager-event-bus.ts
+
+packages/web/src/lib/sandbox-manager/
+  api/
+  state/
+  routes-or-views/
+  components/
 ```
 
-This layout is illustrative. Protocol, config, event, state, and credential schemas that are shared by controllers and sandboxes should live in `packages/shared`.
+This layout is illustrative. Protocol, config, command, event, state, credential, and manager schemas that are shared by controllers, sandboxes, and the web UI should live in `packages/shared`.
 
 ## Reuse candidates
 
@@ -69,7 +92,7 @@ Current Nerve components that may be reused or adapted:
 | Git/GitHub service ideas | `packages/orchestrator/src/domains/git/*` |
 | Agent/tool orchestration glue | `packages/orchestrator/src/domains/agents/run/*` and `domains/tools/*` |
 
-The sandbox should avoid copying UI-specific or desktop-specific concerns.
+The sandbox image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/web` surface, not the current local workbench reused unchanged.
 
 ## Phase 1: shared schemas
 
@@ -82,8 +105,8 @@ Implement shared schemas for:
 - tool-group config/status for model-callable tools;
 - skills and `AGENTS.md` context metadata;
 - sandbox capabilities;
-- command params/results with optional conversation/agent IDs;
-- event payloads;
+- command params/results with optional conversation/agent IDs as defined in [Commands](./commands.md);
+- event payloads as defined in [Event Schemas](./event-schemas.md);
 - snapshot shape;
 - durable state metadata for multiple conversations, agents, subagents, and runs.
 
@@ -100,9 +123,22 @@ Validation:
 - raw-secret-like fixture examples are rejected where possible;
 - unknown fields are rejected according to the spec;
 - config digest is stable across key-order differences;
-- config digest excludes secret contents but includes safe secret reference locations.
+- config digest excludes secret contents but includes safe secret reference locations;
+- conditional validation rejects missing default KV stores, selected custom providers without required fields, enabled Jira/Confluence groups without required fields, duplicate boot phase names, and invalid disconnect policies.
 
-## Phase 2: image and entrypoint
+## Phase 2: manager local driver skeleton
+
+Implement a minimal `packages/sandbox-manager` that can persist manager records and speak to Docker or Podman through a driver abstraction.
+
+Validation:
+
+- driver capabilities report Docker/Podman availability and limitations;
+- create spec includes labels, mounts, env, resources, and security options;
+- prohibited mounts are rejected;
+- manager records desired/observed lifecycle state;
+- orphan discovery by labels works after manager restart.
+
+## Phase 3: image and entrypoint
 
 Create a minimal sandbox image with:
 
@@ -137,7 +173,7 @@ Validation:
 - `/state/credentials` and `/state/cache/secrets` are private to the sandbox user;
 - production profile runs as non-root.
 
-## Phase 3: daemon skeleton and state
+## Phase 4: daemon skeleton and state
 
 Implement:
 
@@ -162,7 +198,7 @@ Validation:
 - configured but unsupported tool groups are reported unavailable;
 - multiple run IDs under different conversation/agent IDs do not collide.
 
-## Phase 4: WebSocket protocol client
+## Phase 5: WebSocket protocol client
 
 Implement the sandbox side of the WebSocket profile:
 
@@ -184,7 +220,7 @@ Validation:
 - heartbeat timeout reconnects;
 - provider/tool/secret-store OAuth credentials are never sent in protocol payloads.
 
-## Phase 5: command inbox and event outbox
+## Phase 6: command inbox and event outbox
 
 Implement local durability:
 
@@ -203,7 +239,19 @@ Validation:
 - acked events are not required for immediate deletion;
 - credential/setup/skill status events replay safely and contain no secrets.
 
-## Phase 6: pi-ai model provider integration
+## Phase 7: manager built-in KV secret API
+
+Implement the manager HTTP key-value secret endpoint.
+
+Validation:
+
+- authorized sandbox can resolve configured key;
+- unauthorized key is denied;
+- response values are redacted from logs/events;
+- recursive secret-store auth is rejected;
+- endpoint can be exposed on a private/local sandbox network.
+
+## Phase 8: pi-ai model provider integration
 
 Integrate model configuration with the agent runtime:
 
@@ -224,7 +272,7 @@ Validation:
 - expired OAuth credential refreshes without interactive login;
 - failed refresh is redacted and marks only affected provider unavailable.
 
-## Phase 7: secret resolver, credential store, and OAuth refresh
+## Phase 9: secret resolver, credential store, and OAuth refresh
 
 Implement protected credential lifecycle:
 
@@ -250,7 +298,7 @@ Validation:
 - no raw token appears in logs/events/snapshots/transcripts;
 - concurrent refresh requests for one provider coalesce.
 
-## Phase 8: Git/GitHub setup
+## Phase 10: Git/GitHub setup
 
 Implement first-class startup setup:
 
@@ -269,7 +317,7 @@ Validation:
 - setup failure prevents ready unless explicitly degraded;
 - setup events contain no raw tokens/private keys.
 
-## Phase 9: agent harness integration
+## Phase 11: agent harness integration
 
 Run the agent harness inside the sandbox:
 
@@ -290,7 +338,7 @@ Validation:
 - failed run can be continued only when retryable;
 - loaded skills appear in `<available_skills>` when file-read tools are active.
 
-## Phase 10: tools and group policy
+## Phase 12: tools and group policy
 
 Integrate tools with sandbox group policy:
 
@@ -313,7 +361,7 @@ Validation:
 - `git push --force` and destructive commands are denied or require approval;
 - package-manager commands require allowed network/firewall hosts and scoped credentials.
 
-## Phase 11: boot and package manager policy
+## Phase 13: boot and package manager policy
 
 Implement boot runner:
 
@@ -330,6 +378,58 @@ Validation:
 - private registry token is not logged;
 - boot failure follows `boot.onFailure`;
 - boot after Git clone can see the checked-out workspace.
+
+## Phase 14: manager protocol API/WS and lifecycle
+
+Implement manager-facing HTTP/WebSocket APIs for frontend clients and sandbox daemon sessions.
+
+Validation:
+
+- sandbox daemon connects as role `agent` and manager accepts as role `orchestrator`;
+- frontend UI can load snapshots and subscribe to manager/sandbox event streams;
+- manager forwards or materializes sandbox events without raw secrets;
+- lifecycle commands are idempotent;
+- sandbox stop/remove updates desired state before runtime operations;
+- manager observes sandbox disconnect self-exit and records exit code/status.
+
+## Phase 15: lifecycle garbage collection
+
+Implement container and record cleanup according to manager retention.
+
+Validation:
+
+- exited containers are removed after retention;
+- failed containers are preserved when `preserveFailed` is true;
+- `/state` is not deleted for recoverable sandboxes;
+- orphaned containers are reconciled by labels;
+- GC actions are audited without secrets.
+
+## Phase 16: sandbox-manager web UI
+
+Implement the new `packages/web` sandbox-manager UI surface described in [Web UI](./web-ui.md).
+
+Validation:
+
+- UI connects only to the sandbox manager;
+- read-only dashboard loads via snapshot and live events;
+- sandbox detail shows backend/image/config digest/health;
+- boot timeline shows secret resolver setup, Git setup, GitHub setup, skills loading, and custom phases;
+- run view supports transcript/tool lifecycle, approvals, and input waits;
+- lifecycle actions use idempotent manager commands;
+- no raw secrets are requested or rendered;
+- styling follows `packages/web/AGENTS.md` and shadcn-svelte conventions.
+
+## Phase 17: future ECS driver
+
+Add an ECS manager backend after Docker/Podman are stable.
+
+Validation:
+
+- ECS task definition preserves required sandbox paths and env/config semantics;
+- state/workspace durability is explicit;
+- security group/egress policy limitations are reported;
+- task logs and status map to manager lifecycle state;
+- IAM permissions are narrow and do not expose broad cloud credentials to the sandbox.
 
 ## Conformance checks
 

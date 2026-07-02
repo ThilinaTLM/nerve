@@ -1,9 +1,9 @@
 # Customization
 
-Sandbox customization has five layers. Reproducible behavior depends on keeping these layers explicit and pinned.
+Sandbox customization has five layers for the sandbox image/runtime, plus a separate manager layer that decides how containers are launched and observed. Reproducible behavior depends on keeping these layers explicit and pinned.
 
 ```text
-Base image -> Derived image -> Built-in skills -> Runtime YAML config -> Boot script
+Manager launch policy -> Base image -> Derived image -> Built-in skills -> Runtime YAML config -> Boot phases
 ```
 
 ## Customization layers
@@ -14,9 +14,10 @@ Base image -> Derived image -> Built-in skills -> Runtime YAML config -> Boot sc
 | Derived image | Build time | High if pinned and locked | Project/tool dependencies, system packages, certificates, git/gh/gpg/ssh tooling. |
 | Built-in skills | Build time | High if versioned with image | Immutable `SKILL.md` task guidance under `/agent/skills`. |
 | Runtime YAML config | Start time | High if digested | Model catalog, agent selectors, secret stores, top-level Git/GitHub setup, tool groups, controller URL, skills/context paths, policy, resources. |
-| Boot script | Start time | Medium/low | Final workspace setup, dependency install, generated files, and convenience commands. |
+| Boot phases | Start time | Medium/low | Final workspace setup, dependency install, generated files, and convenience commands. |
+| Manager launch policy | Before start | High if stored | Container backend, image digest, volume refs, config mount, secret mounts, network/security profile, retention, and GC. |
 
-Build-time customization is preferred for stable dependencies. Runtime boot scripts are useful for per-workspace setup but should be treated as mutable and recorded.
+Build-time customization is preferred for stable dependencies. Runtime boot phases are useful for per-workspace setup but should be treated as mutable and recorded. Manager launch policy should be stored with sandbox records so a container can be explained or recreated.
 
 ## Base image requirements
 
@@ -129,11 +130,11 @@ Workspace context files and skills are untrusted prompt content. Manager-provide
 
 `.nerve` project resources are not default v1 paths. An implementation MAY support them only through explicit legacy compatibility configuration.
 
-## Boot scripts
+## Boot phases
 
-Boot scripts are less reproducible because they run at container start and may depend on current network/package state.
+Boot phases are less reproducible because they run at container start and may depend on current network/package state. They run after secret resolver initialization, Git setup, GitHub setup, and context/skill loading as described in [Boot Sequence](./boot-sequence.md).
 
-If a boot script is used, the sandbox SHOULD record:
+If boot phases are used, the sandbox SHOULD record:
 
 - script digest;
 - phase names;
@@ -146,7 +147,7 @@ If a boot script is used, the sandbox SHOULD record:
 - registry hosts used, without tokens;
 - generated artifacts that affect future runs.
 
-A boot script SHOULD be promoted into a derived image when it becomes stable or security-sensitive.
+A boot phase SHOULD be promoted into a derived image when it becomes stable or security-sensitive.
 
 ## Repository setup
 
@@ -221,6 +222,27 @@ The workspace is user/project state, not runtime code.
 - Generated files in `/workspace` are visible to agent tools and may be modified.
 - Controller-provided source should be mounted, copied, or cloned before boot when possible.
 - Workspace cleanup should not delete `/state`, `/state/credentials`, `/state/cache/secrets`, or dependency caches unless explicitly requested by retention policy.
+
+## Manager launch customization
+
+The baseline `packages/sandbox-manager` launch layer controls Docker/Podman and future ECS runtime settings.
+
+A manager SHOULD record:
+
+- container backend (`docker`, `podman`, future `ecs`);
+- image reference and digest;
+- config digest and config mount path;
+- workspace/state volume refs;
+- secret/credential mount refs without values;
+- network mode and effective egress limitations;
+- security options such as user, read-only root, capabilities, and no-new-privileges;
+- retention/GC policy.
+
+The manager MAY expose this information through the sandbox-manager web UI, but it MUST NOT expose raw secrets.
+
+## Sandbox-manager web UI customization
+
+The optional `packages/web` sandbox-manager UI is a separate surface from the current workbench. It should reuse shadcn-svelte components, theme tokens, protocol helpers, and shared utilities, while maintaining separate manager API clients, routes/views, and state stores. See [Web UI](./web-ui.md).
 
 ## Image labels
 

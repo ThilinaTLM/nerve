@@ -1,6 +1,6 @@
 # Durability
 
-Sandbox v1 is durable when `/state` is mounted on persistent storage. The sandbox must be able to restart, reconnect, replay unacknowledged events, restore refreshed credentials, recover secret-store status, reload context/skills metadata, and resume or report stable conversation/agent/run state without losing accepted work.
+Sandbox v1 is durable when `/state` is mounted on persistent storage. The sandbox must be able to restart, reconnect, replay unacknowledged events, restore refreshed credentials, recover secret-store status, reload context/skills metadata, and resume or report stable conversation/agent/run state without losing accepted work. It must also preserve enough controller connectivity state to explain reconnecting and disconnect self-exit decisions.
 
 Durability has two sides:
 
@@ -22,6 +22,7 @@ A conforming implementation SHOULD use a layout equivalent to:
   controller/
     session.json
     cursors.json
+    connectivity.json
   credentials/
     oauth/<provider>.json
     ssh/
@@ -80,6 +81,7 @@ Implementations MAY use a different physical layout if they preserve the same se
 | `config/effective.json` | Effective defaults, model/provider status, setup status, tool groups, and security limitations without secrets. |
 | `controller/session.json` | Last accepted controller session metadata. |
 | `controller/cursors.json` | Latest local/remote processed cursors. |
+| `controller/connectivity.json` | Current/last controller connection state, disconnect start time, reconnect attempts, and self-exit deadline. |
 | `credentials/oauth/<provider>.json` | Protected refreshed OAuth bundle, never included in ordinary snapshots/events. |
 | `credentials/status.json` | Redacted credential status such as provider, expiry, and refresh outcome. |
 | `secrets/stores.json` | Sanitized configured secret-store metadata and cache settings. |
@@ -119,6 +121,7 @@ The sandbox MUST follow write-ahead behavior for recovery-critical operations:
 2. **Command decisions**
    - Record accept/reject/idempotency decisions in `commands/decisions.jsonl`.
    - A duplicate command MUST be answered from prior journaled state when possible.
+   - `paramsHash` MUST use the canonical SHA-256 JSON normalization defined in [Commands](./commands.md).
 
 3. **Events**
    - Materialize event payload.
@@ -200,7 +203,8 @@ type CommandRecord = {
   paramsHash: string;
   params: unknown;
   acceptedAt: string;
-  status: "accepted" | "running" | "completed" | "failed" | "cancelled";
+  status: "accepted" | "queued" | "running" | "completed" | "failed" | "cancelled";
+  recoveryStatus?: "not_needed" | "requeued" | "marked_failed" | "marked_cancelled";
   conversationId?: string;
   agentId?: string;
   runId?: string;
@@ -213,6 +217,9 @@ Requirements:
 - Repeated `commandId` with the same `paramsHash` MUST be idempotent.
 - Repeated `commandId` with a different `paramsHash` MUST be rejected.
 - Commands that reached a terminal decision MUST NOT be executed again after restart.
+- Accepted but not-started commands MAY be requeued only when method-specific recovery policy allows it.
+- Commands running during a crash MUST be reconciled from durable run/tool state; tool calls MUST NOT be assumed successful without a durable result record.
+- Recovery decisions MUST be appended to `commands/decisions.jsonl` or equivalent.
 
 ## Checkpoints
 
@@ -262,18 +269,45 @@ On restart, the sandbox SHOULD:
 3. Load previous sanitized config digest and compare with current config.
 4. Load credential and secret-store status.
 5. Recover or reapply idempotent Git/GitHub setup as required by config.
-6. Load controller session/cursors.
+6. Load controller session/cursors and connectivity state.
 7. Load command decisions and event ack cursor.
 8. Load latest conversation, agent, run states, and checkpoints.
 9. Rebuild in-memory idempotency indexes.
 10. Reconcile active commands/runs:
     - terminal runs remain terminal;
     - waiting runs remain waiting;
+    - accepted but not-started commands may be requeued if safe;
     - active runs become recoverable, failed, cancelled, or queued according to implementation policy;
-    - cancelled runs remain cancelled.
+    - cancelled runs remain cancelled;
+    - in-progress tool calls without durable completion become failed or unknown, not successful.
 11. Reload context/skills if config/image/workspace inputs changed.
-12. Replay unacknowledged durable events after controller reconnect.
+12. Reconcile outbox replay using the lower/safe cursor of local `events/ack.json` and any trusted controller-provided processed cursor; never discard events that might not have been processed.
+13. Replay unacknowledged durable events after controller reconnect.
 13. Announce recovered daemon status.
+
+## Controller connectivity state
+
+The sandbox SHOULD persist controller connectivity status so restart and manager diagnostics can explain disconnect behavior.
+
+```ts
+type ControllerConnectivityRecord = {
+  state: "connected" | "reconnecting" | "disconnected" | "shutting_down";
+  sessionId?: string;
+  connectedAt?: string;
+  disconnectedAt?: string;
+  lastErrorCode?: string;
+  reconnectAttempts: number;
+  exitAfterMs: number;
+  exitAt?: string;
+};
+```
+
+Requirements:
+
+- The record MUST NOT contain controller API keys or authorization headers.
+- `disconnectedAt` and `exitAt` MUST be persisted when the disconnect self-exit timer starts.
+- Successful protocol `welcome` SHOULD update `sessionId`, clear `exitAt`, and reset reconnect attempts.
+- If the sandbox exits due to disconnect timeout, it SHOULD persist `state: "shutting_down"` and the intended exit code before exiting when possible.
 
 ## Snapshots
 
@@ -281,7 +315,7 @@ Snapshots are controller-requested summaries used for reconciliation. They MUST 
 
 A snapshot SHOULD include:
 
-- sandbox ID, instance ID, daemon status, and config digest;
+- sandbox ID, instance ID, daemon status, controller connectivity status, and config digest;
 - sanitized effective config summary;
 - model/provider status;
 - Git/GitHub setup status without secrets;

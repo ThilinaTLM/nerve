@@ -1,6 +1,6 @@
 # WebSocket Control
 
-Sandbox v1 uses WebSocket as the first control and event transport. After connection, every application frame MUST be a [Nerve Protocol v1](../../nerve-protocol/v1/README.md) JSON message.
+Sandbox v1 uses WebSocket as the first control and event transport between the sandbox daemon and controller/manager. After connection, every application frame MUST be a [Nerve Protocol v1](../../nerve-protocol/v1/README.md) JSON message. Concrete command schemas are defined in [Commands](./commands.md); concrete event payload schemas are defined in [Event Schemas](./event-schemas.md).
 
 The WebSocket carries two logical flows:
 
@@ -40,7 +40,7 @@ The sandbox follows the Nerve Protocol v1 lifecycle:
 5. Exchange `heartbeat`, `request`, `response`, `event.batch`, `ack`, `replay.*`, `flow.update`, and `error` messages.
 6. Send `goodbye` before intentional shutdown when possible.
 
-The sandbox SHOULD reconnect with exponential backoff and resume from its latest processed command/event cursors.
+The sandbox SHOULD reconnect with exponential backoff and resume from its latest processed command/event cursors. If it cannot establish a valid controller session before `controller.disconnectPolicy.exitAfterMs`, 5 minutes by default, it MUST exit itself so the manager can garbage-collect the container.
 
 ## Required capabilities
 
@@ -76,6 +76,7 @@ Optional capabilities MAY include:
 | `sandbox.tools.jira.v1` | Jira group is configured and available. |
 | `sandbox.tools.confluence.v1` | Confluence group is configured and available. |
 | `sandbox.skills.v1` | Sandbox loads and reports `AGENTS.md` and `SKILL.md` resources. |
+| `sandbox.disconnect_exit.v1` | Sandbox self-exits after configured controller disconnect grace period. |
 | `sandbox.multi_agent_state.v1` | Sandbox snapshots/events include conversation and agent identifiers. |
 | `sandbox.network.egress_policy.v1` | Sandbox can report/enforce structured network policy. |
 | `sandbox.security.firewall.v1` | Sandbox can apply host/runtime-backed egress firewall rules. |
@@ -89,7 +90,7 @@ A multiplexed controller MAY introduce scoped streams such as `sandbox:<sandboxI
 
 ## Command delivery
 
-Controller commands use Nerve Protocol v1 `request` messages. The request `data.method` identifies the command, and `data.params` contains method-specific parameters.
+Controller commands use Nerve Protocol v1 `request` messages. The request `data.method` identifies the command, and `data.params` contains method-specific parameters. [Commands](./commands.md) is authoritative for baseline parameter, result, idempotency, and error schemas.
 
 Requirements:
 
@@ -275,7 +276,7 @@ type SandboxDaemonStatus =
 
 ## Event families
 
-Sandbox events are carried in Nerve Protocol v1 `event.batch` messages. Event payloads MUST be safe to persist and log after redaction.
+Sandbox events are carried in Nerve Protocol v1 `event.batch` messages. [Event Schemas](./event-schemas.md) is authoritative for baseline payload schemas. Event payloads MUST be safe to persist and log after redaction.
 
 | Event type | Durability | Purpose |
 | --- | --- | --- |
@@ -290,6 +291,10 @@ Sandbox events are carried in Nerve Protocol v1 `event.batch` messages. Event pa
 | `sandbox.boot.completed` | durable | Boot phase completed successfully or failed. |
 | `sandbox.skills.loaded` | durable | `AGENTS.md` context and `SKILL.md` resources loaded with bounded metadata. |
 | `sandbox.ready` | durable | Sandbox can accept commands. |
+| `sandbox.controller.disconnected` | durable | Controller session was lost and reconnect/self-exit timer started. |
+| `sandbox.controller.reconnected` | durable | Controller session was re-established. |
+| `sandbox.shutdown.scheduled` | durable | Shutdown was scheduled, including disconnect self-exit. |
+| `sandbox.shutdown.started` | durable | Shutdown began. |
 | `run.started` | durable | Run started for a conversation/agent. |
 | `run.delta` | transient | Streaming assistant progress. |
 | `run.transcript.appended` | durable | Durable transcript entry appended. |
@@ -305,7 +310,7 @@ Sandbox events are carried in Nerve Protocol v1 `event.batch` messages. Event pa
 | `tool.call.failed` | durable | Tool call failed with redacted error. |
 | `sandbox.security.denied` | durable | Policy denied an action. |
 
-Events associated with a run SHOULD include `conversationId`, `agentId`, and `runId`.
+Events associated with a run SHOULD include `conversationId`, `agentId`, and `runId`. Event producers MUST use the payload shapes in [Event Schemas](./event-schemas.md) for baseline event types.
 
 ## Redaction and bounded payloads
 

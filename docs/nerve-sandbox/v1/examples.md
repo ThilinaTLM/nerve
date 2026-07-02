@@ -713,3 +713,136 @@ Because v1 is still proposed, these are spec cleanup notes rather than compatibi
 - Replace raw env/file-only secret refs with env/file/kv `SecretRef` values as needed.
 - Replace package dependency config blocks with `boot.phases`, `security.network`, firewall policy, cache paths, and scoped package-manager credential refs.
 - Prefer `/workspace/AGENTS.md` and `/workspace/.agents/skills`; legacy project resource paths require explicit compatibility support.
+
+## 15. Sandbox manager with built-in KV secrets
+
+The baseline sandbox manager can launch a Docker/Podman sandbox and expose a private key-value secret endpoint. The sandbox YAML references the endpoint; the raw values stay in manager storage.
+
+```yaml
+secretStores:
+  defaultStore: manager
+  stores:
+    manager:
+      type: http_kv
+      endpoint: http://sandbox-manager.internal/api/sandboxes/sbx_001/secrets/resolve
+      auth:
+        type: api_key
+        apiKey:
+          file: /secrets/controller/secret-store-token
+      response:
+        valueJsonPointer: /value
+        expiresAtJsonPointer: /expiresAt
+```
+
+Example manager KV request shape:
+
+```http
+POST /api/sandboxes/sbx_001/secrets/resolve
+Authorization: Bearer <redacted>
+Content-Type: application/json
+
+{ "key": "model/anthropic/oauth" }
+```
+
+Example response shape, never logged or emitted to ordinary events:
+
+```json
+{
+  "value": "<redacted-secret-value>",
+  "expiresAt": "2026-07-02T12:00:00.000Z"
+}
+```
+
+## 16. Boot sequence with Git, GitHub, then custom phases
+
+Startup order is fixed: secret resolver setup, Git setup, GitHub setup, context/skills loading, then custom boot phases.
+
+```yaml
+controller:
+  websocket:
+    url: ws://sandbox-manager.internal/api/sandboxes/sbx_001/connect
+  auth:
+    type: api_key
+    apiKey:
+      file: /secrets/controller/api-key
+  disconnectPolicy:
+    mode: exit_self
+    exitAfterMs: 300000
+
+git:
+  enabled: true
+  clone:
+    url: git@github.com:example/repo.git
+    ref: main
+    credential:
+      type: ssh
+      privateKey:
+        kv: { key: git/id_ed25519 }
+      knownHosts:
+        kv: { key: git/known_hosts }
+
+github:
+  enabled: true
+  auth:
+    type: pat
+    token:
+      kv: { key: github/pat }
+  cli:
+    enabled: true
+
+boot:
+  phases:
+    - name: install-dependencies
+      network: package_registries_only
+      timeoutMs: 600000
+      env:
+        NPM_TOKEN:
+          kv: { key: registries/npm/token }
+      script: |
+        cd /workspace
+        corepack enable
+        pnpm install --frozen-lockfile
+    - name: verify-workspace
+      network: deny
+      timeoutMs: 120000
+      script: |
+        cd /workspace
+        pnpm check
+  onFailure: fail_sandbox
+```
+
+The `install-dependencies` phase can reach only package registry hosts allowed by both `boot.phases[*].network` and `security.network`. The `verify-workspace` phase has no external egress.
+
+## 17. Disconnect self-exit and manager GC flow
+
+```text
+T+000s  sandbox has established controller WebSocket session
+T+010s  manager restarts; WebSocket closes
+T+010s  sandbox writes controller connectivity state: reconnecting
+T+010s  sandbox starts reconnect loop and schedules self-exit at T+310s
+T+120s  reconnect still failing; healthcheck reports reconnecting within grace period
+T+310s  reconnect not restored; sandbox writes shutdown state when possible
+T+311s  sandbox exits with controller-disconnect timeout exit code
+T+315s  manager observes exited container and records observedState=exited
+T+retention  manager removes container; /state is preserved unless retention permits deletion
+```
+
+If reconnect succeeds before the deadline, the sandbox emits `sandbox.controller.reconnected`, clears the deadline, and resumes replay/ack behavior.
+
+## 18. Sandbox-manager web UI flow
+
+A frontend in `packages/web` connects to the sandbox manager, not directly to sandbox containers.
+
+```text
+1. UI authenticates to sandbox manager.
+2. UI loads a sandbox dashboard snapshot.
+3. UI opens a Nerve Protocol v1 WebSocket as role ui.
+4. UI applies manager/sandbox event batches and sends processed acks.
+5. User opens a sandbox detail page.
+6. UI shows image/backend/config digest, health, reconnect countdown, and GC state.
+7. User opens boot timeline and sees secret resolver setup, Git, GitHub, skills, and custom phases.
+8. User resolves a pending approval; UI sends manager-mediated sandbox.approval.resolve.
+9. Manager forwards the authorized command to the sandbox daemon.
+```
+
+The UI displays secret keys only when policy permits and never displays secret values.

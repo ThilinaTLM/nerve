@@ -61,7 +61,7 @@ The agent must not be able to modify its own runtime or built-in skills.
 - `/agent` SHOULD be owned by root or a build user and mounted/read-only at runtime.
 - `/agent/skills` SHOULD be owned by root or a build user and mounted/read-only at runtime.
 - The sandbox user SHOULD have read/execute permissions only.
-- Boot scripts and tool commands MUST NOT write into `/agent` or `/agent/skills` in production profiles.
+- Boot phases and tool commands MUST NOT write into `/agent` or `/agent/skills` in production profiles.
 - If runtime plugin or skill installation is supported in the future, it MUST use a separate explicit extension directory with policy and provenance checks.
 
 Workspace `AGENTS.md` files and `.agents/skills` are untrusted prompt resources. They MUST NOT grant tools, filesystem permissions, network permissions, or credential access.
@@ -90,22 +90,34 @@ The sandbox MUST NOT mount:
 - cloud metadata credential paths;
 - SSH agent sockets unless explicitly allowed for a narrow use case.
 
+## Docker and Podman manager hardening
+
+When launched by the baseline sandbox manager, Docker and Podman containers SHOULD use the protections in [Runtime Image](./runtime-image.md) and [Manager](./manager.md).
+
+Requirements:
+
+- The manager MUST reject privileged production launches.
+- The manager MUST reject mounting Docker/Podman sockets, host root filesystems, and broad host credential directories into the sandbox.
+- The manager SHOULD prefer non-root/rootless operation where practical.
+- Runtime limitations, such as rootless networking or unsupported read-only root filesystem flags, MUST be reported in manager/sandbox status.
+- A production launch that requests strict policy enforcement MUST fail closed if the selected backend cannot enforce required mounts, user, capabilities, or network constraints.
+
 ## Root and boot hardening
 
-Boot scripts are useful but risky.
+Boot phases are useful but risky.
 
 Requirements:
 
 - Git/GitHub startup setup runs before boot when configured.
-- Boot scripts MUST run before the sandbox accepts run commands.
-- Boot scripts MUST be time-limited.
+- Boot phases MUST run before the sandbox accepts run commands.
+- Boot phases MUST be time-limited.
 - Boot output MUST be bounded and redacted.
 - Boot filesystem writes MUST follow configured policy.
-- Boot network access MUST follow configured policy.
+- Boot network access MUST follow the policy composition in [Boot Sequence](./boot-sequence.md): phase network mode intersects with global `security.network` and firewall policy, and never expands it.
 - Boot failure MUST produce durable state and an event when possible.
 - Production boot phases MUST run as the non-root sandbox user.
 - `boot.runAs: root` or a root boot phase is an unsafe/dev profile. It MUST be explicitly configured, SHOULD be rejected by production managers, and MUST emit a visible degraded-security event.
-- Boot scripts MUST NOT silently escalate to root for package installation.
+- Boot phases MUST NOT silently escalate to root for package installation.
 
 For reproducibility and least privilege, system packages should be installed in a derived image rather than at runtime.
 
@@ -149,7 +161,7 @@ type NetworkPolicyStatus = {
 };
 ```
 
-If the backend is `none` or `unknown`, the implementation MUST NOT claim strict egress isolation.
+If the backend is `none` or `unknown`, the implementation MUST NOT claim strict egress isolation. In production, if `security.network.default: deny` or a boot/setup phase requires strict egress enforcement and no backend can enforce it, the sandbox or manager SHOULD fail closed unless an explicit unsafe/dev or degraded policy allows startup with a visible limitation.
 
 ## Secret stores
 
@@ -176,7 +188,7 @@ Requirements:
 - `security.apt.allowed: false` MUST block runtime `apt`, `apt-get`, and equivalent system package-manager mutations where detected.
 - Build-time installation in a derived image is the RECOMMENDED path.
 - Runtime apt requires a deliberately weaker profile with root/write access and MUST be reported as non-reproducible unless package versions and transcripts are captured.
-- Boot scripts MUST NOT silently escalate to root for package installation.
+- Boot phases MUST NOT silently escalate to root for package installation.
 
 ## Language package registry access
 
@@ -184,7 +196,7 @@ Language package managers, such as `pnpm`, `npm`, `yarn`, `pip`, `poetry`, `uv`,
 
 Requirements:
 
-- Package manager network access MUST be explicitly allowed by boot/tool phase policy and `security.network`/firewall configuration.
+- Package manager network access MUST be explicitly allowed by boot/tool phase policy and `security.network`/firewall configuration. Phase-level `package_registries_only` allows only configured package registry hosts that are also allowed by global network policy.
 - Public registries and private registry mirrors SHOULD be allowlisted by host, for example through `security.network.packageRegistryHosts` and `security.network.allow`.
 - Registry tokens MUST be supplied by `SecretRef` values and injected only into the package-manager invocation or temporary config under protected state.
 - Dependency caches SHOULD live under `/state/cache/dependencies` or another configured cache path, not `/agent`.

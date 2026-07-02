@@ -138,7 +138,7 @@ Requirements:
 - Shell output MUST be bounded and redacted before being sent to the model or controller.
 - Commands MUST NOT receive all environment variables by default; only safe runtime variables and explicitly required secret refs should be injected.
 - Runtime `apt`, `sudo`, container runtime access, host service control, and broad permission changes SHOULD be denied in production profiles.
-- Language package managers such as `pnpm`, `npm`, `yarn`, `pip`, `poetry`, `uv`, `mvn`, `gradle`, `cargo`, `go`, `bundle`, and `nuget` are allowed only when boot/tool policy and `security.network`/firewall policy allow the relevant registries. Credentials MUST be injected through temporary config or process env scoped to the package-manager invocation.
+- Language package managers such as `pnpm`, `npm`, `yarn`, `pip`, `poetry`, `uv`, `mvn`, `gradle`, `cargo`, `go`, `bundle`, and `nuget` are allowed only when boot/tool policy and the effective `security.network`/firewall policy allow the relevant registries. Phase/tool network settings intersect with global network policy and never expand it. Credentials MUST be injected through temporary config or process env scoped to the package-manager invocation.
 
 ## Python tool
 
@@ -186,8 +186,8 @@ When the model invokes Git/GitHub operations through `bash`, `python`, task tool
 - Git/GitHub credentials MUST be injected narrowly through scoped mechanisms such as `GIT_ASKPASS`, `GIT_SSH_COMMAND`, temporary credential helpers under protected state, `GH_TOKEN`, or a protected CLI auth file.
 - SSH keys, GPG private keys, signing keys, passphrases, and known-hosts material MUST NOT be written to `/workspace`.
 - `GNUPGHOME`, SSH config, and credential-helper state SHOULD live under protected state with restrictive permissions.
-- Clone/fetch/pull/push/API network access MUST comply with `security.network` and any firewall profile.
-- Mutating operations such as `git commit`, `git checkout`, `git switch`, `git merge`, `git rebase`, `git reset`, `git clean`, `git tag`, `git push`, PR creation, PR comments, workflow dispatch, and release publication MUST be risk-classified.
+- Clone/fetch/pull/push/API network access MUST comply with `security.network` and any firewall profile. Prepared startup credentials do not imply network authorization or mutation authorization.
+- Mutating operations such as `git commit`, `git checkout`, `git switch`, `git merge`, `git rebase`, `git reset`, `git clean`, `git tag`, `git push`, PR creation, PR comments, workflow dispatch, and release publication MUST be risk-classified even when Git/GitHub credentials were prepared at startup.
 - `git push --force`, `git reset --hard`, `git clean -fd`, and equivalent destructive operations SHOULD require approval even in autonomous mode unless policy explicitly allows them.
 - `gh auth login`, browser login, and device-code login MUST be denied.
 - Output MUST be redacted for embedded credentials in remote URLs, authorization headers, or CLI debug logs.
