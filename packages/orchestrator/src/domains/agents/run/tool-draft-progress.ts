@@ -514,7 +514,10 @@ export function createToolDraftProgressAccumulator(
   return undefined;
 }
 
-function prefixDiffPreviewLines(text: string, prefix: DiffPreviewPrefix): string {
+function prefixDiffPreviewLines(
+  text: string,
+  prefix: DiffPreviewPrefix,
+): string {
   return text
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")

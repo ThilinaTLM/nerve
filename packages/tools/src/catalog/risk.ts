@@ -1,5 +1,16 @@
 import type { ToolName, ToolRisk } from "@nervekit/shared";
 
+const readOnlyNetworkToolNames = new Set<ToolName>([
+  "jira_search_users",
+  "jira_search_issues",
+  "jira_get_issue",
+  "jira_get_project",
+  "confluence_search_spaces",
+  "confluence_search_pages",
+  "confluence_get_page",
+  "confluence_download_pages",
+]);
+
 const toolRisks: Record<ToolName, ToolRisk> = {
   read: "read",
   bash: "command",
@@ -44,4 +55,8 @@ const toolRisks: Record<ToolName, ToolRisk> = {
 
 export function coreToolRiskForName(name: ToolName): ToolRisk {
   return toolRisks[name] ?? "command";
+}
+
+export function isReadOnlyNetworkToolForApproval(name: ToolName): boolean {
+  return readOnlyNetworkToolNames.has(name);
 }

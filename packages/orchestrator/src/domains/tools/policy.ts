@@ -4,6 +4,7 @@ import {
   hasDangerousCommandPattern,
   isAllowedPlanModeBashCommand,
   isKnownReadOnlyCommand,
+  isReadOnlyNetworkToolForApproval,
   toolRiskForName,
 } from "@nervekit/tools";
 import {
@@ -73,6 +74,10 @@ export function evaluateToolPolicy(
     return evaluateReadRiskPolicy(agent, risk, normalizedArgs, cwd);
   }
 
+  if (isReadOnlyNetworkToolForApproval(toolName)) {
+    return evaluateReadOnlyNetworkRiskPolicy(agent, risk, normalizedArgs, cwd);
+  }
+
   if (agent.permissionLevel === "read_only") {
     return {
       decision: "deny",
@@ -125,6 +130,43 @@ function evaluateReadRiskPolicy(
     decision: "allow",
     risk,
     reason: "Read-only tool call is allowed.",
+    normalizedArgs,
+    cwd,
+  };
+}
+
+function evaluateReadOnlyNetworkRiskPolicy(
+  agent: AgentRecord,
+  risk: ToolRisk,
+  normalizedArgs: Record<string, unknown>,
+  cwd: string,
+): PolicyEvaluation {
+  if (agent.permissionLevel === "read_only") {
+    return {
+      decision: "deny",
+      risk,
+      reason: "read_only agents cannot run read-only network tool calls.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+  if (
+    agent.permissionLevel === "supervised" &&
+    agent.approvalPolicy.autoApproveReadOnly === false
+  ) {
+    return {
+      decision: "approval",
+      risk,
+      reason:
+        "Supervised agent requires approval for read-only network tool calls because auto-approve read-only tools is disabled.",
+      normalizedArgs,
+      cwd,
+    };
+  }
+  return {
+    decision: "allow",
+    risk,
+    reason: "Read-only network tool call is allowed.",
     normalizedArgs,
     cwd,
   };
@@ -212,6 +254,10 @@ function evaluatePlanningModePolicy(
 
   if (risk === "read") {
     return evaluateReadRiskPolicy(agent, risk, normalizedArgs, cwd);
+  }
+
+  if (isReadOnlyNetworkToolForApproval(toolName)) {
+    return evaluateReadOnlyNetworkRiskPolicy(agent, risk, normalizedArgs, cwd);
   }
 
   if (risk === "network") {

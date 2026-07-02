@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentRecord, PermissionLevel } from "@nervekit/shared";
+import type { AgentRecord, PermissionLevel, ToolName } from "@nervekit/shared";
 import { evaluateToolPolicy } from "../src/domains/tools/policy.js";
 
 function agent(
@@ -101,6 +101,78 @@ describe("tool policy", () => {
       ).decision,
       "deny",
     );
+  });
+
+  it("auto-approves audited Jira and Confluence read-only network tools", () => {
+    const readOnlyNetworkTools: {
+      toolName: ToolName;
+      args: Record<string, unknown>;
+    }[] = [
+      { toolName: "jira_search_users", args: { query: "alex" } },
+      { toolName: "jira_search_issues", args: { jql: "project = PROJ" } },
+      { toolName: "jira_get_issue", args: { issue_key: "PROJ-1" } },
+      { toolName: "jira_get_project", args: { project_key: "PROJ" } },
+      { toolName: "confluence_search_spaces", args: { query: "docs" } },
+      { toolName: "confluence_search_pages", args: { cql: "type = page" } },
+      { toolName: "confluence_get_page", args: { page_id: "123" } },
+      { toolName: "confluence_download_pages", args: { page_id: "123" } },
+    ];
+
+    for (const { toolName, args } of readOnlyNetworkTools) {
+      const supervisedDefault = evaluateToolPolicy(
+        agent("supervised"),
+        toolName,
+        args,
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(supervisedDefault.decision, "allow", toolName);
+      assert.equal(supervisedDefault.risk, "network", toolName);
+
+      const supervisedStrict = evaluateToolPolicy(
+        agent("supervised", "coding", { autoApproveReadOnly: false }),
+        toolName,
+        args,
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(supervisedStrict.decision, "approval", toolName);
+      assert.equal(supervisedStrict.risk, "network", toolName);
+      assert.match(
+        supervisedStrict.reason,
+        /auto-approve read-only tools is disabled/,
+        toolName,
+      );
+
+      const readOnlyAgent = evaluateToolPolicy(
+        agent("read_only"),
+        toolName,
+        args,
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(readOnlyAgent.decision, "deny", toolName);
+      assert.equal(readOnlyAgent.risk, "network", toolName);
+
+      const planningSupervisedDefault = evaluateToolPolicy(
+        agent("supervised", "planning"),
+        toolName,
+        args,
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(planningSupervisedDefault.decision, "allow", toolName);
+      assert.equal(planningSupervisedDefault.risk, "network", toolName);
+
+      const planningSupervisedStrict = evaluateToolPolicy(
+        agent("supervised", "planning", { autoApproveReadOnly: false }),
+        toolName,
+        args,
+        { dataDir: "/tmp/nerve" },
+      );
+      assert.equal(planningSupervisedStrict.decision, "approval", toolName);
+      assert.match(
+        planningSupervisedStrict.reason,
+        /auto-approve read-only tools is disabled/,
+        toolName,
+      );
+    }
   });
 
   it("allows network research in planning mode with permission checks", () => {

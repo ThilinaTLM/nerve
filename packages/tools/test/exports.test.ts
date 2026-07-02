@@ -10,6 +10,7 @@ import {
   isAllowedPlanModeBashCommand,
   isKnownReadOnlyCommand,
   isLikelyLongRunningCommand,
+  isReadOnlyNetworkToolForApproval,
   resolveToolPath,
   toolRiskForName,
 } from "../src/index.js";
@@ -25,6 +26,7 @@ describe("public source exports", () => {
     assert.equal(typeof isAllowedPlanModeBashCommand, "function");
     assert.equal(typeof isKnownReadOnlyCommand, "function");
     assert.equal(typeof isLikelyLongRunningCommand, "function");
+    assert.equal(typeof isReadOnlyNetworkToolForApproval, "function");
     assert.ok(coreToolDefinitions.length > 0);
     assert.ok(coreToolDescriptors.length > 0);
     assert.equal(toolRiskForName("read"), "read");
@@ -49,5 +51,40 @@ describe("public source exports", () => {
     assert.equal(toolRiskForName("confluence_update_page"), "command");
     assert.equal(toolRiskForName("confluence_publish_pages"), "command");
     assert.equal(toolRiskForName("confluence_upload_attachment"), "command");
+  });
+
+  it("identifies only audited read-only network tools for auto-approval", () => {
+    for (const toolName of [
+      "jira_search_users",
+      "jira_search_issues",
+      "jira_get_issue",
+      "jira_get_project",
+      "confluence_search_spaces",
+      "confluence_search_pages",
+      "confluence_get_page",
+      "confluence_download_pages",
+    ] as const) {
+      assert.equal(isReadOnlyNetworkToolForApproval(toolName), true, toolName);
+      assert.equal(toolRiskForName(toolName), "network", toolName);
+    }
+
+    for (const toolName of [
+      "web_search",
+      "web_fetch",
+      "jira_create_issue",
+      "jira_update_issue",
+      "jira_add_comment",
+      "jira_transition_issue",
+      "confluence_create_page",
+      "confluence_update_page",
+      "confluence_publish_pages",
+      "confluence_upload_attachment",
+      "explore",
+      "python",
+      "edit",
+      "write",
+    ] as const) {
+      assert.equal(isReadOnlyNetworkToolForApproval(toolName), false, toolName);
+    }
   });
 });
