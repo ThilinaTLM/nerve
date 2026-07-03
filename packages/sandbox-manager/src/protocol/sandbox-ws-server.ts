@@ -3,6 +3,7 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
   type SandboxProtocolMessage,
+  sandboxProtocolAckSchema,
   sandboxProtocolErrorSchema,
   sandboxProtocolEventBatchSchema,
   sandboxProtocolGoodbyeSchema,
@@ -14,7 +15,12 @@ import {
 } from "@nervekit/shared";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../app/manager-state.js";
+import {
+  MANAGER_EVENT_STORE_ID,
+  MANAGER_EVENT_STREAM,
+} from "../events/manager-events.js";
 import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
+import type { StoredSandboxEvent } from "../state/event-store.js";
 import { CommandForwarder } from "./command-forwarder.js";
 import { encodeProtocolMessage, parseProtocolMessage } from "./messages.js";
 import { replayEvents } from "./replay.js";
@@ -22,6 +28,11 @@ import {
   type ConnectedSandboxSession,
   SandboxSessionRegistry,
 } from "./sandbox-session.js";
+
+type ManagerHttpAuthorizer = (
+  state: ManagerState,
+  req: IncomingMessage,
+) => boolean;
 
 const CONTROLLER_CAPABILITIES = new Set([
   "encoding.json",
@@ -48,10 +59,22 @@ const CONTROLLER_CAPABILITIES = new Set([
   "sandbox.network.egress_policy.v1",
 ]);
 
-function acceptedCapabilities(advertised: readonly string[]): string[] {
-  return advertised.filter((capability) =>
-    CONTROLLER_CAPABILITIES.has(capability),
-  );
+const UI_CAPABILITIES = new Set([
+  "encoding.json",
+  "event.batch",
+  "event.replay",
+  "event.ack.processed",
+  "flow.backpressure",
+  "sandbox.manager.ui.v1",
+  "sandbox.manager.snapshots.v1",
+  "sandbox.manager.lifecycle.v1",
+]);
+
+function acceptedCapabilities(
+  advertised: readonly string[],
+  allowed = CONTROLLER_CAPABILITIES,
+): string[] {
+  return advertised.filter((capability) => allowed.has(capability));
 }
 
 export class SandboxWsServer {
@@ -59,8 +82,11 @@ export class SandboxWsServer {
   private readonly wss = new WebSocketServer({ noServer: true });
   private readonly ingestor: SandboxEventIngestor;
 
-  constructor(private readonly state: ManagerState) {
-    this.ingestor = new SandboxEventIngestor(state.events);
+  constructor(
+    private readonly state: ManagerState,
+    private readonly authorizeManagerClient: ManagerHttpAuthorizer = () => true,
+  ) {
+    this.ingestor = new SandboxEventIngestor(state.events, state.eventBus);
   }
 
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
@@ -77,6 +103,14 @@ export class SandboxWsServer {
     head: Buffer,
   ): Promise<void> {
     try {
+      if (matchManagerUiWs(req.url ?? "")) {
+        if (!this.authorizeManagerClient(this.state, req))
+          return rejectUpgrade(socket, 401, "Unauthorized");
+        this.wss.handleUpgrade(req, socket, head, (ws) => {
+          void this.handleUiConnection(ws);
+        });
+        return;
+      }
       const sandboxId = matchSandboxId(req.url ?? "");
       if (!sandboxId) return rejectUpgrade(socket, 404, "Not found");
       const record = await this.state.sandboxes.get(sandboxId);
@@ -90,6 +124,148 @@ export class SandboxWsServer {
     } catch {
       rejectUpgrade(socket, 500, "Upgrade failed");
     }
+  }
+
+  private async handleUiConnection(ws: WebSocket): Promise<void> {
+    let unsubscribe: (() => void) | undefined;
+    let sessionId: string | undefined;
+    const fail = (code: string, message: string): void => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          encodeProtocolMessage({ type: "error", error: { code, message } }),
+        );
+        ws.close(1008, code);
+      }
+    };
+    const helloTimer = setTimeout(
+      () => fail("HELLO_TIMEOUT", "UI hello was not received in time"),
+      10_000,
+    );
+    ws.once("message", (data) => {
+      clearTimeout(helloTimer);
+      try {
+        const hello = parseUiHello(data as Buffer);
+        sessionId = `ui_${randomUUID()}`;
+        const capabilities = acceptedCapabilities(
+          hello.capabilities,
+          UI_CAPABILITIES,
+        );
+        if (!capabilities.includes("encoding.json")) {
+          fail("CAPABILITY_MISSING", "encoding.json is required");
+          return;
+        }
+        ws.send(
+          encodeProtocolMessage({
+            type: "welcome",
+            version: 1,
+            accepted: true,
+            sessionId,
+            controllerId: "sandbox-manager",
+            acceptedCapabilities: capabilities,
+            heartbeatIntervalMs: 15_000,
+            heartbeatTimeoutMs: this.state.config.heartbeatTimeoutMs,
+            replay: { required: false, cursors: hello.resume?.cursors },
+          }),
+        );
+        unsubscribe = this.state.eventBus.subscribe((event) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          ws.send(
+            encodeProtocolMessage({
+              type: "event.batch",
+              batchId: `batch_${event.stream ?? "manager"}_${event.seq ?? Date.now()}`,
+              stream: event.stream ?? MANAGER_EVENT_STREAM,
+              firstSeq: event.seq,
+              lastSeq: event.seq,
+              events: [
+                {
+                  id: event.id,
+                  seq: event.seq ?? 1,
+                  ts: event.ts,
+                  type: event.type,
+                  durability: event.durability ?? "durable",
+                  data: event.payload,
+                },
+              ],
+            }),
+          );
+        });
+        ws.on(
+          "message",
+          (next) => void this.handleUiMessage(ws, next as Buffer),
+        );
+      } catch (error) {
+        fail(
+          "INVALID_HELLO",
+          error instanceof Error ? error.message : "Invalid hello",
+        );
+      }
+    });
+    ws.on("close", () => unsubscribe?.());
+    ws.on("error", () => unsubscribe?.());
+  }
+
+  private async handleUiMessage(ws: WebSocket, data: Buffer): Promise<void> {
+    let message: Record<string, unknown>;
+    try {
+      message = JSON.parse(String(data)) as Record<string, unknown>;
+    } catch {
+      ws.send(
+        encodeProtocolMessage({
+          type: "error",
+          error: { code: "INVALID_MESSAGE", message: "Invalid JSON" },
+        }),
+      );
+      return;
+    }
+    if (message.type === "ack") {
+      sandboxProtocolAckSchema.parse(message);
+      return;
+    }
+    if (message.type === "heartbeat") {
+      sandboxProtocolHeartbeatSchema.parse(message);
+      ws.send(
+        encodeProtocolMessage({
+          type: "heartbeat",
+          ts: new Date().toISOString(),
+          status: "ok",
+        }),
+      );
+      return;
+    }
+    if (message.type === "ready") return;
+    if (message.type === "goodbye") {
+      sandboxProtocolGoodbyeSchema.parse(message);
+      ws.close(1000, "goodbye");
+      return;
+    }
+    if (message.type === "replay.request") {
+      const request = sandboxProtocolReplayRequestSchema.parse(message);
+      const storeId = storeIdForUiStream(request.stream);
+      const events = storeId
+        ? (await replayEvents(this.state.events, storeId, request.afterSeq))
+            .slice(0, request.limit ?? 1000)
+            .map((event) => toProtocolEventForStream(event))
+        : [];
+      ws.send(
+        encodeProtocolMessage({
+          type: "replay.response",
+          stream: request.stream,
+          afterSeq: request.afterSeq,
+          events,
+          complete: events.length < (request.limit ?? 1000),
+        }),
+      );
+      return;
+    }
+    ws.send(
+      encodeProtocolMessage({
+        type: "error",
+        error: {
+          code: "UNSUPPORTED_MESSAGE",
+          message: `Unsupported UI message: ${String(message.type)}`,
+        },
+      }),
+    );
   }
 
   private async handleConnection(
@@ -338,6 +514,64 @@ export class SandboxWsServer {
 
 function matchSandboxId(url: string): string | undefined {
   return /^\/api\/sandboxes\/([^/]+)\/ws(?:\?|$)/.exec(url)?.[1];
+}
+
+function matchManagerUiWs(url: string): boolean {
+  return /^\/api\/manager\/ws(?:\?|$)/.test(url);
+}
+
+function parseUiHello(data: Buffer): {
+  capabilities: string[];
+  resume?: { cursors?: Array<{ stream: string; processedSeq: number }> };
+} {
+  const value = JSON.parse(String(data)) as Record<string, unknown>;
+  if (value.type !== "hello") throw new Error("UI hello type is required");
+  if (value.role !== "ui") throw new Error("UI hello role must be ui");
+  if (!Array.isArray(value.capabilities))
+    throw new Error("UI hello capabilities are required");
+  const resume = isRecord(value.resume) ? value.resume : undefined;
+  return {
+    capabilities: value.capabilities.map(String),
+    resume: resume
+      ? {
+          cursors: Array.isArray(resume.cursors)
+            ? resume.cursors.flatMap((cursor) => {
+                if (!isRecord(cursor)) return [];
+                return typeof cursor.stream === "string" &&
+                  typeof cursor.processedSeq === "number"
+                  ? [
+                      {
+                        stream: cursor.stream,
+                        processedSeq: cursor.processedSeq,
+                      },
+                    ]
+                  : [];
+              })
+            : undefined,
+        }
+      : undefined,
+  };
+}
+
+function storeIdForUiStream(stream: string): string | undefined {
+  if (stream === MANAGER_EVENT_STREAM) return MANAGER_EVENT_STORE_ID;
+  if (stream.startsWith("sandbox:")) return stream.slice("sandbox:".length);
+  return undefined;
+}
+
+function toProtocolEventForStream(event: StoredSandboxEvent) {
+  return {
+    id: event.id,
+    seq: event.seq ?? 1,
+    ts: event.ts ?? new Date().toISOString(),
+    type: event.type,
+    durability: event.durability ?? ("durable" as const),
+    data: event.payload,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function extractToken(req: IncomingMessage): string | undefined {

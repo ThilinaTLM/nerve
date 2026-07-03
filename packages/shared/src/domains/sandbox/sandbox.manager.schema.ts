@@ -236,6 +236,48 @@ export type RuntimeDriverCapabilities = z.infer<
   typeof runtimeDriverCapabilitiesSchema
 >;
 
+export const sandboxManagerLifecycleSettingsSchema = z.object({
+  reconcileOnStartup: z.boolean(),
+  reconcileIntervalMs: z.number().int().nonnegative().safe().optional(),
+  gcIntervalMs: z.number().int().nonnegative().safe().optional(),
+  orphanPolicy: z.string().min(1),
+  heartbeatTimeoutMs: z.number().int().positive().safe(),
+  maxPendingCommands: z.number().int().nonnegative().safe(),
+  maxCommandBytes: z.number().int().positive().safe(),
+});
+export type SandboxManagerLifecycleSettings = z.infer<
+  typeof sandboxManagerLifecycleSettingsSchema
+>;
+
+export const sandboxManagerHardeningStatusSchema = z.object({
+  mode: z.enum(["production", "development"]),
+  apiAuth: z.enum(["configured", "disabled"]),
+  secretStorage: z.object({
+    encryptionAtRest: z.enum([
+      "enabled",
+      "development_cleartext",
+      "unavailable",
+      "unknown",
+    ]),
+    keyId: z.string().min(1).optional(),
+    warning: z.string().min(1).optional(),
+  }),
+});
+export type SandboxManagerHardeningStatus = z.infer<
+  typeof sandboxManagerHardeningStatusSchema
+>;
+
+export const sandboxManagerStatusSchema = z.object({
+  managerId: z.string().min(1),
+  version: z.string().min(1),
+  backend: z.string().min(1),
+  runtime: runtimeDriverCapabilitiesSchema,
+  hardening: sandboxManagerHardeningStatusSchema,
+  lifecycle: sandboxManagerLifecycleSettingsSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxManagerStatus = z.infer<typeof sandboxManagerStatusSchema>;
+
 export const logReadOptionsSchema = z.object({
   since: isoDateTimeSchema.optional(),
   tail: z.number().int().nonnegative().safe().optional(),

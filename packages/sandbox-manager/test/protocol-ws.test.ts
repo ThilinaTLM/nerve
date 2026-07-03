@@ -7,6 +7,7 @@ import { after, describe, it } from "node:test";
 import { WebSocket } from "ws";
 import { ManagerState } from "../src/app/manager-state.js";
 import { createManagerServer } from "../src/app/server.js";
+import { recordManagerLifecycleEvent } from "../src/events/manager-events.js";
 import { createSandboxRecord } from "../src/routes/sandbox-routes.js";
 
 const config = {
@@ -52,6 +53,62 @@ describe("sandbox manager websocket protocol", async () => {
     sockets.push(ws);
     const error = await onceError(ws);
     assert.match(error.message, /401/);
+  });
+
+  it("accepts manager UI websocket sessions and streams lifecycle events", async () => {
+    const ws = new WebSocket(`${baseUrl}/api/manager/ws`);
+    sockets.push(ws);
+    await onceOpen(ws);
+    ws.send(
+      JSON.stringify({
+        type: "hello",
+        version: 1,
+        role: "ui",
+        capabilities: [
+          "encoding.json",
+          "event.batch",
+          "event.replay",
+          "event.ack.processed",
+          "flow.backpressure",
+          "sandbox.manager.ui.v1",
+          "sandbox.manager.snapshots.v1",
+          "sandbox.manager.lifecycle.v1",
+        ],
+        resume: { cursors: [] },
+      }),
+    );
+    const welcome = await onceJson(ws);
+    assert.equal(welcome.type, "welcome");
+    assert.equal(
+      (welcome.acceptedCapabilities as string[]).includes(
+        "sandbox.manager.ui.v1",
+      ),
+      true,
+    );
+    await recordManagerLifecycleEvent(state, {
+      type: "manager.sandbox.started",
+      sandboxId: record.sandboxId,
+      payload: {
+        sandboxId: record.sandboxId,
+        token: "ntok_should_not_leak",
+        observedState: "running",
+      },
+    });
+    const batch = await onceJson(ws);
+    assert.equal(batch.type, "event.batch");
+    assert.equal(JSON.stringify(batch).includes("ntok_should_not_leak"), false);
+    ws.send(
+      JSON.stringify({
+        type: "replay.request",
+        stream: "manager",
+        afterSeq: 0,
+        limit: 10,
+      }),
+    );
+    const replay = await onceJson(ws);
+    assert.equal(replay.type, "replay.response");
+    assert.equal(replay.stream, "manager");
+    assert.equal((replay.events as unknown[]).length >= 1, true);
   });
 
   it("accepts hello, acks events, and forwards commands", async () => {

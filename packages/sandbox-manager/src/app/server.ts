@@ -9,6 +9,7 @@ import path from "node:path";
 import {
   type ManagedSandboxRecord,
   sandboxConfigV1Schema,
+  sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
 } from "@nervekit/shared";
@@ -19,6 +20,7 @@ import {
 } from "../api/request-schemas.js";
 import { ok } from "../api/responses.js";
 import { buildSandboxLaunchSpec } from "../config/sandbox-launch-spec.js";
+import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import { errorResponse, HttpError } from "../http/errors.js";
 import { LogCollector } from "../lifecycle/log-collector.js";
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
@@ -28,7 +30,7 @@ import type { ManagerState } from "./manager-state.js";
 import { sandboxManagerVersion } from "./version.js";
 
 export function createManagerServer(state: ManagerState) {
-  const controller = new SandboxWsServer(state);
+  const controller = new SandboxWsServer(state, authorized);
   const server = createServer(async (req, res) => {
     try {
       await handle(state, controller, req, res);
@@ -57,6 +59,8 @@ async function handle(
   }
   if (req.method === "GET" && path === "/health")
     return json(res, 200, ok({ version: sandboxManagerVersion }));
+  if (req.method === "GET" && path === "/api/manager/status")
+    return json(res, 200, ok(await managerStatus(state)));
   if (req.method === "GET" && path === "/api/sandboxes")
     return json(
       res,
@@ -66,10 +70,33 @@ async function handle(
   if (req.method === "POST" && path === "/api/sandboxes") {
     const rawBody = await readJson(req);
     const body = createSandboxRequestSchema.parse(rawBody);
-    const result = await withIdempotency(state, req, path, rawBody, async () =>
-      publicSandboxRecord(
-        await createSandboxRecord(state, body.config, body.image),
-      ),
+    const result = await withIdempotency(
+      state,
+      req,
+      path,
+      rawBody,
+      async () => {
+        const record = await createSandboxRecord(
+          state,
+          body.config,
+          body.image,
+          body.name,
+        );
+        await recordManagerLifecycleEvent(state, {
+          type: "manager.sandbox.created",
+          sandboxId: record.sandboxId,
+          payload: {
+            sandboxId: record.sandboxId,
+            instanceId: record.instanceId,
+            name: record.name,
+            backend: record.backend,
+            image: record.image,
+            desiredState: record.desiredState,
+            observedState: record.observedState,
+          },
+        });
+        return publicSandboxRecord(record);
+      },
     );
     return json(res, result.replayed ? 200 : 201, ok(result.value));
   }
@@ -90,6 +117,15 @@ async function handle(
     const result = await withIdempotency(state, req, path, body, async () => {
       const removed = await state.supervisor.remove(sandboxMatch[1], body);
       await state.sandboxes.delete(sandboxMatch[1]);
+      await recordManagerLifecycleEvent(state, {
+        type: "manager.sandbox.deleted",
+        sandboxId: sandboxMatch[1],
+        payload: {
+          sandboxId: sandboxMatch[1],
+          removeVolumes: body.removeVolumes,
+          force: body.force,
+        },
+      });
       return publicSandboxRecord(removed);
     });
     return json(res, 200, ok(result.value));
@@ -176,6 +212,7 @@ async function handle(
   const commandMatch = path.match(/^\/api\/sandboxes\/([^/]+)\/commands$/);
   if (req.method === "POST" && commandMatch) {
     const body = commandRequestSchema.parse(await readJson(req));
+    const prepared = prepareForwardedCommand(req, body);
     const session = controller.getSession(commandMatch[1]);
     if (!session)
       throw new HttpError(
@@ -187,7 +224,12 @@ async function handle(
       res,
       200,
       ok(
-        await session.forwarder.send(session.socket, body.method, body.params),
+        await session.forwarder.send(
+          session.socket,
+          prepared.method,
+          prepared.params,
+          prepared.requestId,
+        ),
       ),
     );
   }
@@ -215,6 +257,55 @@ async function requireSandboxToken(
   if (!token || actual !== token)
     throw new HttpError(401, "Unauthorized", "UNAUTHORIZED");
 }
+async function managerStatus(state: ManagerState): Promise<unknown> {
+  const runtime = await state.driver.capabilities();
+  const mode = state.config.mode ?? "development";
+  const encryptionAtRest = state.config.encryptionKey
+    ? "enabled"
+    : state.config.allowCleartextSecretsInDevelopment
+      ? "development_cleartext"
+      : mode === "production"
+        ? "unavailable"
+        : "unknown";
+  return sandboxManagerStatusSchema.parse({
+    managerId: managerId(state),
+    version: sandboxManagerVersion,
+    backend: state.config.backend,
+    runtime,
+    hardening: {
+      mode,
+      apiAuth: state.config.apiKey ? "configured" : "disabled",
+      secretStorage: {
+        encryptionAtRest,
+        keyId: state.config.encryptionKeyRef,
+        warning:
+          encryptionAtRest === "unavailable"
+            ? "Secret encryption key is not configured"
+            : encryptionAtRest === "development_cleartext"
+              ? "Development cleartext secret storage is enabled"
+              : undefined,
+      },
+    },
+    lifecycle: {
+      reconcileOnStartup: state.config.reconcileOnStartup ?? true,
+      reconcileIntervalMs: state.config.reconcileIntervalMs,
+      gcIntervalMs: state.config.gcIntervalMs,
+      orphanPolicy: state.config.orphanPolicy ?? "stop_remove",
+      heartbeatTimeoutMs: state.config.heartbeatTimeoutMs ?? 45_000,
+      maxPendingCommands: state.config.maxPendingCommands ?? 256,
+      maxCommandBytes: state.config.maxCommandBytes ?? 1_000_000,
+    },
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function managerId(state: ManagerState): string {
+  return `mgr_${createHash("sha256")
+    .update(`${state.config.backend}:${state.config.storageDir}`)
+    .digest("hex")
+    .slice(0, 16)}`;
+}
+
 async function startSandbox(
   state: ManagerState,
   sandboxId: string,
@@ -461,6 +552,38 @@ function cursorSummary(
     return { streams };
   }
   return undefined;
+}
+
+function prepareForwardedCommand(
+  req: IncomingMessage,
+  body: { method: string; params: unknown; idempotencyKey?: string },
+): { method: string; params: unknown; requestId: string } {
+  const idempotencyKey = String(
+    req.headers["idempotency-key"] ?? body.idempotencyKey ?? "",
+  );
+  const mutating = !["sandbox.status.get", "sandbox.snapshot.get"].includes(
+    body.method,
+  );
+  if (!mutating) {
+    return {
+      method: body.method,
+      params: body.params,
+      requestId: idempotencyKey || `req_${Date.now()}`,
+    };
+  }
+  const params = isObjectRecord(body.params) ? { ...body.params } : {};
+  const commandId =
+    typeof params.commandId === "string" && params.commandId.trim()
+      ? params.commandId
+      : idempotencyKey;
+  if (!commandId)
+    throw new HttpError(
+      400,
+      "Mutating sandbox commands require params.commandId or Idempotency-Key",
+      "VALIDATION_FAILED",
+    );
+  params.commandId = commandId;
+  return { method: body.method, params, requestId: commandId };
 }
 
 function publicSandboxRecord(

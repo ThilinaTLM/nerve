@@ -15,6 +15,7 @@ export async function createSandboxRecord(
   state: ManagerState,
   config: SandboxConfigV1,
   image = "nerve-sandbox:dev",
+  name?: string,
 ): Promise<ManagedSandboxRecord> {
   const now = new Date().toISOString();
   const sandboxId = config.identity?.sandboxId ?? `sbx_${randomUUID()}`;
@@ -61,7 +62,7 @@ export async function createSandboxRecord(
   const record: ManagedSandboxRecord = {
     sandboxId,
     instanceId,
-    name: config.identity?.name,
+    name: name ?? config.identity?.name,
     labels: config.identity?.labels,
     backend: state.config.backend,
     image: { reference: image, sandboxSpec: "v1" },

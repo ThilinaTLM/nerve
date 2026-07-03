@@ -4,6 +4,8 @@ import type { ManagerConfig } from "../config/manager-config.js";
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
 import { DockerDriver } from "../drivers/docker-driver.js";
 import { PodmanDriver } from "../drivers/podman-driver.js";
+import { ManagerEventBus } from "../events/manager-event-bus.js";
+import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import { SandboxSupervisor } from "../lifecycle/sandbox-supervisor.js";
 import { FileKvSecretStore } from "../secrets/file-kv-secret-store.js";
 import { EventStore } from "../state/event-store.js";
@@ -15,6 +17,7 @@ export class ManagerState {
   readonly sessions: SessionStore;
   readonly secrets: FileKvSecretStore;
   readonly driver: ContainerRuntimeDriver;
+  readonly eventBus: ManagerEventBus;
   readonly supervisor: SandboxSupervisor;
   constructor(readonly config: ManagerConfig) {
     this.sandboxes = new FileManagerStore(
@@ -35,7 +38,12 @@ export class ManagerState {
     );
     this.driver =
       config.backend === "podman" ? new PodmanDriver() : new DockerDriver();
-    this.supervisor = new SandboxSupervisor(this.sandboxes, this.driver);
+    this.eventBus = new ManagerEventBus();
+    this.supervisor = new SandboxSupervisor(
+      this.sandboxes,
+      this.driver,
+      (event) => recordManagerLifecycleEvent(this, event),
+    );
   }
   async init(): Promise<void> {
     await Promise.all(

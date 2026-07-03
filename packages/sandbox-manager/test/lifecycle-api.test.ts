@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
+  sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
 } from "@nervekit/shared";
@@ -31,6 +32,47 @@ const config = {
 } as const;
 
 describe("sandbox manager lifecycle api hardening", () => {
+  it("returns manager runtime status without secret material", async () => {
+    const storageDir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-runtime-status-"),
+    );
+    const state = new ManagerState({
+      host: "127.0.0.1",
+      port: 0,
+      allowRemoteBind: false,
+      storageDir,
+      backend: "docker",
+      apiKey: "manager-secret-key",
+    });
+    await state.init();
+    const server = createManagerServer(state);
+    await listen(server);
+    const address = server.address();
+    assert.equal(typeof address, "object");
+    try {
+      const unauthorized = await fetch(
+        `http://127.0.0.1:${address.port}/api/manager/status`,
+      );
+      assert.equal(unauthorized.status, 401);
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/api/manager/status`,
+        { headers: { authorization: "Bearer manager-secret-key" } },
+      );
+      assert.equal(response.status, 200);
+      const status = (await response.json()).data;
+      assert.equal(sandboxManagerStatusSchema.safeParse(status).success, true);
+      assert.equal(
+        JSON.stringify(status).includes("manager-secret-key"),
+        false,
+      );
+      assert.equal(status.backend, "docker");
+      assert.equal(status.hardening.apiAuth, "configured");
+    } finally {
+      await closeServer(server);
+      await rm(storageDir, { recursive: true, force: true });
+    }
+  });
+
   it("applies idempotency keys and detects conflicts", async () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-idem-"),
