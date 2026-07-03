@@ -1,4 +1,5 @@
 import path from "node:path";
+import { AgentToolSuspension } from "@nervekit/agent";
 import type { SandboxConfigV1, ToolName } from "@nervekit/shared";
 import type {
   ToolExecutionContext,
@@ -6,7 +7,9 @@ import type {
 } from "@nervekit/tools";
 import { executeTool } from "@nervekit/tools";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
+import type { ToolCallStore } from "../agent/tool-call-store.js";
 import { Redactor } from "../security/redaction.js";
+import { sandboxSha256Digest } from "../state/hash.js";
 import { JsonlStore } from "../state/jsonl-store.js";
 import type { ApprovalWaiter } from "./approval-waiter.js";
 import type { InputWaiter } from "./input-waiter.js";
@@ -30,6 +33,7 @@ export type SandboxToolRuntimeOptions = {
   taskSupervisor?: TaskSupervisor;
   todoStore?: TodoStore;
   exploreRuntime?: ExploreRuntime;
+  toolCallStore?: ToolCallStore;
 };
 
 const toolToGroup: Record<string, string> = {
@@ -102,55 +106,142 @@ export class SandboxToolRuntime {
   async execute(
     tool: string,
     args: Record<string, unknown>,
-    context: Partial<ToolExecutionContext> = {},
+    context: Partial<ToolExecutionContext> & {
+      conversationId?: string;
+      agentId?: string;
+      runId?: string;
+      executionId?: string;
+      toolCallId?: string;
+    } = {},
   ): Promise<ToolExecutionResult> {
-    const toolCallId = `tool_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    await this.record({
-      toolCallId,
-      toolName: tool,
-      status: "requested",
-      args,
-    });
-    if (isPlanModeTool(tool)) {
-      await this.record({
+    const toolCallId =
+      context.toolCallId ??
+      `tool_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    await this.record(
+      {
         toolCallId,
         toolName: tool,
-        status: "failed",
-        error: "plan mode is unavailable in sandbox runtime v1",
-      });
+        status: "requested",
+        displayArgs: this.redactor.redact(args),
+        lifecycleSeq: 1,
+      },
+      context,
+    );
+    if (isPlanModeTool(tool)) {
+      await this.record(
+        {
+          toolCallId,
+          toolName: tool,
+          status: "failed",
+          error: "plan mode is unavailable in sandbox runtime v1",
+        },
+        context,
+      );
       throw new Error(
         "UNAVAILABLE: plan mode is unavailable in sandbox runtime v1",
       );
     }
     const decision = this.decide(tool, args);
     if (!decision.allowed && !decision.approvalRequired) {
-      await this.record({
-        toolCallId,
-        toolName: tool,
-        status: "failed",
-        error: decision.reason,
-      });
+      await this.record(
+        {
+          toolCallId,
+          toolName: tool,
+          status: "failed",
+          error: decision.reason,
+        },
+        context,
+      );
       throw new Error(decision.reason ?? "tool denied by sandbox policy");
     }
     if (decision.approvalRequired && this.options.approvalWaiter) {
-      await this.options.approvalWaiter.request({
-        id: toolCallId,
-        toolCallId,
-        conversationId: scopeValue(context, "conversationId") ?? "conv_unknown",
-        agentId: scopeValue(context, "agentId") ?? "agent_main",
-        runId: scopeValue(context, "runId") ?? "run_unknown",
-        reason: decision.reason ?? "approval required",
-        risk: [decision.reason ?? "policy"],
-        normalizedArgs: args,
-        displayArgs: this.redactor.redact(args),
-      });
-      await this.record({
-        toolCallId,
-        toolName: tool,
-        status: "waiting_for_approval",
-        approvalId: toolCallId,
-      });
-      throw new Error(`WAITING_FOR_APPROVAL: ${toolCallId}`);
+      const scope = toolScope(context);
+      const resolution =
+        this.options.approvalWaiter.resolutionForToolCallOrScope({
+          ...scope,
+          toolCallId,
+          toolName: tool,
+          normalizedArgs: args,
+        });
+      if (resolution?.status === "denied") {
+        await this.record(
+          {
+            toolCallId,
+            toolName: tool,
+            status: "failed",
+            lifecycleSeq: 3,
+            error: resolution.denialError ?? {
+              code: "POLICY_DENIED",
+              message: "Approval denied",
+            },
+          },
+          context,
+        );
+        return {
+          content: resolution.denialError?.message ?? "Approval denied",
+          details: {
+            error: resolution.denialError ?? { code: "POLICY_DENIED" },
+          },
+        };
+      }
+      if (
+        resolution?.status === "granted" &&
+        resolution.toolCallId === toolCallId
+      ) {
+        const approvedHash =
+          resolution.argsHash ?? sandboxSha256Digest(resolution.normalizedArgs);
+        const actualHash = sandboxSha256Digest(args);
+        if (approvedHash !== actualHash) {
+          await this.record(
+            {
+              toolCallId,
+              toolName: tool,
+              status: "failed",
+              lifecycleSeq: 3,
+              error: {
+                code: "VALIDATION_FAILED",
+                message: "Tool arguments differ from approved arguments",
+              },
+            },
+            context,
+          );
+          return {
+            content: "Tool arguments differ from approved arguments",
+            details: { error: { code: "VALIDATION_FAILED" } },
+          };
+        }
+      }
+      if (!resolution) {
+        await this.options.approvalWaiter.request({
+          id: toolCallId,
+          toolCallId,
+          conversationId:
+            scopeValue(context, "conversationId") ?? "conv_unknown",
+          agentId: scopeValue(context, "agentId") ?? "agent_main",
+          runId: scopeValue(context, "runId") ?? "run_unknown",
+          reason: decision.reason ?? "approval required",
+          risk: [decision.reason ?? "policy"],
+          normalizedArgs: args,
+          displayArgs: this.redactor.redact(args),
+          toolName: tool,
+          argsHash: sandboxSha256Digest(args),
+        });
+        await this.record(
+          {
+            toolCallId,
+            toolName: tool,
+            status: "waiting_for_approval",
+            approvalId: toolCallId,
+            lifecycleSeq: 2,
+          },
+          context,
+        );
+        throw new AgentToolSuspension({
+          toolCallId,
+          toolName: tool,
+          reason: `WAITING_FOR_APPROVAL: ${toolCallId}`,
+        });
+      }
     }
     if (isOrchestrationTool(tool)) {
       const result = await this.executeOrchestrationTool(
@@ -159,16 +250,28 @@ export class SandboxToolRuntime {
         context,
         toolCallId,
       );
-      await this.record({
-        toolCallId,
-        toolName: tool,
-        status: "completed",
-        result,
-      });
+      await this.record(
+        {
+          toolCallId,
+          toolName: tool,
+          status: "completed",
+          lifecycleSeq: 3,
+          result,
+        },
+        context,
+      );
       return result;
     }
     await enforceToolPolicy(tool, args, this.config, this.options);
-    await this.record({ toolCallId, toolName: tool, status: "started" });
+    await this.record(
+      {
+        toolCallId,
+        toolName: tool,
+        status: "started",
+        lifecycleSeq: 2,
+      },
+      context,
+    );
     try {
       const result = await executeTool(
         tool as ToolName,
@@ -181,20 +284,28 @@ export class SandboxToolRuntime {
           ...context,
         },
       );
-      await this.record({
-        toolCallId,
-        toolName: tool,
-        status: "completed",
-        result,
-      });
+      await this.record(
+        {
+          toolCallId,
+          toolName: tool,
+          status: "completed",
+          lifecycleSeq: 3,
+          result,
+        },
+        context,
+      );
       return this.redactor.redact(result) as ToolExecutionResult;
     } catch (error) {
-      await this.record({
-        toolCallId,
-        toolName: tool,
-        status: "failed",
-        error: error instanceof Error ? error.message : String(error),
-      });
+      await this.record(
+        {
+          toolCallId,
+          toolName: tool,
+          status: "failed",
+          lifecycleSeq: 3,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        context,
+      );
       throw error;
     }
   }
@@ -213,6 +324,14 @@ export class SandboxToolRuntime {
     if (tool === "ask_user") {
       if (!this.options.inputWaiter)
         throw new Error("UNAVAILABLE: input waiter is not configured");
+      const submitted =
+        this.options.inputWaiter.resolutionForRequest(toolCallId);
+      if (submitted?.response?.text !== undefined) {
+        return {
+          content: this.redactor.redactText(submitted.response.text),
+          details: { requestId: toolCallId, status: "submitted" },
+        };
+      }
       const wait = await this.options.inputWaiter.request({
         requestId: toolCallId,
         ...scope,
@@ -223,7 +342,20 @@ export class SandboxToolRuntime {
           text: this.redactor.redactText(String(args.question ?? "")),
         },
       });
-      throw new Error(`WAITING_FOR_INPUT: ${wait.requestId}`);
+      await this.record(
+        {
+          toolCallId,
+          toolName: tool,
+          status: "waiting_for_input",
+          lifecycleSeq: 2,
+        },
+        context,
+      );
+      throw new AgentToolSuspension({
+        toolCallId,
+        toolName: tool,
+        reason: `WAITING_FOR_INPUT: ${wait.requestId}`,
+      });
     }
     if (tool === "todos_set") {
       const todos = Array.isArray(args.todos)
@@ -310,14 +442,82 @@ export class SandboxToolRuntime {
     throw new Error(`Unsupported task tool: ${tool}`);
   }
 
-  private async record(entry: Record<string, unknown>): Promise<void> {
-    await this.records.append(
-      this.redactor.redact({
-        ...entry,
-        ts: new Date().toISOString(),
-      }) as Record<string, unknown>,
-    );
+  private async record(
+    entry: Record<string, unknown>,
+    context?: Partial<ToolExecutionContext> & {
+      conversationId?: string;
+      agentId?: string;
+      runId?: string;
+    },
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    const record = this.redactor.redact({
+      ...entry,
+      ts: now,
+    }) as Record<string, unknown>;
+    await this.records.append(record);
+    if (!context || !this.options.toolCallStore) return;
+    const scope = toolScope(context);
+    await this.options.toolCallStore.append(scope, {
+      toolCallId: String(entry.toolCallId ?? "tool_unknown"),
+      toolName: String(entry.toolName ?? "tool_unknown"),
+      status: normalizeToolStatus(entry.status),
+      displayArgs: entry.displayArgs,
+      args: entry.displayArgs
+        ? { hash: sandboxSha256Digest(entry.displayArgs) }
+        : undefined,
+      approvalId:
+        typeof entry.approvalId === "string" ? entry.approvalId : undefined,
+      lifecycleSeq:
+        typeof entry.lifecycleSeq === "number" ? entry.lifecycleSeq : undefined,
+      redactionVersion: 1,
+      requestedAt: now,
+      startedAt: entry.status === "started" ? now : undefined,
+      completedAt:
+        entry.status === "completed" || entry.status === "failed"
+          ? now
+          : undefined,
+      result: entry.result,
+      error: normalizeError(entry.error),
+    });
   }
+}
+
+function toolScope(
+  context: Partial<ToolExecutionContext> & {
+    conversationId?: string;
+    agentId?: string;
+    runId?: string;
+  },
+) {
+  return {
+    conversationId: scopeValue(context, "conversationId") ?? "conv_unknown",
+    agentId: scopeValue(context, "agentId") ?? "agent_main",
+    runId: scopeValue(context, "runId") ?? "run_unknown",
+  };
+}
+
+function normalizeToolStatus(status: unknown) {
+  if (
+    status === "requested" ||
+    status === "waiting_for_approval" ||
+    status === "started" ||
+    status === "completed" ||
+    status === "failed" ||
+    status === "cancelled"
+  )
+    return status;
+  return "failed" as const;
+}
+
+function normalizeError(error: unknown) {
+  if (!error) return undefined;
+  if (typeof error === "object" && error !== null) {
+    const value = error as { code?: unknown; message?: unknown };
+    if (typeof value.code === "string" && typeof value.message === "string")
+      return { code: value.code, message: value.message };
+  }
+  return { code: "TOOL_FAILED", message: String(error).slice(0, 500) };
 }
 
 function isPlanModeTool(tool: string): boolean {

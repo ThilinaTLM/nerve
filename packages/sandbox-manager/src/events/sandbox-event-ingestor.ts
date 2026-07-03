@@ -9,6 +9,7 @@ export class SandboxEventIngestor {
       seq?: number;
       type: string;
       ts?: string;
+      durability?: "durable" | "transient";
       [key: string]: unknown;
     }>,
   ): Promise<{ processedSeq: number; accepted: number }> {
@@ -23,7 +24,10 @@ export class SandboxEventIngestor {
           seq: event.seq,
           type: event.type,
           ts: event.ts,
-          payload: redactManagerEvent(event),
+          durability:
+            event.durability ??
+            (event.type === "run.delta" ? "transient" : "durable"),
+          payload: redactManagerEvent(event.data ?? event),
         })
       )
         accepted += 1;

@@ -6,8 +6,10 @@ import {
   createProvider,
   envApiKeyAuth,
   fauxProvider,
+  type FauxProviderHandle,
   type Model,
   type ProviderStreams,
+  type RegisterFauxProviderOptions,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
@@ -40,17 +42,33 @@ const apiStreams: Partial<Record<Api, ProviderStreams>> = {
   "openai-responses": openAIResponsesApi(),
 };
 
-let nerveFaux: ReturnType<typeof fauxProvider> | undefined;
+export type ManagedFauxProviderHandle = FauxProviderHandle & {
+  unregister: () => void;
+};
 
-export function getNerveFauxProvider(): ReturnType<typeof fauxProvider> {
+let nerveFaux: ManagedFauxProviderHandle | undefined;
+
+export function registerManagedFauxProvider(
+  options: RegisterFauxProviderOptions = {},
+): ManagedFauxProviderHandle {
+  const provider = fauxProvider(options);
+  models.setProvider(provider.provider);
+  return {
+    ...provider,
+    unregister: () => {
+      models.deleteProvider(provider.provider.id);
+    },
+  };
+}
+
+export function getNerveFauxProvider(): ManagedFauxProviderHandle {
   if (!nerveFaux) {
-    nerveFaux = fauxProvider({
+    nerveFaux = registerManagedFauxProvider({
       provider: "nerve-faux",
       models: [{ id: "faux-fast", name: "Nerve Faux Fast" }],
       tokensPerSecond: 80,
       tokenSize: { min: 10, max: 22 },
     });
-    models.setProvider(nerveFaux.provider);
   }
   return nerveFaux;
 }
@@ -91,6 +109,9 @@ function registerCustomProvider(providerId: string): void {
 
 export function ensureProviderForModel(model: Model<Api>): void {
   if (isBuiltinProvider(model.provider) || model.provider === "nerve-faux") {
+    return;
+  }
+  if (models.getModel(model.provider, model.id)) {
     return;
   }
   if (!apiStreams[model.api]) {

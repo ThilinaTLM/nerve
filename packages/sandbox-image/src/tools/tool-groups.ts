@@ -7,6 +7,7 @@ const defaults: Record<string, string[]> = {
   python: ["python"],
   todos: ["todos_set", "todos_get"],
   web: ["web_search", "web_fetch"],
+  input: ["ask_user"],
   explore: ["explore"],
   taskManagement: [
     "task_start",

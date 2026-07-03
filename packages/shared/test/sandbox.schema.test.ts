@@ -462,6 +462,95 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
+  it("validates representative live streaming event payloads", () => {
+    const scope = {
+      instanceId: "inst_1",
+      conversationId: "conv_1",
+      agentId: "agent_1",
+      runId: "run_1",
+    };
+    assert.equal(
+      sandboxEventPayloadSchemas["run.delta"].safeParse({
+        ...scope,
+        deltaId: "delta_1",
+        role: "assistant",
+        text: "hello",
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxEventPayloadSchemas["run.transcript.appended"].safeParse({
+        ...scope,
+        entryId: "entry_1",
+        index: 0,
+        role: "assistant",
+        content: { text: "hello" },
+        createdAt: ts,
+      }).success,
+      true,
+    );
+    for (const [type, status] of [
+      ["tool.call.requested", "requested"],
+      ["tool.call.started", "started"],
+      ["tool.call.completed", "completed"],
+      ["tool.call.failed", "failed"],
+      ["tool.call.cancelled", "cancelled"],
+    ] as const) {
+      assert.equal(
+        sandboxEventPayloadSchemas[type].safeParse({
+          ...scope,
+          toolCallId: "tool_1",
+          toolName: "read",
+          status,
+          displayArgs: { path: "README.md" },
+          lifecycleSeq: 1,
+          error:
+            status === "failed"
+              ? { code: "TOOL_FAILED", message: "redacted" }
+              : undefined,
+          cancelledAt: status === "cancelled" ? ts : undefined,
+        }).success,
+        true,
+        type,
+      );
+    }
+    assert.equal(
+      sandboxEventPayloadSchemas["run.waiting_for_input"].safeParse({
+        ...scope,
+        requestId: "tool_ask",
+        question: { text: "Proceed?" },
+        required: true,
+        createdAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxEventPayloadSchemas["run.waiting_for_approval"].safeParse({
+        ...scope,
+        approvalId: "approval_1",
+        toolCallId: "tool_1",
+        risk: ["shell"],
+        reason: "approval required",
+        normalizedArgs: { command: "pnpm check" },
+        createdAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxEventPayloadSchemas["run.failed"].safeParse({
+        ...scope,
+        status: "failed",
+        failedAt: ts,
+        error: {
+          code: "PROVIDER_FAILED",
+          message: "temporarily unavailable",
+          retryable: true,
+        },
+      }).success,
+      true,
+    );
+  });
+
   it("validates sandbox event payload status values", () => {
     const ready = {
       instanceId: "inst_1",

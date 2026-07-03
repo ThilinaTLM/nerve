@@ -1,10 +1,13 @@
-import type { EventStore } from "../state/event-store.js";
+import type { EventStore, StoredSandboxEvent } from "../state/event-store.js";
 export async function replayEvents(
   store: EventStore,
   sandboxId: string,
   afterSeq = 0,
-): Promise<unknown[]> {
+): Promise<StoredSandboxEvent[]> {
   return (await store.list(sandboxId)).filter(
-    (event) => (event.seq ?? 0) > afterSeq,
+    (event) =>
+      (event.seq ?? 0) > afterSeq &&
+      (event.durability ??
+        (event.type === "run.delta" ? "transient" : "durable")) === "durable",
   );
 }

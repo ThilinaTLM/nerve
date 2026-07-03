@@ -130,7 +130,69 @@ describe("sandbox manager websocket protocol", async () => {
     const ack = await onceJson(ws);
     assert.equal(ack.type, "ack");
     assert.equal(ack.processedSeq, 1);
-    assert.equal((await state.events.list(record.sandboxId)).length, 1);
+    ws.send(
+      JSON.stringify({
+        type: "event.batch",
+        batchId: "batch_2",
+        stream: "sandbox",
+        firstSeq: 2,
+        lastSeq: 3,
+        events: [
+          {
+            id: "evt_2",
+            seq: 2,
+            ts: new Date().toISOString(),
+            type: "run.delta",
+            durability: "transient",
+            data: {
+              instanceId: record.instanceId,
+              conversationId: "conv_1",
+              agentId: "agent_main",
+              runId: "run_1",
+              deltaId: "delta_1",
+              role: "assistant",
+              text: "secret sk-test-token",
+            },
+          },
+          {
+            id: "evt_3",
+            seq: 3,
+            ts: new Date().toISOString(),
+            type: "run.completed",
+            durability: "durable",
+            data: {
+              instanceId: record.instanceId,
+              conversationId: "conv_1",
+              agentId: "agent_main",
+              runId: "run_1",
+              status: "completed",
+              completedAt: new Date().toISOString(),
+            },
+          },
+        ],
+      }),
+    );
+    const matrixAck = await onceJson(ws);
+    assert.equal(matrixAck.type, "ack");
+    assert.equal(matrixAck.processedSeq, 3);
+    assert.equal((await state.events.list(record.sandboxId)).length, 3);
+    ws.send(
+      JSON.stringify({
+        type: "replay.request",
+        stream: "sandbox",
+        afterSeq: 1,
+        limit: 10,
+      }),
+    );
+    const replay = await onceJson(ws);
+    assert.equal(replay.type, "replay.response");
+    assert.deepEqual(
+      (replay.events as Array<{ type: string; seq: number }>).map((event) => [
+        event.seq,
+        event.type,
+      ]),
+      [[3, "run.completed"]],
+    );
 
     const command = fetch(
       `http://127.0.0.1:${address.port}/api/sandboxes/${record.sandboxId}/commands`,

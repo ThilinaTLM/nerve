@@ -49,6 +49,47 @@ describe("sandbox daemon command semantics", () => {
     }
   });
 
+  it("replays duplicate completed command IDs and rejects conflicting params", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-command-idem-"));
+    try {
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      const daemon = new SandboxDaemon(
+        {
+          ...baseConfig,
+          agent: { mainModel: { provider: "nerve-faux", model: "faux-fast" } },
+        } as never,
+        "sha256:test",
+        "inst_1",
+        stores,
+        { workspaceDir: process.cwd() },
+      );
+      daemon.start();
+      const first = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_idem_start",
+        prompt: "hello",
+      })) as { runId: string };
+      const duplicate = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_idem_start",
+        prompt: "hello",
+      })) as { runId: string };
+      assert.equal(duplicate.runId, first.runId);
+      await assert.rejects(
+        () =>
+          daemon.router.dispatch("sandbox.run.start", {
+            commandId: "cmd_idem_start",
+            prompt: "different",
+          }),
+        (error) =>
+          error instanceof SandboxCommandError &&
+          error.code === "IDEMPOTENCY_CONFLICT",
+      );
+      await waitForRun(daemon, first.runId, "completed");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("requires a run prompt unless the agent has an initial prompt", async () => {
     const daemon = new SandboxDaemon(baseConfig, "sha256:test", "inst_1");
     await assert.rejects(
@@ -78,3 +119,20 @@ describe("sandbox daemon command semantics", () => {
     assert.equal(result.status, "queued");
   });
 });
+
+async function waitForRun(
+  daemon: SandboxDaemon,
+  runId: string,
+  terminal: string,
+): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const status = (await daemon.router.dispatch("sandbox.status.get", {})) as {
+      runs: Array<{ runId: string; status: string }>;
+    };
+    const run = status.runs.find((entry) => entry.runId === runId);
+    if (run?.status === terminal) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Timed out waiting for ${runId} to become ${terminal}`);
+}

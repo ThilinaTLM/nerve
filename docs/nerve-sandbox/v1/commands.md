@@ -106,6 +106,8 @@ Validation:
 - `behavior: "start"` creates a new run unless `runId` names an existing compatible duplicate.
 - `behavior: "follow_up"` appends to the conversation after a terminal or waiting state according to harness policy.
 - `behavior: "steer"` is allowed only for an active steerable run.
+- Mutating starts return after the command/run is durably accepted; provider progress is delivered by events and status/snapshot updates.
+- Auth-backed providers require a configured `modelCatalog.providers[].credential` and are rejected with `UNAVAILABLE` before provider launch when the credential cannot be resolved. Local/no-auth providers such as `ollama` may omit credentials.
 
 ## `sandbox.run.continue`
 

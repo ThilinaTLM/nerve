@@ -16,6 +16,10 @@ export class CommandForwarder {
   private readonly pending = new Map<string, Pending>();
   constructor(private readonly maxPending = 100) {}
 
+  pendingCount(): number {
+    return this.pending.size;
+  }
+
   send(
     socket: CommandSocket,
     method: string,

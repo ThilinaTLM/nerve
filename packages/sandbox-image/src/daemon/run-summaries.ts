@@ -1,0 +1,269 @@
+import type { SandboxRunStatus } from "@nervekit/shared";
+import type { RunManager } from "../agent/run-manager.js";
+
+export type RunLike = {
+  conversationId: string;
+  agentId: string;
+  runId?: string;
+  status?: string;
+  updatedAt: string;
+  createdAt?: string;
+  terminalAt?: string;
+  behavior?: unknown;
+  prompt?: unknown;
+  error?: unknown;
+  lastCheckpointId?: unknown;
+};
+
+export function summarizeConversations(runs: RunLike[]) {
+  const summaries = new Map<
+    string,
+    {
+      conversationId: string;
+      agentIds: string[];
+      updatedAt: string;
+      activeRunIds: string[];
+    }
+  >();
+  for (const run of runs) {
+    const current = summaries.get(run.conversationId) ?? {
+      conversationId: run.conversationId,
+      agentIds: [],
+      updatedAt: run.updatedAt,
+      activeRunIds: [],
+    };
+    if (!current.agentIds.includes(run.agentId))
+      current.agentIds.push(run.agentId);
+    if (
+      run.runId &&
+      run.status &&
+      !["completed", "failed", "cancelled"].includes(run.status)
+    )
+      current.activeRunIds.push(run.runId);
+    if (run.updatedAt > current.updatedAt) current.updatedAt = run.updatedAt;
+    summaries.set(run.conversationId, current);
+  }
+  return Array.from(summaries.values());
+}
+
+export function summarizeAgents(runs: RunLike[], model?: unknown) {
+  const agents = new Map<
+    string,
+    {
+      conversationId: string;
+      agentId: string;
+      model?: unknown;
+      updatedAt?: string;
+    }
+  >();
+  for (const run of runs) {
+    const key = `${run.conversationId}/${run.agentId}`;
+    const current = agents.get(key) ?? {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      model,
+      updatedAt: run.updatedAt,
+    };
+    if (!current.updatedAt || run.updatedAt > current.updatedAt)
+      current.updatedAt = run.updatedAt;
+    agents.set(key, current);
+  }
+  return Array.from(agents.values());
+}
+
+export async function summarizeRuns(
+  runs: RunLike[],
+  waits: unknown[] = [],
+  manager?: RunManager,
+) {
+  return Promise.all(
+    runs.map(async (run) => {
+      const scope = run.runId
+        ? {
+            conversationId: run.conversationId,
+            agentId: run.agentId,
+            runId: run.runId,
+          }
+        : undefined;
+      const executions = scope
+        ? await manager?.executionStore().list(scope)
+        : undefined;
+      const transcript = scope
+        ? ((await manager?.transcriptStore().read(scope)) ?? [])
+            .slice(-20)
+            .map((entry) => summarizeTranscriptEntry(entry))
+        : undefined;
+      const toolCalls = scope
+        ? Array.from(
+            (
+              (await manager?.toolCallStore().latestByToolCallId(scope)) ??
+              new Map()
+            ).values(),
+          ).slice(-50)
+        : undefined;
+      const checkpoints = scope
+        ? ((await manager?.checkpointStore().list(scope)) ?? []).slice(-20)
+        : undefined;
+      const latestExecution = executions?.at(-1);
+      return {
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        runId: run.runId ?? "run_unknown",
+        status: normalizeRunStatus(run.status),
+        behavior:
+          run.behavior === "follow_up" || run.behavior === "steer"
+            ? run.behavior
+            : "start",
+        promptSummary:
+          typeof run.prompt === "string" && run.prompt
+            ? run.prompt.slice(0, 120)
+            : undefined,
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
+        terminalAt: run.terminalAt,
+        error: isRedactedError(run.error) ? run.error : undefined,
+        transcriptRefs: run.runId
+          ? [`transcript://${run.conversationId}/${run.agentId}/${run.runId}`]
+          : undefined,
+        toolCallRefs: run.runId
+          ? [`tools://${run.conversationId}/${run.agentId}/${run.runId}`]
+          : undefined,
+        checkpointRefs: checkpoints?.map(
+          (checkpoint) => checkpoint.checkpointId,
+        ),
+        lastCheckpointId:
+          typeof run.lastCheckpointId === "string"
+            ? run.lastCheckpointId
+            : checkpoints?.at(-1)?.checkpointId,
+        recoverability:
+          latestExecution?.recoverability ??
+          (run.status === "recoverable_failed" ? "retryable" : undefined),
+        waits: run.runId ? summarizeWaitsForRun(waits, run.runId) : undefined,
+        transcript,
+        toolCalls,
+        checkpoints: checkpoints?.map((checkpoint) => ({
+          checkpointId: checkpoint.checkpointId,
+          status: checkpoint.status,
+          createdAt: checkpoint.createdAt,
+          summary: checkpoint.summary,
+        })),
+        executions: executions?.map((execution) => ({
+          executionId: execution.executionId,
+          attempt: execution.attempt,
+          status: execution.status,
+          startedAt: execution.startedAt,
+          completedAt: execution.completedAt,
+          recoverability: execution.recoverability,
+          error: execution.error,
+          lastCheckpointId: execution.lastCheckpointId,
+        })),
+        continueEligible:
+          run.status === "waiting_for_input" ||
+          run.status === "waiting_for_approval" ||
+          (run.status === "recoverable_failed" &&
+            (latestExecution?.error?.retryable === true ||
+              latestExecution?.recoverability === "retryable")),
+      };
+    }),
+  );
+}
+
+function summarizeTranscriptEntry(entry: unknown) {
+  const value = entry as Record<string, unknown>;
+  const content = value.content as Record<string, unknown> | undefined;
+  const hasArtifact =
+    content &&
+    (typeof content.path === "string" || typeof content.contentId === "string");
+  return {
+    entryId: String(value.entryId ?? `entry_${Date.now()}`),
+    index: typeof value.index === "number" ? value.index : undefined,
+    role:
+      value.role === "user" ||
+      value.role === "assistant" ||
+      value.role === "tool" ||
+      value.role === "system"
+        ? value.role
+        : "system",
+    content: hasArtifact ? undefined : content,
+    artifactRefs: hasArtifact ? [content] : undefined,
+    createdAt:
+      typeof value.createdAt === "string" ? value.createdAt : undefined,
+  };
+}
+
+function summarizeWaitsForRun(waits: unknown[], runId: string) {
+  const summaries = waits
+    .filter((wait) => (wait as { runId?: unknown }).runId === runId)
+    .map((wait) => {
+      const value = wait as Record<string, unknown>;
+      if (typeof value.requestId === "string") {
+        return {
+          waitId: value.requestId,
+          kind: "input" as const,
+          status: normalizeWaitStatus(value.status),
+          question: value.question,
+          createdAt: String(value.createdAt ?? new Date().toISOString()),
+          resolvedAt:
+            typeof value.resolvedAt === "string" ? value.resolvedAt : undefined,
+        };
+      }
+      return {
+        waitId: String(value.approvalId ?? value.id ?? "approval_unknown"),
+        kind: "approval" as const,
+        status: normalizeWaitStatus(value.status),
+        toolCallId:
+          typeof value.toolCallId === "string" ? value.toolCallId : undefined,
+        approvalScope:
+          value.selectedScope === "single_call" ||
+          value.selectedScope === "same_tool_same_args" ||
+          value.selectedScope === "run"
+            ? value.selectedScope
+            : undefined,
+        risks: Array.isArray(value.risk) ? (value.risk as string[]) : undefined,
+        reason: typeof value.reason === "string" ? value.reason : undefined,
+        createdAt: String(value.createdAt ?? new Date().toISOString()),
+        resolvedAt:
+          typeof value.resolvedAt === "string" ? value.resolvedAt : undefined,
+      };
+    });
+  return summaries.length ? summaries : undefined;
+}
+
+function normalizeWaitStatus(status: unknown) {
+  if (
+    status === "waiting" ||
+    status === "submitted" ||
+    status === "granted" ||
+    status === "denied" ||
+    status === "cancelled" ||
+    status === "expired"
+  )
+    return status;
+  return "waiting" as const;
+}
+
+function normalizeRunStatus(status: string | undefined): SandboxRunStatus {
+  if (
+    status === "queued" ||
+    status === "running" ||
+    status === "waiting_for_input" ||
+    status === "waiting_for_approval" ||
+    status === "completed" ||
+    status === "failed" ||
+    status === "recoverable_failed" ||
+    status === "cancelled"
+  )
+    return status;
+  return "failed";
+}
+
+function isRedactedError(
+  value: unknown,
+): value is { code: string; message: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { code?: unknown }).code === "string" &&
+    typeof (value as { message?: unknown }).message === "string"
+  );
+}

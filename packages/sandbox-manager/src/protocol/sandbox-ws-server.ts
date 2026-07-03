@@ -17,6 +17,7 @@ import type { ManagerState } from "../app/manager-state.js";
 import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
 import { CommandForwarder } from "./command-forwarder.js";
 import { encodeProtocolMessage, parseProtocolMessage } from "./messages.js";
+import { replayEvents } from "./replay.js";
 import {
   type ConnectedSandboxSession,
   SandboxSessionRegistry,
@@ -285,8 +286,13 @@ export class SandboxWsServer {
     }
     if (message.type === "replay.request") {
       const request = sandboxProtocolReplayRequestSchema.parse(message);
-      const events = (await this.state.events.list(session.sandboxId))
-        .filter((event) => (event.seq ?? 0) > request.afterSeq)
+      const events = (
+        await replayEvents(
+          this.state.events,
+          session.sandboxId,
+          request.afterSeq,
+        )
+      )
         .slice(0, request.limit ?? 1000)
         .map((event) => ({
           id: event.id,

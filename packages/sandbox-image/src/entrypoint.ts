@@ -174,6 +174,8 @@ export async function runSandboxEntrypoint(
     skills,
     contextFiles,
     modelRuntime,
+    workspaceDir: paths.workspaceDir,
+    secretResolver: resolver,
   });
   // 15. connect controller session
   const session = new ProtocolSession(

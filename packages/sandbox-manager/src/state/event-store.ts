@@ -6,6 +6,7 @@ export type StoredSandboxEvent = {
   id?: string;
   type: string;
   ts?: string;
+  durability?: "durable" | "transient";
   payload: unknown;
 };
 export class EventStore {

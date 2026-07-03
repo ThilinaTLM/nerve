@@ -109,6 +109,15 @@ export class InputWaiter {
     return cancelled;
   }
 
+  resolutionForRequest(requestId: string): SandboxInputWaitRecord | undefined {
+    const wait = this.waits.get(requestId);
+    return wait?.status === "submitted" ? wait : undefined;
+  }
+
+  get(requestId: string): SandboxInputWaitRecord | undefined {
+    return this.waits.get(requestId);
+  }
+
   pendingForRun(scope: {
     conversationId?: string;
     agentId?: string;

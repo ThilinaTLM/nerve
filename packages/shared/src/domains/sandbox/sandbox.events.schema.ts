@@ -48,6 +48,7 @@ export const sandboxEventTypeSchema = z.enum([
   "tool.call.started",
   "tool.call.completed",
   "tool.call.failed",
+  "tool.call.cancelled",
 ]);
 export type SandboxEventType = z.infer<typeof sandboxEventTypeSchema>;
 
@@ -242,6 +243,7 @@ export const runDeltaEventSchema = sandboxEventCommonSchema
     deltaId: z.string().min(1),
     role: z.enum(["assistant", "tool", "system"]),
     text: z.string().optional(),
+    artifactRefs: z.array(artifactRefSchema).optional(),
     finishReason: z.string().min(1).optional(),
   });
 
@@ -308,12 +310,25 @@ export const toolCallEventSchema = sandboxEventCommonSchema
   .extend({
     toolCallId: z.string().min(1),
     toolName: z.string().min(1),
-    status: z.enum(["requested", "started", "completed", "failed"]),
+    status: z.enum([
+      "requested",
+      "waiting_for_approval",
+      "started",
+      "completed",
+      "failed",
+      "cancelled",
+    ]),
     args: z.unknown().optional(),
+    displayArgs: z.unknown().optional(),
+    approvalId: z.string().min(1).optional(),
+    artifactRefs: z.array(artifactRefSchema).optional(),
+    lifecycleSeq: z.number().int().nonnegative().safe().optional(),
     result: z.unknown().optional(),
     error: redactedErrorSchema.optional(),
+    requestedAt: isoDateTimeSchema.optional(),
     startedAt: isoDateTimeSchema.optional(),
     completedAt: isoDateTimeSchema.optional(),
+    cancelledAt: isoDateTimeSchema.optional(),
   });
 
 export const sandboxEventPayloadSchemas = {
@@ -346,6 +361,7 @@ export const sandboxEventPayloadSchemas = {
   "tool.call.started": toolCallEventSchema,
   "tool.call.completed": toolCallEventSchema,
   "tool.call.failed": toolCallEventSchema,
+  "tool.call.cancelled": toolCallEventSchema,
 } as const;
 
 export const sandboxEventEnvelopeSchema = z.object({
