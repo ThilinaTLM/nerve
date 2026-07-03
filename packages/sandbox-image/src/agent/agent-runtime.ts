@@ -138,6 +138,7 @@ export class SandboxAgentRuntime {
     await this.options.exploreRuntime?.cancelRun(scope);
     active?.abortController.abort();
     await active?.harness?.abort().catch(() => undefined);
+    await active?.promise.catch(() => undefined);
     this.active.delete(key(scope));
     await this.options.inputWaiter?.cancelRun(scope);
     await this.options.approvalWaiter?.cancelRun(scope);
@@ -214,6 +215,7 @@ export class SandboxAgentRuntime {
         });
         if (mode === "continue") await harness.continue();
         else await harness.prompt(prompt);
+        if (active.abortController.signal.aborted || active.cancelling) return;
         await runs.markCompleted(scope);
       } catch (error) {
         if (isAgentToolSuspension(error)) {

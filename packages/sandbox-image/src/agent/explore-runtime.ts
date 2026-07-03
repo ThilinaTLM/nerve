@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentHarness } from "@nervekit/agent";
 import type {
@@ -6,6 +6,7 @@ import type {
   SandboxConfigV1,
 } from "@nervekit/shared";
 import { Redactor } from "../security/redaction.js";
+import { atomicWriteFile } from "../state/json-store.js";
 import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
 import type {
   HarnessCreateOptions,
@@ -312,9 +313,10 @@ export class ExploreRuntime {
       record.parentAgentId,
     );
     await mkdir(dir, { recursive: true });
-    await writeFile(
+    await atomicWriteFile(
       path.join(dir, `${safe(record.childAgentId)}.json`),
-      JSON.stringify(record, null, 2),
+      `${JSON.stringify(record, null, 2)}\n`,
+      0o600,
     );
   }
 }

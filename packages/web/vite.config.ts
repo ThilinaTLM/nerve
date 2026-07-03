@@ -127,6 +127,7 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: nerveApiTarget,
           headers: authHeaders,
+          ws: true,
         },
         "/ws": {
           target: nerveApiTarget.replace(/^http/, "ws"),

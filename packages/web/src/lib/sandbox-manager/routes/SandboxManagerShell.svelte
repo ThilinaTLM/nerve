@@ -35,7 +35,7 @@
 
 <div class="flex h-svh flex-col bg-background text-foreground">
   <header
-    class="flex flex-none items-center gap-3 border-b px-4 py-2.5"
+    class="flex flex-none flex-wrap items-center gap-3 border-b bg-card px-4 py-2.5"
   >
     <Button
       variant="ghost"
@@ -50,10 +50,14 @@
       <Boxes class="size-5 text-primary" />
       <span class="text-sm font-semibold">Sandbox Manager</span>
     </div>
-    <div class="flex items-center gap-1.5">
-      <StatusDot tone={connectionTone} pulse={store.connection === "reconnecting"} />
-      <span class="text-xs text-muted-foreground capitalize">{store.connection}</span>
-    </div>
+    <Badge tone={connectionTone} size="sm" class="gap-1.5">
+      <StatusDot
+        tone={connectionTone}
+        pulse={store.connection === "reconnecting" ||
+          store.connection === "connecting"}
+      />
+      <span class="capitalize">{store.connection}</span>
+    </Badge>
     {#if store.managerStatus}
       <RuntimeBackendBadge
         backend={store.managerStatus.backend}

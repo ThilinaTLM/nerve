@@ -23,11 +23,12 @@ export class SandboxSessionRegistry {
     return this.sessions.get(sandboxId);
   }
 
-  delete(sandboxId: string, sessionId?: string): void {
+  delete(sandboxId: string, sessionId?: string): boolean {
     const current = this.sessions.get(sandboxId);
-    if (!current) return;
-    if (sessionId && current.sessionId !== sessionId) return;
+    if (!current) return false;
+    if (sessionId && current.sessionId !== sessionId) return false;
     this.sessions.delete(sandboxId);
+    return true;
   }
 
   list(): ConnectedSandboxSession[] {

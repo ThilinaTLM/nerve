@@ -24,7 +24,42 @@ function config() {
   } as const;
 }
 
+async function waitForTaskStatus(
+  supervisor: TaskSupervisor,
+  id: string,
+  status: "running" | "completed" | "failed" | "cancelled" | "orphaned",
+): Promise<void> {
+  const deadline = Date.now() + 1000;
+  while (Date.now() < deadline) {
+    if (supervisor.get(id)?.status === status) return;
+    await delay(10);
+  }
+  assert.fail(`task ${id} did not reach status ${status}`);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 describe("tool lifecycle cancellation", () => {
+  it("keeps spawn error task finalization when close also fires", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-task-spawn-error-"));
+    try {
+      const supervisor = new TaskSupervisor({ stateDir: dir, maxTasks: 1 });
+      const task = supervisor.start("true", path.join(dir, "missing-cwd"));
+
+      await waitForTaskStatus(supervisor, task.id, "failed");
+      await delay(50);
+
+      const finalTask = supervisor.get(task.id);
+      assert.equal(finalTask?.status, "failed");
+      assert.equal(finalTask?.exitCode, 127);
+      assert.match(finalTask?.logs ?? "", /ENOENT|no such file/i);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("cancels supervised tasks for a run and emits durable cancelled tool records", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-tool-cancel-"));
     try {

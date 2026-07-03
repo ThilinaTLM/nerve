@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Boxes, CircleAlert, MessageCircleQuestion, Play } from "@lucide/svelte";
+  import { Boxes, CircleAlert, Clock, Play } from "@lucide/svelte";
   import { Card, CardContent } from "$lib/components/ui/card";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import { fleetSummary } from "../state/sandbox-manager-selectors.svelte";
@@ -19,7 +19,7 @@
     {
       label: "Pending waits",
       value: summary.pendingWaits,
-      icon: MessageCircleQuestion,
+      icon: Clock,
       tone: "text-warning",
     },
   ]);
@@ -28,9 +28,11 @@
 <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
   {#each cards as card (card.label)}
     {@const Icon = card.icon}
-    <Card>
+    <Card class="border">
       <CardContent class="flex items-center gap-3 p-4">
-        <Icon class={`size-5 ${card.tone}`} />
+        <div class="rounded-md bg-muted p-2">
+          <Icon class={`size-5 ${card.tone}`} />
+        </div>
         <div class="flex flex-col">
           <span class="text-2xl font-semibold tabular-nums">{card.value}</span>
           <span class="text-xs text-muted-foreground">{card.label}</span>

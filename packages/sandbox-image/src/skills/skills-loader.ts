@@ -62,10 +62,7 @@ async function readSkillDirs(
         if (raw.byteLength > maxBytes) continue;
         statuses.push({
           name: entry.name,
-          source:
-            root.startsWith("/workspace") || root.includes("/.agents/skills")
-              ? "workspace"
-              : "builtin",
+          source: isWorkspaceSkillRoot(root) ? "workspace" : "builtin",
           path: skillPath,
           digest: `sha256:${createHash("sha256").update(raw).digest("hex")}`,
           bytes: raw.byteLength,
@@ -77,4 +74,9 @@ async function readSkillDirs(
   } catch {
     return [];
   }
+}
+
+function isWorkspaceSkillRoot(root: string): boolean {
+  const normalized = root.split(path.sep).join("/");
+  return normalized.startsWith("/workspace") || normalized.includes("/.agents/skills");
 }

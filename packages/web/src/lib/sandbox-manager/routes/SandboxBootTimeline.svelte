@@ -42,7 +42,7 @@
 
 <ScrollArea class="h-full">
   <div class="flex flex-col gap-4 p-4">
-    <Card>
+    <Card class="border">
       <CardHeader><CardTitle class="text-sm">Setup status</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-2 text-sm">
         {#if setupPhases.length === 0}
@@ -71,7 +71,7 @@
       </CardContent>
     </Card>
 
-    <Card>
+    <Card class="border">
       <CardHeader><CardTitle class="text-sm">Boot timeline</CardTitle></CardHeader>
       <CardContent>
         {#if !detail || detail.setupTimeline.length === 0}

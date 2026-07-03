@@ -27,7 +27,7 @@
 
 <ScrollArea class="h-full">
   <div class="grid gap-4 p-4 lg:grid-cols-2">
-    <Card>
+    <Card class="border">
       <CardHeader><CardTitle class="text-sm">Identity</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-2 text-sm">
         <div class="flex justify-between gap-2">
@@ -57,7 +57,7 @@
       </CardContent>
     </Card>
 
-    <Card>
+    <Card class="border">
       <CardHeader><CardTitle class="text-sm">Lifecycle</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-2 text-sm">
         <div class="flex justify-between gap-2">
@@ -82,7 +82,7 @@
       </CardContent>
     </Card>
 
-    <Card>
+    <Card class="border">
       <CardHeader><CardTitle class="text-sm">Image &amp; config</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-2 text-sm">
         <div class="flex justify-between gap-2">
@@ -110,7 +110,7 @@
       </CardContent>
     </Card>
 
-    <Card>
+    <Card class="border">
       <CardHeader><CardTitle class="text-sm">Volumes</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-2 text-sm">
         {#each mounts as mount (mount.label + mount.ref?.target)}
@@ -125,7 +125,7 @@
     </Card>
 
     {#if detail?.latestSession}
-      <Card>
+      <Card class="border">
         <CardHeader><CardTitle class="text-sm">Controller session</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-2 text-sm">
           <div class="flex justify-between gap-2">

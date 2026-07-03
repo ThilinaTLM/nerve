@@ -112,7 +112,8 @@ async function runShell(
   timedOut: boolean;
 }> {
   return new Promise((resolve) => {
-    const child = spawn("/bin/sh", ["-lc", script], {
+    const [shell, args] = shellCommand(script);
+    const child = spawn(shell, args, {
       cwd,
       env: { PATH: process.env.PATH ?? "/usr/bin:/bin", ...env },
       stdio: ["ignore", "pipe", "pipe"],
@@ -131,6 +132,17 @@ async function runShell(
     child.stderr.on("data", (chunk) => {
       stderr = (stderr + String(chunk)).slice(-64_000);
     });
+    child.on("error", (error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve({
+        code: 127,
+        stdout,
+        stderr: (stderr + String(error instanceof Error ? error.message : error)).slice(-64_000),
+        timedOut,
+      });
+    });
     child.on("close", (code) => {
       if (done) return;
       done = true;
@@ -138,4 +150,9 @@ async function runShell(
       resolve({ code: code ?? (timedOut ? 124 : 1), stdout, stderr, timedOut });
     });
   });
+}
+
+function shellCommand(script: string): [string, string[]] {
+  if (process.platform === "win32") return ["bash", ["-lc", script]];
+  return ["/bin/sh", ["-lc", script]];
 }

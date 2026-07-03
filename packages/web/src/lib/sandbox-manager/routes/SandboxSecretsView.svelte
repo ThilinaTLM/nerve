@@ -21,7 +21,7 @@
       Only metadata is shown here. Secret values and protected paths are never fetched.
     </p>
 
-    <Card>
+    <Card class="border">
       <CardHeader><CardTitle class="text-sm">Secret stores</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-2 text-sm">
         {#if secretStores.length === 0}
@@ -45,7 +45,7 @@
       </CardContent>
     </Card>
 
-    <Card>
+    <Card class="border">
       <CardHeader><CardTitle class="text-sm">Credentials</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-2 text-sm">
         {#if credentials.length === 0}

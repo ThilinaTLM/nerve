@@ -121,30 +121,50 @@ export class TaskSupervisor {
     };
     this.tasks.set(task.id, task);
     void this.persist(task);
-    const child = spawn("/bin/sh", ["-lc", command], {
+    const [shell, args] = shellCommand(command);
+    const child = spawn(shell, args, {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
     });
-    const append = (chunk: unknown) => {
+    const appendLog = (chunk: unknown) => {
       task.logs += String(chunk);
       if (Buffer.byteLength(task.logs) > this.maxLogBytes) {
         task.logs = task.logs.slice(-this.maxLogBytes);
         task.truncated = true;
       }
+    };
+    const persistAppend = (chunk: unknown) => {
+      appendLog(chunk);
       void this.persist(task);
     };
-    child.stdout.on("data", append);
-    child.stderr.on("data", append);
+    child.stdout.on("data", persistAppend);
+    child.stderr.on("data", persistAppend);
     let timer: NodeJS.Timeout | undefined;
     if (maxRuntime) timer = setTimeout(() => child.kill("SIGTERM"), maxRuntime);
-    child.on("close", (code) => {
+    let settled = false;
+    const finish = (apply: () => void): void => {
+      if (settled) return;
+      settled = true;
       if (timer) clearTimeout(timer);
-      task.completedAt = new Date().toISOString();
-      task.exitCode = code ?? undefined;
-      if (task.status !== "cancelled")
-        task.status = code === 0 ? "completed" : "failed";
+      apply();
       this.children.delete(task.id);
       void this.persist(task);
+    };
+    child.on("error", (error) => {
+      finish(() => {
+        task.completedAt = new Date().toISOString();
+        task.exitCode = 127;
+        task.status = "failed";
+        appendLog(error instanceof Error ? error.message : String(error));
+      });
+    });
+    child.on("close", (code) => {
+      finish(() => {
+        task.completedAt = new Date().toISOString();
+        task.exitCode = code ?? undefined;
+        if (task.status !== "cancelled")
+          task.status = code === 0 ? "completed" : "failed";
+      });
     });
     this.children.set(task.id, child);
     return task;
@@ -242,6 +262,11 @@ export class TaskSupervisor {
     );
     await writeFile(path.join(dir, "logs.txt"), task.logs);
   }
+}
+
+function shellCommand(command: string): [string, string[]] {
+  if (process.platform === "win32") return ["bash", ["-lc", command]];
+  return ["/bin/sh", ["-lc", command]];
 }
 
 function clampTimeout(

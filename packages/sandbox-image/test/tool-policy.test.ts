@@ -39,7 +39,13 @@ describe("sandbox tool policy", () => {
       await mkdir(state);
       const outside = path.join(dir, "outside.txt");
       await writeFile(outside, "secret");
-      await symlink(outside, path.join(workspace, "link"));
+      let symlinkCreated = false;
+      try {
+        await symlink(outside, path.join(workspace, "link"));
+        symlinkCreated = true;
+      } catch (error) {
+        if (process.platform !== "win32") throw error;
+      }
       const runtime = new SandboxToolRuntime(config, {
         workspaceDir: workspace,
         stateDir: state,
@@ -49,9 +55,14 @@ describe("sandbox tool policy", () => {
         false,
       );
       await assert.rejects(
-        () => runtime.execute("read", { path: path.join(workspace, "link") }),
+        () => runtime.execute("read", { path: path.join(dir, "outside.txt") }),
         /outside workspace|escapes/,
       );
+      if (symlinkCreated)
+        await assert.rejects(
+          () => runtime.execute("read", { path: path.join(workspace, "link") }),
+          /outside workspace|escapes/,
+        );
       assert.equal(
         runtime.decide("bash", { command: "rm -rf /workspace" })
           .approvalRequired,

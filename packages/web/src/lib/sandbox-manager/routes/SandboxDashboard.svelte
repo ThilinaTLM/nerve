@@ -3,6 +3,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import SandboxStatusBadge from "../components/SandboxStatusBadge.svelte";
   import SandboxSummaryCards from "../components/SandboxSummaryCards.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
@@ -13,10 +14,27 @@
 
 <ScrollArea class="h-full">
   <div class="mx-auto flex max-w-5xl flex-col gap-5 p-5">
+    <div class="flex flex-col gap-0.5">
+      <h1 class="text-lg font-semibold">Fleet overview</h1>
+      <p class="text-sm text-muted-foreground">
+        Monitor and manage sandbox containers owned by this manager.
+      </p>
+    </div>
+
+    {#if store.connection !== "live"}
+      <div
+        class="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm text-muted-foreground"
+      >
+        <StatusDot tone="running" pulse />
+        <span class="capitalize">{store.connection}</span>
+        <span>to the sandbox manager…</span>
+      </div>
+    {/if}
+
     <SandboxSummaryCards />
 
     {#if runtime}
-      <Card>
+      <Card class="border">
         <CardHeader>
           <CardTitle class="text-sm">Runtime availability</CardTitle>
         </CardHeader>
@@ -39,7 +57,7 @@
       </Card>
     {/if}
 
-    <Card>
+    <Card class="border">
       <CardHeader>
         <CardTitle class="text-sm">Fleet</CardTitle>
       </CardHeader>

@@ -4,8 +4,9 @@ import {
   createHash,
   randomBytes,
 } from "node:crypto";
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { atomicWriteFile } from "../state/atomic-write.js";
 import type {
   KvSecretStore,
   ManagerSecretResolveRequest,
@@ -70,13 +71,8 @@ export class FileKvSecretStore implements KvSecretStore {
       throw new Error("Secret value exceeds maximum size");
     await mkdir(this.rootDir, { recursive: true });
     const file = path.join(this.rootDir, `${safe(key)}.json`);
-    const tmp = `${file}.${process.pid}.tmp`;
     const payload = this.encode(value, metadata);
-    await writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: 0o600,
-    });
-    await rename(tmp, file);
+    await atomicWriteFile(file, `${JSON.stringify(payload, null, 2)}\n`, 0o600);
   }
   async resolve(
     request: ManagerSecretResolveRequest,

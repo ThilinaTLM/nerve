@@ -28,12 +28,14 @@
 		value = $bindable(""),
 		ariaLabel,
 		class: className,
+		dense = false,
 		onValueChange,
 	}: {
 		tabs?: TabItem[];
 		value?: string;
 		ariaLabel?: string;
 		class?: string;
+		dense?: boolean;
 		onValueChange?: (value: string) => void;
 	} = $props();
 
@@ -51,7 +53,12 @@
 				disabled={tab.disabled}
 				aria-label={accessibleLabel(tab)}
 				title={tab.title ?? accessibleLabel(tab)}
-				class={cn("tabs-bar-trigger", tab.icon && "tabs-bar-icon-trigger")}
+				class={cn(
+					"tabs-bar-trigger",
+					tab.icon
+						? "tabs-bar-icon-trigger w-9 flex-none px-0"
+						: dense && "px-1",
+				)}
 			>
 				{#if tab.icon}
 					{@const Icon = tab.icon}

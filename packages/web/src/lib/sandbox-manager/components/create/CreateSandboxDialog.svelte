@@ -5,6 +5,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import SelectField from "$lib/components/ui/select-field";
+  import { Separator } from "$lib/components/ui/separator";
   import SwitchField from "$lib/components/ui/switch-field";
   import { Textarea } from "$lib/components/ui/textarea";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
@@ -66,7 +67,7 @@
     if (!next) reset();
   }}
 >
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-5 p-5">
     <section class="flex flex-col gap-3">
       <h3 class="text-xs font-semibold text-muted-foreground uppercase">Identity</h3>
       <div class="grid gap-3 sm:grid-cols-2">
@@ -87,12 +88,16 @@
           <Input bind:value={draft.labels} placeholder="team=core, env=dev" />
         </div>
       </div>
-      <SwitchField
-        checked={draft.startAfterCreate}
-        label="Start after create"
-        onCheckedChange={(value) => (draft.startAfterCreate = value)}
-      />
+      <div class="rounded-md border bg-card px-3 py-2.5">
+        <SwitchField
+          checked={draft.startAfterCreate}
+          label="Start after create"
+          onCheckedChange={(value) => (draft.startAfterCreate = value)}
+        />
+      </div>
     </section>
+
+    <Separator />
 
     {#if !draft.useAdvancedConfig}
       <section class="flex flex-col gap-3">
@@ -135,11 +140,13 @@
         <h3 class="text-xs font-semibold text-muted-foreground uppercase">Tools</h3>
         <div class="grid gap-2 sm:grid-cols-2">
           {#each CREATE_SANDBOX_TOOL_KEYS as tool (tool)}
-            <SwitchField
-              checked={draft.tools[tool]}
-              label={tool}
-              onCheckedChange={(value) => (draft.tools[tool] = value)}
-            />
+            <div class="rounded-md border bg-card px-3 py-2">
+              <SwitchField
+                checked={draft.tools[tool]}
+                label={tool}
+                onCheckedChange={(value) => (draft.tools[tool] = value)}
+              />
+            </div>
           {/each}
         </div>
       </section>
@@ -159,12 +166,16 @@
       </section>
     {/if}
 
-    <SwitchField
-      checked={draft.useAdvancedConfig}
-      label="Advanced JSON config"
-      description="Edit the raw create-config input instead of the form."
-      onCheckedChange={(value) => (draft.useAdvancedConfig = value)}
-    />
+    <Separator />
+
+    <div class="rounded-md border bg-card px-3 py-2.5">
+      <SwitchField
+        checked={draft.useAdvancedConfig}
+        label="Advanced JSON config"
+        description="Edit the raw create-config input instead of the form."
+        onCheckedChange={(value) => (draft.useAdvancedConfig = value)}
+      />
+    </div>
 
     {#if error}
       <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">

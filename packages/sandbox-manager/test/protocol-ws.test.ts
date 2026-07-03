@@ -111,6 +111,72 @@ describe("sandbox manager websocket protocol", async () => {
     assert.equal((replay.events as unknown[]).length >= 1, true);
   });
 
+  it("keeps replacement sandbox session connected when a stale socket closes", async () => {
+    const staleRecord = await createSandboxRecord(state, config);
+    const first = new WebSocket(
+      `${baseUrl}/api/sandboxes/${staleRecord.sandboxId}/ws`,
+      {
+        headers: { authorization: `Bearer ${staleRecord.controller?.token}` },
+      },
+    );
+    sockets.push(first);
+    await onceOpen(first);
+    first.send(
+      JSON.stringify({
+        type: "hello",
+        version: 1,
+        role: "agent",
+        sandboxId: staleRecord.sandboxId,
+        instanceId: staleRecord.instanceId,
+        capabilities: ["encoding.json", "sandbox.runtime.v1"],
+      }),
+    );
+    const firstWelcome = await onceJson(first);
+    assert.equal(firstWelcome.type, "welcome");
+    assert.equal(typeof firstWelcome.sessionId, "string");
+    const firstSessionId = firstWelcome.sessionId;
+    let stored = await state.sessions.get(staleRecord.sandboxId);
+    assert.equal(stored?.state, "connected");
+    assert.equal(stored?.sessionId, firstSessionId);
+
+    const firstClosed = onceClose(first);
+    const second = new WebSocket(
+      `${baseUrl}/api/sandboxes/${staleRecord.sandboxId}/ws`,
+      {
+        headers: { authorization: `Bearer ${staleRecord.controller?.token}` },
+      },
+    );
+    sockets.push(second);
+    await onceOpen(second);
+    second.send(
+      JSON.stringify({
+        type: "hello",
+        version: 1,
+        role: "agent",
+        sandboxId: staleRecord.sandboxId,
+        instanceId: staleRecord.instanceId,
+        capabilities: ["encoding.json", "sandbox.runtime.v1"],
+      }),
+    );
+    const secondWelcome = await onceJson(second);
+    assert.equal(secondWelcome.type, "welcome");
+    assert.equal(typeof secondWelcome.sessionId, "string");
+    const secondSessionId = secondWelcome.sessionId;
+    assert.notEqual(secondSessionId, firstSessionId);
+    stored = await state.sessions.get(staleRecord.sandboxId);
+    assert.equal(stored?.state, "connected");
+    assert.equal(stored?.sessionId, secondSessionId);
+
+    await firstClosed;
+    await delay(50);
+    stored = await state.sessions.get(staleRecord.sandboxId);
+    assert.equal(stored?.state, "connected");
+    assert.equal(stored?.sessionId, secondSessionId);
+
+    second.close();
+    await onceClose(second);
+  });
+
   it("accepts hello, acks events, and forwards commands", async () => {
     const ws = new WebSocket(
       `${baseUrl}/api/sandboxes/${record.sandboxId}/ws`,
@@ -300,4 +366,13 @@ function onceJson(ws: WebSocket): Promise<Record<string, unknown>> {
   return new Promise((resolve) =>
     ws.once("message", (data) => resolve(JSON.parse(String(data)))),
   );
+}
+
+function onceClose(ws: WebSocket): Promise<void> {
+  if (ws.readyState === WebSocket.CLOSED) return Promise.resolve();
+  return new Promise((resolve) => ws.once("close", () => resolve()));
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

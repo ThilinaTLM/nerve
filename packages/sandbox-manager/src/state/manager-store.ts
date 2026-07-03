@@ -1,5 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { atomicWriteFile, isNotFound } from "./atomic-write.js";
 import {
   type ManagedSandboxRecord,
   managedSandboxRecordSchema,
@@ -14,6 +15,7 @@ export interface ManagerStore {
 
 export class FileManagerStore implements ManagerStore {
   private readonly recordsPath: string;
+  private mutationQueue: Promise<void> = Promise.resolve();
 
   constructor(readonly rootDir: string) {
     this.recordsPath = path.join(rootDir, "sandboxes.json");
@@ -31,15 +33,15 @@ export class FileManagerStore implements ManagerStore {
 
   async put(record: ManagedSandboxRecord): Promise<void> {
     const parsed = managedSandboxRecordSchema.parse(record);
-    const records = await this.readAll();
-    records.set(parsed.sandboxId, parsed);
-    await this.writeAll(records);
+    await this.mutate(async (records) => {
+      records.set(parsed.sandboxId, parsed);
+    });
   }
 
   async delete(sandboxId: string): Promise<void> {
-    const records = await this.readAll();
-    records.delete(sandboxId);
-    await this.writeAll(records);
+    await this.mutate(async (records) => {
+      records.delete(sandboxId);
+    });
   }
 
   private async readAll(): Promise<Map<string, ManagedSandboxRecord>> {
@@ -64,18 +66,21 @@ export class FileManagerStore implements ManagerStore {
     records: Map<string, ManagedSandboxRecord>,
   ): Promise<void> {
     await mkdir(this.rootDir, { recursive: true });
-    const tempPath = `${this.recordsPath}.${process.pid}.tmp`;
     const body = `${JSON.stringify(Array.from(records.values()), null, 2)}\n`;
-    await writeFile(tempPath, body, "utf8");
-    await rename(tempPath, this.recordsPath);
+    await atomicWriteFile(this.recordsPath, body, 0o600);
   }
-}
 
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "ENOENT"
-  );
+  private async mutate(
+    update: (records: Map<string, ManagedSandboxRecord>) => Promise<void> | void,
+  ): Promise<void> {
+    const next = this.mutationQueue
+      .catch(() => undefined)
+      .then(async () => {
+        const records = await this.readAll();
+        await update(records);
+        await this.writeAll(records);
+      });
+    this.mutationQueue = next;
+    await next;
+  }
 }

@@ -210,7 +210,6 @@ export class RunManager {
       updatedAt: now,
       terminalAt: now,
     };
-    await this.store.write(next);
     if (scope.executionId)
       await this.executions.write({
         conversationId: scope.conversationId,
@@ -238,6 +237,7 @@ export class RunManager {
         completedAt: now,
       },
     });
+    await this.store.write(next);
     return next;
   }
 
@@ -265,7 +265,6 @@ export class RunManager {
       terminalAt: recoverable ? undefined : now,
       error: this.redactor.redact(error),
     };
-    await this.store.write(next);
     if (scope.executionId)
       await this.executions.write({
         conversationId: scope.conversationId,
@@ -295,6 +294,7 @@ export class RunManager {
         error,
       },
     });
+    await this.store.write(next);
     return next;
   }
 
@@ -319,7 +319,6 @@ export class RunManager {
       terminalAt: now,
       reason: scope.reason,
     };
-    await this.store.write(next);
     if (scope.executionId)
       await this.executions.write({
         conversationId: scope.conversationId,
@@ -347,6 +346,7 @@ export class RunManager {
         cancelledAt: now,
       },
     });
+    await this.store.write(next);
     return next;
   }
 

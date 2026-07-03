@@ -38,7 +38,7 @@
   title="Remove sandbox"
   description={`Remove ${record.name ?? record.sandboxId}. This action cannot be undone.`}
 >
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-col gap-3 p-5">
     <SwitchField
       checked={force}
       label="Force remove"

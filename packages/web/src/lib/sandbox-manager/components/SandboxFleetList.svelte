@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Search } from "@lucide/svelte";
+  import { Boxes, Search } from "@lucide/svelte";
   import { Input } from "$lib/components/ui/input";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { StatusDot } from "$lib/components/ui/status-dot";
   import TabsBar from "$lib/components/ui/tabs-bar";
   import { cn } from "$lib/core/utils.js";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
@@ -34,8 +35,8 @@
   }
 </script>
 
-<div class="flex h-full flex-col">
-  <div class="flex flex-col gap-2 border-b p-3">
+<div class="flex h-full min-w-0 flex-col">
+  <div class="flex min-w-0 flex-col gap-2 border-b p-3">
     <div class="relative">
       <Search
         class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -51,15 +52,24 @@
       tabs={filterTabs}
       value={store.fleetFilter}
       ariaLabel="Fleet filters"
+      dense
       onValueChange={(value) => (store.fleetFilter = value as SandboxFleetFilter)}
     />
   </div>
 
   <ScrollArea class="min-h-0 flex-1">
     {#if records.length === 0}
-      <p class="p-4 text-sm text-muted-foreground">
-        {store.loadingFleet ? "Loading sandboxes…" : "No sandboxes match."}
-      </p>
+      {#if store.loadingFleet}
+        <div class="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
+          <StatusDot tone="running" size="md" pulse />
+          <span>Loading sandboxes…</span>
+        </div>
+      {:else}
+        <div class="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
+          <Boxes class="size-6" />
+          <span>No sandboxes match.</span>
+        </div>
+      {/if}
     {:else}
       <ul class="flex flex-col p-2">
         {#each records as record (record.sandboxId)}

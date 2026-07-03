@@ -142,8 +142,9 @@ export class SandboxWsServer {
       () => fail("HELLO_TIMEOUT", "UI hello was not received in time"),
       10_000,
     );
+    const cleanupHelloTimer = () => clearTimeout(helloTimer);
     ws.once("message", (data) => {
-      clearTimeout(helloTimer);
+      cleanupHelloTimer();
       try {
         const hello = sandboxProtocolUiHelloSchema.parse(
           JSON.parse(String(data as Buffer)),
@@ -203,8 +204,14 @@ export class SandboxWsServer {
         );
       }
     });
-    ws.on("close", () => unsubscribe?.());
-    ws.on("error", () => unsubscribe?.());
+    ws.on("close", () => {
+      cleanupHelloTimer();
+      unsubscribe?.();
+    });
+    ws.on("error", () => {
+      cleanupHelloTimer();
+      unsubscribe?.();
+    });
   }
 
   private async handleUiMessage(ws: WebSocket, data: Buffer): Promise<void> {
@@ -289,9 +296,10 @@ export class SandboxWsServer {
       () => fail("HELLO_TIMEOUT", "Sandbox hello was not received in time"),
       10_000,
     );
+    const cleanupHelloTimer = () => clearTimeout(helloTimer);
 
     ws.once("message", async (data) => {
-      clearTimeout(helloTimer);
+      cleanupHelloTimer();
       try {
         const hello = sandboxProtocolHelloSchema.parse(
           parseProtocolMessage(data as Buffer),
@@ -379,16 +387,14 @@ export class SandboxWsServer {
       }
     });
 
-    ws.on(
-      "close",
-      (code, reason) =>
-        void this.handleClose(sandboxId, session, code, reason.toString()),
-    );
-    ws.on(
-      "error",
-      (error) =>
-        void this.handleClose(sandboxId, session, undefined, error.message),
-    );
+    ws.on("close", (code, reason) => {
+      cleanupHelloTimer();
+      this.safeHandleClose(sandboxId, session, code, reason.toString());
+    });
+    ws.on("error", (error) => {
+      cleanupHelloTimer();
+      this.safeHandleClose(sandboxId, session, undefined, error.message);
+    });
   }
 
   private async handleMessage(
@@ -493,6 +499,17 @@ export class SandboxWsServer {
     }
   }
 
+  private safeHandleClose(
+    sandboxId: string,
+    session?: ConnectedSandboxSession,
+    closeCode?: number,
+    closeReason?: string,
+  ): void {
+    void this.handleClose(sandboxId, session, closeCode, closeReason).catch(
+      () => undefined,
+    );
+  }
+
   private async handleClose(
     sandboxId: string,
     session?: ConnectedSandboxSession,
@@ -500,8 +517,9 @@ export class SandboxWsServer {
     closeReason?: string,
   ): Promise<void> {
     if (!session) return;
-    this.sessions.delete(sandboxId, session.sessionId);
+    const removedCurrent = this.sessions.delete(sandboxId, session.sessionId);
     session.forwarder.failAll(new Error("Sandbox session disconnected"));
+    if (!removedCurrent) return;
     const now = new Date().toISOString();
     await this.state.sessions.put({
       sandboxId,

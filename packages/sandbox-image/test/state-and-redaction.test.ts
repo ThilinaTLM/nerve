@@ -116,7 +116,8 @@ describe("sandbox image durable state foundations", () => {
       const recovered = await recoverSandboxState(digest, paths);
       assert.equal(recovered.configDigest, digest);
       assert.equal(recovered.ack.streams.length, 0);
-      assert.equal((await stat(paths.credentialsDir)).mode & 0o777, 0o700);
+      if (process.platform !== "win32")
+        assert.equal((await stat(paths.credentialsDir)).mode & 0o777, 0o700);
 
       await writeFile(path.join(paths.commandsDir, "inbox.jsonl"), "{bad\n");
       await assert.rejects(

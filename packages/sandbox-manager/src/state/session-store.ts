@@ -1,5 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { atomicWriteFile } from "./atomic-write.js";
 export type SandboxSessionRecord = {
   sandboxId: string;
   sessionId: string;
@@ -16,9 +17,7 @@ export class SessionStore {
   async put(record: SandboxSessionRecord): Promise<void> {
     await mkdir(this.rootDir, { recursive: true });
     const file = path.join(this.rootDir, `${record.sandboxId}.json`);
-    const tmp = `${file}.${process.pid}.tmp`;
-    await writeFile(tmp, `${JSON.stringify(record, null, 2)}\n`, "utf8");
-    await rename(tmp, file);
+    await atomicWriteFile(file, `${JSON.stringify(record, null, 2)}\n`, 0o600);
   }
   async get(sandboxId: string): Promise<SandboxSessionRecord | undefined> {
     try {
