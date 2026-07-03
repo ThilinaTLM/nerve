@@ -18,6 +18,8 @@ export type ManagerConfig = {
   heartbeatTimeoutMs: number;
   maxPendingCommands: number;
   maxCommandBytes: number;
+  serveWebUi: boolean;
+  webDist?: string;
 };
 export function loadManagerConfig(env = process.env): ManagerConfig {
   const host = env.NERVE_SANDBOX_MANAGER_HOST?.trim() || "127.0.0.1";
@@ -66,6 +68,13 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
     maxCommandBytes: Number(
       env.NERVE_SANDBOX_MANAGER_MAX_COMMAND_BYTES ?? 1_000_000,
     ),
+    serveWebUi:
+      env.NERVE_SANDBOX_MANAGER_SERVE_WEB_UI !== "0" &&
+      env.NERVE_SANDBOX_MANAGER_SERVE_WEB_UI !== "false",
+    webDist:
+      env.NERVE_SANDBOX_MANAGER_WEB_DIST?.trim() ||
+      env.NERVE_WEB_DIST?.trim() ||
+      undefined,
   };
 }
 

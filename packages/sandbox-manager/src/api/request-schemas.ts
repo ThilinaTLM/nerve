@@ -1,17 +1,11 @@
-import { sandboxConfigV1Schema } from "@nervekit/shared";
+import { sandboxCreateRequestSchema } from "@nervekit/shared";
 
-export const createSandboxRequestSchema = {
-  parse(input: unknown) {
-    if (!input || typeof input !== "object")
-      throw new Error("request body must be an object");
-    const body = input as Record<string, unknown>;
-    return {
-      config: sandboxConfigV1Schema.parse(body.config),
-      image: typeof body.image === "string" ? body.image : undefined,
-      name: typeof body.name === "string" ? body.name : undefined,
-    };
-  },
-};
+/**
+ * Manager create-request schema. Accepts UI-friendly create input where
+ * `config.controller` may be omitted (the manager injects controller wiring),
+ * and remains backward-compatible with full `SandboxConfigV1` bodies.
+ */
+export const createSandboxRequestSchema = sandboxCreateRequestSchema;
 
 export const commandRequestSchema = {
   parse(input: unknown) {

@@ -64,6 +64,17 @@ export const sandboxProtocolHelloSchema = z.object({
 });
 export type SandboxProtocolHello = z.infer<typeof sandboxProtocolHelloSchema>;
 
+export const sandboxProtocolUiHelloSchema = z.object({
+  type: z.literal("hello"),
+  version: sandboxProtocolVersionSchema.default(1),
+  role: z.literal("ui"),
+  capabilities: z.array(z.string().min(1)),
+  resume: sandboxProtocolResumeSchema.pick({ cursors: true }).optional(),
+});
+export type SandboxProtocolUiHello = z.infer<
+  typeof sandboxProtocolUiHelloSchema
+>;
+
 export const sandboxProtocolWelcomeSchema = z.object({
   type: z.literal("welcome"),
   version: sandboxProtocolVersionSchema.default(1),

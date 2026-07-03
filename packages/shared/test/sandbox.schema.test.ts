@@ -10,12 +10,17 @@ import {
   sandboxCanonicalJson,
   sandboxCommandRecordSchema,
   sandboxConfigV1Schema,
+  sandboxCreateConfigInputSchema,
+  sandboxCreateRequestSchema,
   sandboxEventPayloadSchemas,
+  sandboxManagerEventEnvelopeSchema,
+  sandboxManagerLifecycleEventTypeSchema,
   sandboxProtocolCursorSchema,
   sandboxProtocolEventBatchSchema,
   sandboxProtocolEventSchema,
   sandboxProtocolFlowUpdateSchema,
   sandboxProtocolHelloSchema,
+  sandboxProtocolUiHelloSchema,
   sandboxRunExecutionRecordSchema,
   sandboxRunStartParamsSchema,
   sandboxSecretRefSchema,
@@ -254,6 +259,84 @@ describe("Sandbox shared schemas", () => {
         stream: "sandbox",
         queue: { pendingEvents: 5, maxEvents: 100 },
         reason: "backpressure",
+      }).success,
+      true,
+    );
+  });
+
+  it("validates the manager UI hello and rejects non-ui roles", () => {
+    assert.equal(
+      sandboxProtocolUiHelloSchema.safeParse({
+        type: "hello",
+        role: "ui",
+        capabilities: ["encoding.json", "event.batch"],
+        resume: { cursors: [{ stream: "manager", processedSeq: 3 }] },
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxProtocolUiHelloSchema.safeParse({
+        type: "hello",
+        role: "agent",
+        capabilities: ["encoding.json"],
+      }).success,
+      false,
+    );
+  });
+
+  it("accepts create input with an omitted controller and full config alike", () => {
+    const { controller: _controller, ...withoutController } = minimalConfig();
+    assert.equal(
+      sandboxCreateConfigInputSchema.safeParse(withoutController).success,
+      true,
+    );
+    assert.equal(
+      sandboxCreateConfigInputSchema.safeParse(minimalConfig()).success,
+      true,
+    );
+    assert.equal(
+      sandboxCreateRequestSchema.safeParse({
+        config: withoutController,
+        image: "nerve-sandbox:dev",
+        name: "demo",
+        start: true,
+      }).success,
+      true,
+    );
+  });
+
+  it("validates manager lifecycle event types and UI event envelopes", () => {
+    assert.equal(
+      sandboxManagerLifecycleEventTypeSchema.safeParse(
+        "manager.sandbox.started",
+      ).success,
+      true,
+    );
+    assert.equal(
+      sandboxManagerLifecycleEventTypeSchema.safeParse("manager.sandbox.nope")
+        .success,
+      false,
+    );
+    assert.equal(
+      sandboxManagerEventEnvelopeSchema.safeParse({
+        stream: "manager",
+        seq: 4,
+        ts,
+        type: "manager.sandbox.started",
+        durability: "durable",
+        data: { sandboxId: "sbx_1" },
+      }).success,
+      true,
+    );
+    // Envelopes never force sandbox daemon payload validation.
+    assert.equal(
+      sandboxManagerEventEnvelopeSchema.safeParse({
+        stream: "sandbox:sbx_1",
+        sandboxId: "sbx_1",
+        seq: 1,
+        ts,
+        type: "sandbox.ready",
+        data: { arbitrary: true },
       }).success,
       true,
     );

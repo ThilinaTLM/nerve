@@ -28,6 +28,7 @@ import { createSandboxRecord } from "../routes/sandbox-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
 import type { ManagerState } from "./manager-state.js";
 import { sandboxManagerVersion } from "./version.js";
+import { maybeServeManagerWeb, readUiAuthCookie } from "./web-static.js";
 
 export function createManagerServer(state: ManagerState) {
   const controller = new SandboxWsServer(state, authorized);
@@ -52,6 +53,7 @@ async function handle(
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const path = url.pathname;
+  if (await maybeServeManagerWeb(state, req, res, url)) return;
   if (path.endsWith("/secrets/resolve")) {
     // Secrets are authenticated with the sandbox controller token below.
   } else if (!authorized(state, req)) {
@@ -238,9 +240,12 @@ async function handle(
 function authorized(state: ManagerState, req: IncomingMessage): boolean {
   if (!state.config.apiKey) return true;
   const header = req.headers.authorization ?? req.headers["x-api-key"];
-  return (
-    header === state.config.apiKey || header === `Bearer ${state.config.apiKey}`
-  );
+  if (
+    header === state.config.apiKey ||
+    header === `Bearer ${state.config.apiKey}`
+  )
+    return true;
+  return readUiAuthCookie(req) === state.config.apiKey;
 }
 async function requireSandboxToken(
   state: ManagerState,

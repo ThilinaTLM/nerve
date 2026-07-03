@@ -1,0 +1,168 @@
+import {
+  type SandboxCreateConfigInput,
+  type SandboxCreateRequest,
+  sandboxCreateConfigInputSchema,
+  sandboxCreateRequestSchema,
+} from "@nervekit/shared";
+
+export type CreateSandboxToolKey =
+  | "fileInspection"
+  | "fileEditing"
+  | "planMode"
+  | "todos"
+  | "shell"
+  | "python"
+  | "taskManagement"
+  | "explore";
+
+export const CREATE_SANDBOX_TOOL_KEYS: CreateSandboxToolKey[] = [
+  "fileInspection",
+  "fileEditing",
+  "planMode",
+  "todos",
+  "shell",
+  "python",
+  "taskManagement",
+  "explore",
+];
+
+export type CreateSandboxDraft = {
+  name: string;
+  sandboxId: string;
+  image: string;
+  labels: string;
+  startAfterCreate: boolean;
+  mainProvider: string;
+  mainModel: string;
+  mainThinking: string;
+  exploreProvider: string;
+  exploreModel: string;
+  initialPrompt: string;
+  systemPromptAmendment: string;
+  mode: "normal" | "planning";
+  permissionLevel: "read_only" | "supervised" | "autonomous";
+  tools: Record<CreateSandboxToolKey, boolean>;
+  useAdvancedConfig: boolean;
+  advancedConfig: string;
+};
+
+export function createDefaultDraft(): CreateSandboxDraft {
+  return {
+    name: "",
+    sandboxId: "",
+    image: "nerve-sandbox:dev",
+    labels: "",
+    startAfterCreate: true,
+    mainProvider: "anthropic",
+    mainModel: "claude-sonnet-4-5",
+    mainThinking: "",
+    exploreProvider: "",
+    exploreModel: "",
+    initialPrompt: "",
+    systemPromptAmendment: "",
+    mode: "normal",
+    permissionLevel: "supervised",
+    tools: {
+      fileInspection: true,
+      fileEditing: true,
+      planMode: true,
+      todos: true,
+      shell: true,
+      python: false,
+      taskManagement: false,
+      explore: false,
+    },
+    useAdvancedConfig: false,
+    advancedConfig: "",
+  };
+}
+
+function parseLabels(input: string): Record<string, string> | undefined {
+  const entries = input
+    .split(",")
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .map((pair) => {
+      const index = pair.indexOf("=");
+      if (index === -1) return undefined;
+      return [
+        pair.slice(0, index).trim(),
+        pair.slice(index + 1).trim(),
+      ] as const;
+    })
+    .filter((pair): pair is readonly [string, string] => Boolean(pair));
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+export function buildConfigFromDraft(
+  draft: CreateSandboxDraft,
+): SandboxCreateConfigInput {
+  const config: Record<string, unknown> = {
+    version: 1,
+    agent: {
+      mainModel: {
+        provider: draft.mainProvider,
+        model: draft.mainModel,
+        ...(draft.mainThinking ? { thinkingLevel: draft.mainThinking } : {}),
+      },
+      ...(draft.exploreProvider && draft.exploreModel
+        ? {
+            exploreModel: {
+              provider: draft.exploreProvider,
+              model: draft.exploreModel,
+            },
+          }
+        : {}),
+      ...(draft.initialPrompt ? { initialPrompt: draft.initialPrompt } : {}),
+      ...(draft.systemPromptAmendment
+        ? { systemPromptAmendment: draft.systemPromptAmendment }
+        : {}),
+      mode: draft.mode,
+      permissionLevel: draft.permissionLevel,
+    },
+  };
+
+  const labels = parseLabels(draft.labels);
+  const identity: Record<string, unknown> = {};
+  if (draft.sandboxId.trim()) identity.sandboxId = draft.sandboxId.trim();
+  if (draft.name.trim()) identity.name = draft.name.trim();
+  if (labels) identity.labels = labels;
+  if (Object.keys(identity).length > 0) config.identity = identity;
+
+  const groups: Record<string, { enabled: boolean }> = {};
+  for (const [key, enabled] of Object.entries(draft.tools))
+    groups[key] = { enabled };
+  config.tools = { groups };
+
+  return sandboxCreateConfigInputSchema.parse(config);
+}
+
+export type BuildCreateRequestResult =
+  | { ok: true; request: SandboxCreateRequest }
+  | { ok: false; error: string };
+
+export function buildCreateRequest(
+  draft: CreateSandboxDraft,
+): BuildCreateRequestResult {
+  try {
+    let config: SandboxCreateConfigInput;
+    if (draft.useAdvancedConfig) {
+      const parsed = JSON.parse(draft.advancedConfig || "{}") as unknown;
+      config = sandboxCreateConfigInputSchema.parse(parsed);
+    } else {
+      config = buildConfigFromDraft(draft);
+    }
+    const request = sandboxCreateRequestSchema.parse({
+      config,
+      image: draft.image.trim() || undefined,
+      name: draft.name.trim() || undefined,
+      start: draft.startAfterCreate,
+    });
+    return { ok: true, request };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

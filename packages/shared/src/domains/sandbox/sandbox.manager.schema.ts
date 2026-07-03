@@ -3,6 +3,10 @@ import {
   isoDateTimeSchema,
   redactedErrorSchema,
 } from "./sandbox.common.schema.js";
+import {
+  sandboxConfigV1BaseSchema,
+  sandboxControllerConfigSchema,
+} from "./sandbox.config.schema.js";
 
 export const managedSandboxObservedStateSchema = z.enum([
   "unknown",
@@ -277,6 +281,60 @@ export const sandboxManagerStatusSchema = z.object({
   updatedAt: isoDateTimeSchema,
 });
 export type SandboxManagerStatus = z.infer<typeof sandboxManagerStatusSchema>;
+
+export const sandboxManagerLifecycleEventTypeSchema = z.enum([
+  "manager.sandbox.created",
+  "manager.sandbox.deleted",
+  "manager.sandbox.start_requested",
+  "manager.sandbox.started",
+  "manager.sandbox.start_failed",
+  "manager.sandbox.stop_requested",
+  "manager.sandbox.stopped",
+  "manager.sandbox.removed",
+]);
+export type SandboxManagerLifecycleEventType = z.infer<
+  typeof sandboxManagerLifecycleEventTypeSchema
+>;
+
+/**
+ * UI-consumed event envelope streamed over the manager UI WebSocket. Reducers
+ * remain tolerant of future/unknown `type` values, so `data` stays `unknown`.
+ */
+export const sandboxManagerEventEnvelopeSchema = z
+  .object({
+    stream: z.string().min(1),
+    sandboxId: z.string().min(1).optional(),
+    seq: z.number().int().nonnegative().safe(),
+    id: z.string().min(1).optional(),
+    ts: isoDateTimeSchema,
+    type: z.string().min(1),
+    durability: z.enum(["durable", "transient"]).optional(),
+    data: z.unknown().optional(),
+  })
+  .passthrough();
+export type SandboxManagerEventEnvelope = z.infer<
+  typeof sandboxManagerEventEnvelopeSchema
+>;
+
+/**
+ * UI-friendly sandbox create config input. The manager owns and materializes
+ * the controller wiring (URL/auth), so the UI may omit `controller` entirely.
+ * The full `SandboxConfigV1` path (with `controller`) remains valid.
+ */
+export const sandboxCreateConfigInputSchema = sandboxConfigV1BaseSchema
+  .omit({ controller: true })
+  .extend({ controller: sandboxControllerConfigSchema.optional() });
+export type SandboxCreateConfigInput = z.infer<
+  typeof sandboxCreateConfigInputSchema
+>;
+
+export const sandboxCreateRequestSchema = z.object({
+  config: sandboxCreateConfigInputSchema,
+  image: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  start: z.boolean().optional(),
+});
+export type SandboxCreateRequest = z.infer<typeof sandboxCreateRequestSchema>;
 
 export const logReadOptionsSchema = z.object({
   since: isoDateTimeSchema.optional(),

@@ -516,32 +516,33 @@ export const sandboxObservabilityConfigSchema = z.object({
   emitProviderMetadata: z.boolean().optional(),
 });
 
-export const sandboxConfigV1Schema = z
-  .strictObject({
-    version: z.literal(1),
-    identity: z
-      .object({
-        sandboxId: z.string().min(1).optional(),
-        name: z.string().min(1).optional(),
-        labels: stringRecordSchema.optional(),
-        annotations: stringRecordSchema.optional(),
-      })
-      .optional(),
-    secretStores: sandboxSecretStoresConfigSchema.optional(),
-    modelCatalog: sandboxModelCatalogConfigSchema.optional(),
-    agent: sandboxAgentConfigSchema,
-    controller: sandboxControllerConfigSchema,
-    git: sandboxGitConfigSchema.optional(),
-    github: sandboxGithubConfigSchema.optional(),
-    tools: sandboxToolsConfigSchema.optional(),
-    skills: sandboxSkillsConfigSchema.optional(),
-    boot: sandboxBootConfigSchema.optional(),
-    security: sandboxSecurityConfigSchema.optional(),
-    storage: sandboxStorageConfigSchema.optional(),
-    resources: sandboxResourceConfigSchema.optional(),
-    observability: sandboxObservabilityConfigSchema.optional(),
-  })
-  .superRefine((config, context) => {
+export const sandboxConfigV1BaseSchema = z.strictObject({
+  version: z.literal(1),
+  identity: z
+    .object({
+      sandboxId: z.string().min(1).optional(),
+      name: z.string().min(1).optional(),
+      labels: stringRecordSchema.optional(),
+      annotations: stringRecordSchema.optional(),
+    })
+    .optional(),
+  secretStores: sandboxSecretStoresConfigSchema.optional(),
+  modelCatalog: sandboxModelCatalogConfigSchema.optional(),
+  agent: sandboxAgentConfigSchema,
+  controller: sandboxControllerConfigSchema,
+  git: sandboxGitConfigSchema.optional(),
+  github: sandboxGithubConfigSchema.optional(),
+  tools: sandboxToolsConfigSchema.optional(),
+  skills: sandboxSkillsConfigSchema.optional(),
+  boot: sandboxBootConfigSchema.optional(),
+  security: sandboxSecurityConfigSchema.optional(),
+  storage: sandboxStorageConfigSchema.optional(),
+  resources: sandboxResourceConfigSchema.optional(),
+  observability: sandboxObservabilityConfigSchema.optional(),
+});
+
+export const sandboxConfigV1Schema = sandboxConfigV1BaseSchema.superRefine(
+  (config, context) => {
     const defaultStore = config.secretStores?.defaultStore;
     const stores = config.secretStores?.stores ?? {};
     if (defaultStore && !(defaultStore in stores)) {
@@ -585,7 +586,8 @@ export const sandboxConfigV1Schema = z
     validateModelReferences(config, context);
     validateCredentialToolGroups(config, context);
     validateNoRawSecretLikeValues(config, context);
-  });
+  },
+);
 export type SandboxConfigV1 = z.infer<typeof sandboxConfigV1Schema>;
 
 function containsKvRefWithoutStore(value: unknown): boolean {

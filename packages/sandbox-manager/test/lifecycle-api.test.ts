@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import type { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -31,7 +31,116 @@ const config = {
   },
 } as const;
 
+const configWithoutController = {
+  version: 1,
+  agent: { mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" } },
+} as const;
+
+describe("sandbox manager web ui serving and auth cookie", () => {
+  it("serves the SPA shell, sets a loopback auth cookie, and accepts it", async () => {
+    const storageDir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-web-"),
+    );
+    const webDist = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-dist-"),
+    );
+    await writeFile(
+      path.join(webDist, "index.html"),
+      "<!doctype html><title>nerve sandbox manager</title>",
+      "utf8",
+    );
+    const state = new ManagerState({
+      host: "127.0.0.1",
+      port: 0,
+      allowRemoteBind: false,
+      storageDir,
+      backend: "docker",
+      apiKey: "manager-secret-key",
+      serveWebUi: true,
+      webDist,
+    });
+    await state.init();
+    const server = createManagerServer(state);
+    await listen(server);
+    const address = server.address();
+    assert.equal(typeof address, "object");
+    try {
+      const page = await fetch(
+        `http://127.0.0.1:${address.port}/sandbox-manager`,
+      );
+      assert.equal(page.status, 200);
+      const setCookie = page.headers.get("set-cookie") ?? "";
+      assert.equal(setCookie.includes("nerve_sandbox_manager_auth="), true);
+      assert.equal(setCookie.includes("HttpOnly"), true);
+
+      // Root redirects to /sandbox-manager.
+      const redirect = await fetch(`http://127.0.0.1:${address.port}/`, {
+        redirect: "manual",
+      });
+      assert.equal(redirect.status, 302);
+      assert.equal(redirect.headers.get("location"), "/sandbox-manager");
+
+      // A browser-like request presenting the cookie is authorized.
+      const authed = await fetch(
+        `http://127.0.0.1:${address.port}/api/manager/status`,
+        {
+          headers: { cookie: "nerve_sandbox_manager_auth=manager-secret-key" },
+        },
+      );
+      assert.equal(authed.status, 200);
+
+      // Missing hashed asset returns 404, not the SPA shell.
+      const missing = await fetch(
+        `http://127.0.0.1:${address.port}/assets/missing.js`,
+      );
+      assert.equal(missing.status, 404);
+    } finally {
+      await closeServer(server);
+      await rm(storageDir, { recursive: true, force: true });
+      await rm(webDist, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("sandbox manager lifecycle api hardening", () => {
+  it("creates a sandbox when config.controller is omitted", async () => {
+    const storageDir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-nocontroller-"),
+    );
+    const state = new ManagerState({
+      host: "127.0.0.1",
+      port: 0,
+      allowRemoteBind: false,
+      storageDir,
+      backend: "docker",
+    });
+    await state.init();
+    const server = createManagerServer(state);
+    await listen(server);
+    const address = server.address();
+    assert.equal(typeof address, "object");
+    try {
+      const create = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes`,
+        {
+          method: "POST",
+          body: JSON.stringify({ config: configWithoutController }),
+        },
+      );
+      assert.equal(create.status, 201);
+      const record = (await create.json()).data as {
+        sandboxId: string;
+        controller: { token: string };
+      };
+      assert.equal(record.controller.token, "[REDACTED]");
+      const stored = await state.sandboxes.get(record.sandboxId);
+      assert.ok(stored?.controller?.token?.startsWith("ntok_"));
+    } finally {
+      await closeServer(server);
+      await rm(storageDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns manager runtime status without secret material", async () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-runtime-status-"),

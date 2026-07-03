@@ -301,3 +301,82 @@ A first implementation SHOULD verify:
 - Docker/Podman limitations are visible;
 - styling follows `packages/web/AGENTS.md` guardrails;
 - light and dark mode remain readable.
+
+## Implemented surface (v1)
+
+The first implementation ships the sandbox-manager UI as a separate top-level
+surface inside the existing `packages/web` bundle, served same-origin by
+`packages/sandbox-manager` at `/sandbox-manager`.
+
+### Selection and bootstrap
+
+- `packages/web/src/App.svelte` chooses the surface before any workbench
+  provider mounts. Sandbox mode is active when the path is `/sandbox-manager`
+  (or starts with `/sandbox-manager/`), or `?surface=sandbox-manager` is set.
+- The sandbox surface is loaded via dynamic `import()` so it forms its own
+  chunk and does not inflate the workbench bundle.
+- `SandboxManagerProvider.svelte` creates a runes `SandboxManagerStore`
+  (`state/sandbox-manager-state.svelte.ts`) and provides it via context. The
+  workbench `WorkbenchProvider`, websocket, desktop, and shortcuts are never
+  mounted in sandbox mode.
+
+### Clients
+
+- REST: `api/manager-client.ts` wraps same-origin `/api/*` calls and unwraps
+  `{ ok, data }`, validating status/snapshot/record responses with shared
+  schemas.
+- WebSocket: `api/manager-ws-client.svelte.ts` speaks the sandbox protocol
+  frame format on `/api/manager/ws`, sends the shared `ui` hello, maintains
+  per-stream cursors, requests replay on connect/gap, and coalesces acks.
+
+### State and reducers
+
+- `state/sandbox-event-reducers.ts`, `state/sandbox-snapshot-adapter.ts`, and
+  `state/sandbox-status.ts` are pure/testable modules covered by unit tests.
+- Manager lifecycle events refresh the fleet; sandbox-stream events update the
+  selected sandbox's detail state and chat timeline.
+
+### Views
+
+- Dashboard (summary cards, runtime availability, fleet list).
+- Fleet list with filters (all/running/degraded/failed/stopped) and search.
+- Detail tabs: Overview, Chat, Boot/setup, Runtime/logs, Secrets/config,
+  Events.
+- Create dialog with a form path and an advanced JSON config path (controller
+  is manager-owned and omitted).
+- Chat: durable transcript + live streaming deltas, tool-call cards, and
+  actionable input/approval wait cards; composer sends `sandbox.run.start` and
+  supports cancel.
+
+### Auth model
+
+When the manager is configured with an API key, the loopback static handler
+issues an `HttpOnly` `nerve_sandbox_manager_auth` cookie so the browser never
+stores the key in JavaScript. Remote deployments must front the manager with an
+external authenticated proxy.
+
+## Running the UI
+
+Dev (Vite against a running manager):
+
+```sh
+# terminal 1: sandbox manager
+NERVE_SANDBOX_MANAGER_MODE=development node packages/sandbox-manager/dist/main.js
+
+# terminal 2: web dev server proxied to the manager
+NERVE_API_TARGET=http://127.0.0.1:7869 pnpm --filter @nervekit/web dev
+# open http://127.0.0.1:5173/sandbox-manager
+```
+
+Production / static (manager serves the built web dist):
+
+```sh
+pnpm --filter @nervekit/web build
+NERVE_SANDBOX_MANAGER_WEB_DIST=packages/web/dist \
+  node packages/sandbox-manager/dist/main.js
+# open http://127.0.0.1:7869/sandbox-manager
+```
+
+Set `NERVE_SANDBOX_MANAGER_SERVE_WEB_UI=0` to disable static serving. The
+advanced create path accepts JSON (not YAML) in the first implementation to
+keep the web bundle dependency-free.

@@ -1,8 +1,15 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { ManagedSandboxRecord, SandboxConfigV1 } from "@nervekit/shared";
-import { sandboxConfigDigestStable } from "@nervekit/shared";
+import type {
+  ManagedSandboxRecord,
+  SandboxConfigV1,
+  SandboxCreateConfigInput,
+} from "@nervekit/shared";
+import {
+  sandboxConfigDigestStable,
+  sandboxConfigV1Schema,
+} from "@nervekit/shared";
 import type { ManagerState } from "../app/manager-state.js";
 import { materializeSandboxConfig } from "../config/materialize-sandbox-config.js";
 import {
@@ -13,7 +20,7 @@ import { VolumeManager } from "../storage/volume-manager.js";
 
 export async function createSandboxRecord(
   state: ManagerState,
-  config: SandboxConfigV1,
+  config: SandboxCreateConfigInput,
   image = "nerve-sandbox:dev",
   name?: string,
 ): Promise<ManagedSandboxRecord> {
@@ -37,13 +44,13 @@ export async function createSandboxRecord(
   const controllerUrl = `${managerWsBaseUrl(state)}/api/sandboxes/${encodeURIComponent(
     sandboxId,
   )}/ws`;
-  const materializedConfig: SandboxConfigV1 = {
+  const materializedConfig: SandboxConfigV1 = sandboxConfigV1Schema.parse({
     ...config,
     identity: { ...config.identity, sandboxId },
     controller: {
       ...config.controller,
       websocket: {
-        ...config.controller.websocket,
+        ...config.controller?.websocket,
         url: controllerUrl,
       },
       auth: {
@@ -53,7 +60,7 @@ export async function createSandboxRecord(
         scheme: "Bearer",
       },
     },
-  };
+  });
   await writeFile(
     configPath,
     materializeSandboxConfig(materializedConfig),

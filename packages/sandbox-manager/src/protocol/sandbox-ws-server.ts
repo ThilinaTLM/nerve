@@ -12,6 +12,7 @@ import {
   sandboxProtocolReadySchema,
   sandboxProtocolReplayRequestSchema,
   sandboxProtocolResponseSchema,
+  sandboxProtocolUiHelloSchema,
 } from "@nervekit/shared";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../app/manager-state.js";
@@ -144,7 +145,9 @@ export class SandboxWsServer {
     ws.once("message", (data) => {
       clearTimeout(helloTimer);
       try {
-        const hello = parseUiHello(data as Buffer);
+        const hello = sandboxProtocolUiHelloSchema.parse(
+          JSON.parse(String(data as Buffer)),
+        );
         sessionId = `ui_${randomUUID()}`;
         const capabilities = acceptedCapabilities(
           hello.capabilities,
@@ -520,39 +523,6 @@ function matchManagerUiWs(url: string): boolean {
   return /^\/api\/manager\/ws(?:\?|$)/.test(url);
 }
 
-function parseUiHello(data: Buffer): {
-  capabilities: string[];
-  resume?: { cursors?: Array<{ stream: string; processedSeq: number }> };
-} {
-  const value = JSON.parse(String(data)) as Record<string, unknown>;
-  if (value.type !== "hello") throw new Error("UI hello type is required");
-  if (value.role !== "ui") throw new Error("UI hello role must be ui");
-  if (!Array.isArray(value.capabilities))
-    throw new Error("UI hello capabilities are required");
-  const resume = isRecord(value.resume) ? value.resume : undefined;
-  return {
-    capabilities: value.capabilities.map(String),
-    resume: resume
-      ? {
-          cursors: Array.isArray(resume.cursors)
-            ? resume.cursors.flatMap((cursor) => {
-                if (!isRecord(cursor)) return [];
-                return typeof cursor.stream === "string" &&
-                  typeof cursor.processedSeq === "number"
-                  ? [
-                      {
-                        stream: cursor.stream,
-                        processedSeq: cursor.processedSeq,
-                      },
-                    ]
-                  : [];
-              })
-            : undefined,
-        }
-      : undefined,
-  };
-}
-
 function storeIdForUiStream(stream: string): string | undefined {
   if (stream === MANAGER_EVENT_STREAM) return MANAGER_EVENT_STORE_ID;
   if (stream.startsWith("sandbox:")) return stream.slice("sandbox:".length);
@@ -568,10 +538,6 @@ function toProtocolEventForStream(event: StoredSandboxEvent) {
     durability: event.durability ?? ("durable" as const),
     data: event.payload,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function extractToken(req: IncomingMessage): string | undefined {
