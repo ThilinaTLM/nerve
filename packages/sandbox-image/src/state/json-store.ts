@@ -1,6 +1,8 @@
 import { mkdir, open, readFile, rename } from "node:fs/promises";
 import path from "node:path";
 
+let atomicWriteCounter = 0;
+
 export async function atomicWriteFile(
   filePath: string,
   data: string | Buffer,
@@ -9,7 +11,7 @@ export async function atomicWriteFile(
   await mkdir(path.dirname(filePath), { recursive: true });
   const tmp = path.join(
     path.dirname(filePath),
-    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${++atomicWriteCounter}.tmp`,
   );
   const handle = await open(tmp, "w", mode);
   try {

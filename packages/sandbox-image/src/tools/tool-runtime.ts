@@ -7,8 +7,9 @@ import type {
 } from "@nervekit/tools";
 import { executeTool } from "@nervekit/tools";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
-import type { ToolCallStore } from "../agent/tool-call-store.js";
+import type { ToolCallScope, ToolCallStore } from "../agent/tool-call-store.js";
 import { Redactor } from "../security/redaction.js";
+import type { EventOutbox } from "../state/event-outbox.js";
 import { sandboxSha256Digest } from "../state/hash.js";
 import { JsonlStore } from "../state/jsonl-store.js";
 import type { ApprovalWaiter } from "./approval-waiter.js";
@@ -34,6 +35,18 @@ export type SandboxToolRuntimeOptions = {
   todoStore?: TodoStore;
   exploreRuntime?: ExploreRuntime;
   toolCallStore?: ToolCallStore;
+  events?: EventOutbox;
+  eventCommonData?: Record<string, unknown>;
+};
+
+type ActiveToolExecution = ToolCallScope & {
+  key: string;
+  toolCallId: string;
+  toolName: string;
+  abortController: AbortController;
+  latestStatus: "requested" | "started" | "completed" | "failed" | "cancelled";
+  lifecycleSeq: number;
+  cancel?: () => Promise<void> | void;
 };
 
 const toolToGroup: Record<string, string> = {
@@ -64,6 +77,7 @@ export class SandboxToolRuntime {
   private readonly records: JsonlStore<Record<string, unknown>>;
   private readonly redactor: Redactor;
   private readonly todoStore: TodoStore;
+  private readonly active = new Map<string, ActiveToolExecution>();
   constructor(
     private readonly config: SandboxConfigV1,
     private readonly options: SandboxToolRuntimeOptions = {
@@ -76,6 +90,10 @@ export class SandboxToolRuntime {
     );
     this.redactor = options.redactor ?? new Redactor({ secrets: [] });
     this.todoStore = options.todoStore ?? new TodoStore(options.stateDir);
+  }
+
+  setExploreRuntime(exploreRuntime: ExploreRuntime): void {
+    this.options.exploreRuntime = exploreRuntime;
   }
 
   groups() {
@@ -244,25 +262,64 @@ export class SandboxToolRuntime {
       }
     }
     if (isOrchestrationTool(tool)) {
-      const result = await this.executeOrchestrationTool(
-        tool,
-        args,
-        context,
-        toolCallId,
-      );
-      await this.record(
-        {
+      const tracked = tool.startsWith("task_") || tool === "explore";
+      const active = tracked
+        ? this.registerActive(tool, toolCallId, context, 1)
+        : undefined;
+      try {
+        const result = await this.executeOrchestrationTool(
+          tool,
+          args,
+          {
+            ...context,
+            signal: mergedSignal(
+              context.signal,
+              active?.abortController.signal,
+            ),
+          } as never,
           toolCallId,
-          toolName: tool,
-          status: "completed",
-          lifecycleSeq: 3,
-          result,
-        },
-        context,
-      );
-      return result;
+          active,
+        );
+        if (active?.latestStatus !== "cancelled") {
+          await this.record(
+            {
+              toolCallId,
+              toolName: tool,
+              status: "completed",
+              lifecycleSeq: 3,
+              result,
+            },
+            context,
+          );
+          if (active) {
+            active.latestStatus = "completed";
+            active.lifecycleSeq = 3;
+          }
+        }
+        return result;
+      } catch (error) {
+        if (active?.latestStatus === "cancelled") throw error;
+        await this.record(
+          {
+            toolCallId,
+            toolName: tool,
+            status: "failed",
+            lifecycleSeq: 3,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          context,
+        );
+        if (active) {
+          active.latestStatus = "failed";
+          active.lifecycleSeq = 3;
+        }
+        throw error;
+      } finally {
+        if (active) this.active.delete(active.key);
+      }
     }
     await enforceToolPolicy(tool, args, this.config, this.options);
+    const active = this.registerActive(tool, toolCallId, context, 1);
     await this.record(
       {
         toolCallId,
@@ -272,6 +329,8 @@ export class SandboxToolRuntime {
       },
       context,
     );
+    active.latestStatus = "started";
+    active.lifecycleSeq = 2;
     try {
       const result = await executeTool(
         tool as ToolName,
@@ -282,20 +341,26 @@ export class SandboxToolRuntime {
             this.options.dataDir ??
             path.join(this.options.stateDir, "tool-data"),
           ...context,
+          signal: mergedSignal(context.signal, active.abortController.signal),
         },
       );
-      await this.record(
-        {
-          toolCallId,
-          toolName: tool,
-          status: "completed",
-          lifecycleSeq: 3,
-          result,
-        },
-        context,
-      );
+      if (!isActiveCancelled(active)) {
+        await this.record(
+          {
+            toolCallId,
+            toolName: tool,
+            status: "completed",
+            lifecycleSeq: 3,
+            result,
+          },
+          context,
+        );
+        active.latestStatus = "completed";
+        active.lifecycleSeq = 3;
+      }
       return this.redactor.redact(result) as ToolExecutionResult;
     } catch (error) {
+      if (isActiveCancelled(active)) throw error;
       await this.record(
         {
           toolCallId,
@@ -306,7 +371,11 @@ export class SandboxToolRuntime {
         },
         context,
       );
+      active.latestStatus = "failed";
+      active.lifecycleSeq = 3;
       throw error;
+    } finally {
+      this.active.delete(active.key);
     }
   }
 
@@ -315,6 +384,7 @@ export class SandboxToolRuntime {
     args: Record<string, unknown>,
     context: Partial<ToolExecutionContext>,
     toolCallId: string,
+    active?: ActiveToolExecution,
   ): Promise<ToolExecutionResult> {
     const scope = {
       conversationId: scopeValue(context, "conversationId") ?? "conv_unknown",
@@ -374,16 +444,41 @@ export class SandboxToolRuntime {
     if (tool.startsWith("task_")) {
       if (!this.options.taskSupervisor)
         throw new Error("UNAVAILABLE: task supervisor is not configured");
-      return this.executeTaskTool(tool, args);
+      return this.executeTaskTool(tool, args, scope, toolCallId);
     }
     if (tool === "explore") {
-      if (!this.options.exploreRuntime)
+      const exploreRuntime = this.options.exploreRuntime;
+      if (!exploreRuntime)
         throw new Error("UNAVAILABLE: explore runtime is not configured");
-      const result = await this.options.exploreRuntime.execute({
+      if (active) active.cancel = () => exploreRuntime.cancelRun(scope);
+      if (Array.isArray(args.tasks)) {
+        const results = [];
+        for (const taskInput of args.tasks) {
+          const task = taskInput as { task?: unknown; label?: unknown };
+          results.push(
+            await exploreRuntime.execute({
+              ...scope,
+              task: String(task.task ?? ""),
+              context:
+                typeof args.context === "string" ? args.context : undefined,
+              label: typeof task.label === "string" ? task.label : undefined,
+              depth: typeof args.depth === "number" ? args.depth : undefined,
+              signal: (context as { signal?: AbortSignal }).signal,
+            }),
+          );
+        }
+        return {
+          content: results.map((result) => result.content).join("\n\n---\n\n"),
+          details: { children: results.map((result) => result.details) },
+        };
+      }
+      const result = await exploreRuntime.execute({
         ...scope,
         task: String(args.task ?? ""),
         context: typeof args.context === "string" ? args.context : undefined,
         label: typeof args.label === "string" ? args.label : undefined,
+        depth: typeof args.depth === "number" ? args.depth : undefined,
+        signal: (context as { signal?: AbortSignal }).signal,
       });
       return result;
     }
@@ -393,6 +488,8 @@ export class SandboxToolRuntime {
   private executeTaskTool(
     tool: string,
     args: Record<string, unknown>,
+    scope: { conversationId: string; agentId: string; runId: string },
+    toolCallId: string,
   ): ToolExecutionResult {
     const supervisor = this.options.taskSupervisor;
     if (!supervisor)
@@ -402,7 +499,11 @@ export class SandboxToolRuntime {
         String(args.command ?? ""),
         typeof args.cwd === "string" ? args.cwd : this.options.workspaceDir,
         typeof args.timeoutMs === "number" ? args.timeoutMs : undefined,
-        { name: typeof args.name === "string" ? args.name : undefined },
+        {
+          name: typeof args.name === "string" ? args.name : undefined,
+          ...scope,
+          toolCallId,
+        },
       );
       return { content: `Started ${task.id}`, details: { task } };
     }
@@ -442,6 +543,102 @@ export class SandboxToolRuntime {
     throw new Error(`Unsupported task tool: ${tool}`);
   }
 
+  async cancelRun(scope: ToolCallScope): Promise<void> {
+    const matching = Array.from(this.active.values()).filter(
+      (entry) =>
+        entry.conversationId === scope.conversationId &&
+        entry.agentId === scope.agentId &&
+        entry.runId === scope.runId,
+    );
+    for (const entry of matching) {
+      if (entry.latestStatus === "cancelled") continue;
+      entry.latestStatus = "cancelled";
+      entry.lifecycleSeq = Math.max(entry.lifecycleSeq + 1, 3);
+      entry.abortController.abort();
+      await entry.cancel?.();
+      await this.record(
+        {
+          toolCallId: entry.toolCallId,
+          toolName: entry.toolName,
+          status: "cancelled",
+          lifecycleSeq: entry.lifecycleSeq,
+        },
+        scope,
+      );
+      await this.options.events?.append({
+        type: "tool.call.cancelled",
+        durability: "durable",
+        conversationId: scope.conversationId,
+        agentId: scope.agentId,
+        runId: scope.runId,
+        data: {
+          ...(this.options.eventCommonData ?? {}),
+          ...scope,
+          toolCallId: entry.toolCallId,
+          toolName: entry.toolName,
+          status: "cancelled",
+          lifecycleSeq: entry.lifecycleSeq,
+          cancelledAt: new Date().toISOString(),
+        },
+      });
+    }
+    for (const task of (await this.options.taskSupervisor?.cancelRun(scope)) ??
+      []) {
+      if (!task.toolCallId) continue;
+      await this.record(
+        {
+          toolCallId: task.toolCallId,
+          toolName: "task_start",
+          status: "cancelled",
+          lifecycleSeq: 3,
+        },
+        scope,
+      );
+      await this.options.events?.append({
+        type: "tool.call.cancelled",
+        durability: "durable",
+        conversationId: scope.conversationId,
+        agentId: scope.agentId,
+        runId: scope.runId,
+        data: {
+          ...(this.options.eventCommonData ?? {}),
+          ...scope,
+          toolCallId: task.toolCallId,
+          toolName: "task_start",
+          status: "cancelled",
+          lifecycleSeq: 3,
+          taskId: task.id,
+          cancelledAt: new Date().toISOString(),
+        },
+      });
+    }
+  }
+
+  private registerActive(
+    toolName: string,
+    toolCallId: string,
+    context: Partial<ToolExecutionContext> & {
+      conversationId?: string;
+      agentId?: string;
+      runId?: string;
+    },
+    lifecycleSeq: number,
+  ): ActiveToolExecution {
+    const scope = toolScope(context);
+    const key = activeKey({ ...scope, toolCallId });
+    const active: ActiveToolExecution = {
+      ...scope,
+      key,
+      toolCallId,
+      toolName,
+      abortController: new AbortController(),
+      latestStatus: "requested",
+      lifecycleSeq,
+    };
+    this.active.set(key, active);
+    return active;
+  }
+
   private async record(
     entry: Record<string, unknown>,
     context?: Partial<ToolExecutionContext> & {
@@ -477,10 +674,27 @@ export class SandboxToolRuntime {
         entry.status === "completed" || entry.status === "failed"
           ? now
           : undefined,
+      cancelledAt: entry.status === "cancelled" ? now : undefined,
       result: entry.result,
       error: normalizeError(entry.error),
     });
   }
+}
+
+function isActiveCancelled(active: ActiveToolExecution): boolean {
+  return active.latestStatus === "cancelled";
+}
+
+function activeKey(scope: ToolCallScope & { toolCallId: string }): string {
+  return `${scope.conversationId}/${scope.agentId}/${scope.runId}/${scope.toolCallId}`;
+}
+
+function mergedSignal(
+  outer?: AbortSignal,
+  inner?: AbortSignal,
+): AbortSignal | undefined {
+  if (outer && inner) return AbortSignal.any([outer, inner]);
+  return inner ?? outer;
 }
 
 function toolScope(

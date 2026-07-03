@@ -5,6 +5,8 @@ import type {
   StartupSetupStatus,
 } from "@nervekit/shared";
 import { SandboxAgentRuntime } from "../agent/agent-runtime.js";
+import { ExploreRuntime } from "../agent/explore-runtime.js";
+
 import { HarnessEventBridge } from "../agent/harness-event-bridge.js";
 import { HarnessFactory } from "../agent/harness-factory.js";
 import { RunManager } from "../agent/run-manager.js";
@@ -16,6 +18,8 @@ import { ArtifactStore } from "../state/artifacts.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
 import { ApprovalWaiter } from "../tools/approval-waiter.js";
 import { InputWaiter } from "../tools/input-waiter.js";
+import { TaskSupervisor } from "../tools/task-supervisor.js";
+
 import { SandboxToolRuntime } from "../tools/tool-runtime.js";
 import { SandboxCommandRouter } from "./command-router.js";
 import { DaemonStatusMachine } from "./daemon-status.js";
@@ -44,6 +48,10 @@ export class SandboxDaemon {
   private readonly inputWaiter?: InputWaiter;
   private readonly approvalWaiter?: ApprovalWaiter;
   private readonly agentRuntime?: SandboxAgentRuntime;
+  private readonly taskSupervisor?: TaskSupervisor;
+  private readonly toolRuntime?: SandboxToolRuntime;
+  private readonly exploreRuntime?: ExploreRuntime;
+  private readonly ready: Promise<void>;
   constructor(
     private readonly config: SandboxConfigV1,
     private readonly configDigest: string,
@@ -68,26 +76,60 @@ export class SandboxDaemon {
     this.approvalWaiter = state
       ? new ApprovalWaiter(state.stateDir)
       : undefined;
-    void this.inputWaiter?.load();
-    void this.approvalWaiter?.load();
+    const loadPromises: Array<Promise<unknown>> = [];
+    if (this.inputWaiter) loadPromises.push(this.inputWaiter.load());
+    if (this.approvalWaiter) loadPromises.push(this.approvalWaiter.load());
+    if (state) {
+      const taskConfig = config.tools?.groups?.taskManagement;
+      this.taskSupervisor = new TaskSupervisor({
+        stateDir: state.stateDir,
+        maxTasks: taskConfig?.maxTasks,
+        maxTaskRuntimeMs: taskConfig?.maxTaskRuntimeMs,
+      });
+      loadPromises.push(this.taskSupervisor.load());
+    }
     if (state && this.runs) {
-      const toolRuntime = new SandboxToolRuntime(config, {
-        workspaceDir:
-          recovered.workspaceDir ?? config.agent.workspaceRoot ?? process.cwd(),
+      const workspaceDir =
+        recovered.workspaceDir ?? config.agent.workspaceRoot ?? process.cwd();
+      const eventCommonData = {
+        instanceId,
+        configDigest,
+        sandboxId: config.identity?.sandboxId,
+      };
+      const readOnlyToolRuntime = new SandboxToolRuntime(config, {
+        workspaceDir,
+        stateDir: state.stateDir,
+        readOnly: true,
+        toolCallStore: this.runs.toolCallStore(),
+        events: state.events,
+        eventCommonData,
+      });
+      this.toolRuntime = new SandboxToolRuntime(config, {
+        workspaceDir,
         stateDir: state.stateDir,
         approvalWaiter: this.approvalWaiter,
         inputWaiter: this.inputWaiter,
+        taskSupervisor: this.taskSupervisor,
         toolCallStore: this.runs.toolCallStore(),
+        events: state.events,
+        eventCommonData,
       });
       const factory = new HarnessFactory(config, {
-        workspaceDir:
-          recovered.workspaceDir ?? config.agent.workspaceRoot ?? process.cwd(),
+        workspaceDir,
         stateDir: state.stateDir,
-        toolRuntime,
+        toolRuntime: this.toolRuntime,
         secretResolver: recovered.secretResolver,
         skills: recovered.skills,
         contextFiles: recovered.contextFiles,
       });
+      this.exploreRuntime = new ExploreRuntime({
+        config,
+        stateDir: state.stateDir,
+        readOnlyToolRuntime,
+        createChildHarness: (scope, options) => factory.create(scope, options),
+      });
+      readOnlyToolRuntime.setExploreRuntime(this.exploreRuntime);
+      this.toolRuntime.setExploreRuntime(this.exploreRuntime);
       const bridge = new HarnessEventBridge(
         state.events,
         this.runs,
@@ -108,9 +150,12 @@ export class SandboxDaemon {
         bridge,
         inputWaiter: this.inputWaiter,
         approvalWaiter: this.approvalWaiter,
+        toolRuntime: this.toolRuntime,
+        exploreRuntime: this.exploreRuntime,
       });
-      void this.agentRuntime.recoverActiveRuns();
+      loadPromises.push(this.agentRuntime.recoverActiveRuns());
     }
+    this.ready = Promise.all(loadPromises).then(() => undefined);
     this.registerBuiltins();
   }
   start(): void {
@@ -118,6 +163,7 @@ export class SandboxDaemon {
   }
   private registerBuiltins(): void {
     this.router.register("sandbox.status.get", async () => {
+      await this.ready;
       const runs = (await this.runs?.list()) ?? [];
       const ack = await this.state?.events.ackState();
       const modelSummaries = this.modelSummaries();
@@ -136,17 +182,18 @@ export class SandboxDaemon {
         updatedAt: new Date().toISOString(),
         setup: this.recovered.setup,
         skills: this.recovered.skills,
-        toolGroups: [],
+        toolGroups: this.toolRuntime?.groups() ?? [],
         models: modelSummaries,
         cursors: ack,
         connectivity: { state: "connected", connectedAt: this.startedAt },
         conversations: summarizeConversations(runs),
         agents: summarizeAgents(runs, modelSummaries[0]),
-        runs: await summarizeRuns(runs, waits, this.runs),
+        runs: await summarizeRuns(runs, waits, this.runs, this.state?.stateDir),
       };
     });
-    this.router.register("sandbox.snapshot.get", async () =>
-      buildSandboxSnapshot({
+    this.router.register("sandbox.snapshot.get", async () => {
+      await this.ready;
+      return buildSandboxSnapshot({
         config: this.config,
         configDigest: this.configDigest,
         instanceId: this.instanceId,
@@ -167,13 +214,15 @@ export class SandboxDaemon {
             ...(this.approvalWaiter?.list() ?? []),
           ],
           this.runs,
+          this.state?.stateDir,
         ),
-        toolGroups: [],
+        toolGroups: this.toolRuntime?.groups() ?? [],
         setup: this.recovered.setup,
         models: this.modelSummaries(),
-      }),
-    );
+      });
+    });
     this.router.register("sandbox.run.start", async (params) => {
+      await this.ready;
       const parsed = params as {
         prompt?: string;
         behavior?: "start" | "follow_up" | "steer";
@@ -269,6 +318,7 @@ export class SandboxDaemon {
       return result;
     });
     this.router.register("sandbox.run.continue", async (params) => {
+      await this.ready;
       const accepted = await this.acceptCommand("sandbox.run.continue", params);
       if (accepted.result) return accepted.result.result;
       try {
@@ -294,6 +344,7 @@ export class SandboxDaemon {
       return result;
     });
     this.router.register("sandbox.run.cancel", async (params) => {
+      await this.ready;
       const input = params as {
         conversationId: string;
         agentId: string;
@@ -329,6 +380,7 @@ export class SandboxDaemon {
       return result;
     });
     this.router.register("sandbox.input.submit", async (params) => {
+      await this.ready;
       const input = params as {
         commandId?: string;
         conversationId?: string;
@@ -397,6 +449,7 @@ export class SandboxDaemon {
       return result;
     });
     this.router.register("sandbox.approval.resolve", async (params) => {
+      await this.ready;
       const input = params as {
         commandId?: string;
         conversationId?: string;

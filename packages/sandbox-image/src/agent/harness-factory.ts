@@ -48,6 +48,14 @@ export type SandboxHarnessRunScope = {
   runId: string;
   executionId: string;
 };
+export type HarnessCreateOptions = {
+  modelSelection?: SandboxConfigV1["agent"]["mainModel"];
+  systemPromptAmendment?: string;
+  activeToolNames?: string[];
+  toolRuntime?: SandboxToolRuntime;
+  followUpMode?: "one-at-a-time";
+  steeringMode?: "one-at-a-time";
+};
 
 export class HarnessFactory {
   private readonly redactor: Redactor;
@@ -84,8 +92,11 @@ export class HarnessFactory {
     return new Conversation(storage);
   }
 
-  async create(scope: SandboxHarnessRunScope): Promise<AgentHarness> {
-    const selection = this.config.agent.mainModel;
+  async create(
+    scope: SandboxHarnessRunScope,
+    options: HarnessCreateOptions = {},
+  ): Promise<AgentHarness> {
+    const selection = options.modelSelection ?? this.config.agent.mainModel;
     const customModels = this.customModels();
     const model = resolveAgentModel(
       { provider: selection.provider, modelId: selection.model },
@@ -101,27 +112,36 @@ export class HarnessFactory {
       scope.conversationId,
       scope.agentId,
     );
-    const tools = this.buildTools(scope);
+    const tools = this.buildTools(scope, options);
     return new AgentHarness({
       env,
       conversation,
       model,
       thinkingLevel,
       tools,
-      activeToolNames: tools.map((tool) => tool.name),
+      activeToolNames:
+        options.activeToolNames ?? tools.map((tool) => tool.name),
       resources: { skills: this.skills() },
-      systemPrompt: () => this.systemPrompt(tools),
+      systemPrompt: () =>
+        this.systemPrompt(tools, options.systemPromptAmendment),
       getApiKeyAndHeaders: async (requestModel) =>
         this.getApiKeyAndHeaders(requestModel.provider),
-      followUpMode: "one-at-a-time",
-      steeringMode: "one-at-a-time",
+      followUpMode: options.followUpMode ?? "one-at-a-time",
+      steeringMode: options.steeringMode ?? "one-at-a-time",
     });
   }
 
-  describe(conversationId: string, agentId: string): SandboxHarnessDescriptor {
+  describe(
+    conversationId: string,
+    agentId: string,
+    options: Pick<
+      HarnessCreateOptions,
+      "modelSelection" | "toolRuntime" | "activeToolNames"
+    > = {},
+  ): SandboxHarnessDescriptor {
     const model = resolveModelSelection(
       this.config,
-      this.config.agent.mainModel,
+      options.modelSelection ?? this.config.agent.mainModel,
     );
     const provider = this.providerConfig(model.provider);
     const needsCredential = providerNeedsCredential(model.provider);
@@ -142,12 +162,15 @@ export class HarnessFactory {
             : []),
         ].filter(Boolean),
       },
-      tools: this.activeToolNames(),
+      tools: this.activeToolNames(options),
     };
   }
 
-  async assertModelAvailable(): Promise<void> {
-    const provider = this.providerConfig(this.config.agent.mainModel.provider);
+  async assertModelAvailable(
+    selection: SandboxConfigV1["agent"]["mainModel"] = this.config.agent
+      .mainModel,
+  ): Promise<void> {
+    const provider = this.providerConfig(selection.provider);
     if (provider?.credential && this.options.secretResolver) {
       await resolveProviderCredential(
         provider.credential,
@@ -155,10 +178,7 @@ export class HarnessFactory {
       );
       return;
     }
-    if (
-      providerNeedsCredential(this.config.agent.mainModel.provider) &&
-      !provider?.credential
-    ) {
+    if (providerNeedsCredential(selection.provider) && !provider?.credential) {
       throw new Error("UNAVAILABLE: selected model provider has no credential");
     }
   }
@@ -220,10 +240,13 @@ export class HarnessFactory {
     return Object.keys(headers).length ? { apiKey: "", headers } : undefined;
   }
 
-  private buildTools(scope: SandboxHarnessRunScope): AgentTool[] {
-    const toolRuntime = this.options.toolRuntime;
+  private buildTools(
+    scope: SandboxHarnessRunScope,
+    options: Pick<HarnessCreateOptions, "toolRuntime" | "activeToolNames"> = {},
+  ): AgentTool[] {
+    const toolRuntime = options.toolRuntime ?? this.options.toolRuntime;
     if (!toolRuntime) return [];
-    const active = new Set(this.activeToolNames());
+    const active = new Set(this.activeToolNames(options));
     return allToolDefinitions
       .filter((definition) => active.has(definition.name))
       .map((definition) => ({
@@ -264,9 +287,13 @@ export class HarnessFactory {
       }));
   }
 
-  private activeToolNames(): string[] {
-    return this.options.toolRuntime
-      ? this.options.toolRuntime
+  private activeToolNames(
+    options: Pick<HarnessCreateOptions, "toolRuntime" | "activeToolNames"> = {},
+  ): string[] {
+    if (options.activeToolNames) return options.activeToolNames;
+    const toolRuntime = options.toolRuntime ?? this.options.toolRuntime;
+    return toolRuntime
+      ? toolRuntime
           .groups()
           .flatMap((group) => (group.active ? group.tools : []))
       : [];
@@ -283,7 +310,7 @@ export class HarnessFactory {
       }));
   }
 
-  private systemPrompt(tools: AgentTool[]): string {
+  private systemPrompt(tools: AgentTool[], amendment?: string): string {
     const contextFiles = (this.options.contextFiles ?? [])
       .map(
         (file) =>
@@ -304,6 +331,7 @@ export class HarnessFactory {
         : "No sandbox tools are active.",
       contextFiles ? `Loaded context summaries:\n${contextFiles}` : undefined,
       skillsPrompt || undefined,
+      amendment,
       this.config.agent.systemPromptAmendment,
     ]
       .filter(Boolean)
@@ -312,7 +340,13 @@ export class HarnessFactory {
 }
 
 function providerNeedsCredential(provider: string): boolean {
-  return !["ollama", "nerve-faux", "nerve-scripted"].includes(provider);
+  return !(
+    provider === "ollama" ||
+    provider === "nerve-faux" ||
+    provider.startsWith("nerve-faux-") ||
+    provider === "nerve-scripted" ||
+    provider.startsWith("nerve-scripted-")
+  );
 }
 
 async function exists(filePath: string): Promise<boolean> {

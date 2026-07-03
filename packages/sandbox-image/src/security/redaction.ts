@@ -43,9 +43,10 @@ export function redactValue(
     return value.map((entry) => redactValue(entry, redactor));
   const result: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    result[key] = sensitiveKeyPattern.test(key)
-      ? "[REDACTED]"
-      : redactValue(entry, redactor);
+    result[key] =
+      sensitiveKeyPattern.test(key) && key !== "credentialType"
+        ? "[REDACTED]"
+        : redactValue(entry, redactor);
   }
   return result;
 }

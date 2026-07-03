@@ -8,6 +8,10 @@ export type SupervisedTask = {
   name?: string;
   command: string;
   cwd?: string;
+  conversationId?: string;
+  agentId?: string;
+  runId?: string;
+  toolCallId?: string;
   startedAt: string;
   completedAt?: string;
   status: "running" | "completed" | "failed" | "cancelled" | "orphaned";
@@ -15,6 +19,13 @@ export type SupervisedTask = {
   logs: string;
   truncated?: boolean;
   maxRuntimeMs?: number;
+};
+
+export type TaskScope = {
+  conversationId?: string;
+  agentId?: string;
+  runId?: string;
+  toolCallId?: string;
 };
 
 export type TaskSupervisorOptions = {
@@ -84,7 +95,7 @@ export class TaskSupervisor {
     command: string,
     cwd = "/workspace",
     timeoutMs?: number,
-    options: { name?: string } = {},
+    options: { name?: string } & TaskScope = {},
   ): SupervisedTask {
     const active = Array.from(this.tasks.values()).filter(
       (task) => task.status === "running",
@@ -99,6 +110,10 @@ export class TaskSupervisor {
       name: options.name,
       command,
       cwd,
+      conversationId: options.conversationId,
+      agentId: options.agentId,
+      runId: options.runId,
+      toolCallId: options.toolCallId,
       startedAt: new Date().toISOString(),
       status: "running",
       logs: "",
@@ -152,6 +167,29 @@ export class TaskSupervisor {
     void this.persist(task);
     return task;
   }
+
+  async cancelRun(
+    scope: { conversationId: string; agentId: string; runId: string },
+    signal: NodeJS.Signals = "SIGTERM",
+  ): Promise<SupervisedTask[]> {
+    const cancelled: SupervisedTask[] = [];
+    for (const task of this.tasks.values()) {
+      if (
+        task.status === "running" &&
+        task.conversationId === scope.conversationId &&
+        task.agentId === scope.agentId &&
+        task.runId === scope.runId
+      ) {
+        const next = this.cancel(task.id, signal);
+        if (next) {
+          await this.persist(next);
+          cancelled.push(next);
+        }
+      }
+    }
+    return cancelled;
+  }
+
   restart(
     id: string,
     cwd?: string,
@@ -163,7 +201,13 @@ export class TaskSupervisor {
       task.command,
       cwd ?? task.cwd ?? "/workspace",
       timeoutMs ?? task.maxRuntimeMs,
-      { name: task.name },
+      {
+        name: task.name,
+        conversationId: task.conversationId,
+        agentId: task.agentId,
+        runId: task.runId,
+        toolCallId: task.toolCallId,
+      },
     );
   }
   list(): SupervisedTask[] {

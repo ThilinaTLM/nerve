@@ -3,6 +3,9 @@ import type { SandboxConfigV1 } from "@nervekit/shared";
 import { resolveModelSelection } from "../models/model-catalog.js";
 import type { ApprovalWaiter } from "../tools/approval-waiter.js";
 import type { InputWaiter } from "../tools/input-waiter.js";
+import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
+import type { ExploreRuntime } from "./explore-runtime.js";
+
 import type { HarnessEventBridge } from "./harness-event-bridge.js";
 import type { HarnessFactory } from "./harness-factory.js";
 import type { RunManager, RunScope } from "./run-manager.js";
@@ -14,6 +17,8 @@ export type SandboxAgentRuntimeOptions = {
   bridge?: HarnessEventBridge;
   inputWaiter?: InputWaiter;
   approvalWaiter?: ApprovalWaiter;
+  toolRuntime?: SandboxToolRuntime;
+  exploreRuntime?: ExploreRuntime;
 };
 
 type ActiveHarnessRun = {
@@ -25,6 +30,7 @@ type ActiveHarnessRun = {
   harness?: AgentHarness;
   abortController: AbortController;
   promise: Promise<void>;
+  cancelling?: boolean;
 };
 
 export class SandboxAgentRuntime {
@@ -125,11 +131,14 @@ export class SandboxAgentRuntime {
 
   async cancelRun(scope: RunScope & { reason?: string }): Promise<RunState> {
     const active = this.active.get(key(scope));
+    if (active) active.cancelling = true;
+    if (!this.options.runs)
+      throw new Error("UNAVAILABLE: run manager is not configured");
+    await this.options.toolRuntime?.cancelRun(scope);
+    await this.options.exploreRuntime?.cancelRun(scope);
     active?.abortController.abort();
     await active?.harness?.abort().catch(() => undefined);
     this.active.delete(key(scope));
-    if (!this.options.runs)
-      throw new Error("UNAVAILABLE: run manager is not configured");
     await this.options.inputWaiter?.cancelRun(scope);
     await this.options.approvalWaiter?.cancelRun(scope);
     return this.options.runs.cancel({
@@ -216,8 +225,7 @@ export class SandboxAgentRuntime {
           await this.options.bridge?.handleSuspension(scope, pendingSuspension);
           return;
         }
-        if (active.abortController.signal.aborted) {
-          await runs.cancel(scope);
+        if (active.abortController.signal.aborted || active.cancelling) {
           return;
         }
         await runs.markFailed(scope, normalizeError(error), true);
