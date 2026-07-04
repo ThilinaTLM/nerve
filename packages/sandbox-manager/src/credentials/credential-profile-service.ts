@@ -90,6 +90,8 @@ export class CredentialProfileService {
       email: request.email,
       headers: request.headers,
       compat: request.compat,
+      providerOptions: request.providerOptions,
+      env: request.env,
       authType: authTypeForRequest(request),
       status: statusForRequest(request, configured),
       expiresAt,

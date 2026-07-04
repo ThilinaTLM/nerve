@@ -12,6 +12,7 @@ export function cloneStreamOptions(
     metadata: streamOptions?.metadata
       ? { ...streamOptions.metadata }
       : undefined,
+    env: streamOptions?.env ? { ...streamOptions.env } : undefined,
   };
 }
 
@@ -66,6 +67,19 @@ export function applyStreamOptionsPatch(
         else metadata[key] = value;
       }
       result.metadata = Object.keys(metadata).length > 0 ? metadata : undefined;
+    }
+  }
+
+  if (Object.hasOwn(patch, "env")) {
+    if (patch.env === undefined) {
+      result.env = undefined;
+    } else {
+      const env = { ...(result.env ?? {}) };
+      for (const [key, value] of Object.entries(patch.env)) {
+        if (value === undefined) delete env[key];
+        else env[key] = value;
+      }
+      result.env = Object.keys(env).length > 0 ? env : undefined;
     }
   }
 

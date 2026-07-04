@@ -41,7 +41,7 @@ packages/shared/              # transport-neutral protocol/schema types only
 packages/sandbox-manager/     # manager API/service; serves the built UI when enabled
 ```
 
-The sandbox-manager UI is always the sandbox manager app. `/sandbox-manager` is a server/deployment path handled by `packages/sandbox-manager`, not a runtime surface switch inside `packages/web`.
+The sandbox-manager UI is always the sandbox manager app. `/` is the server/deployment landing path handled by `packages/sandbox-manager`, and `/settings` is the dedicated configuration route; neither is a runtime surface switch inside `packages/web`.
 
 ## Manager connection model
 
@@ -287,9 +287,13 @@ A first implementation SHOULD verify:
 
 The implementation ships as `packages/sandbox-manager-ui`, a dedicated Svelte
 app built independently from the local workbench. `packages/sandbox-manager`
-serves it same-origin at `/sandbox-manager` from, in order: an explicit
+serves it same-origin at `/` from, in order: an explicit
 `NERVE_SANDBOX_MANAGER_WEB_DIST`, bundled `packages/sandbox-manager/dist/web`,
-or workspace `packages/sandbox-manager-ui/dist`.
+or workspace `packages/sandbox-manager-ui/dist`. The top-level `/settings`
+route manages all LLM providers exposed by the installed `@earendil-works/pi-ai`
+package, including subscription/OAuth providers, API-key providers, provider
+`env`/endpoint overrides, Git/GitHub, Jira, Confluence, and web-search
+credential profiles.
 
 ### Bootstrap
 

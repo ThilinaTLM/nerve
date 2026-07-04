@@ -5,7 +5,6 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ManagerState } from "./manager-state.js";
 
-const UI_BASE_PATH = "/sandbox-manager";
 const AUTH_COOKIE_NAME = "nerve_sandbox_manager_auth";
 
 const contentTypes: Record<string, string> = {
@@ -44,12 +43,6 @@ export async function maybeServeManagerWeb(
 
   const webDist = resolveManagerWebDist(state);
   if (!webDist) return false;
-
-  if (pathname === "/") {
-    res.writeHead(302, { location: UI_BASE_PATH });
-    res.end();
-    return true;
-  }
 
   const requestedPath = pathname;
   const normalizedPath = resolve(webDist, `.${requestedPath}`);

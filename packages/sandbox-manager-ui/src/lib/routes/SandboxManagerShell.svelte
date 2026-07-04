@@ -1,21 +1,32 @@
 <script lang="ts">
-  import { Boxes, KeyRound, PanelLeft, Plus, RefreshCw } from "@lucide/svelte";
+  import { Boxes, PanelLeft, Plus, RefreshCw, Settings2 } from "@lucide/svelte";
   import { Badge } from "@nervekit/ui/components/ui/badge";
   import { Button } from "@nervekit/ui/components/ui/button";
   import * as Sheet from "@nervekit/ui/components/ui/sheet";
   import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import type { StatusTone } from "@nervekit/ui/components/ui/status-dot";
   import CreateSandboxDialog from "../components/create/CreateSandboxDialog.svelte";
-  import CredentialsManagerDialog from "../components/credentials/CredentialsManagerDialog.svelte";
   import RuntimeBackendBadge from "../components/RuntimeBackendBadge.svelte";
   import SandboxFleetList from "../components/SandboxFleetList.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import SandboxDashboard from "./SandboxDashboard.svelte";
   import SandboxDetail from "./SandboxDetail.svelte";
+  import SandboxSettings from "./SandboxSettings.svelte";
+  import { SandboxManagerRouteState } from "./route-state.svelte";
+  import { onDestroy, onMount } from "svelte";
 
   const store = useSandboxManagerStore();
+  const route = new SandboxManagerRouteState();
   let sheetOpen = $state(false);
-  let credentialsOpen = $state(false);
+  let stopRouteListener: (() => void) | undefined;
+
+  onMount(() => {
+    stopRouteListener = route.listen();
+  });
+
+  onDestroy(() => {
+    stopRouteListener?.();
+  });
 
   const connectionTone = $derived<StatusTone>(
     store.connection === "live"
@@ -70,34 +81,46 @@
       {/if}
     {/if}
     <div class="ml-auto flex items-center gap-2">
-      <Button variant="ghost" size="sm" onclick={() => (credentialsOpen = true)}>
-        <KeyRound class="size-4" /> Credentials
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onclick={() => void store.refreshFleet()}
-      >
-        <RefreshCw class="size-4" /> Refresh
-      </Button>
-      <Button size="sm" onclick={() => (store.createDialogOpen = true)}>
-        <Plus class="size-4" /> New sandbox
-      </Button>
+      {#if route.route === "/settings"}
+        <Button variant="ghost" size="sm" onclick={() => route.navigate("/")}>
+          <Boxes class="size-4" /> Fleet
+        </Button>
+      {:else}
+        <Button variant="ghost" size="sm" onclick={() => route.navigate("/settings")}>
+          <Settings2 class="size-4" /> Settings
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onclick={() => void store.refreshFleet()}
+        >
+          <RefreshCw class="size-4" /> Refresh
+        </Button>
+        <Button size="sm" onclick={() => (store.createDialogOpen = true)}>
+          <Plus class="size-4" /> New sandbox
+        </Button>
+      {/if}
     </div>
   </header>
 
-  <div class="flex min-h-0 flex-1">
-    <aside class="hidden w-80 flex-none border-r md:flex">
-      <SandboxFleetList />
-    </aside>
-    <main class="min-w-0 flex-1 overflow-hidden">
-      {#if selected}
-        <SandboxDetail record={selected} />
-      {:else}
-        <SandboxDashboard />
-      {/if}
+  {#if route.route === "/settings"}
+    <main class="min-h-0 flex-1 overflow-hidden">
+      <SandboxSettings />
     </main>
-  </div>
+  {:else}
+    <div class="flex min-h-0 flex-1">
+      <aside class="hidden w-80 flex-none border-r md:flex">
+        <SandboxFleetList />
+      </aside>
+      <main class="min-w-0 flex-1 overflow-hidden">
+        {#if selected}
+          <SandboxDetail record={selected} />
+        {:else}
+          <SandboxDashboard />
+        {/if}
+      </main>
+    </div>
+  {/if}
 </div>
 
 <Sheet.Root bind:open={sheetOpen}>
@@ -106,5 +129,4 @@
   </Sheet.Content>
 </Sheet.Root>
 
-<CredentialsManagerDialog bind:open={credentialsOpen} />
 <CreateSandboxDialog bind:open={store.createDialogOpen} />

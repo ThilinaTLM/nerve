@@ -69,6 +69,10 @@ function applyModelProviderProfile(
     ...(profile.baseUrl ? { baseUrl: profile.baseUrl } : {}),
     ...(profile.headers ? { headers: profile.headers } : {}),
     ...(profile.compat ? { compat: profile.compat } : {}),
+    ...(profile.providerOptions
+      ? { providerOptions: profile.providerOptions }
+      : {}),
+    ...(profile.env ? { env: profile.env } : {}),
     ...(profile.credential ? { credential: profile.credential } : {}),
   };
   if (existing) Object.assign(existing, providerConfig);

@@ -3,7 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import type { ManagedContainerCreateSpec } from "@nervekit/shared";
+import type {
+  ManagedContainerCreateSpec,
+  SandboxManagerCredentialProfile,
+} from "@nervekit/shared";
+import { applyCredentialProfiles } from "../src/config/apply-credential-profiles.js";
 import { containerCreateArgs } from "../src/drivers/container-args.js";
 import { validateManagedContainerCreateSpec } from "../src/drivers/validation.js";
 import { SandboxEventIngestor } from "../src/events/sandbox-event-ingestor.js";
@@ -48,6 +52,52 @@ describe("sandbox manager driver and event foundations", () => {
         (error) => error.includes("prohibited"),
       ),
     );
+  });
+
+  it("applies pi-ai provider env and credentials to model catalog", () => {
+    const now = new Date().toISOString();
+    const profile: SandboxManagerCredentialProfile = {
+      profileId: "cred_1",
+      kind: "model_provider",
+      providerKind: "cloudflare_ai_gateway_api_key",
+      displayName: "Cloudflare AI Gateway",
+      provider: "cloudflare-ai-gateway",
+      baseUrl:
+        "https://gateway.ai.cloudflare.com/v1/account-id/gateway-id/anthropic",
+      env: {
+        CLOUDFLARE_ACCOUNT_ID: "account-id",
+        CLOUDFLARE_GATEWAY_ID: "gateway-id",
+      },
+      authType: "api_key",
+      status: "configured",
+      secretRefs: [{ purpose: "api-key", configured: true }],
+      credential: {
+        type: "api_key",
+        apiKey: { kv: { key: "credentials/cred_1/api-key" } },
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const config = applyCredentialProfiles(
+      {
+        version: 1,
+        agent: {
+          mainModel: {
+            provider: "cloudflare-ai-gateway",
+            model: "claude-sonnet-4-5",
+          },
+        },
+      },
+      [profile],
+      { sandboxId: "sbx_1", managerHttpBaseUrl: "http://manager" },
+    );
+
+    const provider = config.modelCatalog?.providers?.[0];
+    assert.equal(provider?.id, "cloudflare-ai-gateway");
+    assert.equal(provider?.env?.CLOUDFLARE_ACCOUNT_ID, "account-id");
+    assert.equal(provider?.credential?.type, "api_key");
+    assert.equal(provider?.baseUrl, profile.baseUrl);
   });
 
   it("deduplicates replayed sandbox events", async () => {

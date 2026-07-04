@@ -189,6 +189,11 @@ export class SandboxManagerStore {
     await this.refreshCredentials();
   }
 
+  async refreshCredentialProfile(profileId: string): Promise<void> {
+    await api.refreshCredentialProfile(profileId);
+    await this.refreshCredentials();
+  }
+
   async createSandbox(request: SandboxCreateRequest): Promise<string> {
     const record = await this.runOperation(
       "create",

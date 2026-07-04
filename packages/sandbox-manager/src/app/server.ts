@@ -107,6 +107,11 @@ async function handle(
           supportsApiKey: false,
         },
         { provider: "openai", supportsOAuth: false, supportsApiKey: true },
+        {
+          provider: "github-copilot",
+          supportsOAuth: true,
+          supportsApiKey: false,
+        },
         { provider: "github", supportsOAuth: true, supportsApiKey: true },
         { provider: "jira", supportsOAuth: true, supportsApiKey: true },
         { provider: "confluence", supportsOAuth: true, supportsApiKey: true },

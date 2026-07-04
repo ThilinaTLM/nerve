@@ -208,36 +208,45 @@ export class HarnessFactory {
       (provider) => provider.id === providerId,
     );
   }
-
-  private async getApiKeyAndHeaders(
-    providerId: string,
-  ): Promise<{ apiKey: string; headers?: Record<string, string> } | undefined> {
+  private async getApiKeyAndHeaders(providerId: string): Promise<
+    | {
+        apiKey: string;
+        headers?: Record<string, string>;
+        env?: Record<string, string>;
+      }
+    | undefined
+  > {
     const provider = this.providerConfig(providerId);
     const headers = { ...(provider?.headers ?? {}) };
+    const env = provider?.env ? { ...provider.env } : undefined;
     if (!provider?.credential)
-      return Object.keys(headers).length ? { apiKey: "", headers } : undefined;
+      return Object.keys(headers).length || env
+        ? { apiKey: "", headers, env }
+        : undefined;
     if (!this.options.secretResolver)
       throw new Error("UNAVAILABLE: secret resolver is not configured");
     const resolved = await resolveProviderCredential(
       provider.credential,
       this.options.secretResolver,
     );
-    if (resolved.apiKey) return { apiKey: resolved.apiKey, headers };
+    if (resolved.apiKey) return { apiKey: resolved.apiKey, headers, env };
     if (resolved.bearerToken) {
       headers.authorization = `Bearer ${resolved.bearerToken}`;
-      return { apiKey: "", headers };
+      return { apiKey: "", headers, env };
     }
     if (resolved.username || resolved.password) {
       headers.authorization = `Basic ${Buffer.from(
         `${resolved.username ?? ""}:${resolved.password ?? ""}`,
       ).toString("base64")}`;
-      return { apiKey: "", headers };
+      return { apiKey: "", headers, env };
     }
     if (resolved.accessToken) {
       headers.authorization = `Bearer ${resolved.accessToken}`;
-      return { apiKey: "", headers };
+      return { apiKey: "", headers, env };
     }
-    return Object.keys(headers).length ? { apiKey: "", headers } : undefined;
+    return Object.keys(headers).length || env
+      ? { apiKey: "", headers, env }
+      : undefined;
   }
 
   private buildTools(

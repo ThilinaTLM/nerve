@@ -31,6 +31,7 @@ type FlowRecord = {
 
 const providerKindByOAuthProvider: Record<string, string> = {
   anthropic: "anthropic_oauth",
+  "github-copilot": "github_copilot_oauth",
   "openai-codex": "openai_codex_oauth",
 };
 

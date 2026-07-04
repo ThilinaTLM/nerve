@@ -68,15 +68,22 @@ export interface AgentHarnessStreamOptions {
   metadata?: SimpleStreamOptions["metadata"];
   /** Provider cache retention hint. */
   cacheRetention?: SimpleStreamOptions["cacheRetention"];
+  /** Provider-scoped environment values forwarded to pi-ai. */
+  env?: SimpleStreamOptions["env"];
 }
 
 /** Per-request stream option patch returned by provider hooks. */
 export interface AgentHarnessStreamOptionsPatch
-  extends Omit<Partial<AgentHarnessStreamOptions>, "headers" | "metadata"> {
+  extends Omit<
+    Partial<AgentHarnessStreamOptions>,
+    "headers" | "metadata" | "env"
+  > {
   /** Header patch. `undefined` values delete keys; explicit `headers: undefined` clears all headers. */
   headers?: Record<string, string | undefined>;
   /** Metadata patch. `undefined` values delete keys; explicit `metadata: undefined` clears all metadata. */
   metadata?: Record<string, unknown | undefined>;
+  /** Environment patch. `undefined` values delete keys; explicit `env: undefined` clears all env. */
+  env?: Record<string, string | undefined>;
 }
 
 export interface AgentHarnessPromptOptions {
@@ -106,10 +113,13 @@ export interface AgentHarnessOptions<
         activeTools: TTool[];
         resources: AgentHarnessResources<TSkill, TPromptTemplate>;
       }) => string | Promise<string>);
-  getApiKeyAndHeaders?: (
-    model: AnyModel,
-  ) => Promise<
-    { apiKey: string; headers?: Record<string, string> } | undefined
+  getApiKeyAndHeaders?: (model: AnyModel) => Promise<
+    | {
+        apiKey: string;
+        headers?: Record<string, string>;
+        env?: Record<string, string>;
+      }
+    | undefined
   >;
   /** Curated stream/provider request options. Snapshotted at turn start. */
   streamOptions?: AgentHarnessStreamOptions;

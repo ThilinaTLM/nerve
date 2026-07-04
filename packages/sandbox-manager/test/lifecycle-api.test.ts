@@ -71,20 +71,23 @@ describeWithPostgres("sandbox manager web ui serving and auth cookie", () => {
     const address = server.address();
     assert.equal(typeof address, "object");
     try {
-      const page = await fetch(
-        `http://127.0.0.1:${address.port}/sandbox-manager`,
-      );
+      const page = await fetch(`http://127.0.0.1:${address.port}/`);
       assert.equal(page.status, 200);
+      assert.equal(
+        await page.text(),
+        "<!doctype html><title>nerve sandbox manager</title>",
+      );
       const setCookie = page.headers.get("set-cookie") ?? "";
       assert.equal(setCookie.includes("nerve_sandbox_manager_auth="), true);
       assert.equal(setCookie.includes("HttpOnly"), true);
 
-      // Root redirects to /sandbox-manager.
-      const redirect = await fetch(`http://127.0.0.1:${address.port}/`, {
-        redirect: "manual",
-      });
-      assert.equal(redirect.status, 302);
-      assert.equal(redirect.headers.get("location"), "/sandbox-manager");
+      // Client-routed settings path serves the SPA shell.
+      const settings = await fetch(`http://127.0.0.1:${address.port}/settings`);
+      assert.equal(settings.status, 200);
+      assert.equal(
+        await settings.text(),
+        "<!doctype html><title>nerve sandbox manager</title>",
+      );
 
       // A browser-like request presenting the cookie is authorized.
       const authed = await fetch(
