@@ -78,5 +78,8 @@ async function readSkillDirs(
 
 function isWorkspaceSkillRoot(root: string): boolean {
   const normalized = root.split(path.sep).join("/");
-  return normalized.startsWith("/workspace") || normalized.includes("/.agents/skills");
+  return (
+    normalized.startsWith("/workspace") ||
+    normalized.includes("/.agents/skills")
+  );
 }

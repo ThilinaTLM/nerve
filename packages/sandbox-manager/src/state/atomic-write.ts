@@ -15,9 +15,11 @@ export async function atomicWriteFile(
   const next = previous
     .catch(() => undefined)
     .then(() => atomicWriteFileUnqueued(resolved, data, mode));
-  const queued = next.catch(() => undefined).finally(() => {
-    if (fileQueues.get(resolved) === queued) fileQueues.delete(resolved);
-  });
+  const queued = next
+    .catch(() => undefined)
+    .finally(() => {
+      if (fileQueues.get(resolved) === queued) fileQueues.delete(resolved);
+    });
   fileQueues.set(resolved, queued);
   await next;
 }

@@ -328,13 +328,93 @@ export type SandboxCreateConfigInput = z.infer<
   typeof sandboxCreateConfigInputSchema
 >;
 
+export const sandboxCreateAuthRefsSchema = z.object({
+  mainModelProfileId: z.string().min(1).optional(),
+  exploreModelProfileId: z.string().min(1).optional(),
+  githubProfileId: z.string().min(1).optional(),
+  jiraProfileId: z.string().min(1).optional(),
+  confluenceProfileId: z.string().min(1).optional(),
+  webProfileId: z.string().min(1).optional(),
+});
+export type SandboxCreateAuthRefs = z.infer<typeof sandboxCreateAuthRefsSchema>;
+
 export const sandboxCreateRequestSchema = z.object({
   config: sandboxCreateConfigInputSchema,
   image: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   start: z.boolean().optional(),
+  auth: sandboxCreateAuthRefsSchema.optional(),
 });
 export type SandboxCreateRequest = z.infer<typeof sandboxCreateRequestSchema>;
+
+export const sandboxManagerCredentialProfileKindSchema = z.enum([
+  "model_provider",
+  "github",
+  "jira",
+  "confluence",
+  "web_provider",
+]);
+export type SandboxManagerCredentialProfileKind = z.infer<
+  typeof sandboxManagerCredentialProfileKindSchema
+>;
+
+export const sandboxManagerCredentialProfileSchema = z.object({
+  profileId: z.string().min(1),
+  kind: sandboxManagerCredentialProfileKindSchema,
+  displayName: z.string().min(1),
+  provider: z.string().min(1).optional(),
+  api: z.string().min(1).optional(),
+  baseUrl: z.string().url().optional(),
+  siteUrl: z.string().url().optional(),
+  email: z.string().email().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  compat: z.record(z.string(), z.unknown()).optional(),
+  credential: z.unknown(),
+  defaultModel: z.string().min(1).optional(),
+  defaultOwner: z.string().min(1).optional(),
+  defaultRepo: z.string().min(1).optional(),
+  defaultProjectKey: z.string().min(1).optional(),
+  defaultSpaceKey: z.string().min(1).optional(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxManagerCredentialProfile = z.infer<
+  typeof sandboxManagerCredentialProfileSchema
+>;
+
+export const sandboxManagerCredentialProfileWriteSchema = z.object({
+  profileId: z.string().min(1).optional(),
+  kind: sandboxManagerCredentialProfileKindSchema,
+  displayName: z.string().min(1),
+  provider: z.string().min(1).optional(),
+  api: z.string().min(1).optional(),
+  baseUrl: z.string().url().optional(),
+  siteUrl: z.string().url().optional(),
+  email: z.string().email().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  compat: z.record(z.string(), z.unknown()).optional(),
+  credential: z.unknown(),
+  defaultModel: z.string().min(1).optional(),
+  defaultOwner: z.string().min(1).optional(),
+  defaultRepo: z.string().min(1).optional(),
+  defaultProjectKey: z.string().min(1).optional(),
+  defaultSpaceKey: z.string().min(1).optional(),
+});
+export type SandboxManagerCredentialProfileWrite = z.infer<
+  typeof sandboxManagerCredentialProfileWriteSchema
+>;
+
+export const sandboxManagerSecretMetadataSchema = z.object({
+  key: z.string().min(1),
+  version: z.string().min(1).optional(),
+  expiresAt: isoDateTimeSchema.optional(),
+  createdAt: isoDateTimeSchema.optional(),
+  updatedAt: isoDateTimeSchema.optional(),
+  cleartextWarning: z.string().min(1).optional(),
+});
+export type SandboxManagerSecretMetadata = z.infer<
+  typeof sandboxManagerSecretMetadataSchema
+>;
 
 export const logReadOptionsSchema = z.object({
   since: isoDateTimeSchema.optional(),

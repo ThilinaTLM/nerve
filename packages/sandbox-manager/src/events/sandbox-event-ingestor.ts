@@ -1,9 +1,9 @@
-import type { EventStore } from "../state/event-store.js";
+import type { SandboxEventStore } from "../state/event-store.js";
 import type { ManagerEventBus } from "./manager-event-bus.js";
 import { redactManagerEvent } from "./redaction.js";
 export class SandboxEventIngestor {
   constructor(
-    private readonly store: EventStore,
+    private readonly store: SandboxEventStore,
     private readonly bus?: ManagerEventBus,
   ) {}
   async ingestBatch(

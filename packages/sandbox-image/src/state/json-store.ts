@@ -12,13 +12,15 @@ export async function atomicWriteFile(
 ): Promise<void> {
   const resolved = path.resolve(filePath);
   const previous = atomicWriteQueues.get(resolved) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(() =>
-    atomicWriteFileUnqueued(resolved, data, mode),
-  );
-  const queued = next.catch(() => undefined).finally(() => {
-    if (atomicWriteQueues.get(resolved) === queued)
-      atomicWriteQueues.delete(resolved);
-  });
+  const next = previous
+    .catch(() => undefined)
+    .then(() => atomicWriteFileUnqueued(resolved, data, mode));
+  const queued = next
+    .catch(() => undefined)
+    .finally(() => {
+      if (atomicWriteQueues.get(resolved) === queued)
+        atomicWriteQueues.delete(resolved);
+    });
   atomicWriteQueues.set(resolved, queued);
   await next;
 }

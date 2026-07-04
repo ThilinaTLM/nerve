@@ -43,7 +43,9 @@ function delay(ms: number): Promise<void> {
 
 describe("tool lifecycle cancellation", () => {
   it("keeps spawn error task finalization when close also fires", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-task-spawn-error-"));
+    const dir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-task-spawn-error-"),
+    );
     try {
       const supervisor = new TaskSupervisor({ stateDir: dir, maxTasks: 1 });
       const task = supervisor.start("true", path.join(dir, "missing-cwd"));

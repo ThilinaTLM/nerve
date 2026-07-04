@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { Boxes, PanelLeft, Plus, RefreshCw } from "@lucide/svelte";
+  import { Boxes, KeyRound, PanelLeft, Plus, RefreshCw } from "@lucide/svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Sheet from "$lib/components/ui/sheet";
   import { StatusDot } from "$lib/components/ui/status-dot";
   import type { StatusTone } from "$lib/components/ui/status-dot";
   import CreateSandboxDialog from "../components/create/CreateSandboxDialog.svelte";
+  import CredentialsManagerDialog from "../components/credentials/CredentialsManagerDialog.svelte";
   import RuntimeBackendBadge from "../components/RuntimeBackendBadge.svelte";
   import SandboxFleetList from "../components/SandboxFleetList.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
@@ -14,6 +15,7 @@
 
   const store = useSandboxManagerStore();
   let sheetOpen = $state(false);
+  let credentialsOpen = $state(false);
 
   const connectionTone = $derived<StatusTone>(
     store.connection === "live"
@@ -68,6 +70,9 @@
       {/if}
     {/if}
     <div class="ml-auto flex items-center gap-2">
+      <Button variant="ghost" size="sm" onclick={() => (credentialsOpen = true)}>
+        <KeyRound class="size-4" /> Credentials
+      </Button>
       <Button
         variant="ghost"
         size="sm"
@@ -101,4 +106,5 @@
   </Sheet.Content>
 </Sheet.Root>
 
+<CredentialsManagerDialog bind:open={credentialsOpen} />
 <CreateSandboxDialog bind:open={store.createDialogOpen} />

@@ -113,6 +113,26 @@ type ManagedSandboxRetention = {
 
 Manager records MUST NOT contain raw secret values.
 
+## Primary manager storage
+
+`packages/sandbox-manager` uses PostgreSQL as its required primary storage backend for manager-owned state. The local filesystem is not authoritative manager storage; in local Docker/Podman deployments it is used only as a runtime materialization root for bind-mounted workspace/state/config/secrets artifacts.
+
+Required production settings:
+
+```sh
+NERVE_SANDBOX_MANAGER_DATABASE_URL=postgres://...
+NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY=<32-byte/base64/hex-or-passphrase>
+```
+
+PostgreSQL stores sandbox records, materialized config JSON, event intake, session snapshots, idempotency records, secret policies, encrypted secret envelopes, credential profiles, runtime volume refs, and manager audit records. Secret values are encrypted by the manager before being written to PostgreSQL and are never returned by public APIs.
+
+Runtime filesystems remain container-backend specific:
+
+- Docker/Podman use local bind directories or named volumes for `/workspace`, `/state`, config, and protected controller-token materialization.
+- ECS/Fargate should use EFS access points/mounts for live writable `/workspace` and `/state` filesystem semantics.
+- S3-backed file storage may be used only through an explicit mount/sync adapter or for seed/snapshot file flows; plain object storage is not a direct POSIX replacement for live agent state.
+
+
 ## Container runtime driver contract
 
 The manager SHOULD implement runtime backends through a driver abstraction equivalent to:

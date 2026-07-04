@@ -2,7 +2,9 @@ import type {
   ManagedSandboxRecord,
   RemoveOptions,
   SandboxCreateRequest,
+  SandboxManagerCredentialProfile,
   SandboxManagerEventEnvelope,
+  SandboxManagerSecretMetadata,
   SandboxManagerStatus,
 } from "@nervekit/shared";
 import { getContext, setContext } from "svelte";
@@ -29,6 +31,8 @@ export class SandboxManagerStore {
   connection = $state<ManagerWsConnectionState>("idle");
   connectionError = $state<string | undefined>(undefined);
   managerStatus = $state<SandboxManagerStatus | undefined>(undefined);
+  credentialProfiles = $state<SandboxManagerCredentialProfile[]>([]);
+  secretMetadata = $state<SandboxManagerSecretMetadata[]>([]);
   sandboxes = $state<ManagedSandboxRecord[]>([]);
   selectedSandboxId = $state<string | undefined>(undefined);
   details = $state<Record<string, SandboxDetailState>>({});
@@ -59,7 +63,11 @@ export class SandboxManagerStore {
   }
 
   async init(): Promise<void> {
-    await Promise.all([this.refreshManagerStatus(), this.refreshFleet()]);
+    await Promise.all([
+      this.refreshManagerStatus(),
+      this.refreshCredentials(),
+      this.refreshFleet(),
+    ]);
     this.ws.connect();
   }
 
@@ -72,6 +80,19 @@ export class SandboxManagerStore {
   async refreshManagerStatus(): Promise<void> {
     try {
       this.managerStatus = await api.getManagerStatus();
+    } catch (error) {
+      this.fleetError = errorMessage(error);
+    }
+  }
+
+  async refreshCredentials(): Promise<void> {
+    try {
+      const [profiles, metadata] = await Promise.all([
+        api.listCredentialProfiles(),
+        api.listSecretMetadata(),
+      ]);
+      this.credentialProfiles = profiles;
+      this.secretMetadata = metadata;
     } catch (error) {
       this.fleetError = errorMessage(error);
     }
@@ -150,6 +171,23 @@ export class SandboxManagerStore {
   }
 
   // --- lifecycle actions ---
+
+  async writeSecret(request: {
+    key: string;
+    value: string;
+    version?: string;
+    expiresAt?: string;
+  }): Promise<void> {
+    await api.writeManagerSecret(request);
+    await this.refreshCredentials();
+  }
+
+  async createCredentialProfile(
+    request: Parameters<typeof api.createCredentialProfile>[0],
+  ): Promise<void> {
+    await api.createCredentialProfile(request);
+    await this.refreshCredentials();
+  }
 
   async createSandbox(request: SandboxCreateRequest): Promise<string> {
     const record = await this.runOperation(

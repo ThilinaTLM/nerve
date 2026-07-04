@@ -1,22 +1,25 @@
-import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
-import path from "node:path";
 import {
   type ManagedSandboxRecord,
+  type SandboxConfigV1,
   sandboxConfigV1Schema,
+  sandboxManagerCredentialProfileSchema,
   sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
 } from "@nervekit/shared";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   commandRequestSchema,
   createSandboxRequestSchema,
+  credentialProfileWriteSchema,
+  secretWriteSchema,
 } from "../api/request-schemas.js";
 import { ok } from "../api/responses.js";
 import { buildSandboxLaunchSpec } from "../config/sandbox-launch-spec.js";
@@ -63,6 +66,87 @@ async function handle(
     return json(res, 200, ok({ version: sandboxManagerVersion }));
   if (req.method === "GET" && path === "/api/manager/status")
     return json(res, 200, ok(await managerStatus(state)));
+  if (req.method === "GET" && path === "/api/manager/secrets/metadata") {
+    return json(res, 200, ok(await (state.secrets.listMetadata?.() ?? [])));
+  }
+  if (req.method === "POST" && path === "/api/manager/secrets") {
+    const body = secretWriteSchema.parse(await readJson(req));
+    await state.secrets.set(body.key, body.value, {
+      version: body.version,
+      expiresAt: body.expiresAt,
+    });
+    await state.audit.append({
+      action: "secret.write",
+      success: true,
+      details: { key: "[REDACTED]" },
+    });
+    return json(res, 201, ok({ key: body.key, version: body.version }));
+  }
+  const managerSecretMatch = path.match(/^\/api\/manager\/secrets\/(.+)$/);
+  if (req.method === "DELETE" && managerSecretMatch) {
+    const key = decodeURIComponent(managerSecretMatch[1]);
+    await state.secrets.delete?.(key);
+    await state.audit.append({
+      action: "secret.delete",
+      success: true,
+      details: { key: "[REDACTED]" },
+    });
+    return json(res, 200, ok({ deleted: true }));
+  }
+  if (req.method === "GET" && path === "/api/manager/credential-profiles")
+    return json(res, 200, ok(await state.credentials.list()));
+  if (req.method === "POST" && path === "/api/manager/credential-profiles") {
+    const body = credentialProfileWriteSchema.parse(await readJson(req));
+    const now = new Date().toISOString();
+    const profile = sandboxManagerCredentialProfileSchema.parse({
+      ...body,
+      profileId: body.profileId ?? `cred_${randomUUID()}`,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await state.credentials.put(profile);
+    await state.audit.append({
+      action: "credential_profile.write",
+      success: true,
+      details: { profileId: profile.profileId, kind: profile.kind },
+    });
+    return json(res, 201, ok(profile));
+  }
+  const credentialMatch = path.match(
+    /^\/api\/manager\/credential-profiles\/([^/]+)$/,
+  );
+  if (credentialMatch) {
+    const profileId = decodeURIComponent(credentialMatch[1]);
+    if (req.method === "GET")
+      return json(res, 200, ok(await state.credentials.get(profileId)));
+    if (req.method === "PUT") {
+      const existing = await state.credentials.get(profileId);
+      const body = credentialProfileWriteSchema.parse(await readJson(req));
+      const now = new Date().toISOString();
+      const profile = sandboxManagerCredentialProfileSchema.parse({
+        ...body,
+        profileId,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      });
+      await state.credentials.put(profile);
+      await state.audit.append({
+        action: "credential_profile.write",
+        success: true,
+        details: { profileId, kind: profile.kind },
+      });
+      return json(res, 200, ok(profile));
+    }
+    if (req.method === "DELETE") {
+      await state.credentials.delete(profileId);
+      await state.audit.append({
+        action: "credential_profile.delete",
+        success: true,
+        details: { profileId },
+      });
+      return json(res, 200, ok({ deleted: true }));
+    }
+  }
   if (req.method === "GET" && path === "/api/sandboxes")
     return json(
       res,
@@ -83,6 +167,7 @@ async function handle(
           body.config,
           body.image,
           body.name,
+          body.auth,
         );
         await recordManagerLifecycleEvent(state, {
           type: "manager.sandbox.created",
@@ -311,29 +396,77 @@ function managerId(state: ManagerState): string {
     .slice(0, 16)}`;
 }
 
+async function loadSandboxConfigForStart(
+  state: ManagerState,
+  record: ManagedSandboxRecord,
+): Promise<SandboxConfigV1> {
+  if (record.configRef?.source) {
+    try {
+      return sandboxConfigV1Schema.parse(
+        parseYaml(await readFile(record.configRef.source, "utf8")),
+      );
+    } catch {
+      // Fall through and regenerate runtime materialization from PostgreSQL.
+    }
+  }
+  const result = await state.pool.query<{ materialized_config: unknown }>(
+    "select materialized_config from sandboxes where sandbox_id = $1",
+    [record.sandboxId],
+  );
+  const config = sandboxConfigV1Schema.parse(
+    result.rows[0]?.materialized_config,
+  );
+  const materialized = await state.volumeProvider.materialize?.(
+    record.sandboxId,
+    {
+      configYaml: materializeConfigYaml(config),
+      controllerToken: record.controller?.token ?? "",
+    },
+  );
+  if (materialized) {
+    const next = {
+      ...record,
+      workspaceRef: materialized.workspace,
+      stateRef: materialized.state,
+      secretMountRefs: [materialized.secrets],
+      configRef: materialized.config,
+    };
+    await state.volumeStore.put(
+      record.sandboxId,
+      state.volumeProvider.kind,
+      materialized,
+    );
+    await state.sandboxes.put(next);
+  }
+  return config;
+}
+
+function materializeConfigYaml(config: SandboxConfigV1): string {
+  return stringifyYaml(config, { sortMapEntries: true });
+}
+
 async function startSandbox(
   state: ManagerState,
   sandboxId: string,
 ): Promise<unknown> {
   const record = await state.sandboxes.get(sandboxId);
   if (!record) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
-  if (!record.configRef?.source)
+  const config = await loadSandboxConfigForStart(state, record);
+  const refreshed = (await state.sandboxes.get(sandboxId)) ?? record;
+  if (!refreshed.configRef?.source)
     throw new HttpError(
       409,
-      "Sandbox config is not materialized",
+      "Sandbox config is not materialized for this container backend",
       "INVALID_STATE",
     );
-  const config = sandboxConfigV1Schema.parse(
-    parseYaml(await readFile(record.configRef.source, "utf8")),
-  );
   const spec = buildSandboxLaunchSpec(config, {
-    image: record.image.reference,
+    image: refreshed.image.reference,
     sandboxId,
-    managerBaseUrl: record.controller?.url ?? "",
-    workspaceSource: record.workspaceRef.source ?? "",
-    stateSource: record.stateRef.source ?? "",
-    configSource: record.configRef.source,
-    secretsSource: record.secretMountRefs?.[0]?.source ?? "",
+    managerBaseUrl: refreshed.controller?.url ?? "",
+    workspaceSource: refreshed.workspaceRef.source ?? "",
+    stateSource: refreshed.stateRef.source ?? "",
+    configSource: refreshed.configRef.source,
+    secretsSource: refreshed.secretMountRefs?.[0]?.source ?? "",
   });
   const stableSpec = {
     ...spec,
@@ -619,14 +752,8 @@ async function withIdempotency<T>(
   const hash = createHash("sha256")
     .update(JSON.stringify({ method: req.method, route, body }))
     .digest("hex");
-  const dir = path.join(state.config.storageDir, "idempotency");
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const file = path.join(dir, `${Buffer.from(key).toString("base64url")}.json`);
-  try {
-    const stored = JSON.parse(await readFile(file, "utf8")) as {
-      hash: string;
-      value: T;
-    };
+  const stored = await state.idempotency.get<T>(key);
+  if (stored) {
     if (stored.hash !== hash)
       throw new HttpError(
         409,
@@ -634,21 +761,9 @@ async function withIdempotency<T>(
         "IDEMPOTENCY_CONFLICT",
       );
     return { value: stored.value, replayed: true };
-  } catch (error) {
-    if (
-      !(
-        typeof error === "object" &&
-        error &&
-        "code" in error &&
-        (error as { code?: unknown }).code === "ENOENT"
-      )
-    )
-      throw error;
   }
   const value = await run();
-  await writeFile(file, `${JSON.stringify({ hash, value }, null, 2)}\n`, {
-    mode: 0o600,
-  });
+  await state.idempotency.put(key, hash, value);
   return { value, replayed: false };
 }
 

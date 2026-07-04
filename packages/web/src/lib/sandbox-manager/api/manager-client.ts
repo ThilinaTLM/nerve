@@ -3,9 +3,14 @@ import {
   managedSandboxRecordSchema,
   type SandboxControllerSessionSummary,
   type SandboxCreateRequest,
+  type SandboxManagerCredentialProfile,
+  type SandboxManagerCredentialProfileWrite,
+  type SandboxManagerSecretMetadata,
   type SandboxManagerStatus,
   type SandboxSnapshotResult,
   type SandboxStatusGetResult,
+  sandboxManagerCredentialProfileSchema,
+  sandboxManagerSecretMetadataSchema,
   sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
@@ -26,7 +31,7 @@ async function getData<T>(path: string): Promise<T> {
 
 async function sendData<T>(
   path: string,
-  method: "POST" | "DELETE",
+  method: "POST" | "PUT" | "DELETE",
   options: { body?: unknown; idempotencyKey?: string } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {};
@@ -44,10 +49,63 @@ async function sendData<T>(
 function sandboxPath(sandboxId: string, suffix = ""): string {
   return `/api/sandboxes/${apiPathSegment(sandboxId)}${suffix}`;
 }
-
 export async function getManagerStatus(): Promise<SandboxManagerStatus> {
   return sandboxManagerStatusSchema.parse(
     await getData<unknown>("/api/manager/status"),
+  );
+}
+
+export async function listCredentialProfiles(): Promise<
+  SandboxManagerCredentialProfile[]
+> {
+  const records = await getData<unknown[]>("/api/manager/credential-profiles");
+  return records.map((record) =>
+    sandboxManagerCredentialProfileSchema.parse(record),
+  );
+}
+
+export async function createCredentialProfile(
+  request: SandboxManagerCredentialProfileWrite,
+): Promise<SandboxManagerCredentialProfile> {
+  return sandboxManagerCredentialProfileSchema.parse(
+    await sendData<unknown>("/api/manager/credential-profiles", "POST", {
+      body: request,
+    }),
+  );
+}
+
+export async function updateCredentialProfile(
+  profileId: string,
+  request: SandboxManagerCredentialProfileWrite,
+): Promise<SandboxManagerCredentialProfile> {
+  return sandboxManagerCredentialProfileSchema.parse(
+    await sendData<unknown>(
+      `/api/manager/credential-profiles/${apiPathSegment(profileId)}`,
+      "PUT",
+      { body: request },
+    ),
+  );
+}
+
+export async function listSecretMetadata(): Promise<
+  SandboxManagerSecretMetadata[]
+> {
+  const records = await getData<unknown[]>("/api/manager/secrets/metadata");
+  return records.map((record) =>
+    sandboxManagerSecretMetadataSchema.parse(record),
+  );
+}
+
+export async function writeManagerSecret(request: {
+  key: string;
+  value: string;
+  version?: string;
+  expiresAt?: string;
+}): Promise<{ key: string; version?: string }> {
+  return sendData<{ key: string; version?: string }>(
+    "/api/manager/secrets",
+    "POST",
+    { body: request },
   );
 }
 

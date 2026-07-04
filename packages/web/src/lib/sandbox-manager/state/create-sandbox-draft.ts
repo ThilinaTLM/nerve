@@ -13,7 +13,10 @@ export type CreateSandboxToolKey =
   | "shell"
   | "python"
   | "taskManagement"
-  | "explore";
+  | "explore"
+  | "web"
+  | "jira"
+  | "confluence";
 
 export const CREATE_SANDBOX_TOOL_KEYS: CreateSandboxToolKey[] = [
   "fileInspection",
@@ -24,6 +27,9 @@ export const CREATE_SANDBOX_TOOL_KEYS: CreateSandboxToolKey[] = [
   "python",
   "taskManagement",
   "explore",
+  "web",
+  "jira",
+  "confluence",
 ];
 
 export type CreateSandboxDraft = {
@@ -42,6 +48,12 @@ export type CreateSandboxDraft = {
   mode: "normal" | "planning";
   permissionLevel: "read_only" | "supervised" | "autonomous";
   tools: Record<CreateSandboxToolKey, boolean>;
+  mainModelProfileId: string;
+  exploreModelProfileId: string;
+  githubProfileId: string;
+  jiraProfileId: string;
+  confluenceProfileId: string;
+  webProfileId: string;
   useAdvancedConfig: boolean;
   advancedConfig: string;
 };
@@ -71,7 +83,16 @@ export function createDefaultDraft(): CreateSandboxDraft {
       python: false,
       taskManagement: false,
       explore: false,
+      web: false,
+      jira: false,
+      confluence: false,
     },
+    mainModelProfileId: "",
+    exploreModelProfileId: "",
+    githubProfileId: "",
+    jiraProfileId: "",
+    confluenceProfileId: "",
+    webProfileId: "",
     useAdvancedConfig: false,
     advancedConfig: "",
   };
@@ -152,11 +173,20 @@ export function buildCreateRequest(
     } else {
       config = buildConfigFromDraft(draft);
     }
+    const auth = {
+      mainModelProfileId: draft.mainModelProfileId.trim() || undefined,
+      exploreModelProfileId: draft.exploreModelProfileId.trim() || undefined,
+      githubProfileId: draft.githubProfileId.trim() || undefined,
+      jiraProfileId: draft.jiraProfileId.trim() || undefined,
+      confluenceProfileId: draft.confluenceProfileId.trim() || undefined,
+      webProfileId: draft.webProfileId.trim() || undefined,
+    };
     const request = sandboxCreateRequestSchema.parse({
       config,
       image: draft.image.trim() || undefined,
       name: draft.name.trim() || undefined,
       start: draft.startAfterCreate,
+      auth: Object.values(auth).some(Boolean) ? auth : undefined,
     });
     return { ok: true, request };
   } catch (error) {

@@ -139,7 +139,9 @@ async function runShell(
       resolve({
         code: 127,
         stdout,
-        stderr: (stderr + String(error instanceof Error ? error.message : error)).slice(-64_000),
+        stderr: (
+          stderr + String(error instanceof Error ? error.message : error)
+        ).slice(-64_000),
         timedOut,
       });
     });

@@ -36,7 +36,10 @@ const configWithoutController = {
   agent: { mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" } },
 } as const;
 
-describe("sandbox manager web ui serving and auth cookie", () => {
+const postgresUrl = process.env.NERVE_TEST_POSTGRES_URL;
+const describeWithPostgres = postgresUrl ? describe : describe.skip;
+
+describeWithPostgres("sandbox manager web ui serving and auth cookie", () => {
   it("serves the SPA shell, sets a loopback auth cookie, and accepts it", async () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-web-"),
@@ -55,6 +58,9 @@ describe("sandbox manager web ui serving and auth cookie", () => {
       allowRemoteBind: false,
       storageDir,
       backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
       apiKey: "manager-secret-key",
       serveWebUi: true,
       webDist,
@@ -102,7 +108,7 @@ describe("sandbox manager web ui serving and auth cookie", () => {
   });
 });
 
-describe("sandbox manager lifecycle api hardening", () => {
+describeWithPostgres("sandbox manager lifecycle api hardening", () => {
   it("creates a sandbox when config.controller is omitted", async () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-nocontroller-"),
@@ -113,6 +119,9 @@ describe("sandbox manager lifecycle api hardening", () => {
       allowRemoteBind: false,
       storageDir,
       backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
     });
     await state.init();
     const server = createManagerServer(state);
@@ -151,6 +160,9 @@ describe("sandbox manager lifecycle api hardening", () => {
       allowRemoteBind: false,
       storageDir,
       backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
       apiKey: "manager-secret-key",
     });
     await state.init();
@@ -192,6 +204,9 @@ describe("sandbox manager lifecycle api hardening", () => {
       allowRemoteBind: false,
       storageDir,
       backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
     });
     await state.init();
     const server = createManagerServer(state);
@@ -238,6 +253,9 @@ describe("sandbox manager lifecycle api hardening", () => {
       allowRemoteBind: false,
       storageDir,
       backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
     });
     await state.init();
     const server = createManagerServer(state);
@@ -288,6 +306,9 @@ describe("sandbox manager lifecycle api hardening", () => {
       allowRemoteBind: false,
       storageDir,
       backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
     });
     await state.init();
     const server = createManagerServer(state);

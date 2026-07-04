@@ -4,7 +4,11 @@ export type ManagerConfig = {
   host: string;
   port: number;
   allowRemoteBind: boolean;
+  /** Runtime materialization root for local Docker/Podman volumes and config files. */
   storageDir: string;
+  databaseUrl?: string;
+  databaseSsl: boolean;
+  volumeBackend: "local" | "efs" | "s3-files";
   apiKey?: string;
   backend: "docker" | "podman";
   mode: "production" | "development";
@@ -41,6 +45,12 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
     storageDir:
       env.NERVE_SANDBOX_MANAGER_STORAGE_DIR?.trim() ||
       path.join(os.homedir(), ".nerve", "sandbox-manager"),
+    databaseUrl: requiredDatabaseUrl(env),
+    databaseSsl:
+      env.NERVE_SANDBOX_MANAGER_DATABASE_SSL === "1" ||
+      env.NERVE_SANDBOX_MANAGER_DATABASE_SSL === "true" ||
+      env.NERVE_SANDBOX_MANAGER_DATABASE_SSL === "require",
+    volumeBackend: parseVolumeBackend(env.NERVE_SANDBOX_MANAGER_VOLUME_BACKEND),
     apiKey: env.NERVE_SANDBOX_MANAGER_API_KEY,
     backend:
       env.NERVE_SANDBOX_MANAGER_BACKEND === "podman" ? "podman" : "docker",
@@ -76,6 +86,23 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
       env.NERVE_WEB_DIST?.trim() ||
       undefined,
   };
+}
+
+function requiredDatabaseUrl(env: NodeJS.ProcessEnv): string {
+  const value =
+    env.NERVE_SANDBOX_MANAGER_DATABASE_URL?.trim() || env.DATABASE_URL?.trim();
+  if (!value)
+    throw new Error(
+      "NERVE_SANDBOX_MANAGER_DATABASE_URL or DATABASE_URL is required for sandbox-manager storage",
+    );
+  return value;
+}
+
+function parseVolumeBackend(
+  value: string | undefined,
+): ManagerConfig["volumeBackend"] {
+  if (value === "efs" || value === "s3-files") return value;
+  return "local";
 }
 
 function optionalNumber(value: string | undefined): number | undefined {

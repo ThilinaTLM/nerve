@@ -19,7 +19,10 @@ const config = {
   },
 } as const;
 
-describe("sandbox manager websocket protocol", async () => {
+const postgresUrl = process.env.NERVE_TEST_POSTGRES_URL;
+const describeWithPostgres = postgresUrl ? describe : describe.skip;
+
+describeWithPostgres("sandbox manager websocket protocol", async () => {
   const storageDir = await mkdtemp(path.join(os.tmpdir(), "nerve-manager-ws-"));
   const state = new ManagerState({
     host: "127.0.0.1",
@@ -27,6 +30,9 @@ describe("sandbox manager websocket protocol", async () => {
     allowRemoteBind: false,
     storageDir,
     backend: "docker",
+    databaseUrl: postgresUrl,
+    databaseSsl: false,
+    volumeBackend: "local",
   });
   await state.init();
   const server = createManagerServer(state);

@@ -31,6 +31,41 @@
     { value: "supervised", label: "Supervised" },
     { value: "autonomous", label: "Autonomous" },
   ];
+  const noneProfile = { value: "", label: "None" };
+  const modelProfileItems = $derived([
+    noneProfile,
+    ...store.credentialProfiles
+      .filter((profile) => profile.kind === "model_provider")
+      .map((profile) => ({
+        value: profile.profileId,
+        label: profile.displayName,
+        detail: profile.provider,
+      })),
+  ]);
+  const githubProfileItems = $derived([
+    noneProfile,
+    ...store.credentialProfiles
+      .filter((profile) => profile.kind === "github")
+      .map((profile) => ({ value: profile.profileId, label: profile.displayName })),
+  ]);
+  const jiraProfileItems = $derived([
+    noneProfile,
+    ...store.credentialProfiles
+      .filter((profile) => profile.kind === "jira")
+      .map((profile) => ({ value: profile.profileId, label: profile.displayName })),
+  ]);
+  const confluenceProfileItems = $derived([
+    noneProfile,
+    ...store.credentialProfiles
+      .filter((profile) => profile.kind === "confluence")
+      .map((profile) => ({ value: profile.profileId, label: profile.displayName })),
+  ]);
+  const webProfileItems = $derived([
+    noneProfile,
+    ...store.credentialProfiles
+      .filter((profile) => profile.kind === "web_provider")
+      .map((profile) => ({ value: profile.profileId, label: profile.displayName })),
+  ]);
 
   function reset() {
     draft = createDefaultDraft();
@@ -133,6 +168,66 @@
         <div class="flex flex-col gap-1">
           <Label>Initial prompt (optional)</Label>
           <Textarea bind:value={draft.initialPrompt} class="min-h-16" />
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <h3 class="text-xs font-semibold text-muted-foreground uppercase">Authentication</h3>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="flex flex-col gap-1">
+            <Label>Main model profile</Label>
+            <SelectField
+              items={modelProfileItems}
+              value={draft.mainModelProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => (draft.mainModelProfileId = value)}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>GitHub profile</Label>
+            <SelectField
+              items={githubProfileItems}
+              value={draft.githubProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => (draft.githubProfileId = value)}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>Jira profile</Label>
+            <SelectField
+              items={jiraProfileItems}
+              value={draft.jiraProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => {
+                draft.jiraProfileId = value;
+                if (value) draft.tools.jira = true;
+              }}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>Confluence profile</Label>
+            <SelectField
+              items={confluenceProfileItems}
+              value={draft.confluenceProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => {
+                draft.confluenceProfileId = value;
+                if (value) draft.tools.confluence = true;
+              }}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>Web provider profile</Label>
+            <SelectField
+              items={webProfileItems}
+              value={draft.webProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => {
+                draft.webProfileId = value;
+                if (value) draft.tools.web = true;
+              }}
+            />
+          </div>
         </div>
       </section>
 

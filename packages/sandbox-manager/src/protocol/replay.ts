@@ -1,6 +1,9 @@
-import type { EventStore, StoredSandboxEvent } from "../state/event-store.js";
+import type {
+  SandboxEventStore,
+  StoredSandboxEvent,
+} from "../state/event-store.js";
 export async function replayEvents(
-  store: EventStore,
+  store: SandboxEventStore,
   sandboxId: string,
   afterSeq = 0,
 ): Promise<StoredSandboxEvent[]> {

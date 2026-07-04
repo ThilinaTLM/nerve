@@ -1,16 +1,65 @@
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { atomicWriteFile, isNotFound } from "./atomic-write.js";
 import {
   type ManagedSandboxRecord,
   managedSandboxRecordSchema,
 } from "@nervekit/shared";
+import type { PostgresPool } from "../db/postgres.js";
+import { atomicWriteFile, isNotFound } from "./atomic-write.js";
 
 export interface ManagerStore {
   list(): Promise<ManagedSandboxRecord[]>;
   get(sandboxId: string): Promise<ManagedSandboxRecord | undefined>;
   put(record: ManagedSandboxRecord): Promise<void>;
   delete(sandboxId: string): Promise<void>;
+}
+
+export class PostgresManagerStore implements ManagerStore {
+  constructor(private readonly pool: PostgresPool) {}
+
+  async list(): Promise<ManagedSandboxRecord[]> {
+    const result = await this.pool.query<{ record: unknown }>(
+      "select record from sandboxes order by sandbox_id",
+    );
+    return result.rows.map((row) =>
+      managedSandboxRecordSchema.parse(row.record),
+    );
+  }
+
+  async get(sandboxId: string): Promise<ManagedSandboxRecord | undefined> {
+    const result = await this.pool.query<{ record: unknown }>(
+      "select record from sandboxes where sandbox_id = $1",
+      [sandboxId],
+    );
+    const row = result.rows[0];
+    return row ? managedSandboxRecordSchema.parse(row.record) : undefined;
+  }
+
+  async put(record: ManagedSandboxRecord): Promise<void> {
+    const parsed = managedSandboxRecordSchema.parse(record);
+    await this.pool.query(
+      `insert into sandboxes
+        (sandbox_id, record, desired_state, observed_state, updated_at)
+       values ($1, $2::jsonb, $3, $4, now())
+       on conflict (sandbox_id) do update set
+        record = excluded.record,
+        desired_state = excluded.desired_state,
+        observed_state = excluded.observed_state,
+        updated_at = now()`,
+      [
+        parsed.sandboxId,
+        JSON.stringify(parsed),
+        parsed.desiredState,
+        parsed.observedState,
+      ],
+    );
+  }
+
+  async delete(sandboxId: string): Promise<void> {
+    await this.pool.query("delete from sandboxes where sandbox_id = $1", [
+      sandboxId,
+    ]);
+  }
 }
 
 export class FileManagerStore implements ManagerStore {
@@ -71,7 +120,9 @@ export class FileManagerStore implements ManagerStore {
   }
 
   private async mutate(
-    update: (records: Map<string, ManagedSandboxRecord>) => Promise<void> | void,
+    update: (
+      records: Map<string, ManagedSandboxRecord>,
+    ) => Promise<void> | void,
   ): Promise<void> {
     const next = this.mutationQueue
       .catch(() => undefined)

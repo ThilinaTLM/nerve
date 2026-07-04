@@ -1,9 +1,6 @@
-import { appendFile, mkdir } from "node:fs/promises";
-import path from "node:path";
 import type { ManagerState } from "../app/manager-state.js";
 import {
   authorizeSecretKey,
-  readSecretPolicy,
   type SecretPolicy,
 } from "../secrets/secret-policy.js";
 
@@ -13,12 +10,7 @@ export async function resolveSandboxSecret(
   request: { key: string; version?: string },
   policy?: SecretPolicy,
 ) {
-  const effectivePolicy =
-    policy ??
-    (await readSecretPolicy(
-      path.join(state.config.storageDir, "secret-policies"),
-      sandboxId,
-    ));
+  const effectivePolicy = policy ?? (await state.secretPolicies.get(sandboxId));
   try {
     if (
       request.key.length > 512 ||
@@ -47,15 +39,10 @@ async function audit(
   key: string,
   success: boolean,
 ): Promise<void> {
-  const auditDir = path.join(state.config.storageDir, "audit");
-  await mkdir(auditDir, { recursive: true });
-  await appendFile(
-    path.join(auditDir, "secrets.jsonl"),
-    `${JSON.stringify({
-      ts: new Date().toISOString(),
-      sandboxId,
-      key: policy?.redactKeyNames ? "[REDACTED]" : key,
-      success,
-    })}\n`,
-  );
+  await state.audit.append({
+    sandboxId,
+    action: "secret.resolve",
+    success,
+    details: { key: policy?.redactKeyNames ? "[REDACTED]" : key },
+  });
 }

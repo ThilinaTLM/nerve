@@ -7,12 +7,29 @@ export type ManagerSecretResolveResponse = {
   value: string;
   version?: string;
   expiresAt?: string;
+  cleartextWarning?: string;
+};
+
+export type ManagerSecretMetadata = Omit<
+  ManagerSecretResolveResponse,
+  "value"
+> & {
+  key: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export interface KvSecretStore {
+  set(
+    key: string,
+    value: string,
+    metadata?: Omit<ManagerSecretResolveResponse, "value">,
+  ): Promise<void> | void;
   resolve(
     request: ManagerSecretResolveRequest,
   ): Promise<ManagerSecretResolveResponse>;
+  listMetadata?(): Promise<ManagerSecretMetadata[]>;
+  delete?(key: string): Promise<void>;
 }
 
 export class InMemoryKvSecretStore implements KvSecretStore {
