@@ -1,7 +1,7 @@
 <script lang="ts">
   import Tag from "@lucide/svelte/icons/tag";
   import type { JiraFieldSummaryPayload } from "@nervekit/shared";
-  import { Badge } from "$lib/components/ui/badge";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
 
   type Props = { field: JiraFieldSummaryPayload };
   let { field }: Props = $props();

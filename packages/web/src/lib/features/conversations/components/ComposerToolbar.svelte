@@ -6,8 +6,8 @@
   import Zap from "@lucide/svelte/icons/zap";
   import type { AgentRecord, ContextUsage, ModelInfo } from "$lib/api";
   import type { TodoItem } from "@nervekit/shared";
-  import Popover from "$lib/components/ui/popover-panel";
-  import Switch from "$lib/components/ui/switch-field";
+  import Popover from "@nervekit/ui/components/ui/popover-panel";
+  import Switch from "@nervekit/ui/components/ui/switch-field";
   import type { Component } from "svelte";
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";

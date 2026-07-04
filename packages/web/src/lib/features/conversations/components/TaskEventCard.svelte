@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Badge } from "$lib/components/ui/badge";
-  import { StatusDot } from "$lib/components/ui/status-dot";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import type { TaskEventNotice } from "$lib/core/types/state-types";
   import { taskPulse, taskTone } from "$lib/core/utils/status";
 

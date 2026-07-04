@@ -1,4 +1,4 @@
-import type { StatusTone } from "$lib/components/ui/status-dot";
+import type { StatusTone } from "@nervekit/ui/components/ui/status-dot";
 import { taskPulse, taskTone } from "$lib/core/utils/status";
 import type { DetailsActionInfo, MetaTone } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";

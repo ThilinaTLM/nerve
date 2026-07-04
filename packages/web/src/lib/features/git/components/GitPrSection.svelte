@@ -10,9 +10,9 @@
     GithubStatusResponse,
     GitRepoSummary,
   } from "$lib/api";
-  import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
-  import { cn } from "$lib/core/utils.js";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import { cn } from "@nervekit/ui/core/utils";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
   import { checksTone } from "./git-change-format";
 

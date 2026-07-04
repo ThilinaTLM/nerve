@@ -11,7 +11,7 @@
     buildLiveTimeline,
     selectVisibleCommitted,
   } from "$lib/features/conversations/state/timeline";
-  import { Button } from "$lib/components/ui/button";
+  import { Button } from "@nervekit/ui/components/ui/button";
   import PromptComposer from "./PromptComposer.svelte";
   import { currentTodosForAgent } from "./composer-todos";
   import TranscriptList from "./TranscriptList.svelte";

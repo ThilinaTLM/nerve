@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { JiraUserSummaryPayload } from "@nervekit/shared";
-  import { Badge } from "$lib/components/ui/badge";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
   import { jiraInitials } from "$lib/features/tools/views/jira-display";
 
   type Props = { user: JiraUserSummaryPayload };

@@ -3,8 +3,8 @@
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import User from "@lucide/svelte/icons/user";
   import type { JiraIssueSummaryPayload } from "@nervekit/shared";
-  import { Badge } from "$lib/components/ui/badge";
-  import type { BadgeTone } from "$lib/components/ui/badge";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import type { BadgeTone } from "@nervekit/ui/components/ui/badge";
   import { dateTimeLabel, relativeTimeLabel } from "$lib/core/utils/time";
   import { jiraIssueUrl, jiraStatusTone } from "$lib/features/tools/views/jira-display";
   import { jiraIssueTypeIcon, jiraPriorityMeta } from "$lib/features/tools/views/jira-icons";

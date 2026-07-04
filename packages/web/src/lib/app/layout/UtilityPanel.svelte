@@ -9,8 +9,8 @@
     ProjectRecord,
     StatusResponse,
   } from "$lib/api";
-  import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import Tabs, { type TabItem } from "$lib/components/ui/tabs-bar";
+  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
+  import Tabs, { type TabItem } from "@nervekit/ui/components/ui/tabs-bar";
   import ContextTab from "$lib/features/conversations/components/ContextUtilityPanel.svelte";
   import GitTab from "$lib/features/git/components/GitUtilityPanel.svelte";
   import TasksTab from "$lib/features/tasks/components/TaskUtilityPanel.svelte";

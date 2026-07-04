@@ -7,10 +7,10 @@
     ConversationTreeNode,
     ToolCallTranscriptRecord,
   } from "$lib/api";
-  import { buttonVariants } from "$lib/components/ui/button";
-  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
-  import Dialog from "$lib/components/ui/dialog-shell";
-  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import { buttonVariants } from "@nervekit/ui/components/ui/button";
+  import ConfirmDialog from "@nervekit/ui/components/ui/confirm-dialog";
+  import Dialog from "@nervekit/ui/components/ui/dialog-shell";
+  import * as DropdownMenu from "@nervekit/ui/components/ui/dropdown-menu";
   import HistoryTab from "./HistoryTab.svelte";
 
   type Props = {

@@ -11,12 +11,12 @@
   } from "$lib/api";
   import ContextMenu, {
     type ContextMenuItem,
-  } from "$lib/components/ui/context-menu-list";
+  } from "@nervekit/ui/components/ui/context-menu-list";
   import ToolCallCard from "$lib/features/tools/components/ToolCallCard.svelte";
   import ToolDraftCard from "$lib/features/tools/components/tool-call/ToolDraftCard.svelte";
   import ToolResultErrorCard from "$lib/features/tools/components/tool-call/ToolResultErrorCard.svelte";
-  import Markdown from "$lib/core/components/Markdown.svelte";
-  import PlainText from "$lib/core/components/PlainText.svelte";
+  import Markdown from "@nervekit/ui/core/components/Markdown.svelte";
+  import PlainText from "@nervekit/ui/core/components/PlainText.svelte";
   import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
   import type { TranscriptItem } from "$lib/core/types/state-types";
   import type { TimelineItem } from "$lib/features/conversations/state/timeline";

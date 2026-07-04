@@ -10,7 +10,7 @@
   import X from "@lucide/svelte/icons/x";
   import { Toolbar } from "bits-ui";
   import type { ProjectRecord } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
+  import { Button } from "@nervekit/ui/components/ui/button";
   import nerveMark from "$lib/assets/nerve-mark.svg?raw";
 
   type Props = {

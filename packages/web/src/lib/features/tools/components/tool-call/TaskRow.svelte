@@ -1,9 +1,9 @@
 <script lang="ts">
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import type { TaskRecord } from "$lib/api";
-  import { Badge } from "$lib/components/ui/badge";
-  import { StatusDot } from "$lib/components/ui/status-dot";
-  import * as Tooltip from "$lib/components/ui/tooltip";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
+  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
   import { taskPulse, taskTone } from "$lib/core/utils/status";
   import { dateTimeLabel } from "$lib/core/utils/time";
   import { taskUrl } from "$lib/features/tools/views/task";

@@ -5,8 +5,8 @@
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import X from "@lucide/svelte/icons/x";
   import type { GitFileChange } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import { cn } from "$lib/core/utils.js";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import { cn } from "@nervekit/ui/core/utils";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
   import type { FileMutation } from "$lib/features/git/state/git-panel.svelte";
   import {

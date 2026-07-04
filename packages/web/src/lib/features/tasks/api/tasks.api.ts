@@ -3,7 +3,7 @@ import type {
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/shared";
-import { apiGet, apiPathSegment } from "../../../core/api/client";
+import { apiGet, apiPathSegment } from "@nervekit/ui/core/api/client";
 import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function getTaskLogs(

@@ -7,11 +7,11 @@
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { TaskRecord } from "$lib/api";
-  import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
-  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
-  import { StatusDot } from "$lib/components/ui/status-dot";
-  import * as Tooltip from "$lib/components/ui/tooltip";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import ContextMenu, { type ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
+  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
+  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
   import { taskPulse, taskTone } from "$lib/core/utils/status";
   import { dateTimeLabel } from "$lib/core/utils/time";
 

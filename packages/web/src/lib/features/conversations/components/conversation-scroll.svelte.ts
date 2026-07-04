@@ -1,8 +1,8 @@
-import { tick } from "svelte";
 import type {
   VirtualScrollBehavior,
   VirtualScrollerController,
-} from "$lib/components/ui/virtual-list";
+} from "@nervekit/ui/components/ui/virtual-list";
+import { tick } from "svelte";
 import { shouldDisableFollowForScroll } from "./conversation-scroll-intent";
 
 const MAX_SETTLE_FRAMES = 30;

@@ -242,7 +242,7 @@ The manager MAY expose this information through the sandbox-manager web UI, but 
 
 ## Sandbox-manager web UI customization
 
-The optional `packages/web` sandbox-manager UI is a separate surface from the current workbench. It should reuse shadcn-svelte components, theme tokens, protocol helpers, and shared utilities, while maintaining separate manager API clients, routes/views, and state stores. See [Web UI](./web-ui.md).
+The optional sandbox-manager UI lives in `packages/sandbox-manager-ui`, separate from the current workbench. It should reuse shadcn-svelte components, theme tokens, and generic display helpers from `packages/ui`, while maintaining separate manager API clients, routes/views, and state stores. See [Web UI](./web-ui.md).
 
 ## Image labels
 

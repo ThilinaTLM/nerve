@@ -3,8 +3,8 @@
     Pane,
     PaneGroup,
     Handle as PaneResizer,
-  } from "$lib/components/ui/resizable";
-  import * as Sheet from "$lib/components/ui/sheet";
+  } from "@nervekit/ui/components/ui/resizable";
+  import * as Sheet from "@nervekit/ui/components/ui/sheet";
   import {
     closeDrawers,
     layout,

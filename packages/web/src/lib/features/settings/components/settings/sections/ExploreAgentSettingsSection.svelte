@@ -7,8 +7,8 @@
     Settings,
     UpdateSettingsRequest,
   } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import * as Tooltip from "$lib/components/ui/tooltip";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
   import SettingsSectionCard from "../SettingsSectionCard.svelte";
   import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
   import {

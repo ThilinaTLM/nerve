@@ -10,9 +10,9 @@
   import Settings from "@lucide/svelte/icons/settings";
   import Terminal from "@lucide/svelte/icons/terminal";
   import X from "@lucide/svelte/icons/x";
-  import { StatusDot } from "$lib/components/ui/status-dot";
+  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import { writeClipboardText } from "$lib/core/clipboard";
-  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import ContextMenu, { type ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
   import { notify } from "$lib/features/notifications/notify.svelte";
   import type { CenterTabIdentity, CenterTabModel } from "$lib/features/workspace";
   import {

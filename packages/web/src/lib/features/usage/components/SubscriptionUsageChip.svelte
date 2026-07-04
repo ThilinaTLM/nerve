@@ -6,10 +6,10 @@
     formatResetAt,
     usageTone,
   } from "$lib/core/utils/usage";
-  import { cn } from "$lib/core/utils.js";
-  import { Badge } from "$lib/components/ui/badge";
-  import Popover from "$lib/components/ui/popover-panel";
-  import { StatusDot } from "$lib/components/ui/status-dot";
+  import { cn } from "@nervekit/ui/core/utils";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import Popover from "@nervekit/ui/components/ui/popover-panel";
+  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import type { StatusTone } from "$lib/core/utils/status";
 
   type Props = {

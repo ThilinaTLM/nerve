@@ -11,11 +11,11 @@
     getCredentialKey,
     setProviderApiKey,
   } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
-  import * as Dialog from "$lib/components/ui/dialog";
-  import { Input } from "$lib/components/ui/input";
-  import { Switch as ToggleSwitch } from "$lib/components/ui/switch";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import ConfirmDialog from "@nervekit/ui/components/ui/confirm-dialog";
+  import * as Dialog from "@nervekit/ui/components/ui/dialog";
+  import { Input } from "@nervekit/ui/components/ui/input";
+  import { Switch as ToggleSwitch } from "@nervekit/ui/components/ui/switch";
   import { encryptApiKey } from "$lib/core/utils/credential-crypto";
   import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
   import SettingsSectionCard from "../SettingsSectionCard.svelte";

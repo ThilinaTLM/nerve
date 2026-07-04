@@ -9,7 +9,7 @@
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import X from "@lucide/svelte/icons/x";
   import { isGithubChecksPending } from "$lib/features/git/checks";
-  import Markdown from "$lib/core/components/Markdown.svelte";
+  import Markdown from "@nervekit/ui/core/components/Markdown.svelte";
   import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
   import type { PrViewState } from "$lib/core/types/state-types";
   import {
@@ -20,9 +20,9 @@
     stateLabel,
     stateTone,
   } from "./pr-pane-helpers";
-  import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
-  import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
 
   type Props = {
     view?: PrViewState;

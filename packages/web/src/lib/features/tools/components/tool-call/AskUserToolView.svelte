@@ -16,7 +16,7 @@
     voiceInputTargetKey,
   } from "$lib/core/audio/voice-input-target";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
-  import { Button } from "$lib/components/ui/button";
+  import { Button } from "@nervekit/ui/components/ui/button";
   import {
     getShortcutAriaLabel,
     getShortcutLabel,

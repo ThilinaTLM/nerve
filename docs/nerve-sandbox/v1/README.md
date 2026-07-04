@@ -6,7 +6,7 @@ Scope: Docker/container runtime contract for a configurable, reproducible Nerve 
 
 Nerve Sandbox v1 defines how to package and run the Nerve agent harness as an isolated sandbox daemon. The sandbox is configured by a YAML spec, connects to a sandbox controller over WebSocket, emits durable events, accepts steering commands, and persists enough local state to resume multiple conversations, agents, subagents, and runs after restarts, errors, completion, or human-input waits.
 
-Baseline implementation is split into `packages/sandbox-image` for the containerized daemon/runtime and `packages/sandbox-manager` for container lifecycle, built-in key-value secrets, protocol APIs, and garbage collection. Docker and Podman are the initial manager backends; AWS ECS is a planned backend extension. `packages/web` may provide a separate sandbox-manager UI that connects to the manager, not directly to sandbox containers.
+Baseline implementation is split into `packages/sandbox-image` for the containerized daemon/runtime, `packages/sandbox-manager` for container lifecycle, built-in key-value secrets, protocol APIs, web-asset serving, and garbage collection, `packages/sandbox-manager-ui` for the dedicated manager UI, and `packages/ui` for shared Svelte UI primitives/styles. Docker and Podman are the initial manager backends; AWS ECS is a planned backend extension.
 
 The sandbox does **not** require the current Nerve orchestrator or current local Web UI. Those components may later act as one possible controller/UI, but the v1 sandbox is intended as a standalone platform building block.
 
@@ -24,7 +24,7 @@ The sandbox does **not** require the current Nerve orchestrator or current local
 10. [Tools](./tools.md) — tool groups, policy, secrets, approvals, Git/GitHub command policy, skills, and explore-agent behavior.
 11. [Security](./security.md) — trust model, filesystem, network/firewall, process, package registries, credentials, secret stores, and secret handling.
 12. [Customization](./customization.md) — reproducible derived images, runtime config, built-in skills, boot phases, Git/GitHub setup, and upgrades.
-13. [Web UI](./web-ui.md) — separate sandbox-manager UI surface in `packages/web`.
+13. [Web UI](./web-ui.md) — dedicated sandbox-manager UI app in `packages/sandbox-manager-ui`.
 14. [Examples](./examples.md) — YAML, manager, Docker/Podman, WebSocket frames, events, and recovery flows.
 15. [Implementation Guide](./implementation-guide.md) — non-normative implementation phases and conformance checks.
 
@@ -86,7 +86,7 @@ This specification is ready to guide an initial implementation with:
 
 - one sandbox daemon per sandbox container in `packages/sandbox-image`;
 - a sandbox manager in `packages/sandbox-manager` with Docker/Podman container drivers, built-in KV secrets, protocol API/WS, and container GC;
-- a separate sandbox-manager web UI surface in `packages/web`;
+- a separate sandbox-manager web UI app in `packages/sandbox-manager-ui` using shared primitives from `packages/ui`;
 - durable state semantics for multiple conversations, agents, subagents, and runs;
 - one writable workspace mount;
 - one durable state volume;

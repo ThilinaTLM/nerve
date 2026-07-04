@@ -1,6 +1,6 @@
 <script lang="ts">
   import Plus from "@lucide/svelte/icons/plus";
-  import { Button } from "$lib/components/ui/button";
+  import { Button } from "@nervekit/ui/components/ui/button";
 
   type Props = {
     shortcut?: string;

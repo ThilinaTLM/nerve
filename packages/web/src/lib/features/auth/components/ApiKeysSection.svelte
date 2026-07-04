@@ -2,9 +2,9 @@
   import Plus from "@lucide/svelte/icons/plus";
   import type { AuthProviderMetadata } from "$lib/api";
   import { deleteProviderCredential } from "$lib/api";
-  import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
-  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import ConfirmDialog from "@nervekit/ui/components/ui/confirm-dialog";
   import { authState } from "$lib/features/auth/state/auth-state.svelte";
   import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
   import AddProviderDialog from "./AddProviderDialog.svelte";

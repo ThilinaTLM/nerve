@@ -6,9 +6,9 @@
     PlanReviewRecord,
     PlanReviewResolveOptions,
   } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import { SplitButton } from "$lib/components/ui/split-button";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import * as DropdownMenu from "@nervekit/ui/components/ui/dropdown-menu";
+  import { SplitButton } from "@nervekit/ui/components/ui/split-button";
   import type { MetaItem } from "$lib/features/tools/views/tool-presentation";
   import type { ToolCallDisplayRecord, ToolView } from "$lib/features/tools/views/tool-result-view";
   import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";

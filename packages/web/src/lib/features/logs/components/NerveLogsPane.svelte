@@ -16,11 +16,11 @@
     ApplicationLogSource,
   } from "$lib/api";
   import { getApplicationLogs, pruneApplicationLogs } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
-  import { Input } from "$lib/components/ui/input";
-  import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import { StatusDot } from "$lib/components/ui/status-dot";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import ConfirmDialog from "@nervekit/ui/components/ui/confirm-dialog";
+  import { Input } from "@nervekit/ui/components/ui/input";
+  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
+  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import { logLevelTone } from "$lib/core/utils/status";
   import { timeLabel } from "$lib/core/utils/time";
 

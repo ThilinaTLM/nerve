@@ -1,4 +1,4 @@
-import type { BadgeTone } from "$lib/components/ui/badge";
+import type { BadgeTone } from "@nervekit/ui/components/ui/badge";
 
 /**
  * Map a Jira status to a Badge tone. Authoritative `statusCategory` key wins

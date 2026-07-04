@@ -8,10 +8,10 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
     UpdateSettingsRequest,
   } from "$lib/api";
   import Info from "@lucide/svelte/icons/info";
-  import RadioGroup from "$lib/components/ui/radio-group-field";
-  import Switch from "$lib/components/ui/switch-field";
-  import * as Tooltip from "$lib/components/ui/tooltip";
-  import { Button } from "$lib/components/ui/button";
+  import RadioGroup from "@nervekit/ui/components/ui/radio-group-field";
+  import Switch from "@nervekit/ui/components/ui/switch-field";
+  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
+  import { Button } from "@nervekit/ui/components/ui/button";
   import { clampThinkingLevelForModel } from "$lib/features/conversations/state/agent-selection-defaults";
   import SettingsSectionCard from "../SettingsSectionCard.svelte";
   import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";

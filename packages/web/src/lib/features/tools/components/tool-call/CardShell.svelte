@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { StatusTone } from "$lib/components/ui/status-dot";
+  import type { StatusTone } from "@nervekit/ui/components/ui/status-dot";
   import type {
     MetaItem,
     PrimaryArg,

@@ -11,11 +11,11 @@
     ToolCallTranscriptRecord,
     UserQuestionRecord,
   } from "$lib/api";
-  import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import type { ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
   import {
     VirtualScroller,
     type VirtualScrollerController,
-  } from "$lib/components/ui/virtual-list";
+  } from "@nervekit/ui/components/ui/virtual-list";
   import type { TranscriptItem } from "$lib/core/types/state-types";
   import type { TimelineItem } from "$lib/features/conversations/state/timeline";
   import QueuedPromptRow from "./QueuedPromptRow.svelte";

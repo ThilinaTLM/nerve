@@ -20,12 +20,15 @@ The intended package is `packages/sandbox-manager`.
 
 The manager MUST NOT rely on prompt instructions, `AGENTS.md`, or skills for authorization. The manager MAY impose stricter policy than the sandbox YAML requests.
 
+The manager may serve the dedicated sandbox-manager web UI when `NERVE_SANDBOX_MANAGER_SERVE_WEB_UI` is enabled. Static assets are resolved from an explicit `NERVE_SANDBOX_MANAGER_WEB_DIST`, bundled `dist/web`, or workspace `packages/sandbox-manager-ui/dist`. Remote deployments should place an authenticated reverse proxy in front of the manager; the built-in browser cookie flow is loopback-oriented.
+
+
 ## Topology
 
 ```text
 +-------------------------------+
 | Frontend / CLI / API clients   |
-| packages/web sandbox UI        |
+| packages/sandbox-manager-ui    |
 +---------------+---------------+
                 | Nerve Protocol v1 / HTTP
                 v

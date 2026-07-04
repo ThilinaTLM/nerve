@@ -12,8 +12,8 @@
     StatusResponse,
   } from "$lib/api";
   import { agentActivityPulse, agentActivityTone } from "$lib/core/utils/status";
-  import { Badge } from "$lib/components/ui/badge";
-  import { StatusDot } from "$lib/components/ui/status-dot";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
 
   type Props = {

@@ -1,10 +1,10 @@
 <script lang="ts">
   import Search from "@lucide/svelte/icons/search";
   import type { AuthProviderMetadata, ModelInfo, ModelSelection } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import { Checkbox } from "$lib/components/ui/checkbox";
-  import Dialog from "$lib/components/ui/dialog-shell";
-  import { Input } from "$lib/components/ui/input";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import { Checkbox } from "@nervekit/ui/components/ui/checkbox";
+  import Dialog from "@nervekit/ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/ui/components/ui/input";
   import {
     authenticatedRealModelOptions,
     modelDisplayName,

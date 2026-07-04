@@ -8,7 +8,7 @@ import {
 import {
   ApiRequestError,
   normalizeApiPathForFetch,
-} from "$lib/core/api/client";
+} from "@nervekit/ui/core/api/client";
 import { protocolClientId, protocolInstanceId } from "$lib/core/protocol/ids";
 import { createClientMessage } from "$lib/core/protocol/messages";
 

@@ -831,7 +831,7 @@ If reconnect succeeds before the deadline, the sandbox emits `sandbox.controller
 
 ## 18. Sandbox-manager web UI flow
 
-A frontend in `packages/web` connects to the sandbox manager, not directly to sandbox containers.
+The dedicated frontend in `packages/sandbox-manager-ui` connects to the sandbox manager, not directly to sandbox containers.
 
 ```text
 1. UI authenticates to sandbox manager.

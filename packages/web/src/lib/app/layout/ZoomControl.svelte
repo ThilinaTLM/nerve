@@ -2,8 +2,8 @@
   import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
   import ZoomIn from "@lucide/svelte/icons/zoom-in";
   import ZoomOut from "@lucide/svelte/icons/zoom-out";
-  import { Button } from "$lib/components/ui/button";
-  import Popover from "$lib/components/ui/popover-panel";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import Popover from "@nervekit/ui/components/ui/popover-panel";
   import {
     MAX_ZOOM_LEVEL,
     MIN_ZOOM_LEVEL,

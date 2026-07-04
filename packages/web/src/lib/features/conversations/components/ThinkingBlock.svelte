@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Markdown from "$lib/core/components/Markdown.svelte";
+  import Markdown from "@nervekit/ui/core/components/Markdown.svelte";
   import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
 
   type ThinkingBlockItem = {

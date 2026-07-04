@@ -5,8 +5,8 @@
   import type { QueuedPromptRecord } from "$lib/api";
   import ContextMenu, {
     type ContextMenuItem,
-  } from "$lib/components/ui/context-menu-list";
-  import PlainText from "$lib/core/components/PlainText.svelte";
+  } from "@nervekit/ui/components/ui/context-menu-list";
+  import PlainText from "@nervekit/ui/core/components/PlainText.svelte";
 
   type Props = {
     prompt: QueuedPromptRecord;

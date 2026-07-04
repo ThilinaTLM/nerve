@@ -8,7 +8,8 @@
   "files": [
     "dist/**",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "Dockerfile"
   ],
   "bin": {
     "nerve-sandbox-manager": "./dist/main.js"
@@ -27,7 +28,8 @@
     "build": "tsc -b",
     "check": "tsc -b --pretty false",
     "dev": "tsx src/main.ts",
-    "test": "tsx --test \"test/**/*.test.ts\""
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "bundle:web": "node ../../scripts/copy-sandbox-manager-ui-dist-to-manager.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.79.7",

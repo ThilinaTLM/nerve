@@ -2,13 +2,13 @@ import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Copy from "@lucide/svelte/icons/copy";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import type { ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
 import type {
   ConversationRecord,
   ProjectEditor,
   ProjectRecord,
   StatusResponse,
 } from "$lib/api";
-import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { shortProjectLabel } from "$lib/core/utils/project-tree";
 import { notify } from "$lib/features/notifications/notify.svelte";

@@ -1,8 +1,8 @@
 <script lang="ts">
   import Check from "@lucide/svelte/icons/check";
   import type { AgentRecord, ModelInfo, PlanReviewResolveOptions } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import DialogShell from "$lib/components/ui/dialog-shell";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import DialogShell from "@nervekit/ui/components/ui/dialog-shell";
   import {
     contextualModelLabel,
     modelKey,

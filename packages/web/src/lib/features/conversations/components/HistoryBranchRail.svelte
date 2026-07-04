@@ -8,7 +8,7 @@
   import Pencil from "@lucide/svelte/icons/pencil";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import type { ConversationEntry, ConversationTreeNode, ToolCallTranscriptRecord } from "$lib/api";
-  import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/context-menu-list";
+  import ContextMenu, { type ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { relativeTimeLabel } from "$lib/core/utils/time";
   import { notify } from "$lib/features/notifications/notify.svelte";

@@ -1,0 +1,106 @@
+/* Centralized keyframes and animation utility classes.
+ * Never define @keyframes inside a component; add them here. */
+
+/* Shared rotation used by every spinner. Apply with class="spin". */
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Hard blink shared by streaming carets / pending indicators.
+ * Components keep their own `animation:` shorthand (timings differ) and only
+ * reference this keyframe. */
+@keyframes pulse {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Status dot pulse (status-dot.svelte). Applied via class="status-pulse". */
+.status-pulse {
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 0%, transparent);
+  }
+}
+
+/* Transcription activity chip entrance (TranscriptionActivity.svelte). */
+@keyframes activity-enter {
+  from {
+    opacity: 0;
+    transform: translateX(0.15rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Compaction progress indicator pulse (CompactionCard.svelte). */
+@keyframes compaction-progress {
+  0%,
+  100% {
+    opacity: 0.58;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Center tab "running" status indicator pulse (center-tab.css). */
+@keyframes tab-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0.36rem transparent;
+  }
+}
+
+/* Bottom-only reveal for live/waiting transcript surfaces
+ * (TranscriptList.svelte waiting-entry). Opacity/transform only. */
+@keyframes transcript-live-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* One-shot settle when a live/running surface becomes terminal
+ * (TranscriptRow, ToolDraftCard, CardShell). Opacity/transform only. */
+@keyframes transcript-state-settle {
+  from {
+    opacity: 0.72;
+    transform: translateY(0.12rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Directory picker skeleton shimmer (directory-picker.css). */
+@keyframes picker-sheen {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}

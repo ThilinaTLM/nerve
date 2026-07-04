@@ -1,9 +1,9 @@
 <script lang="ts">
   import ContextMenu, {
     type ContextMenuItem,
-  } from "$lib/components/ui/context-menu-list";
-  import { StatusDot } from "$lib/components/ui/status-dot";
-  import * as Tooltip from "$lib/components/ui/tooltip";
+  } from "@nervekit/ui/components/ui/context-menu-list";
+  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
+  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
   import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
   import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
   import type { ConversationRow } from "$lib/core/utils/project-tree";

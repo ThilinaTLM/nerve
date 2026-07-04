@@ -1,0 +1,34 @@
+/* Shared UI stylesheet entry. App packages import this once from their local
+ * src/styles/app.css, then add app-specific partials and Tailwind @source hints. */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn-svelte/tailwind.css";
+
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+@import "@fontsource/outfit/700.css";
+
+@import "./theme.css";
+@import "./base.css";
+@import "./animation.css";
+@import "./components.css";
+
+@font-face {
+  font-family: "Iosevka";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("../../node_modules/@fontsource/iosevka/files/iosevka-latin-400-normal.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Iosevka";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("../../node_modules/@fontsource/iosevka/files/iosevka-latin-500-normal.woff2")
+    format("woff2");
+}

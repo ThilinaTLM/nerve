@@ -28,11 +28,15 @@
     "daemon": "pnpm run build:deps && pnpm --filter @nervekit/orchestrator dev",
     "cli": "pnpm run build:deps && pnpm --filter @nervekit/cli dev --",
     "serve": "pnpm run build:deps && pnpm --filter @nervekit/cli dev -- serve --open",
-    "release:build": "pnpm --filter @nervekit/shared build && pnpm --filter @nervekit/agent build && pnpm --filter @nervekit/tools build && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/cli build && pnpm --filter @nervekit/desktop build",
+    "release:build": "pnpm --filter @nervekit/shared build && pnpm --filter @nervekit/agent build && pnpm --filter @nervekit/tools build && pnpm --filter @nervekit/ui build && pnpm --filter @nervekit/sandbox-manager-ui build && pnpm --filter @nervekit/sandbox-manager build && node scripts/copy-sandbox-manager-ui-dist-to-manager.mjs && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/cli build && pnpm --filter @nervekit/desktop build",
     "release:pack:npm": "pnpm release:build && node scripts/pack-npm.mjs",
     "release:desktop:linux": "pnpm --filter @nervekit/desktop package:linux && pnpm release:checksums",
     "release:checksums": "node scripts/checksums.mjs",
-    "release:verify-tag": "node scripts/verify-release-tag.mjs"
+    "release:verify-tag": "node scripts/verify-release-tag.mjs",
+    "ui:check": "pnpm --filter @nervekit/ui check",
+    "sandbox-manager-ui": "pnpm --filter @nervekit/sandbox-manager-ui dev",
+    "sandbox-manager-ui:build": "pnpm --filter @nervekit/sandbox-manager-ui build",
+    "sandbox-manager:bundle-ui": "node scripts/copy-sandbox-manager-ui-dist-to-manager.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.80.3"

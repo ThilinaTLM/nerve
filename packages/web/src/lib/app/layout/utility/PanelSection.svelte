@@ -2,7 +2,7 @@
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import type { Component, Snippet } from "svelte";
-  import { cn } from "$lib/core/utils.js";
+  import { cn } from "@nervekit/ui/core/utils";
 
   type Props = {
     title: string;

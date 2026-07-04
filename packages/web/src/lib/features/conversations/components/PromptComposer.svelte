@@ -14,7 +14,7 @@
     type VoiceInputTarget,
   } from "$lib/core/audio/voice-input-session.svelte";
   import CodeMirrorComposer from "./CodeMirrorComposer.svelte";
-  import { Button } from "$lib/components/ui/button";
+  import { Button } from "@nervekit/ui/components/ui/button";
   import {
     AudioInputAuthRequiredDialog,
     chatGptAudioAuth,

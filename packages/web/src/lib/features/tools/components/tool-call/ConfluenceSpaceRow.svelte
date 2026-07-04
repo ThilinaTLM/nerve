@@ -1,7 +1,7 @@
 <script lang="ts">
   import Database from "@lucide/svelte/icons/database";
   import type { ConfluenceSpaceSummaryPayload } from "@nervekit/shared";
-  import { Badge } from "$lib/components/ui/badge";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
   import { confluenceStatusBadgeTone } from "$lib/features/tools/views/confluence-display";
 
   type Props = { space: ConfluenceSpaceSummaryPayload };

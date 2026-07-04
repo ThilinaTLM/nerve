@@ -8,8 +8,8 @@
     ToolCallTranscriptRecord,
     UserQuestionRecord,
   } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import DialogShell from "$lib/components/ui/dialog-shell/dialog-shell.svelte";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import DialogShell from "@nervekit/ui/components/ui/dialog-shell";
   import { toolPresentationCached } from "$lib/features/tools/views/tool-presentation";
   import { parseToolViewCached } from "$lib/features/tools/views/tool-result-view";
   import { toolViewComponent } from "$lib/features/tools/views/registry";

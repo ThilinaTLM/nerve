@@ -1,36 +1,8 @@
 /* App stylesheet entry point. The only stylesheet imported by the app (main.ts).
- * All global CSS lives in this directory and is imported here, split by concern.
- * Component-specific styling belongs in Tailwind utilities (default) or a scoped
- * <style> block (escape hatch); never `import "./x.css"` from a component. */
+ * Shared theme/base/primitives come from @nervekit/ui; workbench-specific
+ * global partials are imported afterwards. */
 
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn-svelte/tailwind.css";
-
-@import "@fontsource/outfit/400.css";
-@import "@fontsource/outfit/500.css";
-@import "@fontsource/outfit/600.css";
-@import "@fontsource/outfit/700.css";
-
-@import "./theme.css";
-@import "./base.css";
-@import "./animation.css";
+@import "@nervekit/ui/styles/app.css";
 @import "./components.css";
-
-@font-face {
-  font-family: "Iosevka";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/iosevka/files/iosevka-latin-400-normal.woff2")
-    format("woff2");
-}
-
-@font-face {
-  font-family: "Iosevka";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 500;
-  src: url("@fontsource/iosevka/files/iosevka-latin-500-normal.woff2")
-    format("woff2");
-}
+@source "../../../ui/src/lib/**/*.{svelte,ts}";
+@source "../**/*.{svelte,ts}";

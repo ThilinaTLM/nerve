@@ -1,7 +1,7 @@
 <script lang="ts">
   import ArrowRight from "@lucide/svelte/icons/arrow-right";
   import type { JiraTransitionSummaryPayload } from "@nervekit/shared";
-  import { Badge } from "$lib/components/ui/badge";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
   import { jiraStatusTone } from "$lib/features/tools/views/jira-display";
 
   type Props = { transition: JiraTransitionSummaryPayload };

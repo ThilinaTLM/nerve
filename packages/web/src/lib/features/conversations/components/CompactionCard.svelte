@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type StatusTone } from "$lib/components/ui/status-dot";
+  import { type StatusTone } from "@nervekit/ui/components/ui/status-dot";
   import type { CompactionNotice } from "$lib/core/types/state-types";
   import { formatTokens } from "$lib/core/utils/usage";
   import CardShell from "$lib/features/tools/components/tool-call/CardShell.svelte";

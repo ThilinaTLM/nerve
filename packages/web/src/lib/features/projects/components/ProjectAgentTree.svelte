@@ -6,14 +6,14 @@
     ProjectRecord,
     PruneProjectConversationsRequest,
   } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import AlertDialog from "$lib/components/ui/confirm-dialog";
-  import ContextMenu from "$lib/components/ui/context-menu-list";
-  import { Input } from "$lib/components/ui/input";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import AlertDialog from "@nervekit/ui/components/ui/confirm-dialog";
+  import ContextMenu from "@nervekit/ui/components/ui/context-menu-list";
+  import { Input } from "@nervekit/ui/components/ui/input";
   import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
-  import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as Tooltip from "$lib/components/ui/tooltip";
+  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
+  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
   import {
     buildProjectGroups,

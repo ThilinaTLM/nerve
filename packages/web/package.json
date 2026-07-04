@@ -53,7 +53,8 @@
     "svelte-sonner": "^1.1.1",
     "tailwindcss": "4.3.1",
     "unified": "^11.0.5",
-    "workbox-window": "7.4.1"
+    "workbox-window": "7.4.1",
+    "@nervekit/ui": "workspace:*"
   },
   "devDependencies": {
     "@lucide/svelte": "^1.17.0",

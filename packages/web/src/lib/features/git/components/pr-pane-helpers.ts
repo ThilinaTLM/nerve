@@ -1,5 +1,5 @@
+import type { BadgeTone } from "@nervekit/ui/components/ui/badge";
 import type { GithubChecksSummary } from "$lib/api";
-import type { BadgeTone } from "$lib/components/ui/badge";
 import type { PrViewState } from "$lib/core/types/state-types";
 
 type PrDetail = NonNullable<PrViewState["detail"]>;

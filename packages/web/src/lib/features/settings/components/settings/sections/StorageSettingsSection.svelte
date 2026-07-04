@@ -7,12 +7,12 @@
     StorageCleanupRequest,
     StorageUsageResponse,
   } from "$lib/api";
-  import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
-  import { Checkbox } from "$lib/components/ui/checkbox";
-  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
-  import DialogShell from "$lib/components/ui/dialog-shell/dialog-shell.svelte";
-  import { Input } from "$lib/components/ui/input";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { Button } from "@nervekit/ui/components/ui/button";
+  import { Checkbox } from "@nervekit/ui/components/ui/checkbox";
+  import ConfirmDialog from "@nervekit/ui/components/ui/confirm-dialog";
+  import DialogShell from "@nervekit/ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/ui/components/ui/input";
   import { notify } from "$lib/features/notifications/notify.svelte";
   import {
     getStorageUsage,

@@ -16,7 +16,7 @@
   } from "$lib/api";
   import type { SubscriptionUsageEntry } from "$lib/features/usage";
   import { shortenPath } from "$lib/core/utils/path";
-  import { Button } from "$lib/components/ui/button";
+  import { Button } from "@nervekit/ui/components/ui/button";
   import StatusPopover from "./StatusPopover.svelte";
   import SubscriptionUsageChip from "$lib/features/usage/components/SubscriptionUsageChip.svelte";
   import ZoomControl from "./ZoomControl.svelte";

@@ -1,6 +1,6 @@
 # Sandbox Manager Web UI
 
-The sandbox-manager web UI is a new frontend surface in `packages/web` for managing and observing sandboxes through `packages/sandbox-manager`.
+The sandbox-manager web UI is a dedicated Svelte app in `packages/sandbox-manager-ui` for managing and observing sandboxes through `packages/sandbox-manager`.
 
 It is not the current local workbench with minor changes. It should reuse the same design language, shadcn-svelte primitives, theme tokens, protocol helpers, and event-stream patterns, but it has distinct navigation, state, and user workflows centered on sandbox lifecycle and fleet operations.
 
@@ -31,37 +31,17 @@ The web UI MUST NOT:
 
 ## Package boundary
 
-Recommended package organization:
+Current package organization:
 
 ```text
-packages/web/src/lib/sandbox-manager/
-  api/
-    manager-client.ts
-    manager-events.ts
-    snapshots.ts
-  state/
-    sandbox-manager-store.svelte.ts
-    sandbox-detail-store.svelte.ts
-    runtime-backend-store.svelte.ts
-  routes-or-views/
-    SandboxManagerShell.svelte
-    SandboxDashboard.svelte
-    SandboxDetail.svelte
-    SandboxRuns.svelte
-    SandboxBootTimeline.svelte
-    SandboxRuntime.svelte
-    SandboxSecrets.svelte
-    SandboxSettings.svelte
-  components/
-    SandboxStatusBadge.svelte
-    RuntimeBackendBadge.svelte
-    BootPhaseTimeline.svelte
-    SecretRefTable.svelte
-    EventStreamPanel.svelte
-    SandboxActionMenu.svelte
+packages/sandbox-manager-ui/  # dedicated Svelte app: routes, manager API clients, state, components
+packages/ui/                  # shared shadcn-svelte primitives, theme/styles, generic display helpers
+packages/web/                 # local workbench UI only; no sandbox-manager surface
+packages/shared/              # transport-neutral protocol/schema types only
+packages/sandbox-manager/     # manager API/service; serves the built UI when enabled
 ```
 
-Actual routing may follow the app's router architecture, but the sandbox-manager UI should remain a clearly separated module/surface.
+The sandbox-manager UI is always the sandbox manager app. `/sandbox-manager` is a server/deployment path handled by `packages/sandbox-manager`, not a runtime surface switch inside `packages/web`.
 
 ## Manager connection model
 
@@ -222,17 +202,18 @@ UI reducers MUST deduplicate durable events by event ID/sequence and MUST NOT ad
 
 ## Design and styling requirements
 
-The UI must follow `packages/web/AGENTS.md`:
+The UI must follow the shared styling conventions:
 
-- use official shadcn-svelte components from `packages/web/src/lib/components/ui`;
+- use official shadcn-svelte primitives from `@nervekit/ui/components/ui/*`;
+- import shared theme/base styles from `@nervekit/ui/styles/app.css`;
 - use Tailwind token utilities and theme tokens for colors, typography, spacing, radius, and shadows;
 - use only approved semantic additions such as `success`, `warning`, and `info`;
 - avoid hard-coded colors, font sizes, spacing, and one-off visual constants;
 - use `@lucide/svelte` icons;
 - use monospace only for code, logs, IDs, and paths;
-- keep global CSS under `packages/web/src/styles/`;
+- keep app-specific global CSS under `packages/sandbox-manager-ui/src/styles/`;
 - avoid component `<style>` blocks except for documented escape hatches;
-- validate important flows visually in light and dark mode when implementation begins.
+- validate important flows visually in light and dark mode.
 
 The UI should feel related to the existing app, but it should optimize for fleet/lifecycle observability rather than a single local coding workbench.
 
@@ -247,7 +228,7 @@ Sandbox-manager UI state SHOULD be separate from the current workbench state:
 - no assumption of one local project/workspace;
 - no direct dependency on desktop-only APIs.
 
-Shared utilities may be reused for protocol messages, event streams, markdown/plain text, terminal/log rendering, time formatting, and status utilities.
+Shared UI/display utilities come from `@nervekit/ui`. Shared protocol schemas remain in `@nervekit/shared`; do not place Svelte components or browser CSS in `packages/shared`.
 
 ## Security requirements
 
@@ -299,26 +280,25 @@ A first implementation SHOULD verify:
 - boot timeline accurately reflects setup order;
 - approval/input actions use manager-mediated commands;
 - Docker/Podman limitations are visible;
-- styling follows `packages/web/AGENTS.md` guardrails;
+- styling follows `packages/ui` and `packages/sandbox-manager-ui` guardrails;
 - light and dark mode remain readable.
 
-## Implemented surface (v1)
+## Implemented app (v1)
 
-The first implementation ships the sandbox-manager UI as a separate top-level
-surface inside the existing `packages/web` bundle, served same-origin by
-`packages/sandbox-manager` at `/sandbox-manager`.
+The implementation ships as `packages/sandbox-manager-ui`, a dedicated Svelte
+app built independently from the local workbench. `packages/sandbox-manager`
+serves it same-origin at `/sandbox-manager` from, in order: an explicit
+`NERVE_SANDBOX_MANAGER_WEB_DIST`, bundled `packages/sandbox-manager/dist/web`,
+or workspace `packages/sandbox-manager-ui/dist`.
 
-### Selection and bootstrap
+### Bootstrap
 
-- `packages/web/src/App.svelte` chooses the surface before any workbench
-  provider mounts. Sandbox mode is active when the path is `/sandbox-manager`
-  (or starts with `/sandbox-manager/`), or `?surface=sandbox-manager` is set.
-- The sandbox surface is loaded via dynamic `import()` so it forms its own
-  chunk and does not inflate the workbench bundle.
+- `packages/sandbox-manager-ui/src/App.svelte` always renders the sandbox
+  manager app; there is no workbench surface switch or service worker.
 - `SandboxManagerProvider.svelte` creates a runes `SandboxManagerStore`
-  (`state/sandbox-manager-state.svelte.ts`) and provides it via context. The
-  workbench `WorkbenchProvider`, websocket, desktop, and shortcuts are never
-  mounted in sandbox mode.
+  (`state/sandbox-manager-state.svelte.ts`) and provides it via context.
+- The workbench `packages/web` app, desktop bridge, shortcuts, and PWA setup are
+  not mounted by the sandbox-manager UI.
 
 ### Clients
 
@@ -329,24 +309,13 @@ surface inside the existing `packages/web` bundle, served same-origin by
   frame format on `/api/manager/ws`, sends the shared `ui` hello, maintains
   per-stream cursors, requests replay on connect/gap, and coalesces acks.
 
-### State and reducers
+### State and views
 
 - `state/sandbox-event-reducers.ts`, `state/sandbox-snapshot-adapter.ts`, and
   `state/sandbox-status.ts` are pure/testable modules covered by unit tests.
-- Manager lifecycle events refresh the fleet; sandbox-stream events update the
-  selected sandbox's detail state and chat timeline.
-
-### Views
-
-- Dashboard (summary cards, runtime availability, fleet list).
-- Fleet list with filters (all/running/degraded/failed/stopped) and search.
-- Detail tabs: Overview, Chat, Boot/setup, Runtime/logs, Secrets/config,
-  Events.
-- Create dialog with a form path and an advanced JSON config path (controller
-  is manager-owned and omitted).
-- Chat: durable transcript + live streaming deltas, tool-call cards, and
-  actionable input/approval wait cards; composer sends `sandbox.run.start` and
-  supports cancel.
+- Views include dashboard, filtered fleet list, detail tabs (Overview, Chat,
+  Boot/setup, Runtime/logs, Secrets/config, Events), create dialog, credential
+  manager, transcript rendering, tool-call cards, and input/approval wait cards.
 
 ### Auth model
 
@@ -363,20 +332,38 @@ Dev (Vite against a running manager):
 # terminal 1: sandbox manager
 NERVE_SANDBOX_MANAGER_MODE=development node packages/sandbox-manager/dist/main.js
 
-# terminal 2: web dev server proxied to the manager
-NERVE_API_TARGET=http://127.0.0.1:7869 pnpm --filter @nervekit/web dev
-# open http://127.0.0.1:5173/sandbox-manager
+# terminal 2: sandbox-manager UI dev server proxied to the manager
+NERVE_SANDBOX_MANAGER_API_TARGET=http://127.0.0.1:7869 \
+  pnpm --filter @nervekit/sandbox-manager-ui dev
 ```
 
-Production / static (manager serves the built web dist):
+Production / static with explicit dist:
 
 ```sh
-pnpm --filter @nervekit/web build
-NERVE_SANDBOX_MANAGER_WEB_DIST=packages/web/dist \
+pnpm --filter @nervekit/sandbox-manager-ui build
+NERVE_SANDBOX_MANAGER_WEB_DIST=packages/sandbox-manager-ui/dist \
   node packages/sandbox-manager/dist/main.js
-# open http://127.0.0.1:7869/sandbox-manager
 ```
 
-Set `NERVE_SANDBOX_MANAGER_SERVE_WEB_UI=0` to disable static serving. The
+Bundled production:
+
+```sh
+pnpm --filter @nervekit/sandbox-manager-ui build
+pnpm --filter @nervekit/sandbox-manager build
+node scripts/copy-sandbox-manager-ui-dist-to-manager.mjs
+node packages/sandbox-manager/dist/main.js
+```
+
+Container build example:
+
+```sh
+pnpm --filter @nervekit/ui build
+pnpm --filter @nervekit/sandbox-manager-ui build
+pnpm --filter @nervekit/sandbox-manager build
+docker build -f packages/sandbox-manager/Dockerfile -t nerve-sandbox-manager:dev .
+```
+
+Set `NERVE_SANDBOX_MANAGER_SERVE_WEB_UI=0` to disable static serving. Set
+`NERVE_SANDBOX_MANAGER_WEB_DIST` to override bundled/workspace UI assets. The
 advanced create path accepts JSON (not YAML) in the first implementation to
 keep the web bundle dependency-free.

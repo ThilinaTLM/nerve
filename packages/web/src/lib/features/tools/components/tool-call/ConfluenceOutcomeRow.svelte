@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ConfluencePublishOutcomePayload } from "@nervekit/shared";
-  import { Badge } from "$lib/components/ui/badge";
+  import { Badge } from "@nervekit/ui/components/ui/badge";
   import { confluenceOutcomeBadgeTone } from "$lib/features/tools/views/confluence-display";
 
   type Props = {

@@ -9,8 +9,8 @@ import Equal from "@lucide/svelte/icons/equal";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import SquareCheckBig from "@lucide/svelte/icons/square-check-big";
 import Zap from "@lucide/svelte/icons/zap";
+import type { BadgeTone } from "@nervekit/ui/components/ui/badge";
 import type { Component } from "svelte";
-import type { BadgeTone } from "$lib/components/ui/badge";
 import { jiraPriorityTone } from "./jira-display";
 
 /** Map an issue type name to a representative lucide icon. */
