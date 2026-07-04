@@ -24,15 +24,16 @@ export class SecretResolver {
     const resolved = await this.resolveUncached(ref, chain);
     if (resolved.value.length > 1024 * 1024)
       throw new SecretResolutionError("Resolved secret value is too large");
-    if (resolved.cache?.enabled) {
-      while (this.cache.size >= (resolved.cache.maxEntries ?? 128)) {
+    const cacheUntil = cacheDeadline(resolved);
+    if (cacheUntil > Date.now()) {
+      while (this.cache.size >= (resolved.cache?.maxEntries ?? 128)) {
         const first = this.cache.keys().next().value;
         if (!first) break;
         this.cache.delete(first);
       }
       this.cache.set(cacheKey, {
         value: resolved.value,
-        expiresAt: Date.now() + (resolved.cache.ttlMs ?? 60_000),
+        expiresAt: cacheUntil,
       });
     }
     return resolved.value;
@@ -43,6 +44,9 @@ export class SecretResolver {
     chain: string[],
   ): Promise<{
     value: string;
+    expiresAt?: string;
+    refreshAfter?: string;
+    cacheTtlMs?: number;
     cache?: { enabled?: boolean; ttlMs?: number; maxEntries?: number };
   }> {
     if ("env" in ref) {
@@ -71,10 +75,28 @@ export class SecretResolver {
     if (!store)
       throw new SecretResolutionError(`Unknown secret store: ${storeId}`);
     return {
-      value: await store.resolve(ref.kv, [...chain, storeId]),
+      ...(await store.resolve(ref.kv, [...chain, storeId])),
       cache: storeConfig?.cache,
     };
   }
+}
+
+function cacheDeadline(resolved: {
+  expiresAt?: string;
+  refreshAfter?: string;
+  cacheTtlMs?: number;
+  cache?: { enabled?: boolean; ttlMs?: number };
+}): number {
+  const deadlines: number[] = [];
+  if (resolved.refreshAfter) deadlines.push(Date.parse(resolved.refreshAfter));
+  if (resolved.expiresAt)
+    deadlines.push(Date.parse(resolved.expiresAt) - 60_000);
+  if (resolved.cacheTtlMs !== undefined)
+    deadlines.push(Date.now() + resolved.cacheTtlMs);
+  if (resolved.cache?.enabled)
+    deadlines.push(Date.now() + (resolved.cache.ttlMs ?? 60_000));
+  const finite = deadlines.filter((deadline) => Number.isFinite(deadline));
+  return finite.length ? Math.min(...finite) : 0;
 }
 
 function assertSafeHttpEndpoint(endpoint: string): void {

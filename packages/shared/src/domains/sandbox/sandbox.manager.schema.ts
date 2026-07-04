@@ -358,9 +358,67 @@ export type SandboxManagerCredentialProfileKind = z.infer<
   typeof sandboxManagerCredentialProfileKindSchema
 >;
 
+export const sandboxManagerCredentialProviderKindSchema = z.enum([
+  "anthropic_api_key",
+  "anthropic_oauth",
+  "openai_api_key",
+  "openai_codex_oauth",
+  "google_api_key",
+  "xai_api_key",
+  "openrouter_api_key",
+  "custom_api_key",
+  "custom_bearer",
+  "github_pat",
+  "github_oauth",
+  "github_app",
+  "github_ssh",
+  "jira_api_token",
+  "jira_oauth",
+  "confluence_api_token",
+  "confluence_oauth",
+  "tavily_api_key",
+]);
+export type SandboxManagerCredentialProviderKind = z.infer<
+  typeof sandboxManagerCredentialProviderKindSchema
+>;
+
+export const sandboxManagerCredentialAuthTypeSchema = z.enum([
+  "api_key",
+  "bearer",
+  "basic",
+  "oauth",
+  "ssh",
+  "github_app",
+]);
+export type SandboxManagerCredentialAuthType = z.infer<
+  typeof sandboxManagerCredentialAuthTypeSchema
+>;
+
+export const sandboxManagerCredentialStatusSchema = z.enum([
+  "configured",
+  "needs_login",
+  "refreshing",
+  "expired",
+  "invalid",
+  "revoked",
+]);
+export type SandboxManagerCredentialStatus = z.infer<
+  typeof sandboxManagerCredentialStatusSchema
+>;
+
+export const sandboxManagerCredentialSecretRefSchema = z.object({
+  purpose: z.string().min(1),
+  configured: z.boolean(),
+  expiresAt: isoDateTimeSchema.optional(),
+});
+export type SandboxManagerCredentialSecretRef = z.infer<
+  typeof sandboxManagerCredentialSecretRefSchema
+>;
+
 export const sandboxManagerCredentialProfileSchema = z.object({
   profileId: z.string().min(1),
   kind: sandboxManagerCredentialProfileKindSchema,
+  providerKind: sandboxManagerCredentialProviderKindSchema,
   displayName: z.string().min(1),
   provider: z.string().min(1).optional(),
   api: z.string().min(1).optional(),
@@ -369,7 +427,15 @@ export const sandboxManagerCredentialProfileSchema = z.object({
   email: z.string().email().optional(),
   headers: z.record(z.string(), z.string()).optional(),
   compat: z.record(z.string(), z.unknown()).optional(),
-  credential: z.unknown(),
+  authType: sandboxManagerCredentialAuthTypeSchema,
+  status: sandboxManagerCredentialStatusSchema,
+  expiresAt: isoDateTimeSchema.optional(),
+  refreshAfter: isoDateTimeSchema.optional(),
+  lastValidatedAt: isoDateTimeSchema.optional(),
+  lastRefreshAt: isoDateTimeSchema.optional(),
+  lastError: redactedErrorSchema.optional(),
+  secretRefs: z.array(sandboxManagerCredentialSecretRefSchema).default([]),
+  credential: z.unknown().optional(),
   defaultModel: z.string().min(1).optional(),
   defaultOwner: z.string().min(1).optional(),
   defaultRepo: z.string().min(1).optional(),
@@ -382,9 +448,20 @@ export type SandboxManagerCredentialProfile = z.infer<
   typeof sandboxManagerCredentialProfileSchema
 >;
 
+export const sandboxManagerOAuthImportSchema = z.object({
+  accessToken: z.string().min(1).optional(),
+  refreshToken: z.string().min(1).optional(),
+  expiresAt: isoDateTimeSchema.optional(),
+  rawBundle: z.unknown().optional(),
+});
+export type SandboxManagerOAuthImport = z.infer<
+  typeof sandboxManagerOAuthImportSchema
+>;
+
 export const sandboxManagerCredentialProfileWriteSchema = z.object({
   profileId: z.string().min(1).optional(),
   kind: sandboxManagerCredentialProfileKindSchema,
+  providerKind: sandboxManagerCredentialProviderKindSchema,
   displayName: z.string().min(1),
   provider: z.string().min(1).optional(),
   api: z.string().min(1).optional(),
@@ -393,15 +470,58 @@ export const sandboxManagerCredentialProfileWriteSchema = z.object({
   email: z.string().email().optional(),
   headers: z.record(z.string(), z.string()).optional(),
   compat: z.record(z.string(), z.unknown()).optional(),
-  credential: z.unknown(),
   defaultModel: z.string().min(1).optional(),
   defaultOwner: z.string().min(1).optional(),
   defaultRepo: z.string().min(1).optional(),
   defaultProjectKey: z.string().min(1).optional(),
   defaultSpaceKey: z.string().min(1).optional(),
+  apiKey: z.string().min(1).optional(),
+  bearerToken: z.string().min(1).optional(),
+  username: z.string().min(1).optional(),
+  password: z.string().min(1).optional(),
+  privateKey: z.string().min(1).optional(),
+  passphrase: z.string().min(1).optional(),
+  githubApp: z
+    .object({
+      appId: z.string().min(1),
+      installationId: z.string().min(1),
+      privateKey: z.string().min(1),
+    })
+    .optional(),
+  oauthImport: sandboxManagerOAuthImportSchema.optional(),
+  credential: z.unknown().optional(),
 });
 export type SandboxManagerCredentialProfileWrite = z.infer<
   typeof sandboxManagerCredentialProfileWriteSchema
+>;
+
+export const managerCredentialResolveRequestSchema = z.object({
+  profileId: z.string().min(1).optional(),
+  key: z.string().min(1).optional(),
+  purpose: z
+    .enum(["model_api", "github", "jira", "confluence", "web"])
+    .optional(),
+  minTtlMs: z.number().int().nonnegative().safe().optional(),
+});
+export type ManagerCredentialResolveRequest = z.infer<
+  typeof managerCredentialResolveRequestSchema
+>;
+
+export const managerCredentialResolveResponseSchema = z.object({
+  value: z.string().min(1),
+  credentialType: z.enum([
+    "api_key",
+    "bearer",
+    "basic_password",
+    "ssh_private_key",
+  ]),
+  expiresAt: isoDateTimeSchema.optional(),
+  refreshAfter: isoDateTimeSchema.optional(),
+  cacheTtlMs: z.number().int().nonnegative().safe().optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
+});
+export type ManagerCredentialResolveResponse = z.infer<
+  typeof managerCredentialResolveResponseSchema
 >;
 
 export const sandboxManagerSecretMetadataSchema = z.object({

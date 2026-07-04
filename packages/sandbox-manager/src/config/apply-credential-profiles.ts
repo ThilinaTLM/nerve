@@ -69,7 +69,7 @@ function applyModelProviderProfile(
     ...(profile.baseUrl ? { baseUrl: profile.baseUrl } : {}),
     ...(profile.headers ? { headers: profile.headers } : {}),
     ...(profile.compat ? { compat: profile.compat } : {}),
-    credential: profile.credential,
+    ...(profile.credential ? { credential: profile.credential } : {}),
   };
   if (existing) Object.assign(existing, providerConfig);
   else providers.push(providerConfig);
@@ -81,7 +81,7 @@ function applyGithubProfile(
 ): void {
   const github = ensureObject(config, "github");
   github.enabled = true;
-  github.auth = profile.credential;
+  if (profile.credential) github.auth = profile.credential;
   if (profile.provider) github.host = profile.provider;
   if (profile.defaultOwner) github.defaultOwner = profile.defaultOwner;
   if (profile.defaultRepo) github.defaultRepo = profile.defaultRepo;
@@ -104,7 +104,7 @@ function applyToolCredentialProfile(
   if (profile.defaultProjectKey)
     tool.defaultProjectKey = profile.defaultProjectKey;
   if (profile.defaultSpaceKey) tool.defaultSpaceKey = profile.defaultSpaceKey;
-  tool.credential = profile.credential;
+  if (profile.credential) tool.credential = profile.credential;
 }
 
 function injectManagerSecretStore(
@@ -119,6 +119,7 @@ function injectManagerSecretStore(
     endpoint: `${options.managerHttpBaseUrl}/api/sandboxes/${encodeURIComponent(
       options.sandboxId,
     )}/secrets/resolve`,
+    response: { valueJsonPointer: "/data/value" },
     auth: {
       type: "bearer",
       token: { file: "/secrets/controller-token" },

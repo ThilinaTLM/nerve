@@ -176,6 +176,9 @@ importers:
 
   packages/sandbox-manager:
     dependencies:
+      '@earendil-works/pi-ai':
+        specifier: 0.79.7
+        version: 0.79.7(patch_hash=8a21b18e1d52927f1fab514629a98ad14b9606a4365dc71ee72f0c383bde5112)(ws@8.18.3)(zod@4.1.12)
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
@@ -8875,6 +8878,11 @@ snapshots:
       oniguruma-parser: 0.12.2
       regex: 6.1.0
       regex-recursion: 6.0.2
+
+  openai@6.26.0(ws@8.18.3)(zod@4.1.12):
+    optionalDependencies:
+      ws: 8.18.3
+      zod: 4.1.12
 
   openai@6.26.0(ws@8.21.0)(zod@4.1.12):
     optionalDependencies:

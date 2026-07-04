@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
+// biome-ignore lint/style/noExcessiveLinesPerFile: temporary composition root for manager routes during sandbox-manager auth build-out.
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   createServer,
@@ -9,7 +10,6 @@ import {
   type ManagedSandboxRecord,
   type SandboxConfigV1,
   sandboxConfigV1Schema,
-  sandboxManagerCredentialProfileSchema,
   sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
@@ -19,6 +19,8 @@ import {
   commandRequestSchema,
   createSandboxRequestSchema,
   credentialProfileWriteSchema,
+  oauthRespondSchema,
+  oauthStartSchema,
   secretWriteSchema,
 } from "../api/request-schemas.js";
 import { ok } from "../api/responses.js";
@@ -93,24 +95,85 @@ async function handle(
     });
     return json(res, 200, ok({ deleted: true }));
   }
+  if (req.method === "GET" && path === "/api/manager/auth/providers")
+    return json(
+      res,
+      200,
+      ok([
+        { provider: "anthropic", supportsOAuth: true, supportsApiKey: true },
+        {
+          provider: "openai-codex",
+          supportsOAuth: true,
+          supportsApiKey: false,
+        },
+        { provider: "openai", supportsOAuth: false, supportsApiKey: true },
+        { provider: "github", supportsOAuth: true, supportsApiKey: true },
+        { provider: "jira", supportsOAuth: true, supportsApiKey: true },
+        { provider: "confluence", supportsOAuth: true, supportsApiKey: true },
+      ]),
+    );
+  if (req.method === "POST" && path === "/api/manager/auth/oauth/start") {
+    return json(
+      res,
+      201,
+      ok(state.oauthFlows.start(oauthStartSchema.parse(await readJson(req)))),
+    );
+  }
+  const oauthMatch = path.match(/^\/api\/manager\/auth\/oauth\/([^/]+)$/);
+  if (oauthMatch) {
+    const flowId = decodeURIComponent(oauthMatch[1]);
+    if (req.method === "GET")
+      return json(res, 200, ok(state.oauthFlows.get(flowId)));
+  }
+  const oauthRespondMatch = path.match(
+    /^\/api\/manager\/auth\/oauth\/([^/]+)\/respond$/,
+  );
+  if (req.method === "POST" && oauthRespondMatch) {
+    const flowId = decodeURIComponent(oauthRespondMatch[1]);
+    return json(
+      res,
+      200,
+      ok(
+        await state.oauthFlows.respond(
+          flowId,
+          oauthRespondSchema.parse(await readJson(req)),
+        ),
+      ),
+    );
+  }
+  const oauthCancelMatch = path.match(
+    /^\/api\/manager\/auth\/oauth\/([^/]+)\/cancel$/,
+  );
+  if (req.method === "POST" && oauthCancelMatch) {
+    const flowId = decodeURIComponent(oauthCancelMatch[1]);
+    return json(res, 200, ok(await state.oauthFlows.cancel(flowId)));
+  }
   if (req.method === "GET" && path === "/api/manager/credential-profiles")
     return json(res, 200, ok(await state.credentials.list()));
   if (req.method === "POST" && path === "/api/manager/credential-profiles") {
     const body = credentialProfileWriteSchema.parse(await readJson(req));
-    const now = new Date().toISOString();
-    const profile = sandboxManagerCredentialProfileSchema.parse({
-      ...body,
-      profileId: body.profileId ?? `cred_${randomUUID()}`,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await state.credentials.put(profile);
+    const profile = await state.credentialProfiles.create(body);
     await state.audit.append({
       action: "credential_profile.write",
       success: true,
       details: { profileId: profile.profileId, kind: profile.kind },
     });
     return json(res, 201, ok(profile));
+  }
+  const credentialRefreshMatch = path.match(
+    /^\/api\/manager\/credential-profiles\/([^/]+)\/refresh$/,
+  );
+  if (req.method === "POST" && credentialRefreshMatch) {
+    const profileId = decodeURIComponent(credentialRefreshMatch[1]);
+    return json(
+      res,
+      200,
+      ok(
+        await state.credentialResolver.resolveProfile(profileId, undefined, {
+          minTtlMs: Number.MAX_SAFE_INTEGER,
+        }),
+      ),
+    );
   }
   const credentialMatch = path.match(
     /^\/api\/manager\/credential-profiles\/([^/]+)$/,
@@ -120,16 +183,8 @@ async function handle(
     if (req.method === "GET")
       return json(res, 200, ok(await state.credentials.get(profileId)));
     if (req.method === "PUT") {
-      const existing = await state.credentials.get(profileId);
       const body = credentialProfileWriteSchema.parse(await readJson(req));
-      const now = new Date().toISOString();
-      const profile = sandboxManagerCredentialProfileSchema.parse({
-        ...body,
-        profileId,
-        createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
-      });
-      await state.credentials.put(profile);
+      const profile = await state.credentialProfiles.update(profileId, body);
       await state.audit.append({
         action: "credential_profile.write",
         success: true,
@@ -138,7 +193,7 @@ async function handle(
       return json(res, 200, ok(profile));
     }
     if (req.method === "DELETE") {
-      await state.credentials.delete(profileId);
+      await state.credentialProfiles.delete(profileId);
       await state.audit.append({
         action: "credential_profile.delete",
         success: true,

@@ -85,8 +85,9 @@ export async function runSandboxEntrypoint(
   );
 
   // 7. initialize redactor with configured/discovered secret values as they are resolved
-  const registry = buildSecretStoreRegistry(config);
+  const registry = new SecretStoreRegistry();
   const resolver = new SecretResolver(config, registry, env);
+  buildSecretStoreRegistry(config, registry, resolver);
   const redactor = new Redactor({ secrets: [] });
 
   // 8. resolve model catalog/runtime
@@ -244,13 +245,18 @@ async function stage<T>(
 
 function buildSecretStoreRegistry(
   config: Parameters<typeof resolveModelRuntime>[0],
-): SecretStoreRegistry {
-  const registry = new SecretStoreRegistry();
+  registry: SecretStoreRegistry,
+  resolver: SecretResolver,
+): void {
   for (const [id, store] of Object.entries(config.secretStores?.stores ?? {})) {
     if (store.type === "http_kv")
-      registry.set(id, new HttpKvSecretStoreClient(store));
+      registry.set(
+        id,
+        new HttpKvSecretStoreClient(store, fetch, (ref, chain) =>
+          resolver.resolve(ref, chain),
+        ),
+      );
   }
-  return registry;
 }
 
 function redactedError(error: unknown): { code: string; message: string } {

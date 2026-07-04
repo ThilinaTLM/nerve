@@ -1,7 +1,14 @@
 import type { SandboxSecretKvRef } from "@nervekit/shared";
 
+export type ResolvedSecret = {
+  value: string;
+  expiresAt?: string;
+  refreshAfter?: string;
+  cacheTtlMs?: number;
+};
+
 export interface SecretStoreClient {
-  resolve(ref: SandboxSecretKvRef, chain?: string[]): Promise<string>;
+  resolve(ref: SandboxSecretKvRef, chain?: string[]): Promise<ResolvedSecret>;
 }
 export class SecretStoreRegistry {
   private readonly stores = new Map<string, SecretStoreClient>();

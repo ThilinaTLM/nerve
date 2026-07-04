@@ -100,6 +100,47 @@ const migrations: Array<{ version: number; name: string; sql: string }> = [
       create index if not exists manager_audit_ts_idx on manager_audit (ts);
     `,
   },
+  {
+    version: 2,
+    name: "managed_credential_refresh",
+    sql: `
+      create table if not exists credential_profile_secrets (
+        profile_id text not null,
+        purpose text not null,
+        secret_key text not null,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        primary key (profile_id, purpose)
+      );
+      create unique index if not exists credential_profile_secrets_key_unique
+        on credential_profile_secrets (secret_key);
+
+      create table if not exists credential_refresh_records (
+        id bigserial primary key,
+        profile_id text not null,
+        provider_kind text not null,
+        status text not null,
+        started_at timestamptz not null default now(),
+        completed_at timestamptz,
+        expires_at timestamptz,
+        error jsonb
+      );
+      create index if not exists credential_refresh_records_profile_started_idx
+        on credential_refresh_records (profile_id, started_at desc);
+
+      create table if not exists oauth_flows (
+        flow_id text primary key,
+        provider text not null,
+        profile_id text,
+        info jsonb not null,
+        status text not null,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+      create index if not exists credential_profiles_provider_kind_idx
+        on credential_profiles ((profile ->> 'providerKind'));
+    `,
+  },
 ];
 
 export async function runMigrations(pool: PostgresPool): Promise<void> {

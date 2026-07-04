@@ -12,6 +12,39 @@ export const createSandboxRequestSchema = sandboxCreateRequestSchema;
 export const credentialProfileWriteSchema =
   sandboxManagerCredentialProfileWriteSchema;
 
+export const oauthStartSchema = {
+  parse(input: unknown) {
+    if (!input || typeof input !== "object")
+      throw new Error("request body must be an object");
+    const body = input as Record<string, unknown>;
+    if (typeof body.provider !== "string" || !body.provider.trim())
+      throw new Error("provider is required");
+    return {
+      provider: body.provider,
+      profileId:
+        typeof body.profileId === "string" ? body.profileId : undefined,
+      displayName:
+        typeof body.displayName === "string" ? body.displayName : undefined,
+    };
+  },
+};
+
+export const oauthRespondSchema = {
+  parse(input: unknown) {
+    if (!input || typeof input !== "object")
+      throw new Error("request body must be an object");
+    const body = input as Record<string, unknown>;
+    if (typeof body.promptId !== "string")
+      throw new Error("promptId is required");
+    return {
+      promptId: body.promptId,
+      value: typeof body.value === "string" ? body.value : undefined,
+      selectedId:
+        typeof body.selectedId === "string" ? body.selectedId : undefined,
+    };
+  },
+};
+
 export const secretWriteSchema = {
   parse(input: unknown) {
     if (!input || typeof input !== "object")

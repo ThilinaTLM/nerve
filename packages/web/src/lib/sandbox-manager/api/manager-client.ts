@@ -1,6 +1,9 @@
 import {
   type ManagedSandboxRecord,
   managedSandboxRecordSchema,
+  type OAuthFlowInfo,
+  oauthFlowInfoSchema,
+  type RespondOAuthFlowRequest,
   type SandboxControllerSessionSummary,
   type SandboxCreateRequest,
   type SandboxManagerCredentialProfile,
@@ -52,6 +55,50 @@ function sandboxPath(sandboxId: string, suffix = ""): string {
 export async function getManagerStatus(): Promise<SandboxManagerStatus> {
   return sandboxManagerStatusSchema.parse(
     await getData<unknown>("/api/manager/status"),
+  );
+}
+
+export async function listAuthProviders(): Promise<unknown[]> {
+  return getData<unknown[]>("/api/manager/auth/providers");
+}
+
+export async function startOAuthFlow(request: {
+  provider: string;
+  profileId?: string;
+  displayName?: string;
+}): Promise<OAuthFlowInfo> {
+  return oauthFlowInfoSchema.parse(
+    await sendData<unknown>("/api/manager/auth/oauth/start", "POST", {
+      body: request,
+    }),
+  );
+}
+
+export async function getOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
+  return oauthFlowInfoSchema.parse(
+    await getData<unknown>(`/api/manager/auth/oauth/${apiPathSegment(flowId)}`),
+  );
+}
+
+export async function respondOAuthFlow(
+  flowId: string,
+  request: RespondOAuthFlowRequest,
+): Promise<OAuthFlowInfo> {
+  return oauthFlowInfoSchema.parse(
+    await sendData<unknown>(
+      `/api/manager/auth/oauth/${apiPathSegment(flowId)}/respond`,
+      "POST",
+      { body: request },
+    ),
+  );
+}
+
+export async function refreshCredentialProfile(
+  profileId: string,
+): Promise<unknown> {
+  return sendData<unknown>(
+    `/api/manager/credential-profiles/${apiPathSegment(profileId)}/refresh`,
+    "POST",
   );
 }
 

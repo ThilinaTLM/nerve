@@ -1,7 +1,11 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { ManagerConfig } from "../config/manager-config.js";
+import { CredentialProfileService } from "../credentials/credential-profile-service.js";
 import { PostgresCredentialProfileStore } from "../credentials/credential-profile-store.js";
+import { CredentialResolver } from "../credentials/credential-resolver.js";
+import { SandboxManagerOAuthFlowManager } from "../credentials/oauth-flow-manager.js";
+
 import { runMigrations } from "../db/migrations.js";
 import { createPostgresPool, type PostgresPool } from "../db/postgres.js";
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
@@ -30,6 +34,9 @@ export class ManagerState {
   readonly secrets: PostgresKvSecretStore;
   readonly secretPolicies: PostgresSecretPolicyStore;
   readonly credentials: PostgresCredentialProfileStore;
+  readonly credentialProfiles: CredentialProfileService;
+  readonly credentialResolver: CredentialResolver;
+  readonly oauthFlows: SandboxManagerOAuthFlowManager;
   readonly idempotency: PostgresIdempotencyStore;
   readonly audit: PostgresAuditStore;
   readonly volumeStore: PostgresRuntimeVolumeStore;
@@ -52,6 +59,19 @@ export class ManagerState {
     });
     this.secretPolicies = new PostgresSecretPolicyStore(this.pool);
     this.credentials = new PostgresCredentialProfileStore(this.pool);
+    this.credentialProfiles = new CredentialProfileService(
+      this.pool,
+      this.credentials,
+      this.secrets,
+    );
+    this.credentialResolver = new CredentialResolver(
+      this.pool,
+      this.credentials,
+      this.secrets,
+    );
+    this.oauthFlows = new SandboxManagerOAuthFlowManager(
+      this.credentialProfiles,
+    );
     this.idempotency = new PostgresIdempotencyStore(this.pool);
     this.audit = new PostgresAuditStore(this.pool);
     this.volumeStore = new PostgresRuntimeVolumeStore(this.pool);

@@ -18,7 +18,9 @@ export async function resolveSandboxSecret(
     )
       throw new Error("Secret resolve request too large");
     authorizeSecretKey(effectivePolicy, request.key, request.version);
-    const response = await state.secrets.resolve(request);
+    const response =
+      (await state.credentialResolver.resolveKey(request.key)) ??
+      (await state.secrets.resolve(request));
     if (
       typeof response.value === "string" &&
       response.value.length > 1024 * 1024

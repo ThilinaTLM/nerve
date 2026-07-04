@@ -124,7 +124,8 @@ NERVE_SANDBOX_MANAGER_DATABASE_URL=postgres://...
 NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY=<32-byte/base64/hex-or-passphrase>
 ```
 
-PostgreSQL stores sandbox records, materialized config JSON, event intake, session snapshots, idempotency records, secret policies, encrypted secret envelopes, credential profiles, runtime volume refs, and manager audit records. Secret values are encrypted by the manager before being written to PostgreSQL and are never returned by public APIs.
+PostgreSQL stores sandbox records, materialized config JSON, event intake, session snapshots, idempotency records, secret policies, encrypted secret envelopes, credential profiles, runtime volume refs, and manager audit records. Secret values are encrypted by the manager before being written to PostgreSQL and are never returned by public APIs. Credential profiles are manager-owned records for model providers, GitHub, Jira, Confluence, and web providers. Profile-owned secrets are exposed to sandboxes only as manager KV refs; when a profile is OAuth-backed, the manager refreshes the underlying credential before returning current access material to the sandbox and includes `expiresAt`/`refreshAfter` cache metadata in the resolve response.
+
 
 Runtime filesystems remain container-backend specific:
 
