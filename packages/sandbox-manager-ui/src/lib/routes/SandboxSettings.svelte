@@ -6,7 +6,6 @@
     LoaderCircle,
     Plus,
     RefreshCw,
-    ShieldCheck,
     TriangleAlert,
   } from "@lucide/svelte";
   import { Badge } from "@nervekit/ui/components/ui/badge";
@@ -37,11 +36,7 @@
     type SettingsSectionId,
   } from "../settings/provider-catalog";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
-  import {
-    formatTokens,
-    modelDisplayName,
-    providerDisplayName,
-  } from "../utils/model-display";
+  import { modelDisplayName } from "../utils/model-display";
 
   const store = useSandboxManagerStore();
   let activeSectionId = $state<SettingsSectionId>("llm_subscriptions");
@@ -68,6 +63,7 @@
   let busy = $state(false);
   let refreshingProfileId = $state<string | undefined>(undefined);
   let addDialogOpen = $state(false);
+  let advancedOpen = $state(false);
   let manualOAuthImport = $state(false);
   let error = $state<string | undefined>(undefined);
   let saved = $state<string | undefined>(undefined);
@@ -82,7 +78,6 @@
     activeSection.options.map((option) => ({
       value: option.providerKind,
       label: option.label,
-      detail: option.detail,
     })),
   );
   const groupedProfiles = $derived(profilesForSection(activeSection));
@@ -100,7 +95,7 @@
     const items = selectedProviderModels.map((model) => ({
       value: model.modelId,
       label: modelDisplayName(model),
-      detail: `${providerDisplayName(model.provider)} · ${model.modelId} · ${model.reasoning ? "Reasoning" : "Standard"} · ${formatTokens(model.contextWindow)}`,
+      detail: model.modelId,
     }));
     if (
       defaultModel.trim() &&
@@ -125,6 +120,7 @@
       saved = flow.message ?? `Connected ${flow.providerName}.`;
       error = undefined;
       manualOAuthImport = false;
+      advancedOpen = false;
       addDialogOpen = false;
       applyOptionDefaults(selectedOption, false);
     },
@@ -172,6 +168,7 @@
     defaultSpaceKey = "";
     githubAppId = "";
     githubInstallationId = "";
+    advancedOpen = false;
     if (clearMessages) {
       error = undefined;
       saved = undefined;
@@ -228,6 +225,7 @@
   async function closeAddDialog(): Promise<void> {
     await oauthFlow.close();
     manualOAuthImport = false;
+    advancedOpen = false;
     addDialogOpen = false;
   }
 
@@ -273,12 +271,8 @@
     profile: SandboxManagerCredentialProfile,
   ): { label: string; value: string }[] {
     return [
-      { label: "Provider", value: profile.provider ?? "" },
-      { label: "API", value: profile.api ?? "" },
-      { label: "Base URL", value: profile.baseUrl ?? "" },
       { label: "Site", value: profile.siteUrl ?? "" },
       { label: "Email", value: profile.email ?? "" },
-      { label: "Default model", value: profile.defaultModel ?? "" },
       { label: "Owner", value: profile.defaultOwner ?? "" },
       { label: "Repository", value: profile.defaultRepo ?? "" },
       { label: "Project", value: profile.defaultProjectKey ?? "" },
@@ -286,23 +280,32 @@
     ].filter((field) => field.value.trim().length > 0);
   }
 
-  function profileTimeline(
-    profile: SandboxManagerCredentialProfile,
-  ): { label: string; value: string }[] {
-    return [
-      { label: "Expires", value: profile.expiresAt ?? "" },
-      { label: "Refresh after", value: profile.refreshAfter ?? "" },
-      { label: "Last refresh", value: profile.lastRefreshAt ?? "" },
-      { label: "Validated", value: profile.lastValidatedAt ?? "" },
-      { label: "Updated", value: profile.updatedAt },
-    ].filter((field) => field.value.trim().length > 0);
+  function authTypeLabel(
+    authType: SandboxManagerCredentialProfile["authType"],
+  ): string {
+    if (authType === "api_key") return "API key";
+    if (authType === "github_app") return "GitHub App";
+    if (authType === "ssh") return "SSH key";
+    if (authType === "oauth") return "Subscription";
+    return authType;
   }
 
-  function secretRefSummary(profile: SandboxManagerCredentialProfile): string {
-    if (profile.secretRefs.length === 0) return "No secret refs reported";
-    const configured = profile.secretRefs.filter((ref) => ref.configured).length;
-    const purposes = profile.secretRefs.map((ref) => ref.purpose).join(", ");
-    return `${configured}/${profile.secretRefs.length} configured · ${purposes}`;
+  function profileSubtitle(profile: SandboxManagerCredentialProfile): string {
+    const option = sections
+      .flatMap((section) => section.options)
+      .find((item) => item.providerKind === profile.providerKind);
+    const label = option?.label ?? profile.provider ?? profile.displayName;
+    const auth = authTypeLabel(profile.authType);
+    const normalized = label.toLowerCase();
+    if (
+      (auth === "API key" && normalized.includes("api key")) ||
+      (auth === "Subscription" && normalized.includes("subscription")) ||
+      (auth === "SSH key" && normalized.includes("ssh")) ||
+      (auth === "GitHub App" && normalized.includes("github app"))
+    ) {
+      return label;
+    }
+    return `${label} · ${auth}`;
   }
 
   async function saveProfile(): Promise<void> {
@@ -359,14 +362,8 @@
 
 <div class="flex h-full min-h-0 flex-col overflow-hidden bg-background">
   <div class="flex flex-none flex-wrap items-start justify-between gap-3 border-b bg-card px-5 py-5">
-    <div class="max-w-3xl space-y-2">
-      <div class="flex items-center gap-2 text-sm font-semibold text-primary">
-        <ShieldCheck class="size-4" /> Manager-owned configuration
-      </div>
+    <div>
       <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p class="text-sm text-muted-foreground">
-        Review configured profiles first, then add subscriptions, API keys, and tool credentials only when a sandbox needs them. Secret values are write-only and resolved by the manager.
-      </p>
     </div>
     <div class="flex items-center gap-2">
       <Badge tone="accent" size="sm">{configuredCount} profiles</Badge>
@@ -395,12 +392,9 @@
                 <div class="rounded-md bg-muted p-2 text-primary">
                   <ActiveSectionIcon class="size-5" />
                 </div>
-                <div class="min-w-0 space-y-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <CardTitle class="text-base">{activeSection.label}</CardTitle>
-                    <Badge tone="neutral" size="xs">{groupedProfiles.length} configured</Badge>
-                  </div>
-                  <p class="text-sm text-muted-foreground">{activeSection.description}</p>
+                <div class="flex min-w-0 flex-wrap items-center gap-2">
+                  <CardTitle class="text-base">{activeSection.label}</CardTitle>
+                  <Badge tone="neutral" size="xs">{groupedProfiles.length} configured</Badge>
                 </div>
               </div>
               {#if activeSection.options.length > 0}
@@ -410,40 +404,32 @@
               {/if}
             </div>
           </CardHeader>
-          <CardContent class="space-y-3 p-4">
-            {#if activeSection.options.length === 0}
-              <div class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
-                {activeSection.emptyHint}
-              </div>
-            {:else}
-              <div class="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                <ShieldCheck class="size-4 text-success" />
-                <span>Secrets stay write-only in the manager. Sandboxes receive profile references instead of raw keys.</span>
-              </div>
-            {/if}
+          {#if activeSection.options.length === 0 || saved || (error && !addDialogOpen)}
+            <CardContent class="space-y-3 p-4">
+              {#if activeSection.options.length === 0}
+                <div class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+                  {activeSection.emptyHint}
+                </div>
+              {/if}
 
-            {#if saved}
-              <p class="flex items-center gap-2 rounded-md bg-success/10 p-2 text-xs text-success">
-                <CheckCircle2 class="size-4" /> {saved}
-              </p>
-            {/if}
-            {#if error && !addDialogOpen}
-              <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-                <TriangleAlert class="mt-0.5 size-4 flex-none" /> {error}
-              </p>
-            {/if}
-          </CardContent>
+              {#if saved}
+                <p class="flex items-center gap-2 rounded-md bg-success/10 p-2 text-xs text-success">
+                  <CheckCircle2 class="size-4" /> {saved}
+                </p>
+              {/if}
+              {#if error && !addDialogOpen}
+                <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                  <TriangleAlert class="mt-0.5 size-4 flex-none" /> {error}
+                </p>
+              {/if}
+            </CardContent>
+          {/if}
         </Card>
 
         <Card class="border">
           <CardHeader class="border-b p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <CardTitle class="text-base">Configured options</CardTitle>
-                <p class="mt-1 text-sm text-muted-foreground">
-                  Safe metadata for manager-owned profiles in {activeSection.label}.
-                </p>
-              </div>
+              <CardTitle class="text-base">Configured</CardTitle>
               {#if activeSection.options.length > 0 && groupedProfiles.length > 0}
                 <Button variant="outline" size="sm" onclick={() => openAddDialog()}>
                   <Plus class="size-4" /> Add another
@@ -454,12 +440,7 @@
           <CardContent class="p-4">
             {#if groupedProfiles.length === 0}
               <div class="flex flex-col items-start gap-3 rounded-md border bg-muted/30 p-5">
-                <div class="space-y-1">
-                  <p class="text-sm font-medium">No profiles configured for this section.</p>
-                  <p class="text-sm text-muted-foreground">
-                    Add a configuration when a sandbox needs this provider. Existing secret values will never be displayed here.
-                  </p>
-                </div>
+                <p class="text-sm font-medium">No profiles configured.</p>
                 {#if activeSection.options.length > 0}
                   <Button size="sm" onclick={() => openAddDialog()}>
                     <Plus class="size-4" /> Add configuration
@@ -469,6 +450,7 @@
             {:else}
               <div class="grid gap-3 xl:grid-cols-2">
                 {#each groupedProfiles as profile (profile.profileId)}
+                  {@const fields = configuredFields(profile)}
                   <article class="rounded-md border bg-card p-4">
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0 space-y-1">
@@ -477,7 +459,7 @@
                           <Badge tone={statusTone(profile.status)} size="xs">{profile.status}</Badge>
                         </div>
                         <p class="truncate text-xs text-muted-foreground">
-                          {profile.providerKind} · {profile.authType}
+                          {profileSubtitle(profile)}
                         </p>
                       </div>
                       <Button
@@ -490,28 +472,16 @@
                       </Button>
                     </div>
 
-                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                      {#each configuredFields(profile) as field}
-                        <div class="min-w-0 rounded-md border bg-muted/30 px-2 py-1.5">
-                          <p class="text-xs text-muted-foreground">{field.label}</p>
-                          <p class="truncate text-xs font-medium">{field.value}</p>
-                        </div>
-                      {/each}
-                    </div>
-
-                    <div class="mt-3 rounded-md border bg-muted/20 px-2 py-1.5">
-                      <p class="text-xs text-muted-foreground">Secret refs</p>
-                      <p class="truncate text-xs font-medium">{secretRefSummary(profile)}</p>
-                    </div>
-
-                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                      {#each profileTimeline(profile) as item}
-                        <div class="min-w-0 rounded-md border bg-background px-2 py-1.5">
-                          <p class="text-xs text-muted-foreground">{item.label}</p>
-                          <p class="truncate font-mono text-xs">{item.value}</p>
-                        </div>
-                      {/each}
-                    </div>
+                    {#if fields.length > 0}
+                      <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                        {#each fields as field}
+                          <div class="min-w-0 rounded-md border bg-muted/30 px-2 py-1.5">
+                            <p class="text-xs text-muted-foreground">{field.label}</p>
+                            <p class="truncate text-xs font-medium">{field.value}</p>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
 
                     {#if profile.lastError}
                       <p class="mt-3 flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
@@ -532,60 +502,20 @@
 <DialogShell
   bind:open={addDialogOpen}
   title={`Add ${activeSection.label}`}
-  description="Create a manager-owned profile. Secret values are submitted once and never read back into the browser."
+  description="Choose a provider and add the credential."
   onOpenChange={handleAddDialogOpenChange}
 >
   <div class="space-y-4 p-5">
     {#if selectedOption}
-      <div class="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-        <span class="font-medium text-foreground">{selectedOption.label}:</span>
-        {selectedOption.detail}
-      </div>
-
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="flex flex-col gap-1 sm:col-span-2">
-          <Label>Provider/auth type</Label>
+          <Label>Provider</Label>
           <SelectField
             items={providerItems}
             value={providerKind}
             onValueChange={selectProvider}
           />
         </div>
-
-        <div class="flex flex-col gap-1">
-          <Label>Display name</Label>
-          <Input bind:value={displayName} placeholder={selectedOption.label} />
-        </div>
-
-        {#if selectedOption.kind === "model_provider"}
-          <div class="flex flex-col gap-1">
-            <Label>Default model</Label>
-            {#if selectedProviderModels.length > 0}
-              <SelectField
-                items={modelItems}
-                value={defaultModel}
-                placeholder="Pick a pi-ai model"
-                onValueChange={(value) => (defaultModel = value)}
-              />
-              <p class="text-xs text-muted-foreground">Loaded from the installed pi-ai model catalog.</p>
-            {:else}
-              <Input bind:value={defaultModel} placeholder={selectedOption.defaultModel ?? "model-id"} />
-              <p class="text-xs text-muted-foreground">No built-in pi-ai models found for this provider; enter a model ID.</p>
-            {/if}
-          </div>
-          <div class="flex flex-col gap-1">
-            <Label>pi-ai provider ID</Label>
-            <Input value={selectedOption.provider} readonly />
-          </div>
-          <div class="flex flex-col gap-1">
-            <Label>API family override</Label>
-            <Input bind:value={api} placeholder="builtin provider default" />
-          </div>
-          <div class="flex flex-col gap-1 sm:col-span-2">
-            <Label>Base URL override</Label>
-            <Input bind:value={baseUrl} placeholder="builtin provider default" />
-          </div>
-        {/if}
 
         {#if selectedOption.site}
           <div class="flex flex-col gap-1">
@@ -637,48 +567,11 @@
           </div>
         {/if}
 
-        {#if selectedOption.kind === "model_provider"}
-          <div class="flex flex-col gap-1 sm:col-span-2">
-            <Label>Provider env JSON</Label>
-            <Textarea bind:value={envJson} class="min-h-24 font-mono text-xs" placeholder={JSON.stringify({ CLOUDFLARE_ACCOUNT_ID: "..." })} />
-            <p class="text-xs text-muted-foreground">Non-secret pi-ai env overrides such as account IDs, regions, project IDs, deployment maps, or locations.</p>
-          </div>
-          <div class="grid gap-3 sm:col-span-2 sm:grid-cols-3">
-            <div class="flex flex-col gap-1">
-              <Label>Headers JSON</Label>
-              <Textarea bind:value={headersJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ "X-Title": "Nerve" })} />
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>Compat JSON</Label>
-              <Textarea bind:value={compatJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ supportsStore: false })} />
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>Provider options JSON</Label>
-              <Textarea bind:value={providerOptionsJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ routing: { order: [] } })} />
-            </div>
-          </div>
-        {/if}
-
         {#if useBrowserOAuth(selectedOption)}
           <div class="space-y-3 sm:col-span-2">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <Label>Subscription login</Label>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  Complete OAuth in your browser. The manager stores the resulting subscription credential as a profile.
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onclick={() => (manualOAuthImport = true)}>
-                Import OAuth bundle JSON instead
-              </Button>
-            </div>
-
             {#if !oauthFlow.flow}
               <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
-                <div class="space-y-1">
-                  <p class="text-sm font-medium">Ready to connect {selectedOption.label}</p>
-                  <p class="text-xs text-muted-foreground">A browser window opens for the provider login flow.</p>
-                </div>
+                <p class="text-sm font-medium">Connect {selectedOption.label}</p>
                 <Button size="sm" disabled={oauthFlow.busy} onclick={() => void startBrowserOAuth()}>
                   {#if oauthFlow.busy}
                     <LoaderCircle class="spin size-4" /> Starting…
@@ -742,12 +635,12 @@
                   </form>
                 {:else if oauthFlow.flow.status === "failed"}
                   <div class="space-y-2">
-                    <p class="text-sm font-medium text-destructive">The login attempt ended before credentials were saved.</p>
+                    <p class="text-sm font-medium text-destructive">Login was not completed.</p>
                     {#if oauthFlow.flow.error}
                       <p class="text-xs text-destructive">{oauthFlow.flow.error}</p>
                     {/if}
                     <Button variant="outline" size="sm" disabled={oauthFlow.busy} onclick={() => void oauthFlow.restart()}>
-                      Start a fresh login
+                      Try again
                     </Button>
                   </div>
                 {:else if oauthFlow.flow.status === "succeeded"}
@@ -769,21 +662,93 @@
         {:else}
           <div class="flex flex-col gap-1 sm:col-span-2">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <Label>{secretLabel(selectedOption)}</Label>
+              <Label>{selectedOption.secretMode === "apiKey" ? "API key" : secretLabel(selectedOption)}</Label>
               {#if supportsBrowserOAuth(selectedOption)}
                 <Button variant="ghost" size="xs" onclick={() => (manualOAuthImport = false)}>
-                  Use browser login instead
+                  Use browser login
                 </Button>
               {/if}
             </div>
             {#if selectedOption.multiline}
               <Textarea bind:value={secretValue} class="min-h-28 font-mono text-xs" placeholder={secretPlaceholder(selectedOption)} />
             {:else}
-              <Input bind:value={secretValue} type="password" placeholder={secretPlaceholder(selectedOption)} />
+              <Input bind:value={secretValue} type="password" placeholder={selectedOption.secretMode === "apiKey" ? "Paste your API key" : secretPlaceholder(selectedOption)} />
             {/if}
-            <p class="text-xs text-muted-foreground">Stored by the manager only. Existing values are never read back into this UI.</p>
           </div>
         {/if}
+
+        <div class="space-y-3 rounded-md border bg-muted/20 p-3 sm:col-span-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="w-full justify-between"
+            onclick={() => (advancedOpen = !advancedOpen)}
+          >
+            Advanced
+            <span class="text-xs text-muted-foreground">{advancedOpen ? "Hide" : "Show"}</span>
+          </Button>
+
+          {#if advancedOpen}
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="flex flex-col gap-1 sm:col-span-2">
+                <Label>Display name</Label>
+                <Input bind:value={displayName} placeholder={selectedOption.label} />
+              </div>
+
+              {#if selectedOption.kind === "model_provider"}
+                <div class="flex flex-col gap-1">
+                  <Label>Default model</Label>
+                  {#if selectedProviderModels.length > 0}
+                    <SelectField
+                      items={modelItems}
+                      value={defaultModel}
+                      placeholder="Pick a pi-ai model"
+                      onValueChange={(value) => (defaultModel = value)}
+                    />
+                  {:else}
+                    <Input bind:value={defaultModel} placeholder={selectedOption.defaultModel ?? "model-id"} />
+                  {/if}
+                </div>
+                <div class="flex flex-col gap-1">
+                  <Label>pi-ai provider ID</Label>
+                  <Input value={selectedOption.provider} readonly />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <Label>API family override</Label>
+                  <Input bind:value={api} placeholder="builtin provider default" />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <Label>Base URL override</Label>
+                  <Input bind:value={baseUrl} placeholder="builtin provider default" />
+                </div>
+                <div class="flex flex-col gap-1 sm:col-span-2">
+                  <Label>Provider env JSON</Label>
+                  <Textarea bind:value={envJson} class="min-h-24 font-mono text-xs" placeholder={JSON.stringify({ CLOUDFLARE_ACCOUNT_ID: "..." })} />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <Label>Headers JSON</Label>
+                  <Textarea bind:value={headersJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ "X-Title": "Nerve" })} />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <Label>Compat JSON</Label>
+                  <Textarea bind:value={compatJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ supportsStore: false })} />
+                </div>
+                <div class="flex flex-col gap-1 sm:col-span-2">
+                  <Label>Provider options JSON</Label>
+                  <Textarea bind:value={providerOptionsJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ routing: { order: [] } })} />
+                </div>
+              {/if}
+
+              {#if supportsBrowserOAuth(selectedOption) && !manualOAuthImport}
+                <div class="sm:col-span-2">
+                  <Button variant="outline" size="sm" onclick={() => (manualOAuthImport = true)}>
+                    Import OAuth bundle JSON instead
+                  </Button>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
       </div>
 
       {#if error}

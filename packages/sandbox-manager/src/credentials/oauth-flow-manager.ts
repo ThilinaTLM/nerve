@@ -14,6 +14,7 @@ import {
   type SandboxManagerCredentialProfile,
 } from "@nervekit/shared";
 import type { CredentialProfileService } from "./credential-profile-service.js";
+import { loginWithManualRedirect } from "./manual-oauth-login.js";
 
 type PendingResponse = {
   promptId: string;
@@ -146,7 +147,9 @@ export class SandboxManagerOAuthFlowManager {
         this.update(flow, { status: "progress", message }),
       signal: flow.abortController.signal,
     };
-    const credentials = await flow.provider.login(callbacks);
+    const credentials =
+      (await loginWithManualRedirect(flow.provider.id, callbacks)) ??
+      (await flow.provider.login(callbacks));
     const expiresAt = new Date(credentials.expires).toISOString();
     const profile = await this.profiles.create({
       profileId: flow.profileId,

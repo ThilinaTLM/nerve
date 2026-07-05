@@ -565,7 +565,14 @@ describe("summarizeToolDraft", () => {
         "web_search",
         { query: "Svelte ResizeObserver visual line measurement" },
       ],
-      ["task_start", { name: "dev", command: "pnpm web", readyOnUrl: true }],
+      [
+        "task_start",
+        {
+          name: "dev",
+          command: "pnpm --filter @nervekit/web dev",
+          readyOnUrl: true,
+        },
+      ],
     ] as const) {
       const summary = summarizeToolDraft(draft(toolName, { args, done: true }));
       assert.equal(summary.kind, "generic", toolName);

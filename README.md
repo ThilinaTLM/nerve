@@ -136,21 +136,6 @@ For opt-in LAN remote access plus self-signed HTTPS for mobile browsers
 pnpm desktop:remote-enabled
 ```
 
-To install or remove a user-space desktop launcher for this checkout:
-
-```sh
-pnpm desktop:install
-pnpm desktop:uninstall
-```
-
-Useful desktop development commands:
-
-```sh
-pnpm desktop:build   # build desktop dependencies and Electron main process
-pnpm desktop:fast    # start Electron using existing build output
-pnpm desktop:check   # type-check the desktop package
-```
-
 ### Browser, daemon, and CLI usage from source
 
 Run the daemon and Web UI dev servers together:
@@ -159,24 +144,38 @@ Run the daemon and Web UI dev servers together:
 pnpm dev
 ```
 
+Run only the Web UI dev server and connect it to an existing daemon:
+
+```sh
+pnpm dev:ui
+```
+
+Run the sandbox manager and sandbox manager UI dev servers together:
+
+```sh
+pnpm dev:sandbox
+```
+
+For lower-level source development, use workspace filters directly.
+
 Run only the daemon:
 
 ```sh
-pnpm daemon
+pnpm --filter @nervekit/orchestrator dev
 ```
 
 Serve the bundled Web UI and open it in your browser:
 
 ```sh
-pnpm serve
+pnpm --filter @nervekit/cli dev -- serve --open
 ```
 
 Run CLI commands from source:
 
 ```sh
-pnpm cli -- help
-pnpm cli -- status
-pnpm cli -- run . "Summarize this project"
+pnpm --filter @nervekit/cli dev -- help
+pnpm --filter @nervekit/cli dev -- status
+pnpm --filter @nervekit/cli dev -- run . "Summarize this project"
 ```
 
 Crash diagnostics are written under `~/.nerve/crashes`. The daemon records
@@ -186,25 +185,32 @@ previous daemon exited without a graceful shutdown. Inspect recent reports
 without requiring a running daemon:
 
 ```sh
-pnpm cli -- crashes --limit 5
-pnpm cli -- crashes --follow
-pnpm cli -- logs --level error --follow
+pnpm --filter @nervekit/cli dev -- crashes --limit 5
+pnpm --filter @nervekit/cli dev -- crashes --follow
+pnpm --filter @nervekit/cli dev -- logs --level error --follow
 ```
 
 ## Root scripts
 
-Common repository commands:
+Top-level scripts are kept to user-facing desktop launchers, common validation,
+and release commands used by CI:
 
 ```sh
-pnpm build       # build all packages
-pnpm check       # type-check/check all packages
-pnpm lint        # run Biome checks
-pnpm format      # format the repository
-pnpm test        # run package tests
-pnpm web         # start only the Svelte Web UI dev server
+pnpm desktop                  # run the Electron desktop app from source
+pnpm desktop:remote-enabled   # run desktop with LAN/mobile HTTPS flags
+pnpm dev                      # run daemon and Web UI in dev mode
+pnpm dev:ui                   # run Web UI in dev mode against an existing daemon
+pnpm dev:sandbox              # run sandbox manager and sandbox manager UI in dev mode
+pnpm build                    # build all packages
+pnpm check                    # type-check/check all packages
+pnpm lint                     # run Biome checks
+pnpm format                   # format the repository
+pnpm test                     # run package tests
+pnpm release:verify-tag       # validate the release tag against package versions
+pnpm release:build            # build release artifacts
 ```
 
-Release scripts are documented in `docs/release.md`.
+Release details are documented in `docs/release.md`.
 
 ## Resource directories
 

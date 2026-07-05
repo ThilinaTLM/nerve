@@ -27,10 +27,7 @@
 
 <Card class="border">
   <CardHeader class="border-b p-4">
-    <CardTitle class="text-sm">Configuration sections</CardTitle>
-    <p class="text-xs text-muted-foreground">
-      Choose a section to review configured options.
-    </p>
+    <CardTitle class="text-sm">Settings</CardTitle>
   </CardHeader>
   <CardContent class="grid gap-1 p-2">
     {#each sections as section (section.id)}
@@ -46,16 +43,11 @@
         <span class="rounded-md bg-muted p-2 text-muted-foreground">
           <Icon class="size-4" />
         </span>
-        <span class="min-w-0 flex-1 space-y-1">
-          <span class="flex items-center justify-between gap-2">
-            <span class="truncate text-sm font-medium">{section.label}</span>
-            <Badge tone={sectionCount > 0 ? "accent" : "neutral"} size="xs">
-              {sectionCount}
-            </Badge>
-          </span>
-          <span class="line-clamp-2 whitespace-normal text-xs font-normal text-muted-foreground">
-            {section.description}
-          </span>
+        <span class="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <span class="truncate text-sm font-medium">{section.label}</span>
+          <Badge tone={sectionCount > 0 ? "accent" : "neutral"} size="xs">
+            {sectionCount}
+          </Badge>
         </span>
       </Button>
     {/each}
