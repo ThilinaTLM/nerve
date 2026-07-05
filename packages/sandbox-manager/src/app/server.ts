@@ -34,6 +34,7 @@ import { readJsonBody } from "../http/body.js";
 import { errorResponse, HttpError } from "../http/errors.js";
 import { withIdempotency } from "../http/idempotency.js";
 import { LogCollector } from "../lifecycle/log-collector.js";
+import { handleManagerProtocolHttpRequest } from "../protocol/manager-protocol-http-dispatcher.js";
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
 import { createSandboxRecord } from "../routes/sandbox-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
@@ -74,6 +75,8 @@ async function handle(
     return json(res, 200, ok({ version: sandboxManagerVersion }));
   if (req.method === "GET" && path === "/api/manager/status")
     return json(res, 200, ok(await managerStatus(state)));
+  if (path === "/api/protocol/v1")
+    return handleManagerProtocolHttpRequest(state, controller, req, res);
   if (req.method === "GET" && path === "/api/manager/secrets/metadata") {
     return json(res, 200, ok(await (state.secrets.listMetadata?.() ?? [])));
   }

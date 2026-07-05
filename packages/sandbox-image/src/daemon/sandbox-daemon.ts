@@ -4,6 +4,11 @@ import type {
   SkillStatus,
   StartupSetupStatus,
 } from "@nervekit/shared";
+import { sandboxAgentConfigureParamsSchema } from "@nervekit/shared";
+import {
+  AgentConfigStore,
+  sanitizeEffectiveAgentConfig,
+} from "../agent/agent-config-store.js";
 import { SandboxAgentRuntime } from "../agent/agent-runtime.js";
 import { ExploreRuntime } from "../agent/explore-runtime.js";
 
@@ -22,6 +27,7 @@ import { TaskSupervisor } from "../tools/task-supervisor.js";
 
 import { SandboxToolRuntime } from "../tools/tool-runtime.js";
 import { SandboxCommandRouter } from "./command-router.js";
+import { buildConversationSnapshot } from "./conversation-snapshot.js";
 import { DaemonStatusMachine } from "./daemon-status.js";
 import { SandboxCommandError } from "./errors.js";
 import {
@@ -50,7 +56,9 @@ export class SandboxDaemon {
   private readonly agentRuntime?: SandboxAgentRuntime;
   private readonly taskSupervisor?: TaskSupervisor;
   private readonly toolRuntime?: SandboxToolRuntime;
+  private readonly bridge?: HarnessEventBridge;
   private readonly exploreRuntime?: ExploreRuntime;
+  private readonly agentConfigStore?: AgentConfigStore;
   private readonly ready: Promise<void>;
   constructor(
     private readonly config: SandboxConfigV1,
@@ -80,6 +88,8 @@ export class SandboxDaemon {
     if (this.inputWaiter) loadPromises.push(this.inputWaiter.load());
     if (this.approvalWaiter) loadPromises.push(this.approvalWaiter.load());
     if (state) {
+      this.agentConfigStore = new AgentConfigStore(state.stateDir);
+      loadPromises.push(this.agentConfigStore.load());
       const taskConfig = config.tools?.groups?.taskManagement;
       this.taskSupervisor = new TaskSupervisor({
         stateDir: state.stateDir,
@@ -121,6 +131,7 @@ export class SandboxDaemon {
         secretResolver: recovered.secretResolver,
         skills: recovered.skills,
         contextFiles: recovered.contextFiles,
+        configStore: this.agentConfigStore,
       });
       this.exploreRuntime = new ExploreRuntime({
         config,
@@ -130,7 +141,7 @@ export class SandboxDaemon {
       });
       readOnlyToolRuntime.setExploreRuntime(this.exploreRuntime);
       this.toolRuntime.setExploreRuntime(this.exploreRuntime);
-      const bridge = new HarnessEventBridge(
+      this.bridge = new HarnessEventBridge(
         state.events,
         this.runs,
         {
@@ -147,15 +158,24 @@ export class SandboxDaemon {
       this.agentRuntime = new SandboxAgentRuntime(config, {
         runs: this.runs,
         harnessFactory: factory,
-        bridge,
+        bridge: this.bridge,
         inputWaiter: this.inputWaiter,
         approvalWaiter: this.approvalWaiter,
         toolRuntime: this.toolRuntime,
         exploreRuntime: this.exploreRuntime,
+        configStore: this.agentConfigStore,
       });
       loadPromises.push(this.agentRuntime.recoverActiveRuns());
     }
-    this.ready = Promise.all(loadPromises).then(() => undefined);
+    this.ready = Promise.all(loadPromises).then(() => {
+      const effective = this.agentConfigStore?.effective(this.config);
+      if (effective) {
+        this.toolRuntime?.updatePolicy({
+          permissionLevel: effective.permissionLevel,
+          approvalPolicy: effective.approvalPolicy,
+        });
+      }
+    });
     this.registerBuiltins();
   }
   start(): void {
@@ -189,6 +209,10 @@ export class SandboxDaemon {
         conversations: summarizeConversations(runs),
         agents: summarizeAgents(runs, modelSummaries[0]),
         runs: await summarizeRuns(runs, waits, this.runs, this.state?.stateDir),
+        agentConfig: sanitizeEffectiveAgentConfig(
+          this.config,
+          this.agentConfigStore,
+        ),
       };
     });
     this.router.register("sandbox.snapshot.get", async () => {
@@ -220,6 +244,115 @@ export class SandboxDaemon {
         setup: this.recovered.setup,
         models: this.modelSummaries(),
       });
+    });
+    this.router.register(
+      "sandbox.conversation.snapshot.get",
+      async (params) => {
+        await this.ready;
+        const input = params as {
+          conversationId?: string;
+          agentId?: string;
+          runId?: string;
+        };
+        const snapshot = await buildConversationSnapshot({
+          config: this.config,
+          instanceId: this.instanceId,
+          runs: this.runs,
+          bridge: this.bridge,
+          cursorSeq: this.state?.events.all().at(-1)?.seq ?? 0,
+          ...input,
+        });
+        return {
+          sandboxId: this.config.identity?.sandboxId,
+          instanceId: this.instanceId,
+          status: this.status.status,
+          connected: true,
+          stale: false,
+          lastEventSeq: this.state?.events.all().at(-1)?.seq,
+          lastEventAt: this.state?.events.all().at(-1)?.ts,
+          conversationId: input.conversationId ?? snapshot?.conversation.id,
+          agentId: input.agentId ?? snapshot?.conversation.activeAgentId,
+          runId: input.runId ?? snapshot?.activeRun?.runId,
+          snapshot,
+          fallback: snapshot
+            ? undefined
+            : {
+                conversations: summarizeConversations(
+                  (await this.runs?.list()) ?? [],
+                ),
+                agents: summarizeAgents(
+                  (await this.runs?.list()) ?? [],
+                  this.modelSummaries()[0],
+                ),
+                runs: [],
+                readOnly: true,
+                reason: "no sandbox conversation transcript is available",
+              },
+          generatedAt: new Date().toISOString(),
+        };
+      },
+    );
+    this.router.register("sandbox.agent.configure", async (params) => {
+      await this.ready;
+      if (!this.agentConfigStore)
+        throw new SandboxCommandError(
+          "UNAVAILABLE",
+          "Runtime configuration store is unavailable",
+        );
+      const parsed = sandboxAgentConfigureParamsSchema.parse(params ?? {});
+      const patch = {
+        model: parsed.model,
+        mode: parsed.mode,
+        permissionLevel: parsed.permissionLevel,
+        approvalPolicy: parsed.approvalPolicy,
+      };
+      const overlay = await this.agentConfigStore.update(patch);
+      if (parsed.permissionLevel || parsed.approvalPolicy) {
+        this.toolRuntime?.updatePolicy({
+          permissionLevel: parsed.permissionLevel,
+          approvalPolicy: parsed.approvalPolicy,
+        });
+      }
+      const nextRunOnly = Boolean(parsed.model || parsed.mode);
+      return {
+        applied: {
+          conversationId: parsed.conversationId,
+          agentId: parsed.agentId,
+          model: overlay.model,
+          mode: overlay.mode,
+          permissionLevel: overlay.permissionLevel,
+          approvalPolicy: overlay.approvalPolicy,
+        },
+        effective: this.agentConfigStore.effective(this.config),
+        warnings: parsed.modelProfileId
+          ? [
+              "modelProfileId was accepted as a manager-side credential reference; sandbox runtime applied only resolved model fields",
+            ]
+          : [],
+        effectiveAt: nextRunOnly ? "next_run" : "immediate",
+      };
+    });
+    this.router.register("sandbox.toolCall.get", async (params) => {
+      await this.ready;
+      const input = params as {
+        conversationId: string;
+        agentId: string;
+        runId: string;
+        toolCallId: string;
+      };
+      const records = await this.runs
+        ?.toolCallStore()
+        .latestByToolCallId(input);
+      const toolCall = records?.get(input.toolCallId);
+      if (!toolCall)
+        throw new SandboxCommandError("UNKNOWN_RUN", "Tool call not found");
+      return {
+        toolCall,
+        argsPreview: toolCall.displayArgs,
+        resultPreview: toolCall.result,
+        displayTitle: toolCall.toolName,
+        displaySummary: toolCall.error?.message,
+      };
     });
     this.router.register("sandbox.run.start", async (params) => {
       await this.ready;

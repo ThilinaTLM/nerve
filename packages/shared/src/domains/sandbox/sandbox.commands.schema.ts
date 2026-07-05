@@ -1,4 +1,11 @@
 import { z } from "zod";
+import { conversationSnapshotSchema } from "../conversations/index.js";
+import { thinkingLevelSchema } from "../models/index.js";
+import {
+  approvalPolicySchema,
+  modeSchema,
+  permissionLevelSchema,
+} from "../settings/index.js";
 import {
   artifactRefSchema,
   boundedTextSchema,
@@ -11,6 +18,7 @@ import {
   sandboxCommandIdSchema,
   sandboxConversationIdSchema,
   sandboxDaemonStatusSchema,
+  sandboxIdSchema,
   sandboxInstanceIdSchema,
   sandboxRunIdSchema,
   sandboxRunStatusSchema,
@@ -19,6 +27,7 @@ import {
   startupSetupStatusSchema,
   toolGroupStatusSchema,
 } from "./sandbox.common.schema.js";
+import { sandboxToolCallRecordSchema } from "./sandbox.state.schema.js";
 
 export const sandboxCommandMethodSchema = z.enum([
   "sandbox.run.start",
@@ -28,6 +37,9 @@ export const sandboxCommandMethodSchema = z.enum([
   "sandbox.approval.resolve",
   "sandbox.status.get",
   "sandbox.snapshot.get",
+  "sandbox.conversation.snapshot.get",
+  "sandbox.agent.configure",
+  "sandbox.toolCall.get",
 ]);
 export type SandboxCommandMethod = z.infer<typeof sandboxCommandMethodSchema>;
 
@@ -151,6 +163,47 @@ export type SandboxSnapshotGetParams = z.infer<
   typeof sandboxSnapshotGetParamsSchema
 >;
 
+export const sandboxConversationSnapshotGetParamsSchema = z.object({
+  sandboxId: sandboxIdSchema.optional(),
+  conversationId: sandboxConversationIdSchema.optional(),
+  agentId: sandboxAgentIdSchema.optional(),
+  runId: sandboxRunIdSchema.optional(),
+});
+export type SandboxConversationSnapshotGetParams = z.infer<
+  typeof sandboxConversationSnapshotGetParamsSchema
+>;
+
+export const sandboxAgentConfigureParamsSchema = z.object({
+  sandboxId: sandboxIdSchema.optional(),
+  conversationId: sandboxConversationIdSchema.optional(),
+  agentId: sandboxAgentIdSchema.optional(),
+  model: z
+    .object({
+      provider: z.string().min(1),
+      model: z.string().min(1),
+      thinkingLevel: thinkingLevelSchema.optional(),
+    })
+    .optional(),
+  mode: modeSchema.optional(),
+  permissionLevel: permissionLevelSchema.optional(),
+  approvalPolicy: approvalPolicySchema.partial().optional(),
+  modelProfileId: z.string().min(1).optional(),
+});
+export type SandboxAgentConfigureParams = z.infer<
+  typeof sandboxAgentConfigureParamsSchema
+>;
+
+export const sandboxToolCallGetParamsSchema = z.object({
+  sandboxId: sandboxIdSchema.optional(),
+  conversationId: sandboxConversationIdSchema,
+  agentId: sandboxAgentIdSchema,
+  runId: sandboxRunIdSchema,
+  toolCallId: z.string().min(1),
+});
+export type SandboxToolCallGetParams = z.infer<
+  typeof sandboxToolCallGetParamsSchema
+>;
+
 export const sandboxCommandParamsByMethod = {
   "sandbox.run.start": sandboxRunStartParamsSchema,
   "sandbox.run.continue": sandboxRunContinueParamsSchema,
@@ -159,6 +212,10 @@ export const sandboxCommandParamsByMethod = {
   "sandbox.approval.resolve": sandboxApprovalResolveParamsSchema,
   "sandbox.status.get": sandboxStatusGetParamsSchema,
   "sandbox.snapshot.get": sandboxSnapshotGetParamsSchema,
+  "sandbox.conversation.snapshot.get":
+    sandboxConversationSnapshotGetParamsSchema,
+  "sandbox.agent.configure": sandboxAgentConfigureParamsSchema,
+  "sandbox.toolCall.get": sandboxToolCallGetParamsSchema,
 } as const;
 
 export const sandboxCommandAcceptedResultSchema = z.object({
@@ -599,6 +656,68 @@ export const sandboxSnapshotResultSchema = z.object({
 });
 export type SandboxSnapshotResult = z.infer<typeof sandboxSnapshotResultSchema>;
 
+export const sandboxConversationViewSnapshotSchema = z.object({
+  sandboxId: sandboxIdSchema.optional(),
+  instanceId: sandboxInstanceIdSchema.optional(),
+  status: sandboxDaemonStatusSchema.optional(),
+  connected: z.boolean(),
+  stale: z.boolean().optional(),
+  staleness: sandboxManagerStalenessSummarySchema.optional(),
+  lastEventSeq: z.number().int().nonnegative().safe().optional(),
+  lastEventAt: isoDateTimeSchema.optional(),
+  lastSession: sandboxControllerSessionSummarySchema.optional(),
+  conversationId: sandboxConversationIdSchema.optional(),
+  agentId: sandboxAgentIdSchema.optional(),
+  runId: sandboxRunIdSchema.optional(),
+  snapshot: conversationSnapshotSchema.optional(),
+  fallback: z
+    .object({
+      conversations: z.array(sandboxConversationSnapshotSchema).optional(),
+      agents: z.array(sandboxAgentSnapshotSchema).optional(),
+      runs: z.array(sandboxRunSnapshotSchema).optional(),
+      readOnly: z.boolean().default(true),
+      reason: z.string().min(1).optional(),
+    })
+    .optional(),
+  generatedAt: isoDateTimeSchema,
+});
+export type SandboxConversationViewSnapshot = z.infer<
+  typeof sandboxConversationViewSnapshotSchema
+>;
+
+export const sandboxAgentConfigureResultSchema = z.object({
+  applied: z.object({
+    conversationId: sandboxConversationIdSchema.optional(),
+    agentId: sandboxAgentIdSchema.optional(),
+    model: z
+      .object({
+        provider: z.string().min(1),
+        model: z.string().min(1),
+        thinkingLevel: thinkingLevelSchema.optional(),
+      })
+      .optional(),
+    mode: modeSchema.optional(),
+    permissionLevel: permissionLevelSchema.optional(),
+    approvalPolicy: approvalPolicySchema.optional(),
+  }),
+  warnings: z.array(z.string().min(1)).default([]),
+  effectiveAt: z.enum(["next_run", "immediate"]),
+});
+export type SandboxAgentConfigureResult = z.infer<
+  typeof sandboxAgentConfigureResultSchema
+>;
+
+export const sandboxToolCallGetResultSchema = z.object({
+  toolCall: sandboxToolCallRecordSchema,
+  argsPreview: z.unknown().optional(),
+  resultPreview: z.unknown().optional(),
+  displayTitle: z.string().min(1).optional(),
+  displaySummary: z.string().min(1).optional(),
+});
+export type SandboxToolCallGetResult = z.infer<
+  typeof sandboxToolCallGetResultSchema
+>;
+
 export const sandboxCommandResultByMethod = {
   "sandbox.run.start": sandboxRunStartResultSchema,
   "sandbox.run.continue": sandboxRunContinueResultSchema,
@@ -607,4 +726,7 @@ export const sandboxCommandResultByMethod = {
   "sandbox.approval.resolve": sandboxApprovalResolveResultSchema,
   "sandbox.status.get": sandboxStatusGetResultSchema,
   "sandbox.snapshot.get": sandboxSnapshotResultSchema,
+  "sandbox.conversation.snapshot.get": sandboxConversationViewSnapshotSchema,
+  "sandbox.agent.configure": sandboxAgentConfigureResultSchema,
+  "sandbox.toolCall.get": sandboxToolCallGetResultSchema,
 } as const;

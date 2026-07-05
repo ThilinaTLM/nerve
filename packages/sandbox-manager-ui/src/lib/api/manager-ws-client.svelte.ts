@@ -1,8 +1,23 @@
-import {
-  type SandboxManagerEventEnvelope,
-  sandboxProtocolEventBatchSchema,
-  sandboxProtocolReplayResponseSchema,
+import type {
+  EventEnvelope,
+  SandboxManagerEventEnvelope,
 } from "@nervekit/shared";
+import {
+  eventBatchMessageSchema,
+  nerveMessageSchema,
+  replayUnavailableMessageSchema,
+  welcomeMessageSchema,
+} from "@nervekit/shared";
+import {
+  applyEventBatch,
+  type ClientEventStreamState,
+  createClientEventStreamState,
+  markProcessed,
+} from "@nervekit/ui/core/protocol/event-stream";
+import {
+  protocolClientId,
+  protocolInstanceId,
+} from "@nervekit/ui/core/protocol/ids";
 
 export type ManagerWsConnectionState =
   | "idle"
@@ -29,29 +44,25 @@ export function sandboxStreamId(sandboxId: string): string {
   return `sandbox:${sandboxId}`;
 }
 
-type StreamCursor = { processedSeq: number; receivedSeq: number };
-
 export type ManagerWsHandlers = {
   onEvent: (envelope: SandboxManagerEventEnvelope) => void;
   onConnectionChange: (state: ManagerWsConnectionState, error?: string) => void;
   onReconnected?: () => void;
+  onReplayUnavailable?: (streams: string[]) => void;
 };
 
-/**
- * Same-origin manager UI WebSocket client. Speaks the sandbox protocol frame
- * format (`type`) rather than the orchestrator envelope, maintains per-stream
- * cursors, requests replay on connect/gap, and acks processed durable events.
- */
 export class ManagerWsClient {
   private ws: WebSocket | undefined;
   private readonly streams = new Set<string>([MANAGER_STREAM]);
-  private readonly cursors = new Map<string, StreamCursor>();
+  private readonly streamStates = new Map<string, ClientEventStreamState>();
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private ackTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly pendingAcks = new Set<string>();
+  private readonly recoveredReplayStreams = new Set<string>();
   private closedByCaller = false;
   private hadWelcome = false;
+  private sessionId: string | undefined;
 
   constructor(private readonly handlers: ManagerWsHandlers) {}
 
@@ -69,21 +80,21 @@ export class ManagerWsClient {
     this.handlers.onConnectionChange("closed");
   }
 
-  /** Track a sandbox stream so it is replayed on (re)connect. */
   subscribeStream(sandboxId: string): void {
     const stream = sandboxStreamId(sandboxId);
     if (this.streams.has(stream)) return;
     this.streams.add(stream);
+    this.stateFor(stream);
     if (this.hadWelcome) this.requestReplay(stream);
   }
 
-  private cursorFor(stream: string): StreamCursor {
-    let cursor = this.cursors.get(stream);
-    if (!cursor) {
-      cursor = { processedSeq: 0, receivedSeq: 0 };
-      this.cursors.set(stream, cursor);
+  private stateFor(stream: string): ClientEventStreamState {
+    let state = this.streamStates.get(stream);
+    if (!state) {
+      state = createClientEventStreamState(0);
+      this.streamStates.set(stream, state);
     }
-    return cursor;
+    return state;
   }
 
   private wsUrl(): string {
@@ -114,16 +125,23 @@ export class ManagerWsClient {
   }
 
   private sendHello(): void {
-    const cursors = [...this.streams].map((stream) => ({
-      stream,
-      processedSeq: this.cursorFor(stream).processedSeq,
-    }));
-    this.send({
-      type: "hello",
-      version: 1,
+    this.sendMessage("hello", {
       role: "ui",
+      client: {
+        id: protocolClientId(),
+        instanceId: protocolInstanceId(),
+        name: "Nerve Sandbox Manager UI",
+      },
+      requestedVersion: 1,
       capabilities: UI_CAPABILITIES,
-      resume: { cursors },
+      encodings: ["json"],
+      resume: {
+        streams: [...this.streams].map((stream) => ({
+          stream,
+          processedSeq: this.stateFor(stream).processedSeq,
+        })),
+      },
+      preferences: { replay: { preferSnapshot: true, maxReplayEvents: 1_000 } },
     });
   }
 
@@ -135,6 +153,7 @@ export class ManagerWsClient {
   private scheduleReconnect(error?: string): void {
     this.ws = undefined;
     this.hadWelcome = false;
+    this.sessionId = undefined;
     if (this.closedByCaller) return;
     this.handlers.onConnectionChange("reconnecting", error);
     const delay = Math.min(30_000, 500 * 2 ** this.reconnectAttempts);
@@ -143,108 +162,131 @@ export class ManagerWsClient {
   }
 
   private handleMessage(raw: unknown): void {
-    let message: Record<string, unknown>;
+    let decoded: unknown;
     try {
-      message = JSON.parse(String(raw)) as Record<string, unknown>;
+      decoded = JSON.parse(String(raw));
     } catch {
       return;
     }
-    switch (message.type) {
+    const parsed = nerveMessageSchema.safeParse(decoded);
+    if (!parsed.success) return;
+    const message = parsed.data;
+    switch (message.kind) {
       case "welcome":
-        this.onWelcome();
+        this.onWelcome(message);
         return;
       case "event.batch":
-        this.onEventBatch(message, false);
-        return;
-      case "replay.response":
-        this.onReplayResponse(message);
+        this.onEventBatch(message.data);
         return;
       case "heartbeat":
-        this.send({ type: "heartbeat", ts: new Date().toISOString() });
+        this.sendHeartbeat();
+        return;
+      case "replay.started":
+      case "replay.complete":
+        return;
+      case "replay.unavailable":
+        this.onReplayUnavailable(message);
         return;
       case "goodbye":
         this.ws?.close(1000, "server_goodbye");
+        return;
+      case "error":
+        this.handlers.onConnectionChange("error", "protocol_error");
         return;
       default:
         return;
     }
   }
 
-  private onWelcome(): void {
+  private onWelcome(message: unknown): void {
+    const parsed = welcomeMessageSchema.safeParse(message);
+    if (!parsed.success) return;
     const reconnected = this.reconnectAttempts > 0;
     this.reconnectAttempts = 0;
     this.hadWelcome = true;
+    this.sessionId = parsed.data.data.sessionId;
     this.handlers.onConnectionChange("live");
     for (const stream of this.streams) this.requestReplay(stream);
     if (reconnected) this.handlers.onReconnected?.();
   }
 
-  private onEventBatch(
-    message: Record<string, unknown>,
-    replay: boolean,
+  private onReplayUnavailable(message: unknown): void {
+    const parsed = replayUnavailableMessageSchema.safeParse(message);
+    if (!parsed.success) {
+      this.handlers.onConnectionChange("error", "protocol_error");
+      return;
+    }
+    const streams = parsed.data.data.streams.map((stream) => stream.stream);
+    const unrecovered = streams.filter(
+      (stream) => !this.recoveredReplayStreams.has(stream),
+    );
+    for (const stream of streams) this.recoveredReplayStreams.add(stream);
+    if (unrecovered.length) this.handlers.onReplayUnavailable?.(unrecovered);
+  }
+
+  markSnapshotRecovered(stream: string): void {
+    this.recoveredReplayStreams.add(stream);
+  }
+
+  private onEventBatch(data: unknown): void {
+    const parsed = eventBatchMessageSchema.shape.data.safeParse(data);
+    if (!parsed.success) return;
+    const batch = parsed.data;
+    const state = this.stateFor(batch.stream);
+    const result = applyEventBatch(
+      batch,
+      state,
+      (event) => this.deliverEvent(batch.stream, event),
+      batch.stream,
+    );
+    if (result.replayRequired) {
+      this.requestReplay(batch.stream, result.replayRequired.fromSeq);
+      return;
+    }
+    if (result.durableEventsQueued > 0) {
+      markProcessed(state, result.highestDurableQueuedSeq);
+      this.queueAck(batch.stream);
+    }
+  }
+
+  private deliverEvent(
+    stream: string,
+    event: EventEnvelope<Record<string, unknown>>,
   ): void {
-    const parsed = sandboxProtocolEventBatchSchema.safeParse(message);
-    if (!parsed.success) return;
-    const stream = parsed.data.stream;
-    const cursor = this.cursorFor(stream);
-    for (const event of parsed.data.events) {
-      if (event.seq <= cursor.receivedSeq && !replay) continue;
-      const durable = (event.durability ?? "durable") === "durable";
-      if (
-        !replay &&
-        durable &&
-        event.seq > cursor.processedSeq + 1 &&
-        cursor.processedSeq > 0
-      ) {
-        this.requestReplay(stream, cursor.processedSeq);
-      }
-      cursor.receivedSeq = Math.max(cursor.receivedSeq, event.seq);
-      this.handlers.onEvent({
-        stream,
-        sandboxId: streamSandboxId(stream),
-        seq: event.seq,
-        id: event.id,
-        ts: event.ts,
-        type: event.type,
-        durability: event.durability,
-        data: event.data,
-      });
-      if (durable && event.seq > cursor.processedSeq) {
-        cursor.processedSeq = event.seq;
-        this.queueAck(stream);
-      }
-    }
-  }
-
-  private onReplayResponse(message: Record<string, unknown>): void {
-    const parsed = sandboxProtocolReplayResponseSchema.safeParse(message);
-    if (!parsed.success) return;
-    const stream = parsed.data.stream;
-    const cursor = this.cursorFor(stream);
-    for (const event of parsed.data.events) {
-      if (event.seq <= cursor.processedSeq) continue;
-      cursor.receivedSeq = Math.max(cursor.receivedSeq, event.seq);
-      this.handlers.onEvent({
-        stream,
-        sandboxId: streamSandboxId(stream),
-        seq: event.seq,
-        id: event.id,
-        ts: event.ts,
-        type: event.type,
-        durability: event.durability,
-        data: event.data,
-      });
-      if ((event.durability ?? "durable") === "durable")
-        cursor.processedSeq = event.seq;
-    }
-    this.queueAck(stream);
-  }
-
-  private requestReplay(stream: string, afterSeq?: number): void {
-    this.send({
-      type: "replay.request",
+    this.handlers.onEvent({
       stream,
-      afterSeq: afterSeq ?? this.cursorFor(stream).processedSeq,
+      sandboxId: streamSandboxId(stream),
+      seq: event.seq,
+      id: event.id,
+      ts: event.ts,
+      type: event.type,
+      durability: event.durability,
+      data: event.data,
+    });
+  }
+
+  private requestReplay(stream: string, fromSeq?: number): void {
+    if (!this.sessionId) return;
+    this.sendMessage("replay.request", {
+      sessionId: this.sessionId,
+      replayId: `replay_${Date.now()}`,
+      streams: [
+        { stream, fromSeq: fromSeq ?? this.stateFor(stream).processedSeq },
+      ],
+      reason: "resume",
+      preferences: { maxEvents: 1_000, preferSnapshot: true },
+    });
+  }
+
+  private sendHeartbeat(): void {
+    if (!this.sessionId) return;
+    this.sendMessage("heartbeat", {
+      sessionId: this.sessionId,
+      sentAt: new Date().toISOString(),
+      processed: [...this.streamStates.entries()].map(([stream, state]) => ({
+        stream,
+        processedSeq: state.processedSeq,
+      })),
     });
   }
 
@@ -256,14 +298,34 @@ export class ManagerWsClient {
 
   private flushAcks(): void {
     this.ackTimer = undefined;
-    for (const stream of this.pendingAcks) {
-      this.send({
-        type: "ack",
+    if (!this.sessionId || this.pendingAcks.size === 0) return;
+    this.sendMessage("ack", {
+      sessionId: this.sessionId,
+      ackId: `ack_${Date.now()}`,
+      streams: [...this.pendingAcks].map((stream) => ({
         stream,
-        processedSeq: this.cursorFor(stream).processedSeq,
-      });
-    }
+        processedSeq: this.stateFor(stream).processedSeq,
+      })),
+    });
     this.pendingAcks.clear();
+  }
+
+  private sendMessage(kind: string, data: unknown): void {
+    this.send({
+      protocol: "nerve",
+      version: 1,
+      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      kind,
+      ts: new Date().toISOString(),
+      source: {
+        role: "ui",
+        id: protocolClientId(),
+        instanceId: protocolInstanceId(),
+        name: "Nerve Sandbox Manager UI",
+      },
+      target: { role: "orchestrator", id: "sandbox-manager" },
+      data,
+    });
   }
 
   private send(message: unknown): void {

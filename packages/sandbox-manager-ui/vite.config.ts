@@ -15,7 +15,8 @@ export default defineConfig(({ mode }) => {
     managerEnv.NERVE_SANDBOX_MANAGER_API_TARGET ??
     "http://127.0.0.1:7869";
   const managerApiKey =
-    env.NERVE_SANDBOX_MANAGER_API_KEY ?? managerEnv.NERVE_SANDBOX_MANAGER_API_KEY;
+    env.NERVE_SANDBOX_MANAGER_API_KEY ??
+    managerEnv.NERVE_SANDBOX_MANAGER_API_KEY;
 
   return {
     base: "/",

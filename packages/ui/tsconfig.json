@@ -12,6 +12,16 @@
       "@nervekit/ui/core/utils": ["./src/lib/core/utils.ts"],
       "@nervekit/ui/core/api/client": ["./src/lib/core/api/client.ts"],
       "@nervekit/ui/core/clipboard": ["./src/lib/core/clipboard.ts"],
+      "@nervekit/ui/core/protocol/ids": ["./src/lib/core/protocol/ids.ts"],
+      "@nervekit/ui/core/protocol/messages": [
+        "./src/lib/core/protocol/messages.ts"
+      ],
+      "@nervekit/ui/core/protocol/http-client": [
+        "./src/lib/core/protocol/http-client.ts"
+      ],
+      "@nervekit/ui/core/protocol/event-stream": [
+        "./src/lib/core/protocol/event-stream.ts"
+      ],
       "@nervekit/ui/core/components/Markdown.svelte": [
         "./src/lib/core/components/Markdown.svelte"
       ],

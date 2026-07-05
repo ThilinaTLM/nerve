@@ -1,4 +1,8 @@
-import type { ArtifactRef, SandboxRunStatus } from "@nervekit/shared";
+import type {
+  ArtifactRef,
+  ConversationEntry,
+  SandboxRunStatus,
+} from "@nervekit/shared";
 import { Redactor } from "../security/redaction.js";
 import type { EventOutbox } from "../state/event-outbox.js";
 import {
@@ -377,6 +381,22 @@ export class RunManager {
         ...entry,
       },
     });
+    const conversationEntry = toConversationEntry(scope, entry);
+    if (conversationEntry) {
+      await this.events?.append({
+        type: "conversation.entry.appended",
+        durability: "durable",
+        conversationId: scope.conversationId,
+        agentId: scope.agentId,
+        runId: scope.runId,
+        data: {
+          conversationId: scope.conversationId,
+          agentId: scope.agentId,
+          runId: scope.runId,
+          entry: conversationEntry,
+        },
+      });
+    }
   }
 
   async start(
@@ -485,4 +505,37 @@ export class RunManager {
     if (!current) throw new Error(`Unknown run: ${scope.runId}`);
     return current;
   }
+}
+
+function toConversationEntry(
+  scope: RunScope,
+  entry: {
+    entryId: string;
+    role: "user" | "assistant" | "tool" | "system";
+    content:
+      | { text: string; truncated?: boolean; bytes?: number }
+      | ArtifactRef;
+    createdAt: string;
+  },
+): ConversationEntry | undefined {
+  if (entry.role === "tool") return undefined;
+  return {
+    id: entry.entryId.startsWith("entry_")
+      ? entry.entryId
+      : `entry_${entry.entryId}`,
+    conversationId: scope.conversationId,
+    agentId: scope.agentId,
+    runId: scope.runId,
+    role: entry.role,
+    kind: "message",
+    text: transcriptText(entry.content),
+    createdAt: entry.createdAt,
+  };
+}
+
+function transcriptText(
+  content: { text: string; truncated?: boolean; bytes?: number } | ArtifactRef,
+): string {
+  if ("text" in content) return content.text;
+  return `[artifact: ${content.path ?? content.contentId ?? content.url ?? "redacted"}]`;
 }

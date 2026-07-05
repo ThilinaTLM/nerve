@@ -1,6 +1,11 @@
 import path from "node:path";
 import { AgentToolSuspension } from "@nervekit/agent";
-import type { SandboxConfigV1, ToolName } from "@nervekit/shared";
+import type {
+  ApprovalPolicy,
+  PermissionLevel,
+  SandboxConfigV1,
+  ToolName,
+} from "@nervekit/shared";
 import type {
   ToolExecutionContext,
   ToolExecutionResult,
@@ -19,6 +24,7 @@ import type { TaskSupervisor } from "./task-supervisor.js";
 import { TodoStore } from "./todo-store.js";
 import { computeToolGroupStatus } from "./tool-groups.js";
 import {
+  decideNonShellTool,
   decideShellCommand,
   enforceToolPolicy,
   type ToolDecision,
@@ -81,6 +87,10 @@ export class SandboxToolRuntime {
   private readonly todoStore: TodoStore;
   private orchestrationRunner: OrchestrationToolRunner;
   private readonly active = new Map<string, ActiveToolExecution>();
+  private policyOverride: {
+    permissionLevel?: PermissionLevel;
+    approvalPolicy?: Partial<ApprovalPolicy>;
+  } = {};
   constructor(
     private readonly config: SandboxConfigV1,
     private readonly options: SandboxToolRuntimeOptions = {
@@ -113,18 +123,53 @@ export class SandboxToolRuntime {
     });
   }
 
+  updatePolicy(patch: {
+    permissionLevel?: PermissionLevel;
+    approvalPolicy?: Partial<ApprovalPolicy>;
+  }): void {
+    this.policyOverride = {
+      ...this.policyOverride,
+      ...patch,
+      approvalPolicy: {
+        ...(this.policyOverride.approvalPolicy ?? {}),
+        ...(patch.approvalPolicy ?? {}),
+      },
+    };
+  }
+
+  private effectiveConfig(): SandboxConfigV1 {
+    if (!this.policyOverride.permissionLevel) return this.config;
+    return {
+      ...this.config,
+      agent: {
+        ...this.config.agent,
+        permissionLevel: this.policyOverride.permissionLevel,
+      },
+    };
+  }
+
+  private effectiveApprovalPolicy(): Partial<ApprovalPolicy> | undefined {
+    return this.policyOverride.approvalPolicy;
+  }
+
   groups() {
-    return computeToolGroupStatus(this.config, {
+    return computeToolGroupStatus(this.effectiveConfig(), {
       readOnly: this.options.readOnly,
     });
   }
 
   decide(tool: string, args: unknown): ToolDecision {
     if (tool === "bash") {
-      const shell = this.config.tools?.groups?.shell;
+      const effectiveConfig = this.effectiveConfig();
+      const shell = effectiveConfig.tools?.groups?.shell;
       return decideShellCommand(
         String((args as { command?: unknown })?.command ?? ""),
         shell?.requireApproval ?? "risky",
+        {
+          permissionLevel:
+            effectiveConfig.agent.permissionLevel ?? "autonomous",
+          approvalPolicy: this.effectiveApprovalPolicy(),
+        },
       );
     }
     const group = toolToGroup[tool];
@@ -135,7 +180,11 @@ export class SandboxToolRuntime {
         reason: `tool disabled by sandbox policy: ${tool}`,
       };
     }
-    return { allowed: true };
+    return decideNonShellTool(tool, args, {
+      permissionLevel:
+        this.effectiveConfig().agent.permissionLevel ?? "autonomous",
+      approvalPolicy: this.effectiveApprovalPolicy(),
+    });
   }
 
   async execute(
@@ -339,7 +388,7 @@ export class SandboxToolRuntime {
         if (active) this.active.delete(active.key);
       }
     }
-    await enforceToolPolicy(tool, args, this.config, this.options);
+    await enforceToolPolicy(tool, args, this.effectiveConfig(), this.options);
     const active = this.registerActive(tool, toolCallId, context, 1);
     await this.record(
       {

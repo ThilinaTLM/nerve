@@ -6,6 +6,7 @@ import {
 } from "@nervekit/agent";
 import type {
   AgentRecord,
+  ToolAnchor,
   ToolCallRecord,
   ToolName,
   UserConfigurableToolName,
@@ -19,7 +20,6 @@ import {
   MODEL_TEXT_MAX_LINE_CHARS,
   MODEL_TEXT_MAX_LINES,
 } from "@nervekit/tools";
-import type { ToolAnchor } from "../conversations/conversation-runtime.js";
 import type { ToolService } from "./tool-service.js";
 
 export type AgentToolPromptMetadata = {

@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: Sandbox schema coverage intentionally keeps related fixtures and protocol cases together.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -6,10 +7,14 @@ import {
   managedContainerCreateSpecSchema,
   managedSandboxRecordSchema,
   managerOutboundCommandRecordSchema,
+  protocolMethodDefinition,
+  protocolMethodParamsSchema,
   sandboxAckStateSchema,
+  sandboxAgentConfigureParamsSchema,
   sandboxCanonicalJson,
   sandboxCommandRecordSchema,
   sandboxConfigV1Schema,
+  sandboxConversationViewSnapshotSchema,
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
   sandboxEventPayloadSchemas,
@@ -342,6 +347,84 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
+  it("validates sandbox chat protocol method definitions", () => {
+    assert.equal(
+      sandboxAgentConfigureParamsSchema.safeParse({
+        sandboxId: "sbx_1",
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        model: {
+          provider: "openai",
+          model: "gpt-5.4-mini",
+          thinkingLevel: "medium",
+        },
+        mode: "coding",
+        permissionLevel: "supervised",
+        approvalPolicy: { autoApproveReadOnly: false },
+        modelProfileId: "profile_openai_default",
+      }).success,
+      true,
+    );
+    assert.equal(
+      protocolMethodParamsSchema("sandbox.agent.configure").safeParse({
+        sandboxId: "sbx_1",
+        model: { provider: "openai", model: "gpt-5.4-mini" },
+        permissionLevel: "autonomous",
+      }).success,
+      true,
+    );
+    assert.equal(
+      protocolMethodParamsSchema("sandbox.agent.configure").safeParse({
+        model: { provider: "openai", model: "gpt-5.4-mini" },
+      }).success,
+      false,
+    );
+    assert.equal(
+      protocolMethodDefinition("sandbox.agent.prompt").idempotency,
+      "required",
+    );
+    assert.equal(
+      protocolMethodDefinition("sandbox.conversation.snapshot.get").kind,
+      "read",
+    );
+  });
+
+  it("validates rich sandbox conversation view snapshots", () => {
+    assert.equal(
+      sandboxConversationViewSnapshotSchema.safeParse({
+        sandboxId: "sbx_1",
+        instanceId: "inst_1",
+        status: "ready",
+        connected: true,
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        runId: "run_1",
+        fallback: {
+          conversations: [{ conversationId: "conv_1", agentIds: ["agent_1"] }],
+          agents: [
+            {
+              conversationId: "conv_1",
+              agentId: "agent_1",
+              permissionLevel: "supervised",
+            },
+          ],
+          runs: [
+            {
+              conversationId: "conv_1",
+              agentId: "agent_1",
+              runId: "run_1",
+              status: "running",
+            },
+          ],
+          readOnly: true,
+          reason: "controller disconnected",
+        },
+        generatedAt: ts,
+      }).success,
+      true,
+    );
+  });
+
   it("validates representative command parameter shapes", () => {
     assert.equal(
       sandboxRunStartParamsSchema.safeParse({
@@ -631,6 +714,86 @@ describe("Sandbox shared schemas", () => {
         },
       }).success,
       true,
+    );
+  });
+
+  it("validates conversation events carried by sandbox protocol", () => {
+    const liveScope = {
+      conversationId: "conv_1",
+      agentId: "agent_1",
+      projectId: "proj_1",
+      runId: "run_1",
+      turnId: "turn_1",
+      liveMessageId: "msg_1",
+      contentBlockId: "block_1",
+      contentIndex: 0,
+    };
+    assert.equal(
+      sandboxProtocolEventSchema.safeParse({
+        seq: 2,
+        ts,
+        type: "conversation.live.content.delta",
+        durability: "transient",
+        data: {
+          ...liveScope,
+          kind: "thinking",
+          offset: 0,
+          delta: "Considering the next step",
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxProtocolEventSchema.safeParse({
+        seq: 3,
+        ts,
+        type: "conversation.live.tool_draft.started",
+        durability: "transient",
+        data: {
+          ...liveScope,
+          providerToolCallId: "call_1",
+          toolName: "read",
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxProtocolEventSchema.safeParse({
+        seq: 4,
+        ts,
+        type: "conversation.live.tool_draft.delta",
+        data: {
+          ...liveScope,
+          providerToolCallId: "call_1",
+          toolName: "read",
+          offset: 0,
+          delta: '{"path":"README.md"',
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxProtocolEventSchema.safeParse({
+        seq: 5,
+        ts,
+        type: "conversation.live.tool_draft.done",
+        data: {
+          ...liveScope,
+          providerToolCallId: "call_1",
+          toolName: "read",
+          args: { path: "README.md" },
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxProtocolEventSchema.safeParse({
+        seq: 6,
+        ts,
+        type: "conversation.live.content.delta",
+        data: { ...liveScope, kind: "private_thought", offset: 0, delta: "x" },
+      }).success,
+      false,
     );
   });
 

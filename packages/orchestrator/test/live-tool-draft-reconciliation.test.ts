@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { ConversationRuntime } from "@nervekit/shared";
 import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,
 } from "../src/domains/agents/run/live-tool-draft-reconciliation.js";
-import { ConversationRuntime } from "../src/domains/conversations/conversation-runtime.js";
 
 const usage = {
   input: 0,

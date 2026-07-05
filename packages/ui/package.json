@@ -13,6 +13,10 @@
     "./core/utils": "./src/lib/core/utils.ts",
     "./core/api/client": "./src/lib/core/api/client.ts",
     "./core/clipboard": "./src/lib/core/clipboard.ts",
+    "./core/protocol/ids": "./src/lib/core/protocol/ids.ts",
+    "./core/protocol/messages": "./src/lib/core/protocol/messages.ts",
+    "./core/protocol/http-client": "./src/lib/core/protocol/http-client.ts",
+    "./core/protocol/event-stream": "./src/lib/core/protocol/event-stream.ts",
     "./core/components/Markdown.svelte": "./src/lib/core/components/Markdown.svelte",
     "./core/components/PlainText.svelte": "./src/lib/core/components/PlainText.svelte",
     "./core/components/markdown-render": "./src/lib/core/components/markdown-render.ts",
@@ -26,6 +30,7 @@
     "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@nervekit/shared": "workspace:*",
     "@fontsource/iosevka": "^5.2.5",
     "@fontsource/outfit": "^5.2.6",
     "@lucide/svelte": "^1.17.0",

@@ -2,8 +2,15 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
+  ackMessageSchema,
+  goodbyeMessageSchema,
+  heartbeatMessageSchema,
+  helloMessageSchema,
+  type NerveMessage,
+  nerveMessageSchema,
+  readyMessageSchema,
+  replayRequestMessageSchema,
   type SandboxProtocolMessage,
-  sandboxProtocolAckSchema,
   sandboxProtocolErrorSchema,
   sandboxProtocolEventBatchSchema,
   sandboxProtocolGoodbyeSchema,
@@ -12,18 +19,24 @@ import {
   sandboxProtocolReadySchema,
   sandboxProtocolReplayRequestSchema,
   sandboxProtocolResponseSchema,
-  sandboxProtocolUiHelloSchema,
 } from "@nervekit/shared";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../app/manager-state.js";
-import {
-  MANAGER_EVENT_STORE_ID,
-  MANAGER_EVENT_STREAM,
-} from "../events/manager-events.js";
+import { MANAGER_EVENT_STREAM } from "../events/manager-events.js";
 import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
 import { extractSandboxToken, timingSafeTokenEquals } from "../http/auth.js";
-import type { StoredSandboxEvent } from "../state/event-store.js";
 import { CommandForwarder } from "./command-forwarder.js";
+import { managerEventBatch } from "./manager-protocol-event-batch.js";
+import {
+  createUiProtocolSession,
+  makeManagerMessage,
+  type UiProtocolSession,
+  updateUiSessionAck,
+} from "./manager-protocol-session.js";
+import {
+  handleUiReplayRequest,
+  uiWelcomeStreams,
+} from "./manager-ui-replay.js";
 import { encodeProtocolMessage, parseProtocolMessage } from "./messages.js";
 import { replayEvents } from "./replay.js";
 import {
@@ -135,73 +148,101 @@ export class SandboxWsServer {
 
   private async handleUiConnection(ws: WebSocket): Promise<void> {
     let unsubscribe: (() => void) | undefined;
-    let sessionId: string | undefined;
+    let session: UiProtocolSession | undefined;
+    const send = (message: NerveMessage<unknown>): void => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+    };
     const fail = (code: string, message: string): void => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          encodeProtocolMessage({ type: "error", error: { code, message } }),
-        );
-        ws.close(1008, code);
-      }
+      send(
+        makeManagerMessage("error", {
+          code,
+          message,
+          retryable: false,
+        }),
+      );
+      ws.close(1008, code);
     };
     const helloTimer = setTimeout(
       () => fail("HELLO_TIMEOUT", "UI hello was not received in time"),
       10_000,
     );
     const cleanupHelloTimer = () => clearTimeout(helloTimer);
-    ws.once("message", (data) => {
+    ws.once("message", async (data) => {
       cleanupHelloTimer();
       try {
-        const hello = sandboxProtocolUiHelloSchema.parse(
-          JSON.parse(String(data as Buffer)),
-        );
-        sessionId = `ui_${randomUUID()}`;
+        const hello = helloMessageSchema.parse(JSON.parse(String(data)));
+        const targetPeer = hello.source ?? {
+          role: "ui" as const,
+          id: "sandbox-manager-ui",
+          name: "Nerve Sandbox Manager UI",
+        };
+        session = createUiProtocolSession({
+          source: targetPeer,
+          resume: hello.data.resume,
+        });
         const capabilities = acceptedCapabilities(
-          hello.capabilities,
+          hello.data.capabilities,
           UI_CAPABILITIES,
         );
-        if (!capabilities.includes("encoding.json")) {
-          fail("CAPABILITY_MISSING", "encoding.json is required");
+        if (!hello.data.encodings.includes("json")) {
+          fail("CAPABILITY_MISSING", "json encoding is required");
           return;
         }
-        ws.send(
-          encodeProtocolMessage({
-            type: "welcome",
-            version: 1,
-            accepted: true,
-            sessionId,
-            controllerId: "sandbox-manager",
-            acceptedCapabilities: capabilities,
-            heartbeatIntervalMs: 15_000,
-            heartbeatTimeoutMs: this.state.config.heartbeatTimeoutMs,
-            replay: { required: false, cursors: hello.resume?.cursors },
-          }),
+        send(
+          makeManagerMessage(
+            "welcome",
+            {
+              sessionId: session.sessionId,
+              orchestrator: {
+                id: "sandbox-manager",
+                instanceId: "sandbox-manager",
+              },
+              acceptedVersion: 1,
+              capabilities,
+              encoding: "json",
+              streams: await uiWelcomeStreams(
+                this.state,
+                Array.from(session.subscribedStreams),
+              ),
+              limits: {
+                maxMessageBytes: 1_000_000,
+                maxBatchEvents: 1_000,
+                maxBatchBytes: 1_000_000,
+                maxInflightBatches: 16,
+                maxUnackedDurableEvents: 10_000,
+              },
+              heartbeat: {
+                intervalMs: 15_000,
+                timeoutMs: this.state.config.heartbeatTimeoutMs,
+              },
+              resume: {
+                accepted: true,
+                mode: hello.data.resume?.streams?.length ? "replay" : "live",
+              },
+            },
+            { target: targetPeer },
+          ),
         );
         unsubscribe = this.state.eventBus.subscribe((event) => {
           if (ws.readyState !== WebSocket.OPEN) return;
-          ws.send(
-            encodeProtocolMessage({
-              type: "event.batch",
-              batchId: `batch_${event.stream ?? "manager"}_${event.seq ?? Date.now()}`,
-              stream: event.stream ?? MANAGER_EVENT_STREAM,
-              firstSeq: event.seq,
-              lastSeq: event.seq,
-              events: [
-                {
-                  id: event.id,
-                  seq: event.seq ?? 1,
-                  ts: event.ts,
-                  type: event.type,
-                  durability: event.durability ?? "durable",
-                  data: event.payload,
-                },
-              ],
-            }),
-          );
+          const stream = event.stream ?? MANAGER_EVENT_STREAM;
+          if (!session?.subscribedStreams.has(stream)) return;
+          const batch = managerEventBatch({
+            stream,
+            batchId: `batch_${stream}_${event.seq ?? Date.now()}`,
+            reason: "live",
+            events: [event],
+            previousDurableSeq:
+              event.durability === "durable"
+                ? Math.max(0, (event.seq ?? 1) - 1)
+                : undefined,
+          });
+          send(makeManagerMessage("event.batch", batch));
         });
+        const uiSession = session;
         ws.on(
           "message",
-          (next) => void this.handleUiMessage(ws, next as Buffer),
+          (next) => void this.handleUiMessage(ws, next as Buffer, uiSession),
         );
       } catch (error) {
         fail(
@@ -219,67 +260,73 @@ export class SandboxWsServer {
       unsubscribe?.();
     });
   }
-
-  private async handleUiMessage(ws: WebSocket, data: Buffer): Promise<void> {
-    let message: Record<string, unknown>;
+  private async handleUiMessage(
+    ws: WebSocket,
+    data: Buffer,
+    session: UiProtocolSession,
+  ): Promise<void> {
+    const send = (message: NerveMessage<unknown>): void => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+    };
+    let message: NerveMessage<unknown>;
     try {
-      message = JSON.parse(String(data)) as Record<string, unknown>;
+      message = nerveMessageSchema.parse(JSON.parse(String(data)));
     } catch {
-      ws.send(
-        encodeProtocolMessage({
-          type: "error",
-          error: { code: "INVALID_MESSAGE", message: "Invalid JSON" },
+      send(
+        makeManagerMessage("error", {
+          code: "INVALID_MESSAGE",
+          message: "Invalid JSON or Nerve message",
+          retryable: false,
         }),
       );
       return;
     }
-    if (message.type === "ack") {
-      sandboxProtocolAckSchema.parse(message);
+    if (message.kind === "ack") {
+      const ack = ackMessageSchema.parse(message);
+      if (ack.data.sessionId !== session.sessionId) {
+        send(
+          makeManagerMessage("error", {
+            code: "INVALID_SESSION",
+            message: "Ack sessionId does not match this websocket session",
+            retryable: false,
+          }),
+        );
+        return;
+      }
+      updateUiSessionAck(session, ack.data.streams);
       return;
     }
-    if (message.type === "heartbeat") {
-      sandboxProtocolHeartbeatSchema.parse(message);
-      ws.send(
-        encodeProtocolMessage({
-          type: "heartbeat",
-          ts: new Date().toISOString(),
-          status: "ok",
+    if (message.kind === "heartbeat") {
+      const heartbeat = heartbeatMessageSchema.parse(message);
+      session.heartbeat.lastReceivedAt = new Date().toISOString();
+      send(
+        makeManagerMessage("heartbeat", {
+          sessionId: session.sessionId,
+          sentAt: new Date().toISOString(),
+          processed: heartbeat.data.processed,
         }),
       );
       return;
     }
-    if (message.type === "ready") return;
-    if (message.type === "goodbye") {
-      sandboxProtocolGoodbyeSchema.parse(message);
+    if (message.kind === "ready") {
+      readyMessageSchema.parse(message);
+      return;
+    }
+    if (message.kind === "goodbye") {
+      goodbyeMessageSchema.parse(message);
       ws.close(1000, "goodbye");
       return;
     }
-    if (message.type === "replay.request") {
-      const request = sandboxProtocolReplayRequestSchema.parse(message);
-      const storeId = storeIdForUiStream(request.stream);
-      const events = storeId
-        ? (await replayEvents(this.state.events, storeId, request.afterSeq))
-            .slice(0, request.limit ?? 1000)
-            .map((event) => toProtocolEventForStream(event))
-        : [];
-      ws.send(
-        encodeProtocolMessage({
-          type: "replay.response",
-          stream: request.stream,
-          afterSeq: request.afterSeq,
-          events,
-          complete: events.length < (request.limit ?? 1000),
-        }),
-      );
+    if (message.kind === "replay.request") {
+      const request = replayRequestMessageSchema.parse(message);
+      await handleUiReplayRequest(this.state, session, request.data, send);
       return;
     }
-    ws.send(
-      encodeProtocolMessage({
-        type: "error",
-        error: {
-          code: "UNSUPPORTED_MESSAGE",
-          message: `Unsupported UI message: ${String(message.type)}`,
-        },
+    send(
+      makeManagerMessage("error", {
+        code: "UNSUPPORTED_MESSAGE",
+        message: `Unsupported UI message: ${message.kind}`,
+        retryable: false,
       }),
     );
   }
@@ -558,23 +605,6 @@ function matchSandboxId(url: string): string | undefined {
 
 function matchManagerUiWs(url: string): boolean {
   return /^\/api\/manager\/ws(?:\?|$)/.test(url);
-}
-
-function storeIdForUiStream(stream: string): string | undefined {
-  if (stream === MANAGER_EVENT_STREAM) return MANAGER_EVENT_STORE_ID;
-  if (stream.startsWith("sandbox:")) return stream.slice("sandbox:".length);
-  return undefined;
-}
-
-function toProtocolEventForStream(event: StoredSandboxEvent) {
-  return {
-    id: event.id,
-    seq: event.seq ?? 1,
-    ts: event.ts ?? new Date().toISOString(),
-    type: event.type,
-    durability: event.durability ?? ("durable" as const),
-    data: event.payload,
-  };
 }
 
 function rejectUpgrade(socket: Duplex, status: number, message: string): void {

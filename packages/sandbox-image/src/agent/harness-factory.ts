@@ -20,6 +20,7 @@ import { resolveModelSelection } from "../models/model-catalog.js";
 import { resolveProviderCredential } from "../models/provider-credentials.js";
 import { Redactor } from "../security/redaction.js";
 import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
+import type { AgentConfigStore } from "./agent-config-store.js";
 
 export type HarnessFactoryOptions = {
   workspaceDir: string;
@@ -29,6 +30,7 @@ export type HarnessFactoryOptions = {
   skills?: SkillStatus[];
   contextFiles?: Array<{ path?: string; included?: boolean }>;
   redactor?: Redactor;
+  configStore?: AgentConfigStore;
 };
 
 export type SandboxHarnessDescriptor = {
@@ -96,7 +98,10 @@ export class HarnessFactory {
     scope: SandboxHarnessRunScope,
     options: HarnessCreateOptions = {},
   ): Promise<AgentHarness> {
-    const selection = options.modelSelection ?? this.config.agent.mainModel;
+    const selection =
+      options.modelSelection ??
+      this.options.configStore?.effective(this.config).model ??
+      this.config.agent.mainModel;
     const customModels = this.customModels();
     const model = resolveAgentModel(
       { provider: selection.provider, modelId: selection.model },
@@ -141,7 +146,9 @@ export class HarnessFactory {
   ): SandboxHarnessDescriptor {
     const model = resolveModelSelection(
       this.config,
-      options.modelSelection ?? this.config.agent.mainModel,
+      options.modelSelection ??
+        this.options.configStore?.effective(this.config).model ??
+        this.config.agent.mainModel,
     );
     const provider = this.providerConfig(model.provider);
     const needsCredential = providerNeedsCredential(model.provider);
@@ -167,10 +174,13 @@ export class HarnessFactory {
   }
 
   async assertModelAvailable(
-    selection: SandboxConfigV1["agent"]["mainModel"] = this.config.agent
-      .mainModel,
+    selection?: SandboxConfigV1["agent"]["mainModel"],
   ): Promise<void> {
-    const provider = this.providerConfig(selection.provider);
+    const effectiveSelection =
+      selection ??
+      this.options.configStore?.effective(this.config).model ??
+      this.config.agent.mainModel;
+    const provider = this.providerConfig(effectiveSelection.provider);
     if (provider?.credential && this.options.secretResolver) {
       await resolveProviderCredential(
         provider.credential,
@@ -178,7 +188,10 @@ export class HarnessFactory {
       );
       return;
     }
-    if (providerNeedsCredential(selection.provider) && !provider?.credential) {
+    if (
+      providerNeedsCredential(effectiveSelection.provider) &&
+      !provider?.credential
+    ) {
       throw new Error("UNAVAILABLE: selected model provider has no credential");
     }
   }
@@ -231,6 +244,9 @@ export class HarnessFactory {
     );
     if (resolved.apiKey) return { apiKey: resolved.apiKey, headers, env };
     if (resolved.bearerToken) {
+      if (providerUsesApiKeySlotForBearer(providerId)) {
+        return { apiKey: resolved.bearerToken, headers, env };
+      }
       headers.authorization = `Bearer ${resolved.bearerToken}`;
       return { apiKey: "", headers, env };
     }
@@ -346,6 +362,10 @@ export class HarnessFactory {
       .filter(Boolean)
       .join("\n\n");
   }
+}
+
+function providerUsesApiKeySlotForBearer(providerId: string): boolean {
+  return providerId === "openai-codex";
 }
 
 function providerNeedsCredential(provider: string): boolean {

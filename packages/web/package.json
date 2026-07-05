@@ -34,6 +34,7 @@
     "@fontsource/iosevka": "^5.2.5",
     "@fontsource/outfit": "^5.2.6",
     "@nervekit/shared": "workspace:*",
+    "@nervekit/conversation-ui": "workspace:*",
     "@shikijs/core": "^4.1.0",
     "@shikijs/engine-javascript": "^4.1.0",
     "@shikijs/langs": "^4.1.0",

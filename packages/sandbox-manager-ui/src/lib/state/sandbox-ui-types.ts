@@ -1,3 +1,4 @@
+import type { ConversationRenderState } from "@nervekit/conversation-ui/state";
 import type {
   ManagedSandboxRecord,
   SandboxControllerSessionSummary,
@@ -79,6 +80,14 @@ export type SandboxDetailState = {
     createdAt: string;
   }>;
   liveRuns: Record<string, SandboxLiveRunState>;
+  conversationViewsById: Record<string, ConversationRenderState>;
+  lastRichSnapshot?: {
+    generatedAt?: string;
+    cursorSeq?: number;
+    stale?: boolean;
+    readOnly?: boolean;
+    reason?: string;
+  };
   selectedConversationId?: string;
   selectedAgentId?: string;
   selectedRunId?: string;
@@ -102,6 +111,7 @@ export function createSandboxDetailState(
     waitsById: {},
     appendedTranscript: [],
     liveRuns: {},
+    conversationViewsById: {},
     composerText: "",
     sending: false,
     loading: false,

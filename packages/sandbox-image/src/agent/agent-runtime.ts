@@ -4,6 +4,7 @@ import { resolveModelSelection } from "../models/model-catalog.js";
 import type { ApprovalWaiter } from "../tools/approval-waiter.js";
 import type { InputWaiter } from "../tools/input-waiter.js";
 import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
+import type { AgentConfigStore } from "./agent-config-store.js";
 import type { ExploreRuntime } from "./explore-runtime.js";
 
 import type { HarnessEventBridge } from "./harness-event-bridge.js";
@@ -19,6 +20,7 @@ export type SandboxAgentRuntimeOptions = {
   approvalWaiter?: ApprovalWaiter;
   toolRuntime?: SandboxToolRuntime;
   exploreRuntime?: ExploreRuntime;
+  configStore?: AgentConfigStore;
 };
 
 type ActiveHarnessRun = {
@@ -44,13 +46,16 @@ export class SandboxAgentRuntime {
     return {
       mainModel: resolveModelSelection(
         this.config,
-        this.config.agent.mainModel,
+        this.options.configStore?.effective(this.config).model ??
+          this.config.agent.mainModel,
       ),
       harness: this.options.harnessFactory?.describe(
         "conv_status",
         "agent_main",
       ),
-      mode: this.config.agent.mode ?? "normal",
+      mode:
+        this.options.configStore?.effective(this.config).mode ??
+        (this.config.agent.mode === "planning" ? "planning" : "coding"),
       activeRuns: this.active.size,
     };
   }
@@ -142,10 +147,12 @@ export class SandboxAgentRuntime {
     this.active.delete(key(scope));
     await this.options.inputWaiter?.cancelRun(scope);
     await this.options.approvalWaiter?.cancelRun(scope);
-    return this.options.runs.cancel({
+    const run = await this.options.runs.cancel({
       ...scope,
       executionId: active?.executionId,
     });
+    await this.options.bridge?.failRun(scope, { message: scope.reason }, true);
+    return run;
   }
 
   async recoverActiveRuns(): Promise<void> {
@@ -207,16 +214,20 @@ export class SandboxAgentRuntime {
         const harness = await harnessFactory.create(scope);
         active.harness = harness;
         dispose = this.options.bridge?.attach(harness, scope);
-        const model = this.config.agent.mainModel;
+        const model =
+          this.options.configStore?.effective(this.config).model ??
+          this.config.agent.mainModel;
         await runs.markRunning(scope, {
           provider: model.provider,
           model: model.model,
           thinkingLevel: model.thinkingLevel,
         });
+        await this.options.bridge?.startRun(scope);
         if (mode === "continue") await harness.continue();
         else await harness.prompt(prompt);
         if (active.abortController.signal.aborted || active.cancelling) return;
         await runs.markCompleted(scope);
+        await this.options.bridge?.completeRun(scope);
       } catch (error) {
         if (isAgentToolSuspension(error)) {
           await this.options.bridge?.handleSuspension(scope, error);
@@ -231,6 +242,7 @@ export class SandboxAgentRuntime {
           return;
         }
         await runs.markFailed(scope, normalizeError(error), true);
+        await this.options.bridge?.failRun(scope, normalizeError(error), false);
       } finally {
         dispose?.();
         this.active.delete(key(scope));

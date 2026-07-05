@@ -66,6 +66,37 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/conversation-ui:
+    dependencies:
+      '@lucide/svelte':
+        specifier: ^1.17.0
+        version: 1.17.0(svelte@5.56.3)
+      '@nervekit/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@nervekit/ui':
+        specifier: workspace:*
+        version: link:../ui
+      svelte:
+        specifier: 5.56.3
+        version: 5.56.3
+    devDependencies:
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 7.1.2
+        version: 7.1.2(svelte@5.56.3)(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+      svelte-check:
+        specifier: 4.3.3
+        version: 4.3.3(picomatch@4.0.4)(svelte@5.56.3)(typescript@5.9.3)
+      tsx:
+        specifier: 4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 8.0.16
+        version: 8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+
   packages/desktop:
     dependencies:
       '@nervekit/orchestrator':
@@ -213,6 +244,9 @@ importers:
       '@lucide/svelte':
         specifier: ^1.17.0
         version: 1.17.0(svelte@5.56.3)
+      '@nervekit/conversation-ui':
+        specifier: workspace:*
+        version: link:../conversation-ui
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
@@ -297,6 +331,9 @@ importers:
       '@lucide/svelte':
         specifier: ^1.17.0
         version: 1.17.0(svelte@5.56.3)
+      '@nervekit/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@shikijs/core':
         specifier: ^4.1.0
         version: 4.1.0
@@ -406,6 +443,9 @@ importers:
       '@fontsource/outfit':
         specifier: ^5.2.6
         version: 5.2.8
+      '@nervekit/conversation-ui':
+        specifier: workspace:*
+        version: link:../conversation-ui
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared

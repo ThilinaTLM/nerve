@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ConversationRuntime } from "../../conversations/conversation-runtime.js";
+import type { ConversationRuntime } from "@nervekit/shared";
 import {
   type AssistantToolCallSnapshot,
   assistantToolCallSnapshots,

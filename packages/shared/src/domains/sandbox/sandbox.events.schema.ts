@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { conversationEventPayloadSchemas } from "../conversations/index.js";
 import {
   artifactRefSchema,
   boundedTextSchema,
@@ -331,7 +332,7 @@ export const toolCallEventSchema = sandboxEventCommonSchema
     cancelledAt: isoDateTimeSchema.optional(),
   });
 
-export const sandboxEventPayloadSchemas = {
+export const sandboxOperationalEventPayloadSchemas = {
   "sandbox.config.loaded": sandboxConfigLoadedEventSchema,
   "sandbox.secret_store.checked": sandboxSecretStoreCheckedEventSchema,
   "sandbox.credentials.refreshed": sandboxCredentialsRefreshedEventSchema,
@@ -362,6 +363,11 @@ export const sandboxEventPayloadSchemas = {
   "tool.call.completed": toolCallEventSchema,
   "tool.call.failed": toolCallEventSchema,
   "tool.call.cancelled": toolCallEventSchema,
+} as const;
+
+export const sandboxEventPayloadSchemas = {
+  ...sandboxOperationalEventPayloadSchemas,
+  ...conversationEventPayloadSchemas,
 } as const;
 
 export const sandboxEventEnvelopeSchema = z.object({

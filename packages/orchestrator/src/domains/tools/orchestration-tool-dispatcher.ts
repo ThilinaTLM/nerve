@@ -1,6 +1,7 @@
 import { isAbsolute, resolve } from "node:path";
 import {
   type AgentRecord,
+  type ConversationRuntime,
   createId,
   type Mode,
   type TaskLogEvent,
@@ -15,7 +16,6 @@ import {
 } from "@nervekit/tools";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import type { ConversationRuntime } from "../conversations/conversation-runtime.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
 import { isActiveTaskStatus } from "../tasks/index.js";

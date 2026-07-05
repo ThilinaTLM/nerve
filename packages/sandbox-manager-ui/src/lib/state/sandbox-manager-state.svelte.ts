@@ -1,4 +1,9 @@
+import {
+  applyConversationEvent,
+  fromSandboxConversationViewSnapshot,
+} from "@nervekit/conversation-ui/state";
 import type {
+  EventEnvelope,
   ManagedSandboxRecord,
   ModelInfo,
   RemoveOptions,
@@ -11,6 +16,7 @@ import type {
 import { getContext, setContext } from "svelte";
 import { createOperationId } from "../api/idempotency";
 import * as api from "../api/manager-client";
+import { protocolRequest } from "../api/manager-protocol-client";
 import {
   ManagerWsClient,
   type ManagerWsConnectionState,
@@ -26,6 +32,10 @@ import {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export class SandboxManagerStore {
@@ -63,6 +73,15 @@ export class SandboxManagerStore {
         void this.refreshFleet();
         if (this.selectedSandboxId)
           void this.loadDetail(this.selectedSandboxId);
+      },
+      onReplayUnavailable: (streams) => {
+        for (const stream of streams) {
+          const sandboxId = stream.startsWith("sandbox:")
+            ? stream.slice("sandbox:".length)
+            : undefined;
+          if (sandboxId) void this.recoverConversationSnapshot(sandboxId);
+          else void this.refreshFleet();
+        }
       },
     });
   }
@@ -159,6 +178,7 @@ export class SandboxManagerStore {
       } catch {
         // Snapshot may be unavailable when no controller session is connected.
       }
+      await this.recoverConversationSnapshot(sandboxId).catch(() => undefined);
       try {
         detail.latestSession = await api.getLatestSession(sandboxId);
       } catch {
@@ -170,6 +190,36 @@ export class SandboxManagerStore {
     } finally {
       detail.loading = false;
     }
+  }
+
+  async recoverConversationSnapshot(
+    sandboxId: string,
+    conversationId?: string,
+  ): Promise<void> {
+    const detail = this.detail(sandboxId);
+    const { result } = await protocolRequest<
+      import("@nervekit/shared").SandboxConversationViewSnapshot
+    >("sandbox.conversation.snapshot.get", {
+      sandboxId,
+      conversationId: conversationId ?? detail.selectedConversationId,
+      agentId: detail.selectedAgentId,
+      runId: detail.selectedRunId,
+    });
+    const renderState = fromSandboxConversationViewSnapshot(result);
+    const key =
+      renderState.conversationId ?? result.conversationId ?? "default";
+    detail.conversationViewsById[key] = renderState;
+    detail.selectedConversationId = key;
+    detail.selectedAgentId = result.agentId ?? renderState.activeRun?.agentId;
+    detail.selectedRunId = result.runId ?? renderState.activeRun?.runId;
+    detail.lastRichSnapshot = {
+      generatedAt: result.generatedAt,
+      cursorSeq: renderState.cursorSeq,
+      stale: result.stale,
+      readOnly: result.fallback?.readOnly,
+      reason: result.fallback?.reason,
+    };
+    this.ws.markSnapshotRecovered(`sandbox:${sandboxId}`);
   }
 
   async loadLogs(sandboxId: string): Promise<void> {
@@ -417,7 +467,7 @@ export class SandboxManagerStore {
     if (!sandboxId) return;
     const detail = this.details[sandboxId];
     if (!detail) return;
-    applySandboxEvent(detail, {
+    const uiEvent = {
       stream: envelope.stream,
       seq: envelope.seq,
       id: envelope.id,
@@ -426,7 +476,50 @@ export class SandboxManagerStore {
       durability: envelope.durability,
       data: envelope.data,
       sandboxId,
-    });
+    };
+    if (envelope.type.startsWith("conversation.")) {
+      this.applyConversationUiEvent(detail, uiEvent);
+    }
+    applySandboxEvent(detail, uiEvent);
+  }
+
+  private applyConversationUiEvent(
+    detail: SandboxDetailState,
+    event: {
+      seq: number;
+      id?: string;
+      ts: string;
+      type: string;
+      durability?: "durable" | "transient";
+      data?: unknown;
+    },
+  ): void {
+    const data = isRecord(event.data) ? event.data : {};
+    const conversationId =
+      typeof data.conversationId === "string"
+        ? data.conversationId
+        : (detail.selectedConversationId ?? "default");
+    const current = detail.conversationViewsById[conversationId] ?? {
+      conversationId,
+      entries: [],
+      activeEntryIds: [],
+      toolCalls: [],
+      cursorSeq: 0,
+    };
+    detail.conversationViewsById[conversationId] = applyConversationEvent(
+      current,
+      {
+        id: event.id ?? `evt_${event.seq}`,
+        seq: event.seq,
+        ts: event.ts,
+        type: event.type,
+        durability: event.durability ?? "durable",
+        data: event.data as EventEnvelope["data"],
+      },
+    );
+    detail.selectedConversationId = conversationId;
+    if (typeof data.agentId === "string") detail.selectedAgentId = data.agentId;
+    if (typeof data.runId === "string") detail.selectedRunId = data.runId;
   }
 
   private scheduleFleetRefresh(): void {

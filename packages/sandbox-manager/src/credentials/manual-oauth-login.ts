@@ -1,5 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai/oauth";
+import type {
+  OAuthCredentials,
+  OAuthLoginCallbacks,
+} from "@earendil-works/pi-ai/oauth";
 
 const ANTHROPIC_CLIENT_ID = "9d1c250a-e61b-44d5-88ed-5944d1962f5e";
 const ANTHROPIC_AUTHORIZE_URL = "https://claude.ai/oauth/authorize";
@@ -45,7 +48,8 @@ async function loginAnthropicManual(
   });
   const input = await callbacks.onManualCodeInput?.();
   const parsed = parseAuthorizationInput(input ?? "");
-  if (parsed.state && parsed.state !== verifier) throw new Error("OAuth state mismatch");
+  if (parsed.state && parsed.state !== verifier)
+    throw new Error("OAuth state mismatch");
   if (!parsed.code) throw new Error("Missing authorization code");
   callbacks.onProgress?.("Exchanging authorization code for tokens...");
   const tokenData = await postJson<{
@@ -60,7 +64,11 @@ async function loginAnthropicManual(
     redirect_uri: ANTHROPIC_REDIRECT_URI,
     code_verifier: verifier,
   });
-  if (!tokenData.access_token || !tokenData.refresh_token || !tokenData.expires_in)
+  if (
+    !tokenData.access_token ||
+    !tokenData.refresh_token ||
+    !tokenData.expires_in
+  )
     throw new Error("Anthropic token response missing fields");
   return {
     access: tokenData.access_token,
@@ -108,7 +116,11 @@ async function loginOpenAICodexManual(
     code_verifier: verifier,
     redirect_uri: OPENAI_CODEX_REDIRECT_URI,
   });
-  if (!tokenData.access_token || !tokenData.refresh_token || !tokenData.expires_in)
+  if (
+    !tokenData.access_token ||
+    !tokenData.refresh_token ||
+    !tokenData.expires_in
+  )
     throw new Error("OpenAI Codex token response missing fields");
   const accountId = getOpenAICodexAccountId(tokenData.access_token);
   if (!accountId) throw new Error("Failed to extract accountId from token");
@@ -155,7 +167,10 @@ function parseAuthorizationInput(input: string): {
   return { code: value };
 }
 
-async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
+async function postJson<T>(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -168,7 +183,10 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
   return readJsonResponse<T>(response, url);
 }
 
-async function postForm<T>(url: string, body: Record<string, string>): Promise<T> {
+async function postForm<T>(
+  url: string,
+  body: Record<string, string>,
+): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -178,7 +196,10 @@ async function postForm<T>(url: string, body: Record<string, string>): Promise<T
   return readJsonResponse<T>(response, url);
 }
 
-async function readJsonResponse<T>(response: Response, url: string): Promise<T> {
+async function readJsonResponse<T>(
+  response: Response,
+  url: string,
+): Promise<T> {
   const responseBody = await response.text();
   if (!response.ok)
     throw new Error(

@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: Conversation schema centralizes snapshot and live event payload contracts.
 import { z } from "zod";
 import {
   type QueuedPromptRecord,
@@ -567,6 +568,269 @@ export const conversationSnapshotSchema = z.object({
   generatedAt: z.string().datetime(),
 });
 
+const conversationRunStartedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  runId: runIdSchema,
+  projectId: z.string().startsWith("proj_"),
+  parentEntryId: z.string().startsWith("entry_").optional(),
+  startedAt: z.string().datetime(),
+});
+
+const conversationRunCompletedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  runId: runIdSchema,
+  projectId: z.string().startsWith("proj_"),
+  finalEntryId: z.string().startsWith("entry_").optional(),
+  completedAt: z.string().datetime(),
+});
+
+const conversationRunRetryExhaustedDataSchema = z.object({
+  statusEntryId: z.string().startsWith("entry_").optional(),
+  failedEntryId: z.string().startsWith("entry_").optional(),
+  attempt: z.number().int().positive().optional(),
+  maxRetries: z.number().int().positive().optional(),
+  errorMessage: z.string().optional(),
+  retryable: z.boolean().optional(),
+});
+
+const conversationRunFailedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  runId: runIdSchema,
+  projectId: z.string().startsWith("proj_"),
+  message: z.string(),
+  aborted: z.boolean(),
+  failedAt: z.string().datetime(),
+  retryExhausted: conversationRunRetryExhaustedDataSchema.optional(),
+});
+
+const conversationRunSuspendedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  runId: runIdSchema,
+  projectId: z.string().startsWith("proj_"),
+  suspensionId: z.string().startsWith("susp_"),
+  toolCallId: z.string().startsWith("tool_"),
+  suspendedAt: z.string().datetime(),
+  reason: z.string(),
+});
+
+const conversationRunRetryingDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  runId: runIdSchema,
+  projectId: z.string().startsWith("proj_"),
+  attempt: z.number().int().positive(),
+  maxRetries: z.number().int().positive(),
+  delayMs: z.number().int().nonnegative(),
+  retryAt: z.string().datetime(),
+  errorMessage: z.string().optional(),
+  failedEntryId: z.string().startsWith("entry_").optional(),
+});
+
+const conversationPromptQueuedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  projectId: z.string().startsWith("proj_"),
+  runId: runIdSchema.optional(),
+  queuedPrompt: queuedPromptRecordSchema,
+});
+
+const conversationPromptDequeuedDataSchema =
+  conversationPromptQueuedDataSchema.extend({
+    entryId: z.string().startsWith("entry_").optional(),
+  });
+
+const conversationEntryAppendedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: runIdSchema.optional(),
+  turnId: turnIdSchema.optional(),
+  liveMessageId: liveMessageIdSchema.optional(),
+  entry: conversationEntrySchema,
+});
+
+const conversationCompactionStartedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: runIdSchema.optional(),
+  reason: z.enum(["manual", "threshold", "overflow"]),
+  startedAt: z.string().datetime(),
+  contextWindow: z.number().int().nonnegative().optional(),
+  contextTokens: z.number().int().nonnegative().optional(),
+  thresholdTokens: z.number().int().nonnegative().optional(),
+  triggerReserveTokens: z.number().int().nonnegative().optional(),
+  keepRecentTokens: z.number().int().nonnegative().optional(),
+  failedEntryId: z.string().startsWith("entry_").optional(),
+});
+
+const conversationCompactionFailedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: runIdSchema.optional(),
+  reason: z.enum(["manual", "threshold", "overflow"]),
+  failedAt: z.string().datetime(),
+  message: z.string(),
+  failedEntryId: z.string().startsWith("entry_").optional(),
+});
+
+const conversationCompactedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  entry: conversationEntrySchema,
+  tokensBefore: z.number().int().nonnegative(),
+  firstKeptEntryId: z.string().startsWith("entry_"),
+  reason: z.enum(["manual", "threshold", "overflow"]).optional(),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: runIdSchema.optional(),
+  contextWindow: z.number().int().nonnegative().optional(),
+  thresholdTokens: z.number().int().nonnegative().optional(),
+  keepRecentTokens: z.number().int().nonnegative().optional(),
+  tokensAfter: z.number().int().nonnegative().optional(),
+  freedTokens: z.number().int().nonnegative().optional(),
+});
+
+const conversationContextUpdatedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: runIdSchema.optional(),
+  contextUsage: contextUsageSchema,
+});
+
+const conversationToolCallUpdatedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  projectId: z.string().startsWith("proj_"),
+  runId: runIdSchema.optional(),
+  turnId: turnIdSchema.optional(),
+  liveMessageId: liveMessageIdSchema.optional(),
+  contentIndex: z.number().int().nonnegative().optional(),
+  providerToolCallId: z.string().min(1).optional(),
+  toolCall: toolCallTranscriptRecordSchema,
+});
+
+const conversationLiveMessageStartedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  projectId: z.string().startsWith("proj_"),
+  runId: runIdSchema,
+  turnId: turnIdSchema,
+  liveMessageId: liveMessageIdSchema,
+  messageOrdinal: z.number().int().nonnegative(),
+  startedAt: z.string().datetime(),
+});
+
+const conversationLiveContentBaseDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  projectId: z.string().startsWith("proj_"),
+  runId: runIdSchema,
+  turnId: turnIdSchema,
+  liveMessageId: liveMessageIdSchema,
+  contentBlockId: contentBlockIdSchema,
+  contentIndex: z.number().int().nonnegative(),
+});
+
+const agentMessageContentKindSchema = z.enum(["text", "thinking"]);
+
+const conversationLiveContentDeltaDataSchema =
+  conversationLiveContentBaseDataSchema.extend({
+    kind: agentMessageContentKindSchema,
+    offset: z.number().int().nonnegative(),
+    delta: z.string(),
+  });
+
+const conversationLiveContentDoneDataSchema =
+  conversationLiveContentBaseDataSchema.extend({
+    kind: agentMessageContentKindSchema,
+    finalText: z.string().optional(),
+    redacted: z.boolean().optional(),
+  });
+
+const conversationLiveToolDraftStartedDataSchema =
+  conversationLiveContentBaseDataSchema.extend({
+    providerToolCallId: z.string().min(1).optional(),
+    toolName: z.string().min(1).optional(),
+  });
+
+const conversationLiveToolDraftDeltaDataSchema =
+  conversationLiveToolDraftStartedDataSchema.extend({
+    offset: z.number().int().nonnegative(),
+    delta: z.string(),
+  });
+
+const conversationLiveToolDraftDoneDataSchema =
+  conversationLiveContentBaseDataSchema.extend({
+    providerToolCallId: z.string().min(1),
+    toolName: z.string().min(1),
+    args: z.record(z.string(), z.unknown()),
+  });
+
+const conversationLiveToolDraftProgressDataSchema =
+  conversationLiveToolDraftStartedDataSchema.extend({
+    progress: conversationLiveToolDraftProgressSnapshotSchema,
+  });
+
+const conversationLiveToolDraftDiscardedDataSchema =
+  conversationLiveToolDraftStartedDataSchema.extend({
+    reason: z.enum(["abandoned", "invalid", "replaced"]),
+  });
+
+const conversationLiveToolOutputDeltaDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  projectId: z.string().startsWith("proj_"),
+  runId: runIdSchema.optional(),
+  turnId: turnIdSchema.optional(),
+  liveMessageId: liveMessageIdSchema.optional(),
+  contentIndex: z.number().int().nonnegative().optional(),
+  providerToolCallId: z.string().min(1).optional(),
+  toolCallId: z.string().startsWith("tool_"),
+  toolName: z.string().min(1),
+  stream: z.enum(["stdout", "stderr", "combined"]),
+  offset: z.number().int().nonnegative(),
+  delta: z.string(),
+});
+
+export const conversationEventPayloadSchemas = {
+  "conversation.run.started": conversationRunStartedDataSchema,
+  "conversation.run.completed": conversationRunCompletedDataSchema,
+  "conversation.run.failed": conversationRunFailedDataSchema,
+  "conversation.run.suspended": conversationRunSuspendedDataSchema,
+  "conversation.run.retrying": conversationRunRetryingDataSchema,
+  "conversation.prompt.queued": conversationPromptQueuedDataSchema,
+  "conversation.prompt.dequeued": conversationPromptDequeuedDataSchema,
+  "conversation.prompt.cancelled": conversationPromptQueuedDataSchema,
+  "conversation.entry.appended": conversationEntryAppendedDataSchema,
+  "conversation.compaction.started": conversationCompactionStartedDataSchema,
+  "conversation.compaction.failed": conversationCompactionFailedDataSchema,
+  "conversation.compacted": conversationCompactedDataSchema,
+  "conversation.context.updated": conversationContextUpdatedDataSchema,
+  "conversation.tool_call.updated": conversationToolCallUpdatedDataSchema,
+  "conversation.live.message.started": conversationLiveMessageStartedDataSchema,
+  "conversation.live.content.delta": conversationLiveContentDeltaDataSchema,
+  "conversation.live.content.done": conversationLiveContentDoneDataSchema,
+  "conversation.live.tool_draft.started":
+    conversationLiveToolDraftStartedDataSchema,
+  "conversation.live.tool_draft.delta":
+    conversationLiveToolDraftDeltaDataSchema,
+  "conversation.live.tool_draft.done": conversationLiveToolDraftDoneDataSchema,
+  "conversation.live.tool_draft.progress":
+    conversationLiveToolDraftProgressDataSchema,
+  "conversation.live.tool_draft.discarded":
+    conversationLiveToolDraftDiscardedDataSchema,
+  "conversation.live.tool_output.delta":
+    conversationLiveToolOutputDeltaDataSchema,
+} as const;
+
+export const conversationEventTypeSchema = z.enum(
+  Object.keys(conversationEventPayloadSchemas) as [
+    keyof typeof conversationEventPayloadSchemas,
+    ...(keyof typeof conversationEventPayloadSchemas)[],
+  ],
+);
+
 export const conversationEventTypes = [
   "conversation.run.started",
   "conversation.run.completed",
@@ -579,6 +843,7 @@ export const conversationEventTypes = [
   "conversation.entry.appended",
   "conversation.compaction.started",
   "conversation.compaction.failed",
+  "conversation.compacted",
   "conversation.context.updated",
   "conversation.tool_call.updated",
   "conversation.live.message.started",

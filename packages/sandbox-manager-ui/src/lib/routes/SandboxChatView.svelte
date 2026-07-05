@@ -1,19 +1,22 @@
 <script lang="ts">
   import { MessageSquareOff } from "@lucide/svelte";
+  import { PromptComposer, TranscriptPane } from "@nervekit/conversation-ui";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
   import SelectField from "@nervekit/ui/components/ui/select-field";
   import type { SelectItem } from "@nervekit/ui/components/ui/select-field";
-  import SandboxComposer from "../components/chat/SandboxComposer.svelte";
-  import SandboxTranscript from "../components/chat/SandboxTranscript.svelte";
+
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
-  import { buildTimeline } from "../state/sandbox-snapshot-adapter";
+
 
   let { record }: { record: ManagedSandboxRecord } = $props();
 
   const store = useSandboxManagerStore();
   const detail = $derived(store.details[record.sandboxId]);
-  const timeline = $derived(detail ? buildTimeline(detail) : []);
+  const richState = $derived(
+    detail?.selectedConversationId
+      ? detail.conversationViewsById[detail.selectedConversationId]
+      : Object.values(detail?.conversationViewsById ?? {})[0],
+  );
   const connected = $derived(detail?.status?.connected ?? false);
 
   const conversationItems = $derived<SelectItem[]>(
@@ -24,12 +27,11 @@
   );
 
   const activeRun = $derived(
-    detail?.selectedRunId
-      ? detail.liveRuns[detail.selectedRunId]
-      : undefined,
+    richState?.activeRun ??
+      (detail?.selectedRunId ? detail.liveRuns[detail.selectedRunId] : undefined),
   );
   const canCancel = $derived(
-    activeRun?.status === "running" || activeRun?.status === "queued",
+    activeRun?.status === "running" || activeRun?.status === "queued" || activeRun?.status === "streaming",
   );
 </script>
 
@@ -48,9 +50,9 @@
     </div>
   {/if}
 
-  <ScrollArea class="min-h-0 flex-1">
-    <div class="mx-auto max-w-3xl p-4">
-      {#if timeline.length === 0}
+  <div class="min-h-0 flex-1 overflow-hidden">
+    {#if !richState || (richState.entries.length === 0 && !richState.activeRun)}
+      <div class="mx-auto max-w-3xl p-4">
         <div class="flex flex-col items-center gap-2 py-16 text-center">
           <MessageSquareOff class="size-8 text-muted-foreground" />
           <p class="text-sm text-muted-foreground">
@@ -59,26 +61,18 @@
               : "No controller session connected. Chat is read-only until the sandbox reconnects."}
           </p>
         </div>
-      {:else}
-        <SandboxTranscript
-          rows={timeline}
-          onsubmitInput={(waitId, text) =>
-            void store.submitInput(record.sandboxId, waitId, text)}
-          onresolveApproval={(waitId, decision) =>
-            void store.resolveApproval(record.sandboxId, waitId, decision)}
-        />
-      {/if}
-    </div>
-  </ScrollArea>
+      </div>
+    {:else}
+      <TranscriptPane state={richState} />
+    {/if}
+  </div>
 
   {#if detail}
-    <SandboxComposer
-      bind:value={detail.composerText}
-      sending={detail.sending}
-      {canCancel}
-      disabled={!connected}
-      onsend={(text) => void store.sendPrompt(record.sandboxId, text)}
-      oncancel={() => void store.cancelRun(record.sandboxId)}
+    <PromptComposer
+      value={detail.composerText}
+      disabled={!connected || detail.sending || Boolean(richState?.readOnly)}
+      onSubmit={(text) => void store.sendPrompt(record.sandboxId, text)}
+      onAbort={canCancel ? () => void store.cancelRun(record.sandboxId) : undefined}
     />
   {/if}
 </div>

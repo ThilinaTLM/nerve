@@ -1,6 +1,10 @@
 import { realpath } from "node:fs/promises";
 import path from "node:path";
-import type { SandboxConfigV1 } from "@nervekit/shared";
+import type {
+  ApprovalPolicy,
+  PermissionLevel,
+  SandboxConfigV1,
+} from "@nervekit/shared";
 import { isLikelyLongRunningCommand } from "@nervekit/tools";
 
 export type ToolDecision = {
@@ -28,8 +32,8 @@ export async function enforceToolPolicy(
   runtime: { workspaceDir: string; readOnly?: boolean },
 ): Promise<void> {
   const workspaceDir = runtime.workspaceDir;
-  if (runtime.readOnly && ["write", "edit"].includes(tool))
-    throw new Error("write tool denied in degraded read-only mode");
+  if (runtime.readOnly && writeCapableTool(tool))
+    throw new Error("write-capable tool denied in degraded read-only mode");
   const pathValue = typeof args.path === "string" ? args.path : undefined;
   if (pathValue) {
     const candidate = path.isAbsolute(pathValue)
@@ -72,23 +76,107 @@ export async function enforceToolPolicy(
 export function decideShellCommand(
   command: string,
   approval: "never" | "risky" | "always" = "risky",
+  policy: {
+    permissionLevel?: PermissionLevel;
+    approvalPolicy?: Partial<ApprovalPolicy>;
+  } = {},
 ): ToolDecision {
+  const permissionLevel = policy.permissionLevel ?? "autonomous";
+  if (permissionLevel === "read_only") {
+    if (isReadOnlyShellCommand(command)) return { allowed: true };
+    return {
+      allowed: false,
+      reason: "shell command denied by read-only sandbox policy",
+    };
+  }
+  if (permissionLevel === "supervised") {
+    if (approval === "never" && isReadOnlyShellCommand(command))
+      return { allowed: true };
+    if (approval === "never" && !isRiskyShellCommand(command))
+      return { allowed: true };
+    if (approval === "always" || isRiskyShellCommand(command))
+      return {
+        allowed: false,
+        approvalRequired: true,
+        reason: isRiskyShellCommand(command)
+          ? "risky shell command requires approval"
+          : "approval required",
+      };
+    return { allowed: true };
+  }
   if (approval === "always")
     return {
       allowed: false,
       approvalRequired: true,
       reason: "approval required",
     };
-  if (
-    approval === "risky" &&
-    /\b(rm\s+-rf|mkfs|shutdown|reboot|dd\s+|chmod\s+-R\s+777)\b/.test(command)
-  )
+  if (approval === "risky" && isRiskyShellCommand(command))
     return {
       allowed: false,
       approvalRequired: true,
       reason: "destructive command requires approval",
     };
   return { allowed: true };
+}
+
+export function decideNonShellTool(
+  tool: string,
+  _args: unknown,
+  policy: {
+    permissionLevel?: PermissionLevel;
+    approvalPolicy?: Partial<ApprovalPolicy>;
+  } = {},
+): ToolDecision {
+  const permissionLevel = policy.permissionLevel ?? "autonomous";
+  if (permissionLevel === "read_only" && writeCapableTool(tool)) {
+    return {
+      allowed: false,
+      reason: `tool denied by read-only sandbox policy: ${tool}`,
+    };
+  }
+  if (permissionLevel === "supervised" && riskyTool(tool)) {
+    return {
+      allowed: false,
+      approvalRequired: true,
+      reason: `tool requires approval by supervised sandbox policy: ${tool}`,
+    };
+  }
+  return { allowed: true };
+}
+
+function isRiskyShellCommand(command: string): boolean {
+  return /\b(rm\s+-rf|mkfs|shutdown|reboot|dd\s+|chmod\s+-R\s+777)\b/.test(
+    command,
+  );
+}
+
+function isReadOnlyShellCommand(command: string): boolean {
+  const trimmed = command.trim();
+  if (!trimmed) return true;
+  if (
+    /[>|;&`$()]|\b(sudo|rm|mv|cp|chmod|chown|mkdir|touch|tee|dd|mkfs|shutdown|reboot|curl|wget|python|node|npm|pnpm|yarn|bun)\b/.test(
+      trimmed,
+    )
+  )
+    return false;
+  return /^(pwd|ls|cat|grep|rg|find|head|tail|wc|sed -n|git status|git diff|git log)(\s|$)/.test(
+    trimmed,
+  );
+}
+
+function riskyTool(tool: string): boolean {
+  return ["write", "edit", "bash", "python", "task_start"].includes(tool);
+}
+
+function writeCapableTool(tool: string): boolean {
+  return [
+    "write",
+    "edit",
+    "bash",
+    "python",
+    "task_start",
+    "task_cancel",
+  ].includes(tool);
 }
 
 function assertTimeout(timeoutSeconds: number, maxTimeoutMs?: unknown): void {

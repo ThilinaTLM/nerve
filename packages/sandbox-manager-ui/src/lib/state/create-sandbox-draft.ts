@@ -177,14 +177,17 @@ const configKeyOrder = [
   "observability",
 ];
 
-function orderedConfig(config: SandboxCreateConfigInput): Record<string, unknown> {
+function orderedConfig(
+  config: SandboxCreateConfigInput,
+): Record<string, unknown> {
   const source = config as Record<string, unknown>;
   const ordered: Record<string, unknown> = {};
   for (const key of configKeyOrder) {
     if (source[key] !== undefined) ordered[key] = source[key];
   }
   for (const key of Object.keys(source).sort()) {
-    if (!(key in ordered) && source[key] !== undefined) ordered[key] = source[key];
+    if (!(key in ordered) && source[key] !== undefined)
+      ordered[key] = source[key];
   }
   return ordered;
 }
