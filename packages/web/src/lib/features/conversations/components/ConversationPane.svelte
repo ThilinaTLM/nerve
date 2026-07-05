@@ -10,11 +10,15 @@
     buildCommittedTimeline,
     buildLiveTimeline,
     selectVisibleCommitted,
-  } from "$lib/features/conversations/state/timeline";
+  } from "@nervekit/conversation-ui/state";
   import { Button } from "@nervekit/ui/components/ui/button";
+  import { TranscriptList } from "@nervekit/conversation-ui";
+  import { setConversationUiCapabilities } from "@nervekit/conversation-ui/context";
   import PromptComposer from "./PromptComposer.svelte";
   import { currentTodosForAgent } from "./composer-todos";
-  import TranscriptList from "./TranscriptList.svelte";
+  import { workbenchConversationUiCapabilities } from "./conversation-ui-capabilities.svelte";
+
+  setConversationUiCapabilities(workbenchConversationUiCapabilities());
   import { messageMenu, toolMenu } from "./conversation-menus";
   import { createConversationScrollController } from "./conversation-scroll.svelte";
 

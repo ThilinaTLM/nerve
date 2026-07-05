@@ -253,6 +253,9 @@ importers:
       '@nervekit/ui':
         specifier: workspace:*
         version: link:../ui
+      mode-watcher:
+        specifier: ^1.1.0
+        version: 1.1.0(svelte@5.56.3)
       svelte:
         specifier: 5.56.3
         version: 5.56.3

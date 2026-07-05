@@ -21,7 +21,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
     parseModelKey,
     providerDisplayName,
     scopedUsableModelOptions,
-  } from "$lib/core/utils/model";
+  } from "@nervekit/ui/core/utils/model";
   import { modeItems, permissionItems } from "../options";
 
   type SettingsChange = (

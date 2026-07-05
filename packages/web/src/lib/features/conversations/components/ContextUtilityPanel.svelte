@@ -11,7 +11,7 @@
     ConversationRecord,
     StatusResponse,
   } from "$lib/api";
-  import { agentActivityPulse, agentActivityTone } from "$lib/core/utils/status";
+  import { agentActivityPulse, agentActivityTone } from "@nervekit/ui/core/utils/status";
   import { Badge } from "@nervekit/ui/components/ui/badge";
   import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";

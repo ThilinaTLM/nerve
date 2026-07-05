@@ -7,7 +7,7 @@
   import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
   import { highlightCodeCached } from "$lib/core/highlight/highlight";
   import type { FileViewState } from "$lib/core/types/state-types";
-  import { extname } from "$lib/features/tools/views/lang";
+  import { extname } from "@nervekit/conversation-ui/tools/views/lang";
   import { defaultFileDisplayMode, isMarkdownPath } from "$lib/core/utils/file-display";
   import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
 

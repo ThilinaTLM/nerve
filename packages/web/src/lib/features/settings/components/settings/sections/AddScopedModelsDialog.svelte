@@ -10,7 +10,7 @@
     modelDisplayName,
     modelKey,
     providerDisplayName,
-  } from "$lib/core/utils/model";
+  } from "@nervekit/ui/core/utils/model";
 
   type ProviderChip = { id: string; label: string; count: number };
 

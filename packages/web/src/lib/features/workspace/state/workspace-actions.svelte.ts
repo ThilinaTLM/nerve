@@ -1,3 +1,4 @@
+import { modelKey } from "@nervekit/ui/core/utils/model";
 import {
   type AgentRecord,
   apiPathSegment,
@@ -16,7 +17,6 @@ import {
   pruneProjectConversations,
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/core/query";
-import { modelKey } from "$lib/core/utils/model";
 import {
   openPendingConversation,
   removeConversationTabs,

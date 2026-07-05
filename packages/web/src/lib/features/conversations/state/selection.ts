@@ -1,4 +1,10 @@
 import {
+  activeRunToLegacyLive,
+  entriesToTranscript,
+  liveTextFromLegacyLive,
+} from "@nervekit/conversation-ui/state";
+import { modelKey } from "@nervekit/ui/core/utils/model";
+import {
   type AgentRecord,
   type ConversationRecord,
   getConversationSnapshot,
@@ -6,13 +12,7 @@ import {
   type ProjectRecord,
 } from "$lib/api";
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
-import { modelKey } from "$lib/core/utils/model";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import {
-  activeRunToLegacyLive,
-  liveTextFromLegacyLive,
-} from "$lib/features/conversations/state/live";
-import { entriesToTranscript } from "$lib/features/conversations/state/transcript";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { replaceOpenCenterTabs } from "$lib/features/workspace/state/center-tabs.svelte";
 import {

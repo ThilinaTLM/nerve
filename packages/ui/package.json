@@ -21,6 +21,8 @@
     "./core/components/PlainText.svelte": "./src/lib/core/components/PlainText.svelte",
     "./core/components/markdown-render": "./src/lib/core/components/markdown-render.ts",
     "./core/highlight/highlight": "./src/lib/core/highlight/highlight.ts",
+    "./core/terminal/ansi": "./src/lib/core/terminal/ansi.ts",
+    "./core/notify": "./src/lib/core/notify.ts",
     "./core/utils/*": "./src/lib/core/utils/*.ts",
     "./components/ui/*": "./src/lib/components/ui/*/index.ts"
   },

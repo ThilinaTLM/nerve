@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ContextUsage } from "$lib/api";
-  import { formatTokens, usageTone } from "$lib/core/utils/usage";
+  import { formatTokens, usageTone } from "@nervekit/ui/core/utils/usage";
 
   type CumulativeUsage = {
     input: number;

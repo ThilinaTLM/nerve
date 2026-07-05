@@ -21,7 +21,7 @@
   import { Input } from "@nervekit/ui/components/ui/input";
   import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
   import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
-  import { logLevelTone } from "$lib/core/utils/status";
+  import { logLevelTone } from "@nervekit/ui/core/utils/status";
   import { timeLabel } from "$lib/core/utils/time";
 
   const levels: Array<ApplicationLogLevel | "all"> = ["all", "debug", "info", "warn", "error"];

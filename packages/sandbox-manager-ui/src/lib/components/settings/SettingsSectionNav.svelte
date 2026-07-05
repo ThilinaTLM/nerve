@@ -19,7 +19,7 @@
     onselect,
   }: {
     sections: SettingsSection[];
-    activeSectionId: SettingsSectionId;
+    activeSectionId: SettingsSectionId | undefined;
     countForSection: (section: SettingsSection) => number;
     onselect: (sectionId: SettingsSectionId) => void;
   } = $props();

@@ -2,7 +2,7 @@
   import ListChecks from "@lucide/svelte/icons/list-checks";
   import type { TodoItem } from "@nervekit/shared";
   import Popover from "@nervekit/ui/components/ui/popover-panel";
-  import TodoChecklist from "$lib/features/tools/components/tool-call/TodoChecklist.svelte";
+  import TodoChecklist from "@nervekit/conversation-ui/tools/components/tool-call/TodoChecklist.svelte";
 
   type Props = { todos: TodoItem[] };
   let { todos }: Props = $props();

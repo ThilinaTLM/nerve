@@ -1,7 +1,7 @@
 export {
   activeRunToLegacyLive,
   liveTextFromLegacyLive,
-} from "$lib/features/conversations/state/live";
+} from "@nervekit/conversation-ui/state";
 export {
   acceptPendingPlanReview,
   acceptPendingPlanReviewInNewChat,

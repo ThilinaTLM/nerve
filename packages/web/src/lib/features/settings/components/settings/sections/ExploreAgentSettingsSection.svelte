@@ -16,7 +16,7 @@
     modelKey,
     providerDisplayName,
     usableModelOptions,
-  } from "$lib/core/utils/model";
+  } from "@nervekit/ui/core/utils/model";
 
   type SettingsChange = (
     patch: UpdateSettingsRequest,

@@ -1,3 +1,4 @@
+import { entryToTranscriptItems } from "@nervekit/conversation-ui/state";
 import { toolCallTranscriptRecordSchema } from "@nervekit/shared";
 import type {
   ConversationEntry,
@@ -12,7 +13,6 @@ import {
   liveTextFromLegacyLive,
   refreshConversationView,
 } from "$lib/features/conversations/state/conversation-flow.svelte";
-import { entryToTranscriptItems } from "$lib/features/conversations/state/transcript";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import {
   active,

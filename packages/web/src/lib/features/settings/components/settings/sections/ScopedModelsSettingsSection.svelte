@@ -16,7 +16,7 @@
     modelDisplayName,
     modelKey,
     providerDisplayName,
-  } from "$lib/core/utils/model";
+  } from "@nervekit/ui/core/utils/model";
   import AddScopedModelsDialog from "./AddScopedModelsDialog.svelte";
 
   type SettingsChange = (

@@ -12,7 +12,7 @@
   import ContextMenu, { type ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
   import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
-  import { taskPulse, taskTone } from "$lib/core/utils/status";
+  import { taskPulse, taskTone } from "@nervekit/ui/core/utils/status";
   import { dateTimeLabel } from "$lib/core/utils/time";
 
   type Props = {

@@ -7,9 +7,13 @@
   "exports": {
     ".": "./src/lib/index.ts",
     "./state": "./src/lib/state/index.ts",
-    "./components/transcript/TranscriptPane.svelte": "./src/lib/components/transcript/TranscriptPane.svelte",
+    "./context": "./src/lib/context.svelte.ts",
+    "./components/transcript/TranscriptList.svelte": "./src/lib/components/transcript/TranscriptList.svelte",
+    "./components/transcript/TranscriptRow.svelte": "./src/lib/components/transcript/TranscriptRow.svelte",
     "./components/composer/PromptComposer.svelte": "./src/lib/components/composer/PromptComposer.svelte",
-    "./components/tool-call/ToolCallCard.svelte": "./src/lib/components/tool-call/ToolCallCard.svelte"
+    "./tools/components/ToolCallCard.svelte": "./src/lib/tools/components/ToolCallCard.svelte",
+    "./tools/*.svelte": "./src/lib/tools/*.svelte",
+    "./tools/*": "./src/lib/tools/*.ts"
   },
   "scripts": {
     "check": "svelte-check --tsconfig ./tsconfig.json",

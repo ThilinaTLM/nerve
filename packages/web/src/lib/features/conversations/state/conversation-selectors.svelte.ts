@@ -1,12 +1,12 @@
 import {
-  conversationViewKey,
-  pendingConversationKey,
-} from "$lib/core/state/state-keys";
-import {
   modelKey,
   parseModelKey,
   scopedUsableModelOptions,
-} from "$lib/core/utils/model";
+} from "@nervekit/ui/core/utils/model";
+import {
+  conversationViewKey,
+  pendingConversationKey,
+} from "$lib/core/state/state-keys";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { usageState } from "$lib/features/usage/state/usage-state.svelte";

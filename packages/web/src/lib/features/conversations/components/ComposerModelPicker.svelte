@@ -3,7 +3,7 @@
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import type { AgentRecord, ModelInfo } from "$lib/api";
   import Popover from "@nervekit/ui/components/ui/popover-panel";
-  import { contextualModelLabel, modelKey } from "$lib/core/utils/model";
+  import { contextualModelLabel, modelKey } from "@nervekit/ui/core/utils/model";
 
   type ThinkingLevel = AgentRecord["thinkingLevel"];
 
