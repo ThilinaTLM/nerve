@@ -25,6 +25,10 @@ export const oauthStartSchema = {
         typeof body.profileId === "string" ? body.profileId : undefined,
       displayName:
         typeof body.displayName === "string" ? body.displayName : undefined,
+      defaultModel:
+        typeof body.defaultModel === "string" && body.defaultModel.trim()
+          ? body.defaultModel
+          : undefined,
     };
   },
 };

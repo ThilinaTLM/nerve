@@ -44,6 +44,7 @@ export class SandboxManagerOAuthFlowManager {
     provider: string;
     profileId?: string;
     displayName?: string;
+    defaultModel?: string;
   }): OAuthFlowInfo {
     const provider = getOAuthProvider(input.provider);
     if (!provider) throw new Error("OAuth provider not found");
@@ -65,7 +66,10 @@ export class SandboxManagerOAuthFlowManager {
       },
     };
     this.flows.set(flow.info.flowId, flow);
-    void this.run(flow, input.displayName).catch((error) =>
+    void this.run(flow, {
+      displayName: input.displayName,
+      defaultModel: input.defaultModel,
+    }).catch((error) =>
       this.update(flow, {
         status: "failed",
         message: "OAuth login failed.",
@@ -112,7 +116,10 @@ export class SandboxManagerOAuthFlowManager {
     return flow.info;
   }
 
-  private async run(flow: FlowRecord, displayName?: string): Promise<void> {
+  private async run(
+    flow: FlowRecord,
+    input: { displayName?: string; defaultModel?: string },
+  ): Promise<void> {
     const callbacks: OAuthLoginCallbacks = {
       onAuth: (info) => {
         this.update(flow, {
@@ -147,8 +154,9 @@ export class SandboxManagerOAuthFlowManager {
       providerKind: providerKindByOAuthProvider[
         flow.provider.id
       ] as SandboxManagerCredentialProfile["providerKind"],
-      displayName: displayName ?? flow.provider.name,
+      displayName: input.displayName ?? flow.provider.name,
       provider: flow.provider.id,
+      defaultModel: input.defaultModel,
       oauthImport: {
         rawBundle: credentials,
         expiresAt,

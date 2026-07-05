@@ -25,6 +25,7 @@ import {
 } from "../api/request-schemas.js";
 import { ok } from "../api/responses.js";
 import { buildSandboxLaunchSpec } from "../config/sandbox-launch-spec.js";
+import { listSandboxManagerModels } from "../credentials/model-catalog.js";
 import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import { errorResponse, HttpError } from "../http/errors.js";
 import { LogCollector } from "../lifecycle/log-collector.js";
@@ -95,6 +96,8 @@ async function handle(
     });
     return json(res, 200, ok({ deleted: true }));
   }
+  if (req.method === "GET" && path === "/api/manager/models")
+    return json(res, 200, ok(listSandboxManagerModels()));
   if (req.method === "GET" && path === "/api/manager/auth/providers")
     return json(
       res,

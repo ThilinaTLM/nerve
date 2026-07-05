@@ -1,6 +1,8 @@
 import {
   type ManagedSandboxRecord,
   managedSandboxRecordSchema,
+  type ModelInfo,
+  modelInfoSchema,
   type OAuthFlowInfo,
   oauthFlowInfoSchema,
   type RespondOAuthFlowRequest,
@@ -62,10 +64,16 @@ export async function listAuthProviders(): Promise<unknown[]> {
   return getData<unknown[]>("/api/manager/auth/providers");
 }
 
+export async function listModels(): Promise<ModelInfo[]> {
+  const records = await getData<unknown[]>("/api/manager/models");
+  return records.map((record) => modelInfoSchema.parse(record));
+}
+
 export async function startOAuthFlow(request: {
   provider: string;
   profileId?: string;
   displayName?: string;
+  defaultModel?: string;
 }): Promise<OAuthFlowInfo> {
   return oauthFlowInfoSchema.parse(
     await sendData<unknown>("/api/manager/auth/oauth/start", "POST", {
@@ -89,6 +97,15 @@ export async function respondOAuthFlow(
       `/api/manager/auth/oauth/${apiPathSegment(flowId)}/respond`,
       "POST",
       { body: request },
+    ),
+  );
+}
+
+export async function cancelOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
+  return oauthFlowInfoSchema.parse(
+    await sendData<unknown>(
+      `/api/manager/auth/oauth/${apiPathSegment(flowId)}/cancel`,
+      "POST",
     ),
   );
 }

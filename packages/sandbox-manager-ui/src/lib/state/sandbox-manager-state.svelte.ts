@@ -1,5 +1,6 @@
 import type {
   ManagedSandboxRecord,
+  ModelInfo,
   RemoveOptions,
   SandboxCreateRequest,
   SandboxManagerCredentialProfile,
@@ -31,6 +32,7 @@ export class SandboxManagerStore {
   connection = $state<ManagerWsConnectionState>("idle");
   connectionError = $state<string | undefined>(undefined);
   managerStatus = $state<SandboxManagerStatus | undefined>(undefined);
+  models = $state<ModelInfo[]>([]);
   credentialProfiles = $state<SandboxManagerCredentialProfile[]>([]);
   secretMetadata = $state<SandboxManagerSecretMetadata[]>([]);
   sandboxes = $state<ManagedSandboxRecord[]>([]);
@@ -65,6 +67,7 @@ export class SandboxManagerStore {
   async init(): Promise<void> {
     await Promise.all([
       this.refreshManagerStatus(),
+      this.refreshModels(),
       this.refreshCredentials(),
       this.refreshFleet(),
     ]);
@@ -80,6 +83,14 @@ export class SandboxManagerStore {
   async refreshManagerStatus(): Promise<void> {
     try {
       this.managerStatus = await api.getManagerStatus();
+    } catch (error) {
+      this.fleetError = errorMessage(error);
+    }
+  }
+
+  async refreshModels(): Promise<void> {
+    try {
+      this.models = await api.listModels();
     } catch (error) {
       this.fleetError = errorMessage(error);
     }
