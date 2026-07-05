@@ -19,6 +19,7 @@ import {
 } from "@nervekit/shared";
 import type { ManagerState } from "../app/manager-state.js";
 import { HttpError } from "../http/errors.js";
+import { projectConversationSnapshotFromEvents } from "./conversation-event-projection.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
 type ProtocolHandlerContext = {
@@ -136,40 +137,76 @@ async function sandboxConversationSnapshot(
     .parse(paramsInput);
   const session = context.controller.getSession(sandboxId);
   if (session) {
-    const result = await session.forwarder.send(
-      session.socket,
-      "sandbox.conversation.snapshot.get",
-      params,
-    );
-    return sandboxConversationViewSnapshotSchema.parse({
-      connected: true,
-      stale: false,
-      ...(isRecord(result) ? result : {}),
-      sandboxId,
-      generatedAt:
-        isRecord(result) && typeof result.generatedAt === "string"
-          ? result.generatedAt
-          : new Date().toISOString(),
-    });
+    try {
+      const result = await session.forwarder.send(
+        session.socket,
+        "sandbox.conversation.snapshot.get",
+        params,
+      );
+      return sandboxConversationViewSnapshotSchema.parse({
+        connected: true,
+        stale: false,
+        ...(isRecord(result) ? result : {}),
+        sandboxId,
+        generatedAt:
+          isRecord(result) && typeof result.generatedAt === "string"
+            ? result.generatedAt
+            : new Date().toISOString(),
+      });
+    } catch (error) {
+      // The controller session exists but is unresponsive (timeout) or failed.
+      // Degrade to the durable-event projection instead of hanging/500ing the
+      // UI so the transcript still renders in a read-only stale view.
+      return derivedConversationView(context.state, sandboxId, params, {
+        connected: true,
+        reason: `controller unresponsive: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
   }
-  const fallback = await managerDerivedSnapshot(context.state, sandboxId);
-  return sandboxConversationViewSnapshotSchema.parse({
-    ...fallback,
-    sandboxId,
+  return derivedConversationView(context.state, sandboxId, params, {
     connected: false,
+    reason: "controller disconnected",
+  });
+}
+
+async function derivedConversationView(
+  state: ManagerState,
+  sandboxId: string,
+  params: {
+    conversationId?: string;
+    agentId?: string;
+    runId?: string;
+  },
+  options: { connected: boolean; reason: string },
+): Promise<unknown> {
+  const base = await managerDerivedSnapshot(state, sandboxId);
+  const events = await state.events.list(sandboxId);
+  const snapshot = projectConversationSnapshotFromEvents({
+    sandboxId,
+    events,
+    conversationId: params.conversationId,
+    agentId: params.agentId,
+    runId: params.runId,
+  });
+  return sandboxConversationViewSnapshotSchema.parse({
+    ...base,
+    sandboxId,
+    connected: options.connected,
     stale: true,
-    conversationId:
-      typeof params.conversationId === "string"
-        ? params.conversationId
-        : undefined,
-    agentId: typeof params.agentId === "string" ? params.agentId : undefined,
-    runId: typeof params.runId === "string" ? params.runId : undefined,
+    conversationId: snapshot?.conversation.id ?? params.conversationId,
+    agentId: snapshot?.conversation.activeAgentId ?? params.agentId,
+    runId: params.runId,
+    snapshot,
     fallback: {
       conversations: [],
       agents: [],
       runs: [],
       readOnly: true,
-      reason: "controller disconnected",
+      reason: snapshot
+        ? `${options.reason} (transcript reconstructed from durable events)`
+        : options.reason,
     },
     generatedAt: new Date().toISOString(),
   });

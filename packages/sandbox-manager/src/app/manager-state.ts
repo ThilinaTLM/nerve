@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { createLogger, type StructuredLogger } from "@nervekit/shared";
 import type { ManagerConfig } from "../config/manager-config.js";
 import { CredentialProfileService } from "../credentials/credential-profile-service.js";
 import { PostgresCredentialProfileStore } from "../credentials/credential-profile-store.js";
@@ -44,7 +45,12 @@ export class ManagerState {
   readonly driver: ContainerRuntimeDriver;
   readonly eventBus: ManagerEventBus;
   readonly supervisor: SandboxSupervisor;
+  readonly logger: StructuredLogger;
   constructor(readonly config: ManagerConfig) {
+    this.logger = createLogger({
+      level: config.logLevel,
+      base: { source: "sandbox-manager", component: "manager" },
+    });
     this.pool = createPostgresPool(config);
     this.sandboxes = new PostgresManagerStore(this.pool);
     this.events = new PostgresEventStore(this.pool);

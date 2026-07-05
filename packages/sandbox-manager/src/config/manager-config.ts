@@ -1,8 +1,10 @@
 import os from "node:os";
 import path from "node:path";
+import { resolveLogLevel, type StructuredLogLevel } from "@nervekit/shared";
 export type ManagerConfig = {
   host: string;
   port: number;
+  logLevel: StructuredLogLevel;
   allowRemoteBind: boolean;
   /** Runtime materialization root for local Docker/Podman volumes and config files. */
   storageDir: string;
@@ -41,6 +43,10 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
   return {
     host,
     port: Number(env.NERVE_SANDBOX_MANAGER_PORT ?? 7869),
+    logLevel: resolveLogLevel(
+      env.NERVE_SANDBOX_MANAGER_LOG_LEVEL,
+      mode === "development" ? "debug" : "info",
+    ),
     allowRemoteBind,
     storageDir:
       env.NERVE_SANDBOX_MANAGER_STORAGE_DIR?.trim() ||

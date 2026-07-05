@@ -86,6 +86,54 @@ describe("manager protocol method handlers", () => {
     ]);
   });
 
+  it("reconstructs the conversation transcript from durable events when disconnected", async () => {
+    const result = (await handleManagerProtocolMethod(
+      context({ events: transcriptEvents() }),
+      "sandbox.conversation.snapshot.get",
+      { sandboxId: "sbx_1", conversationId: "conv_1", agentId: "agent_main" },
+    )) as {
+      connected: boolean;
+      stale: boolean;
+      snapshot?: { entries: Array<{ role: string; text: string }> };
+    };
+    assert.equal(result.connected, false);
+    assert.equal(result.stale, true);
+    assert.equal(result.snapshot?.entries.length, 2);
+    assert.deepEqual(
+      result.snapshot?.entries.map((entry) => [entry.role, entry.text]),
+      [
+        ["user", "Hello from curl"],
+        ["assistant", "Hello!"],
+      ],
+    );
+  });
+
+  it("degrades to the durable-event transcript when a connected controller is unresponsive", async () => {
+    const ctx = context({
+      events: transcriptEvents(),
+      session: {
+        socket: {},
+        forwarder: {
+          send: async () => {
+            throw new Error("Sandbox command timed out: req_1");
+          },
+        },
+      },
+    });
+    const result = (await handleManagerProtocolMethod(
+      ctx,
+      "sandbox.conversation.snapshot.get",
+      { sandboxId: "sbx_1", conversationId: "conv_1" },
+    )) as {
+      connected: boolean;
+      stale: boolean;
+      snapshot?: { entries: unknown[] };
+    };
+    assert.equal(result.connected, true);
+    assert.equal(result.stale, true);
+    assert.equal(result.snapshot?.entries.length, 2);
+  });
+
   it("rejects unknown methods and unavailable sandboxes", async () => {
     await assert.rejects(
       () => handleManagerProtocolMethod(context(), "sandbox.nope", {}),
@@ -105,7 +153,7 @@ describe("manager protocol method handlers", () => {
   });
 });
 
-function context(options: { session?: unknown } = {}) {
+function context(options: { session?: unknown; events?: unknown[] } = {}) {
   const idempotency = new Map<string, { hash: string; value: unknown }>();
   return {
     state: {
@@ -114,7 +162,7 @@ function context(options: { session?: unknown } = {}) {
           sandboxId === "sbx_1" ? record : undefined,
       },
       sessions: { get: async () => undefined },
-      events: { list: async () => [] },
+      events: { list: async () => options.events ?? [] },
       idempotency: {
         get: async (key: string) => idempotency.get(key),
         put: async (key: string, hash: string, value: unknown) => {
@@ -126,4 +174,45 @@ function context(options: { session?: unknown } = {}) {
       getSession: () => options.session,
     } as unknown as SandboxWsServer,
   };
+}
+
+function transcriptEvents() {
+  return [
+    {
+      sandboxId: "sbx_1",
+      id: "evt_1",
+      seq: 20,
+      type: "run.transcript.appended",
+      ts: "2026-07-05T21:23:17.212Z",
+      durability: "durable",
+      payload: {
+        role: "user",
+        index: 0,
+        runId: "run_1783286597212_11",
+        agentId: "agent_main",
+        content: { text: "Hello from curl" },
+        entryId: "entry_1783286597222_0",
+        createdAt: "2026-07-05T21:23:17.212Z",
+        conversationId: "conv_1",
+      },
+    },
+    {
+      sandboxId: "sbx_1",
+      id: "evt_2",
+      seq: 21,
+      type: "run.transcript.appended",
+      ts: "2026-07-05T21:23:18.232Z",
+      durability: "durable",
+      payload: {
+        role: "assistant",
+        index: 6,
+        runId: "run_1783286597212_11",
+        agentId: "agent_main",
+        content: { text: "Hello!", bytes: 6 },
+        entryId: "entry_1783286598232_6",
+        createdAt: "2026-07-05T21:23:18.232Z",
+        conversationId: "conv_1",
+      },
+    },
+  ];
 }

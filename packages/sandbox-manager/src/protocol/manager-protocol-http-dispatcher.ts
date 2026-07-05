@@ -19,6 +19,9 @@ export async function handleManagerProtocolHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
+  const startedAt = Date.now();
+  let method: string | undefined;
+  let sandboxId: unknown;
   try {
     if (req.method !== "POST") {
       writeProtocolJson(
@@ -30,6 +33,13 @@ export async function handleManagerProtocolHttpRequest(
     }
     const raw = await readJsonBody(req);
     const request = protocolRequestMessageSchema.parse(raw);
+    method = request.data.method;
+    sandboxId =
+      request.data.params &&
+      typeof request.data.params === "object" &&
+      "sandboxId" in request.data.params
+        ? (request.data.params as { sandboxId?: unknown }).sandboxId
+        : undefined;
     const result = await handleManagerProtocolMethod(
       {
         state,
@@ -39,6 +49,11 @@ export async function handleManagerProtocolHttpRequest(
       request.data.method,
       request.data.params,
     );
+    state.logger.debug("protocol method handled", {
+      method,
+      sandboxId,
+      durationMs: Date.now() - startedAt,
+    });
     writeProtocolJson(res, 200, {
       protocol: "nerve",
       version: 1,
@@ -57,6 +72,14 @@ export async function handleManagerProtocolHttpRequest(
     } satisfies NerveMessage);
   } catch (error) {
     const { status, code, message } = normalizeProtocolError(error);
+    state.logger[status >= 500 ? "error" : "warn"]("protocol method failed", {
+      method,
+      sandboxId,
+      status,
+      code,
+      durationMs: Date.now() - startedAt,
+      err: error,
+    });
     writeProtocolJson(res, status, errorMessage(undefined, code, message));
   }
 }

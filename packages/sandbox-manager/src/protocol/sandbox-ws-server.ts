@@ -337,6 +337,11 @@ export class SandboxWsServer {
   ): Promise<void> {
     let session: ConnectedSandboxSession | undefined;
     const fail = (code: string, message: string): void => {
+      this.state.logger.warn("controller handshake rejected", {
+        sandboxId,
+        code,
+        reason: message,
+      });
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(
           encodeProtocolMessage({ type: "error", error: { code, message } }),
@@ -380,7 +385,9 @@ export class SandboxWsServer {
         const sessionId = `sess_${randomUUID()}`;
         const now = new Date().toISOString();
         const capabilities = acceptedCapabilities(hello.capabilities);
-        const forwarder = new CommandForwarder();
+        const forwarder = new CommandForwarder({
+          logger: this.state.logger.child({ sandboxId, sessionId }),
+        });
         session = {
           sandboxId,
           instanceId: hello.instanceId,
@@ -424,6 +431,12 @@ export class SandboxWsServer {
             },
           }),
         );
+        this.state.logger.info("controller session connected", {
+          sandboxId,
+          sessionId,
+          instanceId: hello.instanceId,
+          capabilities: capabilities.length,
+        });
         session.heartbeat = setInterval(() => {
           if (ws.readyState !== WebSocket.OPEN) return;
           ws.send(
@@ -584,7 +597,16 @@ export class SandboxWsServer {
     if (!session) return;
     const removedCurrent = this.sessions.delete(sandboxId, session.sessionId);
     if (session.heartbeat) clearInterval(session.heartbeat);
+    const pending = session.forwarder.pendingCount();
     session.forwarder.failAll(new Error("Sandbox session disconnected"));
+    this.state.logger.info("controller session disconnected", {
+      sandboxId,
+      sessionId: session.sessionId,
+      closeCode,
+      closeReason: closeReason?.trim() || undefined,
+      pendingCommands: pending,
+      current: removedCurrent,
+    });
     if (!removedCurrent) return;
     const now = new Date().toISOString();
     await this.state.sessions.put({

@@ -1,4 +1,9 @@
-import type { SandboxConfigV1, SandboxOutboxRecord } from "@nervekit/shared";
+import {
+  createLogger,
+  type SandboxConfigV1,
+  type SandboxOutboxRecord,
+  type StructuredLogger,
+} from "@nervekit/shared";
 import { SecretResolver } from "../credentials/secret-resolver.js";
 import type { SandboxDaemon } from "../daemon/sandbox-daemon.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
@@ -56,6 +61,7 @@ export class ProtocolSession {
   private acceptedCapabilities: string[] = [];
   private lastHeartbeatAt?: string;
   private stopping = false;
+  private readonly logger: StructuredLogger;
 
   constructor(
     private readonly config: SandboxConfigV1,
@@ -64,7 +70,20 @@ export class ProtocolSession {
     private readonly instanceId: string,
     private readonly configDigest: string,
     private readonly env: NodeJS.ProcessEnv = process.env,
-  ) {}
+    logger?: StructuredLogger,
+  ) {
+    this.logger =
+      logger ??
+      createLogger({
+        level: config.observability?.logLevel ?? "info",
+        base: {
+          source: "sandbox",
+          component: "controller-session",
+          sandboxId: config.identity?.sandboxId,
+          instanceId,
+        },
+      });
+  }
 
   async start(): Promise<void> {
     await this.connect();
@@ -154,7 +173,13 @@ export class ProtocolSession {
       this.state = "connected";
       this.connectedAt = new Date().toISOString();
       this.lastHeartbeatAt = this.connectedAt;
+      const wasReconnect = this.reconnectAttempts > 0;
       this.reconnectAttempts = 0;
+      this.logger.info("controller session established", {
+        sessionId: this.sessionId,
+        reconnect: wasReconnect,
+        daemonStatus: this.daemon.status.status,
+      });
       await this.persistConnectivity("connected");
       this.daemon.start();
       this.client?.send({
@@ -196,17 +221,32 @@ export class ProtocolSession {
       return;
     }
     if (message.type === "request") {
+      const method = String(message.method);
+      const requestId = String(message.id);
+      const startedAt = Date.now();
+      this.logger.debug("command received", { method, requestId });
       try {
         const result = await this.daemon.router.dispatch(
-          String(message.method),
+          method,
           message.params,
         );
-        this.client?.send({ type: "response", id: String(message.id), result });
+        this.client?.send({ type: "response", id: requestId, result });
+        this.logger.debug("command completed", {
+          method,
+          requestId,
+          durationMs: Date.now() - startedAt,
+        });
         await this.flushUnacked();
       } catch (error) {
+        this.logger.error("command failed", {
+          method,
+          requestId,
+          durationMs: Date.now() - startedAt,
+          err: error,
+        });
         this.client?.send({
           type: "error",
-          id: String(message.id),
+          id: requestId,
           error: {
             code: "COMMAND_FAILED",
             message: error instanceof Error ? error.message : String(error),
@@ -256,6 +296,11 @@ export class ProtocolSession {
         this.startHeartbeatTimeout(timeoutMs - (now - last));
         return;
       }
+      this.logger.warn("controller heartbeat timed out", {
+        sessionId: this.sessionId,
+        timeoutMs,
+        lastHeartbeatAt: this.lastHeartbeatAt,
+      });
       this.client?.close();
       this.state = "reconnecting";
       this.disconnectedAt = new Date().toISOString();
@@ -319,6 +364,12 @@ export class ProtocolSession {
     this.disconnectedAt = new Date().toISOString();
     this.state = "reconnecting";
     this.reconnectAttempts += 1;
+    const reconnectDelay = this.reconnectDelayMs();
+    this.logger.warn("controller connection lost; reconnecting", {
+      sessionId: this.sessionId,
+      reconnectAttempts: this.reconnectAttempts,
+      reconnectDelayMs: reconnectDelay,
+    });
     await this.persistConnectivity("reconnecting");
     const policy = this.config.controller.disconnectPolicy;
     if (policy?.mode === "exit_self") {
@@ -326,11 +377,14 @@ export class ProtocolSession {
         if (this.state !== "connected") process.exit(22);
       }, policy.exitAfterMs ?? 60_000).unref();
     }
+    setTimeout(() => void this.connect(), reconnectDelay).unref();
+  }
+
+  private reconnectDelayMs(): number {
     const reconnect = this.config.controller.websocket.reconnect;
     const min = reconnect?.minDelayMs ?? 1_000;
     const max = reconnect?.maxDelayMs ?? 30_000;
-    const delay = Math.min(max, min * 2 ** Math.min(this.reconnectAttempts, 6));
-    setTimeout(() => void this.connect(), delay).unref();
+    return Math.min(max, min * 2 ** Math.min(this.reconnectAttempts, 6));
   }
 }
 

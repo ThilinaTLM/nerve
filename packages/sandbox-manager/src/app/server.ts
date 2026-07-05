@@ -38,20 +38,21 @@ import { handleManagerProtocolHttpRequest } from "../protocol/manager-protocol-h
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
 import { createSandboxRecord } from "../routes/sandbox-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
+import { createLoggedRequestListener } from "./http-logging.js";
 import type { ManagerState } from "./manager-state.js";
 import { sandboxManagerVersion } from "./version.js";
 import { maybeServeManagerWeb } from "./web-static.js";
 
 export function createManagerServer(state: ManagerState) {
   const controller = new SandboxWsServer(state, authorizedManagerRequest);
-  const server = createServer(async (req, res) => {
-    try {
-      await handle(state, controller, req, res);
-    } catch (error) {
-      const response = errorResponse(error);
-      json(res, response.status, response.body);
-    }
-  });
+  const server = createServer(
+    createLoggedRequestListener(
+      state.logger,
+      (req, res) => handle(state, controller, req, res),
+      errorResponse,
+      json,
+    ),
+  );
   server.on("upgrade", (req, socket, head) => {
     controller.handleUpgrade(req, socket, head);
   });
@@ -515,6 +516,7 @@ async function startSandbox(
     stateSource: refreshed.stateRef.source ?? "",
     configSource: refreshed.configRef.source,
     secretsSource: refreshed.secretMountRefs?.[0]?.source ?? "",
+    logLevel: state.config.logLevel,
   });
   const stableSpec = {
     ...spec,

@@ -4,7 +4,7 @@ import { CommandForwarder } from "../src/protocol/command-forwarder.js";
 
 describe("sandbox manager protocol flow control", () => {
   it("rejects commands when pending queue is full", async () => {
-    const forwarder = new CommandForwarder(1);
+    const forwarder = new CommandForwarder({ maxPending: 1 });
     const socket = { send: () => undefined };
     const pending = forwarder.send(
       socket,

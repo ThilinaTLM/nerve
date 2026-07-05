@@ -19,14 +19,14 @@ async function main(): Promise<void> {
     for (const timer of timers) clearInterval(timer);
   });
   server.listen(config.port, config.host, () =>
-    console.log(
-      JSON.stringify({
-        component: "nerve-sandbox-manager",
-        host: config.host,
-        port: config.port,
-        storageDir: config.storageDir,
-      }),
-    ),
+    state.logger.info("sandbox-manager listening", {
+      host: config.host,
+      port: config.port,
+      storageDir: config.storageDir,
+      logLevel: config.logLevel,
+      backend: config.backend,
+      mode: config.mode,
+    }),
   );
 
   function createLifecycle(state: ManagerState): {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   ManagedContainerCreateSpec,
   SandboxConfigV1,
+  StructuredLogLevel,
 } from "@nervekit/shared";
 export type SandboxLaunchOptions = {
   image: string;
@@ -13,6 +14,12 @@ export type SandboxLaunchOptions = {
   secretsSource: string;
   memoryMb?: number;
   cpu?: string;
+  /**
+   * Manager's effective log level, propagated to the container so its agent
+   * daemon logs at the same verbosity. Only applied when the sandbox config
+   * does not already pin `observability.logLevel` (explicit config wins).
+   */
+  logLevel?: StructuredLogLevel;
 };
 export function buildSandboxLaunchSpec(
   config: SandboxConfigV1,
@@ -29,6 +36,9 @@ export function buildSandboxLaunchSpec(
       NERVE_SANDBOX_CONFIG: "/etc/nerve/sandbox.yaml",
       NERVE_SANDBOX_STATE_DIR: "/state",
       NERVE_SANDBOX_WORKSPACE_DIR: "/workspace",
+      ...(options.logLevel && !config.observability?.logLevel
+        ? { NERVE_SANDBOX_LOG_LEVEL: options.logLevel }
+        : {}),
     },
     labels: {
       "org.nerve.sandbox.spec": "v1",

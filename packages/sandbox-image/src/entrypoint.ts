@@ -1,3 +1,4 @@
+import { createLogger, resolveLogLevel } from "@nervekit/shared";
 import { runBootPlan } from "./boot/boot-runner.js";
 import { sandboxConfigDigest } from "./config/digest.js";
 import {
@@ -52,8 +53,28 @@ export async function runSandboxEntrypoint(
   // 1. load and validate config
   const configPath = resolveSandboxConfigPath(env);
   const config = await loadSandboxConfig(configPath);
-  // 2. compute runtime cryptographic config digest
   const configDigest = sandboxConfigDigest(config);
+  const instanceId = env.NERVE_SANDBOX_INSTANCE_ID ?? `inst_${Date.now()}`;
+  const logger = createLogger({
+    level: resolveLogLevel(
+      env.NERVE_SANDBOX_LOG_LEVEL,
+      config.observability?.logLevel ?? "info",
+    ),
+    base: {
+      source: "sandbox",
+      component: "sandbox-agent",
+      sandboxId: config.identity?.sandboxId,
+      instanceId,
+      configDigest,
+    },
+    redactKeys: config.observability?.redact,
+  });
+  logger.info("sandbox-agent starting", {
+    configPath,
+    modelProvider: config.agent.mainModel.provider,
+    model: config.agent.mainModel.model,
+    mode: config.agent.mode,
+  });
   // 3. resolve runtime paths
   const paths = resolveSandboxRuntimePaths(env);
   // 4-5. acquire state lock and initialize state stores/layout
@@ -66,7 +87,6 @@ export async function runSandboxEntrypoint(
   const stores = new SandboxStateStores(paths.stateDir);
   await stores.load();
   const recoveredState = await recoverSandboxState(configDigest, paths);
-  const instanceId = env.NERVE_SANDBOX_INSTANCE_ID ?? `inst_${Date.now()}`;
   const emitStartup = async (
     type: string,
     data: Record<string, unknown>,
@@ -186,11 +206,16 @@ export async function runSandboxEntrypoint(
     instanceId,
     configDigest,
     env,
+    logger.child({ component: "controller-session" }),
   );
   await session.start();
   daemon.start();
   // 16. mark ready/degraded
   const status = daemon.status.status === "degraded" ? "degraded" : "ready";
+  logger.info("sandbox-agent ready", {
+    status,
+    daemonStatus: daemon.status.status,
+  });
   await emitStartup("sandbox.ready", {
     status,
     readyAt: new Date().toISOString(),
