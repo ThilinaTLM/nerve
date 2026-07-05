@@ -117,6 +117,61 @@ describeWithPostgres("sandbox manager websocket protocol", async () => {
     assert.equal((replay.events as unknown[]).length >= 1, true);
   });
 
+  it("protects manager UI websocket sessions when api auth is configured", async () => {
+    const authedStorageDir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-ws-auth-"),
+    );
+    const authedState = new ManagerState({
+      host: "127.0.0.1",
+      port: 0,
+      allowRemoteBind: false,
+      storageDir: authedStorageDir,
+      backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
+      apiKey: "manager-secret-key",
+    });
+    await authedState.init();
+    const authedServer = createManagerServer(authedState);
+    await listen(authedServer);
+    const authedAddress = authedServer.address();
+    assert.equal(typeof authedAddress, "object");
+    assert(authedAddress);
+    try {
+      const rejected = new WebSocket(
+        `ws://127.0.0.1:${authedAddress.port}/api/manager/ws`,
+      );
+      const error = await onceError(rejected);
+      assert.match(error.message, /401/);
+
+      const accepted = new WebSocket(
+        `ws://127.0.0.1:${authedAddress.port}/api/manager/ws`,
+        {
+          headers: { cookie: "nerve_sandbox_manager_auth=manager-secret-key" },
+        },
+      );
+      sockets.push(accepted);
+      await onceOpen(accepted);
+      accepted.send(
+        JSON.stringify({
+          type: "hello",
+          version: 1,
+          role: "ui",
+          capabilities: ["encoding.json", "sandbox.manager.ui.v1"],
+          resume: { cursors: [] },
+        }),
+      );
+      const welcome = await onceJson(accepted);
+      assert.equal(welcome.type, "welcome");
+      accepted.close();
+      await onceClose(accepted);
+    } finally {
+      await closeServer(authedServer);
+      await rm(authedStorageDir, { recursive: true, force: true });
+    }
+  });
+
   it("keeps replacement sandbox session connected when a stale socket closes", async () => {
     const staleRecord = await createSandboxRecord(state, config);
     const first = new WebSocket(

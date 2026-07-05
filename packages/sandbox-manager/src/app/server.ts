@@ -1,4 +1,3 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: temporary composition root for manager routes during sandbox-manager auth build-out.
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
@@ -27,17 +26,23 @@ import { ok } from "../api/responses.js";
 import { buildSandboxLaunchSpec } from "../config/sandbox-launch-spec.js";
 import { listSandboxManagerModels } from "../credentials/model-catalog.js";
 import { recordManagerLifecycleEvent } from "../events/manager-events.js";
+import {
+  authorizedManagerRequest,
+  requireSandboxControllerToken,
+} from "../http/auth.js";
+import { readJsonBody } from "../http/body.js";
 import { errorResponse, HttpError } from "../http/errors.js";
+import { withIdempotency } from "../http/idempotency.js";
 import { LogCollector } from "../lifecycle/log-collector.js";
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
 import { createSandboxRecord } from "../routes/sandbox-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
 import type { ManagerState } from "./manager-state.js";
 import { sandboxManagerVersion } from "./version.js";
-import { maybeServeManagerWeb, readUiAuthCookie } from "./web-static.js";
+import { maybeServeManagerWeb } from "./web-static.js";
 
 export function createManagerServer(state: ManagerState) {
-  const controller = new SandboxWsServer(state, authorized);
+  const controller = new SandboxWsServer(state, authorizedManagerRequest);
   const server = createServer(async (req, res) => {
     try {
       await handle(state, controller, req, res);
@@ -62,7 +67,7 @@ async function handle(
   if (await maybeServeManagerWeb(state, req, res, url)) return;
   if (path.endsWith("/secrets/resolve")) {
     // Secrets are authenticated with the sandbox controller token below.
-  } else if (!authorized(state, req)) {
+  } else if (!authorizedManagerRequest(state, req)) {
     throw new HttpError(401, "Unauthorized", "UNAUTHORIZED");
   }
   if (req.method === "GET" && path === "/health")
@@ -73,7 +78,7 @@ async function handle(
     return json(res, 200, ok(await (state.secrets.listMetadata?.() ?? [])));
   }
   if (req.method === "POST" && path === "/api/manager/secrets") {
-    const body = secretWriteSchema.parse(await readJson(req));
+    const body = secretWriteSchema.parse(await readJsonBody(req));
     await state.secrets.set(body.key, body.value, {
       version: body.version,
       expiresAt: body.expiresAt,
@@ -124,7 +129,9 @@ async function handle(
     return json(
       res,
       201,
-      ok(state.oauthFlows.start(oauthStartSchema.parse(await readJson(req)))),
+      ok(
+        state.oauthFlows.start(oauthStartSchema.parse(await readJsonBody(req))),
+      ),
     );
   }
   const oauthMatch = path.match(/^\/api\/manager\/auth\/oauth\/([^/]+)$/);
@@ -144,7 +151,7 @@ async function handle(
       ok(
         await state.oauthFlows.respond(
           flowId,
-          oauthRespondSchema.parse(await readJson(req)),
+          oauthRespondSchema.parse(await readJsonBody(req)),
         ),
       ),
     );
@@ -159,7 +166,7 @@ async function handle(
   if (req.method === "GET" && path === "/api/manager/credential-profiles")
     return json(res, 200, ok(await state.credentials.list()));
   if (req.method === "POST" && path === "/api/manager/credential-profiles") {
-    const body = credentialProfileWriteSchema.parse(await readJson(req));
+    const body = credentialProfileWriteSchema.parse(await readJsonBody(req));
     const profile = await state.credentialProfiles.create(body);
     await state.audit.append({
       action: "credential_profile.write",
@@ -191,7 +198,7 @@ async function handle(
     if (req.method === "GET")
       return json(res, 200, ok(await state.credentials.get(profileId)));
     if (req.method === "PUT") {
-      const body = credentialProfileWriteSchema.parse(await readJson(req));
+      const body = credentialProfileWriteSchema.parse(await readJsonBody(req));
       const profile = await state.credentialProfiles.update(profileId, body);
       await state.audit.append({
         action: "credential_profile.write",
@@ -217,7 +224,7 @@ async function handle(
       ok((await state.sandboxes.list()).map(publicSandboxRecord)),
     );
   if (req.method === "POST" && path === "/api/sandboxes") {
-    const rawBody = await readJson(req);
+    const rawBody = await readJsonBody(req);
     const body = createSandboxRequestSchema.parse(rawBody);
     const result = await withIdempotency(
       state,
@@ -296,21 +303,21 @@ async function handle(
     const sandboxId = actionMatch[1];
     const action = actionMatch[2];
     if (req.method === "POST" && action === "start") {
-      const body = await readJson(req);
+      const body = await readJsonBody(req);
       const result = await withIdempotency(state, req, path, body, () =>
         startSandbox(state, sandboxId),
       );
       return json(res, 200, ok(result.value));
     }
     if (req.method === "POST" && action === "stop") {
-      const body = await readJson(req);
+      const body = await readJsonBody(req);
       const result = await withIdempotency(state, req, path, body, async () =>
         publicSandboxRecord(await state.supervisor.stop(sandboxId)),
       );
       return json(res, 200, ok(result.value));
     }
     if (req.method === "POST" && action === "restart") {
-      const body = await readJson(req);
+      const body = await readJsonBody(req);
       const result = await withIdempotency(state, req, path, body, async () => {
         await state.supervisor.stop(sandboxId).catch(() => undefined);
         return startSandbox(state, sandboxId);
@@ -339,8 +346,8 @@ async function handle(
     /^\/api\/sandboxes\/([^/]+)\/secrets\/resolve$/,
   );
   if (req.method === "POST" && secretMatch) {
-    await requireSandboxToken(state, secretMatch[1], req);
-    const body = await readJson(req);
+    await requireSandboxControllerToken(state, secretMatch[1], req);
+    const body = await readJsonBody(req);
     if (
       !body ||
       typeof body !== "object" ||
@@ -361,7 +368,7 @@ async function handle(
   }
   const commandMatch = path.match(/^\/api\/sandboxes\/([^/]+)\/commands$/);
   if (req.method === "POST" && commandMatch) {
-    const body = commandRequestSchema.parse(await readJson(req));
+    const body = commandRequestSchema.parse(await readJsonBody(req));
     const prepared = prepareForwardedCommand(req, body);
     const session = controller.getSession(commandMatch[1]);
     if (!session)
@@ -384,31 +391,6 @@ async function handle(
     );
   }
   throw new HttpError(404, "Not found", "NOT_FOUND");
-}
-function authorized(state: ManagerState, req: IncomingMessage): boolean {
-  if (!state.config.apiKey) return true;
-  const header = req.headers.authorization ?? req.headers["x-api-key"];
-  if (
-    header === state.config.apiKey ||
-    header === `Bearer ${state.config.apiKey}`
-  )
-    return true;
-  return readUiAuthCookie(req) === state.config.apiKey;
-}
-async function requireSandboxToken(
-  state: ManagerState,
-  sandboxId: string,
-  req: IncomingMessage,
-): Promise<void> {
-  const record = await state.sandboxes.get(sandboxId);
-  const token = record?.controller?.token;
-  const header = req.headers.authorization;
-  const actual =
-    typeof header === "string" && header.startsWith("Bearer ")
-      ? header.slice("Bearer ".length)
-      : req.headers["x-nerve-sandbox-token"];
-  if (!token || actual !== token)
-    throw new HttpError(401, "Unauthorized", "UNAUTHORIZED");
 }
 async function managerStatus(state: ManagerState): Promise<unknown> {
   const runtime = await state.driver.capabilities();
@@ -799,47 +781,6 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function withIdempotency<T>(
-  state: ManagerState,
-  req: IncomingMessage,
-  route: string,
-  body: unknown,
-  run: () => Promise<T>,
-): Promise<{ value: T; replayed: boolean }> {
-  const key = String(
-    req.headers["idempotency-key"] ??
-      (body as { idempotencyKey?: unknown })?.idempotencyKey ??
-      "",
-  );
-  if (!key) return { value: await run(), replayed: false };
-  const hash = createHash("sha256")
-    .update(JSON.stringify({ method: req.method, route, body }))
-    .digest("hex");
-  const stored = await state.idempotency.get<T>(key);
-  if (stored) {
-    if (stored.hash !== hash)
-      throw new HttpError(
-        409,
-        "Idempotency key reused with different request",
-        "IDEMPOTENCY_CONFLICT",
-      );
-    return { value: stored.value, replayed: true };
-  }
-  const value = await run();
-  await state.idempotency.put(key, hash, value);
-  return { value, replayed: false };
-}
-
-async function readJson(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req)
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
-  if (Buffer.concat(chunks).length > 1024 * 1024)
-    throw new HttpError(413, "Request too large", "REQUEST_TOO_LARGE");
-  return chunks.length
-    ? JSON.parse(Buffer.concat(chunks).toString("utf8"))
-    : {};
-}
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(`${JSON.stringify(body)}\n`);

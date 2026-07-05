@@ -47,6 +47,9 @@ export class SandboxManagerStore {
 
   private ws: ManagerWsClient;
   private fleetRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly operationCleanupTimers = new Set<
+    ReturnType<typeof setTimeout>
+  >();
   private disposed = false;
 
   constructor() {
@@ -77,6 +80,8 @@ export class SandboxManagerStore {
   dispose(): void {
     this.disposed = true;
     if (this.fleetRefreshTimer) clearTimeout(this.fleetRefreshTimer);
+    for (const timer of this.operationCleanupTimers) clearTimeout(timer);
+    this.operationCleanupTimers.clear();
     this.ws.close();
   }
 
@@ -382,9 +387,12 @@ export class SandboxManagerStore {
   }
 
   private scheduleOpCleanup(key: string, delay = 2500): void {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      this.operationCleanupTimers.delete(timer);
+      if (this.disposed) return;
       delete this.pendingOperations[key];
     }, delay);
+    this.operationCleanupTimers.add(timer);
   }
 
   private patchRecord(record: ManagedSandboxRecord): void {
@@ -425,6 +433,7 @@ export class SandboxManagerStore {
     if (this.fleetRefreshTimer || this.disposed) return;
     this.fleetRefreshTimer = setTimeout(() => {
       this.fleetRefreshTimer = undefined;
+      if (this.disposed) return;
       void this.refreshFleet();
       if (this.selectedSandboxId) void this.loadDetail(this.selectedSandboxId);
     }, 400);

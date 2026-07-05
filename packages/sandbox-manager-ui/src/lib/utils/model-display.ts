@@ -2,19 +2,21 @@ import type { ModelInfo } from "@nervekit/shared";
 
 const providerLabels: Record<string, string> = {
   "amazon-bedrock": "Amazon Bedrock",
-  "anthropic": "Anthropic",
+  anthropic: "Anthropic",
   "azure-openai-responses": "Azure OpenAI",
   "github-copilot": "GitHub Copilot",
-  "google": "Google Gemini",
+  google: "Google Gemini",
   "google-vertex": "Google Vertex AI",
-  "openai": "OpenAI",
+  openai: "OpenAI",
   "openai-codex": "OpenAI Codex",
-  "openrouter": "OpenRouter",
+  openrouter: "OpenRouter",
   "vercel-ai-gateway": "Vercel AI Gateway",
-  "xai": "xAI",
+  xai: "xAI",
 };
 
-export function modelKey(model: Pick<ModelInfo, "provider" | "modelId">): string {
+export function modelKey(
+  model: Pick<ModelInfo, "provider" | "modelId">,
+): string {
   return `${model.provider}:${model.modelId}`;
 }
 

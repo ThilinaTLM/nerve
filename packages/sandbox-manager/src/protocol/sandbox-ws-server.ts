@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
@@ -21,6 +21,7 @@ import {
   MANAGER_EVENT_STREAM,
 } from "../events/manager-events.js";
 import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
+import { extractSandboxToken, timingSafeTokenEquals } from "../http/auth.js";
 import type { StoredSandboxEvent } from "../state/event-store.js";
 import { CommandForwarder } from "./command-forwarder.js";
 import { encodeProtocolMessage, parseProtocolMessage } from "./messages.js";
@@ -117,7 +118,12 @@ export class SandboxWsServer {
       const record = await this.state.sandboxes.get(sandboxId);
       if (!record?.controller?.token)
         return rejectUpgrade(socket, 404, "Unknown sandbox");
-      if (!tokenMatches(extractToken(req), record.controller.token))
+      if (
+        !timingSafeTokenEquals(
+          extractSandboxToken(req),
+          record.controller.token,
+        )
+      )
         return rejectUpgrade(socket, 401, "Unauthorized");
       this.wss.handleUpgrade(req, socket, head, (ws) => {
         void this.handleConnection(sandboxId, ws);
@@ -556,22 +562,6 @@ function toProtocolEventForStream(event: StoredSandboxEvent) {
     durability: event.durability ?? ("durable" as const),
     data: event.payload,
   };
-}
-
-function extractToken(req: IncomingMessage): string | undefined {
-  const header = req.headers.authorization;
-  if (typeof header === "string" && header.startsWith("Bearer "))
-    return header.slice("Bearer ".length);
-  const sandboxToken = req.headers["x-nerve-sandbox-token"];
-  if (typeof sandboxToken === "string") return sandboxToken;
-  return undefined;
-}
-
-function tokenMatches(actual: string | undefined, expected: string): boolean {
-  if (!actual) return false;
-  const left = Buffer.from(actual);
-  const right = Buffer.from(expected);
-  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 function rejectUpgrade(socket: Duplex, status: number, message: string): void {

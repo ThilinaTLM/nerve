@@ -1,7 +1,7 @@
 import {
   type ManagedSandboxRecord,
-  managedSandboxRecordSchema,
   type ModelInfo,
+  managedSandboxRecordSchema,
   modelInfoSchema,
   type OAuthFlowInfo,
   oauthFlowInfoSchema,

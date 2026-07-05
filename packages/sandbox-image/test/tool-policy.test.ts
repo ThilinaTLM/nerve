@@ -8,6 +8,7 @@ import {
   SecretResolver,
 } from "../src/credentials/secret-resolver.js";
 import { ApprovalWaiter } from "../src/tools/approval-waiter.js";
+import { TaskSupervisor } from "../src/tools/task-supervisor.js";
 import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 
 const config = {
@@ -99,6 +100,33 @@ describe("sandbox tool policy", () => {
       const recovered = new ApprovalWaiter(dir);
       await recovered.load();
       assert.equal(recovered.list()[0]?.resolved?.decision, "grant");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("dispatches supervised task restart through the tool runtime", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-task-runtime-"));
+    try {
+      const workspace = path.join(dir, "workspace");
+      const state = path.join(dir, "state");
+      await mkdir(workspace);
+      await mkdir(state);
+      const runtime = new SandboxToolRuntime(config, {
+        workspaceDir: workspace,
+        stateDir: state,
+        taskSupervisor: new TaskSupervisor({ stateDir: state }),
+      });
+      const started = await runtime.execute("task_start", {
+        command: "printf restart-ok",
+      });
+      const first = (started.details as { task: { id: string } }).task;
+      const restarted = await runtime.execute("task_restart", {
+        taskId: first.id,
+      });
+      const second = (restarted.details as { task: { id: string } }).task;
+      assert.notEqual(second.id, first.id);
+      await runtime.execute("task_cancel", { taskId: second.id });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

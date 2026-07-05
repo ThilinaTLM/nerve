@@ -14,6 +14,7 @@ import { sandboxSha256Digest } from "../state/hash.js";
 import { JsonlStore } from "../state/jsonl-store.js";
 import type { ApprovalWaiter } from "./approval-waiter.js";
 import type { InputWaiter } from "./input-waiter.js";
+import { OrchestrationToolRunner } from "./orchestration-tool-runner.js";
 import type { TaskSupervisor } from "./task-supervisor.js";
 import { TodoStore } from "./todo-store.js";
 import { computeToolGroupStatus } from "./tool-groups.js";
@@ -22,6 +23,7 @@ import {
   enforceToolPolicy,
   type ToolDecision,
 } from "./tool-policy.js";
+import { activeKey, scopeValue, toolScope } from "./tool-scope.js";
 
 export type SandboxToolRuntimeOptions = {
   workspaceDir: string;
@@ -77,6 +79,7 @@ export class SandboxToolRuntime {
   private readonly records: JsonlStore<Record<string, unknown>>;
   private readonly redactor: Redactor;
   private readonly todoStore: TodoStore;
+  private orchestrationRunner: OrchestrationToolRunner;
   private readonly active = new Map<string, ActiveToolExecution>();
   constructor(
     private readonly config: SandboxConfigV1,
@@ -90,10 +93,24 @@ export class SandboxToolRuntime {
     );
     this.redactor = options.redactor ?? new Redactor({ secrets: [] });
     this.todoStore = options.todoStore ?? new TodoStore(options.stateDir);
+    this.orchestrationRunner = this.createOrchestrationRunner();
   }
 
   setExploreRuntime(exploreRuntime: ExploreRuntime): void {
     this.options.exploreRuntime = exploreRuntime;
+    this.orchestrationRunner = this.createOrchestrationRunner();
+  }
+
+  private createOrchestrationRunner(): OrchestrationToolRunner {
+    return new OrchestrationToolRunner({
+      workspaceDir: this.options.workspaceDir,
+      redactor: this.redactor,
+      inputWaiter: this.options.inputWaiter,
+      taskSupervisor: this.options.taskSupervisor,
+      todoStore: this.todoStore,
+      exploreRuntime: this.options.exploreRuntime,
+      record: (entry, context) => this.record(entry, context),
+    });
   }
 
   groups() {
@@ -267,7 +284,7 @@ export class SandboxToolRuntime {
         ? this.registerActive(tool, toolCallId, context, 1)
         : undefined;
       try {
-        const result = await this.executeOrchestrationTool(
+        const result = await this.orchestrationRunner.execute(
           tool,
           args,
           {
@@ -276,9 +293,13 @@ export class SandboxToolRuntime {
               context.signal,
               active?.abortController.signal,
             ),
-          } as never,
-          toolCallId,
-          active,
+          },
+          {
+            toolCallId,
+            setCancel: active
+              ? (cancel) => (active.cancel = cancel)
+              : undefined,
+          },
         );
         if (active?.latestStatus !== "cancelled") {
           await this.record(
@@ -377,170 +398,6 @@ export class SandboxToolRuntime {
     } finally {
       this.active.delete(active.key);
     }
-  }
-
-  private async executeOrchestrationTool(
-    tool: string,
-    args: Record<string, unknown>,
-    context: Partial<ToolExecutionContext>,
-    toolCallId: string,
-    active?: ActiveToolExecution,
-  ): Promise<ToolExecutionResult> {
-    const scope = {
-      conversationId: scopeValue(context, "conversationId") ?? "conv_unknown",
-      agentId: scopeValue(context, "agentId") ?? "agent_main",
-      runId: scopeValue(context, "runId") ?? "run_unknown",
-    };
-    if (tool === "ask_user") {
-      if (!this.options.inputWaiter)
-        throw new Error("UNAVAILABLE: input waiter is not configured");
-      const submitted =
-        this.options.inputWaiter.resolutionForRequest(toolCallId);
-      if (submitted?.response?.text !== undefined) {
-        return {
-          content: this.redactor.redactText(submitted.response.text),
-          details: { requestId: toolCallId, status: "submitted" },
-        };
-      }
-      const wait = await this.options.inputWaiter.request({
-        requestId: toolCallId,
-        ...scope,
-        question: { text: String(args.question ?? "") },
-        placeholder:
-          typeof args.placeholder === "string" ? args.placeholder : undefined,
-        redactedDisplay: {
-          text: this.redactor.redactText(String(args.question ?? "")),
-        },
-      });
-      await this.record(
-        {
-          toolCallId,
-          toolName: tool,
-          status: "waiting_for_input",
-          lifecycleSeq: 2,
-        },
-        context,
-      );
-      throw new AgentToolSuspension({
-        toolCallId,
-        toolName: tool,
-        reason: `WAITING_FOR_INPUT: ${wait.requestId}`,
-      });
-    }
-    if (tool === "todos_set") {
-      const todos = Array.isArray(args.todos)
-        ? args.todos.map((todo) => ({
-            todo: String((todo as { todo?: unknown }).todo ?? ""),
-            done: Boolean((todo as { done?: unknown }).done),
-          }))
-        : [];
-      const saved = await this.todoStore.set(scope, todos);
-      return { content: JSON.stringify(saved), details: { todos: saved } };
-    }
-    if (tool === "todos_get") {
-      const todos = await this.todoStore.get(scope);
-      return { content: JSON.stringify(todos), details: { todos } };
-    }
-    if (tool.startsWith("task_")) {
-      if (!this.options.taskSupervisor)
-        throw new Error("UNAVAILABLE: task supervisor is not configured");
-      return this.executeTaskTool(tool, args, scope, toolCallId);
-    }
-    if (tool === "explore") {
-      const exploreRuntime = this.options.exploreRuntime;
-      if (!exploreRuntime)
-        throw new Error("UNAVAILABLE: explore runtime is not configured");
-      if (active) active.cancel = () => exploreRuntime.cancelRun(scope);
-      if (Array.isArray(args.tasks)) {
-        const results = [];
-        for (const taskInput of args.tasks) {
-          const task = taskInput as { task?: unknown; label?: unknown };
-          results.push(
-            await exploreRuntime.execute({
-              ...scope,
-              task: String(task.task ?? ""),
-              context:
-                typeof args.context === "string" ? args.context : undefined,
-              label: typeof task.label === "string" ? task.label : undefined,
-              depth: typeof args.depth === "number" ? args.depth : undefined,
-              signal: (context as { signal?: AbortSignal }).signal,
-            }),
-          );
-        }
-        return {
-          content: results.map((result) => result.content).join("\n\n---\n\n"),
-          details: { children: results.map((result) => result.details) },
-        };
-      }
-      const result = await exploreRuntime.execute({
-        ...scope,
-        task: String(args.task ?? ""),
-        context: typeof args.context === "string" ? args.context : undefined,
-        label: typeof args.label === "string" ? args.label : undefined,
-        depth: typeof args.depth === "number" ? args.depth : undefined,
-        signal: (context as { signal?: AbortSignal }).signal,
-      });
-      return result;
-    }
-    throw new Error(`${tool} is mediated by sandbox orchestration state`);
-  }
-
-  private executeTaskTool(
-    tool: string,
-    args: Record<string, unknown>,
-    scope: { conversationId: string; agentId: string; runId: string },
-    toolCallId: string,
-  ): ToolExecutionResult {
-    const supervisor = this.options.taskSupervisor;
-    if (!supervisor)
-      throw new Error("UNAVAILABLE: task supervisor is not configured");
-    if (tool === "task_start") {
-      const task = supervisor.start(
-        String(args.command ?? ""),
-        typeof args.cwd === "string" ? args.cwd : this.options.workspaceDir,
-        typeof args.timeoutMs === "number" ? args.timeoutMs : undefined,
-        {
-          name: typeof args.name === "string" ? args.name : undefined,
-          ...scope,
-          toolCallId,
-        },
-      );
-      return { content: `Started ${task.id}`, details: { task } };
-    }
-    if (tool === "task_status") {
-      const taskId = typeof args.taskId === "string" ? args.taskId : undefined;
-      const tasks = taskId
-        ? [supervisor.get(taskId)].filter(Boolean)
-        : supervisor.list();
-      return { content: JSON.stringify(tasks), details: { tasks } };
-    }
-    if (tool === "task_logs") {
-      const taskId = String(args.taskId ?? "");
-      const logs = supervisor.logs(
-        taskId,
-        typeof args.cursor === "number" ? args.cursor : 0,
-        typeof args.limit === "number" ? args.limit : undefined,
-      );
-      if (!logs) throw new Error(`Unknown task: ${taskId}`);
-      return { content: logs.content, details: logs };
-    }
-    if (tool === "task_cancel") {
-      const taskId = String(args.taskId ?? "");
-      const task = supervisor.cancel(taskId);
-      if (!task) throw new Error(`Unknown task: ${taskId}`);
-      return { content: `Cancelled ${task.id}`, details: { task } };
-    }
-    if (tool === "task_restart") {
-      const taskId = String(args.taskId ?? "");
-      const task = supervisor.restart(taskId);
-      if (!task) throw new Error(`Unknown task: ${taskId}`);
-      return { content: `Restarted ${task.id}`, details: { task } };
-    }
-    if (tool === "task_list") {
-      const tasks = supervisor.list();
-      return { content: JSON.stringify(tasks), details: { tasks } };
-    }
-    throw new Error(`Unsupported task tool: ${tool}`);
   }
 
   async cancelRun(scope: ToolCallScope): Promise<void> {
@@ -685,30 +542,12 @@ function isActiveCancelled(active: ActiveToolExecution): boolean {
   return active.latestStatus === "cancelled";
 }
 
-function activeKey(scope: ToolCallScope & { toolCallId: string }): string {
-  return `${scope.conversationId}/${scope.agentId}/${scope.runId}/${scope.toolCallId}`;
-}
-
 function mergedSignal(
   outer?: AbortSignal,
   inner?: AbortSignal,
 ): AbortSignal | undefined {
   if (outer && inner) return AbortSignal.any([outer, inner]);
   return inner ?? outer;
-}
-
-function toolScope(
-  context: Partial<ToolExecutionContext> & {
-    conversationId?: string;
-    agentId?: string;
-    runId?: string;
-  },
-) {
-  return {
-    conversationId: scopeValue(context, "conversationId") ?? "conv_unknown",
-    agentId: scopeValue(context, "agentId") ?? "agent_main",
-    runId: scopeValue(context, "runId") ?? "run_unknown",
-  };
 }
 
 function normalizeToolStatus(status: unknown) {
@@ -740,14 +579,6 @@ function isPlanModeTool(tool: string): boolean {
     "plan_mode_present",
     "plan_mode_force_exit",
   ].includes(tool);
-}
-
-function scopeValue(
-  context: Partial<ToolExecutionContext>,
-  key: "conversationId" | "agentId" | "runId",
-): string | undefined {
-  const value = (context as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : undefined;
 }
 
 function isOrchestrationTool(tool: string): boolean {

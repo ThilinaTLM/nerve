@@ -178,6 +178,16 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
         `http://127.0.0.1:${address.port}/api/manager/status`,
       );
       assert.equal(unauthorized.status, 401);
+      const wrongApiKey = await fetch(
+        `http://127.0.0.1:${address.port}/api/manager/status`,
+        { headers: { "x-api-key": "wrong" } },
+      );
+      assert.equal(wrongApiKey.status, 401);
+      const wrongCookie = await fetch(
+        `http://127.0.0.1:${address.port}/api/manager/status`,
+        { headers: { cookie: "nerve_sandbox_manager_auth=wrong" } },
+      );
+      assert.equal(wrongCookie.status, 401);
       const response = await fetch(
         `http://127.0.0.1:${address.port}/api/manager/status`,
         { headers: { authorization: "Bearer manager-secret-key" } },
@@ -191,6 +201,43 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
       );
       assert.equal(status.backend, "docker");
       assert.equal(status.hardening.apiAuth, "configured");
+    } finally {
+      await closeServer(server);
+      await rm(storageDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects malformed and oversized JSON bodies", async () => {
+    const storageDir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-body-"),
+    );
+    const state = new ManagerState({
+      host: "127.0.0.1",
+      port: 0,
+      allowRemoteBind: false,
+      storageDir,
+      backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
+    });
+    await state.init();
+    const server = createManagerServer(state);
+    await listen(server);
+    const address = server.address();
+    assert.equal(typeof address, "object");
+    const url = `http://127.0.0.1:${address.port}/api/sandboxes`;
+    try {
+      const malformed = await fetch(url, { method: "POST", body: "{" });
+      assert.equal(malformed.status, 400);
+      assert.equal((await malformed.json()).error.code, "VALIDATION_FAILED");
+
+      const oversized = await fetch(url, {
+        method: "POST",
+        body: "x".repeat(1024 * 1024 + 1),
+      });
+      assert.equal(oversized.status, 413);
+      assert.equal((await oversized.json()).error.code, "REQUEST_TOO_LARGE");
     } finally {
       await closeServer(server);
       await rm(storageDir, { recursive: true, force: true });
