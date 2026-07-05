@@ -13,7 +13,8 @@
     "@lucide/svelte": "^1.17.0",
     "@nervekit/shared": "workspace:*",
     "@nervekit/ui": "workspace:*",
-    "svelte": "5.56.3"
+    "svelte": "5.56.3",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.1.2",

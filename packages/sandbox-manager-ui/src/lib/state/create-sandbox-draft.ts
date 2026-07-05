@@ -4,6 +4,7 @@ import {
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
 } from "@nervekit/shared";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 export type CreateSandboxToolKey =
   | "fileInspection"
@@ -54,8 +55,8 @@ export type CreateSandboxDraft = {
   jiraProfileId: string;
   confluenceProfileId: string;
   webProfileId: string;
-  useAdvancedConfig: boolean;
-  advancedConfig: string;
+  yamlSource: string;
+  yamlDirty: boolean;
 };
 
 export function createDefaultDraft(): CreateSandboxDraft {
@@ -93,8 +94,8 @@ export function createDefaultDraft(): CreateSandboxDraft {
     jiraProfileId: "",
     confluenceProfileId: "",
     webProfileId: "",
-    useAdvancedConfig: false,
-    advancedConfig: "",
+    yamlSource: "",
+    yamlDirty: false,
   };
 }
 
@@ -158,21 +159,70 @@ export function buildConfigFromDraft(
   return sandboxCreateConfigInputSchema.parse(config);
 }
 
+const configKeyOrder = [
+  "version",
+  "identity",
+  "secretStores",
+  "modelCatalog",
+  "agent",
+  "controller",
+  "git",
+  "github",
+  "tools",
+  "skills",
+  "boot",
+  "security",
+  "storage",
+  "resources",
+  "observability",
+];
+
+function orderedConfig(config: SandboxCreateConfigInput): Record<string, unknown> {
+  const source = config as Record<string, unknown>;
+  const ordered: Record<string, unknown> = {};
+  for (const key of configKeyOrder) {
+    if (source[key] !== undefined) ordered[key] = source[key];
+  }
+  for (const key of Object.keys(source).sort()) {
+    if (!(key in ordered) && source[key] !== undefined) ordered[key] = source[key];
+  }
+  return ordered;
+}
+
+function orderedCreateRequest(
+  request: SandboxCreateRequest,
+): Record<string, unknown> {
+  return {
+    ...(request.image ? { image: request.image } : {}),
+    ...(request.name ? { name: request.name } : {}),
+    ...(request.start === undefined ? {} : { start: request.start }),
+    ...(request.auth ? { auth: request.auth } : {}),
+    config: orderedConfig(request.config),
+  };
+}
+
+export function requestToYaml(request: SandboxCreateRequest): string {
+  const parsed = sandboxCreateRequestSchema.parse(request);
+  return stringifyYaml(orderedCreateRequest(parsed));
+}
+
+export function parseCreateRequestYaml(input: string): SandboxCreateRequest {
+  const parsed = parseYaml(input || "{}") as unknown;
+  return sandboxCreateRequestSchema.parse(parsed);
+}
+
 export type BuildCreateRequestResult =
   | { ok: true; request: SandboxCreateRequest }
   | { ok: false; error: string };
 
-export function buildCreateRequest(
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function buildCreateRequestFromForm(
   draft: CreateSandboxDraft,
 ): BuildCreateRequestResult {
   try {
-    let config: SandboxCreateConfigInput;
-    if (draft.useAdvancedConfig) {
-      const parsed = JSON.parse(draft.advancedConfig || "{}") as unknown;
-      config = sandboxCreateConfigInputSchema.parse(parsed);
-    } else {
-      config = buildConfigFromDraft(draft);
-    }
     const auth = {
       mainModelProfileId: draft.mainModelProfileId.trim() || undefined,
       exploreModelProfileId: draft.exploreModelProfileId.trim() || undefined,
@@ -182,7 +232,7 @@ export function buildCreateRequest(
       webProfileId: draft.webProfileId.trim() || undefined,
     };
     const request = sandboxCreateRequestSchema.parse({
-      config,
+      config: buildConfigFromDraft(draft),
       image: draft.image.trim() || undefined,
       name: draft.name.trim() || undefined,
       start: draft.startAfterCreate,
@@ -190,9 +240,35 @@ export function buildCreateRequest(
     });
     return { ok: true, request };
   } catch (error) {
+    return { ok: false, error: errorMessage(error) };
+  }
+}
+
+export function buildCreateRequestFromYaml(
+  draft: CreateSandboxDraft,
+): BuildCreateRequestResult {
+  try {
+    return { ok: true, request: parseCreateRequestYaml(draft.yamlSource) };
+  } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: `YAML create request is invalid: ${errorMessage(error)}`,
     };
   }
+}
+
+export function buildYamlFromDraft(
+  draft: CreateSandboxDraft,
+): { ok: true; yaml: string } | { ok: false; error: string } {
+  const result = buildCreateRequestFromForm(draft);
+  if (!result.ok) return result;
+  return { ok: true, yaml: requestToYaml(result.request) };
+}
+
+export function buildCreateRequest(
+  draft: CreateSandboxDraft,
+): BuildCreateRequestResult {
+  return draft.yamlDirty
+    ? buildCreateRequestFromYaml(draft)
+    : buildCreateRequestFromForm(draft);
 }

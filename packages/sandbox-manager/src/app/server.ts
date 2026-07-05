@@ -701,7 +701,7 @@ function sessionSummary(
     connectedAt: session.updatedAt,
     disconnectedAt: session.disconnectedAt,
     closeCode: session.closeCode,
-    closeReason: session.closeReason,
+    closeReason: session.closeReason?.trim() || undefined,
     acceptedCapabilities: session.capabilities,
   };
 }

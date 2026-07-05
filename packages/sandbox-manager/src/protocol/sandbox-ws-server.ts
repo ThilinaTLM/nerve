@@ -377,6 +377,18 @@ export class SandboxWsServer {
             },
           }),
         );
+        session.heartbeat = setInterval(() => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          ws.send(
+            encodeProtocolMessage({
+              type: "heartbeat",
+              ts: new Date().toISOString(),
+              status: "ok",
+              sessionId,
+            }),
+          );
+        }, 15_000);
+        session.heartbeat.unref();
         ws.on(
           "message",
           (next) =>
@@ -524,6 +536,7 @@ export class SandboxWsServer {
   ): Promise<void> {
     if (!session) return;
     const removedCurrent = this.sessions.delete(sandboxId, session.sessionId);
+    if (session.heartbeat) clearInterval(session.heartbeat);
     session.forwarder.failAll(new Error("Sandbox session disconnected"));
     if (!removedCurrent) return;
     const now = new Date().toISOString();
@@ -534,7 +547,7 @@ export class SandboxWsServer {
       updatedAt: now,
       disconnectedAt: now,
       closeCode,
-      closeReason,
+      closeReason: closeReason?.trim() || undefined,
     });
   }
 }

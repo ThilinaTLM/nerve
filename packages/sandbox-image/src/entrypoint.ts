@@ -158,7 +158,7 @@ export async function runSandboxEntrypoint(
   });
 
   // 13. run boot plan
-  await stage(emitStartup, "sandbox.boot", () =>
+  await stage(emitStartup, "sandbox.boot_plan", () =>
     runBootPlan(config, {
       workspaceDir: paths.workspaceDir,
       stateDir: paths.stateDir,
@@ -221,12 +221,15 @@ async function stage<T>(
   run: () => Promise<T> | T,
 ): Promise<T> {
   const startedAt = new Date().toISOString();
-  await emit(`${name}.started`, { startedAt }, "transient").catch(
-    () => undefined,
-  );
+  await emit(
+    `${name}.started`,
+    { ...stageEventData(name), startedAt },
+    "transient",
+  ).catch(() => undefined);
   try {
     const result = await run();
     await emit(`${name}.completed`, {
+      ...stageEventData(name),
       status: "completed",
       startedAt,
       completedAt: new Date().toISOString(),
@@ -234,6 +237,7 @@ async function stage<T>(
     return result;
   } catch (error) {
     await emit(`${name}.completed`, {
+      ...stageEventData(name),
       status: "failed",
       startedAt,
       completedAt: new Date().toISOString(),
@@ -241,6 +245,11 @@ async function stage<T>(
     }).catch(() => undefined);
     throw error;
   }
+}
+
+function stageEventData(name: string): Record<string, unknown> {
+  const setup = name.match(/^sandbox\.setup\.(git|github)$/)?.[1];
+  return setup ? { setup } : {};
 }
 
 function buildSecretStoreRegistry(

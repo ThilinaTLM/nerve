@@ -9,6 +9,7 @@ export type ConnectedSandboxSession = {
   lastHeartbeatAt?: string;
   socket: WebSocket;
   forwarder: CommandForwarder;
+  heartbeat?: NodeJS.Timeout;
 };
 
 export class SandboxSessionRegistry {

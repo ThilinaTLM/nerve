@@ -132,6 +132,8 @@ function injectManagerSecretStore(
 }
 
 function usesKvSecretRefs(value: unknown): boolean {
+  if (Array.isArray(value))
+    return value.some((child) => usesKvSecretRefs(child));
   if (!isObject(value)) return false;
   if ("kv" in value) return true;
   return Object.values(value).some((child) => usesKvSecretRefs(child));

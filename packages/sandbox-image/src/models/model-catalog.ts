@@ -6,6 +6,7 @@ import type {
 const builtinProviders = new Set([
   "anthropic",
   "openai",
+  "openai-codex",
   "google",
   "xai",
   "ollama",

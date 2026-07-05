@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { SandboxConfigV1 } from "@nervekit/shared";
 import type {
@@ -17,15 +17,12 @@ export class LocalVolumeProvider implements RuntimeVolumeProvider {
     _config: SandboxConfigV1,
   ): Promise<PreparedRuntimeVolumes> {
     const paths = this.paths(sandboxId);
-    await Promise.all(
-      [paths.workspace, paths.state, paths.secrets, paths.configDir].map(
-        (dir) =>
-          mkdir(dir, {
-            recursive: true,
-            mode: dir === paths.secrets ? 0o700 : 0o755,
-          }),
-      ),
-    );
+    await Promise.all([
+      ensureDir(paths.workspace, 0o777),
+      ensureDir(paths.state, 0o777),
+      ensureDir(paths.secrets, 0o755),
+      ensureDir(paths.configDir, 0o755),
+    ]);
     return {
       workspace: {
         kind: "bind",
@@ -54,18 +51,18 @@ export class LocalVolumeProvider implements RuntimeVolumeProvider {
   ): Promise<PreparedRuntimeVolumes> {
     const paths = this.paths(sandboxId);
     await Promise.all([
-      mkdir(paths.configDir, { recursive: true, mode: 0o755 }),
-      mkdir(paths.secrets, { recursive: true, mode: 0o700 }),
+      ensureDir(paths.configDir, 0o755),
+      ensureDir(paths.secrets, 0o755),
     ]);
     await Promise.all([
       writeFile(paths.configPath, files.configYaml, {
         encoding: "utf8",
-        mode: 0o600,
-      }),
+        mode: 0o644,
+      }).then(() => chmod(paths.configPath, 0o644)),
       writeFile(paths.controllerTokenPath, `${files.controllerToken}\n`, {
         encoding: "utf8",
-        mode: 0o600,
-      }),
+        mode: 0o644,
+      }).then(() => chmod(paths.controllerTokenPath, 0o644)),
     ]);
     return this.prepare(sandboxId, {} as SandboxConfigV1);
   }
@@ -82,4 +79,9 @@ export class LocalVolumeProvider implements RuntimeVolumeProvider {
       controllerTokenPath: path.join(base, "secrets", "controller-token"),
     };
   }
+}
+
+async function ensureDir(dir: string, mode: number): Promise<void> {
+  await mkdir(dir, { recursive: true, mode });
+  await chmod(dir, mode);
 }

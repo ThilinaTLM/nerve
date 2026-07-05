@@ -3,6 +3,10 @@ const sensitive =
 export function redactManagerEvent<T>(value: T): T {
   return redact(value) as T;
 }
+function isScalar(value: unknown): boolean {
+  return value === null || typeof value !== "object";
+}
+
 function redact(value: unknown): unknown {
   if (typeof value === "string")
     return value.replace(
@@ -12,7 +16,9 @@ function redact(value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map(redact);
   const out: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value as Record<string, unknown>))
-    out[key] = sensitive.test(key) ? "[REDACTED]" : redact(entry);
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    const shouldRedact = sensitive.test(key);
+    out[key] = shouldRedact && isScalar(entry) ? "[REDACTED]" : redact(entry);
+  }
   return out;
 }

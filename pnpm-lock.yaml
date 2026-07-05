@@ -222,6 +222,9 @@ importers:
       svelte:
         specifier: 5.56.3
         version: 5.56.3
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: 7.1.2
