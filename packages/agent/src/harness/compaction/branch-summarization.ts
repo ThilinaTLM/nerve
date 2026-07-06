@@ -1,4 +1,4 @@
-import { completeSimple } from "@earendil-works/pi-ai";
+import { completeSimpleWithModel } from "../../pi-ai-models.js";
 import type { AgentMessage, AnyModel } from "../../types.js";
 import type {
   Conversation,
@@ -271,7 +271,7 @@ export async function generateBranchSummary(
       timestamp: Date.now(),
     },
   ];
-  const response = await completeSimple(
+  const response = await completeSimpleWithModel(
     model,
     {
       systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,

@@ -1,5 +1,5 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import { completeSimple } from "@earendil-works/pi-ai";
+import { completeSimpleWithModel } from "../../pi-ai-models.js";
 import type { AgentMessage, AnyModel, ThinkingLevel } from "../../types.js";
 import { buildConversationContext } from "../conversation/conversation.js";
 import type {
@@ -263,7 +263,7 @@ export async function generateSummary(
       ? { maxTokens, signal, apiKey, headers, reasoning: thinkingLevel }
       : { maxTokens, signal, apiKey, headers };
 
-  const response = await completeSimple(
+  const response = await completeSimpleWithModel(
     model,
     {
       systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
@@ -519,7 +519,7 @@ async function generateTurnPrefixSummary(
     },
   ];
 
-  const response = await completeSimple(
+  const response = await completeSimpleWithModel(
     model,
     {
       systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,

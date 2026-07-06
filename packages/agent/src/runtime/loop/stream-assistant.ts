@@ -1,8 +1,5 @@
-import {
-  type AssistantMessage,
-  type Context,
-  streamSimple,
-} from "@earendil-works/pi-ai";
+import type { AssistantMessage, Context } from "@earendil-works/pi-ai";
+import { streamSimpleWithModel } from "../../pi-ai-models.js";
 import type { AgentContext, AgentLoopConfig, StreamFn } from "../../types.js";
 import { normalizeImagesForModel } from "../image-normalization.js";
 import type { AgentEventSink } from "./events.js";
@@ -37,7 +34,7 @@ export async function streamAssistantResponse(
     tools: context.tools,
   };
 
-  const streamFunction = streamFn || streamSimple;
+  const streamFunction = streamFn || streamSimpleWithModel;
 
   // Resolve API key (important for expiring tokens)
   const resolvedApiKey =

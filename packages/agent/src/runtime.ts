@@ -3,16 +3,19 @@ import {
   type Context,
   clampThinkingLevel,
   fauxAssistantMessage,
-  getModel,
-  getModels,
-  getProviders,
   getSupportedThinkingLevels,
-  type KnownProvider,
   type Message,
   type Model,
-  registerFauxProvider,
-  streamSimple,
 } from "@earendil-works/pi-ai";
+import {
+  ensureProviderForModel,
+  getBuiltinProviderIds,
+  getNerveFauxProvider,
+  getRegisteredModel,
+  getRegisteredModels,
+  isBuiltinProvider,
+  streamSimpleWithModel,
+} from "./pi-ai-models.js";
 import { normalizeImagesForModel } from "./runtime/image-normalization.js";
 import type { ThinkingLevel } from "./types.js";
 
@@ -62,10 +65,10 @@ function templateForCustomModel(
 ): Model<string> | undefined {
   if (!isKnownProvider(model.provider)) return undefined;
   return (
-    (getModel(model.provider, model.modelId as never) as
+    (getRegisteredModel(model.provider, model.modelId) as
       | Model<string>
       | undefined) ??
-    (getModels(model.provider)[0] as Model<string> | undefined)
+    (getRegisteredModels(model.provider)[0] as Model<string> | undefined)
   );
 }
 
@@ -75,7 +78,7 @@ function toPiModel(model: AgentCustomModel): Model<string> | undefined {
   const api = model.api ?? template?.api;
   const baseUrl = model.baseUrl ?? template?.baseUrl;
   if (!api || !baseUrl) return undefined;
-  return {
+  const resolved = {
     id: model.modelId,
     name: model.name,
     api,
@@ -96,6 +99,8 @@ function toPiModel(model: AgentCustomModel): Model<string> | undefined {
     headers: { ...(template?.headers ?? {}), ...(model.headers ?? {}) },
     compat: (model.compat ?? template?.compat) as never,
   } as Model<string>;
+  ensureProviderForModel(resolved);
+  return resolved;
 }
 
 let customModelProvider: (() => AgentCustomModel[]) | undefined;
@@ -148,10 +153,8 @@ export interface AgentPromptInput {
   signal?: AbortSignal;
 }
 
-let fauxProvider: ReturnType<typeof registerFauxProvider> | undefined;
-
 const fauxResponseFactory: Parameters<
-  ReturnType<typeof registerFauxProvider>["appendResponses"]
+  ReturnType<typeof getNerveFauxProvider>["appendResponses"]
 >[0][number] = (context) => {
   const latest = [...context.messages]
     .reverse()
@@ -170,18 +173,6 @@ const fauxResponseFactory: Parameters<
   );
 };
 
-function getFauxProvider(): ReturnType<typeof registerFauxProvider> {
-  if (!fauxProvider) {
-    fauxProvider = registerFauxProvider({
-      provider: "nerve-faux",
-      models: [{ id: "faux-fast", name: "Nerve Faux Fast" }],
-      tokensPerSecond: 80,
-      tokenSize: { min: 10, max: 22 },
-    });
-  }
-  return fauxProvider;
-}
-
 function userMessageText(message: Extract<Message, { role: "user" }>): string {
   if (typeof message.content === "string") return message.content;
   return message.content
@@ -190,8 +181,8 @@ function userMessageText(message: Extract<Message, { role: "user" }>): string {
     .join("\n");
 }
 
-function isKnownProvider(provider: string): provider is KnownProvider {
-  return (getProviders() as string[]).includes(provider);
+function isKnownProvider(provider: string): boolean {
+  return isBuiltinProvider(provider);
 }
 
 function resolveAgentModelInternal(
@@ -203,12 +194,13 @@ function resolveAgentModelInternal(
   const customResolved = custom ? toPiModel(custom) : undefined;
   if (customResolved) return customResolved;
   if (selection && isKnownProvider(selection.provider)) {
-    return getModel(
+    const builtinModel = getRegisteredModel(
       selection.provider,
-      selection.modelId as never,
-    ) as Model<string>;
+      selection.modelId,
+    );
+    if (builtinModel) return builtinModel as Model<string>;
   }
-  const faux = getFauxProvider();
+  const faux = getNerveFauxProvider();
   if (appendFauxResponse) faux.appendResponses([fauxResponseFactory]);
   return faux.getModel();
 }
@@ -262,7 +254,7 @@ export function streamAgentPrompt(
       systemPrompt: input.systemPrompt,
       messages: await normalizeImagesForModel(input.messages, model),
     };
-    yield* streamSimple(model, context, {
+    yield* streamSimpleWithModel(model, context, {
       signal: input.signal,
       apiKey: input.apiKey,
       headers: input.headers,
@@ -278,8 +270,8 @@ const COMPLETE_MODEL_LIST_PROVIDERS = new Set<string>([
   "anthropic",
 ]);
 
-function visibleModelsForProvider(provider: KnownProvider): Model<never>[] {
-  const models = getModels(provider);
+function visibleModelsForProvider(provider: string): readonly Model<string>[] {
+  const models = getRegisteredModels(provider) as readonly Model<string>[];
   return COMPLETE_MODEL_LIST_PROVIDERS.has(provider)
     ? models
     : models.slice(0, 8);
@@ -288,13 +280,11 @@ function visibleModelsForProvider(provider: KnownProvider): Model<never>[] {
 export function listAvailableModels(
   customModels?: AgentCustomModel[],
 ): AgentModelInfo[] {
-  const faux = getFauxProvider().models.map((model) =>
+  const faux = getNerveFauxProvider().models.map((model) =>
     getAgentModelInfo(model),
   );
-  const configured = getProviders().flatMap((provider) =>
-    visibleModelsForProvider(provider).map((model) =>
-      getAgentModelInfo(model as Model<string>),
-    ),
+  const configured = getBuiltinProviderIds().flatMap((provider) =>
+    visibleModelsForProvider(provider).map((model) => getAgentModelInfo(model)),
   );
   const custom = (activeCustomModels(customModels) ?? [])
     .map((model) => customModelInfo(model))
