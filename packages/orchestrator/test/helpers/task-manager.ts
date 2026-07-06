@@ -141,8 +141,8 @@ export function runtimeMetadata(
 }
 
 export type FakeSupervisorOptions = {
-  child?: FakeChild;
-  runtime?: TaskRuntime;
+  child?: FakeChild | FakeChild[];
+  runtime?: TaskRuntime | TaskRuntime[];
   onSpawn?: (command: string, options: SpawnManagedTaskOptions) => void;
   onTerminate?: (signal: NodeJS.Signals) => void | Promise<void>;
   onTerminateRuntime?: (
@@ -168,8 +168,13 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
   spawnCommands: string[];
   spawnCalls: Array<{ command: string; options: SpawnManagedTaskOptions }>;
 } {
-  const child = options.child ?? fakeChild();
-  const runtime = options.runtime ?? runtimeMetadata({ childPid: child.pid });
+  const children = Array.isArray(options.child)
+    ? options.child
+    : [options.child ?? fakeChild()];
+  const runtimes = Array.isArray(options.runtime)
+    ? options.runtime
+    : [options.runtime];
+  let spawnIndex = 0;
   const terminateSignals: NodeJS.Signals[] = [];
   const runtimeTerminateSignals: NodeJS.Signals[] = [];
   const spawnCommands: string[] = [];
@@ -184,13 +189,20 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
     spawnCalls,
     supervisor: {
       spawn(command, spawnOptions) {
+        const index = Math.min(spawnIndex, children.length - 1);
+        spawnIndex += 1;
+        const child = children[index] ?? children[0] ?? fakeChild();
+        const runtime =
+          runtimes[index] ??
+          runtimes[0] ??
+          runtimeMetadata({ childPid: child.pid });
         spawnCommands.push(command);
         spawnCalls.push({ command, options: spawnOptions });
         options.onSpawn?.(command, spawnOptions);
         return { child, runtime };
       },
       async terminate(terminatedChild, signal) {
-        assert.equal(terminatedChild, child);
+        assert.ok(children.includes(terminatedChild as FakeChild));
         terminateSignals.push(signal);
         await options.onTerminate?.(signal);
         return { attempted: true, method: "direct-child" };

@@ -1,5 +1,9 @@
 <script lang="ts">
-  import type { PinnedCommand, UpdatePinnedCommandRequest } from "$lib/api";
+  import type {
+    CreatePinnedCommandRequest,
+    PinnedCommand,
+    UpdatePinnedCommandRequest,
+  } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog-shell";
   import { Input } from "$lib/components/ui/input";
@@ -11,7 +15,7 @@
     command?: PinnedCommand;
     projectCwd?: string;
     saving?: boolean;
-    onSave?: (input: UpdatePinnedCommandRequest) => void;
+    onSave?: (input: CreatePinnedCommandRequest | UpdatePinnedCommandRequest) => void;
     onOpenChange?: (open: boolean) => void;
   };
 
@@ -28,14 +32,20 @@
   let commandText = $state("");
   let cwd = $state("");
 
-  const title = $derived(command ? "Edit pinned task" : "Pinned task");
+  const title = $derived(command ? "Edit pinned task" : "Pin a command");
+  const description = $derived(
+    command
+      ? "Update the label, command, and optional working directory for this pinned task."
+      : "Create a reusable task shortcut for this project.",
+  );
+  const submitLabel = $derived(command ? "Save pinned task" : "Pin task");
   const canSave = $derived(!saving && commandText.trim().length > 0);
 
   $effect(() => {
-    if (!open || !command) return;
-    label = command.label ?? "";
-    commandText = command.command;
-    cwd = command.cwd ?? "";
+    if (!open) return;
+    label = command?.label ?? "";
+    commandText = command?.command ?? "";
+    cwd = command?.cwd ?? "";
   });
 
   function submit() {
@@ -50,7 +60,7 @@
   }
 </script>
 
-<Dialog bind:open {title} description="Update the label, command, and optional working directory for this pinned task." class="max-w-xl" {onOpenChange}>
+<Dialog bind:open {title} {description} class="max-w-xl" {onOpenChange}>
   <div class="grid gap-4 p-4">
     <div class="grid gap-1.5">
       <Label for="pinned-command-label">Label</Label>
@@ -85,6 +95,6 @@
 
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)} disabled={saving}>Cancel</Button>
-    <Button onclick={submit} disabled={!canSave}>{saving ? "Saving…" : "Save pinned task"}</Button>
+    <Button onclick={submit} disabled={!canSave}>{saving ? "Saving…" : submitLabel}</Button>
   {/snippet}
 </Dialog>

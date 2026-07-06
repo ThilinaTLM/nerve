@@ -20,6 +20,11 @@ import {
 } from "./task-port-inspector.js";
 import { isActiveTaskStatus } from "./task-status.js";
 
+export type SpawnManagedTaskRunOptions = {
+  env?: Record<string, string>;
+  onOutput?: (update: ToolExecutionOutputUpdate) => void;
+};
+
 export async function startTask(
   this: TaskManager,
   request: StartTaskRequest & {
@@ -105,10 +110,6 @@ export async function startTask(
     visibility: request.visibility ?? "background",
   };
 
-  const readinessPattern = this.taskReadiness.compilePattern(
-    request.readyPattern,
-  );
-
   await this.upsertTask(record);
   await this.events.publish("task.created", { task: record });
   await this.logger?.info("Task created", {
@@ -124,9 +125,23 @@ export async function startTask(
     },
   });
 
-  const spawned = this.supervisor.spawn(request.command, {
-    cwd: record.cwd,
+  return await spawnManagedTaskRun.call(this, record, {
     env: request.env,
+    onOutput: request.onOutput,
+  });
+}
+
+export async function spawnManagedTaskRun(
+  this: TaskManager,
+  record: TaskRecord,
+  options: SpawnManagedTaskRunOptions = {},
+): Promise<TaskRecord> {
+  const readinessPattern = this.taskReadiness.compilePattern(
+    record.readiness.readyPattern,
+  );
+  const spawned = this.supervisor.spawn(record.command, {
+    cwd: record.cwd,
+    env: options.env,
     shellPath: this.storage.settings.runtime.shellPath,
   });
   const { child, runtime } = spawned;
@@ -153,12 +168,13 @@ export async function startTask(
     terminalPromise,
     resolveTerminal,
     readinessPattern,
-    onOutput: request.onOutput,
+    onOutput: options.onOutput,
   };
   managed.finalizationPromise = closePromise
-    .then(({ exitCode, signal }) =>
-      this.markTaskExited(record.id, exitCode, signal),
-    )
+    .then(({ exitCode, signal }) => {
+      if (this.managed.get(record.id) !== managed) return undefined;
+      return this.markTaskExited(record.id, exitCode, signal);
+    })
     .catch(async (error: unknown) => {
       if (this.logger) {
         await this.logger
@@ -176,19 +192,22 @@ export async function startTask(
   this.managed.set(record.id, managed);
 
   child.stdout?.on("data", (chunk) => {
+    if (this.managed.get(record.id) !== managed) return;
     void this.captureOutput(record.id, "stdout", chunk);
   });
   child.stderr?.on("data", (chunk) => {
+    if (this.managed.get(record.id) !== managed) return;
     void this.captureOutput(record.id, "stderr", chunk);
   });
   child.on("error", (error) => {
+    if (this.managed.get(record.id) !== managed) return;
     void this.markTaskError(record.id, error.message);
   });
 
   await this.updateTask(record.id, { status: "running" });
   this.scheduleReadyUrlPolling(record.id);
   this.scheduleReadinessTimeout(record.id);
-  this.scheduleRuntimeTimeout(record.id, request.timeoutMs);
+  this.scheduleRuntimeTimeout(record.id, record.timeoutMs);
   await this.events.publish("task.started", {
     task: this.getTask(record.id),
     pid: runtime.childPid,

@@ -40,6 +40,46 @@ describe("task manager launch env", () => {
     );
   });
 
+  it("restarts an active supervised task in place with stored env", async () => {
+    const env = { PORT: "4321", API_TOKEN: "secret" };
+    const firstChild = fakeChild(1234);
+    const secondChild = fakeChild(5678);
+    const replacementRuntime = runtimeMetadata({
+      childPid: 5678,
+      processGroupId: 5678,
+      spawnedAt: "2026-01-02T03:05:05.000Z",
+    });
+    const { supervisor, spawnCalls, terminateSignals } = fakeSupervisor({
+      child: [firstChild, secondChild],
+      runtime: [runtimeMetadata({ childPid: 1234 }), replacementRuntime],
+      onTerminate(signal) {
+        if (signal === "SIGTERM") firstChild.emitClose(0, signal);
+      },
+    });
+    const { manager, storage, events } = await createManager(supervisor);
+    const task = await startFakeTask(manager, storage, env, {
+      name: "web-dev",
+    });
+
+    const restarted = await manager.restartTask(task.id);
+
+    assert.equal(restarted.id, task.id);
+    assert.equal(restarted.name, "web-dev");
+    assert.equal(restarted.status, "running");
+    assert.equal(restarted.restartRootTaskId, task.id);
+    assert.equal(restarted.restartGeneration, 1);
+    assert.deepEqual(restarted.runtime, replacementRuntime);
+    assert.equal(spawnCalls.length, 2);
+    assert.deepEqual(spawnCalls[1]?.options.env, env);
+    assert.deepEqual(terminateSignals, ["SIGTERM"]);
+    assert.equal(manager.listTasks().length, 1);
+    assert.equal(manager.listTasks()[0]?.id, task.id);
+    assert.equal(
+      events.replaySince(0).some((event) => event.type === "task.cancelled"),
+      false,
+    );
+  });
+
   it("passes stored env to replacement spawn on restart", async () => {
     const env = { PORT: "4321", API_TOKEN: "secret" };
     const child = fakeChild();

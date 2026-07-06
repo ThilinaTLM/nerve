@@ -10,6 +10,7 @@
     deletePinnedCommand,
     getPinnedCommands,
     updatePinnedCommand,
+    type CreatePinnedCommandRequest,
     type PinnedCommand,
     type UpdatePinnedCommandRequest,
     type TaskRecord,
@@ -17,8 +18,7 @@
   } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog";
-  import { Input } from "$lib/components/ui/input";
-  import * as Popover from "$lib/components/ui/popover";
+
   import * as Tooltip from "$lib/components/ui/tooltip";
   import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
   import { writeClipboardText } from "$lib/core/clipboard";
@@ -76,10 +76,8 @@
 
   let pinned = $state<PinnedCommand[]>([]);
   let loadingPinned = $state(false);
-  let addPopoverOpen = $state(false);
+  let addPinOpen = $state(false);
   let savingPin = $state(false);
-  let newPinCommand = $state("");
-  let newPinLabel = $state("");
   let runningPinId = $state<string | undefined>(undefined);
   let pinToDelete = $state<PinnedCommand | undefined>(undefined);
   let pinToEdit = $state<PinnedCommand | undefined>(undefined);
@@ -140,21 +138,15 @@
     }
   }
 
-  async function createPin() {
+  async function createPin(input: CreatePinnedCommandRequest) {
     if (!activeProject) return;
-    const command = newPinCommand.trim();
-    if (command.length === 0) return;
-    const label = newPinLabel.trim();
     savingPin = true;
     try {
-      const created = await createPinnedCommand(activeProject.id, {
-        command,
-        label: label.length > 0 ? label : undefined,
-      });
+      const created = await createPinnedCommand(activeProject.id, input);
       pinned = [...pinned, created];
-      newPinCommand = "";
-      newPinLabel = "";
-      addPopoverOpen = false;
+      addPinOpen = false;
+      pinnedSectionOpen = true;
+      notify.success("Command pinned");
     } catch (error) {
       notify.error(`Could not pin command: ${errorMessage(error)}`);
     } finally {
@@ -220,24 +212,9 @@
       <PanelSection title="Pinned" icon={Pin} bind:open={pinnedSectionOpen}>
         {#snippet meta()}<span class="font-mono">{pinned.length}</span>{/snippet}
         {#snippet actions()}
-          <Popover.Root bind:open={addPopoverOpen}>
-            <Popover.Trigger class="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50" title="Pin a command" aria-label="Pin a command">
-              <Plus size={13} strokeWidth={2.3} />
-            </Popover.Trigger>
-            <Popover.Content align="end" collisionPadding={8} class="w-[min(340px,calc(100vw-2rem))] gap-3 p-3">
-              <div class="text-xs font-medium text-foreground">Pin a command</div>
-              <div class="flex flex-col gap-1.5">
-                <Input bind:value={newPinCommand} placeholder="pnpm dev" class="h-8 font-mono text-xs" />
-                <Input bind:value={newPinLabel} placeholder="Label (optional)" class="h-8 text-xs" />
-                <div class="flex justify-end">
-                  <Button size="sm" disabled={savingPin || newPinCommand.trim().length === 0} onclick={() => void createPin()}>
-                    <Pin />
-                    Pin
-                  </Button>
-                </div>
-              </div>
-            </Popover.Content>
-          </Popover.Root>
+          <button class="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50" title="Pin a command" aria-label="Pin a command" type="button" onclick={() => (addPinOpen = true)}>
+            <Plus size={13} strokeWidth={2.3} />
+          </button>
         {/snippet}
         <div class="flex flex-col gap-1.5">
           {#if loadingPinned && pinned.length === 0}
@@ -301,6 +278,13 @@
     {/if}
   </div>
 </Tooltip.Provider>
+
+<PinnedCommandDialog
+  bind:open={addPinOpen}
+  projectCwd={activeProject?.dir}
+  saving={savingPin}
+  onSave={(input) => void createPin(input)}
+/>
 
 <PinnedCommandDialog
   bind:open={editPinOpen}
