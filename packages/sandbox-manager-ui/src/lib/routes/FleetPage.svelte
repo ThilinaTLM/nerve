@@ -103,9 +103,16 @@
                 <span class="truncate text-sm font-medium">
                   {record.name ?? record.sandboxId}
                 </span>
-                <span class="truncate font-mono text-xs text-muted-foreground">
-                  {record.image.reference}
-                </span>
+                {#if record.observedState === "creating" || record.observedState === "starting"}
+                  <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <StatusDot tone="running" pulse />
+                    Setting up…
+                  </span>
+                {:else}
+                  <span class="truncate font-mono text-xs text-muted-foreground">
+                    {record.image.reference}
+                  </span>
+                {/if}
               </div>
             </button>
             <div class="flex items-center gap-2">

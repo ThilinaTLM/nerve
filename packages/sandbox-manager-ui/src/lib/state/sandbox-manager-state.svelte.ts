@@ -21,6 +21,11 @@ import {
   ManagerWsClient,
   type ManagerWsConnectionState,
 } from "../api/manager-ws-client.svelte";
+import {
+  isSandboxConnected,
+  isSandboxReadyForChat,
+  isSandboxTerminal,
+} from "./sandbox-boot-progress";
 import { applySandboxEvent } from "./sandbox-event-reducers";
 import { applySnapshot } from "./sandbox-snapshot-adapter";
 import type { SandboxFleetFilter } from "./sandbox-status";
@@ -57,6 +62,10 @@ export class SandboxManagerStore {
 
   private ws: ManagerWsClient;
   private fleetRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly statusPollTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
   private readonly operationCleanupTimers = new Set<
     ReturnType<typeof setTimeout>
   >();
@@ -99,6 +108,7 @@ export class SandboxManagerStore {
   dispose(): void {
     this.disposed = true;
     if (this.fleetRefreshTimer) clearTimeout(this.fleetRefreshTimer);
+    this.stopStatusPolling();
     for (const timer of this.operationCleanupTimers) clearTimeout(timer);
     this.operationCleanupTimers.clear();
     this.ws.close();
@@ -155,11 +165,66 @@ export class SandboxManagerStore {
   }
 
   async selectSandbox(sandboxId: string | undefined): Promise<void> {
+    this.stopStatusPolling();
     this.selectedSandboxId = sandboxId;
     if (!sandboxId) return;
     this.detail(sandboxId);
     this.ws.subscribeStream(sandboxId);
     await this.loadDetail(sandboxId);
+    // The status snapshot is only fetched on load and live boot events can be
+    // missed on a fresh subscription, so poll until the controller connects to
+    // reliably observe the boot -> ready transition.
+    this.ensureStatusPolling(sandboxId);
+  }
+
+  private ensureStatusPolling(sandboxId: string): void {
+    if (this.disposed || this.selectedSandboxId !== sandboxId) return;
+    if (this.statusPollTimers.has(sandboxId)) return;
+    const detail = this.details[sandboxId];
+    const record = this.sandboxes.find((item) => item.sandboxId === sandboxId);
+    const observed = record?.observedState;
+    if (
+      isSandboxConnected(detail) ||
+      isSandboxTerminal(record) ||
+      observed === "failed"
+    )
+      return;
+    const timer = setTimeout(() => {
+      this.statusPollTimers.delete(sandboxId);
+      void this.pollStatusOnce(sandboxId);
+    }, 1500);
+    this.statusPollTimers.set(sandboxId, timer);
+  }
+
+  private async pollStatusOnce(sandboxId: string): Promise<void> {
+    if (this.disposed || this.selectedSandboxId !== sandboxId) return;
+    const detail = this.details[sandboxId];
+    if (!detail) return;
+    try {
+      const status = await api.getSandboxStatus(sandboxId);
+      const wasConnected = isSandboxConnected(detail);
+      detail.status = status;
+      detail.controllerConnected = status.connected;
+      if (status.connected && !wasConnected) {
+        // Fully sync record/snapshot/session once the controller is live.
+        void this.loadDetail(sandboxId);
+        return;
+      }
+    } catch {
+      // Status can be unavailable while the controller is still booting.
+    }
+    this.ensureStatusPolling(sandboxId);
+  }
+
+  private stopStatusPolling(sandboxId?: string): void {
+    if (sandboxId) {
+      const timer = this.statusPollTimers.get(sandboxId);
+      if (timer) clearTimeout(timer);
+      this.statusPollTimers.delete(sandboxId);
+      return;
+    }
+    for (const timer of this.statusPollTimers.values()) clearTimeout(timer);
+    this.statusPollTimers.clear();
   }
 
   async loadDetail(sandboxId: string): Promise<void> {
@@ -171,7 +236,10 @@ export class SandboxManagerStore {
         api.getSandboxStatus(sandboxId).catch(() => undefined),
       ]);
       detail.record = record;
-      if (status) detail.status = status;
+      if (status) {
+        detail.status = status;
+        detail.controllerConnected = status.connected;
+      }
       try {
         const snapshot = await api.getSandboxSnapshot(sandboxId);
         applySnapshot(detail, snapshot);
@@ -319,6 +387,32 @@ export class SandboxManagerStore {
   }
 
   // --- chat / command actions ---
+
+  /**
+   * Submit a prompt from the composer. When the sandbox is not yet ready for
+   * chat, hold the prompt and auto-dispatch it once the controller connects
+   * (see `flushQueuedPrompt`).
+   */
+  async submitPrompt(sandboxId: string, prompt: string): Promise<void> {
+    const detail = this.detail(sandboxId);
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    if (isSandboxReadyForChat(detail)) {
+      await this.sendPrompt(sandboxId, trimmed);
+      return;
+    }
+    detail.queuedPrompt = trimmed;
+    detail.composerText = "";
+  }
+
+  /** Dispatch a queued first prompt once the sandbox is ready for chat. */
+  async flushQueuedPrompt(sandboxId: string): Promise<void> {
+    const detail = this.detail(sandboxId);
+    const queued = detail.queuedPrompt;
+    if (!queued || !isSandboxReadyForChat(detail)) return;
+    detail.queuedPrompt = undefined;
+    await this.sendPrompt(sandboxId, queued);
+  }
 
   async sendPrompt(sandboxId: string, prompt: string): Promise<void> {
     const detail = this.detail(sandboxId);

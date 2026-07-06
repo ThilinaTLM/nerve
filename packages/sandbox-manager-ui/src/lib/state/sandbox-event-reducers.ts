@@ -57,12 +57,15 @@ export function applySandboxEvent(
       return;
     case "sandbox.ready":
       pushSetup(detail, event, "ready", "completed", "Sandbox ready");
+      detail.controllerConnected = true;
       return;
     case "sandbox.controller.disconnected":
+      detail.controllerConnected = false;
       detail.disconnectExitAt =
         typeof data.exitAt === "string" ? data.exitAt : detail.disconnectExitAt;
       return;
     case "sandbox.controller.reconnected":
+      detail.controllerConnected = true;
       detail.disconnectExitAt = undefined;
       return;
     case "sandbox.shutdown.scheduled":
@@ -141,6 +144,8 @@ function applyRunStarted(
 ): void {
   const runId = String(data.runId ?? "");
   if (!runId) return;
+  // A run only starts when the controller session is live.
+  detail.controllerConnected = true;
   detail.liveRuns[runId] = {
     runId,
     conversationId: String(data.conversationId ?? ""),

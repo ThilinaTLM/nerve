@@ -40,7 +40,7 @@
 
   function isActive(kind: string): boolean {
     if (kind === "fleet")
-      return route.kind === "fleet" || route.kind === "sandbox" || route.kind === "chat";
+      return route.kind === "fleet" || route.kind === "sandbox";
     return route.kind === kind;
   }
 </script>

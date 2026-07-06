@@ -31,7 +31,10 @@
     providerDisplayName,
   } from "../../utils/model-display";
 
-  let { open = $bindable(false) }: { open?: boolean } = $props();
+  let {
+    open = $bindable(false),
+    onCreated,
+  }: { open?: boolean; onCreated?: (sandboxId: string) => void } = $props();
 
   const store = useSandboxManagerStore();
   let draft = $state(createDraftFromStoredPreferences());
@@ -264,8 +267,8 @@
     try {
       if (!draft.yamlDirty) saveCreateSandboxPreferences(draft);
       const sandboxId = await store.createSandbox(result.request);
-      await store.selectSandbox(sandboxId);
       closeAndReset(false);
+      onCreated?.(sandboxId);
     } catch (submitError) {
       error =
         submitError instanceof Error ? submitError.message : String(submitError);

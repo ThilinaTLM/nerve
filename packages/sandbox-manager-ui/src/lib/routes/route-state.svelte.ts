@@ -1,4 +1,4 @@
-export type SandboxManagerRouteKind = "fleet" | "sandbox" | "chat" | "settings";
+export type SandboxManagerRouteKind = "fleet" | "sandbox" | "settings";
 
 export type ParsedRoute = {
   kind: SandboxManagerRouteKind;
@@ -15,7 +15,6 @@ function parse(pathname: string): ParsedRoute {
     return { kind: "settings", settingsSection: segments[1] };
   if (segments[0] === "sandboxes" && segments[1]) {
     const sandboxId = decodeURIComponent(segments[1]);
-    if (segments[2] === "chat") return { kind: "chat", sandboxId };
     return { kind: "sandbox", sandboxId };
   }
   return { kind: "fleet" };
@@ -57,10 +56,6 @@ export class SandboxManagerRouteState {
 
   openSandbox(sandboxId: string): void {
     this.navigate(`/sandboxes/${encodeURIComponent(sandboxId)}`);
-  }
-
-  openChat(sandboxId: string): void {
-    this.navigate(`/sandboxes/${encodeURIComponent(sandboxId)}/chat`);
   }
 
   openSettings(section?: string): void {

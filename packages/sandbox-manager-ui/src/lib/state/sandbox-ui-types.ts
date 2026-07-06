@@ -92,6 +92,9 @@ export type SandboxDetailState = {
   selectedAgentId?: string;
   selectedRunId?: string;
   composerText: string;
+  queuedPrompt?: string;
+  /** Live controller connectivity, updated from the sandbox event stream. */
+  controllerConnected: boolean;
   sending: boolean;
   loading: boolean;
   error?: string;
@@ -113,6 +116,7 @@ export function createSandboxDetailState(
     liveRuns: {},
     conversationViewsById: {},
     composerText: "",
+    controllerConnected: false,
     sending: false,
     loading: false,
   };
