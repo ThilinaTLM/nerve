@@ -1,13 +1,13 @@
-import {
-  type ImageContent,
-  type Message,
-  type SimpleStreamOptions,
-  streamSimple,
-  type TextContent,
-  type ThinkingBudgets,
-  type Transport,
+import type {
+  ImageContent,
+  Message,
+  SimpleStreamOptions,
+  TextContent,
+  ThinkingBudgets,
+  Transport,
 } from "@earendil-works/pi-ai";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
+import { streamSimpleWithModel } from "./pi-ai-models.js";
 import type {
   AfterToolCallContext,
   AfterToolCallResult,
@@ -244,7 +244,7 @@ export class Agent {
     this._state = createMutableAgentState(options.initialState);
     this.convertToLlm = options.convertToLlm ?? defaultConvertToLlm;
     this.transformContext = options.transformContext;
-    this.streamFn = options.streamFn ?? streamSimple;
+    this.streamFn = options.streamFn ?? streamSimpleWithModel;
     this.getApiKey = options.getApiKey;
     this.onPayload = options.onPayload;
     this.onResponse = options.onResponse;

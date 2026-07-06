@@ -1,9 +1,6 @@
-import {
-  type AssistantMessage,
-  type ImageContent,
-  streamSimple,
-} from "@earendil-works/pi-ai";
+import type { AssistantMessage, ImageContent } from "@earendil-works/pi-ai";
 import { runAgentLoop } from "../agent-loop.js";
+import { streamSimpleWithModel } from "../pi-ai-models.js";
 import { isAgentToolSuspension } from "../suspension.js";
 import type {
   AgentContext,
@@ -241,7 +238,7 @@ export class AgentHarness<
         turnState.conversationId,
         snapshotOptions,
       );
-      return streamSimple(model, context, {
+      return streamSimpleWithModel(model, context, {
         cacheRetention: requestOptions.cacheRetention,
         headers: requestOptions.headers,
         maxRetries: requestOptions.maxRetries,

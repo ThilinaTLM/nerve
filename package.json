@@ -35,7 +35,7 @@
     "release:verify-tag": "node scripts/verify-release-tag.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.79.7"
+    "@earendil-works/pi-ai": "0.80.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",
