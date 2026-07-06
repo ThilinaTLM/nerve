@@ -2,7 +2,9 @@ import type {
   ArtifactRef,
   ConversationEntry,
   SandboxRunStatus,
+  StructuredLogger,
 } from "@nervekit/shared";
+import { createNoopLogger } from "@nervekit/shared";
 import { Redactor } from "../security/redaction.js";
 import type { EventOutbox } from "../state/event-outbox.js";
 import {
@@ -20,6 +22,8 @@ export type RunScope = {
   runId: string;
 };
 
+const NOOP_LOGGER = createNoopLogger();
+
 export class RunManager {
   private counter = 0;
   private readonly transcript: TranscriptStore;
@@ -33,12 +37,25 @@ export class RunManager {
     private readonly events?: EventOutbox,
     redactor = new Redactor({ secrets: [] }),
     private readonly commonData: Record<string, unknown> = {},
+    private readonly logger: StructuredLogger = NOOP_LOGGER,
   ) {
     this.transcript = new TranscriptStore(stateDir);
     this.executions = new RunExecutionStore(stateDir);
     this.tools = new ToolCallStore(stateDir);
     this.checkpoints = new RunCheckpointStore(stateDir);
     this.redactor = redactor;
+  }
+
+  private runLog(scope: {
+    conversationId: string;
+    agentId: string;
+    runId: string;
+  }): StructuredLogger {
+    return this.logger.child({
+      conversationId: scope.conversationId,
+      agentId: scope.agentId,
+      runId: scope.runId,
+    });
   }
 
   async createRun(input: {
@@ -85,6 +102,9 @@ export class RunManager {
         createdAt: now,
       });
     }
+    this.runLog(state).debug("run created", {
+      behavior: state.behavior,
+    });
     return { run: state, executionId };
   }
 
@@ -134,6 +154,10 @@ export class RunManager {
         model,
         startedAt: now,
       },
+    });
+    this.runLog(scope).debug("run running", {
+      provider: model.provider,
+      model: model.model,
     });
     return next;
   }
@@ -191,6 +215,7 @@ export class RunManager {
         ...data,
       },
     });
+    this.runLog(scope).debug("run waiting", { kind });
     return next;
   }
 
@@ -242,6 +267,7 @@ export class RunManager {
       },
     });
     await this.store.write(next);
+    this.runLog(scope).info("run completed", {});
     return next;
   }
 
@@ -299,6 +325,10 @@ export class RunManager {
       },
     });
     await this.store.write(next);
+    this.runLog(scope).warn("run failed", {
+      code: error.code,
+      recoverable,
+    });
     return next;
   }
 
@@ -351,6 +381,7 @@ export class RunManager {
       },
     });
     await this.store.write(next);
+    this.runLog(scope).info("run cancelled", { reason: scope.reason });
     return next;
   }
 

@@ -42,6 +42,12 @@ export type StructuredLoggerOptions = {
   sink?: LogSink;
   /** Additional case-insensitive substrings whose values should be redacted. */
   redactKeys?: string[];
+  /**
+   * Tap invoked with each emitted (post-redaction) record, in addition to the
+   * sink. Useful for in-memory buffers/tails. A throwing tap never breaks
+   * logging. Inherited by child loggers.
+   */
+  onRecord?: (record: StructuredLogRecord) => void;
 };
 
 export interface StructuredLogger {
@@ -108,7 +114,12 @@ export function createLogger(
     ...DEFAULT_REDACT_KEYS,
     ...(options.redactKeys ?? []).map((key) => key.toLowerCase()),
   ];
-  return new BaseLogger(level, base, sink, redactKeys);
+  return new BaseLogger(level, base, sink, redactKeys, options.onRecord);
+}
+
+/** A logger that emits nothing; a safe default when instrumentation is optional. */
+export function createNoopLogger(): StructuredLogger {
+  return createLogger({ level: "error", sink: () => undefined });
 }
 
 class BaseLogger implements StructuredLogger {
@@ -117,6 +128,7 @@ class BaseLogger implements StructuredLogger {
     private readonly base: LogBindings,
     private readonly sink: LogSink,
     private readonly redactKeys: string[],
+    private readonly onRecord?: (record: StructuredLogRecord) => void,
   ) {}
 
   debug(message: string, context?: LogContext): void {
@@ -138,6 +150,7 @@ class BaseLogger implements StructuredLogger {
       { ...this.base, ...bindings },
       this.sink,
       this.redactKeys,
+      this.onRecord,
     );
   }
 
@@ -185,6 +198,13 @@ class BaseLogger implements StructuredLogger {
           continue;
         }
         record[key] = redactValue(key, value, this.redactKeys, 0);
+      }
+    }
+    if (this.onRecord) {
+      try {
+        this.onRecord(record);
+      } catch {
+        // Never let a tap break logging.
       }
     }
     this.sink(level, safeStringify(record));

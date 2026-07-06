@@ -197,6 +197,7 @@ export async function runSandboxEntrypoint(
     modelRuntime,
     workspaceDir: paths.workspaceDir,
     secretResolver: resolver,
+    logger: logger.child({ component: "daemon" }),
   });
   // 15. connect controller session
   const session = new ProtocolSession(

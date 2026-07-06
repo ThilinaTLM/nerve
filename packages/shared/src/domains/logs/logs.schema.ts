@@ -123,6 +123,39 @@ export type ApplicationLogPruneResponse = z.infer<
   typeof applicationLogPruneResponseSchema
 >;
 
+export const managerLogTailRecordSchema = z
+  .object({
+    seq: z.number().int().nonnegative(),
+    ts: z.string().datetime(),
+    level: applicationLogLevelSchema,
+    message: z.string(),
+  })
+  .passthrough();
+export type ManagerLogTailRecord = z.infer<typeof managerLogTailRecordSchema>;
+
+export const managerLogTailQuerySchema = z.object({
+  /** Minimum level to include (this level and above). */
+  level: applicationLogLevelSchema.optional(),
+  /** Case-insensitive message substring filter. */
+  contains: z.string().min(1).optional(),
+  /** Only return records with seq greater than this cursor. */
+  sinceSeq: z.number().int().nonnegative().optional(),
+  /** Max records to return (most recent). */
+  limit: z.number().int().positive().max(1000).optional(),
+});
+export type ManagerLogTailQuery = z.infer<typeof managerLogTailQuerySchema>;
+
+export const managerLogTailResponseSchema = z.object({
+  logs: z.array(managerLogTailRecordSchema),
+  /** Pass back as `sinceSeq` to poll for newer records. */
+  nextCursor: z.number().int().nonnegative(),
+  /** Records evicted from the buffer since process start. */
+  dropped: z.number().int().nonnegative(),
+});
+export type ManagerLogTailResponse = z.infer<
+  typeof managerLogTailResponseSchema
+>;
+
 export const clientApplicationLogRequestSchema = z.object({
   logs: z
     .array(

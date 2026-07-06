@@ -6,7 +6,6 @@ import { CredentialProfileService } from "../credentials/credential-profile-serv
 import { PostgresCredentialProfileStore } from "../credentials/credential-profile-store.js";
 import { CredentialResolver } from "../credentials/credential-resolver.js";
 import { SandboxManagerOAuthFlowManager } from "../credentials/oauth-flow-manager.js";
-
 import { runMigrations } from "../db/migrations.js";
 import { createPostgresPool, type PostgresPool } from "../db/postgres.js";
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
@@ -15,6 +14,7 @@ import { PodmanDriver } from "../drivers/podman-driver.js";
 import { ManagerEventBus } from "../events/manager-event-bus.js";
 import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import { SandboxSupervisor } from "../lifecycle/sandbox-supervisor.js";
+import { LogRingBuffer } from "../observability/log-ring-buffer.js";
 import { PostgresKvSecretStore } from "../secrets/postgres-kv-secret-store.js";
 import { PostgresSecretPolicyStore } from "../secrets/secret-policy-store.js";
 import { PostgresAuditStore } from "../state/audit-store.js";
@@ -46,10 +46,13 @@ export class ManagerState {
   readonly eventBus: ManagerEventBus;
   readonly supervisor: SandboxSupervisor;
   readonly logger: StructuredLogger;
+  readonly logBuffer: LogRingBuffer;
   constructor(readonly config: ManagerConfig) {
+    this.logBuffer = new LogRingBuffer(config.logBufferSize);
     this.logger = createLogger({
       level: config.logLevel,
       base: { source: "sandbox-manager", component: "manager" },
+      onRecord: (record) => this.logBuffer.push(record),
     });
     this.pool = createPostgresPool(config);
     this.sandboxes = new PostgresManagerStore(this.pool);

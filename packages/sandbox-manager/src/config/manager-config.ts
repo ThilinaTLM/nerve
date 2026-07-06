@@ -5,6 +5,7 @@ export type ManagerConfig = {
   host: string;
   port: number;
   logLevel: StructuredLogLevel;
+  logBufferSize: number;
   allowRemoteBind: boolean;
   /** Runtime materialization root for local Docker/Podman volumes and config files. */
   storageDir: string;
@@ -47,6 +48,7 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
       env.NERVE_SANDBOX_MANAGER_LOG_LEVEL,
       mode === "development" ? "debug" : "info",
     ),
+    logBufferSize: positiveIntOr(env.NERVE_SANDBOX_MANAGER_LOG_BUFFER, 2000),
     allowRemoteBind,
     storageDir:
       env.NERVE_SANDBOX_MANAGER_STORAGE_DIR?.trim() ||
@@ -109,6 +111,11 @@ function parseVolumeBackend(
 ): ManagerConfig["volumeBackend"] {
   if (value === "efs" || value === "s3-files") return value;
   return "local";
+}
+
+function positiveIntOr(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 function optionalNumber(value: string | undefined): number | undefined {

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   createServer,
@@ -9,7 +8,6 @@ import {
   type ManagedSandboxRecord,
   type SandboxConfigV1,
   sandboxConfigV1Schema,
-  sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
 } from "@nervekit/shared";
@@ -36,6 +34,8 @@ import { withIdempotency } from "../http/idempotency.js";
 import { LogCollector } from "../lifecycle/log-collector.js";
 import { handleManagerProtocolHttpRequest } from "../protocol/manager-protocol-http-dispatcher.js";
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
+import { tailManagerLogs } from "../routes/manager-logs-routes.js";
+import { managerStatus } from "../routes/manager-status-routes.js";
 import { createSandboxRecord } from "../routes/sandbox-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
 import { createLoggedRequestListener } from "./http-logging.js";
@@ -76,6 +76,8 @@ async function handle(
     return json(res, 200, ok({ version: sandboxManagerVersion }));
   if (req.method === "GET" && path === "/api/manager/status")
     return json(res, 200, ok(await managerStatus(state)));
+  if (req.method === "GET" && path === "/api/manager/logs")
+    return json(res, 200, ok(tailManagerLogs(state, url.searchParams)));
   if (path === "/api/protocol/v1")
     return handleManagerProtocolHttpRequest(state, controller, req, res);
   if (req.method === "GET" && path === "/api/manager/secrets/metadata") {
@@ -396,55 +398,6 @@ async function handle(
   }
   throw new HttpError(404, "Not found", "NOT_FOUND");
 }
-async function managerStatus(state: ManagerState): Promise<unknown> {
-  const runtime = await state.driver.capabilities();
-  const mode = state.config.mode ?? "development";
-  const encryptionAtRest = state.config.encryptionKey
-    ? "enabled"
-    : state.config.allowCleartextSecretsInDevelopment
-      ? "development_cleartext"
-      : mode === "production"
-        ? "unavailable"
-        : "unknown";
-  return sandboxManagerStatusSchema.parse({
-    managerId: managerId(state),
-    version: sandboxManagerVersion,
-    backend: state.config.backend,
-    runtime,
-    hardening: {
-      mode,
-      apiAuth: state.config.apiKey ? "configured" : "disabled",
-      secretStorage: {
-        encryptionAtRest,
-        keyId: state.config.encryptionKeyRef,
-        warning:
-          encryptionAtRest === "unavailable"
-            ? "Secret encryption key is not configured"
-            : encryptionAtRest === "development_cleartext"
-              ? "Development cleartext secret storage is enabled"
-              : undefined,
-      },
-    },
-    lifecycle: {
-      reconcileOnStartup: state.config.reconcileOnStartup ?? true,
-      reconcileIntervalMs: state.config.reconcileIntervalMs,
-      gcIntervalMs: state.config.gcIntervalMs,
-      orphanPolicy: state.config.orphanPolicy ?? "stop_remove",
-      heartbeatTimeoutMs: state.config.heartbeatTimeoutMs ?? 45_000,
-      maxPendingCommands: state.config.maxPendingCommands ?? 256,
-      maxCommandBytes: state.config.maxCommandBytes ?? 1_000_000,
-    },
-    updatedAt: new Date().toISOString(),
-  });
-}
-
-function managerId(state: ManagerState): string {
-  return `mgr_${createHash("sha256")
-    .update(`${state.config.backend}:${state.config.storageDir}`)
-    .digest("hex")
-    .slice(0, 16)}`;
-}
-
 async function loadSandboxConfigForStart(
   state: ManagerState,
   record: ManagedSandboxRecord,

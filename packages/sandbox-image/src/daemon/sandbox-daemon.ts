@@ -3,8 +3,12 @@ import type {
   SandboxConfigV1,
   SkillStatus,
   StartupSetupStatus,
+  StructuredLogger,
 } from "@nervekit/shared";
-import { sandboxAgentConfigureParamsSchema } from "@nervekit/shared";
+import {
+  createNoopLogger,
+  sandboxAgentConfigureParamsSchema,
+} from "@nervekit/shared";
 import {
   AgentConfigStore,
   sanitizeEffectiveAgentConfig,
@@ -44,6 +48,7 @@ export type SandboxDaemonRecoveredState = {
   modelRuntime?: ResolvedModelRuntime;
   workspaceDir?: string;
   secretResolver?: SecretResolver;
+  logger?: StructuredLogger;
 };
 
 export class SandboxDaemon {
@@ -67,6 +72,9 @@ export class SandboxDaemon {
     private readonly state?: SandboxStateStores,
     private readonly recovered: SandboxDaemonRecoveredState = {},
   ) {
+    // Production always injects a logger from the entrypoint; the NOOP fallback
+    // keeps daemons constructed without one (e.g. tests) silent.
+    const logger = recovered.logger ?? createNoopLogger();
     this.runs = state
       ? new RunManager(
           new RunStateStore(state.stateDir),
@@ -78,6 +86,7 @@ export class SandboxDaemon {
             configDigest,
             sandboxId: config.identity?.sandboxId,
           },
+          logger.child({ component: "run-manager" }),
         )
       : undefined;
     this.inputWaiter = state ? new InputWaiter(state.stateDir) : undefined;
@@ -154,6 +163,7 @@ export class SandboxDaemon {
           sandboxId: config.identity?.sandboxId,
         },
         new ArtifactStore(state.stateDir),
+        logger.child({ component: "harness-bridge" }),
       );
       this.agentRuntime = new SandboxAgentRuntime(config, {
         runs: this.runs,
@@ -164,6 +174,7 @@ export class SandboxDaemon {
         toolRuntime: this.toolRuntime,
         exploreRuntime: this.exploreRuntime,
         configStore: this.agentConfigStore,
+        logger: logger.child({ component: "agent-runtime" }),
       });
       loadPromises.push(this.agentRuntime.recoverActiveRuns());
     }

@@ -6,6 +6,8 @@ import type {
 } from "@nervekit/agent";
 import {
   ConversationRuntime,
+  createNoopLogger,
+  type StructuredLogger,
   type ToolCallTranscriptRecord,
   toolNameSchema,
 } from "@nervekit/shared";
@@ -28,11 +30,14 @@ type LiveRunState = {
   lastAssistantEntryId?: string;
 };
 
+const NOOP_LOGGER = createNoopLogger();
+
 export class HarnessEventBridge {
   private deltaCounter = 0;
   private transcriptIndex = 1;
   private readonly conversationRuntime = new ConversationRuntime();
   private readonly liveRuns = new Map<string, LiveRunState>();
+  private readonly toolStartedAt = new Map<string, number>();
   constructor(
     private readonly events?: EventOutbox,
     private readonly runs?: RunManager,
@@ -42,7 +47,20 @@ export class HarnessEventBridge {
     } = {},
     private readonly commonData: Record<string, unknown> = {},
     private readonly artifacts?: ArtifactStore,
+    private readonly logger: StructuredLogger = NOOP_LOGGER,
   ) {}
+
+  private log(context: {
+    conversationId: string;
+    agentId: string;
+    runId: string;
+  }): StructuredLogger {
+    return this.logger.child({
+      conversationId: context.conversationId,
+      agentId: context.agentId,
+      runId: context.runId,
+    });
+  }
 
   attach(harness: AgentHarness, context: HarnessRunContext): () => void {
     return harness.subscribe((event) => this.handle(event, context));
@@ -61,6 +79,7 @@ export class HarnessEventBridge {
       startedAt,
     });
     this.liveRuns.set(context.runId, {});
+    this.log(context).info("bridge run started", {});
     await this.events?.append({
       type: "conversation.run.started",
       durability: "durable",
@@ -98,6 +117,7 @@ export class HarnessEventBridge {
     });
     this.conversationRuntime.completeRun(context.runId);
     this.liveRuns.delete(context.runId);
+    this.log(context).info("bridge run completed", {});
   }
 
   activeRunSnapshot(conversationId: string) {
@@ -131,6 +151,13 @@ export class HarnessEventBridge {
     });
     this.conversationRuntime.failRun(context.runId);
     this.liveRuns.delete(context.runId);
+    this.log(context).warn("bridge run failed", {
+      aborted,
+      err: bound(
+        error.message ?? (aborted ? "run cancelled" : "run failed"),
+        500,
+      ),
+    });
   }
 
   async handleSuspension(
@@ -278,6 +305,7 @@ export class HarnessEventBridge {
           checkpointedAt: checkpoint?.createdAt ?? new Date().toISOString(),
         },
       });
+      this.log(context).debug("provider request", {});
       return;
     }
     if (event.type === "before_provider_payload") return;
@@ -312,6 +340,7 @@ export class HarnessEventBridge {
           content: bounded.content,
           createdAt: new Date().toISOString(),
         });
+        this.log(context).debug("assistant message", { chars: text.length });
       }
       return;
     }
@@ -353,10 +382,18 @@ export class HarnessEventBridge {
           requestedAt,
         },
       });
+      this.log(context).debug("tool requested", {
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      });
       return;
     }
     if (event.type === "tool_execution_start") {
       const startedAt = new Date().toISOString();
+      this.toolStartedAt.set(
+        `${context.runId}:${event.toolCallId}`,
+        Date.now(),
+      );
       await this.runs?.toolCallStore().append(context, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -392,6 +429,10 @@ export class HarnessEventBridge {
           lifecycleSeq: 2,
           startedAt,
         },
+      });
+      this.log(context).debug("tool started", {
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
       });
       return;
     }
@@ -490,6 +531,24 @@ export class HarnessEventBridge {
           completedAt,
         },
       });
+      const toolKey = `${context.runId}:${event.toolCallId}`;
+      const toolStartedAt = this.toolStartedAt.get(toolKey);
+      this.toolStartedAt.delete(toolKey);
+      const durationMs =
+        toolStartedAt === undefined ? undefined : Date.now() - toolStartedAt;
+      if (event.isError)
+        this.log(context).warn("tool failed", {
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          durationMs,
+          err: error?.message,
+        });
+      else
+        this.log(context).info("tool completed", {
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          durationMs,
+        });
     }
   }
 

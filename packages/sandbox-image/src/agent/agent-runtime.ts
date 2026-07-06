@@ -1,5 +1,9 @@
 import { type AgentHarness, isAgentToolSuspension } from "@nervekit/agent";
-import type { SandboxConfigV1 } from "@nervekit/shared";
+import {
+  createNoopLogger,
+  type SandboxConfigV1,
+  type StructuredLogger,
+} from "@nervekit/shared";
 import { resolveModelSelection } from "../models/model-catalog.js";
 import type { ApprovalWaiter } from "../tools/approval-waiter.js";
 import type { InputWaiter } from "../tools/input-waiter.js";
@@ -21,7 +25,10 @@ export type SandboxAgentRuntimeOptions = {
   toolRuntime?: SandboxToolRuntime;
   exploreRuntime?: ExploreRuntime;
   configStore?: AgentConfigStore;
+  logger?: StructuredLogger;
 };
+
+const NOOP_LOGGER = createNoopLogger();
 
 type ActiveHarnessRun = {
   key: string;
@@ -41,6 +48,20 @@ export class SandboxAgentRuntime {
     private readonly config: SandboxConfigV1,
     private readonly options: SandboxAgentRuntimeOptions = {},
   ) {}
+
+  private runLog(scope: {
+    conversationId: string;
+    agentId: string;
+    runId: string;
+    executionId?: string;
+  }): StructuredLogger {
+    return (this.options.logger ?? NOOP_LOGGER).child({
+      conversationId: scope.conversationId,
+      agentId: scope.agentId,
+      runId: scope.runId,
+      executionId: scope.executionId,
+    });
+  }
 
   describe(): Record<string, unknown> {
     return {
@@ -71,6 +92,7 @@ export class SandboxAgentRuntime {
     if (behavior === "follow_up")
       await this.assertNoActiveForConversation(input);
     const { run, executionId } = await this.options.runs.createRun(input);
+    this.runLog({ ...run, executionId }).debug("run requested", { behavior });
     this.launch(run, executionId, input.prompt ?? "", "prompt");
     return run;
   }
@@ -117,6 +139,9 @@ export class SandboxAgentRuntime {
       scope,
       scope.reason ?? "continue",
     );
+    this.runLog({ ...scope, executionId }).debug("run continue requested", {
+      previousStatus: run.status,
+    });
     this.launch(run, executionId, "", "continue");
   }
 
@@ -131,12 +156,14 @@ export class SandboxAgentRuntime {
       content: { text: text.slice(0, 16_000) },
       createdAt: new Date().toISOString(),
     });
+    this.runLog(scope).debug("run steered", { bytes: text.length });
     await active.harness.steer(text, { id: `steer_${Date.now()}` });
   }
 
   async cancelRun(scope: RunScope & { reason?: string }): Promise<RunState> {
     const active = this.active.get(key(scope));
     if (active) active.cancelling = true;
+    this.runLog(scope).info("run cancel requested", { reason: scope.reason });
     if (!this.options.runs)
       throw new Error("UNAVAILABLE: run manager is not configured");
     await this.options.toolRuntime?.cancelRun(scope);
@@ -160,6 +187,9 @@ export class SandboxAgentRuntime {
     if (!this.options.runs) return;
     for (const run of await this.options.runs.list()) {
       if (run.status === "running" || run.status === "streaming") {
+        this.runLog(run).warn("recovered interrupted run", {
+          previousStatus: run.status,
+        });
         await this.options.runs.markFailed(
           run,
           {
@@ -208,6 +238,8 @@ export class SandboxAgentRuntime {
       promise: Promise.resolve(),
     };
     this.active.set(active.key, active);
+    const log = this.runLog(scope);
+    const startedAt = Date.now();
     const promise = (async () => {
       let dispose: (() => void) | undefined;
       try {
@@ -223,24 +255,47 @@ export class SandboxAgentRuntime {
           thinkingLevel: model.thinkingLevel,
         });
         await this.options.bridge?.startRun(scope);
+        log.info("run started", {
+          mode,
+          provider: model.provider,
+          model: model.model,
+          thinkingLevel: model.thinkingLevel,
+        });
         if (mode === "continue") await harness.continue();
         else await harness.prompt(prompt);
-        if (active.abortController.signal.aborted || active.cancelling) return;
+        if (active.abortController.signal.aborted || active.cancelling) {
+          log.info("run aborted", { durationMs: Date.now() - startedAt });
+          return;
+        }
         await runs.markCompleted(scope);
         await this.options.bridge?.completeRun(scope);
+        log.info("run completed", { durationMs: Date.now() - startedAt });
       } catch (error) {
         if (isAgentToolSuspension(error)) {
+          log.info("run suspended", {
+            reason: error.data.toolName,
+            durationMs: Date.now() - startedAt,
+          });
           await this.options.bridge?.handleSuspension(scope, error);
           return;
         }
         const pendingSuspension = this.pendingSuspension(scope, error);
         if (pendingSuspension) {
+          log.info("run suspended", {
+            reason: pendingSuspension.data.toolName,
+            durationMs: Date.now() - startedAt,
+          });
           await this.options.bridge?.handleSuspension(scope, pendingSuspension);
           return;
         }
         if (active.abortController.signal.aborted || active.cancelling) {
+          log.info("run aborted", { durationMs: Date.now() - startedAt });
           return;
         }
+        log.error("run failed", {
+          durationMs: Date.now() - startedAt,
+          err: error,
+        });
         await runs.markFailed(scope, normalizeError(error), true);
         await this.options.bridge?.failRun(scope, normalizeError(error), false);
       } finally {
