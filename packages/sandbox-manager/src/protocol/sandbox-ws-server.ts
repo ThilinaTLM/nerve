@@ -227,17 +227,25 @@ export class SandboxWsServer {
           if (ws.readyState !== WebSocket.OPEN) return;
           const stream = event.stream ?? MANAGER_EVENT_STREAM;
           if (!session?.subscribedStreams.has(stream)) return;
+          const isDurable = event.durability === "durable";
+          // Transient events (streaming deltas) occupy seq numbers between
+          // durable events, so a durable event's predecessor is the last durable
+          // seq we actually sent on this stream — not `seq - 1`. Using `seq - 1`
+          // makes the client see a false gap and drop the batch, which blocks all
+          // further live events (no streaming/thinking is rendered).
+          const previousDurableSeq = isDurable
+            ? (session.latestSentSeqs.get(stream) ?? 0)
+            : undefined;
           const batch = managerEventBatch({
             stream,
             batchId: `batch_${stream}_${event.seq ?? Date.now()}`,
             reason: "live",
             events: [event],
-            previousDurableSeq:
-              event.durability === "durable"
-                ? Math.max(0, (event.seq ?? 1) - 1)
-                : undefined,
+            previousDurableSeq,
           });
           send(makeManagerMessage("event.batch", batch));
+          if (isDurable && typeof event.seq === "number")
+            session.latestSentSeqs.set(stream, event.seq);
         });
         const uiSession = session;
         ws.on(

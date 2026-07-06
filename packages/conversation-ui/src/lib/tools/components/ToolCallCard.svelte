@@ -75,6 +75,7 @@
   let bodyHydrated = $state(false);
   const shouldHydrateBody = $derived(hydrateBody || bodyHydrated);
 
+  const capabilities = getConversationUiCapabilities();
   const view = $derived(parseToolViewCached(toolCall, liveOutput));
   const presentation = $derived(toolPresentationCached(view, toolCall));
   const ToolView = $derived(toolViewComponent(view.kind));
@@ -113,7 +114,7 @@
     detailsLoading = true;
     detailsError = undefined;
     try {
-      const fetchToolCall = getConversationUiCapabilities().fetchToolCall;
+      const fetchToolCall = capabilities.fetchToolCall;
       if (!fetchToolCall) throw new Error("Tool details are unavailable here.");
       fullToolCall = await fetchToolCall(toolCall.id);
       fullToolCallPreviewUpdatedAt = toolCall.updatedAt;

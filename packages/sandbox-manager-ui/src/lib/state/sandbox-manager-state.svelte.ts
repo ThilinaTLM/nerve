@@ -43,6 +43,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Only forward a real conversation id (`conv_…`) to the sandbox daemon. The UI
+ * uses a `"default"` placeholder key for the empty conversation view; sending it
+ * as a conversation id makes the agent adopt an invalid id and crash when it
+ * later encodes outbound events (the protocol requires the `conv_` prefix).
+ */
+function outboundConversationId(id: string | undefined): string | undefined {
+  return id && id.startsWith("conv_") ? id : undefined;
+}
+
 export class SandboxManagerStore {
   connection = $state<ManagerWsConnectionState>("idle");
   connectionError = $state<string | undefined>(undefined);
@@ -269,7 +279,9 @@ export class SandboxManagerStore {
       import("@nervekit/shared").SandboxConversationViewSnapshot
     >("sandbox.conversation.snapshot.get", {
       sandboxId,
-      conversationId: conversationId ?? detail.selectedConversationId,
+      conversationId: outboundConversationId(
+        conversationId ?? detail.selectedConversationId,
+      ),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
     });
@@ -422,7 +434,7 @@ export class SandboxManagerStore {
       const behavior = detail.selectedRunId ? "follow_up" : "start";
       await this.sendCommand(sandboxId, "sandbox.run.start", (key) => ({
         commandId: key,
-        conversationId: detail.selectedConversationId,
+        conversationId: outboundConversationId(detail.selectedConversationId),
         agentId: detail.selectedAgentId,
         prompt,
         behavior,
@@ -438,7 +450,7 @@ export class SandboxManagerStore {
     if (!detail.selectedRunId) return;
     await this.sendCommand(sandboxId, "sandbox.run.cancel", (key) => ({
       commandId: key,
-      conversationId: detail.selectedConversationId,
+      conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
     }));
@@ -449,7 +461,7 @@ export class SandboxManagerStore {
     if (!detail.selectedRunId) return;
     await this.sendCommand(sandboxId, "sandbox.run.continue", (key) => ({
       commandId: key,
-      conversationId: detail.selectedConversationId,
+      conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
       reason: "manual",
@@ -464,7 +476,7 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     await this.sendCommand(sandboxId, "sandbox.input.submit", (key) => ({
       commandId: key,
-      conversationId: detail.selectedConversationId,
+      conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
       requestId: waitId,
@@ -482,7 +494,7 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     await this.sendCommand(sandboxId, "sandbox.approval.resolve", (key) => ({
       commandId: key,
-      conversationId: detail.selectedConversationId,
+      conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
       approvalId: waitId,
@@ -553,6 +565,12 @@ export class SandboxManagerStore {
   }
 
   private handleEvent(envelope: SandboxManagerEventEnvelope): void {
+    if (typeof window !== "undefined") {
+      const w = window as unknown as { __evlog?: string[] };
+      (w.__evlog ??= []).push(
+        `${envelope.type}:${envelope.seq}${envelope.durability === "transient" ? "T" : "D"}@${envelope.stream}`,
+      );
+    }
     if (envelope.stream === "manager") {
       this.scheduleFleetRefresh();
       return;

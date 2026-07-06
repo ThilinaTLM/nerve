@@ -29,9 +29,10 @@ async function readCacheFile(cacheDir: string): Promise<{
   const path = cacheFile(cacheDir);
   try {
     const raw = await readFile(path, "utf8");
+    const time = (await stat(path)).mtimeMs;
     return {
-      data: JSON.parse(raw) as SubscriptionUsage,
-      time: (await stat(path)).mtimeMs,
+      data: normalizeUsage(JSON.parse(raw), new Date(time).toISOString()),
+      time,
     };
   } catch {
     return null;
@@ -108,16 +109,70 @@ function parseRetryAfterMs(
   return ms > nowMs ? ms - nowMs : null;
 }
 
+function numberValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeIsoDateTime(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+}
+
+function normalizeWindow(value: unknown): SubscriptionWindow | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const usedPercent = numberValue(raw.usedPercent);
+  const resetsAt = normalizeIsoDateTime(raw.resetsAt);
+  const resetAfterSeconds = numberValue(raw.resetAfterSeconds);
+  const windowMinutes = numberValue(raw.windowMinutes);
+  if (
+    usedPercent == null &&
+    resetsAt == null &&
+    resetAfterSeconds == null &&
+    windowMinutes == null
+  ) {
+    return null;
+  }
+  return { usedPercent, resetsAt, resetAfterSeconds, windowMinutes };
+}
+
+function normalizeUsage(
+  value: unknown,
+  fallbackUpdatedAt: string,
+): SubscriptionUsage | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const session = normalizeWindow(raw.session);
+  const weekly = normalizeWindow(raw.weekly);
+  if (!session && !weekly) return null;
+  return {
+    provider: "anthropic",
+    session,
+    weekly,
+    planType: typeof raw.planType === "string" ? raw.planType : null,
+    updatedAt: normalizeIsoDateTime(raw.updatedAt) ?? fallbackUpdatedAt,
+  };
+}
+
 function toWindow(
   raw: Record<string, unknown> | undefined,
 ): SubscriptionWindow | null {
   if (!raw) return null;
-  const usedPercent = raw.utilization != null ? Number(raw.utilization) : null;
-  const resetsAt = typeof raw.resets_at === "string" ? raw.resets_at : null;
+  const usedPercent = numberValue(raw.utilization);
+  const resetsAt = normalizeIsoDateTime(raw.resets_at);
   if (usedPercent == null && resetsAt == null) return null;
   return {
-    usedPercent:
-      usedPercent != null && Number.isFinite(usedPercent) ? usedPercent : null,
+    usedPercent,
     resetsAt,
     resetAfterSeconds: null,
     windowMinutes: null,

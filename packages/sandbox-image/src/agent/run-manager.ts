@@ -66,7 +66,12 @@ export class RunManager {
     behavior?: "start" | "follow_up" | "steer";
   }): Promise<{ run: RunState; executionId: string }> {
     const now = new Date().toISOString();
-    const conversationId = input.conversationId ?? `conv_${Date.now()}`;
+    // Only accept a well-formed conversation id; anything else (e.g. a UI
+    // placeholder like "default") would violate the `conv_` protocol schema and
+    // crash the agent when it later encodes outbound events.
+    const conversationId = input.conversationId?.startsWith("conv_")
+      ? input.conversationId
+      : `conv_${Date.now()}`;
     const agentId = input.agentId ?? "agent_main";
     const runId = `run_${Date.now()}_${++this.counter}`;
     const executionId = `exec_${Date.now()}_${this.counter}`;
