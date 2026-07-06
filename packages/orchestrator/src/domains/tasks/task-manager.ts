@@ -76,6 +76,7 @@ import {
   scheduleReadyUrlPolling as scheduleReadyUrlPollingImpl,
   scheduleRuntimeTimeout as scheduleRuntimeTimeoutImpl,
 } from "./task-manager-output-readiness.js";
+import { restartActiveTaskInPlace as restartActiveTaskInPlaceImpl } from "./task-manager-restart.js";
 import { startTask as startTaskImpl } from "./task-manager-start.js";
 
 export interface TaskManagerOptions {
@@ -330,10 +331,14 @@ export class TaskManager {
   async restartTask(taskId: string): Promise<TaskRecord> {
     const record = this.getTask(taskId);
     const env = await this.envForRestart(record);
+    if (
+      isActiveTaskStatus(record.status) &&
+      this.managed.get(record.id)?.child
+    ) {
+      return await this.restartActiveTaskInPlace(record, env);
+    }
     if (record.status === "orphaned") {
       await this.cleanupOrphanedTask(record.id, { timeoutMs: 5000 });
-    } else if (isActiveTaskStatus(record.status)) {
-      await this.cancelTask(taskId);
     }
     return this.startTask({
       name: record.name,
@@ -360,6 +365,13 @@ export class TaskManager {
       visibility: record.visibility,
       restartedFromTaskId: record.id,
     });
+  }
+
+  async restartActiveTaskInPlace(
+    record: TaskRecord,
+    env: Record<string, string> | undefined,
+  ): Promise<TaskRecord> {
+    return await restartActiveTaskInPlaceImpl.call(this, record, env);
   }
 
   async removeTask(taskId: string): Promise<void> {

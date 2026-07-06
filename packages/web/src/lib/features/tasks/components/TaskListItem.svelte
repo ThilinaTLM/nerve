@@ -39,6 +39,8 @@
 
   const ACTIVE = new Set(["starting", "running", "ready", "stopping"]);
   const isActive = $derived(ACTIVE.has(task.status));
+  const taskLabel = $derived(task.name ?? task.command);
+  const showingTaskName = $derived(Boolean(task.name));
   const envCount = $derived(task.envInfo?.keys.length ?? 0);
   const envSummary = $derived(envCount === 0 ? undefined : `${envCount} redacted ${envCount === 1 ? "var" : "vars"}`);
   const envKeys = $derived(task.envInfo?.keys.join(", "));
@@ -103,7 +105,7 @@
             }}
           >
             <StatusDot tone={taskTone(task.status)} pulse={taskPulse(task.status)} />
-            <div class="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{task.command}</div>
+            <div class={showingTaskName ? "min-w-0 flex-1 truncate text-xs font-medium text-foreground" : "min-w-0 flex-1 truncate font-mono text-xs text-foreground"}>{taskLabel}</div>
             {#if envCount > 0}<Badge tone="neutral" size="xs" title={envKeys}>env</Badge>{/if}
             <Badge tone={taskTone(task.status)} size="xs" class={taskTone(task.status) === "neutral" ? "border-border bg-muted text-muted-foreground" : ""}>{task.status}</Badge>
           </button>

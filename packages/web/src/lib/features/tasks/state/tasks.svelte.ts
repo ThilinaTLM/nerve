@@ -35,15 +35,17 @@ export async function cancelSelectedTask(taskId: string) {
 
 export async function restartSelectedTask(taskId: string) {
   const restarted = await restartTask(taskId);
-  replaceCenterTab(
-    { kind: "task", id: taskId },
-    { kind: "task", id: restarted.id },
-  );
+  if (restarted.id !== taskId) {
+    replaceCenterTab(
+      { kind: "task", id: taskId },
+      { kind: "task", id: restarted.id },
+    );
+  }
   taskState.selectedTaskId = restarted.id;
   await loadWorkspaceState();
   taskState.taskLogs = await getTaskLogs(restarted.id);
   notify.success("Task restarted", {
-    description: restarted.name ?? restarted.id,
+    description: restarted.name ?? restarted.command ?? restarted.id,
   });
 }
 
@@ -88,7 +90,9 @@ export async function runTaskCommand(input: {
   const task = await startTask(input);
   await loadWorkspaceState();
   await selectTask(task.id);
-  notify.success("Command started", { description: input.command });
+  notify.success("Command started", {
+    description: input.name ?? input.command,
+  });
   return task;
 }
 

@@ -81,6 +81,41 @@ describe("task manager cancel lifecycle", () => {
   });
 });
 
+describe("task manager active restart lifecycle", () => {
+  it("ignores a late close from the old run after an in-place restart", async () => {
+    const firstChild = fakeChild(1234);
+    const secondChild = fakeChild(5678);
+    const replacementRuntime = runtimeMetadata({
+      childPid: 5678,
+      processGroupId: 5678,
+      spawnedAt: "2026-01-02T03:05:05.000Z",
+    });
+    const { supervisor } = fakeSupervisor({
+      child: [firstChild, secondChild],
+      runtime: [runtimeMetadata({ childPid: 1234 }), replacementRuntime],
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const task = await startFakeTask(manager, storage);
+    const oldManaged = manager.managed.get(task.id);
+    assert.ok(oldManaged);
+    oldManaged.closePromise = Promise.resolve({
+      exitCode: 0,
+      signal: "SIGTERM",
+    });
+
+    const restarted = await manager.restartTask(task.id);
+    firstChild.emitClose(1, null);
+    await delay(0);
+
+    const current = manager.getTask(task.id);
+    assert.equal(restarted.id, task.id);
+    assert.equal(current.status, "running");
+    assert.deepEqual(current.runtime, replacementRuntime);
+    assert.equal(current.exitCode, undefined);
+    assert.equal(current.signal, undefined);
+  });
+});
+
 describe("task manager runtime metadata", () => {
   it("persists runtime metadata when starting a task", async () => {
     const runtime = runtimeMetadata({ childPid: 4321, processGroupId: 4321 });
