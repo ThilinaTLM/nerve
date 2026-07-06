@@ -1,8 +1,10 @@
 import {
   type SandboxCreateConfigInput,
   type SandboxCreateRequest,
+  type ThinkingLevel,
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
+  thinkingLevels,
 } from "@nervekit/shared";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
@@ -33,6 +35,103 @@ export const CREATE_SANDBOX_TOOL_KEYS: CreateSandboxToolKey[] = [
   "confluence",
 ];
 
+export const CREATE_SANDBOX_PREFERENCES_STORAGE_KEY =
+  "nerve.sandboxManager.createSandboxPreferences";
+
+type CreateSandboxPreferenceStorage = Pick<Storage, "getItem" | "setItem">;
+
+type PersistedCreateSandboxPreferences = {
+  version: 1;
+  image?: string;
+  labels?: string;
+  startAfterCreate?: boolean;
+  mainProvider?: string;
+  mainModel?: string;
+  mainThinking?: ThinkingLevel;
+  exploreProvider?: string;
+  exploreModel?: string;
+  initialPrompt?: string;
+  systemPromptAmendment?: string;
+  mode?: CreateSandboxDraft["mode"];
+  permissionLevel?: CreateSandboxDraft["permissionLevel"];
+  tools?: Partial<Record<CreateSandboxToolKey, boolean>>;
+  mainModelProfileId?: string;
+  exploreModelProfileId?: string;
+  githubProfileId?: string;
+  jiraProfileId?: string;
+  confluenceProfileId?: string;
+  webProfileId?: string;
+};
+
+const readableAdjectives = [
+  "amber",
+  "brave",
+  "bright",
+  "calm",
+  "clear",
+  "cosmic",
+  "daring",
+  "gentle",
+  "golden",
+  "hidden",
+  "lively",
+  "lunar",
+  "nimble",
+  "quiet",
+  "rapid",
+  "silver",
+  "steady",
+  "swift",
+  "verdant",
+  "vivid",
+];
+
+const readableNouns = [
+  "atlas",
+  "beacon",
+  "branch",
+  "brook",
+  "canvas",
+  "comet",
+  "ember",
+  "forest",
+  "harbor",
+  "meadow",
+  "matrix",
+  "orbit",
+  "prairie",
+  "quartz",
+  "river",
+  "signal",
+  "summit",
+  "thread",
+  "valley",
+  "voyage",
+];
+
+const readableObjects = [
+  "anchor",
+  "bridge",
+  "citadel",
+  "compass",
+  "engine",
+  "garden",
+  "lantern",
+  "mirror",
+  "needle",
+  "notebook",
+  "portal",
+  "rocket",
+  "shelter",
+  "station",
+  "studio",
+  "terminal",
+  "tower",
+  "workshop",
+  "zephyr",
+  "zenith",
+];
+
 export type CreateSandboxDraft = {
   name: string;
   sandboxId: string;
@@ -41,7 +140,7 @@ export type CreateSandboxDraft = {
   startAfterCreate: boolean;
   mainProvider: string;
   mainModel: string;
-  mainThinking: string;
+  mainThinking: ThinkingLevel;
   exploreProvider: string;
   exploreModel: string;
   initialPrompt: string;
@@ -59,22 +158,45 @@ export type CreateSandboxDraft = {
   yamlDirty: boolean;
 };
 
+export function createReadableSandboxIdentity(): {
+  name: string;
+  sandboxId: string;
+} {
+  const slug = [
+    readableAdjectives[randomIndex(readableAdjectives.length)],
+    readableNouns[randomIndex(readableNouns.length)],
+    readableObjects[randomIndex(readableObjects.length)],
+  ].join("-");
+  return { name: slug, sandboxId: slug };
+}
+
+function randomIndex(length: number): number {
+  const cryptoRef = globalThis.crypto;
+  if (cryptoRef?.getRandomValues) {
+    const values = new Uint32Array(1);
+    cryptoRef.getRandomValues(values);
+    return values[0] % length;
+  }
+  return Math.floor(Math.random() * length);
+}
+
 export function createDefaultDraft(): CreateSandboxDraft {
+  const identity = createReadableSandboxIdentity();
   return {
-    name: "",
-    sandboxId: "",
+    name: identity.name,
+    sandboxId: identity.sandboxId,
     image: "nerve-sandbox:dev",
     labels: "",
     startAfterCreate: true,
     mainProvider: "anthropic",
     mainModel: "claude-sonnet-4-5",
-    mainThinking: "",
+    mainThinking: "off",
     exploreProvider: "",
     exploreModel: "",
     initialPrompt: "",
     systemPromptAmendment: "",
     mode: "normal",
-    permissionLevel: "supervised",
+    permissionLevel: "autonomous",
     tools: {
       fileInspection: true,
       fileEditing: true,
@@ -97,6 +219,149 @@ export function createDefaultDraft(): CreateSandboxDraft {
     yamlSource: "",
     yamlDirty: false,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function thinkingValue(value: unknown): ThinkingLevel | undefined {
+  return typeof value === "string" &&
+    thinkingLevels.includes(value as ThinkingLevel)
+    ? (value as ThinkingLevel)
+    : undefined;
+}
+
+function modeValue(value: unknown): CreateSandboxDraft["mode"] | undefined {
+  return value === "normal" || value === "planning" ? value : undefined;
+}
+
+function permissionLevelValue(
+  value: unknown,
+): CreateSandboxDraft["permissionLevel"] | undefined {
+  return value === "read_only" || value === "supervised" || value === "autonomous"
+    ? value
+    : undefined;
+}
+
+function storageOrDefault(
+  storage?: CreateSandboxPreferenceStorage,
+): CreateSandboxPreferenceStorage | undefined {
+  if (storage) return storage;
+  return typeof localStorage === "undefined" ? undefined : localStorage;
+}
+
+function readStoredPreferences(
+  storage?: CreateSandboxPreferenceStorage,
+): PersistedCreateSandboxPreferences | undefined {
+  const target = storageOrDefault(storage);
+  if (!target) return undefined;
+  try {
+    const raw = target.getItem(CREATE_SANDBOX_PREFERENCES_STORAGE_KEY);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isRecord(parsed) || parsed.version !== 1) return undefined;
+    return parsed as PersistedCreateSandboxPreferences;
+  } catch {
+    return undefined;
+  }
+}
+
+export function createDraftFromStoredPreferences(
+  storage?: CreateSandboxPreferenceStorage,
+): CreateSandboxDraft {
+  const draft = createDefaultDraft();
+  const stored = readStoredPreferences(storage);
+  if (!stored) return draft;
+
+  draft.image = stringValue(stored.image) ?? draft.image;
+  draft.labels = stringValue(stored.labels) ?? draft.labels;
+  draft.startAfterCreate =
+    booleanValue(stored.startAfterCreate) ?? draft.startAfterCreate;
+  draft.mainProvider = stringValue(stored.mainProvider) ?? draft.mainProvider;
+  draft.mainModel = stringValue(stored.mainModel) ?? draft.mainModel;
+  draft.mainThinking = thinkingValue(stored.mainThinking) ?? draft.mainThinking;
+  draft.exploreProvider =
+    stringValue(stored.exploreProvider) ?? draft.exploreProvider;
+  draft.exploreModel = stringValue(stored.exploreModel) ?? draft.exploreModel;
+  draft.initialPrompt = stringValue(stored.initialPrompt) ?? draft.initialPrompt;
+  draft.systemPromptAmendment =
+    stringValue(stored.systemPromptAmendment) ?? draft.systemPromptAmendment;
+  draft.mode = modeValue(stored.mode) ?? draft.mode;
+  draft.permissionLevel =
+    permissionLevelValue(stored.permissionLevel) ?? draft.permissionLevel;
+  draft.mainModelProfileId =
+    stringValue(stored.mainModelProfileId) ?? draft.mainModelProfileId;
+  draft.exploreModelProfileId =
+    stringValue(stored.exploreModelProfileId) ?? draft.exploreModelProfileId;
+  draft.githubProfileId =
+    stringValue(stored.githubProfileId) ?? draft.githubProfileId;
+  draft.jiraProfileId = stringValue(stored.jiraProfileId) ?? draft.jiraProfileId;
+  draft.confluenceProfileId =
+    stringValue(stored.confluenceProfileId) ?? draft.confluenceProfileId;
+  draft.webProfileId = stringValue(stored.webProfileId) ?? draft.webProfileId;
+
+  if (isRecord(stored.tools)) {
+    for (const tool of CREATE_SANDBOX_TOOL_KEYS) {
+      const enabled = booleanValue(stored.tools[tool]);
+      if (enabled !== undefined) draft.tools[tool] = enabled;
+    }
+  }
+
+  draft.yamlSource = "";
+  draft.yamlDirty = false;
+  return draft;
+}
+
+function preferencesFromDraft(
+  draft: CreateSandboxDraft,
+): PersistedCreateSandboxPreferences {
+  return {
+    version: 1,
+    image: draft.image,
+    labels: draft.labels,
+    startAfterCreate: draft.startAfterCreate,
+    mainProvider: draft.mainProvider,
+    mainModel: draft.mainModel,
+    mainThinking: draft.mainThinking,
+    exploreProvider: draft.exploreProvider,
+    exploreModel: draft.exploreModel,
+    initialPrompt: draft.initialPrompt,
+    systemPromptAmendment: draft.systemPromptAmendment,
+    mode: draft.mode,
+    permissionLevel: draft.permissionLevel,
+    tools: { ...draft.tools },
+    mainModelProfileId: draft.mainModelProfileId,
+    exploreModelProfileId: draft.exploreModelProfileId,
+    githubProfileId: draft.githubProfileId,
+    jiraProfileId: draft.jiraProfileId,
+    confluenceProfileId: draft.confluenceProfileId,
+    webProfileId: draft.webProfileId,
+  };
+}
+
+export function saveCreateSandboxPreferences(
+  draft: CreateSandboxDraft,
+  storage?: CreateSandboxPreferenceStorage,
+): void {
+  const target = storageOrDefault(storage);
+  if (!target) return;
+  try {
+    target.setItem(
+      CREATE_SANDBOX_PREFERENCES_STORAGE_KEY,
+      JSON.stringify(preferencesFromDraft(draft)),
+    );
+  } catch {
+    // Browser storage may be unavailable or full. Creation should still work.
+  }
 }
 
 function parseLabels(input: string): Record<string, string> | undefined {

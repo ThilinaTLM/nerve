@@ -1,6 +1,11 @@
 <script lang="ts">
   import { Code2, FileText, RefreshCw, TriangleAlert } from "@lucide/svelte";
-  import type { ModelInfo, SandboxManagerCredentialProfile } from "@nervekit/shared";
+  import {
+    thinkingLevels,
+    type ModelInfo,
+    type SandboxManagerCredentialProfile,
+    type ThinkingLevel,
+  } from "@nervekit/shared";
   import { Badge } from "@nervekit/ui/components/ui/badge";
   import { Button } from "@nervekit/ui/components/ui/button";
   import DialogShell from "@nervekit/ui/components/ui/dialog-shell";
@@ -16,7 +21,8 @@
     buildCreateRequest,
     buildYamlFromDraft,
     CREATE_SANDBOX_TOOL_KEYS,
-    createDefaultDraft,
+    createDraftFromStoredPreferences,
+    saveCreateSandboxPreferences,
     type CreateSandboxToolKey,
   } from "../../state/create-sandbox-draft";
   import {
@@ -28,10 +34,11 @@
   let { open = $bindable(false) }: { open?: boolean } = $props();
 
   const store = useSandboxManagerStore();
-  let draft = $state(createDefaultDraft());
+  let draft = $state(createDraftFromStoredPreferences());
   let error = $state<string | undefined>(undefined);
   let busy = $state(false);
   let activeTab = $state("form");
+  let ignoreNextCloseChange = false;
 
   const modeItems = [
     { value: "normal", label: "Normal" },
@@ -43,6 +50,14 @@
     { value: "autonomous", label: "Autonomous" },
   ];
   const noneProfile = { value: "", label: "None" };
+  const thinkingLevelLabels: Record<ThinkingLevel, string> = {
+    off: "Off",
+    minimal: "Minimal",
+    low: "Low",
+    medium: "Medium",
+    high: "High",
+    xhigh: "Extra high",
+  };
   const toolLabels: Record<CreateSandboxToolKey, string> = {
     fileInspection: "File inspection",
     fileEditing: "File editing",
@@ -83,6 +98,12 @@
     store.models.filter((model) => model.provider === draft.mainProvider),
   );
   const modelItems = $derived(modelSelectItems(filteredModels, selectedMainProfile));
+  const selectedMainModel = $derived(
+    filteredModels.find((model) => model.modelId === draft.mainModel),
+  );
+  const thinkingLevelItems = $derived(
+    thinkingLevelSelectItems(supportedThinkingLevelsForSelection()),
+  );
   const githubProfileItems = $derived([
     noneProfile,
     ...store.credentialProfiles
@@ -113,6 +134,21 @@
     if (draft.mainModelProfileId || authenticatedModelProfiles.length === 0)
       return;
     setMainModelProfile(authenticatedModelProfiles[0]?.profileId ?? "");
+  });
+
+  $effect(() => {
+    if (open) ignoreNextCloseChange = false;
+  });
+
+  $effect(() => {
+    if (!draft.mainModel) {
+      draft.mainThinking = "off";
+      return;
+    }
+    if (!selectedMainModel) return;
+    const supported = supportedThinkingLevelsForSelection();
+    if (supported.includes(draft.mainThinking)) return;
+    draft.mainThinking = supported.includes("off") ? "off" : (supported[0] ?? "off");
   });
 
   $effect(() => {
@@ -148,6 +184,24 @@
     return items;
   }
 
+  function supportedThinkingLevelsForSelection(): ThinkingLevel[] {
+    if (!draft.mainModel) return ["off"];
+    return selectedMainModel?.supportedThinkingLevels?.length
+      ? selectedMainModel.supportedThinkingLevels
+      : [...thinkingLevels];
+  }
+
+  function thinkingLevelSelectItems(levels: ThinkingLevel[]) {
+    return levels.map((level) => ({
+      value: level,
+      label: thinkingLevelLabels[level],
+      detail:
+        level === "off"
+          ? "No extended reasoning"
+          : "Extended reasoning budget",
+    }));
+  }
+
   function chooseDefaultModel(
     profile: SandboxManagerCredentialProfile,
     models: ModelInfo[],
@@ -178,10 +232,21 @@
     if (clearError) error = undefined;
   }
 
+  function persistDraftPreferences() {
+    if (!draft.yamlDirty) saveCreateSandboxPreferences(draft);
+  }
+
   function reset() {
-    draft = createDefaultDraft();
+    draft = createDraftFromStoredPreferences();
     activeTab = "form";
     error = undefined;
+  }
+
+  function closeAndReset(savePreferences = true) {
+    if (savePreferences) persistDraftPreferences();
+    ignoreNextCloseChange = true;
+    open = false;
+    reset();
   }
 
   async function submit() {
@@ -197,10 +262,10 @@
     error = undefined;
     busy = true;
     try {
+      if (!draft.yamlDirty) saveCreateSandboxPreferences(draft);
       const sandboxId = await store.createSandbox(result.request);
       await store.selectSandbox(sandboxId);
-      open = false;
-      reset();
+      closeAndReset(false);
     } catch (submitError) {
       error =
         submitError instanceof Error ? submitError.message : String(submitError);
@@ -215,7 +280,13 @@
   title="Create sandbox"
   description="Build a sandbox from a guided form or edit the generated YAML request directly."
   onOpenChange={(next) => {
-    if (!next) reset();
+    if (next) return;
+    if (ignoreNextCloseChange) {
+      ignoreNextCloseChange = false;
+      return;
+    }
+    persistDraftPreferences();
+    reset();
   }}
 >
   <div class="flex flex-col gap-4 p-5">
@@ -310,6 +381,17 @@
                 {#if draft.mainModelProfileId && modelItems.length === 0}
                   <p class="text-xs text-warning">No catalog models found for this provider.</p>
                 {/if}
+              </div>
+              <div class="flex flex-col gap-1">
+                <Label>Thinking level</Label>
+                <SelectField
+                  items={thinkingLevelItems}
+                  value={draft.mainThinking}
+                  placeholder="Choose thinking level"
+                  disabled={!draft.mainModel || thinkingLevelItems.length === 0}
+                  onValueChange={(value) =>
+                    (draft.mainThinking = value as typeof draft.mainThinking)}
+                />
               </div>
               <div class="flex flex-col gap-1">
                 <Label>Mode</Label>
@@ -452,7 +534,7 @@
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" size="sm" disabled={busy} onclick={() => (open = false)}>
+    <Button variant="ghost" size="sm" disabled={busy} onclick={() => closeAndReset()}>
       Cancel
     </Button>
     <Button size="sm" disabled={busy} onclick={submit}>Create sandbox</Button>
