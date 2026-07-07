@@ -1,6 +1,7 @@
 import type { ConversationRenderState } from "@nervekit/conversation-ui/state";
 import type {
   ManagedSandboxRecord,
+  SandboxConfigYamlResult,
   SandboxControllerSessionSummary,
   SandboxSnapshotResult,
   SandboxStatusGetResult,
@@ -92,6 +93,11 @@ export type SandboxDetailState = {
   latestSession?: SandboxControllerSessionSummary;
   logsTruncated: boolean;
   logsText: string;
+  configYaml?: string;
+  configYamlSource?: SandboxConfigYamlResult["source"];
+  configYamlDigest?: string;
+  configYamlLoading: boolean;
+  configYamlError?: string;
   events: SandboxUiEvent[];
   setupTimeline: SandboxSetupTimelineItem[];
   toolCallsById: Record<string, SandboxToolCallSummary>;
@@ -133,6 +139,7 @@ export function createSandboxDetailState(
     sandboxId,
     logsTruncated: false,
     logsText: "",
+    configYamlLoading: false,
     events: [],
     setupTimeline: [],
     toolCallsById: {},

@@ -361,6 +361,25 @@ export type SandboxManagerEventEnvelope = z.infer<
   typeof sandboxManagerEventEnvelopeSchema
 >;
 
+export const sandboxConfigYamlSourceSchema = z.enum([
+  "config_ref",
+  "materialized_config",
+  "preview",
+]);
+export type SandboxConfigYamlSource = z.infer<
+  typeof sandboxConfigYamlSourceSchema
+>;
+
+export const sandboxConfigYamlResultSchema = z.object({
+  sandboxId: z.string().min(1),
+  yaml: z.string().min(1),
+  configDigest: z.string().min(1).optional(),
+  source: sandboxConfigYamlSourceSchema,
+});
+export type SandboxConfigYamlResult = z.infer<
+  typeof sandboxConfigYamlResultSchema
+>;
+
 /**
  * UI-friendly sandbox create config input. The manager owns and materializes
  * the controller wiring (URL/auth), so the UI may omit `controller` entirely.

@@ -1,7 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import type {
   ManagedSandboxRecord,
   SandboxConfigV1,
+  SandboxConfigYamlResult,
   SandboxCreateAuthRefs,
   SandboxCreateConfigInput,
 } from "@nervekit/shared";
@@ -9,6 +11,7 @@ import {
   sandboxConfigDigestStable,
   sandboxConfigV1Schema,
 } from "@nervekit/shared";
+import { parse as parseYaml } from "yaml";
 import type { ManagerState } from "../app/manager-state.js";
 import {
   applyCredentialProfiles,
@@ -16,7 +19,72 @@ import {
 } from "../config/apply-credential-profiles.js";
 import { materializeSandboxConfig } from "../config/materialize-sandbox-config.js";
 import { dbTables } from "../db/tables.js";
+import { HttpError } from "../http/errors.js";
 import { buildSecretPolicy } from "../secrets/secret-policy.js";
+
+type MaterializedSandboxConfig = {
+  sandboxId: string;
+  controllerUrl: string;
+  config: SandboxConfigV1;
+  configYaml: string;
+  configDigest: string;
+};
+
+export async function previewSandboxConfigYaml(
+  state: ManagerState,
+  config: SandboxCreateConfigInput,
+  auth?: SandboxCreateAuthRefs,
+): Promise<SandboxConfigYamlResult> {
+  const materialized = await materializeManagedSandboxConfig(state, config, {
+    auth,
+    sandboxId: config.identity?.sandboxId ?? "sbx_preview",
+  });
+  return {
+    sandboxId: materialized.sandboxId,
+    yaml: materialized.configYaml,
+    configDigest: materialized.configDigest,
+    source: "preview",
+  };
+}
+
+export async function getSandboxConfigYaml(
+  state: ManagerState,
+  sandboxId: string,
+): Promise<SandboxConfigYamlResult> {
+  const record = await state.sandboxes.get(sandboxId);
+  if (!record) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
+
+  if (record.configRef?.source) {
+    try {
+      const yaml = await readFile(record.configRef.source, "utf8");
+      const parsed = sandboxConfigV1Schema.parse(parseYaml(yaml));
+      return {
+        sandboxId: record.sandboxId,
+        yaml,
+        configDigest: sandboxConfigDigestStable(parsed),
+        source: "config_ref",
+      };
+    } catch {
+      // Fall through to the persisted JSON copy. The runtime config file can be
+      // absent after volume cleanup or unavailable for non-local backends.
+    }
+  }
+
+  const result = await state.pool.query<{ materialized_config: unknown }>(
+    `select materialized_config from ${dbTables.sandboxes} where sandbox_id = $1`,
+    [record.sandboxId],
+  );
+  const config = result.rows[0]?.materialized_config;
+  if (!config)
+    throw new HttpError(409, "Sandbox config is unavailable", "INVALID_STATE");
+  const parsed = sandboxConfigV1Schema.parse(config);
+  return {
+    sandboxId: record.sandboxId,
+    yaml: materializeSandboxConfig(parsed),
+    configDigest: sandboxConfigDigestStable(parsed),
+    source: "materialized_config",
+  };
+}
 
 export async function createSandboxRecord(
   state: ManagerState,
@@ -29,17 +97,75 @@ export async function createSandboxRecord(
   const sandboxId = config.identity?.sandboxId ?? `sbx_${randomUUID()}`;
   const instanceId = `inst_${randomUUID()}`;
   const token = `ntok_${randomBytes(32).toString("base64url")}`;
+  const materialized = await materializeManagedSandboxConfig(state, config, {
+    auth,
+    sandboxId,
+  });
+  const volumes = await state.volumeProvider.prepare(
+    sandboxId,
+    materialized.config,
+  );
+  const materializedVolumes =
+    (await state.volumeProvider.materialize?.(sandboxId, {
+      configYaml: materialized.configYaml,
+      controllerToken: token,
+    })) ?? volumes;
+  await state.volumeStore.put(
+    sandboxId,
+    state.volumeProvider.kind,
+    materializedVolumes,
+  );
+  const record: ManagedSandboxRecord = {
+    sandboxId,
+    instanceId,
+    name: name ?? materialized.config.identity?.name,
+    labels: materialized.config.identity?.labels,
+    backend: state.config.backend,
+    image: { reference: image, sandboxSpec: "v1" },
+    desiredState: "created",
+    observedState: "unknown",
+    configDigest: materialized.configDigest,
+    workspaceRef: materializedVolumes.workspace,
+    stateRef: materializedVolumes.state,
+    secretMountRefs: [materializedVolumes.secrets],
+    configRef: materializedVolumes.config,
+    controller: { token, url: materialized.controllerUrl },
+    createdAt: now,
+    updatedAt: now,
+  };
+  await state.secretPolicies.put(
+    buildSecretPolicy(sandboxId, materialized.config),
+  );
+  await state.sandboxes.put(record);
+  await state.pool.query(
+    `update ${dbTables.sandboxes} set materialized_config = $2::jsonb where sandbox_id = $1`,
+    [sandboxId, JSON.stringify(materialized.config)],
+  );
+  return record;
+}
+
+async function materializeManagedSandboxConfig(
+  state: ManagerState,
+  config: SandboxCreateConfigInput,
+  options: { sandboxId: string; auth?: SandboxCreateAuthRefs },
+): Promise<MaterializedSandboxConfig> {
   const requestedProfiles = selectProfiles(
     await state.credentials.list(),
-    auth,
+    options.auth,
   );
   const controllerUrl = `${managerWsBaseUrl(state)}/api/sandboxes/${encodeURIComponent(
-    sandboxId,
+    options.sandboxId,
   )}/ws`;
   const withProfiles = applyCredentialProfiles(
-    { ...config, identity: { ...config.identity, sandboxId } },
+    {
+      ...config,
+      identity: { ...config.identity, sandboxId: options.sandboxId },
+    },
     requestedProfiles,
-    { sandboxId, managerHttpBaseUrl: managerHttpBaseUrl(state) },
+    {
+      sandboxId: options.sandboxId,
+      managerHttpBaseUrl: managerHttpBaseUrl(state),
+    },
   );
   const materializedConfig: SandboxConfigV1 = sandboxConfigV1Schema.parse({
     ...withProfiles,
@@ -57,48 +183,13 @@ export async function createSandboxRecord(
       },
     },
   });
-  const configYaml = materializeSandboxConfig(materializedConfig);
-  const volumes = await state.volumeProvider.prepare(
-    sandboxId,
-    materializedConfig,
-  );
-  const materializedVolumes =
-    (await state.volumeProvider.materialize?.(sandboxId, {
-      configYaml,
-      controllerToken: token,
-    })) ?? volumes;
-  await state.volumeStore.put(
-    sandboxId,
-    state.volumeProvider.kind,
-    materializedVolumes,
-  );
-  const record: ManagedSandboxRecord = {
-    sandboxId,
-    instanceId,
-    name: name ?? config.identity?.name,
-    labels: config.identity?.labels,
-    backend: state.config.backend,
-    image: { reference: image, sandboxSpec: "v1" },
-    desiredState: "created",
-    observedState: "unknown",
+  return {
+    sandboxId: options.sandboxId,
+    controllerUrl,
+    config: materializedConfig,
+    configYaml: materializeSandboxConfig(materializedConfig),
     configDigest: sandboxConfigDigestStable(materializedConfig),
-    workspaceRef: materializedVolumes.workspace,
-    stateRef: materializedVolumes.state,
-    secretMountRefs: [materializedVolumes.secrets],
-    configRef: materializedVolumes.config,
-    controller: { token, url: controllerUrl },
-    createdAt: now,
-    updatedAt: now,
   };
-  await state.secretPolicies.put(
-    buildSecretPolicy(sandboxId, materializedConfig),
-  );
-  await state.sandboxes.put(record);
-  await state.pool.query(
-    `update ${dbTables.sandboxes} set materialized_config = $2::jsonb where sandbox_id = $1`,
-    [sandboxId, JSON.stringify(materializedConfig)],
-  );
-  return record;
 }
 
 function managerHttpBaseUrl(state: ManagerState): string {

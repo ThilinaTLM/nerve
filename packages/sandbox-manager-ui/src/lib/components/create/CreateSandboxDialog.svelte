@@ -19,7 +19,7 @@
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import {
     buildCreateRequest,
-    buildYamlFromDraft,
+    buildCreateRequestFromForm,
     CREATE_SANDBOX_TOOL_KEYS,
     createDraftFromStoredPreferences,
     saveCreateSandboxPreferences,
@@ -41,6 +41,8 @@
   let error = $state<string | undefined>(undefined);
   let busy = $state(false);
   let activeTab = $state("form");
+  let syncingYaml = $state(false);
+  let lastYamlSyncKey = $state("");
   let ignoreNextCloseChange = false;
 
   const modeItems = [
@@ -174,7 +176,9 @@
 
   $effect(() => {
     if (activeTab !== "yaml" || draft.yamlDirty) return;
-    syncYamlFromForm(false);
+    const syncKey = currentFormYamlKey();
+    if (!syncKey || syncKey === lastYamlSyncKey) return;
+    void syncYamlFromForm(false, syncKey);
   });
 
   function profileDetail(profile: SandboxManagerCredentialProfile): string {
@@ -242,15 +246,38 @@
     draft.mainModel = chooseDefaultModel(profile, store.models);
   }
 
-  function syncYamlFromForm(clearError = true) {
-    const result = buildYamlFromDraft(draft);
+  function currentFormYamlKey(): string {
+    const result = buildCreateRequestFromForm(draft);
+    if (!result.ok) return "";
+    return JSON.stringify({
+      config: result.request.config,
+      auth: result.request.auth,
+    });
+  }
+
+  async function syncYamlFromForm(
+    clearError = true,
+    syncKey = currentFormYamlKey(),
+  ) {
+    if (syncingYaml) return;
+    const result = buildCreateRequestFromForm(draft);
     if (!result.ok) {
       if (clearError) error = result.error;
       return;
     }
-    draft.yamlSource = result.yaml;
-    draft.yamlDirty = false;
-    if (clearError) error = undefined;
+    syncingYaml = true;
+    try {
+      const preview = await store.previewSandboxConfigYaml(result.request);
+      draft.yamlSource = preview.yaml;
+      draft.yamlDirty = false;
+      lastYamlSyncKey = syncKey;
+      if (clearError) error = undefined;
+    } catch (syncError) {
+      if (clearError)
+        error = syncError instanceof Error ? syncError.message : String(syncError);
+    } finally {
+      syncingYaml = false;
+    }
   }
 
   function persistDraftPreferences() {
@@ -260,6 +287,7 @@
   function reset() {
     draft = createDraftFromStoredPreferences();
     activeTab = "form";
+    lastYamlSyncKey = "";
     error = undefined;
   }
 
@@ -299,7 +327,7 @@
 <DialogShell
   bind:open
   title="Create sandbox"
-  description="Build a sandbox from a guided form or edit the generated YAML request directly."
+  description="Choose launch settings, then define the sandbox-agent config with a guided form or schema-native YAML."
   onOpenChange={(next) => {
     if (next) return;
     if (ignoreNextCloseChange) {
@@ -311,85 +339,175 @@
   }}
 >
   <div class="flex flex-col gap-4 p-5">
-    <Tabs bind:value={activeTab} class="min-h-0">
-      <TabsList class="w-full">
-        <TabsTrigger value="form" class="gap-2">
-          <FileText class="size-4" /> Form
-        </TabsTrigger>
-        <TabsTrigger value="yaml" class="gap-2">
-          <Code2 class="size-4" /> YAML
-        </TabsTrigger>
-      </TabsList>
+    <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
+      <div>
+        <h3 class="text-xs font-semibold text-muted-foreground uppercase">Launch</h3>
+        <p class="text-xs text-muted-foreground">
+          Container image and lifecycle settings. These are manager launch inputs,
+          not sandbox-agent config YAML.
+        </p>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="flex flex-col gap-1">
+          <Label>Image</Label>
+          <Input bind:value={draft.image} />
+        </div>
+        <div class="rounded-md border bg-background px-3 py-2.5">
+          <SwitchField
+            checked={draft.startAfterCreate}
+            label="Start after create"
+            description="Start the sandbox as soon as the manager saves it."
+            onCheckedChange={(value) => (draft.startAfterCreate = value)}
+          />
+        </div>
+      </div>
+    </section>
 
-      <TabsContent value="form" class="flex flex-col gap-5 pt-2">
-        <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
-          <div>
-            <h3 class="text-xs font-semibold text-muted-foreground uppercase">Request</h3>
-            <p class="text-xs text-muted-foreground">Container image and lifecycle settings.</p>
-          </div>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div class="flex flex-col gap-1">
-              <Label>Image</Label>
-              <Input bind:value={draft.image} />
-            </div>
-            <div class="rounded-md border bg-background px-3 py-2.5">
-              <SwitchField
-                checked={draft.startAfterCreate}
-                label="Start after create"
-                description="Start the sandbox as soon as the manager saves it."
-                onCheckedChange={(value) => (draft.startAfterCreate = value)}
-              />
-            </div>
-          </div>
-        </section>
+    <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-xs font-semibold text-muted-foreground uppercase">Manager profiles</h3>
+          <p class="text-xs text-muted-foreground">
+            Profile IDs stay outside the sandbox config. Syncing YAML materializes
+            safe credential references into the sandbox-agent config.
+          </p>
+        </div>
+        {#if selectedMainProfile}
+          <Badge tone="good" size="xs">{selectedMainProfile.status}</Badge>
+        {/if}
+      </div>
 
-        <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
-          <div>
-            <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.identity</h3>
-            <p class="text-xs text-muted-foreground">Human-readable identity and optional labels.</p>
+      {#if authenticatedModelProfiles.length === 0}
+        <div class="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+          Add a configured model-provider credential before creating a sandbox from the form.
+        </div>
+      {:else}
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="flex flex-col gap-1">
+            <Label>Main model provider profile</Label>
+            <SelectField
+              items={modelProfileItems}
+              value={draft.mainModelProfileId}
+              placeholder="Choose provider"
+              onValueChange={setMainModelProfile}
+            />
           </div>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div class="flex flex-col gap-1">
-              <Label>Display name</Label>
-              <Input bind:value={draft.name} placeholder="my-sandbox" />
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>Sandbox ID</Label>
-              <Input bind:value={draft.sandboxId} placeholder="auto-generated" />
-            </div>
-            <div class="flex flex-col gap-1 sm:col-span-2">
-              <Label>Labels</Label>
-              <Input bind:value={draft.labels} placeholder="team=core, env=dev" />
-            </div>
+          <div class="flex flex-col gap-1">
+            <Label>Git identity profile</Label>
+            <SelectField
+              items={gitIdentityProfileItems}
+              value={draft.gitIdentityProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => (draft.gitIdentityProfileId = value)}
+            />
           </div>
-        </section>
+          <div class="flex flex-col gap-1">
+            <Label>Git transport credential</Label>
+            <SelectField
+              items={gitCredentialProfileItems}
+              value={selectedGitCredentialProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => {
+                draft.gitCredentialProfileIds = value ? [value] : [];
+              }}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>GitHub profile</Label>
+            <SelectField
+              items={githubProfileItems}
+              value={draft.githubProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => (draft.githubProfileId = value)}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>Jira profile</Label>
+            <SelectField
+              items={jiraProfileItems}
+              value={draft.jiraProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => {
+                draft.jiraProfileId = value;
+                if (value) draft.tools.jira = true;
+              }}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>Confluence profile</Label>
+            <SelectField
+              items={confluenceProfileItems}
+              value={draft.confluenceProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => {
+                draft.confluenceProfileId = value;
+                if (value) draft.tools.confluence = true;
+              }}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>Web provider profile</Label>
+            <SelectField
+              items={webProfileItems}
+              value={draft.webProfileId}
+              placeholder="No profile"
+              onValueChange={(value) => {
+                draft.webProfileId = value;
+                if (value) draft.tools.web = true;
+              }}
+            />
+          </div>
+        </div>
+      {/if}
+    </section>
 
-        <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
-          <div class="flex items-start justify-between gap-3">
+    <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
+      <div>
+        <h3 class="text-xs font-semibold text-muted-foreground uppercase">Sandbox config</h3>
+        <p class="text-xs text-muted-foreground">
+          Form and YAML edit the sandbox-agent config. The YAML is the exact
+          schema-native config mounted in the container after manager materialization.
+        </p>
+      </div>
+
+      <Tabs bind:value={activeTab} class="min-h-0">
+        <TabsList class="w-full">
+          <TabsTrigger value="form" class="gap-2">
+            <FileText class="size-4" /> Form
+          </TabsTrigger>
+          <TabsTrigger value="yaml" class="gap-2">
+            <Code2 class="size-4" /> YAML
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="form" class="flex flex-col gap-4 pt-2">
+          <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
             <div>
-              <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.agent</h3>
-              <p class="text-xs text-muted-foreground">Choose an authenticated provider, then pick one of its models.</p>
+              <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.identity</h3>
+              <p class="text-xs text-muted-foreground">Human-readable identity and optional labels.</p>
             </div>
-            {#if selectedMainProfile}
-              <Badge tone="good" size="xs">{selectedMainProfile.status}</Badge>
-            {/if}
-          </div>
-
-          {#if authenticatedModelProfiles.length === 0}
-            <div class="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
-              Add a configured model-provider credential before creating a sandbox from the form.
-            </div>
-          {:else}
             <div class="grid gap-3 sm:grid-cols-2">
               <div class="flex flex-col gap-1">
-                <Label>Provider</Label>
-                <SelectField
-                  items={modelProfileItems}
-                  value={draft.mainModelProfileId}
-                  placeholder="Choose provider"
-                  onValueChange={setMainModelProfile}
-                />
+                <Label>Display name</Label>
+                <Input bind:value={draft.name} placeholder="my-sandbox" />
               </div>
+              <div class="flex flex-col gap-1">
+                <Label>Sandbox ID</Label>
+                <Input bind:value={draft.sandboxId} placeholder="auto-generated" />
+              </div>
+              <div class="flex flex-col gap-1 sm:col-span-2">
+                <Label>Labels</Label>
+                <Input bind:value={draft.labels} placeholder="team=core, env=dev" />
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
+            <div>
+              <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.agent</h3>
+              <p class="text-xs text-muted-foreground">Choose the runtime model and policy defaults.</p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
               <div class="flex flex-col gap-1">
                 <Label>Model</Label>
                 <SelectField
@@ -433,136 +551,69 @@
                 />
               </div>
             </div>
-          {/if}
+            <div class="flex flex-col gap-1">
+              <Label>Initial prompt</Label>
+              <Textarea
+                bind:value={draft.initialPrompt}
+                class="min-h-16"
+                placeholder="Optional first instruction for the sandbox agent"
+              />
+            </div>
+          </div>
 
-          <div class="flex flex-col gap-1">
-            <Label>Initial prompt</Label>
-            <Textarea
-              bind:value={draft.initialPrompt}
-              class="min-h-16"
-              placeholder="Optional first instruction for the sandbox agent"
-            />
+          <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
+            <div>
+              <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.tools.groups</h3>
+              <p class="text-xs text-muted-foreground">Enable capabilities available inside the sandbox.</p>
+            </div>
+            <div class="grid gap-2 sm:grid-cols-2">
+              {#each CREATE_SANDBOX_TOOL_KEYS as tool (tool)}
+                <div class="rounded-md border bg-card px-3 py-2">
+                  <SwitchField
+                    checked={draft.tools[tool]}
+                    label={toolLabels[tool]}
+                    onCheckedChange={(value) => (draft.tools[tool] = value)}
+                  />
+                </div>
+              {/each}
+            </div>
           </div>
-        </section>
+        </TabsContent>
 
-        <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
-          <div>
-            <h3 class="text-xs font-semibold text-muted-foreground uppercase">auth</h3>
-            <p class="text-xs text-muted-foreground">Optional managed credentials injected by the manager.</p>
+        <TabsContent value="yaml" class="flex flex-col gap-3 pt-2">
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-background p-3">
+            <div class="min-w-0">
+              <h3 class="text-xs font-semibold text-muted-foreground uppercase">SandboxConfigV1 YAML</h3>
+              <p class="text-xs text-muted-foreground">
+                {draft.yamlDirty
+                  ? "Using edited sandbox config YAML for submit."
+                  : "Synced from the form through manager materialization."}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={syncingYaml}
+              onclick={() => void syncYamlFromForm(true)}
+            >
+              <RefreshCw class="size-4" /> Sync from form
+            </Button>
           </div>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div class="flex flex-col gap-1">
-              <Label>Git identity profile</Label>
-              <SelectField
-                items={gitIdentityProfileItems}
-                value={draft.gitIdentityProfileId}
-                placeholder="No profile"
-                onValueChange={(value) => (draft.gitIdentityProfileId = value)}
-              />
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>Git transport credential</Label>
-              <SelectField
-                items={gitCredentialProfileItems}
-                value={selectedGitCredentialProfileId}
-                placeholder="No profile"
-                onValueChange={(value) => {
-                  draft.gitCredentialProfileIds = value ? [value] : [];
-                }}
-              />
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>GitHub profile</Label>
-              <SelectField
-                items={githubProfileItems}
-                value={draft.githubProfileId}
-                placeholder="No profile"
-                onValueChange={(value) => (draft.githubProfileId = value)}
-              />
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>Jira profile</Label>
-              <SelectField
-                items={jiraProfileItems}
-                value={draft.jiraProfileId}
-                placeholder="No profile"
-                onValueChange={(value) => {
-                  draft.jiraProfileId = value;
-                  if (value) draft.tools.jira = true;
-                }}
-              />
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>Confluence profile</Label>
-              <SelectField
-                items={confluenceProfileItems}
-                value={draft.confluenceProfileId}
-                placeholder="No profile"
-                onValueChange={(value) => {
-                  draft.confluenceProfileId = value;
-                  if (value) draft.tools.confluence = true;
-                }}
-              />
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>Web provider profile</Label>
-              <SelectField
-                items={webProfileItems}
-                value={draft.webProfileId}
-                placeholder="No profile"
-                onValueChange={(value) => {
-                  draft.webProfileId = value;
-                  if (value) draft.tools.web = true;
-                }}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
-          <div>
-            <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.tools.groups</h3>
-            <p class="text-xs text-muted-foreground">Enable capabilities available inside the sandbox.</p>
-          </div>
-          <div class="grid gap-2 sm:grid-cols-2">
-            {#each CREATE_SANDBOX_TOOL_KEYS as tool (tool)}
-              <div class="rounded-md border bg-background px-3 py-2">
-                <SwitchField
-                  checked={draft.tools[tool]}
-                  label={toolLabels[tool]}
-                  onCheckedChange={(value) => (draft.tools[tool] = value)}
-                />
-              </div>
-            {/each}
-          </div>
-        </section>
-      </TabsContent>
-
-      <TabsContent value="yaml" class="flex flex-col gap-3 pt-2">
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
-          <div class="min-w-0">
-            <h3 class="text-xs font-semibold text-muted-foreground uppercase">YAML create request</h3>
-            <p class="text-xs text-muted-foreground">
-              {draft.yamlDirty
-                ? "Using edited YAML for submit."
-                : "Synced from the form until you edit this YAML."}
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onclick={() => syncYamlFromForm(true)}>
-            <RefreshCw class="size-4" /> Sync from form
-          </Button>
-        </div>
-        <Textarea
-          bind:value={draft.yamlSource}
-          class="min-h-80 font-mono text-xs"
-          spellcheck="false"
-          oninput={() => (draft.yamlDirty = true)}
-        />
-        <p class="text-xs text-muted-foreground">
-          YAML submits the full create request: image/start/auth plus config. Controller wiring remains manager-owned.
-        </p>
-      </TabsContent>
-    </Tabs>
+          <Textarea
+            bind:value={draft.yamlSource}
+            class="min-h-80 font-mono text-xs"
+            spellcheck="false"
+            placeholder="version: 1"
+            oninput={() => (draft.yamlDirty = true)}
+          />
+          <p class="text-xs text-muted-foreground">
+            YAML contains only the sandbox-agent config. Image, start behavior,
+            and manager profile selectors live outside this YAML. The created
+            sandbox page shows the exact mounted YAML.
+          </p>
+        </TabsContent>
+      </Tabs>
+    </section>
 
     <Separator />
 
@@ -578,6 +629,6 @@
     <Button variant="ghost" size="sm" disabled={busy} onclick={() => closeAndReset()}>
       Cancel
     </Button>
-    <Button size="sm" disabled={busy} onclick={submit}>Create sandbox</Button>
+    <Button size="sm" disabled={busy || syncingYaml} onclick={submit}>Create sandbox</Button>
   {/snippet}
 </DialogShell>

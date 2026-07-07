@@ -1,6 +1,7 @@
 import type {
   ManagedSandboxRecord,
   RemoveOptions,
+  SandboxConfigYamlResult,
   SandboxControllerSessionSummary,
   SandboxManagerStatus,
   SandboxSnapshotResult,
@@ -36,6 +37,7 @@ export type SandboxSnapshotQuery = {
 export type {
   ManagedSandboxRecord,
   RemoveOptions,
+  SandboxConfigYamlResult,
   SandboxControllerSessionSummary,
   SandboxManagerStatus,
   SandboxSnapshotResult,

@@ -1,6 +1,8 @@
 import {
+  type SandboxConfigV1,
   type SandboxCreateConfigInput,
   type SandboxCreateRequest,
+  sandboxConfigV1Schema,
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
   type ThinkingLevel,
@@ -462,7 +464,7 @@ const configKeyOrder = [
 ];
 
 function orderedConfig(
-  config: SandboxCreateConfigInput,
+  config: SandboxCreateConfigInput | SandboxConfigV1,
 ): Record<string, unknown> {
   const source = config as Record<string, unknown>;
   const ordered: Record<string, unknown> = {};
@@ -476,26 +478,14 @@ function orderedConfig(
   return ordered;
 }
 
-function orderedCreateRequest(
-  request: SandboxCreateRequest,
-): Record<string, unknown> {
-  return {
-    ...(request.image ? { image: request.image } : {}),
-    ...(request.name ? { name: request.name } : {}),
-    ...(request.start === undefined ? {} : { start: request.start }),
-    ...(request.auth ? { auth: request.auth } : {}),
-    config: orderedConfig(request.config),
-  };
+export function configToYaml(config: SandboxConfigV1): string {
+  const parsed = sandboxConfigV1Schema.parse(config);
+  return stringifyYaml(orderedConfig(parsed));
 }
 
-export function requestToYaml(request: SandboxCreateRequest): string {
-  const parsed = sandboxCreateRequestSchema.parse(request);
-  return stringifyYaml(orderedCreateRequest(parsed));
-}
-
-export function parseCreateRequestYaml(input: string): SandboxCreateRequest {
+export function parseSandboxConfigYaml(input: string): SandboxConfigV1 {
   const parsed = parseYaml(input || "{}") as unknown;
-  return sandboxCreateRequestSchema.parse(parsed);
+  return sandboxConfigV1Schema.parse(parsed);
 }
 
 export type BuildCreateRequestResult =
@@ -525,7 +515,6 @@ export function buildCreateRequestFromForm(
     const request = sandboxCreateRequestSchema.parse({
       config: buildConfigFromDraft(draft),
       image: draft.image.trim() || undefined,
-      name: draft.name.trim() || undefined,
       start: draft.startAfterCreate,
       auth: Object.values(auth).some(Boolean) ? auth : undefined,
     });
@@ -539,21 +528,18 @@ export function buildCreateRequestFromYaml(
   draft: CreateSandboxDraft,
 ): BuildCreateRequestResult {
   try {
-    return { ok: true, request: parseCreateRequestYaml(draft.yamlSource) };
+    const request = sandboxCreateRequestSchema.parse({
+      config: parseSandboxConfigYaml(draft.yamlSource),
+      image: draft.image.trim() || undefined,
+      start: draft.startAfterCreate,
+    });
+    return { ok: true, request };
   } catch (error) {
     return {
       ok: false,
-      error: `YAML create request is invalid: ${errorMessage(error)}`,
+      error: `YAML sandbox config is invalid: ${errorMessage(error)}`,
     };
   }
-}
-
-export function buildYamlFromDraft(
-  draft: CreateSandboxDraft,
-): { ok: true; yaml: string } | { ok: false; error: string } {
-  const result = buildCreateRequestFromForm(draft);
-  if (!result.ok) return result;
-  return { ok: true, yaml: requestToYaml(result.request) };
 }
 
 export function buildCreateRequest(

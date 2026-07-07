@@ -14,6 +14,7 @@ import {
   sandboxCanonicalJson,
   sandboxCommandRecordSchema,
   sandboxConfigV1Schema,
+  sandboxConfigYamlResultSchema,
   sandboxConversationViewSnapshotSchema,
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
@@ -73,6 +74,26 @@ describe("Sandbox shared schemas", () => {
     assert.equal(
       sandboxConfigV1Schema.safeParse({ ...minimalConfig(), unexpected: true })
         .success,
+      false,
+    );
+  });
+
+  it("validates sandbox config YAML result envelopes", () => {
+    assert.equal(
+      sandboxConfigYamlResultSchema.safeParse({
+        sandboxId: "sbx_1",
+        yaml: "version: 1\n",
+        configDigest: "sha256:test",
+        source: "config_ref",
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxConfigYamlResultSchema.safeParse({
+        sandboxId: "sbx_1",
+        yaml: "version: 1\n",
+        source: "request",
+      }).success,
       false,
     );
   });

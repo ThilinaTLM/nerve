@@ -3,10 +3,10 @@ import { describe, it } from "node:test";
 import {
   buildConfigFromDraft,
   buildCreateRequest,
+  configToYaml,
   createDefaultDraft,
   createDraftFromStoredPreferences,
-  parseCreateRequestYaml,
-  requestToYaml,
+  parseSandboxConfigYaml,
   saveCreateSandboxPreferences,
 } from "./create-sandbox-draft";
 
@@ -20,6 +20,25 @@ class MemoryStorage {
   setItem(key: string, value: string): void {
     this.values.set(key, value);
   }
+}
+
+function validSandboxConfigYaml(sandboxId: string): string {
+  return [
+    "version: 1",
+    "identity:",
+    `  sandboxId: ${sandboxId}`,
+    "agent:",
+    "  mainModel:",
+    "    provider: anthropic",
+    "    model: claude-sonnet-4-5",
+    "controller:",
+    "  websocket:",
+    `    url: wss://manager.example.test/api/sandboxes/${sandboxId}/ws`,
+    "  auth:",
+    "    type: api_key",
+    "    apiKey:",
+    "      file: /secrets/controller-token",
+  ].join("\n");
 }
 
 describe("create sandbox draft", () => {
@@ -40,7 +59,8 @@ describe("create sandbox draft", () => {
     const result = buildCreateRequest(draft);
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.request.name, "demo");
+    assert.equal(result.request.name, undefined);
+    assert.equal(result.request.config.identity?.name, "demo");
     assert.equal(result.request.start, true);
     assert.equal(result.request.config.agent.mainModel.provider, "anthropic");
     assert.equal(result.request.config.agent.mainModel.thinkingLevel, "off");
@@ -74,42 +94,41 @@ describe("create sandbox draft", () => {
     const result = buildCreateRequest(draft);
     assert.equal(result.ok, false);
     if (!result.ok)
-      assert.match(result.error, /YAML create request is invalid/);
+      assert.match(result.error, /YAML sandbox config is invalid/);
   });
 
-  it("accepts a valid YAML create request", () => {
+  it("accepts valid sandbox-agent YAML config with launch fields outside YAML", () => {
     const draft = createDefaultDraft();
-    draft.yamlDirty = true;
-    draft.yamlSource = [
-      "config:",
-      "  version: 1",
-      "  agent:",
-      "    mainModel:",
-      "      provider: anthropic",
-      "      model: claude-sonnet-4-5",
-      "image: nerve-sandbox-agent:dev",
-      "start: true",
-    ].join("\n");
-    const result = buildCreateRequest(draft);
-    assert.equal(result.ok, true);
-  });
-
-  it("round-trips a request through YAML", () => {
-    const draft = createDefaultDraft();
+    draft.image = "custom-agent:latest";
+    draft.startAfterCreate = false;
     draft.mainModelProfileId = "profile_1";
-    draft.name = "demo";
+    draft.yamlDirty = true;
+    draft.yamlSource = validSandboxConfigYaml("sbx_yaml");
     const result = buildCreateRequest(draft);
     assert.equal(result.ok, true);
     if (!result.ok) return;
+    assert.equal(result.request.image, "custom-agent:latest");
+    assert.equal(result.request.start, false);
+    assert.equal(result.request.auth, undefined);
+    assert.equal(result.request.config.identity?.sandboxId, "sbx_yaml");
+    assert.equal(result.request.config.agent.mainModel.provider, "anthropic");
+    assert.equal(
+      result.request.config.agent.mainModel.model,
+      "claude-sonnet-4-5",
+    );
+  });
 
-    const yaml = requestToYaml(result.request);
-    const parsed = parseCreateRequestYaml(yaml);
-    assert.equal(parsed.image, "nerve-sandbox-agent:dev");
-    assert.equal(parsed.start, true);
-    assert.equal(parsed.auth?.mainModelProfileId, "profile_1");
-    assert.equal(parsed.config.agent.mainModel.provider, "anthropic");
-    assert.equal(parsed.config.agent.mainModel.model, "claude-sonnet-4-5");
-    assert.equal(parsed.config.agent.mainModel.thinkingLevel, "off");
+  it("round-trips sandbox config through YAML", () => {
+    const yaml = configToYaml(
+      parseSandboxConfigYaml(validSandboxConfigYaml("sbx_yaml")),
+    );
+    const parsed = parseSandboxConfigYaml(yaml);
+    assert.equal(parsed.identity?.sandboxId, "sbx_yaml");
+    assert.equal(parsed.agent.mainModel.provider, "anthropic");
+    assert.equal(parsed.agent.mainModel.model, "claude-sonnet-4-5");
+    assert.deepEqual(parsed.controller.auth.apiKey, {
+      file: "/secrets/controller-token",
+    });
   });
 
   it("persists reusable preferences without reusing identity or YAML", () => {

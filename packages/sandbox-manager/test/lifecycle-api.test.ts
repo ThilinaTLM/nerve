@@ -5,10 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
+  sandboxConfigV1Schema,
   sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
 } from "@nervekit/shared";
+import { parse as parseYaml } from "yaml";
 import { ManagerState } from "../src/app/manager-state.js";
 import { createManagerServer } from "../src/app/server.js";
 
@@ -147,6 +149,88 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
       assert.equal(record.controller.token, "[REDACTED]");
       const stored = await state.sandboxes.get(record.sandboxId);
       assert.ok(stored?.controller?.token?.startsWith("ntok_"));
+    } finally {
+      await closeServer(server);
+      await rm(storageDir, { recursive: true, force: true });
+    }
+  });
+
+  it("previews and returns schema-native sandbox config YAML", async () => {
+    const storageDir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-config-yaml-"),
+    );
+    const state = new ManagerState({
+      host: "127.0.0.1",
+      port: 0,
+      allowRemoteBind: false,
+      storageDir,
+      backend: "docker",
+      databaseUrl: postgresUrl,
+      databaseSsl: false,
+      volumeBackend: "local",
+    });
+    await state.init();
+    const server = createManagerServer(state);
+    await listen(server);
+    const address = server.address();
+    assert.equal(typeof address, "object");
+    try {
+      const preview = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes/config/preview`,
+        {
+          method: "POST",
+          body: JSON.stringify({ config: configWithoutController }),
+        },
+      );
+      assert.equal(preview.status, 200);
+      const previewData = (await preview.json()).data as {
+        sandboxId: string;
+        yaml: string;
+        source: string;
+      };
+      assert.equal(previewData.sandboxId, "sbx_preview");
+      assert.equal(previewData.source, "preview");
+      const previewConfig = sandboxConfigV1Schema.parse(
+        parseYaml(previewData.yaml),
+      );
+      assert.equal(previewConfig.identity?.sandboxId, "sbx_preview");
+      assert.deepEqual(previewConfig.controller.auth.apiKey, {
+        file: "/secrets/controller-token",
+      });
+      assert.equal(JSON.stringify(previewData).includes("ntok_"), false);
+
+      const create = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes`,
+        {
+          method: "POST",
+          body: JSON.stringify({ config: configWithoutController }),
+        },
+      );
+      assert.equal(create.status, 201);
+      const record = (await create.json()).data as { sandboxId: string };
+      const configResponse = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes/${record.sandboxId}/config`,
+      );
+      assert.equal(configResponse.status, 200);
+      const configData = (await configResponse.json()).data as {
+        sandboxId: string;
+        yaml: string;
+        source: string;
+      };
+      assert.equal(configData.sandboxId, record.sandboxId);
+      assert.equal(configData.source, "config_ref");
+      const sandboxConfig = sandboxConfigV1Schema.parse(
+        parseYaml(configData.yaml),
+      );
+      assert.equal(sandboxConfig.identity?.sandboxId, record.sandboxId);
+      assert.match(
+        sandboxConfig.controller.websocket.url,
+        new RegExp(`/api/sandboxes/${record.sandboxId}/ws$`),
+      );
+      assert.deepEqual(sandboxConfig.controller.auth.apiKey, {
+        file: "/secrets/controller-token",
+      });
+      assert.equal(JSON.stringify(configData).includes("ntok_"), false);
     } finally {
       await closeServer(server);
       await rm(storageDir, { recursive: true, force: true });

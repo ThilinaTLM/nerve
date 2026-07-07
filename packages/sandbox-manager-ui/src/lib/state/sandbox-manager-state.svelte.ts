@@ -8,6 +8,7 @@ import type {
   ModelInfo,
   RemoveOptions,
   SandboxActivitySummary,
+  SandboxConfigYamlResult,
   SandboxCreateRequest,
   SandboxManagerCredentialProfile,
   SandboxManagerEventEnvelope,
@@ -317,6 +318,28 @@ export class SandboxManagerStore {
       reason: result.fallback?.reason,
     };
     this.ws.markSnapshotRecovered(`sandbox:${sandboxId}`);
+  }
+
+  async previewSandboxConfigYaml(
+    request: SandboxCreateRequest,
+  ): Promise<SandboxConfigYamlResult> {
+    return api.previewSandboxConfigYaml(request);
+  }
+
+  async loadSandboxConfigYaml(sandboxId: string): Promise<void> {
+    const detail = this.detail(sandboxId);
+    detail.configYamlLoading = true;
+    try {
+      const result = await api.getSandboxConfigYaml(sandboxId);
+      detail.configYaml = result.yaml;
+      detail.configYamlSource = result.source;
+      detail.configYamlDigest = result.configDigest;
+      detail.configYamlError = undefined;
+    } catch (error) {
+      detail.configYamlError = errorMessage(error);
+    } finally {
+      detail.configYamlLoading = false;
+    }
   }
 
   async loadLogs(sandboxId: string): Promise<void> {

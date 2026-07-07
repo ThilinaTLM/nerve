@@ -8,6 +8,7 @@ import {
   type OAuthFlowInfo,
   oauthFlowInfoSchema,
   type RespondOAuthFlowRequest,
+  type SandboxConfigYamlResult,
   type SandboxControllerSessionSummary,
   type SandboxCreateRequest,
   type SandboxManagerCredentialProfile,
@@ -16,6 +17,7 @@ import {
   type SandboxManagerStatus,
   type SandboxSnapshotResult,
   type SandboxStatusGetResult,
+  sandboxConfigYamlResultSchema,
   sandboxManagerCredentialProfileSchema,
   sandboxManagerSecretMetadataSchema,
   sandboxManagerStatusSchema,
@@ -196,6 +198,24 @@ export async function createSandbox(
       body: request,
       idempotencyKey,
     }),
+  );
+}
+
+export async function previewSandboxConfigYaml(
+  request: SandboxCreateRequest,
+): Promise<SandboxConfigYamlResult> {
+  return sandboxConfigYamlResultSchema.parse(
+    await sendData<unknown>("/api/sandboxes/config/preview", "POST", {
+      body: request,
+    }),
+  );
+}
+
+export async function getSandboxConfigYaml(
+  sandboxId: string,
+): Promise<SandboxConfigYamlResult> {
+  return sandboxConfigYamlResultSchema.parse(
+    await getData<unknown>(sandboxPath(sandboxId, "/config")),
   );
 }
 

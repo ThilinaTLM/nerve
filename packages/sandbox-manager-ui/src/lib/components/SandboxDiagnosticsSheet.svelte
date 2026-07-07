@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FileClock, KeyRound, ListTree, Terminal } from "@lucide/svelte";
+  import { FileClock, FileCode2, KeyRound, ListTree, Terminal } from "@lucide/svelte";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
   import {
     Sheet,
@@ -10,7 +10,8 @@
   } from "@nervekit/ui/components/ui/sheet";
   import TabsBar from "@nervekit/ui/components/ui/tabs-bar";
   import SandboxBootTimeline from "../routes/SandboxBootTimeline.svelte";
-  import SandboxEventsView from "../routes/SandboxEventsView.svelte";
+  import SandboxEventsView from "../routes/SandboxEventsView.svelte";  import SandboxConfigView from "../routes/SandboxConfigView.svelte";
+
   import SandboxRuntimeView from "../routes/SandboxRuntimeView.svelte";
   import SandboxSecretsView from "../routes/SandboxSecretsView.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
@@ -27,7 +28,8 @@
 
   const tabs = [
     { value: "runtime", label: "Runtime/logs", icon: Terminal },
-    { value: "secrets", label: "Secrets/config", icon: KeyRound },
+    { value: "config", label: "Config", icon: FileCode2 },
+    { value: "secrets", label: "Secrets", icon: KeyRound },
     { value: "events", label: "Events", icon: FileClock },
     { value: "boot", label: "Boot log", icon: ListTree },
   ];
@@ -52,6 +54,8 @@
     <div class="min-h-0 flex-1 overflow-auto">
       {#if tab === "runtime"}
         <SandboxRuntimeView {record} />
+      {:else if tab === "config"}
+        <SandboxConfigView {record} />
       {:else if tab === "secrets"}
         <SandboxSecretsView {record} />
       {:else if tab === "events"}

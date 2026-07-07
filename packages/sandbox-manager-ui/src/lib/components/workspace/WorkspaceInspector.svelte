@@ -4,7 +4,8 @@
   import { Button } from "@nervekit/ui/components/ui/button";
   import TabsBar from "@nervekit/ui/components/ui/tabs-bar";
   import SandboxBootProgress from "../SandboxBootProgress.svelte";
-  import SandboxEventsView from "../../routes/SandboxEventsView.svelte";
+  import SandboxEventsView from "../../routes/SandboxEventsView.svelte";  import SandboxConfigView from "../../routes/SandboxConfigView.svelte";
+
   import SandboxRuntimeView from "../../routes/SandboxRuntimeView.svelte";
   import SandboxSecretsView from "../../routes/SandboxSecretsView.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
@@ -21,6 +22,7 @@
   const tabs = [
     { value: "activity", label: "Activity" },
     { value: "runtime", label: "Runtime" },
+    { value: "config", label: "Config" },
     { value: "events", label: "Events" },
     { value: "secrets", label: "Secrets" },
   ];
@@ -51,6 +53,8 @@
       <SandboxBootProgress {record} variant="rail" expanded />
     {:else if tab === "runtime"}
       <SandboxRuntimeView {record} />
+    {:else if tab === "config"}
+      <SandboxConfigView {record} />
     {:else if tab === "events"}
       <SandboxEventsView {record} />
     {:else if tab === "secrets"}

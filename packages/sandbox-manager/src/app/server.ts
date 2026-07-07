@@ -37,7 +37,11 @@ import { handleManagerProtocolHttpRequest } from "../protocol/manager-protocol-h
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
 import { tailManagerLogs } from "../routes/manager-logs-routes.js";
 import { managerStatus } from "../routes/manager-status-routes.js";
-import { createSandboxRecord } from "../routes/sandbox-routes.js";
+import {
+  createSandboxRecord,
+  getSandboxConfigYaml,
+  previewSandboxConfigYaml,
+} from "../routes/sandbox-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
 import { createLoggedRequestListener } from "./http-logging.js";
 import type { ManagerState } from "./manager-state.js";
@@ -224,6 +228,14 @@ async function handle(
       return json(res, 200, ok({ deleted: true }));
     }
   }
+  if (req.method === "POST" && path === "/api/sandboxes/config/preview") {
+    const body = createSandboxRequestSchema.parse(await readJsonBody(req));
+    return json(
+      res,
+      200,
+      ok(await previewSandboxConfigYaml(state, body.config, body.auth)),
+    );
+  }
   if (req.method === "GET" && path === "/api/sandboxes")
     return json(
       res,
@@ -299,6 +311,13 @@ async function handle(
     });
     return json(res, 200, ok(result.value));
   }
+  const configYamlMatch = path.match(/^\/api\/sandboxes\/([^/]+)\/config$/);
+  if (req.method === "GET" && configYamlMatch)
+    return json(
+      res,
+      200,
+      ok(await getSandboxConfigYaml(state, configYamlMatch[1])),
+    );
   const latestSessionMatch = path.match(
     /^\/api\/sandboxes\/([^/]+)\/sessions\/latest$/,
   );
