@@ -34,6 +34,8 @@ A Sandbox v1 base image SHOULD provide:
 - non-root `sandbox` user;
 - entrypoint and healthcheck command.
 
+The reference `packages/sandbox-agent/Dockerfile` includes a broad generic development toolchain: Node 24 with `npm`, `pnpm`, `yarn`, Corepack, and `nvm`; Python 3 with `pip`, `venv`, `pipx`, and `uv`/`uvx`; the default JDK; GCC/G++, `make`, CMake, Ninja, pkg-config, and autotools; Git/Git LFS, SSH/GPG; and common diagnostics/archive helpers such as `curl`, `wget`, `jq`, `ripgrep`, `shellcheck`, `sqlite3`, `rsync`, `zip`, and `unzip`. Heavier or more sensitive tools such as Docker/Podman CLIs, cloud CLIs, browsers, database servers, and project-specific SDKs should be added in derived images when the controller policy explicitly allows them.
+
 The base image SHOULD be referenced by immutable digest in production:
 
 ```Dockerfile
