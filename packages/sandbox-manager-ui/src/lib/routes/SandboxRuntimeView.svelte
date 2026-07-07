@@ -30,7 +30,7 @@
 <ScrollArea class="h-full">
   <div class="flex flex-col gap-4 p-4">
     {#if runtime}
-      <Card class="border">
+      <Card class="rounded-md border">
         <CardHeader><CardTitle class="text-sm">Runtime capabilities</CardTitle></CardHeader>
         <CardContent class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
           {#each capabilities as [label, supported] (label)}
@@ -46,7 +46,7 @@
     {/if}
 
     {#if record.containerRef}
-      <Card class="border">
+      <Card class="rounded-md border">
         <CardHeader><CardTitle class="text-sm">Container</CardTitle></CardHeader>
         <CardContent class="flex flex-col gap-1 text-sm">
           <span class="font-mono text-xs">{record.containerRef.kind}: {record.containerRef.id}</span>
@@ -57,7 +57,7 @@
       </Card>
     {/if}
 
-    <Card class="border">
+    <Card class="rounded-md border">
       <CardHeader class="flex-row items-center justify-between">
         <CardTitle class="text-sm">Logs</CardTitle>
         <div class="flex items-center gap-2">

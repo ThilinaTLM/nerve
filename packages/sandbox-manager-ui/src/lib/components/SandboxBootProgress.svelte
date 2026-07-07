@@ -82,7 +82,7 @@
 <section
   class={variant === "rail"
     ? "flex min-h-0 flex-1 flex-col gap-3 p-4"
-    : "flex flex-col gap-3 rounded-lg border bg-card p-3"}
+    : "flex flex-col gap-3 rounded-md border bg-card p-3"}
 >
   <div class="flex items-center gap-2">
     <StatusDot

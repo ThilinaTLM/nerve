@@ -22,7 +22,7 @@
 
 <ScrollArea class="h-full">
   <div class="flex flex-col gap-4 p-4">
-    <Card class="border">
+    <Card class="rounded-md border">
       <CardHeader class="flex-row items-start justify-between gap-3">
         <div class="min-w-0">
           <CardTitle class="text-sm">Sandbox config YAML</CardTitle>

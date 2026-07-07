@@ -97,7 +97,7 @@
 >
   <div class="flex max-h-svh flex-col gap-4 overflow-y-auto p-5">
     <div class="grid gap-3 md:grid-cols-3">
-      <Card class="border">
+      <Card class="rounded-md border">
         <CardContent class="flex items-center gap-3 p-4">
           <ShieldCheck class="size-5 text-success" />
           <div>
@@ -106,7 +106,7 @@
           </div>
         </CardContent>
       </Card>
-      <Card class="border">
+      <Card class="rounded-md border">
         <CardContent class="flex items-center gap-3 p-4">
           <RefreshCw class="size-5 text-info" />
           <div>
@@ -115,7 +115,7 @@
           </div>
         </CardContent>
       </Card>
-      <Card class="border">
+      <Card class="rounded-md border">
         <CardContent class="flex items-center gap-3 p-4">
           <Clock class="size-5 text-warning" />
           <div>
@@ -126,7 +126,7 @@
       </Card>
     </div>
 
-    <Card class="border">
+    <Card class="rounded-md border">
       <CardHeader><CardTitle class="text-sm">Add provider authentication</CardTitle></CardHeader>
       <CardContent class="flex flex-col gap-3">
         <div class="grid gap-3 sm:grid-cols-2">
@@ -165,7 +165,7 @@
       </CardContent>
     </Card>
 
-    <Card class="border">
+    <Card class="rounded-md border">
       <CardHeader><CardTitle class="text-sm">Managed profiles</CardTitle></CardHeader>
       <CardContent class="grid gap-2 text-sm md:grid-cols-2">
         {#if store.credentialProfiles.length === 0}

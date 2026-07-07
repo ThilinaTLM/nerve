@@ -110,7 +110,7 @@
     </div>
 
     {#if sandboxes.length === 0}
-      <div class="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-card py-16 text-center">
+      <div class="flex flex-col items-center gap-3 rounded-md border border-dashed bg-card py-16 text-center">
         <Boxes class="size-8 text-muted-foreground" />
         <p class="text-sm text-muted-foreground">
           {store.sandboxes.length === 0

@@ -56,7 +56,7 @@
 </script>
 
 <div
-  class="group flex flex-col gap-3 rounded-lg border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/30"
+  class="group flex flex-col gap-3 rounded-md border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/30"
 >
   <div class="flex items-center gap-2">
     <StatusDot tone={dotTone} pulse={running || booting} />

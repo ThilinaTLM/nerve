@@ -21,7 +21,7 @@
 </script>
 
 <nav
-  class="rounded-lg border bg-sidebar p-2 text-sidebar-foreground shadow-sm"
+  class="rounded-md border bg-sidebar p-2 text-sidebar-foreground shadow-sm"
   aria-label="Settings sections"
 >
   <div class="grid gap-1">

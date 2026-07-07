@@ -24,7 +24,7 @@
 </script>
 
 <li
-  class="group flex items-center gap-3 rounded-lg border bg-card px-4 py-3 transition-colors hover:border-primary/40 hover:bg-accent/40"
+  class="group flex items-center gap-3 rounded-md border bg-card px-4 py-3 transition-colors hover:border-primary/40 hover:bg-accent/40"
 >
   <button
     type="button"

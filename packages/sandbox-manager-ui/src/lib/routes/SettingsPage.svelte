@@ -490,7 +490,7 @@
       {#if appearanceActive}
         <AppearanceSettings />
       {:else}
-        <Card class="border shadow-sm">
+        <Card class="rounded-md border shadow-sm">
           <CardHeader class="border-b p-4">
             <CardTitle class="text-base">{activeDomain.label}</CardTitle>
             <p class="text-sm text-muted-foreground">{activeDomain.description}</p>

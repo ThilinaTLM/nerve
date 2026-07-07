@@ -22,7 +22,7 @@
   ];
 </script>
 
-<Card class="border">
+<Card class="rounded-md border">
   <CardHeader class="border-b p-4">
     <CardTitle class="text-base">Appearance</CardTitle>
     <CardDescription>Choose how the sandbox manager looks on this device.</CardDescription>
@@ -37,7 +37,7 @@
           role="radio"
           aria-checked={selected}
           class={cn(
-            "flex flex-col items-center gap-2 rounded-lg border bg-card p-4 text-sm transition-colors",
+            "flex flex-col items-center gap-2 rounded-md border bg-card p-4 text-sm transition-colors",
             selected
               ? "border-primary ring-1 ring-primary"
               : "hover:border-primary/40 hover:bg-accent/40",

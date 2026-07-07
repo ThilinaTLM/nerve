@@ -35,7 +35,7 @@
 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
   {#each cards as card (card.label)}
     {@const Icon = card.icon}
-    <Card class="border">
+    <Card class="rounded-md border">
       <CardContent class="flex items-center gap-3 p-4">
         <div class="rounded-md bg-muted p-2">
           <Icon class={`size-5 ${card.tone}`} />
