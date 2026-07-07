@@ -1,6 +1,8 @@
 import os from "node:os";
 import path from "node:path";
 import { resolveLogLevel, type StructuredLogLevel } from "@nervekit/shared";
+export type LocalContainerBackend = "auto" | "docker" | "podman";
+
 export type ManagerConfig = {
   host: string;
   port: number;
@@ -13,7 +15,7 @@ export type ManagerConfig = {
   databaseSsl: boolean;
   volumeBackend: "local" | "efs" | "s3-files";
   apiKey?: string;
-  backend: "docker" | "podman";
+  backend: LocalContainerBackend;
   mode: "production" | "development";
   encryptionKey?: string;
   encryptionKeyRef?: string;
@@ -60,8 +62,7 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
       env.NERVE_SANDBOX_MANAGER_DATABASE_SSL === "require",
     volumeBackend: parseVolumeBackend(env.NERVE_SANDBOX_MANAGER_VOLUME_BACKEND),
     apiKey: env.NERVE_SANDBOX_MANAGER_API_KEY,
-    backend:
-      env.NERVE_SANDBOX_MANAGER_BACKEND === "podman" ? "podman" : "docker",
+    backend: parseLocalContainerBackend(env.NERVE_SANDBOX_MANAGER_BACKEND),
     mode,
     encryptionKey: env.NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY,
     encryptionKeyRef: env.NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY_REF,
@@ -104,6 +105,14 @@ function requiredDatabaseUrl(env: NodeJS.ProcessEnv): string {
       "NERVE_SANDBOX_MANAGER_DATABASE_URL or DATABASE_URL is required for sandbox-manager storage",
     );
   return value;
+}
+
+function parseLocalContainerBackend(
+  value: string | undefined,
+): LocalContainerBackend {
+  const normalized = value?.trim();
+  if (normalized === "docker" || normalized === "podman") return normalized;
+  return "auto";
 }
 
 function parseVolumeBackend(

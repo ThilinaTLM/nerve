@@ -16,7 +16,7 @@ export async function managerStatus(state: ManagerState): Promise<unknown> {
   return sandboxManagerStatusSchema.parse({
     managerId: managerId(state),
     version: sandboxManagerVersion,
-    backend: state.config.backend,
+    backend: runtime.available ? runtime.kind : state.config.backend,
     runtime,
     hardening: {
       mode,

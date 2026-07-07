@@ -57,6 +57,7 @@ export class SandboxSupervisor {
       const started: ManagedSandboxRecord = {
         ...record,
         instanceId: spec.instanceId,
+        backend: ref.kind || record.backend,
         desiredState: "running",
         observedState: "running",
         containerRef: ref,

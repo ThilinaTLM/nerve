@@ -9,8 +9,7 @@ import { SandboxManagerOAuthFlowManager } from "../credentials/oauth-flow-manage
 import { runMigrations } from "../db/migrations.js";
 import { createPostgresPool, type PostgresPool } from "../db/postgres.js";
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
-import { DockerDriver } from "../drivers/docker-driver.js";
-import { PodmanDriver } from "../drivers/podman-driver.js";
+import { createLocalContainerDriver } from "../drivers/local-container-driver.js";
 import { ManagerEventBus } from "../events/manager-event-bus.js";
 import {
   MANAGER_EVENT_STREAM,
@@ -90,8 +89,7 @@ export class ManagerState {
     this.audit = new PostgresAuditStore(this.pool);
     this.volumeStore = new PostgresRuntimeVolumeStore(this.pool);
     this.volumeProvider = createVolumeProvider(config);
-    this.driver =
-      config.backend === "podman" ? new PodmanDriver() : new DockerDriver();
+    this.driver = createLocalContainerDriver(config.backend);
     this.eventBus = new ManagerEventBus();
     // Activity summaries are best-effort and rebuildable: publish them live on
     // the manager stream as transient events (never journaled) so fleet tiles

@@ -217,6 +217,8 @@ org.nerve.sandbox.manager=<manager-id>
 
 Docker and Podman are baseline v1 manager backends.
 
+Local deployments may use `NERVE_SANDBOX_MANAGER_BACKEND=auto` to select a reachable backend at runtime. Auto mode tries Docker first and falls back to Podman when Docker is unavailable; explicit `docker` or `podman` values remain deterministic overrides.
+
 Requirements:
 
 - The manager MUST support image references by tag and digest. Production SHOULD use immutable digests.
