@@ -37,11 +37,53 @@ export function stringField(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+const EXECUTION_RESULT_COPY_KEYS = [
+  "path",
+  "entries",
+  "matches",
+  "stdout",
+  "stderr",
+  "exitCode",
+] as const;
+
+function textContentArray(value: unknown): string | undefined {
+  const blocks = asRecord(value).content;
+  if (!Array.isArray(blocks)) return undefined;
+  const texts = blocks.flatMap((block) => {
+    const record = asRecord(block);
+    return record.type === "text" && typeof record.text === "string"
+      ? [record.text]
+      : [];
+  });
+  return texts.length > 0 ? texts.join("\n") : undefined;
+}
+
+function executionResultFromAgentToolResult(
+  record: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const content = textContentArray(record);
+  if (content === undefined) return undefined;
+  const result: Record<string, unknown> = { content };
+  const contentBlocks = record.content;
+  if (Array.isArray(contentBlocks)) result.contentBlocks = contentBlocks;
+  const details = asRecord(record.details);
+  for (const key of EXECUTION_RESULT_COPY_KEYS) {
+    if (details[key] !== undefined) result[key] = details[key];
+  }
+  if (record.details !== undefined) result.details = record.details;
+  return result;
+}
+
 export function parseToolExecutionResult(value: unknown) {
   const direct = toolExecutionResultSchema.safeParse(value);
   if (direct.success) return direct.data;
   const parsedRecord = asRecord(value);
   if (Object.keys(parsedRecord).length === 0) return undefined;
+  const agentResult = executionResultFromAgentToolResult(parsedRecord);
+  if (agentResult) {
+    const parsedAgentResult = toolExecutionResultSchema.safeParse(agentResult);
+    if (parsedAgentResult.success) return parsedAgentResult.data;
+  }
   const parsed = toolExecutionResultSchema.safeParse(parsedRecord);
   return parsed.success ? parsed.data : undefined;
 }

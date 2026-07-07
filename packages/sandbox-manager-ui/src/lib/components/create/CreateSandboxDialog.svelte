@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { Code2, FileText, RefreshCw, TriangleAlert } from "@lucide/svelte";
+  import {
+    ArrowDown,
+    ArrowUp,
+    Code2,
+    FileText,
+    Plus,
+    RefreshCw,
+    Trash2,
+    TriangleAlert,
+  } from "@lucide/svelte";
   import {
     thinkingLevels,
     type ModelInfo,
@@ -21,8 +30,11 @@
     buildCreateRequest,
     buildCreateRequestFromForm,
     CREATE_SANDBOX_TOOL_KEYS,
+    createDefaultBootPhase,
+    createDefaultBootSecretEnv,
     createDraftFromStoredPreferences,
     saveCreateSandboxPreferences,
+    type CreateSandboxBootMode,
     type CreateSandboxToolKey,
   } from "../../state/create-sandbox-draft";
   import {
@@ -53,6 +65,40 @@
     { value: "read_only", label: "Read-only" },
     { value: "supervised", label: "Supervised" },
     { value: "autonomous", label: "Autonomous" },
+  ];
+  const bootModeItems = [
+    { value: "single", label: "Single script", detail: "One setup script" },
+    { value: "phases", label: "Phased steps", detail: "Ordered setup phases" },
+  ];
+  const bootRunAsItems = [
+    { value: "sandbox", label: "sandbox", detail: "Default unprivileged user" },
+    { value: "root", label: "root", detail: "Use only for privileged setup" },
+  ];
+  const bootPhaseRunAsItems = [
+    { value: "", label: "Inherit boot default" },
+    ...bootRunAsItems,
+  ];
+  const bootNetworkItems = [
+    { value: "inherit", label: "inherit", detail: "Use sandbox network policy" },
+    { value: "deny", label: "deny", detail: "No network during boot" },
+    {
+      value: "package_registries_only",
+      label: "package registries only",
+      detail: "Allow package installation endpoints",
+    },
+  ];
+  const bootPhaseNetworkItems = [
+    { value: "", label: "Inherit boot default" },
+    ...bootNetworkItems,
+  ];
+  const bootOnFailureItems = [
+    { value: "fail_sandbox", label: "Fail sandbox" },
+    { value: "continue_readonly", label: "Continue read-only" },
+  ];
+  const bootSecretRefTypeItems = [
+    { value: "env", label: "env", detail: "Read from an environment variable" },
+    { value: "file", label: "file", detail: "Read from a mounted file" },
+    { value: "kv", label: "kv", detail: "Resolve from a secret store" },
   ];
   const noneProfile = { value: "", label: "None" };
   const thinkingLevelLabels: Record<ThinkingLevel, string> = {
@@ -244,6 +290,58 @@
     if (!profile?.provider) return;
     draft.mainProvider = profile.provider;
     draft.mainModel = chooseDefaultModel(profile, store.models);
+  }
+
+  function setBootEnabled(value: boolean) {
+    draft.bootEnabled = value;
+    if (value && draft.bootMode === "phases" && draft.bootPhases.length === 0)
+      addBootPhase();
+  }
+
+  function setBootMode(mode: string) {
+    draft.bootMode = mode as CreateSandboxBootMode;
+    if (draft.bootMode === "phases" && draft.bootPhases.length === 0)
+      addBootPhase();
+  }
+
+  function createNextBootPhase() {
+    const existingNames = new Set(
+      draft.bootPhases.map((phase) => phase.name.trim()).filter(Boolean),
+    );
+    for (let index = 0; ; index += 1) {
+      const phase = createDefaultBootPhase(index);
+      if (!existingNames.has(phase.name)) return phase;
+    }
+  }
+
+  function addBootPhase() {
+    draft.bootPhases = [...draft.bootPhases, createNextBootPhase()];
+  }
+
+  function removeBootPhase(id: string) {
+    draft.bootPhases = draft.bootPhases.filter((phase) => phase.id !== id);
+  }
+
+  function moveBootPhase(id: string, direction: -1 | 1) {
+    const index = draft.bootPhases.findIndex((phase) => phase.id === id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= draft.bootPhases.length)
+      return;
+    const phases = [...draft.bootPhases];
+    [phases[index], phases[targetIndex]] = [phases[targetIndex], phases[index]];
+    draft.bootPhases = phases;
+  }
+
+  function addBootEnv(phaseId: string) {
+    const phase = draft.bootPhases.find((candidate) => candidate.id === phaseId);
+    if (!phase) return;
+    phase.env = [...phase.env, createDefaultBootSecretEnv()];
+  }
+
+  function removeBootEnv(phaseId: string, envId: string) {
+    const phase = draft.bootPhases.find((candidate) => candidate.id === phaseId);
+    if (!phase) return;
+    phase.env = phase.env.filter((row) => row.id !== envId);
   }
 
   function currentFormYamlKey(): string {
@@ -559,6 +657,281 @@
                 placeholder="Optional first instruction for the sandbox agent"
               />
             </div>
+          </div>
+
+          <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
+            <div>
+              <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.boot</h3>
+              <p class="text-xs text-muted-foreground">
+                Optional setup that runs in <code class="font-mono">/workspace</code>
+                after source/context setup and before the agent daemon starts.
+              </p>
+            </div>
+
+            <div class="rounded-md border bg-card px-3 py-2.5">
+              <SwitchField
+                checked={draft.bootEnabled}
+                label="Enable boot steps"
+                description="Add a custom script or ordered setup phases to the sandbox-agent config."
+                onCheckedChange={setBootEnabled}
+              />
+            </div>
+
+            {#if draft.bootEnabled}
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div class="flex flex-col gap-1">
+                  <Label>Mode</Label>
+                  <SelectField
+                    items={bootModeItems}
+                    value={draft.bootMode}
+                    onValueChange={setBootMode}
+                  />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <Label>Timeout (seconds)</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    bind:value={draft.bootTimeoutSeconds}
+                    placeholder="600"
+                  />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <Label>Run as</Label>
+                  <SelectField
+                    items={bootRunAsItems}
+                    value={draft.bootRunAs}
+                    onValueChange={(value) =>
+                      (draft.bootRunAs = value as typeof draft.bootRunAs)}
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    Prefer sandbox; root is for package or system setup only.
+                  </p>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <Label>Network</Label>
+                  <SelectField
+                    items={bootNetworkItems}
+                    value={draft.bootNetwork}
+                    onValueChange={(value) =>
+                      (draft.bootNetwork = value as typeof draft.bootNetwork)}
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    Restrict network access when setup does not need downloads.
+                  </p>
+                </div>
+                <div class="flex flex-col gap-1 sm:col-span-2">
+                  <Label>On failure</Label>
+                  <SelectField
+                    items={bootOnFailureItems}
+                    value={draft.bootOnFailure}
+                    onValueChange={(value) =>
+                      (draft.bootOnFailure = value as typeof draft.bootOnFailure)}
+                  />
+                </div>
+              </div>
+
+              {#if draft.bootMode === "single"}
+                <div class="flex flex-col gap-1">
+                  <Label>Script</Label>
+                  <Textarea
+                    bind:value={draft.bootScript}
+                    class="min-h-32 font-mono text-xs"
+                    placeholder="git clone https://github.com/acme/project.git .&#10;pnpm install"
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    Runs in <code class="font-mono">/workspace</code> after git/GitHub
+                    setup and skills/context loading, before the agent daemon starts.
+                  </p>
+                </div>
+              {:else}
+                <div class="flex flex-col gap-3">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 class="text-sm font-medium">Phases</h4>
+                      <p class="text-xs text-muted-foreground">
+                        Phases run from top to bottom. Use overrides only when a
+                        phase differs from the boot defaults.
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" onclick={addBootPhase}>
+                      <Plus class="size-4" /> Add phase
+                    </Button>
+                  </div>
+
+                  {#if draft.bootPhases.length === 0}
+                    <div class="rounded-md border border-dashed bg-card p-3 text-sm text-muted-foreground">
+                      Add at least one phase to build <code class="font-mono">boot.phases</code>.
+                    </div>
+                  {:else}
+                    {#each draft.bootPhases as phase, index (phase.id)}
+                      <div class="flex flex-col gap-3 rounded-md border bg-card p-3">
+                        <div class="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 class="text-sm font-medium">Phase {index + 1}</h4>
+                            <p class="text-xs text-muted-foreground">
+                              Name, script, optional overrides, and secret refs.
+                            </p>
+                          </div>
+                          <div class="flex shrink-0 items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="icon-sm"
+                              ariaLabel="Move phase up"
+                              disabled={index === 0}
+                              onclick={() => moveBootPhase(phase.id, -1)}
+                            >
+                              <ArrowUp class="size-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon-sm"
+                              ariaLabel="Move phase down"
+                              disabled={index === draft.bootPhases.length - 1}
+                              onclick={() => moveBootPhase(phase.id, 1)}
+                            >
+                              <ArrowDown class="size-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="icon-sm"
+                              ariaLabel="Remove phase"
+                              onclick={() => removeBootPhase(phase.id)}
+                            >
+                              <Trash2 class="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div class="grid gap-3 sm:grid-cols-2">
+                          <div class="flex flex-col gap-1">
+                            <Label>Name</Label>
+                            <Input bind:value={phase.name} placeholder="setup" />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <Label>Timeout override (seconds)</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              step="1"
+                              bind:value={phase.timeoutSeconds}
+                              placeholder="Inherit"
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <Label>Run as override</Label>
+                            <SelectField
+                              items={bootPhaseRunAsItems}
+                              value={phase.runAs}
+                              placeholder="Inherit boot default"
+                              onValueChange={(value) =>
+                                (phase.runAs = value as typeof phase.runAs)}
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <Label>Network override</Label>
+                            <SelectField
+                              items={bootPhaseNetworkItems}
+                              value={phase.network}
+                              placeholder="Inherit boot default"
+                              onValueChange={(value) =>
+                                (phase.network = value as typeof phase.network)}
+                            />
+                          </div>
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                          <Label>Script</Label>
+                          <Textarea
+                            bind:value={phase.script}
+                            class="min-h-28 font-mono text-xs"
+                            placeholder="pnpm install"
+                          />
+                        </div>
+
+                        <details class="rounded-md border bg-background p-3">
+                          <summary class="cursor-pointer text-sm font-medium">
+                            Secret environment
+                          </summary>
+                          <div class="mt-3 flex flex-col gap-3">
+                            <p class="text-xs text-muted-foreground">
+                              Add environment variables backed by secret refs. Raw
+                              secret values are not accepted here.
+                            </p>
+                            {#if phase.env.length === 0}
+                              <p class="rounded-md border border-dashed bg-card p-3 text-xs text-muted-foreground">
+                                No secret refs for this phase.
+                              </p>
+                            {:else}
+                              {#each phase.env as row (row.id)}
+                                <div class="grid gap-2 rounded-md border bg-card p-2 md:grid-cols-4">
+                                  <div class="flex flex-col gap-1">
+                                    <Label>Variable</Label>
+                                    <Input bind:value={row.name} placeholder="API_TOKEN" />
+                                  </div>
+                                  <div class="flex flex-col gap-1">
+                                    <Label>Ref type</Label>
+                                    <SelectField
+                                      items={bootSecretRefTypeItems}
+                                      value={row.refType}
+                                      onValueChange={(value) =>
+                                        (row.refType = value as typeof row.refType)}
+                                    />
+                                  </div>
+                                  <div class="flex flex-col gap-1">
+                                    <Label>{row.refType === "env"
+                                      ? "Source env"
+                                      : row.refType === "file"
+                                        ? "File path"
+                                        : "Key"}</Label>
+                                    <Input
+                                      bind:value={row.value}
+                                      placeholder={row.refType === "file"
+                                        ? "/run/secrets/token"
+                                        : row.refType === "kv"
+                                          ? "api-token"
+                                          : "HOST_API_TOKEN"}
+                                    />
+                                  </div>
+                                  <div class="flex items-end">
+                                    <Button
+                                      variant="destructive"
+                                      size="icon-sm"
+                                      ariaLabel="Remove secret environment ref"
+                                      onclick={() => removeBootEnv(phase.id, row.id)}
+                                    >
+                                      <Trash2 class="size-4" />
+                                    </Button>
+                                  </div>
+                                  {#if row.refType === "kv"}
+                                    <div class="flex flex-col gap-1 md:col-span-2">
+                                      <Label>Store</Label>
+                                      <Input bind:value={row.store} placeholder="Optional store" />
+                                    </div>
+                                    <div class="flex flex-col gap-1 md:col-span-2">
+                                      <Label>Version</Label>
+                                      <Input bind:value={row.version} placeholder="Optional version" />
+                                    </div>
+                                  {/if}
+                                </div>
+                              {/each}
+                            {/if}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onclick={() => addBootEnv(phase.id)}
+                            >
+                              <Plus class="size-4" /> Add secret ref
+                            </Button>
+                          </div>
+                        </details>
+                      </div>
+                    {/each}
+                  {/if}
+                </div>
+              {/if}
+            {/if}
           </div>
 
           <div class="flex flex-col gap-3 rounded-md border bg-background p-3">

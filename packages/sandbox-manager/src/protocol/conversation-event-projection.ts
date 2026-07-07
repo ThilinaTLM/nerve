@@ -193,11 +193,44 @@ function collectToolCalls(
     if (record.conversationId !== conversationId) continue;
     if (filter.agentId && record.agentId !== filter.agentId) continue;
     if (filter.runId && record.runId !== filter.runId) continue;
-    latest.set(record.id, record);
+    const current = latest.get(record.id);
+    latest.set(
+      record.id,
+      current ? mergeToolCallTranscriptRecord(current, record) : record,
+    );
   }
   return [...latest.values()]
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .slice(-100);
+}
+
+function mergeToolCallTranscriptRecord(
+  current: ToolCallTranscriptRecord,
+  next: ToolCallTranscriptRecord,
+): ToolCallTranscriptRecord {
+  return {
+    ...current,
+    ...next,
+    argsPreview:
+      next.argsPreview === undefined ? current.argsPreview : next.argsPreview,
+    resultPreview:
+      next.resultPreview === undefined
+        ? current.resultPreview
+        : next.resultPreview,
+    previewOverflow:
+      next.previewOverflow === undefined
+        ? current.previewOverflow
+        : next.previewOverflow,
+    turnId: next.turnId === undefined ? current.turnId : next.turnId,
+    liveMessageId:
+      next.liveMessageId === undefined
+        ? current.liveMessageId
+        : next.liveMessageId,
+    contentIndex:
+      next.contentIndex === undefined
+        ? current.contentIndex
+        : next.contentIndex,
+  };
 }
 
 function orderEntries(entries: ConversationEntry[]): ConversationEntry[] {

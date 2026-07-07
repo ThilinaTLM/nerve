@@ -3,7 +3,10 @@ import { describe, it } from "node:test";
 import {
   buildConfigFromDraft,
   buildCreateRequest,
+  CREATE_SANDBOX_PREFERENCES_STORAGE_KEY,
   configToYaml,
+  createDefaultBootPhase,
+  createDefaultBootSecretEnv,
   createDefaultDraft,
   createDraftFromStoredPreferences,
   parseSandboxConfigYaml,
@@ -87,6 +90,162 @@ describe("create sandbox draft", () => {
     assert.equal(config.tools?.groups?.fileInspection?.enabled, true);
   });
 
+  it("omits boot config by default", () => {
+    const config = buildConfigFromDraft(createDefaultDraft());
+    assert.equal(config.boot, undefined);
+  });
+
+  it("maps single script boot config with boot-level defaults", () => {
+    const draft = createDefaultDraft();
+    draft.bootEnabled = true;
+    draft.bootMode = "single";
+    draft.bootScript =
+      "git clone https://example.test/repo.git .\npnpm install";
+    draft.bootTimeoutSeconds = "120";
+    draft.bootRunAs = "root";
+    draft.bootNetwork = "package_registries_only";
+    draft.bootOnFailure = "continue_readonly";
+
+    const config = buildConfigFromDraft(draft);
+    assert.deepEqual(config.boot, {
+      script: "git clone https://example.test/repo.git .\npnpm install",
+      timeoutMs: 120_000,
+      runAs: "root",
+      network: "package_registries_only",
+      onFailure: "continue_readonly",
+    });
+  });
+
+  it("maps phased boot config in order with per-phase overrides", () => {
+    const draft = createDefaultDraft();
+    const setup = createDefaultBootPhase(0);
+    setup.id = "phase_setup";
+    setup.name = "setup";
+    setup.script = "echo setup";
+    setup.timeoutSeconds = "30";
+    setup.runAs = "root";
+    setup.network = "deny";
+    const install = createDefaultBootPhase(1);
+    install.id = "phase_install";
+    install.name = "install";
+    install.script = "pnpm install";
+    install.network = "package_registries_only";
+    draft.bootEnabled = true;
+    draft.bootMode = "phases";
+    draft.bootTimeoutSeconds = "600";
+    draft.bootPhases = [setup, install];
+
+    const config = buildConfigFromDraft(draft);
+    assert.deepEqual(config.boot?.phases, [
+      {
+        name: "setup",
+        script: "echo setup",
+        timeoutMs: 30_000,
+        runAs: "root",
+        network: "deny",
+      },
+      {
+        name: "install",
+        script: "pnpm install",
+        network: "package_registries_only",
+      },
+    ]);
+  });
+
+  it("maps boot phase secret environment rows to secret refs", () => {
+    const draft = createDefaultDraft();
+    const phase = createDefaultBootPhase(0);
+    phase.script = "echo setup";
+    phase.env = [
+      {
+        ...createDefaultBootSecretEnv(),
+        id: "env_token",
+        name: "TOKEN",
+        refType: "env",
+        value: "HOST_TOKEN",
+      },
+      {
+        ...createDefaultBootSecretEnv(),
+        id: "env_config",
+        name: "CONFIG_FILE",
+        refType: "file",
+        value: "/run/secrets/config",
+      },
+      {
+        ...createDefaultBootSecretEnv(),
+        id: "env_api_key",
+        name: "API_KEY",
+        refType: "kv",
+        value: "api-key",
+        store: "sandbox-secrets",
+        version: "v2",
+      },
+    ];
+    draft.bootEnabled = true;
+    draft.bootMode = "phases";
+    draft.bootPhases = [phase];
+
+    const config = buildConfigFromDraft(draft);
+    assert.deepEqual(config.boot?.phases?.[0]?.env, {
+      TOKEN: { env: "HOST_TOKEN" },
+      CONFIG_FILE: { file: "/run/secrets/config" },
+      API_KEY: {
+        kv: { store: "sandbox-secrets", key: "api-key", version: "v2" },
+      },
+    });
+  });
+
+  it("reports boot draft validation errors in create request results", () => {
+    const emptySingle = createDefaultDraft();
+    emptySingle.bootEnabled = true;
+    emptySingle.bootMode = "single";
+    let result = buildCreateRequest(emptySingle);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /Boot script is required/);
+
+    const noPhases = createDefaultDraft();
+    noPhases.bootEnabled = true;
+    noPhases.bootMode = "phases";
+    result = buildCreateRequest(noPhases);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /at least one boot phase/);
+
+    const duplicatePhases = createDefaultDraft();
+    const first = createDefaultBootPhase(0);
+    first.name = "setup";
+    first.script = "echo one";
+    const second = createDefaultBootPhase(1);
+    second.name = "setup";
+    second.script = "echo two";
+    duplicatePhases.bootEnabled = true;
+    duplicatePhases.bootMode = "phases";
+    duplicatePhases.bootPhases = [first, second];
+    result = buildCreateRequest(duplicatePhases);
+    assert.equal(result.ok, false);
+    if (!result.ok)
+      assert.match(result.error, /Duplicate boot phase name: setup/);
+
+    const invalidTimeout = createDefaultDraft();
+    invalidTimeout.bootEnabled = true;
+    invalidTimeout.bootMode = "single";
+    invalidTimeout.bootScript = "echo setup";
+    invalidTimeout.bootTimeoutSeconds = "0";
+    result = buildCreateRequest(invalidTimeout);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /Boot timeout/);
+
+    const invalidPhaseTimeout = createDefaultDraft();
+    const phase = createDefaultBootPhase(0);
+    phase.script = "echo setup";
+    phase.timeoutSeconds = "abc";
+    invalidPhaseTimeout.bootEnabled = true;
+    invalidPhaseTimeout.bootMode = "phases";
+    invalidPhaseTimeout.bootPhases = [phase];
+    result = buildCreateRequest(invalidPhaseTimeout);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /Boot phase 1 timeout/);
+  });
+
   it("reports an error for invalid YAML config", () => {
     const draft = createDefaultDraft();
     draft.yamlDirty = true;
@@ -149,10 +308,20 @@ describe("create sandbox draft", () => {
     draft.tools.web = true;
     draft.mainModelProfileId = "model_profile";
     draft.githubProfileId = "github_profile";
+    draft.bootEnabled = true;
+    draft.bootMode = "single";
+    draft.bootScript = "echo workspace-specific setup";
+    draft.bootTimeoutSeconds = "42";
+    draft.bootPhases = [createDefaultBootPhase(0)];
     draft.yamlSource = "config: {}";
     draft.yamlDirty = true;
 
     saveCreateSandboxPreferences(draft, storage);
+    const stored =
+      storage.getItem(CREATE_SANDBOX_PREFERENCES_STORAGE_KEY) ?? "";
+    assert.equal(stored.includes("bootScript"), false);
+    assert.equal(stored.includes("bootPhases"), false);
+    assert.equal(stored.includes("workspace-specific setup"), false);
     const restored = createDraftFromStoredPreferences(storage);
 
     assert.notEqual(restored.name, "custom-name");
@@ -171,6 +340,11 @@ describe("create sandbox draft", () => {
     assert.equal(restored.tools.web, true);
     assert.equal(restored.mainModelProfileId, "model_profile");
     assert.equal(restored.githubProfileId, "github_profile");
+    assert.equal(restored.bootEnabled, false);
+    assert.equal(restored.bootMode, "single");
+    assert.equal(restored.bootScript, "");
+    assert.equal(restored.bootTimeoutSeconds, "600");
+    assert.deepEqual(restored.bootPhases, []);
     assert.equal(restored.yamlSource, "");
     assert.equal(restored.yamlDirty, false);
   });

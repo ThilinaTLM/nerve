@@ -214,7 +214,8 @@ export class SandboxManagerStore {
     if (
       isSandboxConnected(detail) ||
       isSandboxTerminal(record) ||
-      observed === "failed"
+      observed === "failed" ||
+      detail?.status?.status === "failed"
     )
       return;
     const timer = setTimeout(() => {
@@ -233,8 +234,9 @@ export class SandboxManagerStore {
       const wasConnected = isSandboxConnected(detail);
       detail.status = status;
       detail.controllerConnected = status.connected;
-      if (status.connected && !wasConnected) {
-        // Fully sync record/snapshot/session once the controller is live.
+      if ((status.connected && !wasConnected) || status.status === "failed") {
+        // Fully sync record/snapshot/session once the controller is live or
+        // when manager-derived status observes a terminal startup failure.
         void this.loadDetail(sandboxId);
         return;
       }
@@ -263,7 +265,8 @@ export class SandboxManagerStore {
         api.getSandboxRecord(sandboxId),
         api.getSandboxStatus(sandboxId).catch(() => undefined),
       ]);
-      detail.record = record;
+      if (record) this.patchRecord(record);
+      else detail.record = record;
       if (status) {
         detail.status = status;
         detail.controllerConnected = status.connected;

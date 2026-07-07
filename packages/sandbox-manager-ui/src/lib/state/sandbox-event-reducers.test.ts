@@ -144,11 +144,34 @@ describe("applySandboxEvent", () => {
 
   it("deduplicates event log entries and records setup timeline", () => {
     const detail = createSandboxDetailState("sbx_1");
-    const boot = event(1, "sandbox.boot.started", { ...scope });
+    const boot = event(1, "sandbox.boot.started", {
+      ...scope,
+      phase: "install",
+    });
     applySandboxEvent(detail, boot);
     applySandboxEvent(detail, boot);
     assert.equal(detail.events.length, 1);
     assert.equal(detail.setupTimeline[0].phase, "boot");
     assert.equal(detail.setupTimeline[0].status, "started");
+    assert.equal(detail.setupTimeline[0].detail, "Boot phase: install");
+  });
+
+  it("records failed boot completion events as failed setup timeline items", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    applySandboxEvent(
+      detail,
+      event(1, "sandbox.boot.completed", {
+        ...scope,
+        phase: "install",
+        status: "failed",
+        exitCode: 127,
+      }),
+    );
+    assert.equal(detail.setupTimeline[0].phase, "boot");
+    assert.equal(detail.setupTimeline[0].status, "failed");
+    assert.equal(
+      detail.setupTimeline[0].detail,
+      "Boot phase: install · exit 127",
+    );
   });
 });

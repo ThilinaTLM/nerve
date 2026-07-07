@@ -19,6 +19,33 @@ function textOf(value: unknown): string {
   return "";
 }
 
+function bootPhaseDetail(data: Record<string, unknown>): string | undefined {
+  const phase = typeof data.phase === "string" ? data.phase.trim() : "";
+  return phase ? `Boot phase: ${phase}` : undefined;
+}
+
+function setupStatusFromEvent(
+  data: Record<string, unknown>,
+): "completed" | "failed" | "skipped" | "degraded" {
+  if (
+    data.status === "failed" ||
+    data.status === "skipped" ||
+    data.status === "degraded"
+  )
+    return data.status;
+  return "completed";
+}
+
+function bootCompletedDetail(
+  data: Record<string, unknown>,
+): string | undefined {
+  const detail = bootPhaseDetail(data);
+  if (data.status !== "failed") return detail;
+  const exitCode =
+    typeof data.exitCode === "number" ? `exit ${data.exitCode}` : undefined;
+  return [detail, exitCode].filter(Boolean).join(" · ") || undefined;
+}
+
 /**
  * Apply a single sandbox-stream event envelope to a sandbox detail state.
  * Reducers stay tolerant of unknown/future event types and never require
@@ -38,19 +65,25 @@ export function applySandboxEvent(
       pushSetup(detail, event, "git", "started");
       return;
     case "sandbox.setup.git.completed":
-      pushSetup(detail, event, "git", "completed");
+      pushSetup(detail, event, "git", setupStatusFromEvent(data));
       return;
     case "sandbox.setup.github.started":
       pushSetup(detail, event, "github", "started");
       return;
     case "sandbox.setup.github.completed":
-      pushSetup(detail, event, "github", "completed");
+      pushSetup(detail, event, "github", setupStatusFromEvent(data));
       return;
     case "sandbox.boot.started":
-      pushSetup(detail, event, "boot", "started");
+      pushSetup(detail, event, "boot", "started", bootPhaseDetail(data));
       return;
     case "sandbox.boot.completed":
-      pushSetup(detail, event, "boot", "completed");
+      pushSetup(
+        detail,
+        event,
+        "boot",
+        setupStatusFromEvent(data),
+        bootCompletedDetail(data),
+      );
       return;
     case "sandbox.skills.loaded":
       pushSetup(detail, event, "skills", "completed", "Skills loaded");

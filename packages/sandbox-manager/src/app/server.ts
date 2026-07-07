@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: HTTP routing is centralized while the manager API surface is still stabilizing.
 import { readFile } from "node:fs/promises";
 import {
   createServer,
@@ -33,6 +34,7 @@ import { readJsonBody } from "../http/body.js";
 import { errorResponse, HttpError } from "../http/errors.js";
 import { withIdempotency } from "../http/idempotency.js";
 import { LogCollector } from "../lifecycle/log-collector.js";
+import { refreshSandboxObservedState } from "../lifecycle/reconciler.js";
 import { handleManagerProtocolHttpRequest } from "../protocol/manager-protocol-http-dispatcher.js";
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
 import { tailManagerLogs } from "../routes/manager-logs-routes.js";
@@ -43,6 +45,10 @@ import {
   previewSandboxConfigYaml,
 } from "../routes/sandbox-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
+import {
+  readAgentStateSummary,
+  setupSummaryFailure,
+} from "../state/agent-state-summary.js";
 import { createLoggedRequestListener } from "./http-logging.js";
 import type { ManagerState } from "./manager-state.js";
 import { sandboxManagerVersion } from "./version.js";
@@ -236,17 +242,30 @@ async function handle(
       ok(await previewSandboxConfigYaml(state, body.config, body.auth)),
     );
   }
-  if (req.method === "GET" && path === "/api/sandboxes")
+  if (req.method === "GET" && path === "/api/sandboxes") {
+    const records = await Promise.all(
+      (await state.sandboxes.list()).map(async (record) =>
+        recoverStartupFailureFromAgentState(
+          state,
+          await refreshSandboxObservedState(
+            state.sandboxes,
+            state.driver,
+            record,
+          ),
+        ),
+      ),
+    );
     return json(
       res,
       200,
       ok(
-        (await state.sandboxes.list()).map((record) => ({
+        records.map((record) => ({
           ...publicSandboxRecord(record),
           activity: state.activity.get(record.sandboxId),
         })),
       ),
     );
+  }
   if (req.method === "POST" && path === "/api/sandboxes") {
     const rawBody = await readJsonBody(req);
     const body = createSandboxRequestSchema.parse(rawBody);
@@ -284,7 +303,21 @@ async function handle(
   const sandboxMatch = path.match(/^\/api\/sandboxes\/([^/]+)$/);
   if (req.method === "GET" && sandboxMatch) {
     const record = await state.sandboxes.get(sandboxMatch[1]);
-    return json(res, 200, ok(record ? publicSandboxRecord(record) : undefined));
+    const refreshed = record
+      ? await recoverStartupFailureFromAgentState(
+          state,
+          await refreshSandboxObservedState(
+            state.sandboxes,
+            state.driver,
+            record,
+          ),
+        )
+      : undefined;
+    return json(
+      res,
+      200,
+      ok(refreshed ? publicSandboxRecord(refreshed) : undefined),
+    );
   }
   if (req.method === "DELETE" && sandboxMatch) {
     const body = {
@@ -586,20 +619,33 @@ async function managerDerivedStatus(
   state: ManagerState,
   sandboxId: string,
 ): Promise<Record<string, unknown>> {
-  const record = await state.sandboxes.get(sandboxId);
-  if (!record) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
+  const storedRecord = await state.sandboxes.get(sandboxId);
+  if (!storedRecord) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
+  const record = await refreshSandboxObservedState(
+    state.sandboxes,
+    state.driver,
+    storedRecord,
+  );
   const session = await state.sessions.get(sandboxId);
   const events = await state.events.list(sandboxId);
+  const agentSummary = await readAgentStateSummary(record);
   const lastEvent = events
     .filter((event) => typeof event.seq === "number" || event.ts)
     .sort((a, b) => Number(a.seq ?? -1) - Number(b.seq ?? -1))
     .at(-1);
+  const latestSeq = Math.max(
+    lastEvent?.seq ?? -1,
+    agentSummary?.lastEventSeq ?? -1,
+  );
+  const startupFailure = setupSummaryFailure(agentSummary?.setup);
   const now = new Date().toISOString();
   const disconnectedAt = session?.disconnectedAt ?? record.stoppedAt;
   return {
     sandboxId: record.sandboxId,
     instanceId: record.instanceId ?? "unknown",
-    status: daemonStatusFromRecord(record, session?.state),
+    status: startupFailure
+      ? "failed"
+      : daemonStatusFromRecord(record, session?.state),
     connected: false,
     stale: true,
     staleness: {
@@ -612,8 +658,8 @@ async function managerDerivedStatus(
         ? Math.max(0, Date.now() - Date.parse(disconnectedAt))
         : undefined,
     },
-    lastEventSeq: lastEvent?.seq,
-    lastEventAt: lastEvent?.ts,
+    lastEventSeq: latestSeq >= 0 ? latestSeq : undefined,
+    lastEventAt: agentSummary?.lastEventAt ?? lastEvent?.ts,
     lastSession: sessionSummary(session),
     limitations: [
       "Status is manager-derived because no controller session is connected",
@@ -621,6 +667,7 @@ async function managerDerivedStatus(
     configDigest: record.configDigest,
     startedAt: record.startedAt,
     updatedAt: record.updatedAt,
+    setup: agentSummary?.setup,
     connectivity: {
       state:
         session?.state === "reconnecting" ? "reconnecting" : "disconnected",
@@ -641,6 +688,10 @@ async function managerDerivedSnapshot(
 ): Promise<Record<string, unknown>> {
   const status = await managerDerivedStatus(state, sandboxId);
   const events = await state.events.list(sandboxId);
+  const lastEvent = events.at(-1);
+  const statusSeq =
+    typeof status.lastEventSeq === "number" ? status.lastEventSeq : undefined;
+  const eventSeq = lastEvent?.seq;
   return {
     ...status,
     conversations: [],
@@ -648,8 +699,11 @@ async function managerDerivedSnapshot(
     runs: [],
     replayCursors: cursorSummary((await state.sessions.get(sandboxId))?.cursors)
       ?.streams,
-    lastEventSeq: events.at(-1)?.seq ?? status.lastEventSeq,
-    lastEventAt: events.at(-1)?.ts ?? status.lastEventAt,
+    lastEventSeq:
+      statusSeq === undefined && eventSeq === undefined
+        ? undefined
+        : Math.max(statusSeq ?? -1, eventSeq ?? -1),
+    lastEventAt: status.lastEventAt ?? lastEvent?.ts,
   };
 }
 
@@ -750,6 +804,25 @@ function prepareForwardedCommand(
     );
   params.commandId = commandId;
   return { method: body.method, params, requestId: commandId };
+}
+
+async function recoverStartupFailureFromAgentState(
+  state: ManagerState,
+  record: ManagedSandboxRecord,
+): Promise<ManagedSandboxRecord> {
+  if (record.observedState === "failed") return record;
+  const failure = setupSummaryFailure(
+    (await readAgentStateSummary(record))?.setup,
+  );
+  if (!failure) return record;
+  const next: ManagedSandboxRecord = {
+    ...record,
+    observedState: "failed",
+    updatedAt: new Date().toISOString(),
+    lastError: { code: failure.code, message: failure.message },
+  };
+  await state.sandboxes.put(next);
+  return next;
 }
 
 function publicSandboxRecord(

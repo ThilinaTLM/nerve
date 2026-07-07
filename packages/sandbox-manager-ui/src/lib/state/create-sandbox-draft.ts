@@ -2,6 +2,7 @@ import {
   type SandboxConfigV1,
   type SandboxCreateConfigInput,
   type SandboxCreateRequest,
+  type SandboxSecretRef,
   sandboxConfigV1Schema,
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
@@ -39,6 +40,35 @@ export const CREATE_SANDBOX_TOOL_KEYS: CreateSandboxToolKey[] = [
 
 export const CREATE_SANDBOX_PREFERENCES_STORAGE_KEY =
   "nerve.sandboxManager.createSandboxPreferences";
+
+export type CreateSandboxBootMode = "single" | "phases";
+export type CreateSandboxBootRunAs = "sandbox" | "root" | "";
+export type CreateSandboxBootNetwork =
+  | "inherit"
+  | "deny"
+  | "package_registries_only"
+  | "";
+export type CreateSandboxBootOnFailure = "fail_sandbox" | "continue_readonly";
+export type CreateSandboxBootSecretRefType = "env" | "file" | "kv";
+
+export type CreateSandboxBootSecretEnvDraft = {
+  id: string;
+  name: string;
+  refType: CreateSandboxBootSecretRefType;
+  value: string;
+  store: string;
+  version: string;
+};
+
+export type CreateSandboxBootPhaseDraft = {
+  id: string;
+  name: string;
+  script: string;
+  timeoutSeconds: string;
+  runAs: CreateSandboxBootRunAs;
+  network: CreateSandboxBootNetwork;
+  env: CreateSandboxBootSecretEnvDraft[];
+};
 
 type CreateSandboxPreferenceStorage = Pick<Storage, "getItem" | "setItem">;
 
@@ -160,6 +190,14 @@ export type CreateSandboxDraft = {
   jiraProfileId: string;
   confluenceProfileId: string;
   webProfileId: string;
+  bootEnabled: boolean;
+  bootMode: CreateSandboxBootMode;
+  bootScript: string;
+  bootTimeoutSeconds: string;
+  bootRunAs: "sandbox" | "root";
+  bootNetwork: "inherit" | "deny" | "package_registries_only";
+  bootOnFailure: CreateSandboxBootOnFailure;
+  bootPhases: CreateSandboxBootPhaseDraft[];
   yamlSource: string;
   yamlDirty: boolean;
 };
@@ -184,6 +222,38 @@ function randomIndex(length: number): number {
     return values[0] % length;
   }
   return Math.floor(Math.random() * length);
+}
+
+function createDraftId(prefix: string): string {
+  const cryptoRef = globalThis.crypto;
+  if (cryptoRef?.randomUUID) return `${prefix}_${cryptoRef.randomUUID()}`;
+  return `${prefix}_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
+export function createDefaultBootSecretEnv(): CreateSandboxBootSecretEnvDraft {
+  return {
+    id: createDraftId("boot_env"),
+    name: "",
+    refType: "env",
+    value: "",
+    store: "",
+    version: "",
+  };
+}
+
+export function createDefaultBootPhase(index = 0): CreateSandboxBootPhaseDraft {
+  const names = ["setup", "install", "prepare"];
+  return {
+    id: createDraftId("boot_phase"),
+    name: names[index] ?? `phase-${index + 1}`,
+    script: "",
+    timeoutSeconds: "",
+    runAs: "",
+    network: "",
+    env: [],
+  };
 }
 
 export function createDefaultDraft(): CreateSandboxDraft {
@@ -224,6 +294,14 @@ export function createDefaultDraft(): CreateSandboxDraft {
     jiraProfileId: "",
     confluenceProfileId: "",
     webProfileId: "",
+    bootEnabled: false,
+    bootMode: "single",
+    bootScript: "",
+    bootTimeoutSeconds: "600",
+    bootRunAs: "sandbox",
+    bootNetwork: "inherit",
+    bootOnFailure: "fail_sandbox",
+    bootPhases: [],
     yamlSource: "",
     yamlDirty: false,
   };
@@ -402,6 +480,165 @@ function parseLabels(input: string): Record<string, string> | undefined {
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
+export function parsePositiveSeconds(
+  value: string,
+  fieldName: string,
+): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const seconds = Number(trimmed);
+  if (!Number.isFinite(seconds) || seconds <= 0 || !Number.isInteger(seconds)) {
+    throw new Error(`${fieldName} must be a positive whole number of seconds.`);
+  }
+  return seconds;
+}
+
+function millisecondsFromSeconds(
+  value: string,
+  fieldName: string,
+): number | undefined {
+  const seconds = parsePositiveSeconds(value, fieldName);
+  return seconds === undefined ? undefined : seconds * 1000;
+}
+
+export function buildSecretRefFromEnvDraft(
+  row: CreateSandboxBootSecretEnvDraft,
+): SandboxSecretRef | undefined {
+  const value = row.value.trim();
+  if (!value) return undefined;
+  if (row.refType === "env") return { env: value };
+  if (row.refType === "file") return { file: value };
+  if (row.refType === "kv") {
+    const kv: { key: string; store?: string; version?: string } = {
+      key: value,
+    };
+    const store = row.store.trim();
+    const version = row.version.trim();
+    if (store) kv.store = store;
+    if (version) kv.version = version;
+    return { kv };
+  }
+  return undefined;
+}
+
+function secretEnvRowHasInput(row: CreateSandboxBootSecretEnvDraft): boolean {
+  return Boolean(
+    row.name.trim() ||
+      row.value.trim() ||
+      (row.refType === "kv" && (row.store.trim() || row.version.trim())),
+  );
+}
+
+function secretRefValueLabel(refType: CreateSandboxBootSecretRefType): string {
+  if (refType === "file") return "file path";
+  if (refType === "kv") return "secret key";
+  return "source environment variable";
+}
+
+export function validateBootDraft(
+  draft: CreateSandboxDraft,
+): string | undefined {
+  if (!draft.bootEnabled) return undefined;
+
+  try {
+    parsePositiveSeconds(draft.bootTimeoutSeconds, "Boot timeout");
+  } catch (error) {
+    return errorMessage(error);
+  }
+
+  if (draft.bootMode === "single") {
+    if (!draft.bootScript.trim()) return "Boot script is required.";
+    return undefined;
+  }
+
+  if (draft.bootPhases.length === 0) {
+    return "Add at least one boot phase.";
+  }
+
+  const phaseNames = new Set<string>();
+  for (const [phaseIndex, phase] of draft.bootPhases.entries()) {
+    const phaseLabel = `Boot phase ${phaseIndex + 1}`;
+    const name = phase.name.trim();
+    if (!name) return `${phaseLabel} needs a name.`;
+    if (phaseNames.has(name)) return `Duplicate boot phase name: ${name}.`;
+    phaseNames.add(name);
+    if (!phase.script.trim()) return `${phaseLabel} needs a script.`;
+    try {
+      parsePositiveSeconds(phase.timeoutSeconds, `${phaseLabel} timeout`);
+    } catch (error) {
+      return errorMessage(error);
+    }
+
+    const envNames = new Set<string>();
+    for (const [envIndex, row] of phase.env.entries()) {
+      if (!secretEnvRowHasInput(row)) continue;
+      const envLabel = `${phaseLabel} secret environment row ${envIndex + 1}`;
+      const envName = row.name.trim();
+      if (!envName) return `${envLabel} needs an environment variable name.`;
+      if (envNames.has(envName)) {
+        return `${phaseLabel} has duplicate secret environment variable ${envName}.`;
+      }
+      envNames.add(envName);
+      if (!row.value.trim()) {
+        return `${envLabel} needs a ${secretRefValueLabel(row.refType)}.`;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+export function buildBootConfigFromDraft(
+  draft: CreateSandboxDraft,
+): SandboxCreateConfigInput["boot"] | undefined {
+  const validationError = validateBootDraft(draft);
+  if (validationError) throw new Error(validationError);
+  if (!draft.bootEnabled) return undefined;
+
+  const boot: NonNullable<SandboxCreateConfigInput["boot"]> = {
+    runAs: draft.bootRunAs,
+    network: draft.bootNetwork,
+    onFailure: draft.bootOnFailure,
+  };
+  const timeoutMs = millisecondsFromSeconds(
+    draft.bootTimeoutSeconds,
+    "Boot timeout",
+  );
+  if (timeoutMs !== undefined) boot.timeoutMs = timeoutMs;
+
+  if (draft.bootMode === "single") {
+    boot.script = draft.bootScript;
+    return boot;
+  }
+
+  boot.phases = draft.bootPhases.map((phase, index) => {
+    const phaseConfig: NonNullable<
+      NonNullable<SandboxCreateConfigInput["boot"]>["phases"]
+    >[number] = {
+      name: phase.name.trim(),
+      script: phase.script,
+    };
+    const phaseTimeoutMs = millisecondsFromSeconds(
+      phase.timeoutSeconds,
+      `Boot phase ${index + 1} timeout`,
+    );
+    if (phaseTimeoutMs !== undefined) phaseConfig.timeoutMs = phaseTimeoutMs;
+    if (phase.runAs) phaseConfig.runAs = phase.runAs;
+    if (phase.network) phaseConfig.network = phase.network;
+
+    const env: Record<string, SandboxSecretRef> = {};
+    for (const row of phase.env) {
+      const name = row.name.trim();
+      const ref = buildSecretRefFromEnvDraft(row);
+      if (name && ref) env[name] = ref;
+    }
+    if (Object.keys(env).length > 0) phaseConfig.env = env;
+    return phaseConfig;
+  });
+
+  return boot;
+}
+
 export function buildConfigFromDraft(
   draft: CreateSandboxDraft,
 ): SandboxCreateConfigInput {
@@ -441,6 +678,9 @@ export function buildConfigFromDraft(
   for (const [key, enabled] of Object.entries(draft.tools))
     groups[key] = { enabled };
   config.tools = { groups };
+
+  const boot = buildBootConfigFromDraft(draft);
+  if (boot) config.boot = boot;
 
   return sandboxCreateConfigInputSchema.parse(config);
 }

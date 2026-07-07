@@ -61,7 +61,9 @@
   const connected = $derived(isSandboxConnected(detail));
   const render = $derived(buildConversationRenderProjection(richState));
   const progress = $derived(computeSandboxBootProgress(record, detail));
-  const booting = $derived(!connected && !isSandboxTerminal(record));
+  const booting = $derived(
+    !connected && !isSandboxTerminal(record) && progress.state !== "failed",
+  );
   const hasContent = $derived(
     render.timeline.length > 0 || Boolean(render.streamingText),
   );
@@ -109,6 +111,7 @@
 
   const composerDisabled = $derived(
     isSandboxTerminal(record) ||
+      progress.state === "failed" ||
       (detail?.sending ?? false) ||
       readOnly ||
       blockedForReview,
@@ -127,9 +130,11 @@
   const composerHint = $derived(
     detail?.queuedPrompt
       ? "Message queued — sends when the sandbox is ready."
-      : booting
-        ? "Sandbox is booting — your message will send when ready."
-        : undefined,
+      : progress.state === "failed"
+        ? "Sandbox startup failed — fix the sandbox and restart it before chatting."
+        : booting
+          ? "Sandbox is booting — your message will send when ready."
+          : undefined,
   );
 
   function handleModelChange(key: string): void {
@@ -383,7 +388,9 @@
               <p class="text-sm text-muted-foreground">
                 {connected
                   ? "No conversation yet. Send a prompt to start a run."
-                  : "No controller session connected. Chat is read-only until the sandbox reconnects."}
+                  : progress.state === "failed"
+                    ? "Sandbox startup failed. Review the boot details and restart after fixing the config."
+                    : "No controller session connected. Chat is read-only until the sandbox reconnects."}
               </p>
             </div>
           {/if}

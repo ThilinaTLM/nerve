@@ -31,6 +31,24 @@ describe("parseToolView bash/python execution", () => {
     assert.equal(view.truncated, true);
   });
 
+  it("normalizes agent-tool-result content arrays for bash previews", () => {
+    const view = parseToolView(
+      toolCall(
+        "bash",
+        { command: "git --help" },
+        {
+          content: [{ type: "text", text: "usage: git\n" }],
+          details: { exitCode: 0, signal: null },
+        },
+      ),
+    );
+    assert.equal(view.kind, "bash");
+    if (view.kind !== "bash") return;
+    assert.equal(view.command, "git --help");
+    assert.equal(view.output, "usage: git\n");
+    assert.equal(view.exitCode, 0);
+  });
+
   it("parses python exit code, output, policy details, and saved-output path", () => {
     const view = parseToolView(
       toolCall(

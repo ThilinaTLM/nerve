@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -13,6 +13,7 @@ import {
   OrphanReconciler,
 } from "../src/lifecycle/orphan-reconciler.js";
 import { SandboxReconciler } from "../src/lifecycle/reconciler.js";
+import { readAgentStateSummary } from "../src/state/agent-state-summary.js";
 import { FileManagerStore } from "../src/state/manager-store.js";
 
 function record(sandboxId = "sbx_1") {
@@ -40,6 +41,70 @@ describe("sandbox manager reconciliation gc and orphan handling", () => {
       const driver = fakeDriver({ state: "exited", exitCode: 22 });
       await new SandboxReconciler(store, driver).reconcile();
       assert.equal((await store.get("sbx_1"))?.observedState, "reconnecting");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("marks nonzero container exits as failed during reconciliation", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-reconcile-fail-"));
+    try {
+      const store = new FileManagerStore(dir);
+      await store.put(record());
+      const driver = fakeDriver({ state: "exited", exitCode: 13 });
+      await new SandboxReconciler(store, driver).reconcile();
+      const updated = await store.get("sbx_1");
+      assert.equal(updated?.observedState, "failed");
+      assert.equal(updated?.lastError?.code, "CONTAINER_FAILED");
+      assert.match(updated?.lastError?.message ?? "", /13/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("recovers boot setup failure from the sandbox agent outbox", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-agent-state-"));
+    try {
+      const stateDir = path.join(dir, "state");
+      const eventsDir = path.join(stateDir, "events");
+      await mkdir(eventsDir, { recursive: true });
+      await writeFile(
+        path.join(eventsDir, "outbox.jsonl"),
+        [
+          JSON.stringify({
+            seq: 1,
+            id: "evt_1",
+            ts: "2026-07-07T17:06:08.000Z",
+            type: "sandbox.boot.started",
+            durability: "durable",
+            data: { phase: "boot", startedAt: "2026-07-07T17:06:08.000Z" },
+          }),
+          JSON.stringify({
+            seq: 2,
+            id: "evt_2",
+            ts: "2026-07-07T17:06:10.000Z",
+            type: "sandbox.boot.completed",
+            durability: "durable",
+            data: {
+              phase: "boot",
+              status: "failed",
+              exitCode: 127,
+              startedAt: "2026-07-07T17:06:08.000Z",
+              completedAt: "2026-07-07T17:06:10.000Z",
+              stderr: { text: "/bin/sh: 2: pnpm: not found\n", bytes: 31 },
+            },
+          }),
+        ].join("\n"),
+        "utf8",
+      );
+
+      const summary = await readAgentStateSummary({
+        ...record(),
+        stateRef: { kind: "bind", source: stateDir, target: "/state" },
+      });
+      assert.equal(summary?.lastEventSeq, 2);
+      assert.equal(summary?.setup?.boot?.status, "failed");
+      assert.match(summary?.setup?.boot?.error?.message ?? "", /pnpm/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -108,6 +108,29 @@ describe("manager protocol method handlers", () => {
     );
   });
 
+  it("merges sparse tool-call lifecycle updates when projecting durable events", async () => {
+    const result = (await handleManagerProtocolMethod(
+      context({ events: toolCallProjectionEvents() }),
+      "sandbox.conversation.snapshot.get",
+      { sandboxId: "sbx_1", conversationId: "conv_1", agentId: "agent_main" },
+    )) as {
+      snapshot?: {
+        toolCalls: Array<{
+          status: string;
+          argsPreview?: unknown;
+          resultPreview?: unknown;
+        }>;
+      };
+    };
+    const toolCall = result.snapshot?.toolCalls[0];
+    assert.equal(toolCall?.status, "completed");
+    assert.deepEqual(toolCall?.argsPreview, { command: "git --help" });
+    assert.deepEqual(toolCall?.resultPreview, {
+      content: [{ type: "text", text: "usage: git\n" }],
+      details: { exitCode: 0 },
+    });
+  });
+
   it("preserves transcript entry details when projecting durable events", async () => {
     const result = (await handleManagerProtocolMethod(
       context({ events: transcriptEventsWithDetails() }),
@@ -210,6 +233,64 @@ function context(options: { session?: unknown; events?: unknown[] } = {}) {
     controller: {
       getSession: () => options.session,
     } as unknown as SandboxWsServer,
+  };
+}
+
+function toolCallProjectionEvents() {
+  return [
+    transcriptEvent(
+      "evt_tool_entry_1",
+      1,
+      "run_1",
+      "user",
+      "!git --help",
+      "2026-07-05T21:23:16.000Z",
+    ),
+    toolCallUpdateEvent(2, "running", { command: "git --help" }),
+    toolCallUpdateEvent(3, "completed", undefined, {
+      content: [{ type: "text", text: "usage: git\n" }],
+      details: { exitCode: 0 },
+    }),
+  ];
+}
+
+function toolCallUpdateEvent(
+  seq: number,
+  status: "running" | "completed",
+  argsPreview?: unknown,
+  resultPreview?: unknown,
+) {
+  return {
+    sandboxId: "sbx_1",
+    id: `evt_tool_${seq}`,
+    seq,
+    type: "conversation.tool_call.updated",
+    ts: `2026-07-05T21:23:1${seq}.000Z`,
+    durability: "durable",
+    payload: {
+      conversationId: "conv_1",
+      agentId: "agent_main",
+      projectId: "proj_1",
+      runId: "run_1",
+      providerToolCallId: "call_bash_1",
+      toolCall: {
+        id: "tool_bash_1",
+        sourceToolCallId: "call_bash_1",
+        providerToolCallId: "call_bash_1",
+        conversationId: "conv_1",
+        agentId: "agent_main",
+        projectId: "proj_1",
+        runId: "run_1",
+        toolName: "bash",
+        risk: "command",
+        cwd: "/tmp/workspace",
+        status,
+        argsPreview,
+        resultPreview,
+        createdAt: `2026-07-05T21:23:1${seq}.000Z`,
+        updatedAt: `2026-07-05T21:23:1${seq}.000Z`,
+      },
+    },
   };
 }
 

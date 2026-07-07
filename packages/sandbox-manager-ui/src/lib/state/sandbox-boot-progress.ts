@@ -178,14 +178,21 @@ export function computeSandboxBootProgress(
 ): SandboxBootProgress {
   const observed = record?.observedState;
   const connected = isSandboxConnected(detail);
+  const daemonFailed = detail?.status?.status === "failed";
   const setup = detail?.status?.setup;
+  const setupFailed = Object.values(setup ?? {}).some(
+    (phase) => phase?.status === "failed",
+  );
 
   const containerDone =
     observed === "running" ||
     observed === "reconnecting" ||
+    observed === "exited" ||
+    observed === "failed" ||
     connected ||
     detail?.status !== undefined;
-  const containerFailed = observed === "failed" && !containerDone;
+  const containerFailed =
+    (observed === "failed" || daemonFailed) && !setupFailed;
 
   const container: PhaseInput = {
     id: "container",
@@ -209,11 +216,11 @@ export function computeSandboxBootProgress(
     status:
       configTimeline.status !== "pending"
         ? configTimeline.status
-        : container.status === "done" && !connected
-          ? "active"
-          : container.status === "done"
+        : container.status !== "done"
+          ? "pending"
+          : connected || setup || daemonFailed
             ? "done"
-            : "pending",
+            : "active",
     ts: configTimeline.ts,
   };
 
@@ -251,17 +258,24 @@ export function computeSandboxBootProgress(
   );
 
   const readyTimeline = latestTimeline(detail, "ready");
+  const setupPhases = [git, github, boot, skills];
+  const failedBeforeReady =
+    container.status === "failed" ||
+    config.status === "failed" ||
+    setupPhases.some((phase) => phase.status === "failed") ||
+    daemonFailed;
   const ready: PhaseInput = {
     id: "ready",
     label: "Ready to chat",
     description: "Controller session connected.",
-    status: containerFailed
-      ? "failed"
-      : connected || readyTimeline.status === "done"
+    status:
+      connected || readyTimeline.status === "done"
         ? "done"
-        : container.status === "done"
-          ? "active"
-          : "pending",
+        : failedBeforeReady
+          ? "pending"
+          : container.status === "done"
+            ? "active"
+            : "pending",
     ts: readyTimeline.ts,
   };
 
