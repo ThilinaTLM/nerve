@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: Store coordinates manager websocket, lifecycle, chat, and workspace tab state while this app is still being factored.
 import {
   applyConversationEvent,
   fromSandboxConversationViewSnapshot,
@@ -37,7 +38,17 @@ import {
   createSandboxDetailState,
   type PendingSandboxOperation,
   type SandboxDetailState,
+  type SandboxWorkspaceTabIdentity,
 } from "./sandbox-ui-types";
+import {
+  closeWorkspaceTab as closeWorkspaceTabInDetail,
+  openWorkspaceChatTab as openWorkspaceChatTabInDetail,
+  openWorkspaceFile as openWorkspaceFileInDetail,
+  refreshWorkspaceFile as refreshWorkspaceFileInDetail,
+  selectWorkspaceTab as selectWorkspaceTabInDetail,
+  toggleWorkspaceFileDisplayMode as toggleWorkspaceFileDisplayModeInDetail,
+  toggleWorkspaceFileLineWrap as toggleWorkspaceFileLineWrapInDetail,
+} from "./sandbox-workspace-tabs";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -357,6 +368,57 @@ export class SandboxManagerStore {
     } catch (error) {
       detail.error = errorMessage(error);
     }
+  }
+
+  // --- workspace tab actions ---
+
+  selectWorkspaceTab(
+    sandboxId: string,
+    tab: SandboxWorkspaceTabIdentity,
+  ): void {
+    selectWorkspaceTabInDetail(this.detail(sandboxId), tab);
+  }
+
+  closeWorkspaceTab(sandboxId: string, tab: SandboxWorkspaceTabIdentity): void {
+    closeWorkspaceTabInDetail(this.detail(sandboxId), tab);
+  }
+
+  openWorkspaceChatTab(sandboxId: string): void {
+    openWorkspaceChatTabInDetail(this.detail(sandboxId));
+  }
+
+  async openWorkspaceFile(
+    sandboxId: string,
+    path: string,
+    line?: number,
+  ): Promise<void> {
+    await openWorkspaceFileInDetail(
+      this.detail(sandboxId),
+      sandboxId,
+      path,
+      line,
+    );
+  }
+
+  async refreshWorkspaceFile(
+    sandboxId: string,
+    fileTabId: string,
+    line?: number,
+  ): Promise<void> {
+    await refreshWorkspaceFileInDetail(
+      this.detail(sandboxId),
+      sandboxId,
+      fileTabId,
+      line,
+    );
+  }
+
+  toggleWorkspaceFileDisplayMode(sandboxId: string, fileTabId: string): void {
+    toggleWorkspaceFileDisplayModeInDetail(this.details[sandboxId], fileTabId);
+  }
+
+  toggleWorkspaceFileLineWrap(sandboxId: string, fileTabId: string): void {
+    toggleWorkspaceFileLineWrapInDetail(this.details[sandboxId], fileTabId);
   }
 
   // --- lifecycle actions ---

@@ -4,8 +4,8 @@
   import { Button } from "@nervekit/ui/components/ui/button";
   import TabsBar from "@nervekit/ui/components/ui/tabs-bar";
   import SandboxBootProgress from "../SandboxBootProgress.svelte";
-  import SandboxEventsView from "../../routes/SandboxEventsView.svelte";  import SandboxConfigView from "../../routes/SandboxConfigView.svelte";
-
+  import SandboxConfigView from "../../routes/SandboxConfigView.svelte";
+  import SandboxEventsView from "../../routes/SandboxEventsView.svelte";
   import SandboxRuntimeView from "../../routes/SandboxRuntimeView.svelte";
   import SandboxSecretsView from "../../routes/SandboxSecretsView.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
@@ -33,7 +33,7 @@
   });
 </script>
 
-<div class="flex h-full flex-col">
+<div class="flex h-full min-w-0 flex-col">
   <div class="flex flex-none items-center gap-2 border-b px-3 py-2">
     <div class="min-w-0 flex-1">
       <TabsBar {tabs} bind:value={tab} ariaLabel="Sandbox inspector" />

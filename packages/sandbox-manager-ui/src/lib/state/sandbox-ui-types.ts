@@ -7,6 +7,7 @@ import type {
   SandboxStatusGetResult,
   SandboxToolCallSummary,
   SandboxWaitSummary,
+  SandboxWorkspaceFileResponse,
   ThinkingLevel,
 } from "@nervekit/shared";
 import type { ManagerWsConnectionState } from "../api/manager-ws-client.svelte";
@@ -67,6 +68,21 @@ export type SandboxLiveRunState = {
   updatedAt?: string;
 };
 
+export type SandboxWorkspaceTabIdentity =
+  | { kind: "chat"; id: "chat" }
+  | { kind: "file"; id: string };
+
+export type SandboxWorkspaceFileViewState = {
+  id: string;
+  path: string;
+  line?: number;
+  content?: SandboxWorkspaceFileResponse;
+  displayMode: "raw" | "rendered";
+  wrapLines: boolean;
+  loading: boolean;
+  error?: string;
+};
+
 export type SandboxSetupTimelineItem = {
   key: string;
   phase: string;
@@ -111,6 +127,9 @@ export type SandboxDetailState = {
   }>;
   liveRuns: Record<string, SandboxLiveRunState>;
   conversationViewsById: Record<string, ConversationRenderState>;
+  openWorkspaceTabs: SandboxWorkspaceTabIdentity[];
+  activeWorkspaceTab: SandboxWorkspaceTabIdentity;
+  workspaceFileViewsById: Record<string, SandboxWorkspaceFileViewState>;
   lastRichSnapshot?: {
     generatedAt?: string;
     cursorSeq?: number;
@@ -147,6 +166,9 @@ export function createSandboxDetailState(
     appendedTranscript: [],
     liveRuns: {},
     conversationViewsById: {},
+    openWorkspaceTabs: [{ kind: "chat", id: "chat" }],
+    activeWorkspaceTab: { kind: "chat", id: "chat" },
+    workspaceFileViewsById: {},
     composerText: "",
     agentControls: defaultAgentControls(),
     controllerConnected: false,

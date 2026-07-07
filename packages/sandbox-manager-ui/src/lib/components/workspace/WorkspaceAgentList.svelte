@@ -21,7 +21,7 @@
   const store = useSandboxManagerStore();
 </script>
 
-<div class="flex h-full w-64 flex-col border-r bg-background">
+<div class="flex h-full w-full flex-col border-r bg-background">
   <div class="flex flex-none items-center justify-between gap-2 border-b px-3 py-2">
     <span class="text-sm font-semibold">Sandboxes</span>
     <div class="flex items-center gap-0.5">

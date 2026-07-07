@@ -15,32 +15,40 @@
   import { setConversationUiCapabilities } from "@nervekit/conversation-ui/context";
   import type { ThinkingLevel } from "@nervekit/shared";
   import { Button } from "@nervekit/ui/components/ui/button";
+  import {
+    Handle,
+    Pane,
+    PaneGroup,
+  } from "@nervekit/ui/components/ui/resizable";
   import SelectField from "@nervekit/ui/components/ui/select-field";
   import type { SelectItem } from "@nervekit/ui/components/ui/select-field";
   import SandboxPromptComposer from "../components/composer/SandboxPromptComposer.svelte";
+  import AppShell from "../components/layout/AppShell.svelte";
   import SandboxActionMenu from "../components/SandboxActionMenu.svelte";
   import SandboxBootProgress from "../components/SandboxBootProgress.svelte";
   import SandboxDiagnosticsSheet from "../components/SandboxDiagnosticsSheet.svelte";
+  import SandboxStatusBadge from "../components/SandboxStatusBadge.svelte";
+  import SandboxFilePane from "../components/workspace/SandboxFilePane.svelte";
+  import SandboxWorkspaceTabStrip from "../components/workspace/SandboxWorkspaceTabStrip.svelte";
   import WorkspaceAgentList from "../components/workspace/WorkspaceAgentList.svelte";
   import WorkspaceInspector from "../components/workspace/WorkspaceInspector.svelte";
-  import SandboxStatusBadge from "../components/SandboxStatusBadge.svelte";
-  import AppShell from "../components/layout/AppShell.svelte";
-  import {
-    sandboxMessageMenu,
-    sandboxToolMenu,
-  } from "../state/sandbox-conversation-menus";
-  import {
-    pendingApprovalRecords,
-    pendingUserQuestionRecord,
-  } from "../state/sandbox-review-records";
-  import { resolveToolCallDetails } from "../state/sandbox-tool-call-details";
-  import { modelKey } from "../utils/model-display";
   import {
     computeSandboxBootProgress,
     isSandboxConnected,
     isSandboxTerminal,
   } from "../state/sandbox-boot-progress";
+  import {
+    sandboxMessageMenu,
+    sandboxToolMenu,
+  } from "../state/sandbox-conversation-menus";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
+  import {
+    pendingApprovalRecords,
+    pendingUserQuestionRecord,
+  } from "../state/sandbox-review-records";
+  import { resolveToolCallDetails } from "../state/sandbox-tool-call-details";
+  import type { SandboxWorkspaceTabIdentity } from "../state/sandbox-ui-types";
+  import { modelKey } from "../utils/model-display";
   import type { SandboxManagerRouteState } from "./route-state.svelte";
 
   let {
@@ -49,10 +57,22 @@
   }: { route: SandboxManagerRouteState; sandboxId: string } = $props();
 
   const store = useSandboxManagerStore();
+  const chatTab: SandboxWorkspaceTabIdentity = { kind: "chat", id: "chat" };
+  const defaultWorkspaceTabs: SandboxWorkspaceTabIdentity[] = [chatTab];
   const record = $derived(
     store.sandboxes.find((item) => item.sandboxId === sandboxId),
   );
   const detail = $derived(store.details[sandboxId]);
+  const workspaceTabs = $derived(
+    detail?.openWorkspaceTabs ?? defaultWorkspaceTabs,
+  );
+  const activeWorkspaceTab = $derived(detail?.activeWorkspaceTab ?? chatTab);
+  const workspaceFileViews = $derived(detail?.workspaceFileViewsById ?? {});
+  const activeFileView = $derived(
+    activeWorkspaceTab.kind === "file"
+      ? workspaceFileViews[activeWorkspaceTab.id]
+      : undefined,
+  );
   const richState = $derived(
     detail?.selectedConversationId
       ? detail.conversationViewsById[detail.selectedConversationId]
@@ -191,6 +211,14 @@
     void store.configureAgent(sandboxId, { approvalPolicy: policy });
   }
 
+  function handleWorkspaceTabRefresh(tab: SandboxWorkspaceTabIdentity): void {
+    if (tab.kind === "chat") {
+      void store.recoverConversationSnapshot(sandboxId).catch(() => undefined);
+      return;
+    }
+    void store.refreshWorkspaceFile(sandboxId, tab.id);
+  }
+
   // Tool-call details dialog resolves the full sandbox record when connected.
   setConversationUiCapabilities({
     fetchToolCall: (toolCallId) =>
@@ -199,8 +227,7 @@
 
   let diagnosticsOpen = $state(false);
 
-  // Inspector drawer (right) — collapsible, persisted; auto-collapses once the
-  // sandbox is connected and ready for chat.
+  // Inspector drawer (right) — collapsible, persisted, and open by default.
   const INSPECTOR_KEY = "nerve.sandboxManager.inspectorOpen";
   function readInspectorPref(): boolean | undefined {
     if (typeof localStorage === "undefined") return undefined;
@@ -208,28 +235,20 @@
     return value === null ? undefined : value === "1";
   }
   let inspectorOpen = $state(readInspectorPref() ?? true);
-  let hasAutoCollapsed = false;
   function setInspectorOpen(next: boolean): void {
     inspectorOpen = next;
     if (typeof localStorage !== "undefined")
       localStorage.setItem(INSPECTOR_KEY, next ? "1" : "0");
   }
-  $effect(() => {
-    if (connected && !hasAutoCollapsed) {
-      if (readInspectorPref() === undefined) inspectorOpen = false;
-      hasAutoCollapsed = true;
-    }
-  });
 
-  // Agent list (left) — collapsible, persisted; auto-collapses when there is a
-  // single sandbox so a solo user isn't paying for the pane.
+  // Agent list (left) — collapsible, persisted, and open by default.
   const AGENT_LIST_KEY = "nerve.sandboxManager.agentListOpen";
   function readAgentListPref(): boolean | undefined {
     if (typeof localStorage === "undefined") return undefined;
     const value = localStorage.getItem(AGENT_LIST_KEY);
     return value === null ? undefined : value === "1";
   }
-  let agentListOpen = $state(readAgentListPref() ?? store.sandboxes.length > 1);
+  let agentListOpen = $state(readAgentListPref() ?? true);
   function setAgentListOpen(next: boolean): void {
     agentListOpen = next;
     if (typeof localStorage !== "undefined")
@@ -241,6 +260,153 @@
     if (connected && detail?.queuedPrompt) void store.flushQueuedPrompt(sandboxId);
   });
 </script>
+
+{#snippet chatWorkspace()}
+  {#if booting && record}
+    <div class="flex-none border-b p-3 lg:hidden">
+      <SandboxBootProgress {record} variant="banner" />
+    </div>
+  {/if}
+
+  <section
+    class="relative mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-rows-[minmax(0,1fr)_auto]"
+  >
+    {#if hasContent}
+      <div
+        class="grid min-h-0 min-w-0"
+        role="log"
+        aria-label="Conversation transcript"
+        aria-live="polite"
+      >
+        <TranscriptList
+          bind:controller={scroll.controller}
+          bind:atEnd={scroll.atEnd}
+          timeline={render.timeline}
+          streamingText={render.streamingText}
+          sending={richState?.sending ?? detail?.sending ?? false}
+          hasLiveTimelineNodes={render.hasLiveTimelineNodes}
+          queuedPrompts={render.queuedPrompts}
+          contentVisibility={true}
+          followBottom={scroll.followBottom}
+          paddingEnd={18}
+          heightCacheKey={transcriptHeightCacheKey}
+          {approvals}
+          {pendingUserQuestion}
+          {lastTimelineKey}
+          onGrantApproval={(id) =>
+            void store.resolveApproval(sandboxId, id, "grant")}
+          onDenyApproval={(id) =>
+            void store.resolveApproval(sandboxId, id, "deny")}
+          onAnswerUserQuestion={(questionId, answer) =>
+            void store.submitInput(sandboxId, questionId, answer)}
+          onOpenFile={(path, line) =>
+            void store.openWorkspaceFile(sandboxId, path, line)}
+          messageMenu={sandboxMessageMenu}
+          toolMenu={sandboxToolMenu}
+        />
+      </div>
+    {:else if booting && record}
+      <div class="flex min-h-0 flex-col items-center justify-center gap-4 p-6">
+        <div class="w-full max-w-md">
+          <SandboxBootProgress {record} variant="banner" />
+        </div>
+        <p class="max-w-md text-center text-sm text-muted-foreground">
+          You can type your first message now — it'll send automatically when
+          the sandbox is ready.
+        </p>
+      </div>
+    {:else}
+      <div class="flex min-h-0 flex-col items-center justify-center gap-2 p-4 text-center">
+        <MessageSquareOff class="size-8 text-muted-foreground" />
+        <p class="text-sm text-muted-foreground">
+          {connected
+            ? "No conversation yet. Send a prompt to start a run."
+            : progress.state === "failed"
+              ? "Sandbox startup failed. Review the boot details and restart after fixing the config."
+              : "No controller session connected. Chat is read-only until the sandbox reconnects."}
+        </p>
+      </div>
+    {/if}
+
+    {#if hasContent && !scroll.atEnd && scroll.composerHeight > 0}
+      <div class="absolute right-4 z-10" style={`bottom: ${scroll.composerHeight + 8}px;`}>
+        <Button
+          class="rounded-full"
+          variant="secondary"
+          size="icon-sm"
+          ariaLabel="Scroll to latest"
+          title="Scroll to latest"
+          onclick={() => scroll.jumpToBottom()}
+        >
+          <ArrowDown class="size-4" />
+        </Button>
+      </div>
+    {/if}
+
+    {#if detail && controls}
+      <div class="min-w-0" bind:this={scroll.composerWrapEl}>
+        <SandboxPromptComposer
+          text={detail.composerText}
+          disabled={composerDisabled}
+          sending={canCancel}
+          models={store.models}
+          {selectedModelKey}
+          thinkingLevel={controls.thinkingLevel}
+          mode={controls.mode}
+          permissionLevel={controls.permissionLevel}
+          approvalPolicy={controls.approvalPolicy}
+          contextUsage={richState?.contextUsage}
+          contextWindow={selectedModel?.contextWindow ?? 0}
+          hint={composerHint}
+          onChange={(text) => {
+            if (detail) detail.composerText = text;
+          }}
+          onSubmit={() =>
+            void store.submitPrompt(sandboxId, detail.composerText)}
+          onAbort={canCancel ? () => void store.cancelRun(sandboxId) : undefined}
+          onModelChange={handleModelChange}
+          onThinkingLevelChange={handleThinkingLevelChange}
+          onModeChange={handleModeChange}
+          onPermissionChange={handlePermissionChange}
+          onApprovalPolicyChange={handleApprovalPolicyChange}
+        />
+      </div>
+    {/if}
+  </section>
+{/snippet}
+
+{#snippet centerWorkspace()}
+  <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
+    <SandboxWorkspaceTabStrip
+      tabs={workspaceTabs}
+      activeTab={activeWorkspaceTab}
+      fileViewsById={workspaceFileViews}
+      onSelect={(tab) => store.selectWorkspaceTab(sandboxId, tab)}
+      onClose={(tab) => store.closeWorkspaceTab(sandboxId, tab)}
+      onRefresh={handleWorkspaceTabRefresh}
+      onToggleFileDisplayMode={(fileTabId) =>
+        store.toggleWorkspaceFileDisplayMode(sandboxId, fileTabId)}
+      onToggleFileLineWrap={(fileTabId) =>
+        store.toggleWorkspaceFileLineWrap(sandboxId, fileTabId)}
+    />
+
+    {#if record?.lastError}
+      <p class="flex-none border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
+        {record.lastError.code}: {record.lastError.message}
+      </p>
+    {/if}
+
+    <div class="min-h-0 min-w-0 flex-1">
+      {#if activeWorkspaceTab.kind === "file"}
+        <SandboxFilePane view={activeFileView} />
+      {:else}
+        <div class="flex h-full min-h-0 min-w-0 flex-col">
+          {@render chatWorkspace()}
+        </div>
+      {/if}
+    </div>
+  </div>
+{/snippet}
 
 <AppShell {route} contentVariant="full">
   <div class="flex flex-none flex-wrap items-center gap-3 border-b px-4 py-2.5">
@@ -256,6 +422,7 @@
       <Button
         variant="ghost"
         size="icon-sm"
+        class="hidden lg:inline-flex"
         ariaLabel="Show sandbox list"
         title="Show sandbox list"
         onclick={() => setAgentListOpen(true)}
@@ -277,7 +444,9 @@
           ariaLabel="Select conversation"
           class="max-w-xs"
           onValueChange={(value) => {
-            if (detail) detail.selectedConversationId = value;
+            if (!detail) return;
+            detail.selectedConversationId = value;
+            store.openWorkspaceChatTab(sandboxId);
           }}
         />
       {/if}
@@ -311,145 +480,43 @@
       </div>
     </div>
   {:else}
-    <div class="flex min-h-0 flex-1">
-      {#if agentListOpen}
-        <aside class="hidden shrink-0 lg:flex">
-          <WorkspaceAgentList
-            activeSandboxId={sandboxId}
-            onSelect={(id) => route.openSandbox(id)}
-            onCreate={() => (store.createDialogOpen = true)}
-            onCollapse={() => setAgentListOpen(false)}
-          />
-        </aside>
-      {/if}
-
-      <!-- Chat column -->
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-        {#if record.lastError}
-          <p class="flex-none border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
-            {record.lastError.code}: {record.lastError.message}
-          </p>
-        {/if}
-
-        {#if booting}
-          <div class="flex-none border-b p-3 lg:hidden">
-            <SandboxBootProgress {record} variant="banner" />
-          </div>
-        {/if}
-
-        <section
-          class="relative mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-rows-[minmax(0,1fr)_auto]"
+    <div class="min-h-0 flex-1">
+      <div class="hidden h-full min-h-0 lg:block">
+        <PaneGroup
+          direction="horizontal"
+          autoSaveId="nerve.sandboxManager.workspace.v1"
+          keyboardResizeBy={8}
         >
-          {#if hasContent}
-            <div
-              class="grid min-h-0 min-w-0"
-              role="log"
-              aria-label="Conversation transcript"
-              aria-live="polite"
-            >
-              <TranscriptList
-                bind:controller={scroll.controller}
-                bind:atEnd={scroll.atEnd}
-                timeline={render.timeline}
-                streamingText={render.streamingText}
-                sending={richState?.sending ?? detail?.sending ?? false}
-                hasLiveTimelineNodes={render.hasLiveTimelineNodes}
-                queuedPrompts={render.queuedPrompts}
-                contentVisibility={true}
-                followBottom={scroll.followBottom}
-                paddingEnd={18}
-                heightCacheKey={transcriptHeightCacheKey}
-                {approvals}
-                {pendingUserQuestion}
-                {lastTimelineKey}
-                onGrantApproval={(id) =>
-                  void store.resolveApproval(sandboxId, id, "grant")}
-                onDenyApproval={(id) =>
-                  void store.resolveApproval(sandboxId, id, "deny")}
-                onAnswerUserQuestion={(questionId, answer) =>
-                  void store.submitInput(sandboxId, questionId, answer)}
-                messageMenu={sandboxMessageMenu}
-                toolMenu={sandboxToolMenu}
+          {#if agentListOpen}
+            <Pane defaultSize={20} minSize={14} maxSize={32} order={1}>
+              <WorkspaceAgentList
+                activeSandboxId={sandboxId}
+                onSelect={(id) => route.openSandbox(id)}
+                onCreate={() => (store.createDialogOpen = true)}
+                onCollapse={() => setAgentListOpen(false)}
               />
-            </div>
-          {:else if booting}
-            <div class="flex min-h-0 flex-col items-center justify-center gap-4 p-6">
-              <div class="w-full max-w-md">
-                <SandboxBootProgress {record} variant="banner" />
+            </Pane>
+            <Handle aria-label="Resize sandbox list" />
+          {/if}
+
+          <Pane defaultSize={56} minSize={36} order={2}>
+            {@render centerWorkspace()}
+          </Pane>
+
+          {#if inspectorOpen}
+            <Handle aria-label="Resize inspector" />
+            <Pane defaultSize={24} minSize={19} maxSize={40} order={3}>
+              <div class="h-full min-w-0 border-l">
+                <WorkspaceInspector {record} onClose={() => setInspectorOpen(false)} />
               </div>
-              <p class="max-w-md text-center text-sm text-muted-foreground">
-                You can type your first message now — it'll send automatically
-                when the sandbox is ready.
-              </p>
-            </div>
-          {:else}
-            <div class="flex min-h-0 flex-col items-center justify-center gap-2 p-4 text-center">
-              <MessageSquareOff class="size-8 text-muted-foreground" />
-              <p class="text-sm text-muted-foreground">
-                {connected
-                  ? "No conversation yet. Send a prompt to start a run."
-                  : progress.state === "failed"
-                    ? "Sandbox startup failed. Review the boot details and restart after fixing the config."
-                    : "No controller session connected. Chat is read-only until the sandbox reconnects."}
-              </p>
-            </div>
+            </Pane>
           {/if}
-
-          {#if hasContent && !scroll.atEnd && scroll.composerHeight > 0}
-            <div class="absolute right-4 z-10" style={`bottom: ${scroll.composerHeight + 8}px;`}>
-              <Button
-                class="rounded-full"
-                variant="secondary"
-                size="icon-sm"
-                ariaLabel="Scroll to latest"
-                title="Scroll to latest"
-                onclick={() => scroll.jumpToBottom()}
-              >
-                <ArrowDown class="size-4" />
-              </Button>
-            </div>
-          {/if}
-
-          {#if detail && controls}
-            <div class="min-w-0" bind:this={scroll.composerWrapEl}>
-              <SandboxPromptComposer
-                text={detail.composerText}
-                disabled={composerDisabled}
-                sending={canCancel}
-                models={store.models}
-                {selectedModelKey}
-                thinkingLevel={controls.thinkingLevel}
-                mode={controls.mode}
-                permissionLevel={controls.permissionLevel}
-                approvalPolicy={controls.approvalPolicy}
-                contextUsage={richState?.contextUsage}
-                contextWindow={selectedModel?.contextWindow ?? 0}
-                hint={composerHint}
-                onChange={(text) => {
-                  if (detail) detail.composerText = text;
-                }}
-                onSubmit={() =>
-                  void store.submitPrompt(sandboxId, detail.composerText)}
-                onAbort={canCancel
-                  ? () => void store.cancelRun(sandboxId)
-                  : undefined}
-                onModelChange={handleModelChange}
-                onThinkingLevelChange={handleThinkingLevelChange}
-                onModeChange={handleModeChange}
-                onPermissionChange={handlePermissionChange}
-                onApprovalPolicyChange={handleApprovalPolicyChange}
-              />
-            </div>
-          {/if}
-        </section>
+        </PaneGroup>
       </div>
 
-      <!-- Inspector drawer -->
-      {#if inspectorOpen}
-        <aside class="hidden w-80 shrink-0 flex-col border-l lg:flex">
-          <WorkspaceInspector {record} onClose={() => setInspectorOpen(false)} />
-        </aside>
-      {/if}
+      <div class="flex h-full min-h-0 flex-col lg:hidden">
+        {@render centerWorkspace()}
+      </div>
     </div>
 
     <SandboxDiagnosticsSheet bind:open={diagnosticsOpen} {record} />

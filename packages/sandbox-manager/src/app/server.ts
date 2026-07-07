@@ -11,6 +11,7 @@ import {
   sandboxConfigV1Schema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
+  sandboxWorkspaceFileQuerySchema,
 } from "@nervekit/shared";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
@@ -44,6 +45,7 @@ import {
   getSandboxConfigYaml,
   previewSandboxConfigYaml,
 } from "../routes/sandbox-routes.js";
+import { getSandboxWorkspaceFile } from "../routes/sandbox-workspace-file-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
 import {
   readAgentStateSummary,
@@ -360,6 +362,20 @@ async function handle(
       200,
       ok(sessionSummary(await state.sessions.get(latestSessionMatch[1]))),
     );
+  const workspaceFileMatch = path.match(
+    /^\/api\/sandboxes\/([^/]+)\/workspace\/file$/,
+  );
+  if (req.method === "GET" && workspaceFileMatch) {
+    const query = sandboxWorkspaceFileQuerySchema.parse({
+      path: url.searchParams.get("path"),
+      line: url.searchParams.get("line") ?? undefined,
+    });
+    return json(
+      res,
+      200,
+      ok(await getSandboxWorkspaceFile(state, workspaceFileMatch[1], query)),
+    );
+  }
   const actionMatch = path.match(
     /^\/api\/sandboxes\/([^/]+)\/(start|stop|restart|logs|status|snapshot)$/,
   );

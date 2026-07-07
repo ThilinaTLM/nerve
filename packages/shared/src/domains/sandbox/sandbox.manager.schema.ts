@@ -327,6 +327,34 @@ export const sandboxManagerStatusSchema = z.object({
 });
 export type SandboxManagerStatus = z.infer<typeof sandboxManagerStatusSchema>;
 
+export const sandboxWorkspaceFileQuerySchema = z.object({
+  path: z.string().min(1),
+  line: z.coerce.number().int().positive().optional(),
+});
+export type SandboxWorkspaceFileQuery = z.infer<
+  typeof sandboxWorkspaceFileQuerySchema
+>;
+
+export const sandboxWorkspaceFileResponseSchema = z.object({
+  sandboxId: z.string().min(1),
+  path: z.string().min(1),
+  relativePath: z.string(),
+  name: z.string().min(1),
+  size: z.number().nonnegative(),
+  mtimeMs: z.number().nonnegative(),
+  type: z.enum(["text", "image", "binary"]),
+  binary: z.boolean(),
+  text: z.string().optional(),
+  dataBase64: z.string().optional(),
+  mimeType: z.string().optional(),
+  lineStart: z.number().int().positive().optional(),
+  targetLine: z.number().int().positive().optional(),
+  truncated: z.boolean(),
+});
+export type SandboxWorkspaceFileResponse = z.infer<
+  typeof sandboxWorkspaceFileResponseSchema
+>;
+
 export const sandboxManagerLifecycleEventTypeSchema = z.enum([
   "manager.sandbox.created",
   "manager.sandbox.deleted",

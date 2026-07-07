@@ -17,12 +17,14 @@ import {
   type SandboxManagerStatus,
   type SandboxSnapshotResult,
   type SandboxStatusGetResult,
+  type SandboxWorkspaceFileResponse,
   sandboxConfigYamlResultSchema,
   sandboxManagerCredentialProfileSchema,
   sandboxManagerSecretMetadataSchema,
   sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
+  sandboxWorkspaceFileResponseSchema,
 } from "@nervekit/shared";
 import { apiPathSegment, fetchJson } from "@nervekit/ui/core/api/client";
 import type {
@@ -310,6 +312,20 @@ export async function getSandboxLogs(
   const suffix = search.toString();
   return getData<SandboxLogsResult>(
     sandboxPath(sandboxId, `/logs${suffix ? `?${suffix}` : ""}`),
+  );
+}
+
+export async function getSandboxWorkspaceFile(
+  sandboxId: string,
+  path: string,
+  line?: number,
+): Promise<SandboxWorkspaceFileResponse> {
+  const search = new URLSearchParams({ path });
+  if (line !== undefined) search.set("line", String(line));
+  return sandboxWorkspaceFileResponseSchema.parse(
+    await getData<unknown>(
+      sandboxPath(sandboxId, `/workspace/file?${search.toString()}`),
+    ),
   );
 }
 
