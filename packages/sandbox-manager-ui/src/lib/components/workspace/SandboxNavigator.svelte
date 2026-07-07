@@ -8,7 +8,7 @@
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";
   import {
     activityFor,
-    conversationsFor,
+    conversationItemsFor,
   } from "../../state/sandbox-manager-selectors.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import {
@@ -30,8 +30,12 @@
 
   function matches(record: ManagedSandboxRecord): boolean {
     if (!needle) return true;
-    const conversationTitles = conversationsFor(store, record.sandboxId)
-      .map((conversation) => `${conversation.title ?? ""} ${conversation.conversationId}`)
+    const conversationTitles = conversationItemsFor(store, record.sandboxId)
+      .map((conversation) =>
+        conversation.kind === "pending"
+          ? `${conversation.title} draft`
+          : `${conversation.title ?? ""} ${conversation.conversationId}`,
+      )
       .join(" ");
     const haystack =
       `${record.name ?? ""} ${record.sandboxId} ${record.observedState} ${conversationTitles}`.toLowerCase();
@@ -79,7 +83,7 @@
 
   {#each groups as record (record.sandboxId)}
     {@const activity = activityFor(store, record.sandboxId)}
-    {@const conversations = conversationsFor(store, record.sandboxId)}
+    {@const conversations = conversationItemsFor(store, record.sandboxId)}
     {@const selectedSandbox = record.sandboxId === center.selectedSandboxId}
     <PanelSection
       title={record.name ?? record.sandboxId}
@@ -111,26 +115,32 @@
         {#if conversations.length === 0}
           <p class="empty child">No conversations.</p>
         {/if}
-        {#each conversations as conversation (conversation.conversationId)}
-          {@const running = (conversation.activeRunIds?.length ?? 0) > 0}
+        {#each conversations as conversation (conversation.kind === "pending" ? conversation.id : conversation.conversationId)}
+          {@const running = conversation.kind === "durable" && (conversation.activeRunIds?.length ?? 0) > 0}
           {@const active =
             selectedSandbox &&
-            conversation.conversationId ===
-              store.details[record.sandboxId]?.selectedConversationId}
+            (conversation.kind === "pending"
+              ? conversation.id === store.details[record.sandboxId]?.selectedPendingConversationId
+              : conversation.conversationId ===
+                store.details[record.sandboxId]?.selectedConversationId)}
           <NavigatorItem
-            title={conversation.title ?? conversation.conversationId}
-            subtitle={conversation.conversationId}
-            mono
+            title={conversation.kind === "pending" ? conversation.title : conversation.title ?? conversation.conversationId}
+            subtitle={conversation.kind === "pending" ? "Draft" : conversation.conversationId}
+            mono={conversation.kind === "durable"}
             {active}
             isOpen={active}
-            statusTone={running
-              ? "running"
-              : activity?.needsAttention
-                ? "warn"
-                : observedStateTone(record.observedState)}
+            statusTone={conversation.kind === "pending"
+              ? "neutral"
+              : running
+                ? "running"
+                : activity?.needsAttention
+                  ? "warn"
+                  : observedStateTone(record.observedState)}
             statusPulse={running}
             onSelect={() =>
-              selectConversation(record.sandboxId, conversation.conversationId)}
+              conversation.kind === "pending"
+                ? store.selectPendingConversation(record.sandboxId, conversation.id)
+                : selectConversation(record.sandboxId, conversation.conversationId)}
           />
         {/each}
       </div>

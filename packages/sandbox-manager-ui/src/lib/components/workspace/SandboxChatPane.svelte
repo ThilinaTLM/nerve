@@ -16,6 +16,10 @@
     isSandboxTerminal,
   } from "../../state/sandbox-boot-progress";
   import {
+    activeComposerText,
+    activeQueuedPrompt,
+  } from "../../state/sandbox-conversation-state";
+  import {
     sandboxMessageMenu,
     sandboxToolMenu,
   } from "../../state/sandbox-conversation-menus";
@@ -38,7 +42,7 @@
   const richState = $derived(
     detail?.selectedConversationId
       ? detail.conversationViewsById[detail.selectedConversationId]
-      : Object.values(detail?.conversationViewsById ?? {})[0],
+      : undefined,
   );
   const connected = $derived(isSandboxConnected(detail));
   const render = $derived(buildConversationRenderProjection(richState));
@@ -51,10 +55,13 @@
   );
   const lastTimelineKey = $derived(render.timeline.at(-1)?.key);
   const transcriptHeightCacheKey = $derived(
-    `${sandboxId}:${detail?.selectedConversationId ?? "default"}`,
+    `${sandboxId}:${detail?.selectedPendingConversationId ?? detail?.selectedConversationId ?? "default"}`,
   );
   const scrollConversationId = $derived(
-    detail?.selectedConversationId ?? richState?.conversationId ?? "default",
+    detail?.selectedPendingConversationId ??
+      detail?.selectedConversationId ??
+      richState?.conversationId ??
+      "default",
   );
   const scroll = createConversationScrollController({
     conversationOpen: () => hasContent,
@@ -93,8 +100,10 @@
   const selectedModel = $derived(
     store.models.find((model) => modelKey(model) === selectedModelKey),
   );
+  const composerText = $derived(activeComposerText(detail));
+  const queuedPrompt = $derived(activeQueuedPrompt(detail));
   const composerHint = $derived(
-    detail?.queuedPrompt
+    queuedPrompt
       ? "Message queued — sends when the sandbox is ready."
       : progress.state === "failed"
         ? "Sandbox startup failed — fix the sandbox and restart it before chatting."
@@ -156,7 +165,7 @@
   });
 
   $effect(() => {
-    if (connected && detail?.queuedPrompt) void store.flushQueuedPrompt(sandboxId);
+    if (connected && queuedPrompt) void store.flushQueuedPrompt(sandboxId);
   });
 </script>
 
@@ -213,7 +222,7 @@
   {#snippet composer()}
     {#if detail && controls}
       <SandboxPromptComposer
-        text={detail.composerText}
+        text={composerText}
         disabled={composerDisabled}
         sending={canCancel}
         models={store.models}
@@ -225,8 +234,8 @@
         contextUsage={richState?.contextUsage}
         contextWindow={selectedModel?.contextWindow ?? 0}
         hint={composerHint}
-        onChange={(text) => { if (detail) detail.composerText = text; }}
-        onSubmit={() => void store.submitPrompt(sandboxId, detail.composerText)}
+        onChange={(text) => { if (detail) store.setComposerText(sandboxId, text); }}
+        onSubmit={() => void store.submitPrompt(sandboxId, composerText)}
         onAbort={canCancel ? () => void store.cancelRun(sandboxId) : undefined}
         onModelChange={handleModelChange}
         onThinkingLevelChange={handleThinkingLevelChange}

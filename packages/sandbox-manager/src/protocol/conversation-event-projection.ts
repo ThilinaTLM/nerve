@@ -274,6 +274,230 @@ function normalizeEntryId(entryId: string | undefined): string {
   return `entry_${entryId ?? Date.now()}`;
 }
 
+export function projectSandboxSummariesFromEvents(input: {
+  sandboxId: string;
+  events: StoredSandboxEvent[];
+}): {
+  conversations: Array<{
+    conversationId: string;
+    agentIds: string[];
+    title?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    activeRunIds?: string[];
+  }>;
+  agents: Array<{
+    conversationId: string;
+    agentId: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }>;
+  runs: Array<{
+    conversationId: string;
+    agentId: string;
+    runId: string;
+    status: string;
+    promptSummary?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    terminalAt?: string;
+  }>;
+} {
+  const conversations = new Map<
+    string,
+    {
+      conversationId: string;
+      agentIds: Set<string>;
+      title?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      activeRunIds: Set<string>;
+    }
+  >();
+  const agents = new Map<
+    string,
+    {
+      conversationId: string;
+      agentId: string;
+      createdAt?: string;
+      updatedAt?: string;
+    }
+  >();
+  const runs = new Map<
+    string,
+    {
+      conversationId: string;
+      agentId: string;
+      runId: string;
+      status: string;
+      promptSummary?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      terminalAt?: string;
+    }
+  >();
+
+  for (const event of input.events) {
+    if (event.durability === "transient") continue;
+    const payload = asRecord(event.payload);
+    if (!payload) continue;
+    const entry = asRecord(payload.entry);
+    const conversationId =
+      stringField(payload, "conversationId") ??
+      (entry ? stringField(entry, "conversationId") : undefined);
+    const agentId =
+      stringField(payload, "agentId") ??
+      (entry ? stringField(entry, "agentId") : undefined);
+    const runId =
+      stringField(payload, "runId") ??
+      (entry ? stringField(entry, "runId") : undefined);
+    if (!conversationId) continue;
+    const ts = event.ts ?? new Date().toISOString();
+    const conversation = ensureSummaryConversation(
+      conversations,
+      conversationId,
+      ts,
+    );
+    if (agentId) {
+      conversation.agentIds.add(agentId);
+      const key = `${conversationId}/${agentId}`;
+      const agent = agents.get(key) ?? {
+        conversationId,
+        agentId,
+        createdAt: ts,
+      };
+      agent.updatedAt = ts;
+      agents.set(key, agent);
+    }
+
+    if (event.type === "run.started" && runId && agentId) {
+      const run = runs.get(runId) ?? {
+        conversationId,
+        agentId,
+        runId,
+        status: "running",
+        createdAt: ts,
+      };
+      run.status = "running";
+      run.updatedAt = ts;
+      run.promptSummary =
+        stringField(payload, "promptSummary") ?? run.promptSummary;
+      runs.set(runId, run);
+      conversation.activeRunIds.add(runId);
+    } else if (
+      (event.type === "run.waiting_for_input" ||
+        event.type === "run.waiting_for_approval") &&
+      runId &&
+      agentId
+    ) {
+      const run = runs.get(runId) ?? {
+        conversationId,
+        agentId,
+        runId,
+        status: "running",
+        createdAt: ts,
+      };
+      run.status =
+        event.type === "run.waiting_for_input"
+          ? "waiting_for_input"
+          : "waiting_for_approval";
+      run.updatedAt = ts;
+      runs.set(runId, run);
+      conversation.activeRunIds.add(runId);
+    } else if (
+      (event.type === "run.completed" ||
+        event.type === "run.failed" ||
+        event.type === "run.cancelled") &&
+      runId &&
+      agentId
+    ) {
+      const run = runs.get(runId) ?? {
+        conversationId,
+        agentId,
+        runId,
+        status: "running",
+        createdAt: ts,
+      };
+      run.status = event.type.slice("run.".length);
+      run.updatedAt = ts;
+      run.terminalAt = ts;
+      runs.set(runId, run);
+      conversation.activeRunIds.delete(runId);
+    } else if (event.type === "run.transcript.appended") {
+      if (payload.role === "user" && !conversation.title) {
+        const text = textOf(payload.content).trim();
+        if (text) conversation.title = text.slice(0, 80);
+      }
+    } else if (event.type === "conversation.entry.appended") {
+      if (entry?.role === "user" && !conversation.title) {
+        const text = typeof entry.text === "string" ? entry.text.trim() : "";
+        if (text) conversation.title = text.slice(0, 80);
+      }
+    }
+    if (!conversation.createdAt || ts < conversation.createdAt)
+      conversation.createdAt = ts;
+    if (!conversation.updatedAt || ts > conversation.updatedAt)
+      conversation.updatedAt = ts;
+  }
+
+  return {
+    conversations: [...conversations.values()].map((conversation) => ({
+      conversationId: conversation.conversationId,
+      agentIds: [...conversation.agentIds],
+      title:
+        conversation.title ??
+        `Sandbox conversation ${conversation.conversationId}`,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+      activeRunIds: [...conversation.activeRunIds],
+    })),
+    agents: [...agents.values()],
+    runs: [...runs.values()],
+  };
+}
+
+function ensureSummaryConversation(
+  conversations: Map<
+    string,
+    {
+      conversationId: string;
+      agentIds: Set<string>;
+      title?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      activeRunIds: Set<string>;
+    }
+  >,
+  conversationId: string,
+  ts: string,
+) {
+  const current = conversations.get(conversationId);
+  if (current) return current;
+  const next = {
+    conversationId,
+    agentIds: new Set<string>(),
+    title: undefined as string | undefined,
+    createdAt: ts,
+    updatedAt: ts,
+    activeRunIds: new Set<string>(),
+  };
+  conversations.set(conversationId, next);
+  return next;
+}
+
+function textOf(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  return typeof record?.text === "string" ? record.text : "";
+}
+
+function stringField(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  return typeof record[key] === "string" ? record[key] : undefined;
+}
+
 function sandboxProjectId(sandboxId: string): string {
   const digest = createHash("sha256")
     .update(JSON.stringify(sandboxId))

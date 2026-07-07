@@ -187,10 +187,17 @@ function applyRunStarted(
     deltaText: detail.liveRuns[runId]?.deltaText ?? "",
     updatedAt: typeof data.startedAt === "string" ? data.startedAt : undefined,
   };
-  detail.selectedConversationId ??=
-    String(data.conversationId ?? "") || undefined;
-  detail.selectedAgentId ??= String(data.agentId ?? "") || undefined;
-  detail.selectedRunId = runId;
+  if (!detail.selectedConversationId && !detail.selectedPendingConversationId) {
+    detail.selectedConversationId =
+      String(data.conversationId ?? "") || undefined;
+    detail.selectedAgentId = String(data.agentId ?? "") || undefined;
+    detail.selectedRunId = runId;
+  } else if (
+    detail.selectedConversationId === String(data.conversationId ?? "")
+  ) {
+    detail.selectedAgentId = String(data.agentId ?? "") || undefined;
+    detail.selectedRunId = runId;
+  }
 }
 
 function applyRunDelta(
@@ -221,6 +228,9 @@ function applyTranscriptAppended(
     return;
   detail.appendedTranscript.push({
     entryId,
+    conversationId:
+      typeof data.conversationId === "string" ? data.conversationId : undefined,
+    agentId: typeof data.agentId === "string" ? data.agentId : undefined,
     runId: String(data.runId ?? ""),
     role:
       (data.role as "user" | "assistant" | "system" | "tool") ?? "assistant",

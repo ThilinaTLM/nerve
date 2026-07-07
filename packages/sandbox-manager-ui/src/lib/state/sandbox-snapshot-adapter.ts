@@ -25,7 +25,8 @@ export function applySnapshot(
     for (const wait of run.waits ?? []) detail.waitsById[wait.waitId] ??= wait;
   }
 
-  if (!detail.selectedConversationId) selectDefault(detail, snapshot);
+  if (!detail.selectedConversationId && !detail.selectedPendingConversationId)
+    selectDefault(detail, snapshot);
 }
 
 function selectDefault(
@@ -102,6 +103,12 @@ export function buildTimeline(
 
   for (const entry of detail.appendedTranscript) {
     if (seenEntryIds.has(entry.entryId)) continue;
+    if (
+      conversationId &&
+      entry.conversationId &&
+      entry.conversationId !== conversationId
+    )
+      continue;
     if (runIds.size > 0 && entry.runId && !runIds.has(entry.runId)) continue;
     rows.push({
       sortKey: entry.createdAt,

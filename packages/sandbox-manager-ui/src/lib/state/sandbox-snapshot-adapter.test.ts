@@ -36,6 +36,21 @@ describe("sandbox snapshot adapter", () => {
     assert.equal(messages[0].kind === "message" && messages[0].role, "user");
   });
 
+  it("does not override an explicit pending conversation selection", () => {
+    const detail = createSandboxDetailState("sbx_active");
+    detail.selectedPendingConversationId = "pending_1";
+    detail.pendingConversationsById.pending_1 = {
+      id: "pending_1",
+      title: "New Conversation",
+      composerText: "draft",
+      sending: false,
+      createdAt: "2026-06-26T12:00:00.000Z",
+    };
+    applySnapshot(detail, loadSnapshot("snapshot-active-run.json"));
+    assert.equal(detail.selectedPendingConversationId, "pending_1");
+    assert.equal(detail.selectedConversationId, undefined);
+  });
+
   it("merges live streaming deltas without dropping durable transcript", () => {
     const detail = createSandboxDetailState("sbx_active");
     applySnapshot(detail, loadSnapshot("snapshot-active-run.json"));

@@ -85,6 +85,30 @@ describe("applySandboxEvent", () => {
     assert.equal(detail.liveRuns.run_1.status, "completed");
   });
 
+  it("does not switch away from a selected pending conversation on background run events", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.selectedPendingConversationId = "pending_1";
+    detail.pendingConversationsById.pending_1 = {
+      id: "pending_1",
+      title: "New Conversation",
+      composerText: "draft",
+      sending: false,
+      createdAt: ts,
+    };
+    applySandboxEvent(
+      detail,
+      event(1, "run.started", {
+        ...scope,
+        commandId: "cmd_1",
+        status: "running",
+        startedAt: ts,
+      }),
+    );
+    assert.equal(detail.selectedPendingConversationId, "pending_1");
+    assert.equal(detail.selectedConversationId, undefined);
+    assert.equal(detail.liveRuns.run_1.conversationId, "conv_1");
+  });
+
   it("upserts tool calls by id across lifecycle events", () => {
     const detail = createSandboxDetailState("sbx_1");
     applySandboxEvent(

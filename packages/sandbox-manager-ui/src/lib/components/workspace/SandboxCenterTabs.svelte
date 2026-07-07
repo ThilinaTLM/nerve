@@ -25,6 +25,7 @@
   import SandboxConfigView from "../../routes/SandboxConfigView.svelte";
   import SandboxEventsView from "../../routes/SandboxEventsView.svelte";
   import SandboxLogsView from "../../routes/SandboxLogsView.svelte";
+  import { isPendingConversationId } from "../../state/sandbox-conversation-state";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import type {
@@ -37,7 +38,7 @@
 
   const SETTINGS_KIND = "settings";
 
-  const chatTab: SandboxWorkspaceTabIdentity = { kind: "chat", id: "chat" };
+  const chatTab: SandboxWorkspaceTabIdentity = { kind: "chat", id: "pending_default" };
 
   const sandboxId = $derived(center.selectedSandboxId);
   const detail = $derived(sandboxId ? store.details[sandboxId] : undefined);
@@ -107,7 +108,21 @@
   function toWorkbenchTab(tab: SandboxWorkspaceTabIdentity): WorkbenchTabModel {
     const active = contentMode === "sandbox" && sameTab(activeWorkspaceTab, tab);
     if (tab.kind === "chat") {
-      return { ...tab, label: "Chat", title: "Sandbox chat", active, icon: MessageSquare, closeable: false };
+      const conversation = detail?.snapshot?.conversations.find(
+        (item) => item.conversationId === tab.id,
+      );
+      const pending = isPendingConversationId(tab.id)
+        ? detail?.pendingConversationsById[tab.id]
+        : undefined;
+      const label = pending?.title ?? conversation?.title ?? (tab.id.startsWith("conv_") ? tab.id : "Chat");
+      return {
+        ...tab,
+        label,
+        title: pending ? "Draft conversation" : `Sandbox chat ${tab.id}`,
+        active,
+        icon: MessageSquare,
+        closeable: (workspaceTabs.filter((open) => open.kind === "chat").length ?? 0) > 1,
+      };
     }
     if (tab.kind === "diagnostic") {
       return { ...tab, label: diagnosticLabel(tab), title: diagnosticLabel(tab), active, icon: diagnosticIcon(tab), closeable: true };
@@ -180,7 +195,8 @@
     if (isSettings(tab) || !sandboxId) return;
     const identity = cast(tab);
     if (identity.kind === "chat") {
-      void store.recoverConversationSnapshot(sandboxId).catch(() => undefined);
+      if (!isPendingConversationId(identity.id))
+        void store.recoverConversationSnapshot(sandboxId, identity.id).catch(() => undefined);
       return;
     }
     if (identity.kind === "file") {
@@ -221,7 +237,7 @@
     items.push(
       { label: "Refresh", icon: RefreshCw, onSelect: () => handleRefresh(identity) },
       { type: "separator" },
-      { label: "Close Pane", icon: X, disabled: identity.kind === "chat", onSelect: () => store.closeWorkspaceTab(sandboxId, identity) },
+      { label: "Close Pane", icon: X, disabled: identity.kind === "chat" && workspaceTabs.filter((open) => open.kind === "chat").length <= 1, onSelect: () => store.closeWorkspaceTab(sandboxId, identity) },
       { label: "Close Other Panes", icon: X, disabled: workspaceTabs.length <= 1, onSelect: () => store.closeOtherWorkspaceTabs(sandboxId, identity) },
       { label: "Close Panes on Right", icon: X, disabled: !hasRight, onSelect: () => store.closeWorkspaceTabsRight(sandboxId, identity) },
       { label: "Close Panes on Left", icon: X, disabled: !hasLeft, onSelect: () => store.closeWorkspaceTabsLeft(sandboxId, identity) },

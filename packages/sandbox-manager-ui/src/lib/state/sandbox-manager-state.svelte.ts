@@ -17,7 +17,10 @@ import type {
   SandboxManagerStatus,
   ThinkingLevel,
 } from "@nervekit/shared";
-import { sandboxActivitySummarySchema } from "@nervekit/shared";
+import {
+  sandboxActivitySummarySchema,
+  sandboxRunStartResultSchema,
+} from "@nervekit/shared";
 import { getContext, setContext } from "svelte";
 import { createOperationId } from "../api/idempotency";
 import * as api from "../api/manager-client";
@@ -31,6 +34,18 @@ import {
   isSandboxReadyForChat,
   isSandboxTerminal,
 } from "./sandbox-boot-progress";
+import {
+  activeConversationKey,
+  activeQueuedPrompt,
+  createPendingConversationId,
+  ensurePendingConversation,
+  isPendingConversationId,
+  replacePendingConversation,
+  selectDurableConversation,
+  selectPendingConversation as selectPendingConversationInDetail,
+  setActiveComposerText,
+  setActiveQueuedPrompt,
+} from "./sandbox-conversation-state";
 import { applySandboxEvent } from "./sandbox-event-reducers";
 import { applySnapshot } from "./sandbox-snapshot-adapter";
 import type { SandboxFleetFilter } from "./sandbox-status";
@@ -332,25 +347,33 @@ export class SandboxManagerStore {
   async recoverConversationSnapshot(
     sandboxId: string,
     conversationId?: string,
+    options: { select?: boolean } = {},
   ): Promise<void> {
     const detail = this.detail(sandboxId);
+    const target = conversationId ?? detail.selectedConversationId;
+    if (isPendingConversationId(target)) return;
+    if (!target && detail.selectedPendingConversationId) return;
     const { result } = await protocolRequest<
       import("@nervekit/shared").SandboxConversationViewSnapshot
     >("sandbox.conversation.snapshot.get", {
       sandboxId,
-      conversationId: outboundConversationId(
-        conversationId ?? detail.selectedConversationId,
-      ),
+      conversationId: outboundConversationId(target),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
     });
     const renderState = fromSandboxConversationViewSnapshot(result);
-    const key =
-      renderState.conversationId ?? result.conversationId ?? "default";
+    const key = renderState.conversationId ?? result.conversationId;
+    if (!key) return;
     detail.conversationViewsById[key] = renderState;
-    detail.selectedConversationId = key;
-    detail.selectedAgentId = result.agentId ?? renderState.activeRun?.agentId;
-    detail.selectedRunId = result.runId ?? renderState.activeRun?.runId;
+    if (options.select || (!activeConversationKey(detail) && !target)) {
+      selectDurableConversation(detail, key);
+      detail.selectedAgentId = result.agentId ?? renderState.activeRun?.agentId;
+      detail.selectedRunId = result.runId ?? renderState.activeRun?.runId;
+      openWorkspaceChatTabInDetail(detail, key);
+    } else if (detail.selectedConversationId === key) {
+      detail.selectedAgentId = result.agentId ?? renderState.activeRun?.agentId;
+      detail.selectedRunId = result.runId ?? renderState.activeRun?.runId;
+    }
     detail.lastRichSnapshot = {
       generatedAt: result.generatedAt,
       cursorSeq: renderState.cursorSeq,
@@ -416,10 +439,11 @@ export class SandboxManagerStore {
 
   selectConversation(sandboxId: string, conversationId: string): void {
     const detail = this.detail(sandboxId);
-    detail.selectedConversationId = conversationId;
-    const runs = detail.snapshot?.runs.filter(
-      (run) => run.conversationId === conversationId,
-    ) ?? [];
+    selectDurableConversation(detail, conversationId);
+    const runs =
+      detail.snapshot?.runs.filter(
+        (run) => run.conversationId === conversationId,
+      ) ?? [];
     const activeRun =
       runs.find((run) => run.status === "running") ??
       [...runs].sort((a, b) =>
@@ -429,18 +453,24 @@ export class SandboxManagerStore {
       )[0];
     detail.selectedRunId = activeRun?.runId;
     detail.selectedAgentId = activeRun?.agentId;
-    openWorkspaceChatTabInDetail(detail);
-    void this.recoverConversationSnapshot(sandboxId, conversationId).catch(
-      () => undefined,
-    );
+    openWorkspaceChatTabInDetail(detail, conversationId);
+    void this.recoverConversationSnapshot(sandboxId, conversationId, {
+      select: true,
+    }).catch(() => undefined);
+  }
+
+  selectPendingConversation(sandboxId: string, pendingId: string): void {
+    const detail = this.detail(sandboxId);
+    selectPendingConversationInDetail(detail, pendingId);
+    openWorkspaceChatTabInDetail(detail, pendingId);
   }
 
   startNewConversation(sandboxId: string): void {
     const detail = this.detail(sandboxId);
-    detail.selectedConversationId = undefined;
-    detail.selectedAgentId = undefined;
-    detail.selectedRunId = undefined;
-    openWorkspaceChatTabInDetail(detail);
+    const pendingId = createPendingConversationId();
+    ensurePendingConversation(detail, pendingId);
+    selectPendingConversationInDetail(detail, pendingId);
+    openWorkspaceChatTabInDetail(detail, pendingId);
   }
 
   closeOtherWorkspaceTabs(
@@ -448,7 +478,11 @@ export class SandboxManagerStore {
     tab: SandboxWorkspaceTabIdentity,
   ): void {
     const detail = this.detail(sandboxId);
-    closeWorkspaceTabsInDetail(detail, workspaceTabsExcept(detail.openWorkspaceTabs, tab), tab);
+    closeWorkspaceTabsInDetail(
+      detail,
+      workspaceTabsExcept(detail.openWorkspaceTabs, tab),
+      tab,
+    );
   }
 
   closeWorkspaceTabsRight(
@@ -456,7 +490,11 @@ export class SandboxManagerStore {
     tab: SandboxWorkspaceTabIdentity,
   ): void {
     const detail = this.detail(sandboxId);
-    closeWorkspaceTabsInDetail(detail, workspaceTabsRightOf(detail.openWorkspaceTabs, tab), tab);
+    closeWorkspaceTabsInDetail(
+      detail,
+      workspaceTabsRightOf(detail.openWorkspaceTabs, tab),
+      tab,
+    );
   }
 
   closeWorkspaceTabsLeft(
@@ -464,7 +502,11 @@ export class SandboxManagerStore {
     tab: SandboxWorkspaceTabIdentity,
   ): void {
     const detail = this.detail(sandboxId);
-    closeWorkspaceTabsInDetail(detail, workspaceTabsLeftOf(detail.openWorkspaceTabs, tab), tab);
+    closeWorkspaceTabsInDetail(
+      detail,
+      workspaceTabsLeftOf(detail.openWorkspaceTabs, tab),
+      tab,
+    );
   }
 
   openWorkspaceDiagnosticTab(
@@ -606,37 +648,95 @@ export class SandboxManagerStore {
       await this.sendPrompt(sandboxId, trimmed);
       return;
     }
-    detail.queuedPrompt = trimmed;
-    detail.composerText = "";
+    setActiveQueuedPrompt(detail, trimmed);
+    setActiveComposerText(detail, "");
   }
 
-  /** Dispatch a queued first prompt once the sandbox is ready for chat. */
+  setComposerText(sandboxId: string, text: string): void {
+    setActiveComposerText(this.detail(sandboxId), text);
+  }
+
+  /** Dispatch queued prompts once the sandbox is ready for chat. */
   async flushQueuedPrompt(sandboxId: string): Promise<void> {
     const detail = this.detail(sandboxId);
-    const queued = detail.queuedPrompt;
-    if (!queued || !isSandboxReadyForChat(detail)) return;
-    detail.queuedPrompt = undefined;
-    await this.sendPrompt(sandboxId, queued);
+    if (!isSandboxReadyForChat(detail)) return;
+    const activeKey = activeConversationKey(detail);
+    const activeQueued = activeQueuedPrompt(detail);
+    if (activeQueued) {
+      setActiveQueuedPrompt(detail, undefined);
+      await this.sendPrompt(sandboxId, activeQueued);
+    }
+    for (const pending of Object.values(detail.pendingConversationsById)) {
+      if (pending.id === activeKey) continue;
+      if (!pending.queuedPrompt) continue;
+      const queued = pending.queuedPrompt;
+      pending.queuedPrompt = undefined;
+      selectPendingConversationInDetail(detail, pending.id);
+      openWorkspaceChatTabInDetail(detail, pending.id);
+      await this.sendPrompt(sandboxId, queued);
+    }
+    for (const [conversationId, queued] of Object.entries(
+      detail.queuedPromptByConversationId,
+    )) {
+      if (!queued) continue;
+      detail.queuedPromptByConversationId[conversationId] = undefined;
+      this.selectConversation(sandboxId, conversationId);
+      await this.sendPrompt(sandboxId, queued);
+    }
   }
 
   async sendPrompt(sandboxId: string, prompt: string): Promise<void> {
     const detail = this.detail(sandboxId);
-    if (!prompt.trim()) return;
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    const conversationId = outboundConversationId(
+      detail.selectedConversationId,
+    );
+    const pendingId =
+      detail.selectedPendingConversationId ??
+      (!conversationId &&
+      detail.activeWorkspaceTab.kind === "chat" &&
+      isPendingConversationId(detail.activeWorkspaceTab.id)
+        ? detail.activeWorkspaceTab.id
+        : undefined);
+    if (pendingId) {
+      ensurePendingConversation(detail, pendingId);
+      if (!detail.selectedPendingConversationId)
+        selectPendingConversationInDetail(detail, pendingId);
+    }
     detail.sending = true;
+    if (pendingId) detail.pendingConversationsById[pendingId].sending = true;
     try {
-      const behavior = detail.selectedRunId ? "follow_up" : "start";
-      await this.sendCommand(sandboxId, "sandbox.run.start", (key) => ({
-        commandId: key,
-        conversationId: outboundConversationId(detail.selectedConversationId),
-        agentId: detail.selectedAgentId,
-        prompt,
-        behavior,
-      }));
-      detail.composerText = "";
+      const behavior =
+        conversationId && detail.selectedRunId ? "follow_up" : "start";
+      const raw = await this.sendCommand(
+        sandboxId,
+        "sandbox.run.start",
+        (key) => ({
+          commandId: key,
+          conversationId,
+          agentId: detail.selectedAgentId,
+          prompt: trimmed,
+          behavior,
+        }),
+      );
+      const result = sandboxRunStartResultSchema.parse(raw);
+      if (pendingId) {
+        replacePendingConversation(detail, pendingId, result);
+      } else {
+        selectDurableConversation(detail, result.conversationId);
+        detail.selectedAgentId = result.agentId;
+        detail.selectedRunId = result.runId;
+        openWorkspaceChatTabInDetail(detail, result.conversationId);
+      }
+      detail.composerTextByConversationId[result.conversationId] = "";
+      setActiveComposerText(detail, "");
       // Start snapshot polling immediately — we know a run is starting, so do not
       // wait for a `run.started` event (which can be dropped by live delivery).
-      this.startRunSnapshotRefresh(sandboxId);
+      this.startRunSnapshotRefresh(sandboxId, result.conversationId);
     } finally {
+      if (pendingId && detail.pendingConversationsById[pendingId])
+        detail.pendingConversationsById[pendingId].sending = false;
       detail.sending = false;
     }
   }
@@ -732,8 +832,8 @@ export class SandboxManagerStore {
     sandboxId: string,
     method: string,
     buildParams: (key: string) => Record<string, unknown>,
-  ): Promise<void> {
-    await this.runOperation("command", sandboxId, method, (key) =>
+  ): Promise<unknown> {
+    return this.runOperation("command", sandboxId, method, (key) =>
       api.sendSandboxCommand(sandboxId, method, buildParams(key), key),
     );
   }
@@ -833,12 +933,28 @@ export class SandboxManagerStore {
     // A live run event is a hint to (re)start polling; the poll self-terminates
     // when the snapshot shows no active run. We do not stop on terminal events
     // because those can be dropped too — idle detection handles it.
-    if (type === "run.started" || type === "conversation.run.started")
-      this.startRunSnapshotRefresh(sandboxId);
+    if (type !== "run.started" && type !== "conversation.run.started") return;
+    const detail = this.details[sandboxId];
+    const event = detail?.events.at(-1);
+    const data = isRecord(event?.data) ? event.data : {};
+    const conversationId =
+      typeof data.conversationId === "string"
+        ? data.conversationId
+        : detail?.selectedConversationId;
+    this.startRunSnapshotRefresh(sandboxId, conversationId);
   }
 
-  private startRunSnapshotRefresh(sandboxId: string): void {
-    if (this.runSnapshotTimers.has(sandboxId)) return;
+  private runSnapshotKey(sandboxId: string, conversationId: string): string {
+    return `${sandboxId}:${conversationId}`;
+  }
+
+  private startRunSnapshotRefresh(
+    sandboxId: string,
+    conversationId = this.details[sandboxId]?.selectedConversationId,
+  ): void {
+    if (!conversationId || isPendingConversationId(conversationId)) return;
+    const key = this.runSnapshotKey(sandboxId, conversationId);
+    if (this.runSnapshotTimers.has(key)) return;
     if (this.selectedSandboxId !== sandboxId) return;
     let ticks = 0;
     let idle = 0;
@@ -849,33 +965,35 @@ export class SandboxManagerStore {
         this.selectedSandboxId !== sandboxId ||
         ticks > 300
       ) {
-        this.stopRunSnapshotRefresh(sandboxId);
+        this.stopRunSnapshotRefresh(sandboxId, conversationId);
         return;
       }
-      void this.recoverConversationSnapshot(sandboxId)
+      void this.recoverConversationSnapshot(sandboxId, conversationId)
         .then(() => {
           const detail = this.details[sandboxId];
-          const view = detail?.selectedConversationId
-            ? detail.conversationViewsById[detail.selectedConversationId]
-            : undefined;
+          const view = detail?.conversationViewsById[conversationId];
           // `activeRun` is only present while a run is in progress
           // (running/retrying/aborting); it clears once the run finishes.
           const active = Boolean(view?.activeRun);
           idle = active ? 0 : idle + 1;
           // A few idle refreshes after the run finishes guarantee the final
           // committed transcript is rendered before we stop polling.
-          if (idle >= 3) this.stopRunSnapshotRefresh(sandboxId);
+          if (idle >= 3) this.stopRunSnapshotRefresh(sandboxId, conversationId);
         })
         .catch(() => undefined);
     }, 1200);
     if (typeof timer.unref === "function") timer.unref();
-    this.runSnapshotTimers.set(sandboxId, timer);
+    this.runSnapshotTimers.set(key, timer);
   }
 
-  private stopRunSnapshotRefresh(sandboxId: string): void {
-    const timer = this.runSnapshotTimers.get(sandboxId);
+  private stopRunSnapshotRefresh(
+    sandboxId: string,
+    conversationId: string,
+  ): void {
+    const key = this.runSnapshotKey(sandboxId, conversationId);
+    const timer = this.runSnapshotTimers.get(key);
     if (timer) clearInterval(timer);
-    this.runSnapshotTimers.delete(sandboxId);
+    this.runSnapshotTimers.delete(key);
   }
 
   private stopAllRunSnapshotRefresh(): void {
@@ -926,9 +1044,20 @@ export class SandboxManagerStore {
         },
       },
     );
-    detail.selectedConversationId = conversationId;
-    if (typeof data.agentId === "string") detail.selectedAgentId = data.agentId;
-    if (typeof data.runId === "string") detail.selectedRunId = data.runId;
+    const isActiveConversation =
+      detail.selectedConversationId === conversationId;
+    if (!activeConversationKey(detail)) {
+      selectDurableConversation(detail, conversationId);
+      openWorkspaceChatTabInDetail(detail, conversationId);
+    }
+    if (
+      isActiveConversation ||
+      detail.selectedConversationId === conversationId
+    ) {
+      if (typeof data.agentId === "string")
+        detail.selectedAgentId = data.agentId;
+      if (typeof data.runId === "string") detail.selectedRunId = data.runId;
+    }
   }
 
   private scheduleFleetRefresh(): void {

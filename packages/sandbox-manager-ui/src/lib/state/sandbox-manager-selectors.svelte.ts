@@ -5,12 +5,41 @@ import type {
 } from "@nervekit/shared";
 import type { SandboxManagerStore } from "./sandbox-manager-state.svelte";
 import { matchesFleetFilter, matchesSearch } from "./sandbox-status";
+import type { SandboxPendingConversationState } from "./sandbox-ui-types";
+
+export type SandboxConversationListItem =
+  | ({ kind: "durable" } & SandboxConversationSnapshot)
+  | ({ kind: "pending" } & SandboxPendingConversationState);
 
 export function conversationsFor(
   store: SandboxManagerStore,
   sandboxId: string,
 ): SandboxConversationSnapshot[] {
   return store.details[sandboxId]?.snapshot?.conversations ?? [];
+}
+
+export function conversationItemsFor(
+  store: SandboxManagerStore,
+  sandboxId: string,
+): SandboxConversationListItem[] {
+  const detail = store.details[sandboxId];
+  const pending = Object.values(detail?.pendingConversationsById ?? {}).map(
+    (conversation) => ({ ...conversation, kind: "pending" as const }),
+  );
+  const durable = (detail?.snapshot?.conversations ?? []).map(
+    (conversation) => ({ ...conversation, kind: "durable" as const }),
+  );
+  return [...pending, ...durable].sort((a, b) =>
+    conversationSortTime(b).localeCompare(conversationSortTime(a)),
+  );
+}
+
+function conversationSortTime(
+  conversation: SandboxConversationListItem,
+): string {
+  return conversation.kind === "durable"
+    ? (conversation.updatedAt ?? conversation.createdAt ?? "")
+    : conversation.createdAt;
 }
 
 export function activityFor(

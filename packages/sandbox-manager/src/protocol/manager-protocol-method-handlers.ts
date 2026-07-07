@@ -19,7 +19,10 @@ import {
 } from "@nervekit/shared";
 import type { ManagerState } from "../app/manager-state.js";
 import { HttpError } from "../http/errors.js";
-import { projectConversationSnapshotFromEvents } from "./conversation-event-projection.js";
+import {
+  projectConversationSnapshotFromEvents,
+  projectSandboxSummariesFromEvents,
+} from "./conversation-event-projection.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
 type ProtocolHandlerContext = {
@@ -200,9 +203,12 @@ async function derivedConversationView(
     runId: params.runId,
     snapshot,
     fallback: {
-      conversations: [],
-      agents: [],
-      runs: [],
+      conversations:
+        isRecord(base) && Array.isArray(base.conversations)
+          ? base.conversations
+          : [],
+      agents: isRecord(base) && Array.isArray(base.agents) ? base.agents : [],
+      runs: isRecord(base) && Array.isArray(base.runs) ? base.runs : [],
       readOnly: true,
       reason: snapshot
         ? `${options.reason} (transcript reconstructed from durable events)`
@@ -282,6 +288,7 @@ async function managerDerivedSnapshot(
     .at(-1);
   const now = new Date().toISOString();
   const disconnectedAt = session?.disconnectedAt ?? record.stoppedAt;
+  const summaries = projectSandboxSummariesFromEvents({ sandboxId, events });
   return {
     sandboxId: record.sandboxId,
     instanceId: record.instanceId ?? "unknown",
@@ -327,9 +334,9 @@ async function managerDerivedSnapshot(
     limitations: [
       "Snapshot is manager-derived because no controller session is connected",
     ],
-    conversations: [],
-    agents: [],
-    runs: [],
+    conversations: summaries.conversations,
+    agents: summaries.agents,
+    runs: summaries.runs,
     replayCursors: [
       {
         stream: `sandbox:${sandboxId}`,

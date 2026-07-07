@@ -72,7 +72,7 @@ export type SandboxDiagnosticTabId = "logs" | "config" | "events";
 export type SandboxUtilityTab = "context" | "git";
 
 export type SandboxWorkspaceTabIdentity =
-  | { kind: "chat"; id: "chat" }
+  | { kind: "chat"; id: string }
   | { kind: "file"; id: string }
   | { kind: "diagnostic"; id: SandboxDiagnosticTabId };
 
@@ -105,6 +105,16 @@ export type PendingSandboxOperation = {
   startedAt: number;
 };
 
+export type SandboxPendingConversationState = {
+  id: string;
+  title: "New Conversation";
+  composerText: string;
+  queuedPrompt?: string;
+  sending: boolean;
+  error?: string;
+  createdAt: string;
+};
+
 export type SandboxDetailState = {
   sandboxId: string;
   record?: ManagedSandboxRecord;
@@ -124,6 +134,8 @@ export type SandboxDetailState = {
   waitsById: Record<string, SandboxWaitSummary>;
   appendedTranscript: Array<{
     entryId: string;
+    conversationId?: string;
+    agentId?: string;
     runId: string;
     role: "user" | "assistant" | "system" | "tool";
     text: string;
@@ -131,6 +143,9 @@ export type SandboxDetailState = {
   }>;
   liveRuns: Record<string, SandboxLiveRunState>;
   conversationViewsById: Record<string, ConversationRenderState>;
+  pendingConversationsById: Record<string, SandboxPendingConversationState>;
+  composerTextByConversationId: Record<string, string>;
+  queuedPromptByConversationId: Record<string, string | undefined>;
   openWorkspaceTabs: SandboxWorkspaceTabIdentity[];
   activeWorkspaceTab: SandboxWorkspaceTabIdentity;
   workspaceFileViewsById: Record<string, SandboxWorkspaceFileViewState>;
@@ -142,6 +157,7 @@ export type SandboxDetailState = {
     reason?: string;
   };
   selectedConversationId?: string;
+  selectedPendingConversationId?: string;
   selectedAgentId?: string;
   selectedRunId?: string;
   composerText: string;
@@ -170,8 +186,11 @@ export function createSandboxDetailState(
     appendedTranscript: [],
     liveRuns: {},
     conversationViewsById: {},
-    openWorkspaceTabs: [{ kind: "chat", id: "chat" }],
-    activeWorkspaceTab: { kind: "chat", id: "chat" },
+    pendingConversationsById: {},
+    composerTextByConversationId: {},
+    queuedPromptByConversationId: {},
+    openWorkspaceTabs: [{ kind: "chat", id: "pending_default" }],
+    activeWorkspaceTab: { kind: "chat", id: "pending_default" },
     workspaceFileViewsById: {},
     composerText: "",
     agentControls: defaultAgentControls(),

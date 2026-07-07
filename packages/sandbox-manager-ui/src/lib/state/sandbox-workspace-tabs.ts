@@ -1,6 +1,12 @@
 import { notify } from "@nervekit/ui/core/notify";
 import { defaultFileDisplayMode } from "@nervekit/ui/core/utils/file-display";
 import * as api from "../api/manager-client";
+import {
+  chatTabFor,
+  isPendingConversationId,
+  selectDurableConversation,
+  selectPendingConversation,
+} from "./sandbox-conversation-state";
 import type {
   SandboxDetailState,
   SandboxDiagnosticTabId,
@@ -50,13 +56,37 @@ export function selectWorkspaceTab(
 ): void {
   ensureWorkspaceTab(detail, tab);
   detail.activeWorkspaceTab = tab;
+  if (tab.kind !== "chat") return;
+  if (isPendingConversationId(tab.id)) {
+    selectPendingConversation(detail, tab.id);
+    return;
+  }
+  if (tab.id.startsWith("conv_")) {
+    selectDurableConversation(detail, tab.id);
+    const runs =
+      detail.snapshot?.runs.filter((run) => run.conversationId === tab.id) ??
+      [];
+    const activeRun =
+      runs.find((run) => run.status === "running") ??
+      [...runs].sort((a, b) =>
+        (b.updatedAt ?? b.createdAt ?? "").localeCompare(
+          a.updatedAt ?? a.createdAt ?? "",
+        ),
+      )[0];
+    detail.selectedAgentId = activeRun?.agentId;
+    detail.selectedRunId = activeRun?.runId;
+  }
 }
 
 export function closeWorkspaceTab(
   detail: SandboxDetailState,
   tab: SandboxWorkspaceTabIdentity,
 ): void {
-  if (tab.kind === "chat") return;
+  if (
+    tab.kind === "chat" &&
+    detail.openWorkspaceTabs.filter((open) => open.kind === "chat").length <= 1
+  )
+    return;
   const index = detail.openWorkspaceTabs.findIndex((open) =>
     sameWorkspaceTab(open, tab),
   );
@@ -64,15 +94,26 @@ export function closeWorkspaceTab(
     (open) => !sameWorkspaceTab(open, tab),
   );
   if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
+  if (tab.kind === "chat" && isPendingConversationId(tab.id))
+    delete detail.pendingConversationsById[tab.id];
   if (sameWorkspaceTab(detail.activeWorkspaceTab, tab)) {
     detail.activeWorkspaceTab =
       detail.openWorkspaceTabs[Math.max(0, index - 1)] ??
-      ({ kind: "chat", id: "chat" } as const);
+      chatTabFor("pending_default");
+    if (detail.activeWorkspaceTab.kind === "chat")
+      selectWorkspaceTab(detail, detail.activeWorkspaceTab);
   }
 }
 
-export function openWorkspaceChatTab(detail: SandboxDetailState): void {
-  selectWorkspaceTab(detail, { kind: "chat", id: "chat" });
+export function openWorkspaceChatTab(
+  detail: SandboxDetailState,
+  key = detail.selectedPendingConversationId ??
+    detail.selectedConversationId ??
+    "pending_default",
+): void {
+  if (isPendingConversationId(key)) selectPendingConversation(detail, key);
+  else if (key.startsWith("conv_")) selectDurableConversation(detail, key);
+  selectWorkspaceTab(detail, chatTabFor(key));
 }
 
 export function openWorkspaceDiagnosticTab(
@@ -169,20 +210,27 @@ export function toggleWorkspaceFileLineWrap(
 export function closeWorkspaceTabs(
   detail: SandboxDetailState,
   tabs: SandboxWorkspaceTabIdentity[],
-  fallback: SandboxWorkspaceTabIdentity = { kind: "chat", id: "chat" },
+  fallback: SandboxWorkspaceTabIdentity = chatTabFor("pending_default"),
 ): void {
   for (const tab of tabs) {
     if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
+    if (tab.kind === "chat" && isPendingConversationId(tab.id))
+      delete detail.pendingConversationsById[tab.id];
   }
   const closing = (tab: SandboxWorkspaceTabIdentity) =>
     tabs.some((candidate) => sameWorkspaceTab(candidate, tab));
+  const chatTabs = detail.openWorkspaceTabs.filter(
+    (tab) => tab.kind === "chat",
+  );
   detail.openWorkspaceTabs = detail.openWorkspaceTabs.filter(
-    (tab) => tab.kind === "chat" || !closing(tab),
+    (tab) => (tab.kind === "chat" && chatTabs.length <= 1) || !closing(tab),
   );
   if (closing(detail.activeWorkspaceTab)) {
-    detail.activeWorkspaceTab = detail.openWorkspaceTabs.find((tab) =>
-      sameWorkspaceTab(tab, fallback),
-    ) ?? { kind: "chat", id: "chat" };
+    detail.activeWorkspaceTab =
+      detail.openWorkspaceTabs.find((tab) => sameWorkspaceTab(tab, fallback)) ??
+      chatTabFor("pending_default");
+    if (detail.activeWorkspaceTab.kind === "chat")
+      selectWorkspaceTab(detail, detail.activeWorkspaceTab);
   }
 }
 
