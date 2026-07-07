@@ -1,44 +1,16 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import SandboxCenter from "../app/SandboxCenter.svelte";
   import CreateSandboxDialog from "../components/create/CreateSandboxDialog.svelte";
+  import { useSandboxCenter } from "../state/sandbox-center.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
-  import FleetPage from "./FleetPage.svelte";
-  import SandboxWorkspacePage from "./SandboxWorkspacePage.svelte";
-  import SettingsPage from "./SettingsPage.svelte";
-  import { SandboxManagerRouteState } from "./route-state.svelte";
 
   const store = useSandboxManagerStore();
-  const route = new SandboxManagerRouteState();
-  let stopRouteListener: (() => void) | undefined;
-
-  onMount(() => {
-    stopRouteListener = route.listen();
-  });
-
-  onDestroy(() => {
-    stopRouteListener?.();
-  });
-
-  // Keep the active sandbox subscription in sync with the current route.
-  $effect(() => {
-    const id = route.sandboxId;
-    if (route.kind === "sandbox" && id) {
-      if (store.selectedSandboxId !== id) void store.selectSandbox(id);
-    } else if (store.selectedSandboxId) {
-      void store.selectSandbox(undefined);
-    }
-  });
+  const center = useSandboxCenter();
 </script>
 
-{#if route.kind === "settings"}
-  <SettingsPage {route} />
-{:else if route.kind === "sandbox" && route.sandboxId}
-  <SandboxWorkspacePage {route} sandboxId={route.sandboxId} />
-{:else}
-  <FleetPage {route} />
-{/if}
+<SandboxCenter />
 
 <CreateSandboxDialog
   bind:open={store.createDialogOpen}
-  onCreated={(sandboxId) => route.openSandbox(sandboxId)}
+  onCreated={(sandboxId) => center.openSandbox(sandboxId)}
 />

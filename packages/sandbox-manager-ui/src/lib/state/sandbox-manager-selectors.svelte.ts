@@ -1,9 +1,17 @@
 import type {
   ManagedSandboxRecord,
   SandboxActivitySummary,
+  SandboxConversationSnapshot,
 } from "@nervekit/shared";
 import type { SandboxManagerStore } from "./sandbox-manager-state.svelte";
 import { matchesFleetFilter, matchesSearch } from "./sandbox-status";
+
+export function conversationsFor(
+  store: SandboxManagerStore,
+  sandboxId: string,
+): SandboxConversationSnapshot[] {
+  return store.details[sandboxId]?.snapshot?.conversations ?? [];
+}
 
 export function activityFor(
   store: SandboxManagerStore,

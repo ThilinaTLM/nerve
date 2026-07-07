@@ -1,4 +1,11 @@
-export { default as PromptComposer } from "./components/composer/PromptComposer.svelte";
+export { default as ConversationPaneLayout } from "./components/ConversationPaneLayout.svelte";
+export { default as ComposerEditor } from "./components/composer/ComposerEditor.svelte";
+export { default as ComposerModelPicker } from "./components/composer/ComposerModelPicker.svelte";
+export { default as ComposerShell } from "./components/composer/ComposerShell.svelte";
+export { default as ComposerToolbar } from "./components/composer/ComposerToolbar.svelte";
+export { default as ContextProgressBadge } from "./components/composer/ContextProgressBadge.svelte";
+export { default as ContextUsageChip } from "./components/composer/ContextUsageChip.svelte";
+export { default as TodoProgressChip } from "./components/composer/TodoProgressChip.svelte";
 export { createConversationScrollController } from "./components/transcript/conversation-scroll.svelte.js";
 export type { ScrollFollowDecisionInput } from "./components/transcript/conversation-scroll-intent.js";
 export { shouldDisableFollowForScroll } from "./components/transcript/conversation-scroll-intent.js";

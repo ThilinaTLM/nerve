@@ -1,7 +1,7 @@
 /* Sandbox manager UI-specific global component partials go here when needed. */
 
-/* Composer toolbar pill buttons. Applied across SandboxComposerToolbar,
- * ContextProgressBadge, and SandboxComposerModelPicker (via triggerClass), so
+/* Composer toolbar pill buttons. Applied by the shared composer toolbar/model
+ * picker/context badge from `@nervekit/conversation-ui` (via triggerClass), so
  * the class must be global. */
 .composer-tab {
   display: inline-flex;

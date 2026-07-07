@@ -93,6 +93,7 @@ export class SandboxManagerStore {
   fleetError = $state<string | undefined>(undefined);
 
   private ws: ManagerWsClient;
+  private readonly conversationsLoading = new Set<string>();
   private fleetRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly statusPollTimers = new Map<
     string,
@@ -305,6 +306,26 @@ export class SandboxManagerStore {
       detail.error = errorMessage(error);
     } finally {
       detail.loading = false;
+    }
+  }
+
+  /**
+   * Lazily load a sandbox's conversation list (for the navigator group) without
+   * the full status polling of `loadDetail`. Cached once the snapshot is
+   * present; safe to call repeatedly (e.g. on group expand/select).
+   */
+  async ensureConversations(sandboxId: string): Promise<void> {
+    const detail = this.detail(sandboxId);
+    if ((detail.snapshot?.conversations.length ?? 0) > 0) return;
+    if (this.conversationsLoading.has(sandboxId)) return;
+    this.conversationsLoading.add(sandboxId);
+    try {
+      const snapshot = await api.getSandboxSnapshot(sandboxId);
+      applySnapshot(detail, snapshot);
+    } catch {
+      // Snapshot may be unavailable when no controller session is connected.
+    } finally {
+      this.conversationsLoading.delete(sandboxId);
     }
   }
 

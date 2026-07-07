@@ -1,5 +1,4 @@
 <script lang="ts">
-  import ArrowDown from "@lucide/svelte/icons/arrow-down";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
   import type { ToolCallTranscriptRecord } from "$lib/api";
@@ -13,6 +12,7 @@
   } from "@nervekit/conversation-ui/state";
   import { Button } from "@nervekit/ui/components/ui/button";
   import {
+    ConversationPaneLayout,
     createConversationScrollController,
     TranscriptList,
   } from "@nervekit/conversation-ui";
@@ -170,10 +170,15 @@
   }
 </script>
 
-<section class="conversation-pane">
-  {#if conversationOpen}
-    <div class="transcript" role="log" aria-label="Conversation transcript" aria-live="polite">
-      <TranscriptList
+<ConversationPaneLayout
+  open={conversationOpen}
+  showScrollButton={active && !scroll.atEnd}
+  composerHeight={scroll.composerHeight}
+  onJumpToBottom={() => scroll.jumpToBottom()}
+  bind:composerWrapRef={scroll.composerWrapEl}
+>
+  {#snippet transcript()}
+    <TranscriptList
         bind:controller={scroll.controller}
         bind:atEnd={scroll.atEnd}
         paddingEnd={18}
@@ -208,18 +213,10 @@
         messageMenu={menuForMessage}
         toolMenu={menuForTool}
       />
-    </div>
+  {/snippet}
 
-    {#if active && !scroll.atEnd && scroll.composerHeight > 0}
-      <div class="scroll-bottom-button-wrap" style={`bottom: ${scroll.composerHeight + 8}px;`}>
-        <Button class="rounded-full" variant="secondary" size="icon-sm" ariaLabel="Scroll to latest" title="Scroll to latest" onclick={() => scroll.jumpToBottom()}>
-          <ArrowDown size={16} strokeWidth={2.4} />
-        </Button>
-      </div>
-    {/if}
-
-    <div bind:this={scroll.composerWrapEl} class="composer-wrap">
-      <PromptComposer
+  {#snippet composer()}
+    <PromptComposer
         text={composerText}
         {activeProject}
         {activeConversation}
@@ -258,8 +255,9 @@
         {onPermissionChange}
         {onApprovalPolicyChange}
       />
-    </div>
-  {:else}
+  {/snippet}
+
+  {#snippet empty()}
     <div class="empty-center">
       <div class="prompt-line" aria-label="Nerve prompt">
         <span class="prompt-sigil">nerve</span>
@@ -269,37 +267,10 @@
       <span class="prompt-hint">Open a conversation or start a new one.</span>
       <Button class="empty-action" variant="ghost" size="sm" onclick={onOpenProject}>New chat</Button>
     </div>
-  {/if}
-</section>
+  {/snippet}
+</ConversationPaneLayout>
 
 <style>
-  .conversation-pane {
-    position: relative;
-    display: grid;
-    height: 100%;
-    min-height: 0;
-    grid-template-rows: minmax(0, 1fr) auto;
-    background: var(--background);
-  }
-
-  .transcript {
-    display: grid;
-    min-height: 0;
-    min-width: 0;
-  }
-
-  .composer-wrap {
-    min-width: 0;
-  }
-
-  .scroll-bottom-button-wrap {
-    position: absolute;
-    right: 1.15rem;
-    z-index: 4;
-    border-radius: 999px;
-    box-shadow: 0 0.35rem 1rem color-mix(in oklab, var(--background) 45%, transparent);
-  }
-
   .empty-center {
     display: grid;
     place-content: center;

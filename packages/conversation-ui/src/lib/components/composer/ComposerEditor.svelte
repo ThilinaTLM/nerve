@@ -19,9 +19,7 @@
     ViewPlugin,
     type ViewUpdate,
   } from "@codemirror/view";
-  import { findExecutableCommandBlocks } from "@nervekit/shared";
-  import type { CompletionItem } from "$lib/api";
-  import { clientLog } from "$lib/core/logger/client-logger";
+  import { findExecutableCommandBlocks, type CompletionItem } from "@nervekit/shared";
 
   type Props = {
     value: string;
@@ -45,7 +43,7 @@
 
   let {
     value,
-    placeholder = "Ask the local Nerve agent",
+    placeholder = "Ask the Nerve agent",
     disabled = false,
     focusToken = 0,
     slashCompletions = [],
@@ -62,6 +60,8 @@
   const editableCompartment = new Compartment();
   const completionCompartment = new Compartment();
   const placeholderCompartment = new Compartment();
+
+  const completionsEnabled = $derived(slashCompletions.length > 0 || Boolean(fileCompletions));
 
   function editableExtensions(isDisabled: boolean) {
     return [EditorState.readOnly.of(isDisabled), EditorView.editable.of(!isDisabled)];
@@ -316,6 +316,7 @@
   );
 
   function completionExtensions() {
+    if (!completionsEnabled) return [];
     return autocompletion({
       override: [completionSource],
       icons: false,
@@ -359,9 +360,7 @@
     void Promise.all(files.map((file) => onPasteImage(file)))
       .then((paths) => insertAtSelection(paths.join("\n")))
       .catch((error: unknown) => {
-        clientLog("error", "composer", "Failed to paste clipboard image", {
-          error,
-        });
+        console.error("Failed to paste clipboard image", error);
       });
     return true;
   }

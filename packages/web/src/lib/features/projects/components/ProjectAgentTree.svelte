@@ -1,7 +1,6 @@
 <script lang="ts">
   import Folder from "@lucide/svelte/icons/folder";
   import Plus from "@lucide/svelte/icons/plus";
-  import Search from "@lucide/svelte/icons/search";
   import type {
     ProjectRecord,
     PruneProjectConversationsRequest,
@@ -9,11 +8,9 @@
   import { Button } from "@nervekit/ui/components/ui/button";
   import AlertDialog from "@nervekit/ui/components/ui/confirm-dialog";
   import ContextMenu from "@nervekit/ui/components/ui/context-menu-list";
-  import { Input } from "@nervekit/ui/components/ui/input";
+  import { NavigatorPanel } from "@nervekit/ui/components/navigator";
   import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
-  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
-  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
   import { PanelSection } from "@nervekit/ui/components/workbench";
   import {
     buildProjectGroups,
@@ -65,7 +62,6 @@
 
   let filter = $state("");
   let searchInputEl = $state<HTMLInputElement | null>(null);
-  let lastSearchFocusToken = 0;
   let collapsed = $state<ProjectGroupCollapseState>(
     loadProjectGroupCollapseState(),
   );
@@ -76,13 +72,6 @@
   const searchShortcut = getShortcutLabel("projectSearch.focus");
   const searchShortcutAria = getShortcutAriaLabel("projectSearch.focus");
   const newConversationShortcut = getShortcutLabel("conversation.new");
-
-  $effect(() => {
-    if (searchFocusToken === lastSearchFocusToken) return;
-    lastSearchFocusToken = searchFocusToken;
-    searchInputEl?.focus();
-    searchInputEl?.select();
-  });
 
   function requestDelete(target: DeleteTarget) {
     pendingDelete = target;
@@ -132,23 +121,15 @@
   const hiddenProjects = $derived(result.hiddenProjects);
 </script>
 
-<Tooltip.Provider delayDuration={300} disableHoverableContent>
-  <aside class="project-tree">
-    <div class="search-box">
-      <Search size={13} strokeWidth={2.25} aria-hidden="true" />
-      <Input
-        bind:ref={searchInputEl}
-        bind:value={filter}
-        size="sm"
-        placeholder="Search projects / conversations"
-        ariaLabel="Search projects or conversations"
-        aria-keyshortcuts={searchShortcutAria}
-        title={searchShortcut ? `Search projects / conversations (${searchShortcut})` : "Search projects / conversations"}
-      />
-    </div>
-
-    <ScrollArea class="tree-scroll" viewportClass="tree-viewport" type="auto">
-      <div class="tree-list">
+<NavigatorPanel
+  bind:searchValue={filter}
+  bind:searchRef={searchInputEl}
+  placeholder="Search projects / conversations"
+  searchAriaLabel="Search projects or conversations"
+  {searchFocusToken}
+  {searchShortcut}
+  {searchShortcutAria}
+>
         {#if groups.length === 0}
           <p class="empty">No projects yet.</p>
         {/if}
@@ -207,10 +188,7 @@
         {#if hiddenProjects > 0}
           <p class="empty">+{hiddenProjects} more projects</p>
         {/if}
-      </div>
-    </ScrollArea>
-  </aside>
-</Tooltip.Provider>
+</NavigatorPanel>
 
 <AlertDialog
   open={!!pendingDelete}
@@ -257,18 +235,6 @@
 />
 
 <style>
-  .project-tree {
-    display: grid;
-    width: 100%;
-    height: 100%;
-    min-width: 0;
-    min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
-    overflow: hidden;
-    border-right: 1px solid var(--border);
-    background: var(--card);
-  }
-
   .empty {
     margin: 0.5rem;
     color: var(--muted-foreground);
@@ -304,51 +270,6 @@
   .more-button:focus-visible {
     outline: none;
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ring) 60%, transparent);
-  }
-
-  .search-box {
-    position: relative;
-    display: grid;
-    width: 100%;
-    min-width: 0;
-    align-items: center;
-    padding: 0.45rem;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    background: transparent;
-  }
-
-  .search-box :global(svg) {
-    position: absolute;
-    left: 0.85rem;
-    z-index: 1;
-    color: var(--muted-foreground);
-    pointer-events: none;
-  }
-
-  .search-box :global([data-slot="input"]) {
-    padding-left: 1.75rem;
-  }
-
-  :global(.tree-scroll) {
-    width: 100%;
-    min-width: 0;
-    min-height: 0;
-    overflow-x: hidden;
-  }
-
-  :global(.tree-viewport) {
-    width: 100%;
-    min-width: 0;
-    overflow-x: hidden;
-    padding: 0.45rem;
-  }
-
-  .tree-list {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    flex-direction: column;
-    gap: 0.5rem;
   }
 
   /* ContextMenu trigger wrappers must not break the flex/card layout. */

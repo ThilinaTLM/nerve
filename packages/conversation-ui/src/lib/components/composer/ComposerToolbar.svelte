@@ -4,19 +4,20 @@
   import Lock from "@lucide/svelte/icons/lock";
   import Shield from "@lucide/svelte/icons/shield";
   import Zap from "@lucide/svelte/icons/zap";
-  import type { AgentRecord, ContextUsage, ModelInfo } from "$lib/api";
-  import type { TodoItem } from "@nervekit/shared";
+  import type {
+    ApprovalPolicy,
+    ContextUsage,
+    ModelInfo,
+    PermissionLevel,
+    ThinkingLevel,
+    TodoItem,
+  } from "@nervekit/shared";
   import Popover from "@nervekit/ui/components/ui/popover-panel";
   import Switch from "@nervekit/ui/components/ui/switch-field";
   import type { Component } from "svelte";
   import ComposerModelPicker from "./ComposerModelPicker.svelte";
   import ContextProgressBadge from "./ContextProgressBadge.svelte";
   import TodoProgressChip from "./TodoProgressChip.svelte";
-
-  type Mode = AgentRecord["mode"];
-  type PermissionLevel = AgentRecord["permissionLevel"];
-  type ThinkingLevel = AgentRecord["thinkingLevel"];
-  type ApprovalPolicy = AgentRecord["approvalPolicy"];
 
   type PermissionOption = {
     value: PermissionLevel;
@@ -29,10 +30,13 @@
     controlsDisabled: boolean;
     modeDisabled: boolean;
     modelDisabled: boolean;
-    mode: Mode;
+    /** Display label for the mode tab, e.g. "Coding" / "Planning". */
+    modeLabel: string;
+    /** Selects the planning vs coding icon; mode semantics stay with the caller. */
+    modePlanning: boolean;
+    onToggleMode?: () => void;
     permissionLevel: PermissionLevel;
     approvalPolicy: ApprovalPolicy;
-    modeLabel: string;
     permissionShortcut?: string;
     permissionShortcutAria?: string;
     modeShortcut?: string;
@@ -40,12 +44,12 @@
     thinkingShortcut?: string;
     contextUsage?: ContextUsage;
     contextWindow: number;
-    todos: TodoItem[];
+    todos?: TodoItem[];
     models: ModelInfo[];
     selectedModelKey: string;
     thinkingLevel: ThinkingLevel;
-    onModeChange?: (value: Mode) => void;
     runtimeChangeHint?: string;
+    modelEmptyMessage?: string;
     onModelChange?: (value: string) => void;
     onThinkingLevelChange?: (value: ThinkingLevel) => void;
     onPermissionChange?: (value: PermissionLevel) => void;
@@ -56,10 +60,11 @@
     controlsDisabled,
     modeDisabled,
     modelDisabled,
-    mode,
+    modeLabel,
+    modePlanning,
+    onToggleMode,
     permissionLevel,
     approvalPolicy,
-    modeLabel,
     permissionShortcut,
     permissionShortcutAria,
     modeShortcut,
@@ -67,12 +72,12 @@
     thinkingShortcut,
     contextUsage,
     contextWindow,
-    todos,
+    todos = [],
     models,
     selectedModelKey,
     thinkingLevel,
-    onModeChange,
     runtimeChangeHint,
+    modelEmptyMessage,
     onModelChange,
     onThinkingLevelChange,
     onPermissionChange,
@@ -112,10 +117,6 @@
   function selectPermission(value: PermissionLevel) {
     if (value !== permissionLevel) onPermissionChange?.(value);
     permissionOpen = false;
-  }
-
-  function toggleMode() {
-    onModeChange?.(mode === "coding" ? "planning" : "coding");
   }
 
   function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
@@ -187,10 +188,10 @@
       ? `Mode: ${modeLabel} (${modeShortcut})`
       : `Mode: ${modeLabel} (click to switch)`}
     aria-keyshortcuts={modeShortcutAria}
-    onclick={toggleMode}
+    onclick={() => onToggleMode?.()}
   >
     <span class="mode-tab-icon" aria-hidden="true">
-      {#if mode === "planning"}
+      {#if modePlanning}
         <ClipboardList size={13} strokeWidth={2.2} />
       {:else}
         <Code2 size={13} strokeWidth={2.2} />
@@ -211,6 +212,7 @@
     {onModelChange}
     {onThinkingLevelChange}
     {runtimeChangeHint}
+    emptyMessage={modelEmptyMessage}
     shortcutLabel={thinkingShortcut}
   />
 </div>

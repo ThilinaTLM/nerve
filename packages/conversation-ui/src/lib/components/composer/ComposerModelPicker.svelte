@@ -1,19 +1,18 @@
 <script lang="ts">
-  import { Check, ChevronDown } from "@lucide/svelte";
+  import Check from "@lucide/svelte/icons/check";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import type { ModelInfo, ThinkingLevel } from "@nervekit/shared";
   import Popover from "@nervekit/ui/components/ui/popover-panel";
-  import {
-    modelDisplayName,
-    modelKey,
-    providerDisplayName,
-  } from "../../utils/model-display";
+  import { contextualModelLabel, modelKey } from "@nervekit/ui/core/utils/model";
 
   type Props = {
     models?: ModelInfo[];
     selectedModelKey?: string;
     thinkingLevel?: ThinkingLevel;
     disabled?: boolean;
+    shortcutLabel?: string;
     runtimeChangeHint?: string;
+    emptyMessage?: string;
     onModelChange?: (value: string) => void;
     onThinkingLevelChange?: (value: ThinkingLevel) => void;
   };
@@ -23,16 +22,16 @@
     selectedModelKey = "",
     thinkingLevel = "off",
     disabled = false,
+    shortcutLabel,
     runtimeChangeHint,
+    emptyMessage = "No models available. Configure a provider or adjust Scoped Models in Settings.",
     onModelChange,
     onThinkingLevelChange,
   }: Props = $props();
 
   let open = $state(false);
 
-  const selectedModel = $derived(
-    models.find((model) => modelKey(model) === selectedModelKey),
-  );
+  const selectedModel = $derived(models.find((model) => modelKey(model) === selectedModelKey));
 
   const thinkingLevelDetails: Record<ThinkingLevel, string> = {
     off: "No reasoning",
@@ -59,38 +58,29 @@
         return "H";
       case "xhigh":
         return "XH";
+      case "off":
       default:
         return "Off";
     }
   }
 
-  function modelLabel(model: ModelInfo): string {
-    return `${modelDisplayName(model)} · ${providerDisplayName(model.provider)}`;
-  }
-
   const thinkingLevels = $derived<ThinkingLevel[]>(
-    selectedModel?.supportedThinkingLevels?.length
-      ? selectedModel.supportedThinkingLevels
-      : ["off"],
+    selectedModel?.supportedThinkingLevels?.length ? selectedModel.supportedThinkingLevels : ["off"],
   );
 
   const hasThinking = $derived(thinkingLevels.length > 1);
 
   const triggerLabel = $derived(
-    selectedModel ? modelDisplayName(selectedModel) : "Select model",
+    selectedModel ? contextualModelLabel(selectedModel, models) : "Select model",
   );
   const triggerSuffix = $derived(
-    hasThinking && thinkingLevel !== "off"
-      ? thinkingLevelLabel(thinkingLevel)
-      : undefined,
+    hasThinking && thinkingLevel !== "off" ? thinkingLevelLabel(thinkingLevel) : undefined,
   );
   const triggerShortSuffix = $derived(
-    hasThinking && thinkingLevel !== "off"
-      ? thinkingLevelShortLabel(thinkingLevel)
-      : undefined,
+    hasThinking && thinkingLevel !== "off" ? thinkingLevelShortLabel(thinkingLevel) : undefined,
   );
   const triggerTitle = $derived(
-    `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${runtimeChangeHint ? ` · ${runtimeChangeHint}` : ""}`,
+    `${triggerSuffix ? `${triggerLabel} (${triggerSuffix})` : triggerLabel}${runtimeChangeHint ? ` · ${runtimeChangeHint}` : ""}${shortcutLabel ? ` · Cycle thinking ${shortcutLabel}` : ""}`,
   );
 
   function handleOpenChange(next: boolean) {
@@ -127,11 +117,8 @@
   {#snippet trigger()}
     <span class="model-tab-inner" class:disabled aria-disabled={disabled}>
       <span class="model-tab-label">{triggerLabel}</span>
-      {#if triggerSuffix}<span class="model-tab-suffix">({triggerSuffix})</span
-        >{/if}
-      {#if triggerShortSuffix}<span class="model-tab-short-suffix"
-          >({triggerShortSuffix})</span
-        >{/if}
+      {#if triggerSuffix}<span class="model-tab-suffix">({triggerSuffix})</span>{/if}
+      {#if triggerShortSuffix}<span class="model-tab-short-suffix">({triggerShortSuffix})</span>{/if}
       <ChevronDown size={12} strokeWidth={2.2} />
     </span>
   {/snippet}
@@ -140,24 +127,16 @@
     <div class="model-picker-section">
       <p class="model-picker-heading">Model</p>
       {#if models.length === 0}
-        <p class="model-picker-empty">
-          No models available. Configure a provider in the manager.
-        </p>
+        <p class="model-picker-empty">{emptyMessage}</p>
       {:else}
         <ul class="model-list">
           {#each models as model (modelKey(model))}
             {@const active = modelKey(model) === selectedModelKey}
+            {@const label = contextualModelLabel(model, models)}
             <li>
-              <button
-                type="button"
-                class="model-row"
-                class:active
-                aria-pressed={active}
-                {disabled}
-                onclick={() => selectModel(model)}
-              >
+              <button type="button" class="model-row" class:active aria-pressed={active} {disabled} onclick={() => selectModel(model)}>
                 <span class="model-row-text">
-                  <span class="model-row-label">{modelLabel(model)}</span>
+                  <span class="model-row-label">{label}</span>
                 </span>
                 {#if active}<Check size={14} strokeWidth={2.4} />{/if}
               </button>

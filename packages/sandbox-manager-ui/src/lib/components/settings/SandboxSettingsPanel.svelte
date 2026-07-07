@@ -26,12 +26,11 @@
     SandboxManagerCredentialProfile,
     SandboxManagerCredentialProviderKind,
   } from "@nervekit/shared";
-  import { SandboxManagerOAuthFlow } from "../components/credentials/sandbox-manager-oauth-flow.svelte";
-  import AppShell from "../components/layout/AppShell.svelte";
-  import AppearanceSettings from "../components/settings/AppearanceSettings.svelte";
-  import SettingsSectionNav from "../components/settings/SettingsSectionNav.svelte";
-  import type { SandboxManagerRouteState } from "./route-state.svelte";
-  import { buildCredentialProfileWrite } from "../settings/profile-form";
+  import { SandboxManagerOAuthFlow } from "../credentials/sandbox-manager-oauth-flow.svelte";
+  import AppearanceSettings from "./AppearanceSettings.svelte";
+  import SettingsSectionNav from "./SettingsSectionNav.svelte";
+  import RuntimeBackendBadge from "../RuntimeBackendBadge.svelte";
+  import { buildCredentialProfileWrite } from "../../settings/profile-form";
   import {
     domains,
     domainForSectionId,
@@ -43,21 +42,21 @@
     type SettingsDomainId,
     type SettingsSection,
     type SettingsSectionId,
-  } from "../settings/provider-catalog";
+  } from "../../settings/provider-catalog";
   import { untrack } from "svelte";
-  import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
-  import { modelDisplayName } from "../utils/model-display";
-
-  let { route }: { route: SandboxManagerRouteState } = $props();
+  import { useSandboxCenter } from "../../state/sandbox-center.svelte";
+  import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
+  import { modelDisplayName } from "../../utils/model-display";
 
   const store = useSandboxManagerStore();
+  const center = useSandboxCenter();
   let activeDomainId = $state<SettingsDomainId>(
-    untrack(() => resolveDomainId(route.settingsSection)),
+    untrack(() => resolveDomainId(center.settingsSection)),
   );
 
-  // Follow browser navigation (back/forward) to a settings domain.
+  // Follow the shared center settings-section selection.
   $effect(() => {
-    activeDomainId = resolveDomainId(route.settingsSection);
+    activeDomainId = resolveDomainId(center.settingsSection);
   });
   let activeSectionId = $state<SettingsSectionId>("llm_subscriptions");
   let providerSearch = $state("");
@@ -227,7 +226,7 @@
   function selectDomain(domainId: SettingsDomainId): void {
     activeDomainId = domainId;
     providerSearch = "";
-    route.openSettings(domainId.replace(/_/g, "-"));
+    center.settingsSection = domainId.replace(/_/g, "-");
     const domain = domains.find((item) => item.id === domainId);
     const first = domain ? sectionsForDomain(domain)[0] : undefined;
     if (first) {
@@ -464,19 +463,32 @@
   }
 </script>
 
-<AppShell
-  {route}
-  title="Settings"
-  subtitle="Appearance, providers, and credentials."
->
-  {#snippet actions()}
-    <Badge tone="accent" size="sm">{configuredCount} profiles</Badge>
-    <Button variant="outline" size="sm" onclick={() => void store.refreshCredentials()}>
-      <RefreshCw class="size-4" /> Refresh
-    </Button>
-  {/snippet}
+<div class="flex h-full min-h-0 flex-col bg-background">
+  <header class="flex flex-none flex-wrap items-center gap-3 border-b bg-background px-4 py-2.5 md:px-6">
+    <div class="flex min-w-0 flex-col">
+      <h1 class="truncate text-base font-semibold">Settings</h1>
+      <p class="truncate text-xs text-muted-foreground">Appearance, providers, and credentials.</p>
+    </div>
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      {#if store.managerStatus}
+        <RuntimeBackendBadge
+          backend={store.managerStatus.backend}
+          runtime={store.managerStatus.runtime}
+        />
+        {#if store.managerStatus.hardening.apiAuth === "disabled"}
+          <Badge tone="warn" size="xs">auth disabled</Badge>
+        {/if}
+      {/if}
+      <Badge tone="accent" size="sm">{configuredCount} profiles</Badge>
+      <Button variant="outline" size="sm" onclick={() => void store.refreshCredentials()}>
+        <RefreshCw class="size-4" /> Refresh
+      </Button>
+    </div>
+  </header>
 
-  <div class="flex flex-col gap-4 lg:flex-row">
+  <div class="min-h-0 flex-1 overflow-y-auto">
+    <div class="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
+      <div class="flex flex-col gap-4 lg:flex-row">
     <aside class="flex flex-col gap-2 lg:sticky lg:top-6 lg:w-72 lg:flex-none lg:self-start">
       <SettingsSectionNav
         {domains}
@@ -598,8 +610,10 @@
         </Card>
       {/if}
     </main>
+      </div>
+    </div>
   </div>
-</AppShell>
+</div>
 
 <DialogShell
   bind:open={addDialogOpen}

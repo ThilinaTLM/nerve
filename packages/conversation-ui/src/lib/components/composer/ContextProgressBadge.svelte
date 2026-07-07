@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ContextUsage } from "$lib/api";
+  import type { ContextUsage } from "@nervekit/shared";
   import { formatTokens, usageTone } from "@nervekit/ui/core/utils/usage";
 
   type Props = {

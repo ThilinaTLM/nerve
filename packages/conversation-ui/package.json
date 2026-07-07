@@ -10,7 +10,14 @@
     "./context": "./src/lib/context.svelte.ts",
     "./components/transcript/TranscriptList.svelte": "./src/lib/components/transcript/TranscriptList.svelte",
     "./components/transcript/TranscriptRow.svelte": "./src/lib/components/transcript/TranscriptRow.svelte",
-    "./components/composer/PromptComposer.svelte": "./src/lib/components/composer/PromptComposer.svelte",
+    "./components/ConversationPaneLayout.svelte": "./src/lib/components/ConversationPaneLayout.svelte",
+    "./components/composer/ComposerShell.svelte": "./src/lib/components/composer/ComposerShell.svelte",
+    "./components/composer/ComposerToolbar.svelte": "./src/lib/components/composer/ComposerToolbar.svelte",
+    "./components/composer/ComposerEditor.svelte": "./src/lib/components/composer/ComposerEditor.svelte",
+    "./components/composer/ComposerModelPicker.svelte": "./src/lib/components/composer/ComposerModelPicker.svelte",
+    "./components/composer/ContextProgressBadge.svelte": "./src/lib/components/composer/ContextProgressBadge.svelte",
+    "./components/composer/ContextUsageChip.svelte": "./src/lib/components/composer/ContextUsageChip.svelte",
+    "./components/composer/TodoProgressChip.svelte": "./src/lib/components/composer/TodoProgressChip.svelte",
     "./tools/components/ToolCallCard.svelte": "./src/lib/tools/components/ToolCallCard.svelte",
     "./tools/*.svelte": "./src/lib/tools/*.svelte",
     "./tools/*": "./src/lib/tools/*.ts"
@@ -20,6 +27,11 @@
     "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.2",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.0",
     "@lucide/svelte": "^1.17.0",
     "@nervekit/shared": "workspace:*",
     "@nervekit/ui": "workspace:*",

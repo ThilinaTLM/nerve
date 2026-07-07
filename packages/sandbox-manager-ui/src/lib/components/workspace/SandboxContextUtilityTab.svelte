@@ -10,6 +10,8 @@
   import { Progress } from "@nervekit/ui/components/ui/progress";
   import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import { PanelSection } from "@nervekit/ui/components/workbench";
+  import SandboxActionMenu from "../SandboxActionMenu.svelte";
+  import SandboxStatusBadge from "../SandboxStatusBadge.svelte";
   import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
   import { activityFor } from "../../state/sandbox-manager-selectors.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
@@ -141,9 +143,13 @@
           {/each}
         </div>
       {/if}
-      <div class="flex flex-wrap gap-1.5">
+      <div class="flex flex-wrap items-center gap-1.5">
         <Button size="xs" variant="outline" onclick={() => onOpenDiagnosticTab?.("logs")}><Terminal class="size-3.5" /> Logs</Button>
         <Button size="xs" variant="outline" onclick={() => onOpenDiagnosticTab?.("events")}><FileClock class="size-3.5" /> Events</Button>
+        <span class="ml-auto flex items-center gap-1.5">
+          <SandboxStatusBadge {record} />
+          <SandboxActionMenu {record} compact />
+        </span>
       </div>
     </div>
   </PanelSection>
