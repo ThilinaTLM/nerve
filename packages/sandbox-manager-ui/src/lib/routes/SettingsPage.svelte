@@ -500,49 +500,30 @@
               {/if}
             </div>
           </CardHeader>
-          {#if activeSection.options.length === 0 || saved || (error && !addDialogOpen)}
-            <CardContent class="space-y-3 p-4">
-              {#if activeSection.options.length === 0}
-                <div class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
-                  {activeSection.emptyHint}
+          <CardContent class="space-y-4 p-4">
+            {#if activeSection.options.length === 0}
+              <div class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+                {activeSection.emptyHint}
+              </div>
+            {/if}
+
+            {#if saved}
+              <p class="flex items-center gap-2 rounded-md bg-success/10 p-2 text-xs text-success">
+                <CheckCircle2 class="size-4" /> {saved}
+              </p>
+            {/if}
+            {#if error && !addDialogOpen}
+              <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                <TriangleAlert class="mt-0.5 size-4 flex-none" /> {error}
+              </p>
+            {/if}
+
+            {#if groupedProfiles.length === 0}
+              {#if activeSection.options.length > 0}
+                <div class="flex flex-col items-start gap-3 rounded-md border bg-muted/30 p-5">
+                  <p class="text-sm font-medium">No profiles configured.</p>
                 </div>
               {/if}
-
-              {#if saved}
-                <p class="flex items-center gap-2 rounded-md bg-success/10 p-2 text-xs text-success">
-                  <CheckCircle2 class="size-4" /> {saved}
-                </p>
-              {/if}
-              {#if error && !addDialogOpen}
-                <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-                  <TriangleAlert class="mt-0.5 size-4 flex-none" /> {error}
-                </p>
-              {/if}
-            </CardContent>
-          {/if}
-        </Card>
-
-        <Card class="border">
-          <CardHeader class="border-b p-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <CardTitle class="text-base">Configured</CardTitle>
-              {#if activeSection.options.length > 0 && groupedProfiles.length > 0}
-                <Button variant="outline" size="sm" onclick={() => openAddDialog()}>
-                  <Plus class="size-4" /> Add another
-                </Button>
-              {/if}
-            </div>
-          </CardHeader>
-          <CardContent class="p-4">
-            {#if groupedProfiles.length === 0}
-              <div class="flex flex-col items-start gap-3 rounded-md border bg-muted/30 p-5">
-                <p class="text-sm font-medium">No profiles configured.</p>
-                {#if activeSection.options.length > 0}
-                  <Button size="sm" onclick={() => openAddDialog()}>
-                    <Plus class="size-4" /> Add configuration
-                  </Button>
-                {/if}
-              </div>
             {:else}
               <div class="grid gap-3 xl:grid-cols-2">
                 {#each groupedProfiles as profile (profile.profileId)}
