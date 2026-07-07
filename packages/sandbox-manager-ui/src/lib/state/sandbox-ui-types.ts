@@ -68,9 +68,12 @@ export type SandboxLiveRunState = {
   updatedAt?: string;
 };
 
+export type SandboxDiagnosticTabId = "logs" | "config" | "events";
+
 export type SandboxWorkspaceTabIdentity =
   | { kind: "chat"; id: "chat" }
-  | { kind: "file"; id: string };
+  | { kind: "file"; id: string }
+  | { kind: "diagnostic"; id: SandboxDiagnosticTabId };
 
 export type SandboxWorkspaceFileViewState = {
   id: string;

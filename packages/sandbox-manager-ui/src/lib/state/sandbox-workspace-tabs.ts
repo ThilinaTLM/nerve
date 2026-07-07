@@ -3,6 +3,7 @@ import { defaultFileDisplayMode } from "@nervekit/ui/core/utils/file-display";
 import * as api from "../api/manager-client";
 import type {
   SandboxDetailState,
+  SandboxDiagnosticTabId,
   SandboxWorkspaceFileViewState,
   SandboxWorkspaceTabIdentity,
 } from "./sandbox-ui-types";
@@ -62,7 +63,7 @@ export function closeWorkspaceTab(
   detail.openWorkspaceTabs = detail.openWorkspaceTabs.filter(
     (open) => !sameWorkspaceTab(open, tab),
   );
-  delete detail.workspaceFileViewsById[tab.id];
+  if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
   if (sameWorkspaceTab(detail.activeWorkspaceTab, tab)) {
     detail.activeWorkspaceTab =
       detail.openWorkspaceTabs[Math.max(0, index - 1)] ??
@@ -72,6 +73,13 @@ export function closeWorkspaceTab(
 
 export function openWorkspaceChatTab(detail: SandboxDetailState): void {
   selectWorkspaceTab(detail, { kind: "chat", id: "chat" });
+}
+
+export function openWorkspaceDiagnosticTab(
+  detail: SandboxDetailState,
+  id: SandboxDiagnosticTabId,
+): void {
+  selectWorkspaceTab(detail, { kind: "diagnostic", id });
 }
 
 export async function openWorkspaceFile(

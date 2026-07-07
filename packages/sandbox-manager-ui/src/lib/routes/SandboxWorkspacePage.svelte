@@ -32,6 +32,9 @@
   import SandboxWorkspaceTabStrip from "../components/workspace/SandboxWorkspaceTabStrip.svelte";
   import WorkspaceAgentList from "../components/workspace/WorkspaceAgentList.svelte";
   import WorkspaceInspector from "../components/workspace/WorkspaceInspector.svelte";
+  import SandboxConfigView from "./SandboxConfigView.svelte";
+  import SandboxEventsView from "./SandboxEventsView.svelte";
+  import SandboxLogsView from "./SandboxLogsView.svelte";
   import {
     computeSandboxBootProgress,
     isSandboxConnected,
@@ -216,7 +219,12 @@
       void store.recoverConversationSnapshot(sandboxId).catch(() => undefined);
       return;
     }
-    void store.refreshWorkspaceFile(sandboxId, tab.id);
+    if (tab.kind === "file") {
+      void store.refreshWorkspaceFile(sandboxId, tab.id);
+      return;
+    }
+    if (tab.id === "logs") void store.loadLogs(sandboxId);
+    if (tab.id === "config") void store.loadSandboxConfigYaml(sandboxId);
   }
 
   // Tool-call details dialog resolves the full sandbox record when connected.
@@ -399,6 +407,14 @@
     <div class="min-h-0 min-w-0 flex-1">
       {#if activeWorkspaceTab.kind === "file"}
         <SandboxFilePane view={activeFileView} />
+      {:else if activeWorkspaceTab.kind === "diagnostic" && record}
+        {#if activeWorkspaceTab.id === "logs"}
+          <SandboxLogsView {record} />
+        {:else if activeWorkspaceTab.id === "config"}
+          <SandboxConfigView {record} />
+        {:else}
+          <SandboxEventsView {record} />
+        {/if}
       {:else}
         <div class="flex h-full min-h-0 min-w-0 flex-col">
           {@render chatWorkspace()}
@@ -507,7 +523,11 @@
             <Handle aria-label="Resize inspector" />
             <Pane defaultSize={24} minSize={19} maxSize={40} order={3}>
               <div class="h-full min-w-0 border-l">
-                <WorkspaceInspector {record} onClose={() => setInspectorOpen(false)} />
+                <WorkspaceInspector
+                  {record}
+                  onClose={() => setInspectorOpen(false)}
+                  onOpenDiagnosticTab={(id) => store.openWorkspaceDiagnosticTab(sandboxId, id)}
+                />
               </div>
             </Pane>
           {/if}
@@ -519,6 +539,10 @@
       </div>
     </div>
 
-    <SandboxDiagnosticsSheet bind:open={diagnosticsOpen} {record} />
+    <SandboxDiagnosticsSheet
+      bind:open={diagnosticsOpen}
+      {record}
+      onOpenDiagnosticTab={(id) => store.openWorkspaceDiagnosticTab(sandboxId, id)}
+    />
   {/if}
 </AppShell>

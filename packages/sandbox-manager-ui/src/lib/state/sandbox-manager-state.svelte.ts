@@ -38,11 +38,13 @@ import {
   createSandboxDetailState,
   type PendingSandboxOperation,
   type SandboxDetailState,
+  type SandboxDiagnosticTabId,
   type SandboxWorkspaceTabIdentity,
 } from "./sandbox-ui-types";
 import {
   closeWorkspaceTab as closeWorkspaceTabInDetail,
   openWorkspaceChatTab as openWorkspaceChatTabInDetail,
+  openWorkspaceDiagnosticTab as openWorkspaceDiagnosticTabInDetail,
   openWorkspaceFile as openWorkspaceFileInDetail,
   refreshWorkspaceFile as refreshWorkspaceFileInDetail,
   selectWorkspaceTab as selectWorkspaceTabInDetail,
@@ -385,6 +387,13 @@ export class SandboxManagerStore {
 
   openWorkspaceChatTab(sandboxId: string): void {
     openWorkspaceChatTabInDetail(this.detail(sandboxId));
+  }
+
+  openWorkspaceDiagnosticTab(
+    sandboxId: string,
+    id: SandboxDiagnosticTabId,
+  ): void {
+    openWorkspaceDiagnosticTabInDetail(this.detail(sandboxId), id);
   }
 
   async openWorkspaceFile(

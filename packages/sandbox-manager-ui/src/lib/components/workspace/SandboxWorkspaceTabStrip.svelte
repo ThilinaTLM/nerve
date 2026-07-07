@@ -2,10 +2,13 @@
   import {
     BookOpenText,
     Code2,
+    FileClock,
+    FileCode2,
     FileText,
     Image as ImageIcon,
     MessageSquare,
     RefreshCw,
+    Terminal,
     TriangleAlert,
     X,
   } from "@lucide/svelte";
@@ -67,6 +70,26 @@
     if (view?.content?.type === "image") return ImageIcon;
     return FileText;
   }
+
+  function diagnosticLabel(tab: SandboxWorkspaceTabIdentity): string {
+    if (tab.kind !== "diagnostic") return "";
+    if (tab.id === "logs") return "Logs";
+    if (tab.id === "config") return "Config YAML";
+    return "Events";
+  }
+
+  function tabIcon(
+    tab: SandboxWorkspaceTabIdentity,
+    view: SandboxWorkspaceFileViewState | undefined,
+  ) {
+    if (tab.kind === "chat") return MessageSquare;
+    if (tab.kind === "diagnostic") {
+      if (tab.id === "logs") return Terminal;
+      if (tab.id === "config") return FileCode2;
+      return FileClock;
+    }
+    return fileIcon(view);
+  }
 </script>
 
 <nav class="flex h-10 flex-none items-center border-b bg-muted/35" aria-label="Workspace tabs">
@@ -74,7 +97,7 @@
     {#each tabs as tab (`${tab.kind}:${tab.id}`)}
       {@const active = sameTab(activeTab, tab)}
       {@const view = tab.kind === "file" ? fileViewsById[tab.id] : undefined}
-      {@const Icon = tab.kind === "chat" ? MessageSquare : fileIcon(view)}
+      {@const Icon = tabIcon(tab, view)}
       <div
         class={`group flex min-w-0 max-w-56 items-center gap-1 border-r px-1.5 text-sm ${active ? "bg-background text-foreground" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"} ${view?.error ? "text-destructive" : ""}`}
         role="presentation"
@@ -107,11 +130,17 @@
           role="tab"
           aria-selected={active}
           class="min-w-0 flex-1 truncate py-2 text-left"
-          title={tab.kind === "chat" ? "Sandbox chat" : fileTitle(view, tab.id)}
+          title={tab.kind === "chat"
+            ? "Sandbox chat"
+            : tab.kind === "diagnostic"
+              ? diagnosticLabel(tab)
+              : fileTitle(view, tab.id)}
           onclick={() => onSelect(tab)}
         >
           {#if tab.kind === "chat"}
             Chat
+          {:else if tab.kind === "diagnostic"}
+            {diagnosticLabel(tab)}
           {:else}
             {fileLabel(view, tab.id)}
           {/if}
@@ -146,11 +175,28 @@
           >
             <RefreshCw class={`size-3.5 ${view?.loading ? "animate-spin" : ""}`} />
           </Button>
+        {:else if tab.kind === "diagnostic"}
           <Button
             variant="ghost"
             size="icon-sm"
             class="size-6 opacity-70 hover:opacity-100"
-            ariaLabel={`Close ${fileLabel(view, tab.id)}`}
+            ariaLabel={`Refresh ${diagnosticLabel(tab)}`}
+            title="Refresh tab"
+            onclick={(event) => {
+              event.stopPropagation();
+              onRefresh(tab);
+            }}
+          >
+            <RefreshCw class="size-3.5" />
+          </Button>
+        {/if}
+
+        {#if tab.kind !== "chat"}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            class="size-6 opacity-70 hover:opacity-100"
+            ariaLabel={`Close ${tab.kind === "diagnostic" ? diagnosticLabel(tab) : fileLabel(view, tab.id)}`}
             title="Close tab"
             onclick={(event) => {
               event.stopPropagation();
