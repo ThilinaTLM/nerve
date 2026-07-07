@@ -19,6 +19,9 @@ export type CredentialProfileFormValues = {
   defaultSpaceKey: string;
   githubAppId: string;
   githubInstallationId: string;
+  gitAuthorName?: string;
+  gitAuthorEmail?: string;
+  knownHosts?: string;
 };
 
 export function parseJsonObject<T extends Record<string, unknown>>(
@@ -67,12 +70,19 @@ export function buildCredentialProfileWrite(
       "Provider options",
     ),
     env: parseStringRecord(values.envJson, "Provider env"),
+    gitAuthorName:
+      values.gitAuthorName?.trim() ||
+      (option.providerKind === "git_identity" ? values.displayName.trim() : undefined),
+    gitAuthorEmail:
+      values.gitAuthorEmail?.trim() ||
+      (option.providerKind === "git_identity" ? values.email.trim() : undefined),
     defaultModel: values.defaultModel.trim() || undefined,
     defaultOwner: values.defaultOwner.trim() || undefined,
     defaultRepo: values.defaultRepo.trim() || undefined,
     defaultProjectKey: values.defaultProjectKey.trim() || undefined,
     defaultSpaceKey: values.defaultSpaceKey.trim() || undefined,
   };
+  if (option.secretMode === "none") return request;
   if (option.secretMode === "oauth")
     request.oauthImport = parseJsonObject(values.secretValue, "OAuth bundle");
   else if (option.secretMode === "githubApp") {
@@ -81,8 +91,9 @@ export function buildCredentialProfileWrite(
       installationId: values.githubInstallationId.trim(),
       privateKey: values.secretValue,
     };
-  } else if (option.secretMode === "privateKey")
+  } else if (option.secretMode === "privateKey") {
     request.privateKey = values.secretValue;
-  else request.apiKey = values.secretValue;
+    request.knownHosts = values.knownHosts?.trim() || undefined;
+  } else request.apiKey = values.secretValue;
   return request;
 }

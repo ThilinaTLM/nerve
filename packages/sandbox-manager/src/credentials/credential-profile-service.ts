@@ -55,12 +55,12 @@ export class CredentialProfileService {
     const existing = await this.profiles.get(profileId);
     const now = new Date().toISOString();
     const secretPurpose = secretPurposeForRequest(request);
-    const secretKey = credentialSecretKey(profileId, secretPurpose);
-    const secretValue = secretValueForRequest(request);
+    const secretInputs = secretInputsForRequest(request);
     const expiresAt = request.oauthImport?.expiresAt;
-    if (secretValue !== undefined) {
-      await this.secrets.set(secretKey, secretValue, {
-        expiresAt,
+    for (const input of secretInputs) {
+      const secretKey = credentialSecretKey(profileId, input.purpose);
+      await this.secrets.set(secretKey, input.value, {
+        expiresAt: input.expiresAt,
         version: now,
       });
       await this.pool.query(
@@ -70,10 +70,12 @@ export class CredentialProfileService {
          on conflict (profile_id, purpose) do update set
           secret_key = excluded.secret_key,
           updated_at = now()`,
-        [profileId, secretPurpose, secretKey],
+        [profileId, input.purpose, secretKey],
       );
     }
-    const configured = Boolean(secretValue !== undefined || existing);
+    const configured = Boolean(
+      request.providerKind === "git_identity" || secretInputs.length > 0 || existing,
+    );
     const profile = sandboxManagerCredentialProfileSchema.parse({
       ...(existing ?? {}),
       profileId,
@@ -92,18 +94,22 @@ export class CredentialProfileService {
       compat: request.compat,
       providerOptions: request.providerOptions,
       env: request.env,
+      gitAuthorName: request.gitAuthorName,
+      gitAuthorEmail: request.gitAuthorEmail,
       authType: authTypeForRequest(request),
       status: statusForRequest(request, configured),
       expiresAt,
       refreshAfter: expiresAt ? refreshAfter(expiresAt) : undefined,
-      secretRefs: [
-        {
-          purpose: secretPurpose,
-          configured,
-          expiresAt,
-        },
-      ],
-      credential: credentialConfigForProfile(profileId, request, secretPurpose),
+      secretRefs: secretRefSummaries(
+        request,
+        secretPurpose,
+        configured,
+        expiresAt,
+        existing?.secretRefs,
+      ),
+      credential:
+        credentialConfigForProfile(profileId, request, secretPurpose) ??
+        existing?.credential,
       defaultModel: request.defaultModel,
       defaultOwner: request.defaultOwner,
       defaultRepo: request.defaultRepo,
@@ -117,23 +123,61 @@ export class CredentialProfileService {
   }
 }
 
-function secretValueForRequest(
+function secretInputsForRequest(
   request: SandboxManagerCredentialProfileWrite,
-): string | undefined {
-  if (request.apiKey) return request.apiKey;
-  if (request.bearerToken) return request.bearerToken;
-  if (request.password) return request.password;
-  if (request.privateKey) return request.privateKey;
-  if (request.githubApp) return JSON.stringify(request.githubApp);
+): Array<{ purpose: string; value: string; expiresAt?: string }> {
+  const expiresAt = request.oauthImport?.expiresAt;
+  const inputs: Array<{ purpose: string; value: string; expiresAt?: string }> = [];
+  if (request.apiKey)
+    inputs.push({ purpose: "api-key", value: request.apiKey, expiresAt });
+  if (request.bearerToken)
+    inputs.push({ purpose: "bearer-token", value: request.bearerToken, expiresAt });
+  if (request.password)
+    inputs.push({ purpose: "password", value: request.password, expiresAt });
+  if (request.privateKey)
+    inputs.push({ purpose: "private-key", value: request.privateKey, expiresAt });
+  if (request.passphrase)
+    inputs.push({ purpose: "passphrase", value: request.passphrase, expiresAt });
+  if (request.knownHosts)
+    inputs.push({ purpose: "known-hosts", value: request.knownHosts, expiresAt });
+  if (request.githubApp)
+    inputs.push({
+      purpose: "github-app",
+      value: JSON.stringify(request.githubApp),
+      expiresAt,
+    });
   if (request.oauthImport) {
     const raw =
       typeof request.oauthImport.rawBundle === "object" &&
       request.oauthImport.rawBundle !== null
         ? (request.oauthImport.rawBundle as Record<string, unknown>)
         : {};
-    return JSON.stringify({ type: "oauth", ...raw, ...request.oauthImport });
+    inputs.push({
+      purpose: "oauth-bundle",
+      value: JSON.stringify({ type: "oauth", ...raw, ...request.oauthImport }),
+      expiresAt,
+    });
   }
-  return undefined;
+  return inputs;
+}
+
+function secretRefSummaries(
+  request: SandboxManagerCredentialProfileWrite,
+  primaryPurpose: string,
+  configured: boolean,
+  expiresAt: string | undefined,
+  existing: Array<{ purpose: string; configured: boolean; expiresAt?: string }> = [],
+): Array<{ purpose: string; configured: boolean; expiresAt?: string }> {
+  const purposes = new Set(secretInputsForRequest(request).map((input) => input.purpose));
+  if (purposes.size === 0 && existing.length > 0)
+    for (const ref of existing) purposes.add(ref.purpose);
+  if (purposes.size === 0 && request.providerKind !== "git_identity")
+    purposes.add(primaryPurpose);
+  return Array.from(purposes).map((purpose) => ({
+    purpose,
+    configured,
+    expiresAt,
+  }));
 }
 
 function secretPurposeForRequest(
@@ -144,12 +188,14 @@ function secretPurposeForRequest(
   if (request.privateKey) return "private-key";
   if (request.password) return "password";
   if (request.bearerToken) return "bearer-token";
+  if (request.providerKind === "git_identity") return "identity";
   return "api-key";
 }
 
 function authTypeForRequest(
   request: SandboxManagerCredentialProfileWrite,
 ): SandboxManagerCredentialAuthType {
+  if (request.providerKind === "git_identity") return "none";
   if (request.oauthImport) return "oauth";
   if (request.githubApp) return "github_app";
   if (request.privateKey) return "ssh";
@@ -175,9 +221,20 @@ function credentialConfigForProfile(
   profileId: string,
   request: SandboxManagerCredentialProfileWrite,
   purpose: string,
-): SandboxCredentialConfig {
+): SandboxCredentialConfig | undefined {
   const ref = { kv: { key: credentialSecretKey(profileId, purpose) } };
-  if (request.privateKey) return { type: "ssh", privateKey: ref };
+  if (request.providerKind === "git_identity") return undefined;
+  if (request.privateKey)
+    return {
+      type: "ssh",
+      privateKey: ref,
+      ...(request.passphrase
+        ? { passphrase: { kv: { key: credentialSecretKey(profileId, "passphrase") } } }
+        : {}),
+      ...(request.knownHosts
+        ? { knownHosts: { kv: { key: credentialSecretKey(profileId, "known-hosts") } } }
+        : {}),
+    };
   if (request.password)
     return {
       type: "basic",
@@ -186,7 +243,8 @@ function credentialConfigForProfile(
     };
   if (request.bearerToken || request.oauthImport || request.githubApp)
     return { type: "bearer", token: ref };
-  return { type: "api_key", apiKey: ref };
+  if (request.apiKey) return { type: "api_key", apiKey: ref };
+  return undefined;
 }
 
 function refreshAfter(expiresAt: string): string | undefined {

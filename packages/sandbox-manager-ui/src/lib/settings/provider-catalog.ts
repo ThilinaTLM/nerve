@@ -27,7 +27,7 @@ export type ProviderOption = {
   detail: string;
   kind: SandboxManagerCredentialProfileKind;
   provider: string;
-  secretMode: "apiKey" | "oauth" | "githubApp" | "privateKey";
+  secretMode: "none" | "apiKey" | "oauth" | "githubApp" | "privateKey";
   api?: string;
   baseUrl?: string;
   defaultModel?: string;
@@ -395,9 +395,34 @@ export const sections: SettingsSection[] = [
     label: "Git",
     description: "Repository-level Git identity and generic Git host auth.",
     icon: Settings2,
-    options: [],
-    emptyHint:
-      "Generic Git identity settings are not yet backed by a first-class manager profile. Use GitHub profiles below for GitHub-hosted repositories.",
+    options: [
+      {
+        providerKind: "git_identity",
+        label: "Git author identity",
+        detail: "Global Git user.name and user.email for sandbox commits.",
+        kind: "git",
+        provider: "git",
+        secretMode: "none",
+        email: true,
+      },
+      {
+        providerKind: "git_https_token",
+        label: "Git HTTPS token",
+        detail: "Token used for HTTPS clone/fetch/push via a scoped Git credential helper.",
+        kind: "git",
+        provider: "git",
+        secretMode: "apiKey",
+      },
+      {
+        providerKind: "git_ssh_key",
+        label: "Git SSH key",
+        detail: "Private key used for SSH clone/fetch/push via an isolated SSH config.",
+        kind: "git",
+        provider: "git",
+        secretMode: "privateKey",
+        multiline: true,
+      },
+    ],
   },
   {
     id: "github",

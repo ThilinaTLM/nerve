@@ -340,6 +340,8 @@
     return [
       { label: "Site", value: profile.siteUrl ?? "" },
       { label: "Email", value: profile.email ?? "" },
+      { label: "Git author", value: profile.gitAuthorName ?? "" },
+      { label: "Git email", value: profile.gitAuthorEmail ?? "" },
       { label: "Owner", value: profile.defaultOwner ?? "" },
       { label: "Repository", value: profile.defaultRepo ?? "" },
       { label: "Project", value: profile.defaultProjectKey ?? "" },
@@ -350,6 +352,7 @@
   function authTypeLabel(
     authType: SandboxManagerCredentialProfile["authType"],
   ): string {
+    if (authType === "none") return "Profile";
     if (authType === "api_key") return "API key";
     if (authType === "github_app") return "GitHub App";
     if (authType === "ssh") return "SSH key";
@@ -399,6 +402,8 @@
         defaultSpaceKey,
         githubAppId,
         githubInstallationId,
+        gitAuthorName: displayName,
+        gitAuthorEmail: email,
       });
       await store.createCredentialProfile(request);
       saved = `Saved ${request.displayName}`;
@@ -743,7 +748,7 @@
               </p>
             {/if}
           </div>
-        {:else}
+        {:else if selectedOption.secretMode !== "none"}
           <div class="flex flex-col gap-1 sm:col-span-2">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <Label>{selectedOption.secretMode === "apiKey" ? "API key" : secretLabel(selectedOption)}</Label>
@@ -860,7 +865,7 @@
         <Button variant="outline" size="sm" onclick={() => applyOptionDefaults()}>Clear</Button>
         <Button
           size="sm"
-          disabled={busy || !secretValue || (selectedOption.secretMode === "githubApp" && (!githubAppId || !githubInstallationId))}
+          disabled={busy || (selectedOption.secretMode !== "none" && !secretValue) || (selectedOption.secretMode === "githubApp" && (!githubAppId || !githubInstallationId))}
           onclick={() => void saveProfile()}
         >
           <KeyRound class="size-4" /> Save configuration

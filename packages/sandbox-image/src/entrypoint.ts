@@ -160,11 +160,27 @@ export async function runSandboxEntrypoint(
 
   // 10-12. setup and skills/context loading
   const git = await stage(emitStartup, "sandbox.setup.git", () =>
-    runGitSetup(config, paths.workspaceDir),
+    runGitSetup(config, {
+      workspaceDir: paths.workspaceDir,
+      stateDir: paths.stateDir,
+      credentialsDir: paths.credentialsDir,
+      resolver,
+    }),
   );
+  const setupEnv = "env" in git && git.env ? git.env : undefined;
   const github = await stage(emitStartup, "sandbox.setup.github", () =>
-    runGithubSetup(config, paths.credentialsDir),
+    runGithubSetup(config, {
+      credentialsDir: paths.credentialsDir,
+      resolver,
+      env: setupEnv,
+    }),
   );
+  if (git.status === "failed")
+    throw new Error(`Git setup failed: ${git.error?.message ?? "unknown error"}`);
+  if (github.status === "failed")
+    throw new Error(
+      `GitHub setup failed: ${github.error?.message ?? "unknown error"}`,
+    );
   const contextFiles = await stage(emitStartup, "sandbox.context", () =>
     loadContextFiles(config, paths.workspaceDir),
   );
@@ -186,6 +202,7 @@ export async function runSandboxEntrypoint(
       redactor,
       eventSink: stores.events,
       instanceId,
+      env: setupEnv,
     }),
   );
 

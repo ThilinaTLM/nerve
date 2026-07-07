@@ -327,6 +327,29 @@ export const sandboxToolsConfigSchema = z.object({
 });
 export type SandboxToolsConfig = z.infer<typeof sandboxToolsConfigSchema>;
 
+const sandboxGitCredentialRefSchema = z.union([
+  z.string().min(1),
+  sandboxCredentialConfigSchema,
+]);
+export type SandboxGitCredentialRef = z.infer<
+  typeof sandboxGitCredentialRefSchema
+>;
+
+export const sandboxGitCredentialProfileConfigSchema = z.object({
+  match: z
+    .object({
+      protocol: z.enum(["https", "ssh"]).optional(),
+      host: z.string().min(1).optional(),
+      user: z.string().min(1).optional(),
+      pathPrefix: z.string().min(1).optional(),
+    })
+    .optional(),
+  credential: sandboxCredentialConfigSchema,
+});
+export type SandboxGitCredentialProfileConfig = z.infer<
+  typeof sandboxGitCredentialProfileConfigSchema
+>;
+
 export const sandboxGitConfigSchema = z.object({
   enabled: z.boolean().optional(),
   identity: z
@@ -341,6 +364,9 @@ export const sandboxGitConfigSchema = z.object({
       sshSigningKey: sandboxSecretRefSchema.optional(),
     })
     .optional(),
+  credentials: z
+    .record(z.string().min(1), sandboxGitCredentialProfileConfigSchema)
+    .optional(),
   clone: z
     .object({
       url: z.string().min(1).optional(),
@@ -348,7 +374,7 @@ export const sandboxGitConfigSchema = z.object({
       targetDir: z.string().min(1).optional(),
       depth: z.number().int().positive().safe().optional(),
       submodules: z.boolean().optional(),
-      credential: sandboxCredentialConfigSchema.optional(),
+      credential: sandboxGitCredentialRefSchema.optional(),
       ifWorkspaceNotEmpty: z.enum(["skip", "fail", "replace"]).optional(),
     })
     .optional(),
@@ -357,7 +383,8 @@ export const sandboxGitConfigSchema = z.object({
       z.object({
         name: z.string().min(1),
         url: z.string().min(1),
-        credential: sandboxCredentialConfigSchema.optional(),
+        pushUrl: z.string().min(1).optional(),
+        credential: sandboxGitCredentialRefSchema.optional(),
       }),
     )
     .optional(),

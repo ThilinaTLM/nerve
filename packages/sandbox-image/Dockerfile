@@ -20,7 +20,7 @@ LABEL org.nerve.sandbox.spec="v1" \
   org.nerve.sandbox.runtime.version="0.6.0"
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates python3 python3-venv python3-pip \
+  && apt-get install -y --no-install-recommends git git-lfs openssh-client ca-certificates python3 python3-venv python3-pip \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system sandbox \
   && useradd --system --gid sandbox --home-dir /home/sandbox --create-home --shell /usr/sbin/nologin sandbox \

@@ -77,6 +77,54 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
+  it("validates named Git credentials and create auth refs", () => {
+    const config = {
+      ...minimalConfig(),
+      secretStores: {
+        defaultStore: "manager",
+        stores: { manager: { type: "http_kv", endpoint: "https://secrets.test" } },
+      },
+      git: {
+        enabled: true,
+        identity: { name: "Sandbox Bot", email: "bot@example.com" },
+        credentials: {
+          github: {
+            match: { protocol: "https", host: "github.com" },
+            credential: {
+              type: "basic",
+              username: "x-access-token",
+              password: { kv: { key: "github/pat" } },
+            },
+          },
+        },
+        clone: {
+          url: "https://github.com/acme/private.git",
+          credential: "github",
+        },
+        remotes: [
+          {
+            name: "origin",
+            url: "https://github.com/acme/private.git",
+            pushUrl: "https://github.com/acme/private.git",
+            credential: "github",
+          },
+        ],
+      },
+    };
+    assert.equal(sandboxConfigV1Schema.safeParse(config).success, true);
+    assert.equal(
+      sandboxCreateRequestSchema.safeParse({
+        config: { version: 1, agent: config.agent },
+        auth: {
+          gitIdentityProfileId: "git_identity",
+          gitCredentialProfileIds: ["git_token"],
+          githubProfileId: "github",
+        },
+      }).success,
+      true,
+    );
+  });
+
   it("validates secret references and requires a default kv store when omitted", () => {
     assert.equal(
       sandboxSecretRefSchema.safeParse({ env: "TOKEN" }).success,

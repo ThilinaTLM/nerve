@@ -153,20 +153,31 @@ git:
     sshSigningKey:
       kv:
         key: git/signing-key
+  credentials:
+    github-ssh:
+      match:
+        protocol: ssh
+        host: github.com
+        user: git
+      credential:
+        type: ssh
+        privateKey:
+          kv:
+            key: git/id_ed25519
+        knownHosts:
+          kv:
+            key: git/known_hosts
   clone:
     url: git@github.com:example/repo.git
     ref: main
     targetDir: /workspace
     depth: 50
     submodules: false
-    credential:
-      type: ssh
-      privateKey:
-        kv:
-          key: git/id_ed25519
-      knownHosts:
-        kv:
-          key: git/known_hosts
+    credential: github-ssh
+  remotes:
+    - name: origin
+      url: git@github.com:example/repo.git
+      credential: github-ssh
   safeDirectory: workspace
   lfs: false
 
@@ -482,17 +493,24 @@ git:
     signingFormat: ssh
     sshSigningKey:
       file: /secrets/git/signing-key
+  credentials:
+    github-ssh:
+      match:
+        protocol: ssh
+        host: github.com
+        user: git
+      credential:
+        type: ssh
+        privateKey:
+          file: /secrets/git/id_ed25519
+        knownHosts:
+          file: /secrets/git/known_hosts
   clone:
     url: git@github.com:example/repo.git
     ref: main
     targetDir: /workspace
     depth: 50
-    credential:
-      type: ssh
-      privateKey:
-        file: /secrets/git/id_ed25519
-      knownHosts:
-        file: /secrets/git/known_hosts
+    credential: github-ssh
 
 github:
   enabled: true
@@ -771,15 +789,19 @@ controller:
 
 git:
   enabled: true
+  credentials:
+    github-ssh:
+      match: { protocol: ssh, host: github.com, user: git }
+      credential:
+        type: ssh
+        privateKey:
+          kv: { key: git/id_ed25519 }
+        knownHosts:
+          kv: { key: git/known_hosts }
   clone:
     url: git@github.com:example/repo.git
     ref: main
-    credential:
-      type: ssh
-      privateKey:
-        kv: { key: git/id_ed25519 }
-      knownHosts:
-        kv: { key: git/known_hosts }
+    credential: github-ssh
 
 github:
   enabled: true

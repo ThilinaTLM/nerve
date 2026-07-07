@@ -524,6 +524,7 @@ Git configuration is first-class because repository cloning, identity, signing, 
 type GitConfig = {
   enabled?: boolean;
   identity?: GitIdentityConfig;
+  credentials?: Record<string, GitCredentialProfileConfig>;
   clone?: GitCloneConfig;
   remotes?: GitRemoteConfig[];
   safeDirectory?: "workspace" | "none" | string[];
@@ -542,20 +543,33 @@ type GitIdentityConfig = {
   sshSigningKey?: SecretRef;
 };
 
+type GitCredentialProfileConfig = {
+  match?: {
+    protocol?: "https" | "ssh";
+    host?: string;
+    user?: string;
+    pathPrefix?: string;
+  };
+  credential: CredentialConfig;
+};
+
+type GitCredentialRef = string | CredentialConfig;
+
 type GitCloneConfig = {
   url?: string;
   ref?: string;
   targetDir?: string; // default: /workspace
   depth?: number;
   submodules?: boolean;
-  credential?: CredentialConfig;
+  credential?: GitCredentialRef; // prefer named entries from git.credentials
   ifWorkspaceNotEmpty?: "skip" | "fail" | "replace"; // default: skip
 };
 
 type GitRemoteConfig = {
   name: string;
   url: string;
-  credential?: CredentialConfig;
+  pushUrl?: string;
+  credential?: GitCredentialRef;
 };
 ```
 
@@ -563,14 +577,14 @@ Requirements:
 
 - `git.enabled: true` prepares Git identity, signing state, credentials, safe-directory config, configured remotes, and optional clone before boot phases.
 - Git credentials MUST be injected narrowly, for example through `GIT_ASKPASS`, `GIT_SSH_COMMAND`, an isolated SSH config, or credential helpers scoped to protected state.
-- Git identity MUST be written to repo-local config when a repository exists, or sandbox-user config under protected state. It MUST NOT write to `/agent` or host-global config.
+- Git identity MUST be written to sandbox-global config under protected state before clone or boot (`GIT_CONFIG_GLOBAL=/state/git/config` in the reference image). It MUST NOT write to `/agent`, the immutable image home, or host-global config.
 - GPG material MUST use an isolated `GNUPGHOME` under protected state and MUST NOT be copied to `/workspace`.
 - Startup clone/fetch network access MUST comply with `security.network` and any firewall profile.
 - Top-level Git config does not by itself grant model-callable Git operations. Git commands invoked later through shell or dedicated tools MUST still pass tool policy, risk classification, and approval requirements.
 
 ## GitHub configuration
 
-GitHub configuration covers GitHub API/CLI setup. It is first-class startup configuration, not a tool group. Git transport credentials may live in either `git` or `github` depending on manager policy.
+GitHub configuration covers GitHub API/CLI setup. It is first-class startup configuration, not a tool group. Git transport credentials for GitHub-hosted clone/fetch/push SHOULD live in `git.credentials`; the same manager secret may also back `github.auth` for GitHub API/CLI calls.
 
 ```ts
 type GithubConfig = {
@@ -931,19 +945,30 @@ git:
     sshSigningKey:
       kv:
         key: git/signing-key
+  credentials:
+    github-ssh:
+      match:
+        protocol: ssh
+        host: github.com
+        user: git
+      credential:
+        type: ssh
+        privateKey:
+          kv:
+            key: git/id_ed25519
+        knownHosts:
+          kv:
+            key: git/known_hosts
   clone:
     url: git@github.com:example/repo.git
     ref: main
     targetDir: /workspace
     depth: 50
-    credential:
-      type: ssh
-      privateKey:
-        kv:
-          key: git/id_ed25519
-      knownHosts:
-        kv:
-          key: git/known_hosts
+    credential: github-ssh
+  remotes:
+    - name: origin
+      url: git@github.com:example/repo.git
+      credential: github-ssh
   safeDirectory: workspace
   lfs: false
 

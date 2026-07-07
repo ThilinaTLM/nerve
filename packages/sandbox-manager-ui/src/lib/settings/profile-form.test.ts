@@ -57,6 +57,28 @@ describe("profile form helpers", () => {
     assert.deepEqual(request.compat, { flag: true });
   });
 
+  it("builds Git identity profile writes without a secret", () => {
+    const request = buildCredentialProfileWrite(
+      {
+        ...baseOption,
+        providerKind: "git_identity",
+        kind: "git",
+        provider: "git",
+        secretMode: "none",
+        label: "Git author identity",
+      },
+      {
+        ...values,
+        displayName: "Sandbox Bot",
+        email: "bot@example.com",
+        secretValue: "",
+      },
+    );
+    assert.equal(request.gitAuthorName, "Sandbox Bot");
+    assert.equal(request.gitAuthorEmail, "bot@example.com");
+    assert.equal(request.apiKey, undefined);
+  });
+
   it("builds OAuth, private-key, and GitHub App secret shapes", () => {
     const oauth = buildCredentialProfileWrite(
       { ...baseOption, secretMode: "oauth", providerKind: "anthropic_oauth" },

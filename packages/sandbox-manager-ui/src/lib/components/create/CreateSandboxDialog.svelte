@@ -107,6 +107,24 @@
   const thinkingLevelItems = $derived(
     thinkingLevelSelectItems(supportedThinkingLevelsForSelection()),
   );
+  const gitIdentityProfileItems = $derived([
+    noneProfile,
+    ...store.credentialProfiles
+      .filter((profile) => profile.providerKind === "git_identity")
+      .map((profile) => ({ value: profile.profileId, label: profile.displayName })),
+  ]);
+  const gitCredentialProfileItems = $derived([
+    noneProfile,
+    ...store.credentialProfiles
+      .filter(
+        (profile) =>
+          profile.kind === "git" && profile.providerKind !== "git_identity",
+      )
+      .map((profile) => ({ value: profile.profileId, label: profile.displayName })),
+  ]);
+  const selectedGitCredentialProfileId = $derived(
+    draft.gitCredentialProfileIds[0] ?? "",
+  );
   const githubProfileItems = $derived([
     noneProfile,
     ...store.credentialProfiles
@@ -433,6 +451,26 @@
             <p class="text-xs text-muted-foreground">Optional managed credentials injected by the manager.</p>
           </div>
           <div class="grid gap-3 sm:grid-cols-2">
+            <div class="flex flex-col gap-1">
+              <Label>Git identity profile</Label>
+              <SelectField
+                items={gitIdentityProfileItems}
+                value={draft.gitIdentityProfileId}
+                placeholder="No profile"
+                onValueChange={(value) => (draft.gitIdentityProfileId = value)}
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <Label>Git transport credential</Label>
+              <SelectField
+                items={gitCredentialProfileItems}
+                value={selectedGitCredentialProfileId}
+                placeholder="No profile"
+                onValueChange={(value) => {
+                  draft.gitCredentialProfileIds = value ? [value] : [];
+                }}
+              />
+            </div>
             <div class="flex flex-col gap-1">
               <Label>GitHub profile</Label>
               <SelectField

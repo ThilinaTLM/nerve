@@ -57,6 +57,8 @@ type PersistedCreateSandboxPreferences = {
   tools?: Partial<Record<CreateSandboxToolKey, boolean>>;
   mainModelProfileId?: string;
   exploreModelProfileId?: string;
+  gitIdentityProfileId?: string;
+  gitCredentialProfileIds?: string[];
   githubProfileId?: string;
   jiraProfileId?: string;
   confluenceProfileId?: string;
@@ -150,6 +152,8 @@ export type CreateSandboxDraft = {
   tools: Record<CreateSandboxToolKey, boolean>;
   mainModelProfileId: string;
   exploreModelProfileId: string;
+  gitIdentityProfileId: string;
+  gitCredentialProfileIds: string[];
   githubProfileId: string;
   jiraProfileId: string;
   confluenceProfileId: string;
@@ -212,6 +216,8 @@ export function createDefaultDraft(): CreateSandboxDraft {
     },
     mainModelProfileId: "",
     exploreModelProfileId: "",
+    gitIdentityProfileId: "",
+    gitCredentialProfileIds: [],
     githubProfileId: "",
     jiraProfileId: "",
     confluenceProfileId: "",
@@ -305,6 +311,13 @@ export function createDraftFromStoredPreferences(
     stringValue(stored.mainModelProfileId) ?? draft.mainModelProfileId;
   draft.exploreModelProfileId =
     stringValue(stored.exploreModelProfileId) ?? draft.exploreModelProfileId;
+  draft.gitIdentityProfileId =
+    stringValue(stored.gitIdentityProfileId) ?? draft.gitIdentityProfileId;
+  if (Array.isArray(stored.gitCredentialProfileIds)) {
+    draft.gitCredentialProfileIds = stored.gitCredentialProfileIds.filter(
+      (value): value is string => typeof value === "string",
+    );
+  }
   draft.githubProfileId =
     stringValue(stored.githubProfileId) ?? draft.githubProfileId;
   draft.jiraProfileId =
@@ -345,6 +358,8 @@ function preferencesFromDraft(
     tools: { ...draft.tools },
     mainModelProfileId: draft.mainModelProfileId,
     exploreModelProfileId: draft.exploreModelProfileId,
+    gitIdentityProfileId: draft.gitIdentityProfileId,
+    gitCredentialProfileIds: [...draft.gitCredentialProfileIds],
     githubProfileId: draft.githubProfileId,
     jiraProfileId: draft.jiraProfileId,
     confluenceProfileId: draft.confluenceProfileId,
@@ -498,6 +513,10 @@ export function buildCreateRequestFromForm(
     const auth = {
       mainModelProfileId: draft.mainModelProfileId.trim() || undefined,
       exploreModelProfileId: draft.exploreModelProfileId.trim() || undefined,
+      gitIdentityProfileId: draft.gitIdentityProfileId.trim() || undefined,
+      gitCredentialProfileIds: draft.gitCredentialProfileIds.length
+        ? draft.gitCredentialProfileIds
+        : undefined,
       githubProfileId: draft.githubProfileId.trim() || undefined,
       jiraProfileId: draft.jiraProfileId.trim() || undefined,
       confluenceProfileId: draft.confluenceProfileId.trim() || undefined,

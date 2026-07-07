@@ -28,6 +28,8 @@ export function selectProfiles(
     [
       refs.mainModelProfileId,
       refs.exploreModelProfileId,
+      refs.gitIdentityProfileId,
+      ...(refs.gitCredentialProfileIds ?? []),
       refs.githubProfileId,
       refs.jiraProfileId,
       refs.confluenceProfileId,
@@ -43,6 +45,7 @@ function applyProfile(
 ): void {
   if (profile.kind === "model_provider")
     applyModelProviderProfile(config, profile);
+  if (profile.kind === "git") applyGitProfile(config, profile);
   if (profile.kind === "github") applyGithubProfile(config, profile);
   if (profile.kind === "jira" || profile.kind === "confluence")
     applyToolCredentialProfile(config, profile);
@@ -79,16 +82,111 @@ function applyModelProviderProfile(
   else providers.push(providerConfig);
 }
 
+function applyGitProfile(
+  config: Record<string, unknown>,
+  profile: SandboxManagerCredentialProfile,
+): void {
+  const git = ensureObject(config, "git");
+  git.enabled = true;
+  if (profile.providerKind === "git_identity") {
+    const identity = ensureObject(git, "identity");
+    if (profile.gitAuthorName) identity.name = profile.gitAuthorName;
+    if (profile.gitAuthorEmail) identity.email = profile.gitAuthorEmail;
+    return;
+  }
+  if (!profile.credential) return;
+  const credentials = ensureObject(git, "credentials");
+  credentials[safeGitCredentialName(profile.profileId)] = {
+    match: gitCredentialMatch(profile),
+    credential: profile.credential,
+  };
+}
+
 function applyGithubProfile(
   config: Record<string, unknown>,
   profile: SandboxManagerCredentialProfile,
 ): void {
   const github = ensureObject(config, "github");
   github.enabled = true;
-  if (profile.credential) github.auth = profile.credential;
+  if (profile.credential) github.auth = githubAuthForProfile(profile);
   if (profile.provider) github.host = profile.provider;
   if (profile.defaultOwner) github.defaultOwner = profile.defaultOwner;
   if (profile.defaultRepo) github.defaultRepo = profile.defaultRepo;
+
+  const gitCredential = gitCredentialForGithubProfile(profile);
+  if (gitCredential) {
+    const git = ensureObject(config, "git");
+    git.enabled = true;
+    const credentials = ensureObject(git, "credentials");
+    credentials[safeGitCredentialName(profile.profileId)] = gitCredential;
+  }
+}
+
+function githubAuthForProfile(
+  profile: SandboxManagerCredentialProfile,
+): unknown {
+  const credential = profile.credential;
+  if (!isObject(credential)) return credential;
+  if (profile.providerKind === "github_pat" || profile.providerKind === "github_oauth") {
+    if ("token" in credential) return { type: "pat", token: credential.token };
+    if ("apiKey" in credential) return { type: "pat", token: credential.apiKey };
+  }
+  if (profile.providerKind === "github_app") {
+    if ("token" in credential) return { type: "app_token", token: credential.token };
+  }
+  if (profile.providerKind === "github_ssh") {
+    if ("privateKey" in credential) {
+      return {
+        type: "ssh",
+        privateKey: credential.privateKey,
+        ...(credential.passphrase ? { passphrase: credential.passphrase } : {}),
+        ...(credential.knownHosts ? { knownHosts: credential.knownHosts } : {}),
+      };
+    }
+  }
+  return credential;
+}
+
+function gitCredentialForGithubProfile(
+  profile: SandboxManagerCredentialProfile,
+): unknown | undefined {
+  const credential = profile.credential;
+  if (!isObject(credential)) return undefined;
+  if (profile.providerKind === "github_pat" || profile.providerKind === "github_oauth") {
+    const token = credential.token ?? credential.apiKey;
+    if (!token) return undefined;
+    return {
+      match: { protocol: "https", host: profile.provider ?? "github.com" },
+      credential: {
+        type: "basic",
+        username: "x-access-token",
+        password: token,
+      },
+    };
+  }
+  if (profile.providerKind === "github_ssh" && credential.privateKey) {
+    return {
+      match: {
+        protocol: "ssh",
+        host: profile.provider ?? "github.com",
+        user: "git",
+      },
+      credential,
+    };
+  }
+  return undefined;
+}
+
+function gitCredentialMatch(
+  profile: SandboxManagerCredentialProfile,
+): Record<string, string> {
+  const host = profile.provider ?? "github.com";
+  if (profile.providerKind === "git_ssh_key") return { protocol: "ssh", host };
+  return { protocol: "https", host };
+}
+
+function safeGitCredentialName(profileId: string): string {
+  return profileId.replace(/[^a-zA-Z0-9_.-]/g, "_");
 }
 
 function applyToolCredentialProfile(

@@ -22,6 +22,7 @@ export async function runBootPlan(
       }): Promise<unknown>;
     };
     instanceId?: string;
+    env?: Record<string, string>;
   },
 ): Promise<void> {
   const attempts = new JsonlStore<Record<string, unknown>>(
@@ -48,7 +49,7 @@ export async function runBootPlan(
         network: phase.network ?? "inherit",
       },
     });
-    const env: Record<string, string> = {};
+    const env: Record<string, string> = { ...(opts.env ?? {}) };
     for (const [key, ref] of Object.entries(phase.env ?? {}))
       env[key] = opts.resolver ? await opts.resolver.resolve(ref) : "";
     const result = await runShell(

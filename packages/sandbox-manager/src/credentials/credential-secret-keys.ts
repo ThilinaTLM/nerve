@@ -6,7 +6,8 @@ import type {
 
 export function primaryPurposeForKind(
   kind: SandboxManagerCredentialProfileKind,
-): "model_api" | "github" | "jira" | "confluence" | "web" {
+): "model_api" | "git" | "github" | "jira" | "confluence" | "web" {
+  if (kind === "git") return "git";
   if (kind === "github") return "github";
   if (kind === "jira") return "jira";
   if (kind === "confluence") return "confluence";
@@ -56,6 +57,10 @@ export function providerForProviderKind(
       xiaomi_token_plan_sgp_api_key: "xiaomi-token-plan-sgp",
       zai_api_key: "zai",
       zai_coding_cn_api_key: "zai-coding-cn",
+      git_identity: "git",
+      git_https_basic: "git",
+      git_https_token: "git",
+      git_ssh_key: "git",
       github_pat: "github.com",
       github_oauth: "github.com",
       github_app: "github.com",

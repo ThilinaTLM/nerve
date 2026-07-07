@@ -376,6 +376,8 @@ export type SandboxCreateConfigInput = z.infer<
 export const sandboxCreateAuthRefsSchema = z.object({
   mainModelProfileId: z.string().min(1).optional(),
   exploreModelProfileId: z.string().min(1).optional(),
+  gitIdentityProfileId: z.string().min(1).optional(),
+  gitCredentialProfileIds: z.array(z.string().min(1)).optional(),
   githubProfileId: z.string().min(1).optional(),
   jiraProfileId: z.string().min(1).optional(),
   confluenceProfileId: z.string().min(1).optional(),
@@ -394,6 +396,7 @@ export type SandboxCreateRequest = z.infer<typeof sandboxCreateRequestSchema>;
 
 export const sandboxManagerCredentialProfileKindSchema = z.enum([
   "model_provider",
+  "git",
   "github",
   "jira",
   "confluence",
@@ -442,6 +445,10 @@ export const sandboxManagerCredentialProviderKindSchema = z.enum([
   "zai_coding_cn_api_key",
   "custom_api_key",
   "custom_bearer",
+  "git_identity",
+  "git_https_basic",
+  "git_https_token",
+  "git_ssh_key",
   "github_pat",
   "github_oauth",
   "github_app",
@@ -457,6 +464,7 @@ export type SandboxManagerCredentialProviderKind = z.infer<
 >;
 
 export const sandboxManagerCredentialAuthTypeSchema = z.enum([
+  "none",
   "api_key",
   "bearer",
   "basic",
@@ -503,6 +511,8 @@ export const sandboxManagerCredentialProfileSchema = z.object({
   compat: z.record(z.string(), z.unknown()).optional(),
   providerOptions: z.record(z.string(), z.unknown()).optional(),
   env: z.record(z.string(), z.string()).optional(),
+  gitAuthorName: z.string().min(1).optional(),
+  gitAuthorEmail: z.string().email().optional(),
   authType: sandboxManagerCredentialAuthTypeSchema,
   status: sandboxManagerCredentialStatusSchema,
   expiresAt: isoDateTimeSchema.optional(),
@@ -548,6 +558,8 @@ export const sandboxManagerCredentialProfileWriteSchema = z.object({
   compat: z.record(z.string(), z.unknown()).optional(),
   providerOptions: z.record(z.string(), z.unknown()).optional(),
   env: z.record(z.string(), z.string()).optional(),
+  gitAuthorName: z.string().min(1).optional(),
+  gitAuthorEmail: z.string().email().optional(),
   defaultModel: z.string().min(1).optional(),
   defaultOwner: z.string().min(1).optional(),
   defaultRepo: z.string().min(1).optional(),
@@ -559,6 +571,7 @@ export const sandboxManagerCredentialProfileWriteSchema = z.object({
   password: z.string().min(1).optional(),
   privateKey: z.string().min(1).optional(),
   passphrase: z.string().min(1).optional(),
+  knownHosts: z.string().min(1).optional(),
   githubApp: z
     .object({
       appId: z.string().min(1),
@@ -577,7 +590,7 @@ export const managerCredentialResolveRequestSchema = z.object({
   profileId: z.string().min(1).optional(),
   key: z.string().min(1).optional(),
   purpose: z
-    .enum(["model_api", "github", "jira", "confluence", "web"])
+    .enum(["model_api", "git", "github", "jira", "confluence", "web"])
     .optional(),
   minTtlMs: z.number().int().nonnegative().safe().optional(),
 });
