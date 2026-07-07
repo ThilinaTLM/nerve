@@ -130,6 +130,11 @@ function entryFromTranscriptEvent(
     conversationId,
     agentId: typeof payload.agentId === "string" ? payload.agentId : undefined,
     runId: typeof payload.runId === "string" ? payload.runId : undefined,
+    turnId: typeof payload.turnId === "string" ? payload.turnId : undefined,
+    liveMessageId:
+      typeof payload.liveMessageId === "string"
+        ? payload.liveMessageId
+        : undefined,
     role,
     kind: "message",
     text: typeof content?.text === "string" ? content.text : "",
@@ -157,6 +162,11 @@ function conversationEntryFrom(value: unknown): ConversationEntry | undefined {
     conversationId,
     agentId: typeof record.agentId === "string" ? record.agentId : undefined,
     runId: typeof record.runId === "string" ? record.runId : undefined,
+    turnId: typeof record.turnId === "string" ? record.turnId : undefined,
+    liveMessageId:
+      typeof record.liveMessageId === "string"
+        ? record.liveMessageId
+        : undefined,
     role,
     kind: "message",
     text: typeof record.text === "string" ? record.text : "",

@@ -1,7 +1,8 @@
 import { cp, rm, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = resolve(new URL("..", import.meta.url).pathname);
+const root = fileURLToPath(new URL("..", import.meta.url));
 const source = join(root, "packages", "sandbox-manager-ui", "dist");
 const destination = join(root, "packages", "sandbox-manager", "dist", "web");
 const indexHtml = join(source, "index.html");

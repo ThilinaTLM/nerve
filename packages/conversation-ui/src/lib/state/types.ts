@@ -3,8 +3,10 @@ import type {
   ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationSnapshot,
+  QueuedPromptRecord,
   ToolCallTranscriptRecord,
 } from "@nervekit/shared";
+import type { ConversationLiveState } from "./transcript-types.js";
 
 export interface ConversationRenderState {
   conversationId?: string;
@@ -13,8 +15,12 @@ export interface ConversationRenderState {
   activeEntryIds: string[];
   toolCalls: ToolCallTranscriptRecord[];
   activeRun?: ConversationActiveRunSnapshot;
+  live?: ConversationLiveState;
+  queuedPrompts?: QueuedPromptRecord[];
   contextUsage?: ContextUsage;
   cursorSeq: number;
+  sending?: boolean;
+  error?: string;
   generatedAt?: string;
   stale?: boolean;
   readOnly?: boolean;

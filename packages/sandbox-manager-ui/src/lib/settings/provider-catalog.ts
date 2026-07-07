@@ -3,6 +3,7 @@ import {
   Cloud,
   GitBranch,
   KeyRound,
+  Palette,
   Search,
   Settings2,
 } from "@lucide/svelte";
@@ -45,10 +46,30 @@ export type ProviderOption = {
 export type SettingsSection = {
   id: SettingsSectionId;
   label: string;
+  /** Short label used for the in-page sub-tab; falls back to `label`. */
+  tabLabel?: string;
   description: string;
   icon: typeof BrainCircuit;
   options: ProviderOption[];
   emptyHint?: string;
+};
+
+export type SettingsDomainId =
+  | "models"
+  | "source_control"
+  | "atlassian"
+  | "web_search"
+  | "appearance";
+
+export type SettingsDomain = {
+  id: SettingsDomainId;
+  label: string;
+  description: string;
+  icon: typeof BrainCircuit;
+  /** Sub-section ids grouped under this domain (rendered as sub-tabs). */
+  sectionIds: SettingsSectionId[];
+  /** Non-provider domains render a custom panel instead of sections. */
+  custom?: "appearance";
 };
 
 const llmSubscriptions: ProviderOption[] = [
@@ -354,6 +375,7 @@ export const sections: SettingsSection[] = [
   {
     id: "llm_subscriptions",
     label: "LLM subscriptions",
+    tabLabel: "Subscriptions",
     description:
       "OAuth/subscription credentials that the manager can refresh before a sandbox needs them.",
     icon: BrainCircuit,
@@ -362,6 +384,7 @@ export const sections: SettingsSection[] = [
   {
     id: "llm_api_keys",
     label: "LLM API keys",
+    tabLabel: "API keys",
     description:
       "Write-only model provider keys for every pi-ai LLM provider plus custom endpoints.",
     icon: KeyRound,
@@ -543,4 +566,71 @@ function oauthProvider(
     defaultModel,
     multiline: true,
   };
+}
+
+/** Top-level settings domains shown in the nav; group sections into sub-tabs. */
+export const domains: SettingsDomain[] = [
+  {
+    id: "models",
+    label: "Models",
+    description:
+      "LLM providers the manager injects into sandboxes. Subscriptions can be auto-refreshed; API keys are write-only.",
+    icon: BrainCircuit,
+    sectionIds: ["llm_subscriptions", "llm_api_keys"],
+  },
+  {
+    id: "source_control",
+    label: "Source control",
+    description:
+      "Git identity and GitHub access used when a sandbox clones or pushes.",
+    icon: GitBranch,
+    sectionIds: ["git", "github"],
+  },
+  {
+    id: "atlassian",
+    label: "Atlassian",
+    description:
+      "Jira and Confluence credentials plus default project/space selection.",
+    icon: Cloud,
+    sectionIds: ["jira", "confluence"],
+  },
+  {
+    id: "web_search",
+    label: "Web search",
+    description: "Search provider credentials for tools that need web context.",
+    icon: Search,
+    sectionIds: ["web_search"],
+  },
+  {
+    id: "appearance",
+    label: "Appearance",
+    description: "How the sandbox manager looks on this device.",
+    icon: Palette,
+    sectionIds: [],
+    custom: "appearance",
+  },
+];
+
+export function sectionsForDomain(domain: SettingsDomain): SettingsSection[] {
+  return domain.sectionIds
+    .map((id) => sections.find((section) => section.id === id))
+    .filter((section): section is SettingsSection => Boolean(section));
+}
+
+export function domainForSectionId(
+  sectionId: SettingsSectionId,
+): SettingsDomainId {
+  return (
+    domains.find((domain) => domain.sectionIds.includes(sectionId))?.id ??
+    "models"
+  );
+}
+
+/** Resolve a URL settings segment (domain id or legacy section id) to a domain. */
+export function resolveDomainId(segment: string | undefined): SettingsDomainId {
+  if (!segment) return "models";
+  const normalized = segment.replace(/-/g, "_");
+  const direct = domains.find((domain) => domain.id === normalized);
+  if (direct) return direct.id;
+  return domainForSectionId(normalized as SettingsSectionId);
 }

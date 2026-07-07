@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv } from "vite";
@@ -46,7 +47,7 @@ function isLoopbackTarget(target: string): boolean {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, new URL(".", import.meta.url).pathname, "");
+  const env = loadEnv(mode, fileURLToPath(new URL(".", import.meta.url)), "");
   const home = nerveHome(env);
   const nerveApiTarget =
     env.NERVE_API_TARGET ?? readDaemonUrl(home) ?? "http://127.0.0.1:3747";

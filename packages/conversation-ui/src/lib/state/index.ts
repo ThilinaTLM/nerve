@@ -1,5 +1,6 @@
 export * from "./adapters.js";
 export * from "./live.js";
+export * from "./render.js";
 export * from "./thinking-levels.js";
 export * from "./timeline.js";
 export * from "./tool-types.js";

@@ -4,50 +4,51 @@
   import {
     Card,
     CardContent,
-    CardHeader,
-    CardTitle,
   } from "@nervekit/ui/components/ui/card";
   import type {
-    SettingsSection,
-    SettingsSectionId,
+    SettingsDomain,
+    SettingsDomainId,
   } from "../../settings/provider-catalog";
 
   let {
-    sections,
-    activeSectionId,
-    countForSection,
+    domains,
+    activeDomainId,
+    countForDomain,
     onselect,
   }: {
-    sections: SettingsSection[];
-    activeSectionId: SettingsSectionId | undefined;
-    countForSection: (section: SettingsSection) => number;
-    onselect: (sectionId: SettingsSectionId) => void;
+    domains: SettingsDomain[];
+    activeDomainId: SettingsDomainId;
+    countForDomain: (domain: SettingsDomain) => number | undefined;
+    onselect: (domainId: SettingsDomainId) => void;
   } = $props();
 </script>
 
 <Card class="border">
-  <CardHeader class="border-b p-4">
-    <CardTitle class="text-sm">Settings</CardTitle>
-  </CardHeader>
   <CardContent class="grid gap-1 p-2">
-    {#each sections as section (section.id)}
-      {@const Icon = section.icon}
-      {@const sectionCount = countForSection(section)}
+    {#each domains as domain (domain.id)}
+      {@const Icon = domain.icon}
+      {@const count = countForDomain(domain)}
+      {@const active = activeDomainId === domain.id}
+      {#if domain.id === "appearance"}
+        <div class="my-1 border-t" aria-hidden="true"></div>
+      {/if}
       <Button
-        variant={activeSectionId === section.id ? "secondary" : "ghost"}
-        active={activeSectionId === section.id}
-        aria-current={activeSectionId === section.id ? "page" : undefined}
-        onclick={() => onselect(section.id)}
+        variant={active ? "secondary" : "ghost"}
+        {active}
+        aria-current={active ? "page" : undefined}
+        onclick={() => onselect(domain.id)}
         class="h-auto w-full justify-start gap-3 px-3 py-3 text-left"
       >
         <span class="rounded-md bg-muted p-2 text-muted-foreground">
           <Icon class="size-4" />
         </span>
         <span class="flex min-w-0 flex-1 items-center justify-between gap-2">
-          <span class="truncate text-sm font-medium">{section.label}</span>
-          <Badge tone={sectionCount > 0 ? "accent" : "neutral"} size="xs">
-            {sectionCount}
-          </Badge>
+          <span class="truncate text-sm font-medium">{domain.label}</span>
+          {#if count !== undefined}
+            <Badge tone={count > 0 ? "accent" : "neutral"} size="xs">
+              {count}
+            </Badge>
+          {/if}
         </span>
       </Button>
     {/each}

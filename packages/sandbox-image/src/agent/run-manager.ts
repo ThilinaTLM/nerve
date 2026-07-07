@@ -400,6 +400,8 @@ export class RunManager {
         | { text: string; truncated?: boolean; bytes?: number }
         | ArtifactRef;
       details?: unknown;
+      turnId?: string;
+      liveMessageId?: string;
       createdAt: string;
     },
   ): Promise<void> {
@@ -430,6 +432,8 @@ export class RunManager {
           conversationId: scope.conversationId,
           agentId: scope.agentId,
           runId: scope.runId,
+          turnId: conversationEntry.turnId,
+          liveMessageId: conversationEntry.liveMessageId,
           entry: conversationEntry,
         },
       });
@@ -553,6 +557,8 @@ function toConversationEntry(
       | { text: string; truncated?: boolean; bytes?: number }
       | ArtifactRef;
     details?: unknown;
+    turnId?: string;
+    liveMessageId?: string;
     createdAt: string;
   },
 ): ConversationEntry | undefined {
@@ -564,6 +570,8 @@ function toConversationEntry(
     conversationId: scope.conversationId,
     agentId: scope.agentId,
     runId: scope.runId,
+    turnId: entry.turnId,
+    liveMessageId: entry.liveMessageId,
     role: entry.role,
     kind: "message",
     text: transcriptText(entry.content),

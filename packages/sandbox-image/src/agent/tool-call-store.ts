@@ -90,6 +90,15 @@ function projectToolCallRecord(
         : next.artifactRefs,
     approvalId:
       next.approvalId === undefined ? current.approvalId : next.approvalId,
+    turnId: next.turnId === undefined ? current.turnId : next.turnId,
+    liveMessageId:
+      next.liveMessageId === undefined
+        ? current.liveMessageId
+        : next.liveMessageId,
+    contentIndex:
+      next.contentIndex === undefined
+        ? current.contentIndex
+        : next.contentIndex,
     error: next.error === undefined ? current.error : next.error,
     redactionVersion:
       next.redactionVersion === undefined

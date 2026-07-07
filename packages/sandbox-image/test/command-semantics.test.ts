@@ -192,6 +192,9 @@ describe("sandbox daemon command semantics", () => {
         snapshot?: {
           toolCalls: Array<{
             providerToolCallId?: string;
+            turnId?: string;
+            liveMessageId?: string;
+            contentIndex?: number;
             status: string;
             argsPreview?: unknown;
             resultPreview?: unknown;
@@ -211,6 +214,9 @@ describe("sandbox daemon command semantics", () => {
           ?.content ?? "",
         /sandbox rich output/,
       );
+      assert.equal(toolCall?.contentIndex, 0);
+      assert.match(toolCall?.turnId ?? "", /^turn_/);
+      assert.match(toolCall?.liveMessageId ?? "", /^msg_/);
     } finally {
       registration.unregister();
       await rm(dir, { recursive: true, force: true });

@@ -1,11 +1,12 @@
+import { getSupportedThinkingLevels, type Model } from "@earendil-works/pi-ai";
 import {
-  getModels,
-  getProviders,
-  getSupportedThinkingLevels,
-  type KnownProvider,
-  type Model,
-} from "@earendil-works/pi-ai";
+  builtinModels,
+  getBuiltinProviders,
+} from "@earendil-works/pi-ai/providers/all";
 import type { ModelInfo } from "@nervekit/shared";
+
+const models = builtinModels();
+const providerIds = getBuiltinProviders();
 
 function modelInfo(model: Model<string>): ModelInfo {
   return {
@@ -21,7 +22,9 @@ function modelInfo(model: Model<string>): ModelInfo {
 }
 
 export function listSandboxManagerModels(): ModelInfo[] {
-  return getProviders().flatMap((provider: KnownProvider) =>
-    getModels(provider).map((model) => modelInfo(model as Model<string>)),
+  return providerIds.flatMap((provider) =>
+    models
+      .getModels(provider)
+      .map((model) => modelInfo(model as Model<string>)),
   );
 }

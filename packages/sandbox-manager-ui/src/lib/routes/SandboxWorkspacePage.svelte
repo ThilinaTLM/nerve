@@ -1,6 +1,17 @@
 <script lang="ts">
-  import { Activity, ArrowLeft, MessageSquareOff } from "@lucide/svelte";
-  import { TranscriptList } from "@nervekit/conversation-ui";
+  import {
+    Activity,
+    ArrowDown,
+    ArrowLeft,
+    MessageSquareOff,
+    PanelLeftOpen,
+    PanelRight,
+  } from "@lucide/svelte";
+  import {
+    buildConversationRenderProjection,
+    createConversationScrollController,
+    TranscriptList,
+  } from "@nervekit/conversation-ui";
   import { setConversationUiCapabilities } from "@nervekit/conversation-ui/context";
   import type { ThinkingLevel } from "@nervekit/shared";
   import { Button } from "@nervekit/ui/components/ui/button";
@@ -10,9 +21,10 @@
   import SandboxActionMenu from "../components/SandboxActionMenu.svelte";
   import SandboxBootProgress from "../components/SandboxBootProgress.svelte";
   import SandboxDiagnosticsSheet from "../components/SandboxDiagnosticsSheet.svelte";
+  import WorkspaceAgentList from "../components/workspace/WorkspaceAgentList.svelte";
+  import WorkspaceInspector from "../components/workspace/WorkspaceInspector.svelte";
   import SandboxStatusBadge from "../components/SandboxStatusBadge.svelte";
   import AppShell from "../components/layout/AppShell.svelte";
-  import { buildSandboxChatRender } from "../state/sandbox-chat-render";
   import {
     sandboxMessageMenu,
     sandboxToolMenu,
@@ -47,12 +59,24 @@
       : Object.values(detail?.conversationViewsById ?? {})[0],
   );
   const connected = $derived(isSandboxConnected(detail));
-  const render = $derived(buildSandboxChatRender(richState));
+  const render = $derived(buildConversationRenderProjection(richState));
   const progress = $derived(computeSandboxBootProgress(record, detail));
   const booting = $derived(!connected && !isSandboxTerminal(record));
   const hasContent = $derived(
     render.timeline.length > 0 || Boolean(render.streamingText),
   );
+  const lastTimelineKey = $derived(render.timeline.at(-1)?.key);
+  const transcriptHeightCacheKey = $derived(
+    `${sandboxId}:${detail?.selectedConversationId ?? "default"}`,
+  );
+  const scrollConversationId = $derived(
+    detail?.selectedConversationId ?? richState?.conversationId ?? "default",
+  );
+  const scroll = createConversationScrollController({
+    conversationOpen: () => hasContent,
+    conversationId: () => scrollConversationId,
+    contentReady: () => render.timeline.length > 0,
+  });
 
   const conversationItems = $derived<SelectItem[]>(
     (detail?.snapshot?.conversations ?? []).map((conversation) => ({
@@ -78,7 +102,7 @@
   // The sandbox ConversationSnapshot does not carry approval/question records,
   // so reconstruct them from the live wait reducer state (see the helpers).
   const approvals = $derived(pendingApprovalRecords(detail, richState));
-  const pendingUserQuestion = $derived(pendingUserQuestionRecord(detail));
+  const pendingUserQuestion = $derived(pendingUserQuestionRecord(detail, richState));
   const blockedForReview = $derived(
     approvals.length > 0 || Boolean(pendingUserQuestion),
   );
@@ -169,16 +193,43 @@
   });
 
   let diagnosticsOpen = $state(false);
-  let railExpanded = $state(true);
-  let hasAutoCollapsed = false;
 
-  // Collapse the boot rail once the sandbox is ready for chat.
+  // Inspector drawer (right) — collapsible, persisted; auto-collapses once the
+  // sandbox is connected and ready for chat.
+  const INSPECTOR_KEY = "nerve.sandboxManager.inspectorOpen";
+  function readInspectorPref(): boolean | undefined {
+    if (typeof localStorage === "undefined") return undefined;
+    const value = localStorage.getItem(INSPECTOR_KEY);
+    return value === null ? undefined : value === "1";
+  }
+  let inspectorOpen = $state(readInspectorPref() ?? true);
+  let hasAutoCollapsed = false;
+  function setInspectorOpen(next: boolean): void {
+    inspectorOpen = next;
+    if (typeof localStorage !== "undefined")
+      localStorage.setItem(INSPECTOR_KEY, next ? "1" : "0");
+  }
   $effect(() => {
     if (connected && !hasAutoCollapsed) {
-      railExpanded = false;
+      if (readInspectorPref() === undefined) inspectorOpen = false;
       hasAutoCollapsed = true;
     }
   });
+
+  // Agent list (left) — collapsible, persisted; auto-collapses when there is a
+  // single sandbox so a solo user isn't paying for the pane.
+  const AGENT_LIST_KEY = "nerve.sandboxManager.agentListOpen";
+  function readAgentListPref(): boolean | undefined {
+    if (typeof localStorage === "undefined") return undefined;
+    const value = localStorage.getItem(AGENT_LIST_KEY);
+    return value === null ? undefined : value === "1";
+  }
+  let agentListOpen = $state(readAgentListPref() ?? store.sandboxes.length > 1);
+  function setAgentListOpen(next: boolean): void {
+    agentListOpen = next;
+    if (typeof localStorage !== "undefined")
+      localStorage.setItem(AGENT_LIST_KEY, next ? "1" : "0");
+  }
 
   // Auto-dispatch a queued first prompt once the controller connects.
   $effect(() => {
@@ -196,6 +247,17 @@
     >
       <ArrowLeft class="size-4" />
     </Button>
+    {#if !agentListOpen}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        ariaLabel="Show sandbox list"
+        title="Show sandbox list"
+        onclick={() => setAgentListOpen(true)}
+      >
+        <PanelLeftOpen class="size-4" />
+      </Button>
+    {/if}
     <div class="flex min-w-0 flex-col">
       <span class="truncate text-sm font-semibold">{record?.name ?? sandboxId}</span>
       <span class="truncate font-mono text-xs text-muted-foreground">{sandboxId}</span>
@@ -215,7 +277,21 @@
         />
       {/if}
       {#if record}
-        <Button variant="outline" size="sm" onclick={() => (diagnosticsOpen = true)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          class="hidden lg:inline-flex"
+          active={inspectorOpen}
+          onclick={() => setInspectorOpen(!inspectorOpen)}
+        >
+          <PanelRight class="size-4" /> Inspector
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          class="lg:hidden"
+          onclick={() => (diagnosticsOpen = true)}
+        >
           <Activity class="size-4" /> Diagnostics
         </Button>
         <SandboxActionMenu {record} compact />
@@ -231,8 +307,19 @@
     </div>
   {:else}
     <div class="flex min-h-0 flex-1">
+      {#if agentListOpen}
+        <aside class="hidden shrink-0 lg:flex">
+          <WorkspaceAgentList
+            activeSandboxId={sandboxId}
+            onSelect={(id) => route.openSandbox(id)}
+            onCreate={() => (store.createDialogOpen = true)}
+            onCollapse={() => setAgentListOpen(false)}
+          />
+        </aside>
+      {/if}
+
       <!-- Chat column -->
-      <div class="flex min-w-0 flex-1 flex-col">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         {#if record.lastError}
           <p class="flex-none border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
             {record.lastError.code}: {record.lastError.message}
@@ -245,24 +332,31 @@
           </div>
         {/if}
 
-        <div class="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col">
+        <section
+          class="relative mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-rows-[minmax(0,1fr)_auto]"
+        >
           {#if hasContent}
             <div
-              class="flex min-h-0 flex-1 flex-col"
+              class="grid min-h-0 min-w-0"
               role="log"
               aria-label="Conversation transcript"
               aria-live="polite"
             >
               <TranscriptList
+                bind:controller={scroll.controller}
+                bind:atEnd={scroll.atEnd}
                 timeline={render.timeline}
                 streamingText={render.streamingText}
-                sending={detail?.sending ?? false}
+                sending={richState?.sending ?? detail?.sending ?? false}
                 hasLiveTimelineNodes={render.hasLiveTimelineNodes}
-                queuedPrompts={[]}
+                queuedPrompts={render.queuedPrompts}
+                contentVisibility={true}
+                followBottom={scroll.followBottom}
                 paddingEnd={18}
-                heightCacheKey={detail?.selectedConversationId}
+                heightCacheKey={transcriptHeightCacheKey}
                 {approvals}
                 {pendingUserQuestion}
+                {lastTimelineKey}
                 onGrantApproval={(id) =>
                   void store.resolveApproval(sandboxId, id, "grant")}
                 onDenyApproval={(id) =>
@@ -274,7 +368,7 @@
               />
             </div>
           {:else if booting}
-            <div class="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+            <div class="flex min-h-0 flex-col items-center justify-center gap-4 p-6">
               <div class="w-full max-w-md">
                 <SandboxBootProgress {record} variant="banner" />
               </div>
@@ -284,7 +378,7 @@
               </p>
             </div>
           {:else}
-            <div class="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
+            <div class="flex min-h-0 flex-col items-center justify-center gap-2 p-4 text-center">
               <MessageSquareOff class="size-8 text-muted-foreground" />
               <p class="text-sm text-muted-foreground">
                 {connected
@@ -294,47 +388,61 @@
             </div>
           {/if}
 
-          {#if detail && controls}
-            <SandboxPromptComposer
-              text={detail.composerText}
-              disabled={composerDisabled}
-              sending={canCancel}
-              models={store.models}
-              {selectedModelKey}
-              thinkingLevel={controls.thinkingLevel}
-              mode={controls.mode}
-              permissionLevel={controls.permissionLevel}
-              approvalPolicy={controls.approvalPolicy}
-              contextUsage={richState?.contextUsage}
-              contextWindow={selectedModel?.contextWindow ?? 0}
-              hint={composerHint}
-              onChange={(text) => {
-                if (detail) detail.composerText = text;
-              }}
-              onSubmit={() =>
-                void store.submitPrompt(sandboxId, detail.composerText)}
-              onAbort={canCancel
-                ? () => void store.cancelRun(sandboxId)
-                : undefined}
-              onModelChange={handleModelChange}
-              onThinkingLevelChange={handleThinkingLevelChange}
-              onModeChange={handleModeChange}
-              onPermissionChange={handlePermissionChange}
-              onApprovalPolicyChange={handleApprovalPolicyChange}
-            />
+          {#if hasContent && !scroll.atEnd && scroll.composerHeight > 0}
+            <div class="absolute right-4 z-10" style={`bottom: ${scroll.composerHeight + 8}px;`}>
+              <Button
+                class="rounded-full"
+                variant="secondary"
+                size="icon-sm"
+                ariaLabel="Scroll to latest"
+                title="Scroll to latest"
+                onclick={() => scroll.jumpToBottom()}
+              >
+                <ArrowDown class="size-4" />
+              </Button>
+            </div>
           {/if}
-        </div>
+
+          {#if detail && controls}
+            <div class="min-w-0" bind:this={scroll.composerWrapEl}>
+              <SandboxPromptComposer
+                text={detail.composerText}
+                disabled={composerDisabled}
+                sending={canCancel}
+                models={store.models}
+                {selectedModelKey}
+                thinkingLevel={controls.thinkingLevel}
+                mode={controls.mode}
+                permissionLevel={controls.permissionLevel}
+                approvalPolicy={controls.approvalPolicy}
+                contextUsage={richState?.contextUsage}
+                contextWindow={selectedModel?.contextWindow ?? 0}
+                hint={composerHint}
+                onChange={(text) => {
+                  if (detail) detail.composerText = text;
+                }}
+                onSubmit={() =>
+                  void store.submitPrompt(sandboxId, detail.composerText)}
+                onAbort={canCancel
+                  ? () => void store.cancelRun(sandboxId)
+                  : undefined}
+                onModelChange={handleModelChange}
+                onThinkingLevelChange={handleThinkingLevelChange}
+                onModeChange={handleModeChange}
+                onPermissionChange={handlePermissionChange}
+                onApprovalPolicyChange={handleApprovalPolicyChange}
+              />
+            </div>
+          {/if}
+        </section>
       </div>
 
-      <!-- Boot rail -->
-      <aside class="hidden w-80 shrink-0 flex-col border-l lg:flex">
-        <SandboxBootProgress
-          {record}
-          variant="rail"
-          expanded={railExpanded}
-          onToggle={() => (railExpanded = !railExpanded)}
-        />
-      </aside>
+      <!-- Inspector drawer -->
+      {#if inspectorOpen}
+        <aside class="hidden w-80 shrink-0 flex-col border-l lg:flex">
+          <WorkspaceInspector {record} onClose={() => setInspectorOpen(false)} />
+        </aside>
+      {/if}
     </div>
 
     <SandboxDiagnosticsSheet bind:open={diagnosticsOpen} {record} />

@@ -7,6 +7,7 @@ import type {
   ManagedSandboxRecord,
   ModelInfo,
   RemoveOptions,
+  SandboxActivitySummary,
   SandboxCreateRequest,
   SandboxManagerCredentialProfile,
   SandboxManagerEventEnvelope,
@@ -14,6 +15,7 @@ import type {
   SandboxManagerStatus,
   ThinkingLevel,
 } from "@nervekit/shared";
+import { sandboxActivitySummarySchema } from "@nervekit/shared";
 import { getContext, setContext } from "svelte";
 import { createOperationId } from "../api/idempotency";
 import * as api from "../api/manager-client";
@@ -62,6 +64,7 @@ export class SandboxManagerStore {
   credentialProfiles = $state<SandboxManagerCredentialProfile[]>([]);
   secretMetadata = $state<SandboxManagerSecretMetadata[]>([]);
   sandboxes = $state<ManagedSandboxRecord[]>([]);
+  activityById = $state<Record<string, SandboxActivitySummary>>({});
   selectedSandboxId = $state<string | undefined>(undefined);
   details = $state<Record<string, SandboxDetailState>>({});
   pendingOperations = $state<Record<string, PendingSandboxOperation>>({});
@@ -162,7 +165,14 @@ export class SandboxManagerStore {
   async refreshFleet(): Promise<void> {
     this.loadingFleet = true;
     try {
-      this.sandboxes = await api.listSandboxes();
+      const items = await api.listSandboxes();
+      this.sandboxes = items.map(
+        ({ activity: _activity, ...record }) => record,
+      );
+      const activity: Record<string, SandboxActivitySummary> = {};
+      for (const item of items)
+        if (item.activity) activity[item.sandboxId] = item.activity;
+      this.activityById = activity;
       this.fleetError = undefined;
     } catch (error) {
       this.fleetError = errorMessage(error);
@@ -403,6 +413,7 @@ export class SandboxManagerStore {
     if (this.selectedSandboxId === sandboxId)
       this.selectedSandboxId = undefined;
     delete this.details[sandboxId];
+    delete this.activityById[sandboxId];
   }
 
   // --- chat / command actions ---
@@ -604,6 +615,15 @@ export class SandboxManagerStore {
 
   private handleEvent(envelope: SandboxManagerEventEnvelope): void {
     if (envelope.stream === "manager") {
+      if (envelope.type === "manager.sandbox.activity") {
+        const parsed = sandboxActivitySummarySchema.safeParse(envelope.data);
+        if (parsed.success)
+          this.activityById = {
+            ...this.activityById,
+            [parsed.data.sandboxId]: parsed.data,
+          };
+        return;
+      }
       this.scheduleFleetRefresh();
       return;
     }
@@ -622,7 +642,7 @@ export class SandboxManagerStore {
       sandboxId,
     };
     if (envelope.type.startsWith("conversation.")) {
-      this.applyConversationUiEvent(detail, uiEvent);
+      this.applyConversationUiEvent(sandboxId, detail, uiEvent);
     }
     applySandboxEvent(detail, uiEvent);
     this.trackRunActivity(sandboxId, envelope.type);
@@ -689,6 +709,7 @@ export class SandboxManagerStore {
   }
 
   private applyConversationUiEvent(
+    sandboxId: string,
     detail: SandboxDetailState,
     event: {
       seq: number;
@@ -720,6 +741,14 @@ export class SandboxManagerStore {
         type: event.type,
         durability: event.durability ?? "durable",
         data: event.data as EventEnvelope["data"],
+      },
+      {
+        onGap: (reason) => {
+          void this.recoverConversationSnapshot(
+            sandboxId,
+            reason.conversationId ?? conversationId,
+          ).catch(() => undefined);
+        },
       },
     );
     detail.selectedConversationId = conversationId;

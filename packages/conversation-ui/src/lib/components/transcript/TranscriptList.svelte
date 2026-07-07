@@ -31,6 +31,7 @@
     atEnd?: boolean;
     paddingEnd?: number;
     heightCacheKey?: string;
+    contentVisibility?: boolean;
     timeline: TimelineItem[];
     streamingText: string;
     sending: boolean;
@@ -73,11 +74,24 @@
     ) => ContextMenuItem[];
   };
 
+  // Event replay/recovery can briefly surface duplicate timeline keys. The
+  // virtualizer requires unique row keys; disambiguate at the row layer so a
+  // bad duplicate cannot corrupt measurement and overlap transcript rows.
+  function uniqueRowKey(
+    key: string,
+    seen: Map<string, number>,
+  ): string {
+    const count = seen.get(key) ?? 0;
+    seen.set(key, count + 1);
+    return count === 0 ? key : `${key}:duplicate:${count}`;
+  }
+
   let {
     controller = $bindable(),
     atEnd = $bindable(true),
     paddingEnd = 0,
     heightCacheKey,
+    contentVisibility = true,
     timeline,
     streamingText,
     sending,
@@ -110,9 +124,10 @@
   }: Props = $props();
 
   const rows = $derived.by<TranscriptRowItem[]>(() => {
+    const seenKeys = new Map<string, number>();
     const result: TranscriptRowItem[] = timeline.map((node) => ({
       kind: "timeline",
-      key: node.key,
+      key: uniqueRowKey(node.key, seenKeys),
       node,
     }));
     if (sending && !hasLiveTimelineNodes) {
@@ -158,7 +173,7 @@
     items={rows}
     getKey={(row) => row.key}
     {heightCacheKey}
-    contentVisibility
+    {contentVisibility}
     estimateSize={() => 120}
     overscan={10}
     anchor="end"

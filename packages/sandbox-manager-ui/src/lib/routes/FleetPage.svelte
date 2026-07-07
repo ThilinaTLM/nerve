@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { Boxes, ChevronRight, Plus, RefreshCw, Search } from "@lucide/svelte";
+  import { Boxes, LayoutGrid, List, Plus, RefreshCw, Search } from "@lucide/svelte";
   import { Button } from "@nervekit/ui/components/ui/button";
   import { Input } from "@nervekit/ui/components/ui/input";
   import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
   import TabsBar from "@nervekit/ui/components/ui/tabs-bar";
   import AppShell from "../components/layout/AppShell.svelte";
-  import SandboxActionMenu from "../components/SandboxActionMenu.svelte";
-  import SandboxStatusBadge from "../components/SandboxStatusBadge.svelte";
+  import SandboxListRow from "../components/SandboxListRow.svelte";
   import SandboxSummaryCards from "../components/SandboxSummaryCards.svelte";
-  import { filteredSandboxes } from "../state/sandbox-manager-selectors.svelte";
+  import SandboxTile from "../components/SandboxTile.svelte";
+  import { activityFor, filteredSandboxes } from "../state/sandbox-manager-selectors.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import type { SandboxFleetFilter } from "../state/sandbox-status";
   import type { SandboxManagerRouteState } from "./route-state.svelte";
@@ -29,10 +29,52 @@
   $effect(() => {
     store.fleetFilter = filter;
   });
+
+  const VIEW_KEY = "nerve.sandboxManager.fleetView";
+  type FleetView = "board" | "list";
+  function readView(): FleetView {
+    if (typeof localStorage === "undefined") return "board";
+    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "board";
+  }
+  let view = $state<FleetView>(readView());
+  function setView(next: FleetView): void {
+    view = next;
+    if (typeof localStorage !== "undefined") localStorage.setItem(VIEW_KEY, next);
+  }
 </script>
 
-<AppShell {route}>
+<AppShell
+  {route}
+  title="Sandboxes"
+  subtitle="Monitor and manage sandbox containers owned by this manager."
+>
   {#snippet actions()}
+    <div
+      class="inline-flex items-center gap-0.5 rounded-md border bg-card p-0.5"
+      role="group"
+      aria-label="View"
+    >
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        active={view === "board"}
+        ariaLabel="Board view"
+        title="Board view"
+        onclick={() => setView("board")}
+      >
+        <LayoutGrid class="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        active={view === "list"}
+        ariaLabel="List view"
+        title="List view"
+        onclick={() => setView("list")}
+      >
+        <List class="size-4" />
+      </Button>
+    </div>
     <Button variant="outline" size="sm" onclick={() => void store.refreshFleet()}>
       <RefreshCw class="size-4" /> Refresh
     </Button>
@@ -42,13 +84,6 @@
   {/snippet}
 
   <div class="flex flex-col gap-5">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-lg font-semibold">Sandboxes</h1>
-      <p class="text-sm text-muted-foreground">
-        Monitor and manage sandbox containers owned by this manager.
-      </p>
-    </div>
-
     {#if store.connection !== "live"}
       <div class="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm text-muted-foreground">
         <StatusDot tone="running" pulse />
@@ -88,39 +123,24 @@
           </Button>
         {/if}
       </div>
+    {:else if view === "board"}
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {#each sandboxes as record (record.sandboxId)}
+          <SandboxTile
+            {record}
+            activity={activityFor(store, record.sandboxId)}
+            onOpen={() => route.openSandbox(record.sandboxId)}
+          />
+        {/each}
+      </div>
     {:else}
       <ul class="flex flex-col gap-2">
         {#each sandboxes as record (record.sandboxId)}
-          <li
-            class="group flex items-center gap-3 rounded-lg border bg-card px-4 py-3 transition-colors hover:border-primary/40 hover:bg-accent/40"
-          >
-            <button
-              type="button"
-              class="flex min-w-0 flex-1 items-center gap-3 text-left"
-              onclick={() => route.openSandbox(record.sandboxId)}
-            >
-              <div class="flex min-w-0 flex-col">
-                <span class="truncate text-sm font-medium">
-                  {record.name ?? record.sandboxId}
-                </span>
-                {#if record.observedState === "creating" || record.observedState === "starting"}
-                  <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <StatusDot tone="running" pulse />
-                    Setting up…
-                  </span>
-                {:else}
-                  <span class="truncate font-mono text-xs text-muted-foreground">
-                    {record.image.reference}
-                  </span>
-                {/if}
-              </div>
-            </button>
-            <div class="flex items-center gap-2">
-              <SandboxStatusBadge {record} />
-              <SandboxActionMenu {record} compact />
-              <ChevronRight class="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-            </div>
-          </li>
+          <SandboxListRow
+            {record}
+            activity={activityFor(store, record.sandboxId)}
+            onOpen={() => route.openSandbox(record.sandboxId)}
+          />
         {/each}
       </ul>
     {/if}

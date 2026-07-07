@@ -227,7 +227,12 @@ async function handle(
     return json(
       res,
       200,
-      ok((await state.sandboxes.list()).map(publicSandboxRecord)),
+      ok(
+        (await state.sandboxes.list()).map((record) => ({
+          ...publicSandboxRecord(record),
+          activity: state.activity.get(record.sandboxId),
+        })),
+      ),
     );
   if (req.method === "POST" && path === "/api/sandboxes") {
     const rawBody = await readJsonBody(req);

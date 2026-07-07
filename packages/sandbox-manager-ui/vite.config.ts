@@ -1,13 +1,14 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv } from "vite";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, new URL(".", import.meta.url).pathname, "");
+  const env = loadEnv(mode, fileURLToPath(new URL(".", import.meta.url)), "");
   const managerEnv = loadEnv(
     mode,
-    new URL("../sandbox-manager/", import.meta.url).pathname,
+    fileURLToPath(new URL("../sandbox-manager/", import.meta.url)),
     "",
   );
   const managerApiTarget =

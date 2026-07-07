@@ -101,7 +101,11 @@ export class SandboxWsServer {
     private readonly state: ManagerState,
     private readonly authorizeManagerClient: ManagerHttpAuthorizer = () => true,
   ) {
-    this.ingestor = new SandboxEventIngestor(state.events, state.eventBus);
+    this.ingestor = new SandboxEventIngestor(
+      state.events,
+      state.eventBus,
+      state.activity,
+    );
   }
 
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {

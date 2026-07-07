@@ -4,7 +4,6 @@
     ExternalLink,
     KeyRound,
     LoaderCircle,
-    Palette,
     Plus,
     RefreshCw,
     TriangleAlert,
@@ -34,19 +33,48 @@
   import type { SandboxManagerRouteState } from "./route-state.svelte";
   import { buildCredentialProfileWrite } from "../settings/profile-form";
   import {
+    domains,
+    domainForSectionId,
+    resolveDomainId,
     sections,
+    sectionsForDomain,
     type ProviderOption,
+    type SettingsDomain,
+    type SettingsDomainId,
     type SettingsSection,
     type SettingsSectionId,
   } from "../settings/provider-catalog";
+  import { untrack } from "svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import { modelDisplayName } from "../utils/model-display";
 
   let { route }: { route: SandboxManagerRouteState } = $props();
 
   const store = useSandboxManagerStore();
-  let appearanceActive = $state(true);
+  let activeDomainId = $state<SettingsDomainId>(
+    untrack(() => resolveDomainId(route.settingsSection)),
+  );
+
+  // Follow browser navigation (back/forward) to a settings domain.
+  $effect(() => {
+    activeDomainId = resolveDomainId(route.settingsSection);
+  });
   let activeSectionId = $state<SettingsSectionId>("llm_subscriptions");
+  let providerSearch = $state("");
+  const appearanceActive = $derived(activeDomainId === "appearance");
+  const activeDomain = $derived(
+    domains.find((domain) => domain.id === activeDomainId) ?? domains[0],
+  );
+  const domainSections = $derived(sectionsForDomain(activeDomain));
+
+  // Keep the active sub-section valid for the current domain.
+  $effect(() => {
+    if (
+      domainSections.length > 0 &&
+      !domainSections.some((section) => section.id === activeSectionId)
+    )
+      activeSectionId = domainSections[0].id;
+  });
   let providerKind = $state<SandboxManagerCredentialProviderKind>(
     "anthropic_oauth",
   );
@@ -82,10 +110,18 @@
     activeSection.options.find((option) => option.providerKind === providerKind),
   );
   const providerItems = $derived(
-    activeSection.options.map((option) => ({
-      value: option.providerKind,
-      label: option.label,
-    })),
+    activeSection.options
+      .filter((option) =>
+        providerSearch.trim()
+          ? `${option.label} ${option.provider}`
+              .toLowerCase()
+              .includes(providerSearch.trim().toLowerCase())
+          : true,
+      )
+      .map((option) => ({
+        value: option.providerKind,
+        label: option.label,
+      })),
   );
   const groupedProfiles = $derived(profilesForSection(activeSection));
   const ActiveSectionIcon = $derived(activeSection.icon);
@@ -182,9 +218,30 @@
     }
   }
 
-  function selectSection(sectionId: SettingsSectionId): void {
-    appearanceActive = false;
+  function countForDomain(domain: SettingsDomain): number | undefined {
+    if (domain.custom === "appearance") return undefined;
+    return sectionsForDomain(domain).reduce(
+      (total, section) => total + profilesForSection(section).length,
+      0,
+    );
+  }
+
+  function selectDomain(domainId: SettingsDomainId): void {
+    activeDomainId = domainId;
+    providerSearch = "";
+    route.openSettings(domainId.replace(/_/g, "-"));
+    const domain = domains.find((item) => item.id === domainId);
+    const first = domain ? sectionsForDomain(domain)[0] : undefined;
+    if (first) {
+      activeSectionId = first.id;
+      if (first.options[0]) providerKind = first.options[0].providerKind;
+      applyOptionDefaults(first.options[0]);
+    }
+  }
+
+  function selectSubSection(sectionId: SettingsSectionId): void {
     activeSectionId = sectionId;
+    providerSearch = "";
     const section = sections.find((item) => item.id === sectionId);
     if (section?.options[0]) providerKind = section.options[0].providerKind;
     applyOptionDefaults(section?.options[0]);
@@ -204,8 +261,9 @@
   function openAddDialog(sectionId: SettingsSectionId = activeSectionId): void {
     const section = sections.find((item) => item.id === sectionId);
     if (!section?.options[0]) return;
-    appearanceActive = false;
+    activeDomainId = domainForSectionId(section.id);
     activeSectionId = section.id;
+    providerSearch = "";
     providerKind = section.options[0].providerKind;
     manualOAuthImport = false;
     if (oauthFlow.active) void oauthFlow.close();
@@ -369,7 +427,11 @@
   }
 </script>
 
-<AppShell {route}>
+<AppShell
+  {route}
+  title="Settings"
+  subtitle="Providers, credentials, and appearance."
+>
   {#snippet actions()}
     <Badge tone="accent" size="sm">{configuredCount} profiles</Badge>
     <Button variant="outline" size="sm" onclick={() => void store.refreshCredentials()}>
@@ -378,31 +440,14 @@
   {/snippet}
 
   <div class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-lg font-semibold">Settings</h1>
-      <p class="text-sm text-muted-foreground">
-        Configure appearance, LLM providers, API keys, and Git &amp; GitHub access.
-      </p>
-    </div>
 
     <div class="flex flex-col gap-4 lg:flex-row">
       <aside class="flex flex-col gap-2 lg:w-72 lg:flex-none">
-        <Button
-          variant={appearanceActive ? "secondary" : "ghost"}
-          active={appearanceActive}
-          class="h-auto w-full justify-start gap-3 px-3 py-3 text-left"
-          onclick={() => (appearanceActive = true)}
-        >
-          <span class="rounded-md bg-muted p-2 text-muted-foreground">
-            <Palette class="size-4" />
-          </span>
-          <span class="truncate text-sm font-medium">Appearance</span>
-        </Button>
         <SettingsSectionNav
-          {sections}
-          activeSectionId={appearanceActive ? undefined : activeSectionId}
-          countForSection={(section) => profilesForSection(section).length}
-          onselect={selectSection}
+          {domains}
+          {activeDomainId}
+          {countForDomain}
+          onselect={selectDomain}
         />
       </aside>
 
@@ -410,6 +455,32 @@
         {#if appearanceActive}
           <AppearanceSettings />
         {:else}
+        <div class="flex flex-col gap-1">
+          <h2 class="text-base font-semibold">{activeDomain.label}</h2>
+          <p class="text-sm text-muted-foreground">{activeDomain.description}</p>
+        </div>
+        {#if domainSections.length > 1}
+          <div class="flex flex-wrap gap-x-5 border-b" role="tablist" aria-label={activeDomain.label}>
+            {#each domainSections as section (section.id)}
+              {@const active = section.id === activeSectionId}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                class={`-mb-px flex items-center gap-2 border-b-2 px-1 pb-2.5 pt-1 text-sm ${active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                onclick={() => selectSubSection(section.id)}
+              >
+                {section.tabLabel ?? section.label}
+                <Badge
+                  tone={profilesForSection(section).length > 0 ? "accent" : "neutral"}
+                  size="xs"
+                >
+                  {profilesForSection(section).length}
+                </Badge>
+              </button>
+            {/each}
+          </div>
+        {/if}
         <Card class="border">
           <CardHeader class="border-b p-4">
             <div class="flex flex-wrap items-start justify-between gap-3">
@@ -534,6 +605,12 @@
   <div class="space-y-4 p-5">
     {#if selectedOption}
       <div class="grid gap-3 sm:grid-cols-2">
+        {#if activeSection.options.length > 8}
+          <div class="flex flex-col gap-1 sm:col-span-2">
+            <Label>Search providers</Label>
+            <Input bind:value={providerSearch} placeholder="Filter providers…" />
+          </div>
+        {/if}
         <div class="flex flex-col gap-1 sm:col-span-2">
           <Label>Provider</Label>
           <SelectField

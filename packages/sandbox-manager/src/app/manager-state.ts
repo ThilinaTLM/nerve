@@ -12,7 +12,11 @@ import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver
 import { DockerDriver } from "../drivers/docker-driver.js";
 import { PodmanDriver } from "../drivers/podman-driver.js";
 import { ManagerEventBus } from "../events/manager-event-bus.js";
-import { recordManagerLifecycleEvent } from "../events/manager-events.js";
+import {
+  MANAGER_EVENT_STREAM,
+  recordManagerLifecycleEvent,
+} from "../events/manager-events.js";
+import { SandboxActivityTracker } from "../events/sandbox-activity-tracker.js";
 import { SandboxSupervisor } from "../lifecycle/sandbox-supervisor.js";
 import { LogRingBuffer } from "../observability/log-ring-buffer.js";
 import { PostgresKvSecretStore } from "../secrets/postgres-kv-secret-store.js";
@@ -44,6 +48,7 @@ export class ManagerState {
   readonly volumeProvider: RuntimeVolumeProvider;
   readonly driver: ContainerRuntimeDriver;
   readonly eventBus: ManagerEventBus;
+  readonly activity: SandboxActivityTracker;
   readonly supervisor: SandboxSupervisor;
   readonly logger: StructuredLogger;
   readonly logBuffer: LogRingBuffer;
@@ -88,6 +93,19 @@ export class ManagerState {
     this.driver =
       config.backend === "podman" ? new PodmanDriver() : new DockerDriver();
     this.eventBus = new ManagerEventBus();
+    // Activity summaries are best-effort and rebuildable: publish them live on
+    // the manager stream as transient events (never journaled) so fleet tiles
+    // update without the O(n) append/list cost of durable lifecycle events.
+    this.activity = new SandboxActivityTracker((summary) => {
+      this.eventBus.publish({
+        type: "manager.sandbox.activity",
+        stream: MANAGER_EVENT_STREAM,
+        sandboxId: summary.sandboxId,
+        durability: "transient",
+        payload: summary,
+        ts: summary.updatedAt,
+      });
+    });
     this.supervisor = new SandboxSupervisor(
       this.sandboxes,
       this.driver,

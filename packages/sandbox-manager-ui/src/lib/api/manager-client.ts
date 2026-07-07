@@ -1,6 +1,8 @@
 import {
+  type ManagedSandboxListItem,
   type ManagedSandboxRecord,
   type ModelInfo,
+  managedSandboxListItemSchema,
   managedSandboxRecordSchema,
   modelInfoSchema,
   type OAuthFlowInfo,
@@ -173,9 +175,9 @@ export async function writeManagerSecret(request: {
   );
 }
 
-export async function listSandboxes(): Promise<ManagedSandboxRecord[]> {
+export async function listSandboxes(): Promise<ManagedSandboxListItem[]> {
   const records = await getData<unknown[]>("/api/sandboxes");
-  return records.map((record) => managedSandboxRecordSchema.parse(record));
+  return records.map((record) => managedSandboxListItemSchema.parse(record));
 }
 
 export async function getSandboxRecord(

@@ -1,10 +1,12 @@
 import type { SandboxEventStore } from "../state/event-store.js";
 import type { ManagerEventBus } from "./manager-event-bus.js";
 import { redactManagerEvent } from "./redaction.js";
+import type { SandboxActivityTracker } from "./sandbox-activity-tracker.js";
 export class SandboxEventIngestor {
   constructor(
     private readonly store: SandboxEventStore,
     private readonly bus?: ManagerEventBus,
+    private readonly activity?: SandboxActivityTracker,
   ) {}
   async ingestBatch(
     sandboxId: string,
@@ -43,6 +45,11 @@ export class SandboxEventIngestor {
           durability: stored.durability,
           payload: stored.payload,
           ts: stored.ts ?? new Date().toISOString(),
+        });
+        this.activity?.observe(sandboxId, {
+          type: stored.type,
+          ts: stored.ts,
+          payload: stored.payload,
         });
       }
     }

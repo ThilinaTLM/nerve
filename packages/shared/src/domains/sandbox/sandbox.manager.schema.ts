@@ -98,6 +98,51 @@ export const managedSandboxRecordSchema = z.object({
 });
 export type ManagedSandboxRecord = z.infer<typeof managedSandboxRecordSchema>;
 
+export const sandboxActivityRunStatusSchema = z.enum([
+  "idle",
+  "running",
+  "waiting",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+export type SandboxActivityRunStatus = z.infer<
+  typeof sandboxActivityRunStatusSchema
+>;
+
+/**
+ * Compact, best-effort per-sandbox agent activity the manager derives from
+ * ingested controller events. Rebuildable and non-authoritative; used to make
+ * the fleet view feel live without opening a sandbox. Emitted as the payload of
+ * a `manager.sandbox.activity` event and embedded on fleet list items.
+ */
+export const sandboxActivitySummarySchema = z.object({
+  sandboxId: z.string().min(1),
+  runStatus: sandboxActivityRunStatusSchema,
+  /** Short current-task / latest-activity line (path-safe, no secrets). */
+  title: z.string().min(1).optional(),
+  /** True while blocked on user input or an approval. */
+  needsAttention: z.boolean().optional(),
+  /** Model id currently in use (Phase B). */
+  model: z.string().min(1).optional(),
+  /** Provider currently in use (Phase B). */
+  provider: z.string().min(1).optional(),
+  /** Context-window usage percentage 0-100 (Phase B). */
+  contextUsagePct: z.number().min(0).max(100).optional(),
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxActivitySummary = z.infer<
+  typeof sandboxActivitySummarySchema
+>;
+
+/** Fleet list item: a managed record plus its optional activity summary. */
+export const managedSandboxListItemSchema = managedSandboxRecordSchema.extend({
+  activity: sandboxActivitySummarySchema.optional(),
+});
+export type ManagedSandboxListItem = z.infer<
+  typeof managedSandboxListItemSchema
+>;
+
 export const managerOutboundCommandRecordSchema = z.object({
   requestId: z.string().min(1),
   sandboxId: z.string().min(1),

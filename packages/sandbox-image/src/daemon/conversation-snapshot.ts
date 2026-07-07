@@ -126,6 +126,11 @@ function toConversationEntry(
     conversationId: run.conversationId,
     agentId: run.agentId,
     runId: run.runId,
+    turnId: typeof record.turnId === "string" ? record.turnId : undefined,
+    liveMessageId:
+      typeof record.liveMessageId === "string"
+        ? record.liveMessageId
+        : undefined,
     role,
     kind: "message",
     text: typeof content?.text === "string" ? content.text : "",
@@ -138,7 +143,11 @@ function toConversationEntry(
 async function readToolCalls(
   runs: RunManager | undefined,
   conversationRuns: RunState[],
-  input: { config: SandboxConfigV1; instanceId: string },
+  input: {
+    config: SandboxConfigV1;
+    instanceId: string;
+    bridge?: HarnessEventBridge;
+  },
 ): Promise<ToolCallTranscriptRecord[]> {
   const out: ToolCallTranscriptRecord[] = [];
   for (const run of conversationRuns) {
@@ -153,13 +162,21 @@ async function readToolCalls(
 
 function toToolCallTranscriptRecord(
   record: SandboxToolCallRecord,
-  input: { config: SandboxConfigV1; instanceId: string },
+  input: {
+    config: SandboxConfigV1;
+    instanceId: string;
+    bridge?: HarnessEventBridge;
+  },
 ): ToolCallTranscriptRecord | undefined {
   const name = toolNameSchema.safeParse(record.toolName);
   if (!name.success) return undefined;
   const createdAt = record.requestedAt;
   const updatedAt =
     record.completedAt ?? record.startedAt ?? record.requestedAt;
+  const anchor = input.bridge?.resolveToolAnchor(
+    record.runId,
+    record.toolCallId,
+  );
   return {
     id: normalizeToolCallId(record.toolCallId),
     sourceToolCallId: record.toolCallId,
@@ -168,6 +185,9 @@ function toToolCallTranscriptRecord(
     agentId: record.agentId,
     projectId: projectId(input.config, input.instanceId),
     runId: record.runId,
+    turnId: record.turnId ?? anchor?.turnId,
+    liveMessageId: record.liveMessageId ?? anchor?.liveMessageId,
+    contentIndex: record.contentIndex ?? anchor?.contentIndex,
     toolName: name.data,
     risk: defaultToolRisk(name.data),
     argsPreview: record.displayArgs,

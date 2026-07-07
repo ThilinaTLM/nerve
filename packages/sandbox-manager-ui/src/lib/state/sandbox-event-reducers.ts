@@ -277,6 +277,15 @@ function applyToolCall(
     artifactRefs:
       (data.artifactRefs as SandboxToolCallSummary["artifactRefs"]) ??
       existing?.artifactRefs,
+    turnId: typeof data.turnId === "string" ? data.turnId : existing?.turnId,
+    liveMessageId:
+      typeof data.liveMessageId === "string"
+        ? data.liveMessageId
+        : existing?.liveMessageId,
+    contentIndex:
+      typeof data.contentIndex === "number"
+        ? data.contentIndex
+        : existing?.contentIndex,
     error: (data.error as SandboxToolCallSummary["error"]) ?? existing?.error,
     requestedAt:
       typeof data.requestedAt === "string"

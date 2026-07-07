@@ -38,6 +38,9 @@ describe("conversation-ui adapters", () => {
         toolCall: {
           ...base,
           status: "requested",
+          turnId: "turn_test",
+          liveMessageId: "msg_test",
+          contentIndex: 1,
           argsPreview: { command: "echo hello" },
         },
       },
@@ -72,6 +75,9 @@ describe("conversation-ui adapters", () => {
       exitCode: 0,
     });
     assert.equal(state.toolCalls[0]?.status, "completed");
+    assert.equal(state.toolCalls[0]?.turnId, "turn_test");
+    assert.equal(state.toolCalls[0]?.liveMessageId, "msg_test");
+    assert.equal(state.toolCalls[0]?.contentIndex, 1);
   });
 
   it("applies live text and durable entry events", () => {

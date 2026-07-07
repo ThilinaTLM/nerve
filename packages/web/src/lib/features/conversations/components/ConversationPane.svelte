@@ -12,7 +12,10 @@
     selectVisibleCommitted,
   } from "@nervekit/conversation-ui/state";
   import { Button } from "@nervekit/ui/components/ui/button";
-  import { TranscriptList } from "@nervekit/conversation-ui";
+  import {
+    createConversationScrollController,
+    TranscriptList,
+  } from "@nervekit/conversation-ui";
   import { setConversationUiCapabilities } from "@nervekit/conversation-ui/context";
   import PromptComposer from "./PromptComposer.svelte";
   import { currentTodosForAgent } from "./composer-todos";
@@ -20,7 +23,6 @@
 
   setConversationUiCapabilities(workbenchConversationUiCapabilities());
   import { messageMenu, toolMenu } from "./conversation-menus";
-  import { createConversationScrollController } from "./conversation-scroll.svelte";
 
   let {
     activeProject,

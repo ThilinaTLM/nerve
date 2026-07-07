@@ -125,6 +125,13 @@ export class HarnessEventBridge {
     return this.conversationRuntime.snapshotForConversation(conversationId);
   }
 
+  resolveToolAnchor(runId: string, providerToolCallId: string) {
+    return this.conversationRuntime.resolveToolAnchor(
+      runId,
+      providerToolCallId,
+    );
+  }
+
   async failRun(
     context: RunScope,
     error: { message?: string } = {},
@@ -344,6 +351,8 @@ export class HarnessEventBridge {
           role: "assistant",
           content: bounded.content,
           details: thinkingBlocks.length > 0 ? { thinkingBlocks } : undefined,
+          turnId: live?.turnId,
+          liveMessageId: live?.liveMessageId,
           createdAt: new Date().toISOString(),
         });
         this.log(context).debug("assistant message", {
@@ -356,12 +365,14 @@ export class HarnessEventBridge {
     if (event.type === "tool_call") {
       const requestedAt = new Date().toISOString();
       const displayArgs = event.input;
+      const placement = this.toolPlacement(context, event.toolCallId);
       await this.runs?.toolCallStore().append(context, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         status: "requested",
         displayArgs,
         args: { hash: sandboxSha256Digest(displayArgs) },
+        ...placement,
         lifecycleSeq: 1,
         redactionVersion: 1,
         requestedAt,
@@ -387,6 +398,7 @@ export class HarnessEventBridge {
           toolName: event.toolName,
           status: "requested",
           displayArgs,
+          ...placement,
           lifecycleSeq: 1,
           requestedAt,
         },
@@ -403,12 +415,14 @@ export class HarnessEventBridge {
         `${context.runId}:${event.toolCallId}`,
         Date.now(),
       );
+      const placement = this.toolPlacement(context, event.toolCallId);
       await this.runs?.toolCallStore().append(context, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         status: "started",
         displayArgs: event.args,
         args: { hash: sandboxSha256Digest(event.args) },
+        ...placement,
         lifecycleSeq: 2,
         redactionVersion: 1,
         requestedAt: startedAt,
@@ -435,6 +449,7 @@ export class HarnessEventBridge {
           toolName: event.toolName,
           status: "started",
           displayArgs: event.args,
+          ...placement,
           lifecycleSeq: 2,
           startedAt,
         },
@@ -448,14 +463,15 @@ export class HarnessEventBridge {
     if (event.type === "tool_execution_update") {
       const text = toolUpdateText(event.partialResult);
       if (text) {
-        const live = this.liveRuns.get(context.runId);
+        const placement = this.toolPlacement(context, event.toolCallId);
         const data = this.conversationRuntime.applyToolOutputDelta({
           conversationId: context.conversationId,
           agentId: context.agentId,
           projectId: this.projectId(),
           runId: context.runId,
-          turnId: live?.turnId,
-          liveMessageId: live?.liveMessageId,
+          turnId: placement.turnId,
+          liveMessageId: placement.liveMessageId,
+          contentIndex: placement.contentIndex,
           providerToolCallId: event.toolCallId,
           toolCallId: normalizeToolCallId(event.toolCallId),
           toolName: event.toolName,
@@ -492,6 +508,7 @@ export class HarnessEventBridge {
     if (event.type === "tool_execution_end") {
       const status = event.isError ? "failed" : "completed";
       const completedAt = new Date().toISOString();
+      const placement = this.toolPlacement(context, event.toolCallId);
       const stored = (
         await this.runs?.toolCallStore().latestByToolCallId(context)
       )?.get(event.toolCallId);
@@ -517,6 +534,7 @@ export class HarnessEventBridge {
           (displayArgs === undefined
             ? undefined
             : { hash: sandboxSha256Digest(displayArgs) }),
+        ...placement,
         lifecycleSeq: 3,
         redactionVersion: 1,
         requestedAt: completedAt,
@@ -548,6 +566,7 @@ export class HarnessEventBridge {
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           status,
+          ...placement,
           lifecycleSeq: 3,
           result: event.isError ? undefined : event.result,
           error,
@@ -748,7 +767,7 @@ export class HarnessEventBridge {
   ): Promise<void> {
     const parsedToolName = toolNameSchema.safeParse(input.toolName);
     if (!parsedToolName.success) return;
-    const live = this.liveRuns.get(context.runId);
+    const placement = this.toolPlacement(context, input.toolCallId);
     const toolCall: ToolCallTranscriptRecord = {
       id: normalizeToolCallId(input.toolCallId),
       sourceToolCallId: input.toolCallId,
@@ -757,8 +776,7 @@ export class HarnessEventBridge {
       agentId: context.agentId,
       projectId: this.projectId(),
       runId: context.runId,
-      turnId: live?.turnId,
-      liveMessageId: live?.liveMessageId,
+      ...placement,
       toolName: parsedToolName.data,
       risk: defaultToolRisk(parsedToolName.data),
       cwd: process.cwd(),
@@ -781,12 +799,31 @@ export class HarnessEventBridge {
         agentId: context.agentId,
         projectId: this.projectId(),
         runId: context.runId,
-        turnId: live?.turnId,
-        liveMessageId: live?.liveMessageId,
+        ...placement,
         providerToolCallId: input.toolCallId,
         toolCall,
       },
     });
+  }
+
+  private toolPlacement(
+    context: Pick<HarnessRunContext, "runId">,
+    providerToolCallId: string,
+  ): {
+    turnId?: string;
+    liveMessageId?: string;
+    contentIndex?: number;
+  } {
+    const anchor = this.conversationRuntime.resolveToolAnchor(
+      context.runId,
+      providerToolCallId,
+    );
+    const live = this.liveRuns.get(context.runId);
+    return {
+      turnId: anchor?.turnId ?? live?.turnId,
+      liveMessageId: anchor?.liveMessageId ?? live?.liveMessageId,
+      contentIndex: anchor?.contentIndex,
+    };
   }
 
   private projectId(): string {

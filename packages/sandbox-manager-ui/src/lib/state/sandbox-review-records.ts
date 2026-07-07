@@ -18,6 +18,18 @@ function toolRisk(risks: string[] | undefined): ToolRisk {
   return (risks?.[0] as ToolRisk | undefined) ?? "workspace_write";
 }
 
+function toolCallForWait(
+  richState: ConversationRenderState | undefined,
+  toolCallId: string,
+) {
+  return richState?.toolCalls.find(
+    (call) =>
+      call.id === toolCallId ||
+      call.sourceToolCallId === toolCallId ||
+      call.providerToolCallId === toolCallId,
+  );
+}
+
 /**
  * Build the inline approval prompts rendered by `TranscriptList`. The sandbox
  * `ConversationSnapshot` does not carry approval/question records, so they are
@@ -30,24 +42,34 @@ export function pendingApprovalRecords(
   richState: ConversationRenderState | undefined,
 ): ApprovalWithToolCall[] {
   if (!detail) return [];
-  const toolCalls = richState?.toolCalls ?? [];
   return Object.values(detail.waitsById)
     .filter((wait) => wait.kind === "approval" && wait.status === "waiting")
     .map((wait) => {
       const toolCallId = wait.toolCallId ?? wait.waitId;
+      const toolCall = toolCallForWait(richState, toolCallId);
       return {
         id: wait.waitId,
-        toolCallId,
-        agentId: detail.selectedAgentId ?? FALLBACK_AGENT_ID,
+        toolCallId: toolCall?.id ?? toolCallId,
+        agentId:
+          toolCall?.agentId ??
+          richState?.activeRun?.agentId ??
+          detail.selectedAgentId ??
+          FALLBACK_AGENT_ID,
         conversationId:
-          detail.selectedConversationId ?? FALLBACK_CONVERSATION_ID,
-        projectId: FALLBACK_PROJECT_ID,
+          toolCall?.conversationId ??
+          richState?.conversationId ??
+          detail.selectedConversationId ??
+          FALLBACK_CONVERSATION_ID,
+        projectId:
+          toolCall?.projectId ??
+          richState?.activeRun?.projectId ??
+          FALLBACK_PROJECT_ID,
         risk: toolRisk(wait.risks),
         reason:
           wait.reason ?? "Approval required before the agent can continue.",
         status: "pending",
         requestedAt: wait.createdAt,
-        toolCall: toolCalls.find((call) => call.id === toolCallId),
+        toolCall,
       } satisfies ApprovalWithToolCall;
     });
 }
@@ -59,18 +81,32 @@ export function pendingApprovalRecords(
  */
 export function pendingUserQuestionRecord(
   detail: SandboxDetailState | undefined,
+  richState?: ConversationRenderState,
 ): UserQuestionRecord | undefined {
   if (!detail) return undefined;
   const wait = Object.values(detail.waitsById).find(
     (candidate) => candidate.kind === "input" && candidate.status === "waiting",
   );
   if (!wait) return undefined;
+  const toolCallId = wait.toolCallId ?? wait.waitId;
+  const toolCall = toolCallForWait(richState, toolCallId);
   return {
     id: wait.waitId,
-    toolCallId: wait.toolCallId ?? wait.waitId,
-    agentId: detail.selectedAgentId ?? FALLBACK_AGENT_ID,
-    conversationId: detail.selectedConversationId ?? FALLBACK_CONVERSATION_ID,
-    projectId: FALLBACK_PROJECT_ID,
+    toolCallId: toolCall?.id ?? toolCallId,
+    agentId:
+      toolCall?.agentId ??
+      richState?.activeRun?.agentId ??
+      detail.selectedAgentId ??
+      FALLBACK_AGENT_ID,
+    conversationId:
+      toolCall?.conversationId ??
+      richState?.conversationId ??
+      detail.selectedConversationId ??
+      FALLBACK_CONVERSATION_ID,
+    projectId:
+      toolCall?.projectId ??
+      richState?.activeRun?.projectId ??
+      FALLBACK_PROJECT_ID,
     question: wait.question?.text ?? "The agent is waiting for your input.",
     status: "pending",
     requestedAt: wait.createdAt,
