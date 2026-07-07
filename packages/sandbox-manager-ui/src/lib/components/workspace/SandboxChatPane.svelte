@@ -9,7 +9,6 @@
   import { setConversationUiCapabilities } from "@nervekit/conversation-ui/context";
   import type { ThinkingLevel } from "@nervekit/shared";
   import SandboxPromptComposer from "../composer/SandboxPromptComposer.svelte";
-  import SandboxBootProgress from "../SandboxBootProgress.svelte";
   import {
     computeSandboxBootProgress,
     isSandboxConnected,
@@ -201,9 +200,14 @@
         toolMenu={sandboxToolMenu}
       />
     {:else if booting && record}
-      <div class="flex min-h-0 flex-col items-center justify-center gap-4 p-6">
-        <div class="w-full max-w-md"><SandboxBootProgress {record} variant="banner" /></div>
-        <p class="max-w-md text-center text-sm text-muted-foreground">You can type your first message now — it'll send automatically when the sandbox is ready.</p>
+      <div class="flex min-h-0 flex-col items-center justify-center gap-2 p-4 text-center">
+        <MessageSquareOff class="size-8 text-muted-foreground" />
+        <p class="text-sm text-muted-foreground">
+          No conversation yet. Boot details are available in the Summary tab.
+        </p>
+        <p class="max-w-md text-xs text-muted-foreground">
+          You can type your first message now — it'll send automatically when the sandbox is ready.
+        </p>
       </div>
     {:else}
       <div class="flex min-h-0 flex-col items-center justify-center gap-2 p-4 text-center">

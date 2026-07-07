@@ -72,9 +72,15 @@ export type SandboxDiagnosticTabId = "logs" | "config" | "events";
 export type SandboxUtilityTab = "context" | "git";
 
 export type SandboxWorkspaceTabIdentity =
+  | { kind: "summary"; id: "summary" }
   | { kind: "chat"; id: string }
   | { kind: "file"; id: string }
   | { kind: "diagnostic"; id: SandboxDiagnosticTabId };
+
+export const sandboxSummaryTab: SandboxWorkspaceTabIdentity = {
+  kind: "summary",
+  id: "summary",
+};
 
 export type SandboxWorkspaceFileViewState = {
   id: string;
@@ -147,7 +153,7 @@ export type SandboxDetailState = {
   composerTextByConversationId: Record<string, string>;
   queuedPromptByConversationId: Record<string, string | undefined>;
   openWorkspaceTabs: SandboxWorkspaceTabIdentity[];
-  activeWorkspaceTab: SandboxWorkspaceTabIdentity;
+  activeWorkspaceTab: SandboxWorkspaceTabIdentity | undefined;
   workspaceFileViewsById: Record<string, SandboxWorkspaceFileViewState>;
   lastRichSnapshot?: {
     generatedAt?: string;
@@ -189,8 +195,8 @@ export function createSandboxDetailState(
     pendingConversationsById: {},
     composerTextByConversationId: {},
     queuedPromptByConversationId: {},
-    openWorkspaceTabs: [{ kind: "chat", id: "pending_default" }],
-    activeWorkspaceTab: { kind: "chat", id: "pending_default" },
+    openWorkspaceTabs: [sandboxSummaryTab],
+    activeWorkspaceTab: sandboxSummaryTab,
     workspaceFileViewsById: {},
     composerText: "",
     agentControls: defaultAgentControls(),

@@ -55,7 +55,6 @@
   let activeTab = $state("form");
   let syncingYaml = $state(false);
   let lastYamlSyncKey = $state("");
-  let ignoreNextCloseChange = false;
 
   const modeItems = [
     { value: "normal", label: "Normal" },
@@ -203,10 +202,6 @@
     if (draft.mainModelProfileId || authenticatedModelProfiles.length === 0)
       return;
     setMainModelProfile(authenticatedModelProfiles[0]?.profileId ?? "");
-  });
-
-  $effect(() => {
-    if (open) ignoreNextCloseChange = false;
   });
 
   $effect(() => {
@@ -391,7 +386,6 @@
 
   function closeAndReset(savePreferences = true) {
     if (savePreferences) persistDraftPreferences();
-    ignoreNextCloseChange = true;
     open = false;
     reset();
   }
@@ -428,12 +422,7 @@
   description="Choose launch settings, then define the sandbox-agent config with a guided form or schema-native YAML."
   onOpenChange={(next) => {
     if (next) return;
-    if (ignoreNextCloseChange) {
-      ignoreNextCloseChange = false;
-      return;
-    }
-    persistDraftPreferences();
-    reset();
+    closeAndReset(true);
   }}
 >
   <div class="flex flex-col gap-4 p-5">

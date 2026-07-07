@@ -1,14 +1,17 @@
 <script lang="ts">
+  import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import Plus from "@lucide/svelte/icons/plus";
   import Server from "@lucide/svelte/icons/server";
   import { Button } from "@nervekit/ui/components/ui/button";
   import { NavigatorItem, NavigatorPanel } from "@nervekit/ui/components/navigator";
   import { PanelSection } from "@nervekit/ui/components/workbench";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
+  import { untrack } from "svelte";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";
   import {
     activityFor,
     conversationItemsFor,
+    type SandboxConversationListItem,
   } from "../../state/sandbox-manager-selectors.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import {
@@ -28,13 +31,25 @@
 
   const needle = $derived(query.trim().toLowerCase());
 
+  // Match the web project navigator: only durable conversations are listed
+  // (drafts stay as an open center tab until the first message is sent).
+  type DurableConversationItem = Extract<
+    SandboxConversationListItem,
+    { kind: "durable" }
+  >;
+  function isDurable(
+    conversation: SandboxConversationListItem,
+  ): conversation is DurableConversationItem {
+    return conversation.kind === "durable";
+  }
+
   function matches(record: ManagedSandboxRecord): boolean {
     if (!needle) return true;
     const conversationTitles = conversationItemsFor(store, record.sandboxId)
-      .map((conversation) =>
-        conversation.kind === "pending"
-          ? `${conversation.title} draft`
-          : `${conversation.title ?? ""} ${conversation.conversationId}`,
+      .filter(isDurable)
+      .map(
+        (conversation) =>
+          `${conversation.title ?? ""} ${conversation.conversationId}`,
       )
       .join(" ");
     const haystack =
@@ -61,9 +76,12 @@
   }
 
   // Load conversations for the active sandbox so its group renders its list.
+  // Only the active sandbox id should trigger this effect; the fetch applies a
+  // snapshot, and tracking that state here can create a fetch -> snapshot ->
+  // effect loop for sandboxes with no conversations yet.
   $effect(() => {
-    if (center.selectedSandboxId)
-      void store.ensureConversations(center.selectedSandboxId);
+    const sandboxId = center.selectedSandboxId;
+    if (sandboxId) untrack(() => void store.ensureConversations(sandboxId));
   });
 
   function selectConversation(sandboxId: string, conversationId: string): void {
@@ -83,7 +101,8 @@
 
   {#each groups as record (record.sandboxId)}
     {@const activity = activityFor(store, record.sandboxId)}
-    {@const conversations = conversationItemsFor(store, record.sandboxId)}
+    {@const conversations = conversationItemsFor(store, record.sandboxId).filter(isDurable)}
+    {@const detail = store.details[record.sandboxId]}
     {@const selectedSandbox = record.sandboxId === center.selectedSandboxId}
     <PanelSection
       title={record.name ?? record.sandboxId}
@@ -97,6 +116,19 @@
         {/if}
       {/snippet}
       {#snippet actions()}
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          title="Open sandbox summary"
+          ariaLabel="Open sandbox summary"
+          onclick={() => {
+            center.openSandbox(record.sandboxId);
+            store.openWorkspaceSummaryTab(record.sandboxId);
+            void store.ensureConversations(record.sandboxId);
+          }}
+        >
+          <LayoutDashboard />
+        </Button>
         <Button
           size="icon-xs"
           variant="ghost"
@@ -115,33 +147,37 @@
         {#if conversations.length === 0}
           <p class="empty child">No conversations.</p>
         {/if}
-        {#each conversations as conversation (conversation.kind === "pending" ? conversation.id : conversation.conversationId)}
-          {@const running = conversation.kind === "durable" && (conversation.activeRunIds?.length ?? 0) > 0}
+        {#each conversations as conversation (conversation.conversationId)}
+          {@const running = (conversation.activeRunIds?.length ?? 0) > 0}
+          {@const open =
+            detail?.openWorkspaceTabs?.some(
+              (tab) => tab.kind === "chat" && tab.id === conversation.conversationId,
+            ) ?? false}
           {@const active =
             selectedSandbox &&
-            (conversation.kind === "pending"
-              ? conversation.id === store.details[record.sandboxId]?.selectedPendingConversationId
-              : conversation.conversationId ===
-                store.details[record.sandboxId]?.selectedConversationId)}
+            conversation.conversationId === detail?.selectedConversationId}
           <NavigatorItem
-            title={conversation.kind === "pending" ? conversation.title : conversation.title ?? conversation.conversationId}
-            subtitle={conversation.kind === "pending" ? "Draft" : conversation.conversationId}
-            mono={conversation.kind === "durable"}
+            title={conversation.title ?? conversation.conversationId}
             {active}
-            isOpen={active}
-            statusTone={conversation.kind === "pending"
-              ? "neutral"
-              : running
-                ? "running"
-                : activity?.needsAttention
-                  ? "warn"
-                  : observedStateTone(record.observedState)}
+            isOpen={open}
+            statusTone={running
+              ? "running"
+              : activity?.needsAttention
+                ? "warn"
+                : observedStateTone(record.observedState)}
             statusPulse={running}
+            tooltipClass="conversation-tooltip"
             onSelect={() =>
-              conversation.kind === "pending"
-                ? store.selectPendingConversation(record.sandboxId, conversation.id)
-                : selectConversation(record.sandboxId, conversation.conversationId)}
-          />
+              selectConversation(record.sandboxId, conversation.conversationId)}
+          >
+            {#snippet tooltip()}
+              <span class="tt-title">{conversation.title ?? conversation.conversationId}</span>
+              <span class="tt-id">{conversation.conversationId}</span>
+              {#if conversation.updatedAt}
+                <span class="tt-row"><span class="tt-key">updated</span>{new Date(conversation.updatedAt).toLocaleString()}</span>
+              {/if}
+            {/snippet}
+          </NavigatorItem>
         {/each}
       </div>
     </PanelSection>

@@ -1,4 +1,3 @@
-import { notify } from "@nervekit/ui/core/notify";
 import { defaultFileDisplayMode } from "@nervekit/ui/core/utils/file-display";
 import * as api from "../api/manager-client";
 import {
@@ -7,6 +6,7 @@ import {
   selectDurableConversation,
   selectPendingConversation,
 } from "./sandbox-conversation-state";
+import { sandboxSummaryTab } from "./sandbox-ui-types";
 import type {
   SandboxDetailState,
   SandboxDiagnosticTabId,
@@ -20,9 +20,9 @@ function errorMessage(error: unknown): string {
 
 function sameWorkspaceTab(
   a: SandboxWorkspaceTabIdentity | undefined,
-  b: SandboxWorkspaceTabIdentity,
+  b: SandboxWorkspaceTabIdentity | undefined,
 ): boolean {
-  return a?.kind === b.kind && a.id === b.id;
+  return Boolean(a && b && a.kind === b.kind && a.id === b.id);
 }
 
 function workspaceFileTabId(path: string): string {
@@ -82,14 +82,10 @@ export function closeWorkspaceTab(
   detail: SandboxDetailState,
   tab: SandboxWorkspaceTabIdentity,
 ): void {
-  if (
-    tab.kind === "chat" &&
-    detail.openWorkspaceTabs.filter((open) => open.kind === "chat").length <= 1
-  )
-    return;
   const index = detail.openWorkspaceTabs.findIndex((open) =>
     sameWorkspaceTab(open, tab),
   );
+  if (index < 0) return;
   detail.openWorkspaceTabs = detail.openWorkspaceTabs.filter(
     (open) => !sameWorkspaceTab(open, tab),
   );
@@ -97,23 +93,27 @@ export function closeWorkspaceTab(
   if (tab.kind === "chat" && isPendingConversationId(tab.id))
     delete detail.pendingConversationsById[tab.id];
   if (sameWorkspaceTab(detail.activeWorkspaceTab, tab)) {
-    detail.activeWorkspaceTab =
-      detail.openWorkspaceTabs[Math.max(0, index - 1)] ??
-      chatTabFor("pending_default");
-    if (detail.activeWorkspaceTab.kind === "chat")
-      selectWorkspaceTab(detail, detail.activeWorkspaceTab);
+    const next =
+      detail.openWorkspaceTabs[index] ??
+      detail.openWorkspaceTabs[index - 1] ??
+      undefined;
+    detail.activeWorkspaceTab = next;
+    if (next?.kind === "chat") selectWorkspaceTab(detail, next);
   }
 }
 
 export function openWorkspaceChatTab(
   detail: SandboxDetailState,
-  key = detail.selectedPendingConversationId ??
-    detail.selectedConversationId ??
-    "pending_default",
+  key = detail.selectedPendingConversationId ?? detail.selectedConversationId,
 ): void {
+  if (!key) return;
   if (isPendingConversationId(key)) selectPendingConversation(detail, key);
   else if (key.startsWith("conv_")) selectDurableConversation(detail, key);
   selectWorkspaceTab(detail, chatTabFor(key));
+}
+
+export function openWorkspaceSummaryTab(detail: SandboxDetailState): void {
+  selectWorkspaceTab(detail, sandboxSummaryTab);
 }
 
 export function openWorkspaceDiagnosticTab(
@@ -183,6 +183,7 @@ export async function refreshWorkspaceFile(
   } catch (error) {
     const message = errorMessage(error);
     view.error = message;
+    const { notify } = await import("@nervekit/ui/core/notify");
     notify.error("Could not open file", { description: message });
   } finally {
     view.loading = false;
@@ -210,27 +211,25 @@ export function toggleWorkspaceFileLineWrap(
 export function closeWorkspaceTabs(
   detail: SandboxDetailState,
   tabs: SandboxWorkspaceTabIdentity[],
-  fallback: SandboxWorkspaceTabIdentity = chatTabFor("pending_default"),
+  fallback?: SandboxWorkspaceTabIdentity,
 ): void {
   for (const tab of tabs) {
     if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
     if (tab.kind === "chat" && isPendingConversationId(tab.id))
       delete detail.pendingConversationsById[tab.id];
   }
-  const closing = (tab: SandboxWorkspaceTabIdentity) =>
-    tabs.some((candidate) => sameWorkspaceTab(candidate, tab));
-  const chatTabs = detail.openWorkspaceTabs.filter(
-    (tab) => tab.kind === "chat",
-  );
+  const closing = (tab: SandboxWorkspaceTabIdentity | undefined) =>
+    Boolean(tab && tabs.some((candidate) => sameWorkspaceTab(candidate, tab)));
   detail.openWorkspaceTabs = detail.openWorkspaceTabs.filter(
-    (tab) => (tab.kind === "chat" && chatTabs.length <= 1) || !closing(tab),
+    (tab) => !closing(tab),
   );
   if (closing(detail.activeWorkspaceTab)) {
-    detail.activeWorkspaceTab =
+    const next =
       detail.openWorkspaceTabs.find((tab) => sameWorkspaceTab(tab, fallback)) ??
-      chatTabFor("pending_default");
-    if (detail.activeWorkspaceTab.kind === "chat")
-      selectWorkspaceTab(detail, detail.activeWorkspaceTab);
+      detail.openWorkspaceTabs[0] ??
+      undefined;
+    detail.activeWorkspaceTab = next;
+    if (next?.kind === "chat") selectWorkspaceTab(detail, next);
   }
 }
 

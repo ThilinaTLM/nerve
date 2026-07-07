@@ -21,6 +21,7 @@ import {
   sandboxActivitySummarySchema,
   sandboxRunStartResultSchema,
 } from "@nervekit/shared";
+import { notify } from "@nervekit/ui/core/notify";
 import { getContext, setContext } from "svelte";
 import { createOperationId } from "../api/idempotency";
 import * as api from "../api/manager-client";
@@ -62,6 +63,7 @@ import {
   openWorkspaceChatTab as openWorkspaceChatTabInDetail,
   openWorkspaceDiagnosticTab as openWorkspaceDiagnosticTabInDetail,
   openWorkspaceFile as openWorkspaceFileInDetail,
+  openWorkspaceSummaryTab as openWorkspaceSummaryTabInDetail,
   refreshWorkspaceFile as refreshWorkspaceFileInDetail,
   selectWorkspaceTab as selectWorkspaceTabInDetail,
   toggleWorkspaceFileDisplayMode as toggleWorkspaceFileDisplayModeInDetail,
@@ -87,6 +89,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 function outboundConversationId(id: string | undefined): string | undefined {
   return id?.startsWith("conv_") ? id : undefined;
+}
+
+function initialPromptFromRequest(
+  request: SandboxCreateRequest,
+): string | undefined {
+  const config = isRecord(request.config) ? request.config : undefined;
+  const agent = isRecord(config?.agent) ? config.agent : undefined;
+  const prompt = agent?.initialPrompt;
+  return typeof prompt === "string" && prompt.trim() ? prompt.trim() : undefined;
 }
 
 export class SandboxManagerStore {
@@ -267,6 +278,7 @@ export class SandboxManagerStore {
       const wasConnected = isSandboxConnected(detail);
       detail.status = status;
       detail.controllerConnected = status.connected;
+      if (status.connected) void this.flushQueuedPrompt(sandboxId);
       if ((status.connected && !wasConnected) || status.status === "failed") {
         // Fully sync record/snapshot/session once the controller is live or
         // when manager-derived status observes a terminal startup failure.
@@ -316,6 +328,7 @@ export class SandboxManagerStore {
       } catch {
         detail.latestSession = undefined;
       }
+      if (isSandboxReadyForChat(detail)) void this.flushQueuedPrompt(sandboxId);
       detail.error = undefined;
     } catch (error) {
       detail.error = errorMessage(error);
@@ -331,7 +344,7 @@ export class SandboxManagerStore {
    */
   async ensureConversations(sandboxId: string): Promise<void> {
     const detail = this.detail(sandboxId);
-    if ((detail.snapshot?.conversations.length ?? 0) > 0) return;
+    if (detail.snapshot) return;
     if (this.conversationsLoading.has(sandboxId)) return;
     this.conversationsLoading.add(sandboxId);
     try {
@@ -435,6 +448,10 @@ export class SandboxManagerStore {
 
   openWorkspaceChatTab(sandboxId: string): void {
     openWorkspaceChatTabInDetail(this.detail(sandboxId));
+  }
+
+  openWorkspaceSummaryTab(sandboxId: string): void {
+    openWorkspaceSummaryTabInDetail(this.detail(sandboxId));
   }
 
   selectConversation(sandboxId: string, conversationId: string): void {
@@ -582,7 +599,16 @@ export class SandboxManagerStore {
       (key) => api.createSandbox(request, key),
     );
     this.patchRecord(record);
-    if (request.start) await this.startSandbox(record.sandboxId);
+    const detail = this.detail(record.sandboxId);
+    const initialPrompt = initialPromptFromRequest(request);
+    if (initialPrompt) detail.queuedPrompt = initialPrompt;
+    if (request.start) {
+      void this.startSandbox(record.sandboxId).catch((error) => {
+        notify.error("Could not start sandbox", {
+          description: errorMessage(error),
+        });
+      });
+    }
     await this.refreshFleet();
     return record.sandboxId;
   }
@@ -695,7 +721,7 @@ export class SandboxManagerStore {
     const pendingId =
       detail.selectedPendingConversationId ??
       (!conversationId &&
-      detail.activeWorkspaceTab.kind === "chat" &&
+      detail.activeWorkspaceTab?.kind === "chat" &&
       isPendingConversationId(detail.activeWorkspaceTab.id)
         ? detail.activeWorkspaceTab.id
         : undefined);
@@ -920,6 +946,11 @@ export class SandboxManagerStore {
       this.applyConversationUiEvent(sandboxId, detail, uiEvent);
     }
     applySandboxEvent(detail, uiEvent);
+    if (
+      envelope.type === "sandbox.ready" ||
+      envelope.type === "sandbox.controller.reconnected"
+    )
+      void this.flushQueuedPrompt(sandboxId);
     this.trackRunActivity(sandboxId, envelope.type);
   }
 

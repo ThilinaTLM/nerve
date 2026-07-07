@@ -5,6 +5,7 @@
   import FileCode2 from "@lucide/svelte/icons/file-code-2";
   import FileText from "@lucide/svelte/icons/file-text";
   import ImageIcon from "@lucide/svelte/icons/image";
+  import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import MessageSquare from "@lucide/svelte/icons/message-square";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Settings from "@lucide/svelte/icons/settings";
@@ -21,7 +22,9 @@
   import SandboxDashboard from "../dashboard/SandboxDashboard.svelte";
   import SandboxSettingsPanel from "../settings/SandboxSettingsPanel.svelte";
   import SandboxChatPane from "./SandboxChatPane.svelte";
+  import SandboxEmptyCenterPlaceholder from "./SandboxEmptyCenterPlaceholder.svelte";
   import SandboxFilePane from "./SandboxFilePane.svelte";
+  import SandboxSummaryTab from "./SandboxSummaryTab.svelte";
   import SandboxConfigView from "../../routes/SandboxConfigView.svelte";
   import SandboxEventsView from "../../routes/SandboxEventsView.svelte";
   import SandboxLogsView from "../../routes/SandboxLogsView.svelte";
@@ -38,18 +41,16 @@
 
   const SETTINGS_KIND = "settings";
 
-  const chatTab: SandboxWorkspaceTabIdentity = { kind: "chat", id: "pending_default" };
-
   const sandboxId = $derived(center.selectedSandboxId);
   const detail = $derived(sandboxId ? store.details[sandboxId] : undefined);
   const record = $derived(
     sandboxId ? store.sandboxes.find((item) => item.sandboxId === sandboxId) : undefined,
   );
-  const workspaceTabs = $derived(detail?.openWorkspaceTabs ?? (sandboxId ? [chatTab] : []));
-  const activeWorkspaceTab = $derived(detail?.activeWorkspaceTab ?? chatTab);
+  const workspaceTabs = $derived(detail?.openWorkspaceTabs ?? []);
+  const activeWorkspaceTab = $derived(detail?.activeWorkspaceTab);
   const fileViewsById = $derived(detail?.workspaceFileViewsById ?? {});
   const activeFileView = $derived(
-    activeWorkspaceTab.kind === "file"
+    activeWorkspaceTab?.kind === "file"
       ? fileViewsById[activeWorkspaceTab.id]
       : undefined,
   );
@@ -62,8 +63,11 @@
         : "dashboard",
   );
 
-  function sameTab(a: SandboxWorkspaceTabIdentity, b: SandboxWorkspaceTabIdentity): boolean {
-    return a.kind === b.kind && a.id === b.id;
+  function sameTab(
+    a: SandboxWorkspaceTabIdentity | undefined,
+    b: SandboxWorkspaceTabIdentity | undefined,
+  ): boolean {
+    return Boolean(a && b && a.kind === b.kind && a.id === b.id);
   }
 
   function fileLabel(view: SandboxWorkspaceFileViewState | undefined, id: string): string {
@@ -107,6 +111,16 @@
 
   function toWorkbenchTab(tab: SandboxWorkspaceTabIdentity): WorkbenchTabModel {
     const active = contentMode === "sandbox" && sameTab(activeWorkspaceTab, tab);
+    if (tab.kind === "summary") {
+      return {
+        ...tab,
+        label: "Summary",
+        title: "Sandbox summary",
+        active,
+        icon: LayoutDashboard,
+        closeable: true,
+      };
+    }
     if (tab.kind === "chat") {
       const conversation = detail?.snapshot?.conversations.find(
         (item) => item.conversationId === tab.id,
@@ -121,7 +135,7 @@
         title: pending ? "Draft conversation" : `Sandbox chat ${tab.id}`,
         active,
         icon: MessageSquare,
-        closeable: (workspaceTabs.filter((open) => open.kind === "chat").length ?? 0) > 1,
+        closeable: true,
       };
     }
     if (tab.kind === "diagnostic") {
@@ -203,6 +217,10 @@
       void store.refreshWorkspaceFile(sandboxId, identity.id);
       return;
     }
+    if (identity.kind === "summary") {
+      void store.loadDetail(sandboxId);
+      return;
+    }
     if (identity.id === "logs") void store.loadLogs(sandboxId);
     if (identity.id === "config") void store.loadSandboxConfigYaml(sandboxId);
   }
@@ -237,7 +255,7 @@
     items.push(
       { label: "Refresh", icon: RefreshCw, onSelect: () => handleRefresh(identity) },
       { type: "separator" },
-      { label: "Close Pane", icon: X, disabled: identity.kind === "chat" && workspaceTabs.filter((open) => open.kind === "chat").length <= 1, onSelect: () => store.closeWorkspaceTab(sandboxId, identity) },
+      { label: "Close Pane", icon: X, onSelect: () => store.closeWorkspaceTab(sandboxId, identity) },
       { label: "Close Other Panes", icon: X, disabled: workspaceTabs.length <= 1, onSelect: () => store.closeOtherWorkspaceTabs(sandboxId, identity) },
       { label: "Close Panes on Right", icon: X, disabled: !hasRight, onSelect: () => store.closeWorkspaceTabsRight(sandboxId, identity) },
       { label: "Close Panes on Left", icon: X, disabled: !hasLeft, onSelect: () => store.closeWorkspaceTabsLeft(sandboxId, identity) },
@@ -246,25 +264,23 @@
   }
 </script>
 
-<div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
-  {#if unifiedTabs.length > 0}
-    <WorkbenchTabStrip
-      tabs={unifiedTabs}
-      {buildMenuItems}
-      onSelect={handleSelect}
-      onClose={handleClose}
-      onRefresh={handleRefresh}
-      onCloseOther={(tab) => sandboxId && !isSettings(tab) && store.closeOtherWorkspaceTabs(sandboxId, cast(tab))}
-      onCloseLeft={(tab) => sandboxId && !isSettings(tab) && store.closeWorkspaceTabsLeft(sandboxId, cast(tab))}
-      onCloseRight={(tab) => sandboxId && !isSettings(tab) && store.closeWorkspaceTabsRight(sandboxId, cast(tab))}
-      onNew={sandboxId ? () => store.startNewConversation(sandboxId) : undefined}
-    />
-  {/if}
+{#if unifiedTabs.length > 0}
+  <WorkbenchTabStrip
+    tabs={unifiedTabs}
+    {buildMenuItems}
+    onSelect={handleSelect}
+    onClose={handleClose}
+    onRefresh={handleRefresh}
+    onCloseOther={(tab) => sandboxId && !isSettings(tab) && store.closeOtherWorkspaceTabs(sandboxId, cast(tab))}
+    onCloseLeft={(tab) => sandboxId && !isSettings(tab) && store.closeWorkspaceTabsLeft(sandboxId, cast(tab))}
+    onCloseRight={(tab) => sandboxId && !isSettings(tab) && store.closeWorkspaceTabsRight(sandboxId, cast(tab))}
+    onNew={sandboxId ? () => store.startNewConversation(sandboxId) : undefined}
+  />
+{/if}
 
+<div class="sandbox-center-content">
   {#if contentMode === "settings"}
-    <div class="min-h-0 min-w-0 flex-1">
-      <SandboxSettingsPanel />
-    </div>
+    <SandboxSettingsPanel />
   {:else if contentMode === "sandbox"}
     {#if !record}
       <div class="flex h-full items-center justify-center bg-background p-6">
@@ -273,28 +289,48 @@
         </div>
       </div>
     {:else}
-      {#if record.lastError}
-        <p class="flex-none border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">{record.lastError.code}: {record.lastError.message}</p>
-      {/if}
-      <div class="min-h-0 min-w-0 flex-1">
-        {#if activeWorkspaceTab.kind === "file"}
-          <SandboxFilePane view={activeFileView} />
-        {:else if activeWorkspaceTab.kind === "diagnostic"}
-          {#if activeWorkspaceTab.id === "logs"}
-            <SandboxLogsView {record} />
-          {:else if activeWorkspaceTab.id === "config"}
-            <SandboxConfigView {record} />
-          {:else}
-            <SandboxEventsView {record} />
-          {/if}
-        {:else}
-          <SandboxChatPane sandboxId={record.sandboxId} />
+      <div class="flex h-full min-h-0 min-w-0 flex-col">
+        {#if record.lastError}
+          <p class="flex-none border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">{record.lastError.code}: {record.lastError.message}</p>
         {/if}
+        <div class="min-h-0 min-w-0 flex-1">
+          {#if !activeWorkspaceTab}
+            <SandboxEmptyCenterPlaceholder />
+          {:else if activeWorkspaceTab.kind === "summary"}
+            <SandboxSummaryTab {record} />
+          {:else if activeWorkspaceTab.kind === "file"}
+            <SandboxFilePane view={activeFileView} />
+          {:else if activeWorkspaceTab.kind === "diagnostic"}
+            {#if activeWorkspaceTab.id === "logs"}
+              <SandboxLogsView {record} />
+            {:else if activeWorkspaceTab.id === "config"}
+              <SandboxConfigView {record} />
+            {:else}
+              <SandboxEventsView {record} />
+            {/if}
+          {:else}
+            <SandboxChatPane sandboxId={record.sandboxId} />
+          {/if}
+        </div>
       </div>
     {/if}
   {:else}
-    <div class="min-h-0 min-w-0 flex-1">
-      <SandboxDashboard />
-    </div>
+    <SandboxDashboard />
   {/if}
 </div>
+
+<style>
+  /* Mirror web CenterWorkspace: the content region occupies the flexible
+     `minmax(0,1fr)` row of `.center-shell` (the tab strip takes the `auto`
+     row) and stretches its single active child to full height so panes like
+     the chat composer pin to the bottom. `grid-row: 2` keeps content in the
+     flexible track even when the tab strip is hidden. */
+  .sandbox-center-content {
+    grid-row: 2;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+    min-width: 0;
+    background: var(--background);
+  }
+</style>

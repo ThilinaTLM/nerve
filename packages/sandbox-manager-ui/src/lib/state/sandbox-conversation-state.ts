@@ -148,7 +148,7 @@ export function replacePendingConversation(
       : tab,
   );
   if (
-    detail.activeWorkspaceTab.kind === "chat" &&
+    detail.activeWorkspaceTab?.kind === "chat" &&
     detail.activeWorkspaceTab.id === pendingId
   ) {
     detail.activeWorkspaceTab = chatTabFor(real.conversationId);
