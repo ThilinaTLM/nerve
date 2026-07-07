@@ -43,6 +43,7 @@ import {
 } from "./sandbox-ui-types";
 import {
   closeWorkspaceTab as closeWorkspaceTabInDetail,
+  closeWorkspaceTabs as closeWorkspaceTabsInDetail,
   openWorkspaceChatTab as openWorkspaceChatTabInDetail,
   openWorkspaceDiagnosticTab as openWorkspaceDiagnosticTabInDetail,
   openWorkspaceFile as openWorkspaceFileInDetail,
@@ -50,6 +51,9 @@ import {
   selectWorkspaceTab as selectWorkspaceTabInDetail,
   toggleWorkspaceFileDisplayMode as toggleWorkspaceFileDisplayModeInDetail,
   toggleWorkspaceFileLineWrap as toggleWorkspaceFileLineWrapInDetail,
+  workspaceTabsExcept,
+  workspaceTabsLeftOf,
+  workspaceTabsRightOf,
 } from "./sandbox-workspace-tabs";
 
 function errorMessage(error: unknown): string {
@@ -387,6 +391,59 @@ export class SandboxManagerStore {
 
   openWorkspaceChatTab(sandboxId: string): void {
     openWorkspaceChatTabInDetail(this.detail(sandboxId));
+  }
+
+  selectConversation(sandboxId: string, conversationId: string): void {
+    const detail = this.detail(sandboxId);
+    detail.selectedConversationId = conversationId;
+    const runs = detail.snapshot?.runs.filter(
+      (run) => run.conversationId === conversationId,
+    ) ?? [];
+    const activeRun =
+      runs.find((run) => run.status === "running") ??
+      [...runs].sort((a, b) =>
+        (b.updatedAt ?? b.createdAt ?? "").localeCompare(
+          a.updatedAt ?? a.createdAt ?? "",
+        ),
+      )[0];
+    detail.selectedRunId = activeRun?.runId;
+    detail.selectedAgentId = activeRun?.agentId;
+    openWorkspaceChatTabInDetail(detail);
+    void this.recoverConversationSnapshot(sandboxId, conversationId).catch(
+      () => undefined,
+    );
+  }
+
+  startNewConversation(sandboxId: string): void {
+    const detail = this.detail(sandboxId);
+    detail.selectedConversationId = undefined;
+    detail.selectedAgentId = undefined;
+    detail.selectedRunId = undefined;
+    openWorkspaceChatTabInDetail(detail);
+  }
+
+  closeOtherWorkspaceTabs(
+    sandboxId: string,
+    tab: SandboxWorkspaceTabIdentity,
+  ): void {
+    const detail = this.detail(sandboxId);
+    closeWorkspaceTabsInDetail(detail, workspaceTabsExcept(detail.openWorkspaceTabs, tab), tab);
+  }
+
+  closeWorkspaceTabsRight(
+    sandboxId: string,
+    tab: SandboxWorkspaceTabIdentity,
+  ): void {
+    const detail = this.detail(sandboxId);
+    closeWorkspaceTabsInDetail(detail, workspaceTabsRightOf(detail.openWorkspaceTabs, tab), tab);
+  }
+
+  closeWorkspaceTabsLeft(
+    sandboxId: string,
+    tab: SandboxWorkspaceTabIdentity,
+  ): void {
+    const detail = this.detail(sandboxId);
+    closeWorkspaceTabsInDetail(detail, workspaceTabsLeftOf(detail.openWorkspaceTabs, tab), tab);
   }
 
   openWorkspaceDiagnosticTab(

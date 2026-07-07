@@ -165,3 +165,46 @@ export function toggleWorkspaceFileLineWrap(
   if (!view) return;
   view.wrapLines = !view.wrapLines;
 }
+
+export function closeWorkspaceTabs(
+  detail: SandboxDetailState,
+  tabs: SandboxWorkspaceTabIdentity[],
+  fallback: SandboxWorkspaceTabIdentity = { kind: "chat", id: "chat" },
+): void {
+  for (const tab of tabs) {
+    if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
+  }
+  const closing = (tab: SandboxWorkspaceTabIdentity) =>
+    tabs.some((candidate) => sameWorkspaceTab(candidate, tab));
+  detail.openWorkspaceTabs = detail.openWorkspaceTabs.filter(
+    (tab) => tab.kind === "chat" || !closing(tab),
+  );
+  if (closing(detail.activeWorkspaceTab)) {
+    detail.activeWorkspaceTab = detail.openWorkspaceTabs.find((tab) =>
+      sameWorkspaceTab(tab, fallback),
+    ) ?? { kind: "chat", id: "chat" };
+  }
+}
+
+export function workspaceTabsExcept(
+  tabs: SandboxWorkspaceTabIdentity[],
+  tab: SandboxWorkspaceTabIdentity,
+): SandboxWorkspaceTabIdentity[] {
+  return tabs.filter((candidate) => !sameWorkspaceTab(candidate, tab));
+}
+
+export function workspaceTabsLeftOf(
+  tabs: SandboxWorkspaceTabIdentity[],
+  tab: SandboxWorkspaceTabIdentity,
+): SandboxWorkspaceTabIdentity[] {
+  const index = tabs.findIndex((candidate) => sameWorkspaceTab(candidate, tab));
+  return index <= 0 ? [] : tabs.slice(0, index);
+}
+
+export function workspaceTabsRightOf(
+  tabs: SandboxWorkspaceTabIdentity[],
+  tab: SandboxWorkspaceTabIdentity,
+): SandboxWorkspaceTabIdentity[] {
+  const index = tabs.findIndex((candidate) => sameWorkspaceTab(candidate, tab));
+  return index < 0 ? [] : tabs.slice(index + 1);
+}

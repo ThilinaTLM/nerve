@@ -24,7 +24,8 @@
     "./core/terminal/ansi": "./src/lib/core/terminal/ansi.ts",
     "./core/notify": "./src/lib/core/notify.ts",
     "./core/utils/*": "./src/lib/core/utils/*.ts",
-    "./components/ui/*": "./src/lib/components/ui/*/index.ts"
+    "./components/ui/*": "./src/lib/components/ui/*/index.ts",
+    "./components/workbench": "./src/lib/components/workbench/index.ts"
   },
   "scripts": {
     "build": "svelte-check --tsconfig ./tsconfig.json",

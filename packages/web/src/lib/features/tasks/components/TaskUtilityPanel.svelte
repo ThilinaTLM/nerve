@@ -19,7 +19,7 @@
   import { Button } from "@nervekit/ui/components/ui/button";
   import ConfirmDialog from "@nervekit/ui/components/ui/confirm-dialog";
   import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
-  import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
+  import { PanelSection } from "@nervekit/ui/components/workbench";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
   import PinnedCommandDialog from "./PinnedCommandDialog.svelte";

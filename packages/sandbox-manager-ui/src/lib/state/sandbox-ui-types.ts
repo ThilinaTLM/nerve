@@ -69,6 +69,7 @@ export type SandboxLiveRunState = {
 };
 
 export type SandboxDiagnosticTabId = "logs" | "config" | "events";
+export type SandboxUtilityTab = "context" | "git";
 
 export type SandboxWorkspaceTabIdentity =
   | { kind: "chat"; id: "chat" }

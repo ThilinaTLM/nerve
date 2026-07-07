@@ -1,18 +1,18 @@
 <script lang="ts">
-  import {
-    BookOpenText,
-    Code2,
-    FileClock,
-    FileCode2,
-    FileText,
-    Image as ImageIcon,
-    MessageSquare,
-    RefreshCw,
-    Terminal,
-    TriangleAlert,
-    X,
-  } from "@lucide/svelte";
-  import { Button } from "@nervekit/ui/components/ui/button";
+  import BookOpenText from "@lucide/svelte/icons/book-open-text";
+  import Code2 from "@lucide/svelte/icons/code-2";
+  import FileClock from "@lucide/svelte/icons/file-clock";
+  import FileCode2 from "@lucide/svelte/icons/file-code-2";
+  import FileText from "@lucide/svelte/icons/file-text";
+  import ImageIcon from "@lucide/svelte/icons/image";
+  import MessageSquare from "@lucide/svelte/icons/message-square";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Terminal from "@lucide/svelte/icons/terminal";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+  import X from "@lucide/svelte/icons/x";
+  import { WorkbenchTabStrip } from "@nervekit/ui/components/workbench";
+  import type { WorkbenchTabIdentity, WorkbenchTabModel } from "@nervekit/ui/components/workbench";
+  import type { ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
   import { isMarkdownPath } from "@nervekit/ui/core/utils/file-display";
   import type {
     SandboxWorkspaceFileViewState,
@@ -26,8 +26,12 @@
     onSelect,
     onClose,
     onRefresh,
+    onCloseOther,
+    onCloseLeft,
+    onCloseRight,
     onToggleFileDisplayMode,
     onToggleFileLineWrap,
+    onNewConversation,
   }: {
     tabs: SandboxWorkspaceTabIdentity[];
     activeTab: SandboxWorkspaceTabIdentity;
@@ -35,15 +39,22 @@
     onSelect: (tab: SandboxWorkspaceTabIdentity) => void;
     onClose: (tab: SandboxWorkspaceTabIdentity) => void;
     onRefresh: (tab: SandboxWorkspaceTabIdentity) => void;
+    onCloseOther?: (tab: SandboxWorkspaceTabIdentity) => void;
+    onCloseLeft?: (tab: SandboxWorkspaceTabIdentity) => void;
+    onCloseRight?: (tab: SandboxWorkspaceTabIdentity) => void;
     onToggleFileDisplayMode: (fileTabId: string) => void;
     onToggleFileLineWrap: (fileTabId: string) => void;
+    onNewConversation?: () => void;
   } = $props();
 
-  function sameTab(
-    a: SandboxWorkspaceTabIdentity,
-    b: SandboxWorkspaceTabIdentity,
-  ): boolean {
+  const workbenchTabs = $derived(tabs.map(toWorkbenchTab));
+
+  function sameTab(a: SandboxWorkspaceTabIdentity, b: SandboxWorkspaceTabIdentity): boolean {
     return a.kind === b.kind && a.id === b.id;
+  }
+
+  function cast(tab: WorkbenchTabIdentity): SandboxWorkspaceTabIdentity {
+    return tab as SandboxWorkspaceTabIdentity;
   }
 
   function fileLabel(view: SandboxWorkspaceFileViewState | undefined, id: string): string {
@@ -57,11 +68,7 @@
   }
 
   function isMarkdownView(view: SandboxWorkspaceFileViewState | undefined): boolean {
-    return Boolean(
-      view &&
-        (view.content?.type === "text" || !view.content) &&
-        isMarkdownPath(view.content?.relativePath || view.path),
-    );
+    return Boolean(view && (view.content?.type === "text" || !view.content) && isMarkdownPath(view.content?.relativePath || view.path));
   }
 
   function fileIcon(view: SandboxWorkspaceFileViewState | undefined) {
@@ -78,135 +85,80 @@
     return "Events";
   }
 
-  function tabIcon(
-    tab: SandboxWorkspaceTabIdentity,
-    view: SandboxWorkspaceFileViewState | undefined,
-  ) {
-    if (tab.kind === "chat") return MessageSquare;
-    if (tab.kind === "diagnostic") {
-      if (tab.id === "logs") return Terminal;
-      if (tab.id === "config") return FileCode2;
-      return FileClock;
+  function diagnosticIcon(tab: SandboxWorkspaceTabIdentity) {
+    if (tab.kind !== "diagnostic") return FileClock;
+    if (tab.id === "logs") return Terminal;
+    if (tab.id === "config") return FileCode2;
+    return FileClock;
+  }
+
+  function toWorkbenchTab(tab: SandboxWorkspaceTabIdentity): WorkbenchTabModel {
+    const active = sameTab(activeTab, tab);
+    if (tab.kind === "chat") {
+      return { ...tab, label: "Chat", title: "Sandbox chat", active, icon: MessageSquare, closeable: false };
     }
-    return fileIcon(view);
+    if (tab.kind === "diagnostic") {
+      return { ...tab, label: diagnosticLabel(tab), title: diagnosticLabel(tab), active, icon: diagnosticIcon(tab), closeable: true };
+    }
+    const view = fileViewsById[tab.id];
+    const model: WorkbenchTabModel = {
+      ...tab,
+      label: fileLabel(view, tab.id),
+      title: fileTitle(view, tab.id),
+      active,
+      wide: true,
+      running: view?.loading,
+      error: view?.error,
+      closeable: true,
+      icon: fileIcon(view),
+    };
+    if (isMarkdownView(view)) {
+      model.icon = undefined;
+      model.toggle = {
+        label: view?.displayMode === "rendered" ? "Show raw markdown" : "Show rendered markdown",
+        icon: view?.displayMode === "rendered" ? BookOpenText : Code2,
+        onClick: () => onToggleFileDisplayMode(tab.id),
+      };
+    }
+    return model;
+  }
+
+  function menuItems(tab: WorkbenchTabModel): ContextMenuItem[] {
+    const identity = cast(tab);
+    const index = tabs.findIndex((candidate) => sameTab(candidate, identity));
+    const hasLeft = index > 0;
+    const hasRight = index >= 0 && index < tabs.length - 1;
+    const items: ContextMenuItem[] = [];
+    if (identity.kind === "file") {
+      const view = fileViewsById[identity.id];
+      if (view?.content?.type === "text") {
+        items.push({
+          label: view.wrapLines ? "Disable line wrap" : "Wrap long lines",
+          icon: Code2,
+          onSelect: () => onToggleFileLineWrap(identity.id),
+        });
+      }
+    }
+    items.push(
+      { label: "Refresh", icon: RefreshCw, onSelect: () => onRefresh(identity) },
+      { type: "separator" },
+      { label: "Close Pane", icon: X, disabled: identity.kind === "chat", onSelect: () => onClose(identity) },
+      { label: "Close Other Panes", icon: X, disabled: tabs.length <= 1 || !onCloseOther, onSelect: () => onCloseOther?.(identity) },
+      { label: "Close Panes on Right", icon: X, disabled: !hasRight || !onCloseRight, onSelect: () => onCloseRight?.(identity) },
+      { label: "Close Panes on Left", icon: X, disabled: !hasLeft || !onCloseLeft, onSelect: () => onCloseLeft?.(identity) },
+    );
+    return items;
   }
 </script>
 
-<nav class="flex h-10 flex-none items-center border-b bg-muted/35" aria-label="Workspace tabs">
-  <div class="flex min-w-0 flex-1 overflow-x-auto" role="tablist" aria-label="Open workspace tabs">
-    {#each tabs as tab (`${tab.kind}:${tab.id}`)}
-      {@const active = sameTab(activeTab, tab)}
-      {@const view = tab.kind === "file" ? fileViewsById[tab.id] : undefined}
-      {@const Icon = tabIcon(tab, view)}
-      <div
-        class={`group flex min-w-0 max-w-56 items-center gap-1 border-r px-1.5 text-sm ${active ? "bg-background text-foreground" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"} ${view?.error ? "text-destructive" : ""}`}
-        role="presentation"
-      >
-        {#if tab.kind === "file" && isMarkdownView(view)}
-          <button
-            type="button"
-            class="flex size-6 shrink-0 items-center justify-center rounded-sm hover:bg-muted"
-            aria-label={view?.displayMode === "rendered" ? "Show raw markdown" : "Show rendered markdown"}
-            title={view?.displayMode === "rendered" ? "Show raw markdown" : "Show rendered markdown"}
-            onclick={(event) => {
-              event.stopPropagation();
-              onToggleFileDisplayMode(tab.id);
-            }}
-          >
-            {#if view?.displayMode === "rendered"}
-              <BookOpenText class="size-3.5" />
-            {:else}
-              <Code2 class="size-3.5" />
-            {/if}
-          </button>
-        {:else}
-          <span class="flex size-6 shrink-0 items-center justify-center" aria-hidden="true">
-            <Icon class={`size-3.5 ${view?.loading ? "animate-spin" : ""}`} />
-          </span>
-        {/if}
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={active}
-          class="min-w-0 flex-1 truncate py-2 text-left"
-          title={tab.kind === "chat"
-            ? "Sandbox chat"
-            : tab.kind === "diagnostic"
-              ? diagnosticLabel(tab)
-              : fileTitle(view, tab.id)}
-          onclick={() => onSelect(tab)}
-        >
-          {#if tab.kind === "chat"}
-            Chat
-          {:else if tab.kind === "diagnostic"}
-            {diagnosticLabel(tab)}
-          {:else}
-            {fileLabel(view, tab.id)}
-          {/if}
-        </button>
-
-        {#if tab.kind === "file"}
-          {#if view?.content?.type === "text"}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              class="size-6 opacity-70 hover:opacity-100"
-              ariaLabel={view.wrapLines ? "Disable line wrap" : "Enable line wrap"}
-              title={view.wrapLines ? "Disable line wrap" : "Enable line wrap"}
-              onclick={(event) => {
-                event.stopPropagation();
-                onToggleFileLineWrap(tab.id);
-              }}
-            >
-              <Code2 class="size-3.5" />
-            </Button>
-          {/if}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="size-6 opacity-70 hover:opacity-100"
-            ariaLabel="Refresh file"
-            title="Refresh file"
-            onclick={(event) => {
-              event.stopPropagation();
-              onRefresh(tab);
-            }}
-          >
-            <RefreshCw class={`size-3.5 ${view?.loading ? "animate-spin" : ""}`} />
-          </Button>
-        {:else if tab.kind === "diagnostic"}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="size-6 opacity-70 hover:opacity-100"
-            ariaLabel={`Refresh ${diagnosticLabel(tab)}`}
-            title="Refresh tab"
-            onclick={(event) => {
-              event.stopPropagation();
-              onRefresh(tab);
-            }}
-          >
-            <RefreshCw class="size-3.5" />
-          </Button>
-        {/if}
-
-        {#if tab.kind !== "chat"}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="size-6 opacity-70 hover:opacity-100"
-            ariaLabel={`Close ${tab.kind === "diagnostic" ? diagnosticLabel(tab) : fileLabel(view, tab.id)}`}
-            title="Close tab"
-            onclick={(event) => {
-              event.stopPropagation();
-              onClose(tab);
-            }}
-          >
-            <X class="size-3.5" />
-          </Button>
-        {/if}
-      </div>
-    {/each}
-  </div>
-</nav>
+<WorkbenchTabStrip
+  tabs={workbenchTabs}
+  buildMenuItems={({ tab }) => menuItems(tab)}
+  onSelect={(tab) => onSelect(cast(tab))}
+  onClose={(tab) => onClose(cast(tab))}
+  onRefresh={(tab) => onRefresh(cast(tab))}
+  onCloseOther={(tab) => onCloseOther?.(cast(tab))}
+  onCloseLeft={(tab) => onCloseLeft?.(cast(tab))}
+  onCloseRight={(tab) => onCloseRight?.(cast(tab))}
+  onNew={onNewConversation}
+/>

@@ -7,7 +7,7 @@
   import type { GitFileChange } from "$lib/api";
   import { Button } from "@nervekit/ui/components/ui/button";
   import { cn } from "@nervekit/ui/core/utils";
-  import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
+  import { PanelSection } from "@nervekit/ui/components/workbench";
   import type { FileMutation } from "$lib/features/git/state/git-panel.svelte";
   import {
     fileStatusLabel,

@@ -13,7 +13,7 @@
   import { Badge } from "@nervekit/ui/components/ui/badge";
   import { Button } from "@nervekit/ui/components/ui/button";
   import { cn } from "@nervekit/ui/core/utils";
-  import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
+  import { PanelSection } from "@nervekit/ui/components/workbench";
   import { checksTone } from "./git-change-format";
 
   type Props = {

@@ -4,20 +4,6 @@
   import type { Component, Snippet } from "svelte";
   import { cn } from "@nervekit/ui/core/utils";
 
-  type Props = {
-    title: string;
-    icon?: Component;
-    open?: boolean;
-    /** Inline meta rendered before the action buttons (e.g. counts). */
-    meta?: Snippet;
-    /** Icon-only action buttons rendered on the right of the header. */
-    actions?: Snippet;
-    /** Notified after the header toggles; use for externally controlled open state. */
-    onOpenChange?: (open: boolean) => void;
-    contentClass?: string;
-    children: Snippet;
-  };
-
   let {
     title,
     icon: Icon,
@@ -27,9 +13,18 @@
     onOpenChange,
     contentClass,
     children,
-  }: Props = $props();
+  }: {
+    title: string;
+    icon?: Component;
+    open?: boolean;
+    meta?: Snippet;
+    actions?: Snippet;
+    onOpenChange?: (open: boolean) => void;
+    contentClass?: string;
+    children: Snippet;
+  } = $props();
 
-  function toggle() {
+  function toggle(): void {
     open = !open;
     onOpenChange?.(open);
   }

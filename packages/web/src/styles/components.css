@@ -2,8 +2,5 @@
  * in @nervekit/ui/styles/components.css. */
 
 @import "./components/composer.css";
-@import "./components/layout-shell.css";
 @import "./components/settings.css";
-@import "./components/center-tab.css";
-@import "./components/utility-panel.css";
 @import "./components/directory-picker.css";

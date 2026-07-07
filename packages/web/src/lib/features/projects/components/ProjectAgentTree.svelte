@@ -14,7 +14,7 @@
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
   import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
   import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
-  import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
+  import { PanelSection } from "@nervekit/ui/components/workbench";
   import {
     buildProjectGroups,
     type ProjectGroup,
