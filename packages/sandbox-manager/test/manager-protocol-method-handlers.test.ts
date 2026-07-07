@@ -108,6 +108,43 @@ describe("manager protocol method handlers", () => {
     );
   });
 
+  it("preserves transcript entry details when projecting durable events", async () => {
+    const result = (await handleManagerProtocolMethod(
+      context({ events: transcriptEventsWithDetails() }),
+      "sandbox.conversation.snapshot.get",
+      { sandboxId: "sbx_1", conversationId: "conv_1", agentId: "agent_main" },
+    )) as {
+      snapshot?: { entries: Array<{ text: string; details?: unknown }> };
+    };
+    assert.deepEqual(result.snapshot?.entries.at(-1)?.details, {
+      thinkingBlocks: [{ text: "I should inspect first." }],
+    });
+  });
+
+  it("keeps prior messages when projecting a conversation snapshot for a specific run", async () => {
+    const result = (await handleManagerProtocolMethod(
+      context({ events: multiRunTranscriptEvents() }),
+      "sandbox.conversation.snapshot.get",
+      {
+        sandboxId: "sbx_1",
+        conversationId: "conv_1",
+        agentId: "agent_main",
+        runId: "run_2",
+      },
+    )) as {
+      snapshot?: { entries: Array<{ role: string; text: string }> };
+    };
+    assert.deepEqual(
+      result.snapshot?.entries.map((entry) => [entry.role, entry.text]),
+      [
+        ["user", "First"],
+        ["assistant", "First response"],
+        ["user", "Second"],
+        ["assistant", "Second response"],
+      ],
+    );
+  });
+
   it("degrades to the durable-event transcript when a connected controller is unresponsive", async () => {
     const ctx = context({
       events: transcriptEvents(),
@@ -173,6 +210,87 @@ function context(options: { session?: unknown; events?: unknown[] } = {}) {
     controller: {
       getSession: () => options.session,
     } as unknown as SandboxWsServer,
+  };
+}
+
+function transcriptEventsWithDetails() {
+  return [
+    transcriptEvent(
+      "evt_details_1",
+      1,
+      "run_1",
+      "assistant",
+      "Done.",
+      "2026-07-05T21:23:17.000Z",
+      { thinkingBlocks: [{ text: "I should inspect first." }] },
+    ),
+  ];
+}
+
+function multiRunTranscriptEvents() {
+  return [
+    transcriptEvent(
+      "evt_1",
+      1,
+      "run_1",
+      "user",
+      "First",
+      "2026-07-05T21:23:17.000Z",
+    ),
+    transcriptEvent(
+      "evt_2",
+      2,
+      "run_1",
+      "assistant",
+      "First response",
+      "2026-07-05T21:23:18.000Z",
+    ),
+    transcriptEvent(
+      "evt_3",
+      3,
+      "run_2",
+      "user",
+      "Second",
+      "2026-07-05T21:24:17.000Z",
+    ),
+    transcriptEvent(
+      "evt_4",
+      4,
+      "run_2",
+      "assistant",
+      "Second response",
+      "2026-07-05T21:24:18.000Z",
+    ),
+  ];
+}
+
+function transcriptEvent(
+  id: string,
+  seq: number,
+  runId: string,
+  role: "user" | "assistant",
+  text: string,
+  ts: string,
+  details?: unknown,
+) {
+  return {
+    sandboxId: "sbx_1",
+    id,
+    seq,
+    type: "run.transcript.appended",
+    ts,
+    durability: "durable",
+    payload: {
+      role,
+      index: seq,
+      runId,
+      agentId: "agent_main",
+      content: { text },
+      details,
+      entryId: `entry_${seq}`,
+      createdAt: ts,
+      conversationId: "conv_1",
+    },
   };
 }
 

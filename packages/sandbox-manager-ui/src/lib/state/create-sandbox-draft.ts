@@ -1,9 +1,9 @@
 import {
   type SandboxCreateConfigInput,
   type SandboxCreateRequest,
-  type ThinkingLevel,
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
+  type ThinkingLevel,
   thinkingLevels,
 } from "@nervekit/shared";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -247,7 +247,9 @@ function modeValue(value: unknown): CreateSandboxDraft["mode"] | undefined {
 function permissionLevelValue(
   value: unknown,
 ): CreateSandboxDraft["permissionLevel"] | undefined {
-  return value === "read_only" || value === "supervised" || value === "autonomous"
+  return value === "read_only" ||
+    value === "supervised" ||
+    value === "autonomous"
     ? value
     : undefined;
 }
@@ -292,7 +294,8 @@ export function createDraftFromStoredPreferences(
   draft.exploreProvider =
     stringValue(stored.exploreProvider) ?? draft.exploreProvider;
   draft.exploreModel = stringValue(stored.exploreModel) ?? draft.exploreModel;
-  draft.initialPrompt = stringValue(stored.initialPrompt) ?? draft.initialPrompt;
+  draft.initialPrompt =
+    stringValue(stored.initialPrompt) ?? draft.initialPrompt;
   draft.systemPromptAmendment =
     stringValue(stored.systemPromptAmendment) ?? draft.systemPromptAmendment;
   draft.mode = modeValue(stored.mode) ?? draft.mode;
@@ -304,7 +307,8 @@ export function createDraftFromStoredPreferences(
     stringValue(stored.exploreModelProfileId) ?? draft.exploreModelProfileId;
   draft.githubProfileId =
     stringValue(stored.githubProfileId) ?? draft.githubProfileId;
-  draft.jiraProfileId = stringValue(stored.jiraProfileId) ?? draft.jiraProfileId;
+  draft.jiraProfileId =
+    stringValue(stored.jiraProfileId) ?? draft.jiraProfileId;
   draft.confluenceProfileId =
     stringValue(stored.confluenceProfileId) ?? draft.confluenceProfileId;
   draft.webProfileId = stringValue(stored.webProfileId) ?? draft.webProfileId;

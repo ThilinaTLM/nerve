@@ -39,14 +39,10 @@ export class ToolCallStore {
     const latest = new Map<string, SandboxToolCallRecord>();
     for (const record of await this.list(scope)) {
       const current = latest.get(record.toolCallId);
-      if (
-        !current ||
-        (record.lifecycleSeq ?? 0) >= (current.lifecycleSeq ?? 0) ||
-        (record.completedAt ?? record.startedAt ?? record.requestedAt) >=
-          (current.completedAt ?? current.startedAt ?? current.requestedAt)
-      ) {
-        latest.set(record.toolCallId, record);
-      }
+      latest.set(
+        record.toolCallId,
+        current ? projectToolCallRecord(current, record) : record,
+      );
     }
     return latest;
   }
@@ -64,4 +60,70 @@ export class ToolCallStore {
       "tool-calls.jsonl",
     );
   }
+}
+
+function projectToolCallRecord(
+  current: SandboxToolCallRecord,
+  next: SandboxToolCallRecord,
+): SandboxToolCallRecord {
+  const useLifecycle = isNewerLifecycle(next, current);
+  return {
+    ...current,
+    ...(useLifecycle
+      ? {
+          toolName: next.toolName,
+          status: next.status,
+          lifecycleSeq: next.lifecycleSeq ?? current.lifecycleSeq,
+        }
+      : {}),
+    requestedAt: earliestIso(current.requestedAt, next.requestedAt),
+    startedAt: latestIso(current.startedAt, next.startedAt),
+    completedAt: latestIso(current.completedAt, next.completedAt),
+    cancelledAt: latestIso(current.cancelledAt, next.cancelledAt),
+    displayArgs:
+      next.displayArgs === undefined ? current.displayArgs : next.displayArgs,
+    args: next.args === undefined ? current.args : next.args,
+    result: next.result === undefined ? current.result : next.result,
+    artifactRefs:
+      next.artifactRefs === undefined
+        ? current.artifactRefs
+        : next.artifactRefs,
+    approvalId:
+      next.approvalId === undefined ? current.approvalId : next.approvalId,
+    error: next.error === undefined ? current.error : next.error,
+    redactionVersion:
+      next.redactionVersion === undefined
+        ? current.redactionVersion
+        : next.redactionVersion,
+  };
+}
+
+function isNewerLifecycle(
+  next: SandboxToolCallRecord,
+  current: SandboxToolCallRecord,
+): boolean {
+  const nextSeq = next.lifecycleSeq ?? 0;
+  const currentSeq = current.lifecycleSeq ?? 0;
+  if (nextSeq !== currentSeq) return nextSeq > currentSeq;
+  return lifecycleTimestamp(next) >= lifecycleTimestamp(current);
+}
+
+function lifecycleTimestamp(record: SandboxToolCallRecord): string {
+  return (
+    latestIso(record.cancelledAt, record.completedAt, record.startedAt) ??
+    record.requestedAt
+  );
+}
+
+function earliestIso(a: string, b: string): string {
+  return a <= b ? a : b;
+}
+
+function latestIso<T extends string | undefined>(
+  ...values: T[]
+): T | undefined {
+  return values
+    .filter((value): value is T & string => Boolean(value))
+    .sort()
+    .at(-1);
 }

@@ -21,6 +21,7 @@ import { HarnessFactory } from "../agent/harness-factory.js";
 import { RunManager } from "../agent/run-manager.js";
 import type { RunState } from "../agent/run-state-store.js";
 import { RunStateStore } from "../agent/run-state-store.js";
+import { toolResultPreview } from "../agent/tool-result-preview.js";
 import type { SecretResolver } from "../credentials/secret-resolver.js";
 import type { ResolvedModelRuntime } from "../models/model-runtime.js";
 import { ArtifactStore } from "../state/artifacts.js";
@@ -360,7 +361,7 @@ export class SandboxDaemon {
       return {
         toolCall,
         argsPreview: toolCall.displayArgs,
-        resultPreview: toolCall.result,
+        resultPreview: toolResultPreview(toolCall.result),
         displayTitle: toolCall.toolName,
         displaySummary: toolCall.error?.message,
       };

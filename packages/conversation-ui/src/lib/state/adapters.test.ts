@@ -6,6 +6,74 @@ import {
 } from "./index.js";
 
 describe("conversation-ui adapters", () => {
+  it("preserves tool-call previews across lifecycle updates", () => {
+    let state = emptyConversationRenderState("conv_test");
+    const base = {
+      id: "tool_test",
+      sourceToolCallId: "call_raw",
+      providerToolCallId: "call_raw",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      projectId: "proj_test",
+      runId: "run_test",
+      toolName: "bash" as const,
+      risk: "command" as const,
+      cwd: "/workspace",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    state = applyConversationEvent(state, {
+      id: "evt_tool_1",
+      seq: 1,
+      ts: "2026-01-01T00:00:00.000Z",
+      type: "conversation.tool_call.updated",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        providerToolCallId: "call_raw",
+        toolCall: {
+          ...base,
+          status: "requested",
+          argsPreview: { command: "echo hello" },
+        },
+      },
+    });
+
+    state = applyConversationEvent(state, {
+      id: "evt_tool_2",
+      seq: 2,
+      ts: "2026-01-01T00:00:01.000Z",
+      type: "conversation.tool_call.updated",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        providerToolCallId: "call_raw",
+        toolCall: {
+          ...base,
+          status: "completed",
+          resultPreview: { content: "hello\n", exitCode: 0 },
+          updatedAt: "2026-01-01T00:00:01.000Z",
+        },
+      },
+    });
+
+    assert.deepEqual(state.toolCalls[0]?.argsPreview, {
+      command: "echo hello",
+    });
+    assert.deepEqual(state.toolCalls[0]?.resultPreview, {
+      content: "hello\n",
+      exitCode: 0,
+    });
+    assert.equal(state.toolCalls[0]?.status, "completed");
+  });
+
   it("applies live text and durable entry events", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, {

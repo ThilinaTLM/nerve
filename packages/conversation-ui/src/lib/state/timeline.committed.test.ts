@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildConversationTimeline } from "./timeline";
+import { buildCommittedTimeline, buildConversationTimeline } from "./timeline";
 import { keys, toolCall } from "./timeline.fixtures";
 import type { TranscriptItem } from "./transcript-types";
 
@@ -50,6 +50,53 @@ describe("buildConversationTimeline committed transcript", () => {
     if (timeline[1]?.kind === "message") {
       assert.equal(timeline[1].item.displayKind, "thinking");
     }
+  });
+
+  it("renders completed unanchored historical tool calls by timestamp", () => {
+    const transcript: TranscriptItem[] = [
+      {
+        id: "entry_user",
+        role: "user",
+        text: "List files",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "entry_assistant",
+        role: "assistant",
+        text: "Done.",
+        createdAt: "2026-01-01T00:00:03.000Z",
+      },
+    ];
+    const toolCalls = [toolCall("tool_01", "2026-01-01T00:00:01.000Z", "ls")];
+
+    const timeline = buildConversationTimeline(transcript, toolCalls);
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "tool_01",
+      "entry_assistant",
+    ]);
+    assert.equal(timeline[1]?.kind, "tool");
+  });
+
+  it("does not commit-render running unanchored tool calls", () => {
+    const transcript: TranscriptItem[] = [
+      {
+        id: "entry_user",
+        role: "user",
+        text: "List files",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+    const toolCalls = [
+      toolCall("tool_01", "2026-01-01T00:00:01.000Z", "ls", undefined, {
+        status: "running",
+      }),
+    ];
+
+    const committed = buildCommittedTimeline(transcript, toolCalls);
+
+    assert.deepEqual(keys(committed.items), ["entry_user"]);
   });
 
   it("anchors historical tool cards at matching tool-result entries", () => {

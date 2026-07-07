@@ -178,6 +178,7 @@ export const sandboxTranscriptEntrySchema = z.object({
   runId: sandboxRunIdSchema,
   role: z.enum(["user", "assistant", "tool", "system"]),
   content: boundedTextSchema,
+  details: z.unknown().optional(),
   createdAt: isoDateTimeSchema,
 });
 export type SandboxTranscriptEntry = z.infer<

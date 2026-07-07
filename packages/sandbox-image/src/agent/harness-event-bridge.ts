@@ -18,6 +18,7 @@ import type { ApprovalWaiter } from "../tools/approval-waiter.js";
 import type { InputWaiter } from "../tools/input-waiter.js";
 import type { RunManager, RunScope } from "./run-manager.js";
 import type { RunState } from "./run-state-store.js";
+import { toolResultPreview } from "./tool-result-preview.js";
 
 export type HarnessRunContext = RunScope & {
   executionId: string;
@@ -323,12 +324,16 @@ export class HarnessEventBridge {
       return;
     }
     if (event.type === "message_end" && event.message.role === "assistant") {
-      const text = messageText(event.message);
-      if (text) {
+      const text = assistantVisibleText(event.message);
+      const thinkingBlocks = assistantThinkingBlocks(event.message);
+      const hasToolCalls = assistantHasToolCalls(event.message);
+      const transcriptText =
+        text || (hasToolCalls ? "[Tool call: hidden]" : "");
+      if (transcriptText || thinkingBlocks.length > 0) {
         const bounded = await this.boundedTranscriptContent(
           context,
           `assistant-${Date.now()}`,
-          text,
+          transcriptText,
         );
         const entryId = `entry_${Date.now()}_${this.transcriptIndex}`;
         const live = this.liveRuns.get(context.runId);
@@ -338,9 +343,13 @@ export class HarnessEventBridge {
           index: this.transcriptIndex++,
           role: "assistant",
           content: bounded.content,
+          details: thinkingBlocks.length > 0 ? { thinkingBlocks } : undefined,
           createdAt: new Date().toISOString(),
         });
-        this.log(context).debug("assistant message", { chars: text.length });
+        this.log(context).debug("assistant message", {
+          chars: transcriptText.length,
+          thinkingBlocks: thinkingBlocks.length,
+        });
       }
       return;
     }
@@ -483,6 +492,14 @@ export class HarnessEventBridge {
     if (event.type === "tool_execution_end") {
       const status = event.isError ? "failed" : "completed";
       const completedAt = new Date().toISOString();
+      const stored = (
+        await this.runs?.toolCallStore().latestByToolCallId(context)
+      )?.get(event.toolCallId);
+      const displayArgs = stored?.displayArgs;
+      const args = stored?.args;
+      const normalizedResult = event.isError
+        ? undefined
+        : toolResultPreview(stored?.result ?? event.result);
       const error = event.isError
         ? {
             code: "TOOL_FAILED",
@@ -494,11 +511,17 @@ export class HarnessEventBridge {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         status,
+        displayArgs,
+        args:
+          args ??
+          (displayArgs === undefined
+            ? undefined
+            : { hash: sandboxSha256Digest(displayArgs) }),
         lifecycleSeq: 3,
         redactionVersion: 1,
         requestedAt: completedAt,
         completedAt,
-        result: event.isError ? undefined : event.result,
+        result: normalizedResult,
         error,
         artifactRefs: artifactRefs.length ? artifactRefs : undefined,
       });
@@ -506,7 +529,8 @@ export class HarnessEventBridge {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         status: event.isError ? "error" : "completed",
-        resultPreview: event.isError ? undefined : event.result,
+        argsPreview: displayArgs,
+        resultPreview: normalizedResult,
         error: error?.message,
         errorDetails: error,
         createdAt: completedAt,
@@ -862,20 +886,41 @@ function defaultToolRisk(toolName: string): ToolCallTranscriptRecord["risk"] {
   return "read";
 }
 
-function messageText(message: { content?: unknown }): string {
+function assistantVisibleText(message: { content?: unknown }): string {
   const content = (message as { content?: unknown }).content;
   if (typeof content === "string") return content;
   if (Array.isArray(content))
     return content
       .map((block) => {
         const value = block as { type?: string; text?: string };
-        return value.type === "text" || value.type === "thinking"
-          ? (value.text ?? "")
-          : "";
+        return value.type === "text" ? (value.text ?? "") : "";
       })
       .filter(Boolean)
       .join("\n");
   return "";
+}
+
+function assistantThinkingBlocks(message: {
+  content?: unknown;
+}): Array<{ text: string; redacted?: boolean }> {
+  const content = (message as { content?: unknown }).content;
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((block) => {
+    const value = block as
+      | { type?: string; text?: string; thinking?: string; redacted?: boolean }
+      | undefined;
+    if (value?.type !== "thinking") return [];
+    const text = value.text ?? value.thinking ?? "";
+    const redacted = value.redacted === true;
+    return text || redacted ? [{ text, redacted: redacted || undefined }] : [];
+  });
+}
+
+function assistantHasToolCalls(message: { content?: unknown }): boolean {
+  const content = (message as { content?: unknown }).content;
+  return Array.isArray(content)
+    ? content.some((block) => (block as { type?: string }).type === "toolCall")
+    : false;
 }
 
 function toolUpdateText(value: unknown): string {

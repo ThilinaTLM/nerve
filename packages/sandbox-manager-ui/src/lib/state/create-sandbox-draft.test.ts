@@ -158,7 +158,10 @@ describe("create sandbox draft", () => {
 
   it("ignores corrupt stored preferences", () => {
     const storage = new MemoryStorage();
-    storage.setItem("nerve.sandboxManager.createSandboxPreferences", "not-json");
+    storage.setItem(
+      "nerve.sandboxManager.createSandboxPreferences",
+      "not-json",
+    );
     const draft = createDraftFromStoredPreferences(storage);
     assert.equal(draft.permissionLevel, "autonomous");
     assert.equal(draft.mainThinking, "off");

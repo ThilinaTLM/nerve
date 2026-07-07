@@ -399,6 +399,7 @@ export class RunManager {
       content:
         | { text: string; truncated?: boolean; bytes?: number }
         | ArtifactRef;
+      details?: unknown;
       createdAt: string;
     },
   ): Promise<void> {
@@ -551,6 +552,7 @@ function toConversationEntry(
     content:
       | { text: string; truncated?: boolean; bytes?: number }
       | ArtifactRef;
+    details?: unknown;
     createdAt: string;
   },
 ): ConversationEntry | undefined {
@@ -565,6 +567,7 @@ function toConversationEntry(
     role: entry.role,
     kind: "message",
     text: transcriptText(entry.content),
+    details: entry.details,
     createdAt: entry.createdAt,
   };
 }

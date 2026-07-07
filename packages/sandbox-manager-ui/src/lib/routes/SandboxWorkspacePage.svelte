@@ -162,10 +162,10 @@
     void store.configureAgent(sandboxId, { approvalPolicy: policy });
   }
 
-  // Tool-call details dialog resolves the full record from the live snapshot.
+  // Tool-call details dialog resolves the full sandbox record when connected.
   setConversationUiCapabilities({
     fetchToolCall: (toolCallId) =>
-      Promise.resolve(resolveToolCallDetails(richState, toolCallId)),
+      resolveToolCallDetails(richState, sandboxId, toolCallId, { connected }),
   });
 
   let diagnosticsOpen = $state(false);

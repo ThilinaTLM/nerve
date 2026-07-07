@@ -42,6 +42,67 @@ function delay(ms: number): Promise<void> {
 }
 
 describe("tool lifecycle cancellation", () => {
+  it("projects lifecycle rows without dropping args or result", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-tool-project-"));
+    try {
+      const manager = new RunManager(new RunStateStore(dir), dir);
+      const store = manager.toolCallStore();
+      const scope = {
+        conversationId: "conv_project",
+        agentId: "agent_main",
+        runId: "run_project",
+      };
+
+      await store.append(scope, {
+        toolCallId: "call_project",
+        toolName: "bash",
+        status: "requested",
+        displayArgs: { command: "echo projected" },
+        args: { hash: "sha256:args" },
+        lifecycleSeq: 1,
+        redactionVersion: 1,
+        requestedAt: "2026-07-07T00:00:00.000Z",
+      });
+      await store.append(scope, {
+        toolCallId: "call_project",
+        toolName: "bash",
+        status: "started",
+        displayArgs: { command: "echo projected" },
+        args: { hash: "sha256:args" },
+        lifecycleSeq: 2,
+        redactionVersion: 1,
+        requestedAt: "2026-07-07T00:00:01.000Z",
+        startedAt: "2026-07-07T00:00:01.000Z",
+      });
+      await store.append(scope, {
+        toolCallId: "call_project",
+        toolName: "bash",
+        status: "completed",
+        lifecycleSeq: 3,
+        redactionVersion: 1,
+        requestedAt: "2026-07-07T00:00:02.000Z",
+        completedAt: "2026-07-07T00:00:02.000Z",
+        result: { content: "projected\n", exitCode: 0 },
+      });
+
+      const projected = (await store.latestByToolCallId(scope)).get(
+        "call_project",
+      );
+      assert.equal(projected?.status, "completed");
+      assert.equal(projected?.requestedAt, "2026-07-07T00:00:00.000Z");
+      assert.equal(projected?.startedAt, "2026-07-07T00:00:01.000Z");
+      assert.deepEqual(projected?.displayArgs, { command: "echo projected" });
+      assert.deepEqual(projected?.args, { hash: "sha256:args" });
+      assert.deepEqual(projected?.result, {
+        content: "projected\n",
+        exitCode: 0,
+      });
+      assert.equal(projected?.lifecycleSeq, 3);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("keeps spawn error task finalization when close also fires", async () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-task-spawn-error-"),

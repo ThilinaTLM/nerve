@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { registerAgentScriptedProvider } from "@nervekit/agent";
 import {
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
@@ -85,6 +86,196 @@ describe("sandbox daemon command semantics", () => {
           error.code === "IDEMPOTENCY_CONFLICT",
       );
       await waitForRun(daemon, first.runId, "completed");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns the full conversation transcript when a snapshot targets the latest run", async () => {
+    const dir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-conversation-snapshot-"),
+    );
+    try {
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      const daemon = new SandboxDaemon(
+        {
+          ...baseConfig,
+          agent: { mainModel: { provider: "nerve-faux", model: "faux-fast" } },
+        } as never,
+        "sha256:test",
+        "inst_1",
+        stores,
+        { workspaceDir: process.cwd() },
+      );
+      daemon.start();
+      const first = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_snapshot_first",
+        prompt: "first prompt",
+      })) as { conversationId: string; agentId: string; runId: string };
+      await waitForRun(daemon, first.runId, "completed");
+      const second = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_snapshot_second",
+        conversationId: first.conversationId,
+        agentId: first.agentId,
+        behavior: "follow_up",
+        prompt: "second prompt",
+      })) as { conversationId: string; agentId: string; runId: string };
+
+      await waitForRun(daemon, second.runId, "completed");
+      const result = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: second.conversationId,
+          agentId: second.agentId,
+          runId: second.runId,
+        },
+      )) as { snapshot?: { entries: Array<{ role: string; text: string }> } };
+
+      assert.deepEqual(
+        result.snapshot?.entries
+          .filter((entry) => entry.role === "user")
+          .map((entry) => entry.text),
+        ["first prompt", "second prompt"],
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizes scripted bash tool calls in conversation snapshots", async () => {
+    const provider = "nerve-scripted-rich-bash";
+    const registration = registerAgentScriptedProvider({
+      provider,
+      steps: [
+        {
+          type: "toolCall",
+          id: "bash_rich_1",
+          name: "bash",
+          args: { command: "printf 'sandbox rich output\\n'" },
+        },
+        { type: "assistantText", text: "Done." },
+      ],
+    });
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-rich-bash-"));
+    try {
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      const daemon = new SandboxDaemon(
+        {
+          ...baseConfig,
+          agent: {
+            mainModel: { provider, model: "scripted-fast" },
+            permissionLevel: "autonomous",
+          },
+        } as never,
+        "sha256:test",
+        "inst_1",
+        stores,
+        { workspaceDir: process.cwd() },
+      );
+      daemon.start();
+      const run = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_rich_bash",
+        prompt: "Run the scripted bash tool",
+      })) as { conversationId: string; agentId: string; runId: string };
+      await waitForRun(daemon, run.runId, "completed");
+
+      const result = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: run.conversationId,
+          agentId: run.agentId,
+          runId: run.runId,
+        },
+      )) as {
+        snapshot?: {
+          toolCalls: Array<{
+            providerToolCallId?: string;
+            status: string;
+            argsPreview?: unknown;
+            resultPreview?: unknown;
+          }>;
+        };
+      };
+      const toolCall = result.snapshot?.toolCalls.find(
+        (record) => record.providerToolCallId === "bash_rich_1",
+      );
+      assert.equal(toolCall?.status, "completed");
+      assert.equal(
+        (toolCall?.argsPreview as { command?: string } | undefined)?.command,
+        "printf 'sandbox rich output\\n'",
+      );
+      assert.match(
+        (toolCall?.resultPreview as { content?: string } | undefined)
+          ?.content ?? "",
+        /sandbox rich output/,
+      );
+    } finally {
+      registration.unregister();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves transcript entry details in conversation snapshots", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-entry-details-"));
+    try {
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      const daemon = new SandboxDaemon(
+        {
+          ...baseConfig,
+          agent: { mainModel: { provider: "nerve-faux", model: "faux-fast" } },
+        } as never,
+        "sha256:test",
+        "inst_1",
+        stores,
+        { workspaceDir: process.cwd() },
+      );
+      daemon.start();
+      const run = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_details",
+        prompt: "think then answer",
+      })) as { conversationId: string; agentId: string; runId: string };
+      await waitForRun(daemon, run.runId, "completed");
+      const transcriptPath = path.join(
+        dir,
+        "conversations",
+        run.conversationId,
+        "agents",
+        run.agentId,
+        "runs",
+        run.runId,
+        "transcript.jsonl",
+      );
+      await appendFile(
+        transcriptPath,
+        `${JSON.stringify({
+          entryId: "entry_details",
+          index: 99,
+          role: "assistant",
+          content: { text: "final" },
+          details: { thinkingBlocks: [{ text: "hidden chain summary" }] },
+          createdAt: "2026-07-07T03:10:00.000Z",
+        })}\n`,
+      );
+
+      const result = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: run.conversationId,
+          agentId: run.agentId,
+          runId: run.runId,
+        },
+      )) as {
+        snapshot?: { entries: Array<{ id: string; details?: unknown }> };
+      };
+      const entry = result.snapshot?.entries.find(
+        (candidate) => candidate.id === "entry_details",
+      );
+      assert.deepEqual(entry?.details, {
+        thinkingBlocks: [{ text: "hidden chain summary" }],
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

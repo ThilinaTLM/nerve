@@ -54,6 +54,10 @@ export type CommittedTimeline = {
   context: CommittedContext;
 };
 
+type BuildCommittedTimelineOptions = {
+  includeUnanchoredTerminalToolCalls?: boolean;
+};
+
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
 
 function isToolCallPlaceholder(item: TranscriptItem): boolean {
@@ -268,6 +272,7 @@ function isHiddenByFailedRun(
 export function buildCommittedTimeline(
   transcript: TranscriptItem[],
   toolCalls: ToolCallTranscriptRecord[],
+  options: BuildCommittedTimelineOptions = {},
 ): CommittedTimeline {
   const items: TimelineItem[] = [];
   const orderedToolCalls = toolCalls
@@ -391,6 +396,27 @@ export function buildCommittedTimeline(
     }),
   );
 
+  const unanchoredTerminalToolCalls =
+    (options.includeUnanchoredTerminalToolCalls ?? true) &&
+    liveCandidateToolCalls.length === 0
+      ? orderedToolCalls.filter(
+          (toolCall) =>
+            !consumedToolCallIds.has(toolCall.id) &&
+            isTerminalUnanchoredToolCall(toolCall),
+        )
+      : [];
+  if (unanchoredTerminalToolCalls.length > 0) {
+    for (const toolCall of unanchoredTerminalToolCalls) {
+      items.push({
+        kind: "tool",
+        key: toolCall.id,
+        toolCall,
+      });
+      consumedToolCallIds.add(toolCall.id);
+    }
+    stableSortTimelineItemsByCreatedAt(items);
+  }
+
   return {
     items,
     context: {
@@ -404,6 +430,40 @@ export function buildCommittedTimeline(
       completedCompactionKeys,
     },
   };
+}
+
+function isTerminalUnanchoredToolCall(
+  toolCall: ToolCallTranscriptRecord,
+): boolean {
+  return (
+    toolCall.status === "completed" ||
+    toolCall.status === "error" ||
+    toolCall.status === "denied"
+  );
+}
+
+function timelineItemCreatedAt(item: TimelineItem): string | undefined {
+  if (item.kind === "message") return item.item.createdAt;
+  if (item.kind === "tool") return item.toolCall.createdAt;
+  if (item.kind === "tool_draft") return item.draft.createdAt;
+  if (item.kind === "compaction") return item.notice.createdAt;
+  if (item.kind === "run_status") return item.notice.createdAt;
+  if (item.kind === "task_event") return item.notice.createdAt;
+  return undefined;
+}
+
+function stableSortTimelineItemsByCreatedAt(items: TimelineItem[]): void {
+  const indexed = items.map((item, index) => ({
+    item,
+    index,
+    createdAt: timelineItemCreatedAt(item),
+  }));
+  indexed.sort((a, b) => {
+    if (a.createdAt && b.createdAt && a.createdAt !== b.createdAt)
+      return a.createdAt.localeCompare(b.createdAt);
+    return a.index - b.index;
+  });
+  items.splice(0, items.length, ...indexed.map((entry) => entry.item));
 }
 
 function committedEntryId(item: TimelineItem): string | undefined {
@@ -625,7 +685,9 @@ export function buildConversationTimeline(
   toolCalls: ToolCallTranscriptRecord[],
   live?: ConversationLiveState,
 ): TimelineItem[] {
-  const committed = buildCommittedTimeline(transcript, toolCalls);
+  const committed = buildCommittedTimeline(transcript, toolCalls, {
+    includeUnanchoredTerminalToolCalls: !live,
+  });
   const liveItems = buildLiveTimeline(live, committed.context);
   return [...selectVisibleCommitted(committed.items, live), ...liveItems];
 }

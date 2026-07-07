@@ -10,6 +10,7 @@ import { conversationSnapshotSchema, toolNameSchema } from "@nervekit/shared";
 import type { HarnessEventBridge } from "../agent/harness-event-bridge.js";
 import type { RunManager } from "../agent/run-manager.js";
 import type { RunState } from "../agent/run-state-store.js";
+import { toolResultPreview } from "../agent/tool-result-preview.js";
 import { sandboxSha256Digest } from "../state/hash.js";
 
 export async function buildConversationSnapshot(input: {
@@ -22,18 +23,21 @@ export async function buildConversationSnapshot(input: {
   agentId?: string;
   runId?: string;
 }): Promise<ConversationSnapshot | undefined> {
-  const allRuns = ((await input.runs?.list()) ?? []).filter((run) => {
+  const runs = (await input.runs?.list()) ?? [];
+  const selectionRuns = runs.filter((run) => {
     if (input.conversationId && run.conversationId !== input.conversationId)
       return false;
     if (input.agentId && run.agentId !== input.agentId) return false;
     if (input.runId && run.runId !== input.runId) return false;
     return true;
   });
-  const selected = latestRun(allRuns);
+  const selected = latestRun(selectionRuns);
   if (!selected) return undefined;
-  const conversationRuns = allRuns.filter(
-    (run) => run.conversationId === selected.conversationId,
-  );
+  const conversationRuns = runs.filter((run) => {
+    if (run.conversationId !== selected.conversationId) return false;
+    if (input.agentId && run.agentId !== input.agentId) return false;
+    return true;
+  });
   const entries = await readConversationEntries(input.runs, conversationRuns);
   const toolCalls = await readToolCalls(input.runs, conversationRuns, input);
   const activeEntryId = entries.at(-1)?.id;
@@ -125,6 +129,7 @@ function toConversationEntry(
     role,
     kind: "message",
     text: typeof content?.text === "string" ? content.text : "",
+    details: record.details,
     createdAt:
       typeof record.createdAt === "string" ? record.createdAt : run.updatedAt,
   };
@@ -166,7 +171,7 @@ function toToolCallTranscriptRecord(
     toolName: name.data,
     risk: defaultToolRisk(name.data),
     argsPreview: record.displayArgs,
-    resultPreview: record.result,
+    resultPreview: toolResultPreview(record.result),
     cwd: input.config.agent.workspaceRoot ?? process.cwd(),
     status: mapToolStatus(record.status),
     error: record.error?.message,

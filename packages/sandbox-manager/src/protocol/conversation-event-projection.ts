@@ -26,11 +26,14 @@ export function projectConversationSnapshotFromEvents(input: {
   runId?: string;
 }): ConversationSnapshot | undefined {
   const projectId = sandboxProjectId(input.sandboxId);
-  const collected = collectEntries(input.events, projectId, input);
+  const selection = collectEntries(input.events, projectId, input);
   const conversationId =
-    input.conversationId ?? collected.at(-1)?.entry.conversationId;
+    input.conversationId ?? selection.at(-1)?.entry.conversationId;
   if (!conversationId) return undefined;
 
+  const collected = collectEntries(input.events, projectId, {
+    agentId: input.agentId,
+  });
   const entries = orderEntries(
     collected
       .filter((item) => item.entry.conversationId === conversationId)
@@ -38,7 +41,9 @@ export function projectConversationSnapshotFromEvents(input: {
   );
   if (entries.length === 0) return undefined;
 
-  const toolCalls = collectToolCalls(input.events, conversationId, input);
+  const toolCalls = collectToolCalls(input.events, conversationId, {
+    agentId: input.agentId,
+  });
   const activeEntryId = entries.at(-1)?.id;
   const createdAt = entries[0]?.createdAt ?? new Date().toISOString();
   const updatedAt = entries.at(-1)?.createdAt ?? createdAt;
@@ -128,6 +133,7 @@ function entryFromTranscriptEvent(
     role,
     kind: "message",
     text: typeof content?.text === "string" ? content.text : "",
+    details: payload.details,
     createdAt:
       typeof payload.createdAt === "string"
         ? payload.createdAt
@@ -154,6 +160,7 @@ function conversationEntryFrom(value: unknown): ConversationEntry | undefined {
     role,
     kind: "message",
     text: typeof record.text === "string" ? record.text : "",
+    details: record.details,
     createdAt:
       typeof record.createdAt === "string"
         ? record.createdAt

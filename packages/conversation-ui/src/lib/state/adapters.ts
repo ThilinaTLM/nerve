@@ -12,6 +12,7 @@ import type {
   ConversationToolCallUpdatedData,
   EventEnvelope,
   SandboxConversationViewSnapshot,
+  ToolCallTranscriptRecord,
 } from "@nervekit/shared";
 import {
   type ConversationRenderState,
@@ -121,7 +122,7 @@ export function applyConversationEvent(
     }
     case "conversation.tool_call.updated": {
       const data = event.data as ConversationToolCallUpdatedData;
-      next.toolCalls = upsert(next.toolCalls, data.toolCall.id, data.toolCall);
+      next.toolCalls = upsertToolCallUpdate(next.toolCalls, data.toolCall);
       break;
     }
     case "conversation.context.updated":
@@ -304,6 +305,32 @@ function liveMessage(
   return state.activeRun?.turns
     .find((turn) => turn.turnId === turnId)
     ?.messages.find((message) => message.liveMessageId === liveMessageId);
+}
+
+function upsertToolCallUpdate(
+  items: ToolCallTranscriptRecord[],
+  update: ToolCallTranscriptRecord,
+): ToolCallTranscriptRecord[] {
+  const existing = items.find((candidate) => candidate.id === update.id);
+  const merged: ToolCallTranscriptRecord = existing
+    ? {
+        ...existing,
+        ...update,
+        argsPreview:
+          update.argsPreview === undefined
+            ? existing.argsPreview
+            : update.argsPreview,
+        resultPreview:
+          update.resultPreview === undefined
+            ? existing.resultPreview
+            : update.resultPreview,
+        previewOverflow:
+          update.previewOverflow === undefined
+            ? existing.previewOverflow
+            : update.previewOverflow,
+      }
+    : update;
+  return upsert(items, update.id, merged);
 }
 
 function upsert<T extends { id: string }>(

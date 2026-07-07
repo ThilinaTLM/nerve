@@ -255,6 +255,7 @@ export const runTranscriptAppendedEventSchema = sandboxEventCommonSchema
     index: z.number().int().nonnegative().safe(),
     role: z.enum(["user", "assistant", "tool", "system"]),
     content: z.union([boundedTextSchema, artifactRefSchema]),
+    details: z.unknown().optional(),
     createdAt: isoDateTimeSchema,
   });
 
