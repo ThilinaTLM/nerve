@@ -1,0 +1,14 @@
+export const dbTables = {
+  sandboxes: "sandbox.sandboxes",
+  sandboxEvents: "sandbox.sandbox_events",
+  sandboxSessions: "sandbox.sandbox_sessions",
+  runtimeVolumes: "sandbox.runtime_volumes",
+  managerSecrets: "identity.manager_secrets",
+  secretPolicies: "identity.secret_policies",
+  credentialProfiles: "identity.credential_profiles",
+  credentialProfileSecrets: "identity.credential_profile_secrets",
+  credentialRefreshRecords: "identity.credential_refresh_records",
+  oauthFlows: "identity.oauth_flows",
+  idempotencyRecords: "manager.idempotency_records",
+  managerAudit: "manager.manager_audit",
+} as const;

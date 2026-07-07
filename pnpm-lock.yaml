@@ -213,6 +213,9 @@ importers:
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
+      node-pg-migrate:
+        specifier: 8.0.4
+        version: 8.0.4(@types/pg@8.11.11)(pg@8.13.1)
       pg:
         specifier: 8.13.1
         version: 8.13.1
@@ -3902,6 +3905,17 @@ packages:
 
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
+
+  node-pg-migrate@8.0.4:
+    resolution: {integrity: sha512-HTlJ6fOT/2xHhAUtsqSN85PGMAqSbfGJNRwQF8+ZwQ1+sVGNUTl/ZGEshPsOI3yV22tPIyHXrKXr3S0JxeYLrg==}
+    engines: {node: '>=20.11.0'}
+    hasBin: true
+    peerDependencies:
+      '@types/pg': '>=6.0.0 <9.0.0'
+      pg: '>=4.3.0 <9.0.0'
+    peerDependenciesMeta:
+      '@types/pg':
+        optional: true
 
   node-releases@2.0.48:
     resolution: {integrity: sha512-1uz8041X6LoI6ZSdZacM9lVY28vuzDlSKitnpbSNK0RfKoIJkX29NBPVEFXhnuSuEOA9Ww0xnPJ+ILWbGAv8DA==}
@@ -9042,6 +9056,14 @@ snapshots:
       he: 1.2.0
 
   node-int64@0.4.0: {}
+
+  node-pg-migrate@8.0.4(@types/pg@8.11.11)(pg@8.13.1):
+    dependencies:
+      glob: 11.1.0
+      pg: 8.13.1
+      yargs: 17.7.3
+    optionalDependencies:
+      '@types/pg': 8.11.11
 
   node-releases@2.0.48: {}
 

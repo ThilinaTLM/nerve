@@ -1,6 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 import { atomicWriteFile } from "./atomic-write.js";
 
 export type SandboxSessionRecord = {
@@ -24,7 +25,7 @@ export class PostgresSessionStore implements SandboxSessionStore {
 
   async put(record: SandboxSessionRecord): Promise<void> {
     await this.pool.query(
-      `insert into sandbox_sessions (sandbox_id, record, updated_at)
+      `insert into ${dbTables.sandboxSessions} (sandbox_id, record, updated_at)
        values ($1, $2::jsonb, now())
        on conflict (sandbox_id) do update set
          record = excluded.record,
@@ -35,7 +36,7 @@ export class PostgresSessionStore implements SandboxSessionStore {
 
   async get(sandboxId: string): Promise<SandboxSessionRecord | undefined> {
     const result = await this.pool.query<{ record: unknown }>(
-      "select record from sandbox_sessions where sandbox_id = $1",
+      `select record from ${dbTables.sandboxSessions} where sandbox_id = $1`,
       [sandboxId],
     );
     return result.rows[0]?.record as SandboxSessionRecord | undefined;

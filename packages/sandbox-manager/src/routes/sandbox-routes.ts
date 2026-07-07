@@ -15,6 +15,7 @@ import {
   selectProfiles,
 } from "../config/apply-credential-profiles.js";
 import { materializeSandboxConfig } from "../config/materialize-sandbox-config.js";
+import { dbTables } from "../db/tables.js";
 import { buildSecretPolicy } from "../secrets/secret-policy.js";
 
 export async function createSandboxRecord(
@@ -94,7 +95,7 @@ export async function createSandboxRecord(
   );
   await state.sandboxes.put(record);
   await state.pool.query(
-    "update sandboxes set materialized_config = $2::jsonb where sandbox_id = $1",
+    `update ${dbTables.sandboxes} set materialized_config = $2::jsonb where sandbox_id = $1`,
     [sandboxId, JSON.stringify(materializedConfig)],
   );
   return record;

@@ -23,6 +23,7 @@ import {
 import { ok } from "../api/responses.js";
 import { buildSandboxLaunchSpec } from "../config/sandbox-launch-spec.js";
 import { listSandboxManagerModels } from "../credentials/model-catalog.js";
+import { dbTables } from "../db/tables.js";
 import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import {
   authorizedManagerRequest,
@@ -417,7 +418,7 @@ async function loadSandboxConfigForStart(
     }
   }
   const result = await state.pool.query<{ materialized_config: unknown }>(
-    "select materialized_config from sandboxes where sandbox_id = $1",
+    `select materialized_config from ${dbTables.sandboxes} where sandbox_id = $1`,
     [record.sandboxId],
   );
   const config = sandboxConfigV1Schema.parse(

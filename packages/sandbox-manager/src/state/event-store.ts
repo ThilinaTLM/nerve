@@ -1,6 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 import { atomicWriteFile, isNotFound } from "./atomic-write.js";
 
 export type StoredSandboxEvent = {
@@ -22,7 +23,7 @@ export class PostgresEventStore implements SandboxEventStore {
 
   async append(event: StoredSandboxEvent): Promise<boolean> {
     const result = await this.pool.query(
-      `insert into sandbox_events
+      `insert into ${dbTables.sandboxEvents}
         (sandbox_id, event_id, seq, type, ts, durability, payload)
        values ($1, $2, $3, $4, $5, $6, $7::jsonb)
        on conflict do nothing`,
@@ -50,7 +51,7 @@ export class PostgresEventStore implements SandboxEventStore {
       payload: unknown;
     }>(
       `select sandbox_id, event_id, seq, type, ts, durability, payload
-       from sandbox_events
+       from ${dbTables.sandboxEvents}
        where sandbox_id = $1
        order by coalesce(seq, 0), id`,
       [sandboxId],

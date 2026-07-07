@@ -1,176 +1,71 @@
-import type { PostgresPool } from "./postgres.js";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import type { StructuredLogger } from "@nervekit/shared";
+import { runner } from "node-pg-migrate";
+import pg from "pg";
+import {
+  loadManagerConfig,
+  type ManagerConfig,
+} from "../config/manager-config.js";
 
-const migrations: Array<{ version: number; name: string; sql: string }> = [
-  {
-    version: 1,
-    name: "sandbox_manager_initial",
-    sql: `
-      create table if not exists manager_migrations (
-        version integer primary key,
-        name text not null,
-        applied_at timestamptz not null default now()
-      );
+const { Client } = pg;
 
-      create table if not exists sandboxes (
-        sandbox_id text primary key,
-        record jsonb not null,
-        materialized_config jsonb,
-        desired_state text,
-        observed_state text,
-        updated_at timestamptz not null default now()
-      );
+type MigrationDirection = "up" | "down";
 
-      create table if not exists sandbox_events (
-        id bigserial primary key,
-        sandbox_id text not null,
-        event_id text,
-        seq bigint,
-        type text not null,
-        ts timestamptz,
-        durability text not null,
-        payload jsonb not null,
-        received_at timestamptz not null default now()
-      );
-      create unique index if not exists sandbox_events_event_id_unique
-        on sandbox_events (sandbox_id, event_id) where event_id is not null;
-      create unique index if not exists sandbox_events_seq_unique
-        on sandbox_events (sandbox_id, seq) where seq is not null;
-      create index if not exists sandbox_events_sandbox_seq_idx
-        on sandbox_events (sandbox_id, seq);
-      create index if not exists sandbox_events_sandbox_received_idx
-        on sandbox_events (sandbox_id, received_at);
+const migrationsDir = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../migrations",
+);
 
-      create table if not exists sandbox_sessions (
-        sandbox_id text primary key,
-        record jsonb not null,
-        updated_at timestamptz not null default now()
-      );
+export async function runMigrations(
+  config: ManagerConfig,
+  logger?: StructuredLogger,
+  direction: MigrationDirection = "up",
+): Promise<void> {
+  if (!config.databaseUrl)
+    throw new Error(
+      "NERVE_SANDBOX_MANAGER_DATABASE_URL or DATABASE_URL is required for sandbox-manager storage",
+    );
 
-      create table if not exists manager_secrets (
-        secret_key text primary key,
-        envelope jsonb not null,
-        metadata jsonb not null default '{}'::jsonb,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
-      );
+  const client = new Client({
+    connectionString: config.databaseUrl,
+    ssl: config.databaseSsl ? { rejectUnauthorized: false } : undefined,
+  });
 
-      create table if not exists secret_policies (
-        sandbox_id text primary key,
-        policy jsonb not null,
-        updated_at timestamptz not null default now()
-      );
-
-      create table if not exists credential_profiles (
-        profile_id text primary key,
-        kind text not null,
-        display_name text not null,
-        profile jsonb not null,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
-      );
-      create index if not exists credential_profiles_kind_idx
-        on credential_profiles (kind, display_name);
-
-      create table if not exists runtime_volumes (
-        sandbox_id text primary key,
-        workspace_ref jsonb not null,
-        state_ref jsonb not null,
-        secrets_ref jsonb not null,
-        config_ref jsonb,
-        backend text not null,
-        updated_at timestamptz not null default now()
-      );
-
-      create table if not exists idempotency_records (
-        key text primary key,
-        request_hash text not null,
-        response jsonb not null,
-        created_at timestamptz not null default now()
-      );
-
-      create table if not exists manager_audit (
-        id bigserial primary key,
-        ts timestamptz not null default now(),
-        sandbox_id text,
-        actor text,
-        action text not null,
-        success boolean not null,
-        details jsonb not null default '{}'::jsonb
-      );
-      create index if not exists manager_audit_ts_idx on manager_audit (ts);
-    `,
-  },
-  {
-    version: 2,
-    name: "managed_credential_refresh",
-    sql: `
-      create table if not exists credential_profile_secrets (
-        profile_id text not null,
-        purpose text not null,
-        secret_key text not null,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now(),
-        primary key (profile_id, purpose)
-      );
-      create unique index if not exists credential_profile_secrets_key_unique
-        on credential_profile_secrets (secret_key);
-
-      create table if not exists credential_refresh_records (
-        id bigserial primary key,
-        profile_id text not null,
-        provider_kind text not null,
-        status text not null,
-        started_at timestamptz not null default now(),
-        completed_at timestamptz,
-        expires_at timestamptz,
-        error jsonb
-      );
-      create index if not exists credential_refresh_records_profile_started_idx
-        on credential_refresh_records (profile_id, started_at desc);
-
-      create table if not exists oauth_flows (
-        flow_id text primary key,
-        provider text not null,
-        profile_id text,
-        info jsonb not null,
-        status text not null,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
-      );
-      create index if not exists credential_profiles_provider_kind_idx
-        on credential_profiles ((profile ->> 'providerKind'));
-    `,
-  },
-];
-
-export async function runMigrations(pool: PostgresPool): Promise<void> {
-  const client = await pool.connect();
+  await client.connect();
   try {
-    await client.query("begin");
-    await client.query(`
-      create table if not exists manager_migrations (
-        version integer primary key,
-        name text not null,
-        applied_at timestamptz not null default now()
-      )
-    `);
-    for (const migration of migrations) {
-      const existing = await client.query(
-        "select version from manager_migrations where version = $1",
-        [migration.version],
-      );
-      if (existing.rowCount) continue;
-      await client.query(migration.sql);
-      await client.query(
-        "insert into manager_migrations (version, name) values ($1, $2)",
-        [migration.version, migration.name],
-      );
-    }
-    await client.query("commit");
-  } catch (error) {
-    await client.query("rollback").catch(() => undefined);
-    throw error;
+    await client.query("create schema if not exists manager");
+    const applied = await runner({
+      dbClient: client,
+      direction,
+      dir: migrationsDir,
+      migrationsTable: "schema_migrations",
+      migrationsSchema: "manager",
+      schema: ["manager", "sandbox", "identity"],
+      createSchema: true,
+      singleTransaction: true,
+      checkOrder: true,
+      log: (message) => {
+        if (logger) logger.info("database migration", { message });
+        else console.info(message);
+      },
+    });
+    logger?.info("database migrations complete", {
+      direction,
+      applied: applied.map((migration) => migration.name),
+    });
   } finally {
-    client.release();
+    await client.end();
   }
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  const direction = process.argv[2] === "down" ? "down" : "up";
+  runMigrations(loadManagerConfig(), undefined, direction).catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
 }

@@ -7,6 +7,7 @@
   "type": "module",
   "files": [
     "dist/**",
+    "migrations/**",
     "LICENSE",
     "NOTICE",
     "Dockerfile"
@@ -29,14 +30,16 @@
     "check": "tsc -b --pretty false",
     "dev": "node --env-file-if-exists=dev.defaults.env --env-file-if-exists=.env --import tsx src/main.ts",
     "test": "tsx --test \"test/**/*.test.ts\"",
-    "bundle:web": "node ../../scripts/copy-sandbox-manager-ui-dist-to-manager.mjs"
+    "bundle:web": "node ../../scripts/copy-sandbox-manager-ui-dist-to-manager.mjs",
+    "migrate": "node dist/db/migrations.js"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.80.3",
     "@nervekit/shared": "workspace:*",
     "pg": "8.13.1",
     "ws": "8.18.3",
-    "yaml": "2.9.0"
+    "yaml": "2.9.0",
+    "node-pg-migrate": "8.0.4"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

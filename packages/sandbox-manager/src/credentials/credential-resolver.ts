@@ -5,6 +5,7 @@ import {
 } from "@earendil-works/pi-ai/oauth";
 import type { ManagerCredentialResolveResponse } from "@nervekit/shared";
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 import type { PostgresKvSecretStore } from "../secrets/postgres-kv-secret-store.js";
 import type { PostgresCredentialProfileStore } from "./credential-profile-store.js";
 import { isCredentialSecretKey } from "./credential-secret-keys.js";
@@ -254,7 +255,7 @@ export class CredentialResolver {
     key: string,
   ): Promise<ProfileSecretRow | undefined> {
     const result = await this.pool.query<ProfileSecretRow>(
-      "select profile_id, purpose, secret_key from credential_profile_secrets where secret_key = $1",
+      `select profile_id, purpose, secret_key from ${dbTables.credentialProfileSecrets} where secret_key = $1`,
       [key],
     );
     return result.rows[0];
@@ -266,11 +267,11 @@ export class CredentialResolver {
   ): Promise<ProfileSecretRow | undefined> {
     const result = purpose
       ? await this.pool.query<ProfileSecretRow>(
-          "select profile_id, purpose, secret_key from credential_profile_secrets where profile_id = $1 and purpose = $2",
+          `select profile_id, purpose, secret_key from ${dbTables.credentialProfileSecrets} where profile_id = $1 and purpose = $2`,
           [profileId, purpose],
         )
       : await this.pool.query<ProfileSecretRow>(
-          "select profile_id, purpose, secret_key from credential_profile_secrets where profile_id = $1 order by purpose limit 1",
+          `select profile_id, purpose, secret_key from ${dbTables.credentialProfileSecrets} where profile_id = $1 order by purpose limit 1`,
           [profileId],
         );
     return result.rows[0];
@@ -285,7 +286,7 @@ export class CredentialResolver {
     error?: unknown,
   ): Promise<void> {
     await this.pool.query(
-      `insert into credential_refresh_records
+      `insert into ${dbTables.credentialRefreshRecords}
         (profile_id, provider_kind, status, started_at, completed_at, expires_at, error)
        values ($1, $2, $3, $4, now(), $5, $6::jsonb)`,
       [

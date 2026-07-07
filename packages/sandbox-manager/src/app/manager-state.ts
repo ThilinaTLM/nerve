@@ -116,7 +116,7 @@ export class ManagerState {
     await mkdir(path.join(this.config.storageDir, "volumes"), {
       recursive: true,
     });
-    await runMigrations(this.pool);
+    await runMigrations(this.config, this.logger);
     await this.secrets.assertReady();
   }
 }

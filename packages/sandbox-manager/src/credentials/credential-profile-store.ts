@@ -4,6 +4,7 @@ import {
   sandboxManagerCredentialProfileSchema,
 } from "@nervekit/shared";
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 
 export interface CredentialProfileStore {
   list(
@@ -22,11 +23,11 @@ export class PostgresCredentialProfileStore implements CredentialProfileStore {
   ): Promise<SandboxManagerCredentialProfile[]> {
     const result = kind
       ? await this.pool.query<{ profile: unknown }>(
-          "select profile from credential_profiles where kind = $1 order by display_name, profile_id",
+          `select profile from ${dbTables.credentialProfiles} where kind = $1 order by display_name, profile_id`,
           [kind],
         )
       : await this.pool.query<{ profile: unknown }>(
-          "select profile from credential_profiles order by kind, display_name, profile_id",
+          `select profile from ${dbTables.credentialProfiles} order by kind, display_name, profile_id`,
         );
     return result.rows.map((row) =>
       sandboxManagerCredentialProfileSchema.parse(row.profile),
@@ -37,7 +38,7 @@ export class PostgresCredentialProfileStore implements CredentialProfileStore {
     profileId: string,
   ): Promise<SandboxManagerCredentialProfile | undefined> {
     const result = await this.pool.query<{ profile: unknown }>(
-      "select profile from credential_profiles where profile_id = $1",
+      `select profile from ${dbTables.credentialProfiles} where profile_id = $1`,
       [profileId],
     );
     const row = result.rows[0];
@@ -49,7 +50,7 @@ export class PostgresCredentialProfileStore implements CredentialProfileStore {
   async put(profile: SandboxManagerCredentialProfile): Promise<void> {
     const parsed = sandboxManagerCredentialProfileSchema.parse(profile);
     await this.pool.query(
-      `insert into credential_profiles
+      `insert into ${dbTables.credentialProfiles}
         (profile_id, kind, display_name, profile, created_at, updated_at)
        values ($1, $2, $3, $4::jsonb, $5, $6)
        on conflict (profile_id) do update set
@@ -70,7 +71,7 @@ export class PostgresCredentialProfileStore implements CredentialProfileStore {
 
   async delete(profileId: string): Promise<void> {
     await this.pool.query(
-      "delete from credential_profiles where profile_id = $1",
+      `delete from ${dbTables.credentialProfiles} where profile_id = $1`,
       [profileId],
     );
   }

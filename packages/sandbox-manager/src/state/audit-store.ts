@@ -1,4 +1,5 @@
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 
 export type AuditRecord = {
   sandboxId?: string;
@@ -17,7 +18,7 @@ export class PostgresAuditStore implements AuditStore {
 
   async append(record: AuditRecord): Promise<void> {
     await this.pool.query(
-      `insert into manager_audit (sandbox_id, actor, action, success, details)
+      `insert into ${dbTables.managerAudit} (sandbox_id, actor, action, success, details)
        values ($1, $2, $3, $4, $5::jsonb)`,
       [
         record.sandboxId ?? null,

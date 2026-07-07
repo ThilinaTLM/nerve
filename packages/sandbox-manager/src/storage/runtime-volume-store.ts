@@ -1,5 +1,6 @@
 import type { VolumeRef } from "@nervekit/shared";
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 import type { PreparedRuntimeVolumes } from "./volume-provider.js";
 
 export interface RuntimeVolumeStore {
@@ -22,7 +23,7 @@ export class PostgresRuntimeVolumeStore implements RuntimeVolumeStore {
     refs: PreparedRuntimeVolumes,
   ): Promise<void> {
     await this.pool.query(
-      `insert into runtime_volumes
+      `insert into ${dbTables.runtimeVolumes}
         (sandbox_id, workspace_ref, state_ref, secrets_ref, config_ref, backend, updated_at)
        values ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6, now())
        on conflict (sandbox_id) do update set
@@ -52,7 +53,9 @@ export class PostgresRuntimeVolumeStore implements RuntimeVolumeStore {
       secrets_ref: VolumeRef;
       config_ref: VolumeRef | null;
       backend: string;
-    }>("select * from runtime_volumes where sandbox_id = $1", [sandboxId]);
+    }>(`select * from ${dbTables.runtimeVolumes} where sandbox_id = $1`, [
+      sandboxId,
+    ]);
     const row = result.rows[0];
     return row
       ? {

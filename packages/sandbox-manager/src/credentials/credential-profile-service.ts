@@ -8,6 +8,7 @@ import {
   sandboxManagerCredentialProfileSchema,
 } from "@nervekit/shared";
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 import type { PostgresKvSecretStore } from "../secrets/postgres-kv-secret-store.js";
 import type { PostgresCredentialProfileStore } from "./credential-profile-store.js";
 import {
@@ -37,12 +38,12 @@ export class CredentialProfileService {
 
   async delete(profileId: string): Promise<void> {
     const result = await this.pool.query<{ secret_key: string }>(
-      "select secret_key from credential_profile_secrets where profile_id = $1",
+      `select secret_key from ${dbTables.credentialProfileSecrets} where profile_id = $1`,
       [profileId],
     );
     for (const row of result.rows) await this.secrets.delete(row.secret_key);
     await this.pool.query(
-      "delete from credential_profile_secrets where profile_id = $1",
+      `delete from ${dbTables.credentialProfileSecrets} where profile_id = $1`,
       [profileId],
     );
     await this.profiles.delete(profileId);
@@ -64,7 +65,7 @@ export class CredentialProfileService {
         version: now,
       });
       await this.pool.query(
-        `insert into credential_profile_secrets
+        `insert into ${dbTables.credentialProfileSecrets}
           (profile_id, purpose, secret_key, created_at, updated_at)
          values ($1, $2, $3, now(), now())
          on conflict (profile_id, purpose) do update set

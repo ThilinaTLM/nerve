@@ -5,6 +5,7 @@ import {
   managedSandboxRecordSchema,
 } from "@nervekit/shared";
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 import { atomicWriteFile, isNotFound } from "./atomic-write.js";
 
 export interface ManagerStore {
@@ -19,7 +20,7 @@ export class PostgresManagerStore implements ManagerStore {
 
   async list(): Promise<ManagedSandboxRecord[]> {
     const result = await this.pool.query<{ record: unknown }>(
-      "select record from sandboxes order by sandbox_id",
+      `select record from ${dbTables.sandboxes} order by sandbox_id`,
     );
     return result.rows.map((row) =>
       managedSandboxRecordSchema.parse(row.record),
@@ -28,7 +29,7 @@ export class PostgresManagerStore implements ManagerStore {
 
   async get(sandboxId: string): Promise<ManagedSandboxRecord | undefined> {
     const result = await this.pool.query<{ record: unknown }>(
-      "select record from sandboxes where sandbox_id = $1",
+      `select record from ${dbTables.sandboxes} where sandbox_id = $1`,
       [sandboxId],
     );
     const row = result.rows[0];
@@ -38,7 +39,7 @@ export class PostgresManagerStore implements ManagerStore {
   async put(record: ManagedSandboxRecord): Promise<void> {
     const parsed = managedSandboxRecordSchema.parse(record);
     await this.pool.query(
-      `insert into sandboxes
+      `insert into ${dbTables.sandboxes}
         (sandbox_id, record, desired_state, observed_state, updated_at)
        values ($1, $2::jsonb, $3, $4, now())
        on conflict (sandbox_id) do update set
@@ -56,9 +57,10 @@ export class PostgresManagerStore implements ManagerStore {
   }
 
   async delete(sandboxId: string): Promise<void> {
-    await this.pool.query("delete from sandboxes where sandbox_id = $1", [
-      sandboxId,
-    ]);
+    await this.pool.query(
+      `delete from ${dbTables.sandboxes} where sandbox_id = $1`,
+      [sandboxId],
+    );
   }
 }
 

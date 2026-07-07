@@ -8,6 +8,7 @@ COPY patches ./patches
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/shared/dist packages/shared/dist
 COPY packages/sandbox-manager/package.json packages/sandbox-manager/package.json
+COPY packages/sandbox-manager/migrations packages/sandbox-manager/migrations
 COPY packages/sandbox-manager/dist packages/sandbox-manager/dist
 COPY packages/sandbox-manager-ui/dist packages/sandbox-manager-ui/dist
 RUN pnpm --filter @nervekit/sandbox-manager deploy --prod --legacy /manager

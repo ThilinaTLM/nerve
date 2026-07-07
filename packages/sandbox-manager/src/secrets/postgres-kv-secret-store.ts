@@ -1,4 +1,5 @@
 import type { PostgresPool } from "../db/postgres.js";
+import { dbTables } from "../db/tables.js";
 import type {
   KvSecretStore,
   ManagerSecretMetadata,
@@ -69,7 +70,7 @@ export class PostgresKvSecretStore implements KvSecretStore {
       this.allowCleartext,
     );
     await this.pool.query(
-      `insert into manager_secrets (secret_key, envelope, metadata, created_at, updated_at)
+      `insert into ${dbTables.managerSecrets} (secret_key, envelope, metadata, created_at, updated_at)
        values ($1, $2::jsonb, $3::jsonb, now(), now())
        on conflict (secret_key) do update set
          envelope = excluded.envelope,
@@ -85,9 +86,10 @@ export class PostgresKvSecretStore implements KvSecretStore {
     if (request.key.length > 512) throw new Error("Secret key is too long");
     const result = await this.pool.query<{
       envelope: ManagerSecretResolveResponse | EncryptedSecretEnvelope;
-    }>("select envelope from manager_secrets where secret_key = $1", [
-      request.key,
-    ]);
+    }>(
+      `select envelope from ${dbTables.managerSecrets} where secret_key = $1`,
+      [request.key],
+    );
     const row = result.rows[0];
     if (!row) throw new Error(`Secret not found: ${request.key}`);
     const value = decodeSecretEnvelope(
@@ -108,7 +110,7 @@ export class PostgresKvSecretStore implements KvSecretStore {
       updated_at: Date;
     }>(
       `select secret_key, metadata, created_at, updated_at
-       from manager_secrets
+       from ${dbTables.managerSecrets}
        order by secret_key`,
     );
     return result.rows.map((row) => ({
@@ -120,8 +122,9 @@ export class PostgresKvSecretStore implements KvSecretStore {
   }
 
   async delete(key: string): Promise<void> {
-    await this.pool.query("delete from manager_secrets where secret_key = $1", [
-      key,
-    ]);
+    await this.pool.query(
+      `delete from ${dbTables.managerSecrets} where secret_key = $1`,
+      [key],
+    );
   }
 }
