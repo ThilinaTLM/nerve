@@ -5,6 +5,7 @@ These examples are illustrative. IDs, timestamps, URLs, image names, model names
 ## 1. Minimal YAML config
 
 ```yaml
+# yaml-language-server: $schema=../../../packages/shared/schemas/sandbox-config-v1.schema.json
 version: 1
 
 modelCatalog:

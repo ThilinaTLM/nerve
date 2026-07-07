@@ -16,6 +16,21 @@ The configuration is an input contract for the sandbox daemon. It is not an auth
 - Raw secrets MUST NOT be embedded in the YAML document.
 - The sandbox SHOULD write a sanitized copy of the loaded config and its digest to `/state/config`.
 
+## Config file location and schema
+
+The sandbox-agent loads its YAML config from `NERVE_SANDBOX_AGENT_CONFIG` when set, otherwise from `/etc/nerve/sandbox.yaml`. The sandbox manager normally materializes and mounts that file read-only at `/etc/nerve/sandbox.yaml`.
+
+The authoritative runtime schema is the Zod schema in `packages/shared/src/domains/sandbox/sandbox.config.schema.ts` (`sandboxConfigV1Schema`). A generated Draft 7 JSON Schema for editor and YAML language-server tooling is committed at `packages/shared/schemas/sandbox-config-v1.schema.json` and exported from `@nervekit/shared/schemas/sandbox-config-v1.schema.json`.
+
+YAML files can use JSON Schema because YAML maps to the JSON data model used by schema tooling. For local authoring, associate the schema explicitly:
+
+```yaml
+# yaml-language-server: $schema=./packages/shared/schemas/sandbox-config-v1.schema.json
+version: 1
+```
+
+The generated JSON Schema is an authoring aid, not the final security boundary. Runtime Zod validation remains authoritative, including cross-field hardening rules that JSON Schema tooling may not fully express, such as secret-store reference consistency, OAuth refresh persistence requirements, disconnect-policy consistency, selected model references, credential-backed tool group requirements, and raw-secret rejection.
+
 ## Manager-owned authentication model
 
 The sandbox manager/controller owns interactive authentication and account-level authorization. The sandbox only receives credential references, already-issued credential bundles, and optional secret-store endpoints.
