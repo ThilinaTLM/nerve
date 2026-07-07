@@ -8,20 +8,26 @@
   import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import ScrollText from "@lucide/svelte/icons/scroll-text";
+  import Square from "@lucide/svelte/icons/square";
   import Terminal from "@lucide/svelte/icons/terminal";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
   import Wrench from "@lucide/svelte/icons/wrench";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
   import { Badge } from "@nervekit/ui/components/ui/badge";
   import { Button } from "@nervekit/ui/components/ui/button";
   import { Card, CardContent, CardHeader, CardTitle } from "@nervekit/ui/components/ui/card";
   import SandboxBootProgress from "../SandboxBootProgress.svelte";
+  import SandboxRemoveDialog from "../SandboxRemoveDialog.svelte";
   import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
   import { activityFor } from "../../state/sandbox-manager-selectors.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
+  import { canRestart, canStop } from "../../state/sandbox-status";
 
   let { record }: { record: ManagedSandboxRecord } = $props();
 
   const store = useSandboxManagerStore();
+  let removeOpen = $state(false);
+
   const detail = $derived(store.details[record.sandboxId]);
   const activity = $derived(activityFor(store, record.sandboxId));
   const progress = $derived(computeSandboxBootProgress(record, detail));
@@ -89,6 +95,10 @@
     { label: "Activity", value: activity?.title ?? "—" },
   ]);
 
+  function guard(action: Promise<void>): void {
+    action.catch(() => undefined);
+  }
+
   function refresh(): void {
     void Promise.all([store.refreshFleet(), store.loadDetail(record.sandboxId)]);
   }
@@ -110,6 +120,25 @@
       <div class="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onclick={() => store.startNewConversation(record.sandboxId)}>
           <MessageSquarePlus class="size-4" /> New conversation
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!canStop(record)}
+          onclick={() => guard(store.stopSandbox(record.sandboxId))}
+        >
+          <Square class="size-4" /> Stop
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!canRestart(record)}
+          onclick={() => guard(store.restartSandbox(record.sandboxId))}
+        >
+          <RefreshCw class="size-4" /> Restart
+        </Button>
+        <Button size="sm" variant="destructive" onclick={() => (removeOpen = true)}>
+          <Trash2 class="size-4" /> Delete
         </Button>
         <Button size="sm" variant="outline" onclick={refresh}>
           <RefreshCw class="size-4" /> Refresh
@@ -185,3 +214,5 @@
     </section>
   </div>
 </div>
+
+<SandboxRemoveDialog bind:open={removeOpen} {record} />

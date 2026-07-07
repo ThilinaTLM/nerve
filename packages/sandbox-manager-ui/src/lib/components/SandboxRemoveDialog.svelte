@@ -4,6 +4,7 @@
   import { Button } from "@nervekit/ui/components/ui/button";
   import DialogShell from "@nervekit/ui/components/ui/dialog-shell";
   import SwitchField from "@nervekit/ui/components/ui/switch-field";
+  import { useSandboxCenter } from "../state/sandbox-center.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 
   let {
@@ -11,6 +12,7 @@
     record,
   }: { open?: boolean; record: ManagedSandboxRecord } = $props();
 
+  const center = useSandboxCenter();
   const store = useSandboxManagerStore();
   let force = $state(false);
   let removeVolumes = $state(false);
@@ -22,6 +24,7 @@
     busy = true;
     try {
       await store.removeSandbox(record.sandboxId, { force, removeVolumes });
+      if (center.selectedSandboxId === record.sandboxId) center.clearSelection();
       open = false;
       force = false;
       removeVolumes = false;
