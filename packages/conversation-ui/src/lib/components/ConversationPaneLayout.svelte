@@ -21,7 +21,7 @@
     showScrollButton = false,
     composerHeight = 0,
     onJumpToBottom,
-    composerWrapRef = $bindable(null),
+    composerWrapRef = $bindable(),
     transcript,
     composer,
     empty,
