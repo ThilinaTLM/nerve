@@ -22,7 +22,7 @@ function baseConfig(
 }
 
 const options = {
-  image: "nerve-sandbox:dev",
+  image: "nerve-sandbox-agent:dev",
   sandboxId: "sbx_1",
   managerBaseUrl: "http://127.0.0.1:7869",
   workspaceSource: "/w",
@@ -37,7 +37,7 @@ describe("buildSandboxLaunchSpec log level propagation", () => {
       ...options,
       logLevel: "debug",
     });
-    assert.equal(spec.env?.NERVE_SANDBOX_LOG_LEVEL, "debug");
+    assert.equal(spec.env?.NERVE_SANDBOX_AGENT_LOG_LEVEL, "debug");
   });
 
   it("does not override an explicit sandbox observability.logLevel", () => {
@@ -45,11 +45,11 @@ describe("buildSandboxLaunchSpec log level propagation", () => {
       ...options,
       logLevel: "debug",
     });
-    assert.equal(spec.env?.NERVE_SANDBOX_LOG_LEVEL, undefined);
+    assert.equal(spec.env?.NERVE_SANDBOX_AGENT_LOG_LEVEL, undefined);
   });
 
   it("omits the env var when the manager provides no level", () => {
     const spec = buildSandboxLaunchSpec(baseConfig(), options);
-    assert.equal(spec.env?.NERVE_SANDBOX_LOG_LEVEL, undefined);
+    assert.equal(spec.env?.NERVE_SANDBOX_AGENT_LOG_LEVEL, undefined);
   });
 });

@@ -33,11 +33,11 @@ export function buildSandboxLaunchSpec(
     instanceId,
     image: options.image,
     env: {
-      NERVE_SANDBOX_CONFIG: "/etc/nerve/sandbox.yaml",
-      NERVE_SANDBOX_STATE_DIR: "/state",
-      NERVE_SANDBOX_WORKSPACE_DIR: "/workspace",
+      NERVE_SANDBOX_AGENT_CONFIG: "/etc/nerve/sandbox.yaml",
+      NERVE_SANDBOX_AGENT_STATE_DIR: "/state",
+      NERVE_SANDBOX_AGENT_WORKSPACE_DIR: "/workspace",
       ...(options.logLevel && !config.observability?.logLevel
-        ? { NERVE_SANDBOX_LOG_LEVEL: options.logLevel }
+        ? { NERVE_SANDBOX_AGENT_LOG_LEVEL: options.logLevel }
         : {}),
     },
     labels: {

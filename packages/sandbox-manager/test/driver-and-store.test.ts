@@ -17,7 +17,7 @@ function spec(): ManagedContainerCreateSpec {
   return {
     sandboxId: "sbx_1",
     instanceId: "inst_1",
-    image: "nerve-sandbox:dev",
+    image: "nerve-sandbox-agent:dev",
     env: { A: "B" },
     labels: { "org.nerve.sandbox.spec": "v1" },
     mounts: [

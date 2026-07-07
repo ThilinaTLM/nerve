@@ -13,7 +13,7 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "--help" || command === "-h") {
-    console.log("Usage: nerve-sandbox [healthcheck]");
+    console.log("Usage: nerve-sandbox-agent [healthcheck]");
     return;
   }
   const result = await runSandboxEntrypoint();

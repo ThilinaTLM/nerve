@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { describe, it } from "node:test";
+import { promisify } from "node:util";
 import { runGitSetup } from "../src/setup/git-setup.js";
 
 const execFileAsync = promisify(execFile);
@@ -35,11 +42,18 @@ describe("git setup", () => {
             safeDirectory: "workspace",
           },
         },
-        { workspaceDir: workspace, stateDir: state, credentialsDir: credentials },
+        {
+          workspaceDir: workspace,
+          stateDir: state,
+          credentialsDir: credentials,
+        },
       );
 
       assert.equal(result.status, "completed");
-      assert.equal(result.env?.GIT_CONFIG_GLOBAL, path.join(state, "git", "config"));
+      assert.equal(
+        result.env?.GIT_CONFIG_GLOBAL,
+        path.join(state, "git", "config"),
+      );
       const { stdout: name } = await execFileAsync(
         "git",
         ["config", "--global", "user.name"],
@@ -76,7 +90,11 @@ describe("git setup", () => {
             },
           },
         },
-        { workspaceDir: workspace, stateDir: state, credentialsDir: credentials },
+        {
+          workspaceDir: workspace,
+          stateDir: state,
+          credentialsDir: credentials,
+        },
       );
 
       assert.equal(result.status, "completed");
@@ -100,7 +118,10 @@ describe("git setup", () => {
       const credentials = path.join(state, "credentials");
       await mkdir(workspace, { recursive: true });
       const keyFile = path.join(dir, "id_ed25519");
-      await writeFile(keyFile, "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----\n");
+      await writeFile(
+        keyFile,
+        "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----\n",
+      );
       const result = await runGitSetup(
         {
           ...baseConfig,
@@ -114,7 +135,11 @@ describe("git setup", () => {
             },
           },
         },
-        { workspaceDir: workspace, stateDir: state, credentialsDir: credentials },
+        {
+          workspaceDir: workspace,
+          stateDir: state,
+          credentialsDir: credentials,
+        },
       );
 
       assert.equal(result.status, "completed");

@@ -16,7 +16,7 @@ export class SandboxConfigLoadError extends Error {
 }
 
 export function resolveSandboxConfigPath(env = process.env): string {
-  return env.NERVE_SANDBOX_CONFIG?.trim() || defaultSandboxConfigPath;
+  return env.NERVE_SANDBOX_AGENT_CONFIG?.trim() || defaultSandboxConfigPath;
 }
 
 export async function loadSandboxConfig(

@@ -82,7 +82,9 @@ describe("Sandbox shared schemas", () => {
       ...minimalConfig(),
       secretStores: {
         defaultStore: "manager",
-        stores: { manager: { type: "http_kv", endpoint: "https://secrets.test" } },
+        stores: {
+          manager: { type: "http_kv", endpoint: "https://secrets.test" },
+        },
       },
       git: {
         enabled: true,
@@ -350,7 +352,7 @@ describe("Sandbox shared schemas", () => {
     assert.equal(
       sandboxCreateRequestSchema.safeParse({
         config: withoutController,
-        image: "nerve-sandbox:dev",
+        image: "nerve-sandbox-agent:dev",
         name: "demo",
         start: true,
       }).success,
@@ -499,7 +501,7 @@ describe("Sandbox shared schemas", () => {
       managedSandboxRecordSchema.safeParse({
         sandboxId: "sbx_1",
         backend: "docker",
-        image: { reference: "nerve-sandbox:dev", sandboxSpec: "v1" },
+        image: { reference: "nerve-sandbox-agent:dev", sandboxSpec: "v1" },
         desiredState: "running",
         observedState: "starting",
         workspaceRef: {
@@ -517,7 +519,7 @@ describe("Sandbox shared schemas", () => {
       managedContainerCreateSpecSchema.safeParse({
         sandboxId: "sbx_1",
         instanceId: "inst_1",
-        image: "nerve-sandbox:dev",
+        image: "nerve-sandbox-agent:dev",
         env: {},
         labels: { "org.nerve.sandbox.spec": "v1" },
         mounts: [

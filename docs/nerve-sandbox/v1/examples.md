@@ -28,7 +28,7 @@ controller:
   auth:
     type: api_key
     apiKey:
-      env: NERVE_SANDBOX_API_KEY
+      env: NERVE_SANDBOX_AGENT_API_KEY
 
 tools:
   groups:
@@ -601,14 +601,14 @@ docker run --rm \
   --memory 4g \
   --cpus 2 \
   --network bridge \
-  -e NERVE_SANDBOX_CONFIG=/etc/nerve/sandbox.yaml \
-  -e NERVE_SANDBOX_API_KEY \
+  -e NERVE_SANDBOX_AGENT_CONFIG=/etc/nerve/sandbox.yaml \
+  -e NERVE_SANDBOX_AGENT_API_KEY \
   --mount type=bind,src="$PWD/sandbox.yaml",target=/etc/nerve/sandbox.yaml,readonly \
   --mount type=bind,src="$PWD/.sandbox/secrets",target=/secrets,readonly \
   --mount type=volume,src=nerve-workspace,target=/workspace \
   --mount type=volume,src=nerve-state,target=/state \
   --tmpfs /tmp \
-  ghcr.io/example/nerve-sandbox:latest
+  ghcr.io/example/nerve-sandbox-agent:latest
 ```
 
 Use `/credentials` only when the config uses `refresh.persist: file`. Production deployments should prefer immutable image digests and platform-native secret mounts or manager key-value stores.

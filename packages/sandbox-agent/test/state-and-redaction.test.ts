@@ -13,9 +13,11 @@ import { recoverSandboxState } from "../src/state/recovery.js";
 import { resolveSandboxRuntimePaths } from "../src/state/state-layout.js";
 import { initializeSandboxState } from "../src/state/state-store.js";
 
-describe("sandbox image durable state foundations", () => {
+describe("sandbox agent image durable state foundations", () => {
   it("enforces a single state lock", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-sandbox-lock-"));
+    const dir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-sandbox-agent-lock-"),
+    );
     try {
       const lock = await StateLock.acquire(dir);
       await assert.rejects(() => StateLock.acquire(dir), /already held/);
@@ -26,7 +28,9 @@ describe("sandbox image durable state foundations", () => {
   });
 
   it("persists command idempotency and event ack state", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-sandbox-state-"));
+    const dir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-sandbox-agent-state-"),
+    );
     try {
       const inbox = new CommandInbox(path.join(dir, "commands.jsonl"));
       await inbox.load();
@@ -90,11 +94,13 @@ describe("sandbox image durable state foundations", () => {
   });
 
   it("initializes the v1 state layout and fails closed on corrupt command journals", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-sandbox-recover-"));
+    const dir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-sandbox-agent-recover-"),
+    );
     try {
       const paths = resolveSandboxRuntimePaths({
-        NERVE_SANDBOX_STATE_DIR: path.join(dir, "state"),
-        NERVE_SANDBOX_WORKSPACE_DIR: path.join(dir, "workspace"),
+        NERVE_SANDBOX_AGENT_STATE_DIR: path.join(dir, "state"),
+        NERVE_SANDBOX_AGENT_WORKSPACE_DIR: path.join(dir, "workspace"),
       });
       const config = {
         version: 1,

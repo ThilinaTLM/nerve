@@ -1,6 +1,6 @@
 # Customization
 
-Sandbox customization has five layers for the sandbox image/runtime, plus a separate manager layer that decides how containers are launched and observed. Reproducible behavior depends on keeping these layers explicit and pinned.
+Sandbox customization has five layers for the sandbox agent image/runtime, plus a separate manager layer that decides how containers are launched and observed. Reproducible behavior depends on keeping these layers explicit and pinned.
 
 ```text
 Manager launch policy -> Base image -> Derived image -> Built-in skills -> Runtime YAML config -> Boot phases
@@ -37,7 +37,7 @@ A Sandbox v1 base image SHOULD provide:
 The base image SHOULD be referenced by immutable digest in production:
 
 ```Dockerfile
-FROM ghcr.io/example/nerve-sandbox@sha256:<digest>
+FROM ghcr.io/example/nerve-sandbox-agent@sha256:<digest>
 ```
 
 ## Derived image pattern
@@ -45,7 +45,7 @@ FROM ghcr.io/example/nerve-sandbox@sha256:<digest>
 A project or platform can build a derived image for reproducible dependencies:
 
 ```Dockerfile
-FROM ghcr.io/example/nerve-sandbox@sha256:<digest>
+FROM ghcr.io/example/nerve-sandbox-agent@sha256:<digest>
 
 USER root
 RUN apt-get update \

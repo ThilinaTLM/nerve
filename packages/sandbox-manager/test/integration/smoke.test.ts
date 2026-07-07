@@ -37,9 +37,9 @@ describe("guarded docker/podman sandbox smoke", () => {
   });
 
   it("runs an opt-in create/start/connect/status/cleanup smoke", async (t) => {
-    const image = process.env.NERVE_SANDBOX_SMOKE_IMAGE?.trim();
+    const image = process.env.NERVE_SANDBOX_AGENT_SMOKE_IMAGE?.trim();
     if (!image) {
-      t.skip("NERVE_SANDBOX_SMOKE_IMAGE is not configured");
+      t.skip("NERVE_SANDBOX_AGENT_SMOKE_IMAGE is not configured");
       return;
     }
     const backend = await availableBackend();
@@ -158,7 +158,8 @@ async function waitForConnectedStatus(
 }
 
 function publicManagerUrl(port: number): string {
-  const configured = process.env.NERVE_SANDBOX_SMOKE_MANAGER_PUBLIC_URL?.trim();
+  const configured =
+    process.env.NERVE_SANDBOX_AGENT_SMOKE_MANAGER_PUBLIC_URL?.trim();
   if (configured) return configured.replace("{port}", String(port));
   return `ws://host.docker.internal:${port}`;
 }

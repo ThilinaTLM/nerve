@@ -127,12 +127,17 @@ function githubAuthForProfile(
 ): unknown {
   const credential = profile.credential;
   if (!isObject(credential)) return credential;
-  if (profile.providerKind === "github_pat" || profile.providerKind === "github_oauth") {
+  if (
+    profile.providerKind === "github_pat" ||
+    profile.providerKind === "github_oauth"
+  ) {
     if ("token" in credential) return { type: "pat", token: credential.token };
-    if ("apiKey" in credential) return { type: "pat", token: credential.apiKey };
+    if ("apiKey" in credential)
+      return { type: "pat", token: credential.apiKey };
   }
   if (profile.providerKind === "github_app") {
-    if ("token" in credential) return { type: "app_token", token: credential.token };
+    if ("token" in credential)
+      return { type: "app_token", token: credential.token };
   }
   if (profile.providerKind === "github_ssh") {
     if ("privateKey" in credential) {
@@ -152,7 +157,10 @@ function gitCredentialForGithubProfile(
 ): unknown | undefined {
   const credential = profile.credential;
   if (!isObject(credential)) return undefined;
-  if (profile.providerKind === "github_pat" || profile.providerKind === "github_oauth") {
+  if (
+    profile.providerKind === "github_pat" ||
+    profile.providerKind === "github_oauth"
+  ) {
     const token = credential.token ?? credential.apiKey;
     if (!token) return undefined;
     return {

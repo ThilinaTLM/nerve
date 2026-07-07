@@ -54,14 +54,15 @@ export async function runSandboxEntrypoint(
   const configPath = resolveSandboxConfigPath(env);
   const config = await loadSandboxConfig(configPath);
   const configDigest = sandboxConfigDigest(config);
-  const instanceId = env.NERVE_SANDBOX_INSTANCE_ID ?? `inst_${Date.now()}`;
+  const instanceId =
+    env.NERVE_SANDBOX_AGENT_INSTANCE_ID ?? `inst_${Date.now()}`;
   const logger = createLogger({
     level: resolveLogLevel(
-      env.NERVE_SANDBOX_LOG_LEVEL,
+      env.NERVE_SANDBOX_AGENT_LOG_LEVEL,
       config.observability?.logLevel ?? "info",
     ),
     base: {
-      source: "sandbox",
+      source: "sandbox-agent",
       component: "sandbox-agent",
       sandboxId: config.identity?.sandboxId,
       instanceId,
@@ -176,7 +177,9 @@ export async function runSandboxEntrypoint(
     }),
   );
   if (git.status === "failed")
-    throw new Error(`Git setup failed: ${git.error?.message ?? "unknown error"}`);
+    throw new Error(
+      `Git setup failed: ${git.error?.message ?? "unknown error"}`,
+    );
   if (github.status === "failed")
     throw new Error(
       `GitHub setup failed: ${github.error?.message ?? "unknown error"}`,
@@ -248,7 +251,7 @@ export async function runSandboxEntrypoint(
   };
   process.once("SIGTERM", () => void stop().finally(() => process.exit(0)));
   process.once("SIGINT", () => void stop().finally(() => process.exit(0)));
-  if (env.NERVE_SANDBOX_ONESHOT === "1") {
+  if (env.NERVE_SANDBOX_AGENT_ONESHOT === "1") {
     return { ...persisted, status, session };
   }
   return await new Promise<never>(() => undefined);

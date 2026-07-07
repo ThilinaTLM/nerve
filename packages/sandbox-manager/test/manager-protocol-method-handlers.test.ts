@@ -8,7 +8,7 @@ import type { SandboxWsServer } from "../src/protocol/sandbox-ws-server.js";
 const record = {
   sandboxId: "sbx_1",
   backend: "docker",
-  image: { reference: "nerve-sandbox:dev", sandboxSpec: "v1" },
+  image: { reference: "nerve-sandbox-agent:dev", sandboxSpec: "v1" },
   desiredState: "running",
   observedState: "running",
   workspaceRef: {

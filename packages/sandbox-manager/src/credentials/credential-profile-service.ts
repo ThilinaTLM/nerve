@@ -74,7 +74,9 @@ export class CredentialProfileService {
       );
     }
     const configured = Boolean(
-      request.providerKind === "git_identity" || secretInputs.length > 0 || existing,
+      request.providerKind === "git_identity" ||
+        secretInputs.length > 0 ||
+        existing,
     );
     const profile = sandboxManagerCredentialProfileSchema.parse({
       ...(existing ?? {}),
@@ -127,19 +129,36 @@ function secretInputsForRequest(
   request: SandboxManagerCredentialProfileWrite,
 ): Array<{ purpose: string; value: string; expiresAt?: string }> {
   const expiresAt = request.oauthImport?.expiresAt;
-  const inputs: Array<{ purpose: string; value: string; expiresAt?: string }> = [];
+  const inputs: Array<{ purpose: string; value: string; expiresAt?: string }> =
+    [];
   if (request.apiKey)
     inputs.push({ purpose: "api-key", value: request.apiKey, expiresAt });
   if (request.bearerToken)
-    inputs.push({ purpose: "bearer-token", value: request.bearerToken, expiresAt });
+    inputs.push({
+      purpose: "bearer-token",
+      value: request.bearerToken,
+      expiresAt,
+    });
   if (request.password)
     inputs.push({ purpose: "password", value: request.password, expiresAt });
   if (request.privateKey)
-    inputs.push({ purpose: "private-key", value: request.privateKey, expiresAt });
+    inputs.push({
+      purpose: "private-key",
+      value: request.privateKey,
+      expiresAt,
+    });
   if (request.passphrase)
-    inputs.push({ purpose: "passphrase", value: request.passphrase, expiresAt });
+    inputs.push({
+      purpose: "passphrase",
+      value: request.passphrase,
+      expiresAt,
+    });
   if (request.knownHosts)
-    inputs.push({ purpose: "known-hosts", value: request.knownHosts, expiresAt });
+    inputs.push({
+      purpose: "known-hosts",
+      value: request.knownHosts,
+      expiresAt,
+    });
   if (request.githubApp)
     inputs.push({
       purpose: "github-app",
@@ -166,9 +185,15 @@ function secretRefSummaries(
   primaryPurpose: string,
   configured: boolean,
   expiresAt: string | undefined,
-  existing: Array<{ purpose: string; configured: boolean; expiresAt?: string }> = [],
+  existing: Array<{
+    purpose: string;
+    configured: boolean;
+    expiresAt?: string;
+  }> = [],
 ): Array<{ purpose: string; configured: boolean; expiresAt?: string }> {
-  const purposes = new Set(secretInputsForRequest(request).map((input) => input.purpose));
+  const purposes = new Set(
+    secretInputsForRequest(request).map((input) => input.purpose),
+  );
   if (purposes.size === 0 && existing.length > 0)
     for (const ref of existing) purposes.add(ref.purpose);
   if (purposes.size === 0 && request.providerKind !== "git_identity")
@@ -229,10 +254,18 @@ function credentialConfigForProfile(
       type: "ssh",
       privateKey: ref,
       ...(request.passphrase
-        ? { passphrase: { kv: { key: credentialSecretKey(profileId, "passphrase") } } }
+        ? {
+            passphrase: {
+              kv: { key: credentialSecretKey(profileId, "passphrase") },
+            },
+          }
         : {}),
       ...(request.knownHosts
-        ? { knownHosts: { kv: { key: credentialSecretKey(profileId, "known-hosts") } } }
+        ? {
+            knownHosts: {
+              kv: { key: credentialSecretKey(profileId, "known-hosts") },
+            },
+          }
         : {}),
     };
   if (request.password)

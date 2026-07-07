@@ -37,12 +37,12 @@ Status/snapshot payloads should be parsed with `sandboxStatusGetResultSchema` an
 
 ```sh
 pnpm --filter @nervekit/shared check
-pnpm --filter @nervekit/sandbox-image check
+pnpm --filter @nervekit/sandbox-agent check
 pnpm --filter @nervekit/sandbox-manager check
 pnpm --filter @nervekit/ui check
 pnpm --filter @nervekit/sandbox-manager-ui check
 pnpm --filter @nervekit/shared test
-pnpm --filter @nervekit/sandbox-image test
+pnpm --filter @nervekit/sandbox-agent test
 pnpm --filter @nervekit/sandbox-manager test
 pnpm --filter @nervekit/sandbox-manager-ui test
 pnpm lint

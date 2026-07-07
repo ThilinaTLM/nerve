@@ -189,7 +189,7 @@ export function createDefaultDraft(): CreateSandboxDraft {
   return {
     name: identity.name,
     sandboxId: identity.sandboxId,
-    image: "nerve-sandbox:dev",
+    image: "nerve-sandbox-agent:dev",
     labels: "",
     startAfterCreate: true,
     mainProvider: "anthropic",

@@ -1,6 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { SandboxConfigV1, SandboxSecretRef, StartupSetupStatus } from "@nervekit/shared";
+import type {
+  SandboxConfigV1,
+  SandboxSecretRef,
+  StartupSetupStatus,
+} from "@nervekit/shared";
 import type { SecretResolver } from "../credentials/secret-resolver.js";
 
 export type GithubSetupOptions = {
@@ -28,9 +32,13 @@ export async function runGithubSetup(
     if (token) {
       const tokenFile = path.join(githubDir, "token");
       await writeFile(tokenFile, token, { mode: 0o600 });
-      await writeFile(path.join(githubDir, "env.sh"), `export GH_TOKEN="$(cat ${shellQuote(tokenFile)})"\n`, {
-        mode: 0o600,
-      });
+      await writeFile(
+        path.join(githubDir, "env.sh"),
+        `export GH_TOKEN="$(cat ${shellQuote(tokenFile)})"\n`,
+        {
+          mode: 0o600,
+        },
+      );
       await writeFile(
         path.join(githubDir, "github-askpass.sh"),
         `#!/bin/sh\ncat ${shellQuote(tokenFile)}\n`,
@@ -40,7 +48,9 @@ export async function runGithubSetup(
       limitations.push("github auth token was not configured");
     }
     if (config.github.cli?.enabled)
-      limitations.push("GitHub CLI auth files are prepared only when gh is installed in derived images");
+      limitations.push(
+        "GitHub CLI auth files are prepared only when gh is installed in derived images",
+      );
     return {
       configured: true,
       status: "completed",
@@ -71,14 +81,15 @@ async function resolveGithubToken(
   if (auth.type === "pat" || auth.type === "app_token")
     return resolveSecret(config, resolver, auth.token);
   if (auth.type === "oauth") {
-    if (auth.accessToken) return resolveSecret(config, resolver, auth.accessToken);
+    if (auth.accessToken)
+      return resolveSecret(config, resolver, auth.accessToken);
     if (auth.source) return resolveSecret(config, resolver, auth.source);
   }
   return undefined;
 }
 
 async function resolveSecret(
-  config: SandboxConfigV1,
+  _config: SandboxConfigV1,
   resolver: SecretResolver | undefined,
   ref: SandboxSecretRef,
 ): Promise<string> {
@@ -89,7 +100,9 @@ async function resolveSecret(
     return value;
   }
   if ("file" in ref)
-    return (await import("node:fs/promises")).readFile(ref.file, "utf8").then((value) => value.trimEnd());
+    return (await import("node:fs/promises"))
+      .readFile(ref.file, "utf8")
+      .then((value) => value.trimEnd());
   throw new Error("KV GitHub secret refs require the sandbox secret resolver");
 }
 

@@ -72,10 +72,14 @@ export function buildCredentialProfileWrite(
     env: parseStringRecord(values.envJson, "Provider env"),
     gitAuthorName:
       values.gitAuthorName?.trim() ||
-      (option.providerKind === "git_identity" ? values.displayName.trim() : undefined),
+      (option.providerKind === "git_identity"
+        ? values.displayName.trim()
+        : undefined),
     gitAuthorEmail:
       values.gitAuthorEmail?.trim() ||
-      (option.providerKind === "git_identity" ? values.email.trim() : undefined),
+      (option.providerKind === "git_identity"
+        ? values.email.trim()
+        : undefined),
     defaultModel: values.defaultModel.trim() || undefined,
     defaultOwner: values.defaultOwner.trim() || undefined,
     defaultRepo: values.defaultRepo.trim() || undefined,

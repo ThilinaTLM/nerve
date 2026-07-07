@@ -19,7 +19,7 @@ packages/shared/src/domains/sandbox/
   skills.schema.ts
   setup.schema.ts
 
-packages/sandbox-image/
+packages/sandbox-agent/
   src/entrypoint.ts
   src/config/load-config.ts
   src/config/digest.ts
@@ -96,7 +96,7 @@ Current Nerve components that may be reused or adapted:
 | Git/GitHub service ideas | `packages/orchestrator/src/domains/git/*` |
 | Agent/tool orchestration glue | `packages/orchestrator/src/domains/agents/run/*` and `domains/tools/*` |
 
-The sandbox image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/sandbox-manager-ui` app using shared primitives from `packages/ui`, not the current local workbench reused unchanged.
+The sandbox agent image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/sandbox-manager-ui` app using shared primitives from `packages/ui`, not the current local workbench reused unchanged.
 
 ## Phase 1: shared schemas
 
@@ -144,7 +144,7 @@ Validation:
 
 ## Phase 3: image and entrypoint
 
-Create a minimal sandbox image with:
+Create a minimal sandbox agent image with:
 
 - `/agent` runtime;
 - optional `/agent/skills` built-in skills directory;
@@ -152,7 +152,7 @@ Create a minimal sandbox image with:
 - `/workspace`, `/state`, `/tmp` paths;
 - protected `/state/credentials` and `/state/cache/secrets` paths;
 - dependency cache path under `/state/cache/dependencies`;
-- config loading from `NERVE_SANDBOX_CONFIG`;
+- config loading from `NERVE_SANDBOX_AGENT_CONFIG`;
 - healthcheck command;
 - no current orchestrator/UI dependency.
 

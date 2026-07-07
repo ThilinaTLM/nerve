@@ -25,8 +25,9 @@ export type SandboxRuntimePaths = {
 export function resolveSandboxRuntimePaths(
   env = process.env,
 ): SandboxRuntimePaths {
-  const stateDir = env.NERVE_SANDBOX_STATE_DIR?.trim() || "/state";
-  const workspaceDir = env.NERVE_SANDBOX_WORKSPACE_DIR?.trim() || "/workspace";
+  const stateDir = env.NERVE_SANDBOX_AGENT_STATE_DIR?.trim() || "/state";
+  const workspaceDir =
+    env.NERVE_SANDBOX_AGENT_WORKSPACE_DIR?.trim() || "/workspace";
   const cacheDir = path.join(stateDir, "cache");
   const credentialsDir = path.join(stateDir, "credentials");
   return {

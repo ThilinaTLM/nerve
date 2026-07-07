@@ -40,14 +40,14 @@ describe("explore runtime", () => {
           id: "explore_1",
           name: "explore",
           args: {
-            task: "Find the important sandbox image runtime file",
+            task: "Find the important sandbox agent runtime file",
             context:
-              "Parent already inspected the repository and needs the child to locate the relevant sandbox image runtime file without making changes.",
+              "Parent already inspected the repository and needs the child to locate the relevant sandbox agent runtime file without making changes.",
           },
         },
         {
           type: "assistantText",
-          text: "Child found packages/sandbox-image/src/agent/explore-runtime.ts",
+          text: "Child found packages/sandbox-agent/src/agent/explore-runtime.ts",
         },
         { type: "assistantText", text: "Parent saw the child result." },
       ],

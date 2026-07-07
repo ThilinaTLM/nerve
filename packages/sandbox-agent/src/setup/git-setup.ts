@@ -66,14 +66,33 @@ export async function runGitSetup(
       gitCredentialsDir,
       options.resolver,
     );
-    await configureCredentialHelpers(credentials, gitCredentialsDir, options.workspaceDir, env);
+    await configureCredentialHelpers(
+      credentials,
+      gitCredentialsDir,
+      options.workspaceDir,
+      env,
+    );
 
     const identity = config.git.identity;
     if (identity?.name)
-      await git(["config", "--global", "user.name", identity.name], options.workspaceDir, env);
+      await git(
+        ["config", "--global", "user.name", identity.name],
+        options.workspaceDir,
+        env,
+      );
     if (identity?.email)
-      await git(["config", "--global", "user.email", identity.email], options.workspaceDir, env);
-    if (identity?.signCommits) await configureSigning(config, gitCredentialsDir, options.workspaceDir, env);
+      await git(
+        ["config", "--global", "user.email", identity.email],
+        options.workspaceDir,
+        env,
+      );
+    if (identity?.signCommits)
+      await configureSigning(
+        config,
+        gitCredentialsDir,
+        options.workspaceDir,
+        env,
+      );
 
     await configureSafeDirectory(config, options.workspaceDir, env);
 
@@ -84,9 +103,13 @@ export async function runGitSetup(
     await configureRemotes(config, options.workspaceDir, env);
 
     if (config.git.lfs) {
-      await git(["lfs", "install", "--local"], options.workspaceDir, env).catch((error) => {
-        throw new Error(`Git LFS requested but unavailable or failed: ${errorMessage(error)}`);
-      });
+      await git(["lfs", "install", "--local"], options.workspaceDir, env).catch(
+        (error) => {
+          throw new Error(
+            `Git LFS requested but unavailable or failed: ${errorMessage(error)}`,
+          );
+        },
+      );
     }
 
     return {
@@ -119,9 +142,14 @@ async function configureSafeDirectory(
 ): Promise<void> {
   const safeDirectory = config.git?.safeDirectory;
   if (!safeDirectory || safeDirectory === "none") return;
-  const directories = safeDirectory === "workspace" ? [workspaceDir] : safeDirectory;
+  const directories =
+    safeDirectory === "workspace" ? [workspaceDir] : safeDirectory;
   for (const directory of directories)
-    await git(["config", "--global", "--add", "safe.directory", directory], workspaceDir, env);
+    await git(
+      ["config", "--global", "--add", "safe.directory", directory],
+      workspaceDir,
+      env,
+    );
 }
 
 async function configureSigning(
@@ -132,21 +160,43 @@ async function configureSigning(
 ): Promise<void> {
   const identity = config.git?.identity;
   if (!identity) return;
-  await git(["config", "--global", "commit.gpgsign", "true"], workspaceDir, env);
+  await git(
+    ["config", "--global", "commit.gpgsign", "true"],
+    workspaceDir,
+    env,
+  );
   if (identity.signingFormat)
-    await git(["config", "--global", "gpg.format", identity.signingFormat], workspaceDir, env);
+    await git(
+      ["config", "--global", "gpg.format", identity.signingFormat],
+      workspaceDir,
+      env,
+    );
   if (identity.signingKeyId)
-    await git(["config", "--global", "user.signingkey", identity.signingKeyId], workspaceDir, env);
+    await git(
+      ["config", "--global", "user.signingkey", identity.signingKeyId],
+      workspaceDir,
+      env,
+    );
   if (identity.sshSigningKey) {
     const resolver = getResolver(config);
     const key = await resolver.resolve(identity.sshSigningKey);
     const keyFile = path.join(credentialsDir, "ssh-signing-key");
     await writeFile(keyFile, key, { mode: 0o600 });
-    await git(["config", "--global", "gpg.ssh.program", "ssh-keygen"], workspaceDir, env);
-    await git(["config", "--global", "user.signingkey", keyFile], workspaceDir, env);
+    await git(
+      ["config", "--global", "gpg.ssh.program", "ssh-keygen"],
+      workspaceDir,
+      env,
+    );
+    await git(
+      ["config", "--global", "user.signingkey", keyFile],
+      workspaceDir,
+      env,
+    );
   }
   if (identity.gpgPrivateKey)
-    throw new Error("OpenPGP signing keys are not supported by this sandbox image yet");
+    throw new Error(
+      "OpenPGP signing keys are not supported by this sandbox agent image yet",
+    );
 }
 
 async function cloneRepository(
@@ -163,7 +213,8 @@ async function cloneRepository(
   const policy = clone.ifWorkspaceNotEmpty ?? "skip";
   if (nonEmpty) {
     if (policy === "skip") return;
-    if (policy === "fail") throw new Error(`Clone target is not empty: ${targetDir}`);
+    if (policy === "fail")
+      throw new Error(`Clone target is not empty: ${targetDir}`);
     await rm(targetDir, { recursive: true, force: true });
   }
   const args = ["clone"];
@@ -184,13 +235,27 @@ async function configureRemotes(
   if (!(await isGitRepository(workspaceDir, env))) return;
   for (const remote of remotes) {
     assertCredentialReference(config, remote.credential);
-    const hasRemote = await git(["remote", "get-url", remote.name], workspaceDir, env)
+    const hasRemote = await git(
+      ["remote", "get-url", remote.name],
+      workspaceDir,
+      env,
+    )
       .then(() => true)
       .catch(() => false);
-    if (hasRemote) await git(["remote", "set-url", remote.name, remote.url], workspaceDir, env);
-    else await git(["remote", "add", remote.name, remote.url], workspaceDir, env);
+    if (hasRemote)
+      await git(
+        ["remote", "set-url", remote.name, remote.url],
+        workspaceDir,
+        env,
+      );
+    else
+      await git(["remote", "add", remote.name, remote.url], workspaceDir, env);
     if (remote.pushUrl)
-      await git(["remote", "set-url", "--push", remote.name, remote.pushUrl], workspaceDir, env);
+      await git(
+        ["remote", "set-url", "--push", remote.name, remote.pushUrl],
+        workspaceDir,
+        env,
+      );
   }
 }
 
@@ -233,7 +298,9 @@ async function materializeCredentials(
         );
       }
       if (credential.passphrase)
-        throw new Error("Passphrase-protected SSH keys are not supported by this sandbox image yet");
+        throw new Error(
+          "Passphrase-protected SSH keys are not supported by this sandbox agent image yet",
+        );
       credentials.push({
         name,
         protocol: profile.match?.protocol ?? "ssh",
@@ -280,10 +347,14 @@ async function materializeHttpCredential(
     secret = await resolveSecret(config, resolver, credential.token);
   } else if (credential.type === "oauth") {
     if (!credential.accessToken)
-      throw new Error("OAuth Git credentials require accessToken for Git transport");
+      throw new Error(
+        "OAuth Git credentials require accessToken for Git transport",
+      );
     secret = await resolveSecret(config, resolver, credential.accessToken);
   } else if (credential.type === "gpg" || credential.type === "ssh") {
-    throw new Error(`${credential.type} credential cannot be used for HTTPS Git transport`);
+    throw new Error(
+      `${credential.type} credential cannot be used for HTTPS Git transport`,
+    );
   }
   const file = path.join(credentialsDir, `${safe(name)}_password`);
   await writeFile(file, secret, { mode: 0o600 });
@@ -315,7 +386,11 @@ async function configureCredentialHelpers(
     );
     const helper = path.join(credentialsDir, "credential-helper.mjs");
     await writeFile(helper, credentialHelperScript(manifest), { mode: 0o700 });
-    await git(["config", "--global", "credential.helper", `!node ${helper}`], workspaceDir, env);
+    await git(
+      ["config", "--global", "credential.helper", `!node ${helper}`],
+      workspaceDir,
+      env,
+    );
   }
 
   const ssh = credentials.filter((credential) => credential.sshKeyFile);
@@ -366,7 +441,7 @@ process.stdin.on("end", () => {
   );
   if (!match) return;
   const password = readFileSync(match.passwordFile, "utf8");
-  process.stdout.write(` + "`username=${match.username || \"x-access-token\"}\npassword=${password}\n`" + `);
+  process.stdout.write("username=" + (match.username || "x-access-token") + "\\npassword=" + password + "\\n");
 });
 `;
 }
@@ -412,23 +487,30 @@ async function resolveSecret(
   return (resolver ?? getResolver(config)).resolve(ref);
 }
 
-function getResolver(config: SandboxConfigV1): SecretResolver {
+function getResolver(_config: SandboxConfigV1): SecretResolver {
   // Lazy import would be overkill; callers should pass the entrypoint resolver
   // whenever KV stores are needed. This fallback still supports env/file refs.
   return new (class extends Object {
     async resolve(ref: SandboxSecretRef): Promise<string> {
       if ("env" in ref) {
         const value = process.env[ref.env];
-        if (value === undefined) throw new Error(`Missing env secret: ${ref.env}`);
+        if (value === undefined)
+          throw new Error(`Missing env secret: ${ref.env}`);
         return value;
       }
-      if ("file" in ref) return (await import("node:fs/promises")).readFile(ref.file, "utf8").then((value) => value.trimEnd());
+      if ("file" in ref)
+        return (await import("node:fs/promises"))
+          .readFile(ref.file, "utf8")
+          .then((value) => value.trimEnd());
       throw new Error("KV Git secret refs require the sandbox secret resolver");
     }
   })() as SecretResolver;
 }
 
-async function isGitRepository(cwd: string, env: Record<string, string>): Promise<boolean> {
+async function isGitRepository(
+  cwd: string,
+  env: Record<string, string>,
+): Promise<boolean> {
   return git(["rev-parse", "--is-inside-work-tree"], cwd, env)
     .then(() => true)
     .catch(() => false);

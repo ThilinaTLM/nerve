@@ -56,7 +56,7 @@ export function extractSandboxToken(req: IncomingMessage): string | undefined {
   const header = req.headers.authorization;
   if (typeof header === "string" && header.startsWith("Bearer "))
     return header.slice("Bearer ".length);
-  const sandboxToken = req.headers["x-nerve-sandbox-token"];
+  const sandboxToken = req.headers["x-nerve-sandbox-agent-token"];
   if (typeof sandboxToken === "string") return sandboxToken;
   return undefined;
 }

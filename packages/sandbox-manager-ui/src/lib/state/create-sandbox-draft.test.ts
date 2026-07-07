@@ -87,7 +87,7 @@ describe("create sandbox draft", () => {
       "    mainModel:",
       "      provider: anthropic",
       "      model: claude-sonnet-4-5",
-      "image: nerve-sandbox:dev",
+      "image: nerve-sandbox-agent:dev",
       "start: true",
     ].join("\n");
     const result = buildCreateRequest(draft);
@@ -104,7 +104,7 @@ describe("create sandbox draft", () => {
 
     const yaml = requestToYaml(result.request);
     const parsed = parseCreateRequestYaml(yaml);
-    assert.equal(parsed.image, "nerve-sandbox:dev");
+    assert.equal(parsed.image, "nerve-sandbox-agent:dev");
     assert.equal(parsed.start, true);
     assert.equal(parsed.auth?.mainModelProfileId, "profile_1");
     assert.equal(parsed.config.agent.mainModel.provider, "anthropic");

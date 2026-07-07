@@ -2,7 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/shared" },
-    { "path": "./packages/sandbox-image" },
+    { "path": "./packages/sandbox-agent" },
     { "path": "./packages/sandbox-manager" },
     { "path": "./packages/orchestrator" },
     { "path": "./packages/cli" },

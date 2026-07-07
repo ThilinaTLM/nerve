@@ -52,7 +52,7 @@ export async function initializeSandboxState(
     const now = new Date().toISOString();
     await atomicWriteFile(
       path.join(paths.stateDir, "VERSION"),
-      `${JSON.stringify({ format: "nerve-sandbox-state", version: 1, initializedAt: now })}\n`,
+      `${JSON.stringify({ format: "nerve-sandbox-agent-state", version: 1, initializedAt: now })}\n`,
     );
     await atomicWriteFile(
       path.join(paths.configDir, "sanitized.json"),

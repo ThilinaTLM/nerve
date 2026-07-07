@@ -18,7 +18,7 @@
     "dev": "pnpm --filter @nervekit/shared --filter @nervekit/agent --filter @nervekit/tools build && pnpm --parallel --stream --filter @nervekit/orchestrator --filter @nervekit/web dev",
     "dev:ui": "pnpm --filter @nervekit/shared --filter @nervekit/agent --filter @nervekit/tools build && pnpm --filter @nervekit/web dev",
     "dev:sandbox": "pnpm --filter @nervekit/shared build && pnpm --parallel --stream --filter @nervekit/sandbox-manager --filter @nervekit/sandbox-manager-ui dev",
-    "build-image:sanbox-agent": "pnpm --filter @nervekit/sandbox-image... build && docker build -f packages/sandbox-image/Dockerfile -t nerve-sandbox:dev .",
+    "build-image:sandbox-agent": "pnpm --filter @nervekit/sandbox-agent... build && docker build -f packages/sandbox-agent/Dockerfile -t nerve-sandbox-agent:dev .",
     "desktop": "pnpm --filter @nervekit/desktop dev --",
     "desktop:remote-enabled": "pnpm desktop -- --host 0.0.0.0 --allow-remote --mobile-https",
     "release:build": "pnpm --filter @nervekit/shared build && pnpm --filter @nervekit/agent build && pnpm --filter @nervekit/tools build && pnpm --filter @nervekit/ui build && pnpm --filter @nervekit/sandbox-manager-ui build && pnpm --filter @nervekit/sandbox-manager build && node scripts/copy-sandbox-manager-ui-dist-to-manager.mjs && pnpm --filter @nervekit/web build && pnpm --filter @nervekit/orchestrator build && node scripts/copy-web-dist-to-orchestrator.mjs && pnpm --filter @nervekit/cli build && pnpm --filter @nervekit/desktop build",

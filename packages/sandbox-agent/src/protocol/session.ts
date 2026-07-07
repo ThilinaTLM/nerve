@@ -77,7 +77,7 @@ export class ProtocolSession {
       createLogger({
         level: config.observability?.logLevel ?? "info",
         base: {
-          source: "sandbox",
+          source: "sandbox-agent",
           component: "controller-session",
           sandboxId: config.identity?.sandboxId,
           instanceId,

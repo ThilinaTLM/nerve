@@ -1,5 +1,5 @@
 {
-  "name": "@nervekit/sandbox-image",
+  "name": "@nervekit/sandbox-agent",
   "version": "0.6.0",
   "private": true,
   "author": "ThilinaTLM",
@@ -12,7 +12,7 @@
     "NOTICE"
   ],
   "bin": {
-    "nerve-sandbox": "./dist/main.js"
+    "nerve-sandbox-agent": "./dist/main.js"
   },
   "exports": {
     ".": {

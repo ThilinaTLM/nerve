@@ -20,7 +20,7 @@ import { buildSecretPolicy } from "../secrets/secret-policy.js";
 export async function createSandboxRecord(
   state: ManagerState,
   config: SandboxCreateConfigInput,
-  image = "nerve-sandbox:dev",
+  image = "nerve-sandbox-agent:dev",
   name?: string,
   auth?: SandboxCreateAuthRefs,
 ): Promise<ManagedSandboxRecord> {

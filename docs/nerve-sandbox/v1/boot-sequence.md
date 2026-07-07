@@ -2,7 +2,7 @@
 
 Sandbox v1 startup is a deterministic sequence. A sandbox MUST complete required startup phases, or enter an explicitly configured degraded state, before it accepts run commands.
 
-This document is normative for the sandbox image and daemon.
+This document is normative for the sandbox agent image and daemon.
 
 ## Phase order
 
@@ -13,7 +13,7 @@ The sandbox entrypoint MUST perform phases in this order:
    - Initialize logging with redaction.
 
 2. **Locate config**
-   - Load `NERVE_SANDBOX_CONFIG` or the default config path.
+   - Load `NERVE_SANDBOX_AGENT_CONFIG` or the default config path.
 
 3. **Parse and validate config**
    - Validate the full YAML document, including conditional requirements.

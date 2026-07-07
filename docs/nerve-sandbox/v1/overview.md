@@ -161,7 +161,7 @@ Sandbox v1 does not define:
 | Sandbox | One configured agent runtime instance, usually one container. |
 | Sandbox daemon | The process inside the container that loads config, applies Git/GitHub setup, runs boot, manages the agent harness and tools, journals state, refreshes configured credentials, and connects to the controller. |
 | Manager/controller | The external API/service peer that authenticates users/services, starts sandboxes, provides config/credentials, sends commands, receives events, exposes frontend APIs, and owns product-specific persistence/UI integration. Baseline package: `packages/sandbox-manager`. |
-| Sandbox image | The container image/runtime package that contains `/agent`, the sandbox daemon, agent runtime, tools, and built-in skills. Baseline package: `packages/sandbox-image`. |
+| Sandbox agent image | The container image/runtime package that contains `/agent`, the sandbox daemon, agent runtime, tools, and built-in skills. Baseline package: `packages/sandbox-agent`. |
 | Sandbox-manager UI | A dedicated `packages/sandbox-manager-ui` app that connects to the manager to observe and operate sandboxes. |
 | Workspace | The writable project directory mounted at `/workspace`. Agent file tools operate here by default. |
 | State store | Durable directory mounted at `/state`; contains journals, checkpoints, refreshed credentials, run/conversation/agent state, skills metadata, and transcripts. |

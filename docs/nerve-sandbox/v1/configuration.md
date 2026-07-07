@@ -933,7 +933,7 @@ controller:
   auth:
     type: api_key
     apiKey:
-      env: NERVE_SANDBOX_API_KEY
+      env: NERVE_SANDBOX_AGENT_API_KEY
 
 git:
   enabled: true
