@@ -6,8 +6,32 @@ import type {
   SandboxStatusGetResult,
   SandboxToolCallSummary,
   SandboxWaitSummary,
+  ThinkingLevel,
 } from "@nervekit/shared";
 import type { ManagerWsConnectionState } from "../api/manager-ws-client.svelte";
+import { createDraftFromStoredPreferences } from "./create-sandbox-draft";
+
+/** Runtime agent controls surfaced by the composer toolbar. */
+export type SandboxAgentControls = {
+  provider: string;
+  model: string;
+  thinkingLevel: ThinkingLevel;
+  mode: "normal" | "planning";
+  permissionLevel: "read_only" | "supervised" | "autonomous";
+  approvalPolicy: { autoApproveReadOnly: boolean };
+};
+
+export function defaultAgentControls(): SandboxAgentControls {
+  const draft = createDraftFromStoredPreferences();
+  return {
+    provider: draft.mainProvider,
+    model: draft.mainModel,
+    thinkingLevel: draft.mainThinking,
+    mode: draft.mode,
+    permissionLevel: draft.permissionLevel,
+    approvalPolicy: { autoApproveReadOnly: true },
+  };
+}
 
 export type SandboxUiEvent = {
   stream: string;
@@ -92,6 +116,7 @@ export type SandboxDetailState = {
   selectedAgentId?: string;
   selectedRunId?: string;
   composerText: string;
+  agentControls: SandboxAgentControls;
   queuedPrompt?: string;
   /** Live controller connectivity, updated from the sandbox event stream. */
   controllerConnected: boolean;
@@ -116,6 +141,7 @@ export function createSandboxDetailState(
     liveRuns: {},
     conversationViewsById: {},
     composerText: "",
+    agentControls: defaultAgentControls(),
     controllerConnected: false,
     sending: false,
     loading: false,

@@ -5,6 +5,7 @@ import type {
 import {
   eventBatchMessageSchema,
   nerveMessageSchema,
+  replayStartedMessageSchema,
   replayUnavailableMessageSchema,
   welcomeMessageSchema,
 } from "@nervekit/shared";
@@ -182,6 +183,8 @@ export class ManagerWsClient {
         this.sendHeartbeat();
         return;
       case "replay.started":
+        this.onReplayStarted(message);
+        return;
       case "replay.complete":
         return;
       case "replay.unavailable":
@@ -208,6 +211,19 @@ export class ManagerWsClient {
     this.handlers.onConnectionChange("live");
     for (const stream of this.streams) this.requestReplay(stream);
     if (reconnected) this.handlers.onReconnected?.();
+  }
+
+  private onReplayStarted(message: unknown): void {
+    const parsed = replayStartedMessageSchema.safeParse(message);
+    if (!parsed.success) return;
+    // A replay is the recovery path after a detected gap. Clear the blocked flag
+    // and rewind continuity to the processed cursor so the incoming replay batch
+    // (and subsequent live events) are applied instead of dropped.
+    for (const stream of parsed.data.data.streams) {
+      const state = this.stateFor(stream.stream);
+      state.replayBlocked = false;
+      state.continuitySeq = state.processedSeq;
+    }
   }
 
   private onReplayUnavailable(message: unknown): void {

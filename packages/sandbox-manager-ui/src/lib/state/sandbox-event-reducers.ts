@@ -207,11 +207,16 @@ function applyWaitingForInput(
 ): void {
   const waitId = String(data.requestId ?? "");
   if (!waitId) return;
+  // The ask-user tool suspends on its own tool-call id, and the daemon uses that
+  // same id as the input `requestId`, so `waitId` doubles as the tool-call id.
+  const toolCallId =
+    typeof data.toolCallId === "string" ? data.toolCallId : waitId;
   const wait: SandboxWaitSummary = {
     waitId,
     kind: "input",
     status: "waiting",
     question: { text: textOf(data.question) },
+    toolCallId,
     createdAt: typeof data.createdAt === "string" ? data.createdAt : event.ts,
   };
   detail.waitsById[waitId] = wait;

@@ -1,15 +1,28 @@
 <script lang="ts">
-  import { Activity, ArrowLeft, Clock, MessageSquareOff } from "@lucide/svelte";
-  import { PromptComposer, TranscriptList } from "@nervekit/conversation-ui";
+  import { Activity, ArrowLeft, MessageSquareOff } from "@lucide/svelte";
+  import { TranscriptList } from "@nervekit/conversation-ui";
+  import { setConversationUiCapabilities } from "@nervekit/conversation-ui/context";
+  import type { ThinkingLevel } from "@nervekit/shared";
   import { Button } from "@nervekit/ui/components/ui/button";
   import SelectField from "@nervekit/ui/components/ui/select-field";
   import type { SelectItem } from "@nervekit/ui/components/ui/select-field";
+  import SandboxPromptComposer from "../components/composer/SandboxPromptComposer.svelte";
   import SandboxActionMenu from "../components/SandboxActionMenu.svelte";
   import SandboxBootProgress from "../components/SandboxBootProgress.svelte";
   import SandboxDiagnosticsSheet from "../components/SandboxDiagnosticsSheet.svelte";
   import SandboxStatusBadge from "../components/SandboxStatusBadge.svelte";
   import AppShell from "../components/layout/AppShell.svelte";
   import { buildSandboxChatRender } from "../state/sandbox-chat-render";
+  import {
+    sandboxMessageMenu,
+    sandboxToolMenu,
+  } from "../state/sandbox-conversation-menus";
+  import {
+    pendingApprovalRecords,
+    pendingUserQuestionRecord,
+  } from "../state/sandbox-review-records";
+  import { resolveToolCallDetails } from "../state/sandbox-tool-call-details";
+  import { modelKey } from "../utils/model-display";
   import {
     computeSandboxBootProgress,
     isSandboxConnected,
@@ -61,9 +74,99 @@
   // blocking when there is actual transcript content (a genuine read-only
   // session), otherwise the first prompt could never be sent.
   const readOnly = $derived(Boolean(richState?.readOnly) && hasContent);
-  const composerDisabled = $derived(
-    isSandboxTerminal(record) || (detail?.sending ?? false) || readOnly,
+
+  // The sandbox ConversationSnapshot does not carry approval/question records,
+  // so reconstruct them from the live wait reducer state (see the helpers).
+  const approvals = $derived(pendingApprovalRecords(detail, richState));
+  const pendingUserQuestion = $derived(pendingUserQuestionRecord(detail));
+  const blockedForReview = $derived(
+    approvals.length > 0 || Boolean(pendingUserQuestion),
   );
+
+  const composerDisabled = $derived(
+    isSandboxTerminal(record) ||
+      (detail?.sending ?? false) ||
+      readOnly ||
+      blockedForReview,
+  );
+
+  // Agent controls surfaced by the composer toolbar.
+  const controls = $derived(detail?.agentControls);
+  const selectedModelKey = $derived(
+    controls
+      ? modelKey({ provider: controls.provider, modelId: controls.model })
+      : "",
+  );
+  const selectedModel = $derived(
+    store.models.find((model) => modelKey(model) === selectedModelKey),
+  );
+  const composerHint = $derived(
+    detail?.queuedPrompt
+      ? "Message queued — sends when the sandbox is ready."
+      : booting
+        ? "Sandbox is booting — your message will send when ready."
+        : undefined,
+  );
+
+  function handleModelChange(key: string): void {
+    if (!detail || !controls) return;
+    const model = store.models.find((item) => modelKey(item) === key);
+    if (!model) return;
+    controls.provider = model.provider;
+    controls.model = model.modelId;
+    const supported = model.supportedThinkingLevels?.length
+      ? model.supportedThinkingLevels
+      : (["off"] as ThinkingLevel[]);
+    if (!supported.includes(controls.thinkingLevel))
+      controls.thinkingLevel = supported[0];
+    void store.configureAgent(sandboxId, {
+      model: {
+        provider: controls.provider,
+        model: controls.model,
+        thinkingLevel: controls.thinkingLevel,
+      },
+    });
+  }
+
+  function handleThinkingLevelChange(level: ThinkingLevel): void {
+    if (!detail || !controls) return;
+    controls.thinkingLevel = level;
+    void store.configureAgent(sandboxId, {
+      model: {
+        provider: controls.provider,
+        model: controls.model,
+        thinkingLevel: level,
+      },
+    });
+  }
+
+  function handleModeChange(mode: "normal" | "planning"): void {
+    if (!controls) return;
+    controls.mode = mode;
+    void store.configureAgent(sandboxId, { mode });
+  }
+
+  function handlePermissionChange(
+    level: "read_only" | "supervised" | "autonomous",
+  ): void {
+    if (!controls) return;
+    controls.permissionLevel = level;
+    void store.configureAgent(sandboxId, { permissionLevel: level });
+  }
+
+  function handleApprovalPolicyChange(policy: {
+    autoApproveReadOnly: boolean;
+  }): void {
+    if (!controls) return;
+    controls.approvalPolicy = policy;
+    void store.configureAgent(sandboxId, { approvalPolicy: policy });
+  }
+
+  // Tool-call details dialog resolves the full record from the live snapshot.
+  setConversationUiCapabilities({
+    fetchToolCall: (toolCallId) =>
+      Promise.resolve(resolveToolCallDetails(richState, toolCallId)),
+  });
 
   let diagnosticsOpen = $state(false);
   let railExpanded = $state(true);
@@ -158,8 +261,16 @@
                 queuedPrompts={[]}
                 paddingEnd={18}
                 heightCacheKey={detail?.selectedConversationId}
-                messageMenu={() => []}
-                toolMenu={() => []}
+                {approvals}
+                {pendingUserQuestion}
+                onGrantApproval={(id) =>
+                  void store.resolveApproval(sandboxId, id, "grant")}
+                onDenyApproval={(id) =>
+                  void store.resolveApproval(sandboxId, id, "deny")}
+                onAnswerUserQuestion={(questionId, answer) =>
+                  void store.submitInput(sandboxId, questionId, answer)}
+                messageMenu={sandboxMessageMenu}
+                toolMenu={sandboxToolMenu}
               />
             </div>
           {:else if booting}
@@ -183,22 +294,33 @@
             </div>
           {/if}
 
-          {#if detail}
-            {#if detail.queuedPrompt}
-              <div class="flex items-center gap-1.5 px-4 pt-2 text-xs text-muted-foreground">
-                <Clock class="size-3.5" />
-                Message queued — sends when the sandbox is ready.
-              </div>
-            {:else if booting}
-              <div class="px-4 pt-2 text-xs text-muted-foreground">
-                Sandbox is booting — your message will send when ready.
-              </div>
-            {/if}
-            <PromptComposer
-              value={detail.composerText}
+          {#if detail && controls}
+            <SandboxPromptComposer
+              text={detail.composerText}
               disabled={composerDisabled}
-              onSubmit={(text) => void store.submitPrompt(sandboxId, text)}
-              onAbort={canCancel ? () => void store.cancelRun(sandboxId) : undefined}
+              sending={canCancel}
+              models={store.models}
+              {selectedModelKey}
+              thinkingLevel={controls.thinkingLevel}
+              mode={controls.mode}
+              permissionLevel={controls.permissionLevel}
+              approvalPolicy={controls.approvalPolicy}
+              contextUsage={richState?.contextUsage}
+              contextWindow={selectedModel?.contextWindow ?? 0}
+              hint={composerHint}
+              onChange={(text) => {
+                if (detail) detail.composerText = text;
+              }}
+              onSubmit={() =>
+                void store.submitPrompt(sandboxId, detail.composerText)}
+              onAbort={canCancel
+                ? () => void store.cancelRun(sandboxId)
+                : undefined}
+              onModelChange={handleModelChange}
+              onThinkingLevelChange={handleThinkingLevelChange}
+              onModeChange={handleModeChange}
+              onPermissionChange={handlePermissionChange}
+              onApprovalPolicyChange={handleApprovalPolicyChange}
             />
           {/if}
         </div>

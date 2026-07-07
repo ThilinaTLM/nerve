@@ -12,6 +12,7 @@ import type {
   SandboxManagerEventEnvelope,
   SandboxManagerSecretMetadata,
   SandboxManagerStatus,
+  ThinkingLevel,
 } from "@nervekit/shared";
 import { getContext, setContext } from "svelte";
 import { createOperationId } from "../api/idempotency";
@@ -50,7 +51,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * later encodes outbound events (the protocol requires the `conv_` prefix).
  */
 function outboundConversationId(id: string | undefined): string | undefined {
-  return id && id.startsWith("conv_") ? id : undefined;
+  return id?.startsWith("conv_") ? id : undefined;
 }
 
 export class SandboxManagerStore {
@@ -75,6 +76,10 @@ export class SandboxManagerStore {
   private readonly statusPollTimers = new Map<
     string,
     ReturnType<typeof setTimeout>
+  >();
+  private readonly runSnapshotTimers = new Map<
+    string,
+    ReturnType<typeof setInterval>
   >();
   private readonly operationCleanupTimers = new Set<
     ReturnType<typeof setTimeout>
@@ -119,6 +124,7 @@ export class SandboxManagerStore {
     this.disposed = true;
     if (this.fleetRefreshTimer) clearTimeout(this.fleetRefreshTimer);
     this.stopStatusPolling();
+    this.stopAllRunSnapshotRefresh();
     for (const timer of this.operationCleanupTimers) clearTimeout(timer);
     this.operationCleanupTimers.clear();
     this.ws.close();
@@ -176,6 +182,7 @@ export class SandboxManagerStore {
 
   async selectSandbox(sandboxId: string | undefined): Promise<void> {
     this.stopStatusPolling();
+    this.stopAllRunSnapshotRefresh();
     this.selectedSandboxId = sandboxId;
     if (!sandboxId) return;
     this.detail(sandboxId);
@@ -440,6 +447,9 @@ export class SandboxManagerStore {
         behavior,
       }));
       detail.composerText = "";
+      // Start snapshot polling immediately — we know a run is starting, so do not
+      // wait for a `run.started` event (which can be dropped by live delivery).
+      this.startRunSnapshotRefresh(sandboxId);
     } finally {
       detail.sending = false;
     }
@@ -504,6 +514,34 @@ export class SandboxManagerStore {
     if (wait) wait.status = decision === "grant" ? "granted" : "denied";
   }
 
+  /**
+   * Apply runtime agent controls (model/thinking/mode/permission/policy). Model,
+   * thinking, and mode changes take effect on the next model request; permission
+   * and approval-policy changes apply immediately. `sandbox.run.start` has no
+   * per-run overrides, so every control change routes through configure.
+   */
+  async configureAgent(
+    sandboxId: string,
+    patch: {
+      model?: {
+        provider: string;
+        model: string;
+        thinkingLevel?: ThinkingLevel;
+      };
+      mode?: "normal" | "planning";
+      permissionLevel?: "read_only" | "supervised" | "autonomous";
+      approvalPolicy?: { autoApproveReadOnly?: boolean };
+    },
+  ): Promise<void> {
+    const detail = this.detail(sandboxId);
+    await this.sendCommand(sandboxId, "sandbox.agent.configure", (key) => ({
+      commandId: key,
+      conversationId: outboundConversationId(detail.selectedConversationId),
+      agentId: detail.selectedAgentId,
+      ...patch,
+    }));
+  }
+
   private async sendCommand(
     sandboxId: string,
     method: string,
@@ -565,12 +603,6 @@ export class SandboxManagerStore {
   }
 
   private handleEvent(envelope: SandboxManagerEventEnvelope): void {
-    if (typeof window !== "undefined") {
-      const w = window as unknown as { __evlog?: string[] };
-      (w.__evlog ??= []).push(
-        `${envelope.type}:${envelope.seq}${envelope.durability === "transient" ? "T" : "D"}@${envelope.stream}`,
-      );
-    }
     if (envelope.stream === "manager") {
       this.scheduleFleetRefresh();
       return;
@@ -593,6 +625,67 @@ export class SandboxManagerStore {
       this.applyConversationUiEvent(detail, uiEvent);
     }
     applySandboxEvent(detail, uiEvent);
+    this.trackRunActivity(sandboxId, envelope.type);
+  }
+
+  /**
+   * While a run is active, periodically refresh the conversation snapshot so the
+   * transcript stays current even if a live event batch is dropped (the daemon
+   * snapshot includes in-progress streaming content). Guarantees the user sees
+   * the agent's response/processing without needing a manual refresh.
+   */
+  private trackRunActivity(sandboxId: string, type: string): void {
+    // A live run event is a hint to (re)start polling; the poll self-terminates
+    // when the snapshot shows no active run. We do not stop on terminal events
+    // because those can be dropped too — idle detection handles it.
+    if (type === "run.started" || type === "conversation.run.started")
+      this.startRunSnapshotRefresh(sandboxId);
+  }
+
+  private startRunSnapshotRefresh(sandboxId: string): void {
+    if (this.runSnapshotTimers.has(sandboxId)) return;
+    if (this.selectedSandboxId !== sandboxId) return;
+    let ticks = 0;
+    let idle = 0;
+    const timer = setInterval(() => {
+      ticks += 1;
+      if (
+        this.disposed ||
+        this.selectedSandboxId !== sandboxId ||
+        ticks > 300
+      ) {
+        this.stopRunSnapshotRefresh(sandboxId);
+        return;
+      }
+      void this.recoverConversationSnapshot(sandboxId)
+        .then(() => {
+          const detail = this.details[sandboxId];
+          const view = detail?.selectedConversationId
+            ? detail.conversationViewsById[detail.selectedConversationId]
+            : undefined;
+          // `activeRun` is only present while a run is in progress
+          // (running/retrying/aborting); it clears once the run finishes.
+          const active = Boolean(view?.activeRun);
+          idle = active ? 0 : idle + 1;
+          // A few idle refreshes after the run finishes guarantee the final
+          // committed transcript is rendered before we stop polling.
+          if (idle >= 3) this.stopRunSnapshotRefresh(sandboxId);
+        })
+        .catch(() => undefined);
+    }, 1200);
+    if (typeof timer.unref === "function") timer.unref();
+    this.runSnapshotTimers.set(sandboxId, timer);
+  }
+
+  private stopRunSnapshotRefresh(sandboxId: string): void {
+    const timer = this.runSnapshotTimers.get(sandboxId);
+    if (timer) clearInterval(timer);
+    this.runSnapshotTimers.delete(sandboxId);
+  }
+
+  private stopAllRunSnapshotRefresh(): void {
+    for (const timer of this.runSnapshotTimers.values()) clearInterval(timer);
+    this.runSnapshotTimers.clear();
   }
 
   private applyConversationUiEvent(
