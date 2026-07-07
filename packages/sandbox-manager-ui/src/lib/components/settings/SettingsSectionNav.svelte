@@ -1,10 +1,7 @@
 <script lang="ts">
   import { Badge } from "@nervekit/ui/components/ui/badge";
   import { Button } from "@nervekit/ui/components/ui/button";
-  import {
-    Card,
-    CardContent,
-  } from "@nervekit/ui/components/ui/card";
+  import { cn } from "@nervekit/ui/core/utils";
   import type {
     SettingsDomain,
     SettingsDomainId,
@@ -23,15 +20,15 @@
   } = $props();
 </script>
 
-<Card class="border">
-  <CardContent class="grid gap-1 p-2">
+<nav
+  class="rounded-lg border bg-sidebar p-2 text-sidebar-foreground shadow-sm"
+  aria-label="Settings sections"
+>
+  <div class="grid gap-1">
     {#each domains as domain (domain.id)}
       {@const Icon = domain.icon}
       {@const count = countForDomain(domain)}
       {@const active = activeDomainId === domain.id}
-      {#if domain.id === "appearance"}
-        <div class="my-1 border-t" aria-hidden="true"></div>
-      {/if}
       <Button
         variant={active ? "secondary" : "ghost"}
         {active}
@@ -39,7 +36,12 @@
         onclick={() => onselect(domain.id)}
         class="h-auto w-full justify-start gap-3 px-3 py-3 text-left"
       >
-        <span class="rounded-md bg-muted p-2 text-muted-foreground">
+        <span
+          class={cn(
+            "rounded-md p-2",
+            active ? "bg-background text-primary" : "bg-sidebar-accent text-muted-foreground",
+          )}
+        >
           <Icon class="size-4" />
         </span>
         <span class="flex min-w-0 flex-1 items-center justify-between gap-2">
@@ -52,5 +54,5 @@
         </span>
       </Button>
     {/each}
-  </CardContent>
-</Card>
+  </div>
+</nav>

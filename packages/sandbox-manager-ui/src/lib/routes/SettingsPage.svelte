@@ -123,8 +123,6 @@
         label: option.label,
       })),
   );
-  const groupedProfiles = $derived(profilesForSection(activeSection));
-  const ActiveSectionIcon = $derived(activeSection.icon);
   const selectedProviderModels = $derived.by<ModelInfo[]>(() =>
     selectedOption?.kind === "model_provider"
       ? store.models
@@ -239,14 +237,6 @@
     }
   }
 
-  function selectSubSection(sectionId: SettingsSectionId): void {
-    activeSectionId = sectionId;
-    providerSearch = "";
-    const section = sections.find((item) => item.id === sectionId);
-    if (section?.options[0]) providerKind = section.options[0].providerKind;
-    applyOptionDefaults(section?.options[0]);
-  }
-
   function selectProvider(value: string): void {
     providerKind = value as SandboxManagerCredentialProviderKind;
     const option = activeSection.options.find(
@@ -287,6 +277,48 @@
 
   function useBrowserOAuth(option: ProviderOption | undefined): boolean {
     return supportsBrowserOAuth(option) && !manualOAuthImport;
+  }
+
+  function selectorLabel(option: ProviderOption): string {
+    if (option.kind === "model_provider") return "Provider";
+    if (
+      option.providerKind.includes("ssh") ||
+      option.providerKind.includes("token") ||
+      option.providerKind.includes("github")
+    )
+      return "Authentication method";
+    return "Profile type";
+  }
+
+  function searchLabel(option: ProviderOption): string {
+    return option.kind === "model_provider"
+      ? "Search providers"
+      : "Search profile types";
+  }
+
+  function dialogDescription(): string {
+    if (!selectedOption) return "Add a credential profile.";
+    if (activeSection.options.length === 1) return selectedOption.detail;
+    if (selectedOption.kind === "model_provider")
+      return "Choose a provider and add the credential.";
+    return `Choose a ${selectorLabel(selectedOption).toLowerCase()} and add the credential.`;
+  }
+
+  function hasAdvancedOptions(option: ProviderOption): boolean {
+    return option.providerKind !== "git_identity";
+  }
+
+  function canSaveProfile(option: ProviderOption): boolean {
+    if (busy) return false;
+    if (option.providerKind === "git_identity")
+      return displayName.trim().length > 0 && email.trim().length > 0;
+    if (option.secretMode === "githubApp")
+      return (
+        secretValue.trim().length > 0 &&
+        githubAppId.trim().length > 0 &&
+        githubInstallationId.trim().length > 0
+      );
+    return option.secretMode === "none" || secretValue.trim().length > 0;
   }
 
   async function closeAddDialog(): Promise<void> {
@@ -435,7 +467,7 @@
 <AppShell
   {route}
   title="Settings"
-  subtitle="Providers, credentials, and appearance."
+  subtitle="Appearance, providers, and credentials."
 >
   {#snippet actions()}
     <Badge tone="accent" size="sm">{configuredCount} profiles</Badge>
@@ -444,148 +476,135 @@
     </Button>
   {/snippet}
 
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 lg:flex-row">
+    <aside class="flex flex-col gap-2 lg:sticky lg:top-6 lg:w-72 lg:flex-none lg:self-start">
+      <SettingsSectionNav
+        {domains}
+        {activeDomainId}
+        {countForDomain}
+        onselect={selectDomain}
+      />
+    </aside>
 
-    <div class="flex flex-col gap-4 lg:flex-row">
-      <aside class="flex flex-col gap-2 lg:w-72 lg:flex-none">
-        <SettingsSectionNav
-          {domains}
-          {activeDomainId}
-          {countForDomain}
-          onselect={selectDomain}
-        />
-      </aside>
-
-      <main class="min-w-0 flex-1 space-y-4">
-        {#if appearanceActive}
-          <AppearanceSettings />
-        {:else}
-        <div class="flex flex-col gap-1">
-          <h2 class="text-base font-semibold">{activeDomain.label}</h2>
-          <p class="text-sm text-muted-foreground">{activeDomain.description}</p>
-        </div>
-        {#if domainSections.length > 1}
-          <div class="flex flex-wrap gap-x-5 border-b" role="tablist" aria-label={activeDomain.label}>
-            {#each domainSections as section (section.id)}
-              {@const active = section.id === activeSectionId}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                class={`-mb-px flex items-center gap-2 border-b-2 px-1 pb-2.5 pt-1 text-sm ${active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                onclick={() => selectSubSection(section.id)}
-              >
-                {section.tabLabel ?? section.label}
-                <Badge
-                  tone={profilesForSection(section).length > 0 ? "accent" : "neutral"}
-                  size="xs"
-                >
-                  {profilesForSection(section).length}
-                </Badge>
-              </button>
-            {/each}
-          </div>
-        {/if}
-        <Card class="border">
+    <main class="min-w-0 flex-1 space-y-4">
+      {#if appearanceActive}
+        <AppearanceSettings />
+      {:else}
+        <Card class="border shadow-sm">
           <CardHeader class="border-b p-4">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="flex min-w-0 gap-3">
-                <div class="rounded-md bg-muted p-2 text-primary">
-                  <ActiveSectionIcon class="size-5" />
-                </div>
-                <div class="flex min-w-0 flex-wrap items-center gap-2">
-                  <CardTitle class="text-base">{activeSection.label}</CardTitle>
-                  <Badge tone="neutral" size="xs">{groupedProfiles.length} configured</Badge>
-                </div>
-              </div>
-              {#if activeSection.options.length > 0}
-                <Button size="sm" onclick={() => openAddDialog()}>
-                  <Plus class="size-4" /> Add configuration
-                </Button>
-              {/if}
-            </div>
+            <CardTitle class="text-base">{activeDomain.label}</CardTitle>
+            <p class="text-sm text-muted-foreground">{activeDomain.description}</p>
           </CardHeader>
-          <CardContent class="space-y-4 p-4">
-            {#if activeSection.options.length === 0}
-              <div class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
-                {activeSection.emptyHint}
+          <CardContent class="p-0">
+            {#if saved || (error && !addDialogOpen)}
+              <div class="space-y-2 border-b p-4">
+                {#if saved}
+                  <p class="flex items-center gap-2 rounded-md bg-success/10 p-2 text-xs text-success">
+                    <CheckCircle2 class="size-4" /> {saved}
+                  </p>
+                {/if}
+                {#if error && !addDialogOpen}
+                  <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                    <TriangleAlert class="mt-0.5 size-4 flex-none" /> {error}
+                  </p>
+                {/if}
               </div>
             {/if}
 
-            {#if saved}
-              <p class="flex items-center gap-2 rounded-md bg-success/10 p-2 text-xs text-success">
-                <CheckCircle2 class="size-4" /> {saved}
-              </p>
-            {/if}
-            {#if error && !addDialogOpen}
-              <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-                <TriangleAlert class="mt-0.5 size-4 flex-none" /> {error}
-              </p>
-            {/if}
-
-            {#if groupedProfiles.length === 0}
-              {#if activeSection.options.length > 0}
-                <div class="flex flex-col items-start gap-3 rounded-md border bg-muted/30 p-5">
-                  <p class="text-sm font-medium">No profiles configured.</p>
-                </div>
-              {/if}
-            {:else}
-              <div class="grid gap-3 xl:grid-cols-2">
-                {#each groupedProfiles as profile (profile.profileId)}
-                  {@const fields = configuredFields(profile)}
-                  <article class="rounded-md border bg-card p-4">
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0 space-y-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                          <h2 class="truncate text-sm font-semibold">{profile.displayName}</h2>
-                          <Badge tone={statusTone(profile.status)} size="xs">{profile.status}</Badge>
-                        </div>
-                        <p class="truncate text-xs text-muted-foreground">
-                          {profileSubtitle(profile)}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        disabled={refreshingProfileId === profile.profileId}
-                        onclick={() => void refreshProfile(profile.profileId)}
-                      >
-                        <RefreshCw class="size-3" /> Refresh
-                      </Button>
+            {#each domainSections as section, index (section.id)}
+              {@const sectionProfiles = profilesForSection(section)}
+              <section class="space-y-3 p-4" class:border-t={index > 0}>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div class="min-w-0 space-y-1">
+                    <div class="flex min-w-0 flex-wrap items-center gap-2">
+                      <h3 class="text-sm font-semibold">{section.label}</h3>
+                      <Badge tone="neutral" size="xs">
+                        {sectionProfiles.length} configured
+                      </Badge>
                     </div>
+                    <p class="text-xs text-muted-foreground">{section.description}</p>
+                  </div>
+                  {#if section.options.length > 0}
+                    <Button size="sm" onclick={() => openAddDialog(section.id)}>
+                      <Plus class="size-4" /> Add configuration
+                    </Button>
+                  {/if}
+                </div>
 
-                    {#if fields.length > 0}
-                      <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                        {#each fields as field}
-                          <div class="min-w-0 rounded-md border bg-muted/30 px-2 py-1.5">
-                            <p class="text-xs text-muted-foreground">{field.label}</p>
-                            <p class="truncate text-xs font-medium">{field.value}</p>
+                {#if section.options.length === 0}
+                  <div class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+                    {section.emptyHint}
+                  </div>
+                {/if}
+
+                {#if sectionProfiles.length === 0}
+                  {#if section.options.length > 0}
+                    <div class="rounded-md border bg-muted/30 px-3 py-2">
+                      <p class="text-sm font-medium">No profiles configured.</p>
+                    </div>
+                  {/if}
+                {:else}
+                  <div class="grid gap-3 xl:grid-cols-2">
+                    {#each sectionProfiles as profile (profile.profileId)}
+                      {@const fields = configuredFields(profile)}
+                      <article class="rounded-md border bg-card p-4">
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0 space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                              <h2 class="truncate text-sm font-semibold">
+                                {profile.displayName}
+                              </h2>
+                              <Badge tone={statusTone(profile.status)} size="xs">
+                                {profile.status}
+                              </Badge>
+                            </div>
+                            <p class="truncate text-xs text-muted-foreground">
+                              {profileSubtitle(profile)}
+                            </p>
                           </div>
-                        {/each}
-                      </div>
-                    {/if}
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            disabled={refreshingProfileId === profile.profileId}
+                            onclick={() => void refreshProfile(profile.profileId)}
+                          >
+                            <RefreshCw class="size-3" /> Refresh
+                          </Button>
+                        </div>
 
-                    {#if profile.lastError}
-                      <p class="mt-3 flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-                        <TriangleAlert class="mt-0.5 size-4 flex-none" /> {profile.lastError.message}
-                      </p>
-                    {/if}
-                  </article>
-                {/each}
-              </div>
-            {/if}
+                        {#if fields.length > 0}
+                          <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                            {#each fields as field}
+                              <div class="min-w-0 rounded-md border bg-muted/30 px-2 py-1.5">
+                                <p class="text-xs text-muted-foreground">{field.label}</p>
+                                <p class="truncate text-xs font-medium">{field.value}</p>
+                              </div>
+                            {/each}
+                          </div>
+                        {/if}
+
+                        {#if profile.lastError}
+                          <p class="mt-3 flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                            <TriangleAlert class="mt-0.5 size-4 flex-none" /> {profile.lastError.message}
+                          </p>
+                        {/if}
+                      </article>
+                    {/each}
+                  </div>
+                {/if}
+              </section>
+            {/each}
           </CardContent>
         </Card>
-        {/if}
-      </main>
-    </div>
+      {/if}
+    </main>
   </div>
 </AppShell>
 
 <DialogShell
   bind:open={addDialogOpen}
   title={`Add ${activeSection.label}`}
-  description="Choose a provider and add the credential."
+  description={dialogDescription()}
   onOpenChange={handleAddDialogOpenChange}
 >
   <div class="space-y-4 p-5">
@@ -593,18 +612,39 @@
       <div class="grid gap-3 sm:grid-cols-2">
         {#if activeSection.options.length > 8}
           <div class="flex flex-col gap-1 sm:col-span-2">
-            <Label>Search providers</Label>
-            <Input bind:value={providerSearch} placeholder="Filter providers…" />
+            <Label>{searchLabel(selectedOption)}</Label>
+            <Input bind:value={providerSearch} placeholder="Filter options…" />
           </div>
         {/if}
-        <div class="flex flex-col gap-1 sm:col-span-2">
-          <Label>Provider</Label>
-          <SelectField
-            items={providerItems}
-            value={providerKind}
-            onValueChange={selectProvider}
-          />
-        </div>
+        {#if activeSection.options.length > 1}
+          <div class="flex flex-col gap-1 sm:col-span-2">
+            <Label>{selectorLabel(selectedOption)}</Label>
+            <SelectField
+              items={providerItems}
+              value={providerKind}
+              onValueChange={selectProvider}
+            />
+          </div>
+        {:else}
+          <div class="rounded-md border bg-muted/30 p-3 sm:col-span-2">
+            <p class="text-xs font-medium text-muted-foreground">
+              {selectorLabel(selectedOption)}
+            </p>
+            <p class="mt-1 text-sm font-medium">{selectedOption.label}</p>
+            <p class="mt-1 text-xs text-muted-foreground">{selectedOption.detail}</p>
+          </div>
+        {/if}
+
+        {#if selectedOption.providerKind === "git_identity"}
+          <div class="flex flex-col gap-1">
+            <Label>Author name</Label>
+            <Input bind:value={displayName} placeholder="Sandbox Bot" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>Author email</Label>
+            <Input bind:value={email} placeholder="bot@example.com" />
+          </div>
+        {/if}
 
         {#if selectedOption.site}
           <div class="flex flex-col gap-1">
@@ -613,7 +653,7 @@
           </div>
         {/if}
 
-        {#if selectedOption.email}
+        {#if selectedOption.email && selectedOption.providerKind !== "git_identity"}
           <div class="flex flex-col gap-1">
             <Label>Email</Label>
             <Input bind:value={email} placeholder="you@example.com" />
@@ -766,78 +806,80 @@
           </div>
         {/if}
 
-        <div class="space-y-3 rounded-md border bg-muted/20 p-3 sm:col-span-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            class="w-full justify-between"
-            onclick={() => (advancedOpen = !advancedOpen)}
-          >
-            Advanced
-            <span class="text-xs text-muted-foreground">{advancedOpen ? "Hide" : "Show"}</span>
-          </Button>
+        {#if hasAdvancedOptions(selectedOption)}
+          <div class="space-y-3 rounded-md border bg-muted/20 p-3 sm:col-span-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              class="w-full justify-between"
+              onclick={() => (advancedOpen = !advancedOpen)}
+            >
+              Advanced
+              <span class="text-xs text-muted-foreground">{advancedOpen ? "Hide" : "Show"}</span>
+            </Button>
 
-          {#if advancedOpen}
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div class="flex flex-col gap-1 sm:col-span-2">
-                <Label>Display name</Label>
-                <Input bind:value={displayName} placeholder={selectedOption.label} />
+            {#if advancedOpen}
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div class="flex flex-col gap-1 sm:col-span-2">
+                  <Label>Display name</Label>
+                  <Input bind:value={displayName} placeholder={selectedOption.label} />
+                </div>
+
+                {#if selectedOption.kind === "model_provider"}
+                  <div class="flex flex-col gap-1">
+                    <Label>Default model</Label>
+                    {#if selectedProviderModels.length > 0}
+                      <SelectField
+                        items={modelItems}
+                        value={defaultModel}
+                        placeholder="Pick a pi-ai model"
+                        onValueChange={(value) => (defaultModel = value)}
+                      />
+                    {:else}
+                      <Input bind:value={defaultModel} placeholder={selectedOption.defaultModel ?? "model-id"} />
+                    {/if}
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <Label>pi-ai provider ID</Label>
+                    <Input value={selectedOption.provider} readonly />
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <Label>API family override</Label>
+                    <Input bind:value={api} placeholder="builtin provider default" />
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <Label>Base URL override</Label>
+                    <Input bind:value={baseUrl} placeholder="builtin provider default" />
+                  </div>
+                  <div class="flex flex-col gap-1 sm:col-span-2">
+                    <Label>Provider env JSON</Label>
+                    <Textarea bind:value={envJson} class="min-h-24 font-mono text-xs" placeholder={JSON.stringify({ CLOUDFLARE_ACCOUNT_ID: "..." })} />
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <Label>Headers JSON</Label>
+                    <Textarea bind:value={headersJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ "X-Title": "Nerve" })} />
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <Label>Compat JSON</Label>
+                    <Textarea bind:value={compatJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ supportsStore: false })} />
+                  </div>
+                  <div class="flex flex-col gap-1 sm:col-span-2">
+                    <Label>Provider options JSON</Label>
+                    <Textarea bind:value={providerOptionsJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ routing: { order: [] } })} />
+                  </div>
+                {/if}
+
+                {#if supportsBrowserOAuth(selectedOption) && !manualOAuthImport}
+                  <div class="sm:col-span-2">
+                    <Button variant="outline" size="sm" onclick={() => (manualOAuthImport = true)}>
+                      Import OAuth bundle JSON instead
+                    </Button>
+                  </div>
+                {/if}
               </div>
-
-              {#if selectedOption.kind === "model_provider"}
-                <div class="flex flex-col gap-1">
-                  <Label>Default model</Label>
-                  {#if selectedProviderModels.length > 0}
-                    <SelectField
-                      items={modelItems}
-                      value={defaultModel}
-                      placeholder="Pick a pi-ai model"
-                      onValueChange={(value) => (defaultModel = value)}
-                    />
-                  {:else}
-                    <Input bind:value={defaultModel} placeholder={selectedOption.defaultModel ?? "model-id"} />
-                  {/if}
-                </div>
-                <div class="flex flex-col gap-1">
-                  <Label>pi-ai provider ID</Label>
-                  <Input value={selectedOption.provider} readonly />
-                </div>
-                <div class="flex flex-col gap-1">
-                  <Label>API family override</Label>
-                  <Input bind:value={api} placeholder="builtin provider default" />
-                </div>
-                <div class="flex flex-col gap-1">
-                  <Label>Base URL override</Label>
-                  <Input bind:value={baseUrl} placeholder="builtin provider default" />
-                </div>
-                <div class="flex flex-col gap-1 sm:col-span-2">
-                  <Label>Provider env JSON</Label>
-                  <Textarea bind:value={envJson} class="min-h-24 font-mono text-xs" placeholder={JSON.stringify({ CLOUDFLARE_ACCOUNT_ID: "..." })} />
-                </div>
-                <div class="flex flex-col gap-1">
-                  <Label>Headers JSON</Label>
-                  <Textarea bind:value={headersJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ "X-Title": "Nerve" })} />
-                </div>
-                <div class="flex flex-col gap-1">
-                  <Label>Compat JSON</Label>
-                  <Textarea bind:value={compatJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ supportsStore: false })} />
-                </div>
-                <div class="flex flex-col gap-1 sm:col-span-2">
-                  <Label>Provider options JSON</Label>
-                  <Textarea bind:value={providerOptionsJson} class="min-h-20 font-mono text-xs" placeholder={JSON.stringify({ routing: { order: [] } })} />
-                </div>
-              {/if}
-
-              {#if supportsBrowserOAuth(selectedOption) && !manualOAuthImport}
-                <div class="sm:col-span-2">
-                  <Button variant="outline" size="sm" onclick={() => (manualOAuthImport = true)}>
-                    Import OAuth bundle JSON instead
-                  </Button>
-                </div>
-              {/if}
-            </div>
-          {/if}
-        </div>
+            {/if}
+          </div>
+        {/if}
       </div>
 
       {#if error}
@@ -865,7 +907,7 @@
         <Button variant="outline" size="sm" onclick={() => applyOptionDefaults()}>Clear</Button>
         <Button
           size="sm"
-          disabled={busy || (selectedOption.secretMode !== "none" && !secretValue) || (selectedOption.secretMode === "githubApp" && (!githubAppId || !githubInstallationId))}
+          disabled={!canSaveProfile(selectedOption)}
           onclick={() => void saveProfile()}
         >
           <KeyRound class="size-4" /> Save configuration

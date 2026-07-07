@@ -15,7 +15,9 @@ import type {
 export type SettingsSectionId =
   | "llm_subscriptions"
   | "llm_api_keys"
-  | "git"
+  | "git_identity"
+  | "git_https_token"
+  | "git_ssh_key"
   | "github"
   | "jira"
   | "confluence"
@@ -46,7 +48,7 @@ export type ProviderOption = {
 export type SettingsSection = {
   id: SettingsSectionId;
   label: string;
-  /** Short label used for the in-page sub-tab; falls back to `label`. */
+  /** Optional compact label for places that need shorter section text. */
   tabLabel?: string;
   description: string;
   icon: typeof BrainCircuit;
@@ -66,7 +68,7 @@ export type SettingsDomain = {
   label: string;
   description: string;
   icon: typeof BrainCircuit;
-  /** Sub-section ids grouped under this domain (rendered as sub-tabs). */
+  /** Section ids stacked under this domain. */
   sectionIds: SettingsSectionId[];
   /** Non-provider domains render a custom panel instead of sections. */
   custom?: "appearance";
@@ -391,9 +393,10 @@ export const sections: SettingsSection[] = [
     options: llmApiKeys,
   },
   {
-    id: "git",
-    label: "Git",
-    description: "Repository-level Git identity and generic Git host auth.",
+    id: "git_identity",
+    label: "Git author identity",
+    description:
+      "Sandbox commit author name and email (`user.name` / `user.email`).",
     icon: Settings2,
     options: [
       {
@@ -405,18 +408,38 @@ export const sections: SettingsSection[] = [
         secretMode: "none",
         email: true,
       },
+    ],
+  },
+  {
+    id: "git_https_token",
+    label: "Git HTTPS token",
+    description:
+      "Token profile for HTTPS clone, fetch, and push through a scoped Git credential helper.",
+    icon: KeyRound,
+    options: [
       {
         providerKind: "git_https_token",
         label: "Git HTTPS token",
-        detail: "Token used for HTTPS clone/fetch/push via a scoped Git credential helper.",
+        detail:
+          "Token used for HTTPS clone/fetch/push via a scoped Git credential helper.",
         kind: "git",
         provider: "git",
         secretMode: "apiKey",
       },
+    ],
+  },
+  {
+    id: "git_ssh_key",
+    label: "Git SSH key",
+    description:
+      "SSH key profile for clone, fetch, and push through an isolated SSH config.",
+    icon: GitBranch,
+    options: [
       {
         providerKind: "git_ssh_key",
         label: "Git SSH key",
-        detail: "Private key used for SSH clone/fetch/push via an isolated SSH config.",
+        detail:
+          "Private key used for SSH clone/fetch/push via an isolated SSH config.",
         kind: "git",
         provider: "git",
         secretMode: "privateKey",
@@ -593,13 +616,21 @@ function oauthProvider(
   };
 }
 
-/** Top-level settings domains shown in the nav; group sections into sub-tabs. */
+/** Top-level settings domains shown in the nav. */
 export const domains: SettingsDomain[] = [
   {
+    id: "appearance",
+    label: "Appearance",
+    description: "How the sandbox manager looks on this device.",
+    icon: Palette,
+    sectionIds: [],
+    custom: "appearance",
+  },
+  {
     id: "models",
-    label: "Models",
+    label: "Providers",
     description:
-      "LLM providers the manager injects into sandboxes. Subscriptions can be auto-refreshed; API keys are write-only.",
+      "LLM provider credentials the manager injects into sandboxes. Subscriptions can be auto-refreshed; API keys are write-only.",
     icon: BrainCircuit,
     sectionIds: ["llm_subscriptions", "llm_api_keys"],
   },
@@ -607,9 +638,9 @@ export const domains: SettingsDomain[] = [
     id: "source_control",
     label: "Source control",
     description:
-      "Git identity and GitHub access used when a sandbox clones or pushes.",
+      "Git identity, Git authentication profiles, and GitHub access used when a sandbox clones or pushes.",
     icon: GitBranch,
-    sectionIds: ["git", "github"],
+    sectionIds: ["git_identity", "git_https_token", "git_ssh_key", "github"],
   },
   {
     id: "atlassian",
@@ -626,14 +657,6 @@ export const domains: SettingsDomain[] = [
     icon: Search,
     sectionIds: ["web_search"],
   },
-  {
-    id: "appearance",
-    label: "Appearance",
-    description: "How the sandbox manager looks on this device.",
-    icon: Palette,
-    sectionIds: [],
-    custom: "appearance",
-  },
 ];
 
 export function sectionsForDomain(domain: SettingsDomain): SettingsSection[] {
@@ -647,14 +670,15 @@ export function domainForSectionId(
 ): SettingsDomainId {
   return (
     domains.find((domain) => domain.sectionIds.includes(sectionId))?.id ??
-    "models"
+    "appearance"
   );
 }
 
 /** Resolve a URL settings segment (domain id or legacy section id) to a domain. */
 export function resolveDomainId(segment: string | undefined): SettingsDomainId {
-  if (!segment) return "models";
+  if (!segment) return "appearance";
   const normalized = segment.replace(/-/g, "_");
+  if (normalized === "git") return "source_control";
   const direct = domains.find((domain) => domain.id === normalized);
   if (direct) return direct.id;
   return domainForSectionId(normalized as SettingsSectionId);
