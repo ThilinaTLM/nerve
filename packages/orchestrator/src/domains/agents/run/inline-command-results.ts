@@ -1,5 +1,8 @@
 import type { BashExecutionMessage } from "@nervekit/agent";
-import type { ToolCallRecord } from "@nervekit/shared";
+import {
+  formatInlineCommandResultText,
+  type ToolCallRecord,
+} from "@nervekit/shared";
 import type { ToolExecutionResult } from "@nervekit/tools";
 import { formatToolResultForModel } from "../../tools/agent-tool-adapter.js";
 
@@ -21,7 +24,7 @@ export function inlineCommandEntryDetails(
 
 export function inlineCommandDisplayText(toolCall: ToolCallRecord): string {
   const exitCode = exitCodeFromToolCall(toolCall);
-  return inlineCommandResultText({
+  return formatInlineCommandResultText({
     command: commandFromToolCall(toolCall),
     output: resultTextForToolCall(toolCall),
     status: toolCall.status,
@@ -33,47 +36,12 @@ export function inlineCommandExecutionResultText(
   command: string,
   result: ToolExecutionResult,
 ): string {
-  return inlineCommandResultText({
+  return formatInlineCommandResultText({
     command,
     output: result.content || "(no output)",
     status: "completed",
     exitCode: result.exitCode,
   });
-}
-
-type InlineCommandResultTextInput = {
-  command: string;
-  output: string;
-  status: string;
-  exitCode?: number;
-};
-
-function inlineCommandResultText(input: InlineCommandResultTextInput): string {
-  const statusLine = [
-    typeof input.exitCode === "number"
-      ? `exit code: ${input.exitCode}`
-      : undefined,
-    `status: ${input.status}`,
-  ]
-    .filter(Boolean)
-    .join(", ");
-
-  return fenced(
-    [
-      formatCommandTranscript(input.command),
-      "",
-      `> ${statusLine}`,
-      input.output || "(no output)",
-    ].join("\n"),
-    "",
-  );
-}
-
-function formatCommandTranscript(command: string): string {
-  const lines = (command || "(empty command)").split(/\r?\n/);
-  return lines
-    .map((line, index) => (index === 0 ? `$ ${line}` : line))
-    .join("\n");
 }
 
 export function bashExecutionMessageForToolCall(
@@ -135,19 +103,4 @@ function exitCodeFromDetails(
   details: Record<string, unknown> | undefined,
 ): number | undefined {
   return typeof details?.exitCode === "number" ? details.exitCode : undefined;
-}
-
-function fenced(text: string, info: string): string {
-  const fence =
-    longestBacktickRun(text) >= 3
-      ? "`".repeat(longestBacktickRun(text) + 1)
-      : "```";
-  return `${fence}${info}\n${text}\n${fence}`;
-}
-
-function longestBacktickRun(text: string): number {
-  return Math.max(
-    0,
-    ...Array.from(text.matchAll(/`+/g), (match) => match[0].length),
-  );
 }

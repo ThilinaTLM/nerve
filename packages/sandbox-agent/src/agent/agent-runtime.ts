@@ -1,9 +1,13 @@
 import { type AgentHarness, isAgentToolSuspension } from "@nervekit/agent";
 import {
   createNoopLogger,
+  findExecutableCommandBlocks,
+  formatInlineCommandResultText,
+  replaceExecutableCommandBlocks,
   type SandboxConfigV1,
   type StructuredLogger,
 } from "@nervekit/shared";
+import type { ToolExecutionResult } from "@nervekit/tools";
 import { resolveModelSelection } from "../models/model-catalog.js";
 import type { ApprovalWaiter } from "../tools/approval-waiter.js";
 import type { InputWaiter } from "../tools/input-waiter.js";
@@ -91,9 +95,36 @@ export class SandboxAgentRuntime {
     const behavior = input.behavior ?? "start";
     if (behavior === "follow_up")
       await this.assertNoActiveForConversation(input);
-    const { run, executionId } = await this.options.runs.createRun(input);
+    const prompt = input.prompt ?? "";
+    const expandPromptBlocks = findExecutableCommandBlocks(prompt).length > 0;
+    const { run, executionId } = await this.options.runs.createRun({
+      ...input,
+      appendUserEntry: !expandPromptBlocks,
+    });
     this.runLog({ ...run, executionId }).debug("run requested", { behavior });
-    this.launch(run, executionId, input.prompt ?? "", "prompt");
+    this.launch(run, executionId, prompt, "prompt", { expandPromptBlocks });
+    return run;
+  }
+
+  async runInlineCommandPrompt(
+    input: Parameters<RunManager["createRun"]>[0] & { command: string },
+  ): Promise<RunState> {
+    if (!this.options.runs)
+      throw new Error("UNAVAILABLE: run manager is not configured");
+    if (!this.options.toolRuntime)
+      throw new Error("UNAVAILABLE: tool runtime is not configured");
+    const behavior = input.behavior ?? "start";
+    if (behavior === "follow_up")
+      await this.assertNoActiveForConversation(input);
+    const { run, executionId } = await this.options.runs.createRun({
+      ...input,
+      prompt: input.prompt ?? `!${input.command}`,
+      appendUserEntry: false,
+    });
+    this.runLog({ ...run, executionId }).debug("inline command requested", {
+      behavior,
+    });
+    this.launchInlineCommand(run, executionId, input.command);
     return run;
   }
 
@@ -219,6 +250,7 @@ export class SandboxAgentRuntime {
     executionId: string,
     prompt: string,
     mode: "prompt" | "continue",
+    options: { expandPromptBlocks?: boolean } = {},
   ): void {
     const runs = this.options.runs;
     const harnessFactory = this.options.harnessFactory;
@@ -262,7 +294,25 @@ export class SandboxAgentRuntime {
           thinkingLevel: model.thinkingLevel,
         });
         if (mode === "continue") await harness.continue();
-        else await harness.prompt(prompt);
+        else {
+          const effectivePrompt = options.expandPromptBlocks
+            ? await this.expandExecutablePromptBlocks(
+                prompt,
+                scope,
+                active.abortController.signal,
+              )
+            : prompt;
+          if (options.expandPromptBlocks) {
+            await runs.appendTranscriptEntry(run, {
+              entryId: `entry_${Date.now()}_0`,
+              index: 0,
+              role: "user",
+              content: { text: effectivePrompt.slice(0, 16_000) },
+              createdAt: new Date().toISOString(),
+            });
+          }
+          await harness.prompt(effectivePrompt);
+        }
         if (active.abortController.signal.aborted || active.cancelling) {
           log.info("run aborted", { durationMs: Date.now() - startedAt });
           return;
@@ -304,6 +354,165 @@ export class SandboxAgentRuntime {
       }
     })();
     active.promise = promise;
+  }
+
+  private launchInlineCommand(
+    run: RunState,
+    executionId: string,
+    command: string,
+  ): void {
+    const runs = this.options.runs;
+    const toolRuntime = this.options.toolRuntime;
+    if (!runs || !toolRuntime) return;
+    const scope = {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      runId: run.runId,
+      executionId,
+      commandId: typeof run.commandId === "string" ? run.commandId : undefined,
+    };
+    const active: ActiveHarnessRun = {
+      ...scope,
+      key: key(scope),
+      harness: undefined,
+      abortController: new AbortController(),
+      promise: Promise.resolve(),
+    };
+    this.active.set(active.key, active);
+    const log = this.runLog(scope);
+    const startedAt = Date.now();
+    const promise = (async () => {
+      try {
+        const model =
+          this.options.configStore?.effective(this.config).model ??
+          this.config.agent.mainModel;
+        await runs.markRunning(scope, {
+          provider: model.provider,
+          model: model.model,
+          thinkingLevel: model.thinkingLevel,
+        });
+        await this.options.bridge?.startRun(scope);
+        log.info("inline command run started", {
+          provider: model.provider,
+          model: model.model,
+          thinkingLevel: model.thinkingLevel,
+        });
+        const result = await this.executeInlineBashCommand(
+          command,
+          scope,
+          active.abortController.signal,
+        );
+        if (active.abortController.signal.aborted || active.cancelling) {
+          log.info("inline command run aborted", {
+            durationMs: Date.now() - startedAt,
+          });
+          return;
+        }
+        await runs.appendTranscriptEntry(run, {
+          entryId: `entry_${Date.now()}_inline_command`,
+          index: 0,
+          role: "system",
+          content: {
+            text: this.inlineCommandResultText(command, result).slice(
+              0,
+              16_000,
+            ),
+          },
+          details: {
+            type: "inline_command_result",
+            command,
+            toolName: "bash",
+            isError:
+              typeof result.exitCode === "number" && result.exitCode !== 0,
+          },
+          createdAt: new Date().toISOString(),
+        });
+        await runs.markCompleted(scope);
+        await this.options.bridge?.completeRun(scope);
+        log.info("inline command run completed", {
+          durationMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        if (isAgentToolSuspension(error)) {
+          log.info("inline command run suspended", {
+            reason: error.data.toolName,
+            durationMs: Date.now() - startedAt,
+          });
+          await this.options.bridge?.handleSuspension(scope, error);
+          return;
+        }
+        const pendingSuspension = this.pendingSuspension(scope, error);
+        if (pendingSuspension) {
+          log.info("inline command run suspended", {
+            reason: pendingSuspension.data.toolName,
+            durationMs: Date.now() - startedAt,
+          });
+          await this.options.bridge?.handleSuspension(scope, pendingSuspension);
+          return;
+        }
+        if (active.abortController.signal.aborted || active.cancelling) {
+          log.info("inline command run aborted", {
+            durationMs: Date.now() - startedAt,
+          });
+          return;
+        }
+        log.error("inline command run failed", {
+          durationMs: Date.now() - startedAt,
+          err: error,
+        });
+        await runs.markFailed(scope, normalizeError(error), true);
+        await this.options.bridge?.failRun(scope, normalizeError(error), false);
+      } finally {
+        this.active.delete(key(scope));
+      }
+    })();
+    active.promise = promise;
+  }
+
+  private async expandExecutablePromptBlocks(
+    prompt: string,
+    scope: RunScope & { executionId?: string },
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const blocks = findExecutableCommandBlocks(prompt);
+    if (blocks.length === 0) return prompt;
+    const replacements = [];
+    for (const block of blocks) {
+      if (signal?.aborted) throw new Error("Command execution aborted.");
+      const result = await this.executeInlineBashCommand(
+        block.command,
+        scope,
+        signal,
+      );
+      replacements.push({
+        block,
+        text: this.inlineCommandResultText(block.command, result),
+      });
+    }
+    return replaceExecutableCommandBlocks(prompt, replacements);
+  }
+
+  private async executeInlineBashCommand(
+    command: string,
+    scope: RunScope & { executionId?: string },
+    signal?: AbortSignal,
+  ): Promise<ToolExecutionResult> {
+    const toolRuntime = this.options.toolRuntime;
+    if (!toolRuntime)
+      throw new Error("UNAVAILABLE: tool runtime is not configured");
+    return toolRuntime.execute("bash", { command }, { ...scope, signal });
+  }
+
+  private inlineCommandResultText(
+    command: string,
+    result: ToolExecutionResult,
+  ): string {
+    return formatInlineCommandResultText({
+      command,
+      output: result.content || "(no output)",
+      status: "completed",
+      exitCode: result.exitCode,
+    });
   }
 
   private pendingSuspension(

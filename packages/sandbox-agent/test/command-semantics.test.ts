@@ -223,6 +223,129 @@ describe("sandbox daemon command semantics", () => {
     }
   });
 
+  it("executes inline command prompts without starting the agent loop", async () => {
+    const provider = "nerve-scripted-inline-command";
+    const registration = registerAgentScriptedProvider({
+      provider,
+      steps: [{ type: "assistantText", text: "AGENT_LOOP_STARTED" }],
+    });
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-inline-command-"));
+    try {
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      const daemon = new SandboxDaemon(
+        {
+          ...baseConfig,
+          agent: {
+            mainModel: { provider, model: "scripted-fast" },
+            permissionLevel: "autonomous",
+          },
+        } as never,
+        "sha256:test",
+        "inst_1",
+        stores,
+        { workspaceDir: process.cwd() },
+      );
+      daemon.start();
+      const run = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_inline_only",
+        prompt: "!printf 'sandbox command only\\n'",
+      })) as { conversationId: string; agentId: string; runId: string };
+      await waitForRun(daemon, run.runId, "completed");
+
+      const result = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: run.conversationId,
+          agentId: run.agentId,
+          runId: run.runId,
+        },
+      )) as {
+        snapshot?: {
+          entries: Array<{ role: string; text: string }>;
+          toolCalls: Array<{
+            toolName: string;
+            argsPreview?: unknown;
+            resultPreview?: unknown;
+          }>;
+        };
+      };
+      const transcript = result.snapshot?.entries
+        .map((entry) => entry.text)
+        .join("\n");
+      assert.match(transcript ?? "", /sandbox command only/);
+      assert.doesNotMatch(transcript ?? "", /AGENT_LOOP_STARTED/);
+      assert.equal(
+        result.snapshot?.entries.some((entry) => entry.role === "assistant"),
+        false,
+      );
+      const bash = result.snapshot?.toolCalls.find(
+        (toolCall) => toolCall.toolName === "bash",
+      );
+      assert.equal(
+        (bash?.argsPreview as { command?: string } | undefined)?.command,
+        "printf 'sandbox command only\\n'",
+      );
+    } finally {
+      registration.unregister();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("expands executable command blocks before prompting the agent", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-command-block-"));
+    try {
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      const daemon = new SandboxDaemon(
+        {
+          ...baseConfig,
+          agent: {
+            mainModel: { provider: "nerve-faux", model: "faux-fast" },
+            permissionLevel: "autonomous",
+          },
+        } as never,
+        "sha256:test",
+        "inst_1",
+        stores,
+        { workspaceDir: process.cwd() },
+      );
+      daemon.start();
+      const run = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_block_expand",
+        prompt: [
+          "Summarize this command output:",
+          "```!!!",
+          "printf 'block output\\n'",
+          "```",
+        ].join("\n"),
+      })) as { conversationId: string; agentId: string; runId: string };
+      await waitForRun(daemon, run.runId, "completed");
+
+      const result = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: run.conversationId,
+          agentId: run.agentId,
+          runId: run.runId,
+        },
+      )) as { snapshot?: { entries: Array<{ role: string; text: string }> } };
+      const userEntry = result.snapshot?.entries.find(
+        (entry) => entry.role === "user",
+      );
+      assert.match(userEntry?.text ?? "", /block output/);
+      assert.doesNotMatch(userEntry?.text ?? "", /```!!!/);
+      const assistantText = result.snapshot?.entries
+        .filter((entry) => entry.role === "assistant")
+        .map((entry) => entry.text)
+        .join("\n");
+      assert.match(assistantText ?? "", /block output/);
+      assert.doesNotMatch(assistantText ?? "", /```!!!/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("preserves transcript entry details in conversation snapshots", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-entry-details-"));
     try {

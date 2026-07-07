@@ -64,6 +64,7 @@ export class RunManager {
     agentId?: string;
     prompt?: string;
     behavior?: "start" | "follow_up" | "steer";
+    appendUserEntry?: boolean;
   }): Promise<{ run: RunState; executionId: string }> {
     const now = new Date().toISOString();
     // Only accept a well-formed conversation id; anything else (e.g. a UI
@@ -98,7 +99,7 @@ export class RunManager {
       status: "starting",
       startedAt: now,
     });
-    if (input.prompt) {
+    if (input.prompt && input.appendUserEntry !== false) {
       await this.appendTranscriptEntry(state, {
         entryId: `entry_${Date.now()}_0`,
         index: 0,

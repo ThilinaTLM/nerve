@@ -7,6 +7,7 @@ import type {
 } from "@nervekit/shared";
 import {
   createNoopLogger,
+  parseInlineCommandPrompt,
   sandboxAgentConfigureParamsSchema,
 } from "@nervekit/shared";
 import {
@@ -424,24 +425,37 @@ export class SandboxDaemon {
           "VALIDATION_FAILED",
           "sandbox.run.start requires prompt or agent.initialPrompt",
         );
-      if (this.recovered.modelRuntime?.degraded)
+      const inlineCommand = parseInlineCommandPrompt(prompt);
+      if (!inlineCommand && this.recovered.modelRuntime?.degraded)
         throw new SandboxCommandError(
           "UNAVAILABLE",
           "No usable model provider is available for this sandbox",
         );
+      if (inlineCommand && !this.agentRuntime)
+        throw new SandboxCommandError(
+          "UNAVAILABLE",
+          "Inline command execution is unavailable in this sandbox",
+        );
       let run: RunState | undefined;
       try {
-        run = await (this.agentRuntime
-          ? this.agentRuntime.startRun({
+        run = inlineCommand
+          ? await this.agentRuntime?.runInlineCommandPrompt({
               ...(params as Record<string, unknown>),
               prompt,
+              command: inlineCommand.command,
               commandId: accepted.commandId,
             })
-          : this.runs?.start({
-              ...(params as Record<string, unknown>),
-              prompt,
-              commandId: accepted.commandId,
-            }));
+          : await (this.agentRuntime
+              ? this.agentRuntime.startRun({
+                  ...(params as Record<string, unknown>),
+                  prompt,
+                  commandId: accepted.commandId,
+                })
+              : this.runs?.start({
+                  ...(params as Record<string, unknown>),
+                  prompt,
+                  commandId: accepted.commandId,
+                }));
       } catch (error) {
         const mapped = mapRuntimeError(error);
         await this.state?.commands
