@@ -35,6 +35,7 @@
     createDraftFromStoredPreferences,
     saveCreateSandboxPreferences,
     type CreateSandboxBootMode,
+    type CreateSandboxDisconnectPolicyMode,
     type CreateSandboxToolKey,
   } from "../../state/create-sandbox-draft";
   import {
@@ -64,6 +65,18 @@
     { value: "read_only", label: "Read-only" },
     { value: "supervised", label: "Supervised" },
     { value: "autonomous", label: "Autonomous" },
+  ];
+  const disconnectPolicyModeItems = [
+    {
+      value: "exit_self",
+      label: "Exit after timeout",
+      detail: "Recommended: manager can garbage-collect detached sandboxes",
+    },
+    {
+      value: "stay_reconnecting",
+      label: "Stay reconnecting",
+      detail: "Development or specialized controller mode",
+    },
   ];
   const bootModeItems = [
     { value: "single", label: "Single script", detail: "One setup script" },
@@ -645,6 +658,48 @@
                 class="min-h-16"
                 placeholder="Optional first instruction for the sandbox agent"
               />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
+            <div>
+              <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.controller.disconnectPolicy</h3>
+              <p class="text-xs text-muted-foreground">
+                Decide what the sandbox-agent does if manager/controller WebSocket
+                connectivity is lost. Transport URL and auth are still materialized
+                by the manager when YAML is synced.
+              </p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="flex flex-col gap-1">
+                <Label>Disconnect behavior</Label>
+                <SelectField
+                  items={disconnectPolicyModeItems}
+                  value={draft.disconnectPolicyMode}
+                  onValueChange={(value) =>
+                    (draft.disconnectPolicyMode = value as CreateSandboxDisconnectPolicyMode)}
+                />
+              </div>
+              {#if draft.disconnectPolicyMode === "exit_self"}
+                <div class="flex flex-col gap-1">
+                  <Label>Shutdown timeout (seconds)</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    bind:value={draft.disconnectExitAfterSeconds}
+                    placeholder="300"
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    Default is 300 seconds. Reconnection before this deadline cancels shutdown.
+                  </p>
+                </div>
+              {:else}
+                <div class="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
+                  The sandbox will keep reconnecting indefinitely. Use this only
+                  for development or specialized controllers.
+                </div>
+              {/if}
             </div>
           </div>
 

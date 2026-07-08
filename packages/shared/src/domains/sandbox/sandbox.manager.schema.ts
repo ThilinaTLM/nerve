@@ -424,7 +424,10 @@ export const sandboxCreateControllerConfigInputSchema = z
         message: "exit_self disconnect policy requires exitAfterMs",
       });
     }
-    if (policy?.mode === "stay_reconnecting" && policy.exitAfterMs !== undefined) {
+    if (
+      policy?.mode === "stay_reconnecting" &&
+      policy.exitAfterMs !== undefined
+    ) {
       context.addIssue({
         code: "custom",
         path: ["disconnectPolicy", "exitAfterMs"],

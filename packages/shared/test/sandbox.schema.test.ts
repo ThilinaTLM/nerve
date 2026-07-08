@@ -360,7 +360,7 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
-  it("accepts create input with an omitted controller and full config alike", () => {
+  it("accepts create input with omitted, partial, and full controllers", () => {
     const { controller: _controller, ...withoutController } = minimalConfig();
     assert.equal(
       sandboxCreateConfigInputSchema.safeParse(withoutController).success,
@@ -369,6 +369,31 @@ describe("Sandbox shared schemas", () => {
     assert.equal(
       sandboxCreateConfigInputSchema.safeParse(minimalConfig()).success,
       true,
+    );
+    assert.equal(
+      sandboxCreateConfigInputSchema.safeParse({
+        ...withoutController,
+        controller: {
+          disconnectPolicy: { mode: "exit_self", exitAfterMs: 300_000 },
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxCreateConfigInputSchema.safeParse({
+        ...withoutController,
+        controller: { disconnectPolicy: { mode: "exit_self" } },
+      }).success,
+      false,
+    );
+    assert.equal(
+      sandboxCreateConfigInputSchema.safeParse({
+        ...withoutController,
+        controller: {
+          disconnectPolicy: { mode: "stay_reconnecting", exitAfterMs: 300_000 },
+        },
+      }).success,
+      false,
     );
     assert.equal(
       sandboxCreateRequestSchema.safeParse({

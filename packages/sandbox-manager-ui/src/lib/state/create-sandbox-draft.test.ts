@@ -51,11 +51,13 @@ describe("create sandbox draft", () => {
     assert.equal(draft.permissionLevel, "autonomous");
     assert.equal(draft.initialPrompt, "");
     assert.equal(draft.mainThinking, "off");
+    assert.equal(draft.disconnectPolicyMode, "exit_self");
+    assert.equal(draft.disconnectExitAfterSeconds, "300");
     assert.equal(draft.name, draft.sandboxId);
     assert.match(draft.name, /^[a-z]+-[a-z]+-[a-z]+$/);
   });
 
-  it("builds a valid request omitting the controller", () => {
+  it("builds a valid request with manager-owned controller policy", () => {
     const draft = createDefaultDraft();
     draft.name = "demo";
     draft.labels = "team=core, env=dev";
@@ -71,8 +73,10 @@ describe("create sandbox draft", () => {
       team: "core",
       env: "dev",
     });
-    // Controller is manager-owned and omitted by the UI.
-    assert.equal("controller" in result.request.config, false);
+    // Transport and auth are manager-owned; the form only supplies shutdown policy.
+    assert.deepEqual(result.request.config.controller, {
+      disconnectPolicy: { mode: "exit_self", exitAfterMs: 300_000 },
+    });
   });
 
   it("maps the selected thinking level into the main model config", () => {
@@ -88,6 +92,21 @@ describe("create sandbox draft", () => {
     const config = buildConfigFromDraft(draft);
     assert.equal(config.tools?.groups?.python?.enabled, true);
     assert.equal(config.tools?.groups?.fileInspection?.enabled, true);
+  });
+
+  it("maps controller disconnect policy into partial manager-owned config", () => {
+    const draft = createDefaultDraft();
+    draft.disconnectExitAfterSeconds = "45";
+    let config = buildConfigFromDraft(draft);
+    assert.deepEqual(config.controller, {
+      disconnectPolicy: { mode: "exit_self", exitAfterMs: 45_000 },
+    });
+
+    draft.disconnectPolicyMode = "stay_reconnecting";
+    config = buildConfigFromDraft(draft);
+    assert.deepEqual(config.controller, {
+      disconnectPolicy: { mode: "stay_reconnecting" },
+    });
   });
 
   it("omits boot config by default", () => {
@@ -246,6 +265,20 @@ describe("create sandbox draft", () => {
     if (!result.ok) assert.match(result.error, /Boot phase 1 timeout/);
   });
 
+  it("reports disconnect policy validation errors in create request results", () => {
+    const draft = createDefaultDraft();
+    draft.disconnectExitAfterSeconds = "0";
+    let result = buildCreateRequest(draft);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /Disconnect shutdown timeout/);
+
+    draft.disconnectExitAfterSeconds = "";
+    result = buildCreateRequest(draft);
+    assert.equal(result.ok, false);
+    if (!result.ok)
+      assert.match(result.error, /Disconnect shutdown timeout is required/);
+  });
+
   it("reports an error for invalid YAML config", () => {
     const draft = createDefaultDraft();
     draft.yamlDirty = true;
@@ -304,6 +337,8 @@ describe("create sandbox draft", () => {
     draft.initialPrompt = "Keep this prompt";
     draft.mode = "planning";
     draft.permissionLevel = "read_only";
+    draft.disconnectPolicyMode = "stay_reconnecting";
+    draft.disconnectExitAfterSeconds = "120";
     draft.tools.python = true;
     draft.tools.web = true;
     draft.mainModelProfileId = "model_profile";
@@ -336,6 +371,8 @@ describe("create sandbox draft", () => {
     assert.equal(restored.initialPrompt, "Keep this prompt");
     assert.equal(restored.mode, "planning");
     assert.equal(restored.permissionLevel, "read_only");
+    assert.equal(restored.disconnectPolicyMode, "stay_reconnecting");
+    assert.equal(restored.disconnectExitAfterSeconds, "120");
     assert.equal(restored.tools.python, true);
     assert.equal(restored.tools.web, true);
     assert.equal(restored.mainModelProfileId, "model_profile");
@@ -358,6 +395,7 @@ describe("create sandbox draft", () => {
     const draft = createDraftFromStoredPreferences(storage);
     assert.equal(draft.permissionLevel, "autonomous");
     assert.equal(draft.mainThinking, "off");
+    assert.equal(draft.disconnectPolicyMode, "exit_self");
     assert.match(draft.sandboxId, /^[a-z]+-[a-z]+-[a-z]+$/);
   });
 });

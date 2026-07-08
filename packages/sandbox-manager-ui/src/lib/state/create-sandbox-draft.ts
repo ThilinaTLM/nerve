@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: Create sandbox form state intentionally keeps config mapping, validation, and persistence together.
 import {
   type SandboxConfigV1,
   type SandboxCreateConfigInput,
@@ -41,6 +42,9 @@ export const CREATE_SANDBOX_TOOL_KEYS: CreateSandboxToolKey[] = [
 export const CREATE_SANDBOX_PREFERENCES_STORAGE_KEY =
   "nerve.sandboxManager.createSandboxPreferences";
 
+export type CreateSandboxDisconnectPolicyMode =
+  | "exit_self"
+  | "stay_reconnecting";
 export type CreateSandboxBootMode = "single" | "phases";
 export type CreateSandboxBootRunAs = "sandbox" | "root" | "";
 export type CreateSandboxBootNetwork =
@@ -86,6 +90,8 @@ type PersistedCreateSandboxPreferences = {
   systemPromptAmendment?: string;
   mode?: CreateSandboxDraft["mode"];
   permissionLevel?: CreateSandboxDraft["permissionLevel"];
+  disconnectPolicyMode?: CreateSandboxDisconnectPolicyMode;
+  disconnectExitAfterSeconds?: string;
   tools?: Partial<Record<CreateSandboxToolKey, boolean>>;
   mainModelProfileId?: string;
   exploreModelProfileId?: string;
@@ -181,6 +187,8 @@ export type CreateSandboxDraft = {
   systemPromptAmendment: string;
   mode: "normal" | "planning";
   permissionLevel: "read_only" | "supervised" | "autonomous";
+  disconnectPolicyMode: CreateSandboxDisconnectPolicyMode;
+  disconnectExitAfterSeconds: string;
   tools: Record<CreateSandboxToolKey, boolean>;
   mainModelProfileId: string;
   exploreModelProfileId: string;
@@ -273,6 +281,8 @@ export function createDefaultDraft(): CreateSandboxDraft {
     systemPromptAmendment: "",
     mode: "normal",
     permissionLevel: "autonomous",
+    disconnectPolicyMode: "exit_self",
+    disconnectExitAfterSeconds: "300",
     tools: {
       fileInspection: true,
       fileEditing: true,
@@ -340,6 +350,14 @@ function permissionLevelValue(
     : undefined;
 }
 
+function disconnectPolicyModeValue(
+  value: unknown,
+): CreateSandboxDisconnectPolicyMode | undefined {
+  return value === "exit_self" || value === "stay_reconnecting"
+    ? value
+    : undefined;
+}
+
 function storageOrDefault(
   storage?: CreateSandboxPreferenceStorage,
 ): CreateSandboxPreferenceStorage | undefined {
@@ -387,6 +405,12 @@ export function createDraftFromStoredPreferences(
   draft.mode = modeValue(stored.mode) ?? draft.mode;
   draft.permissionLevel =
     permissionLevelValue(stored.permissionLevel) ?? draft.permissionLevel;
+  draft.disconnectPolicyMode =
+    disconnectPolicyModeValue(stored.disconnectPolicyMode) ??
+    draft.disconnectPolicyMode;
+  draft.disconnectExitAfterSeconds =
+    stringValue(stored.disconnectExitAfterSeconds) ??
+    draft.disconnectExitAfterSeconds;
   draft.mainModelProfileId =
     stringValue(stored.mainModelProfileId) ?? draft.mainModelProfileId;
   draft.exploreModelProfileId =
@@ -435,6 +459,8 @@ function preferencesFromDraft(
     systemPromptAmendment: draft.systemPromptAmendment,
     mode: draft.mode,
     permissionLevel: draft.permissionLevel,
+    disconnectPolicyMode: draft.disconnectPolicyMode,
+    disconnectExitAfterSeconds: draft.disconnectExitAfterSeconds,
     tools: { ...draft.tools },
     mainModelProfileId: draft.mainModelProfileId,
     exploreModelProfileId: draft.exploreModelProfileId,
@@ -499,6 +525,24 @@ function millisecondsFromSeconds(
 ): number | undefined {
   const seconds = parsePositiveSeconds(value, fieldName);
   return seconds === undefined ? undefined : seconds * 1000;
+}
+
+export function buildControllerConfigFromDraft(
+  draft: CreateSandboxDraft,
+): SandboxCreateConfigInput["controller"] {
+  if (draft.disconnectPolicyMode === "stay_reconnecting") {
+    return { disconnectPolicy: { mode: "stay_reconnecting" } };
+  }
+  const exitAfterMs = millisecondsFromSeconds(
+    draft.disconnectExitAfterSeconds,
+    "Disconnect shutdown timeout",
+  );
+  if (exitAfterMs === undefined) {
+    throw new Error("Disconnect shutdown timeout is required.");
+  }
+  return {
+    disconnectPolicy: { mode: "exit_self", exitAfterMs },
+  };
 }
 
 export function buildSecretRefFromEnvDraft(
@@ -673,6 +717,8 @@ export function buildConfigFromDraft(
   if (draft.name.trim()) identity.name = draft.name.trim();
   if (labels) identity.labels = labels;
   if (Object.keys(identity).length > 0) config.identity = identity;
+
+  config.controller = buildControllerConfigFromDraft(draft);
 
   const groups: Record<string, { enabled: boolean }> = {};
   for (const [key, enabled] of Object.entries(draft.tools))
