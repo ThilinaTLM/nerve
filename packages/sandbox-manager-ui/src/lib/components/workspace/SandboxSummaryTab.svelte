@@ -13,6 +13,7 @@
   import Square from "@lucide/svelte/icons/square";
   import Terminal from "@lucide/svelte/icons/terminal";
   import Trash2 from "@lucide/svelte/icons/trash-2";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import Wrench from "@lucide/svelte/icons/wrench";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
   import { Badge } from "@nervekit/shared-ui/components/ui/badge";
@@ -59,6 +60,20 @@
   );
   const connectionLabel = $derived(sandboxLifecycleBadgeLabel(record, detail));
   const readOnly = $derived(sandboxIsReadOnly(record, detail));
+  const lastError = $derived(record.lastError);
+  const failedPhase = $derived(
+    progress.phases.find((phase) => phase.status === "failed" && phase.error),
+  );
+  const summaryError = $derived(
+    failedPhase?.error ? parseErrorText(failedPhase.error) : lastError,
+  );
+  const errorTitle = $derived(
+    failedPhase
+      ? `${failedPhase.label} failed`
+      : progress.state === "failed"
+        ? progress.headline
+        : "Sandbox warning",
+  );
   const canCreateConversation = $derived(sandboxCanCreateConversation(record, detail));
   const lifecycleMessage = $derived(sandboxLifecycleMessage(record, detail));
   const session = $derived(detail?.latestSession ?? detail?.status?.lastSession ?? snapshot?.lastSession);
@@ -79,6 +94,12 @@
     { label: "Tool calls", value: toolCalls.length, icon: Wrench },
     { label: "Context", value: contextUsage, icon: Gauge },
   ]);
+
+  function parseErrorText(error: string): { code?: string; message: string } {
+    const match = /^([A-Z][A-Z0-9_]+):\s*(.+)$/s.exec(error);
+    if (!match) return { message: error };
+    return { code: match[1], message: match[2] };
+  }
 
   function formatDate(value: string | undefined): string {
     if (!value) return "—";
@@ -168,15 +189,32 @@
         </Button>
       </div>
 
-    {#if readOnly}
-      <section class="flex gap-2 rounded-md border bg-muted/40 p-3 text-sm">
-        <Info class="mt-0.5 size-4 flex-none text-info" />
-        <div class="min-w-0">
-          <p class="font-medium">Read-only snapshot</p>
-          <p class="text-muted-foreground">{lifecycleMessage}</p>
-        </div>
-      </section>
-    {/if}
+      {#if summaryError}
+        <section class="basis-full rounded-md border bg-muted/30 px-3 py-2.5">
+          <div class="flex items-start gap-2.5">
+            <TriangleAlert class="mt-0.5 size-4 flex-none text-destructive" />
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="text-sm font-medium text-foreground">{errorTitle}</p>
+                {#if summaryError.code}
+                  <Badge tone="danger" size="xs">{summaryError.code}</Badge>
+                {/if}
+              </div>
+              <p class="mt-0.5 break-words text-xs leading-relaxed text-muted-foreground">
+                {summaryError.message}
+              </p>
+            </div>
+          </div>
+        </section>
+      {:else if readOnly}
+        <section class="flex basis-full gap-2 rounded-md border bg-muted/40 p-3 text-sm">
+          <Info class="mt-0.5 size-4 flex-none text-info" />
+          <div class="min-w-0">
+            <p class="font-medium">Read-only snapshot</p>
+            <p class="text-muted-foreground">{lifecycleMessage}</p>
+          </div>
+        </section>
+      {/if}
     </section>
 
     <SandboxStatStrip items={metrics} />
