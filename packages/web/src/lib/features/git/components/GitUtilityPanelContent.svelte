@@ -31,9 +31,9 @@
     gitProjectStateKey,
     gitRepoStateKey,
   } from "$lib/core/state/state-keys";
-  import GitChangesSection from "./GitChangesSection.svelte";
-  import GitPrSection from "./GitPrSection.svelte";
-  import GitRepoBranchSection from "./GitRepoBranchSection.svelte";
+  import GitChangesSection from "@nervekit/shared-ui/git/GitChangesSection.svelte";
+  import GitPrSection from "@nervekit/shared-ui/git/GitPrSection.svelte";
+  import GitRepoBranchSection from "@nervekit/shared-ui/git/GitRepoBranchSection.svelte";
 
   type Props = {
     activeProject?: ProjectRecord;

@@ -487,6 +487,74 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
+  it("validates sandbox utility protocol method definitions", () => {
+    const readMethods = [
+      "sandbox.git.repos.discover",
+      "sandbox.git.overview.get",
+      "sandbox.git.branches.list",
+      "sandbox.github.status.get",
+      "sandbox.github.pr.list",
+      "sandbox.github.pr.get",
+      "sandbox.task.list",
+      "sandbox.task.get",
+      "sandbox.task.logs",
+      "sandbox.pinnedCommand.list",
+    ] as const;
+    for (const method of readMethods) {
+      assert.equal(protocolMethodDefinition(method).kind, "read");
+      assert.equal(protocolMethodDefinition(method).idempotency, "none");
+    }
+
+    const mutationMethods = [
+      "sandbox.git.branch.create",
+      "sandbox.git.branch.switch",
+      "sandbox.git.file.stage",
+      "sandbox.git.file.unstage",
+      "sandbox.git.file.discard",
+      "sandbox.git.sync",
+      "sandbox.git.push",
+      "sandbox.git.pull",
+      "sandbox.git.fetch",
+      "sandbox.git.switchBaseAndPull",
+      "sandbox.github.pr.checkout",
+      "sandbox.task.start",
+      "sandbox.task.cancel",
+      "sandbox.task.restart",
+      "sandbox.task.prune",
+      "sandbox.task.delete",
+      "sandbox.pinnedCommand.create",
+      "sandbox.pinnedCommand.update",
+      "sandbox.pinnedCommand.delete",
+    ] as const;
+    for (const method of mutationMethods) {
+      assert.equal(protocolMethodDefinition(method).idempotency, "recommended");
+    }
+
+    assert.equal(
+      protocolMethodParamsSchema("sandbox.task.start").safeParse({
+        sandboxId: "sbx_1",
+        command: "pnpm test",
+      }).success,
+      true,
+    );
+    assert.equal(
+      protocolMethodParamsSchema("sandbox.pinnedCommand.create").safeParse({
+        sandboxId: "sbx_1",
+        command: "pnpm dev",
+        cwd: "/workspace",
+      }).success,
+      true,
+    );
+    assert.equal(
+      protocolMethodParamsSchema("sandbox.github.pr.get").safeParse({
+        sandboxId: "sbx_1",
+        repo: ".",
+        number: 123,
+      }).success,
+      true,
+    );
+  });
+
   it("validates rich sandbox conversation view snapshots", () => {
     assert.equal(
       sandboxConversationViewSnapshotSchema.safeParse({

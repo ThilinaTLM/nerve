@@ -35,7 +35,7 @@ export const sandboxResponsive = {
 };
 
 export const sandboxWorkbenchLayout = $state({
-  utilityTab: "context" as SandboxUtilityTab,
+  utilityTab: "git" as SandboxUtilityTab,
   sidebarCollapsed: readBoolean(SIDEBAR_KEY, false),
   utilityCollapsed: readBoolean(UTILITY_KEY, false),
   navDrawerOpen: false,

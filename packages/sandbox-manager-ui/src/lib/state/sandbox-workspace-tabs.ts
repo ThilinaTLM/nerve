@@ -90,6 +90,8 @@ export function closeWorkspaceTab(
     (open) => !sameWorkspaceTab(open, tab),
   );
   if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
+  if (tab.kind === "task") delete detail.taskLogsById[tab.id];
+  if (tab.kind === "pr") delete detail.prViewsById[tab.id];
   if (tab.kind === "chat" && isPendingConversationId(tab.id))
     delete detail.pendingConversationsById[tab.id];
   if (sameWorkspaceTab(detail.activeWorkspaceTab, tab)) {
@@ -215,6 +217,8 @@ export function closeWorkspaceTabs(
 ): void {
   for (const tab of tabs) {
     if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
+    if (tab.kind === "task") delete detail.taskLogsById[tab.id];
+    if (tab.kind === "pr") delete detail.prViewsById[tab.id];
     if (tab.kind === "chat" && isPendingConversationId(tab.id))
       delete detail.pendingConversationsById[tab.id];
   }

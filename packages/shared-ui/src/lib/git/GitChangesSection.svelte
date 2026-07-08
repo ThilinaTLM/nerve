@@ -4,11 +4,11 @@
   import FilePen from "@lucide/svelte/icons/file-pen";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import X from "@lucide/svelte/icons/x";
-  import type { GitFileChange } from "$lib/api";
+  import type { GitFileChange } from "@nervekit/shared";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import { cn } from "@nervekit/shared-ui/core/utils";
   import { PanelSection } from "@nervekit/shared-ui/components/workbench";
-  import type { FileMutation } from "$lib/features/git/state/git-panel.svelte";
+  import type { FileMutation } from "./git-panel-types";
   import {
     fileStatusLabel,
     fileTone,

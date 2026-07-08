@@ -2,23 +2,27 @@
   import Pencil from "@lucide/svelte/icons/pencil";
   import Play from "@lucide/svelte/icons/play";
   import Trash2 from "@lucide/svelte/icons/trash-2";
-  import type { PinnedCommand } from "$lib/api";
+  import type { PinnedCommand, SandboxPinnedCommand } from "@nervekit/shared";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
 
+  type AnyPinnedCommand = PinnedCommand | SandboxPinnedCommand;
+
   type Props = {
-    command: PinnedCommand;
+    command: AnyPinnedCommand;
     cwd?: string;
     running?: boolean;
-    onRun?: (command: PinnedCommand) => void;
-    onEdit?: (command: PinnedCommand) => void;
-    onRemove?: (command: PinnedCommand) => void;
+    disabled?: boolean;
+    onRun?: (command: AnyPinnedCommand) => void;
+    onEdit?: (command: AnyPinnedCommand) => void;
+    onRemove?: (command: AnyPinnedCommand) => void;
   };
 
   let {
     command,
     cwd = "",
     running = false,
+    disabled = false,
     onRun,
     onEdit,
     onRemove,
@@ -53,7 +57,7 @@
       ariaLabel="Run pinned task"
       title="Run pinned task"
       class="text-muted-foreground hover:text-foreground"
-      disabled={running}
+      disabled={running || disabled}
       onclick={(event) => {
         stopPropagation(event);
         onRun?.(command);

@@ -1,14 +1,18 @@
 import type {
+  GithubPrDetail,
   ManagedSandboxRecord,
   SandboxConfigYamlResult,
   SandboxControllerSessionSummary,
   SandboxConversationSnapshot,
+  SandboxPinnedCommand,
   SandboxSetupTimelineItem,
   SandboxSnapshotResult,
   SandboxStatusGetResult,
   SandboxToolCallSummary,
   SandboxWaitSummary,
   SandboxWorkspaceFileResponse,
+  TaskLogQueryResponse,
+  TaskRecord,
   ThinkingLevel,
 } from "@nervekit/shared";
 import type { ConversationRenderState } from "@nervekit/shared-ui/state";
@@ -73,12 +77,14 @@ export type SandboxLiveRunState = {
 };
 
 export type SandboxDiagnosticTabId = "logs" | "config" | "events";
-export type SandboxUtilityTab = "context" | "git";
+export type SandboxUtilityTab = "tasks" | "context" | "git";
 
 export type SandboxWorkspaceTabIdentity =
   | { kind: "summary"; id: "summary" }
   | { kind: "chat"; id: string }
   | { kind: "file"; id: string }
+  | { kind: "task"; id: string }
+  | { kind: "pr"; id: string; repo: string; number: number }
   | { kind: "diagnostic"; id: SandboxDiagnosticTabId };
 
 export const sandboxSummaryTab: SandboxWorkspaceTabIdentity = {
@@ -154,6 +160,22 @@ export type SandboxDetailState = {
   openWorkspaceTabs: SandboxWorkspaceTabIdentity[];
   activeWorkspaceTab: SandboxWorkspaceTabIdentity | undefined;
   workspaceFileViewsById: Record<string, SandboxWorkspaceFileViewState>;
+  tasks: TaskRecord[];
+  selectedTaskId?: string;
+  taskLogsById: Record<string, TaskLogQueryResponse | undefined>;
+  pinnedCommands: SandboxPinnedCommand[];
+  pinnedCommandsLoading: boolean;
+  prViewsById: Record<
+    string,
+    {
+      id: string;
+      repo: string;
+      number: number;
+      detail?: GithubPrDetail;
+      loading: boolean;
+      error?: string;
+    }
+  >;
   lastRichSnapshot?: {
     generatedAt?: string;
     cursorSeq?: number;
@@ -200,6 +222,11 @@ export function createSandboxDetailState(
     openWorkspaceTabs: [sandboxSummaryTab],
     activeWorkspaceTab: sandboxSummaryTab,
     workspaceFileViewsById: {},
+    tasks: [],
+    taskLogsById: {},
+    pinnedCommands: [],
+    pinnedCommandsLoading: false,
+    prViewsById: {},
     composerText: "",
     agentControls: defaultAgentControls(),
     controllerConnected: false,

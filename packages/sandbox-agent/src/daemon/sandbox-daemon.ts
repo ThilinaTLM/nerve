@@ -41,6 +41,8 @@ import {
   summarizeConversations,
   summarizeRuns,
 } from "./run-summaries.js";
+import { registerSandboxGitHandlers } from "./sandbox-git-handlers.js";
+import { registerSandboxTaskHandlers } from "./sandbox-task-handlers.js";
 import { buildSandboxSnapshot } from "./snapshots.js";
 
 export type SandboxDaemonRecoveredState = {
@@ -66,6 +68,7 @@ export class SandboxDaemon {
   private readonly bridge?: HarnessEventBridge;
   private readonly exploreRuntime?: ExploreRuntime;
   private readonly agentConfigStore?: AgentConfigStore;
+  private readonly workspaceDir: string;
   private readonly ready: Promise<void>;
   constructor(
     private readonly config: SandboxConfigV1,
@@ -77,6 +80,8 @@ export class SandboxDaemon {
     // Production always injects a logger from the entrypoint; the NOOP fallback
     // keeps daemons constructed without one (e.g. tests) silent.
     const logger = recovered.logger ?? createNoopLogger();
+    this.workspaceDir =
+      recovered.workspaceDir ?? config.agent.workspaceRoot ?? process.cwd();
     this.runs = state
       ? new RunManager(
           new RunStateStore(state.stateDir),
@@ -110,8 +115,7 @@ export class SandboxDaemon {
       loadPromises.push(this.taskSupervisor.load());
     }
     if (state && this.runs) {
-      const workspaceDir =
-        recovered.workspaceDir ?? config.agent.workspaceRoot ?? process.cwd();
+      const workspaceDir = this.workspaceDir;
       const eventCommonData = {
         instanceId,
         configDigest,
@@ -195,6 +199,12 @@ export class SandboxDaemon {
     this.status.transition("ready");
   }
   private registerBuiltins(): void {
+    registerSandboxGitHandlers(this.router, this.workspaceDir);
+    registerSandboxTaskHandlers(
+      this.router,
+      this.taskSupervisor,
+      this.workspaceDir,
+    );
     this.router.register("sandbox.status.get", async () => {
       await this.ready;
       const runs = (await this.runs?.list()) ?? [];

@@ -8,10 +8,10 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import X from "@lucide/svelte/icons/x";
-  import { isGithubChecksPending } from "$lib/features/git/checks";
+  import { isGithubChecksPending } from "./github-pr-checks";
   import Markdown from "@nervekit/shared-ui/core/components/Markdown.svelte";
-  import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
-  import type { PrViewState } from "$lib/core/types/state-types";
+  import { notifyCopyResult } from "@nervekit/shared-ui/core/notify";
+  import type { PrViewState } from "./github-pr-types";
   import {
     checksTone,
     formatPrDate,

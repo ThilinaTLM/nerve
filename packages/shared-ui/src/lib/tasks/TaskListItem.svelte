@@ -6,14 +6,14 @@
   import Terminal from "@lucide/svelte/icons/terminal";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import type { TaskRecord } from "$lib/api";
+  import type { TaskRecord } from "@nervekit/shared";
   import { Badge } from "@nervekit/shared-ui/components/ui/badge";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import ContextMenu, { type ContextMenuItem } from "@nervekit/shared-ui/components/ui/context-menu-list";
   import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
   import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
   import { taskPulse, taskTone } from "@nervekit/shared-ui/core/utils/status";
-  import { dateTimeLabel } from "$lib/core/utils/time";
+  import { dateTimeLabel } from "@nervekit/shared-ui/core/utils/time";
 
   type Props = {
     task: TaskRecord;

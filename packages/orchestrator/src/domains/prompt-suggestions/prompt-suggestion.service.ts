@@ -7,9 +7,9 @@ import type {
   PromptSuggestionStatus,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/shared";
+import type { GitService } from "@nervekit/tools";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import type { GitService } from "../git/git-service.js";
 import { evaluatePromptSuggestions } from "./prompt-suggestion-evaluator.js";
 import { loadPromptSuggestionDefinitions } from "./prompt-suggestion-loader.js";
 import type { PromptSuggestionTrustRepository } from "./prompt-suggestion-trust.repository.js";

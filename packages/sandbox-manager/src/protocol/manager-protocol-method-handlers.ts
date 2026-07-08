@@ -38,6 +38,31 @@ const FORWARDED_METHODS: Partial<Record<ProtocolMethodName, string>> = {
   "sandbox.agent.continue": "sandbox.run.continue",
   "sandbox.agent.configure": "sandbox.agent.configure",
   "sandbox.toolCall.get": "sandbox.toolCall.get",
+  "sandbox.git.repos.discover": "sandbox.git.repos.discover",
+  "sandbox.git.overview.get": "sandbox.git.overview.get",
+  "sandbox.git.branches.list": "sandbox.git.branches.list",
+  "sandbox.git.branch.create": "sandbox.git.branch.create",
+  "sandbox.git.branch.switch": "sandbox.git.branch.switch",
+  "sandbox.git.file.stage": "sandbox.git.file.stage",
+  "sandbox.git.file.unstage": "sandbox.git.file.unstage",
+  "sandbox.git.file.discard": "sandbox.git.file.discard",
+  "sandbox.git.sync": "sandbox.git.sync",
+  "sandbox.git.push": "sandbox.git.push",
+  "sandbox.git.pull": "sandbox.git.pull",
+  "sandbox.git.fetch": "sandbox.git.fetch",
+  "sandbox.git.switchBaseAndPull": "sandbox.git.switchBaseAndPull",
+  "sandbox.github.status.get": "sandbox.github.status.get",
+  "sandbox.github.pr.list": "sandbox.github.pr.list",
+  "sandbox.github.pr.get": "sandbox.github.pr.get",
+  "sandbox.github.pr.checkout": "sandbox.github.pr.checkout",
+  "sandbox.task.list": "sandbox.task.list",
+  "sandbox.task.start": "sandbox.task.start",
+  "sandbox.task.get": "sandbox.task.get",
+  "sandbox.task.cancel": "sandbox.task.cancel",
+  "sandbox.task.restart": "sandbox.task.restart",
+  "sandbox.task.prune": "sandbox.task.prune",
+  "sandbox.task.delete": "sandbox.task.delete",
+  "sandbox.task.logs": "sandbox.task.logs",
 };
 
 export async function handleManagerProtocolMethod(
@@ -95,13 +120,17 @@ async function dispatchSandboxMethod(
       return sandboxSnapshot(context, params);
     case "sandbox.conversation.snapshot.get":
       return sandboxConversationSnapshot(context, params);
-    case "sandbox.agent.prompt":
-    case "sandbox.agent.abort":
-    case "sandbox.agent.continue":
-    case "sandbox.agent.configure":
-    case "sandbox.toolCall.get":
-      return forwardSandboxCommand(context, method, params);
+    case "sandbox.pinnedCommand.list":
+      return sandboxPinnedCommandList(context, params);
+    case "sandbox.pinnedCommand.create":
+      return sandboxPinnedCommandCreate(context, params);
+    case "sandbox.pinnedCommand.update":
+      return sandboxPinnedCommandUpdate(context, params);
+    case "sandbox.pinnedCommand.delete":
+      return sandboxPinnedCommandDelete(context, params);
     default:
+      if (FORWARDED_METHODS[method])
+        return forwardSandboxCommand(context, method, params);
       throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");
   }
 }
@@ -221,6 +250,70 @@ async function derivedConversationView(
   });
 }
 
+async function sandboxPinnedCommandList(
+  { state }: ProtocolHandlerContext,
+  paramsInput: unknown,
+): Promise<unknown> {
+  const { sandboxId } = sandboxIdOnlyParams(paramsInput);
+  return { commands: await state.pinnedCommands.list(sandboxId) };
+}
+
+async function sandboxPinnedCommandCreate(
+  { state }: ProtocolHandlerContext,
+  paramsInput: unknown,
+): Promise<unknown> {
+  const params = paramsInput as {
+    sandboxId: string;
+    command: string;
+    label?: string;
+    cwd?: string;
+  };
+  return {
+    command: await state.pinnedCommands.create(params.sandboxId, {
+      command: params.command,
+      label: params.label,
+      cwd: params.cwd,
+    }),
+  };
+}
+
+async function sandboxPinnedCommandUpdate(
+  { state }: ProtocolHandlerContext,
+  paramsInput: unknown,
+): Promise<unknown> {
+  const params = paramsInput as {
+    sandboxId: string;
+    commandId: string;
+    command: string;
+    label?: string;
+    cwd?: string;
+  };
+  return {
+    command: await state.pinnedCommands.update(
+      params.sandboxId,
+      params.commandId,
+      {
+        command: params.command,
+        label: params.label,
+        cwd: params.cwd,
+      },
+    ),
+  };
+}
+
+async function sandboxPinnedCommandDelete(
+  { state }: ProtocolHandlerContext,
+  paramsInput: unknown,
+): Promise<unknown> {
+  const params = paramsInput as { sandboxId: string; commandId: string };
+  await state.pinnedCommands.delete(params.sandboxId, params.commandId);
+  return { ok: true };
+}
+
+function sandboxIdOnlyParams(paramsInput: unknown): { sandboxId: string } {
+  return { sandboxId: sandboxIdFromParams(paramsInput) };
+}
+
 async function forwardSandboxCommand(
   { controller }: ProtocolHandlerContext,
   method: ProtocolMethodName,
@@ -272,7 +365,7 @@ function normalizeForwardedParams(
         .extend({ sandboxId: sandboxIdParamSchema })
         .parse(params);
     default:
-      return {};
+      return isRecord(params) ? params : {};
   }
 }
 

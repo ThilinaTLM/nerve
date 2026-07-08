@@ -1,7 +1,7 @@
 <script lang="ts">
   import Terminal from "@lucide/svelte/icons/terminal";
   import type { TaskLogQueryResponse, TaskRecord } from "$lib/api";
-  import TaskLogTerminal from "./TaskLogTerminal.svelte";
+  import TaskLogTerminal from "@nervekit/shared-ui/tasks/TaskLogTerminal.svelte";
 
   type Props = {
     task?: TaskRecord;

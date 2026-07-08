@@ -9,7 +9,7 @@
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Search from "@lucide/svelte/icons/search";
-  import type { GitBranchSummary, GitRepoSummary } from "$lib/api";
+  import type { GitBranchSummary, GitRepoSummary } from "@nervekit/shared";
   import { Badge } from "@nervekit/shared-ui/components/ui/badge";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import { Input } from "@nervekit/shared-ui/components/ui/input";

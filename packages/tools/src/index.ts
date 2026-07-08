@@ -39,6 +39,13 @@ export {
   textBoundaryDetails,
   textLimitSnapshot,
 } from "./execution/index.js";
+export * from "./git/git-branches.js";
+export * from "./git/git-command.js";
+export * from "./git/git-errors.js";
+export * from "./git/git-github-parsers.js";
+export * from "./git/git-github-service.js";
+export * from "./git/git-service.js";
+export * from "./git/git-status.js";
 export {
   hasDangerousCommandPattern,
   hasShellControlOperator,

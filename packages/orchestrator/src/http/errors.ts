@@ -1,3 +1,5 @@
+import { GitWorkflowError } from "@nervekit/tools";
+
 export class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -13,14 +15,16 @@ export class HttpError extends Error {
 }
 
 export function errorResponse(error: unknown): Response {
-  if (error instanceof HttpError) {
+  if (error instanceof HttpError || error instanceof GitWorkflowError) {
     return Response.json(
       {
         error: {
           code: error.code,
           message: error.message,
-          retryable: error.options.retryable,
-          recovery: error.options.recovery,
+          retryable:
+            error instanceof HttpError ? error.options.retryable : undefined,
+          recovery:
+            error instanceof HttpError ? error.options.recovery : undefined,
         },
       },
       { status: error.status },

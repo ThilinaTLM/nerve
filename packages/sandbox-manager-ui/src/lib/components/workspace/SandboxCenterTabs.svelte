@@ -4,6 +4,7 @@
   import FileClock from "@lucide/svelte/icons/file-clock";
   import FileCode2 from "@lucide/svelte/icons/file-code-2";
   import FileText from "@lucide/svelte/icons/file-text";
+  import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
   import ImageIcon from "@lucide/svelte/icons/image";
   import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import MessageSquare from "@lucide/svelte/icons/message-square";
@@ -25,6 +26,8 @@
   import SandboxEmptyCenterPlaceholder from "./SandboxEmptyCenterPlaceholder.svelte";
   import SandboxFilePane from "./SandboxFilePane.svelte";
   import SandboxSummaryTab from "./SandboxSummaryTab.svelte";
+  import SandboxPrPane from "./SandboxPrPane.svelte";
+  import SandboxTaskOutputPane from "./SandboxTaskOutputPane.svelte";
   import SandboxConfigView from "../../routes/SandboxConfigView.svelte";
   import SandboxEventsView from "../../routes/SandboxEventsView.svelte";
   import SandboxLogsView from "../../routes/SandboxLogsView.svelte";
@@ -145,6 +148,32 @@
         closeable: true,
       };
     }
+    if (tab.kind === "task") {
+      const task = detail?.tasks.find((item) => item.id === tab.id);
+      return {
+        ...tab,
+        label: task?.name ?? task?.command ?? tab.id,
+        title: task?.command ?? tab.id,
+        active,
+        icon: Terminal,
+        running: task ? ["starting", "running", "ready", "stopping"].includes(task.status) : false,
+        error: task?.status === "failed" ? "failed" : undefined,
+        closeable: true,
+      };
+    }
+    if (tab.kind === "pr") {
+      const view = detail?.prViewsById[tab.id];
+      return {
+        ...tab,
+        label: view?.detail ? `#${view.detail.number}` : `PR #${tab.number}`,
+        title: view?.detail?.title ?? `${tab.repo}#${tab.number}`,
+        active,
+        icon: GitPullRequest,
+        running: view?.loading,
+        error: view?.error,
+        closeable: true,
+      };
+    }
     if (tab.kind === "diagnostic") {
       return { ...tab, label: diagnosticLabel(tab), title: diagnosticLabel(tab), active, icon: diagnosticIcon(tab), closeable: true };
     }
@@ -222,6 +251,14 @@
     }
     if (identity.kind === "file") {
       void store.refreshWorkspaceFile(sandboxId, identity.id);
+      return;
+    }
+    if (identity.kind === "task") {
+      void store.refreshSandboxTaskLogs(sandboxId, identity.id);
+      return;
+    }
+    if (identity.kind === "pr") {
+      void store.refreshSandboxPr(sandboxId, identity.repo, identity.number);
       return;
     }
     if (identity.kind === "summary") {
@@ -303,6 +340,10 @@
             <SandboxSummaryTab {record} />
           {:else if activeWorkspaceTab.kind === "file"}
             <SandboxFilePane view={activeFileView} />
+          {:else if activeWorkspaceTab.kind === "task"}
+            <SandboxTaskOutputPane {record} taskId={activeWorkspaceTab.id} />
+          {:else if activeWorkspaceTab.kind === "pr"}
+            <SandboxPrPane {record} viewId={activeWorkspaceTab.id} />
           {:else if activeWorkspaceTab.kind === "diagnostic"}
             {#if activeWorkspaceTab.id === "logs"}
               <SandboxLogsView {record} />

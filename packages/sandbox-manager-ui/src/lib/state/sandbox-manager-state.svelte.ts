@@ -1,5 +1,6 @@
 // biome-ignore lint/style/noExcessiveLinesPerFile: Store coordinates manager websocket, lifecycle, chat, and workspace tab state while this app is still being factored.
 import type {
+  CreatePinnedCommandRequest,
   EventEnvelope,
   ManagedSandboxRecord,
   ModelInfo,
@@ -12,7 +13,11 @@ import type {
   SandboxManagerEventEnvelope,
   SandboxManagerSecretMetadata,
   SandboxManagerStatus,
+  SandboxPinnedCommand,
+  StartTaskRequest,
+  TaskRecord,
   ThinkingLevel,
+  UpdatePinnedCommandRequest,
 } from "@nervekit/shared";
 import {
   deriveConversationTitle,
@@ -32,6 +37,25 @@ import {
   ManagerWsClient,
   type ManagerWsConnectionState,
 } from "../api/manager-ws-client.svelte";
+import {
+  checkoutSandboxGithubPr,
+  getSandboxGithubPr,
+} from "../api/sandbox-git.api";
+import {
+  createSandboxPinnedCommand,
+  deleteSandboxPinnedCommand,
+  listSandboxPinnedCommands,
+  updateSandboxPinnedCommand,
+} from "../api/sandbox-pinned-commands.api";
+import {
+  cancelSandboxTask,
+  deleteSandboxTask,
+  getSandboxTaskLogs,
+  listSandboxTasks,
+  pruneSandboxTasks,
+  restartSandboxTask,
+  startSandboxTask,
+} from "../api/sandbox-tasks.api";
 import {
   activeConversationKey,
   activeQueuedPrompt,
@@ -92,6 +116,10 @@ function mergeUnique(
 ): string[] | undefined {
   const merged = [...new Set([...(first ?? []), ...(second ?? [])])];
   return merged.length > 0 ? merged : undefined;
+}
+
+function sandboxPrViewId(repo: string, number: number): string {
+  return `${repo}#${number}`;
 }
 
 /**
@@ -354,6 +382,9 @@ export class SandboxManagerStore {
       } catch {
         detail.latestSession = undefined;
       }
+      await this.refreshSandboxPinnedCommands(sandboxId).catch(() => undefined);
+      if (sandboxIsConnected(detail))
+        await this.refreshSandboxTasks(sandboxId).catch(() => undefined);
       if (sandboxIsConnected(detail)) void this.flushQueuedPrompt(sandboxId);
       detail.error = undefined;
     } catch (error) {
@@ -586,6 +617,21 @@ export class SandboxManagerStore {
     openWorkspaceDiagnosticTabInDetail(this.detail(sandboxId), id);
   }
 
+  openWorkspaceTaskOutput(sandboxId: string, taskId: string): void {
+    const detail = this.detail(sandboxId);
+    detail.selectedTaskId = taskId;
+    selectWorkspaceTabInDetail(detail, { kind: "task", id: taskId });
+    void this.refreshSandboxTaskLogs(sandboxId, taskId).catch(() => undefined);
+  }
+
+  openWorkspacePr(sandboxId: string, repo: string, number: number): void {
+    const detail = this.detail(sandboxId);
+    const id = sandboxPrViewId(repo, number);
+    detail.prViewsById[id] ??= { id, repo, number, loading: false };
+    selectWorkspaceTabInDetail(detail, { kind: "pr", id, repo, number });
+    void this.refreshSandboxPr(sandboxId, repo, number).catch(() => undefined);
+  }
+
   async openWorkspaceFile(
     sandboxId: string,
     path: string,
@@ -618,6 +664,151 @@ export class SandboxManagerStore {
 
   toggleWorkspaceFileLineWrap(sandboxId: string, fileTabId: string): void {
     toggleWorkspaceFileLineWrapInDetail(this.details[sandboxId], fileTabId);
+  }
+
+  async refreshSandboxTasks(sandboxId: string): Promise<void> {
+    const detail = this.detail(sandboxId);
+    try {
+      detail.tasks = await listSandboxTasks(sandboxId);
+      detail.error = undefined;
+    } catch (error) {
+      detail.error = errorMessage(error);
+      throw error;
+    }
+  }
+
+  async refreshSandboxTaskLogs(
+    sandboxId: string,
+    taskId = this.detail(sandboxId).selectedTaskId,
+  ): Promise<void> {
+    if (!taskId) return;
+    const detail = this.detail(sandboxId);
+    detail.taskLogsById[taskId] = await getSandboxTaskLogs(sandboxId, taskId);
+  }
+
+  async runSandboxTask(
+    sandboxId: string,
+    request: Omit<StartTaskRequest, "cwd"> & { cwd?: string },
+  ): Promise<void> {
+    const task = await startSandboxTask(sandboxId, request);
+    const detail = this.detail(sandboxId);
+    detail.tasks = [
+      task,
+      ...detail.tasks.filter((item) => item.id !== task.id),
+    ];
+    this.openWorkspaceTaskOutput(sandboxId, task.id);
+  }
+
+  async cancelSandboxTask(sandboxId: string, taskId: string): Promise<void> {
+    const task = await cancelSandboxTask(sandboxId, taskId);
+    this.upsertSandboxTask(sandboxId, task);
+  }
+
+  async restartSandboxTask(sandboxId: string, taskId: string): Promise<void> {
+    const task = await restartSandboxTask(sandboxId, taskId);
+    this.upsertSandboxTask(sandboxId, task);
+    this.openWorkspaceTaskOutput(sandboxId, task.id);
+  }
+
+  async removeSandboxTask(sandboxId: string, taskId: string): Promise<void> {
+    await deleteSandboxTask(sandboxId, taskId);
+    const detail = this.detail(sandboxId);
+    detail.tasks = detail.tasks.filter((task) => task.id !== taskId);
+    delete detail.taskLogsById[taskId];
+  }
+
+  async pruneSandboxTasks(sandboxId: string): Promise<void> {
+    const result = await pruneSandboxTasks(sandboxId);
+    const removed = new Set(result.removed);
+    const detail = this.detail(sandboxId);
+    detail.tasks = detail.tasks.filter((task) => !removed.has(task.id));
+    for (const taskId of removed) delete detail.taskLogsById[taskId];
+  }
+
+  async refreshSandboxPinnedCommands(sandboxId: string): Promise<void> {
+    const detail = this.detail(sandboxId);
+    detail.pinnedCommandsLoading = true;
+    try {
+      detail.pinnedCommands = await listSandboxPinnedCommands(sandboxId);
+    } finally {
+      detail.pinnedCommandsLoading = false;
+    }
+  }
+
+  async createSandboxPinnedCommand(
+    sandboxId: string,
+    request: CreatePinnedCommandRequest,
+  ): Promise<void> {
+    const command = await createSandboxPinnedCommand(sandboxId, request);
+    const detail = this.detail(sandboxId);
+    detail.pinnedCommands = [command, ...detail.pinnedCommands];
+  }
+
+  async updateSandboxPinnedCommand(
+    sandboxId: string,
+    command: SandboxPinnedCommand,
+    request: UpdatePinnedCommandRequest,
+  ): Promise<void> {
+    const updated = await updateSandboxPinnedCommand(
+      sandboxId,
+      command.id,
+      request,
+    );
+    const detail = this.detail(sandboxId);
+    detail.pinnedCommands = detail.pinnedCommands.map((item) =>
+      item.id === updated.id ? updated : item,
+    );
+  }
+
+  async deleteSandboxPinnedCommand(
+    sandboxId: string,
+    command: SandboxPinnedCommand,
+  ): Promise<void> {
+    await deleteSandboxPinnedCommand(sandboxId, command.id);
+    const detail = this.detail(sandboxId);
+    detail.pinnedCommands = detail.pinnedCommands.filter(
+      (item) => item.id !== command.id,
+    );
+  }
+
+  async refreshSandboxPr(
+    sandboxId: string,
+    repo: string,
+    number: number,
+  ): Promise<void> {
+    const detail = this.detail(sandboxId);
+    const id = sandboxPrViewId(repo, number);
+    let view = detail.prViewsById[id];
+    if (!view) {
+      view = { id, repo, number, loading: false };
+      detail.prViewsById[id] = view;
+    }
+    view.loading = true;
+    view.error = undefined;
+    try {
+      view.detail = await getSandboxGithubPr(sandboxId, repo, number);
+    } catch (error) {
+      view.error = errorMessage(error);
+    } finally {
+      view.loading = false;
+    }
+  }
+
+  async checkoutSandboxPr(
+    sandboxId: string,
+    repo: string,
+    number: number,
+  ): Promise<void> {
+    await checkoutSandboxGithubPr(sandboxId, repo, number);
+    await this.refreshSandboxPr(sandboxId, repo, number).catch(() => undefined);
+  }
+
+  private upsertSandboxTask(sandboxId: string, task: TaskRecord): void {
+    const detail = this.detail(sandboxId);
+    detail.tasks = [
+      task,
+      ...detail.tasks.filter((item) => item.id !== task.id),
+    ];
   }
 
   // --- lifecycle actions ---

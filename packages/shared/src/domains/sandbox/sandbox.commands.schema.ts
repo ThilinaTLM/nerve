@@ -1,11 +1,32 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: Sandbox command schemas intentionally centralize command names and payload contracts.
 import { z } from "zod";
 import { conversationSnapshotSchema } from "../conversations/index.js";
+import {
+  createBranchRequestSchema,
+  gitBranchListResponseSchema,
+  gitDiscoveryResponseSchema,
+  gitFileActionRequestSchema,
+  githubPrCheckoutResponseSchema,
+  githubPrDetailSchema,
+  githubPrListResponseSchema,
+  githubStatusResponseSchema,
+  gitMutationResponseSchema,
+  gitOverviewResponseSchema,
+  gitRemoteOpRequestSchema,
+  switchBranchRequestSchema,
+} from "../git/index.js";
 import { thinkingLevelSchema } from "../models/index.js";
 import {
   approvalPolicySchema,
   modeSchema,
   permissionLevelSchema,
 } from "../settings/index.js";
+import {
+  startTaskRequestSchema,
+  taskLogQueryResponseSchema,
+  taskLogQuerySchema,
+  taskRecordSchema,
+} from "../tasks/index.js";
 import {
   artifactRefSchema,
   boundedTextSchema,
@@ -41,6 +62,31 @@ export const sandboxCommandMethodSchema = z.enum([
   "sandbox.conversation.snapshot.get",
   "sandbox.agent.configure",
   "sandbox.toolCall.get",
+  "sandbox.git.repos.discover",
+  "sandbox.git.overview.get",
+  "sandbox.git.branches.list",
+  "sandbox.git.branch.create",
+  "sandbox.git.branch.switch",
+  "sandbox.git.file.stage",
+  "sandbox.git.file.unstage",
+  "sandbox.git.file.discard",
+  "sandbox.git.sync",
+  "sandbox.git.push",
+  "sandbox.git.pull",
+  "sandbox.git.fetch",
+  "sandbox.git.switchBaseAndPull",
+  "sandbox.github.status.get",
+  "sandbox.github.pr.list",
+  "sandbox.github.pr.get",
+  "sandbox.github.pr.checkout",
+  "sandbox.task.list",
+  "sandbox.task.start",
+  "sandbox.task.get",
+  "sandbox.task.cancel",
+  "sandbox.task.restart",
+  "sandbox.task.prune",
+  "sandbox.task.delete",
+  "sandbox.task.logs",
 ]);
 export type SandboxCommandMethod = z.infer<typeof sandboxCommandMethodSchema>;
 
@@ -205,6 +251,26 @@ export type SandboxToolCallGetParams = z.infer<
   typeof sandboxToolCallGetParamsSchema
 >;
 
+const sandboxGitRepoParamsSchema = z.object({
+  repo: z.string().min(1).default("."),
+});
+const sandboxGithubPrParamsSchema = sandboxGitRepoParamsSchema.extend({
+  number: z.number().int().positive(),
+});
+const sandboxTaskIdParamsSchema = z.object({
+  taskId: z.string().startsWith("task_"),
+});
+const sandboxTaskCancelParamsSchema = sandboxTaskIdParamsSchema.extend({
+  signal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
+  timeoutMs: z.number().int().positive().max(30_000).optional(),
+  reason: z.string().min(1).optional(),
+});
+const sandboxTaskStartParamsSchema = startTaskRequestSchema
+  .omit({ cwd: true })
+  .extend({ cwd: z.string().min(1).optional() });
+const sandboxTaskLogsParamsSchema =
+  sandboxTaskIdParamsSchema.merge(taskLogQuerySchema);
+
 export const sandboxCommandParamsByMethod = {
   "sandbox.run.start": sandboxRunStartParamsSchema,
   "sandbox.run.continue": sandboxRunContinueParamsSchema,
@@ -217,6 +283,31 @@ export const sandboxCommandParamsByMethod = {
     sandboxConversationSnapshotGetParamsSchema,
   "sandbox.agent.configure": sandboxAgentConfigureParamsSchema,
   "sandbox.toolCall.get": sandboxToolCallGetParamsSchema,
+  "sandbox.git.repos.discover": z.object({}).optional(),
+  "sandbox.git.overview.get": sandboxGitRepoParamsSchema,
+  "sandbox.git.branches.list": sandboxGitRepoParamsSchema,
+  "sandbox.git.branch.create": createBranchRequestSchema,
+  "sandbox.git.branch.switch": switchBranchRequestSchema,
+  "sandbox.git.file.stage": gitFileActionRequestSchema,
+  "sandbox.git.file.unstage": gitFileActionRequestSchema,
+  "sandbox.git.file.discard": gitFileActionRequestSchema,
+  "sandbox.git.sync": gitRemoteOpRequestSchema,
+  "sandbox.git.push": gitRemoteOpRequestSchema,
+  "sandbox.git.pull": gitRemoteOpRequestSchema,
+  "sandbox.git.fetch": gitRemoteOpRequestSchema,
+  "sandbox.git.switchBaseAndPull": gitRemoteOpRequestSchema,
+  "sandbox.github.status.get": sandboxGitRepoParamsSchema,
+  "sandbox.github.pr.list": sandboxGitRepoParamsSchema,
+  "sandbox.github.pr.get": sandboxGithubPrParamsSchema,
+  "sandbox.github.pr.checkout": sandboxGithubPrParamsSchema,
+  "sandbox.task.list": z.object({}).optional(),
+  "sandbox.task.start": sandboxTaskStartParamsSchema,
+  "sandbox.task.get": sandboxTaskIdParamsSchema,
+  "sandbox.task.cancel": sandboxTaskCancelParamsSchema,
+  "sandbox.task.restart": sandboxTaskIdParamsSchema,
+  "sandbox.task.prune": z.object({}).optional(),
+  "sandbox.task.delete": sandboxTaskIdParamsSchema,
+  "sandbox.task.logs": sandboxTaskLogsParamsSchema,
 } as const;
 
 export const sandboxCommandAcceptedResultSchema = z.object({
@@ -772,4 +863,31 @@ export const sandboxCommandResultByMethod = {
   "sandbox.conversation.snapshot.get": sandboxConversationViewSnapshotSchema,
   "sandbox.agent.configure": sandboxAgentConfigureResultSchema,
   "sandbox.toolCall.get": sandboxToolCallGetResultSchema,
+  "sandbox.git.repos.discover": gitDiscoveryResponseSchema,
+  "sandbox.git.overview.get": gitOverviewResponseSchema,
+  "sandbox.git.branches.list": gitBranchListResponseSchema,
+  "sandbox.git.branch.create": gitMutationResponseSchema,
+  "sandbox.git.branch.switch": gitMutationResponseSchema,
+  "sandbox.git.file.stage": gitMutationResponseSchema,
+  "sandbox.git.file.unstage": gitMutationResponseSchema,
+  "sandbox.git.file.discard": gitMutationResponseSchema,
+  "sandbox.git.sync": gitMutationResponseSchema,
+  "sandbox.git.push": gitMutationResponseSchema,
+  "sandbox.git.pull": gitMutationResponseSchema,
+  "sandbox.git.fetch": gitMutationResponseSchema,
+  "sandbox.git.switchBaseAndPull": gitMutationResponseSchema,
+  "sandbox.github.status.get": githubStatusResponseSchema,
+  "sandbox.github.pr.list": githubPrListResponseSchema,
+  "sandbox.github.pr.get": githubPrDetailSchema,
+  "sandbox.github.pr.checkout": githubPrCheckoutResponseSchema,
+  "sandbox.task.list": z.object({ tasks: z.array(taskRecordSchema) }),
+  "sandbox.task.start": z.object({ task: taskRecordSchema }),
+  "sandbox.task.get": z.object({ task: taskRecordSchema }),
+  "sandbox.task.cancel": z.object({ task: taskRecordSchema }),
+  "sandbox.task.restart": z.object({ task: taskRecordSchema }),
+  "sandbox.task.prune": z.object({
+    removed: z.array(z.string().startsWith("task_")),
+  }),
+  "sandbox.task.delete": z.object({ removed: z.literal(true) }),
+  "sandbox.task.logs": taskLogQueryResponseSchema,
 } as const;

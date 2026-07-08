@@ -24,6 +24,7 @@ import { PostgresAuditStore } from "../state/audit-store.js";
 import { PostgresEventStore } from "../state/event-store.js";
 import { PostgresIdempotencyStore } from "../state/idempotency-store.js";
 import { PostgresManagerStore } from "../state/manager-store.js";
+import { SandboxPinnedCommandStore } from "../state/sandbox-pinned-command-store.js";
 import { PostgresSessionStore } from "../state/session-store.js";
 import { EfsVolumeProvider } from "../storage/efs-volume-provider.js";
 import { LocalVolumeProvider } from "../storage/local-volume-provider.js";
@@ -44,6 +45,7 @@ export class ManagerState {
   readonly idempotency: PostgresIdempotencyStore;
   readonly audit: PostgresAuditStore;
   readonly volumeStore: PostgresRuntimeVolumeStore;
+  readonly pinnedCommands: SandboxPinnedCommandStore;
   readonly volumeProvider: RuntimeVolumeProvider;
   readonly driver: ContainerRuntimeDriver;
   readonly eventBus: ManagerEventBus;
@@ -88,6 +90,7 @@ export class ManagerState {
     this.idempotency = new PostgresIdempotencyStore(this.pool);
     this.audit = new PostgresAuditStore(this.pool);
     this.volumeStore = new PostgresRuntimeVolumeStore(this.pool);
+    this.pinnedCommands = new SandboxPinnedCommandStore(this.pool);
     this.volumeProvider = createVolumeProvider(config);
     this.driver = createLocalContainerDriver(config.backend);
     this.eventBus = new ManagerEventBus();

@@ -2,6 +2,7 @@ export const dbTables = {
   sandboxes: "sandbox.sandboxes",
   sandboxEvents: "sandbox.sandbox_events",
   sandboxSessions: "sandbox.sandbox_sessions",
+  sandboxPinnedCommands: "sandbox.pinned_commands",
   runtimeVolumes: "sandbox.runtime_volumes",
   managerSecrets: "identity.manager_secrets",
   secretPolicies: "identity.secret_policies",

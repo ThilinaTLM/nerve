@@ -9,7 +9,7 @@
     GithubPr,
     GithubStatusResponse,
     GitRepoSummary,
-  } from "$lib/api";
+  } from "@nervekit/shared";
   import { Badge } from "@nervekit/shared-ui/components/ui/badge";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import { cn } from "@nervekit/shared-ui/core/utils";

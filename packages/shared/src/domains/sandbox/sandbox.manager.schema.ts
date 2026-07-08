@@ -1,7 +1,13 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: Manager schemas intentionally centralize sandbox manager API and storage contracts.
 import { z } from "zod";
+import {
+  createPinnedCommandRequestSchema,
+  updatePinnedCommandRequestSchema,
+} from "../pinned-commands/index.js";
 import {
   isoDateTimeSchema,
   redactedErrorSchema,
+  sandboxIdSchema,
 } from "./sandbox.common.schema.js";
 import {
   sandboxConfigV1BaseSchema,
@@ -134,6 +140,49 @@ export const sandboxActivitySummarySchema = z.object({
 });
 export type SandboxActivitySummary = z.infer<
   typeof sandboxActivitySummarySchema
+>;
+
+export const sandboxPinnedCommandSchema = z.object({
+  id: z.string().startsWith("pin_"),
+  sandboxId: sandboxIdSchema,
+  label: z.string().min(1).optional(),
+  command: z.string().min(1),
+  cwd: z.string().min(1).optional(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type SandboxPinnedCommand = z.infer<typeof sandboxPinnedCommandSchema>;
+
+export const sandboxPinnedCommandListParamsSchema = z.object({
+  sandboxId: sandboxIdSchema,
+});
+export type SandboxPinnedCommandListParams = z.infer<
+  typeof sandboxPinnedCommandListParamsSchema
+>;
+
+export const sandboxPinnedCommandCreateParamsSchema = z
+  .object({ sandboxId: sandboxIdSchema })
+  .merge(createPinnedCommandRequestSchema);
+export type SandboxPinnedCommandCreateParams = z.infer<
+  typeof sandboxPinnedCommandCreateParamsSchema
+>;
+
+export const sandboxPinnedCommandUpdateParamsSchema = z
+  .object({
+    sandboxId: sandboxIdSchema,
+    commandId: z.string().startsWith("pin_"),
+  })
+  .merge(updatePinnedCommandRequestSchema);
+export type SandboxPinnedCommandUpdateParams = z.infer<
+  typeof sandboxPinnedCommandUpdateParamsSchema
+>;
+
+export const sandboxPinnedCommandDeleteParamsSchema = z.object({
+  sandboxId: sandboxIdSchema,
+  commandId: z.string().startsWith("pin_"),
+});
+export type SandboxPinnedCommandDeleteParams = z.infer<
+  typeof sandboxPinnedCommandDeleteParamsSchema
 >;
 
 /** Fleet list item: a managed record plus its optional activity summary. */

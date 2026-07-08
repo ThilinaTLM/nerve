@@ -2,8 +2,9 @@
   import type {
     CreatePinnedCommandRequest,
     PinnedCommand,
+    SandboxPinnedCommand,
     UpdatePinnedCommandRequest,
-  } from "$lib/api";
+  } from "@nervekit/shared";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
   import { Input } from "@nervekit/shared-ui/components/ui/input";
@@ -12,7 +13,7 @@
 
   type Props = {
     open?: boolean;
-    command?: PinnedCommand;
+    command?: PinnedCommand | SandboxPinnedCommand;
     projectCwd?: string;
     saving?: boolean;
     onSave?: (input: CreatePinnedCommandRequest | UpdatePinnedCommandRequest) => void;
@@ -36,7 +37,7 @@
   const description = $derived(
     command
       ? "Update the label, command, and optional working directory for this pinned task."
-      : "Create a reusable task shortcut for this project.",
+      : "Create a reusable task shortcut.",
   );
   const submitLabel = $derived(command ? "Save pinned task" : "Pin task");
   const canSave = $derived(!saving && commandText.trim().length > 0);
@@ -85,11 +86,11 @@
       <Input
         id="pinned-command-cwd"
         bind:value={cwd}
-        placeholder={projectCwd ? `Project default: ${projectCwd}` : "Project default"}
+        placeholder={projectCwd ? `Default: ${projectCwd}` : "Default working directory"}
         class="font-mono text-xs"
         disabled={saving}
       />
-      <p class="text-xs text-muted-foreground">Leave blank to use the project directory.</p>
+      <p class="text-xs text-muted-foreground">Leave blank to use the default working directory.</p>
     </div>
   </div>
 

@@ -28,6 +28,8 @@
     "./components/ui/*": "./src/lib/components/ui/*/index.ts",
     "./components/workbench": "./src/lib/components/workbench/index.ts",
     "./components/navigator": "./src/lib/components/navigator/index.ts",
+    "./git/*": "./src/lib/git/*",
+    "./tasks/*": "./src/lib/tasks/*",
     "./state": "./src/lib/state/index.ts",
     "./context": "./src/lib/context.svelte.ts",
     "./components/transcript/TranscriptList.svelte": "./src/lib/components/transcript/TranscriptList.svelte",
