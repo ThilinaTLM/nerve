@@ -31,11 +31,26 @@ type RedactedSnapshotConfig = {
 
 const usableSandboxModelStatuses = new Set(["available", "degraded"]);
 
+export function durableConversationsFor(
+  detail: SandboxDetailState | undefined,
+): SandboxConversationSnapshot[] {
+  return mergedDurableConversations(detail);
+}
+
+export function sandboxConversationById(
+  detail: SandboxDetailState | undefined,
+  conversationId: string,
+): SandboxConversationSnapshot | undefined {
+  return durableConversationsFor(detail).find(
+    (conversation) => conversation.conversationId === conversationId,
+  );
+}
+
 export function conversationsFor(
   store: SandboxManagerStore,
   sandboxId: string,
 ): SandboxConversationSnapshot[] {
-  return store.details[sandboxId]?.snapshot?.conversations ?? [];
+  return durableConversationsFor(store.details[sandboxId]);
 }
 
 export function sandboxAvailableModels(

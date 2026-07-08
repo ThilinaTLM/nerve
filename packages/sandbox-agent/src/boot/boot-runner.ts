@@ -7,6 +7,42 @@ import { atomicWriteFile } from "../state/json-store.js";
 import { JsonlStore } from "../state/jsonl-store.js";
 import { buildBootPlan } from "./boot-plan.js";
 
+const bootEnvAllowlist = new Set([
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "LANG",
+  "LC_ALL",
+  "TERM",
+  "TMPDIR",
+  "NVM_DIR",
+  "PNPM_HOME",
+  "NPM_CONFIG_PREFIX",
+  "npm_config_prefix",
+  "XDG_CACHE_HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "npm_config_cache",
+  "NPM_CONFIG_CACHE",
+  "YARN_CACHE_FOLDER",
+]);
+
+const bootEnvDefaults: Record<string, string> = {
+  PATH: "/state/cache/dependencies/npm-global/bin:/state/cache/dependencies/pnpm:/home/sandbox/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+  HOME: "/home/sandbox",
+  USER: "sandbox",
+  LOGNAME: "sandbox",
+  SHELL: "/bin/sh",
+  TMPDIR: "/tmp",
+  PNPM_HOME: "/state/cache/dependencies/pnpm",
+  NPM_CONFIG_PREFIX: "/state/cache/dependencies/npm-global",
+  NPM_CONFIG_CACHE: "/state/cache/dependencies/npm",
+  YARN_CACHE_FOLDER: "/state/cache/dependencies/yarn",
+  XDG_CACHE_HOME: "/state/cache",
+};
+
 export async function runBootPlan(
   config: SandboxConfigV1,
   opts: {
@@ -49,20 +85,26 @@ export async function runBootPlan(
         network: phase.network ?? "inherit",
       },
     });
-    const env: Record<string, string> = { ...(opts.env ?? {}) };
-    for (const [key, ref] of Object.entries(phase.env ?? {}))
-      env[key] = opts.resolver ? await opts.resolver.resolve(ref) : "";
+    const env: Record<string, string> = {
+      ...bootBaseEnv(process.env),
+      ...(opts.env ?? {}),
+    };
+    const phaseSecretValues: string[] = [];
+    for (const [key, ref] of Object.entries(phase.env ?? {})) {
+      const value = opts.resolver ? await opts.resolver.resolve(ref) : "";
+      env[key] = value;
+      phaseSecretValues.push(value);
+    }
     const result = await runShell(
       phase.script,
       opts.workspaceDir,
       phase.timeoutMs,
       env,
     );
-    const redactor =
-      opts.redactor ?? new Redactor({ secrets: Object.values(env) });
+    const redactText = bootTextRedactor(opts.redactor, phaseSecretValues);
     await atomicWriteFile(
       path.join(opts.stateDir, "boot", "latest.log"),
-      redactor.redactText(`${result.stdout}\n${result.stderr}`),
+      redactText(`${result.stdout}\n${result.stderr}`),
     );
     const completedAt = new Date().toISOString();
     const status = result.timedOut
@@ -77,8 +119,8 @@ export async function runBootPlan(
       startedAt,
       completedAt,
       exitCode: result.code,
-      stdout: redactor.redactText(result.stdout),
-      stderr: redactor.redactText(result.stderr),
+      stdout: redactText(result.stdout),
+      stderr: redactText(result.stderr),
     };
     await attempts.append(record);
     await opts.eventSink?.append({
@@ -101,6 +143,27 @@ export async function runBootPlan(
       throw new Error(`Boot phase failed: ${phase.name}`);
   }
 }
+
+function bootBaseEnv(source: NodeJS.ProcessEnv): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of bootEnvAllowlist) {
+    const value = source[key] ?? bootEnvDefaults[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
+}
+
+function bootTextRedactor(
+  baseRedactor: Redactor | undefined,
+  phaseSecretValues: string[],
+): (text: string) => string {
+  const phaseRedactor = new Redactor({ secrets: phaseSecretValues });
+  return (text: string) => {
+    const redacted = phaseRedactor.redactText(text);
+    return baseRedactor ? baseRedactor.redactText(redacted) : redacted;
+  };
+}
+
 async function runShell(
   script: string,
   cwd: string,
@@ -116,7 +179,7 @@ async function runShell(
     const [shell, args] = shellCommand(script);
     const child = spawn(shell, args, {
       cwd,
-      env: { PATH: process.env.PATH ?? "/usr/bin:/bin", ...env },
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

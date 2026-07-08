@@ -19,6 +19,10 @@ export type SandboxRuntimePaths = {
   cacheDir: string;
   secretCacheDir: string;
   dependencyCacheDir: string;
+  pnpmHomeDir: string;
+  npmCacheDir: string;
+  npmGlobalDir: string;
+  yarnCacheDir: string;
   tmpDir: string;
 };
 
@@ -29,6 +33,7 @@ export function resolveSandboxRuntimePaths(
   const workspaceDir =
     env.NERVE_SANDBOX_AGENT_WORKSPACE_DIR?.trim() || "/workspace";
   const cacheDir = path.join(stateDir, "cache");
+  const dependencyCacheDir = path.join(cacheDir, "dependencies");
   const credentialsDir = path.join(stateDir, "credentials");
   return {
     stateDir,
@@ -47,7 +52,11 @@ export function resolveSandboxRuntimePaths(
     skillsDir: path.join(stateDir, "skills"),
     bootDir: path.join(stateDir, "boot"),
     cacheDir,
-    dependencyCacheDir: path.join(cacheDir, "dependencies"),
+    dependencyCacheDir,
+    pnpmHomeDir: path.join(dependencyCacheDir, "pnpm"),
+    npmCacheDir: path.join(dependencyCacheDir, "npm"),
+    npmGlobalDir: path.join(dependencyCacheDir, "npm-global"),
+    yarnCacheDir: path.join(dependencyCacheDir, "yarn"),
     secretCacheDir: path.join(cacheDir, "secrets"),
     tmpDir: path.join(stateDir, "tmp"),
   };
@@ -70,6 +79,10 @@ export function stateSubdirectories(paths: SandboxRuntimePaths): string[] {
     paths.bootDir,
     paths.cacheDir,
     paths.dependencyCacheDir,
+    paths.pnpmHomeDir,
+    paths.npmCacheDir,
+    paths.npmGlobalDir,
+    paths.yarnCacheDir,
     paths.secretCacheDir,
     paths.tmpDir,
   ];

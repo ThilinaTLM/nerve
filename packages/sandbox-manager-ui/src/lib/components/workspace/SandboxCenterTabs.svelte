@@ -30,6 +30,7 @@
   import SandboxLogsView from "../../routes/SandboxLogsView.svelte";
   import { isPendingConversationId } from "../../state/sandbox-conversation-state";
   import { sandboxCanCreateConversation } from "../../state/sandbox-lifecycle";
+  import { sandboxConversationById } from "../../state/sandbox-manager-selectors.svelte";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import type {
@@ -130,9 +131,7 @@
       };
     }
     if (tab.kind === "chat") {
-      const conversation = detail?.snapshot?.conversations.find(
-        (item) => item.conversationId === tab.id,
-      );
+      const conversation = sandboxConversationById(detail, tab.id);
       const pending = isPendingConversationId(tab.id)
         ? detail?.pendingConversationsById[tab.id]
         : undefined;

@@ -122,6 +122,18 @@ describe("sandbox agent image durable state foundations", () => {
       const recovered = await recoverSandboxState(digest, paths);
       assert.equal(recovered.configDigest, digest);
       assert.equal(recovered.ack.streams.length, 0);
+      for (const directory of [
+        paths.pnpmHomeDir,
+        paths.npmCacheDir,
+        paths.npmGlobalDir,
+        paths.yarnCacheDir,
+      ]) {
+        const stats = await stat(directory);
+        assert.equal(stats.isDirectory(), true);
+        if (process.platform !== "win32")
+          assert.equal((stats.mode & 0o700) > 0, true);
+      }
+
       if (process.platform !== "win32")
         assert.equal((await stat(paths.credentialsDir)).mode & 0o777, 0o700);
 

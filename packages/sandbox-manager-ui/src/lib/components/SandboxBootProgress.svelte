@@ -39,7 +39,9 @@
   const store = useSandboxManagerStore();
   const detail = $derived(store.details[record.sandboxId]);
   const progress = $derived(computeSandboxBootProgress(record, detail));
-  const showPhaseStepper = $derived(expanded && progress.showPhaseStepper);
+  const showPhaseStepper = $derived(
+    expanded && (progress.showPhaseStepper || progress.state === "ready"),
+  );
   const container = $derived(detail?.status?.container ?? detail?.snapshot?.container);
   const session = $derived(detail?.latestSession ?? detail?.status?.lastSession ?? detail?.snapshot?.lastSession);
   const staleness = $derived(detail?.status?.staleness ?? detail?.snapshot?.staleness);
@@ -95,6 +97,14 @@
     if (!value) return "—";
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  }
+
+  function formatClock(value: string | undefined): string {
+    if (!value) return "";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? value
+      : date.toLocaleTimeString(undefined, { hour12: false });
   }
 
   function formatMs(value: number | undefined): string {
@@ -179,7 +189,7 @@
     <span class="font-mono text-xs text-muted-foreground tabular-nums">
       {progress.completed}/{progress.total}
     </span>
-    {#if variant === "rail" && onToggle}
+    {#if onToggle && (variant === "rail" || (progress.state === "ready" && showPhaseStepper))}
       <Button
         variant="ghost"
         size="icon-sm"
@@ -207,14 +217,19 @@
             <Icon
               class={`mt-0.5 size-4 flex-none ${phaseTone(phase.status)} ${phase.status === "active" ? "animate-spin" : ""}`}
             />
-            <div class="flex min-w-0 flex-1 flex-col">
-              <span class="text-sm">{phase.label}</span>
+            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+              <div class="flex items-baseline gap-2">
+                {#if phase.ts}
+                  <span
+                    class="font-mono text-xs text-muted-foreground tabular-nums"
+                    title={formatDate(phase.ts)}
+                  >{formatClock(phase.ts)}</span>
+                {/if}
+                <span class="truncate text-sm">{phase.label}</span>
+              </div>
               <span class="text-xs text-muted-foreground">{phase.description}</span>
               {#if phase.error}
                 <span class="text-xs text-destructive">{phase.error}</span>
-              {/if}
-              {#if phase.ts}
-                <span class="font-mono text-xs text-muted-foreground">{phase.ts}</span>
               {/if}
             </div>
             {#if hasDetails}

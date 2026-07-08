@@ -1,8 +1,9 @@
 # Sandbox agent v1 scaffold image. Build from the repository root after running package builds.
 FROM node:24-bookworm-slim AS agent-deps
+ARG PNPM_VERSION=11.8.0
 
 WORKDIR /repo
-RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
+RUN npm install --global "pnpm@${PNPM_VERSION}" && npm cache clean --force
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/shared/dist packages/shared/dist
@@ -23,11 +24,14 @@ ARG NVM_VERSION=v0.40.5
 LABEL org.nerve.sandbox.spec="v1" \
   org.nerve.sandbox.agent.version="0.6.0"
 
-ENV NVM_DIR=/home/sandbox/.nvm \
-  PNPM_HOME=/home/sandbox/.local/share/pnpm \
-  NPM_CONFIG_PREFIX=/home/sandbox/.local \
+ENV HOME=/home/sandbox \
+  NVM_DIR=/home/sandbox/.nvm \
+  PNPM_HOME=/state/cache/dependencies/pnpm \
+  NPM_CONFIG_PREFIX=/state/cache/dependencies/npm-global \
+  NPM_CONFIG_CACHE=/state/cache/dependencies/npm \
+  YARN_CACHE_FOLDER=/state/cache/dependencies/yarn \
   XDG_CACHE_HOME=/state/cache
-ENV PATH=/home/sandbox/.local/bin:/home/sandbox/.local/share/pnpm:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV PATH=/state/cache/dependencies/npm-global/bin:/state/cache/dependencies/pnpm:/home/sandbox/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 RUN set -eux; \
   apt-get update; \
@@ -80,19 +84,23 @@ RUN set -eux; \
     /agent/skills \
     /workspace \
     /state/cache \
+    /state/cache/dependencies \
+    "${PNPM_HOME}" \
+    "${NPM_CONFIG_PREFIX}" \
+    "${NPM_CONFIG_CACHE}" \
+    "${YARN_CACHE_FOLDER}" \
     /tmp \
     /secrets \
     /credentials \
     "${NVM_DIR}" \
-    "${PNPM_HOME}" \
-    "${NPM_CONFIG_PREFIX}" \
+    /home/sandbox/.local/share/pnpm \
+    /home/sandbox/.local \
     /home/sandbox/.cache \
     /home/sandbox/.config
 
 RUN set -eux; \
-  corepack enable; \
-  corepack prepare "pnpm@${PNPM_VERSION}" --activate; \
-  corepack prepare "yarn@${YARN_VERSION}" --activate
+  NPM_CONFIG_PREFIX=/home/sandbox/.local npm install --global "pnpm@${PNPM_VERSION}" "yarn@${YARN_VERSION}"; \
+  npm cache clean --force
 
 RUN set -eux; \
   arch="$(dpkg --print-architecture)"; \

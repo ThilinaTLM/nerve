@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 import type { ModelInfo } from "@nervekit/shared";
 import {
   conversationItemsFor,
+  conversationsFor,
   sandboxAvailableModels,
   sandboxConversationActivity,
+  sandboxConversationById,
 } from "./sandbox-manager-selectors.svelte";
 import { createSandboxDetailState } from "./sandbox-ui-types";
 
@@ -50,6 +52,28 @@ describe("sandbox manager selectors", () => {
     assert.equal(items.length, 1);
     assert.equal(items[0]?.kind, "durable");
     assert.equal(items[0]?.conversationId, "conv_1");
+  });
+
+  it("resolves locally created conversations for workspace tab labels", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.localConversationsById.conv_1 = {
+      conversationId: "conv_1",
+      title: "Hi How are you?",
+      mode: "coding",
+      createdAt: "2026-06-26T12:00:00.000Z",
+      updatedAt: "2026-06-26T12:00:01.000Z",
+      activeRunIds: ["run_1"],
+    };
+    const store = { details: { sbx_1: detail } };
+
+    assert.equal(
+      conversationsFor(store as never, "sbx_1")[0]?.title,
+      "Hi How are you?",
+    );
+    assert.equal(
+      sandboxConversationById(detail, "conv_1")?.title,
+      "Hi How are you?",
+    );
   });
 
   it("filters composer models to providers reported by the sandbox", () => {
@@ -99,7 +123,9 @@ describe("sandbox manager selectors", () => {
     } as unknown as typeof detail.status;
 
     assert.deepEqual(
-      sandboxAvailableModels(managerModels, detail).map((model) => model.provider),
+      sandboxAvailableModels(managerModels, detail).map(
+        (model) => model.provider,
+      ),
       ["openai-codex"],
     );
   });
@@ -117,7 +143,9 @@ describe("sandbox manager selectors", () => {
     } as unknown as typeof detail.snapshot;
 
     assert.deepEqual(
-      sandboxAvailableModels(managerModels, detail).map((model) => model.provider),
+      sandboxAvailableModels(managerModels, detail).map(
+        (model) => model.provider,
+      ),
       ["anthropic"],
     );
   });

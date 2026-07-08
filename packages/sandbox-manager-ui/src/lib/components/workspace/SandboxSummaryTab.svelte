@@ -18,6 +18,7 @@
   import type { ManagedSandboxRecord } from "@nervekit/shared";
   import { Badge } from "@nervekit/shared-ui/components/ui/badge";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { Separator } from "@nervekit/shared-ui/components/ui/separator";
   import SandboxBootProgress from "../SandboxBootProgress.svelte";
   import SandboxStatStrip from "../SandboxStatStrip.svelte";
   import SandboxRemoveDialog from "../SandboxRemoveDialog.svelte";
@@ -36,6 +37,7 @@
 
   const store = useSandboxManagerStore();
   let removeOpen = $state(false);
+  let bootExpanded = $state(false);
 
   const detail = $derived(store.details[record.sandboxId]);
   const activity = $derived(activityFor(store, record.sandboxId));
@@ -148,15 +150,18 @@
           <span class="truncate">{progress.headline}</span>
         </div>
       </div>
-      <div class="flex flex-wrap gap-1.5">
+      <div class="flex flex-wrap items-center gap-1.5">
         <Button
           size="sm"
-          variant="outline"
+          variant="default"
           disabled={!canCreateConversation}
           onclick={() => store.startNewConversation(record.sandboxId)}
         >
           <MessageSquarePlus class="size-4" /> New conversation
         </Button>
+
+        <Separator orientation="vertical" class="mx-0.5 h-6" />
+
         <Button
           size="sm"
           variant="outline"
@@ -181,9 +186,15 @@
         >
           <RefreshCw class="size-4" /> Restart
         </Button>
+
+        <Separator orientation="vertical" class="mx-0.5 h-6" />
+
         <Button size="sm" variant="outline" onclick={refresh}>
           <RefreshCw class="size-4" /> Refresh
         </Button>
+
+        <Separator orientation="vertical" class="mx-0.5 h-6" />
+
         <Button size="sm" variant="destructive" onclick={() => (removeOpen = true)}>
           <Trash2 class="size-4" /> Delete
         </Button>
@@ -219,7 +230,12 @@
 
     <SandboxStatStrip items={metrics} />
 
-    <SandboxBootProgress {record} variant="banner" expanded={progress.showPhaseStepper} />
+    <SandboxBootProgress
+      {record}
+      variant="banner"
+      expanded={bootExpanded || progress.showPhaseStepper}
+      onToggle={() => (bootExpanded = !bootExpanded)}
+    />
 
     <div class="grid gap-3 lg:grid-cols-2">
       <div class="rounded-md border bg-card p-3">
@@ -229,7 +245,8 @@
             <div class="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3">
               <dt class="text-muted-foreground">{row.label}</dt>
               <dd
-                class={`truncate ${row.mono ? "font-mono text-xs" : "font-medium"} ${row.value === "—" ? "text-muted-foreground/60" : ""}`}
+                class={`truncate ${row.mono ? "font-mono" : ""} ${row.value === "—" ? "text-muted-foreground/60" : "text-foreground"}`}
+                title={row.value === "—" ? undefined : String(row.value)}
               >{row.value}</dd>
             </div>
           {/each}
@@ -243,7 +260,8 @@
             <div class="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3">
               <dt class="text-muted-foreground">{row.label}</dt>
               <dd
-                class={`truncate ${row.mono ? "font-mono text-xs" : "font-medium"} ${row.value === "—" ? "text-muted-foreground/60" : ""}`}
+                class={`truncate ${row.mono ? "font-mono" : ""} ${row.value === "—" ? "text-muted-foreground/60" : "text-foreground"}`}
+                title={row.value === "—" ? undefined : String(row.value)}
               >{row.value}</dd>
             </div>
           {/each}
@@ -251,7 +269,11 @@
       </div>
     </div>
 
-    <section class="flex flex-wrap gap-1 rounded-md border bg-card px-2 py-1.5">
+    <section class="flex flex-wrap items-center gap-1 rounded-md border bg-card px-2 py-1.5">
+      <span class="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Diagnostics</span>
+
+      <Separator orientation="vertical" class="mx-0.5 h-5" />
+
       <Button size="sm" variant="ghost" onclick={() => store.openWorkspaceDiagnosticTab(record.sandboxId, "logs")}>
         <Terminal class="size-4" /> Open logs
       </Button>
@@ -261,6 +283,9 @@
       <Button size="sm" variant="ghost" onclick={() => store.openWorkspaceDiagnosticTab(record.sandboxId, "events")}>
         <ScrollText class="size-4" /> Open events
       </Button>
+
+      <Separator orientation="vertical" class="mx-0.5 h-5" />
+
       <Button size="sm" variant="ghost" onclick={() => store.loadLogs(record.sandboxId)}>
         <FileText class="size-4" /> Refresh logs
       </Button>
