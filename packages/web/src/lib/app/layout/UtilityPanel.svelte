@@ -2,7 +2,7 @@
   import GitBranch from "@lucide/svelte/icons/git-branch";
   import Info from "@lucide/svelte/icons/info";
   import Terminal from "@lucide/svelte/icons/terminal";
-  import { WorkbenchUtilityPanel } from "@nervekit/ui/components/workbench";
+  import { WorkbenchUtilityPanel } from "@nervekit/shared-ui/components/workbench";
   import type {
     AgentRecord,
     ConversationRecord,
@@ -10,7 +10,7 @@
     ProjectRecord,
     StatusResponse,
   } from "$lib/api";
-  import type { TabItem } from "@nervekit/ui/components/ui/tabs-bar";
+  import type { TabItem } from "@nervekit/shared-ui/components/ui/tabs-bar";
   import ContextTab from "$lib/features/conversations/components/ContextUtilityPanel.svelte";
   import GitTab from "$lib/features/git/components/GitUtilityPanel.svelte";
   import TasksTab from "$lib/features/tasks/components/TaskUtilityPanel.svelte";

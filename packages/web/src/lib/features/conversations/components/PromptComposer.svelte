@@ -11,10 +11,10 @@
     voiceInputSession,
     type VoiceInputTarget,
   } from "$lib/core/audio/voice-input-session.svelte";
-  import ComposerEditor from "@nervekit/conversation-ui/components/composer/ComposerEditor.svelte";
-  import ComposerShell from "@nervekit/conversation-ui/components/composer/ComposerShell.svelte";
-  import ComposerToolbar from "@nervekit/conversation-ui/components/composer/ComposerToolbar.svelte";
-  import { Button } from "@nervekit/ui/components/ui/button";
+  import ComposerEditor from "@nervekit/shared-ui/components/composer/ComposerEditor.svelte";
+  import ComposerShell from "@nervekit/shared-ui/components/composer/ComposerShell.svelte";
+  import ComposerToolbar from "@nervekit/shared-ui/components/composer/ComposerToolbar.svelte";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import {
     AudioInputAuthRequiredDialog,
     chatGptAudioAuth,

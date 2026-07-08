@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { WorkbenchFrame } from "@nervekit/ui/components/workbench";
+  import { WorkbenchFrame } from "@nervekit/shared-ui/components/workbench";
   import BrowserNotificationPrompt from "$lib/features/notifications/BrowserNotificationPrompt.svelte";
   import DesktopShutdownOverlay from "$lib/app/layout/DesktopShutdownOverlay.svelte";
   import FooterbarContainer from "$lib/app/layout/FooterbarContainer.svelte";

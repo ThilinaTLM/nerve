@@ -26,7 +26,7 @@ import {
   sandboxStatusGetResultSchema,
   sandboxWorkspaceFileResponseSchema,
 } from "@nervekit/shared";
-import { apiPathSegment, fetchJson } from "@nervekit/ui/core/api/client";
+import { apiPathSegment, fetchJson } from "@nervekit/shared-ui/core/api/client";
 import type {
   ManagerEnvelope,
   RemoveOptions,

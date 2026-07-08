@@ -2,8 +2,8 @@
   import Boxes from "@lucide/svelte/icons/boxes";
   import Plus from "@lucide/svelte/icons/plus";
   import Settings from "@lucide/svelte/icons/settings";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { WorkbenchTitlebar } from "@nervekit/ui/components/workbench";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { WorkbenchTitlebar } from "@nervekit/shared-ui/components/workbench";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 

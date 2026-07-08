@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { PruneProjectConversationsRequest } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import Dialog from "@nervekit/ui/components/ui/dialog-shell";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
   import RadioGroupField, {
     type RadioItem,
-  } from "@nervekit/ui/components/ui/radio-group-field";
+  } from "@nervekit/shared-ui/components/ui/radio-group-field";
   import SelectField, {
     type SelectItem,
-  } from "@nervekit/ui/components/ui/select-field";
+  } from "@nervekit/shared-ui/components/ui/select-field";
 
   type Props = {
     open?: boolean;

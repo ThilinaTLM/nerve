@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { cn } from "@nervekit/ui/core/utils";
+  import { cn } from "@nervekit/shared-ui/core/utils";
 
   type Props = {
     section: string;

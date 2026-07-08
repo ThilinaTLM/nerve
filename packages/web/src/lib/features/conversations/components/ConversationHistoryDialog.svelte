@@ -7,10 +7,10 @@
     ConversationTreeNode,
     ToolCallTranscriptRecord,
   } from "$lib/api";
-  import { buttonVariants } from "@nervekit/ui/components/ui/button";
-  import ConfirmDialog from "@nervekit/ui/components/ui/confirm-dialog";
-  import Dialog from "@nervekit/ui/components/ui/dialog-shell";
-  import * as DropdownMenu from "@nervekit/ui/components/ui/dropdown-menu";
+  import { buttonVariants } from "@nervekit/shared-ui/components/ui/button";
+  import ConfirmDialog from "@nervekit/shared-ui/components/ui/confirm-dialog";
+  import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
+  import * as DropdownMenu from "@nervekit/shared-ui/components/ui/dropdown-menu";
   import HistoryTab from "./HistoryTab.svelte";
 
   type Props = {

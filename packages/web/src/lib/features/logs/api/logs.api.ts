@@ -5,7 +5,7 @@ import type {
   ApplicationLogQueryResponse,
   ApplicationLogSource,
 } from "@nervekit/shared";
-import { apiGet } from "@nervekit/ui/core/api/client";
+import { apiGet } from "@nervekit/shared-ui/core/api/client";
 import { protocolRequest } from "../../../core/protocol/http-client";
 
 export type {

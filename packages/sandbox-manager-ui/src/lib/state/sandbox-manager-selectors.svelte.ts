@@ -4,7 +4,7 @@ import type {
   SandboxConversationSnapshot,
   SandboxRunSnapshot,
 } from "@nervekit/shared";
-import type { StatusTone } from "@nervekit/ui/core/utils/status";
+import type { StatusTone } from "@nervekit/shared-ui/core/utils/status";
 import type { SandboxManagerStore } from "./sandbox-manager-state.svelte";
 import { matchesFleetFilter, matchesSearch } from "./sandbox-status";
 import type {

@@ -5,13 +5,13 @@
     ProjectRecord,
     PruneProjectConversationsRequest,
   } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import AlertDialog from "@nervekit/ui/components/ui/confirm-dialog";
-  import ContextMenu from "@nervekit/ui/components/ui/context-menu-list";
-  import { NavigatorPanel } from "@nervekit/ui/components/navigator";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import AlertDialog from "@nervekit/shared-ui/components/ui/confirm-dialog";
+  import ContextMenu from "@nervekit/shared-ui/components/ui/context-menu-list";
+  import { NavigatorPanel } from "@nervekit/shared-ui/components/navigator";
   import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
   import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
-  import { PanelSection } from "@nervekit/ui/components/workbench";
+  import { PanelSection } from "@nervekit/shared-ui/components/workbench";
   import {
     buildProjectGroups,
     type ProjectGroup,

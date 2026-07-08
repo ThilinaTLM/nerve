@@ -4,9 +4,9 @@
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import type { AuthProviderMetadata, CustomProvider } from "$lib/api";
   import { deleteCustomProvider } from "$lib/api";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import ConfirmDialog from "@nervekit/ui/components/ui/confirm-dialog";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import ConfirmDialog from "@nervekit/shared-ui/components/ui/confirm-dialog";
   import { authState } from "$lib/features/auth/state/auth-state.svelte";
   import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
   import CustomProviderDialog from "./CustomProviderDialog.svelte";

@@ -1,10 +1,8 @@
 <script lang="ts">
-  import { RefreshCw } from "@lucide/svelte";
+  import { RefreshCw, Terminal } from "@lucide/svelte";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { Card, CardContent, CardHeader, CardTitle } from "@nervekit/ui/components/ui/card";
-  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import CodeView from "../components/CodeView.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 
   let { record }: { record: ManagedSandboxRecord } = $props();
@@ -17,33 +15,25 @@
   });
 </script>
 
-<ScrollArea class="h-full">
-  <div class="flex flex-col gap-4 p-4">
-    <Card class="rounded-md border">
-      <CardHeader class="flex-row items-center justify-between">
-        <CardTitle class="text-sm">Logs</CardTitle>
-        <div class="flex items-center gap-2">
-          {#if detail?.logsTruncated}
-            <Badge tone="warn" size="xs">truncated</Badge>
-          {/if}
-          <Button
-            variant="ghost"
-            size="xs"
-            onclick={() => void store.loadLogs(record.sandboxId)}
-          >
-            <RefreshCw class="size-3.5" /> Refresh
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {#if !detail || detail.logsText.length === 0}
-          <p class="text-sm text-muted-foreground">No logs available.</p>
-        {:else}
-          <pre
-            class="max-h-[70vh] overflow-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap"
-          >{detail.logsText}</pre>
-        {/if}
-      </CardContent>
-    </Card>
-  </div>
-</ScrollArea>
+<div class="relative flex h-full min-h-0 flex-col bg-background">
+  <Button
+    variant="ghost"
+    size="icon-sm"
+    ariaLabel="Refresh logs"
+    class="absolute right-2 top-2 z-10 border bg-background/80 backdrop-blur-sm"
+    onclick={() => void store.loadLogs(record.sandboxId)}
+  >
+    <RefreshCw class="size-3.5" />
+  </Button>
+
+  {#if !detail || detail.logsText.length === 0}
+    <div class="grid flex-1 place-content-center gap-1 text-center text-muted-foreground">
+      <Terminal class="mx-auto size-7 text-primary" strokeWidth={1.7} />
+      <p class="text-sm text-foreground">No logs available.</p>
+    </div>
+  {:else}
+    <div class="min-h-0 flex-1 overflow-auto p-3">
+      <CodeView code={detail.logsText} lang="log" wrap />
+    </div>
+  {/if}
+</div>

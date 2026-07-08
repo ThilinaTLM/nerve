@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ModeWatcher } from "mode-watcher";
-  import { Toaster } from "@nervekit/ui/components/ui/sonner";
+  import { Toaster } from "@nervekit/shared-ui/components/ui/sonner";
   import { useAppearance } from "../state/appearance.svelte";
   import SandboxManagerProvider from "./SandboxManagerProvider.svelte";
   import SandboxManagerShell from "../routes/SandboxManagerShell.svelte";

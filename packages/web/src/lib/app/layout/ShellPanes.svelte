@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { WorkbenchPanes } from "@nervekit/ui/components/workbench";
+  import { WorkbenchPanes } from "@nervekit/shared-ui/components/workbench";
   import {
     closeDrawers,
     layout,

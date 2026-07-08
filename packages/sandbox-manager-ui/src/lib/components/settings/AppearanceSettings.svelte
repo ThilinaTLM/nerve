@@ -6,8 +6,8 @@
     CardDescription,
     CardHeader,
     CardTitle,
-  } from "@nervekit/ui/components/ui/card";
-  import { cn } from "@nervekit/ui/core/utils";
+  } from "@nervekit/shared-ui/components/ui/card";
+  import { cn } from "@nervekit/shared-ui/core/utils";
   import {
     useAppearance,
     type ThemePreference,

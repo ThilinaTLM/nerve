@@ -6,9 +6,9 @@
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import UnfoldVertical from "@lucide/svelte/icons/unfold-vertical";
   import type { ConversationEntry, ToolCallTranscriptRecord } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import Markdown from "@nervekit/ui/core/components/Markdown.svelte";
-  import PlainText from "@nervekit/ui/core/components/PlainText.svelte";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import Markdown from "@nervekit/shared-ui/core/components/Markdown.svelte";
+  import PlainText from "@nervekit/shared-ui/core/components/PlainText.svelte";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { dateTimeLabel, relativeTimeLabel } from "$lib/core/utils/time";
   import { notify } from "$lib/features/notifications/notify.svelte";

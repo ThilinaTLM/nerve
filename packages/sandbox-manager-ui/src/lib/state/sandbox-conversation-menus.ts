@@ -1,10 +1,10 @@
 import { Copy } from "@lucide/svelte";
+import type { ContextMenuItem } from "@nervekit/shared-ui/components/ui/context-menu-list";
+import { notifyCopyResult } from "@nervekit/shared-ui/core/notify";
 import type {
   ToolCallTranscriptRecord,
   TranscriptItem,
-} from "@nervekit/conversation-ui/state";
-import type { ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
-import { notifyCopyResult } from "@nervekit/ui/core/notify";
+} from "@nervekit/shared-ui/state";
 
 async function copyText(text: string, label: string): Promise<void> {
   if (!text) return;

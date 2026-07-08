@@ -4,7 +4,7 @@
     ManagedSandboxRecord,
     SandboxActivitySummary,
   } from "@nervekit/shared";
-  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
+  import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
   import SandboxActionMenu from "./SandboxActionMenu.svelte";
   import SandboxStatusBadge from "./SandboxStatusBadge.svelte";
 

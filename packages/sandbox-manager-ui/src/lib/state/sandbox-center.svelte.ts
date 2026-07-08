@@ -74,7 +74,9 @@ export class SandboxCenterState {
   }
 }
 
-export function setSandboxCenter(state: SandboxCenterState): SandboxCenterState {
+export function setSandboxCenter(
+  state: SandboxCenterState,
+): SandboxCenterState {
   return setContext(CONTEXT_KEY, state);
 }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
   import { observedStateLabel, observedStateTone } from "../state/sandbox-status";
 
   let { record }: { record: ManagedSandboxRecord } = $props();

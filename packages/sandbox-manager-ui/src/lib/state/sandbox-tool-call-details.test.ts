@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ConversationRenderState } from "@nervekit/conversation-ui/state";
 import type {
   SandboxToolCallGetResult,
   ToolCallTranscriptRecord,
 } from "@nervekit/shared";
+import type { ConversationRenderState } from "@nervekit/shared-ui/state";
 import {
   resolveToolCallDetails,
   sandboxToolCallGetResultToToolCallRecord,

@@ -2,9 +2,9 @@
   import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import Plus from "@lucide/svelte/icons/plus";
   import Server from "@lucide/svelte/icons/server";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { NavigatorItem, NavigatorPanel } from "@nervekit/ui/components/navigator";
-  import { PanelSection } from "@nervekit/ui/components/workbench";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { NavigatorItem, NavigatorPanel } from "@nervekit/shared-ui/components/navigator";
+  import { PanelSection } from "@nervekit/shared-ui/components/workbench";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
   import { untrack } from "svelte";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";

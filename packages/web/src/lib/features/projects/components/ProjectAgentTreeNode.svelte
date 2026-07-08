@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { type ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
-  import { NavigatorItem } from "@nervekit/ui/components/navigator";
+  import { type ContextMenuItem } from "@nervekit/shared-ui/components/ui/context-menu-list";
+  import { NavigatorItem } from "@nervekit/shared-ui/components/navigator";
   import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
   import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
   import type { ConversationRow } from "$lib/core/utils/project-tree";

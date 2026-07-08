@@ -66,52 +66,6 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/conversation-ui:
-    dependencies:
-      '@codemirror/autocomplete':
-        specifier: ^6.20.2
-        version: 6.20.2
-      '@codemirror/commands':
-        specifier: ^6.10.3
-        version: 6.10.3
-      '@codemirror/lang-markdown':
-        specifier: ^6.5.0
-        version: 6.5.0
-      '@codemirror/state':
-        specifier: ^6.6.0
-        version: 6.6.0
-      '@codemirror/view':
-        specifier: ^6.43.0
-        version: 6.43.0
-      '@lucide/svelte':
-        specifier: ^1.17.0
-        version: 1.17.0(svelte@5.56.3)
-      '@nervekit/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@nervekit/ui':
-        specifier: workspace:*
-        version: link:../ui
-      svelte:
-        specifier: 5.56.3
-        version: 5.56.3
-    devDependencies:
-      '@sveltejs/vite-plugin-svelte':
-        specifier: 7.1.2
-        version: 7.1.2(svelte@5.56.3)(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
-      svelte-check:
-        specifier: 4.3.3
-        version: 4.3.3(picomatch@4.0.4)(svelte@5.56.3)(typescript@5.9.3)
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vite:
-        specifier: 8.0.16
-        version: 8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
-
   packages/desktop:
     dependencies:
       '@nervekit/orchestrator':
@@ -259,30 +213,15 @@ importers:
 
   packages/sandbox-manager-ui:
     dependencies:
-      '@codemirror/commands':
-        specifier: ^6.10.3
-        version: 6.10.3
-      '@codemirror/lang-markdown':
-        specifier: ^6.5.0
-        version: 6.5.0
-      '@codemirror/state':
-        specifier: ^6.6.0
-        version: 6.6.0
-      '@codemirror/view':
-        specifier: ^6.43.0
-        version: 6.43.0
       '@lucide/svelte':
         specifier: ^1.17.0
         version: 1.17.0(svelte@5.56.3)
-      '@nervekit/conversation-ui':
-        specifier: workspace:*
-        version: link:../conversation-ui
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
-      '@nervekit/ui':
+      '@nervekit/shared-ui':
         specifier: workspace:*
-        version: link:../ui
+        version: link:../shared-ui
       mode-watcher:
         specifier: ^1.1.0
         version: 1.1.0(svelte@5.56.3)
@@ -325,36 +264,23 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/tools:
+  packages/shared-ui:
     dependencies:
-      '@nervekit/shared':
-        specifier: workspace:*
-        version: link:../shared
-      diff:
-        specifier: ^8.0.4
-        version: 8.0.4
-      node-html-markdown:
-        specifier: ^2.0.0
-        version: 2.0.0
-      shell-quote:
-        specifier: ^1.8.4
-        version: 1.8.4
-      typebox:
-        specifier: 1.1.38
-        version: 1.1.38
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      '@types/shell-quote':
-        specifier: ^1.7.5
-        version: 1.7.5
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
-  packages/ui:
-    dependencies:
+      '@codemirror/autocomplete':
+        specifier: ^6.20.2
+        version: 6.20.2
+      '@codemirror/commands':
+        specifier: ^6.10.3
+        version: 6.10.3
+      '@codemirror/lang-markdown':
+        specifier: ^6.5.0
+        version: 6.5.0
+      '@codemirror/state':
+        specifier: ^6.6.0
+        version: 6.6.0
+      '@codemirror/view':
+        specifier: ^6.43.0
+        version: 6.43.0
       '@fontsource/iosevka':
         specifier: ^5.2.5
         version: 5.2.5
@@ -453,38 +379,48 @@ importers:
         specifier: 8.0.16
         version: 8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
+  packages/tools:
+    dependencies:
+      '@nervekit/shared':
+        specifier: workspace:*
+        version: link:../shared
+      diff:
+        specifier: ^8.0.4
+        version: 8.0.4
+      node-html-markdown:
+        specifier: ^2.0.0
+        version: 2.0.0
+      shell-quote:
+        specifier: ^1.8.4
+        version: 1.8.4
+      typebox:
+        specifier: 1.1.38
+        version: 1.1.38
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      '@types/shell-quote':
+        specifier: ^1.7.5
+        version: 1.7.5
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/web:
     dependencies:
-      '@codemirror/autocomplete':
-        specifier: ^6.20.2
-        version: 6.20.2
-      '@codemirror/commands':
-        specifier: ^6.10.3
-        version: 6.10.3
-      '@codemirror/lang-markdown':
-        specifier: ^6.5.0
-        version: 6.5.0
-      '@codemirror/state':
-        specifier: ^6.6.0
-        version: 6.6.0
-      '@codemirror/view':
-        specifier: ^6.43.0
-        version: 6.43.0
       '@fontsource/iosevka':
         specifier: ^5.2.5
         version: 5.2.5
       '@fontsource/outfit':
         specifier: ^5.2.6
         version: 5.2.8
-      '@nervekit/conversation-ui':
-        specifier: workspace:*
-        version: link:../conversation-ui
       '@nervekit/shared':
         specifier: workspace:*
         version: link:../shared
-      '@nervekit/ui':
+      '@nervekit/shared-ui':
         specifier: workspace:*
-        version: link:../ui
+        version: link:../shared-ui
       '@shikijs/core':
         specifier: ^4.1.0
         version: 4.1.0

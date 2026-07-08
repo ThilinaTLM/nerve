@@ -1,4 +1,4 @@
-import { agentRunningTone } from "@nervekit/ui/core/utils/status";
+import { agentRunningTone } from "@nervekit/shared-ui/core/utils/status";
 import {
   conversationViewKey,
   fileViewKey,

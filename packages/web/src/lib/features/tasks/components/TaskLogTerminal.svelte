@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { TaskLogQueryResponse } from "$lib/api";
-  import TerminalText from "@nervekit/conversation-ui/tools/components/tool-call/TerminalText.svelte";
+  import TerminalText from "@nervekit/shared-ui/tools/components/tool-call/TerminalText.svelte";
 
   type Props = {
     taskLogs?: TaskLogQueryResponse;

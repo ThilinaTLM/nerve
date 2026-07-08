@@ -5,11 +5,11 @@
   import Layers from "@lucide/svelte/icons/layers";
   import Terminal from "@lucide/svelte/icons/terminal";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { Progress } from "@nervekit/ui/components/ui/progress";
-  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
-  import { PanelSection } from "@nervekit/ui/components/workbench";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { Progress } from "@nervekit/shared-ui/components/ui/progress";
+  import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
+  import { PanelSection } from "@nervekit/shared-ui/components/workbench";
   import SandboxActionMenu from "../SandboxActionMenu.svelte";
   import SandboxStatusBadge from "../SandboxStatusBadge.svelte";
   import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";

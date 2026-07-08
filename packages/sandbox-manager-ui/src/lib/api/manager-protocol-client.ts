@@ -3,7 +3,7 @@ import {
   ProtocolRequestError,
   type ProtocolRequestOptions,
   protocolRequest as sharedProtocolRequest,
-} from "@nervekit/ui/core/protocol/http-client";
+} from "@nervekit/shared-ui/core/protocol/http-client";
 
 export { ProtocolRequestError };
 

@@ -1,12 +1,12 @@
 <script lang="ts">
   import { CheckCircle2, Clock, KeyRound, RefreshCw, ShieldCheck, TriangleAlert } from "@lucide/svelte";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { Card, CardContent, CardHeader, CardTitle } from "@nervekit/ui/components/ui/card";
-  import DialogShell from "@nervekit/ui/components/ui/dialog-shell";
-  import { Input } from "@nervekit/ui/components/ui/input";
-  import { Label } from "@nervekit/ui/components/ui/label";
-  import SelectField from "@nervekit/ui/components/ui/select-field";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { Card, CardContent, CardHeader, CardTitle } from "@nervekit/shared-ui/components/ui/card";
+  import DialogShell from "@nervekit/shared-ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import { Label } from "@nervekit/shared-ui/components/ui/label";
+  import SelectField from "@nervekit/shared-ui/components/ui/select-field";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 
   let { open = $bindable(false) }: { open?: boolean } = $props();

@@ -1,4 +1,4 @@
-import { defaultFileDisplayMode } from "@nervekit/ui/core/utils/file-display";
+import { defaultFileDisplayMode } from "@nervekit/shared-ui/core/utils/file-display";
 import * as api from "../api/manager-client";
 import {
   chatTabFor,
@@ -6,13 +6,13 @@ import {
   selectDurableConversation,
   selectPendingConversation,
 } from "./sandbox-conversation-state";
-import { sandboxSummaryTab } from "./sandbox-ui-types";
 import type {
   SandboxDetailState,
   SandboxDiagnosticTabId,
   SandboxWorkspaceFileViewState,
   SandboxWorkspaceTabIdentity,
 } from "./sandbox-ui-types";
+import { sandboxSummaryTab } from "./sandbox-ui-types";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -183,7 +183,7 @@ export async function refreshWorkspaceFile(
   } catch (error) {
     const message = errorMessage(error);
     view.error = message;
-    const { notify } = await import("@nervekit/ui/core/notify");
+    const { notify } = await import("@nervekit/shared-ui/core/notify");
     notify.error("Could not open file", { description: message });
   } finally {
     view.loading = false;

@@ -4,11 +4,11 @@
     PinnedCommand,
     UpdatePinnedCommandRequest,
   } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import Dialog from "@nervekit/ui/components/ui/dialog-shell";
-  import { Input } from "@nervekit/ui/components/ui/input";
-  import { Label } from "@nervekit/ui/components/ui/label";
-  import { Textarea } from "@nervekit/ui/components/ui/textarea";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import { Label } from "@nervekit/shared-ui/components/ui/label";
+  import { Textarea } from "@nervekit/shared-ui/components/ui/textarea";
 
   type Props = {
     open?: boolean;

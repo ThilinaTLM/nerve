@@ -5,12 +5,12 @@
     formatResetAfterSeconds,
     formatResetAt,
     usageTone,
-  } from "@nervekit/ui/core/utils/usage";
-  import { cn } from "@nervekit/ui/core/utils";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import Popover from "@nervekit/ui/components/ui/popover-panel";
-  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
-  import type { StatusTone } from "@nervekit/ui/core/utils/status";
+  } from "@nervekit/shared-ui/core/utils/usage";
+  import { cn } from "@nervekit/shared-ui/core/utils";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import Popover from "@nervekit/shared-ui/components/ui/popover-panel";
+  import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
+  import type { StatusTone } from "@nervekit/shared-ui/core/utils/status";
 
   type Props = {
     usages?: SubscriptionUsageEntry[];

@@ -3,9 +3,9 @@
   import GitBranch from "@lucide/svelte/icons/git-branch";
   import Settings from "@lucide/svelte/icons/settings";
   import type { ManagedSandboxRecord, StartupSetupStatus } from "@nervekit/shared";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { PanelSection } from "@nervekit/ui/components/workbench";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { PanelSection } from "@nervekit/shared-ui/components/workbench";
   import type { SandboxDetailState, SandboxDiagnosticTabId } from "../../state/sandbox-ui-types";
 
   type PlainRecord = Record<string, unknown>;

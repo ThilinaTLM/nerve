@@ -13,8 +13,8 @@
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import Wrench from "@lucide/svelte/icons/wrench";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import SandboxBootProgress from "../SandboxBootProgress.svelte";
   import SandboxStatStrip from "../SandboxStatStrip.svelte";
   import SandboxRemoveDialog from "../SandboxRemoveDialog.svelte";
@@ -158,9 +158,11 @@
         <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Runtime</h3>
         <dl class="grid gap-1.5 text-sm">
           {#each runtimeRows as row (row.label)}
-            <div class="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
+            <div class="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3">
               <dt class="text-muted-foreground">{row.label}</dt>
-              <dd class={`truncate ${row.mono ? "font-mono text-xs" : ""}`}>{row.value}</dd>
+              <dd
+                class={`truncate ${row.mono ? "font-mono text-xs" : "font-medium"} ${row.value === "—" ? "text-muted-foreground/60" : ""}`}
+              >{row.value}</dd>
             </div>
           {/each}
         </dl>
@@ -170,9 +172,11 @@
         <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Session</h3>
         <dl class="grid gap-1.5 text-sm">
           {#each sessionRows as row (row.label)}
-            <div class="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
+            <div class="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3">
               <dt class="text-muted-foreground">{row.label}</dt>
-              <dd class={`truncate ${row.mono ? "font-mono text-xs" : ""}`}>{row.value}</dd>
+              <dd
+                class={`truncate ${row.mono ? "font-mono text-xs" : "font-medium"} ${row.value === "—" ? "text-muted-foreground/60" : ""}`}
+              >{row.value}</dd>
             </div>
           {/each}
         </dl>

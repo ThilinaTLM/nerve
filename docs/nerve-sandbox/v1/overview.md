@@ -120,7 +120,7 @@ Sandbox v1 aims to provide:
 
 12. **Separate sandbox-manager web UI**
     - `packages/sandbox-manager-ui` provides a dedicated UI app for the sandbox manager.
-    - `packages/ui` provides shared Svelte primitives/theme used by both UI apps.
+    - `packages/shared-ui` provides shared Svelte primitives/theme used by both UI apps.
     - The UI connects to manager APIs without reusing the local workbench as-is.
 
 ## Non-goals

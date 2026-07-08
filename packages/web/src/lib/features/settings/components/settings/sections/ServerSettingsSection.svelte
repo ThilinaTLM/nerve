@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Settings, UpdateSettingsRequest } from "$lib/api";
-  import { Input } from "@nervekit/ui/components/ui/input";
-  import Switch from "@nervekit/ui/components/ui/switch-field";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import Switch from "@nervekit/shared-ui/components/ui/switch-field";
   import SettingsSectionCard from "../SettingsSectionCard.svelte";
 
   type SettingsChange = (

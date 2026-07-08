@@ -7,9 +7,9 @@
     Trash2,
   } from "@lucide/svelte";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { Button, buttonVariants } from "@nervekit/ui/components/ui/button";
-  import * as DropdownMenu from "@nervekit/ui/components/ui/dropdown-menu";
-  import { cn } from "@nervekit/ui/core/utils";
+  import { Button, buttonVariants } from "@nervekit/shared-ui/components/ui/button";
+  import * as DropdownMenu from "@nervekit/shared-ui/components/ui/dropdown-menu";
+  import { cn } from "@nervekit/shared-ui/core/utils";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import { canRestart, canStart, canStop } from "../state/sandbox-status";
   import SandboxRemoveDialog from "./SandboxRemoveDialog.svelte";

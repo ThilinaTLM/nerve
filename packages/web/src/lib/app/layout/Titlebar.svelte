@@ -9,9 +9,9 @@
   import Square from "@lucide/svelte/icons/square";
   import X from "@lucide/svelte/icons/x";
   import { Toolbar } from "bits-ui";
-  import { WorkbenchTitlebar } from "@nervekit/ui/components/workbench";
+  import { WorkbenchTitlebar } from "@nervekit/shared-ui/components/workbench";
   import type { ProjectRecord } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import nerveMark from "$lib/assets/nerve-mark.svg?raw";
 
   type Props = {

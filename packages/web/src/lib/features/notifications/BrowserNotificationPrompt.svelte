@@ -1,6 +1,6 @@
 <script lang="ts">
   import Bell from "@lucide/svelte/icons/bell";
-  import { Button } from "@nervekit/ui/components/ui/button";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import {
     dismissBrowserNotificationPrompt,
     notificationState,

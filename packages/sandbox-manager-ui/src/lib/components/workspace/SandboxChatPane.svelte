@@ -5,8 +5,8 @@
     ConversationPaneLayout,
     createConversationScrollController,
     TranscriptList,
-  } from "@nervekit/conversation-ui";
-  import { setConversationUiCapabilities } from "@nervekit/conversation-ui/context";
+  } from "@nervekit/shared-ui";
+  import { setConversationUiCapabilities } from "@nervekit/shared-ui/context";
   import type { ThinkingLevel } from "@nervekit/shared";
   import SandboxPromptComposer from "../composer/SandboxPromptComposer.svelte";
   import {

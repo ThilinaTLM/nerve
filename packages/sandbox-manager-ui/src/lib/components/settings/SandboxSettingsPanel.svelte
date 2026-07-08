@@ -8,19 +8,19 @@
     RefreshCw,
     TriangleAlert,
   } from "@lucide/svelte";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import {
     Card,
     CardContent,
     CardHeader,
     CardTitle,
-  } from "@nervekit/ui/components/ui/card";
-  import DialogShell from "@nervekit/ui/components/ui/dialog-shell";
-  import { Input } from "@nervekit/ui/components/ui/input";
-  import { Label } from "@nervekit/ui/components/ui/label";
-  import SelectField from "@nervekit/ui/components/ui/select-field";
-  import { Textarea } from "@nervekit/ui/components/ui/textarea";
+  } from "@nervekit/shared-ui/components/ui/card";
+  import DialogShell from "@nervekit/shared-ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import { Label } from "@nervekit/shared-ui/components/ui/label";
+  import SelectField from "@nervekit/shared-ui/components/ui/select-field";
+  import { Textarea } from "@nervekit/shared-ui/components/ui/textarea";
   import type {
     ModelInfo,
     SandboxManagerCredentialProfile,

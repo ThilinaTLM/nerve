@@ -2,7 +2,7 @@ import {
   modelKey,
   parseModelKey,
   scopedUsableModelOptions,
-} from "@nervekit/ui/core/utils/model";
+} from "@nervekit/shared-ui/core/utils/model";
 import {
   conversationViewKey,
   pendingConversationKey,

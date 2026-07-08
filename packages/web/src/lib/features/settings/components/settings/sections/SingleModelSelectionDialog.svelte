@@ -6,14 +6,14 @@
     ModelSelection,
     ThinkingLevel,
   } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import Dialog from "@nervekit/ui/components/ui/dialog-shell";
-  import { Input } from "@nervekit/ui/components/ui/input";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
   import {
     modelDisplayName,
     modelKey,
     providerDisplayName,
-  } from "@nervekit/ui/core/utils/model";
+  } from "@nervekit/shared-ui/core/utils/model";
 
   type ProviderChip = { id: string; label: string; count: number };
   type FallbackOption = { label: string; detail: string };

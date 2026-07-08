@@ -66,12 +66,12 @@ packages/sandbox-manager-ui/
   src/lib/routes/
   src/lib/components/
 
-packages/ui/
+packages/shared-ui/
   src/lib/components/ui/
   src/styles/
 ```
 
-This layout is illustrative. Protocol, config, command, event, state, credential, and manager schemas that are shared by controllers, sandboxes, and the web UI should live in `packages/shared`. Svelte components, CSS, and browser display helpers belong in `packages/ui`, not `packages/shared`.
+This layout is illustrative. Protocol, config, command, event, state, credential, and manager schemas that are shared by controllers, sandboxes, and the web UI should live in `packages/shared`. Svelte components, CSS, and browser display helpers belong in `packages/shared-ui`, not `packages/shared`.
 
 ## Reuse candidates
 
@@ -96,7 +96,7 @@ Current Nerve components that may be reused or adapted:
 | Git/GitHub service ideas | `packages/orchestrator/src/domains/git/*` |
 | Agent/tool orchestration glue | `packages/orchestrator/src/domains/agents/run/*` and `domains/tools/*` |
 
-The sandbox agent image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/sandbox-manager-ui` app using shared primitives from `packages/ui`, not the current local workbench reused unchanged.
+The sandbox agent image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/sandbox-manager-ui` app using shared primitives from `packages/shared-ui`, not the current local workbench reused unchanged.
 
 ## Phase 1: shared schemas
 
@@ -421,7 +421,7 @@ Validation:
 - run view supports transcript/tool lifecycle, approvals, and input waits;
 - lifecycle actions use idempotent manager commands;
 - no raw secrets are requested or rendered;
-- styling follows `packages/ui`/`packages/sandbox-manager-ui` AGENTS guidance and shadcn-svelte conventions.
+- styling follows `packages/shared-ui`/`packages/sandbox-manager-ui` AGENTS guidance and shadcn-svelte conventions.
 
 ## Phase 17: future ECS driver
 

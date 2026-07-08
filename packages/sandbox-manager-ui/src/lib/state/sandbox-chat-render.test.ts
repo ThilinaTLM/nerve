@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ConversationRenderState } from "@nervekit/conversation-ui/state";
 import type { ToolCallTranscriptRecord } from "@nervekit/shared";
+import type { ConversationRenderState } from "@nervekit/shared-ui/state";
 import { buildSandboxChatRender } from "./sandbox-chat-render";
 
 const ts = "2026-07-07T00:00:00.000Z";

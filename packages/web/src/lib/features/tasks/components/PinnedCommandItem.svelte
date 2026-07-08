@@ -3,8 +3,8 @@
   import Play from "@lucide/svelte/icons/play";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import type { PinnedCommand } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
 
   type Props = {
     command: PinnedCommand;

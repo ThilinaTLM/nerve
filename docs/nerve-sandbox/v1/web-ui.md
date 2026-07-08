@@ -35,7 +35,7 @@ Current package organization:
 
 ```text
 packages/sandbox-manager-ui/  # dedicated Svelte app: routes, manager API clients, state, components
-packages/ui/                  # shared shadcn-svelte primitives, theme/styles, generic display helpers
+packages/shared-ui/                  # shared shadcn-svelte primitives, theme/styles, generic display helpers
 packages/web/                 # local workbench UI only; no sandbox-manager surface
 packages/shared/              # transport-neutral protocol/schema types only
 packages/sandbox-manager/     # manager API/service; serves the built UI when enabled
@@ -204,8 +204,8 @@ UI reducers MUST deduplicate durable events by event ID/sequence and MUST NOT ad
 
 The UI must follow the shared styling conventions:
 
-- use official shadcn-svelte primitives from `@nervekit/ui/components/ui/*`;
-- import shared theme/base styles from `@nervekit/ui/styles/app.css`;
+- use official shadcn-svelte primitives from `@nervekit/shared-ui/components/ui/*`;
+- import shared theme/base styles from `@nervekit/shared-ui/styles/app.css`;
 - use Tailwind token utilities and theme tokens for colors, typography, spacing, radius, and shadows;
 - use only approved semantic additions such as `success`, `warning`, and `info`;
 - avoid hard-coded colors, font sizes, spacing, and one-off visual constants;
@@ -228,7 +228,7 @@ Sandbox-manager UI state SHOULD be separate from the current workbench state:
 - no assumption of one local project/workspace;
 - no direct dependency on desktop-only APIs.
 
-Shared UI/display utilities come from `@nervekit/ui`. Shared protocol schemas remain in `@nervekit/shared`; do not place Svelte components or browser CSS in `packages/shared`.
+Shared UI/display utilities come from `@nervekit/shared-ui`. Shared protocol schemas remain in `@nervekit/shared`; do not place Svelte components or browser CSS in `packages/shared`.
 
 ## Security requirements
 
@@ -280,7 +280,7 @@ A first implementation SHOULD verify:
 - boot timeline accurately reflects setup order;
 - approval/input actions use manager-mediated commands;
 - Docker/Podman limitations are visible;
-- styling follows `packages/ui` and `packages/sandbox-manager-ui` guardrails;
+- styling follows `packages/shared-ui` and `packages/sandbox-manager-ui` guardrails;
 - light and dark mode remain readable.
 
 ## Implemented app (v1)
@@ -361,7 +361,7 @@ node packages/sandbox-manager/dist/main.js
 Container build example:
 
 ```sh
-pnpm --filter @nervekit/ui build
+pnpm --filter @nervekit/shared-ui build
 pnpm --filter @nervekit/sandbox-manager-ui build
 pnpm --filter @nervekit/sandbox-manager build
 docker build -f packages/sandbox-manager/Dockerfile -t nerve-sandbox-manager:dev .

@@ -2,7 +2,7 @@ import {
   deriveConversationTitle,
   isInlineCommandPrompt,
 } from "@nervekit/shared";
-import { scopedUsableModelOptions } from "@nervekit/ui/core/utils/model";
+import { scopedUsableModelOptions } from "@nervekit/shared-ui/core/utils/model";
 import {
   type AgentRecord,
   type ConversationRecord,

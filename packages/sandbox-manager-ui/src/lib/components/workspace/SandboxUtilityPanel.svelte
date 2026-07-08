@@ -2,8 +2,8 @@
   import GitBranch from "@lucide/svelte/icons/git-branch";
   import Info from "@lucide/svelte/icons/info";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { WorkbenchUtilityPanel } from "@nervekit/ui/components/workbench";
-  import type { TabItem } from "@nervekit/ui/components/ui/tabs-bar";
+  import { WorkbenchUtilityPanel } from "@nervekit/shared-ui/components/workbench";
+  import type { TabItem } from "@nervekit/shared-ui/components/ui/tabs-bar";
   import {
     sandboxWorkbenchLayout,
   } from "../../state/sandbox-workbench-layout.svelte";

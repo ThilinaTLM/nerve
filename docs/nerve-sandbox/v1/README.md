@@ -6,7 +6,7 @@ Scope: Docker/container runtime contract for a configurable, reproducible Nerve 
 
 Nerve Sandbox v1 defines how to package and run the Nerve agent harness as an isolated sandbox daemon. The sandbox is configured by a YAML spec, connects to a sandbox controller over WebSocket, emits durable events, accepts steering commands, and persists enough local state to resume multiple conversations, agents, subagents, and runs after restarts, errors, completion, or human-input waits.
 
-Baseline implementation is split into `packages/sandbox-agent` for the containerized daemon/runtime, `packages/sandbox-manager` for container lifecycle, built-in key-value secrets, protocol APIs, web-asset serving, and garbage collection, `packages/sandbox-manager-ui` for the dedicated manager UI, and `packages/ui` for shared Svelte UI primitives/styles. Docker and Podman are the initial manager backends; AWS ECS is a planned backend extension.
+Baseline implementation is split into `packages/sandbox-agent` for the containerized daemon/runtime, `packages/sandbox-manager` for container lifecycle, built-in key-value secrets, protocol APIs, web-asset serving, and garbage collection, `packages/sandbox-manager-ui` for the dedicated manager UI, and `packages/shared-ui` for shared Svelte UI primitives/styles. Docker and Podman are the initial manager backends; AWS ECS is a planned backend extension.
 
 The sandbox does **not** require the current Nerve orchestrator or current local Web UI. Those components may later act as one possible controller/UI, but the v1 sandbox is intended as a standalone platform building block.
 
@@ -86,7 +86,7 @@ This specification is ready to guide an initial implementation with:
 
 - one sandbox daemon per sandbox container in `packages/sandbox-agent`;
 - a sandbox manager in `packages/sandbox-manager` with Docker/Podman container drivers, built-in KV secrets, protocol API/WS, and container GC;
-- a separate sandbox-manager web UI app in `packages/sandbox-manager-ui` using shared primitives from `packages/ui`;
+- a separate sandbox-manager web UI app in `packages/sandbox-manager-ui` using shared primitives from `packages/shared-ui`;
 - durable state semantics for multiple conversations, agents, subagents, and runs;
 - one writable workspace mount;
 - one durable state volume;

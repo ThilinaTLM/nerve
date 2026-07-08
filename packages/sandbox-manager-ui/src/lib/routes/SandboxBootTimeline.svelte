@@ -1,8 +1,8 @@
 <script lang="ts">
   import { CircleCheck, CircleDot, CircleX, MinusCircle } from "@lucide/svelte";
   import type { ManagedSandboxRecord, StartupSetupStatus } from "@nervekit/shared";
-  import { Card, CardContent, CardHeader, CardTitle } from "@nervekit/ui/components/ui/card";
-  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
+  import { Card, CardContent, CardHeader, CardTitle } from "@nervekit/shared-ui/components/ui/card";
+  import { ScrollArea } from "@nervekit/shared-ui/components/ui/scroll-area";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 
   let { record }: { record: ManagedSandboxRecord } = $props();

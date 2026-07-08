@@ -1,9 +1,8 @@
 /* App stylesheet entry point. The only stylesheet imported by the app (main.ts).
- * Shared theme/base/primitives come from @nervekit/ui; workbench-specific
+ * Shared theme/base/primitives come from @nervekit/shared-ui; workbench-specific
  * global partials are imported afterwards. */
 
-@import "@nervekit/ui/styles/app.css";
+@import "@nervekit/shared-ui/styles/app.css";
 @import "./components.css";
-@source "../../../ui/src/lib/**/*.{svelte,ts}";
-@source "../../../conversation-ui/src/lib/**/*.{svelte,ts}";
+@source "../../../shared-ui/src/lib/**/*.{svelte,ts}";
 @source "../**/*.{svelte,ts}";

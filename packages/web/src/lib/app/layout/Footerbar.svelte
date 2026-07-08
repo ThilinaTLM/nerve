@@ -5,7 +5,7 @@
   import GitBranch from "@lucide/svelte/icons/git-branch";
   import Terminal from "@lucide/svelte/icons/terminal";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import { WorkbenchFooterbar } from "@nervekit/ui/components/workbench";
+  import { WorkbenchFooterbar } from "@nervekit/shared-ui/components/workbench";
   import type {
     TaskRecord,
     ProjectRecord,

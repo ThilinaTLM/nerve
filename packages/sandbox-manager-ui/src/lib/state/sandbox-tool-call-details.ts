@@ -1,10 +1,10 @@
-import type { ConversationRenderState } from "@nervekit/conversation-ui/state";
 import {
   type SandboxToolCallGetResult,
   sandboxToolCallGetResultSchema,
   type ToolCallRecord,
   type ToolCallTranscriptRecord,
 } from "@nervekit/shared";
+import type { ConversationRenderState } from "@nervekit/shared-ui/state";
 import * as api from "../api/manager-client";
 
 type FetchSandboxToolCall = (

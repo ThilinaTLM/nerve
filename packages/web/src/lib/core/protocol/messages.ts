@@ -1,1 +1,1 @@
-export { createClientMessage } from "@nervekit/ui/core/protocol/messages";
+export { createClientMessage } from "@nervekit/shared-ui/core/protocol/messages";

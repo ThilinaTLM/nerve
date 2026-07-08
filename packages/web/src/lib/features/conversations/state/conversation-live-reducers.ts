@@ -1,5 +1,5 @@
-import { entryToTranscriptItems } from "@nervekit/conversation-ui/state";
 import { toolCallTranscriptRecordSchema } from "@nervekit/shared";
+import { entryToTranscriptItems } from "@nervekit/shared-ui/state";
 import type {
   ConversationEntry,
   EventEnvelope,

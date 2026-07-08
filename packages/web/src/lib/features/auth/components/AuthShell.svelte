@@ -4,7 +4,7 @@
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import type { Component } from "svelte";
   import { tick } from "svelte";
-  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
+  import { ScrollArea } from "@nervekit/shared-ui/components/ui/scroll-area";
   import { authState } from "$lib/features/auth/state/auth-state.svelte";
   import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
   import { settingsState } from "$lib/features/settings/state/settings-state.svelte";

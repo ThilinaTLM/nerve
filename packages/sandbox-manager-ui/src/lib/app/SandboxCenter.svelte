@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { WorkbenchFrame, WorkbenchPanes } from "@nervekit/ui/components/workbench";
+  import { WorkbenchFrame, WorkbenchPanes } from "@nervekit/shared-ui/components/workbench";
   import SandboxFooterbar from "../components/layout/SandboxFooterbar.svelte";
   import SandboxTitlebar from "../components/layout/SandboxTitlebar.svelte";
   import SandboxCenterTabs from "../components/workspace/SandboxCenterTabs.svelte";

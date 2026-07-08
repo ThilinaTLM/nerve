@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ensurePendingConversation } from "./sandbox-conversation-state";
-import { createSandboxDetailState, sandboxSummaryTab } from "./sandbox-ui-types";
+import {
+  createSandboxDetailState,
+  sandboxSummaryTab,
+} from "./sandbox-ui-types";
 import {
   closeWorkspaceTab,
   closeWorkspaceTabs,

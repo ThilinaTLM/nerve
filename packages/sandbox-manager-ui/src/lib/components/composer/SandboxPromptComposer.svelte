@@ -7,9 +7,9 @@
     type ModelInfo,
     type ThinkingLevel,
   } from "@nervekit/shared";
-  import ComposerEditor from "@nervekit/conversation-ui/components/composer/ComposerEditor.svelte";
-  import ComposerShell from "@nervekit/conversation-ui/components/composer/ComposerShell.svelte";
-  import ComposerToolbar from "@nervekit/conversation-ui/components/composer/ComposerToolbar.svelte";
+  import ComposerEditor from "@nervekit/shared-ui/components/composer/ComposerEditor.svelte";
+  import ComposerShell from "@nervekit/shared-ui/components/composer/ComposerShell.svelte";
+  import ComposerToolbar from "@nervekit/shared-ui/components/composer/ComposerToolbar.svelte";
 
   type Mode = "normal" | "planning";
   type PermissionLevel = "read_only" | "supervised" | "autonomous";

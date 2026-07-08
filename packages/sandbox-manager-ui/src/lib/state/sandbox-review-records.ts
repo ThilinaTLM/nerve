@@ -1,9 +1,9 @@
+import type { ToolRisk } from "@nervekit/shared";
 import type {
   ApprovalWithToolCall,
   ConversationRenderState,
   UserQuestionRecord,
-} from "@nervekit/conversation-ui/state";
-import type { ToolRisk } from "@nervekit/shared";
+} from "@nervekit/shared-ui/state";
 import type { SandboxDetailState } from "./sandbox-ui-types";
 
 // Placeholder ids for the required record fields the sandbox transcript does not

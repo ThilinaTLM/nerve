@@ -7,8 +7,8 @@
   import Search from "@lucide/svelte/icons/search";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import type { ProjectRecord } from "$lib/api";
-  import ContextMenu, { type ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
-  import { Input } from "@nervekit/ui/components/ui/input";
+  import ContextMenu, { type ContextMenuItem } from "@nervekit/shared-ui/components/ui/context-menu-list";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
   import { dateTimeLabel, relativeTimeLabel } from "$lib/core/utils/time";
   import { tildePath } from "$lib/core/utils/path";
 

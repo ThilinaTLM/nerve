@@ -9,14 +9,14 @@
     Settings,
     UpdateSettingsRequest,
   } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import SettingsSectionCard from "../SettingsSectionCard.svelte";
   import {
     authenticatedRealModelOptions,
     modelDisplayName,
     modelKey,
     providerDisplayName,
-  } from "@nervekit/ui/core/utils/model";
+  } from "@nervekit/shared-ui/core/utils/model";
   import AddScopedModelsDialog from "./AddScopedModelsDialog.svelte";
 
   type SettingsChange = (

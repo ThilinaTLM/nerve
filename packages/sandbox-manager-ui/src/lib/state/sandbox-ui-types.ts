@@ -1,4 +1,3 @@
-import type { ConversationRenderState } from "@nervekit/conversation-ui/state";
 import type {
   ManagedSandboxRecord,
   SandboxConfigYamlResult,
@@ -11,6 +10,7 @@ import type {
   SandboxWorkspaceFileResponse,
   ThinkingLevel,
 } from "@nervekit/shared";
+import type { ConversationRenderState } from "@nervekit/shared-ui/state";
 import type { ManagerWsConnectionState } from "../api/manager-ws-client.svelte";
 import { createDraftFromStoredPreferences } from "./create-sandbox-draft";
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { cn } from "@nervekit/ui/core/utils";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { cn } from "@nervekit/shared-ui/core/utils";
   import type {
     SettingsDomain,
     SettingsDomainId,

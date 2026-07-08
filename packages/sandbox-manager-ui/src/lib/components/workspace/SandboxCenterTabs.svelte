@@ -12,13 +12,13 @@
   import Terminal from "@lucide/svelte/icons/terminal";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import X from "@lucide/svelte/icons/x";
-  import type { ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
-  import { WorkbenchTabStrip } from "@nervekit/ui/components/workbench";
+  import type { ContextMenuItem } from "@nervekit/shared-ui/components/ui/context-menu-list";
+  import { WorkbenchTabStrip } from "@nervekit/shared-ui/components/workbench";
   import type {
     WorkbenchTabIdentity,
     WorkbenchTabModel,
-  } from "@nervekit/ui/components/workbench";
-  import { isMarkdownPath } from "@nervekit/ui/core/utils/file-display";
+  } from "@nervekit/shared-ui/components/workbench";
+  import { isMarkdownPath } from "@nervekit/shared-ui/core/utils/file-display";
   import SandboxDashboard from "../dashboard/SandboxDashboard.svelte";
   import SandboxSettingsPanel from "../settings/SandboxSettingsPanel.svelte";
   import SandboxChatPane from "./SandboxChatPane.svelte";

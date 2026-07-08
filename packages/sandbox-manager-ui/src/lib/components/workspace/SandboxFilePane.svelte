@@ -1,10 +1,10 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { FileText, RefreshCw, TriangleAlert } from "@lucide/svelte";
-  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
-  import Markdown from "@nervekit/ui/core/components/Markdown.svelte";
-  import { notifyCopyResult } from "@nervekit/ui/core/notify";
-  import { isMarkdownPath } from "@nervekit/ui/core/utils/file-display";
+  import { ScrollArea } from "@nervekit/shared-ui/components/ui/scroll-area";
+  import Markdown from "@nervekit/shared-ui/core/components/Markdown.svelte";
+  import { notifyCopyResult } from "@nervekit/shared-ui/core/notify";
+  import { isMarkdownPath } from "@nervekit/shared-ui/core/utils/file-display";
   import type { SandboxWorkspaceFileViewState } from "../../state/sandbox-ui-types";
 
   let { view }: { view?: SandboxWorkspaceFileViewState } = $props();

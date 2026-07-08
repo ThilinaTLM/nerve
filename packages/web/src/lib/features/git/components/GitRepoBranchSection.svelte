@@ -10,13 +10,13 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Search from "@lucide/svelte/icons/search";
   import type { GitBranchSummary, GitRepoSummary } from "$lib/api";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { Input } from "@nervekit/ui/components/ui/input";
-  import * as Popover from "@nervekit/ui/components/ui/popover";
-  import { ToggleGroup, ToggleGroupItem } from "@nervekit/ui/components/ui/toggle-group";
-  import { cn } from "@nervekit/ui/core/utils";
-  import { PanelSection } from "@nervekit/ui/components/workbench";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import * as Popover from "@nervekit/shared-ui/components/ui/popover";
+  import { ToggleGroup, ToggleGroupItem } from "@nervekit/shared-ui/components/ui/toggle-group";
+  import { cn } from "@nervekit/shared-ui/core/utils";
+  import { PanelSection } from "@nervekit/shared-ui/components/workbench";
   import { repoButtonLabel, repoPathLabel } from "./git-change-format";
   import {
     basePullDisabled,

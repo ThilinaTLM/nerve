@@ -1,4 +1,4 @@
-import { modelKey, parseModelKey } from "@nervekit/ui/core/utils/model";
+import { modelKey, parseModelKey } from "@nervekit/shared-ui/core/utils/model";
 import type {
   AgentRecord,
   ModelInfo,

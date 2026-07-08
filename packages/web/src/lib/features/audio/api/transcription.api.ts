@@ -2,7 +2,7 @@ import type { AudioTranscriptionResponse } from "@nervekit/shared";
 import {
   ApiRequestError,
   parseApiErrorBody,
-} from "@nervekit/ui/core/api/client";
+} from "@nervekit/shared-ui/core/api/client";
 
 function extensionForAudioType(type: string): string {
   const normalized = type.split(";")[0]?.trim().toLowerCase();

@@ -5,9 +5,9 @@
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import X from "@lucide/svelte/icons/x";
   import type { GitFileChange } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { cn } from "@nervekit/ui/core/utils";
-  import { PanelSection } from "@nervekit/ui/components/workbench";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { cn } from "@nervekit/shared-ui/core/utils";
+  import { PanelSection } from "@nervekit/shared-ui/components/workbench";
   import type { FileMutation } from "$lib/features/git/state/git-panel.svelte";
   import {
     fileStatusLabel,

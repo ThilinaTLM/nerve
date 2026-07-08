@@ -10,12 +10,12 @@
   import Settings from "@lucide/svelte/icons/settings";
   import Terminal from "@lucide/svelte/icons/terminal";
   import X from "@lucide/svelte/icons/x";
-  import { WorkbenchTabStrip } from "@nervekit/ui/components/workbench";
+  import { WorkbenchTabStrip } from "@nervekit/shared-ui/components/workbench";
   import type {
     WorkbenchTabIdentity,
     WorkbenchTabModel,
-  } from "@nervekit/ui/components/workbench";
-  import type { ContextMenuItem } from "@nervekit/ui/components/ui/context-menu-list";
+  } from "@nervekit/shared-ui/components/workbench";
+  import type { ContextMenuItem } from "@nervekit/shared-ui/components/ui/context-menu-list";
   import { writeClipboardText } from "$lib/core/clipboard";
   import type { CenterTabIdentity, CenterTabModel } from "$lib/features/workspace";
   import { notify } from "$lib/features/notifications/notify.svelte";

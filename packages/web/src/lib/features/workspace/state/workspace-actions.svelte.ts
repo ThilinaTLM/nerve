@@ -1,4 +1,4 @@
-import { modelKey } from "@nervekit/ui/core/utils/model";
+import { modelKey } from "@nervekit/shared-ui/core/utils/model";
 import {
   type AgentRecord,
   apiPathSegment,

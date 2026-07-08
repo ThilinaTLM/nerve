@@ -1,4 +1,4 @@
 export {
   protocolClientId,
   protocolInstanceId,
-} from "@nervekit/ui/core/protocol/ids";
+} from "@nervekit/shared-ui/core/protocol/ids";

@@ -9,17 +9,17 @@
     buildCommittedTimeline,
     buildLiveTimeline,
     selectVisibleCommitted,
-  } from "@nervekit/conversation-ui/state";
-  import { Button } from "@nervekit/ui/components/ui/button";
+  } from "@nervekit/shared-ui/state";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import {
     ConversationPaneLayout,
     createConversationScrollController,
     TranscriptList,
-  } from "@nervekit/conversation-ui";
-  import { setConversationUiCapabilities } from "@nervekit/conversation-ui/context";
+  } from "@nervekit/shared-ui";
+  import { setConversationUiCapabilities } from "@nervekit/shared-ui/context";
   import PromptComposer from "./PromptComposer.svelte";
   import { currentTodosForAgent } from "./composer-todos";
-  import { workbenchConversationUiCapabilities } from "./conversation-ui-capabilities.svelte";
+  import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
 
   setConversationUiCapabilities(workbenchConversationUiCapabilities());
   import { messageMenu, toolMenu } from "./conversation-menus";

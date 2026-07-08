@@ -8,4 +8,4 @@ export {
   processedSeqFromCursor,
   resetClientEventStreamState,
   resetClientEventStreamStateFromCursor,
-} from "@nervekit/ui/core/protocol/event-stream";
+} from "@nervekit/shared-ui/core/protocol/event-stream";

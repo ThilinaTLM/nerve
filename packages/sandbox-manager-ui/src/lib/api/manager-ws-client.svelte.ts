@@ -14,11 +14,11 @@ import {
   type ClientEventStreamState,
   createClientEventStreamState,
   markProcessed,
-} from "@nervekit/ui/core/protocol/event-stream";
+} from "@nervekit/shared-ui/core/protocol/event-stream";
 import {
   protocolClientId,
   protocolInstanceId,
-} from "@nervekit/ui/core/protocol/ids";
+} from "@nervekit/shared-ui/core/protocol/ids";
 
 export type ManagerWsConnectionState =
   | "idle"

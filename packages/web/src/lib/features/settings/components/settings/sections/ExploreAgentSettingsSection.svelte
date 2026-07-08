@@ -7,8 +7,8 @@
     Settings,
     UpdateSettingsRequest,
   } from "$lib/api";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import * as Tooltip from "@nervekit/ui/components/ui/tooltip";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
   import SettingsSectionCard from "../SettingsSectionCard.svelte";
   import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
   import {
@@ -16,7 +16,7 @@
     modelKey,
     providerDisplayName,
     usableModelOptions,
-  } from "@nervekit/ui/core/utils/model";
+  } from "@nervekit/shared-ui/core/utils/model";
 
   type SettingsChange = (
     patch: UpdateSettingsRequest,

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Container } from "@lucide/svelte";
   import type { RuntimeDriverCapabilities } from "@nervekit/shared";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
 
   let {
     backend,

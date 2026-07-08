@@ -11,10 +11,10 @@
     ConversationRecord,
     StatusResponse,
   } from "$lib/api";
-  import { agentActivityPulse, agentActivityTone } from "@nervekit/ui/core/utils/status";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
-  import { PanelSection } from "@nervekit/ui/components/workbench";
+  import { agentActivityPulse, agentActivityTone } from "@nervekit/shared-ui/core/utils/status";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
+  import { PanelSection } from "@nervekit/shared-ui/components/workbench";
 
   type Props = {
     status?: StatusResponse;

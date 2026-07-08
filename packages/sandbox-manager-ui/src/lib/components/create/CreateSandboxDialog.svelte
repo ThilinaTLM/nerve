@@ -15,16 +15,16 @@
     type SandboxManagerCredentialProfile,
     type ThinkingLevel,
   } from "@nervekit/shared";
-  import { Badge } from "@nervekit/ui/components/ui/badge";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import DialogShell from "@nervekit/ui/components/ui/dialog-shell";
-  import { Input } from "@nervekit/ui/components/ui/input";
-  import { Label } from "@nervekit/ui/components/ui/label";
-  import SelectField from "@nervekit/ui/components/ui/select-field";
-  import { Separator } from "@nervekit/ui/components/ui/separator";
-  import SwitchField from "@nervekit/ui/components/ui/switch-field";
-  import { Tabs, TabsContent, TabsList, TabsTrigger } from "@nervekit/ui/components/ui/tabs";
-  import { Textarea } from "@nervekit/ui/components/ui/textarea";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import DialogShell from "@nervekit/shared-ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import { Label } from "@nervekit/shared-ui/components/ui/label";
+  import SelectField from "@nervekit/shared-ui/components/ui/select-field";
+  import { Separator } from "@nervekit/shared-ui/components/ui/separator";
+  import SwitchField from "@nervekit/shared-ui/components/ui/switch-field";
+  import { Tabs, TabsContent, TabsList, TabsTrigger } from "@nervekit/shared-ui/components/ui/tabs";
+  import { Textarea } from "@nervekit/shared-ui/components/ui/textarea";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import {
     buildCreateRequest,

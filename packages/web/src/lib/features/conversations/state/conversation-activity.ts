@@ -1,7 +1,7 @@
 import {
   agentRunningTone,
   type StatusTone,
-} from "@nervekit/ui/core/utils/status";
+} from "@nervekit/shared-ui/core/utils/status";
 import type {
   AgentRecord,
   ApprovalWithToolCall,

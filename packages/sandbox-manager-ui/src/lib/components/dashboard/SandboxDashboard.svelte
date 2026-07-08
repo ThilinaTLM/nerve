@@ -3,10 +3,10 @@
   import Plus from "@lucide/svelte/icons/plus";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Search from "@lucide/svelte/icons/search";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { Input } from "@nervekit/ui/components/ui/input";
-  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
-  import { ScrollArea } from "@nervekit/ui/components/ui/scroll-area";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
+  import { ScrollArea } from "@nervekit/shared-ui/components/ui/scroll-area";
   import SandboxListRow from "../SandboxListRow.svelte";
   import SandboxSummaryCards from "../SandboxSummaryCards.svelte";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";

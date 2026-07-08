@@ -1,4 +1,4 @@
-import type { BadgeTone } from "@nervekit/ui/components/ui/badge";
+import type { BadgeTone } from "@nervekit/shared-ui/components/ui/badge";
 import type {
   GitFileChange,
   GithubChecksSummary,

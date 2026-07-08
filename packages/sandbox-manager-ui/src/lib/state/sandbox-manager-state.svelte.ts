@@ -1,8 +1,4 @@
 // biome-ignore lint/style/noExcessiveLinesPerFile: Store coordinates manager websocket, lifecycle, chat, and workspace tab state while this app is still being factored.
-import {
-  applyConversationEvent,
-  fromSandboxConversationViewSnapshot,
-} from "@nervekit/conversation-ui/state";
 import type {
   EventEnvelope,
   ManagedSandboxRecord,
@@ -23,7 +19,11 @@ import {
   sandboxActivitySummarySchema,
   sandboxRunStartResultSchema,
 } from "@nervekit/shared";
-import { notify } from "@nervekit/ui/core/notify";
+import { notify } from "@nervekit/shared-ui/core/notify";
+import {
+  applyConversationEvent,
+  fromSandboxConversationViewSnapshot,
+} from "@nervekit/shared-ui/state";
 import { getContext, setContext } from "svelte";
 import { createOperationId } from "../api/idempotency";
 import * as api from "../api/manager-client";

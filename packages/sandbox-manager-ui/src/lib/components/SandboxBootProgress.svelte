@@ -10,10 +10,10 @@
     TriangleAlert,
   } from "@lucide/svelte";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { Button } from "@nervekit/ui/components/ui/button";
-  import { Progress } from "@nervekit/ui/components/ui/progress";
-  import { StatusDot } from "@nervekit/ui/components/ui/status-dot";
-  import type { StatusTone } from "@nervekit/ui/components/ui/status-dot";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { Progress } from "@nervekit/shared-ui/components/ui/progress";
+  import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
+  import type { StatusTone } from "@nervekit/shared-ui/components/ui/status-dot";
   import {
     computeSandboxBootProgress,
     type BootPhaseStatus,

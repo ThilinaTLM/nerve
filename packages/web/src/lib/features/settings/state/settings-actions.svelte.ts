@@ -1,7 +1,7 @@
 import {
   modelKey,
   scopedUsableModelOptions,
-} from "@nervekit/ui/core/utils/model";
+} from "@nervekit/shared-ui/core/utils/model";
 import type { AgentRecord, ModelInfo } from "$lib/api";
 import {
   getAuthProviders,

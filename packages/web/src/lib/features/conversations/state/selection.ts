@@ -1,9 +1,9 @@
+import { modelKey } from "@nervekit/shared-ui/core/utils/model";
 import {
   activeRunToLegacyLive,
   entriesToTranscript,
   liveTextFromLegacyLive,
-} from "@nervekit/conversation-ui/state";
-import { modelKey } from "@nervekit/ui/core/utils/model";
+} from "@nervekit/shared-ui/state";
 import {
   type AgentRecord,
   type ConversationRecord,

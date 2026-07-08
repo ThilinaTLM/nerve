@@ -1,12 +1,12 @@
 import {
+  modelKey,
+  scopedUsableModelOptions,
+} from "@nervekit/shared-ui/core/utils/model";
+import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,
   THINKING_LEVEL_ORDER,
-} from "@nervekit/conversation-ui/state";
-import {
-  modelKey,
-  scopedUsableModelOptions,
-} from "@nervekit/ui/core/utils/model";
+} from "@nervekit/shared-ui/state";
 import type {
   AgentRecord,
   AuthProviderMetadata,
