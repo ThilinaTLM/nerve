@@ -4,6 +4,7 @@ import {
   type ConversationSnapshot,
   type ConversationTree,
   conversationSnapshotSchema,
+  deriveConversationTitle,
   type ToolCallTranscriptRecord,
   toolCallTranscriptRecordSchema,
 } from "@nervekit/shared";
@@ -55,7 +56,7 @@ export function projectConversationSnapshotFromEvents(input: {
       id: conversationId,
       projectId,
       title: titleFor(entries, conversationId),
-      mode: "coding",
+      mode: modeForConversation(input.events, conversationId),
       permissionLevel: "autonomous",
       approvalPolicy: { autoApproveReadOnly: true },
       activeAgentId,
@@ -265,8 +266,23 @@ function titleFor(
 ): string {
   const firstUser = entries.find((entry) => entry.role === "user")?.text.trim();
   return firstUser
-    ? firstUser.slice(0, 80)
+    ? deriveConversationTitle(firstUser)
     : `Sandbox conversation ${conversationId}`;
+}
+
+function modeForConversation(
+  events: StoredSandboxEvent[],
+  conversationId: string,
+): "coding" | "planning" {
+  for (const event of events) {
+    if (event.type !== "run.started") continue;
+    const payload = asRecord(event.payload);
+    if (stringField(payload ?? {}, "conversationId") !== conversationId)
+      continue;
+    const mode = modeField(payload ?? {});
+    if (mode) return mode;
+  }
+  return "coding";
 }
 
 function normalizeEntryId(entryId: string | undefined): string {
@@ -282,6 +298,7 @@ export function projectSandboxSummariesFromEvents(input: {
     conversationId: string;
     agentIds: string[];
     title?: string;
+    mode?: "coding" | "planning";
     createdAt?: string;
     updatedAt?: string;
     activeRunIds?: string[];
@@ -309,6 +326,7 @@ export function projectSandboxSummariesFromEvents(input: {
       conversationId: string;
       agentIds: Set<string>;
       title?: string;
+      mode?: "coding" | "planning";
       createdAt?: string;
       updatedAt?: string;
       activeRunIds: Set<string>;
@@ -382,6 +400,11 @@ export function projectSandboxSummariesFromEvents(input: {
       run.updatedAt = ts;
       run.promptSummary =
         stringField(payload, "promptSummary") ?? run.promptSummary;
+      conversation.mode = modeField(payload) ?? conversation.mode ?? "coding";
+      if (!conversation.title && run.promptSummary) {
+        const title = deriveConversationTitle(run.promptSummary);
+        if (title !== "New Conversation") conversation.title = title;
+      }
       runs.set(runId, run);
       conversation.activeRunIds.add(runId);
     } else if (
@@ -426,12 +449,12 @@ export function projectSandboxSummariesFromEvents(input: {
     } else if (event.type === "run.transcript.appended") {
       if (payload.role === "user" && !conversation.title) {
         const text = textOf(payload.content).trim();
-        if (text) conversation.title = text.slice(0, 80);
+        if (text) conversation.title = deriveConversationTitle(text);
       }
     } else if (event.type === "conversation.entry.appended") {
       if (entry?.role === "user" && !conversation.title) {
         const text = typeof entry.text === "string" ? entry.text.trim() : "";
-        if (text) conversation.title = text.slice(0, 80);
+        if (text) conversation.title = deriveConversationTitle(text);
       }
     }
     if (!conversation.createdAt || ts < conversation.createdAt)
@@ -447,6 +470,7 @@ export function projectSandboxSummariesFromEvents(input: {
       title:
         conversation.title ??
         `Sandbox conversation ${conversation.conversationId}`,
+      mode: conversation.mode,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
       activeRunIds: [...conversation.activeRunIds],
@@ -463,6 +487,7 @@ function ensureSummaryConversation(
       conversationId: string;
       agentIds: Set<string>;
       title?: string;
+      mode?: "coding" | "planning";
       createdAt?: string;
       updatedAt?: string;
       activeRunIds: Set<string>;
@@ -477,6 +502,7 @@ function ensureSummaryConversation(
     conversationId,
     agentIds: new Set<string>(),
     title: undefined as string | undefined,
+    mode: undefined as "coding" | "planning" | undefined,
     createdAt: ts,
     updatedAt: ts,
     activeRunIds: new Set<string>(),
@@ -496,6 +522,14 @@ function stringField(
   key: string,
 ): string | undefined {
   return typeof record[key] === "string" ? record[key] : undefined;
+}
+
+function modeField(
+  record: Record<string, unknown>,
+): "coding" | "planning" | undefined {
+  return record.mode === "coding" || record.mode === "planning"
+    ? record.mode
+    : undefined;
 }
 
 function sandboxProjectId(sandboxId: string): string {

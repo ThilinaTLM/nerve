@@ -61,9 +61,11 @@
   {onToggleUtility}
 >
   {#snippet left()}
-    <span class="footer-project-path" title={sandboxId}>{record?.name ?? sandboxId}</span>
-    {#if !phone}
-      <span class="footer-chip">{record?.observedState ?? "loading"}</span>
+    {#if record}
+      <span class="footer-project-path" title={record.sandboxId}>{record.name ?? record.sandboxId}</span>
+      {#if !phone}
+        <span class="footer-chip">{record.observedState}</span>
+      {/if}
     {/if}
   {/snippet}
 

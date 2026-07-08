@@ -1,8 +1,9 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import type {
-  SandboxAgentRelationshipRecord,
-  SandboxRunStatus,
+import {
+  deriveConversationTitle,
+  type SandboxAgentRelationshipRecord,
+  type SandboxRunStatus,
 } from "@nervekit/shared";
 
 import type { RunManager } from "../agent/run-manager.js";
@@ -16,6 +17,7 @@ export type RunLike = {
   updatedAt: string;
   createdAt?: string;
   terminalAt?: string;
+  mode?: unknown;
   behavior?: unknown;
   prompt?: unknown;
   error?: unknown;
@@ -28,6 +30,9 @@ export function summarizeConversations(runs: RunLike[]) {
     {
       conversationId: string;
       agentIds: string[];
+      title?: string;
+      mode?: "coding" | "planning";
+      createdAt?: string;
       updatedAt: string;
       activeRunIds: string[];
     }
@@ -36,11 +41,23 @@ export function summarizeConversations(runs: RunLike[]) {
     const current = summaries.get(run.conversationId) ?? {
       conversationId: run.conversationId,
       agentIds: [],
+      mode: modeOf(run),
+      createdAt: run.createdAt,
       updatedAt: run.updatedAt,
       activeRunIds: [],
     };
     if (!current.agentIds.includes(run.agentId))
       current.agentIds.push(run.agentId);
+    if (!current.title && typeof run.prompt === "string" && run.prompt.trim())
+      current.title = deriveConversationTitle(run.prompt);
+    const mode = modeOf(run);
+    if (mode && (!current.mode || run.updatedAt >= current.updatedAt))
+      current.mode = mode;
+    if (
+      !current.createdAt ||
+      (run.createdAt && run.createdAt < current.createdAt)
+    )
+      current.createdAt = run.createdAt;
     if (
       run.runId &&
       run.status &&
@@ -51,6 +68,12 @@ export function summarizeConversations(runs: RunLike[]) {
     summaries.set(run.conversationId, current);
   }
   return Array.from(summaries.values());
+}
+
+function modeOf(run: RunLike): "coding" | "planning" | undefined {
+  return run.mode === "coding" || run.mode === "planning"
+    ? run.mode
+    : undefined;
 }
 
 export function summarizeAgents(runs: RunLike[], model?: unknown) {

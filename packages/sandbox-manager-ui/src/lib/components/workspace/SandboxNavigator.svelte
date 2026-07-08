@@ -9,8 +9,8 @@
   import { untrack } from "svelte";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";
   import {
-    activityFor,
     conversationItemsFor,
+    sandboxConversationActivity,
     type SandboxConversationListItem,
   } from "../../state/sandbox-manager-selectors.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
@@ -19,7 +19,6 @@
     saveSandboxGroupCollapseState,
     type SandboxGroupCollapseState,
   } from "../../state/sandbox-group-collapse";
-  import { observedStateTone } from "../../state/sandbox-status";
 
   const store = useSandboxManagerStore();
   const center = useSandboxCenter();
@@ -100,7 +99,6 @@
   {/if}
 
   {#each groups as record (record.sandboxId)}
-    {@const activity = activityFor(store, record.sandboxId)}
     {@const conversations = conversationItemsFor(store, record.sandboxId).filter(isDurable)}
     {@const detail = store.details[record.sandboxId]}
     {@const selectedSandbox = record.sandboxId === center.selectedSandboxId}
@@ -148,7 +146,7 @@
           <p class="empty child">No conversations.</p>
         {/if}
         {#each conversations as conversation (conversation.conversationId)}
-          {@const running = (conversation.activeRunIds?.length ?? 0) > 0}
+          {@const conversationActivity = sandboxConversationActivity(conversation, detail)}
           {@const open =
             detail?.openWorkspaceTabs?.some(
               (tab) => tab.kind === "chat" && tab.id === conversation.conversationId,
@@ -160,12 +158,9 @@
             title={conversation.title ?? conversation.conversationId}
             {active}
             isOpen={open}
-            statusTone={running
-              ? "running"
-              : activity?.needsAttention
-                ? "warn"
-                : observedStateTone(record.observedState)}
-            statusPulse={running}
+            statusTone={conversationActivity.tone}
+            statusPulse={conversationActivity.pulse}
+            statusLabel={conversationActivity.label}
             tooltipClass="conversation-tooltip"
             onSelect={() =>
               selectConversation(record.sandboxId, conversation.conversationId)}
@@ -173,6 +168,10 @@
             {#snippet tooltip()}
               <span class="tt-title">{conversation.title ?? conversation.conversationId}</span>
               <span class="tt-id">{conversation.conversationId}</span>
+              <span class="tt-row"><span class="tt-key">status</span>{conversationActivity.label}</span>
+              {#if conversation.mode}
+                <span class="tt-row"><span class="tt-key">mode</span>{conversation.mode}</span>
+              {/if}
               {#if conversation.updatedAt}
                 <span class="tt-row"><span class="tt-key">updated</span>{new Date(conversation.updatedAt).toLocaleString()}</span>
               {/if}

@@ -3,6 +3,7 @@ import type {
   ManagedSandboxRecord,
   SandboxConfigYamlResult,
   SandboxControllerSessionSummary,
+  SandboxConversationSnapshot,
   SandboxSnapshotResult,
   SandboxStatusGetResult,
   SandboxToolCallSummary,
@@ -149,6 +150,7 @@ export type SandboxDetailState = {
   }>;
   liveRuns: Record<string, SandboxLiveRunState>;
   conversationViewsById: Record<string, ConversationRenderState>;
+  localConversationsById: Record<string, SandboxConversationSnapshot>;
   pendingConversationsById: Record<string, SandboxPendingConversationState>;
   composerTextByConversationId: Record<string, string>;
   queuedPromptByConversationId: Record<string, string | undefined>;
@@ -192,6 +194,7 @@ export function createSandboxDetailState(
     appendedTranscript: [],
     liveRuns: {},
     conversationViewsById: {},
+    localConversationsById: {},
     pendingConversationsById: {},
     composerTextByConversationId: {},
     queuedPromptByConversationId: {},

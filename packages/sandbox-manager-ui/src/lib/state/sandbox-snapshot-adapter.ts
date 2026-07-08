@@ -19,6 +19,9 @@ export function applySnapshot(
 ): void {
   detail.snapshot = snapshot;
 
+  for (const conversation of snapshot.conversations)
+    delete detail.localConversationsById[conversation.conversationId];
+
   for (const run of snapshot.runs) {
     for (const toolCall of run.toolCalls ?? [])
       detail.toolCallsById[toolCall.toolCallId] ??= toolCall;

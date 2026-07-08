@@ -30,6 +30,7 @@ describe("projectSandboxSummariesFromEvents", () => {
           agentId: "agent_main",
           runId: "run_a",
           promptSummary: "first task",
+          mode: "planning",
         }),
         event(2, "run.transcript.appended", {
           conversationId: "conv_a",
@@ -62,13 +63,19 @@ describe("projectSandboxSummariesFromEvents", () => {
       summaries.conversations.find(
         (conversation) => conversation.conversationId === "conv_a",
       )?.title,
-      "first task details",
+      "First task details",
     );
     assert.deepEqual(
       summaries.conversations.find(
         (conversation) => conversation.conversationId === "conv_a",
       )?.activeRunIds,
       [],
+    );
+    assert.equal(
+      summaries.conversations.find(
+        (conversation) => conversation.conversationId === "conv_a",
+      )?.mode,
+      "planning",
     );
     assert.deepEqual(
       summaries.conversations.find(

@@ -25,7 +25,7 @@
       ? store.sandboxes.find((item) => item.sandboxId === centerState.selectedSandboxId)
       : undefined,
   );
-  const showUtility = $derived(centerState.mode === "sandbox" && Boolean(record));
+  const activeSandboxId = $derived(record?.sandboxId);
 
   const isCompact = $derived(sandboxResponsive.isCompact);
   const isPhone = $derived(sandboxResponsive.isPhone);
@@ -35,7 +35,7 @@
   const utilityCollapsed = $derived(
     isCompact
       ? !sandboxWorkbenchLayout.utilityDrawerOpen
-      : !showUtility || sandboxWorkbenchLayout.utilityCollapsed,
+      : sandboxWorkbenchLayout.utilityCollapsed,
   );
 
   function toggleSidebar(): void {
@@ -83,9 +83,10 @@
           <SandboxUtilityPanel
             {record}
             onOpenDiagnosticTab={(id) =>
-              centerState.selectedSandboxId &&
-              store.openWorkspaceDiagnosticTab(centerState.selectedSandboxId, id)}
+              activeSandboxId && store.openWorkspaceDiagnosticTab(activeSandboxId, id)}
           />
+        {:else}
+          <div class="h-full bg-background" aria-hidden="true"></div>
         {/if}
       {/snippet}
     </WorkbenchPanes>
@@ -94,7 +95,7 @@
   {#snippet footer()}
     <SandboxFooterbar
       {record}
-      sandboxId={centerState.selectedSandboxId ?? ""}
+      sandboxId={activeSandboxId ?? ""}
       {sidebarCollapsed}
       {utilityCollapsed}
       phone={isPhone}

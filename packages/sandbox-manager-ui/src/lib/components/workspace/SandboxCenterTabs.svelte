@@ -41,11 +41,14 @@
 
   const SETTINGS_KIND = "settings";
 
-  const sandboxId = $derived(center.selectedSandboxId);
-  const detail = $derived(sandboxId ? store.details[sandboxId] : undefined);
+  const selectedSandboxId = $derived(center.selectedSandboxId);
   const record = $derived(
-    sandboxId ? store.sandboxes.find((item) => item.sandboxId === sandboxId) : undefined,
+    selectedSandboxId
+      ? store.sandboxes.find((item) => item.sandboxId === selectedSandboxId)
+      : undefined,
   );
+  const sandboxId = $derived(record?.sandboxId);
+  const detail = $derived(sandboxId ? store.details[sandboxId] : undefined);
   const workspaceTabs = $derived(detail?.openWorkspaceTabs ?? []);
   const activeWorkspaceTab = $derived(detail?.activeWorkspaceTab);
   const fileViewsById = $derived(detail?.workspaceFileViewsById ?? {});
@@ -58,7 +61,7 @@
   const contentMode = $derived(
     center.mode === "settings" && center.settingsOpen
       ? "settings"
-      : sandboxId
+      : selectedSandboxId
         ? "sandbox"
         : "dashboard",
   );
@@ -112,10 +115,11 @@
   function toWorkbenchTab(tab: SandboxWorkspaceTabIdentity): WorkbenchTabModel {
     const active = contentMode === "sandbox" && sameTab(activeWorkspaceTab, tab);
     if (tab.kind === "summary") {
+      const label = record?.name ?? record?.sandboxId ?? "Summary";
       return {
         ...tab,
-        label: "Summary",
-        title: "Sandbox summary",
+        label,
+        title: label,
         active,
         icon: LayoutDashboard,
         closeable: true,
@@ -283,11 +287,7 @@
     <SandboxSettingsPanel />
   {:else if contentMode === "sandbox"}
     {#if !record}
-      <div class="flex h-full items-center justify-center bg-background p-6">
-        <div class="rounded-md border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
-          {detail?.loading ? "Loading sandbox…" : "Sandbox not found."}
-        </div>
-      </div>
+      <SandboxEmptyCenterPlaceholder />
     {:else}
       <div class="flex h-full min-h-0 min-w-0 flex-col">
         {#if record.lastError}

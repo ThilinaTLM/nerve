@@ -10,6 +10,7 @@ import type {
   RemoveOptions,
   SandboxActivitySummary,
   SandboxConfigYamlResult,
+  SandboxConversationSnapshot,
   SandboxCreateRequest,
   SandboxManagerCredentialProfile,
   SandboxManagerEventEnvelope,
@@ -18,6 +19,7 @@ import type {
   ThinkingLevel,
 } from "@nervekit/shared";
 import {
+  deriveConversationTitle,
   sandboxActivitySummarySchema,
   sandboxRunStartResultSchema,
 } from "@nervekit/shared";
@@ -81,6 +83,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function mergeUnique(
+  first: string[] | undefined,
+  second: string[] | undefined,
+): string[] | undefined {
+  const merged = [...new Set([...(first ?? []), ...(second ?? [])])];
+  return merged.length > 0 ? merged : undefined;
+}
+
 /**
  * Only forward a real conversation id (`conv_…`) to the sandbox daemon. The UI
  * uses a `"default"` placeholder key for the empty conversation view; sending it
@@ -97,7 +107,9 @@ function initialPromptFromRequest(
   const config = isRecord(request.config) ? request.config : undefined;
   const agent = isRecord(config?.agent) ? config.agent : undefined;
   const prompt = agent?.initialPrompt;
-  return typeof prompt === "string" && prompt.trim() ? prompt.trim() : undefined;
+  return typeof prompt === "string" && prompt.trim()
+    ? prompt.trim()
+    : undefined;
 }
 
 export class SandboxManagerStore {
@@ -378,6 +390,22 @@ export class SandboxManagerStore {
     const key = renderState.conversationId ?? result.conversationId;
     if (!key) return;
     detail.conversationViewsById[key] = renderState;
+    if (result.snapshot?.conversation) {
+      const conversation = result.snapshot.conversation;
+      this.upsertLocalConversation(sandboxId, {
+        conversationId: conversation.id,
+        agentIds: conversation.activeAgentId
+          ? [conversation.activeAgentId]
+          : [],
+        title: conversation.title,
+        mode: conversation.mode,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        activeRunIds: result.snapshot.activeRun?.runId
+          ? [result.snapshot.activeRun.runId]
+          : [],
+      });
+    }
     if (options.select || (!activeConversationKey(detail) && !target)) {
       selectDurableConversation(detail, key);
       detail.selectedAgentId = result.agentId ?? renderState.activeRun?.agentId;
@@ -747,6 +775,19 @@ export class SandboxManagerStore {
         }),
       );
       const result = sandboxRunStartResultSchema.parse(raw);
+      const now = new Date().toISOString();
+      const pendingCreatedAt = pendingId
+        ? detail.pendingConversationsById[pendingId]?.createdAt
+        : undefined;
+      this.upsertLocalConversation(sandboxId, {
+        conversationId: result.conversationId,
+        agentIds: [result.agentId],
+        title: deriveConversationTitle(trimmed),
+        mode: detail.agentControls.mode === "planning" ? "planning" : "coding",
+        createdAt: pendingCreatedAt ?? now,
+        updatedAt: now,
+        activeRunIds: [result.runId],
+      });
       if (pendingId) {
         replacePendingConversation(detail, pendingId, result);
       } else {
@@ -899,6 +940,34 @@ export class SandboxManagerStore {
       delete this.pendingOperations[key];
     }, delay);
     this.operationCleanupTimers.add(timer);
+  }
+
+  private upsertLocalConversation(
+    sandboxId: string,
+    conversation: SandboxConversationSnapshot,
+  ): void {
+    const detail = this.detail(sandboxId);
+    const snapshotIndex = detail.snapshot?.conversations.findIndex(
+      (item) => item.conversationId === conversation.conversationId,
+    );
+    const existing =
+      snapshotIndex !== undefined && snapshotIndex >= 0
+        ? detail.snapshot?.conversations[snapshotIndex]
+        : detail.localConversationsById[conversation.conversationId];
+    const next = {
+      ...existing,
+      ...conversation,
+      agentIds: mergeUnique(existing?.agentIds, conversation.agentIds),
+      activeRunIds: conversation.activeRunIds ?? existing?.activeRunIds,
+    };
+    if (detail.snapshot && snapshotIndex !== undefined && snapshotIndex >= 0) {
+      detail.snapshot.conversations = detail.snapshot.conversations.map(
+        (item, index) => (index === snapshotIndex ? next : item),
+      );
+      delete detail.localConversationsById[conversation.conversationId];
+      return;
+    }
+    detail.localConversationsById[conversation.conversationId] = next;
   }
 
   private patchRecord(record: ManagedSandboxRecord): void {

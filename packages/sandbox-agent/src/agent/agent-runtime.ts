@@ -85,12 +85,21 @@ export class SandboxAgentRuntime {
     };
   }
 
+  private effectiveAgentMode(): "coding" | "planning" {
+    return (
+      this.options.configStore?.effective(this.config).mode ??
+      (this.config.agent.mode === "planning" ? "planning" : "coding")
+    );
+  }
+
   async startRun(
     input: Parameters<RunManager["createRun"]>[0],
   ): Promise<RunState> {
     if (!this.options.runs)
       throw new Error("UNAVAILABLE: run manager is not configured");
-    if (!this.options.harnessFactory) return this.options.runs.start(input);
+    const agentMode = input.mode ?? this.effectiveAgentMode();
+    if (!this.options.harnessFactory)
+      return this.options.runs.start({ ...input, mode: agentMode });
     await this.options.harnessFactory.assertModelAvailable();
     const behavior = input.behavior ?? "start";
     if (behavior === "follow_up")
@@ -100,6 +109,7 @@ export class SandboxAgentRuntime {
     const { run, executionId } = await this.options.runs.createRun({
       ...input,
       appendUserEntry: !expandPromptBlocks,
+      mode: agentMode,
     });
     this.runLog({ ...run, executionId }).debug("run requested", { behavior });
     this.launch(run, executionId, prompt, "prompt", { expandPromptBlocks });
@@ -120,6 +130,7 @@ export class SandboxAgentRuntime {
       ...input,
       prompt: input.prompt ?? `!${input.command}`,
       appendUserEntry: false,
+      mode: input.mode ?? this.effectiveAgentMode(),
     });
     this.runLog({ ...run, executionId }).debug("inline command requested", {
       behavior,

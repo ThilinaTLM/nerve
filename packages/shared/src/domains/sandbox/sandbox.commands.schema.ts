@@ -327,6 +327,7 @@ export const sandboxConversationSnapshotSchema = z.object({
   conversationId: sandboxConversationIdSchema,
   agentIds: z.array(sandboxAgentIdSchema).optional(),
   title: z.string().min(1).optional(),
+  mode: modeSchema.optional(),
   createdAt: isoDateTimeSchema.optional(),
   updatedAt: isoDateTimeSchema.optional(),
   activeRunIds: z.array(sandboxRunIdSchema).optional(),

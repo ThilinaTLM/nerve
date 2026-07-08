@@ -15,8 +15,8 @@
   import type { ManagedSandboxRecord } from "@nervekit/shared";
   import { Badge } from "@nervekit/ui/components/ui/badge";
   import { Button } from "@nervekit/ui/components/ui/button";
-  import { Card, CardContent, CardHeader, CardTitle } from "@nervekit/ui/components/ui/card";
   import SandboxBootProgress from "../SandboxBootProgress.svelte";
+  import SandboxStatStrip from "../SandboxStatStrip.svelte";
   import SandboxRemoveDialog from "../SandboxRemoveDialog.svelte";
   import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
   import { activityFor } from "../../state/sandbox-manager-selectors.svelte";
@@ -105,19 +105,22 @@
 </script>
 
 <div class="h-full overflow-auto bg-background p-4">
-  <div class="mx-auto flex max-w-6xl flex-col gap-4">
-    <section class="flex flex-col gap-3 rounded-md border bg-card p-4 md:flex-row md:items-start md:justify-between">
+  <div class="mx-auto flex max-w-5xl flex-col gap-3">
+    <section class="flex flex-wrap items-start justify-between gap-3 rounded-md border bg-card px-3 py-2.5">
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2">
-          <h2 class="truncate text-lg font-semibold">{record.name ?? record.sandboxId}</h2>
+          <h2 class="truncate text-sm font-semibold">{record.name ?? record.sandboxId}</h2>
           <Badge tone={progress.state === "failed" ? "warn" : progress.ready ? "good" : "accent"} size="xs">
             {connectionLabel}
           </Badge>
         </div>
-        <p class="mt-1 font-mono text-xs text-muted-foreground">{record.sandboxId}</p>
-        <p class="mt-2 text-sm text-muted-foreground">{progress.headline}</p>
+        <div class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+          <span class="truncate font-mono">{record.sandboxId}</span>
+          <span aria-hidden="true">·</span>
+          <span class="truncate">{progress.headline}</span>
+        </div>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap gap-1.5">
         <Button size="sm" variant="outline" onclick={() => store.startNewConversation(record.sandboxId)}>
           <MessageSquarePlus class="size-4" /> New conversation
         </Button>
@@ -137,68 +140,46 @@
         >
           <RefreshCw class="size-4" /> Restart
         </Button>
-        <Button size="sm" variant="destructive" onclick={() => (removeOpen = true)}>
-          <Trash2 class="size-4" /> Delete
-        </Button>
         <Button size="sm" variant="outline" onclick={refresh}>
           <RefreshCw class="size-4" /> Refresh
+        </Button>
+        <Button size="sm" variant="destructive" onclick={() => (removeOpen = true)}>
+          <Trash2 class="size-4" /> Delete
         </Button>
       </div>
     </section>
 
-    <section class="flex flex-col gap-2">
-      <h3 class="text-sm font-semibold">Boot details</h3>
-      <SandboxBootProgress {record} variant="banner" expanded={!progress.ready || progress.state === "failed"} />
-    </section>
+    <SandboxStatStrip items={metrics} />
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {#each metrics as metric (metric.label)}
-        {@const Icon = metric.icon}
-        <Card class="rounded-md border">
-          <CardContent class="flex items-center gap-3 p-4">
-            <div class="rounded-md bg-muted p-2">
-              <Icon class="size-5 text-muted-foreground" />
-            </div>
-            <div class="min-w-0">
-              <p class="text-2xl font-semibold tabular-nums">{metric.value}</p>
-              <p class="text-xs text-muted-foreground">{metric.label}</p>
-            </div>
-          </CardContent>
-        </Card>
-      {/each}
-    </div>
+    <SandboxBootProgress {record} variant="banner" expanded={!progress.ready || progress.state === "failed"} />
 
-    <div class="grid gap-4 lg:grid-cols-2">
-      <Card class="rounded-md border">
-        <CardHeader class="pb-2">
-          <CardTitle class="text-sm">Runtime</CardTitle>
-        </CardHeader>
-        <CardContent class="grid gap-2 text-sm">
+    <div class="grid gap-3 lg:grid-cols-2">
+      <div class="rounded-md border bg-card p-3">
+        <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Runtime</h3>
+        <dl class="grid gap-1.5 text-sm">
           {#each runtimeRows as row (row.label)}
-            <div class="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] gap-3">
-              <span class="text-muted-foreground">{row.label}</span>
-              <span class={`truncate ${row.mono ? "font-mono text-xs" : ""}`}>{row.value}</span>
+            <div class="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
+              <dt class="text-muted-foreground">{row.label}</dt>
+              <dd class={`truncate ${row.mono ? "font-mono text-xs" : ""}`}>{row.value}</dd>
             </div>
           {/each}
-        </CardContent>
-      </Card>
+        </dl>
+      </div>
 
-      <Card class="rounded-md border">
-        <CardHeader class="pb-2">
-          <CardTitle class="text-sm">Session</CardTitle>
-        </CardHeader>
-        <CardContent class="grid gap-2 text-sm">
+      <div class="rounded-md border bg-card p-3">
+        <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Session</h3>
+        <dl class="grid gap-1.5 text-sm">
           {#each sessionRows as row (row.label)}
-            <div class="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] gap-3">
-              <span class="text-muted-foreground">{row.label}</span>
-              <span class={`truncate ${row.mono ? "font-mono text-xs" : ""}`}>{row.value}</span>
+            <div class="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
+              <dt class="text-muted-foreground">{row.label}</dt>
+              <dd class={`truncate ${row.mono ? "font-mono text-xs" : ""}`}>{row.value}</dd>
             </div>
           {/each}
-        </CardContent>
-      </Card>
+        </dl>
+      </div>
     </div>
 
-    <section class="flex flex-wrap gap-2 rounded-md border bg-card p-3">
+    <section class="flex flex-wrap gap-1 rounded-md border bg-card px-2 py-1.5">
       <Button size="sm" variant="ghost" onclick={() => store.openWorkspaceDiagnosticTab(record.sandboxId, "logs")}>
         <Terminal class="size-4" /> Open logs
       </Button>

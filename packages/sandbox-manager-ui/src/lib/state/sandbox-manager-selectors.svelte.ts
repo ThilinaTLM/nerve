@@ -2,10 +2,15 @@ import type {
   ManagedSandboxRecord,
   SandboxActivitySummary,
   SandboxConversationSnapshot,
+  SandboxRunSnapshot,
 } from "@nervekit/shared";
+import type { StatusTone } from "@nervekit/ui/core/utils/status";
 import type { SandboxManagerStore } from "./sandbox-manager-state.svelte";
 import { matchesFleetFilter, matchesSearch } from "./sandbox-status";
-import type { SandboxPendingConversationState } from "./sandbox-ui-types";
+import type {
+  SandboxDetailState,
+  SandboxPendingConversationState,
+} from "./sandbox-ui-types";
 
 export type SandboxConversationListItem =
   | ({ kind: "durable" } & SandboxConversationSnapshot)
@@ -18,6 +23,19 @@ export function conversationsFor(
   return store.details[sandboxId]?.snapshot?.conversations ?? [];
 }
 
+function mergedDurableConversations(
+  detail: SandboxDetailState | undefined,
+): SandboxConversationSnapshot[] {
+  const byId = new Map<string, SandboxConversationSnapshot>();
+  for (const conversation of Object.values(
+    detail?.localConversationsById ?? {},
+  ))
+    byId.set(conversation.conversationId, conversation);
+  for (const conversation of detail?.snapshot?.conversations ?? [])
+    byId.set(conversation.conversationId, conversation);
+  return [...byId.values()];
+}
+
 export function conversationItemsFor(
   store: SandboxManagerStore,
   sandboxId: string,
@@ -26,9 +44,10 @@ export function conversationItemsFor(
   const pending = Object.values(detail?.pendingConversationsById ?? {}).map(
     (conversation) => ({ ...conversation, kind: "pending" as const }),
   );
-  const durable = (detail?.snapshot?.conversations ?? []).map(
-    (conversation) => ({ ...conversation, kind: "durable" as const }),
-  );
+  const durable = mergedDurableConversations(detail).map((conversation) => ({
+    ...conversation,
+    kind: "durable" as const,
+  }));
   return [...pending, ...durable].sort((a, b) =>
     conversationSortTime(b).localeCompare(conversationSortTime(a)),
   );
@@ -40,6 +59,80 @@ function conversationSortTime(
   return conversation.kind === "durable"
     ? (conversation.updatedAt ?? conversation.createdAt ?? "")
     : conversation.createdAt;
+}
+
+export type SandboxConversationActivityState = {
+  tone: StatusTone;
+  pulse: boolean;
+  label: string;
+};
+
+const idleSandboxConversationActivity: SandboxConversationActivityState = {
+  tone: "neutral",
+  pulse: false,
+  label: "Idle",
+};
+
+export function sandboxConversationActivity(
+  conversation: SandboxConversationSnapshot,
+  detail: SandboxDetailState | undefined,
+): SandboxConversationActivityState {
+  const runs = runsForConversation(detail, conversation.conversationId);
+  if (runs.some((run) => isWaitingRunStatus(run.status))) {
+    return { tone: "warn", pulse: false, label: "Needs user action" };
+  }
+  if (runs.some((run) => isFailedRunStatus(run.status))) {
+    return { tone: "danger", pulse: false, label: "Run failed" };
+  }
+  const activeRunIds = new Set(conversation.activeRunIds ?? []);
+  const hasKnownActiveRunId = runs.some(
+    (run) => activeRunIds.has(run.runId) && isActiveRunStatus(run.status),
+  );
+  const hasUnknownActiveRunId = [...activeRunIds].some(
+    (runId) => !runs.some((run) => run.runId === runId),
+  );
+  const hasActiveRun = runs.some((run) => isActiveRunStatus(run.status));
+  if (hasKnownActiveRunId || hasUnknownActiveRunId || hasActiveRun) {
+    const planning = conversationMode(conversation, detail) === "planning";
+    return {
+      tone: planning ? "good" : "running",
+      pulse: true,
+      label: planning ? "Planning" : "Agent running",
+    };
+  }
+  return idleSandboxConversationActivity;
+}
+
+function runsForConversation(
+  detail: SandboxDetailState | undefined,
+  conversationId: string,
+): SandboxRunSnapshot[] {
+  return (
+    detail?.snapshot?.runs.filter(
+      (run) => run.conversationId === conversationId,
+    ) ?? []
+  );
+}
+
+function isWaitingRunStatus(status: string | undefined): boolean {
+  return status === "waiting_for_input" || status === "waiting_for_approval";
+}
+
+function isFailedRunStatus(status: string | undefined): boolean {
+  return status === "failed" || status === "recoverable_failed";
+}
+
+function isActiveRunStatus(status: string | undefined): boolean {
+  return status === "queued" || status === "running";
+}
+
+function conversationMode(
+  conversation: SandboxConversationSnapshot,
+  detail: SandboxDetailState | undefined,
+): "coding" | "planning" {
+  if (conversation.mode === "planning") return "planning";
+  if (conversation.mode === "coding") return "coding";
+  return detail?.agentControls.mode === "planning" ? "planning" : "coding";
 }
 
 export function activityFor(

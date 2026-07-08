@@ -230,6 +230,7 @@ export const runStartedEventSchema = sandboxEventCommonSchema
     commandId: z.string().min(1),
     status: z.enum(["queued", "running"]),
     promptSummary: z.string().min(1).optional(),
+    mode: z.enum(["coding", "planning"]).optional(),
     model: z.object({
       provider: z.string().min(1),
       model: z.string().min(1),

@@ -10,6 +10,7 @@ export type RunState = {
   updatedAt: string;
   createdAt?: string;
   prompt?: string;
+  mode?: "coding" | "planning";
   [key: string]: unknown;
 };
 

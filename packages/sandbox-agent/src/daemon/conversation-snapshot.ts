@@ -6,7 +6,11 @@ import type {
   SandboxToolCallRecord,
   ToolCallTranscriptRecord,
 } from "@nervekit/shared";
-import { conversationSnapshotSchema, toolNameSchema } from "@nervekit/shared";
+import {
+  conversationSnapshotSchema,
+  deriveConversationTitle,
+  toolNameSchema,
+} from "@nervekit/shared";
 import type { HarnessEventBridge } from "../agent/harness-event-bridge.js";
 import type { RunManager } from "../agent/run-manager.js";
 import type { RunState } from "../agent/run-state-store.js";
@@ -59,7 +63,7 @@ export async function buildConversationSnapshot(input: {
       id: selected.conversationId,
       projectId: projectId(input.config, input.instanceId),
       title: titleFor(entries, selected),
-      mode: input.config.agent.mode === "planning" ? "planning" : "coding",
+      mode: modeFor(selected, input.config),
       permissionLevel: input.config.agent.permissionLevel ?? "autonomous",
       approvalPolicy: { autoApproveReadOnly: true },
       activeAgentId: selected.agentId,
@@ -220,8 +224,16 @@ function linearTree(
 function titleFor(entries: ConversationEntry[], run: RunState): string {
   const firstUser = entries.find((entry) => entry.role === "user")?.text.trim();
   return firstUser
-    ? firstUser.slice(0, 80)
+    ? deriveConversationTitle(firstUser)
     : `Sandbox conversation ${run.conversationId}`;
+}
+
+function modeFor(
+  run: RunState,
+  config: SandboxConfigV1,
+): "coding" | "planning" {
+  if (run.mode === "coding" || run.mode === "planning") return run.mode;
+  return config.agent.mode === "planning" ? "planning" : "coding";
 }
 
 function projectId(config: SandboxConfigV1, instanceId: string): string {

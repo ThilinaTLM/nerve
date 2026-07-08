@@ -65,6 +65,7 @@ export class RunManager {
     prompt?: string;
     behavior?: "start" | "follow_up" | "steer";
     appendUserEntry?: boolean;
+    mode?: "coding" | "planning";
   }): Promise<{ run: RunState; executionId: string }> {
     const now = new Date().toISOString();
     // Only accept a well-formed conversation id; anything else (e.g. a UI
@@ -86,6 +87,7 @@ export class RunManager {
       updatedAt: now,
       prompt: input.prompt ? this.redactor.redactText(input.prompt) : undefined,
       behavior: input.behavior ?? "start",
+      mode: input.mode,
       executionId,
     };
     await this.store.write(state);
@@ -157,6 +159,7 @@ export class RunManager {
           typeof current.prompt === "string"
             ? current.prompt.slice(0, 120)
             : undefined,
+        mode: current.mode,
         model,
         startedAt: now,
       },

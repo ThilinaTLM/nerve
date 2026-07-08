@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Boxes, CircleAlert, Clock, Gauge, Play } from "@lucide/svelte";
-  import { Card, CardContent } from "@nervekit/ui/components/ui/card";
+  import { Boxes, CircleAlert, Clock, Play } from "@lucide/svelte";
+  import SandboxStatStrip from "./SandboxStatStrip.svelte";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import { fleetSummary } from "../state/sandbox-manager-selectors.svelte";
 
@@ -22,29 +22,7 @@
       icon: Clock,
       tone: "text-warning",
     },
-    {
-      label: "Avg context",
-      value:
-        summary.avgContextPct === undefined ? "—" : `${summary.avgContextPct}%`,
-      icon: Gauge,
-      tone: "text-info",
-    },
   ]);
 </script>
 
-<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-  {#each cards as card (card.label)}
-    {@const Icon = card.icon}
-    <Card class="rounded-md border">
-      <CardContent class="flex items-center gap-3 p-4">
-        <div class="rounded-md bg-muted p-2">
-          <Icon class={`size-5 ${card.tone}`} />
-        </div>
-        <div class="flex flex-col">
-          <span class="text-2xl font-semibold tabular-nums">{card.value}</span>
-          <span class="text-xs text-muted-foreground">{card.label}</span>
-        </div>
-      </CardContent>
-    </Card>
-  {/each}
-</div>
+<SandboxStatStrip items={cards} />
