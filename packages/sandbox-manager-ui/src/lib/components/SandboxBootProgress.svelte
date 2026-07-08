@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
     ChevronDown,
-    ChevronRight,
     Circle,
     CircleCheck,
     CircleX,
@@ -10,8 +9,6 @@
     TriangleAlert,
   } from "@lucide/svelte";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
-  import { Button } from "@nervekit/shared-ui/components/ui/button";
-  import { Progress } from "@nervekit/shared-ui/components/ui/progress";
   import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
   import type { StatusTone } from "@nervekit/shared-ui/components/ui/status-dot";
   import {
@@ -39,9 +36,7 @@
   const store = useSandboxManagerStore();
   const detail = $derived(store.details[record.sandboxId]);
   const progress = $derived(computeSandboxBootProgress(record, detail));
-  const showPhaseStepper = $derived(
-    expanded && (progress.showPhaseStepper || progress.state === "ready"),
-  );
+  const showPhaseStepper = $derived(expanded);
   const container = $derived(detail?.status?.container ?? detail?.snapshot?.container);
   const session = $derived(detail?.latestSession ?? detail?.status?.lastSession ?? detail?.snapshot?.lastSession);
   const staleness = $derived(detail?.status?.staleness ?? detail?.snapshot?.staleness);
@@ -175,7 +170,7 @@
     ? "flex min-h-0 flex-1 flex-col gap-3 p-4"
     : "flex flex-col gap-3 rounded-md border bg-card p-3"}
 >
-  <div class="flex items-center gap-2">
+  {#snippet headerContent()}
     <StatusDot
       tone={stateTone[progress.state]}
       pulse={progress.state === "provisioning" || progress.state === "booting"}
@@ -189,31 +184,45 @@
     <span class="font-mono text-xs text-muted-foreground tabular-nums">
       {progress.completed}/{progress.total}
     </span>
-    {#if onToggle && (variant === "rail" || (progress.state === "ready" && showPhaseStepper))}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel={showPhaseStepper ? "Collapse boot details" : "Expand boot details"}
-        onclick={onToggle}
-      >
-        {#if showPhaseStepper}
-          <ChevronDown class="size-4" />
-        {:else}
-          <ChevronRight class="size-4" />
-        {/if}
-      </Button>
-    {/if}
-  </div>
+  {/snippet}
+
+  {#if onToggle}
+    <button
+      type="button"
+      class="flex w-full items-center gap-2 text-left"
+      aria-expanded={showPhaseStepper}
+      aria-label={showPhaseStepper ? "Collapse boot details" : "Expand boot details"}
+      onclick={onToggle}
+    >
+      {@render headerContent()}
+      <ChevronDown
+        class={`size-4 flex-none text-muted-foreground transition-transform ${showPhaseStepper ? "" : "-rotate-90"}`}
+      />
+    </button>
+  {:else}
+    <div class="flex w-full items-center gap-2">
+      {@render headerContent()}
+    </div>
+  {/if}
 
   {#if showPhaseStepper}
-    <Progress value={progress.fraction * 100} />
-
     <ol class="flex flex-col gap-2.5">
       {#each progress.phases as phase (phase.id)}
         {@const Icon = phaseIcon(phase.status)}
         {@const hasDetails = phaseHasDetails(phase)}
-        <li class="rounded-md border bg-background/50 p-2">
-          <div class="flex items-start gap-2.5">
+        <li class="overflow-hidden rounded-md border bg-background/50">
+          <button
+            type="button"
+            class="flex w-full items-start gap-2.5 p-2 text-left disabled:cursor-default"
+            aria-expanded={hasDetails ? openPhases[phase.id] : undefined}
+            aria-label={hasDetails
+              ? openPhases[phase.id]
+                ? `Hide ${phase.label} details`
+                : `Show ${phase.label} details`
+              : undefined}
+            disabled={!hasDetails}
+            onclick={() => togglePhase(phase.id)}
+          >
             <Icon
               class={`mt-0.5 size-4 flex-none ${phaseTone(phase.status)} ${phase.status === "active" ? "animate-spin" : ""}`}
             />
@@ -233,23 +242,14 @@
               {/if}
             </div>
             {#if hasDetails}
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                ariaLabel={openPhases[phase.id] ? `Hide ${phase.label} details` : `Show ${phase.label} details`}
-                onclick={() => togglePhase(phase.id)}
-              >
-                {#if openPhases[phase.id]}
-                  <ChevronDown class="size-3.5" />
-                {:else}
-                  <ChevronRight class="size-3.5" />
-                {/if}
-              </Button>
+              <ChevronDown
+                class={`mt-0.5 size-3.5 flex-none text-muted-foreground transition-transform ${openPhases[phase.id] ? "" : "-rotate-90"}`}
+              />
             {/if}
-          </div>
+          </button>
 
           {#if hasDetails && openPhases[phase.id]}
-            <div class="mt-2 border-t pt-2 text-xs">
+            <div class="border-t px-2 py-2 text-xs">
               {#if phase.id === "container"}
                 <dl class="grid gap-1 sm:grid-cols-2">
                   {#each containerRows() as row (row.label)}
@@ -353,14 +353,5 @@
         </li>
       {/each}
     </ol>
-  {:else if progress.state === "ready"}
-    <button
-      type="button"
-      class="flex items-center gap-2 text-left text-sm text-muted-foreground hover:text-foreground"
-      onclick={onToggle}
-    >
-      <CircleCheck class="size-4 flex-none text-success" />
-      <span>All systems ready · {progress.total} steps — view details</span>
-    </button>
   {/if}
 </section>

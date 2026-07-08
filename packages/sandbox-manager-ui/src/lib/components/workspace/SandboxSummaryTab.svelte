@@ -37,7 +37,7 @@
 
   const store = useSandboxManagerStore();
   let removeOpen = $state(false);
-  let bootExpanded = $state(false);
+  let bootExpanded = $state<boolean | null>(null);
 
   const detail = $derived(store.details[record.sandboxId]);
   const activity = $derived(activityFor(store, record.sandboxId));
@@ -233,8 +233,8 @@
     <SandboxBootProgress
       {record}
       variant="banner"
-      expanded={bootExpanded || progress.showPhaseStepper}
-      onToggle={() => (bootExpanded = !bootExpanded)}
+      expanded={bootExpanded ?? progress.showPhaseStepper}
+      onToggle={() => (bootExpanded = !(bootExpanded ?? progress.showPhaseStepper))}
     />
 
     <div class="grid gap-3 lg:grid-cols-2">
