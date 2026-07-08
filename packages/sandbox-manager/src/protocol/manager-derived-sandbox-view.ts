@@ -114,6 +114,7 @@ export async function managerDerivedSandboxView(
     startedAt: record.startedAt,
     updatedAt: record.updatedAt,
     setup: agentSummary?.setup,
+    setupTimeline: agentSummary?.setupTimeline,
     connectivity: {
       state:
         session?.state === "reconnecting" ? "reconnecting" : "disconnected",

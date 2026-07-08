@@ -11,7 +11,10 @@ import {
   sandboxIsStopping,
   sandboxIsTerminal,
 } from "./sandbox-lifecycle";
-import type { SandboxDetailState } from "./sandbox-ui-types";
+import type {
+  SandboxDetailState,
+  SandboxSetupTimelineItem,
+} from "./sandbox-ui-types";
 
 export type BootPhaseStatus =
   | "pending"
@@ -68,8 +71,8 @@ const STATUS_RANK: Record<BootPhaseStatus, number> = {
   stopped: 2,
   degraded: 3,
   skipped: 4,
-  failed: 5,
-  done: 6,
+  done: 5,
+  failed: 6,
 };
 
 /** Map a live setup-timeline status word to a boot-phase status. */
@@ -148,23 +151,84 @@ function mergeSetupPhase(
   return { id, label, description, status, ts, error: errorText(setup?.error) };
 }
 
-/** Latest live timeline entry for a given phase name. */
+export function sandboxSetupTimeline(
+  detail: SandboxDetailState | undefined,
+): SandboxSetupTimelineItem[] {
+  if (!detail) return [];
+  const byKey = new Map<string, SandboxSetupTimelineItem>();
+  for (const items of [
+    detail.snapshot?.setupTimeline,
+    detail.status?.setupTimeline,
+    detail.setupTimeline,
+  ]) {
+    for (const item of items ?? []) {
+      const existing = byKey.get(item.key);
+      if (!existing || timelineItemTime(item) >= timelineItemTime(existing))
+        byKey.set(item.key, item);
+    }
+  }
+  return [...byKey.values()];
+}
+
+function timelineItemTime(item: SandboxSetupTimelineItem): number {
+  const time = Date.parse(item.completedAt ?? item.startedAt ?? item.ts);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function timelineItemTs(item: SandboxSetupTimelineItem): string | undefined {
+  return item.completedAt ?? item.startedAt ?? item.ts;
+}
+
+/** Aggregate the latest live timeline entries for a given phase name. */
 function latestTimeline(
   detail: SandboxDetailState | undefined,
   phase: string,
 ): { status: BootPhaseStatus; ts?: string } {
-  if (!detail) return { status: "pending" };
-  let found: { status: BootPhaseStatus; ts?: string } = { status: "pending" };
-  for (const item of detail.setupTimeline) {
-    if (item.phase !== phase) continue;
-    const mapped = fromTimelineStatus(item.status);
-    if (STATUS_RANK[mapped] >= STATUS_RANK[found.status])
-      found = {
-        status: mapped,
-        ts: item.completedAt ?? item.startedAt ?? item.ts,
-      };
-  }
-  return found;
+  const items = sandboxSetupTimeline(detail).filter(
+    (item) => item.phase === phase,
+  );
+  if (items.length === 0) return { status: "pending" };
+
+  const failed = latestTimelineItem(
+    items.filter((item) => {
+      const status = fromTimelineStatus(item.status);
+      return status === "failed";
+    }),
+  );
+  if (failed) return { status: "failed", ts: timelineItemTs(failed) };
+
+  const active = latestTimelineItem(
+    items.filter((item) => fromTimelineStatus(item.status) === "active"),
+  );
+  if (active) return { status: "active", ts: timelineItemTs(active) };
+
+  const latest = latestTimelineItem(items);
+  return latest
+    ? { status: fromTimelineStatus(latest.status), ts: timelineItemTs(latest) }
+    : { status: "pending" };
+}
+
+function latestTimelineItem(
+  items: SandboxSetupTimelineItem[],
+): SandboxSetupTimelineItem | undefined {
+  return items
+    .map((item, order) => ({ item, order }))
+    .sort((a, b) => {
+      const byTime = timelineItemTime(a.item) - timelineItemTime(b.item);
+      if (byTime !== 0) return byTime;
+      const byIndex = (a.item.index ?? -1) - (b.item.index ?? -1);
+      if (byIndex !== 0) return byIndex;
+      return a.order - b.order;
+    })
+    .at(-1)?.item;
+}
+
+function phaseReadyTerminal(phase: PhaseInput): boolean {
+  return (
+    phase.status === "done" ||
+    phase.status === "skipped" ||
+    phase.status === "degraded"
+  );
 }
 
 export function computeSandboxBootProgress(
@@ -239,15 +303,6 @@ export function computeSandboxBootProgress(
     githubTimeline.status,
     githubTimeline.ts,
   );
-  const bootTimeline = latestTimeline(detail, "boot");
-  const boot = mergeSetupPhase(
-    "boot",
-    "Boot script",
-    "Run the sandbox boot script.",
-    setup?.boot,
-    bootTimeline.status,
-    bootTimeline.ts,
-  );
   const skillsTimeline = latestTimeline(detail, "skills");
   const skills = mergeSetupPhase(
     "skills",
@@ -257,14 +312,22 @@ export function computeSandboxBootProgress(
     skillsTimeline.status,
     skillsTimeline.ts,
   );
+  const bootTimeline = latestTimeline(detail, "boot");
+  const boot = mergeSetupPhase(
+    "boot",
+    "Boot script",
+    "Run the sandbox boot script.",
+    setup?.boot,
+    bootTimeline.status,
+    bootTimeline.ts,
+  );
 
   const readyTimeline = latestTimeline(detail, "ready");
-  const setupPhases = [git, github, boot, skills];
+  const priorPhases = [container, config, git, github, skills, boot];
   const failedBeforeReady =
-    container.status === "failed" ||
-    config.status === "failed" ||
-    setupPhases.some((phase) => phase.status === "failed") ||
+    priorPhases.some((phase) => phase.status === "failed") ||
     daemon === "failed";
+  const readyPrereqsComplete = priorPhases.every(phaseReadyTerminal);
   const ready: PhaseInput = {
     id: "ready",
     label: "Ready to chat",
@@ -276,7 +339,7 @@ export function computeSandboxBootProgress(
         ? "done"
         : failedBeforeReady || offline || stopping
           ? "pending"
-          : container.status === "done"
+          : readyPrereqsComplete
             ? "active"
             : "pending",
     ts: readyTimeline.ts,
@@ -287,8 +350,8 @@ export function computeSandboxBootProgress(
     config,
     git,
     github,
-    boot,
     skills,
+    boot,
     ready,
   ];
 
@@ -301,7 +364,10 @@ export function computeSandboxBootProgress(
         phase.status = "done";
 
   const completed = phases.filter(
-    (phase) => phase.status === "done" || phase.status === "skipped",
+    (phase) =>
+      phase.status === "done" ||
+      phase.status === "skipped" ||
+      phase.status === "degraded",
   ).length;
   const total = phases.length;
   const fraction = total === 0 ? 0 : completed / total;

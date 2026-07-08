@@ -96,6 +96,111 @@ describe("computeSandboxBootProgress", () => {
     assert.equal(progress.showPhaseStepper, false);
   });
 
+  it("orders skills before boot and keeps ready pending while boot is active", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({
+      status: "booting",
+      setup: {
+        git: { configured: true, status: "completed", completedAt: ts },
+        github: { configured: true, status: "completed", completedAt: ts },
+        skills: { configured: true, status: "completed", completedAt: ts },
+        boot: { configured: true, status: "started", startedAt: ts },
+      },
+    });
+
+    const progress = computeSandboxBootProgress(record("running"), detail);
+    assert.deepEqual(
+      progress.phases.map((phase) => phase.id),
+      ["container", "config", "git", "github", "skills", "boot", "ready"],
+    );
+    assert.equal(
+      progress.phases.find((phase) => phase.id === "boot")?.status,
+      "active",
+    );
+    assert.equal(
+      progress.phases.find((phase) => phase.id === "ready")?.status,
+      "pending",
+    );
+  });
+
+  it("marks ready active only after all prior phases are terminal", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({
+      status: "booting",
+      setup: {
+        git: { configured: true, status: "completed", completedAt: ts },
+        github: { configured: true, status: "completed", completedAt: ts },
+        skills: { configured: true, status: "completed", completedAt: ts },
+        boot: { configured: true, status: "completed", completedAt: ts },
+      },
+    });
+
+    const progress = computeSandboxBootProgress(record("running"), detail);
+    assert.equal(
+      progress.phases.find((phase) => phase.id === "ready")?.status,
+      "active",
+    );
+  });
+
+  it("uses status setup timeline details before the controller connects", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({
+      status: "booting",
+      setup: {
+        git: { configured: true, status: "completed", completedAt: ts },
+        github: { configured: true, status: "completed", completedAt: ts },
+        skills: { configured: true, status: "completed", completedAt: ts },
+      },
+      setupTimeline: [
+        {
+          key: "boot:0",
+          phase: "boot",
+          name: "install",
+          index: 0,
+          status: "started",
+          ts,
+          startedAt: ts,
+          runAs: "sandbox",
+          network: "inherit",
+          timeoutMs: 60_000,
+        },
+      ],
+    });
+
+    const progress = computeSandboxBootProgress(record("running"), detail);
+    const boot = progress.phases.find((phase) => phase.id === "boot");
+    assert.equal(boot?.status, "active");
+    assert.equal(boot?.ts, ts);
+    assert.equal(
+      progress.phases.find((phase) => phase.id === "ready")?.status,
+      "pending",
+    );
+  });
+
+  it("counts degraded setup as terminal progress", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({
+      status: "booting",
+      setup: {
+        git: { configured: true, status: "completed", completedAt: ts },
+        github: { configured: true, status: "degraded", completedAt: ts },
+        skills: { configured: true, status: "completed", completedAt: ts },
+        boot: { configured: true, status: "completed", completedAt: ts },
+      },
+    });
+
+    const progress = computeSandboxBootProgress(record("running"), detail);
+    assert.equal(progress.completed, 6);
+    assert.equal(
+      progress.phases.find((phase) => phase.id === "github")?.status,
+      "degraded",
+    );
+    assert.equal(
+      progress.phases.find((phase) => phase.id === "ready")?.status,
+      "active",
+    );
+  });
+
   it("shows a non-spinning offline state for stopped containers", () => {
     const detail = createSandboxDetailState("sbx_1");
     detail.status = status({

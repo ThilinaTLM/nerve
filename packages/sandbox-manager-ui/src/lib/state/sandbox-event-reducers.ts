@@ -237,9 +237,10 @@ function pushSetup(
 ): void {
   const key = extra.key ?? setupTimelineKey(phase, event, extra);
   const existing = detail.setupTimeline.find((item) => item.key === key);
+  const definedExtra = definedTimelineFields(extra);
   const next: SandboxSetupTimelineItem = {
     ...existing,
-    ...extra,
+    ...definedExtra,
     key,
     phase,
     status,
@@ -254,6 +255,14 @@ function pushSetup(
   }
   if (existing) Object.assign(existing, next);
   else detail.setupTimeline.push(next);
+}
+
+function definedTimelineFields(
+  extra: Partial<SandboxSetupTimelineItem>,
+): Partial<SandboxSetupTimelineItem> {
+  return Object.fromEntries(
+    Object.entries(extra).filter(([, value]) => value !== undefined),
+  ) as Partial<SandboxSetupTimelineItem>;
 }
 
 function setupTimelineKey(

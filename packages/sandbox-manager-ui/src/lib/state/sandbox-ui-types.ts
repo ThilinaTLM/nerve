@@ -1,9 +1,9 @@
 import type {
-  BoundedText,
   ManagedSandboxRecord,
   SandboxConfigYamlResult,
   SandboxControllerSessionSummary,
   SandboxConversationSnapshot,
+  SandboxSetupTimelineItem,
   SandboxSnapshotResult,
   SandboxStatusGetResult,
   SandboxToolCallSummary,
@@ -14,6 +14,8 @@ import type {
 import type { ConversationRenderState } from "@nervekit/shared-ui/state";
 import type { ManagerWsConnectionState } from "../api/manager-ws-client.svelte";
 import { createDraftFromStoredPreferences } from "./create-sandbox-draft";
+
+export type { SandboxSetupTimelineItem };
 
 /** Runtime agent controls surfaced by the composer toolbar. */
 export type SandboxAgentControls = {
@@ -93,35 +95,6 @@ export type SandboxWorkspaceFileViewState = {
   wrapLines: boolean;
   loading: boolean;
   error?: string;
-};
-
-export type SandboxSetupTimelineItem = {
-  key: string;
-  /** Broad setup group (`config`, `git`, `github`, `boot`, `skills`, `ready`). */
-  phase: string;
-  /** Specific boot phase name when the event comes from a boot script phase. */
-  name?: string;
-  index?: number;
-  status:
-    | "started"
-    | "completed"
-    | "failed"
-    | "timeout"
-    | "skipped"
-    | "degraded";
-  ts: string;
-  detail?: string;
-  runAs?: "sandbox" | "root";
-  network?: "inherit" | "deny" | "package_registries_only";
-  timeoutMs?: number;
-  startedAt?: string;
-  completedAt?: string;
-  durationMs?: number;
-  exitCode?: number;
-  stdout?: BoundedText;
-  stderr?: BoundedText;
-  error?: string;
-  limitations?: string[];
 };
 
 export type PendingSandboxOperation = {

@@ -314,6 +314,39 @@ export type SandboxSetupStatusSummary = z.infer<
   typeof sandboxSetupStatusSummarySchema
 >;
 
+export const sandboxSetupTimelineItemSchema = z.object({
+  key: z.string().min(1),
+  /** Broad setup group (`config`, `git`, `github`, `boot`, `skills`, `ready`). */
+  phase: z.string().min(1),
+  /** Specific boot phase name when the event comes from a boot script phase. */
+  name: z.string().min(1).optional(),
+  index: z.number().int().nonnegative().safe().optional(),
+  status: z.enum([
+    "started",
+    "completed",
+    "failed",
+    "timeout",
+    "skipped",
+    "degraded",
+  ]),
+  ts: isoDateTimeSchema,
+  detail: z.string().min(1).optional(),
+  runAs: z.enum(["sandbox", "root"]).optional(),
+  network: z.enum(["inherit", "deny", "package_registries_only"]).optional(),
+  timeoutMs: z.number().int().positive().safe().optional(),
+  startedAt: isoDateTimeSchema.optional(),
+  completedAt: isoDateTimeSchema.optional(),
+  durationMs: z.number().int().nonnegative().safe().optional(),
+  exitCode: z.number().int().safe().optional(),
+  stdout: boundedTextSchema.optional(),
+  stderr: boundedTextSchema.optional(),
+  error: z.string().min(1).optional(),
+  limitations: z.array(z.string().min(1)).optional(),
+});
+export type SandboxSetupTimelineItem = z.infer<
+  typeof sandboxSetupTimelineItemSchema
+>;
+
 export const sandboxNetworkPolicySummarySchema = networkPolicyStatusSchema;
 export type SandboxNetworkPolicySummary = z.infer<
   typeof sandboxNetworkPolicySummarySchema
@@ -609,6 +642,7 @@ export const sandboxStatusGetResultSchema = z.object({
   degraded: degradedStatusSchema.optional(),
   connectivity: controllerConnectivityStatusSchema.optional(),
   setup: sandboxSetupStatusSummarySchema.optional(),
+  setupTimeline: z.array(sandboxSetupTimelineItemSchema).optional(),
   skills: z.array(skillStatusSchema).optional(),
   toolGroups: z.array(sandboxToolGroupStatusSummarySchema).optional(),
   models: z.array(sandboxModelStatusSummarySchema).optional(),
@@ -657,6 +691,7 @@ export const sandboxSnapshotResultSchema = z.object({
   network: sandboxNetworkPolicySummarySchema.optional(),
   replayCursors: z.array(sandboxReplayCursorSummarySchema).optional(),
   setup: sandboxSetupStatusSummarySchema.optional(),
+  setupTimeline: z.array(sandboxSetupTimelineItemSchema).optional(),
   connectivity: controllerConnectivityStatusSchema.optional(),
   tasks: z.array(sandboxTaskSummarySchema).optional(),
   hardening: sandboxHardeningSummarySchema.optional(),

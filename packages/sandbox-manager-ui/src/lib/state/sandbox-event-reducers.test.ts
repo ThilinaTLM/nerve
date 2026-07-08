@@ -187,6 +187,39 @@ describe("applySandboxEvent", () => {
     assert.equal(detail.setupTimeline[0].runAs, "sandbox");
   });
 
+  it("preserves boot metadata when completion events omit started-only fields", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    applySandboxEvent(
+      detail,
+      event(1, "sandbox.boot.started", {
+        ...scope,
+        phase: "install",
+        index: 0,
+        runAs: "sandbox",
+        network: "inherit",
+        timeoutMs: 30_000,
+        startedAt: "2026-06-26T11:59:58.000Z",
+      }),
+    );
+    applySandboxEvent(
+      detail,
+      event(2, "sandbox.boot.completed", {
+        ...scope,
+        phase: "install",
+        index: 0,
+        status: "completed",
+        startedAt: "2026-06-26T11:59:58.000Z",
+        completedAt: ts,
+        exitCode: 0,
+      }),
+    );
+
+    assert.equal(detail.setupTimeline[0].status, "completed");
+    assert.equal(detail.setupTimeline[0].runAs, "sandbox");
+    assert.equal(detail.setupTimeline[0].network, "inherit");
+    assert.equal(detail.setupTimeline[0].timeoutMs, 30_000);
+  });
+
   it("records failed boot completion events as failed setup timeline items", () => {
     const detail = createSandboxDetailState("sbx_1");
     applySandboxEvent(

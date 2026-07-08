@@ -9,10 +9,12 @@
     TriangleAlert,
   } from "@lucide/svelte";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
+  import { onMount } from "svelte";
   import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
   import type { StatusTone } from "@nervekit/shared-ui/components/ui/status-dot";
   import {
     computeSandboxBootProgress,
+    sandboxSetupTimeline,
     type BootPhase,
     type BootPhaseStatus,
     type BootState,
@@ -43,6 +45,14 @@
   const readOnly = $derived(sandboxIsReadOnly(record, detail));
   const lifecycleMessage = $derived(sandboxLifecycleMessage(record, detail));
   let openPhases = $state<Record<string, boolean>>({});
+  let now = $state(Date.now());
+
+  onMount(() => {
+    const timer = window.setInterval(() => {
+      now = Date.now();
+    }, 1000);
+    return () => window.clearInterval(timer);
+  });
 
   const stateTone: Record<BootState, StatusTone> = {
     provisioning: "running",
@@ -108,14 +118,54 @@
     return `${(value / 1000).toFixed(1)} s`;
   }
 
+  function formatCompactMs(value: number | undefined): string | undefined {
+    if (value === undefined) return undefined;
+    if (value < 1000) return `${value} ms`;
+    if (value < 60_000) return `${Math.round(value / 1000)}s`;
+    return `${Math.round(value / 60_000)}m`;
+  }
+
+  function elapsedMs(item: SandboxSetupTimelineItem): number | undefined {
+    const started = Date.parse(item.startedAt ?? item.ts);
+    if (!Number.isFinite(started)) return undefined;
+    return Math.max(0, now - started);
+  }
+
   function bootTimeline(): SandboxSetupTimelineItem[] {
-    return [...(detail?.setupTimeline ?? [])]
-      .filter((item) => item.phase === "boot")
-      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    return sandboxSetupTimeline(detail)
+      .map((item, order) => ({ item, order }))
+      .filter(({ item }) => item.phase === "boot")
+      .sort((a, b) => {
+        if (a.item.index !== undefined && b.item.index !== undefined) {
+          const byIndex = a.item.index - b.item.index;
+          if (byIndex !== 0) return byIndex;
+        }
+        return a.order - b.order;
+      })
+      .map(({ item }) => item);
+  }
+
+  function activeBootItem(): SandboxSetupTimelineItem | undefined {
+    return bootTimeline()
+      .filter((item) => item.status === "started")
+      .at(-1);
+  }
+
+  function bootActiveSummary(item: SandboxSetupTimelineItem): string {
+    const timeout = formatCompactMs(item.timeoutMs);
+    return [
+      `Running ${itemTitle(item)}`,
+      item.runAs,
+      item.network,
+      timeout ? `timeout ${timeout}` : undefined,
+      `elapsed ${formatMs(elapsedMs(item))}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   function phaseTimeline(phaseId: string): SandboxSetupTimelineItem | undefined {
-    return [...(detail?.setupTimeline ?? [])]
+    return sandboxSetupTimeline(detail)
       .filter((item) => item.phase === phaseId)
       .at(-1);
   }
@@ -144,7 +194,13 @@
       { label: "Status", value: item.status },
       { label: "Started", value: formatDate(item.startedAt ?? item.ts) },
       { label: "Completed", value: formatDate(item.completedAt) },
-      { label: "Duration", value: formatMs(item.durationMs) },
+      {
+        label: item.status === "started" ? "Elapsed" : "Duration",
+        value:
+          item.status === "started"
+            ? formatMs(elapsedMs(item))
+            : formatMs(item.durationMs),
+      },
       { label: "Run as", value: item.runAs ?? "—" },
       { label: "Network", value: item.network ?? "—" },
       { label: "Timeout", value: item.timeoutMs ? formatMs(item.timeoutMs) : "—" },
@@ -210,6 +266,7 @@
       {#each progress.phases as phase (phase.id)}
         {@const Icon = phaseIcon(phase.status)}
         {@const hasDetails = phaseHasDetails(phase)}
+        {@const activeBoot = phase.id === "boot" ? activeBootItem() : undefined}
         <li class="overflow-hidden rounded-md border bg-background/50">
           <button
             type="button"
@@ -236,7 +293,11 @@
                 {/if}
                 <span class="truncate text-sm">{phase.label}</span>
               </div>
-              <span class="text-xs text-muted-foreground">{phase.description}</span>
+              {#if activeBoot}
+                <span class="truncate text-xs text-muted-foreground">{bootActiveSummary(activeBoot)}</span>
+              {:else}
+                <span class="text-xs text-muted-foreground">{phase.description}</span>
+              {/if}
               {#if phase.error}
                 <span class="text-xs text-destructive">{phase.error}</span>
               {/if}
