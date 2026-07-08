@@ -171,6 +171,11 @@ describe("applySandboxEvent", () => {
     const boot = event(1, "sandbox.boot.started", {
       ...scope,
       phase: "install",
+      index: 0,
+      runAs: "sandbox",
+      network: "inherit",
+      timeoutMs: 30_000,
+      startedAt: ts,
     });
     applySandboxEvent(detail, boot);
     applySandboxEvent(detail, boot);
@@ -178,6 +183,8 @@ describe("applySandboxEvent", () => {
     assert.equal(detail.setupTimeline[0].phase, "boot");
     assert.equal(detail.setupTimeline[0].status, "started");
     assert.equal(detail.setupTimeline[0].detail, "Boot phase: install");
+    assert.equal(detail.setupTimeline[0].name, "install");
+    assert.equal(detail.setupTimeline[0].runAs, "sandbox");
   });
 
   it("records failed boot completion events as failed setup timeline items", () => {
@@ -187,8 +194,12 @@ describe("applySandboxEvent", () => {
       event(1, "sandbox.boot.completed", {
         ...scope,
         phase: "install",
+        index: 0,
         status: "failed",
         exitCode: 127,
+        startedAt: "2026-06-26T11:59:58.000Z",
+        completedAt: ts,
+        stderr: { text: "pnpm: not found", bytes: 15 },
       }),
     );
     assert.equal(detail.setupTimeline[0].phase, "boot");
@@ -197,5 +208,8 @@ describe("applySandboxEvent", () => {
       detail.setupTimeline[0].detail,
       "Boot phase: install · exit 127",
     );
+    assert.equal(detail.setupTimeline[0].exitCode, 127);
+    assert.equal(detail.setupTimeline[0].stderr?.text, "pnpm: not found");
+    assert.equal(detail.setupTimeline[0].durationMs, 2000);
   });
 });

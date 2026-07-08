@@ -1,4 +1,5 @@
 import type {
+  BoundedText,
   ManagedSandboxRecord,
   SandboxConfigYamlResult,
   SandboxControllerSessionSummary,
@@ -96,10 +97,31 @@ export type SandboxWorkspaceFileViewState = {
 
 export type SandboxSetupTimelineItem = {
   key: string;
+  /** Broad setup group (`config`, `git`, `github`, `boot`, `skills`, `ready`). */
   phase: string;
-  status: "started" | "completed" | "failed" | "skipped" | "degraded";
+  /** Specific boot phase name when the event comes from a boot script phase. */
+  name?: string;
+  index?: number;
+  status:
+    | "started"
+    | "completed"
+    | "failed"
+    | "timeout"
+    | "skipped"
+    | "degraded";
   ts: string;
   detail?: string;
+  runAs?: "sandbox" | "root";
+  network?: "inherit" | "deny" | "package_registries_only";
+  timeoutMs?: number;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  exitCode?: number;
+  stdout?: BoundedText;
+  stderr?: BoundedText;
+  error?: string;
+  limitations?: string[];
 };
 
 export type PendingSandboxOperation = {
@@ -130,6 +152,8 @@ export type SandboxDetailState = {
   latestSession?: SandboxControllerSessionSummary;
   logsTruncated: boolean;
   logsText: string;
+  logsAvailable?: boolean;
+  logsLimitations?: string[];
   configYaml?: string;
   configYamlSource?: SandboxConfigYamlResult["source"];
   configYamlDigest?: string;
@@ -186,6 +210,8 @@ export function createSandboxDetailState(
     sandboxId,
     logsTruncated: false,
     logsText: "",
+    logsAvailable: undefined,
+    logsLimitations: undefined,
     configYamlLoading: false,
     events: [],
     setupTimeline: [],

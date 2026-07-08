@@ -44,6 +44,7 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
         supportsCpuLimit: true,
         supportsMemoryLimit: true,
         supportsTmpfs: true,
+        supportsLogs: true,
         limitations: [],
       };
     } catch {
@@ -56,6 +57,7 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
         supportsCpuLimit: false,
         supportsMemoryLimit: false,
         supportsTmpfs: false,
+        supportsLogs: false,
         limitations: [`${this.bin} CLI is not available`],
       };
     }

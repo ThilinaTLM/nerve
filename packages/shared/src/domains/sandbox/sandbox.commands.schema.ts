@@ -27,6 +27,7 @@ import {
   startupSetupStatusSchema,
   toolGroupStatusSchema,
 } from "./sandbox.common.schema.js";
+import { sandboxRuntimeContainerStatusSchema } from "./sandbox.manager.schema.js";
 import { sandboxToolCallRecordSchema } from "./sandbox.state.schema.js";
 
 export const sandboxCommandMethodSchema = z.enum([
@@ -601,6 +602,7 @@ export const sandboxStatusGetResultSchema = z.object({
   lastEventAt: isoDateTimeSchema.optional(),
   lastSession: sandboxControllerSessionSummarySchema.optional(),
   limitations: z.array(z.string().min(1)).optional(),
+  container: sandboxRuntimeContainerStatusSchema.optional(),
   configDigest: z.string().min(1).optional(),
   startedAt: isoDateTimeSchema.optional(),
   updatedAt: isoDateTimeSchema,
@@ -641,6 +643,7 @@ export const sandboxSnapshotResultSchema = z.object({
   lastEventAt: isoDateTimeSchema.optional(),
   lastSession: sandboxControllerSessionSummarySchema.optional(),
   limitations: z.array(z.string().min(1)).optional(),
+  container: sandboxRuntimeContainerStatusSchema.optional(),
   conversations: z.array(sandboxConversationSnapshotSchema),
   agents: z.array(sandboxAgentSnapshotSchema).optional(),
   runs: z.array(sandboxRunSnapshotSchema),
@@ -670,6 +673,7 @@ export const sandboxConversationViewSnapshotSchema = z.object({
   lastEventSeq: z.number().int().nonnegative().safe().optional(),
   lastEventAt: isoDateTimeSchema.optional(),
   lastSession: sandboxControllerSessionSummarySchema.optional(),
+  container: sandboxRuntimeContainerStatusSchema.optional(),
   conversationId: sandboxConversationIdSchema.optional(),
   agentId: sandboxAgentIdSchema.optional(),
   runId: sandboxRunIdSchema.optional(),

@@ -13,6 +13,7 @@
     sandboxConversationActivity,
     type SandboxConversationListItem,
   } from "../../state/sandbox-manager-selectors.svelte";
+  import { sandboxCanCreateConversation } from "../../state/sandbox-lifecycle";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import {
     loadSandboxGroupCollapseState,
@@ -132,6 +133,7 @@
           variant="ghost"
           title="New conversation"
           ariaLabel="New conversation"
+          disabled={!sandboxCanCreateConversation(record, detail)}
           onclick={() => {
             center.openSandbox(record.sandboxId);
             store.startNewConversation(record.sandboxId);

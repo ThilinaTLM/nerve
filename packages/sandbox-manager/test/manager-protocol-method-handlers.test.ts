@@ -34,6 +34,37 @@ describe("manager protocol method handlers", () => {
     assert.equal((result as { stale?: boolean }).stale, true);
   });
 
+  it("marks stopped containers offline in manager-derived snapshots", async () => {
+    const result = (await handleManagerProtocolMethod(
+      context({
+        record: {
+          ...record,
+          desiredState: "stopped",
+          observedState: "exited",
+          stoppedAt: "2026-06-26T12:05:00.000Z",
+          containerRef: { kind: "docker", id: "c1", name: "nerve-sbx_1" },
+        },
+        driverStatus: {
+          state: "exited",
+          exitCode: 0,
+          finishedAt: "2026-06-26T12:05:00.000Z",
+        },
+      }),
+      "sandbox.snapshot.get",
+      { sandboxId: "sbx_1" },
+    )) as {
+      status?: string;
+      staleness?: { reason?: string };
+      container?: { state?: string; exitCode?: number };
+      limitations?: string[];
+    };
+    assert.equal(result.status, "offline");
+    assert.equal(result.staleness?.reason, "container_stopped");
+    assert.equal(result.container?.state, "exited");
+    assert.equal(result.container?.exitCode, 0);
+    assert.match(result.limitations?.[0] ?? "", /read-only snapshots/);
+  });
+
   it("forwards connected prompt commands with command id idempotency", async () => {
     const sent: Array<{ method: string; params: unknown; requestId: string }> =
       [];
@@ -213,13 +244,30 @@ describe("manager protocol method handlers", () => {
   });
 });
 
-function context(options: { session?: unknown; events?: unknown[] } = {}) {
+function context(
+  options: {
+    session?: unknown;
+    events?: unknown[];
+    record?: typeof record;
+    driverStatus?: { state: string; exitCode?: number; finishedAt?: string };
+  } = {},
+) {
   const idempotency = new Map<string, { hash: string; value: unknown }>();
+  const sandboxRecord = options.record ?? record;
   return {
     state: {
       sandboxes: {
         get: async (sandboxId: string) =>
-          sandboxId === "sbx_1" ? record : undefined,
+          sandboxId === "sbx_1" ? sandboxRecord : undefined,
+        put: async () => undefined,
+      },
+      driver: {
+        inspect: async (ref: unknown) => ({
+          ref,
+          state: options.driverStatus?.state ?? sandboxRecord.observedState,
+          exitCode: options.driverStatus?.exitCode,
+          finishedAt: options.driverStatus?.finishedAt,
+        }),
       },
       sessions: { get: async () => undefined },
       events: { list: async () => options.events ?? [] },

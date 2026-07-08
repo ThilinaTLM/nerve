@@ -1,4 +1,3 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: HTTP routing is centralized while the manager API surface is still stabilizing.
 import { readFile } from "node:fs/promises";
 import {
   createServer,
@@ -9,6 +8,7 @@ import {
   type ManagedSandboxRecord,
   type SandboxConfigV1,
   sandboxConfigV1Schema,
+  sandboxContainerLogsResultSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
   sandboxWorkspaceFileQuerySchema,
@@ -36,6 +36,10 @@ import { errorResponse, HttpError } from "../http/errors.js";
 import { withIdempotency } from "../http/idempotency.js";
 import { LogCollector } from "../lifecycle/log-collector.js";
 import { refreshSandboxObservedState } from "../lifecycle/reconciler.js";
+import {
+  deriveSandboxContainerStatus,
+  managerDerivedSandboxView,
+} from "../protocol/manager-derived-sandbox-view.js";
 import { handleManagerProtocolHttpRequest } from "../protocol/manager-protocol-http-dispatcher.js";
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
 import { tailManagerLogs } from "../routes/manager-logs-routes.js";
@@ -51,6 +55,7 @@ import {
   readAgentStateSummary,
   setupSummaryFailure,
 } from "../state/agent-state-summary.js";
+
 import { createLoggedRequestListener } from "./http-logging.js";
 import type { ManagerState } from "./manager-state.js";
 import { sandboxManagerVersion } from "./version.js";
@@ -557,12 +562,15 @@ async function collectLogs(
   state: ManagerState,
   sandboxId: string,
   url: URL,
-): Promise<{
-  chunks: Array<{ stream: string; chunk: string; ts?: string }>;
-  truncated: boolean;
-}> {
+): Promise<unknown> {
   const record = await state.sandboxes.get(sandboxId);
-  if (!record?.containerRef) return { chunks: [], truncated: false };
+  if (!record?.containerRef)
+    return sandboxContainerLogsResultSchema.parse({
+      chunks: [],
+      truncated: false,
+      available: false,
+      limitations: ["No container has been created for this sandbox"],
+    });
   const collector = new LogCollector(state.driver);
   const chunks: Array<{ stream: string; chunk: string; ts?: string }> = [];
   let bytes = 0;
@@ -573,19 +581,34 @@ async function collectLogs(
   );
   const tail = url.searchParams.get("tail");
   const since = url.searchParams.get("since") ?? undefined;
-  for await (const chunk of collector.logs(record.containerRef, {
-    tail: tail ? Number(tail) : undefined,
-    since,
-  })) {
-    const redacted = redactText(chunk.chunk);
-    bytes += Buffer.byteLength(redacted);
-    if (bytes > maxBytes) {
-      truncated = true;
-      break;
+  try {
+    for await (const chunk of collector.logs(record.containerRef, {
+      tail: tail ? Number(tail) : undefined,
+      since,
+    })) {
+      const redacted = redactText(chunk.chunk);
+      bytes += Buffer.byteLength(redacted);
+      if (bytes > maxBytes) {
+        truncated = true;
+        break;
+      }
+      chunks.push({ ...chunk, chunk: redacted });
     }
-    chunks.push({ ...chunk, chunk: redacted });
+  } catch (error) {
+    return sandboxContainerLogsResultSchema.parse({
+      chunks,
+      truncated,
+      available: false,
+      limitations: [
+        redactText(error instanceof Error ? error.message : String(error)),
+      ],
+    });
   }
-  return { chunks, truncated };
+  return sandboxContainerLogsResultSchema.parse({
+    chunks,
+    truncated,
+    available: true,
+  });
 }
 async function sandboxStatus(
   state: ManagerState,
@@ -599,9 +622,11 @@ async function sandboxStatus(
       "sandbox.status.get",
       {},
     );
+    const container = await connectedContainerStatus(state, sandboxId);
     return sandboxStatusGetResultSchema.parse({
       connected: true,
       stale: false,
+      container,
       ...(isObjectRecord(result) ? result : {}),
     });
   }
@@ -621,9 +646,11 @@ async function sandboxSnapshot(
       "sandbox.snapshot.get",
       {},
     );
+    const container = await connectedContainerStatus(state, sandboxId);
     return sandboxSnapshotResultSchema.parse({
       connected: true,
       stale: false,
+      container,
       ...(isObjectRecord(result) ? result : {}),
     });
   }
@@ -631,112 +658,32 @@ async function sandboxSnapshot(
     await managerDerivedSnapshot(state, sandboxId),
   );
 }
+
 async function managerDerivedStatus(
   state: ManagerState,
   sandboxId: string,
 ): Promise<Record<string, unknown>> {
-  const storedRecord = await state.sandboxes.get(sandboxId);
-  if (!storedRecord) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
-  const record = await refreshSandboxObservedState(
-    state.sandboxes,
-    state.driver,
-    storedRecord,
-  );
-  const session = await state.sessions.get(sandboxId);
-  const events = await state.events.list(sandboxId);
-  const agentSummary = await readAgentStateSummary(record);
-  const lastEvent = events
-    .filter((event) => typeof event.seq === "number" || event.ts)
-    .sort((a, b) => Number(a.seq ?? -1) - Number(b.seq ?? -1))
-    .at(-1);
-  const latestSeq = Math.max(
-    lastEvent?.seq ?? -1,
-    agentSummary?.lastEventSeq ?? -1,
-  );
-  const startupFailure = setupSummaryFailure(agentSummary?.setup);
-  const now = new Date().toISOString();
-  const disconnectedAt = session?.disconnectedAt ?? record.stoppedAt;
-  return {
-    sandboxId: record.sandboxId,
-    instanceId: record.instanceId ?? "unknown",
-    status: startupFailure
-      ? "failed"
-      : daemonStatusFromRecord(record, session?.state),
-    connected: false,
-    stale: true,
-    staleness: {
-      stale: true,
-      reason: session ? "controller_disconnected" : "no_controller_session",
-      asOf: now,
-      lastConnectedAt: session?.updatedAt,
-      disconnectedAt,
-      ageMs: disconnectedAt
-        ? Math.max(0, Date.now() - Date.parse(disconnectedAt))
-        : undefined,
-    },
-    lastEventSeq: latestSeq >= 0 ? latestSeq : undefined,
-    lastEventAt: agentSummary?.lastEventAt ?? lastEvent?.ts,
-    lastSession: sessionSummary(session),
-    limitations: [
-      "Status is manager-derived because no controller session is connected",
-    ],
-    configDigest: record.configDigest,
-    startedAt: record.startedAt,
-    updatedAt: record.updatedAt,
-    setup: agentSummary?.setup,
-    connectivity: {
-      state:
-        session?.state === "reconnecting" ? "reconnecting" : "disconnected",
-      connectedAt: session?.updatedAt,
-      disconnectedAt,
-      lastErrorCode: record.lastError?.code,
-    },
-    cursors: cursorSummary(session?.cursors),
-    conversations: [],
-    agents: [],
-    runs: [],
-  };
+  const view = await managerDerivedSandboxView(state, sandboxId);
+  if (!view) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
+  return view.status;
 }
 
 async function managerDerivedSnapshot(
   state: ManagerState,
   sandboxId: string,
 ): Promise<Record<string, unknown>> {
-  const status = await managerDerivedStatus(state, sandboxId);
-  const events = await state.events.list(sandboxId);
-  const lastEvent = events.at(-1);
-  const statusSeq =
-    typeof status.lastEventSeq === "number" ? status.lastEventSeq : undefined;
-  const eventSeq = lastEvent?.seq;
-  return {
-    ...status,
-    conversations: [],
-    agents: [],
-    runs: [],
-    replayCursors: cursorSummary((await state.sessions.get(sandboxId))?.cursors)
-      ?.streams,
-    lastEventSeq:
-      statusSeq === undefined && eventSeq === undefined
-        ? undefined
-        : Math.max(statusSeq ?? -1, eventSeq ?? -1),
-    lastEventAt: status.lastEventAt ?? lastEvent?.ts,
-  };
+  const view = await managerDerivedSandboxView(state, sandboxId);
+  if (!view) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
+  return view.snapshot;
 }
 
-function daemonStatusFromRecord(
-  record: ManagedSandboxRecord,
-  sessionState?: string,
-): string {
-  if (sessionState === "reconnecting") return "reconnecting";
-  if (record.observedState === "running") return "reconnecting";
-  if (
-    record.observedState === "starting" ||
-    record.observedState === "creating"
-  )
-    return "booting";
-  if (record.observedState === "failed") return "failed";
-  if (record.observedState === "stopping") return "stopping";
-  return "reconnecting";
+async function connectedContainerStatus(
+  state: ManagerState,
+  sandboxId: string,
+): Promise<unknown> {
+  const record = await state.sandboxes.get(sandboxId);
+  if (!record) return undefined;
+  return (await deriveSandboxContainerStatus(state, record)).container;
 }
 
 function sessionSummary(
@@ -757,37 +704,6 @@ function sessionSummary(
     closeReason: session.closeReason?.trim() || undefined,
     acceptedCapabilities: session.capabilities,
   };
-}
-
-function cursorSummary(
-  cursors: unknown,
-): { streams: Array<{ stream: string; processedSeq: number }> } | undefined {
-  if (
-    cursors &&
-    typeof cursors === "object" &&
-    Array.isArray((cursors as { streams?: unknown }).streams)
-  ) {
-    const streams = (cursors as { streams: unknown[] }).streams.flatMap(
-      (cursor) => {
-        if (
-          cursor &&
-          typeof cursor === "object" &&
-          typeof (cursor as { stream?: unknown }).stream === "string" &&
-          typeof (cursor as { processedSeq?: unknown }).processedSeq ===
-            "number"
-        )
-          return [
-            {
-              stream: (cursor as { stream: string }).stream,
-              processedSeq: (cursor as { processedSeq: number }).processedSeq,
-            },
-          ];
-        return [];
-      },
-    );
-    return { streams };
-  }
-  return undefined;
 }
 
 function prepareForwardedCommand(

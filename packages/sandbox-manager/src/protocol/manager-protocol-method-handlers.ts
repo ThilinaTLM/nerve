@@ -19,10 +19,11 @@ import {
 } from "@nervekit/shared";
 import type { ManagerState } from "../app/manager-state.js";
 import { HttpError } from "../http/errors.js";
+import { projectConversationSnapshotFromEvents } from "./conversation-event-projection.js";
 import {
-  projectConversationSnapshotFromEvents,
-  projectSandboxSummariesFromEvents,
-} from "./conversation-event-projection.js";
+  deriveSandboxContainerStatus,
+  managerDerivedSandboxView,
+} from "./manager-derived-sandbox-view.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
 type ProtocolHandlerContext = {
@@ -119,9 +120,11 @@ async function sandboxSnapshot(
       "sandbox.snapshot.get",
       params,
     );
+    const container = await connectedContainerStatus(state, sandboxId);
     return sandboxSnapshotResultSchema.parse({
       connected: true,
       stale: false,
+      container,
       ...(isRecord(result) ? result : {}),
       sandboxId,
     });
@@ -277,73 +280,19 @@ async function managerDerivedSnapshot(
   state: ManagerState,
   sandboxId: string,
 ): Promise<Record<string, unknown>> {
-  const record = await state.sandboxes.get(sandboxId);
-  if (!record)
+  const view = await managerDerivedSandboxView(state, sandboxId);
+  if (!view)
     throw protocolHttpError(404, "Sandbox not found", "RESOURCE_NOT_FOUND");
-  const session = await state.sessions.get(sandboxId);
-  const events = await state.events.list(sandboxId);
-  const lastEvent = events
-    .filter((event) => typeof event.seq === "number" || event.ts)
-    .sort((a, b) => Number(a.seq ?? -1) - Number(b.seq ?? -1))
-    .at(-1);
-  const now = new Date().toISOString();
-  const disconnectedAt = session?.disconnectedAt ?? record.stoppedAt;
-  const summaries = projectSandboxSummariesFromEvents({ sandboxId, events });
-  return {
-    sandboxId: record.sandboxId,
-    instanceId: record.instanceId ?? "unknown",
-    status:
-      record.observedState === "failed"
-        ? "failed"
-        : record.observedState === "stopping"
-          ? "stopping"
-          : record.observedState === "starting" ||
-              record.observedState === "creating"
-            ? "booting"
-            : "reconnecting",
-    connected: false,
-    stale: true,
-    staleness: {
-      stale: true,
-      reason: session ? "controller_disconnected" : "no_controller_session",
-      asOf: now,
-      lastConnectedAt: session?.updatedAt,
-      disconnectedAt,
-      ageMs: disconnectedAt
-        ? Math.max(0, Date.now() - Date.parse(disconnectedAt))
-        : undefined,
-    },
-    lastEventSeq: lastEvent?.seq,
-    lastEventAt: lastEvent?.ts,
-    lastSession: session
-      ? {
-          sessionId: session.sessionId,
-          status:
-            session.state === "exited"
-              ? "closed"
-              : session.state === "reconnecting"
-                ? "disconnected"
-                : session.state,
-          connectedAt: session.updatedAt,
-          disconnectedAt: session.disconnectedAt,
-          closeCode: session.closeCode,
-          closeReason: session.closeReason?.trim() || undefined,
-          acceptedCapabilities: session.capabilities,
-        }
-      : undefined,
-    limitations: [
-      "Snapshot is manager-derived because no controller session is connected",
-    ],
-    conversations: summaries.conversations,
-    agents: summaries.agents,
-    runs: summaries.runs,
-    replayCursors: [
-      {
-        stream: `sandbox:${sandboxId}`,
-        processedSeq: Number(lastEvent?.seq ?? 0),
-      },
-    ],
-  };
+  return view.snapshot;
+}
+
+async function connectedContainerStatus(
+  state: ManagerState,
+  sandboxId: string,
+): Promise<unknown> {
+  const record = await state.sandboxes.get(sandboxId);
+  if (!record) return undefined;
+  return (await deriveSandboxContainerStatus(state, record)).container;
 }
 
 function parseProtocolMethod(method: string): ProtocolMethodName {

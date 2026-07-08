@@ -433,33 +433,29 @@ function storedBootSecretEnvRows(
   value: unknown,
 ): CreateSandboxBootSecretEnvDraft[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  return value
-    .filter(isRecord)
-    .map((row) => ({
-      id: createDraftId("boot_env"),
-      name: stringValue(row.name) ?? "",
-      refType: bootSecretRefTypeValue(row.refType) ?? "env",
-      value: stringValue(row.value) ?? "",
-      store: stringValue(row.store) ?? "",
-      version: stringValue(row.version) ?? "",
-    }));
+  return value.filter(isRecord).map((row) => ({
+    id: createDraftId("boot_env"),
+    name: stringValue(row.name) ?? "",
+    refType: bootSecretRefTypeValue(row.refType) ?? "env",
+    value: stringValue(row.value) ?? "",
+    store: stringValue(row.store) ?? "",
+    version: stringValue(row.version) ?? "",
+  }));
 }
 
 function storedBootPhases(
   value: unknown,
 ): CreateSandboxBootPhaseDraft[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  return value
-    .filter(isRecord)
-    .map((phase) => ({
-      id: createDraftId("boot_phase"),
-      name: stringValue(phase.name) ?? "",
-      script: stringValue(phase.script) ?? "",
-      timeoutSeconds: stringValue(phase.timeoutSeconds) ?? "",
-      runAs: bootPhaseRunAsValue(phase.runAs) ?? "",
-      network: bootPhaseNetworkValue(phase.network) ?? "",
-      env: storedBootSecretEnvRows(phase.env) ?? [],
-    }));
+  return value.filter(isRecord).map((phase) => ({
+    id: createDraftId("boot_phase"),
+    name: stringValue(phase.name) ?? "",
+    script: stringValue(phase.script) ?? "",
+    timeoutSeconds: stringValue(phase.timeoutSeconds) ?? "",
+    runAs: bootPhaseRunAsValue(phase.runAs) ?? "",
+    network: bootPhaseNetworkValue(phase.network) ?? "",
+    env: storedBootSecretEnvRows(phase.env) ?? [],
+  }));
 }
 
 function storageOrDefault(

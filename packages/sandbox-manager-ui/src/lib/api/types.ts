@@ -2,6 +2,7 @@ import type {
   ManagedSandboxRecord,
   RemoveOptions,
   SandboxConfigYamlResult,
+  SandboxContainerLogsResult,
   SandboxControllerSessionSummary,
   SandboxManagerStatus,
   SandboxSnapshotResult,
@@ -11,16 +12,7 @@ import type {
 /** Envelope shape returned by every sandbox-manager REST endpoint. */
 export type ManagerEnvelope<T> = { ok: true; data: T };
 
-export type SandboxLogChunk = {
-  stream: string;
-  chunk: string;
-  ts?: string;
-};
-
-export type SandboxLogsResult = {
-  chunks: SandboxLogChunk[];
-  truncated: boolean;
-};
+export type SandboxLogsResult = SandboxContainerLogsResult;
 
 export type SandboxLogsQuery = {
   tail?: number;

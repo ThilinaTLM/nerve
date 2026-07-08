@@ -1,5 +1,6 @@
 import type {
   ManagedSandboxRecord,
+  ModelInfo,
   SandboxActivitySummary,
   SandboxConversationSnapshot,
   SandboxRunSnapshot,
@@ -16,11 +17,68 @@ export type SandboxConversationListItem =
   | ({ kind: "durable" } & SandboxConversationSnapshot)
   | ({ kind: "pending" } & SandboxPendingConversationState);
 
+type SandboxModelSummary = {
+  provider?: string;
+  status?: string;
+};
+
+type RedactedSnapshotConfig = {
+  agent?: {
+    mainModel?: { provider?: string };
+    exploreModel?: { provider?: string };
+  };
+};
+
+const usableSandboxModelStatuses = new Set(["available", "degraded"]);
+
 export function conversationsFor(
   store: SandboxManagerStore,
   sandboxId: string,
 ): SandboxConversationSnapshot[] {
   return store.details[sandboxId]?.snapshot?.conversations ?? [];
+}
+
+export function sandboxAvailableModels(
+  models: ModelInfo[],
+  detail: SandboxDetailState | undefined,
+): ModelInfo[] {
+  const providers = sandboxAvailableModelProviders(detail);
+  if (providers.size === 0) return [];
+  return models.filter((model) => providers.has(model.provider));
+}
+
+function sandboxAvailableModelProviders(
+  detail: SandboxDetailState | undefined,
+): Set<string> {
+  const summaries = [
+    ...(detail?.status?.models ?? []),
+    ...(detail?.snapshot?.models ?? []),
+  ] as SandboxModelSummary[];
+  const reported = summaries.filter((summary) => summary.provider);
+  if (reported.length > 0) {
+    const usable = reported.filter((summary) =>
+      usableSandboxModelStatuses.has(summary.status ?? "available"),
+    );
+    return new Set(usable.map((summary) => summary.provider).filter(isString));
+  }
+
+  return sandboxConfiguredModelProviders(detail);
+}
+
+function sandboxConfiguredModelProviders(
+  detail: SandboxDetailState | undefined,
+): Set<string> {
+  const config = detail?.snapshot?.config as RedactedSnapshotConfig | undefined;
+  return new Set(
+    [
+      config?.agent?.mainModel?.provider,
+      config?.agent?.exploreModel?.provider,
+    ].filter(isString),
+  );
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function mergedDurableConversations(

@@ -16,12 +16,12 @@
     record,
     onOpenDiagnosticTab,
   }: {
-    record: ManagedSandboxRecord;
+    record?: ManagedSandboxRecord;
     onOpenDiagnosticTab?: (id: SandboxDiagnosticTabId) => void;
   } = $props();
 
   const store = useSandboxManagerStore();
-  const detail = $derived(store.details[record.sandboxId]);
+  const detail = $derived(record ? store.details[record.sandboxId] : undefined);
   const tabs: TabItem[] = [
     { value: "git", label: "Git", icon: GitBranch },
     { value: "context", label: "Context", icon: Info },
@@ -39,10 +39,12 @@
   onTabChange={setTab}
 >
   {#snippet children(tab)}
-    {#if tab === "git"}
-      <SandboxGitUtilityTab {record} {detail} {onOpenDiagnosticTab} />
-    {:else}
-      <SandboxContextUtilityTab {record} {onOpenDiagnosticTab} />
+    {#if record}
+      {#if tab === "git"}
+        <SandboxGitUtilityTab {record} {detail} {onOpenDiagnosticTab} />
+      {:else}
+        <SandboxContextUtilityTab {record} {onOpenDiagnosticTab} />
+      {/if}
     {/if}
   {/snippet}
 </WorkbenchUtilityPanel>

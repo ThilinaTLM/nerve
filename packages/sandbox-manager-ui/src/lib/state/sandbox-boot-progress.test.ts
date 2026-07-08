@@ -77,6 +77,31 @@ describe("computeSandboxBootProgress", () => {
     );
   });
 
+  it("shows a non-spinning offline state for stopped containers", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({
+      status: "offline",
+      staleness: { stale: true, reason: "container_stopped", asOf: ts },
+      container: {
+        runtime: "docker",
+        state: "exited",
+        exitCode: 0,
+        observedAt: ts,
+      },
+    });
+
+    const progress = computeSandboxBootProgress(
+      { ...record("exited"), desiredState: "stopped" },
+      detail,
+    );
+    assert.equal(progress.state, "offline");
+    assert.equal(progress.headline, "Sandbox offline");
+    assert.equal(
+      progress.phases.find((phase) => phase.id === "container")?.status,
+      "stopped",
+    );
+  });
+
   it("marks the container failed when the daemon failed before setup details were recovered", () => {
     const detail = createSandboxDetailState("sbx_1");
     detail.status = status({ status: "failed" });

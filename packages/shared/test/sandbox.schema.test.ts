@@ -15,6 +15,7 @@ import {
   sandboxCommandRecordSchema,
   sandboxConfigV1Schema,
   sandboxConfigYamlResultSchema,
+  sandboxContainerLogsResultSchema,
   sandboxConversationViewSnapshotSchema,
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
@@ -29,6 +30,7 @@ import {
   sandboxProtocolUiHelloSchema,
   sandboxRunExecutionRecordSchema,
   sandboxRunStartParamsSchema,
+  sandboxRuntimeContainerStatusSchema,
   sandboxSecretRefSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetParamsSchema,
@@ -516,6 +518,61 @@ describe("Sandbox shared schemas", () => {
           reason: "controller disconnected",
         },
         generatedAt: ts,
+      }).success,
+      true,
+    );
+  });
+
+  it("validates offline lifecycle container summaries and log availability", () => {
+    const container = {
+      ref: { kind: "docker", id: "container_1", name: "nerve-sbx_1" },
+      runtime: "docker",
+      state: "exited",
+      health: "unknown",
+      exitCode: 0,
+      startedAt: ts,
+      finishedAt: ts,
+      observedAt: ts,
+      limitations: ["container stopped"],
+    };
+    assert.equal(
+      sandboxRuntimeContainerStatusSchema.safeParse(container).success,
+      true,
+    );
+    assert.equal(
+      sandboxStatusGetResultSchema.safeParse({
+        sandboxId: "sbx_1",
+        instanceId: "inst_1",
+        status: "offline",
+        connected: false,
+        stale: true,
+        staleness: { stale: true, reason: "container_stopped", asOf: ts },
+        limitations: ["Read-only snapshot"],
+        container,
+        updatedAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxConversationViewSnapshotSchema.safeParse({
+        sandboxId: "sbx_1",
+        instanceId: "inst_1",
+        status: "offline",
+        connected: false,
+        stale: true,
+        staleness: { stale: true, reason: "container_stopped", asOf: ts },
+        container,
+        fallback: { readOnly: true, reason: "container stopped" },
+        generatedAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxContainerLogsResultSchema.safeParse({
+        chunks: [],
+        truncated: false,
+        available: false,
+        limitations: ["No container has been created for this sandbox"],
       }).success,
       true,
     );

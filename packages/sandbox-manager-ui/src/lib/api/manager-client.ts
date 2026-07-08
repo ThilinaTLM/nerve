@@ -19,6 +19,7 @@ import {
   type SandboxStatusGetResult,
   type SandboxWorkspaceFileResponse,
   sandboxConfigYamlResultSchema,
+  sandboxContainerLogsResultSchema,
   sandboxManagerCredentialProfileSchema,
   sandboxManagerSecretMetadataSchema,
   sandboxManagerStatusSchema,
@@ -310,8 +311,10 @@ export async function getSandboxLogs(
   if (query.maxBytes !== undefined)
     search.set("maxBytes", String(query.maxBytes));
   const suffix = search.toString();
-  return getData<SandboxLogsResult>(
-    sandboxPath(sandboxId, `/logs${suffix ? `?${suffix}` : ""}`),
+  return sandboxContainerLogsResultSchema.parse(
+    await getData<unknown>(
+      sandboxPath(sandboxId, `/logs${suffix ? `?${suffix}` : ""}`),
+    ),
   );
 }
 

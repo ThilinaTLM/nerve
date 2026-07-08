@@ -269,6 +269,22 @@ export type ManagedContainerStatus = z.infer<
   typeof managedContainerStatusSchema
 >;
 
+export const sandboxRuntimeContainerStatusSchema = z.object({
+  ref: managedContainerRefSchema.optional(),
+  runtime: z.string().min(1),
+  state: managedSandboxObservedStateSchema,
+  health: z.enum(["starting", "healthy", "unhealthy", "unknown"]).optional(),
+  exitCode: z.number().int().safe().optional(),
+  startedAt: isoDateTimeSchema.optional(),
+  finishedAt: isoDateTimeSchema.optional(),
+  observedAt: isoDateTimeSchema,
+  lastError: redactedErrorSchema.optional(),
+  limitations: z.array(z.string().min(1)).optional(),
+});
+export type SandboxRuntimeContainerStatus = z.infer<
+  typeof sandboxRuntimeContainerStatusSchema
+>;
+
 export const runtimeDriverCapabilitiesSchema = z.object({
   kind: z.string().min(1),
   available: z.boolean(),
@@ -280,6 +296,7 @@ export const runtimeDriverCapabilitiesSchema = z.object({
   supportsCpuLimit: z.boolean(),
   supportsMemoryLimit: z.boolean(),
   supportsTmpfs: z.boolean(),
+  supportsLogs: z.boolean().optional(),
   limitations: z.array(z.string().min(1)),
 });
 export type RuntimeDriverCapabilities = z.infer<
@@ -723,6 +740,25 @@ export const logReadOptionsSchema = z.object({
   tail: z.number().int().nonnegative().safe().optional(),
 });
 export type LogReadOptions = z.infer<typeof logReadOptionsSchema>;
+
+export const sandboxContainerLogChunkSchema = z.object({
+  stream: z.string().min(1),
+  chunk: z.string(),
+  ts: isoDateTimeSchema.optional(),
+});
+export type SandboxContainerLogChunk = z.infer<
+  typeof sandboxContainerLogChunkSchema
+>;
+
+export const sandboxContainerLogsResultSchema = z.object({
+  chunks: z.array(sandboxContainerLogChunkSchema),
+  truncated: z.boolean(),
+  available: z.boolean().optional(),
+  limitations: z.array(z.string().min(1)).optional(),
+});
+export type SandboxContainerLogsResult = z.infer<
+  typeof sandboxContainerLogsResultSchema
+>;
 
 export const stopOptionsSchema = z.object({
   timeoutMs: z.number().int().nonnegative().safe().optional(),

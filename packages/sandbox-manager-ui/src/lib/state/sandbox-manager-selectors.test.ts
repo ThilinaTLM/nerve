@@ -1,10 +1,36 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { ModelInfo } from "@nervekit/shared";
 import {
   conversationItemsFor,
+  sandboxAvailableModels,
   sandboxConversationActivity,
 } from "./sandbox-manager-selectors.svelte";
 import { createSandboxDetailState } from "./sandbox-ui-types";
+
+function testModel(
+  provider: string,
+  modelId: string,
+  name: string,
+  contextWindow: number,
+): ModelInfo {
+  return {
+    provider,
+    modelId,
+    name,
+    label: name,
+    reasoning: false,
+    supportedThinkingLevels: ["off"],
+    contextWindow,
+    maxOutputTokens: 0,
+  };
+}
+
+const managerModels: ModelInfo[] = [
+  testModel("openai-codex", "gpt-5.4", "GPT-5.4", 272_000),
+  testModel("amazon-bedrock", "nova-lite", "Nova Lite", 128_000),
+  testModel("anthropic", "claude-opus-4.5", "Claude Opus 4.5", 200_000),
+];
 
 describe("sandbox manager selectors", () => {
   it("merges locally created durable conversations into navigator items", () => {
@@ -24,6 +50,82 @@ describe("sandbox manager selectors", () => {
     assert.equal(items.length, 1);
     assert.equal(items[0]?.kind, "durable");
     assert.equal(items[0]?.conversationId, "conv_1");
+  });
+
+  it("filters composer models to providers reported by the sandbox", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = {
+      models: [
+        {
+          provider: "openai-codex",
+          model: "gpt-5.4",
+          active: true,
+          status: "available",
+        },
+      ],
+    } as unknown as typeof detail.status;
+
+    assert.deepEqual(
+      sandboxAvailableModels(managerModels, detail).map(
+        (model) => `${model.provider}/${model.modelId}`,
+      ),
+      ["openai-codex/gpt-5.4"],
+    );
+  });
+
+  it("includes degraded sandbox providers and excludes unavailable providers", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = {
+      models: [
+        {
+          provider: "openai-codex",
+          model: "gpt-5.4",
+          active: true,
+          status: "degraded",
+        },
+        {
+          provider: "amazon-bedrock",
+          model: "nova-lite",
+          active: false,
+          status: "unavailable",
+        },
+        {
+          provider: "anthropic",
+          model: "claude-opus-4.5",
+          active: false,
+          status: "skipped",
+        },
+      ],
+    } as unknown as typeof detail.status;
+
+    assert.deepEqual(
+      sandboxAvailableModels(managerModels, detail).map((model) => model.provider),
+      ["openai-codex"],
+    );
+  });
+
+  it("falls back to configured snapshot model providers before status reports models", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.snapshot = {
+      conversations: [],
+      runs: [],
+      config: {
+        agent: {
+          mainModel: { provider: "anthropic", model: "claude-opus-4.5" },
+        },
+      },
+    } as unknown as typeof detail.snapshot;
+
+    assert.deepEqual(
+      sandboxAvailableModels(managerModels, detail).map((model) => model.provider),
+      ["anthropic"],
+    );
+  });
+
+  it("returns no composer models when the sandbox has not reported providers", () => {
+    const detail = createSandboxDetailState("sbx_1");
+
+    assert.deepEqual(sandboxAvailableModels(managerModels, detail), []);
   });
 
   it("maps sandbox conversation activity to web conversation tones", () => {

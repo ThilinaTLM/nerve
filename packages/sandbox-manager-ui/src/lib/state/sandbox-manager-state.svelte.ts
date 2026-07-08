@@ -33,11 +33,6 @@ import {
   type ManagerWsConnectionState,
 } from "../api/manager-ws-client.svelte";
 import {
-  isSandboxConnected,
-  isSandboxReadyForChat,
-  isSandboxTerminal,
-} from "./sandbox-boot-progress";
-import {
   activeConversationKey,
   activeQueuedPrompt,
   createPendingConversationId,
@@ -50,6 +45,14 @@ import {
   setActiveQueuedPrompt,
 } from "./sandbox-conversation-state";
 import { applySandboxEvent } from "./sandbox-event-reducers";
+import {
+  sandboxCanCreateConversation,
+  sandboxCanForwardCommand,
+  sandboxCanQueuePrompt,
+  sandboxIsConnected,
+  sandboxLifecycleMessage,
+  sandboxShouldPollStatus,
+} from "./sandbox-lifecycle";
 import { applySnapshot } from "./sandbox-snapshot-adapter";
 import type { SandboxFleetFilter } from "./sandbox-status";
 import {
@@ -99,6 +102,19 @@ function mergeUnique(
  */
 function outboundConversationId(id: string | undefined): string | undefined {
   return id?.startsWith("conv_") ? id : undefined;
+}
+
+function recordForDetail(
+  store: {
+    details: Record<string, SandboxDetailState>;
+    sandboxes: ManagedSandboxRecord[];
+  },
+  sandboxId: string,
+): ManagedSandboxRecord | undefined {
+  return (
+    store.details[sandboxId]?.record ??
+    store.sandboxes.find((record) => record.sandboxId === sandboxId)
+  );
 }
 
 function initialPromptFromRequest(
@@ -266,14 +282,7 @@ export class SandboxManagerStore {
     if (this.statusPollTimers.has(sandboxId)) return;
     const detail = this.details[sandboxId];
     const record = this.sandboxes.find((item) => item.sandboxId === sandboxId);
-    const observed = record?.observedState;
-    if (
-      isSandboxConnected(detail) ||
-      isSandboxTerminal(record) ||
-      observed === "failed" ||
-      detail?.status?.status === "failed"
-    )
-      return;
+    if (!sandboxShouldPollStatus(record, detail)) return;
     const timer = setTimeout(() => {
       this.statusPollTimers.delete(sandboxId);
       void this.pollStatusOnce(sandboxId);
@@ -287,13 +296,18 @@ export class SandboxManagerStore {
     if (!detail) return;
     try {
       const status = await api.getSandboxStatus(sandboxId);
-      const wasConnected = isSandboxConnected(detail);
+      const wasConnected = sandboxIsConnected(detail);
       detail.status = status;
       detail.controllerConnected = status.connected;
       if (status.connected) void this.flushQueuedPrompt(sandboxId);
-      if ((status.connected && !wasConnected) || status.status === "failed") {
+      const shouldStopPolling = !sandboxShouldPollStatus(
+        recordForDetail(this, sandboxId),
+        detail,
+      );
+      if ((status.connected && !wasConnected) || shouldStopPolling) {
         // Fully sync record/snapshot/session once the controller is live or
-        // when manager-derived status observes a terminal startup failure.
+        // when manager-derived status observes an offline/failed lifecycle.
+        void this.refreshFleet();
         void this.loadDetail(sandboxId);
         return;
       }
@@ -340,7 +354,7 @@ export class SandboxManagerStore {
       } catch {
         detail.latestSession = undefined;
       }
-      if (isSandboxReadyForChat(detail)) void this.flushQueuedPrompt(sandboxId);
+      if (sandboxIsConnected(detail)) void this.flushQueuedPrompt(sandboxId);
       detail.error = undefined;
     } catch (error) {
       detail.error = errorMessage(error);
@@ -456,7 +470,11 @@ export class SandboxManagerStore {
       });
       detail.logsText = logs.chunks.map((chunk) => chunk.chunk).join("");
       detail.logsTruncated = logs.truncated;
+      detail.logsAvailable = logs.available ?? true;
+      detail.logsLimitations = logs.limitations;
     } catch (error) {
+      detail.logsAvailable = false;
+      detail.logsLimitations = [errorMessage(error)];
       detail.error = errorMessage(error);
     }
   }
@@ -512,6 +530,13 @@ export class SandboxManagerStore {
 
   startNewConversation(sandboxId: string): void {
     const detail = this.detail(sandboxId);
+    const record = recordForDetail(this, sandboxId);
+    if (!sandboxCanCreateConversation(record, detail)) {
+      notify.message("Sandbox is read-only", {
+        description: sandboxLifecycleMessage(record, detail),
+      });
+      return;
+    }
     const pendingId = createPendingConversationId();
     ensurePendingConversation(detail, pendingId);
     selectPendingConversationInDetail(detail, pendingId);
@@ -698,7 +723,14 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     const trimmed = prompt.trim();
     if (!trimmed) return;
-    if (isSandboxReadyForChat(detail)) {
+    const record = recordForDetail(this, sandboxId);
+    if (!sandboxCanQueuePrompt(record, detail)) {
+      notify.message("Sandbox is read-only", {
+        description: sandboxLifecycleMessage(record, detail),
+      });
+      return;
+    }
+    if (sandboxCanForwardCommand(record, detail)) {
       await this.sendPrompt(sandboxId, trimmed);
       return;
     }
@@ -713,7 +745,9 @@ export class SandboxManagerStore {
   /** Dispatch queued prompts once the sandbox is ready for chat. */
   async flushQueuedPrompt(sandboxId: string): Promise<void> {
     const detail = this.detail(sandboxId);
-    if (!isSandboxReadyForChat(detail)) return;
+    const record = recordForDetail(this, sandboxId);
+    if (!sandboxCanQueuePrompt(record, detail)) return;
+    if (!sandboxCanForwardCommand(record, detail)) return;
     const activeKey = activeConversationKey(detail);
     const activeQueued = activeQueuedPrompt(detail);
     if (activeQueued) {
@@ -743,6 +777,14 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     const trimmed = prompt.trim();
     if (!trimmed) return;
+    const record = recordForDetail(this, sandboxId);
+    if (!sandboxCanForwardCommand(record, detail)) {
+      setActiveComposerText(detail, trimmed);
+      notify.message("Sandbox command disabled", {
+        description: sandboxLifecycleMessage(record, detail),
+      });
+      return;
+    }
     const conversationId = outboundConversationId(
       detail.selectedConversationId,
     );
@@ -810,6 +852,7 @@ export class SandboxManagerStore {
 
   async cancelRun(sandboxId: string): Promise<void> {
     const detail = this.detail(sandboxId);
+    if (!this.canForwardSandboxCommand(sandboxId)) return;
     if (!detail.selectedRunId) return;
     await this.sendCommand(sandboxId, "sandbox.run.cancel", (key) => ({
       commandId: key,
@@ -821,6 +864,7 @@ export class SandboxManagerStore {
 
   async continueRun(sandboxId: string): Promise<void> {
     const detail = this.detail(sandboxId);
+    if (!this.canForwardSandboxCommand(sandboxId)) return;
     if (!detail.selectedRunId) return;
     await this.sendCommand(sandboxId, "sandbox.run.continue", (key) => ({
       commandId: key,
@@ -837,6 +881,7 @@ export class SandboxManagerStore {
     text: string,
   ): Promise<void> {
     const detail = this.detail(sandboxId);
+    if (!this.canForwardSandboxCommand(sandboxId)) return;
     await this.sendCommand(sandboxId, "sandbox.input.submit", (key) => ({
       commandId: key,
       conversationId: outboundConversationId(detail.selectedConversationId),
@@ -855,6 +900,7 @@ export class SandboxManagerStore {
     decision: "grant" | "deny",
   ): Promise<void> {
     const detail = this.detail(sandboxId);
+    if (!this.canForwardSandboxCommand(sandboxId)) return;
     await this.sendCommand(sandboxId, "sandbox.approval.resolve", (key) => ({
       commandId: key,
       conversationId: outboundConversationId(detail.selectedConversationId),
@@ -887,12 +933,27 @@ export class SandboxManagerStore {
     },
   ): Promise<void> {
     const detail = this.detail(sandboxId);
+    if (!this.canForwardSandboxCommand(sandboxId, false)) return;
     await this.sendCommand(sandboxId, "sandbox.agent.configure", (key) => ({
       commandId: key,
       conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       ...patch,
     }));
+  }
+
+  private canForwardSandboxCommand(
+    sandboxId: string,
+    notifyUser = true,
+  ): boolean {
+    const detail = this.detail(sandboxId);
+    const record = recordForDetail(this, sandboxId);
+    if (sandboxCanForwardCommand(record, detail)) return true;
+    if (notifyUser)
+      notify.message("Sandbox command disabled", {
+        description: sandboxLifecycleMessage(record, detail),
+      });
+    return false;
   }
 
   private async sendCommand(

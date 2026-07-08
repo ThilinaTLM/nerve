@@ -2,6 +2,15 @@ import type {
   ManagedSandboxRecord,
   StartupSetupStatus,
 } from "@nervekit/shared";
+import {
+  sandboxContainerState,
+  sandboxDaemonStatus,
+  sandboxIsConnected,
+  sandboxIsFailed,
+  sandboxIsOffline,
+  sandboxIsStopping,
+  sandboxIsTerminal,
+} from "./sandbox-lifecycle";
 import type { SandboxDetailState } from "./sandbox-ui-types";
 
 export type BootPhaseStatus =
@@ -10,7 +19,8 @@ export type BootPhaseStatus =
   | "done"
   | "skipped"
   | "failed"
-  | "degraded";
+  | "degraded"
+  | "stopped";
 
 export type BootPhaseId =
   | "container"
@@ -30,7 +40,12 @@ export type BootPhase = {
   error?: string;
 };
 
-export type BootState = "provisioning" | "booting" | "ready" | "failed";
+export type BootState =
+  | "provisioning"
+  | "booting"
+  | "ready"
+  | "failed"
+  | "offline";
 
 export type SandboxBootProgress = {
   phases: BootPhase[];
@@ -42,43 +57,18 @@ export type SandboxBootProgress = {
   ready: boolean;
 };
 
-/**
- * Controller connectivity, combining the last fetched status snapshot with the
- * live signal maintained from the sandbox event stream. The status snapshot is
- * only refreshed on load, so the live flag is what keeps the workspace in sync
- * as the sandbox finishes booting.
- */
-export function isSandboxConnected(
-  detail: SandboxDetailState | undefined,
-): boolean {
-  return (
-    detail?.status?.connected === true || detail?.controllerConnected === true
-  );
-}
-
-/** Chat is available once the controller session reports connected. */
-export function isSandboxReadyForChat(
-  detail: SandboxDetailState | undefined,
-): boolean {
-  return isSandboxConnected(detail);
-}
-
-/** States where chat/queue should be blocked entirely. */
-export function isSandboxTerminal(
-  record: ManagedSandboxRecord | undefined,
-): boolean {
-  return (
-    record?.observedState === "removed" || record?.observedState === "exited"
-  );
-}
+export const isSandboxConnected = sandboxIsConnected;
+export const isSandboxReadyForChat = sandboxIsConnected;
+export const isSandboxTerminal = sandboxIsTerminal;
 
 const STATUS_RANK: Record<BootPhaseStatus, number> = {
   pending: 0,
   active: 1,
-  degraded: 2,
-  skipped: 3,
-  failed: 4,
-  done: 5,
+  stopped: 2,
+  degraded: 3,
+  skipped: 4,
+  failed: 5,
+  done: 6,
 };
 
 /** Map a live setup-timeline status word to a boot-phase status. */
@@ -91,6 +81,7 @@ function fromTimelineStatus(status: string | undefined): BootPhaseStatus {
     case "skipped":
       return "skipped";
     case "failed":
+    case "timeout":
       return "failed";
     case "degraded":
       return "degraded";
@@ -167,7 +158,10 @@ function latestTimeline(
     if (item.phase !== phase) continue;
     const mapped = fromTimelineStatus(item.status);
     if (STATUS_RANK[mapped] >= STATUS_RANK[found.status])
-      found = { status: mapped, ts: item.ts };
+      found = {
+        status: mapped,
+        ts: item.completedAt ?? item.startedAt ?? item.ts,
+      };
   }
   return found;
 }
@@ -176,35 +170,37 @@ export function computeSandboxBootProgress(
   record: ManagedSandboxRecord | undefined,
   detail: SandboxDetailState | undefined,
 ): SandboxBootProgress {
-  const observed = record?.observedState;
-  const connected = isSandboxConnected(detail);
-  const daemonFailed = detail?.status?.status === "failed";
-  const setup = detail?.status?.setup;
+  const observed = sandboxContainerState(record, detail);
+  const daemon = sandboxDaemonStatus(detail);
+  const connected = sandboxIsConnected(detail);
+  const offline = sandboxIsOffline(record, detail);
+  const stopping = sandboxIsStopping(record, detail);
+  const failed = sandboxIsFailed(record, detail);
+  const setup = detail?.status?.setup ?? detail?.snapshot?.setup;
   const setupFailed = Object.values(setup ?? {}).some(
     (phase) => phase?.status === "failed",
   );
 
-  const containerDone =
+  const containerRunningEnough =
     observed === "running" ||
     observed === "reconnecting" ||
-    observed === "exited" ||
-    observed === "failed" ||
     connected ||
-    detail?.status !== undefined;
-  const containerFailed =
-    (observed === "failed" || daemonFailed) && !setupFailed;
-
+    detail?.status !== undefined ||
+    detail?.snapshot !== undefined;
+  const containerFailed = failed && !setupFailed;
   const container: PhaseInput = {
     id: "container",
     label: "Container",
     description: "Provision and start the sandbox container.",
     status: containerFailed
       ? "failed"
-      : containerDone
-        ? "done"
-        : observed === "creating" || observed === "starting"
-          ? "active"
-          : "pending",
+      : offline || stopping
+        ? "stopped"
+        : containerRunningEnough
+          ? "done"
+          : observed === "creating" || observed === "starting"
+            ? "active"
+            : "pending",
     error: containerFailed ? errorText(record?.lastError) : undefined,
   };
 
@@ -218,43 +214,47 @@ export function computeSandboxBootProgress(
         ? configTimeline.status
         : container.status !== "done"
           ? "pending"
-          : connected || setup || daemonFailed
+          : connected || setup || failed || daemon === "offline"
             ? "done"
             : "active",
     ts: configTimeline.ts,
   };
 
+  const gitTimeline = latestTimeline(detail, "git");
   const git = mergeSetupPhase(
     "git",
     "Git",
     "Configure git identity and remotes.",
     setup?.git,
-    latestTimeline(detail, "git").status,
-    latestTimeline(detail, "git").ts,
+    gitTimeline.status,
+    gitTimeline.ts,
   );
+  const githubTimeline = latestTimeline(detail, "github");
   const github = mergeSetupPhase(
     "github",
     "GitHub",
     "Authenticate GitHub access.",
     setup?.github,
-    latestTimeline(detail, "github").status,
-    latestTimeline(detail, "github").ts,
+    githubTimeline.status,
+    githubTimeline.ts,
   );
+  const bootTimeline = latestTimeline(detail, "boot");
   const boot = mergeSetupPhase(
     "boot",
     "Boot script",
     "Run the sandbox boot script.",
     setup?.boot,
-    latestTimeline(detail, "boot").status,
-    latestTimeline(detail, "boot").ts,
+    bootTimeline.status,
+    bootTimeline.ts,
   );
+  const skillsTimeline = latestTimeline(detail, "skills");
   const skills = mergeSetupPhase(
     "skills",
     "Skills",
     "Load available agent skills.",
     setup?.skills,
-    latestTimeline(detail, "skills").status,
-    latestTimeline(detail, "skills").ts,
+    skillsTimeline.status,
+    skillsTimeline.ts,
   );
 
   const readyTimeline = latestTimeline(detail, "ready");
@@ -263,15 +263,17 @@ export function computeSandboxBootProgress(
     container.status === "failed" ||
     config.status === "failed" ||
     setupPhases.some((phase) => phase.status === "failed") ||
-    daemonFailed;
+    daemon === "failed";
   const ready: PhaseInput = {
     id: "ready",
     label: "Ready to chat",
-    description: "Controller session connected.",
+    description: offline
+      ? "Controller is unavailable because the container is offline."
+      : "Controller session connected.",
     status:
       connected || readyTimeline.status === "done"
         ? "done"
-        : failedBeforeReady
+        : failedBeforeReady || offline || stopping
           ? "pending"
           : container.status === "done"
             ? "active"
@@ -307,6 +309,7 @@ export function computeSandboxBootProgress(
   let state: BootState;
   if (connected) state = "ready";
   else if (anyFailed) state = "failed";
+  else if (offline || stopping) state = "offline";
   else if (container.status !== "done") state = "provisioning";
   else state = "booting";
 
@@ -315,9 +318,13 @@ export function computeSandboxBootProgress(
       ? "Ready to chat"
       : state === "failed"
         ? "Boot failed"
-        : state === "provisioning"
-          ? "Creating container…"
-          : "Booting…";
+        : state === "offline"
+          ? stopping
+            ? "Stopping sandbox…"
+            : "Sandbox offline"
+          : state === "provisioning"
+            ? "Creating container…"
+            : "Booting…";
 
   return {
     phases,

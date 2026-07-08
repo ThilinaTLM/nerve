@@ -26,6 +26,15 @@
       : undefined,
   );
   const activeSandboxId = $derived(record?.sandboxId);
+  const activeSandboxDetail = $derived(
+    activeSandboxId ? store.details[activeSandboxId] : undefined,
+  );
+  const utilityRecord = $derived(
+    centerState.mode === "sandbox" && activeSandboxDetail?.activeWorkspaceTab
+      ? record
+      : undefined,
+  );
+  const utilitySandboxId = $derived(utilityRecord?.sandboxId);
 
   const isCompact = $derived(sandboxResponsive.isCompact);
   const isPhone = $derived(sandboxResponsive.isPhone);
@@ -79,15 +88,11 @@
         <SandboxCenterTabs />
       {/snippet}
       {#snippet right()}
-        {#if record}
-          <SandboxUtilityPanel
-            {record}
-            onOpenDiagnosticTab={(id) =>
-              activeSandboxId && store.openWorkspaceDiagnosticTab(activeSandboxId, id)}
-          />
-        {:else}
-          <div class="h-full bg-background" aria-hidden="true"></div>
-        {/if}
+        <SandboxUtilityPanel
+          record={utilityRecord}
+          onOpenDiagnosticTab={(id) =>
+            utilitySandboxId && store.openWorkspaceDiagnosticTab(utilitySandboxId, id)}
+        />
       {/snippet}
     </WorkbenchPanes>
   {/snippet}

@@ -5,6 +5,8 @@
     SandboxActivitySummary,
   } from "@nervekit/shared";
   import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
+  import { sandboxIsOffline } from "../state/sandbox-lifecycle";
+  import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import SandboxActionMenu from "./SandboxActionMenu.svelte";
   import SandboxStatusBadge from "./SandboxStatusBadge.svelte";
 
@@ -18,9 +20,12 @@
     onOpen: () => void;
   } = $props();
 
+  const store = useSandboxManagerStore();
+  const detail = $derived(store.details[record.sandboxId]);
   const booting = $derived(
     record.observedState === "creating" || record.observedState === "starting",
   );
+  const offline = $derived(sandboxIsOffline(record, detail));
 </script>
 
 <li
@@ -37,6 +42,10 @@
       </span>
       {#if activity?.title}
         <span class="truncate text-xs text-muted-foreground">{activity.title}</span>
+      {:else if offline}
+        <span class="truncate text-xs text-muted-foreground">
+          Container {detail?.status?.container?.state ?? record.observedState} · snapshot available
+        </span>
       {:else if booting}
         <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
           <StatusDot tone="running" pulse size="xs" />
@@ -55,7 +64,7 @@
         {activity.model}
       </span>
     {/if}
-    <SandboxStatusBadge {record} />
+    <SandboxStatusBadge {record} {detail} />
     <SandboxActionMenu {record} compact />
     <ChevronRight
       class="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"

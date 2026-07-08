@@ -44,6 +44,7 @@ export function unavailableRuntimeCapabilities(
     supportsCpuLimit: false,
     supportsMemoryLimit: false,
     supportsTmpfs: false,
+    supportsLogs: false,
     limitations: [limitation],
   };
 }

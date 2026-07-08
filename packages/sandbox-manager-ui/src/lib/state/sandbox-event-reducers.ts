@@ -1,10 +1,16 @@
 import type {
+  BoundedText,
   SandboxToolCallSummary,
   SandboxWaitSummary,
 } from "@nervekit/shared";
-import type { SandboxDetailState, SandboxUiEvent } from "./sandbox-ui-types";
+import type {
+  SandboxDetailState,
+  SandboxSetupTimelineItem,
+  SandboxUiEvent,
+} from "./sandbox-ui-types";
 
 const MAX_EVENTS = 500;
+const MAX_TIMELINE_TEXT = 8_000;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -26,9 +32,10 @@ function bootPhaseDetail(data: Record<string, unknown>): string | undefined {
 
 function setupStatusFromEvent(
   data: Record<string, unknown>,
-): "completed" | "failed" | "skipped" | "degraded" {
+): SandboxSetupTimelineItem["status"] {
   if (
     data.status === "failed" ||
+    data.status === "timeout" ||
     data.status === "skipped" ||
     data.status === "degraded"
   )
@@ -40,7 +47,7 @@ function bootCompletedDetail(
   data: Record<string, unknown>,
 ): string | undefined {
   const detail = bootPhaseDetail(data);
-  if (data.status !== "failed") return detail;
+  if (data.status !== "failed" && data.status !== "timeout") return detail;
   const exitCode =
     typeof data.exitCode === "number" ? `exit ${data.exitCode}` : undefined;
   return [detail, exitCode].filter(Boolean).join(" · ") || undefined;
@@ -55,26 +62,68 @@ export function applySandboxEvent(
   detail: SandboxDetailState,
   event: SandboxUiEvent,
 ): void {
-  recordEvent(detail, event);
+  if (!recordEvent(detail, event)) return;
   const data = asRecord(event.data);
   switch (event.type) {
     case "sandbox.config.loaded":
-      pushSetup(detail, event, "config", "completed", "Config loaded");
+      pushSetup(
+        detail,
+        event,
+        "config",
+        data.status === "degraded" ? "degraded" : "completed",
+        "Config loaded",
+        detailsFromData(data),
+      );
       return;
     case "sandbox.setup.git.started":
-      pushSetup(detail, event, "git", "started");
+      pushSetup(
+        detail,
+        event,
+        "git",
+        "started",
+        undefined,
+        detailsFromData(data),
+      );
       return;
     case "sandbox.setup.git.completed":
-      pushSetup(detail, event, "git", setupStatusFromEvent(data));
+      pushSetup(
+        detail,
+        event,
+        "git",
+        setupStatusFromEvent(data),
+        undefined,
+        detailsFromData(data),
+      );
       return;
     case "sandbox.setup.github.started":
-      pushSetup(detail, event, "github", "started");
+      pushSetup(
+        detail,
+        event,
+        "github",
+        "started",
+        undefined,
+        detailsFromData(data),
+      );
       return;
     case "sandbox.setup.github.completed":
-      pushSetup(detail, event, "github", setupStatusFromEvent(data));
+      pushSetup(
+        detail,
+        event,
+        "github",
+        setupStatusFromEvent(data),
+        undefined,
+        detailsFromData(data),
+      );
       return;
     case "sandbox.boot.started":
-      pushSetup(detail, event, "boot", "started", bootPhaseDetail(data));
+      pushSetup(
+        detail,
+        event,
+        "boot",
+        "started",
+        bootPhaseDetail(data),
+        bootDetailsFromData(data),
+      );
       return;
     case "sandbox.boot.completed":
       pushSetup(
@@ -83,13 +132,32 @@ export function applySandboxEvent(
         "boot",
         setupStatusFromEvent(data),
         bootCompletedDetail(data),
+        bootDetailsFromData(data),
       );
       return;
     case "sandbox.skills.loaded":
-      pushSetup(detail, event, "skills", "completed", "Skills loaded");
+      pushSetup(
+        detail,
+        event,
+        "skills",
+        data.status === "failed"
+          ? "failed"
+          : data.status === "degraded"
+            ? "degraded"
+            : "completed",
+        "Skills loaded",
+        detailsFromData(data),
+      );
       return;
     case "sandbox.ready":
-      pushSetup(detail, event, "ready", "completed", "Sandbox ready");
+      pushSetup(
+        detail,
+        event,
+        "ready",
+        "completed",
+        "Sandbox ready",
+        detailsFromData(data),
+      );
       detail.controllerConnected = true;
       return;
     case "sandbox.controller.disconnected":
@@ -142,33 +210,143 @@ export function applySandboxEvent(
   }
 }
 
-function recordEvent(detail: SandboxDetailState, event: SandboxUiEvent): void {
+function recordEvent(
+  detail: SandboxDetailState,
+  event: SandboxUiEvent,
+): boolean {
   const isDuplicate = detail.events.some(
     (existing) =>
       existing.stream === event.stream &&
       existing.seq === event.seq &&
       (event.id ? existing.id === event.id : true),
   );
-  if (isDuplicate) return;
+  if (isDuplicate) return false;
   detail.events.push(event);
   if (detail.events.length > MAX_EVENTS)
     detail.events.splice(0, detail.events.length - MAX_EVENTS);
+  return true;
 }
 
 function pushSetup(
   detail: SandboxDetailState,
   event: SandboxUiEvent,
   phase: string,
-  status: "started" | "completed" | "failed" | "skipped" | "degraded",
+  status: SandboxSetupTimelineItem["status"],
   detailText?: string,
+  extra: Partial<SandboxSetupTimelineItem> = {},
 ): void {
-  detail.setupTimeline.push({
-    key: `${phase}:${status}:${event.seq}`,
+  const key = extra.key ?? setupTimelineKey(phase, event, extra);
+  const existing = detail.setupTimeline.find((item) => item.key === key);
+  const next: SandboxSetupTimelineItem = {
+    ...existing,
+    ...extra,
+    key,
     phase,
     status,
     ts: event.ts,
-    detail: detailText,
-  });
+    detail: detailText ?? extra.detail ?? existing?.detail,
+  };
+  if (next.startedAt && next.completedAt) {
+    const durationMs =
+      Date.parse(next.completedAt) - Date.parse(next.startedAt);
+    if (Number.isFinite(durationMs) && durationMs >= 0)
+      next.durationMs = durationMs;
+  }
+  if (existing) Object.assign(existing, next);
+  else detail.setupTimeline.push(next);
+}
+
+function setupTimelineKey(
+  phase: string,
+  event: SandboxUiEvent,
+  extra: Partial<SandboxSetupTimelineItem>,
+): string {
+  if (phase === "boot") {
+    const phaseKey =
+      extra.index !== undefined ? String(extra.index) : extra.name;
+    return `boot:${phaseKey ?? event.seq}`;
+  }
+  return phase;
+}
+
+function detailsFromData(
+  data: Record<string, unknown>,
+): Partial<SandboxSetupTimelineItem> {
+  return {
+    startedAt: stringValue(data.startedAt),
+    completedAt: stringValue(data.completedAt),
+    error: errorText(data.error),
+    limitations: stringArray(data.limitations),
+  };
+}
+
+function bootDetailsFromData(
+  data: Record<string, unknown>,
+): Partial<SandboxSetupTimelineItem> {
+  return {
+    ...detailsFromData(data),
+    name: stringValue(data.phase),
+    index: numberValue(data.index),
+    runAs:
+      data.runAs === "root" || data.runAs === "sandbox"
+        ? data.runAs
+        : undefined,
+    network:
+      data.network === "inherit" ||
+      data.network === "deny" ||
+      data.network === "package_registries_only"
+        ? data.network
+        : undefined,
+    timeoutMs: numberValue(data.timeoutMs),
+    exitCode: numberValue(data.exitCode),
+    stdout: boundedText(data.stdout),
+    stderr: boundedText(data.stderr),
+  };
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const strings = value.filter(
+    (item): item is string =>
+      typeof item === "string" && item.trim().length > 0,
+  );
+  return strings.length > 0 ? strings : undefined;
+}
+
+function errorText(value: unknown): string | undefined {
+  const record = asRecord(value);
+  const message = stringValue(record.message);
+  if (!message) return undefined;
+  const code = stringValue(record.code);
+  return code ? `${code}: ${message}` : message;
+}
+
+function boundedText(value: unknown): BoundedText | undefined {
+  const record = asRecord(value);
+  const text = stringValue(record.text);
+  if (!text) return undefined;
+  if (text.length <= MAX_TIMELINE_TEXT) {
+    return {
+      text,
+      truncated: Boolean(record.truncated),
+      bytes: numberValue(record.bytes),
+    };
+  }
+  return {
+    text: text.slice(0, MAX_TIMELINE_TEXT),
+    truncated: true,
+    bytes: numberValue(record.bytes),
+  };
 }
 
 function applyRunStarted(

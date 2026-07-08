@@ -29,6 +29,7 @@ export const sandboxDaemonStatusSchema = z.enum([
   "reconnecting",
   "stopping",
   "failed",
+  "offline",
 ]);
 export type SandboxDaemonStatus = z.infer<typeof sandboxDaemonStatusSchema>;
 

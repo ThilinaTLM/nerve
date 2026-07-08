@@ -29,6 +29,7 @@
   import SandboxEventsView from "../../routes/SandboxEventsView.svelte";
   import SandboxLogsView from "../../routes/SandboxLogsView.svelte";
   import { isPendingConversationId } from "../../state/sandbox-conversation-state";
+  import { sandboxCanCreateConversation } from "../../state/sandbox-lifecycle";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import type {
@@ -56,6 +57,9 @@
     activeWorkspaceTab?.kind === "file"
       ? fileViewsById[activeWorkspaceTab.id]
       : undefined,
+  );
+  const canCreateConversation = $derived(
+    sandboxCanCreateConversation(record, detail),
   );
 
   const contentMode = $derived(
@@ -278,7 +282,7 @@
     onCloseOther={(tab) => sandboxId && !isSettings(tab) && store.closeOtherWorkspaceTabs(sandboxId, cast(tab))}
     onCloseLeft={(tab) => sandboxId && !isSettings(tab) && store.closeWorkspaceTabsLeft(sandboxId, cast(tab))}
     onCloseRight={(tab) => sandboxId && !isSettings(tab) && store.closeWorkspaceTabsRight(sandboxId, cast(tab))}
-    onNew={sandboxId ? () => store.startNewConversation(sandboxId) : undefined}
+    onNew={sandboxId && canCreateConversation ? () => store.startNewConversation(sandboxId) : undefined}
   />
 {/if}
 

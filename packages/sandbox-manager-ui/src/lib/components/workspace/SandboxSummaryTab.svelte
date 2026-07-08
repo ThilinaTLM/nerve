@@ -5,7 +5,9 @@
   import FileCog from "@lucide/svelte/icons/file-cog";
   import FileText from "@lucide/svelte/icons/file-text";
   import Gauge from "@lucide/svelte/icons/gauge";
+  import Info from "@lucide/svelte/icons/info";
   import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
+  import Play from "@lucide/svelte/icons/play";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import ScrollText from "@lucide/svelte/icons/scroll-text";
   import Square from "@lucide/svelte/icons/square";
@@ -19,9 +21,15 @@
   import SandboxStatStrip from "../SandboxStatStrip.svelte";
   import SandboxRemoveDialog from "../SandboxRemoveDialog.svelte";
   import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
+  import {
+    sandboxCanCreateConversation,
+    sandboxIsReadOnly,
+    sandboxLifecycleBadgeLabel,
+    sandboxLifecycleMessage,
+  } from "../../state/sandbox-lifecycle";
   import { activityFor } from "../../state/sandbox-manager-selectors.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
-  import { canRestart, canStop } from "../../state/sandbox-status";
+  import { canRestart, canStart, canStop } from "../../state/sandbox-status";
 
   let { record }: { record: ManagedSandboxRecord } = $props();
 
@@ -49,11 +57,10 @@
       ["queued", "running", "streaming", "waiting"].includes(run.status),
     ).length,
   );
-  const connectionLabel = $derived(
-    detail?.status?.connected || detail?.controllerConnected
-      ? "connected"
-      : detail?.status?.status ?? record.observedState,
-  );
+  const connectionLabel = $derived(sandboxLifecycleBadgeLabel(record, detail));
+  const readOnly = $derived(sandboxIsReadOnly(record, detail));
+  const canCreateConversation = $derived(sandboxCanCreateConversation(record, detail));
+  const lifecycleMessage = $derived(sandboxLifecycleMessage(record, detail));
   const session = $derived(detail?.latestSession ?? detail?.status?.lastSession ?? snapshot?.lastSession);
   const contextUsage = $derived(
     typeof activity?.contextUsagePct === "number"
@@ -121,8 +128,21 @@
         </div>
       </div>
       <div class="flex flex-wrap gap-1.5">
-        <Button size="sm" variant="outline" onclick={() => store.startNewConversation(record.sandboxId)}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!canCreateConversation}
+          onclick={() => store.startNewConversation(record.sandboxId)}
+        >
           <MessageSquarePlus class="size-4" /> New conversation
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!canStart(record)}
+          onclick={() => guard(store.startSandbox(record.sandboxId))}
+        >
+          <Play class="size-4" /> Start
         </Button>
         <Button
           size="sm"
@@ -147,6 +167,16 @@
           <Trash2 class="size-4" /> Delete
         </Button>
       </div>
+
+    {#if readOnly}
+      <section class="flex gap-2 rounded-md border bg-muted/40 p-3 text-sm">
+        <Info class="mt-0.5 size-4 flex-none text-info" />
+        <div class="min-w-0">
+          <p class="font-medium">Read-only snapshot</p>
+          <p class="text-muted-foreground">{lifecycleMessage}</p>
+        </div>
+      </section>
+    {/if}
     </section>
 
     <SandboxStatStrip items={metrics} />
