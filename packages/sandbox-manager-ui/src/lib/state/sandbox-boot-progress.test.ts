@@ -67,6 +67,7 @@ describe("computeSandboxBootProgress", () => {
     const progress = computeSandboxBootProgress(record("failed"), detail);
     assert.equal(progress.state, "failed");
     assert.equal(progress.headline, "Boot failed");
+    assert.equal(progress.showPhaseStepper, true);
     assert.equal(
       progress.phases.find((phase) => phase.id === "boot")?.status,
       "failed",
@@ -75,6 +76,24 @@ describe("computeSandboxBootProgress", () => {
       progress.phases.find((phase) => phase.id === "ready")?.status,
       "pending",
     );
+  });
+
+  it("shows the phase stepper while the sandbox is actively booting", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({ status: "booting" });
+
+    const progress = computeSandboxBootProgress(record("running"), detail);
+    assert.equal(progress.state, "booting");
+    assert.equal(progress.showPhaseStepper, true);
+  });
+
+  it("hides the phase stepper after the sandbox is ready", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({ status: "ready", connected: true });
+
+    const progress = computeSandboxBootProgress(record("running"), detail);
+    assert.equal(progress.state, "ready");
+    assert.equal(progress.showPhaseStepper, false);
   });
 
   it("shows a non-spinning offline state for stopped containers", () => {
@@ -96,6 +115,7 @@ describe("computeSandboxBootProgress", () => {
     );
     assert.equal(progress.state, "offline");
     assert.equal(progress.headline, "Sandbox offline");
+    assert.equal(progress.showPhaseStepper, false);
     assert.equal(
       progress.phases.find((phase) => phase.id === "container")?.status,
       "stopped",
@@ -108,6 +128,7 @@ describe("computeSandboxBootProgress", () => {
 
     const progress = computeSandboxBootProgress(record("failed"), detail);
     assert.equal(progress.state, "failed");
+    assert.equal(progress.showPhaseStepper, true);
     assert.equal(
       progress.phases.find((phase) => phase.id === "container")?.status,
       "failed",

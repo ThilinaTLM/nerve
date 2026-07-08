@@ -55,6 +55,7 @@ export type SandboxBootProgress = {
   headline: string;
   state: BootState;
   ready: boolean;
+  showPhaseStepper: boolean;
 };
 
 export const isSandboxConnected = sandboxIsConnected;
@@ -325,6 +326,8 @@ export function computeSandboxBootProgress(
           : state === "provisioning"
             ? "Creating container…"
             : "Booting…";
+  const showPhaseStepper =
+    state === "provisioning" || state === "booting" || state === "failed";
 
   return {
     phases,
@@ -334,5 +337,6 @@ export function computeSandboxBootProgress(
     headline,
     state,
     ready: connected,
+    showPhaseStepper,
   };
 }

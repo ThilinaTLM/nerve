@@ -39,6 +39,7 @@
   const store = useSandboxManagerStore();
   const detail = $derived(store.details[record.sandboxId]);
   const progress = $derived(computeSandboxBootProgress(record, detail));
+  const showPhaseStepper = $derived(expanded && progress.showPhaseStepper);
   const container = $derived(detail?.status?.container ?? detail?.snapshot?.container);
   const session = $derived(detail?.latestSession ?? detail?.status?.lastSession ?? detail?.snapshot?.lastSession);
   const staleness = $derived(detail?.status?.staleness ?? detail?.snapshot?.staleness);
@@ -182,10 +183,10 @@
       <Button
         variant="ghost"
         size="icon-sm"
-        ariaLabel={expanded ? "Collapse boot details" : "Expand boot details"}
+        ariaLabel={showPhaseStepper ? "Collapse boot details" : "Expand boot details"}
         onclick={onToggle}
       >
-        {#if expanded}
+        {#if showPhaseStepper}
           <ChevronDown class="size-4" />
         {:else}
           <ChevronRight class="size-4" />
@@ -194,7 +195,7 @@
     {/if}
   </div>
 
-  {#if expanded}
+  {#if showPhaseStepper}
     <Progress value={progress.fraction * 100} />
 
     <ol class="flex flex-col gap-2.5">

@@ -181,7 +181,7 @@
 
     <SandboxStatStrip items={metrics} />
 
-    <SandboxBootProgress {record} variant="banner" expanded={!progress.ready || progress.state === "failed"} />
+    <SandboxBootProgress {record} variant="banner" expanded={progress.showPhaseStepper} />
 
     <div class="grid gap-3 lg:grid-cols-2">
       <div class="rounded-md border bg-card p-3">

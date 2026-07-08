@@ -86,11 +86,15 @@
     position: fixed;
     z-index: 50;
     top: 50%;
+    top: 50dvh;
     left: 50%;
     display: grid;
+    min-height: 0;
     grid-template-rows: auto minmax(0, 1fr) auto;
     width: min(760px, calc(100vw - 32px));
+    width: min(760px, calc(100dvw - 2rem));
     max-height: 84vh;
+    max-height: min(84dvh, calc(100dvh - 2rem));
     transform: translate(-50%, -50%);
     overflow: hidden;
     border: 1px solid var(--border);
@@ -102,7 +106,9 @@
 
   :global(.dialog-content-wide) {
     width: min(960px, calc(100vw - 32px));
+    width: min(960px, calc(100dvw - 2rem));
     max-height: 90vh;
+    max-height: min(90dvh, calc(100dvh - 2rem));
   }
 
   .dialog-header,
