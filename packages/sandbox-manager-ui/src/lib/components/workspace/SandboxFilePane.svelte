@@ -2,9 +2,11 @@
   import { tick } from "svelte";
   import { FileText, RefreshCw, TriangleAlert } from "@lucide/svelte";
   import { ScrollArea } from "@nervekit/shared-ui/components/ui/scroll-area";
+  import { CodeViewer } from "@nervekit/shared-ui/components/workbench";
   import Markdown from "@nervekit/shared-ui/core/components/Markdown.svelte";
   import { notifyCopyResult } from "@nervekit/shared-ui/core/notify";
   import { isMarkdownPath } from "@nervekit/shared-ui/core/utils/file-display";
+  import { extname } from "@nervekit/shared-ui/tools/views/lang";
   import type { SandboxWorkspaceFileViewState } from "../../state/sandbox-ui-types";
 
   let { view }: { view?: SandboxWorkspaceFileViewState } = $props();
@@ -18,25 +20,19 @@
   const lineStart = $derived(file?.lineStart ?? 1);
   const targetLine = $derived(view?.line ?? file?.targetLine);
   const displayMode = $derived(view?.displayMode ?? "raw");
+  const language = $derived(extname(filePath));
   const imageSrc = $derived(
     file?.type === "image" && file.dataBase64 && file.mimeType
       ? `data:${file.mimeType};base64,${file.dataBase64}`
       : undefined,
   );
-  const textLines = $derived(
-    file?.type === "text" && file.text !== undefined ? file.text.split("\n") : [],
-  );
-  const lastLineNumber = $derived(lineStart + Math.max(0, textLines.length - 1));
-  const lineNumberWidth = $derived(
-    `${Math.max(2, String(lastLineNumber).length)}ch`,
-  );
-  const codeViewStyle = $derived(
-    `--line-number-width: ${lineNumberWidth}; counter-reset: code-line ${lineStart - 1};`,
+  const textLength = $derived(
+    file?.type === "text" && file.text !== undefined ? file.text.length : 0,
   );
 
   $effect(() => {
     if (!viewportRef || file?.type !== "text" || !targetLine) return;
-    const signature = `${file.path}:${lineStart}:${targetLine}:${displayMode}:${textLines.length}`;
+    const signature = `${file.path}:${lineStart}:${targetLine}:${displayMode}:${textLength}`;
     if (scrolledSignature === signature) return;
 
     void tick().then(() => {
@@ -90,22 +86,13 @@
           />
         </div>
       {:else}
-        <div
-          class="code-view"
-          class:wrap-lines={view.wrapLines}
-          style={codeViewStyle}
-          role="region"
-          aria-label="File text preview"
-        >
-          {#each textLines as line, index}
-            {@const lineNumber = lineStart + index}
-            <span
-              class:file-target-line={lineNumber === targetLine}
-              class="code-line"
-              data-file-line={lineNumber}
-            >{line}</span>
-          {/each}
-        </div>
+        <CodeViewer
+          text={file.text ?? ""}
+          {language}
+          {lineStart}
+          {targetLine}
+          wrap={view.wrapLines}
+        />
       {/if}
       {#if file.truncated}
         <p class="file-note">
@@ -192,69 +179,6 @@
   .markdown-view :global(.markdown) {
     font-size: var(--text-base);
     line-height: 1.62;
-  }
-
-  .code-view {
-    --line-number-width: 2ch;
-    min-width: 100%;
-    margin: 0;
-    overflow: visible;
-    color: var(--foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    line-height: 1.5;
-    tab-size: 2;
-    white-space: pre;
-  }
-
-  .code-view:not(.wrap-lines) {
-    width: max-content;
-  }
-
-  .code-view.wrap-lines {
-    width: 100%;
-    min-width: 0;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-
-  .code-line {
-    display: block;
-    min-height: 1.5em;
-    padding-right: calc(var(--spacing) * 4);
-  }
-
-  .code-view.wrap-lines .code-line {
-    padding-left: calc(var(--line-number-width) + calc(var(--spacing) * 4));
-    overflow-wrap: anywhere;
-    text-indent: calc(-1 * (var(--line-number-width) + calc(var(--spacing) * 4)));
-    white-space: pre-wrap;
-  }
-
-  .code-line::before {
-    counter-increment: code-line;
-    content: counter(code-line);
-    position: sticky;
-    left: 0;
-    display: inline-block;
-    width: var(--line-number-width);
-    margin-right: calc(var(--spacing) * 4);
-    background: var(--background);
-    color: color-mix(in oklab, var(--muted-foreground) 58%, transparent);
-    text-align: right;
-    user-select: none;
-  }
-
-  .code-line.file-target-line {
-    border-radius: calc(var(--radius-sm) * 0.75);
-    background: color-mix(in oklab, var(--warning) 18%, transparent);
-    box-shadow: inset calc(var(--spacing) * 0.75) 0 0
-      color-mix(in oklab, var(--warning) 72%, transparent);
-  }
-
-  .code-line.file-target-line::before {
-    background: color-mix(in oklab, var(--warning) 18%, var(--background));
-    color: var(--foreground);
   }
 
   .file-note {

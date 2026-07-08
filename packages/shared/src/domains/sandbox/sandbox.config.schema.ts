@@ -228,6 +228,14 @@ export const sandboxAgentConfigSchema = z.object({
 });
 export type SandboxAgentConfig = z.infer<typeof sandboxAgentConfigSchema>;
 
+export const sandboxControllerDisconnectPolicySchema = z.object({
+  mode: z.enum(["exit_self", "stay_reconnecting"]).optional(),
+  exitAfterMs: z.number().int().positive().safe().optional(),
+});
+export type SandboxControllerDisconnectPolicy = z.infer<
+  typeof sandboxControllerDisconnectPolicySchema
+>;
+
 export const sandboxControllerConfigSchema = z.object({
   websocket: z.object({
     url: z.string().url(),
@@ -249,12 +257,7 @@ export const sandboxControllerConfigSchema = z.object({
     header: z.string().min(1).optional(),
     scheme: z.string().min(1).optional(),
   }),
-  disconnectPolicy: z
-    .object({
-      mode: z.enum(["exit_self", "stay_reconnecting"]).optional(),
-      exitAfterMs: z.number().int().positive().safe().optional(),
-    })
-    .optional(),
+  disconnectPolicy: sandboxControllerDisconnectPolicySchema.optional(),
 });
 export type SandboxControllerConfig = z.infer<
   typeof sandboxControllerConfigSchema

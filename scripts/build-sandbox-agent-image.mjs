@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 
 const imageTag = "nerve-sandbox-agent:dev";
+const useShell = process.platform === "win32";
 
 run("pnpm", ["--filter", "@nervekit/sandbox-agent...", "build"]);
 
@@ -32,12 +33,18 @@ function selectContainerCli() {
 }
 
 function isAvailable(command) {
-  const result = spawnSync(command, ["version"], { stdio: "ignore" });
+  const result = spawnSync(command, ["version"], {
+    stdio: "ignore",
+    shell: useShell,
+  });
   return result.status === 0;
 }
 
 function run(command, args) {
-  const result = spawnSync(command, args, { stdio: "inherit" });
+  const result = spawnSync(command, args, {
+    stdio: "inherit",
+    shell: useShell,
+  });
   if (result.error) fail(result.error.message);
   if (result.status !== 0) process.exit(result.status ?? 1);
 }

@@ -2,7 +2,7 @@
   import { FileCog, RefreshCw } from "@lucide/svelte";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
-  import CodeView from "../components/CodeView.svelte";
+  import { CodeViewer } from "@nervekit/shared-ui/components/workbench";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 
   let { record }: { record: ManagedSandboxRecord } = $props();
@@ -48,7 +48,7 @@
     </div>
   {:else}
     <div class="min-h-0 flex-1 overflow-auto p-3">
-      <CodeView code={detail.configYaml} lang="yaml" />
+      <CodeViewer text={detail.configYaml} language="yaml" />
     </div>
   {/if}
 </div>

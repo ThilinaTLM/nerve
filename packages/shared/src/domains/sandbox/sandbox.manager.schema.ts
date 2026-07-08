@@ -6,6 +6,7 @@ import {
 import {
   sandboxConfigV1BaseSchema,
   sandboxControllerConfigSchema,
+  sandboxControllerDisconnectPolicySchema,
 } from "./sandbox.config.schema.js";
 
 export const managedSandboxObservedStateSchema = z.enum([
@@ -408,14 +409,54 @@ export type SandboxConfigYamlResult = z.infer<
   typeof sandboxConfigYamlResultSchema
 >;
 
+export const sandboxCreateControllerConfigInputSchema = z
+  .object({
+    websocket: sandboxControllerConfigSchema.shape.websocket.optional(),
+    auth: sandboxControllerConfigSchema.shape.auth.optional(),
+    disconnectPolicy: sandboxControllerDisconnectPolicySchema.optional(),
+  })
+  .superRefine((controller, context) => {
+    const policy = controller.disconnectPolicy;
+    if (policy?.mode === "exit_self" && policy.exitAfterMs === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["disconnectPolicy", "exitAfterMs"],
+        message: "exit_self disconnect policy requires exitAfterMs",
+      });
+    }
+    if (policy?.mode === "stay_reconnecting" && policy.exitAfterMs !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["disconnectPolicy", "exitAfterMs"],
+        message: "stay_reconnecting must not configure exitAfterMs",
+      });
+    }
+    const reconnect = controller.websocket?.reconnect;
+    if (
+      reconnect?.minDelayMs !== undefined &&
+      reconnect.maxDelayMs !== undefined &&
+      reconnect.minDelayMs > reconnect.maxDelayMs
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["websocket", "reconnect"],
+        message: "reconnect minDelayMs must be <= maxDelayMs",
+      });
+    }
+  });
+export type SandboxCreateControllerConfigInput = z.infer<
+  typeof sandboxCreateControllerConfigInputSchema
+>;
+
 /**
  * UI-friendly sandbox create config input. The manager owns and materializes
- * the controller wiring (URL/auth), so the UI may omit `controller` entirely.
+ * the controller wiring (URL/auth), so the UI may omit `controller` entirely
+ * or provide only manager-preserved fields such as `disconnectPolicy`.
  * The full `SandboxConfigV1` path (with `controller`) remains valid.
  */
 export const sandboxCreateConfigInputSchema = sandboxConfigV1BaseSchema
   .omit({ controller: true })
-  .extend({ controller: sandboxControllerConfigSchema.optional() });
+  .extend({ controller: sandboxCreateControllerConfigInputSchema.optional() });
 export type SandboxCreateConfigInput = z.infer<
   typeof sandboxCreateConfigInputSchema
 >;

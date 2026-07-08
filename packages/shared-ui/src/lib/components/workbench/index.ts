@@ -1,3 +1,4 @@
+export { default as CodeViewer } from "./code-viewer.svelte";
 export { default as PanelSection } from "./panel-section.svelte";
 export type {
   WorkbenchTabIcon,
