@@ -29,6 +29,7 @@
   import {
     buildCreateRequest,
     buildCreateRequestFromForm,
+    configInputToYaml,
     CREATE_SANDBOX_TOOL_KEYS,
     createDefaultBootPhase,
     createDefaultBootSecretEnv,
@@ -55,7 +56,9 @@
   let busy = $state(false);
   let activeTab = $state("form");
   let syncingYaml = $state(false);
-  let lastYamlSyncKey = $state("");
+  let lastLocalYamlSyncKey = $state("");
+  let lastPreviewYamlAttemptKey = $state("");
+  let lastPreviewYamlSyncKey = $state("");
 
   const modeItems = [
     { value: "normal", label: "Normal" },
@@ -209,6 +212,8 @@
       .filter((profile) => profile.kind === "web_provider")
       .map((profile) => ({ value: profile.profileId, label: profile.displayName })),
   ]);
+  const formYamlSyncKey = $derived(currentFormYamlKey());
+  const yamlStatusText = $derived(currentYamlStatusText());
 
   $effect(() => {
     if (!open) return;
@@ -229,10 +234,17 @@
   });
 
   $effect(() => {
-    if (activeTab !== "yaml" || draft.yamlDirty) return;
-    const syncKey = currentFormYamlKey();
-    if (!syncKey || syncKey === lastYamlSyncKey) return;
-    void syncYamlFromForm(false, syncKey);
+    if (!open || draft.yamlDirty) return;
+    if (!formYamlSyncKey || formYamlSyncKey === lastLocalYamlSyncKey) return;
+    syncLocalYamlFromForm(false, formYamlSyncKey);
+  });
+
+  $effect(() => {
+    if (!open || activeTab !== "yaml" || draft.yamlDirty || syncingYaml) return;
+    if (!formYamlSyncKey || formYamlSyncKey === lastPreviewYamlAttemptKey) return;
+    if (formYamlSyncKey !== lastLocalYamlSyncKey)
+      syncLocalYamlFromForm(false, formYamlSyncKey);
+    void syncYamlFromForm(false, formYamlSyncKey);
   });
 
   function profileDetail(profile: SandboxManagerCredentialProfile): string {
@@ -361,22 +373,53 @@
     });
   }
 
+  function currentYamlStatusText(): string {
+    if (draft.yamlDirty) return "Using edited sandbox config YAML for submit.";
+    if (syncingYaml) return "Materializing YAML from the current form...";
+    if (formYamlSyncKey && formYamlSyncKey === lastPreviewYamlSyncKey)
+      return "Synced from the form through manager materialization.";
+    if (formYamlSyncKey && formYamlSyncKey === lastLocalYamlSyncKey)
+      return "Generated from the current form; manager materialization will refresh when available.";
+    return "Fix form validation errors to regenerate YAML from the current form.";
+  }
+
+  function syncLocalYamlFromForm(
+    clearError = false,
+    syncKey = currentFormYamlKey(),
+  ): boolean {
+    const result = buildCreateRequestFromForm(draft);
+    if (!result.ok) {
+      if (clearError) error = result.error;
+      return false;
+    }
+    draft.yamlSource = configInputToYaml(result.request.config);
+    draft.yamlDirty = false;
+    lastLocalYamlSyncKey = syncKey;
+    if (clearError) error = undefined;
+    return true;
+  }
+
   async function syncYamlFromForm(
     clearError = true,
     syncKey = currentFormYamlKey(),
   ) {
     if (syncingYaml) return;
+    if (!syncLocalYamlFromForm(clearError, syncKey)) return;
+
     const result = buildCreateRequestFromForm(draft);
     if (!result.ok) {
       if (clearError) error = result.error;
       return;
     }
+    lastPreviewYamlAttemptKey = syncKey;
     syncingYaml = true;
     try {
       const preview = await store.previewSandboxConfigYaml(result.request);
+      if (draft.yamlDirty || currentFormYamlKey() !== syncKey) return;
       draft.yamlSource = preview.yaml;
       draft.yamlDirty = false;
-      lastYamlSyncKey = syncKey;
+      lastLocalYamlSyncKey = syncKey;
+      lastPreviewYamlSyncKey = syncKey;
       if (clearError) error = undefined;
     } catch (syncError) {
       if (clearError)
@@ -393,7 +436,9 @@
   function reset() {
     draft = createDraftFromStoredPreferences();
     activeTab = "form";
-    lastYamlSyncKey = "";
+    lastLocalYamlSyncKey = "";
+    lastPreviewYamlAttemptKey = "";
+    lastPreviewYamlSyncKey = "";
     error = undefined;
   }
 
@@ -1002,11 +1047,7 @@
           <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-background p-3">
             <div class="min-w-0">
               <h3 class="text-xs font-semibold text-muted-foreground uppercase">SandboxConfigV1 YAML</h3>
-              <p class="text-xs text-muted-foreground">
-                {draft.yamlDirty
-                  ? "Using edited sandbox config YAML for submit."
-                  : "Synced from the form through manager materialization."}
-              </p>
+              <p class="text-xs text-muted-foreground">{yamlStatusText}</p>
             </div>
             <Button
               variant="outline"

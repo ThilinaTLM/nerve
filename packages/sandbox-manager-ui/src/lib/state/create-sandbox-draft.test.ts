@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { sandboxCreateConfigInputSchema } from "@nervekit/shared";
+import { parse as parseYaml } from "yaml";
 import {
   buildConfigFromDraft,
   buildCreateRequest,
   CREATE_SANDBOX_PREFERENCES_STORAGE_KEY,
+  configInputToYaml,
   configToYaml,
   createDefaultBootPhase,
   createDefaultBootSecretEnv,
@@ -107,6 +110,28 @@ describe("create sandbox draft", () => {
     assert.deepEqual(config.controller, {
       disconnectPolicy: { mode: "stay_reconnecting" },
     });
+  });
+
+  it("serializes create config input YAML from form defaults", () => {
+    const draft = createDefaultDraft();
+    draft.labels = "team=core";
+    const yaml = configInputToYaml(buildConfigFromDraft(draft));
+
+    assert.match(yaml, /version: 1/);
+    assert.match(yaml, /agent:/);
+    assert.match(yaml, /controller:/);
+    assert.match(yaml, /tools:/);
+
+    const parsed = sandboxCreateConfigInputSchema.parse(parseYaml(yaml));
+    assert.equal(parsed.agent.mainModel.provider, "anthropic");
+    assert.equal(parsed.agent.mainModel.model, "claude-sonnet-4-5");
+    assert.deepEqual(parsed.controller?.disconnectPolicy, {
+      mode: "exit_self",
+      exitAfterMs: 300_000,
+    });
+    assert.equal(parsed.tools?.groups?.shell?.enabled, true);
+    assert.equal(parsed.tools?.groups?.python?.enabled, false);
+    assert.equal(parsed.identity?.labels?.team, "core");
   });
 
   it("omits boot config by default", () => {

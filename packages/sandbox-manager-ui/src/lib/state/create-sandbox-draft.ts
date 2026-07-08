@@ -905,6 +905,11 @@ export function configToYaml(config: SandboxConfigV1): string {
   return stringifyYaml(orderedConfig(parsed));
 }
 
+export function configInputToYaml(config: SandboxCreateConfigInput): string {
+  const parsed = sandboxCreateConfigInputSchema.parse(config);
+  return stringifyYaml(orderedConfig(parsed));
+}
+
 export function parseSandboxConfigYaml(input: string): SandboxConfigV1 {
   const parsed = parseYaml(input || "{}") as unknown;
   return sandboxConfigV1Schema.parse(parsed);
