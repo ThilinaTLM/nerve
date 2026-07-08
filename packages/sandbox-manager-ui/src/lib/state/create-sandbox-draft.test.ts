@@ -326,6 +326,23 @@ describe("create sandbox draft", () => {
   it("persists reusable preferences without reusing identity or YAML", () => {
     const storage = new MemoryStorage();
     const draft = createDefaultDraft();
+    const phase = createDefaultBootPhase(0);
+    const originalPhaseId = phase.id;
+    const env = createDefaultBootSecretEnv();
+    const originalEnvId = env.id;
+
+    phase.name = "install";
+    phase.script = "pnpm install";
+    phase.timeoutSeconds = "77";
+    phase.runAs = "root";
+    phase.network = "deny";
+    env.name = "API_TOKEN";
+    env.refType = "kv";
+    env.value = "api-token";
+    env.store = "sandbox-secrets";
+    env.version = "v2";
+    phase.env = [env];
+
     draft.name = "custom-name";
     draft.sandboxId = "custom-id";
     draft.image = "custom-image:latest";
@@ -344,19 +361,26 @@ describe("create sandbox draft", () => {
     draft.mainModelProfileId = "model_profile";
     draft.githubProfileId = "github_profile";
     draft.bootEnabled = true;
-    draft.bootMode = "single";
-    draft.bootScript = "echo workspace-specific setup";
+    draft.bootMode = "phases";
+    draft.bootScript = "echo reusable setup";
     draft.bootTimeoutSeconds = "42";
-    draft.bootPhases = [createDefaultBootPhase(0)];
+    draft.bootRunAs = "root";
+    draft.bootNetwork = "package_registries_only";
+    draft.bootOnFailure = "continue_readonly";
+    draft.bootPhases = [phase];
     draft.yamlSource = "config: {}";
     draft.yamlDirty = true;
 
     saveCreateSandboxPreferences(draft, storage);
     const stored =
       storage.getItem(CREATE_SANDBOX_PREFERENCES_STORAGE_KEY) ?? "";
-    assert.equal(stored.includes("bootScript"), false);
-    assert.equal(stored.includes("bootPhases"), false);
-    assert.equal(stored.includes("workspace-specific setup"), false);
+    assert.equal(stored.includes("custom-name"), false);
+    assert.equal(stored.includes("custom-id"), false);
+    assert.equal(stored.includes("yamlSource"), false);
+    assert.equal(stored.includes("config: {}"), false);
+    assert.equal(stored.includes("bootScript"), true);
+    assert.equal(stored.includes("bootPhases"), true);
+    assert.equal(stored.includes("echo reusable setup"), true);
     const restored = createDraftFromStoredPreferences(storage);
 
     assert.notEqual(restored.name, "custom-name");
@@ -377,11 +401,27 @@ describe("create sandbox draft", () => {
     assert.equal(restored.tools.web, true);
     assert.equal(restored.mainModelProfileId, "model_profile");
     assert.equal(restored.githubProfileId, "github_profile");
-    assert.equal(restored.bootEnabled, false);
-    assert.equal(restored.bootMode, "single");
-    assert.equal(restored.bootScript, "");
-    assert.equal(restored.bootTimeoutSeconds, "600");
-    assert.deepEqual(restored.bootPhases, []);
+    assert.equal(restored.bootEnabled, true);
+    assert.equal(restored.bootMode, "phases");
+    assert.equal(restored.bootScript, "echo reusable setup");
+    assert.equal(restored.bootTimeoutSeconds, "42");
+    assert.equal(restored.bootRunAs, "root");
+    assert.equal(restored.bootNetwork, "package_registries_only");
+    assert.equal(restored.bootOnFailure, "continue_readonly");
+    assert.equal(restored.bootPhases.length, 1);
+    assert.notEqual(restored.bootPhases[0]?.id, originalPhaseId);
+    assert.equal(restored.bootPhases[0]?.name, "install");
+    assert.equal(restored.bootPhases[0]?.script, "pnpm install");
+    assert.equal(restored.bootPhases[0]?.timeoutSeconds, "77");
+    assert.equal(restored.bootPhases[0]?.runAs, "root");
+    assert.equal(restored.bootPhases[0]?.network, "deny");
+    assert.equal(restored.bootPhases[0]?.env.length, 1);
+    assert.notEqual(restored.bootPhases[0]?.env[0]?.id, originalEnvId);
+    assert.equal(restored.bootPhases[0]?.env[0]?.name, "API_TOKEN");
+    assert.equal(restored.bootPhases[0]?.env[0]?.refType, "kv");
+    assert.equal(restored.bootPhases[0]?.env[0]?.value, "api-token");
+    assert.equal(restored.bootPhases[0]?.env[0]?.store, "sandbox-secrets");
+    assert.equal(restored.bootPhases[0]?.env[0]?.version, "v2");
     assert.equal(restored.yamlSource, "");
     assert.equal(restored.yamlDirty, false);
   });

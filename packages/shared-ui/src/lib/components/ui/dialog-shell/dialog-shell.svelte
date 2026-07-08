@@ -13,6 +13,7 @@
     description?: string;
     class?: string;
     closeLabel?: string;
+    size?: "default" | "wide";
     onOpenChange?: (open: boolean) => void;
   };
 
@@ -25,6 +26,7 @@
     description,
     class: className = "",
     closeLabel = "Close dialog",
+    size = "default",
     onOpenChange,
   }: Props = $props();
 
@@ -37,7 +39,13 @@
 <DialogPrimitive.Root bind:open onOpenChange={handleOpenChange}>
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay class="dialog-overlay" />
-    <DialogPrimitive.Content class={cn("dialog-content", className)}>
+    <DialogPrimitive.Content
+      class={cn(
+        "dialog-content",
+        size === "wide" && "dialog-content-wide",
+        className,
+      )}
+    >
       <header class="dialog-header">
         <div class="dialog-title-block">
           <DialogPrimitive.Title class="dialog-title">{title}</DialogPrimitive.Title>
@@ -90,6 +98,11 @@
     background: var(--card);
     color: var(--foreground);
     box-shadow: var(--shadow-xl);
+  }
+
+  :global(.dialog-content-wide) {
+    width: min(960px, calc(100vw - 32px));
+    max-height: 90vh;
   }
 
   .dialog-header,

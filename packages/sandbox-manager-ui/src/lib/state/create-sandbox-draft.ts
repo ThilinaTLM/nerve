@@ -76,6 +76,23 @@ export type CreateSandboxBootPhaseDraft = {
 
 type CreateSandboxPreferenceStorage = Pick<Storage, "getItem" | "setItem">;
 
+type PersistedCreateSandboxBootSecretEnvPreference = {
+  name?: string;
+  refType?: CreateSandboxBootSecretRefType;
+  value?: string;
+  store?: string;
+  version?: string;
+};
+
+type PersistedCreateSandboxBootPhasePreference = {
+  name?: string;
+  script?: string;
+  timeoutSeconds?: string;
+  runAs?: CreateSandboxBootRunAs;
+  network?: CreateSandboxBootNetwork;
+  env?: PersistedCreateSandboxBootSecretEnvPreference[];
+};
+
 type PersistedCreateSandboxPreferences = {
   version: 1;
   image?: string;
@@ -101,6 +118,14 @@ type PersistedCreateSandboxPreferences = {
   jiraProfileId?: string;
   confluenceProfileId?: string;
   webProfileId?: string;
+  bootEnabled?: boolean;
+  bootMode?: CreateSandboxBootMode;
+  bootScript?: string;
+  bootTimeoutSeconds?: string;
+  bootRunAs?: "sandbox" | "root";
+  bootNetwork?: "inherit" | "deny" | "package_registries_only";
+  bootOnFailure?: CreateSandboxBootOnFailure;
+  bootPhases?: PersistedCreateSandboxBootPhasePreference[];
 };
 
 const readableAdjectives = [
@@ -358,6 +383,85 @@ function disconnectPolicyModeValue(
     : undefined;
 }
 
+function bootModeValue(value: unknown): CreateSandboxBootMode | undefined {
+  return value === "single" || value === "phases" ? value : undefined;
+}
+
+function bootRunAsValue(value: unknown): "sandbox" | "root" | undefined {
+  return value === "sandbox" || value === "root" ? value : undefined;
+}
+
+function bootNetworkValue(
+  value: unknown,
+): "inherit" | "deny" | "package_registries_only" | undefined {
+  return value === "inherit" ||
+    value === "deny" ||
+    value === "package_registries_only"
+    ? value
+    : undefined;
+}
+
+function bootOnFailureValue(
+  value: unknown,
+): CreateSandboxBootOnFailure | undefined {
+  return value === "fail_sandbox" || value === "continue_readonly"
+    ? value
+    : undefined;
+}
+
+function bootPhaseRunAsValue(
+  value: unknown,
+): CreateSandboxBootRunAs | undefined {
+  return value === "" ? value : bootRunAsValue(value);
+}
+
+function bootPhaseNetworkValue(
+  value: unknown,
+): CreateSandboxBootNetwork | undefined {
+  return value === "" ? value : bootNetworkValue(value);
+}
+
+function bootSecretRefTypeValue(
+  value: unknown,
+): CreateSandboxBootSecretRefType | undefined {
+  return value === "env" || value === "file" || value === "kv"
+    ? value
+    : undefined;
+}
+
+function storedBootSecretEnvRows(
+  value: unknown,
+): CreateSandboxBootSecretEnvDraft[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .filter(isRecord)
+    .map((row) => ({
+      id: createDraftId("boot_env"),
+      name: stringValue(row.name) ?? "",
+      refType: bootSecretRefTypeValue(row.refType) ?? "env",
+      value: stringValue(row.value) ?? "",
+      store: stringValue(row.store) ?? "",
+      version: stringValue(row.version) ?? "",
+    }));
+}
+
+function storedBootPhases(
+  value: unknown,
+): CreateSandboxBootPhaseDraft[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .filter(isRecord)
+    .map((phase) => ({
+      id: createDraftId("boot_phase"),
+      name: stringValue(phase.name) ?? "",
+      script: stringValue(phase.script) ?? "",
+      timeoutSeconds: stringValue(phase.timeoutSeconds) ?? "",
+      runAs: bootPhaseRunAsValue(phase.runAs) ?? "",
+      network: bootPhaseNetworkValue(phase.network) ?? "",
+      env: storedBootSecretEnvRows(phase.env) ?? [],
+    }));
+}
+
 function storageOrDefault(
   storage?: CreateSandboxPreferenceStorage,
 ): CreateSandboxPreferenceStorage | undefined {
@@ -428,6 +532,17 @@ export function createDraftFromStoredPreferences(
     stringValue(stored.jiraProfileId) ?? draft.jiraProfileId;
   draft.confluenceProfileId =
     stringValue(stored.confluenceProfileId) ?? draft.confluenceProfileId;
+  draft.bootEnabled = booleanValue(stored.bootEnabled) ?? draft.bootEnabled;
+  draft.bootMode = bootModeValue(stored.bootMode) ?? draft.bootMode;
+  draft.bootScript = stringValue(stored.bootScript) ?? draft.bootScript;
+  draft.bootTimeoutSeconds =
+    stringValue(stored.bootTimeoutSeconds) ?? draft.bootTimeoutSeconds;
+  draft.bootRunAs = bootRunAsValue(stored.bootRunAs) ?? draft.bootRunAs;
+  draft.bootNetwork = bootNetworkValue(stored.bootNetwork) ?? draft.bootNetwork;
+  draft.bootOnFailure =
+    bootOnFailureValue(stored.bootOnFailure) ?? draft.bootOnFailure;
+  draft.bootPhases = storedBootPhases(stored.bootPhases) ?? draft.bootPhases;
+
   draft.webProfileId = stringValue(stored.webProfileId) ?? draft.webProfileId;
 
   if (isRecord(stored.tools)) {
@@ -470,6 +585,27 @@ function preferencesFromDraft(
     jiraProfileId: draft.jiraProfileId,
     confluenceProfileId: draft.confluenceProfileId,
     webProfileId: draft.webProfileId,
+    bootEnabled: draft.bootEnabled,
+    bootMode: draft.bootMode,
+    bootScript: draft.bootScript,
+    bootTimeoutSeconds: draft.bootTimeoutSeconds,
+    bootRunAs: draft.bootRunAs,
+    bootNetwork: draft.bootNetwork,
+    bootOnFailure: draft.bootOnFailure,
+    bootPhases: draft.bootPhases.map((phase) => ({
+      name: phase.name,
+      script: phase.script,
+      timeoutSeconds: phase.timeoutSeconds,
+      runAs: phase.runAs,
+      network: phase.network,
+      env: phase.env.map((row) => ({
+        name: row.name,
+        refType: row.refType,
+        value: row.value,
+        store: row.store,
+        version: row.version,
+      })),
+    })),
   };
 }
 

@@ -433,6 +433,7 @@
   bind:open
   title="Create sandbox"
   description="Choose launch settings, then define the sandbox-agent config with a guided form or schema-native YAML."
+  size="wide"
   onOpenChange={(next) => {
     if (next) return;
     closeAndReset(true);
