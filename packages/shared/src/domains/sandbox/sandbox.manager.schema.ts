@@ -94,7 +94,7 @@ export type SandboxContainerBackend = z.infer<
 export const sandboxLaunchResourceSpecSchema = z
   .object({
     memoryMb: z.number().int().positive().safe().optional(),
-    vcpu: z.number().positive().safe().optional(),
+    vcpu: z.number().positive().optional(),
     cpuUnits: z.number().int().positive().safe().optional(),
     diskMb: z.number().int().positive().safe().optional(),
     maxOpenFiles: z.number().int().positive().safe().optional(),
@@ -458,23 +458,30 @@ export type SandboxRuntimeContainerStatus = z.infer<
   typeof sandboxRuntimeContainerStatusSchema
 >;
 
-const runtimeResourceRangeSchema = z.object({
-  min: z.number().positive().safe().optional(),
-  max: z.number().positive().safe().optional(),
-  step: z.number().positive().safe().optional(),
-  default: z.number().positive().safe().optional(),
+const runtimeIntegerResourceRangeSchema = z.object({
+  min: z.number().int().positive().safe().optional(),
+  max: z.number().int().positive().safe().optional(),
+  step: z.number().int().positive().safe().optional(),
+  default: z.number().int().positive().safe().optional(),
+});
+
+const runtimeNumberResourceRangeSchema = z.object({
+  min: z.number().positive().optional(),
+  max: z.number().positive().optional(),
+  step: z.number().positive().optional(),
+  default: z.number().positive().optional(),
 });
 
 const ecsFargateResourcePresetSchema = z.object({
-  vcpu: z.number().positive().safe(),
+  vcpu: z.number().positive(),
   cpuUnits: z.number().int().positive().safe(),
   memoryMb: z.array(z.number().int().positive().safe()),
 });
 
 export const runtimeDriverResourceOptionsSchema = z.object({
-  memoryMb: runtimeResourceRangeSchema.optional(),
-  vcpu: runtimeResourceRangeSchema.optional(),
-  cpuUnits: runtimeResourceRangeSchema.optional(),
+  memoryMb: runtimeIntegerResourceRangeSchema.optional(),
+  vcpu: runtimeNumberResourceRangeSchema.optional(),
+  cpuUnits: runtimeIntegerResourceRangeSchema.optional(),
   fargate: z
     .object({ presets: z.array(ecsFargateResourcePresetSchema) })
     .optional(),

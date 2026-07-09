@@ -30,7 +30,7 @@ with migrated_resources as (
   select
     sandbox_id,
     jsonb_strip_nulls(
-      (materialized_config->'resources' - 'cpu') ||
+      ((materialized_config->'resources') - 'cpu') ||
       case
         when materialized_config->'resources' ? 'cpu'
           and (materialized_config->'resources'->>'cpu') ~ '^[0-9]+(\\.[0-9]+)?$'

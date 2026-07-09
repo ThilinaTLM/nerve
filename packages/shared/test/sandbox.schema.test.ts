@@ -10,6 +10,7 @@ import {
   managerOutboundCommandRecordSchema,
   protocolMethodDefinition,
   protocolMethodParamsSchema,
+  runtimeDriverResourceOptionsSchema,
   sandboxAckStateSchema,
   sandboxAgentConfigureParamsSchema,
   sandboxCanonicalJson,
@@ -425,11 +426,34 @@ describe("Sandbox shared schemas", () => {
           image: "nerve-sandbox-agent:dev",
           name: "demo",
           backend: "docker",
-          resources: { memoryMb: 4096, vcpu: 2 },
+          resources: { memoryMb: 4096, vcpu: 0.25 },
         },
         start: true,
       }).success,
       true,
+    );
+  });
+
+  it("accepts fractional vCPU runtime resource options", () => {
+    assert.equal(
+      runtimeDriverResourceOptionsSchema.safeParse({
+        memoryMb: { min: 512, max: 8192, step: 512, default: 2048 },
+        vcpu: { min: 0.25, max: 16, step: 0.25, default: 1 },
+        cpuUnits: { min: 256, max: 16_384, step: 256, default: 1024 },
+        fargate: {
+          presets: [
+            { vcpu: 0.25, cpuUnits: 256, memoryMb: [512, 1024, 2048] },
+            { vcpu: 0.5, cpuUnits: 512, memoryMb: [1024, 2048, 4096] },
+          ],
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      runtimeDriverResourceOptionsSchema.safeParse({
+        memoryMb: { min: 512.5 },
+      }).success,
+      false,
     );
   });
 
