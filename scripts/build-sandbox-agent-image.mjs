@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 
-const imageTag = "nerve-sandbox-agent:dev";
+const imageTag =
+  process.env.NERVE_SANDBOX_AGENT_IMAGE ?? "nerve-sandbox-agent:dev";
 const useShell = process.platform === "win32";
 
 run("pnpm", ["--filter", "@nervekit/sandbox-agent...", "build"]);

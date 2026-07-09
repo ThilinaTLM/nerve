@@ -398,11 +398,10 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
     taskDefinitionArn: string,
     tags: EcsTag[],
   ): RunTaskCommandInput {
-    return {
+    const input: RunTaskCommandInput = {
       cluster: this.clusterArn(),
       taskDefinition: taskDefinitionArn,
       count: 1,
-      launchType: this.config.ecsLaunchType,
       platformVersion: this.config.ecsPlatformVersion,
       enableExecuteCommand: this.config.ecsEnableExecuteCommand,
       startedBy: STARTED_BY,
@@ -415,6 +414,12 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
       },
       tags,
     };
+    if (this.config.ecsCapacityProviderStrategy.length > 0) {
+      input.capacityProviderStrategy = this.config.ecsCapacityProviderStrategy;
+    } else {
+      input.launchType = this.config.ecsLaunchType;
+    }
+    return input;
   }
 
   private logConfiguration(): LogConfiguration | undefined {

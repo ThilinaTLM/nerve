@@ -6,6 +6,12 @@ export type ContainerBackend = "auto" | "docker" | "podman" | "ecs";
 export type LocalContainerBackend = Exclude<ContainerBackend, "ecs">;
 export type UiAuthCookieMode = "loopback" | "trusted_proxy" | "disabled";
 
+export type EcsCapacityProviderStrategyItem = {
+  capacityProvider: string;
+  weight?: number;
+  base?: number;
+};
+
 export type ManagerConfig = {
   host: string;
   port: number;
@@ -39,6 +45,7 @@ export type ManagerConfig = {
   ecsSecurityGroups: string[];
   ecsAssignPublicIp: "ENABLED" | "DISABLED";
   ecsLaunchType: "FARGATE";
+  ecsCapacityProviderStrategy: EcsCapacityProviderStrategyItem[];
   ecsPlatformVersion?: string;
   ecsTaskExecutionRoleArn?: string;
   ecsSandboxTaskRoleArn?: string;
@@ -138,6 +145,9 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
     ),
     ecsLaunchType: parseEcsLaunchType(
       env.NERVE_SANDBOX_MANAGER_ECS_LAUNCH_TYPE,
+    ),
+    ecsCapacityProviderStrategy: parseEcsCapacityProviderStrategy(
+      env.NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY,
     ),
     ecsPlatformVersion:
       env.NERVE_SANDBOX_MANAGER_ECS_PLATFORM_VERSION?.trim() || undefined,
@@ -302,6 +312,68 @@ function parseEcsLaunchType(value: string | undefined): "FARGATE" {
   throw new Error(
     "Only NERVE_SANDBOX_MANAGER_ECS_LAUNCH_TYPE=FARGATE is supported",
   );
+}
+
+function parseEcsCapacityProviderStrategy(
+  value: string | undefined,
+): EcsCapacityProviderStrategyItem[] {
+  if (!value?.trim()) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error(
+      "NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY must be a JSON array",
+    );
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      "NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY must be a JSON array",
+    );
+  }
+  return parsed.map((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error(
+        `NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY[${index}] must be an object`,
+      );
+    }
+    const record = entry as Record<string, unknown>;
+    const capacityProviderRaw =
+      record.capacityProvider ?? record.capacity_provider;
+    if (
+      typeof capacityProviderRaw !== "string" ||
+      capacityProviderRaw.trim().length === 0
+    ) {
+      throw new Error(
+        `NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY[${index}].capacityProvider is required`,
+      );
+    }
+    const item: EcsCapacityProviderStrategyItem = {
+      capacityProvider: capacityProviderRaw.trim(),
+    };
+    const weight = optionalNonNegativeInteger(
+      record.weight,
+      `NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY[${index}].weight`,
+    );
+    if (weight !== undefined) item.weight = weight;
+    const base = optionalNonNegativeInteger(
+      record.base,
+      `NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY[${index}].base`,
+    );
+    if (base !== undefined) item.base = base;
+    return item;
+  });
+}
+
+function optionalNonNegativeInteger(
+  value: unknown,
+  label: string,
+): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative integer`);
+  }
+  return value;
 }
 
 function normalizeEfsRootDirectory(value: string | undefined): string {

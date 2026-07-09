@@ -74,6 +74,30 @@ describe("sandbox manager config", () => {
     assert.deepEqual(config.ecsSecurityGroups, ["sg-1", "sg-2"]);
     assert.equal(config.efsRootDirectory, "/nerve/sandboxes");
     assert.equal(config.ecsLaunchType, "FARGATE");
+    assert.deepEqual(config.ecsCapacityProviderStrategy, []);
+  });
+
+  it("parses ECS capacity provider strategy", () => {
+    const config = loadManagerConfig({
+      ...baseEnv(),
+      NERVE_SANDBOX_MANAGER_BACKEND: "ecs",
+      NERVE_SANDBOX_MANAGER_VOLUME_BACKEND: "efs",
+      NERVE_SANDBOX_MANAGER_AWS_REGION: "us-east-1",
+      NERVE_SANDBOX_MANAGER_ECS_CLUSTER_ARN:
+        "arn:aws:ecs:us-east-1:123456789012:cluster/nerve",
+      NERVE_SANDBOX_MANAGER_ECS_SUBNETS: "subnet-1,subnet-2",
+      NERVE_SANDBOX_MANAGER_ECS_SECURITY_GROUPS: "sg-1 sg-2",
+      NERVE_SANDBOX_MANAGER_ECS_TASK_EXECUTION_ROLE_ARN:
+        "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+      NERVE_SANDBOX_MANAGER_EFS_FILE_SYSTEM_ID: "fs-123",
+      NERVE_SANDBOX_MANAGER_EFS_MOUNT_ROOT: "/mnt/efs",
+      NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY: JSON.stringify([
+        { capacityProvider: "FARGATE_SPOT", weight: 1 },
+      ]),
+    });
+    assert.deepEqual(config.ecsCapacityProviderStrategy, [
+      { capacityProvider: "FARGATE_SPOT", weight: 1 },
+    ]);
   });
 
   it("rejects incomplete ECS configuration with actionable errors", () => {

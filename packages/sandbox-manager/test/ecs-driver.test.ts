@@ -14,7 +14,9 @@ import {
   EcsContainerDriver,
 } from "../src/drivers/ecs-driver.js";
 
-function managerConfig(): ManagerConfig {
+function managerConfig(
+  overrides: Record<string, string | undefined> = {},
+): ManagerConfig {
   return loadManagerConfig({
     NERVE_SANDBOX_MANAGER_DATABASE_URL:
       "postgres://postgres:postgres@127.0.0.1:5432/nerve_test",
@@ -33,6 +35,7 @@ function managerConfig(): ManagerConfig {
     NERVE_SANDBOX_MANAGER_EFS_FILE_SYSTEM_ID: "fs-123",
     NERVE_SANDBOX_MANAGER_EFS_MOUNT_ROOT: "/mnt/efs",
     NERVE_SANDBOX_MANAGER_EFS_ROOT_DIRECTORY: "/nerve/sandboxes",
+    ...overrides,
   });
 }
 
@@ -162,6 +165,7 @@ describe("EcsContainerDriver", () => {
     );
     const runInput = ecs.input("RunTaskCommand");
     assert.equal(runInput.startedBy, "nerve-sandbox-manager");
+    assert.equal(runInput.launchType, "FARGATE");
     assert.deepEqual(
       (
         runInput.networkConfiguration as {
@@ -170,6 +174,43 @@ describe("EcsContainerDriver", () => {
       ).awsvpcConfiguration.subnets,
       ["subnet-1", "subnet-2"],
     );
+  });
+
+  it("runs sandbox tasks with a capacity provider strategy when configured", async () => {
+    const ecs = new FakeAwsClient((name) => {
+      if (name === "RegisterTaskDefinitionCommand") {
+        return { taskDefinition: { taskDefinitionArn: "task-def-arn" } };
+      }
+      if (name === "RunTaskCommand") {
+        return {
+          tasks: [
+            {
+              taskArn: "arn:aws:ecs:us-east-1:123456789012:task/nerve/task-1",
+            },
+          ],
+        };
+      }
+      return {};
+    });
+    const driver = new EcsContainerDriver(
+      managerConfig({
+        NERVE_SANDBOX_MANAGER_ECS_CAPACITY_PROVIDER_STRATEGY: JSON.stringify([
+          { capacityProvider: "FARGATE_SPOT", weight: 1 },
+        ]),
+      }),
+      {
+        ecs,
+        logs: new FakeAwsClient(() => ({})),
+      },
+    );
+
+    await driver.create(ecsSpec());
+
+    const runInput = ecs.input("RunTaskCommand");
+    assert.equal(runInput.launchType, undefined);
+    assert.deepEqual(runInput.capacityProviderStrategy, [
+      { capacityProvider: "FARGATE_SPOT", weight: 1 },
+    ]);
   });
 
   it("maps ECS task state and reads CloudWatch logs", async () => {

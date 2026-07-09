@@ -255,7 +255,7 @@ ECS launches are one sandbox per task. `create()` registers a per-sandbox task d
 
 Required manager settings include `NERVE_SANDBOX_MANAGER_VOLUME_BACKEND=efs`, `NERVE_SANDBOX_MANAGER_AWS_REGION`, ECS cluster/subnet/security-group variables, task execution role, EFS filesystem ID, and manager EFS mount root. Unsupported Docker controls such as tmpfs, arbitrary POSIX signals, and pids limits are reported as runtime limitations.
 
-ECS IAM roles MUST be scoped to manager/runtime operations and MUST NOT grant broad cloud metadata credentials to the sandbox container unless an explicit tool/provider integration requires narrowly scoped credentials. A reference deployment lives in `deploy/aws/terraform`.
+ECS IAM roles MUST be scoped to manager/runtime operations and MUST NOT grant broad cloud metadata credentials to the sandbox container unless an explicit tool/provider integration requires narrowly scoped credentials. A reference deployment lives in `deploy/aws`, with reusable Terraform in `deploy/aws/modules/sandbox-manager` and environment roots such as `deploy/aws/environments/nonprod/dev`.
 
 ## Built-in key-value secret API
 
