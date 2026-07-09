@@ -758,6 +758,7 @@ export class SandboxWsServer {
 
 function isBootProgressEvent(type: string): boolean {
   return (
+    type.startsWith("sandbox.startup.stage.") ||
     type.startsWith("sandbox.preflight.") ||
     type.startsWith("sandbox.models.") ||
     type.startsWith("sandbox.context.") ||

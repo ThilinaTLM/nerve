@@ -8,6 +8,7 @@ import {
   type SandboxSetupTimelineItem,
   type StartupSetupStatus,
   sandboxOutboxRecordSchema,
+  summarizeSandboxStartupEvents,
 } from "@nervekit/shared";
 
 const MAX_TIMELINE_TEXT = 8_000;
@@ -15,6 +16,7 @@ const MAX_TIMELINE_TEXT = 8_000;
 export type AgentStateSummary = {
   setup?: SandboxSetupStatusSummary;
   setupTimeline?: SandboxSetupTimelineItem[];
+  startupFailure?: { stage: string; error: RedactedError };
   lastEventSeq?: number;
   lastEventAt?: string;
 };
@@ -66,19 +68,17 @@ async function readOutbox(file: string): Promise<SandboxOutboxRecord[]> {
 }
 
 function summarizeOutbox(events: SandboxOutboxRecord[]): AgentStateSummary {
-  const setup: SandboxSetupStatusSummary = {};
-  const setupTimeline: SandboxSetupTimelineItem[] = [];
-  for (const event of events) {
-    applySetupEvent(setup, event);
-    applySetupTimelineEvent(setupTimeline, event);
-  }
+  const startup = summarizeSandboxStartupEvents(events);
   const lastEvent = [...events]
     .filter((event) => typeof event.seq === "number" || event.ts)
     .sort((a, b) => Number(a.seq ?? -1) - Number(b.seq ?? -1))
     .at(-1);
   return {
-    setup: Object.keys(setup).length > 0 ? setup : undefined,
-    setupTimeline: setupTimeline.length > 0 ? setupTimeline : undefined,
+    setup: startup.setup,
+    setupTimeline: startup.timeline.length > 0 ? startup.timeline : undefined,
+    startupFailure: startup.failure
+      ? { stage: startup.failure.stage, error: startup.failure.error }
+      : undefined,
     lastEventSeq: lastEvent?.seq,
     lastEventAt: lastEvent?.ts,
   };

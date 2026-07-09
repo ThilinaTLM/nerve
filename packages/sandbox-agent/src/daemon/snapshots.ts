@@ -18,6 +18,7 @@ export function buildSandboxSnapshot(input: {
   replayCursors?: unknown[];
   toolGroups?: unknown[];
   setup?: unknown;
+  setupTimeline?: unknown[];
   models?: unknown[];
   secretStores?: unknown[];
   credentials?: unknown[];

@@ -275,8 +275,16 @@
   const exploreModelItems = $derived(
     modelSelectItems(filteredExploreModels, selectedExploreProfile),
   );
-  const thinkingLevelItems = $derived(
-    thinkingLevelSelectItems(supportedThinkingLevelsForSelection()),
+  const selectedExploreModel = $derived(
+    filteredExploreModels.find(
+      (model) => model.modelId === draft.defaultExploreModel,
+    ),
+  );
+  const mainThinkingLevelItems = $derived(
+    thinkingLevelSelectItems(supportedMainThinkingLevels()),
+  );
+  const exploreThinkingLevelItems = $derived(
+    thinkingLevelSelectItems(supportedExploreThinkingLevels()),
   );
   const gitIdentityProfileItems = $derived([
     noneProfile,
@@ -344,9 +352,22 @@
       return;
     }
     if (!selectedMainModel) return;
-    const supported = supportedThinkingLevelsForSelection();
+    const supported = supportedMainThinkingLevels();
     if (supported.includes(draft.defaultThinking)) return;
     draft.defaultThinking = supported.includes("off") ? "off" : (supported[0] ?? "off");
+  });
+
+  $effect(() => {
+    if (!draft.defaultExploreModel) {
+      draft.defaultExploreThinking = "off";
+      return;
+    }
+    if (!selectedExploreModel) return;
+    const supported = supportedExploreThinkingLevels();
+    if (supported.includes(draft.defaultExploreThinking)) return;
+    draft.defaultExploreThinking = supported.includes("off")
+      ? "off"
+      : (supported[0] ?? "off");
   });
 
   $effect(() => {
@@ -417,10 +438,19 @@
     return items;
   }
 
-  function supportedThinkingLevelsForSelection(): ThinkingLevel[] {
+  function supportedMainThinkingLevels(): ThinkingLevel[] {
     if (!draft.defaultModel) return ["off"];
-    return selectedMainModel?.supportedThinkingLevels?.length
-      ? selectedMainModel.supportedThinkingLevels
+    return supportedThinkingLevels(selectedMainModel);
+  }
+
+  function supportedExploreThinkingLevels(): ThinkingLevel[] {
+    if (!draft.defaultExploreModel) return ["off"];
+    return supportedThinkingLevels(selectedExploreModel);
+  }
+
+  function supportedThinkingLevels(model: ModelInfo | undefined): ThinkingLevel[] {
+    return model?.supportedThinkingLevels?.length
+      ? model.supportedThinkingLevels
       : [...thinkingLevels];
   }
 
@@ -659,10 +689,7 @@
     busy = true;
     try {
       if (!draft.yamlDirty) saveCreateSandboxPreferences(draft);
-      const sandboxId = await store.createSandbox(
-        result.request,
-        draft.initialConversationPrompt,
-      );
+      const sandboxId = await store.createSandbox(result.request);
       closeAndReset(false);
       onCreated?.(sandboxId);
     } catch (submitError) {
@@ -927,10 +954,10 @@
               <div class="flex flex-col gap-1">
                 <Label>Thinking level</Label>
                 <SelectField
-                  items={thinkingLevelItems}
+                  items={mainThinkingLevelItems}
                   value={draft.defaultThinking}
                   placeholder="Choose thinking level"
-                  disabled={!draft.defaultModel || thinkingLevelItems.length === 0}
+                  disabled={!draft.defaultModel || mainThinkingLevelItems.length === 0}
                   onValueChange={(value) =>
                     (draft.defaultThinking = value as typeof draft.defaultThinking)}
                 />
@@ -953,14 +980,6 @@
                     (draft.permissionLevel = value as typeof draft.permissionLevel)}
                 />
               </div>
-            </div>
-            <div class="flex flex-col gap-1">
-              <Label>Initial prompt</Label>
-              <Textarea
-                bind:value={draft.initialConversationPrompt}
-                class="min-h-16"
-                placeholder="Optional first instruction for the sandbox agent"
-              />
             </div>
           </div>
 
@@ -1416,6 +1435,17 @@
                     {#if draft.exploreModelProfileId && exploreModelItems.length === 0}
                       <p class="text-xs text-warning">No catalog models found for this provider.</p>
                     {/if}
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <Label>Explore thinking level</Label>
+                    <SelectField
+                      items={exploreThinkingLevelItems}
+                      value={draft.defaultExploreThinking}
+                      placeholder="Choose thinking level"
+                      disabled={!draft.defaultExploreModel || exploreThinkingLevelItems.length === 0}
+                      onValueChange={(value) =>
+                        (draft.defaultExploreThinking = value as typeof draft.defaultExploreThinking)}
+                    />
                   </div>
                 </div>
               </div>

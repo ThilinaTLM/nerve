@@ -1,7 +1,8 @@
-import type {
-  BoundedText,
-  SandboxToolCallSummary,
-  SandboxWaitSummary,
+import {
+  applySandboxStartupEvent as applySharedStartupEvent,
+  type BoundedText,
+  type SandboxToolCallSummary,
+  type SandboxWaitSummary,
 } from "@nervekit/shared";
 import type {
   SandboxDetailState,
@@ -65,6 +66,10 @@ export function applySandboxEvent(
   if (!recordEvent(detail, event)) return;
   const data = asRecord(event.data);
   switch (event.type) {
+    case "sandbox.startup.stage.started":
+    case "sandbox.startup.stage.completed":
+      applySharedStartupEvent(detail.setupTimeline, event);
+      return;
     case "sandbox.config.loaded":
       pushSetup(
         detail,

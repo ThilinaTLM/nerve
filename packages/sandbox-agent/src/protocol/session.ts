@@ -60,6 +60,15 @@ export class ProtocolSession {
   private heartbeat?: NodeJS.Timeout;
   private heartbeatTimeout?: NodeJS.Timeout;
   private reconnectAttempts = 0;
+  private reconnectScheduled = false;
+  private pendingDisconnectReason:
+    | "transport_closed"
+    | "heartbeat_timeout"
+    | "auth_failed"
+    | "protocol_error"
+    | "network_error"
+    | "unknown" = "unknown";
+  private readyStatus?: "ready" | "degraded";
   private acceptedCapabilities: string[] = [];
   private lastHeartbeatAt?: string;
   private stopping = false;
@@ -127,18 +136,9 @@ export class ProtocolSession {
   }
 
   async markReady(status: "ready" | "degraded" = "ready"): Promise<void> {
+    this.readyStatus = status;
     await this.waitForWelcome();
-    this.client?.send({
-      type: "ready",
-      sandboxId: this.identity.sandboxId,
-      instanceId: this.identity.instanceId,
-      status,
-      cursors: (await this.stores.events.ackState()).streams,
-    });
-    await this.persistConnectivity("connected", {
-      readyAt: new Date().toISOString(),
-    });
-    await this.flushUnacked();
+    await this.announceReady(status);
   }
 
   async stop(): Promise<void> {
@@ -160,7 +160,13 @@ export class ProtocolSession {
   }
 
   private async connect(): Promise<void> {
+    this.reconnectScheduled = false;
     this.state = this.reconnectAttempts > 0 ? "reconnecting" : "connecting";
+    this.logger.info("controller connection attempt started", {
+      reconnect: this.reconnectAttempts > 0,
+      reconnectAttempts: this.reconnectAttempts,
+      websocketUrl: safeWebSocketUrl(this.config.controller.websocket.url),
+    });
     await this.persistConnectivity(this.state);
     const token = await new SecretResolver(
       this.config,
@@ -185,12 +191,30 @@ export class ProtocolSession {
       "message",
       (event) => void this.onMessage((event as CustomEvent).detail),
     );
-    client.addEventListener("close", () => void this.onDisconnect());
-    client.addEventListener("error", () => undefined);
+    client.addEventListener("close", (event) => {
+      const detail = (event as CustomEvent<{
+        code?: number;
+        reason?: string;
+        closedByClient?: boolean;
+      }>).detail;
+      void this.onDisconnect(client, detail);
+    });
+    client.addEventListener("error", (event) => {
+      const error = (event as CustomEvent<unknown>).detail;
+      this.pendingDisconnectReason = "network_error";
+      this.logger.warn("controller connection error", {
+        reconnectAttempts: this.reconnectAttempts,
+        failure: safeError(error),
+      });
+    });
     client.connect();
   }
 
   private async onOpen(client: SandboxWebSocketClient): Promise<void> {
+    this.logger.info("controller socket opened; sending hello", {
+      reconnect: this.reconnectAttempts > 0,
+      reconnectAttempts: this.reconnectAttempts,
+    });
     const ack = await this.stores.events.ackState();
     const processedSeq = Math.max(
       0,
@@ -227,11 +251,20 @@ export class ProtocolSession {
       this.state = "connected";
       this.connectedAt = new Date().toISOString();
       this.lastHeartbeatAt = this.connectedAt;
-      const wasReconnect = this.reconnectAttempts > 0;
+      const reconnectAttempts = this.reconnectAttempts;
+      const wasReconnect = reconnectAttempts > 0;
+      const disconnectedAt = this.disconnectedAt;
+      const downtimeMs = disconnectedAt
+        ? Math.max(0, Date.now() - Date.parse(disconnectedAt))
+        : undefined;
       this.reconnectAttempts = 0;
+      this.pendingDisconnectReason = "unknown";
       this.logger.info("controller session established", {
         sessionId: this.sessionId,
         reconnect: wasReconnect,
+        reconnectAttempts,
+        downtimeMs,
+        acceptedCapabilities: this.acceptedCapabilities.length,
         daemonStatus: this.daemon.status.status,
       });
       await this.persistConnectivity("connected");
@@ -240,7 +273,25 @@ export class ProtocolSession {
         if (waiter.timer) clearTimeout(waiter.timer);
         waiter.resolve();
       }
+      if (wasReconnect) {
+        await this.stores.events.append({
+          type: "sandbox.controller.reconnected",
+          durability: "durable",
+          data: {
+            ...this.identity,
+            configDigest: this.configDigest,
+            disconnectedAt,
+            reconnectedAt: this.connectedAt,
+            downtimeMs,
+            reconnectAttempts,
+            sessionId: this.sessionId,
+            replayRequired: true,
+          },
+        });
+      }
       await this.flushUnacked();
+      if (wasReconnect && this.readyStatus)
+        await this.announceReady(this.readyStatus);
       const heartbeatIntervalMs = Number(
         message.heartbeatIntervalMs ??
           this.config.controller.websocket.heartbeatIntervalMs ??
@@ -336,15 +387,29 @@ export class ProtocolSession {
         timeoutMs,
         lastHeartbeatAt: this.lastHeartbeatAt,
       });
+      this.pendingDisconnectReason = "heartbeat_timeout";
       this.client?.close();
-      this.state = "reconnecting";
-      this.disconnectedAt = new Date().toISOString();
-      void this.persistConnectivity("reconnecting", {
-        lastErrorCode: "HEARTBEAT_TIMEOUT",
-        closeReason: "manager heartbeat timeout",
-      });
     }, timeoutMs);
     this.heartbeatTimeout.unref();
+  }
+
+  private async announceReady(status: "ready" | "degraded"): Promise<void> {
+    const readyAt = new Date().toISOString();
+    const cursors = (await this.stores.events.ackState()).streams;
+    this.client?.send({
+      type: "ready",
+      sandboxId: this.identity.sandboxId,
+      instanceId: this.identity.instanceId,
+      status,
+      cursors,
+    });
+    this.logger.info("controller readiness announced", {
+      sessionId: this.sessionId,
+      status,
+      reconnect: Boolean(this.disconnectedAt),
+    });
+    await this.persistConnectivity("connected", { readyAt });
+    await this.flushUnacked();
   }
 
   private async persistConnectivity(
@@ -403,27 +468,68 @@ export class ProtocolSession {
     }
   }
 
-  private async onDisconnect(): Promise<void> {
-    if (this.stopping || this.state === "closed") return;
+  private async onDisconnect(
+    client: SandboxWebSocketClient,
+    detail: { code?: number; reason?: string; closedByClient?: boolean } = {},
+  ): Promise<void> {
+    if (client !== this.client || this.stopping || this.state === "closed") return;
+    if (this.reconnectScheduled) return;
+    this.reconnectScheduled = true;
     if (this.heartbeat) clearInterval(this.heartbeat);
     if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout);
     this.disconnectedAt = new Date().toISOString();
     this.state = "reconnecting";
     this.reconnectAttempts += 1;
     const reconnectDelay = this.reconnectDelayMs();
+    const reason = disconnectReason(
+      this.pendingDisconnectReason,
+      detail.code,
+      detail.reason,
+    );
+    const policy = this.config.controller.disconnectPolicy;
+    const exits = (policy?.mode ?? "exit_self") === "exit_self";
+    const exitAfterMs = exits ? (policy?.exitAfterMs ?? 300_000) : undefined;
+    const exitAt = exitAfterMs === undefined
+      ? undefined
+      : new Date(Date.now() + exitAfterMs).toISOString();
     this.logger.warn("controller connection lost; reconnecting", {
       sessionId: this.sessionId,
+      reason,
+      closeCode: detail.code,
+      closeReason: detail.reason?.trim() || undefined,
       reconnectAttempts: this.reconnectAttempts,
       reconnectDelayMs: reconnectDelay,
+      exitAt,
     });
-    await this.persistConnectivity("reconnecting");
-    const policy = this.config.controller.disconnectPolicy;
-    if (policy?.mode === "exit_self") {
+    await this.persistConnectivity("reconnecting", {
+      closeCode: detail.code,
+      closeReason: detail.reason?.trim() || undefined,
+      lastErrorCode: reason.toUpperCase(),
+      exitAfterMs,
+      exitAt,
+    });
+    await this.stores.events.append({
+      type: "sandbox.controller.disconnected",
+      durability: "durable",
+      data: {
+        ...this.identity,
+        configDigest: this.configDigest,
+        disconnectedAt: this.disconnectedAt,
+        reason,
+        retryable: true,
+        reconnectAttempts: this.reconnectAttempts,
+        closeCode: detail.code,
+        closeReason: detail.reason?.trim() || undefined,
+        exitAfterMs,
+        exitAt,
+      },
+    });
+    if (exitAfterMs !== undefined) {
       setTimeout(() => {
         if (this.state !== "connected") process.exit(22);
-      }, policy.exitAfterMs ?? 60_000).unref();
+      }, exitAfterMs).unref();
     }
-    setTimeout(() => void this.connect(), reconnectDelay);
+    setTimeout(() => void this.connect(), reconnectDelay).unref();
   }
 
   private reconnectDelayMs(): number {
@@ -432,6 +538,38 @@ export class ProtocolSession {
     const max = reconnect?.maxDelayMs ?? 30_000;
     return Math.min(max, min * 2 ** Math.min(this.reconnectAttempts, 6));
   }
+}
+
+function safeWebSocketUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "[invalid websocket URL]";
+  }
+}
+
+function safeError(error: unknown): { name?: string; message: string } {
+  return error instanceof Error
+    ? { name: error.name, message: error.message }
+    : { message: String(error) };
+}
+
+function disconnectReason(
+  pending: "transport_closed" | "heartbeat_timeout" | "auth_failed" | "protocol_error" | "network_error" | "unknown",
+  closeCode?: number,
+  closeReason?: string,
+): "transport_closed" | "heartbeat_timeout" | "auth_failed" | "protocol_error" | "network_error" | "unknown" {
+  if (pending !== "unknown") return pending;
+  const text = closeReason?.toLowerCase() ?? "";
+  if (closeCode === 1008 || /auth|unauthor|forbidden/.test(text)) return "auth_failed";
+  if (/protocol|invalid|capabilit/.test(text)) return "protocol_error";
+  if (/timeout/.test(text)) return "network_error";
+  return closeCode === undefined ? "unknown" : "transport_closed";
 }
 
 function toProtocolEvent(record: SandboxOutboxRecord) {

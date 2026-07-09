@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import type { SandboxConfigV1 } from "@nervekit/shared";
+import type { SandboxConfigV1, StructuredLogger } from "@nervekit/shared";
 import type { SecretResolver } from "../credentials/secret-resolver.js";
 import { Redactor } from "../security/redaction.js";
 import { atomicWriteFile } from "../state/json-store.js";
@@ -81,6 +81,7 @@ export async function runBootPlan(
     sandboxId?: string;
     instanceId?: string;
     env?: Record<string, string>;
+    logger?: StructuredLogger;
   },
 ): Promise<void> {
   const attempts = new JsonlStore<Record<string, unknown>>(
@@ -88,6 +89,14 @@ export async function runBootPlan(
   );
   for (const [index, phase] of buildBootPlan(config).entries()) {
     const startedAt = new Date().toISOString();
+    const startedMs = Date.now();
+    opts.logger?.info("boot command started", {
+      phase: phase.name,
+      index,
+      runAs: phase.runAs ?? "sandbox",
+      network: phase.network ?? "inherit",
+      timeoutMs: phase.timeoutMs,
+    });
     await attempts.append({
       phase: phase.name,
       index,
@@ -141,10 +150,28 @@ export async function runBootPlan(
       status,
       startedAt,
       completedAt,
+      durationMs: Math.max(0, Date.now() - startedMs),
       exitCode: result.code,
       stdout: redactText(result.stdout),
       stderr: redactText(result.stderr),
     };
+    const logContext = {
+      phase: phase.name,
+      index,
+      status,
+      durationMs: record.durationMs,
+      exitCode: result.code,
+      timedOut: result.timedOut,
+      stdoutBytes: Buffer.byteLength(record.stdout),
+      stderrBytes: Buffer.byteLength(record.stderr),
+    };
+    if (status === "completed")
+      opts.logger?.info("boot command completed", logContext);
+    else
+      opts.logger?.error("boot command failed", {
+        ...logContext,
+        stderrPreview: preview(record.stderr),
+      });
     await attempts.append(record);
     await opts.eventSink?.append({
       type: "sandbox.boot.completed",
@@ -242,6 +269,12 @@ async function runShell(
       resolve({ code: code ?? (timedOut ? 124 : 1), stdout, stderr, timedOut });
     });
   });
+}
+
+function preview(value: string, max = 2_000): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
 }
 
 function killShellTree(pid: number | undefined): void {

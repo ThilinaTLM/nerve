@@ -120,4 +120,41 @@ describe("agent state summary", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("recovers failures from any typed startup stage", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-agent-failure-"));
+    try {
+      const stateDir = path.join(dir, "state");
+      const eventsDir = path.join(stateDir, "events");
+      await mkdir(eventsDir, { recursive: true });
+      await writeFile(
+        path.join(eventsDir, "outbox.jsonl"),
+        [
+          event(1, "sandbox.startup.stage.started", {
+            stage: "preflight",
+            attempt: 1,
+            startedAt: ts,
+          }),
+          event(2, "sandbox.startup.stage.completed", {
+            stage: "preflight",
+            attempt: 1,
+            status: "failed",
+            startedAt: ts,
+            completedAt: ts,
+            durationMs: 0,
+            error: {
+              code: "MOUNT_INVALID",
+              message: "workspace is not writable",
+            },
+          }),
+        ].join("\n"),
+        "utf8",
+      );
+      const summary = await readAgentStateSummary(record(stateDir));
+      assert.equal(summary?.startupFailure?.stage, "preflight");
+      assert.equal(summary?.startupFailure?.error.code, "MOUNT_INVALID");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

@@ -122,12 +122,18 @@ describe("computeSandboxBootProgress", () => {
       progress.phases.map((phase) => phase.id),
       [
         "container",
-        "daemon",
         "config",
+        "state",
+        "daemon",
+        "preflight",
+        "models",
+        "secrets",
         "git",
         "github",
+        "context",
         "skills",
         "boot",
+        "runtime",
         "ready",
       ],
     );
@@ -208,7 +214,7 @@ describe("computeSandboxBootProgress", () => {
     });
 
     const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.equal(progress.completed, 7);
+    assert.equal(progress.completed, 13);
     assert.equal(
       progress.phases.find((phase) => phase.id === "github")?.status,
       "degraded",
@@ -243,6 +249,27 @@ describe("computeSandboxBootProgress", () => {
       progress.phases.find((phase) => phase.id === "container")?.status,
       "stopped",
     );
+  });
+
+  it("keeps reconnecting distinct from initial boot", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({
+      status: "reconnecting",
+      connected: false,
+      connectivity: {
+        state: "reconnecting",
+        reconnectAttempts: 3,
+        disconnectedAt: ts,
+      },
+    });
+
+    const progress = computeSandboxBootProgress(
+      { ...record("running"), lifecycleState: "reconnecting" },
+      detail,
+    );
+    assert.equal(progress.state, "reconnecting");
+    assert.equal(progress.headline, "Reconnecting…");
+    assert.equal(progress.showPhaseStepper, true);
   });
 
   it("marks the container failed when the daemon failed before setup details were recovered", () => {

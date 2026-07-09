@@ -33,6 +33,23 @@ export const sandboxDaemonStatusSchema = z.enum([
 ]);
 export type SandboxDaemonStatus = z.infer<typeof sandboxDaemonStatusSchema>;
 
+export const sandboxStartupStageSchema = z.enum([
+  "config",
+  "state",
+  "controller",
+  "preflight",
+  "models",
+  "secrets",
+  "git",
+  "github",
+  "context",
+  "skills",
+  "boot",
+  "runtime",
+  "ready",
+]);
+export type SandboxStartupStage = z.infer<typeof sandboxStartupStageSchema>;
+
 export const sandboxCredentialTypeSchema = z.enum([
   "none",
   "api_key",

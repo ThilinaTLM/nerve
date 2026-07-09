@@ -44,6 +44,10 @@
     font-style: normal;
   }
 
+  .thinking-block :global(p > strong:only-child) {
+    font-weight: inherit;
+  }
+
   .thinking-block.live :global(.markdown > :last-child)::after,
   .thinking-block.live .redacted::after,
   .stream-caret {

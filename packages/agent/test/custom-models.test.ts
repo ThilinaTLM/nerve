@@ -91,6 +91,91 @@ describe("custom model resolution", () => {
     assert.deepEqual(inherited.supportedThinkingLevels, ["off", "low"]);
   });
 
+  it("exposes temporary GPT-5.6 models for OpenAI providers", () => {
+    const listed = listAvailableModels();
+    const temporaryIds = [
+      "gpt-5.6",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+    ];
+
+    const openAiIds = listed
+      .filter((model) => model.provider === "openai")
+      .map((model) => model.modelId);
+    assert.deepEqual(openAiIds.slice(0, temporaryIds.length), temporaryIds);
+
+    const codexIds = listed
+      .filter((model) => model.provider === "openai-codex")
+      .map((model) => model.modelId);
+    assert.deepEqual(codexIds.slice(0, temporaryIds.length), temporaryIds);
+
+    const openAiAlias = listed.find(
+      (model) => model.provider === "openai" && model.modelId === "gpt-5.6",
+    );
+    assert.deepEqual(openAiAlias?.supportedThinkingLevels, [
+      "off",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+    ]);
+
+    const codexTerra = listed.find(
+      (model) =>
+        model.provider === "openai-codex" && model.modelId === "gpt-5.6-terra",
+    );
+    assert.deepEqual(codexTerra?.supportedThinkingLevels, [
+      "off",
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+    ]);
+  });
+
+  it("resolves temporary GPT-5.6 OpenAI API metadata", () => {
+    const model = resolveAgentModel({
+      provider: "openai",
+      modelId: "gpt-5.6",
+    });
+
+    assert.equal(model.provider, "openai");
+    assert.equal(model.id, "gpt-5.6");
+    assert.equal(model.api, "openai-responses");
+    assert.equal(model.baseUrl, "https://api.openai.com/v1");
+    assert.deepEqual(model.input, ["text", "image"]);
+    assert.deepEqual(model.cost, {
+      input: 5,
+      output: 30,
+      cacheRead: 0.5,
+      cacheWrite: 6.25,
+    });
+    assert.equal(model.contextWindow, 1_050_000);
+    assert.equal(model.maxTokens, 128_000);
+  });
+
+  it("resolves temporary GPT-5.6 Codex metadata", () => {
+    const model = resolveAgentModel({
+      provider: "openai-codex",
+      modelId: "gpt-5.6-terra",
+    });
+
+    assert.equal(model.provider, "openai-codex");
+    assert.equal(model.id, "gpt-5.6-terra");
+    assert.equal(model.api, "openai-codex-responses");
+    assert.equal(model.baseUrl, "https://chatgpt.com/backend-api");
+    assert.deepEqual(model.cost, {
+      input: 2.5,
+      output: 15,
+      cacheRead: 0.25,
+      cacheWrite: 3.125,
+    });
+    assert.equal(model.contextWindow, 1_050_000);
+    assert.equal(model.maxTokens, 128_000);
+  });
+
   it("skips unresolved custom models in listAvailableModels", () => {
     const listed = listAvailableModels([
       {

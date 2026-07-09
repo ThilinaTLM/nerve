@@ -13,6 +13,7 @@ import {
   sandboxEventCommonSchema,
   sandboxRunScopeSchema,
   sandboxRunStatusSchema,
+  sandboxStartupStageSchema,
   secretStoreStatusSchema,
   skillStatusSchema,
   startupSetupStatusSchema,
@@ -20,6 +21,8 @@ import {
 } from "./sandbox.common.schema.js";
 
 export const sandboxEventTypeSchema = z.enum([
+  "sandbox.startup.stage.started",
+  "sandbox.startup.stage.completed",
   "sandbox.config.loaded",
   "sandbox.secret_store.checked",
   "sandbox.credentials.refreshed",
@@ -52,6 +55,25 @@ export const sandboxEventTypeSchema = z.enum([
   "tool.call.cancelled",
 ]);
 export type SandboxEventType = z.infer<typeof sandboxEventTypeSchema>;
+
+export const sandboxStartupStageStartedEventSchema = sandboxEventCommonSchema.extend({
+  stage: sandboxStartupStageSchema,
+  attempt: z.number().int().positive().safe().default(1),
+  startedAt: isoDateTimeSchema,
+});
+
+export const sandboxStartupStageCompletedEventSchema =
+  sandboxEventCommonSchema.extend({
+    stage: sandboxStartupStageSchema,
+    attempt: z.number().int().positive().safe().default(1),
+    status: z.enum(["completed", "degraded", "skipped", "failed"]),
+    startedAt: isoDateTimeSchema,
+    completedAt: isoDateTimeSchema,
+    durationMs: z.number().int().nonnegative().safe(),
+    detail: z.string().min(1).optional(),
+    limitations: z.array(z.string().min(1)).optional(),
+    error: redactedErrorSchema.optional(),
+  });
 
 export const sandboxConfigLoadedEventSchema = sandboxEventCommonSchema.extend({
   status: z.enum(["loaded", "degraded"]),
@@ -188,8 +210,11 @@ export const sandboxControllerDisconnectedEventSchema =
       "unknown",
     ]),
     retryable: z.boolean(),
-    exitAfterMs: z.number().int().nonnegative().safe(),
-    exitAt: isoDateTimeSchema,
+    reconnectAttempts: z.number().int().nonnegative().safe().optional(),
+    closeCode: z.number().int().safe().optional(),
+    closeReason: z.string().min(1).optional(),
+    exitAfterMs: z.number().int().nonnegative().safe().optional(),
+    exitAt: isoDateTimeSchema.optional(),
   });
 
 export const sandboxControllerReconnectedEventSchema =
@@ -197,6 +222,7 @@ export const sandboxControllerReconnectedEventSchema =
     disconnectedAt: isoDateTimeSchema.optional(),
     reconnectedAt: isoDateTimeSchema,
     downtimeMs: z.number().int().nonnegative().safe().optional(),
+    reconnectAttempts: z.number().int().nonnegative().safe().optional(),
     sessionId: z.string().min(1),
     replayRequired: z.boolean().optional(),
   });
@@ -335,6 +361,8 @@ export const toolCallEventSchema = sandboxEventCommonSchema
   });
 
 export const sandboxOperationalEventPayloadSchemas = {
+  "sandbox.startup.stage.started": sandboxStartupStageStartedEventSchema,
+  "sandbox.startup.stage.completed": sandboxStartupStageCompletedEventSchema,
   "sandbox.config.loaded": sandboxConfigLoadedEventSchema,
   "sandbox.secret_store.checked": sandboxSecretStoreCheckedEventSchema,
   "sandbox.credentials.refreshed": sandboxCredentialsRefreshedEventSchema,

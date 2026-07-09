@@ -166,6 +166,39 @@ describe("applySandboxEvent", () => {
     assert.equal(detail.waitsById.wait_appr.status, "waiting");
   });
 
+  it("merges typed startup stage progress and failures", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    applySandboxEvent(
+      detail,
+      event(1, "sandbox.startup.stage.started", {
+        ...scope,
+        stage: "preflight",
+        attempt: 1,
+        startedAt: "2026-06-26T11:59:58.000Z",
+      }),
+    );
+    applySandboxEvent(
+      detail,
+      event(2, "sandbox.startup.stage.completed", {
+        ...scope,
+        stage: "preflight",
+        attempt: 1,
+        status: "failed",
+        startedAt: "2026-06-26T11:59:58.000Z",
+        completedAt: ts,
+        durationMs: 2_000,
+        error: { code: "MOUNT_INVALID", message: "workspace is not writable" },
+      }),
+    );
+    assert.equal(detail.setupTimeline.length, 1);
+    assert.equal(detail.setupTimeline[0]?.phase, "preflight");
+    assert.equal(detail.setupTimeline[0]?.status, "failed");
+    assert.equal(
+      detail.setupTimeline[0]?.error,
+      "MOUNT_INVALID: workspace is not writable",
+    );
+  });
+
   it("deduplicates event log entries and records setup timeline", () => {
     const detail = createSandboxDetailState("sbx_1");
     const boot = event(1, "sandbox.boot.started", {

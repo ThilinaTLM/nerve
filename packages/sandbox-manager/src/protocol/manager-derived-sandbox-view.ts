@@ -82,7 +82,9 @@ export async function managerDerivedSandboxView(
     lastEvent?.seq ?? -1,
     agentSummary?.lastEventSeq ?? -1,
   );
-  const startupFailure = setupSummaryFailure(agentSummary?.setup);
+  const startupFailure =
+    agentSummary?.startupFailure?.error ??
+    setupSummaryFailure(agentSummary?.setup);
   const now = new Date().toISOString();
   const disconnectedAt = session?.disconnectedAt ?? record.stoppedAt;
   const status = startupFailure
@@ -90,7 +92,11 @@ export async function managerDerivedSandboxView(
     : daemonStatusFromRecord(record, session?.state);
   const summaries = projectSandboxSummariesFromEvents({ sandboxId, events });
   const stalenessReason = managerStalenessReason(record, container, session);
-  const limitations = managerDerivedLimitations(status, stalenessReason);
+  const limitations = managerDerivedLimitations(
+    status,
+    stalenessReason,
+    agentSummary?.startupFailure?.stage,
+  );
   const base = {
     sandboxId: record.sandboxId,
     instanceId: record.instanceId ?? "unknown",
@@ -224,7 +230,11 @@ export function managerStalenessReason(
   return session ? "controller_disconnected" : "no_controller_session";
 }
 
-function managerDerivedLimitations(status: string, reason: string): string[] {
+function managerDerivedLimitations(
+  status: string,
+  reason: string,
+  failedStage?: string,
+): string[] {
   if (status === "offline" || reason.startsWith("container_")) {
     return [
       "The sandbox container is offline. Existing conversations are read-only snapshots until the sandbox is started or restarted.",
@@ -232,7 +242,9 @@ function managerDerivedLimitations(status: string, reason: string): string[] {
   }
   if (status === "failed") {
     return [
-      "The sandbox container failed. Existing conversations are read-only snapshots until the sandbox is restarted.",
+      failedStage
+        ? `Sandbox startup failed during ${failedStage}. Open the container logs for the full diagnostic output.`
+        : "The sandbox container failed. Existing conversations are read-only snapshots until the sandbox is restarted.",
     ];
   }
   if (status === "stopping") {

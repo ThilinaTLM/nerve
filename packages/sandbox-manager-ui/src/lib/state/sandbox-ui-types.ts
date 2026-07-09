@@ -2,6 +2,7 @@ import type {
   GithubPrDetail,
   ManagedSandboxRecord,
   SandboxConfigYamlResult,
+  SandboxContainerLogChunk,
   SandboxControllerSessionSummary,
   SandboxConversationSnapshot,
   SandboxPinnedCommand,
@@ -130,6 +131,7 @@ export type SandboxDetailState = {
   snapshot?: SandboxSnapshotResult;
   latestSession?: SandboxControllerSessionSummary;
   logsTruncated: boolean;
+  logChunks: SandboxContainerLogChunk[];
   logsText: string;
   logsAvailable?: boolean;
   logsLimitations?: string[];
@@ -204,6 +206,7 @@ export function createSandboxDetailState(
   return {
     sandboxId,
     logsTruncated: false,
+    logChunks: [],
     logsText: "",
     logsAvailable: undefined,
     logsLimitations: undefined,

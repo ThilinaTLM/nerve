@@ -5,10 +5,7 @@
     SandboxActivitySummary,
   } from "@nervekit/shared";
   import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
-  import {
-    sandboxIsOffline,
-    sandboxLifecycleState,
-  } from "../state/sandbox-lifecycle";
+  import { sandboxLifecycleView } from "../state/sandbox-lifecycle-view";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import SandboxActionMenu from "./SandboxActionMenu.svelte";
   import SandboxStatusBadge from "./SandboxStatusBadge.svelte";
@@ -25,18 +22,7 @@
 
   const store = useSandboxManagerStore();
   const detail = $derived(store.details[record.sandboxId]);
-  const booting = $derived(
-    [
-      "record_created",
-      "container_creating",
-      "container_created",
-      "container_starting",
-      "container_started",
-      "daemon_connected",
-      "booting",
-    ].includes(sandboxLifecycleState(record, detail) ?? ""),
-  );
-  const offline = $derived(sandboxIsOffline(record, detail));
+  const lifecycle = $derived(sandboxLifecycleView(record, detail));
 </script>
 
 <li
@@ -53,14 +39,14 @@
       </span>
       {#if activity?.title}
         <span class="truncate text-xs text-muted-foreground">{activity.title}</span>
-      {:else if offline}
+      {:else if lifecycle.state === "stopped" || lifecycle.state === "removed"}
         <span class="truncate text-xs text-muted-foreground">
-          Container {detail?.status?.container?.state ?? record.observedState} · snapshot available
+          {lifecycle.description}
         </span>
-      {:else if booting}
+      {:else if lifecycle.tone === "running"}
         <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
           <StatusDot tone="running" pulse size="xs" />
-          Setting up…
+          {lifecycle.headline}
         </span>
       {:else}
         <span class="truncate font-mono text-xs text-muted-foreground">

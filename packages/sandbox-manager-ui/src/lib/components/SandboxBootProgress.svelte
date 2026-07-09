@@ -7,6 +7,7 @@
     Loader2,
     MinusCircle,
     TriangleAlert,
+    WifiOff,
   } from "@lucide/svelte";
   import type { ManagedSandboxRecord } from "@nervekit/shared";
   import { onMount } from "svelte";
@@ -19,7 +20,7 @@
     type BootPhaseStatus,
     type BootState,
   } from "../state/sandbox-boot-progress";
-  import { sandboxIsReadOnly, sandboxLifecycleMessage } from "../state/sandbox-lifecycle";
+  import { sandboxLifecycleView } from "../state/sandbox-lifecycle-view";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import type { SandboxSetupTimelineItem } from "../state/sandbox-ui-types";
 
@@ -42,8 +43,8 @@
   const container = $derived(detail?.status?.container ?? detail?.snapshot?.container);
   const session = $derived(detail?.latestSession ?? detail?.status?.lastSession ?? detail?.snapshot?.lastSession);
   const staleness = $derived(detail?.status?.staleness ?? detail?.snapshot?.staleness);
-  const readOnly = $derived(sandboxIsReadOnly(record, detail));
-  const lifecycleMessage = $derived(sandboxLifecycleMessage(record, detail));
+  const lifecycleView = $derived(sandboxLifecycleView(record, detail));
+  const readOnly = $derived(lifecycleView.readOnly);
   let openPhases = $state<Record<string, boolean>>({});
   let now = $state(Date.now());
 
@@ -57,6 +58,7 @@
   const stateTone: Record<BootState, StatusTone> = {
     provisioning: "running",
     booting: "running",
+    reconnecting: "running",
     ready: "good",
     failed: "danger",
     offline: "neutral",
@@ -229,17 +231,25 @@
   {#snippet headerContent()}
     <StatusDot
       tone={stateTone[progress.state]}
-      pulse={progress.state === "provisioning" || progress.state === "booting"}
+      pulse={
+        progress.state === "provisioning" ||
+        progress.state === "booting" ||
+        progress.state === "reconnecting"
+      }
     />
     <div class="min-w-0 flex-1">
       <p class="truncate text-sm font-semibold">{progress.headline}</p>
-      {#if readOnly}
-        <p class="truncate text-xs text-muted-foreground">{lifecycleMessage}</p>
-      {/if}
+      <p class="truncate text-xs text-muted-foreground">{lifecycleView.description}</p>
     </div>
-    <span class="font-mono text-xs text-muted-foreground tabular-nums">
-      {progress.completed}/{progress.total}
-    </span>
+    {#if progress.state === "reconnecting"}
+      <span class="text-xs text-muted-foreground tabular-nums">
+        {lifecycleView.reconnectAttempts ? `Retry ${lifecycleView.reconnectAttempts}` : "Retrying"}
+      </span>
+    {:else}
+      <span class="font-mono text-xs text-muted-foreground tabular-nums">
+        {progress.completed}/{progress.total}
+      </span>
+    {/if}
   {/snippet}
 
   {#if onToggle}
@@ -261,7 +271,22 @@
     </div>
   {/if}
 
-  {#if showPhaseStepper}
+  {#if showPhaseStepper && progress.state === "reconnecting"}
+    <div class="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
+      <WifiOff class="mt-0.5 size-4 flex-none text-info" />
+      <div class="min-w-0">
+        <p class="text-sm font-medium">Controller connection interrupted</p>
+        <p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+          {lifecycleView.description}
+        </p>
+        {#if detail?.status?.connectivity?.disconnectedAt}
+          <p class="mt-1 font-mono text-xs text-muted-foreground">
+            Disconnected {formatDate(detail.status.connectivity.disconnectedAt)}
+          </p>
+        {/if}
+      </div>
+    </div>
+  {:else if showPhaseStepper}
     <ol class="flex flex-col gap-2.5">
       {#each progress.phases as phase (phase.id)}
         {@const Icon = phaseIcon(phase.status)}
@@ -384,7 +409,7 @@
                   </div>
                 </dl>
                 {#if readOnly}
-                  <p class="mt-2 text-muted-foreground">{lifecycleMessage}</p>
+                  <p class="mt-2 text-muted-foreground">{lifecycleView.description}</p>
                 {/if}
               {:else if phaseTimeline(phase.id)}
                 {@const item = phaseTimeline(phase.id)}

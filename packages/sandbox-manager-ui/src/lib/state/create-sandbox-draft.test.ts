@@ -51,8 +51,8 @@ describe("create sandbox draft", () => {
     const draft = createDefaultDraft();
     assert.equal(draft.mode, "normal");
     assert.equal(draft.permissionLevel, "autonomous");
-    assert.equal(draft.initialConversationPrompt, "");
     assert.equal(draft.defaultThinking, "off");
+    assert.equal(draft.defaultExploreThinking, "off");
     assert.equal(draft.disconnectPolicyMode, "exit_self");
     assert.equal(draft.disconnectExitAfterSeconds, "300");
     assert.equal(draft.name, draft.sandboxId);
@@ -110,6 +110,7 @@ describe("create sandbox draft", () => {
     const draft = createDefaultDraft();
     draft.defaultExploreProvider = "openai-codex";
     draft.defaultExploreModel = "gpt-5-codex";
+    draft.defaultExploreThinking = "low";
 
     let config = buildConfigFromDraft(draft);
     assert.equal(config.agent.defaultExploreModel, undefined);
@@ -123,6 +124,7 @@ describe("create sandbox draft", () => {
     assert.deepEqual(config.agent.defaultExploreModel, {
       provider: "openai-codex",
       model: "gpt-5-codex",
+      thinkingLevel: "low",
     });
   });
 
@@ -471,7 +473,7 @@ describe("create sandbox draft", () => {
     draft.defaultThinking = "medium";
     draft.defaultExploreProvider = "anthropic";
     draft.defaultExploreModel = "claude-opus-4-5";
-    draft.initialConversationPrompt = "Keep this prompt";
+    draft.defaultExploreThinking = "high";
     draft.mode = "planning";
     draft.permissionLevel = "read_only";
     draft.disconnectPolicyMode = "stay_reconnecting";
@@ -508,8 +510,6 @@ describe("create sandbox draft", () => {
     assert.equal(stored.includes("custom-id"), false);
     assert.equal(stored.includes("yamlSource"), false);
     assert.equal(stored.includes("config: {}"), false);
-    assert.equal(stored.includes("Keep this prompt"), false);
-    assert.equal(stored.includes("initialConversationPrompt"), false);
     assert.equal(stored.includes("bootScript"), true);
     assert.equal(stored.includes("bootPhases"), true);
     assert.equal(stored.includes("echo reusable setup"), true);
@@ -529,7 +529,7 @@ describe("create sandbox draft", () => {
     assert.equal(restored.defaultThinking, "medium");
     assert.equal(restored.defaultExploreProvider, "anthropic");
     assert.equal(restored.defaultExploreModel, "claude-opus-4-5");
-    assert.equal(restored.initialConversationPrompt, "");
+    assert.equal(restored.defaultExploreThinking, "high");
     assert.equal(restored.mode, "planning");
     assert.equal(restored.permissionLevel, "read_only");
     assert.equal(restored.disconnectPolicyMode, "stay_reconnecting");

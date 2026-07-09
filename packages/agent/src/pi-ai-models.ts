@@ -42,6 +42,113 @@ const apiStreams: Partial<Record<Api, ProviderStreams>> = {
   "openai-responses": openAIResponsesApi(),
 };
 
+type TemporaryGpt56ProviderId = "openai" | "openai-codex";
+
+type TemporaryGpt56ModelSpec = {
+  id: string;
+  name: string;
+  cost: Model<Api>["cost"];
+};
+
+const TEMPORARY_GPT_5_6_MODEL_SPECS: TemporaryGpt56ModelSpec[] = [
+  {
+    id: "gpt-5.6",
+    name: "GPT-5.6",
+    cost: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 6.25 },
+  },
+  {
+    id: "gpt-5.6-sol",
+    name: "GPT-5.6 Sol",
+    cost: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 6.25 },
+  },
+  {
+    id: "gpt-5.6-terra",
+    name: "GPT-5.6 Terra",
+    cost: { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 3.125 },
+  },
+  {
+    id: "gpt-5.6-luna",
+    name: "GPT-5.6 Luna",
+    cost: { input: 1, output: 6, cacheRead: 0.1, cacheWrite: 1.25 },
+  },
+];
+
+const TEMPORARY_GPT_5_6_PROVIDER_SETTINGS = {
+  openai: {
+    api: "openai-responses",
+    baseUrl: "https://api.openai.com/v1",
+    thinkingLevelMap: { off: "none", minimal: null, xhigh: "xhigh" },
+  },
+  "openai-codex": {
+    api: "openai-codex-responses",
+    baseUrl: "https://chatgpt.com/backend-api",
+    thinkingLevelMap: { off: "none", minimal: "low", xhigh: "xhigh" },
+  },
+} as const;
+
+function buildTemporaryGpt56Model(
+  providerId: TemporaryGpt56ProviderId,
+  spec: TemporaryGpt56ModelSpec,
+): Model<Api> {
+  const provider = TEMPORARY_GPT_5_6_PROVIDER_SETTINGS[providerId];
+  return {
+    id: spec.id,
+    name: spec.name,
+    api: provider.api,
+    provider: providerId,
+    baseUrl: provider.baseUrl,
+    reasoning: true,
+    thinkingLevelMap: provider.thinkingLevelMap,
+    input: ["text", "image"],
+    cost: spec.cost,
+    contextWindow: 1_050_000,
+    maxTokens: 128_000,
+  };
+}
+
+function registerTemporaryGpt56Overrides(): void {
+  for (const providerId of Object.keys(
+    TEMPORARY_GPT_5_6_PROVIDER_SETTINGS,
+  ) as TemporaryGpt56ProviderId[]) {
+    const provider = models.getProvider(providerId);
+    if (!provider) continue;
+
+    const existingModels = provider.getModels();
+    const existingById = new Map(
+      existingModels.map((model) => [model.id, model]),
+    );
+    const temporaryIds = new Set(
+      TEMPORARY_GPT_5_6_MODEL_SPECS.map((spec) => spec.id),
+    );
+    const temporaryModels = TEMPORARY_GPT_5_6_MODEL_SPECS.map((spec) => {
+      const upstream = existingById.get(spec.id);
+      return upstream && apiStreams[upstream.api]
+        ? upstream
+        : buildTemporaryGpt56Model(providerId, spec);
+    });
+
+    models.setProvider(
+      createProvider({
+        id: provider.id,
+        name: provider.name,
+        baseUrl: provider.baseUrl,
+        headers: provider.headers,
+        auth: provider.auth,
+        models: [
+          ...temporaryModels,
+          ...existingModels.filter((model) => !temporaryIds.has(model.id)),
+        ],
+        api: apiStreams,
+      }),
+    );
+  }
+}
+
+// Temporary overlay until @earendil-works/pi-ai ships GPT-5.6 models in its
+// bundled catalog. Remove this block when the upstream catalog exposes these
+// IDs in the desired provider order.
+registerTemporaryGpt56Overrides();
+
 export type ManagedFauxProviderHandle = FauxProviderHandle & {
   unregister: () => void;
 };
@@ -128,13 +235,50 @@ export function ensureProviderForModel(model: Model<Api>): void {
   registerCustomProvider(model.provider);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function withDetailedOpenAICodexReasoningSummary(payload: unknown): unknown {
+  if (!isRecord(payload) || !isRecord(payload.reasoning)) return payload;
+  return {
+    ...payload,
+    reasoning: {
+      ...payload.reasoning,
+      summary: "detailed",
+    },
+  };
+}
+
+export function withNerveSimpleStreamDefaults(
+  model: Model<Api>,
+  options?: SimpleStreamOptions,
+): SimpleStreamOptions | undefined {
+  if (model.api !== "openai-codex-responses") return options;
+
+  const onPayload = options?.onPayload;
+  return {
+    ...options,
+    onPayload: async (payload, payloadModel) => {
+      const preferredPayload = withDetailedOpenAICodexReasoningSummary(payload);
+      if (!onPayload) return preferredPayload;
+      const replacement = await onPayload(preferredPayload, payloadModel);
+      return replacement === undefined ? preferredPayload : replacement;
+    },
+  };
+}
+
 export function streamSimpleWithModel(
   model: Model<Api>,
   context: Context,
   options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
   ensureProviderForModel(model);
-  return models.streamSimple(model, context, options);
+  return models.streamSimple(
+    model,
+    context,
+    withNerveSimpleStreamDefaults(model, options),
+  );
 }
 
 export async function completeSimpleWithModel(
@@ -143,5 +287,9 @@ export async function completeSimpleWithModel(
   options?: SimpleStreamOptions,
 ): Promise<AssistantMessage> {
   ensureProviderForModel(model);
-  return await models.completeSimple(model, context, options);
+  return await models.completeSimple(
+    model,
+    context,
+    withNerveSimpleStreamDefaults(model, options),
+  );
 }

@@ -497,6 +497,7 @@ export class SandboxManagerStore {
         tail: 500,
         maxBytes: 256 * 1024,
       });
+      detail.logChunks = logs.chunks;
       detail.logsText = logs.chunks.map((chunk) => chunk.chunk).join("");
       detail.logsTruncated = logs.truncated;
       detail.logsAvailable = logs.available ?? true;
@@ -833,10 +834,7 @@ export class SandboxManagerStore {
     await this.refreshCredentials();
   }
 
-  async createSandbox(
-    request: SandboxCreateRequest,
-    queuedPrompt?: string,
-  ): Promise<string> {
+  async createSandbox(request: SandboxCreateRequest): Promise<string> {
     const record = await this.runOperation(
       "create",
       undefined,
@@ -844,8 +842,6 @@ export class SandboxManagerStore {
       (key) => api.createSandbox(request, key),
     );
     this.patchRecord(record);
-    const detail = this.detail(record.sandboxId);
-    if (queuedPrompt?.trim()) detail.queuedPrompt = queuedPrompt.trim();
     if (request.start) {
       void this.startSandbox(record.sandboxId).catch((error) => {
         notify.error("Could not start sandbox", {
@@ -1276,6 +1272,8 @@ export class SandboxManagerStore {
       };
       if (lifecycleState === "ready" || lifecycleState === "degraded")
         detail.status.connected = true;
+      if (lifecycleState === "reconnecting")
+        detail.status.connected = false;
     }
     if (detail?.snapshot && lifecycleState) {
       detail.snapshot.lifecycle = {
@@ -1286,6 +1284,13 @@ export class SandboxManagerStore {
             : envelope.ts,
       };
     }
+    if (lifecycleState === "reconnecting") this.ensureStatusPolling(sandboxId);
+    if (
+      lifecycleState === "daemon_connected" ||
+      lifecycleState === "ready" ||
+      lifecycleState === "degraded"
+    )
+      void this.loadDetail(sandboxId);
   }
 
   private handleEvent(envelope: SandboxManagerEventEnvelope): void {
@@ -1326,11 +1331,17 @@ export class SandboxManagerStore {
       this.applyConversationUiEvent(sandboxId, detail, uiEvent);
     }
     applySandboxEvent(detail, uiEvent);
+    if (envelope.type === "sandbox.controller.disconnected") {
+      if (detail.status) detail.status.connected = false;
+      this.ensureStatusPolling(sandboxId);
+    }
     if (
       envelope.type === "sandbox.ready" ||
       envelope.type === "sandbox.controller.reconnected"
-    )
+    ) {
       void this.flushQueuedPrompt(sandboxId);
+      void this.loadDetail(sandboxId);
+    }
     this.trackRunActivity(sandboxId, envelope.type);
   }
 

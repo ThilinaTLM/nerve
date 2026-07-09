@@ -8,6 +8,7 @@ import type {
 import {
   createNoopLogger,
   parseInlineCommandPrompt,
+  summarizeSandboxStartupEvents,
   sandboxAgentConfigureParamsSchema,
   sandboxRunStartParamsSchema,
 } from "@nervekit/shared";
@@ -252,6 +253,9 @@ export class SandboxDaemon {
         ...(this.inputWaiter?.list() ?? []),
         ...(this.approvalWaiter?.list() ?? []),
       ];
+      const startup = summarizeSandboxStartupEvents(
+        this.state?.events.all() ?? [],
+      );
       return {
         sandboxId: this.identity.sandboxId,
         instanceId: this.identity.instanceId,
@@ -261,7 +265,8 @@ export class SandboxDaemon {
         configDigest: this.configDigest,
         startedAt: this.startedAt,
         updatedAt: new Date().toISOString(),
-        setup: this.recovered.setup,
+        setup: startup.setup ?? this.recovered.setup,
+        setupTimeline: startup.timeline,
         skills: this.recovered.skills,
         toolGroups: this.toolRuntime?.groups() ?? [],
         models: modelSummaries,
@@ -277,6 +282,9 @@ export class SandboxDaemon {
       };
     });
     this.router.register("sandbox.snapshot.get", async () => {
+      const startup = summarizeSandboxStartupEvents(
+        this.state?.events.all() ?? [],
+      );
       return buildSandboxSnapshot({
         config: this.config,
         configDigest: this.configDigest,
@@ -302,7 +310,8 @@ export class SandboxDaemon {
           this.state?.stateDir,
         ),
         toolGroups: this.toolRuntime?.groups() ?? [],
-        setup: this.recovered.setup,
+        setup: startup.setup ?? this.recovered.setup,
+        setupTimeline: startup.timeline,
         models: this.modelSummaries(),
       });
     });

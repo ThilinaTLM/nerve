@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createLogger } from "@nervekit/shared";
 import {
   runSandboxEntrypoint,
   sandboxEntrypointErrorMessage,
@@ -29,6 +30,20 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(sandboxEntrypointErrorMessage(error));
-  process.exitCode = sandboxEntrypointExitCode(error);
+  const exitCode = sandboxEntrypointExitCode(error);
+  createLogger({
+    base: {
+      source: "sandbox-agent",
+      component: "startup",
+      sandboxId: process.env.NERVE_SANDBOX_ID,
+      instanceId: process.env.NERVE_SANDBOX_AGENT_INSTANCE_ID,
+    },
+  }).error("sandbox-agent startup failed", {
+    exitCode,
+    failure: {
+      code: error instanceof Error ? error.name || "ERROR" : "ERROR",
+      message: sandboxEntrypointErrorMessage(error),
+    },
+  });
+  process.exitCode = exitCode;
 });

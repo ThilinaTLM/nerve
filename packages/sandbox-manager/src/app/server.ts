@@ -823,9 +823,9 @@ async function recoverStartupFailureFromAgentState(
   record: ManagedSandboxRecord,
 ): Promise<ManagedSandboxRecord> {
   if (record.lifecycleState === "failed") return record;
-  const failure = setupSummaryFailure(
-    (await readAgentStateSummary(record))?.setup,
-  );
+  const summary = await readAgentStateSummary(record);
+  const failure =
+    summary?.startupFailure?.error ?? setupSummaryFailure(summary?.setup);
   if (!failure) return record;
   return transitionSandboxLifecycle(
     {

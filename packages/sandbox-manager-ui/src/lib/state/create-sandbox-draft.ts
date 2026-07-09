@@ -118,6 +118,7 @@ type PersistedCreateSandboxPreferences = {
   defaultThinking?: ThinkingLevel;
   defaultExploreProvider?: string;
   defaultExploreModel?: string;
+  defaultExploreThinking?: ThinkingLevel;
   systemPromptAmendment?: string;
   mode?: CreateSandboxDraft["mode"];
   permissionLevel?: CreateSandboxDraft["permissionLevel"];
@@ -234,7 +235,7 @@ export type CreateSandboxDraft = {
   defaultThinking: ThinkingLevel;
   defaultExploreProvider: string;
   defaultExploreModel: string;
-  initialConversationPrompt: string;
+  defaultExploreThinking: ThinkingLevel;
   systemPromptAmendment: string;
   mode: "normal" | "planning";
   permissionLevel: "read_only" | "supervised" | "autonomous";
@@ -340,7 +341,7 @@ export function createDefaultDraft(): CreateSandboxDraft {
     defaultThinking: "off",
     defaultExploreProvider: "",
     defaultExploreModel: "",
-    initialConversationPrompt: "",
+    defaultExploreThinking: "off",
     systemPromptAmendment: "",
     mode: "normal",
     permissionLevel: "autonomous",
@@ -590,6 +591,9 @@ export function createDraftFromStoredPreferences(
     stringValue(stored.defaultExploreProvider) ?? draft.defaultExploreProvider;
   draft.defaultExploreModel =
     stringValue(stored.defaultExploreModel) ?? draft.defaultExploreModel;
+  draft.defaultExploreThinking =
+    thinkingValue(stored.defaultExploreThinking) ??
+    draft.defaultExploreThinking;
   draft.systemPromptAmendment =
     stringValue(stored.systemPromptAmendment) ?? draft.systemPromptAmendment;
   draft.mode = modeValue(stored.mode) ?? draft.mode;
@@ -681,6 +685,7 @@ function preferencesFromDraft(
     defaultThinking: draft.defaultThinking,
     defaultExploreProvider: draft.defaultExploreProvider,
     defaultExploreModel: draft.defaultExploreModel,
+    defaultExploreThinking: draft.defaultExploreThinking,
     systemPromptAmendment: draft.systemPromptAmendment,
     mode: draft.mode,
     permissionLevel: draft.permissionLevel,
@@ -1063,6 +1068,9 @@ export function buildConfigFromDraft(
             defaultExploreModel: {
               provider: draft.defaultExploreProvider,
               model: draft.defaultExploreModel,
+              ...(draft.defaultExploreThinking
+                ? { thinkingLevel: draft.defaultExploreThinking }
+                : {}),
             },
           }
         : {}),

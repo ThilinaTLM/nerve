@@ -10,11 +10,13 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { createLogger, type StructuredLogRecord } from "@nervekit/shared";
 import { runBootPlan } from "../src/boot/boot-runner.js";
 import { SandboxConfigLoadError } from "../src/config/load-config.js";
 import { sandboxEntrypointExitCode } from "../src/entrypoint.js";
 import { SandboxPreflightError } from "../src/security/preflight.js";
 import { Redactor } from "../src/security/redaction.js";
+import { StartupReporter } from "../src/runtime/startup-reporter.js";
 import { loadSkills } from "../src/skills/skills-loader.js";
 
 const config = {
@@ -46,6 +48,49 @@ function withProcessEnv(
 }
 
 describe("sandbox startup pipeline helpers", () => {
+  it("logs and durably flushes buffered startup stages", async () => {
+    const records: StructuredLogRecord[] = [];
+    const events: Array<{ type: string; data: Record<string, unknown> }> = [];
+    const reporter = new StartupReporter(
+      createLogger({
+        level: "info",
+        sink: () => undefined,
+        onRecord: (record) => records.push(record),
+      }),
+      { sandboxId: "sbx_1", instanceId: "inst_1" },
+    );
+    reporter.setConfigDigest("sha256:test");
+    await reporter.run("config", async () => "ok");
+    await reporter.attachSink(async (input) => {
+      events.push({ type: input.type, data: input.data });
+    });
+    await assert.rejects(
+      reporter.run("preflight", async () => {
+        throw new Error("workspace is not writable");
+      }),
+      /not writable/,
+    );
+
+    assert.deepEqual(
+      events.map((event) => event.type),
+      [
+        "sandbox.startup.stage.started",
+        "sandbox.startup.stage.completed",
+        "sandbox.startup.stage.started",
+        "sandbox.startup.stage.completed",
+      ],
+    );
+    assert.equal(events[3]?.data.status, "failed");
+    assert.equal(
+      (events[3]?.data.error as { message?: string }).message,
+      "workspace is not writable",
+    );
+    assert.equal(
+      records.some((record) => record.message === "sandbox startup stage failed"),
+      true,
+    );
+  });
+
   it("maps documented startup exit codes", () => {
     assert.equal(
       sandboxEntrypointExitCode(new SandboxConfigLoadError("bad", 10)),

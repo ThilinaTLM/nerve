@@ -31,10 +31,16 @@ export type BootPhaseId =
   | "container"
   | "daemon"
   | "config"
+  | "state"
+  | "preflight"
+  | "models"
+  | "secrets"
   | "git"
   | "github"
+  | "context"
   | "boot"
   | "skills"
+  | "runtime"
   | "ready";
 
 export type BootPhase = {
@@ -49,6 +55,7 @@ export type BootPhase = {
 export type BootState =
   | "provisioning"
   | "booting"
+  | "reconnecting"
   | "ready"
   | "failed"
   | "offline";
@@ -186,7 +193,7 @@ function timelineItemTs(item: SandboxSetupTimelineItem): string | undefined {
 function latestTimeline(
   detail: SandboxDetailState | undefined,
   phase: string,
-): { status: BootPhaseStatus; ts?: string } {
+): { status: BootPhaseStatus; ts?: string; error?: string } {
   const items = sandboxSetupTimeline(detail).filter(
     (item) => item.phase === phase,
   );
@@ -198,7 +205,12 @@ function latestTimeline(
       return status === "failed";
     }),
   );
-  if (failed) return { status: "failed", ts: timelineItemTs(failed) };
+  if (failed)
+    return {
+      status: "failed",
+      ts: timelineItemTs(failed),
+      error: failed.error,
+    };
 
   const active = latestTimelineItem(
     items.filter((item) => fromTimelineStatus(item.status) === "active"),
@@ -242,6 +254,10 @@ export function computeSandboxBootProgress(
   const lifecycle = sandboxLifecycleState(record, detail);
   const daemon = sandboxDaemonStatus(detail);
   const connected = sandboxIsConnected(detail);
+  const reconnecting =
+    lifecycle === "reconnecting" ||
+    daemon === "reconnecting" ||
+    observed === "reconnecting";
   const readyForCommands = sandboxReadyForCommands(record, detail);
   const offline = sandboxIsOffline(record, detail);
   const stopping = sandboxIsStopping(record, detail);
@@ -252,6 +268,19 @@ export function computeSandboxBootProgress(
   const setupFailed = Object.values(setup ?? {}).some(
     (phase) => phase?.status === "failed",
   );
+  const hasGenericStartupTimeline = sandboxSetupTimeline(detail).some((item) =>
+    [
+      "state",
+      "controller",
+      "preflight",
+      "models",
+      "secrets",
+      "context",
+      "runtime",
+    ].includes(item.phase),
+  );
+  const legacyImplicitStatus: BootPhaseStatus =
+    setup && !hasGenericStartupTimeline ? "done" : "pending";
 
   const containerRunningEnough =
     lifecycle === "container_started" ||
@@ -285,23 +314,29 @@ export function computeSandboxBootProgress(
     error: containerFailed ? errorText(record?.lastError) : undefined,
   };
 
+  const controllerTimeline = latestTimeline(detail, "controller");
   const daemonPhase: PhaseInput = {
     id: "daemon",
-    label: "Controller connected",
-    description: "Connect the sandbox daemon to the manager.",
+    label: "Agent connected",
+    description: "Connect the sandbox agent to the manager.",
     status:
-      readyForCommands ||
-      lifecycle === "booting" ||
-      lifecycle === "daemon_connected" ||
-      connected ||
-      hasBootProgress
-        ? "done"
-        : container.status === "done"
-          ? "active"
-          : "pending",
+      controllerTimeline.status === "failed"
+        ? "failed"
+        : readyForCommands ||
+              lifecycle === "booting" ||
+              lifecycle === "daemon_connected" ||
+              connected ||
+              hasBootProgress ||
+              controllerTimeline.status === "done"
+          ? "done"
+          : container.status === "done"
+            ? "active"
+            : "pending",
     ts:
+      controllerTimeline.ts ??
       detail?.status?.lifecycle?.daemon?.connectedAt ??
       record?.daemon?.connectedAt,
+    error: controllerTimeline.error,
   };
 
   const configTimeline = latestTimeline(detail, "config");
@@ -318,8 +353,57 @@ export function computeSandboxBootProgress(
             ? "done"
             : "active",
     ts: configTimeline.ts,
+    error: configTimeline.error,
   };
 
+  const stateTimeline = latestTimeline(detail, "state");
+  const statePhase: PhaseInput = {
+    id: "state",
+    label: "Sandbox state",
+    description: "Prepare and recover the sandbox state directory.",
+    status:
+      stateTimeline.status === "pending"
+        ? legacyImplicitStatus
+        : stateTimeline.status,
+    ts: stateTimeline.ts,
+    error: stateTimeline.error,
+  };
+  const preflightTimeline = latestTimeline(detail, "preflight");
+  const preflight: PhaseInput = {
+    id: "preflight",
+    label: "Environment checks",
+    description: "Validate mounts, permissions, and runtime policy.",
+    status:
+      preflightTimeline.status === "pending"
+        ? legacyImplicitStatus
+        : preflightTimeline.status,
+    ts: preflightTimeline.ts,
+    error: preflightTimeline.error,
+  };
+  const modelsTimeline = latestTimeline(detail, "models");
+  const models: PhaseInput = {
+    id: "models",
+    label: "Model runtime",
+    description: "Resolve the configured model provider and model.",
+    status:
+      modelsTimeline.status === "pending"
+        ? legacyImplicitStatus
+        : modelsTimeline.status,
+    ts: modelsTimeline.ts,
+    error: modelsTimeline.error,
+  };
+  const secretsTimeline = latestTimeline(detail, "secrets");
+  const secrets: PhaseInput = {
+    id: "secrets",
+    label: "Secret stores",
+    description: "Prepare configured secret stores.",
+    status:
+      secretsTimeline.status === "pending"
+        ? legacyImplicitStatus
+        : secretsTimeline.status,
+    ts: secretsTimeline.ts,
+    error: secretsTimeline.error,
+  };
   const gitTimeline = latestTimeline(detail, "git");
   const git = mergeSetupPhase(
     "git",
@@ -338,6 +422,18 @@ export function computeSandboxBootProgress(
     githubTimeline.status,
     githubTimeline.ts,
   );
+  const contextTimeline = latestTimeline(detail, "context");
+  const context: PhaseInput = {
+    id: "context",
+    label: "Project context",
+    description: "Load project context files.",
+    status:
+      contextTimeline.status === "pending"
+        ? legacyImplicitStatus
+        : contextTimeline.status,
+    ts: contextTimeline.ts,
+    error: contextTimeline.error,
+  };
   const skillsTimeline = latestTimeline(detail, "skills");
   const skills = mergeSetupPhase(
     "skills",
@@ -357,15 +453,33 @@ export function computeSandboxBootProgress(
     bootTimeline.ts,
   );
 
+  const runtimeTimeline = latestTimeline(detail, "runtime");
+  const runtime: PhaseInput = {
+    id: "runtime",
+    label: "Agent runtime",
+    description: "Initialize the agent runtime and recover active work.",
+    status:
+      runtimeTimeline.status === "pending"
+        ? legacyImplicitStatus
+        : runtimeTimeline.status,
+    ts: runtimeTimeline.ts,
+    error: runtimeTimeline.error,
+  };
   const readyTimeline = latestTimeline(detail, "ready");
   const priorPhases = [
     container,
-    daemonPhase,
     config,
+    statePhase,
+    daemonPhase,
+    preflight,
+    models,
+    secrets,
     git,
     github,
+    context,
     skills,
     boot,
+    runtime,
   ];
   const failedBeforeReady =
     priorPhases.some((phase) => phase.status === "failed") ||
@@ -390,12 +504,18 @@ export function computeSandboxBootProgress(
 
   const phases: BootPhase[] = [
     container,
-    daemonPhase,
     config,
+    statePhase,
+    daemonPhase,
+    preflight,
+    models,
+    secrets,
     git,
     github,
+    context,
     skills,
     boot,
+    runtime,
     ready,
   ];
 
@@ -418,9 +538,10 @@ export function computeSandboxBootProgress(
 
   const anyFailed = phases.some((phase) => phase.status === "failed");
   let state: BootState;
-  if (readyForCommands) state = "ready";
+  if (readyForCommands && !reconnecting) state = "ready";
   else if (anyFailed) state = "failed";
   else if (offline || stopping) state = "offline";
+  else if (reconnecting) state = "reconnecting";
   else if (container.status !== "done") state = "provisioning";
   else state = "booting";
 
@@ -433,11 +554,16 @@ export function computeSandboxBootProgress(
           ? stopping
             ? "Stopping sandbox…"
             : "Sandbox offline"
+          : state === "reconnecting"
+            ? "Reconnecting…"
           : state === "provisioning"
             ? "Creating container…"
             : "Booting…";
   const showPhaseStepper =
-    state === "provisioning" || state === "booting" || state === "failed";
+    state === "provisioning" ||
+    state === "booting" ||
+    state === "reconnecting" ||
+    state === "failed";
 
   return {
     phases,
