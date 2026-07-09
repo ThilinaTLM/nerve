@@ -72,9 +72,9 @@ export async function runSandboxEntrypoint(
   });
   logger.info("sandbox-agent starting", {
     configPath,
-    modelProvider: config.agent.mainModel.provider,
-    model: config.agent.mainModel.model,
-    mode: config.agent.mode,
+    modelProvider: config.agent.defaultModel.provider,
+    model: config.agent.defaultModel.model,
+    mode: config.agent.defaultMode,
   });
   // 3. resolve runtime paths
   const paths = resolveSandboxRuntimePaths(env);
@@ -100,6 +100,26 @@ export async function runSandboxEntrypoint(
       data: { ...identity, configDigest, ...data },
     });
   };
+
+  // Connect to the manager before long setup work so boot events stream live.
+  const daemon = new SandboxDaemon(config, configDigest, identity, stores, {
+    workspaceDir: paths.workspaceDir,
+    logger: logger.child({ component: "daemon" }),
+    bootOnly: true,
+  });
+  const session = new ProtocolSession(
+    config,
+    daemon,
+    stores,
+    identity,
+    configDigest,
+    env,
+    logger.child({ component: "controller-session" }),
+  );
+  await session.start();
+  await session.waitForWelcome(
+    config.controller.websocket.connectTimeoutMs ?? 60_000,
+  );
 
   // 6. run preflight after recovery has reconstructed durable state.
   await stage(emitStartup, "sandbox.preflight", () =>
@@ -128,8 +148,8 @@ export async function runSandboxEntrypoint(
     },
     models: [
       {
-        provider: config.agent.mainModel.provider,
-        model: config.agent.mainModel.model,
+        provider: config.agent.defaultModel.provider,
+        model: config.agent.defaultModel.model,
         active: true,
       },
     ],
@@ -205,13 +225,14 @@ export async function runSandboxEntrypoint(
       resolver,
       redactor,
       eventSink: stores.events,
+      sandboxId: identity.sandboxId,
       instanceId: identity.instanceId,
       env: setupEnv,
     }),
   );
 
-  // 14. durable state is already loaded; create daemon after recovery.
-  const daemon = new SandboxDaemon(config, configDigest, identity, stores, {
+  // 14. initialize the daemon runtime after setup/boot has completed.
+  await daemon.initializeRuntime({
     setup: { git, github },
     skills,
     contextFiles,
@@ -220,20 +241,12 @@ export async function runSandboxEntrypoint(
     secretResolver: resolver,
     logger: logger.child({ component: "daemon" }),
   });
-  // 15. connect controller session
-  const session = new ProtocolSession(
-    config,
-    daemon,
-    stores,
-    identity,
-    configDigest,
-    env,
-    logger.child({ component: "controller-session" }),
-  );
-  await session.start();
-  daemon.start();
-  // 16. mark ready/degraded
-  const status = daemon.status.status === "degraded" ? "degraded" : "ready";
+  // 15. mark ready/degraded and notify the manager.
+  const status =
+    modelRuntime.degraded || recoveredState.configChanged
+      ? "degraded"
+      : "ready";
+  daemon.markReady(status);
   logger.info("sandbox-agent ready", {
     status,
     daemonStatus: daemon.status.status,
@@ -245,8 +258,9 @@ export async function runSandboxEntrypoint(
       recoveredState.commands.length > 0 ||
       recoveredState.unackedEvents.length > 0,
     daemonStatus: daemon.status.status,
-    cursor: { streams: [{ stream: "sandbox", processedSeq: 0 }] },
+    cursor: { streams: (await stores.events.ackState()).streams },
   });
+  await session.markReady(status);
   const stop = async () => {
     await session.stop();
   };

@@ -34,9 +34,9 @@ export type SandboxAgentControls = {
 export function defaultAgentControls(): SandboxAgentControls {
   const draft = createDraftFromStoredPreferences();
   return {
-    provider: draft.mainProvider,
-    model: draft.mainModel,
-    thinkingLevel: draft.mainThinking,
+    provider: draft.defaultProvider,
+    model: draft.defaultModel,
+    thinkingLevel: draft.defaultThinking,
     mode: draft.mode,
     permissionLevel: draft.permissionLevel,
     approvalPolicy: { autoApproveReadOnly: true },

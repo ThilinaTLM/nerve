@@ -4,6 +4,7 @@ import type {
   SandboxRuntimeContainerStatus,
 } from "@nervekit/shared";
 import type { ManagerState } from "../app/manager-state.js";
+import { lifecycleSummary } from "../lifecycle/lifecycle-state.js";
 import { refreshSandboxObservedState } from "../lifecycle/reconciler.js";
 import {
   readAgentStateSummary,
@@ -43,6 +44,7 @@ export async function deriveSandboxContainerStatus(
       ref: refreshed.containerRef,
       runtime: refreshed.containerRef?.kind ?? refreshed.backend,
       state: inspected?.state ?? refreshed.observedState,
+      lifecycle: lifecycleSummary(refreshed),
       health: inspected?.health,
       exitCode: inspected?.exitCode,
       startedAt: inspected?.startedAt ?? refreshed.startedAt,
@@ -109,6 +111,7 @@ export async function managerDerivedSandboxView(
     lastEventAt: agentSummary?.lastEventAt ?? lastEvent?.ts,
     lastSession: sessionSummary(session),
     limitations,
+    lifecycle: lifecycleSummary(record),
     container,
     configDigest: record.configDigest,
     startedAt: record.startedAt,
@@ -158,6 +161,24 @@ export function daemonStatusFromRecord(
   record: ManagedSandboxRecord,
   sessionState?: string,
 ): "booting" | "reconnecting" | "stopping" | "failed" | "offline" {
+  if (record.lifecycleState === "failed") return "failed";
+  if (record.lifecycleState === "stopping") return "stopping";
+  if (
+    record.lifecycleState === "stopped" ||
+    record.lifecycleState === "removed"
+  )
+    return "offline";
+  if (record.lifecycleState === "reconnecting") return "reconnecting";
+  if (
+    record.lifecycleState === "record_created" ||
+    record.lifecycleState === "container_creating" ||
+    record.lifecycleState === "container_created" ||
+    record.lifecycleState === "container_starting" ||
+    record.lifecycleState === "container_started" ||
+    record.lifecycleState === "daemon_connected" ||
+    record.lifecycleState === "booting"
+  )
+    return "booting";
   if (record.observedState === "failed") return "failed";
   if (record.observedState === "stopping") return "stopping";
   if (
@@ -183,9 +204,20 @@ export function managerStalenessReason(
   session: SandboxSessionRecord | undefined,
 ): string {
   const state = container?.state ?? record.observedState;
+  if (record.lifecycleState === "container_started")
+    return "daemon_not_connected";
+  if (
+    record.lifecycleState === "daemon_connected" ||
+    record.lifecycleState === "booting"
+  )
+    return "sandbox_booting";
   if (state === "removed" || record.desiredState === "removed")
     return "container_removed";
-  if (state === "failed" || record.observedState === "failed")
+  if (
+    state === "failed" ||
+    record.observedState === "failed" ||
+    record.lifecycleState === "failed"
+  )
     return "container_failed";
   if (state === "exited" || record.desiredState === "stopped")
     return "container_stopped";
@@ -223,8 +255,10 @@ function sessionSummary(session: SandboxSessionRecord | undefined) {
         : session.state === "reconnecting"
           ? "disconnected"
           : session.state,
-    connectedAt: session.updatedAt,
+    connectedAt: session.connectedAt ?? session.updatedAt,
     disconnectedAt: session.disconnectedAt,
+    readyAt: session.readyAt,
+    agentStatus: session.agentStatus,
     closeCode: session.closeCode,
     closeReason: session.closeReason?.trim() || undefined,
     acceptedCapabilities: session.capabilities,

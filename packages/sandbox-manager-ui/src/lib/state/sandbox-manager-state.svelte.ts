@@ -2,6 +2,7 @@
 import type {
   CreatePinnedCommandRequest,
   EventEnvelope,
+  ManagedSandboxLifecycleState,
   ManagedSandboxRecord,
   ModelInfo,
   RemoveOptions,
@@ -143,17 +144,6 @@ function recordForDetail(
     store.details[sandboxId]?.record ??
     store.sandboxes.find((record) => record.sandboxId === sandboxId)
   );
-}
-
-function initialPromptFromRequest(
-  request: SandboxCreateRequest,
-): string | undefined {
-  const config = isRecord(request.config) ? request.config : undefined;
-  const agent = isRecord(config?.agent) ? config.agent : undefined;
-  const prompt = agent?.initialPrompt;
-  return typeof prompt === "string" && prompt.trim()
-    ? prompt.trim()
-    : undefined;
 }
 
 export class SandboxManagerStore {
@@ -843,7 +833,10 @@ export class SandboxManagerStore {
     await this.refreshCredentials();
   }
 
-  async createSandbox(request: SandboxCreateRequest): Promise<string> {
+  async createSandbox(
+    request: SandboxCreateRequest,
+    queuedPrompt?: string,
+  ): Promise<string> {
     const record = await this.runOperation(
       "create",
       undefined,
@@ -852,8 +845,7 @@ export class SandboxManagerStore {
     );
     this.patchRecord(record);
     const detail = this.detail(record.sandboxId);
-    const initialPrompt = initialPromptFromRequest(request);
-    if (initialPrompt) detail.queuedPrompt = initialPrompt;
+    if (queuedPrompt?.trim()) detail.queuedPrompt = queuedPrompt.trim();
     if (request.start) {
       void this.startSandbox(record.sandboxId).catch((error) => {
         notify.error("Could not start sandbox", {
@@ -1243,6 +1235,59 @@ export class SandboxManagerStore {
     if (detail) detail.record = record;
   }
 
+  private applyManagerLifecycleEvent(
+    sandboxId: string,
+    envelope: SandboxManagerEventEnvelope,
+  ): void {
+    const data = isRecord(envelope.data) ? envelope.data : {};
+    const lifecycleState =
+      typeof data.lifecycleState === "string"
+        ? (data.lifecycleState as ManagedSandboxLifecycleState)
+        : undefined;
+    const patch: Partial<ManagedSandboxRecord> = {};
+    if (typeof data.instanceId === "string") patch.instanceId = data.instanceId;
+    if (typeof data.desiredState === "string")
+      patch.desiredState =
+        data.desiredState as ManagedSandboxRecord["desiredState"];
+    if (typeof data.observedState === "string")
+      patch.observedState =
+        data.observedState as ManagedSandboxRecord["observedState"];
+    if (lifecycleState) patch.lifecycleState = lifecycleState;
+    if (typeof data.lifecycleUpdatedAt === "string")
+      patch.lifecycleUpdatedAt = data.lifecycleUpdatedAt;
+    if (isRecord(data.error)) {
+      const message = data.error.message;
+      const code = data.error.code;
+      if (typeof code === "string" && typeof message === "string")
+        patch.lastError = { code, message };
+    }
+    if (Object.keys(patch).length > 0) {
+      const current = recordForDetail(this, sandboxId);
+      if (current) this.patchRecord({ ...current, ...patch });
+    }
+    const detail = this.details[sandboxId];
+    if (detail?.status && lifecycleState) {
+      detail.status.lifecycle = {
+        state: lifecycleState,
+        updatedAt:
+          typeof data.lifecycleUpdatedAt === "string"
+            ? data.lifecycleUpdatedAt
+            : envelope.ts,
+      };
+      if (lifecycleState === "ready" || lifecycleState === "degraded")
+        detail.status.connected = true;
+    }
+    if (detail?.snapshot && lifecycleState) {
+      detail.snapshot.lifecycle = {
+        state: lifecycleState,
+        updatedAt:
+          typeof data.lifecycleUpdatedAt === "string"
+            ? data.lifecycleUpdatedAt
+            : envelope.ts,
+      };
+    }
+  }
+
   private handleEvent(envelope: SandboxManagerEventEnvelope): void {
     if (envelope.stream === "manager") {
       if (envelope.type === "manager.sandbox.activity") {
@@ -1261,6 +1306,12 @@ export class SandboxManagerStore {
     if (!sandboxId) return;
     const detail = this.details[sandboxId];
     if (!detail) return;
+    if (envelope.type.startsWith("manager.sandbox.")) {
+      this.applyManagerLifecycleEvent(sandboxId, envelope);
+      if (envelope.type === "manager.sandbox.ready")
+        void this.flushQueuedPrompt(sandboxId);
+      return;
+    }
     const uiEvent = {
       stream: envelope.stream,
       seq: envelope.seq,

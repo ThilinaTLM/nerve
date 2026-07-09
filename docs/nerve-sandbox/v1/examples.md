@@ -18,7 +18,7 @@ modelCatalog:
           env: ANTHROPIC_API_KEY
 
 agent:
-  mainModel:
+  defaultModel:
     provider: anthropic
     model: claude-sonnet-4-5
     thinkingLevel: medium
@@ -127,19 +127,18 @@ modelCatalog:
       supportedThinkingLevels: [off]
 
 agent:
-  mainModel:
+  defaultModel:
     provider: anthropic
     model: claude-sonnet-4-5
     thinkingLevel: medium
-  exploreModel:
+  defaultExploreModel:
     provider: openai-codex
     model: gpt-5-codex
     thinkingLevel: low
-  initialPrompt: |
-    Wait for controller instructions and keep changes small.
+  # First user prompts are sent later with sandbox.run.start.prompt.
   systemPromptAmendment: |
     Do not modify files outside /workspace. Ask before risky operations.
-  permissionLevel: supervised
+  defaultPermissionLevel: supervised
 
 controller:
   websocket:
@@ -427,7 +426,7 @@ modelCatalog:
           persist: state
 
 agent:
-  mainModel:
+  defaultModel:
     provider: openai-codex
     model: gpt-5-codex
     thinkingLevel: medium
@@ -458,7 +457,7 @@ modelCatalog:
       supportedThinkingLevels: [off]
 
 agent:
-  mainModel:
+  defaultModel:
     provider: corp-openai
     model: gpt-4.1-corp
     thinkingLevel: off
@@ -738,8 +737,8 @@ Because v1 is still proposed, these are spec cleanup notes rather than compatibi
 
 - Move Git config from `tools.groups.*` into top-level `git`.
 - Move GitHub config from `tools.groups.*` into top-level `github`.
-- Move provider credentials/API/base URL/model metadata from `agent.mainModel` and `agent.exploreModel` into `modelCatalog`.
-- Keep `agent.mainModel` and `agent.exploreModel` as `{ provider, model, thinkingLevel }` selectors.
+- Move provider credentials/API/base URL/model metadata from `agent.defaultModel` and `agent.defaultExploreModel` into `modelCatalog`.
+- Keep `agent.defaultModel` and `agent.defaultExploreModel` as `{ provider, model, thinkingLevel }` selectors.
 - Replace raw env/file-only secret refs with env/file/kv `SecretRef` values as needed.
 - Replace package dependency config blocks with `boot.phases`, `security.network`, firewall policy, cache paths, and scoped package-manager credential refs.
 - Prefer `/workspace/AGENTS.md` and `/workspace/.agents/skills`; legacy project resource paths require explicit compatibility support.

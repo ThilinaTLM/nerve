@@ -63,6 +63,14 @@ export class ProtocolSession {
   private acceptedCapabilities: string[] = [];
   private lastHeartbeatAt?: string;
   private stopping = false;
+  private welcomeReceived = false;
+  private welcomeWaiters: Array<{
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timer?: NodeJS.Timeout;
+  }> = [];
+  private flushScheduled = false;
+  private unsubscribeOutbox?: () => void;
   private readonly logger: StructuredLogger;
   private readonly identity: SandboxRuntimeIdentity;
 
@@ -93,7 +101,44 @@ export class ProtocolSession {
   }
 
   async start(): Promise<void> {
+    this.unsubscribeOutbox ??= this.stores.events.subscribe((record) => {
+      if (record.durability === "durable") this.scheduleFlush();
+    });
     await this.connect();
+  }
+
+  async waitForWelcome(timeoutMs = 60_000): Promise<void> {
+    if (this.welcomeReceived && this.state === "connected") return;
+    await new Promise<void>((resolve, reject) => {
+      const waiter: {
+        resolve: () => void;
+        reject: (error: Error) => void;
+        timer?: NodeJS.Timeout;
+      } = { resolve, reject };
+      waiter.timer = setTimeout(() => {
+        this.welcomeWaiters = this.welcomeWaiters.filter(
+          (entry) => entry !== waiter,
+        );
+        reject(new Error("Timed out waiting for sandbox manager welcome"));
+      }, timeoutMs);
+      waiter.timer.unref();
+      this.welcomeWaiters.push(waiter);
+    });
+  }
+
+  async markReady(status: "ready" | "degraded" = "ready"): Promise<void> {
+    await this.waitForWelcome();
+    this.client?.send({
+      type: "ready",
+      sandboxId: this.identity.sandboxId,
+      instanceId: this.identity.instanceId,
+      status,
+      cursors: (await this.stores.events.ackState()).streams,
+    });
+    await this.persistConnectivity("connected", {
+      readyAt: new Date().toISOString(),
+    });
+    await this.flushUnacked();
   }
 
   async stop(): Promise<void> {
@@ -105,6 +150,8 @@ export class ProtocolSession {
       reason: "shutdown",
       ts: new Date().toISOString(),
     });
+    this.unsubscribeOutbox?.();
+    this.unsubscribeOutbox = undefined;
     this.client?.close();
     this.state = "closed";
     await this.persistConnectivity("shutting_down", {
@@ -188,15 +235,11 @@ export class ProtocolSession {
         daemonStatus: this.daemon.status.status,
       });
       await this.persistConnectivity("connected");
-      this.daemon.start();
-      this.client?.send({
-        type: "ready",
-        sandboxId: this.identity.sandboxId,
-        instanceId: this.identity.instanceId,
-        status: this.daemon.status.status === "degraded" ? "degraded" : "ready",
-        cursors: (await this.stores.events.ackState()).streams,
-      });
-      await this.emitStartupEvent();
+      this.welcomeReceived = true;
+      for (const waiter of this.welcomeWaiters.splice(0)) {
+        if (waiter.timer) clearTimeout(waiter.timer);
+        waiter.resolve();
+      }
       await this.flushUnacked();
       const heartbeatIntervalMs = Number(
         message.heartbeatIntervalMs ??
@@ -265,23 +308,6 @@ export class ProtocolSession {
     }
   }
 
-  private async emitStartupEvent(): Promise<void> {
-    await this.stores.events.append({
-      type: "sandbox.ready",
-      durability: "durable",
-      data: {
-        sandboxId: this.identity.sandboxId,
-        instanceId: this.identity.instanceId,
-        configDigest: this.configDigest,
-        status: "ready",
-        readyAt: new Date().toISOString(),
-        recovered: false,
-        daemonStatus: this.daemon.status.status,
-        cursor: { streams: (await this.stores.events.ackState()).streams },
-      },
-    });
-  }
-
   private startHeartbeat(intervalMs: number): void {
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = setInterval(() => {
@@ -343,6 +369,17 @@ export class ProtocolSession {
       updatedAt: new Date().toISOString(),
       ...extra,
     });
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushScheduled || this.state !== "connected") return;
+    this.flushScheduled = true;
+    setTimeout(() => {
+      this.flushScheduled = false;
+      void this.flushUnacked().catch((error) =>
+        this.logger.warn("failed to flush startup events", { err: error }),
+      );
+    }, 100).unref();
   }
 
   private async flushUnacked(): Promise<void> {

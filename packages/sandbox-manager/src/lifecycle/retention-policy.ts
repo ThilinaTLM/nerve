@@ -2,7 +2,7 @@ import type { ManagedSandboxRecord } from "@nervekit/shared";
 
 export function shouldPreserveRecord(record: ManagedSandboxRecord): boolean {
   return Boolean(
-    record.retention?.preserveFailed && record.observedState === "failed",
+    record.retention?.preserveFailed && record.lifecycleState === "failed",
   );
 }
 

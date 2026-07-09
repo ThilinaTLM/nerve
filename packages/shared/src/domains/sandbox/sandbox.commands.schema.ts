@@ -48,7 +48,10 @@ import {
   startupSetupStatusSchema,
   toolGroupStatusSchema,
 } from "./sandbox.common.schema.js";
-import { sandboxRuntimeContainerStatusSchema } from "./sandbox.manager.schema.js";
+import {
+  managedSandboxLifecycleSummarySchema,
+  sandboxRuntimeContainerStatusSchema,
+} from "./sandbox.manager.schema.js";
 import { sandboxToolCallRecordSchema } from "./sandbox.state.schema.js";
 
 export const sandboxCommandMethodSchema = z.enum([
@@ -106,6 +109,7 @@ export const sandboxCommandErrorCodeSchema = z.enum([
   "POLICY_DENIED",
   "SANDBOX_DEGRADED",
   "SANDBOX_FAILED",
+  "BOOTING",
 ]);
 export type SandboxCommandErrorCode = z.infer<
   typeof sandboxCommandErrorCodeSchema
@@ -125,9 +129,9 @@ export type SandboxMutatingCommandBase = z.infer<
   typeof sandboxMutatingCommandBaseSchema
 >;
 
-export const sandboxRunStartParamsSchema =
-  sandboxMutatingCommandBaseSchema.extend({
-    prompt: z.string().min(1).optional(),
+export const sandboxRunStartParamsSchema = sandboxMutatingCommandBaseSchema
+  .extend({
+    prompt: z.string().min(1),
     images: z
       .array(
         z.object({
@@ -137,6 +141,18 @@ export const sandboxRunStartParamsSchema =
       )
       .optional(),
     behavior: z.enum(["start", "follow_up", "steer"]).optional(),
+  })
+  .superRefine((params, ctx) => {
+    if (params.behavior !== "steer") return;
+    for (const field of ["conversationId", "agentId", "runId"] as const) {
+      if (!params[field]) {
+        ctx.addIssue({
+          code: "custom",
+          path: [field],
+          message: `steer requires ${field}`,
+        });
+      }
+    }
   });
 export type SandboxRunStartParams = z.infer<typeof sandboxRunStartParamsSchema>;
 
@@ -674,6 +690,8 @@ export const sandboxControllerSessionSummarySchema = z.object({
   status: z.enum(["connected", "disconnected", "closed"]).optional(),
   connectedAt: isoDateTimeSchema.optional(),
   disconnectedAt: isoDateTimeSchema.optional(),
+  readyAt: isoDateTimeSchema.optional(),
+  agentStatus: z.enum(["booting", "ready", "degraded", "failed"]).optional(),
   closeCode: z.number().int().safe().optional(),
   closeReason: z.string().min(1).optional(),
   acceptedCapabilities: z.array(z.string().min(1)).optional(),
@@ -726,6 +744,7 @@ export const sandboxStatusGetResultSchema = z.object({
   lastEventAt: isoDateTimeSchema.optional(),
   lastSession: sandboxControllerSessionSummarySchema.optional(),
   limitations: z.array(z.string().min(1)).optional(),
+  lifecycle: managedSandboxLifecycleSummarySchema.optional(),
   container: sandboxRuntimeContainerStatusSchema.optional(),
   configDigest: z.string().min(1).optional(),
   startedAt: isoDateTimeSchema.optional(),
@@ -768,6 +787,7 @@ export const sandboxSnapshotResultSchema = z.object({
   lastEventAt: isoDateTimeSchema.optional(),
   lastSession: sandboxControllerSessionSummarySchema.optional(),
   limitations: z.array(z.string().min(1)).optional(),
+  lifecycle: managedSandboxLifecycleSummarySchema.optional(),
   container: sandboxRuntimeContainerStatusSchema.optional(),
   conversations: z.array(sandboxConversationSnapshotSchema),
   agents: z.array(sandboxAgentSnapshotSchema).optional(),

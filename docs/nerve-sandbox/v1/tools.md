@@ -220,7 +220,7 @@ The explore agent is a read-oriented subagent used for codebase investigation.
 
 Requirements:
 
-- It SHOULD use `agent.exploreModel` when configured; otherwise it MAY use `agent.mainModel`. Both selections resolve through the model catalog.
+- It SHOULD use `agent.defaultExploreModel` when configured; otherwise it MAY use `agent.defaultModel`. Both selections resolve through the model catalog.
 - Its default tool set SHOULD be read-only: `read`, `grep`, `find`, `ls`, and bounded status/log tools if supported.
 - It MUST inherit filesystem and network policy from the parent sandbox.
 - It MUST not exceed configured explore depth/run budgets.

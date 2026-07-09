@@ -1,4 +1,5 @@
 import type {
+  ManagedSandboxLifecycleState,
   ManagedSandboxObservedState,
   ManagedSandboxRecord,
 } from "@nervekit/shared";
@@ -32,6 +33,72 @@ export function observedStateTone(
       return "neutral";
     default:
       return "neutral";
+  }
+}
+
+export function lifecycleStateTone(
+  state: ManagedSandboxLifecycleState,
+): SandboxStatusTone {
+  switch (state) {
+    case "ready":
+      return "good";
+    case "degraded":
+      return "warn";
+    case "record_created":
+    case "container_creating":
+    case "container_created":
+    case "container_starting":
+    case "container_started":
+    case "daemon_connected":
+    case "booting":
+    case "reconnecting":
+      return "running";
+    case "stopping":
+      return "warn";
+    case "failed":
+      return "danger";
+    case "stopped":
+    case "removed":
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+export function lifecycleStateLabel(
+  state: ManagedSandboxLifecycleState,
+): string {
+  switch (state) {
+    case "record_created":
+      return "Record created";
+    case "container_creating":
+      return "Creating container";
+    case "container_created":
+      return "Container created";
+    case "container_starting":
+      return "Starting container";
+    case "container_started":
+      return "Container started";
+    case "daemon_connected":
+      return "Controller connected";
+    case "booting":
+      return "Booting";
+    case "ready":
+      return "Ready";
+    case "degraded":
+      return "Degraded";
+    case "reconnecting":
+      return "Reconnecting";
+    case "stopping":
+      return "Stopping";
+    case "stopped":
+      return "Stopped";
+    case "failed":
+      return "Failed";
+    case "removed":
+      return "Removed";
+    default:
+      return "Unknown";
   }
 }
 
@@ -74,20 +141,25 @@ export function matchesFleetFilter(
       return true;
     case "running":
       return (
-        record.observedState === "running" ||
-        record.observedState === "starting" ||
-        record.observedState === "reconnecting"
+        record.lifecycleState === "ready" ||
+        record.lifecycleState === "degraded" ||
+        record.lifecycleState === "booting" ||
+        record.lifecycleState === "daemon_connected" ||
+        record.lifecycleState === "container_started" ||
+        record.lifecycleState === "container_starting"
       );
     case "degraded":
       return (
-        record.observedState === "reconnecting" || Boolean(record.lastError)
+        record.lifecycleState === "degraded" ||
+        record.lifecycleState === "reconnecting" ||
+        Boolean(record.lastError)
       );
     case "failed":
-      return record.observedState === "failed";
+      return record.lifecycleState === "failed";
     case "stopped":
       return (
-        record.observedState === "exited" ||
-        record.observedState === "stopping" ||
+        record.lifecycleState === "stopped" ||
+        record.lifecycleState === "stopping" ||
         record.desiredState === "stopped"
       );
     default:
@@ -118,9 +190,9 @@ export function matchesSearch(
 /** Lifecycle action availability given a record's observed/desired state. */
 export function canStart(record: ManagedSandboxRecord): boolean {
   return (
-    record.observedState === "exited" ||
-    record.observedState === "failed" ||
-    record.observedState === "unknown" ||
+    record.lifecycleState === "stopped" ||
+    record.lifecycleState === "failed" ||
+    record.lifecycleState === "record_created" ||
     record.desiredState === "created" ||
     record.desiredState === "stopped"
   );
@@ -128,12 +200,16 @@ export function canStart(record: ManagedSandboxRecord): boolean {
 
 export function canStop(record: ManagedSandboxRecord): boolean {
   return (
-    record.observedState === "running" ||
-    record.observedState === "starting" ||
-    record.observedState === "reconnecting"
+    record.lifecycleState === "ready" ||
+    record.lifecycleState === "degraded" ||
+    record.lifecycleState === "booting" ||
+    record.lifecycleState === "daemon_connected" ||
+    record.lifecycleState === "container_started" ||
+    record.lifecycleState === "container_starting" ||
+    record.lifecycleState === "reconnecting"
   );
 }
 
 export function canRestart(record: ManagedSandboxRecord): boolean {
-  return record.observedState !== "removed";
+  return record.lifecycleState !== "removed";
 }

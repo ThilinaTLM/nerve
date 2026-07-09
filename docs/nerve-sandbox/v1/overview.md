@@ -78,7 +78,7 @@ Sandbox v1 aims to provide:
 3. **pi-ai model/provider parity with simple agent selectors**
    - Built-in providers and models resolve through the bundled pi-ai catalog.
    - Custom providers, known pi-ai API types, compatible APIs, custom headers, compat options, thinking levels, and model metadata can be represented in `modelCatalog`.
-   - `agent.mainModel` and `agent.exploreModel` select only provider, model, and thinking level.
+   - `agent.defaultModel` and `agent.defaultExploreModel` select only provider, model, and thinking level.
    - The sandbox can refresh `openai-codex` and Anthropic subscription credentials when the manager provides refresh material and the runtime supports the provider.
 
 4. **First-class Git/GitHub startup configuration**

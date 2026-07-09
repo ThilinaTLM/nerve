@@ -10,7 +10,7 @@ describe("applyCredentialProfiles", () => {
     const config = {
       version: 1,
       agent: {
-        mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+        defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
       },
     } as const;
 
@@ -67,7 +67,7 @@ describe("applyCredentialProfiles", () => {
     const config = {
       version: 1,
       agent: {
-        mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+        defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
       },
     } as const;
 
@@ -125,7 +125,7 @@ describe("applyCredentialProfiles", () => {
     const config = {
       version: 1,
       agent: {
-        mainModel: { provider: "openai-codex", model: "gpt-5.1-codex-max" },
+        defaultModel: { provider: "openai-codex", model: "gpt-5.1-codex-max" },
       },
     } as const;
 

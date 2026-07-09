@@ -1405,7 +1405,7 @@
     "agent": {
       "type": "object",
       "properties": {
-        "mainModel": {
+        "defaultModel": {
           "type": "object",
           "properties": {
             "provider": {
@@ -1424,7 +1424,7 @@
           "required": ["provider", "model"],
           "additionalProperties": false
         },
-        "exploreModel": {
+        "defaultExploreModel": {
           "type": "object",
           "properties": {
             "provider": {
@@ -1442,20 +1442,16 @@
           },
           "required": ["provider", "model"],
           "additionalProperties": false
-        },
-        "initialPrompt": {
-          "type": "string",
-          "minLength": 1
         },
         "systemPromptAmendment": {
           "type": "string",
           "minLength": 1
         },
-        "mode": {
+        "defaultMode": {
           "type": "string",
           "enum": ["normal", "planning"]
         },
-        "permissionLevel": {
+        "defaultPermissionLevel": {
           "type": "string",
           "enum": ["read_only", "supervised", "autonomous"]
         },
@@ -1474,7 +1470,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": ["mainModel"],
+      "required": ["defaultModel"],
       "additionalProperties": false
     },
     "controller": {

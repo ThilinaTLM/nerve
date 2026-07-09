@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -14,7 +21,9 @@ import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 
 const config = {
   version: 1,
-  agent: { mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" } },
+  agent: {
+    defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+  },
   controller: {
     websocket: { url: "ws://127.0.0.1/ws" },
     auth: { type: "api_key", apiKey: { env: "TOKEN" } },
@@ -123,15 +132,17 @@ describe("sandbox tool policy", () => {
 
   it("dispatches supervised task restart through the tool runtime", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-task-runtime-"));
+    let supervisor: TaskSupervisor | undefined;
     try {
       const workspace = path.join(dir, "workspace");
       const state = path.join(dir, "state");
       await mkdir(workspace);
       await mkdir(state);
+      supervisor = new TaskSupervisor({ stateDir: state });
       const runtime = new SandboxToolRuntime(config, {
         workspaceDir: workspace,
         stateDir: state,
-        taskSupervisor: new TaskSupervisor({ stateDir: state }),
+        taskSupervisor: supervisor,
       });
       const started = await runtime.execute("task_start", {
         command: "printf restart-ok",
@@ -143,7 +154,17 @@ describe("sandbox tool policy", () => {
       const second = (restarted.details as { task: { id: string } }).task;
       assert.notEqual(second.id, first.id);
       await runtime.execute("task_cancel", { taskId: second.id });
+      await supervisor.drain();
+      const persisted = JSON.parse(
+        await readFile(
+          path.join(state, "tasks", second.id, "state.json"),
+          "utf8",
+        ),
+      ) as { restartedFromTaskId?: string; restartGeneration?: number };
+      assert.equal(persisted.restartedFromTaskId, first.id);
+      assert.equal(persisted.restartGeneration, 1);
     } finally {
+      await supervisor?.drain().catch(() => undefined);
       await rm(dir, { recursive: true, force: true });
     }
   });

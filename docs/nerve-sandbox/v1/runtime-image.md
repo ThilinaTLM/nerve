@@ -43,7 +43,7 @@ The image MUST provide an entrypoint that performs this sequence:
 6. Initialize protected state directories such as `/state/credentials`, `/state/cache/secrets`, and dependency caches.
 7. Apply container-visible security setup that can be enforced from inside the container.
 8. Initialize secret resolvers and secret-store clients without logging values; resolve only startup-critical secret-store/controller auth at this point.
-9. Resolve model catalog provider/model metadata and verify selected `agent.mainModel`/`agent.exploreModel` selectors.
+9. Resolve model catalog provider/model metadata and verify selected `agent.defaultModel`/`agent.defaultExploreModel` selectors.
 10. Apply top-level Git setup, including identity, signing state, remotes, credentials, safe-directory config, and optional clone.
 11. Apply top-level GitHub setup, including CLI/API auth and default repo metadata.
 12. Load `AGENTS.md` context files and configured `SKILL.md` resources. If Git clone populated `/workspace`, loading MUST occur after clone.

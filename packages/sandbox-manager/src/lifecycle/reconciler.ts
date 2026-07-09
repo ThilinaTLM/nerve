@@ -1,4 +1,5 @@
 import type {
+  ManagedSandboxLifecycleState,
   ManagedSandboxObservedState,
   ManagedSandboxRecord,
 } from "@nervekit/shared";
@@ -26,16 +27,28 @@ export async function refreshSandboxObservedState(
   try {
     const status = await driver.inspect(record.containerRef);
     const observedState = mapObservedState(status.state, status.exitCode);
+    const lifecycleState = deriveLifecycleFromObserved(
+      record,
+      observedState,
+      status.exitCode,
+    );
+    const now = new Date().toISOString();
+    const lifecycleChanged = lifecycleState !== record.lifecycleState;
     const next: ManagedSandboxRecord = {
       ...record,
       observedState,
+      lifecycleState,
+      lifecycleUpdatedAt: lifecycleChanged ? now : record.lifecycleUpdatedAt,
       stoppedAt: status.finishedAt ?? record.stoppedAt,
       startedAt: status.startedAt ?? record.startedAt,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
       lastError:
-        observedState === "failed"
+        lifecycleState === "failed" || observedState === "failed"
           ? {
-              code: "CONTAINER_FAILED",
+              code:
+                lifecycleState === "failed"
+                  ? "CONTAINER_EXITED_BEFORE_READY"
+                  : "CONTAINER_FAILED",
               message: `container exited${status.exitCode !== undefined ? ` ${status.exitCode}` : ""}`,
             }
           : record.lastError,
@@ -55,6 +68,28 @@ export async function refreshSandboxObservedState(
     await store.put(next);
     return next;
   }
+}
+
+function deriveLifecycleFromObserved(
+  record: ManagedSandboxRecord,
+  observedState: ManagedSandboxObservedState,
+  exitCode?: number,
+): ManagedSandboxLifecycleState {
+  const current = record.lifecycleState;
+  if (record.desiredState === "removed" || observedState === "removed")
+    return "removed";
+  if (record.desiredState === "stopped") return "stopped";
+  if (observedState === "failed") return "failed";
+  if (observedState === "exited") return "failed";
+  if (observedState === "reconnecting") return "reconnecting";
+  if (current === "daemon_connected" || current === "booting") return current;
+  if (current === "ready" || current === "degraded") return current;
+  if (current === "failed" || current === "removed") return current;
+  if (observedState === "running") return "container_started";
+  if (observedState === "starting") return "container_starting";
+  if (observedState === "creating") return "container_creating";
+  void exitCode;
+  return current;
 }
 
 function mapObservedState(

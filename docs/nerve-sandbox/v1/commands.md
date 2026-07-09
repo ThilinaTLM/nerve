@@ -101,8 +101,9 @@ type SandboxRunStartResult = CommandAcceptedResult & {
 
 Validation:
 
-- If `prompt` is omitted, the sandbox MAY use `agent.initialPrompt`.
-- If neither `prompt` nor `agent.initialPrompt` is present, reject with `VALIDATION_FAILED`.
+- `prompt` is required for every `sandbox.run.start` behavior, including `steer`.
+- For `behavior: "steer"`, `conversationId`, `agentId`, and `runId` are also required.
+- First prompts are conversation-level commands and are not read from sandbox YAML.
 - `behavior: "start"` creates a new run unless `runId` names an existing compatible duplicate.
 - `behavior: "follow_up"` appends to the conversation after a terminal or waiting state according to harness policy.
 - `behavior: "steer"` is allowed only for an active steerable run.

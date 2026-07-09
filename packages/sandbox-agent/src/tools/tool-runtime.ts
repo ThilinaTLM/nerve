@@ -143,7 +143,7 @@ export class SandboxToolRuntime {
       ...this.config,
       agent: {
         ...this.config.agent,
-        permissionLevel: this.policyOverride.permissionLevel,
+        defaultPermissionLevel: this.policyOverride.permissionLevel,
       },
     };
   }
@@ -167,7 +167,7 @@ export class SandboxToolRuntime {
         shell?.requireApproval ?? "risky",
         {
           permissionLevel:
-            effectiveConfig.agent.permissionLevel ?? "autonomous",
+            effectiveConfig.agent.defaultPermissionLevel ?? "autonomous",
           approvalPolicy: this.effectiveApprovalPolicy(),
         },
       );
@@ -182,7 +182,7 @@ export class SandboxToolRuntime {
     }
     return decideNonShellTool(tool, args, {
       permissionLevel:
-        this.effectiveConfig().agent.permissionLevel ?? "autonomous",
+        this.effectiveConfig().agent.defaultPermissionLevel ?? "autonomous",
       approvalPolicy: this.effectiveApprovalPolicy(),
     });
   }

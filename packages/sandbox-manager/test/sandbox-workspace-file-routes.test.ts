@@ -19,6 +19,8 @@ function recordWithWorkspace(
     image: { reference: "nerve-sandbox-agent:dev" },
     desiredState: "created",
     observedState: "unknown",
+    lifecycleState: "record_created",
+    lifecycleUpdatedAt: now,
     workspaceRef: {
       kind: "local",
       source: workspaceSource,

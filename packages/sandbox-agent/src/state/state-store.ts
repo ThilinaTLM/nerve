@@ -207,7 +207,7 @@ function effectiveConfigSummary(
     sandboxId: identity.sandboxId,
     workspaceDir: paths.workspaceDir,
     stateDir: paths.stateDir,
-    mainModel: config.agent.mainModel,
+    defaultModel: config.agent.defaultModel,
     controller: {
       websocketUrl: config.controller.websocket.url,
       authType: config.controller.auth.type,

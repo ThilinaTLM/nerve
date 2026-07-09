@@ -11,6 +11,8 @@ const record = {
   image: { reference: "nerve-sandbox-agent:dev", sandboxSpec: "v1" },
   desiredState: "running",
   observedState: "running",
+  lifecycleState: "ready",
+  lifecycleUpdatedAt: "2026-06-26T12:00:00.000Z",
   workspaceRef: {
     kind: "bind",
     source: "/tmp/workspace",
@@ -41,6 +43,7 @@ describe("manager protocol method handlers", () => {
           ...record,
           desiredState: "stopped",
           observedState: "exited",
+          lifecycleState: "stopped",
           stoppedAt: "2026-06-26T12:05:00.000Z",
           containerRef: { kind: "docker", id: "c1", name: "nerve-sbx_1" },
         },

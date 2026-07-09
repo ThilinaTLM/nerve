@@ -9,12 +9,12 @@ import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 const config = {
   version: 1,
   agent: {
-    mainModel: {
+    defaultModel: {
       provider: "nerve-scripted",
       model: "base",
       thinkingLevel: "off",
     },
-    permissionLevel: "autonomous",
+    defaultPermissionLevel: "autonomous",
   },
   controller: {
     websocket: { url: "ws://127.0.0.1/ws" },

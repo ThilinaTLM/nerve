@@ -24,8 +24,8 @@ type SandboxModelSummary = {
 
 type RedactedSnapshotConfig = {
   agent?: {
-    mainModel?: { provider?: string };
-    exploreModel?: { provider?: string };
+    defaultModel?: { provider?: string };
+    defaultExploreModel?: { provider?: string };
   };
 };
 
@@ -86,8 +86,8 @@ function sandboxConfiguredModelProviders(
   const config = detail?.snapshot?.config as RedactedSnapshotConfig | undefined;
   return new Set(
     [
-      config?.agent?.mainModel?.provider,
-      config?.agent?.exploreModel?.provider,
+      config?.agent?.defaultModel?.provider,
+      config?.agent?.defaultExploreModel?.provider,
     ].filter(isString),
   );
 }
@@ -242,10 +242,18 @@ export function fleetSummary(store: SandboxManagerStore): FleetSummary {
   let contextSum = 0;
   let contextCount = 0;
   for (const record of store.sandboxes) {
-    if (record.observedState === "running") running += 1;
-    if (record.observedState === "reconnecting" || record.lastError)
+    if (
+      record.lifecycleState === "ready" ||
+      record.lifecycleState === "degraded"
+    )
+      running += 1;
+    if (
+      record.lifecycleState === "degraded" ||
+      record.lifecycleState === "reconnecting" ||
+      record.lastError
+    )
       degraded += 1;
-    if (record.observedState === "failed") failed += 1;
+    if (record.lifecycleState === "failed") failed += 1;
     const detail = store.details[record.sandboxId];
     if (detail)
       pendingWaits += Object.values(detail.waitsById).filter(

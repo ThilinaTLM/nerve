@@ -10,16 +10,18 @@ import { SandboxCommandError } from "./errors.js";
 
 export function registerSandboxTaskHandlers(
   router: SandboxCommandRouter,
-  supervisor: TaskSupervisor | undefined,
+  supervisor: TaskSupervisor | (() => TaskSupervisor | undefined) | undefined,
   workspaceDir = "/workspace",
 ): void {
   const requireSupervisor = (): TaskSupervisor => {
-    if (!supervisor)
+    const resolved =
+      typeof supervisor === "function" ? supervisor() : supervisor;
+    if (!resolved)
       throw new SandboxCommandError(
         "UNAVAILABLE",
         "Task supervisor is unavailable in this sandbox",
       );
-    return supervisor;
+    return resolved;
   };
 
   router.register("sandbox.task.list", () => ({

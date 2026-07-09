@@ -5,7 +5,10 @@
     SandboxActivitySummary,
   } from "@nervekit/shared";
   import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
-  import { sandboxIsOffline } from "../state/sandbox-lifecycle";
+  import {
+    sandboxIsOffline,
+    sandboxLifecycleState,
+  } from "../state/sandbox-lifecycle";
   import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
   import SandboxActionMenu from "./SandboxActionMenu.svelte";
   import SandboxStatusBadge from "./SandboxStatusBadge.svelte";
@@ -23,7 +26,15 @@
   const store = useSandboxManagerStore();
   const detail = $derived(store.details[record.sandboxId]);
   const booting = $derived(
-    record.observedState === "creating" || record.observedState === "starting",
+    [
+      "record_created",
+      "container_creating",
+      "container_created",
+      "container_starting",
+      "container_started",
+      "daemon_connected",
+      "booting",
+    ].includes(sandboxLifecycleState(record, detail) ?? ""),
   );
   const offline = $derived(sandboxIsOffline(record, detail));
 </script>

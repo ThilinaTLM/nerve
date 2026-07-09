@@ -7,6 +7,8 @@ export type ConnectedSandboxSession = {
   sessionId: string;
   connectedAt: string;
   lastHeartbeatAt?: string;
+  readyAt?: string;
+  agentStatus?: "booting" | "ready" | "degraded" | "failed";
   socket: WebSocket;
   forwarder: CommandForwarder;
   heartbeat?: NodeJS.Timeout;

@@ -130,7 +130,7 @@ type SandboxRunStartResult = {
 };
 ```
 
-If `prompt` is omitted, the sandbox MAY use `agent.initialPrompt` from configuration. If neither is present, the sandbox MUST reject the command with `VALIDATION_FAILED`.
+`prompt` is required for `sandbox.run.start`. First prompts are conversation-level input sent after the sandbox reaches `ready`/`degraded`; they are not mounted in sandbox YAML.
 
 ### `sandbox.run.continue`
 

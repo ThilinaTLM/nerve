@@ -19,6 +19,10 @@ import {
 } from "@nervekit/shared";
 import type { ManagerState } from "../app/manager-state.js";
 import { HttpError } from "../http/errors.js";
+import {
+  lifecycleReadyForCommands,
+  lifecycleSummary,
+} from "../lifecycle/lifecycle-state.js";
 import { projectConversationSnapshotFromEvents } from "./conversation-event-projection.js";
 import {
   deriveSandboxContainerStatus,
@@ -150,9 +154,11 @@ async function sandboxSnapshot(
       params,
     );
     const container = await connectedContainerStatus(state, sandboxId);
+    const lifecycle = await connectedLifecycle(state, sandboxId);
     return sandboxSnapshotResultSchema.parse({
       connected: true,
       stale: false,
+      lifecycle,
       container,
       ...(isRecord(result) ? result : {}),
       sandboxId,
@@ -315,11 +321,19 @@ function sandboxIdOnlyParams(paramsInput: unknown): { sandboxId: string } {
 }
 
 async function forwardSandboxCommand(
-  { controller }: ProtocolHandlerContext,
+  { state, controller }: ProtocolHandlerContext,
   method: ProtocolMethodName,
   paramsInput: unknown,
 ): Promise<unknown> {
   const sandboxId = sandboxIdFromParams(paramsInput);
+  const record = await state.sandboxes.get(sandboxId);
+  if (!lifecycleReadyForCommands(record)) {
+    throw protocolHttpError(
+      409,
+      "Sandbox is still booting; commands are disabled until ready",
+      "BOOTING",
+    );
+  }
   const session = controller.getSession(sandboxId);
   if (!session)
     throw protocolHttpError(
@@ -346,7 +360,7 @@ function normalizeForwardedParams(
   switch (method) {
     case "sandbox.agent.prompt":
       return sandboxRunStartParamsSchema
-        .extend({ sandboxId: sandboxIdParamSchema })
+        .safeExtend({ sandboxId: sandboxIdParamSchema })
         .parse(params);
     case "sandbox.agent.abort":
       return sandboxRunCancelParamsSchema
@@ -386,6 +400,14 @@ async function connectedContainerStatus(
   const record = await state.sandboxes.get(sandboxId);
   if (!record) return undefined;
   return (await deriveSandboxContainerStatus(state, record)).container;
+}
+
+async function connectedLifecycle(
+  state: ManagerState,
+  sandboxId: string,
+): Promise<ReturnType<typeof lifecycleSummary> | undefined> {
+  const record = await state.sandboxes.get(sandboxId);
+  return record ? lifecycleSummary(record) : undefined;
 }
 
 function parseProtocolMethod(method: string): ProtocolMethodName {

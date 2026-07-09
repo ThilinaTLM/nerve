@@ -35,9 +35,9 @@ export function effectiveModelCatalog(
   config: SandboxConfigV1,
 ): ResolvedModel[] {
   return [
-    resolveModelSelection(config, config.agent.mainModel),
-    ...(config.agent.exploreModel
-      ? [resolveModelSelection(config, config.agent.exploreModel)]
+    resolveModelSelection(config, config.agent.defaultModel),
+    ...(config.agent.defaultExploreModel
+      ? [resolveModelSelection(config, config.agent.defaultExploreModel)]
       : []),
   ];
 }

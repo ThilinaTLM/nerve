@@ -4,9 +4,11 @@
   import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
   import {
     sandboxContainerState,
-    sandboxDaemonStatus,
+    sandboxLifecycleState,
   } from "../state/sandbox-lifecycle";
   import {
+    lifecycleStateLabel,
+    lifecycleStateTone,
     observedStateLabel,
     observedStateTone,
     type SandboxStatusTone,
@@ -18,13 +20,13 @@
     detail,
   }: { record: ManagedSandboxRecord; detail?: SandboxDetailState } = $props();
 
-  const daemon = $derived(sandboxDaemonStatus(detail));
+  const lifecycle = $derived(sandboxLifecycleState(record, detail));
   const state = $derived(sandboxContainerState(record, detail) ?? record.observedState);
   const tone = $derived<SandboxStatusTone>(
-    daemon === "offline" ? "neutral" : observedStateTone(state),
+    lifecycle ? lifecycleStateTone(lifecycle) : observedStateTone(state),
   );
   const label = $derived(
-    daemon === "offline" ? "Offline" : observedStateLabel(state),
+    lifecycle ? lifecycleStateLabel(lifecycle) : observedStateLabel(state),
   );
 </script>
 
@@ -32,7 +34,7 @@
   <StatusDot
     {tone}
     size="xs"
-    pulse={state === "starting" || state === "reconnecting"}
+    pulse={tone === "running"}
   />
   {label}
 </Badge>

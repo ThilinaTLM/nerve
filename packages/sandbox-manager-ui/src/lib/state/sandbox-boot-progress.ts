@@ -10,6 +10,8 @@ import {
   sandboxIsOffline,
   sandboxIsStopping,
   sandboxIsTerminal,
+  sandboxLifecycleState,
+  sandboxReadyForCommands,
 } from "./sandbox-lifecycle";
 import type {
   SandboxDetailState,
@@ -27,6 +29,7 @@ export type BootPhaseStatus =
 
 export type BootPhaseId =
   | "container"
+  | "daemon"
   | "config"
   | "git"
   | "github"
@@ -62,7 +65,7 @@ export type SandboxBootProgress = {
 };
 
 export const isSandboxConnected = sandboxIsConnected;
-export const isSandboxReadyForChat = sandboxIsConnected;
+export const isSandboxReadyForChat = sandboxReadyForCommands;
 export const isSandboxTerminal = sandboxIsTerminal;
 
 const STATUS_RANK: Record<BootPhaseStatus, number> = {
@@ -236,17 +239,26 @@ export function computeSandboxBootProgress(
   detail: SandboxDetailState | undefined,
 ): SandboxBootProgress {
   const observed = sandboxContainerState(record, detail);
+  const lifecycle = sandboxLifecycleState(record, detail);
   const daemon = sandboxDaemonStatus(detail);
   const connected = sandboxIsConnected(detail);
+  const readyForCommands = sandboxReadyForCommands(record, detail);
   const offline = sandboxIsOffline(record, detail);
   const stopping = sandboxIsStopping(record, detail);
   const failed = sandboxIsFailed(record, detail);
   const setup = detail?.status?.setup ?? detail?.snapshot?.setup;
+  const hasBootProgress =
+    Boolean(setup) || sandboxSetupTimeline(detail).length > 0;
   const setupFailed = Object.values(setup ?? {}).some(
     (phase) => phase?.status === "failed",
   );
 
   const containerRunningEnough =
+    lifecycle === "container_started" ||
+    lifecycle === "daemon_connected" ||
+    lifecycle === "booting" ||
+    lifecycle === "ready" ||
+    lifecycle === "degraded" ||
     observed === "running" ||
     observed === "reconnecting" ||
     connected ||
@@ -263,10 +275,33 @@ export function computeSandboxBootProgress(
         ? "stopped"
         : containerRunningEnough
           ? "done"
-          : observed === "creating" || observed === "starting"
+          : lifecycle === "container_creating" ||
+              lifecycle === "container_created" ||
+              lifecycle === "container_starting" ||
+              observed === "creating" ||
+              observed === "starting"
             ? "active"
             : "pending",
     error: containerFailed ? errorText(record?.lastError) : undefined,
+  };
+
+  const daemonPhase: PhaseInput = {
+    id: "daemon",
+    label: "Controller connected",
+    description: "Connect the sandbox daemon to the manager.",
+    status:
+      readyForCommands ||
+      lifecycle === "booting" ||
+      lifecycle === "daemon_connected" ||
+      connected ||
+      hasBootProgress
+        ? "done"
+        : container.status === "done"
+          ? "active"
+          : "pending",
+    ts:
+      detail?.status?.lifecycle?.daemon?.connectedAt ??
+      record?.daemon?.connectedAt,
   };
 
   const configTimeline = latestTimeline(detail, "config");
@@ -279,7 +314,7 @@ export function computeSandboxBootProgress(
         ? configTimeline.status
         : container.status !== "done"
           ? "pending"
-          : connected || setup || failed || daemon === "offline"
+          : readyForCommands || setup || failed || daemon === "offline"
             ? "done"
             : "active",
     ts: configTimeline.ts,
@@ -323,7 +358,15 @@ export function computeSandboxBootProgress(
   );
 
   const readyTimeline = latestTimeline(detail, "ready");
-  const priorPhases = [container, config, git, github, skills, boot];
+  const priorPhases = [
+    container,
+    daemonPhase,
+    config,
+    git,
+    github,
+    skills,
+    boot,
+  ];
   const failedBeforeReady =
     priorPhases.some((phase) => phase.status === "failed") ||
     daemon === "failed";
@@ -335,7 +378,7 @@ export function computeSandboxBootProgress(
       ? "Controller is unavailable because the container is offline."
       : "Controller session connected.",
     status:
-      connected || readyTimeline.status === "done"
+      readyForCommands || readyTimeline.status === "done"
         ? "done"
         : failedBeforeReady || offline || stopping
           ? "pending"
@@ -347,6 +390,7 @@ export function computeSandboxBootProgress(
 
   const phases: BootPhase[] = [
     container,
+    daemonPhase,
     config,
     git,
     github,
@@ -355,10 +399,10 @@ export function computeSandboxBootProgress(
     ready,
   ];
 
-  // Once the controller is connected the sandbox has finished booting; resolve
+  // Once the sandbox is ready for commands it has finished booting; resolve
   // any phase we never received a terminal event for so the view reads as done
   // instead of leaving a lone spinner/empty step behind.
-  if (connected)
+  if (readyForCommands)
     for (const phase of phases)
       if (phase.status === "pending" || phase.status === "active")
         phase.status = "done";
@@ -374,7 +418,7 @@ export function computeSandboxBootProgress(
 
   const anyFailed = phases.some((phase) => phase.status === "failed");
   let state: BootState;
-  if (connected) state = "ready";
+  if (readyForCommands) state = "ready";
   else if (anyFailed) state = "failed";
   else if (offline || stopping) state = "offline";
   else if (container.status !== "done") state = "provisioning";
@@ -402,7 +446,7 @@ export function computeSandboxBootProgress(
     fraction,
     headline,
     state,
-    ready: connected,
+    ready: readyForCommands,
     showPhaseStepper,
   };
 }

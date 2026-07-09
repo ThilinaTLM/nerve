@@ -68,7 +68,7 @@ export class AgentConfigStore {
   }
 
   effective(baseConfig: SandboxConfigV1): AgentEffectiveConfig {
-    const baseModel = baseConfig.agent.mainModel;
+    const baseModel = baseConfig.agent.defaultModel;
     const model = sandboxAgentModelSelectionSchema.parse({
       provider: this.overlay.model?.provider ?? baseModel.provider,
       model: this.overlay.model?.model ?? baseModel.model,
@@ -77,13 +77,13 @@ export class AgentConfigStore {
     });
     const mode =
       this.overlay.mode ??
-      (baseConfig.agent.mode === "planning" ? "planning" : "coding");
+      (baseConfig.agent.defaultMode === "planning" ? "planning" : "coding");
     return {
       model,
       mode,
       permissionLevel:
         this.overlay.permissionLevel ??
-        baseConfig.agent.permissionLevel ??
+        baseConfig.agent.defaultPermissionLevel ??
         "autonomous",
       approvalPolicy: approvalPolicySchema.parse({
         ...defaultApprovalPolicy,
@@ -99,9 +99,9 @@ export class AgentConfigStore {
       ...baseConfig,
       agent: {
         ...baseConfig.agent,
-        mainModel: effective.model,
-        mode: effective.mode === "planning" ? "planning" : "normal",
-        permissionLevel: effective.permissionLevel,
+        defaultModel: effective.model,
+        defaultMode: effective.mode === "planning" ? "planning" : "normal",
+        defaultPermissionLevel: effective.permissionLevel,
       },
     };
   }

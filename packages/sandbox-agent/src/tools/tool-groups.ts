@@ -40,7 +40,7 @@ export function computeToolGroupStatus(
       (!runtime.readOnly ||
         group === "fileInspection" ||
         group === "explore") &&
-      (config.agent.permissionLevel !== "read_only" ||
+      (config.agent.defaultPermissionLevel !== "read_only" ||
         group === "fileInspection" ||
         group === "explore");
     const enabled = conf?.tools?.enabled ?? tools;

@@ -105,7 +105,7 @@ describe("sandbox agent image durable state foundations", () => {
       const config = {
         version: 1,
         agent: {
-          mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+          defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
         },
         controller: {
           websocket: { url: "wss://manager.example.test/ws" },

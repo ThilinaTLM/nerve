@@ -39,6 +39,11 @@ import {
 import { readJsonBody } from "../http/body.js";
 import { errorResponse, HttpError } from "../http/errors.js";
 import { withIdempotency } from "../http/idempotency.js";
+import {
+  lifecycleReadyForCommands,
+  lifecycleSummary,
+  transitionSandboxLifecycle,
+} from "../lifecycle/lifecycle-state.js";
 import { LogCollector } from "../lifecycle/log-collector.js";
 import { refreshSandboxObservedState } from "../lifecycle/reconciler.js";
 import {
@@ -311,6 +316,7 @@ async function handle(
             image: record.image,
             desiredState: record.desiredState,
             observedState: record.observedState,
+            lifecycleState: record.lifecycleState,
           },
         });
         return publicSandboxRecord(record);
@@ -475,6 +481,17 @@ async function handle(
         "Sandbox command forwarding requires a connected controller session",
         "UNAVAILABLE",
       );
+    const record = await state.sandboxes.get(commandMatch[1]);
+    if (
+      !isReadOnlyForwardedMethod(prepared.method) &&
+      !lifecycleReadyForCommands(record)
+    ) {
+      throw new HttpError(
+        409,
+        "Sandbox is still booting; mutating commands are disabled until ready",
+        "BOOTING",
+      );
+    }
     return json(
       res,
       200,
@@ -496,9 +513,13 @@ async function loadSandboxConfigForStart(
 ): Promise<SandboxConfigV1> {
   if (record.configRef?.source) {
     try {
-      return parseSandboxConfigInput(
+      const config = parseSandboxConfigInput(
         parseYaml(await readFile(record.configRef.source, "utf8")),
       );
+      const digest = sandboxConfigDigestStable(config);
+      if (digest === record.configDigest) return config;
+      await rematerializeSandboxConfig(state, record, config);
+      return config;
     } catch {
       // Fall through and regenerate runtime materialization from PostgreSQL.
     }
@@ -508,6 +529,15 @@ async function loadSandboxConfigForStart(
     [record.sandboxId],
   );
   const config = parseSandboxConfigInput(result.rows[0]?.materialized_config);
+  await rematerializeSandboxConfig(state, record, config);
+  return config;
+}
+
+async function rematerializeSandboxConfig(
+  state: ManagerState,
+  record: ManagedSandboxRecord,
+  config: SandboxConfigV1,
+): Promise<void> {
   await state.pool.query(
     `update ${dbTables.sandboxes} set materialized_config = $2::jsonb where sandbox_id = $1`,
     [record.sandboxId, JSON.stringify(config)],
@@ -519,23 +549,21 @@ async function loadSandboxConfigForStart(
       controllerToken: record.controller?.token ?? "",
     },
   );
-  if (materialized) {
-    const next = {
-      ...record,
-      workspaceRef: materialized.workspace,
-      stateRef: materialized.state,
-      secretMountRefs: [materialized.secrets],
-      configDigest: sandboxConfigDigestStable(config),
-      configRef: materialized.config,
-    };
-    await state.volumeStore.put(
-      record.sandboxId,
-      state.volumeProvider.kind,
-      materialized,
-    );
-    await state.sandboxes.put(next);
-  }
-  return config;
+  if (!materialized) return;
+  const next = {
+    ...record,
+    workspaceRef: materialized.workspace,
+    stateRef: materialized.state,
+    secretMountRefs: [materialized.secrets],
+    configDigest: sandboxConfigDigestStable(config),
+    configRef: materialized.config,
+  };
+  await state.volumeStore.put(
+    record.sandboxId,
+    state.volumeProvider.kind,
+    materialized,
+  );
+  await state.sandboxes.put(next);
 }
 
 async function startSandbox(
@@ -660,6 +688,7 @@ async function sandboxStatus(
     return sandboxStatusGetResultSchema.parse({
       connected: true,
       stale: false,
+      lifecycle: await connectedLifecycle(state, sandboxId),
       container,
       ...(isObjectRecord(result) ? result : {}),
     });
@@ -684,6 +713,7 @@ async function sandboxSnapshot(
     return sandboxSnapshotResultSchema.parse({
       connected: true,
       stale: false,
+      lifecycle: await connectedLifecycle(state, sandboxId),
       container,
       ...(isObjectRecord(result) ? result : {}),
     });
@@ -720,6 +750,14 @@ async function connectedContainerStatus(
   return (await deriveSandboxContainerStatus(state, record)).container;
 }
 
+async function connectedLifecycle(
+  state: ManagerState,
+  sandboxId: string,
+): Promise<ReturnType<typeof lifecycleSummary> | undefined> {
+  const record = await state.sandboxes.get(sandboxId);
+  return record ? lifecycleSummary(record) : undefined;
+}
+
 function sessionSummary(
   session: Awaited<ReturnType<ManagerState["sessions"]["get"]>>,
 ) {
@@ -732,12 +770,22 @@ function sessionSummary(
         : session.state === "reconnecting"
           ? "disconnected"
           : session.state,
-    connectedAt: session.updatedAt,
+    connectedAt: session.connectedAt ?? session.updatedAt,
     disconnectedAt: session.disconnectedAt,
+    readyAt: session.readyAt,
+    agentStatus: session.agentStatus,
     closeCode: session.closeCode,
     closeReason: session.closeReason?.trim() || undefined,
     acceptedCapabilities: session.capabilities,
   };
+}
+
+function isReadOnlyForwardedMethod(method: string): boolean {
+  return [
+    "sandbox.status.get",
+    "sandbox.snapshot.get",
+    "sandbox.conversation.snapshot.get",
+  ].includes(method);
 }
 
 function prepareForwardedCommand(
@@ -747,9 +795,7 @@ function prepareForwardedCommand(
   const idempotencyKey = String(
     req.headers["idempotency-key"] ?? body.idempotencyKey ?? "",
   );
-  const mutating = !["sandbox.status.get", "sandbox.snapshot.get"].includes(
-    body.method,
-  );
+  const mutating = !isReadOnlyForwardedMethod(body.method);
   if (!mutating) {
     return {
       method: body.method,
@@ -776,19 +822,25 @@ async function recoverStartupFailureFromAgentState(
   state: ManagerState,
   record: ManagedSandboxRecord,
 ): Promise<ManagedSandboxRecord> {
-  if (record.observedState === "failed") return record;
+  if (record.lifecycleState === "failed") return record;
   const failure = setupSummaryFailure(
     (await readAgentStateSummary(record))?.setup,
   );
   if (!failure) return record;
-  const next: ManagedSandboxRecord = {
-    ...record,
-    observedState: "failed",
-    updatedAt: new Date().toISOString(),
-    lastError: { code: failure.code, message: failure.message },
-  };
-  await state.sandboxes.put(next);
-  return next;
+  return transitionSandboxLifecycle(
+    {
+      store: state.sandboxes,
+      recordEvent: (event) => recordManagerLifecycleEvent(state, event),
+    },
+    record.sandboxId,
+    "failed",
+    {
+      observedState: "failed",
+      lastError: { code: failure.code, message: failure.message },
+      reason: failure.code,
+      force: true,
+    },
+  );
 }
 
 function publicSandboxRecord(

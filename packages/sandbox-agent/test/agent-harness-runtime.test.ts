@@ -12,7 +12,7 @@ function fauxConfig() {
   return {
     version: 1,
     identity: { sandboxId: "sbx_live" },
-    agent: { mainModel: { provider: "nerve-faux", model: "faux-fast" } },
+    agent: { defaultModel: { provider: "nerve-faux", model: "faux-fast" } },
     controller: {
       websocket: { url: "ws://manager.invalid/ws" },
       auth: { type: "api_key", apiKey: { env: "TOKEN" } },
@@ -70,7 +70,7 @@ describe("sandbox live AgentHarness runtime", () => {
         {
           ...fauxConfig(),
           agent: {
-            mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+            defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
           },
         } as never,
         "sha256:test",
@@ -78,6 +78,7 @@ describe("sandbox live AgentHarness runtime", () => {
         stores,
         { workspaceDir: process.cwd() },
       );
+      daemon.start();
       await assert.rejects(
         () =>
           daemon.router.dispatch("sandbox.run.start", {

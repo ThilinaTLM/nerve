@@ -24,6 +24,8 @@ function record(sandboxId = "sbx_1") {
     image: { reference: "img", sandboxSpec: "v1" as const },
     desiredState: "running" as const,
     observedState: "running" as const,
+    lifecycleState: "container_started" as const,
+    lifecycleUpdatedAt: "2026-06-26T12:00:00.000Z",
     workspaceRef: { kind: "bind", source: "/tmp/w", target: "/workspace" },
     stateRef: { kind: "bind", source: "/tmp/s", target: "/state" },
     containerRef: { kind: "docker", id: "c1", name: `nerve-${sandboxId}` },
@@ -55,7 +57,7 @@ describe("sandbox manager reconciliation gc and orphan handling", () => {
       await new SandboxReconciler(store, driver).reconcile();
       const updated = await store.get("sbx_1");
       assert.equal(updated?.observedState, "failed");
-      assert.equal(updated?.lastError?.code, "CONTAINER_FAILED");
+      assert.equal(updated?.lastError?.code, "CONTAINER_EXITED_BEFORE_READY");
       assert.match(updated?.lastError?.message ?? "", /13/);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -117,6 +119,7 @@ describe("sandbox manager reconciliation gc and orphan handling", () => {
       await store.put({
         ...record("sbx_failed"),
         observedState: "failed",
+        lifecycleState: "failed",
         retention: { preserveFailed: true },
         gcAfter: "2020-01-01T00:00:00.000Z",
       });
@@ -124,6 +127,7 @@ describe("sandbox manager reconciliation gc and orphan handling", () => {
         ...record("sbx_old"),
         desiredState: "removed",
         observedState: "removed",
+        lifecycleState: "removed",
         gcAfter: "2020-01-01T00:00:00.000Z",
       });
       const decisions = await new SandboxGarbageCollector(store).collect(

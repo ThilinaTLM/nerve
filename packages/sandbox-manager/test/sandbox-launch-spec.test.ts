@@ -9,8 +9,8 @@ function baseConfig(
   return {
     version: 1,
     agent: {
-      mainModel: { provider: "openai-codex", model: "gpt-5.4-mini" },
-      mode: "normal",
+      defaultModel: { provider: "openai-codex", model: "gpt-5.4-mini" },
+      defaultMode: "normal",
     },
     controller: {
       auth: { type: "api_key", apiKey: "x" },

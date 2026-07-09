@@ -43,7 +43,7 @@ function sandboxConfig(): SandboxConfigV1 {
   return {
     version: 1,
     agent: {
-      mainModel: { provider: "openai-codex", model: "gpt-5.4-mini" },
+      defaultModel: { provider: "openai-codex", model: "gpt-5.4-mini" },
     },
     controller: {
       websocket: { url: "ws://manager/api/sandboxes/sbx_1/ws" },

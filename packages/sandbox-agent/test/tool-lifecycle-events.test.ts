@@ -14,7 +14,7 @@ function config() {
     version: 1,
     identity: { sandboxId: "sbx_tools" },
     agent: {
-      mainModel: { provider: "nerve-faux", model: "fast" },
+      defaultModel: { provider: "nerve-faux", model: "fast" },
     },
     controller: {
       websocket: { url: "ws://manager.invalid/ws" },
@@ -107,24 +107,28 @@ describe("tool lifecycle cancellation", () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-task-spawn-error-"),
     );
+    let supervisor: TaskSupervisor | undefined;
     try {
-      const supervisor = new TaskSupervisor({ stateDir: dir, maxTasks: 1 });
+      supervisor = new TaskSupervisor({ stateDir: dir, maxTasks: 1 });
       const task = supervisor.start("true", path.join(dir, "missing-cwd"));
 
       await waitForTaskStatus(supervisor, task.id, "failed");
       await delay(50);
+      await supervisor.drain();
 
       const finalTask = supervisor.get(task.id);
       assert.equal(finalTask?.status, "failed");
       assert.equal(finalTask?.exitCode, 127);
       assert.match(finalTask?.logs ?? "", /ENOENT|no such file/i);
     } finally {
+      await supervisor?.drain().catch(() => undefined);
       await rm(dir, { recursive: true, force: true });
     }
   });
 
   it("cancels supervised tasks for a run and emits durable cancelled tool records", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-tool-cancel-"));
+    let supervisor: TaskSupervisor | undefined;
     try {
       const stores = new SandboxStateStores(dir);
       await stores.load();
@@ -133,7 +137,7 @@ describe("tool lifecycle cancellation", () => {
         dir,
         stores.events,
       );
-      const supervisor = new TaskSupervisor({ stateDir: dir, maxTasks: 4 });
+      supervisor = new TaskSupervisor({ stateDir: dir, maxTasks: 4 });
       await supervisor.load();
       const runtime = new SandboxToolRuntime(config(), {
         workspaceDir: process.cwd(),
@@ -183,7 +187,9 @@ describe("tool lifecycle cancellation", () => {
                 "task_tool_1",
           ),
       );
+      await supervisor.drain();
     } finally {
+      await supervisor?.drain().catch(() => undefined);
       await rm(dir, { recursive: true, force: true });
     }
   });

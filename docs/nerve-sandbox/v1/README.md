@@ -73,7 +73,7 @@ A conforming v1 sandbox:
 - writes outgoing durable events before attempting delivery;
 - checkpoints every terminal, waiting, and error state;
 - supports multiple conversations, agents, subagents, and runs in durable filesystem semantics;
-- supports pi-ai-compatible model/provider configuration through `modelCatalog`, with `agent.mainModel`/`agent.exploreModel` as provider/model/thinking selectors;
+- supports pi-ai-compatible model/provider configuration through `modelCatalog`, with `agent.defaultModel`/`agent.defaultExploreModel` as provider/model/thinking selectors;
 - applies top-level Git/GitHub identity, signing, credentials, CLI/API auth, remotes, and optional clone before custom boot phases;
 - organizes model-callable tools by group, including web, Jira, Confluence, shell, Python, tasks, plan mode, todos, filesystem, and explore groups;
 - supports manager-provided package registry access through boot/tool policy, network/firewall allowlists, protected cache paths, and secret refs;

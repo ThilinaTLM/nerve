@@ -152,8 +152,8 @@ export class ExploreRuntime {
       active.status = "running";
       const harness = await this.options.createChildHarness(childScope, {
         modelSelection:
-          this.options.config.agent.exploreModel ??
-          this.options.config.agent.mainModel,
+          this.options.config.agent.defaultExploreModel ??
+          this.options.config.agent.defaultModel,
         toolRuntime: this.options.readOnlyToolRuntime,
         systemPromptAmendment:
           "Explore subagent mode: perform a read-only investigation only. Do not modify files, start long-running tasks, ask the user, or use write/shell/python/task/edit tools. Return a concise answer with relevant file paths.",

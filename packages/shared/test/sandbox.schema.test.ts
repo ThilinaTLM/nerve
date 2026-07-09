@@ -59,7 +59,7 @@ function minimalConfig() {
   return {
     version: 1,
     agent: {
-      mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+      defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
     },
     controller: {
       websocket: { url: "wss://manager.example.test/api/sandboxes/sbx/ws" },
@@ -77,6 +77,26 @@ describe("Sandbox shared schemas", () => {
     assert.equal(
       sandboxConfigV1Schema.safeParse({ ...minimalConfig(), unexpected: true })
         .success,
+      false,
+    );
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        agent: {
+          mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+        },
+      }).success,
+      false,
+    );
+    assert.equal(
+      sandboxConfigV1Schema.safeParse({
+        ...minimalConfig(),
+        agent: {
+          ...minimalConfig().agent,
+          exploreModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+          initialPrompt: "hello",
+        },
+      }).success,
       false,
     );
   });
@@ -234,7 +254,7 @@ describe("Sandbox shared schemas", () => {
           providers: [{ id: "corp", baseUrl: "https://llm.example.test" }],
           models: [{ provider: "corp", model: "chat" }],
         },
-        agent: { mainModel: { provider: "corp", model: "chat" } },
+        agent: { defaultModel: { provider: "corp", model: "chat" } },
       }).success,
       false,
     );
@@ -270,7 +290,7 @@ describe("Sandbox shared schemas", () => {
           ],
           models: [{ provider: "corp", model: "chat" }],
         },
-        agent: { mainModel: { provider: "corp", model: "chat" } },
+        agent: { defaultModel: { provider: "corp", model: "chat" } },
       }).success,
       true,
     );
@@ -416,7 +436,7 @@ describe("Sandbox shared schemas", () => {
   it("validates manager lifecycle event types and UI event envelopes", () => {
     assert.equal(
       sandboxManagerLifecycleEventTypeSchema.safeParse(
-        "manager.sandbox.started",
+        "manager.sandbox.daemon_connected",
       ).success,
       true,
     );
@@ -601,6 +621,7 @@ describe("Sandbox shared schemas", () => {
       ref: { kind: "docker", id: "container_1", name: "nerve-sbx_1" },
       runtime: "docker",
       state: "exited",
+      lifecycle: { state: "stopped", updatedAt: ts },
       health: "unknown",
       exitCode: 0,
       startedAt: ts,
@@ -621,6 +642,7 @@ describe("Sandbox shared schemas", () => {
         stale: true,
         staleness: { stale: true, reason: "container_stopped", asOf: ts },
         limitations: ["Read-only snapshot"],
+        lifecycle: { state: "stopped", updatedAt: ts },
         container,
         updatedAt: ts,
       }).success,
@@ -662,6 +684,14 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
+      sandboxRunStartParamsSchema.safeParse({
+        commandId: "cmd_1",
+        conversationId: "conv_1",
+        agentId: "agent_1",
+      }).success,
+      false,
+    );
+    assert.equal(
       sandboxStatusGetParamsSchema.safeParse({ includeConfig: "sanitized" })
         .success,
       true,
@@ -700,23 +730,28 @@ describe("Sandbox shared schemas", () => {
   });
 
   it("validates manager records and create specs", () => {
+    const record = {
+      sandboxId: "sbx_1",
+      backend: "docker",
+      image: { reference: "nerve-sandbox-agent:dev", sandboxSpec: "v1" },
+      desiredState: "running",
+      observedState: "starting",
+      lifecycleState: "container_starting",
+      lifecycleUpdatedAt: ts,
+      workspaceRef: {
+        kind: "bind",
+        source: "/tmp/workspace",
+        target: "/workspace",
+      },
+      stateRef: { kind: "bind", source: "/tmp/state", target: "/state" },
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    assert.equal(managedSandboxRecordSchema.safeParse(record).success, true);
+    const { lifecycleState: _lifecycleState, ...withoutLifecycle } = record;
     assert.equal(
-      managedSandboxRecordSchema.safeParse({
-        sandboxId: "sbx_1",
-        backend: "docker",
-        image: { reference: "nerve-sandbox-agent:dev", sandboxSpec: "v1" },
-        desiredState: "running",
-        observedState: "starting",
-        workspaceRef: {
-          kind: "bind",
-          source: "/tmp/workspace",
-          target: "/workspace",
-        },
-        stateRef: { kind: "bind", source: "/tmp/state", target: "/state" },
-        createdAt: ts,
-        updatedAt: ts,
-      }).success,
-      true,
+      managedSandboxRecordSchema.safeParse(withoutLifecycle).success,
+      false,
     );
     assert.equal(
       managedContainerCreateSpecSchema.safeParse({

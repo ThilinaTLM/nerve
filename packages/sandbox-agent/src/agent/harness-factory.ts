@@ -51,7 +51,7 @@ export type SandboxHarnessRunScope = {
   executionId: string;
 };
 export type HarnessCreateOptions = {
-  modelSelection?: SandboxConfigV1["agent"]["mainModel"];
+  modelSelection?: SandboxConfigV1["agent"]["defaultModel"];
   systemPromptAmendment?: string;
   activeToolNames?: string[];
   toolRuntime?: SandboxToolRuntime;
@@ -101,7 +101,7 @@ export class HarnessFactory {
     const selection =
       options.modelSelection ??
       this.options.configStore?.effective(this.config).model ??
-      this.config.agent.mainModel;
+      this.config.agent.defaultModel;
     const customModels = this.customModels();
     const model = resolveAgentModel(
       { provider: selection.provider, modelId: selection.model },
@@ -148,7 +148,7 @@ export class HarnessFactory {
       this.config,
       options.modelSelection ??
         this.options.configStore?.effective(this.config).model ??
-        this.config.agent.mainModel,
+        this.config.agent.defaultModel,
     );
     const provider = this.providerConfig(model.provider);
     const needsCredential = providerNeedsCredential(model.provider);
@@ -174,12 +174,12 @@ export class HarnessFactory {
   }
 
   async assertModelAvailable(
-    selection?: SandboxConfigV1["agent"]["mainModel"],
+    selection?: SandboxConfigV1["agent"]["defaultModel"],
   ): Promise<void> {
     const effectiveSelection =
       selection ??
       this.options.configStore?.effective(this.config).model ??
-      this.config.agent.mainModel;
+      this.config.agent.defaultModel;
     const provider = this.providerConfig(effectiveSelection.provider);
     if (provider?.credential && this.options.secretResolver) {
       await resolveProviderCredential(
@@ -348,8 +348,8 @@ export class HarnessFactory {
     const skillsPrompt = formatSkillsForSystemPrompt(this.skills());
     return [
       "You are Nerve running inside a sandboxed workspace.",
-      `Mode: ${this.config.agent.mode ?? "normal"}.`,
-      `Permission level: ${this.config.agent.permissionLevel ?? "supervised"}.`,
+      `Mode: ${this.config.agent.defaultMode ?? "normal"}.`,
+      `Permission level: ${this.config.agent.defaultPermissionLevel ?? "supervised"}.`,
       `Workspace root: ${this.options.workspaceDir}.`,
       toolSummary
         ? `Available sandbox tools:\n${toolSummary}`

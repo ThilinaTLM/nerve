@@ -33,7 +33,7 @@ function validSandboxConfigYaml(sandboxId: string): string {
     "version: 1",
 
     "agent:",
-    "  mainModel:",
+    "  defaultModel:",
     "    provider: anthropic",
     "    model: claude-sonnet-4-5",
     "controller:",
@@ -51,8 +51,8 @@ describe("create sandbox draft", () => {
     const draft = createDefaultDraft();
     assert.equal(draft.mode, "normal");
     assert.equal(draft.permissionLevel, "autonomous");
-    assert.equal(draft.initialPrompt, "");
-    assert.equal(draft.mainThinking, "off");
+    assert.equal(draft.initialConversationPrompt, "");
+    assert.equal(draft.defaultThinking, "off");
     assert.equal(draft.disconnectPolicyMode, "exit_self");
     assert.equal(draft.disconnectExitAfterSeconds, "300");
     assert.equal(draft.name, draft.sandboxId);
@@ -71,8 +71,11 @@ describe("create sandbox draft", () => {
     if (!result.ok) return;
     assert.equal(result.request.launch?.name, "demo");
     assert.equal(result.request.start, true);
-    assert.equal(result.request.config.agent.mainModel.provider, "anthropic");
-    assert.equal(result.request.config.agent.mainModel.thinkingLevel, "off");
+    assert.equal(
+      result.request.config.agent.defaultModel.provider,
+      "anthropic",
+    );
+    assert.equal(result.request.config.agent.defaultModel.thinkingLevel, "off");
     assert.equal(result.request.launch?.backend, "docker");
     assert.deepEqual(result.request.launch?.labels, {
       team: "core",
@@ -90,9 +93,9 @@ describe("create sandbox draft", () => {
 
   it("maps the selected thinking level into the main model config", () => {
     const draft = createDefaultDraft();
-    draft.mainThinking = "high";
+    draft.defaultThinking = "high";
     const config = buildConfigFromDraft(draft);
-    assert.equal(config.agent.mainModel.thinkingLevel, "high");
+    assert.equal(config.agent.defaultModel.thinkingLevel, "high");
   });
 
   it("maps tool toggles into tool groups", () => {
@@ -129,8 +132,8 @@ describe("create sandbox draft", () => {
     assert.match(yaml, /tools:/);
 
     const parsed = sandboxCreateConfigInputSchema.parse(parseYaml(yaml));
-    assert.equal(parsed.agent.mainModel.provider, "anthropic");
-    assert.equal(parsed.agent.mainModel.model, "claude-sonnet-4-5");
+    assert.equal(parsed.agent.defaultModel.provider, "anthropic");
+    assert.equal(parsed.agent.defaultModel.model, "claude-sonnet-4-5");
     assert.deepEqual(parsed.controller?.disconnectPolicy, {
       mode: "exit_self",
       exitAfterMs: 300_000,
@@ -334,9 +337,12 @@ describe("create sandbox draft", () => {
     assert.equal(result.request.start, false);
     assert.equal(result.request.auth, undefined);
     assert.equal(result.request.launch?.sandboxId, draft.sandboxId);
-    assert.equal(result.request.config.agent.mainModel.provider, "anthropic");
     assert.equal(
-      result.request.config.agent.mainModel.model,
+      result.request.config.agent.defaultModel.provider,
+      "anthropic",
+    );
+    assert.equal(
+      result.request.config.agent.defaultModel.model,
       "claude-sonnet-4-5",
     );
   });
@@ -347,8 +353,8 @@ describe("create sandbox draft", () => {
     );
     const parsed = parseSandboxConfigYaml(yaml);
     assert.equal("identity" in parsed, false);
-    assert.equal(parsed.agent.mainModel.provider, "anthropic");
-    assert.equal(parsed.agent.mainModel.model, "claude-sonnet-4-5");
+    assert.equal(parsed.agent.defaultModel.provider, "anthropic");
+    assert.equal(parsed.agent.defaultModel.model, "claude-sonnet-4-5");
     assert.deepEqual(parsed.controller.auth.apiKey, {
       file: "/secrets/controller-token",
     });
@@ -382,10 +388,10 @@ describe("create sandbox draft", () => {
     draft.memoryMb = "6144";
     draft.vcpu = "1.5";
     draft.startAfterCreate = false;
-    draft.mainProvider = "openai";
-    draft.mainModel = "gpt-5.1-codex-max";
-    draft.mainThinking = "medium";
-    draft.initialPrompt = "Keep this prompt";
+    draft.defaultProvider = "openai";
+    draft.defaultModel = "gpt-5.1-codex-max";
+    draft.defaultThinking = "medium";
+    draft.initialConversationPrompt = "Keep this prompt";
     draft.mode = "planning";
     draft.permissionLevel = "read_only";
     draft.disconnectPolicyMode = "stay_reconnecting";
@@ -412,6 +418,8 @@ describe("create sandbox draft", () => {
     assert.equal(stored.includes("custom-id"), false);
     assert.equal(stored.includes("yamlSource"), false);
     assert.equal(stored.includes("config: {}"), false);
+    assert.equal(stored.includes("Keep this prompt"), false);
+    assert.equal(stored.includes("initialConversationPrompt"), false);
     assert.equal(stored.includes("bootScript"), true);
     assert.equal(stored.includes("bootPhases"), true);
     assert.equal(stored.includes("echo reusable setup"), true);
@@ -426,10 +434,10 @@ describe("create sandbox draft", () => {
     assert.equal(restored.memoryMb, "6144");
     assert.equal(restored.vcpu, "1.5");
     assert.equal(restored.startAfterCreate, false);
-    assert.equal(restored.mainProvider, "openai");
-    assert.equal(restored.mainModel, "gpt-5.1-codex-max");
-    assert.equal(restored.mainThinking, "medium");
-    assert.equal(restored.initialPrompt, "Keep this prompt");
+    assert.equal(restored.defaultProvider, "openai");
+    assert.equal(restored.defaultModel, "gpt-5.1-codex-max");
+    assert.equal(restored.defaultThinking, "medium");
+    assert.equal(restored.initialConversationPrompt, "");
     assert.equal(restored.mode, "planning");
     assert.equal(restored.permissionLevel, "read_only");
     assert.equal(restored.disconnectPolicyMode, "stay_reconnecting");
@@ -471,7 +479,7 @@ describe("create sandbox draft", () => {
     );
     const draft = createDraftFromStoredPreferences(storage);
     assert.equal(draft.permissionLevel, "autonomous");
-    assert.equal(draft.mainThinking, "off");
+    assert.equal(draft.defaultThinking, "off");
     assert.equal(draft.disconnectPolicyMode, "exit_self");
     assert.match(draft.sandboxId, /^[a-z]+-[a-z]+-[a-z]+$/);
   });

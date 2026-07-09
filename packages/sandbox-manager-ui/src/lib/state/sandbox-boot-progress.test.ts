@@ -19,6 +19,15 @@ function record(
     image: { reference: "img", sandboxSpec: "v1" },
     desiredState: "running",
     observedState,
+    lifecycleState:
+      observedState === "running"
+        ? "container_started"
+        : observedState === "failed"
+          ? "failed"
+          : observedState === "exited"
+            ? "stopped"
+            : "container_starting",
+    lifecycleUpdatedAt: ts,
     workspaceRef: {
       kind: "bind",
       source: "/tmp/workspace",
@@ -111,7 +120,16 @@ describe("computeSandboxBootProgress", () => {
     const progress = computeSandboxBootProgress(record("running"), detail);
     assert.deepEqual(
       progress.phases.map((phase) => phase.id),
-      ["container", "config", "git", "github", "skills", "boot", "ready"],
+      [
+        "container",
+        "daemon",
+        "config",
+        "git",
+        "github",
+        "skills",
+        "boot",
+        "ready",
+      ],
     );
     assert.equal(
       progress.phases.find((phase) => phase.id === "boot")?.status,
@@ -190,7 +208,7 @@ describe("computeSandboxBootProgress", () => {
     });
 
     const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.equal(progress.completed, 6);
+    assert.equal(progress.completed, 7);
     assert.equal(
       progress.phases.find((phase) => phase.id === "github")?.status,
       "degraded",

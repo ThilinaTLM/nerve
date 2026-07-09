@@ -12,8 +12,8 @@ function config(provider = "nerve-scripted-explore") {
     version: 1,
     identity: { sandboxId: "sbx_explore" },
     agent: {
-      mainModel: { provider, model: "scripted-fast" },
-      exploreModel: { provider, model: "scripted-fast" },
+      defaultModel: { provider, model: "scripted-fast" },
+      defaultExploreModel: { provider, model: "scripted-fast" },
       maxExploreDepth: 2,
     },
     controller: {

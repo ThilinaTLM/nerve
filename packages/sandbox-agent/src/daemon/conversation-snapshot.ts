@@ -65,7 +65,8 @@ export async function buildConversationSnapshot(input: {
       projectId: projectId(input.sandboxId ?? input.instanceId),
       title: titleFor(entries, selected),
       mode: modeFor(selected, input.config),
-      permissionLevel: input.config.agent.permissionLevel ?? "autonomous",
+      permissionLevel:
+        input.config.agent.defaultPermissionLevel ?? "autonomous",
       approvalPolicy: { autoApproveReadOnly: true },
       activeAgentId: selected.agentId,
       activeEntryId,
@@ -236,7 +237,7 @@ function modeFor(
   config: SandboxConfigV1,
 ): "coding" | "planning" {
   if (run.mode === "coding" || run.mode === "planning") return run.mode;
-  return config.agent.mode === "planning" ? "planning" : "coding";
+  return config.agent.defaultMode === "planning" ? "planning" : "coding";
 }
 
 function projectId(source: string): string {

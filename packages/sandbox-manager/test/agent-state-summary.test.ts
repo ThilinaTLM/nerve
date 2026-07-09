@@ -16,6 +16,8 @@ function record(stateDir: string): ManagedSandboxRecord {
     image: { reference: "img", sandboxSpec: "v1" },
     desiredState: "running",
     observedState: "running",
+    lifecycleState: "container_started",
+    lifecycleUpdatedAt: ts,
     workspaceRef: { kind: "bind", source: "/tmp/w", target: "/workspace" },
     stateRef: { kind: "bind", source: stateDir, target: "/state" },
     createdAt: ts,

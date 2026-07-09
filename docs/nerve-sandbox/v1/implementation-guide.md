@@ -325,8 +325,8 @@ Validation:
 
 Run the agent harness inside the sandbox:
 
-- create/run a main agent from `agent.mainModel` selector;
-- configure explore agent from `agent.exploreModel` or main model;
+- create/run a main agent from `agent.defaultModel` selector;
+- configure explore agent from `agent.defaultExploreModel` or main model;
 - load `AGENTS.md`, project `.agents/skills`, manager-mounted skills, and built-in skills according to sandbox policy;
 - map controller commands to run/steer/follow-up behavior;
 - persist transcript and run state under conversation/agent scope;

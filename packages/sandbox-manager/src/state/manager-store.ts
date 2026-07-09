@@ -40,18 +40,20 @@ export class PostgresManagerStore implements ManagerStore {
     const parsed = managedSandboxRecordSchema.parse(record);
     await this.pool.query(
       `insert into ${dbTables.sandboxes}
-        (sandbox_id, record, desired_state, observed_state, updated_at)
-       values ($1, $2::jsonb, $3, $4, now())
+        (sandbox_id, record, desired_state, observed_state, lifecycle_state, updated_at)
+       values ($1, $2::jsonb, $3, $4, $5, now())
        on conflict (sandbox_id) do update set
         record = excluded.record,
         desired_state = excluded.desired_state,
         observed_state = excluded.observed_state,
+        lifecycle_state = excluded.lifecycle_state,
         updated_at = now()`,
       [
         parsed.sandboxId,
         JSON.stringify(parsed),
         parsed.desiredState,
         parsed.observedState,
+        parsed.lifecycleState,
       ],
     );
   }

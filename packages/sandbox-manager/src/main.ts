@@ -4,6 +4,7 @@ import { createManagerServer } from "./app/server.js";
 import { loadManagerConfig } from "./config/manager-config.js";
 import { discoverOrphanContainers } from "./drivers/orphan-discovery.js";
 import { SandboxGarbageCollector } from "./lifecycle/garbage-collector.js";
+import { SandboxLifecycleWatchdog } from "./lifecycle/lifecycle-watchdog.js";
 import { OrphanReconciler } from "./lifecycle/orphan-reconciler.js";
 import { SandboxReconciler } from "./lifecycle/reconciler.js";
 
@@ -36,8 +37,10 @@ async function main(): Promise<void> {
     const reconciler = new SandboxReconciler(state.sandboxes, state.driver);
     const gc = new SandboxGarbageCollector(state.sandboxes);
     const orphans = new OrphanReconciler(state.sandboxes, state.driver);
+    const watchdog = new SandboxLifecycleWatchdog(state);
     const runOnce = async () => {
       await reconciler.reconcile();
+      await watchdog.check();
       const refs =
         (await state.driver.listManaged?.()) ??
         (state.config.backend === "ecs"
@@ -52,7 +55,7 @@ async function main(): Promise<void> {
         const timers: NodeJS.Timeout[] = [];
         if (state.config.reconcileIntervalMs) {
           const timer = setInterval(
-            () => void reconciler.reconcile(),
+            () => void Promise.all([reconciler.reconcile(), watchdog.check()]),
             state.config.reconcileIntervalMs,
           );
           timer.unref();

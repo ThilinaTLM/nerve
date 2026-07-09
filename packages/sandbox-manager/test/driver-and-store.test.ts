@@ -84,7 +84,7 @@ describe("sandbox manager driver and event foundations", () => {
       {
         version: 1,
         agent: {
-          mainModel: {
+          defaultModel: {
             provider: "cloudflare-ai-gateway",
             model: "claude-sonnet-4-5",
           },

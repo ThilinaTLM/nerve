@@ -188,11 +188,13 @@ Manager-only lifecycle commands should have their own manager API methods. Sandb
 
 All mutating commands need idempotency keys. The UI SHOULD generate stable operation IDs for retries.
 
+The composer MAY accept text while the sandbox is still starting, but dispatch MUST wait until lifecycle is `ready` or `degraded` and a controller session is connected. A first prompt from the create dialog is a UI/manager queue item, not sandbox YAML.
+
 ## Event model
 
 The UI consumes:
 
-- manager lifecycle events, such as sandbox created/started/stopped/removed/gc-scheduled;
+- manager lifecycle events, including `container_created`, `container_started`, `daemon_connected`, `booting`, `ready/degraded`, stopped, failed, and removed;
 - sandbox daemon events defined in [Event Schemas](./event-schemas.md), forwarded or materialized by the manager;
 - protocol flow/replay/ack events.
 

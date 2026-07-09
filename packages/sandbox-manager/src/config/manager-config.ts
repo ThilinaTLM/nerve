@@ -39,6 +39,10 @@ export type ManagerConfig = {
   gcIntervalMs?: number;
   orphanPolicy: "adopt" | "recover" | "stop_remove" | "ignore";
   heartbeatTimeoutMs: number;
+  containerStartTimeoutMs: number;
+  daemonConnectTimeoutMs: number;
+  bootReadyTimeoutMs: number;
+  bootStallTimeoutMs: number;
   maxPendingCommands: number;
   maxCommandBytes: number;
   serveWebUi: boolean;
@@ -123,6 +127,18 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
     orphanPolicy: parseOrphanPolicy(env.NERVE_SANDBOX_MANAGER_ORPHAN_POLICY),
     heartbeatTimeoutMs: Number(
       env.NERVE_SANDBOX_MANAGER_HEARTBEAT_TIMEOUT_MS ?? 45_000,
+    ),
+    containerStartTimeoutMs: Number(
+      env.NERVE_SANDBOX_MANAGER_CONTAINER_START_TIMEOUT_MS ?? 120_000,
+    ),
+    daemonConnectTimeoutMs: Number(
+      env.NERVE_SANDBOX_MANAGER_DAEMON_CONNECT_TIMEOUT_MS ?? 60_000,
+    ),
+    bootReadyTimeoutMs: Number(
+      env.NERVE_SANDBOX_MANAGER_BOOT_READY_TIMEOUT_MS ?? 15 * 60_000,
+    ),
+    bootStallTimeoutMs: Number(
+      env.NERVE_SANDBOX_MANAGER_BOOT_STALL_TIMEOUT_MS ?? 120_000,
     ),
     maxPendingCommands: Number(
       env.NERVE_SANDBOX_MANAGER_MAX_PENDING_COMMANDS ?? 256,

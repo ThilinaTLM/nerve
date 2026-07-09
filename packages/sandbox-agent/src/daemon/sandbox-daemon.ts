@@ -9,6 +9,7 @@ import {
   createNoopLogger,
   parseInlineCommandPrompt,
   sandboxAgentConfigureParamsSchema,
+  sandboxRunStartParamsSchema,
 } from "@nervekit/shared";
 import {
   AgentConfigStore,
@@ -33,6 +34,7 @@ import { InputWaiter } from "../tools/input-waiter.js";
 import { TaskSupervisor } from "../tools/task-supervisor.js";
 
 import { SandboxToolRuntime } from "../tools/tool-runtime.js";
+import { mapRuntimeError, mapWaitError } from "./command-errors.js";
 import { SandboxCommandRouter } from "./command-router.js";
 import { buildConversationSnapshot } from "./conversation-snapshot.js";
 import { DaemonStatusMachine } from "./daemon-status.js";
@@ -54,24 +56,29 @@ export type SandboxDaemonRecoveredState = {
   workspaceDir?: string;
   secretResolver?: SecretResolver;
   logger?: StructuredLogger;
+  bootOnly?: boolean;
 };
 
 export class SandboxDaemon {
   readonly status = new DaemonStatusMachine();
   readonly router = new SandboxCommandRouter();
   readonly startedAt = new Date().toISOString();
-  private readonly runs?: RunManager;
-  private readonly inputWaiter?: InputWaiter;
-  private readonly approvalWaiter?: ApprovalWaiter;
-  private readonly agentRuntime?: SandboxAgentRuntime;
-  private readonly taskSupervisor?: TaskSupervisor;
-  private readonly toolRuntime?: SandboxToolRuntime;
-  private readonly bridge?: HarnessEventBridge;
-  private readonly exploreRuntime?: ExploreRuntime;
-  private readonly agentConfigStore?: AgentConfigStore;
-  private readonly workspaceDir: string;
-  private readonly ready: Promise<void>;
+  private runs?: RunManager;
+  private inputWaiter?: InputWaiter;
+  private approvalWaiter?: ApprovalWaiter;
+  private agentRuntime?: SandboxAgentRuntime;
+  private taskSupervisor?: TaskSupervisor;
+  private toolRuntime?: SandboxToolRuntime;
+  private bridge?: HarnessEventBridge;
+  private exploreRuntime?: ExploreRuntime;
+  private agentConfigStore?: AgentConfigStore;
+  private workspaceDir: string;
+  private ready: Promise<void> = Promise.resolve();
+  private runtimeReady = false;
+  private initializingRuntime?: Promise<void>;
+  private recovered: SandboxDaemonRecoveredState = {};
   private readonly identity: SandboxRuntimeIdentity;
+  private readonly logger: StructuredLogger;
   constructor(
     private readonly config: SandboxConfigV1,
     private readonly configDigest: string,
@@ -80,7 +87,7 @@ export class SandboxDaemon {
       instanceId: `inst_${Date.now()}`,
     },
     private readonly state?: SandboxStateStores,
-    private readonly recovered: SandboxDaemonRecoveredState = {},
+    recovered: SandboxDaemonRecoveredState = {},
   ) {
     this.identity =
       typeof identity === "string"
@@ -88,134 +95,156 @@ export class SandboxDaemon {
         : identity;
     // Production always injects a logger from the entrypoint; the NOOP fallback
     // keeps daemons constructed without one (e.g. tests) silent.
-    const logger = recovered.logger ?? createNoopLogger();
+    this.logger = recovered.logger ?? createNoopLogger();
+    this.recovered = recovered;
     this.workspaceDir =
       recovered.workspaceDir ?? config.agent.workspaceRoot ?? process.cwd();
-    this.runs = state
-      ? new RunManager(
-          new RunStateStore(state.stateDir),
-          state.stateDir,
-          state.events,
-          undefined,
-          {
-            instanceId: this.identity.instanceId,
-            configDigest,
-            sandboxId: this.identity.sandboxId,
-          },
-          logger.child({ component: "run-manager" }),
-        )
-      : undefined;
-    this.inputWaiter = state ? new InputWaiter(state.stateDir) : undefined;
-    this.approvalWaiter = state
-      ? new ApprovalWaiter(state.stateDir)
-      : undefined;
-    const loadPromises: Array<Promise<unknown>> = [];
-    if (this.inputWaiter) loadPromises.push(this.inputWaiter.load());
-    if (this.approvalWaiter) loadPromises.push(this.approvalWaiter.load());
-    if (state) {
-      this.agentConfigStore = new AgentConfigStore(state.stateDir);
-      loadPromises.push(this.agentConfigStore.load());
-      const taskConfig = config.tools?.groups?.taskManagement;
-      this.taskSupervisor = new TaskSupervisor({
-        stateDir: state.stateDir,
-        maxTasks: taskConfig?.maxTasks,
-        maxTaskRuntimeMs: taskConfig?.maxTaskRuntimeMs,
-      });
-      loadPromises.push(this.taskSupervisor.load());
-    }
-    if (state && this.runs) {
-      const workspaceDir = this.workspaceDir;
-      const eventCommonData = {
-        instanceId: this.identity.instanceId,
-        configDigest,
-        sandboxId: this.identity.sandboxId,
-      };
-      const readOnlyToolRuntime = new SandboxToolRuntime(config, {
-        workspaceDir,
-        stateDir: state.stateDir,
-        readOnly: true,
-        toolCallStore: this.runs.toolCallStore(),
-        events: state.events,
-        eventCommonData,
-      });
-      this.toolRuntime = new SandboxToolRuntime(config, {
-        workspaceDir,
-        stateDir: state.stateDir,
-        approvalWaiter: this.approvalWaiter,
-        inputWaiter: this.inputWaiter,
-        taskSupervisor: this.taskSupervisor,
-        toolCallStore: this.runs.toolCallStore(),
-        events: state.events,
-        eventCommonData,
-      });
-      const factory = new HarnessFactory(config, {
-        workspaceDir,
-        stateDir: state.stateDir,
-        toolRuntime: this.toolRuntime,
-        secretResolver: recovered.secretResolver,
-        skills: recovered.skills,
-        contextFiles: recovered.contextFiles,
-        configStore: this.agentConfigStore,
-      });
-      this.exploreRuntime = new ExploreRuntime({
-        config,
-        stateDir: state.stateDir,
-        readOnlyToolRuntime,
-        createChildHarness: (scope, options) => factory.create(scope, options),
-      });
-      readOnlyToolRuntime.setExploreRuntime(this.exploreRuntime);
-      this.toolRuntime.setExploreRuntime(this.exploreRuntime);
-      this.bridge = new HarnessEventBridge(
-        state.events,
-        this.runs,
-        {
-          input: this.inputWaiter,
-          approval: this.approvalWaiter,
-        },
-        {
-          instanceId: this.identity.instanceId,
-          configDigest,
-          sandboxId: this.identity.sandboxId,
-        },
-        new ArtifactStore(state.stateDir),
-        logger.child({ component: "harness-bridge" }),
-      );
-      this.agentRuntime = new SandboxAgentRuntime(config, {
-        runs: this.runs,
-        harnessFactory: factory,
-        bridge: this.bridge,
-        inputWaiter: this.inputWaiter,
-        approvalWaiter: this.approvalWaiter,
-        toolRuntime: this.toolRuntime,
-        exploreRuntime: this.exploreRuntime,
-        configStore: this.agentConfigStore,
-        logger: logger.child({ component: "agent-runtime" }),
-      });
-      loadPromises.push(this.agentRuntime.recoverActiveRuns());
-    }
-    this.ready = Promise.all(loadPromises).then(() => {
-      const effective = this.agentConfigStore?.effective(this.config);
-      if (effective) {
-        this.toolRuntime?.updatePolicy({
-          permissionLevel: effective.permissionLevel,
-          approvalPolicy: effective.approvalPolicy,
-        });
-      }
-    });
     this.registerBuiltins();
+    if (shouldInitializeRuntime(recovered)) {
+      this.ready = this.initializeRuntime(recovered);
+    }
   }
+
+  async initializeRuntime(
+    recovered: SandboxDaemonRecoveredState,
+  ): Promise<void> {
+    if (this.runtimeReady) return;
+    if (this.initializingRuntime) return this.initializingRuntime;
+    this.initializingRuntime = this.initializeRuntimeInner(recovered);
+    this.ready = this.initializingRuntime;
+    await this.initializingRuntime;
+  }
+
+  markReady(status: "ready" | "degraded" = "ready"): void {
+    this.runtimeReady = true;
+    this.status.transition(status);
+  }
+
   start(): void {
-    this.status.transition("ready");
+    this.markReady("ready");
   }
+
+  private async initializeRuntimeInner(
+    recovered: SandboxDaemonRecoveredState,
+  ): Promise<void> {
+    if (!this.state) {
+      this.runtimeReady = true;
+      return;
+    }
+    this.recovered = { ...this.recovered, ...recovered };
+    this.workspaceDir =
+      recovered.workspaceDir ??
+      this.config.agent.workspaceRoot ??
+      process.cwd();
+    const state = this.state;
+    const logger = recovered.logger ?? this.logger;
+    this.runs = new RunManager(
+      new RunStateStore(state.stateDir),
+      state.stateDir,
+      state.events,
+      undefined,
+      {
+        instanceId: this.identity.instanceId,
+        configDigest: this.configDigest,
+        sandboxId: this.identity.sandboxId,
+      },
+      logger.child({ component: "run-manager" }),
+    );
+    this.inputWaiter = new InputWaiter(state.stateDir);
+    this.approvalWaiter = new ApprovalWaiter(state.stateDir);
+    const loadPromises: Array<Promise<unknown>> = [
+      this.inputWaiter.load(),
+      this.approvalWaiter.load(),
+    ];
+    this.agentConfigStore = new AgentConfigStore(state.stateDir);
+    loadPromises.push(this.agentConfigStore.load());
+    const taskConfig = this.config.tools?.groups?.taskManagement;
+    this.taskSupervisor = new TaskSupervisor({
+      stateDir: state.stateDir,
+      maxTasks: taskConfig?.maxTasks,
+      maxTaskRuntimeMs: taskConfig?.maxTaskRuntimeMs,
+    });
+    loadPromises.push(this.taskSupervisor.load());
+    const eventCommonData = {
+      instanceId: this.identity.instanceId,
+      configDigest: this.configDigest,
+      sandboxId: this.identity.sandboxId,
+    };
+    const readOnlyToolRuntime = new SandboxToolRuntime(this.config, {
+      workspaceDir: this.workspaceDir,
+      stateDir: state.stateDir,
+      readOnly: true,
+      toolCallStore: this.runs.toolCallStore(),
+      events: state.events,
+      eventCommonData,
+    });
+    this.toolRuntime = new SandboxToolRuntime(this.config, {
+      workspaceDir: this.workspaceDir,
+      stateDir: state.stateDir,
+      approvalWaiter: this.approvalWaiter,
+      inputWaiter: this.inputWaiter,
+      taskSupervisor: this.taskSupervisor,
+      toolCallStore: this.runs.toolCallStore(),
+      events: state.events,
+      eventCommonData,
+    });
+    const factory = new HarnessFactory(this.config, {
+      workspaceDir: this.workspaceDir,
+      stateDir: state.stateDir,
+      toolRuntime: this.toolRuntime,
+      secretResolver: recovered.secretResolver,
+      skills: recovered.skills,
+      contextFiles: recovered.contextFiles,
+      configStore: this.agentConfigStore,
+    });
+    this.exploreRuntime = new ExploreRuntime({
+      config: this.config,
+      stateDir: state.stateDir,
+      readOnlyToolRuntime,
+      createChildHarness: (scope, options) => factory.create(scope, options),
+    });
+    readOnlyToolRuntime.setExploreRuntime(this.exploreRuntime);
+    this.toolRuntime.setExploreRuntime(this.exploreRuntime);
+    this.bridge = new HarnessEventBridge(
+      state.events,
+      this.runs,
+      {
+        input: this.inputWaiter,
+        approval: this.approvalWaiter,
+      },
+      eventCommonData,
+      new ArtifactStore(state.stateDir),
+      logger.child({ component: "harness-bridge" }),
+    );
+    this.agentRuntime = new SandboxAgentRuntime(this.config, {
+      runs: this.runs,
+      harnessFactory: factory,
+      bridge: this.bridge,
+      inputWaiter: this.inputWaiter,
+      approvalWaiter: this.approvalWaiter,
+      toolRuntime: this.toolRuntime,
+      exploreRuntime: this.exploreRuntime,
+      configStore: this.agentConfigStore,
+      logger: logger.child({ component: "agent-runtime" }),
+    });
+    loadPromises.push(this.agentRuntime.recoverActiveRuns());
+    await Promise.all(loadPromises);
+    const effective = this.agentConfigStore.effective(this.config);
+    this.toolRuntime.updatePolicy({
+      permissionLevel: effective.permissionLevel,
+      approvalPolicy: effective.approvalPolicy,
+    });
+    this.runtimeReady = true;
+  }
+
   private registerBuiltins(): void {
     registerSandboxGitHandlers(this.router, this.workspaceDir);
     registerSandboxTaskHandlers(
       this.router,
-      this.taskSupervisor,
+      () => this.taskSupervisor,
       this.workspaceDir,
     );
     this.router.register("sandbox.status.get", async () => {
-      await this.ready;
       const runs = (await this.runs?.list()) ?? [];
       const ack = await this.state?.events.ackState();
       const modelSummaries = this.modelSummaries();
@@ -248,7 +277,6 @@ export class SandboxDaemon {
       };
     });
     this.router.register("sandbox.snapshot.get", async () => {
-      await this.ready;
       return buildSandboxSnapshot({
         config: this.config,
         configDigest: this.configDigest,
@@ -281,7 +309,6 @@ export class SandboxDaemon {
     this.router.register(
       "sandbox.conversation.snapshot.get",
       async (params) => {
-        await this.ready;
         const input = params as {
           conversationId?: string;
           agentId?: string;
@@ -327,7 +354,7 @@ export class SandboxDaemon {
       },
     );
     this.router.register("sandbox.agent.configure", async (params) => {
-      await this.ready;
+      await this.requireReady();
       if (!this.agentConfigStore)
         throw new SandboxCommandError(
           "UNAVAILABLE",
@@ -367,7 +394,7 @@ export class SandboxDaemon {
       };
     });
     this.router.register("sandbox.toolCall.get", async (params) => {
-      await this.ready;
+      await this.requireReady();
       const input = params as {
         conversationId: string;
         agentId: string;
@@ -389,18 +416,11 @@ export class SandboxDaemon {
       };
     });
     this.router.register("sandbox.run.start", async (params) => {
-      await this.ready;
-      const parsed = params as {
-        prompt?: string;
-        behavior?: "start" | "follow_up" | "steer";
-        conversationId?: string;
-        agentId?: string;
-        runId?: string;
-      };
+      await this.requireReady();
+      const parsed = sandboxRunStartParamsSchema.parse(params ?? {});
       const accepted = await this.acceptCommand("sandbox.run.start", params);
       if (accepted.result) return accepted.result.result;
-      const initialPrompt = this.config.agent.initialPrompt;
-      const prompt = parsed.prompt ?? initialPrompt;
+      const prompt = parsed.prompt;
       if (parsed.behavior === "steer") {
         if (
           !parsed.conversationId ||
@@ -444,7 +464,7 @@ export class SandboxDaemon {
       if (!prompt)
         throw new SandboxCommandError(
           "VALIDATION_FAILED",
-          "sandbox.run.start requires prompt or agent.initialPrompt",
+          "sandbox.run.start requires prompt",
         );
       const inlineCommand = parseInlineCommandPrompt(prompt);
       if (!inlineCommand && this.recovered.modelRuntime?.degraded)
@@ -498,7 +518,7 @@ export class SandboxDaemon {
       return result;
     });
     this.router.register("sandbox.run.continue", async (params) => {
-      await this.ready;
+      await this.requireReady();
       const accepted = await this.acceptCommand("sandbox.run.continue", params);
       if (accepted.result) return accepted.result.result;
       try {
@@ -524,7 +544,7 @@ export class SandboxDaemon {
       return result;
     });
     this.router.register("sandbox.run.cancel", async (params) => {
-      await this.ready;
+      await this.requireReady();
       const input = params as {
         conversationId: string;
         agentId: string;
@@ -560,7 +580,7 @@ export class SandboxDaemon {
       return result;
     });
     this.router.register("sandbox.input.submit", async (params) => {
-      await this.ready;
+      await this.requireReady();
       const input = params as {
         commandId?: string;
         conversationId?: string;
@@ -629,7 +649,7 @@ export class SandboxDaemon {
       return result;
     });
     this.router.register("sandbox.approval.resolve", async (params) => {
-      await this.ready;
+      await this.requireReady();
       const input = params as {
         commandId?: string;
         conversationId?: string;
@@ -698,6 +718,16 @@ export class SandboxDaemon {
     });
   }
 
+  private async requireReady(): Promise<void> {
+    if (!this.runtimeReady || this.status.status === "booting") {
+      throw new SandboxCommandError(
+        "BOOTING",
+        "Sandbox daemon is still booting; try again after it is ready",
+      );
+    }
+    await this.ready;
+  }
+
   private modelSummaries(): Array<{
     provider: string;
     model?: string;
@@ -709,8 +739,8 @@ export class SandboxDaemon {
     if (!runtime)
       return [
         {
-          provider: this.config.agent.mainModel.provider,
-          model: this.config.agent.mainModel.model,
+          provider: this.config.agent.defaultModel.provider,
+          model: this.config.agent.defaultModel.model,
           active: true,
           status: "available",
         },
@@ -758,28 +788,8 @@ export class SandboxDaemon {
   }
 }
 
-function mapRuntimeError(error: unknown): SandboxCommandError {
-  if (error instanceof SandboxCommandError) return error;
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.startsWith("UNAVAILABLE"))
-    return new SandboxCommandError("UNAVAILABLE", message);
-  if (message.startsWith("INVALID_RUN_STATE"))
-    return new SandboxCommandError("INVALID_RUN_STATE", message);
-  if (message.startsWith("VALIDATION_FAILED"))
-    return new SandboxCommandError("VALIDATION_FAILED", message);
-  return new SandboxCommandError("INTERNAL_ERROR", message.slice(0, 500));
-}
-
-function mapWaitError(
-  error: unknown,
-  unknownCode: "UNKNOWN_INPUT_REQUEST" | "UNKNOWN_APPROVAL",
-): SandboxCommandError {
-  const message = error instanceof Error ? error.message : String(error);
-  if (/Conflicting/.test(message))
-    return new SandboxCommandError("IDEMPOTENCY_CONFLICT", message);
-  if (/already resolved|already answered|already/i.test(message))
-    return new SandboxCommandError("ALREADY_RESOLVED", message);
-  if (/mismatch/.test(message))
-    return new SandboxCommandError("VALIDATION_FAILED", message);
-  return new SandboxCommandError(unknownCode, message);
+function shouldInitializeRuntime(
+  recovered: SandboxDaemonRecoveredState,
+): boolean {
+  return recovered.bootOnly !== true;
 }

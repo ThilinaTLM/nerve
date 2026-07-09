@@ -102,12 +102,11 @@ type PersistedCreateSandboxPreferences = {
   vcpu?: string;
   cpuUnits?: string;
   startAfterCreate?: boolean;
-  mainProvider?: string;
-  mainModel?: string;
-  mainThinking?: ThinkingLevel;
-  exploreProvider?: string;
-  exploreModel?: string;
-  initialPrompt?: string;
+  defaultProvider?: string;
+  defaultModel?: string;
+  defaultThinking?: ThinkingLevel;
+  defaultExploreProvider?: string;
+  defaultExploreModel?: string;
   systemPromptAmendment?: string;
   mode?: CreateSandboxDraft["mode"];
   permissionLevel?: CreateSandboxDraft["permissionLevel"];
@@ -211,12 +210,12 @@ export type CreateSandboxDraft = {
   vcpu: string;
   cpuUnits: string;
   startAfterCreate: boolean;
-  mainProvider: string;
-  mainModel: string;
-  mainThinking: ThinkingLevel;
-  exploreProvider: string;
-  exploreModel: string;
-  initialPrompt: string;
+  defaultProvider: string;
+  defaultModel: string;
+  defaultThinking: ThinkingLevel;
+  defaultExploreProvider: string;
+  defaultExploreModel: string;
+  initialConversationPrompt: string;
   systemPromptAmendment: string;
   mode: "normal" | "planning";
   permissionLevel: "read_only" | "supervised" | "autonomous";
@@ -309,12 +308,12 @@ export function createDefaultDraft(): CreateSandboxDraft {
     vcpu: "",
     cpuUnits: "",
     startAfterCreate: true,
-    mainProvider: "anthropic",
-    mainModel: "claude-sonnet-4-5",
-    mainThinking: "off",
-    exploreProvider: "",
-    exploreModel: "",
-    initialPrompt: "",
+    defaultProvider: "anthropic",
+    defaultModel: "claude-sonnet-4-5",
+    defaultThinking: "off",
+    defaultExploreProvider: "",
+    defaultExploreModel: "",
+    initialConversationPrompt: "",
     systemPromptAmendment: "",
     mode: "normal",
     permissionLevel: "autonomous",
@@ -508,14 +507,15 @@ export function createDraftFromStoredPreferences(
   draft.cpuUnits = stringValue(stored.cpuUnits) ?? draft.cpuUnits;
   draft.startAfterCreate =
     booleanValue(stored.startAfterCreate) ?? draft.startAfterCreate;
-  draft.mainProvider = stringValue(stored.mainProvider) ?? draft.mainProvider;
-  draft.mainModel = stringValue(stored.mainModel) ?? draft.mainModel;
-  draft.mainThinking = thinkingValue(stored.mainThinking) ?? draft.mainThinking;
-  draft.exploreProvider =
-    stringValue(stored.exploreProvider) ?? draft.exploreProvider;
-  draft.exploreModel = stringValue(stored.exploreModel) ?? draft.exploreModel;
-  draft.initialPrompt =
-    stringValue(stored.initialPrompt) ?? draft.initialPrompt;
+  draft.defaultProvider =
+    stringValue(stored.defaultProvider) ?? draft.defaultProvider;
+  draft.defaultModel = stringValue(stored.defaultModel) ?? draft.defaultModel;
+  draft.defaultThinking =
+    thinkingValue(stored.defaultThinking) ?? draft.defaultThinking;
+  draft.defaultExploreProvider =
+    stringValue(stored.defaultExploreProvider) ?? draft.defaultExploreProvider;
+  draft.defaultExploreModel =
+    stringValue(stored.defaultExploreModel) ?? draft.defaultExploreModel;
   draft.systemPromptAmendment =
     stringValue(stored.systemPromptAmendment) ?? draft.systemPromptAmendment;
   draft.mode = modeValue(stored.mode) ?? draft.mode;
@@ -581,12 +581,11 @@ function preferencesFromDraft(
     vcpu: draft.vcpu,
     cpuUnits: draft.cpuUnits,
     startAfterCreate: draft.startAfterCreate,
-    mainProvider: draft.mainProvider,
-    mainModel: draft.mainModel,
-    mainThinking: draft.mainThinking,
-    exploreProvider: draft.exploreProvider,
-    exploreModel: draft.exploreModel,
-    initialPrompt: draft.initialPrompt,
+    defaultProvider: draft.defaultProvider,
+    defaultModel: draft.defaultModel,
+    defaultThinking: draft.defaultThinking,
+    defaultExploreProvider: draft.defaultExploreProvider,
+    defaultExploreModel: draft.defaultExploreModel,
     systemPromptAmendment: draft.systemPromptAmendment,
     mode: draft.mode,
     permissionLevel: draft.permissionLevel,
@@ -886,25 +885,26 @@ export function buildConfigFromDraft(
   const config: Record<string, unknown> = {
     version: 1,
     agent: {
-      mainModel: {
-        provider: draft.mainProvider,
-        model: draft.mainModel,
-        ...(draft.mainThinking ? { thinkingLevel: draft.mainThinking } : {}),
+      defaultModel: {
+        provider: draft.defaultProvider,
+        model: draft.defaultModel,
+        ...(draft.defaultThinking
+          ? { thinkingLevel: draft.defaultThinking }
+          : {}),
       },
-      ...(draft.exploreProvider && draft.exploreModel
+      ...(draft.defaultExploreProvider && draft.defaultExploreModel
         ? {
-            exploreModel: {
-              provider: draft.exploreProvider,
-              model: draft.exploreModel,
+            defaultExploreModel: {
+              provider: draft.defaultExploreProvider,
+              model: draft.defaultExploreModel,
             },
           }
         : {}),
-      ...(draft.initialPrompt ? { initialPrompt: draft.initialPrompt } : {}),
       ...(draft.systemPromptAmendment
         ? { systemPromptAmendment: draft.systemPromptAmendment }
         : {}),
-      mode: draft.mode,
-      permissionLevel: draft.permissionLevel,
+      defaultMode: draft.mode,
+      defaultPermissionLevel: draft.permissionLevel,
     },
   };
 

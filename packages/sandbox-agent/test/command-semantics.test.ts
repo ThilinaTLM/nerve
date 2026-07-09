@@ -15,7 +15,7 @@ import { SandboxStateStores } from "../src/state/sandbox-state.js";
 const baseConfig = {
   version: 1,
   identity: { sandboxId: "sbx_cmd" },
-  agent: { mainModel: { provider: "anthropic", model: "claude" } },
+  agent: { defaultModel: { provider: "anthropic", model: "claude" } },
   controller: {
     websocket: { url: "ws://manager.invalid/ws" },
     auth: { type: "api_key", apiKey: { env: "TOKEN" } },
@@ -58,7 +58,9 @@ describe("sandbox daemon command semantics", () => {
       const daemon = new SandboxDaemon(
         {
           ...baseConfig,
-          agent: { mainModel: { provider: "nerve-faux", model: "faux-fast" } },
+          agent: {
+            defaultModel: { provider: "nerve-faux", model: "faux-fast" },
+          },
         } as never,
         "sha256:test",
         "inst_1",
@@ -101,7 +103,9 @@ describe("sandbox daemon command semantics", () => {
       const daemon = new SandboxDaemon(
         {
           ...baseConfig,
-          agent: { mainModel: { provider: "nerve-faux", model: "faux-fast" } },
+          agent: {
+            defaultModel: { provider: "nerve-faux", model: "faux-fast" },
+          },
         } as never,
         "sha256:test",
         "inst_1",
@@ -165,8 +169,8 @@ describe("sandbox daemon command semantics", () => {
         {
           ...baseConfig,
           agent: {
-            mainModel: { provider, model: "scripted-fast" },
-            permissionLevel: "autonomous",
+            defaultModel: { provider, model: "scripted-fast" },
+            defaultPermissionLevel: "autonomous",
           },
         } as never,
         "sha256:test",
@@ -237,8 +241,8 @@ describe("sandbox daemon command semantics", () => {
         {
           ...baseConfig,
           agent: {
-            mainModel: { provider, model: "scripted-fast" },
-            permissionLevel: "autonomous",
+            defaultModel: { provider, model: "scripted-fast" },
+            defaultPermissionLevel: "autonomous",
           },
         } as never,
         "sha256:test",
@@ -301,8 +305,8 @@ describe("sandbox daemon command semantics", () => {
         {
           ...baseConfig,
           agent: {
-            mainModel: { provider: "nerve-faux", model: "faux-fast" },
-            permissionLevel: "autonomous",
+            defaultModel: { provider: "nerve-faux", model: "faux-fast" },
+            defaultPermissionLevel: "autonomous",
           },
         } as never,
         "sha256:test",
@@ -354,7 +358,9 @@ describe("sandbox daemon command semantics", () => {
       const daemon = new SandboxDaemon(
         {
           ...baseConfig,
-          agent: { mainModel: { provider: "nerve-faux", model: "faux-fast" } },
+          agent: {
+            defaultModel: { provider: "nerve-faux", model: "faux-fast" },
+          },
         } as never,
         "sha256:test",
         "inst_1",
@@ -410,33 +416,13 @@ describe("sandbox daemon command semantics", () => {
     }
   });
 
-  it("requires a run prompt unless the agent has an initial prompt", async () => {
+  it("requires a run prompt", async () => {
     const daemon = new SandboxDaemon(baseConfig, "sha256:test", "inst_1");
+    daemon.start();
     await assert.rejects(
       () => daemon.router.dispatch("sandbox.run.start", { commandId: "cmd_1" }),
-      (error) =>
-        error instanceof SandboxCommandError &&
-        error.code === "VALIDATION_FAILED",
+      (error) => error instanceof Error && /prompt/.test(error.message),
     );
-
-    const withInitialPrompt = new SandboxDaemon(
-      {
-        ...baseConfig,
-        agent: {
-          ...baseConfig.agent,
-          initialPrompt: "Use this fallback prompt",
-        },
-      },
-      "sha256:test",
-      "inst_2",
-    );
-    const result = (await withInitialPrompt.router.dispatch(
-      "sandbox.run.start",
-      {
-        commandId: "cmd_2",
-      },
-    )) as { status?: string };
-    assert.equal(result.status, "queued");
   });
 });
 

@@ -1,8 +1,9 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import type { TaskLogEvent, TaskLogQuery, TaskOrigin } from "@nervekit/shared";
+import { atomicWriteFile } from "../state/json-store.js";
 
 export type SupervisedTaskStatus =
   | "running"
@@ -70,12 +71,20 @@ export type SupervisedTaskLogQueryResponse = {
   truncated?: boolean;
 };
 
+type ChildSettlement = {
+  promise: Promise<void>;
+  resolve: () => void;
+};
+
 export class TaskSupervisor {
   private readonly tasks = new Map<string, SupervisedTask>();
   private readonly children = new Map<
     string,
     ChildProcessByStdio<null, Readable, Readable>
   >();
+  private readonly childSettlements = new Map<string, ChildSettlement>();
+  private readonly pendingPersistence = new Map<string, Promise<void>>();
+  private persistenceError: unknown;
   private readonly stateDir?: string;
   private readonly maxLogBytes: number;
   private readonly maxLogEvents: number;
@@ -195,13 +204,15 @@ export class TaskSupervisor {
       restartGeneration: options.restartGeneration,
     };
     this.tasks.set(task.id, task);
-    void this.persist(task);
+    this.schedulePersist(task);
     const [shell, args] = shellCommand(command);
     const child = spawn(shell, args, {
       cwd,
       env: options.env ? { ...process.env, ...options.env } : process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    this.children.set(task.id, child);
+    this.trackChildSettlement(task.id);
     const append = (stream: "stdout" | "stderr", chunk: unknown) => {
       appendLog(
         task,
@@ -210,7 +221,7 @@ export class TaskSupervisor {
         this.maxLogBytes,
         this.maxLogEvents,
       );
-      void this.persist(task);
+      this.schedulePersist(task);
     };
     child.stdout.on("data", (chunk) => append("stdout", chunk));
     child.stderr.on("data", (chunk) => append("stderr", chunk));
@@ -224,7 +235,8 @@ export class TaskSupervisor {
       apply();
       task.updatedAt = new Date().toISOString();
       this.children.delete(task.id);
-      void this.persist(task);
+      this.schedulePersist(task);
+      this.resolveChildSettlement(task.id);
     };
     child.on("error", (error) => {
       finish(() => {
@@ -249,7 +261,6 @@ export class TaskSupervisor {
           task.status = code === 0 ? "completed" : "failed";
       });
     });
-    this.children.set(task.id, child);
     return task;
   }
 
@@ -267,8 +278,8 @@ export class TaskSupervisor {
       task.signal = signal;
       child?.kill(signal);
     }
-    this.children.delete(id);
-    void this.persist(task);
+    if (!child) this.children.delete(id);
+    this.schedulePersist(task);
     return task;
   }
 
@@ -286,7 +297,7 @@ export class TaskSupervisor {
       ) {
         const next = this.cancel(task.id, signal);
         if (next) {
-          await this.persist(next);
+          await this.flushPersistence(next.id);
           cancelled.push(next);
         }
       }
@@ -394,10 +405,37 @@ export class TaskSupervisor {
     return { task, events, nextCursor, mode, truncated: task.truncated };
   }
 
+  async flushPersistence(id?: string): Promise<void> {
+    while (true) {
+      const pendingWrites = id
+        ? [this.pendingPersistence.get(id)].filter(
+            (pending): pending is Promise<void> => Boolean(pending),
+          )
+        : Array.from(this.pendingPersistence.values());
+      if (pendingWrites.length === 0) break;
+      await Promise.all(pendingWrites);
+    }
+    if (this.persistenceError) throw this.persistenceError;
+  }
+
+  async drain(
+    options: { waitForChildren?: boolean; childTimeoutMs?: number } = {},
+  ): Promise<void> {
+    if (options.waitForChildren ?? true) {
+      await this.waitForChildSettlements(
+        undefined,
+        options.childTimeoutMs ?? 2000,
+      );
+    }
+    await this.flushPersistence();
+  }
+
   async delete(id: string): Promise<boolean> {
     const task = this.tasks.get(id);
     if (!task) return false;
     if (isActiveTask(task)) throw new Error("Cannot delete an active task");
+    await this.waitForChildSettlements([id], 2000);
+    await this.flushPersistence(id);
     this.tasks.delete(id);
     this.children.delete(id);
     if (this.stateDir) {
@@ -418,17 +456,82 @@ export class TaskSupervisor {
     return removed;
   }
 
+  private schedulePersist(task: SupervisedTask): void {
+    if (!this.stateDir) return;
+    const snapshot = snapshotTask(task);
+    const previous = this.pendingPersistence.get(task.id) ?? Promise.resolve();
+    const write = previous.then(() => this.persist(snapshot));
+    const handled = write.catch((error) => {
+      if (!this.persistenceError) this.persistenceError = error;
+    });
+    let tracked: Promise<void>;
+    tracked = handled.finally(() => {
+      if (this.pendingPersistence.get(task.id) === tracked) {
+        this.pendingPersistence.delete(task.id);
+      }
+    });
+    this.pendingPersistence.set(task.id, tracked);
+  }
+
+  private trackChildSettlement(id: string): void {
+    if (this.childSettlements.has(id)) return;
+    let resolve!: () => void;
+    const promise = new Promise<void>((settled) => {
+      resolve = settled;
+    });
+    this.childSettlements.set(id, { promise, resolve });
+  }
+
+  private resolveChildSettlement(id: string): void {
+    const settlement = this.childSettlements.get(id);
+    if (!settlement) return;
+    this.childSettlements.delete(id);
+    settlement.resolve();
+  }
+
+  private async waitForChildSettlements(
+    ids: string[] | undefined,
+    timeoutMs: number,
+  ): Promise<void> {
+    const settlements = Array.from(this.childSettlements.entries()).filter(
+      ([id]) => !ids || ids.includes(id),
+    );
+    if (settlements.length === 0) return;
+    let timedOut = false;
+    await Promise.race([
+      Promise.all(settlements.map(([, settlement]) => settlement.promise)),
+      delay(Math.max(0, timeoutMs)).then(() => {
+        timedOut = true;
+      }),
+    ]);
+    if (!timedOut) return;
+    const pendingIds = settlements
+      .map(([id]) => id)
+      .filter((id) => this.childSettlements.has(id));
+    if (pendingIds.length === 0) return;
+    throw new Error(
+      `Timed out waiting for supervised task children to settle: ${pendingIds.join(", ")}`,
+    );
+  }
+
   private async persist(task: SupervisedTask): Promise<void> {
     if (!this.stateDir) return;
     const dir = path.join(this.stateDir, "tasks", task.id);
-    await mkdir(dir, { recursive: true });
     const { logs: _logs, ...summary } = task;
-    await writeFile(
+    await atomicWriteFile(
       path.join(dir, "state.json"),
-      JSON.stringify({ ...summary, logRef: `task://${task.id}/logs` }, null, 2),
+      `${JSON.stringify({ ...summary, logRef: `task://${task.id}/logs` }, null, 2)}\n`,
     );
-    await writeFile(path.join(dir, "logs.txt"), task.logs);
+    await atomicWriteFile(path.join(dir, "logs.txt"), task.logs);
   }
+}
+
+function snapshotTask(task: SupervisedTask): SupervisedTask {
+  return {
+    ...task,
+    logEvents: task.logEvents.map((event) => ({ ...event })),
+    origin: task.origin ? { ...task.origin } : undefined,
+  };
 }
 
 function appendLog(
@@ -518,4 +621,8 @@ function isNotFound(error: unknown): boolean {
     "code" in error &&
     (error as { code?: unknown }).code === "ENOENT"
   );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

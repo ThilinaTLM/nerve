@@ -44,11 +44,20 @@ export class OrphanReconciler {
         const sandboxId = sandboxIdFromRef(decision.ref);
         const record = records.find((entry) => entry.sandboxId === sandboxId);
         if (record) {
+          const now = new Date().toISOString();
           await this.store.put({
             ...record,
             containerRef: decision.ref,
             observedState: "running",
-            updatedAt: new Date().toISOString(),
+            lifecycleState:
+              record.lifecycleState === "ready" ||
+              record.lifecycleState === "degraded" ||
+              record.lifecycleState === "booting" ||
+              record.lifecycleState === "daemon_connected"
+                ? record.lifecycleState
+                : "container_started",
+            lifecycleUpdatedAt: record.lifecycleUpdatedAt ?? now,
+            updatedAt: now,
           });
         }
       }

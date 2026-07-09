@@ -75,7 +75,24 @@ type ManagedSandboxRecord = {
     runtimeVersion?: string;
   };
   desiredState: "created" | "running" | "stopped" | "removed";
-  observedState: ManagedSandboxObservedState;
+  observedState: ManagedSandboxObservedState; // low-level container/runtime state
+  lifecycleState:
+    | "record_created"
+    | "container_creating"
+    | "container_created"
+    | "container_starting"
+    | "container_started"
+    | "daemon_connected"
+    | "booting"
+    | "ready"
+    | "degraded"
+    | "reconnecting"
+    | "stopping"
+    | "stopped"
+    | "failed"
+    | "removed";
+  lifecycleUpdatedAt?: string;
+  daemon?: { connectedAt?: string; readyAt?: string; sessionId?: string; lastHeartbeatAt?: string };
   configDigest?: string;
   workspaceRef: VolumeRef;
   stateRef: VolumeRef;
@@ -342,7 +359,13 @@ Frontend clients MUST NOT connect directly to sandbox containers for control, se
 
 ## Lifecycle and garbage collection
 
-The manager owns desired lifecycle. The sandbox owns self-preservation and self-exit if disconnected too long.
+The manager owns desired lifecycle and a user-facing `lifecycleState`. `observedState` remains the low-level container/runtime inspection state. Normal startup progresses:
+
+`record_created → container_creating → container_created → container_starting → container_started → daemon_connected → booting → ready/degraded`.
+
+For ECS, `container_created` means `RunTask` returned a task ARN; `container_started` is only reached after inspection reports the task/container is `RUNNING`.
+
+The sandbox owns self-preservation and self-exit if disconnected too long.
 
 Requirements:
 

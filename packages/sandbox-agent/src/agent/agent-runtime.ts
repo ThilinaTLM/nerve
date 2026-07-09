@@ -69,10 +69,10 @@ export class SandboxAgentRuntime {
 
   describe(): Record<string, unknown> {
     return {
-      mainModel: resolveModelSelection(
+      defaultModel: resolveModelSelection(
         this.config,
         this.options.configStore?.effective(this.config).model ??
-          this.config.agent.mainModel,
+          this.config.agent.defaultModel,
       ),
       harness: this.options.harnessFactory?.describe(
         "conv_status",
@@ -80,7 +80,7 @@ export class SandboxAgentRuntime {
       ),
       mode:
         this.options.configStore?.effective(this.config).mode ??
-        (this.config.agent.mode === "planning" ? "planning" : "coding"),
+        (this.config.agent.defaultMode === "planning" ? "planning" : "coding"),
       activeRuns: this.active.size,
     };
   }
@@ -88,7 +88,7 @@ export class SandboxAgentRuntime {
   private effectiveAgentMode(): "coding" | "planning" {
     return (
       this.options.configStore?.effective(this.config).mode ??
-      (this.config.agent.mode === "planning" ? "planning" : "coding")
+      (this.config.agent.defaultMode === "planning" ? "planning" : "coding")
     );
   }
 
@@ -291,7 +291,7 @@ export class SandboxAgentRuntime {
         dispose = this.options.bridge?.attach(harness, scope);
         const model =
           this.options.configStore?.effective(this.config).model ??
-          this.config.agent.mainModel;
+          this.config.agent.defaultModel;
         await runs.markRunning(scope, {
           provider: model.provider,
           model: model.model,
@@ -396,7 +396,7 @@ export class SandboxAgentRuntime {
       try {
         const model =
           this.options.configStore?.effective(this.config).model ??
-          this.config.agent.mainModel;
+          this.config.agent.defaultModel;
         await runs.markRunning(scope, {
           provider: model.provider,
           model: model.model,

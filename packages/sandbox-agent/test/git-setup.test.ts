@@ -18,7 +18,9 @@ const execFileAsync = promisify(execFile);
 
 const baseConfig = {
   version: 1,
-  agent: { mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" } },
+  agent: {
+    defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+  },
   controller: {
     websocket: { url: "ws://127.0.0.1/ws" },
     auth: { type: "api_key", apiKey: { env: "TOKEN" } },

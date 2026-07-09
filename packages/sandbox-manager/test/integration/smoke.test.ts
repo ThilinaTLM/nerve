@@ -14,7 +14,9 @@ const execFileAsync = promisify(execFile);
 
 const smokeConfig = {
   version: 1,
-  agent: { mainModel: { provider: "anthropic", model: "claude-sonnet-4-5" } },
+  agent: {
+    defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+  },
   controller: {
     websocket: { url: "ws://unused" },
     auth: { type: "api_key", apiKey: { env: "TOKEN" } },

@@ -40,6 +40,46 @@ export type ManagedSandboxDesiredState = z.infer<
   typeof managedSandboxDesiredStateSchema
 >;
 
+export const managedSandboxLifecycleStateSchema = z.enum([
+  "record_created",
+  "container_creating",
+  "container_created",
+  "container_starting",
+  "container_started",
+  "daemon_connected",
+  "booting",
+  "ready",
+  "degraded",
+  "reconnecting",
+  "stopping",
+  "stopped",
+  "failed",
+  "removed",
+]);
+export type ManagedSandboxLifecycleState = z.infer<
+  typeof managedSandboxLifecycleStateSchema
+>;
+
+export const managedSandboxDaemonMetadataSchema = z.object({
+  connectedAt: isoDateTimeSchema.optional(),
+  readyAt: isoDateTimeSchema.optional(),
+  sessionId: z.string().min(1).optional(),
+  lastHeartbeatAt: isoDateTimeSchema.optional(),
+});
+export type ManagedSandboxDaemonMetadata = z.infer<
+  typeof managedSandboxDaemonMetadataSchema
+>;
+
+export const managedSandboxLifecycleSummarySchema = z.object({
+  state: managedSandboxLifecycleStateSchema,
+  updatedAt: isoDateTimeSchema.optional(),
+  daemon: managedSandboxDaemonMetadataSchema.optional(),
+  reason: z.string().min(1).optional(),
+});
+export type ManagedSandboxLifecycleSummary = z.infer<
+  typeof managedSandboxLifecycleSummarySchema
+>;
+
 export const sandboxContainerBackendSchema = z.enum([
   "auto",
   "docker",
@@ -164,6 +204,9 @@ export const managedSandboxRecordSchema = z.object({
   }),
   desiredState: managedSandboxDesiredStateSchema,
   observedState: managedSandboxObservedStateSchema,
+  lifecycleState: managedSandboxLifecycleStateSchema,
+  lifecycleUpdatedAt: isoDateTimeSchema.optional(),
+  daemon: managedSandboxDaemonMetadataSchema.optional(),
   configDigest: z.string().min(1).optional(),
   workspaceRef: volumeRefSchema,
   stateRef: volumeRefSchema,
@@ -402,6 +445,7 @@ export const sandboxRuntimeContainerStatusSchema = z.object({
   ref: managedContainerRefSchema.optional(),
   runtime: z.string().min(1),
   state: managedSandboxObservedStateSchema,
+  lifecycle: managedSandboxLifecycleSummarySchema.optional(),
   health: z.enum(["starting", "healthy", "unhealthy", "unknown"]).optional(),
   exitCode: z.number().int().safe().optional(),
   startedAt: isoDateTimeSchema.optional(),
@@ -464,6 +508,10 @@ export const sandboxManagerLifecycleSettingsSchema = z.object({
   gcIntervalMs: z.number().int().nonnegative().safe().optional(),
   orphanPolicy: z.string().min(1),
   heartbeatTimeoutMs: z.number().int().positive().safe(),
+  containerStartTimeoutMs: z.number().int().positive().safe().optional(),
+  daemonConnectTimeoutMs: z.number().int().positive().safe().optional(),
+  bootReadyTimeoutMs: z.number().int().positive().safe().optional(),
+  bootStallTimeoutMs: z.number().int().positive().safe().optional(),
   maxPendingCommands: z.number().int().nonnegative().safe(),
   maxCommandBytes: z.number().int().positive().safe(),
 });
@@ -549,6 +597,12 @@ export const sandboxManagerLifecycleEventTypeSchema = z.enum([
   "manager.sandbox.stop_requested",
   "manager.sandbox.stopped",
   "manager.sandbox.removed",
+  "manager.sandbox.lifecycle_changed",
+  "manager.sandbox.container_created",
+  "manager.sandbox.container_started",
+  "manager.sandbox.daemon_connected",
+  "manager.sandbox.ready",
+  "manager.sandbox.boot_timeout",
 ]);
 export type SandboxManagerLifecycleEventType = z.infer<
   typeof sandboxManagerLifecycleEventTypeSchema

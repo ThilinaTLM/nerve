@@ -12,7 +12,7 @@ function config() {
     version: 1,
     identity: { sandboxId: "sbx_scripted" },
     agent: {
-      mainModel: { provider: "nerve-scripted", model: "scripted-fast" },
+      defaultModel: { provider: "nerve-scripted", model: "scripted-fast" },
     },
     controller: {
       websocket: { url: "ws://manager.invalid/ws" },

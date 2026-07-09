@@ -215,13 +215,14 @@ export const sandboxModelCatalogConfigSchema = z.object({
     .optional(),
 });
 
-export const sandboxAgentConfigSchema = z.object({
-  mainModel: sandboxAgentModelSelectionSchema,
-  exploreModel: sandboxAgentModelSelectionSchema.optional(),
-  initialPrompt: z.string().min(1).optional(),
+export const sandboxAgentConfigSchema = z.strictObject({
+  defaultModel: sandboxAgentModelSelectionSchema,
+  defaultExploreModel: sandboxAgentModelSelectionSchema.optional(),
   systemPromptAmendment: z.string().min(1).optional(),
-  mode: z.enum(["normal", "planning"]).optional(),
-  permissionLevel: z.enum(["read_only", "supervised", "autonomous"]).optional(),
+  defaultMode: z.enum(["normal", "planning"]).optional(),
+  defaultPermissionLevel: z
+    .enum(["read_only", "supervised", "autonomous"])
+    .optional(),
   workspaceRoot: z.string().min(1).optional(),
   maxRuns: z.number().int().positive().safe().optional(),
   maxExploreDepth: z.number().int().nonnegative().safe().optional(),
@@ -737,8 +738,8 @@ function validateModelReferences(
   }
 
   for (const [label, selection] of [
-    ["mainModel", config.agent.mainModel],
-    ["exploreModel", config.agent.exploreModel],
+    ["defaultModel", config.agent.defaultModel],
+    ["defaultExploreModel", config.agent.defaultExploreModel],
   ] as const) {
     if (!selection) continue;
     const providerKnown =

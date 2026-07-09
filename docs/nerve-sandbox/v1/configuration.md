@@ -205,12 +205,11 @@ type SandboxConfigV1 = {
 Sandbox identity, display name, container labels, image, backend, and CPU/memory resources are manager launch config, not sandbox-agent YAML. Managed sandboxes receive `NERVE_SANDBOX_AGENT_SANDBOX_ID` and `NERVE_SANDBOX_AGENT_INSTANCE_ID` from the manager at container start.
 
 type AgentConfig = {
-  mainModel: AgentModelSelection;
-  exploreModel?: AgentModelSelection;
-  initialPrompt?: string;
+  defaultModel: AgentModelSelection;
+  defaultExploreModel?: AgentModelSelection;
   systemPromptAmendment?: string;
-  mode?: "normal" | "planning";
-  permissionLevel?: "read_only" | "supervised" | "autonomous";
+  defaultMode?: "normal" | "planning";
+  defaultPermissionLevel?: "read_only" | "supervised" | "autonomous";
   workspaceRoot?: string; // default: /workspace
   maxRuns?: number;
   maxExploreDepth?: number;
@@ -223,7 +222,7 @@ type AgentModelSelection = {
 };
 ```
 
-`agent.mainModel` and `agent.exploreModel` are selectors only. Provider connection details, credentials, API compatibility, and model metadata live in `modelCatalog` or the runtime's bundled pi-ai catalog.
+`agent.defaultModel` and `agent.defaultExploreModel` are selectors only. Provider connection details, credentials, API compatibility, and model metadata live in `modelCatalog` or the runtime's bundled pi-ai catalog. First user prompts are conversation-level input and MUST be sent later with `sandbox.run.start.prompt`; they are not mounted in sandbox YAML.
 
 ## pi-ai model catalog
 
@@ -304,7 +303,7 @@ Requirements:
 - `compat` is intentionally provider-specific and is validated by the runtime/provider integration.
 - `providerOptions` is an extension object for implementation-specific safe options. It MUST NOT carry raw secrets.
 - The sandbox MUST report unsupported providers, API types, model IDs, thinking levels, or credential modes before advertising the model as active.
-- `agent.mainModel.provider`/`model` and `agent.exploreModel.provider`/`model` MUST resolve through either `modelCatalog` or the bundled catalog.
+- `agent.defaultModel.provider`/`model` and `agent.defaultExploreModel.provider`/`model` MUST resolve through either `modelCatalog` or the bundled catalog.
 
 ### Built-in OAuth model provider examples
 
@@ -325,7 +324,7 @@ modelCatalog:
           persist: state
 
 agent:
-  mainModel:
+  defaultModel:
     provider: openai-codex
     model: gpt-5-codex
     thinkingLevel: medium
@@ -348,7 +347,7 @@ modelCatalog:
           minTtlMs: 600000
 
 agent:
-  mainModel:
+  defaultModel:
     provider: anthropic
     model: claude-sonnet-4-5
     thinkingLevel: high
@@ -522,7 +521,7 @@ type ExploreToolGroupConfig = ToolGroupConfig & {
 };
 ```
 
-Shell commands run as the sandbox user by default and MUST NOT receive all environment variables automatically. The explore group SHOULD default to read-oriented tools and inherit parent security policy; it uses `agent.exploreModel` when configured, otherwise `agent.mainModel`.
+Shell commands run as the sandbox user by default and MUST NOT receive all environment variables automatically. The explore group SHOULD default to read-oriented tools and inherit parent security policy; it uses `agent.defaultExploreModel` when configured, otherwise `agent.defaultModel`.
 
 ## Git configuration
 
@@ -790,8 +789,8 @@ If omitted, implementations SHOULD use these defaults:
 
 | Field | Default |
 | --- | --- |
-| `agent.mode` | `normal` |
-| `agent.permissionLevel` | `supervised` |
+| `agent.defaultMode` | `normal` |
+| `agent.defaultPermissionLevel` | `supervised` |
 | `agent.workspaceRoot` | `/workspace` |
 | `agent.maxRuns` | `8` |
 | `agent.maxExploreDepth` | `3` |
@@ -902,19 +901,18 @@ modelCatalog:
       supportedThinkingLevels: [off]
 
 agent:
-  mainModel:
+  defaultModel:
     provider: anthropic
     model: claude-sonnet-4-5
     thinkingLevel: medium
-  exploreModel:
+  defaultExploreModel:
     provider: openai-codex
     model: gpt-5-codex
     thinkingLevel: low
-  initialPrompt: |
-    Inspect the workspace and wait for controller instructions.
+  # First user prompts are sent later with sandbox.run.start.prompt.
   systemPromptAmendment: |
     Prefer small, reviewable changes and explain tradeoffs before risky edits.
-  permissionLevel: supervised
+  defaultPermissionLevel: supervised
 
 controller:
   websocket:

@@ -9,6 +9,9 @@ export type SandboxSessionRecord = {
   sessionId: string;
   state: "connected" | "reconnecting" | "disconnected" | "exited";
   updatedAt: string;
+  connectedAt?: string;
+  readyAt?: string;
+  agentStatus?: "booting" | "ready" | "degraded" | "failed";
   cursors?: unknown;
   capabilities?: string[];
   disconnectedAt?: string;

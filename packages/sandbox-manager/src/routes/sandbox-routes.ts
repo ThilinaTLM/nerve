@@ -134,6 +134,8 @@ export async function createSandboxRecord(
     image: { reference: normalizedLaunch.image, sandboxSpec: "v1" },
     desiredState: "created",
     observedState: "unknown",
+    lifecycleState: "record_created",
+    lifecycleUpdatedAt: now,
     configDigest: materialized.configDigest,
     workspaceRef: materializedVolumes.workspace,
     stateRef: materializedVolumes.state,

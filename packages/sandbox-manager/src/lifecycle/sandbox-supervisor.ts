@@ -7,6 +7,7 @@ import type {
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
 import type { ManagerLifecycleEventInput } from "../events/manager-events.js";
 import type { ManagerStore } from "../state/manager-store.js";
+import { transitionSandboxLifecycle } from "./lifecycle-state.js";
 
 type LifecycleEventRecorder = (
   event: ManagerLifecycleEventInput,
@@ -24,13 +25,16 @@ export class SandboxSupervisor {
     const next: ManagedSandboxRecord = {
       ...record,
       desiredState: "created",
-      observedState: "creating",
+      observedState: "unknown",
+      lifecycleState: "record_created",
+      lifecycleUpdatedAt: record.lifecycleUpdatedAt ?? now,
       updatedAt: now,
     };
     await this.store.put(next);
     await this.emit("manager.sandbox.created", next, {
       desiredState: next.desiredState,
       observedState: next.observedState,
+      lifecycleState: next.lifecycleState,
     });
     return next;
   }
@@ -39,63 +43,112 @@ export class SandboxSupervisor {
     sandboxId: string,
     spec: ManagedContainerCreateSpec,
   ): Promise<ManagedSandboxRecord> {
-    const record = await this.requireRecord(sandboxId);
-    const now = new Date().toISOString();
-    await this.store.put({
-      ...record,
-      desiredState: "running",
-      observedState: "starting",
-      updatedAt: now,
-    });
+    let record = await transitionSandboxLifecycle(
+      { store: this.store, recordEvent: this.recordEvent },
+      sandboxId,
+      "container_creating",
+      {
+        desiredState: "running",
+        observedState: "starting",
+        instanceId: spec.instanceId,
+        force: true,
+      },
+    );
     await this.emit("manager.sandbox.start_requested", record, {
       desiredState: "running",
       observedState: "starting",
+      lifecycleState: "container_creating",
     });
     try {
       let ref = record.containerRef;
       if (ref) {
         try {
           const status = await this.driver.inspect(ref);
-          if (status.state === "unknown") ref = undefined;
+          if (status.state === "unknown" || status.state === "removed")
+            ref = undefined;
         } catch {
           ref = undefined;
         }
       }
-      ref ??= await this.driver.create(spec);
-      await this.driver.start(ref);
-      const started: ManagedSandboxRecord = {
-        ...record,
-        instanceId: spec.instanceId,
-        backend: ref.kind || record.backend,
-        desiredState: "running",
-        observedState: "running",
+      if (!ref) ref = await this.driver.create(spec);
+      record = await transitionSandboxLifecycle(
+        { store: this.store, recordEvent: this.recordEvent },
+        sandboxId,
+        "container_created",
+        {
+          desiredState: "running",
+          observedState: "starting",
+          containerRef: ref,
+          instanceId: spec.instanceId,
+          force: true,
+        },
+      );
+      await this.emit("manager.sandbox.container_created", record, {
+        desiredState: record.desiredState,
+        observedState: record.observedState,
+        lifecycleState: record.lifecycleState,
         containerRef: ref,
-        startedAt: now,
-        updatedAt: now,
-        lastError: undefined,
-      };
-      await this.store.put(started);
+      });
+      record = await transitionSandboxLifecycle(
+        { store: this.store, recordEvent: this.recordEvent },
+        sandboxId,
+        "container_starting",
+        {
+          desiredState: "running",
+          observedState: "starting",
+          containerRef: ref,
+          force: true,
+        },
+      );
+      await this.driver.start(ref);
+      const inspected = await this.driver.inspect(ref).catch(() => undefined);
+      const running = inspected?.state === "running";
+      if (!running) return record;
+      const started = await transitionSandboxLifecycle(
+        { store: this.store, recordEvent: this.recordEvent },
+        sandboxId,
+        "container_started",
+        {
+          desiredState: "running",
+          observedState: "running",
+          containerRef: ref,
+          startedAt: inspected?.startedAt ?? new Date().toISOString(),
+          lastError: undefined,
+          force: true,
+        },
+      );
+      await this.emit("manager.sandbox.container_started", started, {
+        desiredState: started.desiredState,
+        observedState: started.observedState,
+        lifecycleState: started.lifecycleState,
+        containerRef: started.containerRef,
+      });
       await this.emit("manager.sandbox.started", started, {
         desiredState: started.desiredState,
         observedState: started.observedState,
+        lifecycleState: started.lifecycleState,
         containerRef: started.containerRef,
       });
       return started;
     } catch (error) {
-      const failed: ManagedSandboxRecord = {
-        ...record,
-        desiredState: "running",
-        observedState: "failed",
-        updatedAt: new Date().toISOString(),
-        lastError: {
-          code: "START_FAILED",
-          message: redactErrorMessage(error),
+      const failed = await transitionSandboxLifecycle(
+        { store: this.store, recordEvent: this.recordEvent },
+        sandboxId,
+        "failed",
+        {
+          desiredState: "running",
+          observedState: "failed",
+          lastError: {
+            code: "START_FAILED",
+            message: redactErrorMessage(error),
+          },
+          force: true,
         },
-      };
-      await this.store.put(failed);
+      );
       await this.emit("manager.sandbox.start_failed", failed, {
         desiredState: failed.desiredState,
         observedState: failed.observedState,
+        lifecycleState: failed.lifecycleState,
         error: failed.lastError,
       });
       throw error;
@@ -106,33 +159,36 @@ export class SandboxSupervisor {
     sandboxId: string,
     options: StopOptions = {},
   ): Promise<ManagedSandboxRecord> {
-    const record = await this.requireRecord(sandboxId);
-    const now = new Date().toISOString();
-    await this.store.put({
-      ...record,
-      desiredState: "stopped",
-      observedState: "stopping",
-      updatedAt: now,
-    });
+    let record = await transitionSandboxLifecycle(
+      { store: this.store, recordEvent: this.recordEvent },
+      sandboxId,
+      "stopping",
+      { desiredState: "stopped", observedState: "stopping", force: true },
+    );
     await this.emit("manager.sandbox.stop_requested", record, {
       desiredState: "stopped",
       observedState: "stopping",
+      lifecycleState: "stopping",
     });
     if (record.containerRef)
       await this.driver.stop(record.containerRef, options);
-    const stopped: ManagedSandboxRecord = {
-      ...record,
-      desiredState: "stopped",
-      observedState: "exited",
-      stoppedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await this.store.put(stopped);
-    await this.emit("manager.sandbox.stopped", stopped, {
-      desiredState: stopped.desiredState,
-      observedState: stopped.observedState,
+    record = await transitionSandboxLifecycle(
+      { store: this.store, recordEvent: this.recordEvent },
+      sandboxId,
+      "stopped",
+      {
+        desiredState: "stopped",
+        observedState: "exited",
+        stoppedAt: new Date().toISOString(),
+        force: true,
+      },
+    );
+    await this.emit("manager.sandbox.stopped", record, {
+      desiredState: record.desiredState,
+      observedState: record.observedState,
+      lifecycleState: record.lifecycleState,
     });
-    return stopped;
+    return record;
   }
 
   async remove(
@@ -142,16 +198,16 @@ export class SandboxSupervisor {
     const record = await this.requireRecord(sandboxId);
     if (record.containerRef)
       await this.driver.remove(record.containerRef, options);
-    const removed: ManagedSandboxRecord = {
-      ...record,
-      desiredState: "removed",
-      observedState: "removed",
-      updatedAt: new Date().toISOString(),
-    };
-    await this.store.put(removed);
+    const removed = await transitionSandboxLifecycle(
+      { store: this.store, recordEvent: this.recordEvent },
+      sandboxId,
+      "removed",
+      { desiredState: "removed", observedState: "removed", force: true },
+    );
     await this.emit("manager.sandbox.removed", removed, {
       desiredState: removed.desiredState,
       observedState: removed.observedState,
+      lifecycleState: removed.lifecycleState,
     });
     return removed;
   }

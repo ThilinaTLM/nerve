@@ -78,6 +78,7 @@ export async function runBootPlan(
         data: unknown;
       }): Promise<unknown>;
     };
+    sandboxId?: string;
     instanceId?: string;
     env?: Record<string, string>;
   },
@@ -97,6 +98,7 @@ export async function runBootPlan(
       type: "sandbox.boot.started",
       durability: "durable",
       data: {
+        sandboxId: opts.sandboxId,
         instanceId: opts.instanceId ?? "unknown",
         phase: phase.name,
         index,
@@ -148,6 +150,7 @@ export async function runBootPlan(
       type: "sandbox.boot.completed",
       durability: "durable",
       data: {
+        sandboxId: opts.sandboxId,
         instanceId: opts.instanceId ?? "unknown",
         ...record,
         stdout: {

@@ -211,11 +211,11 @@
     })),
   );
   const filteredModels = $derived(
-    store.models.filter((model) => model.provider === draft.mainProvider),
+    store.models.filter((model) => model.provider === draft.defaultProvider),
   );
   const modelItems = $derived(modelSelectItems(filteredModels, selectedMainProfile));
   const selectedMainModel = $derived(
-    filteredModels.find((model) => model.modelId === draft.mainModel),
+    filteredModels.find((model) => model.modelId === draft.defaultModel),
   );
   const thinkingLevelItems = $derived(
     thinkingLevelSelectItems(supportedThinkingLevelsForSelection()),
@@ -273,14 +273,14 @@
   });
 
   $effect(() => {
-    if (!draft.mainModel) {
-      draft.mainThinking = "off";
+    if (!draft.defaultModel) {
+      draft.defaultThinking = "off";
       return;
     }
     if (!selectedMainModel) return;
     const supported = supportedThinkingLevelsForSelection();
-    if (supported.includes(draft.mainThinking)) return;
-    draft.mainThinking = supported.includes("off") ? "off" : (supported[0] ?? "off");
+    if (supported.includes(draft.defaultThinking)) return;
+    draft.defaultThinking = supported.includes("off") ? "off" : (supported[0] ?? "off");
   });
 
   $effect(() => {
@@ -352,7 +352,7 @@
   }
 
   function supportedThinkingLevelsForSelection(): ThinkingLevel[] {
-    if (!draft.mainModel) return ["off"];
+    if (!draft.defaultModel) return ["off"];
     return selectedMainModel?.supportedThinkingLevels?.length
       ? selectedMainModel.supportedThinkingLevels
       : [...thinkingLevels];
@@ -384,8 +384,8 @@
     );
     draft.mainModelProfileId = profileId;
     if (!profile?.provider) return;
-    draft.mainProvider = profile.provider;
-    draft.mainModel = chooseDefaultModel(profile, store.models);
+    draft.defaultProvider = profile.provider;
+    draft.defaultModel = chooseDefaultModel(profile, store.models);
   }
 
   function setBootEnabled(value: boolean) {
@@ -538,7 +538,10 @@
     busy = true;
     try {
       if (!draft.yamlDirty) saveCreateSandboxPreferences(draft);
-      const sandboxId = await store.createSandbox(result.request);
+      const sandboxId = await store.createSandbox(
+        result.request,
+        draft.initialConversationPrompt,
+      );
       closeAndReset(false);
       onCreated?.(sandboxId);
     } catch (submitError) {
@@ -778,10 +781,10 @@
                 <Label>Model</Label>
                 <SelectField
                   items={modelItems}
-                  value={draft.mainModel}
+                  value={draft.defaultModel}
                   placeholder="Choose model"
                   disabled={!draft.mainModelProfileId || modelItems.length === 0}
-                  onValueChange={(value) => (draft.mainModel = value)}
+                  onValueChange={(value) => (draft.defaultModel = value)}
                 />
                 {#if draft.mainModelProfileId && modelItems.length === 0}
                   <p class="text-xs text-warning">No catalog models found for this provider.</p>
@@ -791,11 +794,11 @@
                 <Label>Thinking level</Label>
                 <SelectField
                   items={thinkingLevelItems}
-                  value={draft.mainThinking}
+                  value={draft.defaultThinking}
                   placeholder="Choose thinking level"
-                  disabled={!draft.mainModel || thinkingLevelItems.length === 0}
+                  disabled={!draft.defaultModel || thinkingLevelItems.length === 0}
                   onValueChange={(value) =>
-                    (draft.mainThinking = value as typeof draft.mainThinking)}
+                    (draft.defaultThinking = value as typeof draft.defaultThinking)}
                 />
               </div>
               <div class="flex flex-col gap-1">
@@ -820,7 +823,7 @@
             <div class="flex flex-col gap-1">
               <Label>Initial prompt</Label>
               <Textarea
-                bind:value={draft.initialPrompt}
+                bind:value={draft.initialConversationPrompt}
                 class="min-h-16"
                 placeholder="Optional first instruction for the sandbox agent"
               />

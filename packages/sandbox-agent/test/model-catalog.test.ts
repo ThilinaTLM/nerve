@@ -6,7 +6,7 @@ import { resolveModelSelection } from "../src/models/model-catalog.js";
 function config(provider: string, model: string): SandboxConfigV1 {
   return {
     version: 1,
-    agent: { mainModel: { provider, model } },
+    agent: { defaultModel: { provider, model } },
     controller: {
       websocket: { url: "ws://127.0.0.1/ws" },
       auth: { type: "api_key", apiKey: { env: "TOKEN" } },

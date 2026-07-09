@@ -1,4 +1,5 @@
 import type {
+  ManagedSandboxLifecycleState,
   ManagedSandboxObservedState,
   ManagedSandboxRecord,
   SandboxDaemonStatus,
@@ -13,6 +14,17 @@ export function sandboxContainerState(
     detail?.status?.container?.state ??
     detail?.snapshot?.container?.state ??
     record?.observedState
+  );
+}
+
+export function sandboxLifecycleState(
+  record: ManagedSandboxRecord | undefined,
+  detail: SandboxDetailState | undefined,
+): ManagedSandboxLifecycleState | undefined {
+  return (
+    detail?.status?.lifecycle?.state ??
+    detail?.snapshot?.lifecycle?.state ??
+    record?.lifecycleState
   );
 }
 
@@ -38,7 +50,10 @@ export function sandboxIsOffline(
   detail: SandboxDetailState | undefined,
 ): boolean {
   const state = sandboxContainerState(record, detail);
+  const lifecycle = sandboxLifecycleState(record, detail);
   return (
+    lifecycle === "stopped" ||
+    lifecycle === "removed" ||
     sandboxDaemonStatus(detail) === "offline" ||
     state === "exited" ||
     state === "removed" ||
@@ -53,6 +68,7 @@ export function sandboxIsFailed(
 ): boolean {
   const state = sandboxContainerState(record, detail);
   return (
+    sandboxLifecycleState(record, detail) === "failed" ||
     sandboxDaemonStatus(detail) === "failed" ||
     state === "failed" ||
     record?.observedState === "failed"
@@ -64,6 +80,7 @@ export function sandboxIsStopping(
   detail: SandboxDetailState | undefined,
 ): boolean {
   return (
+    sandboxLifecycleState(record, detail) === "stopping" ||
     sandboxDaemonStatus(detail) === "stopping" ||
     sandboxContainerState(record, detail) === "stopping" ||
     record?.observedState === "stopping"
@@ -75,7 +92,11 @@ export function sandboxIsTerminal(
   detail?: SandboxDetailState | undefined,
 ): boolean {
   const state = sandboxContainerState(record, detail);
+  const lifecycle = sandboxLifecycleState(record, detail);
   return (
+    lifecycle === "removed" ||
+    lifecycle === "stopped" ||
+    lifecycle === "failed" ||
     state === "removed" ||
     state === "exited" ||
     state === "failed" ||
@@ -110,11 +131,29 @@ export function sandboxCanQueuePrompt(
   return sandboxCanCreateConversation(record, detail);
 }
 
+export function sandboxReadyForCommands(
+  record: ManagedSandboxRecord | undefined,
+  detail: SandboxDetailState | undefined,
+): boolean {
+  const lifecycle = sandboxLifecycleState(record, detail);
+  const daemon = sandboxDaemonStatus(detail);
+  return (
+    lifecycle === "ready" ||
+    lifecycle === "degraded" ||
+    daemon === "ready" ||
+    daemon === "degraded"
+  );
+}
+
 export function sandboxCanForwardCommand(
   record: ManagedSandboxRecord | undefined,
   detail: SandboxDetailState | undefined,
 ): boolean {
-  return sandboxIsConnected(detail) && !sandboxIsReadOnly(record, detail);
+  return (
+    sandboxIsConnected(detail) &&
+    sandboxReadyForCommands(record, detail) &&
+    !sandboxIsReadOnly(record, detail)
+  );
 }
 
 export function sandboxShouldPollStatus(
@@ -122,7 +161,14 @@ export function sandboxShouldPollStatus(
   detail: SandboxDetailState | undefined,
 ): boolean {
   const daemon = sandboxDaemonStatus(detail);
-  if (sandboxIsConnected(detail)) return false;
+  const lifecycle = sandboxLifecycleState(record, detail);
+  if (lifecycle === "ready" || lifecycle === "degraded") return false;
+  if (
+    lifecycle === "failed" ||
+    lifecycle === "stopped" ||
+    lifecycle === "removed"
+  )
+    return false;
   if (daemon === "offline" || daemon === "failed" || daemon === "stopping")
     return false;
   if (sandboxIsTerminal(record, detail) || sandboxIsStopping(record, detail))
@@ -135,6 +181,7 @@ export function sandboxLifecycleMessage(
   detail: SandboxDetailState | undefined,
 ): string {
   const state = sandboxContainerState(record, detail);
+  const lifecycle = sandboxLifecycleState(record, detail);
   if (state === "removed" || record?.desiredState === "removed")
     return "The sandbox container has been removed. Previous conversations are read-only snapshots.";
   if (sandboxIsFailed(record, detail))
@@ -143,20 +190,28 @@ export function sandboxLifecycleMessage(
     return "The sandbox is stopping. New commands are disabled until it is started again.";
   if (sandboxIsOffline(record, detail))
     return "The sandbox container is offline. Previous conversations are read-only snapshots until you start or restart it.";
+  if (lifecycle === "container_started")
+    return "The container is running. Waiting for the sandbox controller to connect.";
+  if (lifecycle === "daemon_connected" || lifecycle === "booting")
+    return "The sandbox controller is connected and booting. Messages can be queued and will send when ready.";
   if (!sandboxIsConnected(detail)) {
     const daemon = sandboxDaemonStatus(detail);
     if (daemon === "booting")
-      return "The sandbox is booting. Messages can be queued and will send when the controller connects.";
+      return "The sandbox is booting. Messages can be queued and will send when ready.";
     return "Waiting for the sandbox controller to reconnect.";
   }
-  return "Sandbox is ready.";
+  return sandboxReadyForCommands(record, detail)
+    ? "Sandbox is ready."
+    : "The sandbox controller is connected; waiting for readiness.";
 }
 
 export function sandboxLifecycleBadgeLabel(
   record: ManagedSandboxRecord | undefined,
   detail: SandboxDetailState | undefined,
 ): string {
+  const lifecycle = sandboxLifecycleState(record, detail);
   const daemon = sandboxDaemonStatus(detail);
+  if (lifecycle) return lifecycle;
   if (sandboxIsConnected(detail)) return "connected";
   if (daemon === "offline") return "offline";
   if (daemon) return daemon;

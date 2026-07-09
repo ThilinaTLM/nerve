@@ -137,7 +137,7 @@ describe("sandbox manager selectors", () => {
       runs: [],
       config: {
         agent: {
-          mainModel: { provider: "anthropic", model: "claude-opus-4.5" },
+          defaultModel: { provider: "anthropic", model: "claude-opus-4.5" },
         },
       },
     } as unknown as typeof detail.snapshot;
