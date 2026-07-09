@@ -101,7 +101,42 @@ describe("sandbox startup pipeline helpers", () => {
     }
   });
 
-  it("passes package-manager environment into boot phases without leaking process secrets", async () => {
+  it("enforces boot timeouts for shell child processes", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-boot-timeout-"));
+    try {
+      const workspace = path.join(dir, "workspace");
+      const state = path.join(dir, "state");
+      await mkdir(workspace);
+      await mkdir(state);
+      const started = Date.now();
+      await assert.rejects(
+        runBootPlan(
+          {
+            ...config,
+            boot: {
+              phases: [
+                {
+                  name: "slow",
+                  script: "sleep 5",
+                  timeoutMs: 100,
+                },
+              ],
+            },
+          },
+          { workspaceDir: workspace, stateDir: state },
+        ),
+        /Boot phase failed: slow/,
+      );
+      assert.ok(
+        Date.now() - started < 2_000,
+        "boot timeout should not wait for the child process to finish naturally",
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("passes noninteractive package-manager environment into boot phases without leaking process secrets", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-boot-env-"));
     const restoreEnv = withProcessEnv({
       HOME: "/home/sandbox",
@@ -111,6 +146,15 @@ describe("sandbox startup pipeline helpers", () => {
       YARN_CACHE_FOLDER: "/state/cache/dependencies/yarn",
       XDG_CACHE_HOME: "/state/cache",
       NVM_DIR: "/home/sandbox/.nvm",
+      TERM: "xterm-256color",
+      PAGER: "less",
+      GIT_PAGER: "less",
+      GIT_TERMINAL_PROMPT: "1",
+      CI: "0",
+      DEBIAN_FRONTEND: "dialog",
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "1",
+      NPM_CONFIG_YES: "false",
+      npm_config_yes: "false",
       NERVE_TEST_TOKEN: "should-not-leak",
       ANTHROPIC_API_KEY: "should-not-leak-either",
     });
@@ -135,6 +179,15 @@ describe("sandbox startup pipeline helpers", () => {
                   '"YARN_CACHE_FOLDER=$YARN_CACHE_FOLDER"',
                   '"XDG_CACHE_HOME=$XDG_CACHE_HOME"',
                   '"NVM_DIR=$NVM_DIR"',
+                  '"TERM=$TERM"',
+                  '"PAGER=$PAGER"',
+                  '"GIT_PAGER=$GIT_PAGER"',
+                  '"GIT_TERMINAL_PROMPT=$GIT_TERMINAL_PROMPT"',
+                  '"CI=$CI"',
+                  '"DEBIAN_FRONTEND=$DEBIAN_FRONTEND"',
+                  '"COREPACK_ENABLE_DOWNLOAD_PROMPT=$COREPACK_ENABLE_DOWNLOAD_PROMPT"',
+                  '"NPM_CONFIG_YES=$NPM_CONFIG_YES"',
+                  '"npm_config_yes=$npm_config_yes"',
                   '"NERVE_TEST_TOKEN=$NERVE_TEST_TOKEN"',
                   '"ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"',
                 ].join(" "),
@@ -164,12 +217,59 @@ describe("sandbox startup pipeline helpers", () => {
       );
       assert.match(log, /^XDG_CACHE_HOME=\/state\/cache$/m);
       assert.match(log, /^NVM_DIR=\/home\/sandbox\/\.nvm$/m);
+      assert.match(log, /^TERM=dumb$/m);
+      assert.match(log, /^PAGER=cat$/m);
+      assert.match(log, /^GIT_PAGER=cat$/m);
+      assert.match(log, /^GIT_TERMINAL_PROMPT=0$/m);
+      assert.match(log, /^CI=1$/m);
+      assert.match(log, /^DEBIAN_FRONTEND=noninteractive$/m);
+      assert.match(log, /^COREPACK_ENABLE_DOWNLOAD_PROMPT=0$/m);
+      assert.match(log, /^NPM_CONFIG_YES=true$/m);
+      assert.match(log, /^npm_config_yes=true$/m);
       assert.match(log, /^NERVE_TEST_TOKEN=$/m);
       assert.match(log, /^ANTHROPIC_API_KEY=$/m);
       assert.equal(log.includes("should-not-leak"), false);
       assert.equal(log.includes("should-not-leak-either"), false);
     } finally {
       restoreEnv();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows explicit boot env to override noninteractive defaults", async () => {
+    const dir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-boot-env-override-"),
+    );
+    try {
+      const workspace = path.join(dir, "workspace");
+      const state = path.join(dir, "state");
+      await mkdir(workspace);
+      await mkdir(state);
+      await runBootPlan(
+        {
+          ...config,
+          boot: {
+            phases: [
+              {
+                name: "env override",
+                script: 'printf \'%s\\n\' "CI=$CI" "PAGER=$PAGER"',
+              },
+            ],
+          },
+        },
+        {
+          workspaceDir: workspace,
+          stateDir: state,
+          env: { CI: "0", PAGER: "less" },
+        },
+      );
+      const log = await readFile(
+        path.join(state, "boot", "latest.log"),
+        "utf8",
+      );
+      assert.match(log, /^CI=0$/m);
+      assert.match(log, /^PAGER=less$/m);
+    } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });

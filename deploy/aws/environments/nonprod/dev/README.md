@@ -53,27 +53,14 @@ terraform apply \
   -target='module.sandbox_manager.aws_ecr_repository.agent[0]'
 ```
 
-Then login and push images:
+Then build and push each image:
 
 ```sh
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-REGION=$(terraform output -raw manager_ecr_repository_url | sed -E 's#^[0-9]+\.dkr\.ecr\.([^./]+)\.amazonaws\.com/.*#\1#')
-CONTAINER_CLI=${NERVE_CONTAINER_CLI:-docker}
-aws ecr get-login-password --region "$REGION" |
-  "$CONTAINER_CLI" login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
-
-MANAGER_REPO=$(terraform output -raw manager_ecr_repository_url)
-AGENT_REPO=$(terraform output -raw agent_ecr_repository_url)
-TAG=$(terraform output -raw manager_image | awk -F: '{print $NF}')
-
-NERVE_SANDBOX_AGENT_IMAGE="$AGENT_REPO:$TAG" pnpm build-image:sandbox-agent
-"$CONTAINER_CLI" push "$AGENT_REPO:$TAG"
-
-NERVE_SANDBOX_MANAGER_IMAGE="$MANAGER_REPO:$TAG" \
-NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES=false \
-  pnpm build-image:sandbox-manager
-"$CONTAINER_CLI" push "$MANAGER_REPO:$TAG"
+./build-push-sandbox-agent-image.sh
+./build-push-sandbox-manager-image.sh
 ```
+
+Each script reads its Terraform image output (`agent_image` or `manager_image`), checks whether Docker is already authenticated to the target ECR registry, logs in with `aws ecr get-login-password` when needed, then invokes the existing image build script and pushes the resulting tag.
 
 The manager image build bundles and serves the sandbox-manager UI from the manager container. No separate UI service is deployed.
 

@@ -16,6 +16,14 @@ const bootEnvAllowlist = new Set([
   "LANG",
   "LC_ALL",
   "TERM",
+  "PAGER",
+  "GIT_PAGER",
+  "GIT_TERMINAL_PROMPT",
+  "CI",
+  "DEBIAN_FRONTEND",
+  "COREPACK_ENABLE_DOWNLOAD_PROMPT",
+  "NPM_CONFIG_YES",
+  "npm_config_yes",
   "TMPDIR",
   "NVM_DIR",
   "PNPM_HOME",
@@ -29,7 +37,20 @@ const bootEnvAllowlist = new Set([
   "YARN_CACHE_FOLDER",
 ]);
 
+const nonInteractiveBootEnvDefaults: Record<string, string> = {
+  TERM: "dumb",
+  PAGER: "cat",
+  GIT_PAGER: "cat",
+  GIT_TERMINAL_PROMPT: "0",
+  CI: "1",
+  DEBIAN_FRONTEND: "noninteractive",
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+  NPM_CONFIG_YES: "true",
+  npm_config_yes: "true",
+};
+
 const bootEnvDefaults: Record<string, string> = {
+  ...nonInteractiveBootEnvDefaults,
   PATH: "/state/cache/dependencies/npm-global/bin:/state/cache/dependencies/pnpm:/home/sandbox/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
   HOME: "/home/sandbox",
   USER: "sandbox",
@@ -147,7 +168,8 @@ export async function runBootPlan(
 function bootBaseEnv(source: NodeJS.ProcessEnv): Record<string, string> {
   const env: Record<string, string> = {};
   for (const key of bootEnvAllowlist) {
-    const value = source[key] ?? bootEnvDefaults[key];
+    const value =
+      nonInteractiveBootEnvDefaults[key] ?? source[key] ?? bootEnvDefaults[key];
     if (value !== undefined) env[key] = value;
   }
   return env;
@@ -179,6 +201,7 @@ async function runShell(
     const [shell, args] = shellCommand(script);
     const child = spawn(shell, args, {
       cwd,
+      detached: process.platform !== "win32",
       env,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -188,7 +211,7 @@ async function runShell(
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      killShellTree(child.pid);
     }, timeoutMs);
     child.stdout.on("data", (chunk) => {
       stdout = (stdout + String(chunk)).slice(-64_000);
@@ -216,6 +239,20 @@ async function runShell(
       resolve({ code: code ?? (timedOut ? 124 : 1), stdout, stderr, timedOut });
     });
   });
+}
+
+function killShellTree(pid: number | undefined): void {
+  if (pid === undefined) return;
+  try {
+    if (process.platform === "win32") process.kill(pid, "SIGKILL");
+    else process.kill(-pid, "SIGKILL");
+  } catch {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Process already exited.
+    }
+  }
 }
 
 function shellCommand(script: string): [string, string[]] {

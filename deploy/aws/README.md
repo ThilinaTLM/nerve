@@ -28,11 +28,12 @@ Environment roots add tags such as `Environment`, `Stage`, and `CostProfile`.
 
 ## Image workflow
 
-Terraform can create ECR repositories, but it does not build images. Build and push:
+Terraform can create ECR repositories, but it does not build images. For nonprod/dev, build and push the Terraform-configured ECR images with:
 
 ```sh
-pnpm build-image:sandbox-agent
-NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES=false pnpm build-image:sandbox-manager
+cd deploy/aws/environments/nonprod/dev
+./build-push-sandbox-agent-image.sh
+./build-push-sandbox-manager-image.sh
 ```
 
-The sandbox-manager image build bundles `packages/sandbox-manager-ui/dist` into the manager image so the manager serves the UI itself.
+The helpers check Docker authentication for the target ECR registry and log in through `aws ecr get-login-password` when needed. The sandbox-manager image build bundles `packages/sandbox-manager-ui/dist` into the manager image so the manager serves the UI itself.
