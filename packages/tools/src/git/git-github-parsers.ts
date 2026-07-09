@@ -17,18 +17,71 @@ export function isGithubRemoteUrl(url: string): boolean {
     // `git@github.com:owner/repo.git`.
   }
 
-  const scpLike = trimmed.match(/^(?:(?:[^@/\s]+)@)?([^:/\s]+):\S+$/);
-  return scpLike ? isGithubHost(scpLike[1] ?? "") : false;
+  const scpHost = parseScpLikeRemoteHost(trimmed);
+  return scpHost ? isGithubHost(scpHost) : false;
+}
+
+function parseScpLikeRemoteHost(remoteUrl: string): string | null {
+  const separatorIndex = remoteUrl.indexOf(":");
+  if (separatorIndex <= 0 || separatorIndex === remoteUrl.length - 1)
+    return null;
+
+  const authority = remoteUrl.slice(0, separatorIndex);
+  const path = remoteUrl.slice(separatorIndex + 1);
+  if (
+    authority.includes("/") ||
+    hasWhitespace(authority) ||
+    hasWhitespace(path)
+  ) {
+    return null;
+  }
+
+  const atIndex = authority.lastIndexOf("@");
+  const host = atIndex >= 0 ? authority.slice(atIndex + 1) : authority;
+  return host.length > 0 && !host.includes(":") ? host : null;
+}
+
+function hasWhitespace(value: string): boolean {
+  for (const char of value) {
+    if (char === " " || char === "\t" || char === "\r" || char === "\n") {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function parseGitRemoteUrls(stdout: string): string[] {
   const urls = new Set<string>();
   for (const line of stdout.split("\n")) {
-    const match = line.trim().match(/^\S+\s+(.+?)(?:\s+\((?:fetch|push)\))?$/);
-    const url = match?.[1]?.trim();
+    const url = parseGitRemoteUrlLine(line);
     if (url) urls.add(url);
   }
   return [...urls];
+}
+
+function parseGitRemoteUrlLine(line: string): string | null {
+  const trimmed = line.trim();
+  const firstWhitespaceIndex = findFirstWhitespace(trimmed);
+  if (firstWhitespaceIndex <= 0) return null;
+
+  const remoteUrl = trimmed.slice(firstWhitespaceIndex).trim();
+  if (remoteUrl.endsWith(" (fetch)")) {
+    return remoteUrl.slice(0, -" (fetch)".length).trim() || null;
+  }
+  if (remoteUrl.endsWith(" (push)")) {
+    return remoteUrl.slice(0, -" (push)".length).trim() || null;
+  }
+  return remoteUrl || null;
+}
+
+function findFirstWhitespace(value: string): number {
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === " " || char === "\t" || char === "\r" || char === "\n") {
+      return index;
+    }
+  }
+  return -1;
 }
 
 export type GithubCheckRunRaw = { name: string; state: string; link?: string };

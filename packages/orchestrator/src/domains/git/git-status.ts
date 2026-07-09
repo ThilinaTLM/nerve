@@ -45,7 +45,7 @@ export function parsePorcelainV2(stdout: string): PorcelainStatus {
   const files: GitFileChange[] = [];
 
   for (const rawLine of stdout.split("\n")) {
-    const line = rawLine.replace(/\r$/, "");
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
     if (line.length === 0) continue;
 
     if (line.startsWith("# ")) {
@@ -61,10 +61,10 @@ export function parsePorcelainV2(stdout: string): PorcelainStatus {
       } else if (header.startsWith("branch.upstream ")) {
         branch.upstream = header.slice("branch.upstream ".length).trim();
       } else if (header.startsWith("branch.ab ")) {
-        const match = header.match(/branch\.ab \+(-?\d+) -(-?\d+)/);
-        if (match) {
-          branch.ahead = Number(match[1]);
-          branch.behind = Number(match[2]);
+        const aheadBehind = parseBranchAheadBehind(header);
+        if (aheadBehind) {
+          branch.ahead = aheadBehind.ahead;
+          branch.behind = aheadBehind.behind;
         }
       }
       continue;
@@ -139,10 +139,56 @@ export function parseShortstat(stdout: string): {
   insertions: number;
   deletions: number;
 } {
-  const insertionsMatch = stdout.match(/(\d+) insertion/);
-  const deletionsMatch = stdout.match(/(\d+) deletion/);
   return {
-    insertions: insertionsMatch ? Number(insertionsMatch[1]) : 0,
-    deletions: deletionsMatch ? Number(deletionsMatch[1]) : 0,
+    insertions: parseCountBeforeLabel(stdout, " insertion"),
+    deletions: parseCountBeforeLabel(stdout, " deletion"),
   };
+}
+
+function parseBranchAheadBehind(
+  header: string,
+): { ahead: number; behind: number } | null {
+  const value = header.slice("branch.ab ".length).trim();
+  const separatorIndex = value.indexOf(" ");
+  if (separatorIndex < 0) return null;
+
+  const ahead = parsePrefixedUnsignedInteger(
+    value.slice(0, separatorIndex),
+    "+",
+  );
+  const behind = parsePrefixedUnsignedInteger(
+    value.slice(separatorIndex + 1),
+    "-",
+  );
+  return ahead === null || behind === null ? null : { ahead, behind };
+}
+
+function parseCountBeforeLabel(text: string, label: string): number {
+  const labelIndex = text.indexOf(label);
+  if (labelIndex < 0) return 0;
+
+  let end = labelIndex;
+  while (end > 0 && text[end - 1] === " ") end -= 1;
+
+  let start = end;
+  while (start > 0 && isAsciiDigit(text.charCodeAt(start - 1))) start -= 1;
+
+  return start === end ? 0 : Number(text.slice(start, end));
+}
+
+function parsePrefixedUnsignedInteger(
+  value: string,
+  prefix: string,
+): number | null {
+  if (!value.startsWith(prefix)) return null;
+  const digits = value.slice(prefix.length);
+  if (digits.length === 0) return null;
+  for (let index = 0; index < digits.length; index += 1) {
+    if (!isAsciiDigit(digits.charCodeAt(index))) return null;
+  }
+  return Number(digits);
+}
+
+function isAsciiDigit(charCode: number): boolean {
+  return charCode >= 48 && charCode <= 57;
 }
