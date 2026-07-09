@@ -1,13 +1,10 @@
 {
   "name": "@nervekit/web",
   "version": "0.6.0",
+  "private": true,
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ThilinaTLM/nerve.git",

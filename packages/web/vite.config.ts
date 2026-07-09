@@ -101,6 +101,7 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ["**/*.{js,css,html,svg,png,webp,woff2,json}"],
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           cleanupOutdatedCaches: true,
           // Serve the cached app shell for in-app navigations (fast + offline),
           // but never hijack the token->cookie auth redirect, the CA download,
