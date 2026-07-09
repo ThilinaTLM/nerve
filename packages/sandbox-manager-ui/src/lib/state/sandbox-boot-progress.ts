@@ -323,11 +323,11 @@ export function computeSandboxBootProgress(
       controllerTimeline.status === "failed"
         ? "failed"
         : readyForCommands ||
-              lifecycle === "booting" ||
-              lifecycle === "daemon_connected" ||
-              connected ||
-              hasBootProgress ||
-              controllerTimeline.status === "done"
+            lifecycle === "booting" ||
+            lifecycle === "daemon_connected" ||
+            connected ||
+            hasBootProgress ||
+            controllerTimeline.status === "done"
           ? "done"
           : container.status === "done"
             ? "active"
@@ -351,7 +351,11 @@ export function computeSandboxBootProgress(
           ? "pending"
           : readyForCommands || setup || failed || daemon === "offline"
             ? "done"
-            : "active",
+            : connected ||
+                lifecycle === "daemon_connected" ||
+                lifecycle === "booting"
+              ? "active"
+              : "pending",
     ts: configTimeline.ts,
     error: configTimeline.error,
   };
@@ -556,9 +560,9 @@ export function computeSandboxBootProgress(
             : "Sandbox offline"
           : state === "reconnecting"
             ? "Reconnecting…"
-          : state === "provisioning"
-            ? "Creating container…"
-            : "Booting…";
+            : state === "provisioning"
+              ? "Creating container…"
+              : "Booting…";
   const showPhaseStepper =
     state === "provisioning" ||
     state === "booting" ||

@@ -1272,8 +1272,7 @@ export class SandboxManagerStore {
       };
       if (lifecycleState === "ready" || lifecycleState === "degraded")
         detail.status.connected = true;
-      if (lifecycleState === "reconnecting")
-        detail.status.connected = false;
+      if (lifecycleState === "reconnecting") detail.status.connected = false;
     }
     if (detail?.snapshot && lifecycleState) {
       detail.snapshot.lifecycle = {

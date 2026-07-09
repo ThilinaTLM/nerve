@@ -9,7 +9,8 @@ describe("parseSandboxLogChunks", () => {
     const lines = parseSandboxLogChunks([
       {
         stream: "stdout",
-        chunk: '{"ts":"2026-07-10T12:00:00.000Z","level":"info","message":"sandbox startup ',
+        chunk:
+          '{"ts":"2026-07-10T12:00:00.000Z","level":"info","message":"sandbox startup ',
       },
       {
         stream: "stdout",

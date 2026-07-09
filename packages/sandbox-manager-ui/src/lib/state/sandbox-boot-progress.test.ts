@@ -87,6 +87,19 @@ describe("computeSandboxBootProgress", () => {
     );
   });
 
+  it("shows only the connection step active before the agent connects", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    detail.status = status({ status: "booting", connected: false });
+
+    const progress = computeSandboxBootProgress(record("running"), detail);
+    assert.deepEqual(
+      progress.phases
+        .filter((phase) => phase.status === "active")
+        .map((phase) => phase.id),
+      ["daemon"],
+    );
+  });
+
   it("shows the phase stepper while the sandbox is actively booting", () => {
     const detail = createSandboxDetailState("sbx_1");
     detail.status = status({ status: "booting" });

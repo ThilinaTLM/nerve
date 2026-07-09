@@ -14,9 +14,9 @@ import { createLogger, type StructuredLogRecord } from "@nervekit/shared";
 import { runBootPlan } from "../src/boot/boot-runner.js";
 import { SandboxConfigLoadError } from "../src/config/load-config.js";
 import { sandboxEntrypointExitCode } from "../src/entrypoint.js";
+import { StartupReporter } from "../src/runtime/startup-reporter.js";
 import { SandboxPreflightError } from "../src/security/preflight.js";
 import { Redactor } from "../src/security/redaction.js";
-import { StartupReporter } from "../src/runtime/startup-reporter.js";
 import { loadSkills } from "../src/skills/skills-loader.js";
 
 const config = {
@@ -86,7 +86,9 @@ describe("sandbox startup pipeline helpers", () => {
       "workspace is not writable",
     );
     assert.equal(
-      records.some((record) => record.message === "sandbox startup stage failed"),
+      records.some(
+        (record) => record.message === "sandbox startup stage failed",
+      ),
       true,
     );
   });

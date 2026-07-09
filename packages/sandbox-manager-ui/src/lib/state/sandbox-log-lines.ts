@@ -16,12 +16,7 @@ export type SandboxLogLine = {
   structured: boolean;
 };
 
-const LEVELS = new Set<StructuredLogLevel>([
-  "debug",
-  "info",
-  "warn",
-  "error",
-]);
+const LEVELS = new Set<StructuredLogLevel>(["debug", "info", "warn", "error"]);
 
 export function parseSandboxLogChunks(
   chunks: readonly SandboxContainerLogChunk[],
@@ -47,7 +42,8 @@ export function parseSandboxLogChunks(
     }
     if (!carry) carryTs = undefined;
   }
-  if (carry.trim()) lines.push(parseLine(carry, carryStream, carryTs, sequence));
+  if (carry.trim())
+    lines.push(parseLine(carry, carryStream, carryTs, sequence));
   return lines;
 }
 
@@ -75,14 +71,7 @@ function parseLine(
     const context = Object.fromEntries(
       Object.entries(record).filter(
         ([key]) =>
-          ![
-            "ts",
-            "level",
-            "message",
-            "stage",
-            "phase",
-            "source",
-          ].includes(key),
+          !["ts", "level", "message", "stage", "phase", "source"].includes(key),
       ),
     );
     return {

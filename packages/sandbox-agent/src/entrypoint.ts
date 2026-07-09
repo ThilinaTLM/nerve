@@ -67,9 +67,13 @@ export async function runSandboxEntrypoint(
   // Load and validate config before constructing the full daemon. This stage is
   // still visible in container logs even when the config cannot be parsed.
   const configPath = resolveSandboxConfigPath(env);
-  const config = await startup.run("config", () => loadSandboxConfig(configPath), {
-    detail: "Load and validate sandbox configuration",
-  });
+  const config = await startup.run(
+    "config",
+    () => loadSandboxConfig(configPath),
+    {
+      detail: "Load and validate sandbox configuration",
+    },
+  );
   const configDigest = sandboxConfigDigest(config);
   startup.setConfigDigest(configDigest);
   const logger = createLogger({
@@ -96,21 +100,25 @@ export async function runSandboxEntrypoint(
   const paths = resolveSandboxRuntimePaths(env);
   let stores: SandboxStateStores | undefined;
   let recoveredState!: Awaited<ReturnType<typeof recoverSandboxState>>;
-  const persisted = await startup.run("state", async () => {
-    const initialized = await initializeSandboxState(
-      config,
-      configDigest,
-      configPath,
-      paths,
-      identity,
-    );
-    const createdStores = new SandboxStateStores(paths.stateDir);
-    stores = createdStores;
-    await createdStores.load();
-    await startup.attachSink((input) => createdStores.events.append(input));
-    recoveredState = await recoverSandboxState(configDigest, paths);
-    return initialized;
-  }, { detail: "Prepare and recover sandbox state" });
+  const persisted = await startup.run(
+    "state",
+    async () => {
+      const initialized = await initializeSandboxState(
+        config,
+        configDigest,
+        configPath,
+        paths,
+        identity,
+      );
+      const createdStores = new SandboxStateStores(paths.stateDir);
+      stores = createdStores;
+      await createdStores.load();
+      await startup.attachSink((input) => createdStores.events.append(input));
+      recoveredState = await recoverSandboxState(configDigest, paths);
+      return initialized;
+    },
+    { detail: "Prepare and recover sandbox state" },
+  );
   if (!stores) throw new Error("Sandbox state stores were not initialized");
   const stateStores = stores;
   const emitStartup = async (
@@ -126,11 +134,17 @@ export async function runSandboxEntrypoint(
   };
 
   // Connect to the manager before long setup work so boot events stream live.
-  const daemon = new SandboxDaemon(config, configDigest, identity, stateStores, {
-    workspaceDir: paths.workspaceDir,
-    logger: logger.child({ component: "daemon" }),
-    bootOnly: true,
-  });
+  const daemon = new SandboxDaemon(
+    config,
+    configDigest,
+    identity,
+    stateStores,
+    {
+      workspaceDir: paths.workspaceDir,
+      logger: logger.child({ component: "daemon" }),
+      bootOnly: true,
+    },
+  );
   const session = new ProtocolSession(
     config,
     daemon,
@@ -140,12 +154,16 @@ export async function runSandboxEntrypoint(
     env,
     logger.child({ component: "controller-session" }),
   );
-  await startup.run("controller", async () => {
-    await session.start();
-    await session.waitForWelcome(
-      config.controller.websocket.connectTimeoutMs ?? 60_000,
-    );
-  }, { detail: "Connect to sandbox manager" });
+  await startup.run(
+    "controller",
+    async () => {
+      await session.start();
+      await session.waitForWelcome(
+        config.controller.websocket.connectTimeoutMs ?? 60_000,
+      );
+    },
+    { detail: "Connect to sandbox manager" },
+  );
 
   await startup.run("preflight", () => runSandboxPreflight(config, paths), {
     detail: "Validate mounts, permissions, and runtime policy",
@@ -163,8 +181,7 @@ export async function runSandboxEntrypoint(
     () => resolveModelRuntime(config),
     {
       detail: "Resolve configured model runtime",
-      resultStatus: (result) =>
-        result.degraded ? "degraded" : "completed",
+      resultStatus: (result) => (result.degraded ? "degraded" : "completed"),
     },
   );
   await emitStartup("sandbox.config.loaded", {
@@ -201,62 +218,74 @@ export async function runSandboxEntrypoint(
       : undefined,
   });
 
-  await startup.run("secrets", async () => {
-    await emitStartup("sandbox.secret_store.checked", {
-      storeId: "configured",
-      status: registry.list().length ? "available" : "skipped",
-      cacheEnabled: Object.values(config.secretStores?.stores ?? {}).some(
-        (store) => store.cache?.enabled,
-      ),
-      checkedAt: new Date().toISOString(),
-    });
-  }, { detail: "Prepare configured secret stores" });
+  await startup.run(
+    "secrets",
+    async () => {
+      await emitStartup("sandbox.secret_store.checked", {
+        storeId: "configured",
+        status: registry.list().length ? "available" : "skipped",
+        cacheEnabled: Object.values(config.secretStores?.stores ?? {}).some(
+          (store) => store.cache?.enabled,
+        ),
+        checkedAt: new Date().toISOString(),
+      });
+    },
+    { detail: "Prepare configured secret stores" },
+  );
 
-  const git = await startup.run("git", async () => {
-    const result = await runSetupStage(emitStartup, "sandbox.setup.git", () =>
-      runGitSetup(config, {
-        workspaceDir: paths.workspaceDir,
-        stateDir: paths.stateDir,
-        credentialsDir: paths.credentialsDir,
-        resolver,
-      }),
-    );
-    if (result.status === "failed")
-      throw new Error(
-        `Git setup failed: ${result.error?.message ?? "unknown error"}`,
-      );
-    return result;
-  }, {
-    detail: "Configure Git identity and credentials",
-    resultStatus: (result) =>
-      result.status === "degraded" || result.status === "skipped"
-        ? result.status
-        : "completed",
-  });
-  const setupEnv = "env" in git && git.env ? git.env : undefined;
-  const github = await startup.run("github", async () => {
-    const result = await runSetupStage(
-      emitStartup,
-      "sandbox.setup.github",
-      () =>
-        runGithubSetup(config, {
+  const git = await startup.run(
+    "git",
+    async () => {
+      const result = await runSetupStage(emitStartup, "sandbox.setup.git", () =>
+        runGitSetup(config, {
+          workspaceDir: paths.workspaceDir,
+          stateDir: paths.stateDir,
           credentialsDir: paths.credentialsDir,
           resolver,
-          env: setupEnv,
         }),
-    );
-    if (result.status === "failed")
-      throw new Error(
-        `GitHub setup failed: ${result.error?.message ?? "unknown error"}`,
       );
-    return result;
-  }, {
-    detail: "Authenticate GitHub access",
-    resultStatus: (result) =>
-      result.status === "degraded" || result.status === "skipped"
-        ? result.status
-        : "completed",
-  });
+      if (result.status === "failed")
+        throw new Error(
+          `Git setup failed: ${result.error?.message ?? "unknown error"}`,
+        );
+      return result;
+    },
+    {
+      detail: "Configure Git identity and credentials",
+      resultStatus: (result) =>
+        result.status === "degraded" || result.status === "skipped"
+          ? result.status
+          : "completed",
+    },
+  );
+  const setupEnv = "env" in git && git.env ? git.env : undefined;
+  const github = await startup.run(
+    "github",
+    async () => {
+      const result = await runSetupStage(
+        emitStartup,
+        "sandbox.setup.github",
+        () =>
+          runGithubSetup(config, {
+            credentialsDir: paths.credentialsDir,
+            resolver,
+            env: setupEnv,
+          }),
+      );
+      if (result.status === "failed")
+        throw new Error(
+          `GitHub setup failed: ${result.error?.message ?? "unknown error"}`,
+        );
+      return result;
+    },
+    {
+      detail: "Authenticate GitHub access",
+      resultStatus: (result) =>
+        result.status === "degraded" || result.status === "skipped"
+          ? result.status
+          : "completed",
+    },
+  );
   const contextFiles = await startup.run(
     "context",
     () => loadContextFiles(config, paths.workspaceDir),
@@ -273,51 +302,63 @@ export async function runSandboxEntrypoint(
     skills,
   });
 
-  await startup.run("boot", () =>
-    runBootPlan(config, {
-      workspaceDir: paths.workspaceDir,
-      stateDir: paths.stateDir,
-      resolver,
-      redactor,
-      eventSink: stateStores.events,
-      sandboxId: identity.sandboxId,
-      instanceId: identity.instanceId,
-      env: setupEnv,
-      logger: logger.child({ component: "boot" }),
-    }),
-  { detail: "Run configured boot commands" });
+  await startup.run(
+    "boot",
+    () =>
+      runBootPlan(config, {
+        workspaceDir: paths.workspaceDir,
+        stateDir: paths.stateDir,
+        resolver,
+        redactor,
+        eventSink: stateStores.events,
+        sandboxId: identity.sandboxId,
+        instanceId: identity.instanceId,
+        env: setupEnv,
+        logger: logger.child({ component: "boot" }),
+      }),
+    { detail: "Run configured boot commands" },
+  );
 
-  await startup.run("runtime", () => daemon.initializeRuntime({
-    setup: { git, github },
-    skills,
-    contextFiles,
-    modelRuntime,
-    workspaceDir: paths.workspaceDir,
-    secretResolver: resolver,
-    logger: logger.child({ component: "daemon" }),
-  }), { detail: "Initialize agent runtime and recover active work" });
+  await startup.run(
+    "runtime",
+    () =>
+      daemon.initializeRuntime({
+        setup: { git, github },
+        skills,
+        contextFiles,
+        modelRuntime,
+        workspaceDir: paths.workspaceDir,
+        secretResolver: resolver,
+        logger: logger.child({ component: "daemon" }),
+      }),
+    { detail: "Initialize agent runtime and recover active work" },
+  );
 
   const status =
     modelRuntime.degraded || recoveredState.configChanged
       ? "degraded"
       : "ready";
-  await startup.run("ready", async () => {
-    daemon.markReady(status);
-    logger.info("sandbox-agent ready", {
-      status,
-      daemonStatus: daemon.status.status,
-    });
-    await emitStartup("sandbox.ready", {
-      status,
-      readyAt: new Date().toISOString(),
-      recovered:
-        recoveredState.commands.length > 0 ||
-        recoveredState.unackedEvents.length > 0,
-      daemonStatus: daemon.status.status,
-      cursor: { streams: (await stateStores.events.ackState()).streams },
-    });
-    await session.markReady(status);
-  }, { detail: "Announce sandbox readiness" });
+  await startup.run(
+    "ready",
+    async () => {
+      daemon.markReady(status);
+      logger.info("sandbox-agent ready", {
+        status,
+        daemonStatus: daemon.status.status,
+      });
+      await emitStartup("sandbox.ready", {
+        status,
+        readyAt: new Date().toISOString(),
+        recovered:
+          recoveredState.commands.length > 0 ||
+          recoveredState.unackedEvents.length > 0,
+        daemonStatus: daemon.status.status,
+        cursor: { streams: (await stateStores.events.ackState()).streams },
+      });
+      await session.markReady(status);
+    },
+    { detail: "Announce sandbox readiness" },
+  );
   const stop = async () => {
     await session.stop();
   };

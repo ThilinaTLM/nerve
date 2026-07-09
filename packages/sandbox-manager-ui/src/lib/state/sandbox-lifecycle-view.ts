@@ -1,12 +1,12 @@
 import type { ManagedSandboxRecord } from "@nervekit/shared";
-import type { SandboxStatusTone } from "./sandbox-status";
+import { sandboxSetupTimeline } from "./sandbox-boot-progress";
 import {
   sandboxContainerState,
   sandboxDaemonStatus,
   sandboxIsConnected,
   sandboxLifecycleState,
 } from "./sandbox-lifecycle";
-import { sandboxSetupTimeline } from "./sandbox-boot-progress";
+import type { SandboxStatusTone } from "./sandbox-status";
 import type { SandboxDetailState } from "./sandbox-ui-types";
 
 export type SandboxLifecycleViewState =
@@ -85,7 +85,9 @@ export function sandboxLifecycleView(
   const daemon = sandboxDaemonStatus(detail);
   const connected = sandboxIsConnected(detail);
   const timeline = sandboxSetupTimeline(detail);
-  const activeItem = [...timeline].reverse().find((item) => item.status === "started");
+  const activeItem = [...timeline]
+    .reverse()
+    .find((item) => item.status === "started");
   const failedItem = [...timeline]
     .reverse()
     .find((item) => item.status === "failed" || item.status === "timeout");
@@ -97,7 +99,11 @@ export function sandboxLifecycleView(
   );
 
   let state: SandboxLifecycleViewState;
-  if (lifecycle === "removed" || container === "removed" || record?.desiredState === "removed")
+  if (
+    lifecycle === "removed" ||
+    container === "removed" ||
+    record?.desiredState === "removed"
+  )
     state = "removed";
   else if (
     lifecycle === "failed" ||
@@ -106,10 +112,15 @@ export function sandboxLifecycleView(
     record?.observedState === "failed"
   )
     state = "failed";
-  else if (lifecycle === "stopping" || daemon === "stopping" || container === "stopping")
+  else if (
+    lifecycle === "stopping" ||
+    daemon === "stopping" ||
+    container === "stopping"
+  )
     state = "stopping";
   else if (
     lifecycle === "stopped" ||
+    (lifecycle === "record_created" && record?.desiredState === "created") ||
     daemon === "offline" ||
     container === "exited" ||
     record?.desiredState === "stopped"
@@ -122,7 +133,8 @@ export function sandboxLifecycleView(
     (!connected && hasPriorReady && record?.desiredState === "running")
   )
     state = "reconnecting";
-  else if (lifecycle === "degraded" || daemon === "degraded") state = "degraded";
+  else if (lifecycle === "degraded" || daemon === "degraded")
+    state = "degraded";
   else if (lifecycle === "ready" || daemon === "ready") state = "ready";
   else if (
     lifecycle === "record_created" ||
@@ -133,14 +145,25 @@ export function sandboxLifecycleView(
     container === "starting"
   )
     state = "creating";
-  else if (!connected && lifecycle === "container_started") state = "connecting";
+  else if (!connected && lifecycle === "container_started")
+    state = "connecting";
   else state = "starting";
 
-  const issue = issueFrom(failedItem?.error, failedItem?.phase, record?.lastError);
+  const issue = issueFrom(
+    failedItem?.error,
+    failedItem?.phase,
+    record?.lastError,
+  );
   const reconnectAttempts = detail?.status?.connectivity?.reconnectAttempts;
   const activeStage = activeItem?.phase;
-  const description = descriptionFor(state, activeStage, reconnectAttempts, issue);
-  const canChat = state === "ready" || state === "degraded" || state === "starting";
+  const description = descriptionFor(
+    state,
+    activeStage,
+    reconnectAttempts,
+    issue,
+  );
+  const canChat =
+    state === "ready" || state === "degraded" || state === "starting";
   const readOnly = ["stopping", "stopped", "failed", "removed"].includes(state);
   const primaryAction: SandboxPrimaryAction =
     state === "ready" || state === "degraded"
@@ -155,7 +178,10 @@ export function sandboxLifecycleView(
     state,
     label: LABELS[state],
     tone: TONES[state],
-    headline: headlineFor(state, state === "failed" ? issue?.stage : activeStage),
+    headline: headlineFor(
+      state,
+      state === "failed" ? issue?.stage : activeStage,
+    ),
     description,
     since:
       activeItem?.startedAt ??
@@ -179,14 +205,19 @@ export function sandboxLifecycleView(
   };
 }
 
-function headlineFor(state: SandboxLifecycleViewState, activeStage?: string): string {
+function headlineFor(
+  state: SandboxLifecycleViewState,
+  activeStage?: string,
+): string {
   switch (state) {
     case "creating":
       return "Creating the sandbox container";
     case "connecting":
       return "Waiting for the agent to connect";
     case "starting":
-      return activeStage ? `Starting: ${stageLabel(activeStage)}` : "Preparing the sandbox agent";
+      return activeStage
+        ? `Starting: ${stageLabel(activeStage)}`
+        : "Preparing the sandbox agent";
     case "ready":
       return "Ready for a new conversation";
     case "degraded":
@@ -198,7 +229,9 @@ function headlineFor(state: SandboxLifecycleViewState, activeStage?: string): st
     case "stopped":
       return "Sandbox is stopped";
     case "failed":
-      return activeStage ? `${stageLabel(activeStage)} failed` : "Sandbox startup failed";
+      return activeStage
+        ? `${stageLabel(activeStage)} failed`
+        : "Sandbox startup failed";
     case "removed":
       return "Sandbox has been removed";
   }
@@ -222,7 +255,10 @@ function descriptionFor(
     case "ready":
       return "The agent is connected and all required startup checks completed.";
     case "degraded":
-      return issue?.message ?? "The agent is usable, but one or more optional capabilities are limited.";
+      return (
+        issue?.message ??
+        "The agent is usable, but one or more optional capabilities are limited."
+      );
     case "reconnecting":
       return `${reconnectAttempts ? `Retry ${reconnectAttempts}. ` : ""}The container is still running; queued work is retained while the connection recovers.`;
     case "stopping":
@@ -230,7 +266,10 @@ function descriptionFor(
     case "stopped":
       return "Previous conversations remain available as read-only snapshots. Start the sandbox to continue.";
     case "failed":
-      return issue?.message ?? "Open the logs to identify the failed startup step, then restart the sandbox.";
+      return (
+        issue?.message ??
+        "Open the logs to identify the failed startup step, then restart the sandbox."
+      );
     case "removed":
       return "Only previously stored conversation snapshots remain available.";
   }

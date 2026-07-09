@@ -56,11 +56,12 @@ export const sandboxEventTypeSchema = z.enum([
 ]);
 export type SandboxEventType = z.infer<typeof sandboxEventTypeSchema>;
 
-export const sandboxStartupStageStartedEventSchema = sandboxEventCommonSchema.extend({
-  stage: sandboxStartupStageSchema,
-  attempt: z.number().int().positive().safe().default(1),
-  startedAt: isoDateTimeSchema,
-});
+export const sandboxStartupStageStartedEventSchema =
+  sandboxEventCommonSchema.extend({
+    stage: sandboxStartupStageSchema,
+    attempt: z.number().int().positive().safe().default(1),
+    startedAt: isoDateTimeSchema,
+  });
 
 export const sandboxStartupStageCompletedEventSchema =
   sandboxEventCommonSchema.extend({

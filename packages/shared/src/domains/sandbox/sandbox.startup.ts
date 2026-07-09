@@ -21,7 +21,11 @@ export type SandboxStartupSummary = {
   setup?: SandboxSetupStatusSummary;
   timeline: SandboxSetupTimelineItem[];
   active?: SandboxSetupTimelineItem;
-  failure?: { stage: string; error: RedactedError; item: SandboxSetupTimelineItem };
+  failure?: {
+    stage: string;
+    error: RedactedError;
+    item: SandboxSetupTimelineItem;
+  };
 };
 
 export function summarizeSandboxStartupEvents(
@@ -40,7 +44,9 @@ export function summarizeSandboxStartupEvents(
       return byTime === 0 ? a.order - b.order : byTime;
     })
     .map(({ item }) => item);
-  const active = [...ordered].reverse().find((item) => item.status === "started");
+  const active = [...ordered]
+    .reverse()
+    .find((item) => item.status === "started");
   const failed = [...ordered]
     .reverse()
     .find((item) => item.status === "failed" || item.status === "timeout");
@@ -49,7 +55,10 @@ export function summarizeSandboxStartupEvents(
     setup: Object.keys(setup).length > 0 ? setup : undefined,
     timeline: ordered,
     active,
-    failure: failed && error ? { stage: failed.phase, error, item: failed } : undefined,
+    failure:
+      failed && error
+        ? { stage: failed.phase, error, item: failed }
+        : undefined,
   };
 }
 
@@ -101,7 +110,14 @@ export function applySandboxStartupEvent(
     case "sandbox.setup.git.started":
     case "sandbox.setup.github.started": {
       const phase = event.type.includes("github") ? "github" : "git";
-      upsert(timeline, event, phase, "started", undefined, detailsFromData(data));
+      upsert(
+        timeline,
+        event,
+        phase,
+        "started",
+        undefined,
+        detailsFromData(data),
+      );
       return;
     }
     case "sandbox.setup.git.completed":
@@ -118,7 +134,14 @@ export function applySandboxStartupEvent(
       return;
     }
     case "sandbox.skills.started":
-      upsert(timeline, event, "skills", "started", undefined, detailsFromData(data));
+      upsert(
+        timeline,
+        event,
+        "skills",
+        "started",
+        undefined,
+        detailsFromData(data),
+      );
       return;
     case "sandbox.skills.completed":
     case "sandbox.skills.loaded":
@@ -136,7 +159,14 @@ export function applySandboxStartupEvent(
       );
       return;
     case "sandbox.boot.started":
-      upsert(timeline, event, "boot", "started", bootDetail(data), bootDetails(data));
+      upsert(
+        timeline,
+        event,
+        "boot",
+        "started",
+        bootDetail(data),
+        bootDetails(data),
+      );
       return;
     case "sandbox.boot.completed":
       upsert(
@@ -172,7 +202,9 @@ function applySetupSummary(
     return;
   }
   const status = setupStatus(data.status);
-  const error = errorRecord(data.error) ?? (phase === "boot" ? bootFailure(data) : undefined);
+  const error =
+    errorRecord(data.error) ??
+    (phase === "boot" ? bootFailure(data) : undefined);
   setup[phase] = {
     configured: true,
     status,
@@ -184,15 +216,24 @@ function applySetupSummary(
 }
 
 function setupPhase(type: string): keyof SandboxSetupStatusSummary | undefined {
-  if (type === "sandbox.setup.git.started" || type === "sandbox.setup.git.completed") return "git";
-  if (type === "sandbox.setup.github.started" || type === "sandbox.setup.github.completed") return "github";
+  if (
+    type === "sandbox.setup.git.started" ||
+    type === "sandbox.setup.git.completed"
+  )
+    return "git";
+  if (
+    type === "sandbox.setup.github.started" ||
+    type === "sandbox.setup.github.completed"
+  )
+    return "github";
   if (
     type === "sandbox.skills.started" ||
     type === "sandbox.skills.completed" ||
     type === "sandbox.skills.loaded"
   )
     return "skills";
-  if (type === "sandbox.boot.started" || type === "sandbox.boot.completed") return "boot";
+  if (type === "sandbox.boot.started" || type === "sandbox.boot.completed")
+    return "boot";
   return undefined;
 }
 
@@ -210,7 +251,8 @@ function upsert(
   detail?: string,
   extra: Partial<SandboxSetupTimelineItem> = {},
 ): void {
-  const key = extra.key ?? (phase === "boot" ? bootKey(dataOf(event), event) : phase);
+  const key =
+    extra.key ?? (phase === "boot" ? bootKey(dataOf(event), event) : phase);
   const existing = timeline.find((item) => item.key === key);
   const next: SandboxSetupTimelineItem = {
     ...existing,
@@ -234,11 +276,16 @@ function stageKey(stage: SandboxStartupStage, attempt: unknown): string {
   return value === 1 ? stage : `${stage}:${value}`;
 }
 
-function bootKey(data: Record<string, unknown>, event: SandboxStartupEventLike): string {
+function bootKey(
+  data: Record<string, unknown>,
+  event: SandboxStartupEventLike,
+): string {
   return `boot:${numberValue(data.index) ?? stringValue(data.phase) ?? event.seq ?? event.ts}`;
 }
 
-function detailsFromData(data: Record<string, unknown>): Partial<SandboxSetupTimelineItem> {
+function detailsFromData(
+  data: Record<string, unknown>,
+): Partial<SandboxSetupTimelineItem> {
   return {
     startedAt: stringValue(data.startedAt),
     completedAt: stringValue(data.completedAt),
@@ -247,12 +294,17 @@ function detailsFromData(data: Record<string, unknown>): Partial<SandboxSetupTim
   };
 }
 
-function bootDetails(data: Record<string, unknown>): Partial<SandboxSetupTimelineItem> {
+function bootDetails(
+  data: Record<string, unknown>,
+): Partial<SandboxSetupTimelineItem> {
   return {
     ...detailsFromData(data),
     name: stringValue(data.phase),
     index: numberValue(data.index),
-    runAs: data.runAs === "root" || data.runAs === "sandbox" ? data.runAs : undefined,
+    runAs:
+      data.runAs === "root" || data.runAs === "sandbox"
+        ? data.runAs
+        : undefined,
     network:
       data.network === "inherit" ||
       data.network === "deny" ||
@@ -275,7 +327,13 @@ function bootDetail(data: Record<string, unknown>): string | undefined {
 }
 
 function terminalStatus(value: unknown): SandboxSetupTimelineItem["status"] {
-  if (value === "failed" || value === "timeout" || value === "skipped" || value === "degraded") return value;
+  if (
+    value === "failed" ||
+    value === "timeout" ||
+    value === "skipped" ||
+    value === "degraded"
+  )
+    return value;
   return "completed";
 }
 
@@ -300,7 +358,9 @@ function startupStage(value: unknown): SandboxStartupStage | undefined {
     : undefined;
 }
 
-function timelineError(item: SandboxSetupTimelineItem): RedactedError | undefined {
+function timelineError(
+  item: SandboxSetupTimelineItem,
+): RedactedError | undefined {
   if (item.error) {
     const match = /^([A-Z][A-Z0-9_]+):\s*(.+)$/s.exec(item.error);
     return match
@@ -311,7 +371,8 @@ function timelineError(item: SandboxSetupTimelineItem): RedactedError | undefine
     const name = item.name ?? "boot command";
     const stderr = item.stderr?.text.trim();
     return {
-      code: item.status === "timeout" ? "BOOT_PHASE_TIMEOUT" : "BOOT_PHASE_FAILED",
+      code:
+        item.status === "timeout" ? "BOOT_PHASE_TIMEOUT" : "BOOT_PHASE_FAILED",
       message: `${name} ${item.status === "timeout" ? "timed out" : "failed"}${item.exitCode === undefined ? "" : ` with exit code ${item.exitCode}`}${stderr ? `: ${truncate(stderr, 300)}` : ""}`,
     };
   }
@@ -324,7 +385,8 @@ function bootFailure(data: Record<string, unknown>): RedactedError | undefined {
   const exit = numberValue(data.exitCode);
   const stderr = boundedText(data.stderr)?.text.trim();
   return {
-    code: data.status === "timeout" ? "BOOT_PHASE_TIMEOUT" : "BOOT_PHASE_FAILED",
+    code:
+      data.status === "timeout" ? "BOOT_PHASE_TIMEOUT" : "BOOT_PHASE_FAILED",
     message: `${name} ${data.status === "timeout" ? "timed out" : "failed"}${exit === undefined ? "" : ` with exit code ${exit}`}${stderr ? `: ${truncate(stderr, 300)}` : ""}`,
   };
 }
@@ -336,7 +398,8 @@ function errorRecord(value: unknown): RedactedError | undefined {
   return {
     code: stringValue(record.code) ?? "ERROR",
     message,
-    retryable: typeof record.retryable === "boolean" ? record.retryable : undefined,
+    retryable:
+      typeof record.retryable === "boolean" ? record.retryable : undefined,
   };
 }
 
@@ -345,12 +408,15 @@ function errorText(value: unknown): string | undefined {
   return error ? `${error.code}: ${error.message}` : undefined;
 }
 
-function boundedText(value: unknown): SandboxSetupTimelineItem["stdout"] | undefined {
+function boundedText(
+  value: unknown,
+): SandboxSetupTimelineItem["stdout"] | undefined {
   const record = asRecord(value);
   const text = typeof record.text === "string" ? record.text : undefined;
   if (!text) return undefined;
   return {
-    text: text.length > MAX_TIMELINE_TEXT ? text.slice(0, MAX_TIMELINE_TEXT) : text,
+    text:
+      text.length > MAX_TIMELINE_TEXT ? text.slice(0, MAX_TIMELINE_TEXT) : text,
     truncated: text.length > MAX_TIMELINE_TEXT || Boolean(record.truncated),
     bytes: numberValue(record.bytes),
   };
@@ -382,13 +448,16 @@ function stringValue(value: unknown): string | undefined {
 }
 
 function numberValue(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function stringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const values = value.filter(
-    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+    (entry): entry is string =>
+      typeof entry === "string" && entry.trim().length > 0,
   );
   return values.length ? values : undefined;
 }

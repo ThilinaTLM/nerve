@@ -8,9 +8,9 @@ import type {
 import {
   createNoopLogger,
   parseInlineCommandPrompt,
-  summarizeSandboxStartupEvents,
   sandboxAgentConfigureParamsSchema,
   sandboxRunStartParamsSchema,
+  summarizeSandboxStartupEvents,
 } from "@nervekit/shared";
 import {
   AgentConfigStore,
@@ -101,7 +101,7 @@ export class SandboxDaemon {
     this.workspaceDir =
       recovered.workspaceDir ?? config.agent.workspaceRoot ?? process.cwd();
     this.registerBuiltins();
-    if (shouldInitializeRuntime(recovered)) {
+    if (recovered.bootOnly !== true) {
       this.ready = this.initializeRuntime(recovered);
     }
   }
@@ -795,10 +795,4 @@ export class SandboxDaemon {
       throw error;
     }
   }
-}
-
-function shouldInitializeRuntime(
-  recovered: SandboxDaemonRecoveredState,
-): boolean {
-  return recovered.bootOnly !== true;
 }

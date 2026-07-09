@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ManagedSandboxRecord, SandboxStatusGetResult } from "@nervekit/shared";
+import type {
+  ManagedSandboxRecord,
+  SandboxStatusGetResult,
+} from "@nervekit/shared";
 import { sandboxLifecycleView } from "./sandbox-lifecycle-view";
 import { createSandboxDetailState } from "./sandbox-ui-types";
 
@@ -111,6 +114,18 @@ describe("sandboxLifecycleView", () => {
     assert.equal(view.issue?.code, "MOUNT_INVALID");
     assert.match(view.headline, /environment failed/i);
     assert.equal(view.primaryAction, "open_logs");
+  });
+
+  it("treats a created but not started sandbox as stopped and actionable", () => {
+    const created = {
+      ...record("record_created"),
+      desiredState: "created" as const,
+      observedState: "unknown" as const,
+    };
+    const view = sandboxLifecycleView(created, undefined);
+    assert.equal(view.state, "stopped");
+    assert.equal(view.primaryAction, "start");
+    assert.equal(view.defaultDetailsOpen, false);
   });
 
   it("does not call a running container ready before readiness is announced", () => {

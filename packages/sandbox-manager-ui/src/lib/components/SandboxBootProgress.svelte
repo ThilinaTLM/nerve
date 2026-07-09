@@ -48,6 +48,16 @@
   let openPhases = $state<Record<string, boolean>>({});
   let now = $state(Date.now());
 
+  $effect(() => {
+    for (const phase of progress.phases) {
+      if (
+        (phase.status === "active" || phase.status === "failed") &&
+        openPhases[phase.id] === undefined
+      )
+        openPhases[phase.id] = true;
+    }
+  });
+
   onMount(() => {
     const timer = window.setInterval(() => {
       now = Date.now();
@@ -238,7 +248,9 @@
       }
     />
     <div class="min-w-0 flex-1">
-      <p class="truncate text-sm font-semibold">{progress.headline}</p>
+      <p class="truncate text-sm font-semibold">
+        {progress.state === "reconnecting" ? "Connection recovery" : "Startup progress"}
+      </p>
       <p class="truncate text-xs text-muted-foreground">{lifecycleView.description}</p>
     </div>
     {#if progress.state === "reconnecting"}

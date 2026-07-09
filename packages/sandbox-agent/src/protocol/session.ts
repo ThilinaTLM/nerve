@@ -192,11 +192,13 @@ export class ProtocolSession {
       (event) => void this.onMessage((event as CustomEvent).detail),
     );
     client.addEventListener("close", (event) => {
-      const detail = (event as CustomEvent<{
-        code?: number;
-        reason?: string;
-        closedByClient?: boolean;
-      }>).detail;
+      const detail = (
+        event as CustomEvent<{
+          code?: number;
+          reason?: string;
+          closedByClient?: boolean;
+        }>
+      ).detail;
       void this.onDisconnect(client, detail);
     });
     client.addEventListener("error", (event) => {
@@ -472,7 +474,8 @@ export class ProtocolSession {
     client: SandboxWebSocketClient,
     detail: { code?: number; reason?: string; closedByClient?: boolean } = {},
   ): Promise<void> {
-    if (client !== this.client || this.stopping || this.state === "closed") return;
+    if (client !== this.client || this.stopping || this.state === "closed")
+      return;
     if (this.reconnectScheduled) return;
     this.reconnectScheduled = true;
     if (this.heartbeat) clearInterval(this.heartbeat);
@@ -489,9 +492,10 @@ export class ProtocolSession {
     const policy = this.config.controller.disconnectPolicy;
     const exits = (policy?.mode ?? "exit_self") === "exit_self";
     const exitAfterMs = exits ? (policy?.exitAfterMs ?? 300_000) : undefined;
-    const exitAt = exitAfterMs === undefined
-      ? undefined
-      : new Date(Date.now() + exitAfterMs).toISOString();
+    const exitAt =
+      exitAfterMs === undefined
+        ? undefined
+        : new Date(Date.now() + exitAfterMs).toISOString();
     this.logger.warn("controller connection lost; reconnecting", {
       sessionId: this.sessionId,
       reason,
@@ -560,13 +564,26 @@ function safeError(error: unknown): { name?: string; message: string } {
 }
 
 function disconnectReason(
-  pending: "transport_closed" | "heartbeat_timeout" | "auth_failed" | "protocol_error" | "network_error" | "unknown",
+  pending:
+    | "transport_closed"
+    | "heartbeat_timeout"
+    | "auth_failed"
+    | "protocol_error"
+    | "network_error"
+    | "unknown",
   closeCode?: number,
   closeReason?: string,
-): "transport_closed" | "heartbeat_timeout" | "auth_failed" | "protocol_error" | "network_error" | "unknown" {
+):
+  | "transport_closed"
+  | "heartbeat_timeout"
+  | "auth_failed"
+  | "protocol_error"
+  | "network_error"
+  | "unknown" {
   if (pending !== "unknown") return pending;
   const text = closeReason?.toLowerCase() ?? "";
-  if (closeCode === 1008 || /auth|unauthor|forbidden/.test(text)) return "auth_failed";
+  if (closeCode === 1008 || /auth|unauthor|forbidden/.test(text))
+    return "auth_failed";
   if (/protocol|invalid|capabilit/.test(text)) return "protocol_error";
   if (/timeout/.test(text)) return "network_error";
   return closeCode === undefined ? "unknown" : "transport_closed";
