@@ -54,6 +54,17 @@ export type CreateSandboxBootNetwork =
   | "";
 export type CreateSandboxBootOnFailure = "fail_sandbox" | "continue_readonly";
 export type CreateSandboxBootSecretRefType = "env" | "file" | "kv";
+export type CreateSandboxNetworkDefault = "" | "allow" | "deny";
+export type CreateSandboxNetworkDns = "" | "system" | "controller" | "disabled";
+export type CreateSandboxTriStateBoolean = "" | "true" | "false";
+export type CreateSandboxFirewallBackend =
+  | ""
+  | "container"
+  | "iptables"
+  | "nftables"
+  | "proxy"
+  | "cni"
+  | "none";
 
 export type CreateSandboxBootSecretEnvDraft = {
   id: string;
@@ -112,6 +123,14 @@ type PersistedCreateSandboxPreferences = {
   permissionLevel?: CreateSandboxDraft["permissionLevel"];
   disconnectPolicyMode?: CreateSandboxDisconnectPolicyMode;
   disconnectExitAfterSeconds?: string;
+  securityNetworkDefault?: CreateSandboxNetworkDefault;
+  securityNetworkAllow?: string;
+  securityNetworkDeny?: string;
+  securityNetworkPackageRegistryHosts?: string;
+  securityNetworkDns?: CreateSandboxNetworkDns;
+  securityFirewallEnabled?: CreateSandboxTriStateBoolean;
+  securityFirewallBackend?: CreateSandboxFirewallBackend;
+  securityFirewallEnforceBootPhaseNetwork?: CreateSandboxTriStateBoolean;
   tools?: Partial<Record<CreateSandboxToolKey, boolean>>;
   mainModelProfileId?: string;
   exploreModelProfileId?: string;
@@ -221,6 +240,14 @@ export type CreateSandboxDraft = {
   permissionLevel: "read_only" | "supervised" | "autonomous";
   disconnectPolicyMode: CreateSandboxDisconnectPolicyMode;
   disconnectExitAfterSeconds: string;
+  securityNetworkDefault: CreateSandboxNetworkDefault;
+  securityNetworkAllow: string;
+  securityNetworkDeny: string;
+  securityNetworkPackageRegistryHosts: string;
+  securityNetworkDns: CreateSandboxNetworkDns;
+  securityFirewallEnabled: CreateSandboxTriStateBoolean;
+  securityFirewallBackend: CreateSandboxFirewallBackend;
+  securityFirewallEnforceBootPhaseNetwork: CreateSandboxTriStateBoolean;
   tools: Record<CreateSandboxToolKey, boolean>;
   mainModelProfileId: string;
   exploreModelProfileId: string;
@@ -319,6 +346,14 @@ export function createDefaultDraft(): CreateSandboxDraft {
     permissionLevel: "autonomous",
     disconnectPolicyMode: "exit_self",
     disconnectExitAfterSeconds: "300",
+    securityNetworkDefault: "",
+    securityNetworkAllow: "",
+    securityNetworkDeny: "",
+    securityNetworkPackageRegistryHosts: "",
+    securityNetworkDns: "",
+    securityFirewallEnabled: "",
+    securityFirewallBackend: "",
+    securityFirewallEnforceBootPhaseNetwork: "",
     tools: {
       fileInspection: true,
       fileEditing: true,
@@ -440,6 +475,45 @@ function bootSecretRefTypeValue(
     : undefined;
 }
 
+function networkDefaultValue(
+  value: unknown,
+): CreateSandboxNetworkDefault | undefined {
+  return value === "" || value === "allow" || value === "deny"
+    ? value
+    : undefined;
+}
+
+function networkDnsValue(value: unknown): CreateSandboxNetworkDns | undefined {
+  return value === "" ||
+    value === "system" ||
+    value === "controller" ||
+    value === "disabled"
+    ? value
+    : undefined;
+}
+
+function triStateBooleanValue(
+  value: unknown,
+): CreateSandboxTriStateBoolean | undefined {
+  return value === "" || value === "true" || value === "false"
+    ? value
+    : undefined;
+}
+
+function firewallBackendValue(
+  value: unknown,
+): CreateSandboxFirewallBackend | undefined {
+  return value === "" ||
+    value === "container" ||
+    value === "iptables" ||
+    value === "nftables" ||
+    value === "proxy" ||
+    value === "cni" ||
+    value === "none"
+    ? value
+    : undefined;
+}
+
 function storedBootSecretEnvRows(
   value: unknown,
 ): CreateSandboxBootSecretEnvDraft[] | undefined {
@@ -527,6 +601,27 @@ export function createDraftFromStoredPreferences(
   draft.disconnectExitAfterSeconds =
     stringValue(stored.disconnectExitAfterSeconds) ??
     draft.disconnectExitAfterSeconds;
+  draft.securityNetworkDefault =
+    networkDefaultValue(stored.securityNetworkDefault) ??
+    draft.securityNetworkDefault;
+  draft.securityNetworkAllow =
+    stringValue(stored.securityNetworkAllow) ?? draft.securityNetworkAllow;
+  draft.securityNetworkDeny =
+    stringValue(stored.securityNetworkDeny) ?? draft.securityNetworkDeny;
+  draft.securityNetworkPackageRegistryHosts =
+    stringValue(stored.securityNetworkPackageRegistryHosts) ??
+    draft.securityNetworkPackageRegistryHosts;
+  draft.securityNetworkDns =
+    networkDnsValue(stored.securityNetworkDns) ?? draft.securityNetworkDns;
+  draft.securityFirewallEnabled =
+    triStateBooleanValue(stored.securityFirewallEnabled) ??
+    draft.securityFirewallEnabled;
+  draft.securityFirewallBackend =
+    firewallBackendValue(stored.securityFirewallBackend) ??
+    draft.securityFirewallBackend;
+  draft.securityFirewallEnforceBootPhaseNetwork =
+    triStateBooleanValue(stored.securityFirewallEnforceBootPhaseNetwork) ??
+    draft.securityFirewallEnforceBootPhaseNetwork;
   draft.mainModelProfileId =
     stringValue(stored.mainModelProfileId) ?? draft.mainModelProfileId;
   draft.exploreModelProfileId =
@@ -591,6 +686,16 @@ function preferencesFromDraft(
     permissionLevel: draft.permissionLevel,
     disconnectPolicyMode: draft.disconnectPolicyMode,
     disconnectExitAfterSeconds: draft.disconnectExitAfterSeconds,
+    securityNetworkDefault: draft.securityNetworkDefault,
+    securityNetworkAllow: draft.securityNetworkAllow,
+    securityNetworkDeny: draft.securityNetworkDeny,
+    securityNetworkPackageRegistryHosts:
+      draft.securityNetworkPackageRegistryHosts,
+    securityNetworkDns: draft.securityNetworkDns,
+    securityFirewallEnabled: draft.securityFirewallEnabled,
+    securityFirewallBackend: draft.securityFirewallBackend,
+    securityFirewallEnforceBootPhaseNetwork:
+      draft.securityFirewallEnforceBootPhaseNetwork,
     tools: { ...draft.tools },
     mainModelProfileId: draft.mainModelProfileId,
     exploreModelProfileId: draft.exploreModelProfileId,
@@ -854,6 +959,61 @@ export function buildBootConfigFromDraft(
   return boot;
 }
 
+function parseDelimitedList(value: string): string[] | undefined {
+  const entries = value
+    .split(/[\n,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return entries.length > 0 ? entries : undefined;
+}
+
+function triStateBoolean(
+  value: CreateSandboxTriStateBoolean,
+): boolean | undefined {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+export function buildSecurityConfigFromDraft(
+  draft: CreateSandboxDraft,
+): SandboxCreateConfigInput["security"] | undefined {
+  const security: NonNullable<SandboxCreateConfigInput["security"]> = {};
+  const network: NonNullable<
+    NonNullable<SandboxCreateConfigInput["security"]>["network"]
+  > = {};
+  const allow = parseDelimitedList(draft.securityNetworkAllow);
+  const deny = parseDelimitedList(draft.securityNetworkDeny);
+  const packageRegistryHosts = parseDelimitedList(
+    draft.securityNetworkPackageRegistryHosts,
+  );
+
+  if (draft.securityNetworkDefault)
+    network.default = draft.securityNetworkDefault;
+  if (allow) network.allow = allow;
+  if (deny) network.deny = deny;
+  if (packageRegistryHosts) network.packageRegistryHosts = packageRegistryHosts;
+  if (draft.securityNetworkDns) network.dns = draft.securityNetworkDns;
+  if (Object.keys(network).length > 0) security.network = network;
+
+  const firewall: NonNullable<
+    NonNullable<SandboxCreateConfigInput["security"]>["firewall"]
+  > = {};
+  const firewallEnabled = triStateBoolean(draft.securityFirewallEnabled);
+  const enforceBootPhaseNetwork = triStateBoolean(
+    draft.securityFirewallEnforceBootPhaseNetwork,
+  );
+  if (firewallEnabled !== undefined) firewall.enabled = firewallEnabled;
+  if (draft.securityFirewallBackend)
+    firewall.backend = draft.securityFirewallBackend;
+  if (enforceBootPhaseNetwork !== undefined) {
+    firewall.enforceBootPhaseNetwork = enforceBootPhaseNetwork;
+  }
+  if (Object.keys(firewall).length > 0) security.firewall = firewall;
+
+  return Object.keys(security).length > 0 ? security : undefined;
+}
+
 function buildLaunchConfigFromDraft(
   draft: CreateSandboxDraft,
 ): NonNullable<SandboxCreateRequest["launch"]> | undefined {
@@ -882,6 +1042,12 @@ function buildLaunchConfigFromDraft(
 export function buildConfigFromDraft(
   draft: CreateSandboxDraft,
 ): SandboxCreateConfigInput {
+  const includeExploreDefaultModel = Boolean(
+    draft.tools.explore &&
+      draft.exploreModelProfileId &&
+      draft.defaultExploreProvider &&
+      draft.defaultExploreModel,
+  );
   const config: Record<string, unknown> = {
     version: 1,
     agent: {
@@ -892,7 +1058,7 @@ export function buildConfigFromDraft(
           ? { thinkingLevel: draft.defaultThinking }
           : {}),
       },
-      ...(draft.defaultExploreProvider && draft.defaultExploreModel
+      ...(includeExploreDefaultModel
         ? {
             defaultExploreModel: {
               provider: draft.defaultExploreProvider,
@@ -914,6 +1080,9 @@ export function buildConfigFromDraft(
   for (const [key, enabled] of Object.entries(draft.tools))
     groups[key] = { enabled };
   config.tools = { groups };
+
+  const security = buildSecurityConfigFromDraft(draft);
+  if (security) config.security = security;
 
   const boot = buildBootConfigFromDraft(draft);
   if (boot) config.boot = boot;
@@ -981,7 +1150,9 @@ export function buildCreateRequestFromForm(
   try {
     const auth = {
       mainModelProfileId: draft.mainModelProfileId.trim() || undefined,
-      exploreModelProfileId: draft.exploreModelProfileId.trim() || undefined,
+      exploreModelProfileId: draft.tools.explore
+        ? draft.exploreModelProfileId.trim() || undefined
+        : undefined,
       gitIdentityProfileId: draft.gitIdentityProfileId.trim() || undefined,
       gitCredentialProfileIds: draft.gitCredentialProfileIds.length
         ? draft.gitCredentialProfileIds

@@ -37,7 +37,11 @@
     saveCreateSandboxPreferences,
     type CreateSandboxBootMode,
     type CreateSandboxDisconnectPolicyMode,
+    type CreateSandboxFirewallBackend,
+    type CreateSandboxNetworkDefault,
+    type CreateSandboxNetworkDns,
     type CreateSandboxToolKey,
+    type CreateSandboxTriStateBoolean,
   } from "../../state/create-sandbox-draft";
   import {
     formatTokens,
@@ -80,6 +84,31 @@
       label: "Stay reconnecting",
       detail: "Development or specialized controller mode",
     },
+  ];
+  const networkDefaultItems = [
+    { value: "", label: "Runtime default", detail: "Use sandbox runtime default" },
+    { value: "deny", label: "Deny by default", detail: "Allow only listed egress" },
+    { value: "allow", label: "Allow by default", detail: "Deny only listed egress" },
+  ];
+  const networkDnsItems = [
+    { value: "", label: "Runtime default" },
+    { value: "system", label: "System DNS" },
+    { value: "controller", label: "Controller DNS" },
+    { value: "disabled", label: "Disabled" },
+  ];
+  const triStateBooleanItems = [
+    { value: "", label: "Runtime default" },
+    { value: "true", label: "Enabled" },
+    { value: "false", label: "Disabled" },
+  ];
+  const firewallBackendItems = [
+    { value: "", label: "Runtime default" },
+    { value: "container", label: "Container runtime" },
+    { value: "iptables", label: "iptables" },
+    { value: "nftables", label: "nftables" },
+    { value: "proxy", label: "Proxy" },
+    { value: "cni", label: "CNI" },
+    { value: "none", label: "None" },
   ];
   const bootModeItems = [
     { value: "single", label: "Single script", detail: "One setup script" },
@@ -210,12 +239,41 @@
       detail: profileDetail(profile),
     })),
   );
-  const filteredModels = $derived(
-    store.models.filter((model) => model.provider === draft.defaultProvider),
+  const mainProvider = $derived(
+    selectedMainProfile?.provider ?? draft.defaultProvider,
   );
-  const modelItems = $derived(modelSelectItems(filteredModels, selectedMainProfile));
+  const filteredMainModels = $derived(
+    store.models.filter((model) => model.provider === mainProvider),
+  );
+  const modelItems = $derived(
+    modelSelectItems(filteredMainModels, selectedMainProfile),
+  );
   const selectedMainModel = $derived(
-    filteredModels.find((model) => model.modelId === draft.defaultModel),
+    filteredMainModels.find((model) => model.modelId === draft.defaultModel),
+  );
+  const selectedExploreProfile = $derived(
+    authenticatedModelProfiles.find(
+      (profile) => profile.profileId === draft.exploreModelProfileId,
+    ),
+  );
+  const exploreProfileItems = $derived([
+    {
+      value: "",
+      label: "Inherit main model",
+      detail: mainProvider
+        ? `Uses ${providerDisplayName(mainProvider)} · ${draft.defaultModel || "default model"}`
+        : "Uses config.agent.defaultModel",
+    },
+    ...modelProfileItems,
+  ]);
+  const exploreProvider = $derived(
+    selectedExploreProfile?.provider ?? draft.defaultExploreProvider,
+  );
+  const filteredExploreModels = $derived(
+    store.models.filter((model) => model.provider === exploreProvider),
+  );
+  const exploreModelItems = $derived(
+    modelSelectItems(filteredExploreModels, selectedExploreProfile),
   );
   const thinkingLevelItems = $derived(
     thinkingLevelSelectItems(supportedThinkingLevelsForSelection()),
@@ -267,9 +325,17 @@
 
   $effect(() => {
     if (!open) return;
-    if (draft.mainModelProfileId || authenticatedModelProfiles.length === 0)
+    if (!draft.mainModelProfileId) {
+      if (authenticatedModelProfiles.length === 0) return;
+      setMainModelProfile(authenticatedModelProfiles[0]?.profileId ?? "");
       return;
-    setMainModelProfile(authenticatedModelProfiles[0]?.profileId ?? "");
+    }
+    ensureMainModelFollowsProfile();
+  });
+
+  $effect(() => {
+    if (!open || !draft.tools.explore) return;
+    ensureExploreModelFollowsProfile();
   });
 
   $effect(() => {
@@ -378,14 +444,69 @@
     return providerModel?.modelId ?? "";
   }
 
+  function modelBelongsToProvider(modelId: string, provider: string): boolean {
+    if (!modelId) return false;
+    return store.models.some(
+      (model) => model.provider === provider && model.modelId === modelId,
+    );
+  }
+
+  function ensureMainModelFollowsProfile(): void {
+    const profile = selectedMainProfile;
+    if (!profile?.provider) return;
+    draft.defaultProvider = profile.provider;
+    if (modelBelongsToProvider(draft.defaultModel, profile.provider)) return;
+    draft.defaultModel = chooseDefaultModel(profile, store.models);
+  }
+
+  function ensureExploreModelFollowsProfile(): void {
+    if (!draft.exploreModelProfileId) return;
+    const profile = selectedExploreProfile;
+    if (!profile?.provider) {
+      draft.exploreModelProfileId = "";
+      draft.defaultExploreProvider = "";
+      draft.defaultExploreModel = "";
+      return;
+    }
+    draft.defaultExploreProvider = profile.provider;
+    if (modelBelongsToProvider(draft.defaultExploreModel, profile.provider))
+      return;
+    draft.defaultExploreModel = chooseDefaultModel(profile, store.models);
+  }
+
   function setMainModelProfile(profileId: string) {
     const profile = authenticatedModelProfiles.find(
       (candidate) => candidate.profileId === profileId,
     );
     draft.mainModelProfileId = profileId;
-    if (!profile?.provider) return;
+    if (!profile?.provider) {
+      draft.defaultProvider = "";
+      draft.defaultModel = "";
+      return;
+    }
     draft.defaultProvider = profile.provider;
-    draft.defaultModel = chooseDefaultModel(profile, store.models);
+    draft.defaultModel = modelBelongsToProvider(draft.defaultModel, profile.provider)
+      ? draft.defaultModel
+      : chooseDefaultModel(profile, store.models);
+  }
+
+  function setExploreModelProfile(profileId: string) {
+    const profile = authenticatedModelProfiles.find(
+      (candidate) => candidate.profileId === profileId,
+    );
+    draft.exploreModelProfileId = profileId;
+    if (!profileId || !profile?.provider) {
+      draft.defaultExploreProvider = "";
+      draft.defaultExploreModel = "";
+      return;
+    }
+    draft.defaultExploreProvider = profile.provider;
+    draft.defaultExploreModel = modelBelongsToProvider(
+      draft.defaultExploreModel,
+      profile.provider,
+    )
+      ? draft.defaultExploreModel
+      : chooseDefaultModel(profile, store.models);
   }
 
   function setBootEnabled(value: boolean) {
@@ -774,9 +895,22 @@
           <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
             <div>
               <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.agent</h3>
-              <p class="text-xs text-muted-foreground">Choose the runtime model and policy defaults.</p>
+              <p class="text-xs text-muted-foreground">
+                Choose the runtime model and policy defaults. Provider is synced
+                from the selected Manager model-provider profile.
+              </p>
             </div>
             <div class="grid gap-3 sm:grid-cols-2">
+              <div class="flex flex-col gap-1">
+                <Label>Provider</Label>
+                <Input
+                  value={mainProvider ? providerDisplayName(mainProvider) : "Choose a Manager profile"}
+                  readonly
+                />
+                <p class="text-xs text-muted-foreground">
+                  Stored in <code class="font-mono">agent.defaultModel.provider</code>.
+                </p>
+              </div>
               <div class="flex flex-col gap-1">
                 <Label>Model</Label>
                 <SelectField
@@ -869,6 +1003,93 @@
                   for development or specialized controllers.
                 </div>
               {/if}
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
+            <div>
+              <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.security.network / firewall</h3>
+              <p class="text-xs text-muted-foreground">
+                Declare sandbox egress policy and firewall enforcement hints. Actual
+                isolation depends on the selected runtime/backend support.
+              </p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="flex flex-col gap-1">
+                <Label>Default network policy</Label>
+                <SelectField
+                  items={networkDefaultItems}
+                  value={draft.securityNetworkDefault}
+                  onValueChange={(value) =>
+                    (draft.securityNetworkDefault = value as CreateSandboxNetworkDefault)}
+                />
+              </div>
+              <div class="flex flex-col gap-1">
+                <Label>DNS policy</Label>
+                <SelectField
+                  items={networkDnsItems}
+                  value={draft.securityNetworkDns}
+                  onValueChange={(value) =>
+                    (draft.securityNetworkDns = value as CreateSandboxNetworkDns)}
+                />
+              </div>
+              <div class="flex flex-col gap-1 sm:col-span-2">
+                <Label>Allow hosts</Label>
+                <Textarea
+                  bind:value={draft.securityNetworkAllow}
+                  class="min-h-16"
+                  placeholder="api.anthropic.com, github.com"
+                />
+                <p class="text-xs text-muted-foreground">Comma or newline separated entries.</p>
+              </div>
+              <div class="flex flex-col gap-1 sm:col-span-2">
+                <Label>Deny hosts</Label>
+                <Textarea
+                  bind:value={draft.securityNetworkDeny}
+                  class="min-h-16"
+                  placeholder="metadata.google.internal"
+                />
+              </div>
+              <div class="flex flex-col gap-1 sm:col-span-2">
+                <Label>Package registry hosts</Label>
+                <Textarea
+                  bind:value={draft.securityNetworkPackageRegistryHosts}
+                  class="min-h-16"
+                  placeholder="registry.npmjs.org, pypi.org, files.pythonhosted.org"
+                />
+                <p class="text-xs text-muted-foreground">
+                  Used by boot phases set to package-registry-only network.
+                </p>
+              </div>
+            </div>
+            <div class="grid gap-3 rounded-md border bg-card p-3 sm:grid-cols-3">
+              <div class="flex flex-col gap-1">
+                <Label>Firewall</Label>
+                <SelectField
+                  items={triStateBooleanItems}
+                  value={draft.securityFirewallEnabled}
+                  onValueChange={(value) =>
+                    (draft.securityFirewallEnabled = value as CreateSandboxTriStateBoolean)}
+                />
+              </div>
+              <div class="flex flex-col gap-1">
+                <Label>Backend</Label>
+                <SelectField
+                  items={firewallBackendItems}
+                  value={draft.securityFirewallBackend}
+                  onValueChange={(value) =>
+                    (draft.securityFirewallBackend = value as CreateSandboxFirewallBackend)}
+                />
+              </div>
+              <div class="flex flex-col gap-1">
+                <Label>Enforce boot network</Label>
+                <SelectField
+                  items={triStateBooleanItems}
+                  value={draft.securityFirewallEnforceBootPhaseNetwork}
+                  onValueChange={(value) =>
+                    (draft.securityFirewallEnforceBootPhaseNetwork = value as CreateSandboxTriStateBoolean)}
+                />
+              </div>
             </div>
           </div>
 
@@ -1163,6 +1384,42 @@
                 </div>
               {/each}
             </div>
+
+            {#if draft.tools.explore}
+              <div class="flex flex-col gap-3 rounded-md border bg-card p-3">
+                <div>
+                  <h4 class="text-sm font-medium">config.agent.defaultExploreModel</h4>
+                  <p class="text-xs text-muted-foreground">
+                    Optional default model for explore sub-agents. Leave inherited
+                    to use the main agent model.
+                  </p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div class="flex flex-col gap-1">
+                    <Label>Explore provider profile</Label>
+                    <SelectField
+                      items={exploreProfileItems}
+                      value={draft.exploreModelProfileId}
+                      placeholder="Inherit main model"
+                      onValueChange={setExploreModelProfile}
+                    />
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <Label>Explore model</Label>
+                    <SelectField
+                      items={exploreModelItems}
+                      value={draft.defaultExploreModel}
+                      placeholder="Inherit main model"
+                      disabled={!draft.exploreModelProfileId || exploreModelItems.length === 0}
+                      onValueChange={(value) => (draft.defaultExploreModel = value)}
+                    />
+                    {#if draft.exploreModelProfileId && exploreModelItems.length === 0}
+                      <p class="text-xs text-warning">No catalog models found for this provider.</p>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {/if}
           </div>
         </TabsContent>
 

@@ -106,6 +106,45 @@ describe("create sandbox draft", () => {
     assert.equal(config.tools?.groups?.fileInspection?.enabled, true);
   });
 
+  it("maps explore default model only when explore tools are enabled", () => {
+    const draft = createDefaultDraft();
+    draft.defaultExploreProvider = "openai-codex";
+    draft.defaultExploreModel = "gpt-5-codex";
+
+    let config = buildConfigFromDraft(draft);
+    assert.equal(config.agent.defaultExploreModel, undefined);
+
+    draft.tools.explore = true;
+    config = buildConfigFromDraft(draft);
+    assert.equal(config.agent.defaultExploreModel, undefined);
+
+    draft.exploreModelProfileId = "explore_profile";
+    config = buildConfigFromDraft(draft);
+    assert.deepEqual(config.agent.defaultExploreModel, {
+      provider: "openai-codex",
+      model: "gpt-5-codex",
+    });
+  });
+
+  it("omits explore auth refs when explore tools are disabled", () => {
+    const draft = createDefaultDraft();
+    draft.mainModelProfileId = "main_profile";
+    draft.exploreModelProfileId = "explore_profile";
+    draft.defaultExploreProvider = "openai-codex";
+    draft.defaultExploreModel = "gpt-5-codex";
+
+    let result = buildCreateRequest(draft);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.request.auth?.exploreModelProfileId, undefined);
+
+    draft.tools.explore = true;
+    result = buildCreateRequest(draft);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.request.auth?.exploreModelProfileId, "explore_profile");
+  });
+
   it("maps controller disconnect policy into partial manager-owned config", () => {
     const draft = createDefaultDraft();
     draft.disconnectExitAfterSeconds = "45";
@@ -118,6 +157,45 @@ describe("create sandbox draft", () => {
     config = buildConfigFromDraft(draft);
     assert.deepEqual(config.controller, {
       disconnectPolicy: { mode: "stay_reconnecting" },
+    });
+  });
+
+  it("omits security config when network and firewall controls use runtime defaults", () => {
+    const config = buildConfigFromDraft(createDefaultDraft());
+    assert.equal(config.security, undefined);
+  });
+
+  it("maps network and firewall security policy controls", () => {
+    const draft = createDefaultDraft();
+    draft.securityNetworkDefault = "deny";
+    draft.securityNetworkAllow =
+      "api.anthropic.com, github.com\nregistry.npmjs.org";
+    draft.securityNetworkDeny = "metadata.google.internal";
+    draft.securityNetworkPackageRegistryHosts =
+      "registry.npmjs.org\npypi.org, files.pythonhosted.org";
+    draft.securityNetworkDns = "controller";
+    draft.securityFirewallEnabled = "true";
+    draft.securityFirewallBackend = "nftables";
+    draft.securityFirewallEnforceBootPhaseNetwork = "false";
+
+    const config = buildConfigFromDraft(draft);
+    assert.deepEqual(config.security, {
+      network: {
+        default: "deny",
+        allow: ["api.anthropic.com", "github.com", "registry.npmjs.org"],
+        deny: ["metadata.google.internal"],
+        packageRegistryHosts: [
+          "registry.npmjs.org",
+          "pypi.org",
+          "files.pythonhosted.org",
+        ],
+        dns: "controller",
+      },
+      firewall: {
+        enabled: true,
+        backend: "nftables",
+        enforceBootPhaseNetwork: false,
+      },
     });
   });
 
@@ -391,14 +469,26 @@ describe("create sandbox draft", () => {
     draft.defaultProvider = "openai";
     draft.defaultModel = "gpt-5.1-codex-max";
     draft.defaultThinking = "medium";
+    draft.defaultExploreProvider = "anthropic";
+    draft.defaultExploreModel = "claude-opus-4-5";
     draft.initialConversationPrompt = "Keep this prompt";
     draft.mode = "planning";
     draft.permissionLevel = "read_only";
     draft.disconnectPolicyMode = "stay_reconnecting";
     draft.disconnectExitAfterSeconds = "120";
+    draft.securityNetworkDefault = "deny";
+    draft.securityNetworkAllow = "api.openai.com, github.com";
+    draft.securityNetworkDeny = "metadata.google.internal";
+    draft.securityNetworkPackageRegistryHosts = "registry.npmjs.org";
+    draft.securityNetworkDns = "controller";
+    draft.securityFirewallEnabled = "true";
+    draft.securityFirewallBackend = "proxy";
+    draft.securityFirewallEnforceBootPhaseNetwork = "false";
     draft.tools.python = true;
     draft.tools.web = true;
+    draft.tools.explore = true;
     draft.mainModelProfileId = "model_profile";
+    draft.exploreModelProfileId = "explore_profile";
     draft.githubProfileId = "github_profile";
     draft.bootEnabled = true;
     draft.bootMode = "phases";
@@ -437,14 +527,29 @@ describe("create sandbox draft", () => {
     assert.equal(restored.defaultProvider, "openai");
     assert.equal(restored.defaultModel, "gpt-5.1-codex-max");
     assert.equal(restored.defaultThinking, "medium");
+    assert.equal(restored.defaultExploreProvider, "anthropic");
+    assert.equal(restored.defaultExploreModel, "claude-opus-4-5");
     assert.equal(restored.initialConversationPrompt, "");
     assert.equal(restored.mode, "planning");
     assert.equal(restored.permissionLevel, "read_only");
     assert.equal(restored.disconnectPolicyMode, "stay_reconnecting");
     assert.equal(restored.disconnectExitAfterSeconds, "120");
+    assert.equal(restored.securityNetworkDefault, "deny");
+    assert.equal(restored.securityNetworkAllow, "api.openai.com, github.com");
+    assert.equal(restored.securityNetworkDeny, "metadata.google.internal");
+    assert.equal(
+      restored.securityNetworkPackageRegistryHosts,
+      "registry.npmjs.org",
+    );
+    assert.equal(restored.securityNetworkDns, "controller");
+    assert.equal(restored.securityFirewallEnabled, "true");
+    assert.equal(restored.securityFirewallBackend, "proxy");
+    assert.equal(restored.securityFirewallEnforceBootPhaseNetwork, "false");
     assert.equal(restored.tools.python, true);
     assert.equal(restored.tools.web, true);
+    assert.equal(restored.tools.explore, true);
     assert.equal(restored.mainModelProfileId, "model_profile");
+    assert.equal(restored.exploreModelProfileId, "explore_profile");
     assert.equal(restored.githubProfileId, "github_profile");
     assert.equal(restored.bootEnabled, true);
     assert.equal(restored.bootMode, "phases");
