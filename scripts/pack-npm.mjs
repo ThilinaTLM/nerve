@@ -10,9 +10,7 @@ const publishPackages = [
   ["@nervekit/shared", join("packages", "shared")],
   ["@nervekit/tools", join("packages", "tools")],
   ["@nervekit/agent", join("packages", "agent")],
-  ["@nervekit/web", join("packages", "web")],
   ["@nervekit/orchestrator", join("packages", "orchestrator")],
-  ["@nervekit/cli", join("packages", "cli")],
   ["@nervekit/desktop", join("packages", "desktop")],
 ];
 
