@@ -68,6 +68,11 @@ output "database_url_parameter_arn" {
   value       = local.database_url_parameter_arn
 }
 
+output "secret_encryption_key_parameter_arn" {
+  description = "SSM parameter or secret ARN used for NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY."
+  value       = local.secret_encryption_key_parameter_arn
+}
+
 output "manager_ecr_repository_url" {
   description = "Terraform-created sandbox-manager ECR repository URL when enabled."
   value       = var.create_ecr_repositories ? aws_ecr_repository.manager[0].repository_url : null

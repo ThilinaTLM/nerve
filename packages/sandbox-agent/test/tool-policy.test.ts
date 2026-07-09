@@ -7,6 +7,7 @@ import {
   SecretResolutionError,
   SecretResolver,
 } from "../src/credentials/secret-resolver.js";
+import { SecretStoreRegistry } from "../src/secret-stores/secret-store-registry.js";
 import { ApprovalWaiter } from "../src/tools/approval-waiter.js";
 import { TaskSupervisor } from "../src/tools/task-supervisor.js";
 import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
@@ -29,6 +30,21 @@ const config = {
     },
   },
 } as const;
+
+function secretResolverForEndpoint(endpoint: string): SecretResolver {
+  const registry = new SecretStoreRegistry();
+  registry.set("main", { resolve: async () => ({ value: "ok" }) });
+  return new SecretResolver(
+    {
+      ...config,
+      secretStores: {
+        defaultStore: "main",
+        stores: { main: { type: "http_kv", endpoint } },
+      },
+    } as never,
+    registry,
+  );
+}
 
 describe("sandbox tool policy", () => {
   it("denies disabled tools, path escapes, symlink escapes, and risky commands", async () => {
@@ -132,17 +148,38 @@ describe("sandbox tool policy", () => {
     }
   });
 
-  it("enforces secret resolver TLS/local policy and recursion", async () => {
-    const bad = {
-      ...config,
-      secretStores: {
-        defaultStore: "main",
-        stores: { main: { type: "http_kv", endpoint: "http://example.com" } },
-      },
-    } as never;
-    await assert.rejects(
-      () => new SecretResolver(bad).resolve({ kv: { key: "x" } }),
-      SecretResolutionError,
-    );
+  it("allows HTTPS and private-runtime HTTP secret store endpoints", async () => {
+    const endpoints = [
+      "https://example.com/secrets",
+      "http://127.0.0.1:7869/secrets",
+      "http://10.0.1.10:7869/secrets",
+      "http://172.16.0.5:7869/secrets",
+      "http://192.168.1.10:7869/secrets",
+      "http://[fd00::1]:7869/secrets",
+      "http://sandbox-manager:7869/secrets",
+      "http://sandbox-manager.nerve-sandbox-dev.local:7869/secrets",
+      "http://sandbox-manager.internal:7869/secrets",
+      "http://sandbox-manager.svc.cluster.local:7869/secrets",
+    ];
+    for (const endpoint of endpoints)
+      assert.equal(
+        await secretResolverForEndpoint(endpoint).resolve({ kv: { key: "x" } }),
+        "ok",
+        endpoint,
+      );
+  });
+
+  it("rejects public or non-HTTP(S) plaintext secret store endpoints", async () => {
+    const endpoints = [
+      "http://example.com/secrets",
+      "http://nerve-sandbox-nonprod-dev-manage-539982571.us-east-2.elb.amazonaws.com/secrets",
+      "ftp://sandbox-manager/secrets",
+    ];
+    for (const endpoint of endpoints)
+      await assert.rejects(
+        () => secretResolverForEndpoint(endpoint).resolve({ kv: { key: "x" } }),
+        SecretResolutionError,
+        endpoint,
+      );
   });
 });

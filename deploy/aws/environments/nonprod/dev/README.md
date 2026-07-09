@@ -6,8 +6,11 @@ This root deploys a disposable, low-cost AWS demo stack for the sandbox manager:
 - ECS/Fargate manager service using `FARGATE_SPOT`;
 - sandbox-agent ECS tasks launched by the manager using `FARGATE_SPOT`;
 - EFS for manager materialization and sandbox runtime mounts;
+- a module-created EFS access point rooted at `efs_root_directory` so the manager can materialize sandbox files;
 - minimal single-AZ RDS PostgreSQL (`db.t4g.micro`, 20 GiB by default);
 - SSM SecureString parameter for the manager database URL;
+- SSM SecureString parameter for the manager secret encryption key when one is not supplied;
+- private Cloud Map namespace for sandbox-to-manager callbacks;
 - ECR repositories for `sandbox-manager` and `sandbox-agent` images.
 
 This environment is for testing/demos only. Destroy it when finished.
@@ -105,7 +108,7 @@ With API key auth configured via `api_key_parameter_arn`, use API headers for HT
 curl -H "Authorization: Bearer $NERVE_SANDBOX_MANAGER_API_KEY" "$MANAGER_URL/api/manager/status"
 ```
 
-HTTP browser UI testing is intended only with a narrow `alb_ingress_cidrs` allowlist. The built-in trusted-proxy browser auth cookie flow requires HTTPS, so API-key-protected browser UI testing should use an ACM certificate or an authenticated HTTPS proxy.
+HTTP browser UI testing is intended only with a narrow `alb_ingress_cidrs` allowlist. Sandbox callbacks use private Cloud Map by default (`create_cloud_map_namespace = true`), so sandbox tasks do not need to call the manager through the public ALB. The built-in trusted-proxy browser auth cookie flow requires HTTPS, so API-key-protected browser UI testing should use an ACM certificate or an authenticated HTTPS proxy.
 
 ## Cleanup
 

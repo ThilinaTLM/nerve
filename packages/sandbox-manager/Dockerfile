@@ -4,7 +4,6 @@ FROM node:24-bookworm-slim AS manager-deps
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY patches ./patches
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/shared/dist packages/shared/dist
 COPY packages/sandbox-manager/package.json packages/sandbox-manager/package.json
@@ -26,7 +25,8 @@ RUN set -eux; \
   rm -rf /var/lib/apt/lists/*; \
   groupadd --system sandbox-manager \
   && useradd --system --gid sandbox-manager --home-dir /home/sandbox-manager --create-home --shell /usr/sbin/nologin sandbox-manager \
-  && mkdir -p /home/sandbox-manager/.nerve/sandbox-manager
+  && mkdir -p /home/sandbox-manager/.nerve/sandbox-manager \
+  && chown -R sandbox-manager:sandbox-manager /home/sandbox-manager
 
 COPY --from=manager-deps --chown=root:root /manager/ /manager/
 

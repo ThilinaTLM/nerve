@@ -380,7 +380,7 @@ export class ProtocolSession {
         if (this.state !== "connected") process.exit(22);
       }, policy.exitAfterMs ?? 60_000).unref();
     }
-    setTimeout(() => void this.connect(), reconnectDelay).unref();
+    setTimeout(() => void this.connect(), reconnectDelay);
   }
 
   private reconnectDelayMs(): number {

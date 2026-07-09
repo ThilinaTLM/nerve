@@ -8,7 +8,28 @@ locals {
     var.tags,
   )
 
+  standard_tags = merge(
+    {
+      Project   = "nerve"
+      ManagedBy = "Terraform"
+      Owner     = var.owner
+      Component = "sandbox"
+    },
+    local.environment_tags,
+  )
+
   effective_rds_subnet_ids = length(var.rds_subnet_ids) == 0 ? var.task_subnet_ids : var.rds_subnet_ids
+  cloud_map_enabled        = var.enable_cloud_map || var.create_cloud_map_namespace
+  cloud_map_namespace_id   = var.create_cloud_map_namespace ? aws_service_discovery_private_dns_namespace.sandbox[0].id : var.cloud_map_namespace_id
+  cloud_map_namespace_name = var.create_cloud_map_namespace ? aws_service_discovery_private_dns_namespace.sandbox[0].name : var.cloud_map_namespace_name
+}
+
+resource "aws_service_discovery_private_dns_namespace" "sandbox" {
+  count       = var.create_cloud_map_namespace ? 1 : 0
+  name        = var.cloud_map_private_dns_namespace_name
+  description = "Private namespace for nonprod/dev sandbox manager callbacks"
+  vpc         = var.vpc_id
+  tags        = local.standard_tags
 }
 
 module "sandbox_manager" {
@@ -83,8 +104,8 @@ module "sandbox_manager" {
 
   trusted_proxy_auth_header = var.trusted_proxy_auth_header
   manager_callback_url      = var.manager_callback_url
-  enable_cloud_map          = var.enable_cloud_map
-  cloud_map_namespace_id    = var.cloud_map_namespace_id
-  cloud_map_namespace_name  = var.cloud_map_namespace_name
+  enable_cloud_map          = local.cloud_map_enabled
+  cloud_map_namespace_id    = local.cloud_map_namespace_id
+  cloud_map_namespace_name  = local.cloud_map_namespace_name
   cloud_map_service_name    = var.cloud_map_service_name
 }

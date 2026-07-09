@@ -234,8 +234,8 @@ variable "efs_file_system_id" {
 
 variable "efs_root_directory" {
   type        = string
-  description = "EFS root directory prefix used in sandbox task definitions."
-  default     = "/"
+  description = "EFS root directory prefix used in sandbox task definitions. The module-created manager access point creates this path with writable dev permissions."
+  default     = "/nerve"
 }
 
 variable "efs_transition_to_ia" {
@@ -260,6 +260,18 @@ variable "manager_callback_url" {
   type        = string
   description = "Optional explicit URL sandboxes use to call back to the manager. Defaults to Cloud Map when enabled, otherwise the ALB HTTP URL."
   default     = null
+}
+
+variable "create_cloud_map_namespace" {
+  type        = bool
+  description = "Create a private Cloud Map namespace for sandbox-to-manager callbacks."
+  default     = true
+}
+
+variable "cloud_map_private_dns_namespace_name" {
+  type        = string
+  description = "Private DNS namespace name created when create_cloud_map_namespace=true."
+  default     = "nerve-sandbox-dev.local"
 }
 
 variable "enable_cloud_map" {

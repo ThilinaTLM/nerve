@@ -57,14 +57,20 @@ manager_desired_count    = 1
 manager_assign_public_ip = true
 sandbox_assign_public_ip = true
 
+# Module-created EFS access point creates this root with writable dev permissions.
+efs_root_directory = "/nerve"
+
 # Short log retention for cost control.
 log_retention_days = 7
 
-# Cloud Map is optional for private sandbox -> manager callbacks.
-enable_cloud_map         = false
-cloud_map_namespace_id   = null
-cloud_map_namespace_name = null
-cloud_map_service_name   = "sandbox-manager"
+# Private Cloud Map is enabled by default so sandbox tasks call the manager
+# privately instead of through the public HTTP ALB allowlist.
+create_cloud_map_namespace          = true
+cloud_map_private_dns_namespace_name = "nerve-sandbox-dev.local"
+enable_cloud_map                    = false
+cloud_map_namespace_id              = null
+cloud_map_namespace_name            = null
+cloud_map_service_name              = "sandbox-manager"
 
 tags = {
   Purpose = "sandbox-manager-demo"

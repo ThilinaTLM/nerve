@@ -29,8 +29,9 @@ locals {
   manager_image_uri = var.manager_image != null ? var.manager_image : "${try(aws_ecr_repository.manager[0].repository_url, "missing-manager-repository")}:${var.image_tag}"
   agent_image_uri   = var.agent_image != null ? var.agent_image : "${try(aws_ecr_repository.agent[0].repository_url, "missing-agent-repository")}:${var.image_tag}"
 
-  database_url_parameter_arn = var.create_rds ? try(aws_ssm_parameter.manager_database_url[0].arn, null) : var.database_url_parameter_arn
-  manager_database_ssl       = var.database_ssl == null ? var.create_rds : var.database_ssl
+  database_url_parameter_arn          = var.create_rds ? try(aws_ssm_parameter.manager_database_url[0].arn, null) : var.database_url_parameter_arn
+  secret_encryption_key_parameter_arn = var.secret_encryption_key_parameter_arn != null ? var.secret_encryption_key_parameter_arn : try(aws_ssm_parameter.manager_secret_encryption_key[0].arn, null)
+  manager_database_ssl                = var.database_ssl == null ? var.create_rds : var.database_ssl
 
   cloud_map_callback_url = var.enable_cloud_map && var.cloud_map_namespace_name != null ? "http://${var.cloud_map_service_name}.${var.cloud_map_namespace_name}:${var.manager_port}" : null
   callback_url           = coalesce(var.manager_callback_url, local.cloud_map_callback_url, "http://${aws_lb.manager.dns_name}")
@@ -51,13 +52,13 @@ locals {
   manager_secrets = concat(
     local.database_url_parameter_arn == null ? [] : [{ name = "NERVE_SANDBOX_MANAGER_DATABASE_URL", valueFrom = local.database_url_parameter_arn }],
     var.api_key_parameter_arn == null ? [] : [{ name = "NERVE_SANDBOX_MANAGER_API_KEY", valueFrom = var.api_key_parameter_arn }],
-    var.secret_encryption_key_parameter_arn == null ? [] : [{ name = "NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY", valueFrom = var.secret_encryption_key_parameter_arn }],
+    local.secret_encryption_key_parameter_arn == null ? [] : [{ name = "NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY", valueFrom = local.secret_encryption_key_parameter_arn }],
   )
 
   manager_secret_sources = compact([
     local.database_url_parameter_arn,
     var.api_key_parameter_arn,
-    var.secret_encryption_key_parameter_arn,
+    local.secret_encryption_key_parameter_arn,
   ])
 
   ssm_parameter_arns = [for arn in local.manager_secret_sources : arn if strcontains(arn, ":parameter/")]
@@ -330,6 +331,27 @@ resource "aws_efs_file_system" "sandbox" {
   }
 }
 
+resource "aws_efs_access_point" "manager" {
+  count          = var.create_efs ? 1 : 0
+  file_system_id = aws_efs_file_system.sandbox[0].id
+  tags           = local.tags
+
+  posix_user {
+    uid = 0
+    gid = 0
+  }
+
+  root_directory {
+    path = var.efs_root_directory
+
+    creation_info {
+      owner_uid   = 0
+      owner_gid   = 0
+      permissions = "0777"
+    }
+  }
+}
+
 resource "aws_efs_mount_target" "sandbox" {
   for_each        = toset(var.create_efs ? var.task_subnet_ids : [])
   file_system_id  = aws_efs_file_system.sandbox[0].id
@@ -342,6 +364,12 @@ resource "random_password" "rds" {
   length           = 32
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "random_password" "manager_secret_encryption_key" {
+  count   = var.secret_encryption_key_parameter_arn == null ? 1 : 0
+  length  = 64
+  special = false
 }
 
 resource "aws_db_subnet_group" "manager" {
@@ -388,6 +416,15 @@ resource "aws_ssm_parameter" "manager_database_url" {
   tags   = local.tags
 }
 
+resource "aws_ssm_parameter" "manager_secret_encryption_key" {
+  count  = var.secret_encryption_key_parameter_arn == null ? 1 : 0
+  name   = "/${var.name_prefix}/sandbox-manager/secret-encryption-key"
+  type   = "SecureString"
+  key_id = var.ssm_parameter_kms_key_id
+  value  = random_password.manager_secret_encryption_key[0].result
+  tags   = local.tags
+}
+
 resource "aws_iam_role" "execution" {
   name = substr("${var.name_prefix}-execution", 0, 64)
   tags = local.tags
@@ -408,7 +445,7 @@ resource "aws_iam_role_policy_attachment" "execution" {
 }
 
 resource "aws_iam_role_policy" "execution_secrets" {
-  count = length(local.execution_secret_policy_statements) == 0 ? 0 : 1
+  count = var.create_rds || var.database_url_parameter_arn != null || var.api_key_parameter_arn != null || var.secret_encryption_key_parameter_arn != null || length(var.ssm_parameter_kms_key_arns) > 0 ? 1 : 0
   name  = "${var.name_prefix}-execution-secrets"
   role  = aws_iam_role.execution.id
 
@@ -549,8 +586,6 @@ resource "aws_service_discovery_service" "manager" {
     routing_policy = "MULTIVALUE"
   }
 
-  health_check_custom_config {}
-
   tags = local.tags
 }
 
@@ -569,8 +604,15 @@ resource "aws_ecs_task_definition" "manager" {
 
     efs_volume_configuration {
       file_system_id     = local.efs_file_system_id
-      root_directory     = var.efs_root_directory
+      root_directory     = var.create_efs ? "/" : var.efs_root_directory
       transit_encryption = "ENABLED"
+
+      dynamic "authorization_config" {
+        for_each = var.create_efs ? [aws_efs_access_point.manager[0].id] : []
+        content {
+          access_point_id = authorization_config.value
+        }
+      }
     }
   }
 
@@ -593,6 +635,7 @@ resource "aws_ecs_task_definition" "manager" {
         { name = "NERVE_SANDBOX_MANAGER_HOST", value = "0.0.0.0" },
         { name = "NERVE_SANDBOX_MANAGER_PORT", value = tostring(var.manager_port) },
         { name = "NERVE_SANDBOX_MANAGER_ALLOW_REMOTE_BIND", value = "true" },
+        { name = "NERVE_SANDBOX_MANAGER_STORAGE_DIR", value = "${var.efs_manager_mount_path}/manager-state" },
         { name = "NERVE_SANDBOX_MANAGER_BACKEND", value = "ecs" },
         { name = "NERVE_SANDBOX_MANAGER_VOLUME_BACKEND", value = "efs" },
         { name = "NERVE_SANDBOX_MANAGER_DATABASE_SSL", value = local.manager_database_ssl ? "true" : "false" },

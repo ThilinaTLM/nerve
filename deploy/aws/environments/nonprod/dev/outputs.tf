@@ -8,6 +8,16 @@ output "manager_callback_url" {
   value       = module.sandbox_manager.manager_callback_url
 }
 
+output "cloud_map_namespace_id" {
+  description = "Private Cloud Map namespace ID used for sandbox callbacks when created/enabled."
+  value       = local.cloud_map_namespace_id
+}
+
+output "cloud_map_namespace_name" {
+  description = "Private Cloud Map namespace name used for sandbox callbacks when created/enabled."
+  value       = local.cloud_map_namespace_name
+}
+
 output "ecs_cluster_name" {
   description = "ECS cluster name."
   value       = module.sandbox_manager.ecs_cluster_name
@@ -66,6 +76,11 @@ output "rds_endpoint" {
 output "database_url_parameter_arn" {
   description = "SSM parameter or secret ARN used for the manager database URL."
   value       = module.sandbox_manager.database_url_parameter_arn
+}
+
+output "secret_encryption_key_parameter_arn" {
+  description = "SSM parameter or secret ARN used for the manager secret encryption key."
+  value       = module.sandbox_manager.secret_encryption_key_parameter_arn
 }
 
 output "manager_ecr_repository_url" {

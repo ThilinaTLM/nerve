@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { isIP } from "node:net";
 import type { SandboxConfigV1, SandboxSecretRef } from "@nervekit/shared";
 import type { SecretStoreRegistry } from "../secret-stores/secret-store-registry.js";
 
@@ -102,13 +103,49 @@ function cacheDeadline(resolved: {
 function assertSafeHttpEndpoint(endpoint: string): void {
   const url = new URL(endpoint);
   if (url.protocol === "https:") return;
-  const host = url.hostname;
-  const localHosts = new Set(["127.0.0.1", "::1", "localhost"]);
-  const privateIpv4 = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(
-    host,
-  );
-  if (url.protocol === "http:" && (localHosts.has(host) || privateIpv4)) return;
+  if (url.protocol === "http:" && isLocalPrivateRuntimeHost(url.hostname))
+    return;
   throw new SecretResolutionError(
-    "HTTP secret store endpoints must use TLS or a local-private host",
+    "Secret store endpoints must use HTTPS or HTTP on a local/private runtime host",
+  );
+}
+
+function isLocalPrivateRuntimeHost(hostname: string): boolean {
+  const host = normalizeHostname(hostname);
+  if (!host) return false;
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  const ipVersion = isIP(host);
+  if (ipVersion === 4) return isPrivateIpv4(host);
+  if (ipVersion === 6) return isPrivateIpv6(host);
+  return isPrivateDnsName(host);
+}
+
+function normalizeHostname(hostname: string): string {
+  const trimmed = hostname.trim().toLowerCase().replace(/\.$/, "");
+  return trimmed.startsWith("[") && trimmed.endsWith("]")
+    ? trimmed.slice(1, -1)
+    : trimmed;
+}
+
+function isPrivateIpv4(host: string): boolean {
+  const [first, second] = host.split(".").map((part) => Number(part));
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isPrivateIpv6(host: string): boolean {
+  return host === "::1" || /^f[cd][0-9a-f:]*$/i.test(host);
+}
+
+function isPrivateDnsName(host: string): boolean {
+  if (!host.includes(".")) return true;
+  return (
+    host.endsWith(".local") ||
+    host.endsWith(".internal") ||
+    host.endsWith(".cluster.local")
   );
 }
