@@ -1,6 +1,6 @@
 # Configuration
 
-A sandbox is configured by one YAML document. The document describes identity, model catalog, agent model selection, controller WebSocket settings, controller disconnect behavior, secret references and key-value secret stores, top-level Git/GitHub setup, model-callable tool groups, skills/context resources, boot behavior, storage, resources, and security policy.
+A sandbox-agent is configured by one YAML document mounted inside an already-created container. The document describes model catalog, agent model selection, controller WebSocket settings, controller disconnect behavior, secret references and key-value secret stores, top-level Git/GitHub setup, model-callable tool groups, skills/context resources, boot behavior, storage, observability, and security policy. Manager/container launch choices such as identity, image, backend, labels, and CPU/memory resources live outside this YAML.
 
 Manager-only settings such as container runtime driver selection, host volume source paths, manager database retention, and frontend auth are not part of the sandbox YAML unless explicitly documented. The manager materializes those concerns into mounts, environment variables, secret refs, and controller endpoints before launching the sandbox.
 
@@ -188,7 +188,6 @@ OAuth requirements:
 ```ts
 type SandboxConfigV1 = {
   version: 1;
-  identity?: SandboxIdentity;
   secretStores?: SecretStoresConfig;
   modelCatalog?: ModelCatalogConfig;
   agent: AgentConfig;
@@ -200,16 +199,10 @@ type SandboxConfigV1 = {
   boot?: BootConfig;
   security?: SecurityConfig;
   storage?: StorageConfig;
-  resources?: ResourceConfig;
   observability?: ObservabilityConfig;
 };
 
-type SandboxIdentity = {
-  sandboxId?: string;
-  name?: string;
-  labels?: Record<string, string>;
-  annotations?: Record<string, string>;
-};
+Sandbox identity, display name, container labels, image, backend, and CPU/memory resources are manager launch config, not sandbox-agent YAML. Managed sandboxes receive `NERVE_SANDBOX_AGENT_SANDBOX_ID` and `NERVE_SANDBOX_AGENT_INSTANCE_ID` from the manager at container start.
 
 type AgentConfig = {
   mainModel: AgentModelSelection;
@@ -708,7 +701,7 @@ Boot requirements:
 - Package-manager caches SHOULD live under `/state/cache/dependencies` or an implementation-documented protected cache path.
 - Private registry tokens MUST be injected only into the package manager invocation or temporary config under protected state.
 
-## Security, storage, resources, and observability
+## Security, storage, and observability
 
 ```ts
 type SecurityConfig = {
@@ -784,13 +777,6 @@ type StorageConfig = {
   };
 };
 
-type ResourceConfig = {
-  cpu?: string;
-  memoryMb?: number;
-  diskMb?: number;
-  maxOpenFiles?: number;
-};
-
 type ObservabilityConfig = {
   logLevel?: "debug" | "info" | "warn" | "error";
   redact?: string[];
@@ -859,12 +845,6 @@ An implementation MAY choose a stricter default. It MUST NOT silently choose a w
 
 ```yaml
 version: 1
-
-identity:
-  name: repo-fixer
-  labels:
-    team: platform
-    environment: dev
 
 secretStores:
   defaultStore: manager

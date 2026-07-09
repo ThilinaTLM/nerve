@@ -401,8 +401,12 @@ describe("Sandbox shared schemas", () => {
     assert.equal(
       sandboxCreateRequestSchema.safeParse({
         config: withoutController,
-        image: "nerve-sandbox-agent:dev",
-        name: "demo",
+        launch: {
+          image: "nerve-sandbox-agent:dev",
+          name: "demo",
+          backend: "docker",
+          resources: { memoryMb: 4096, vcpu: 2 },
+        },
         start: true,
       }).success,
       true,
@@ -716,6 +720,7 @@ describe("Sandbox shared schemas", () => {
     );
     assert.equal(
       managedContainerCreateSpecSchema.safeParse({
+        backend: "docker",
         sandboxId: "sbx_1",
         instanceId: "inst_1",
         image: "nerve-sandbox-agent:dev",

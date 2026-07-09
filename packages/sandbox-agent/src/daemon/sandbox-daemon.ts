@@ -25,6 +25,7 @@ import { RunStateStore } from "../agent/run-state-store.js";
 import { toolResultPreview } from "../agent/tool-result-preview.js";
 import type { SecretResolver } from "../credentials/secret-resolver.js";
 import type { ResolvedModelRuntime } from "../models/model-runtime.js";
+import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
 import { ArtifactStore } from "../state/artifacts.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
 import { ApprovalWaiter } from "../tools/approval-waiter.js";
@@ -70,13 +71,21 @@ export class SandboxDaemon {
   private readonly agentConfigStore?: AgentConfigStore;
   private readonly workspaceDir: string;
   private readonly ready: Promise<void>;
+  private readonly identity: SandboxRuntimeIdentity;
   constructor(
     private readonly config: SandboxConfigV1,
     private readonly configDigest: string,
-    private readonly instanceId = `inst_${Date.now()}`,
+    identity: SandboxRuntimeIdentity | string = {
+      sandboxId: "unknown",
+      instanceId: `inst_${Date.now()}`,
+    },
     private readonly state?: SandboxStateStores,
     private readonly recovered: SandboxDaemonRecoveredState = {},
   ) {
+    this.identity =
+      typeof identity === "string"
+        ? { sandboxId: "unknown", instanceId: identity }
+        : identity;
     // Production always injects a logger from the entrypoint; the NOOP fallback
     // keeps daemons constructed without one (e.g. tests) silent.
     const logger = recovered.logger ?? createNoopLogger();
@@ -89,9 +98,9 @@ export class SandboxDaemon {
           state.events,
           undefined,
           {
-            instanceId,
+            instanceId: this.identity.instanceId,
             configDigest,
-            sandboxId: config.identity?.sandboxId,
+            sandboxId: this.identity.sandboxId,
           },
           logger.child({ component: "run-manager" }),
         )
@@ -117,9 +126,9 @@ export class SandboxDaemon {
     if (state && this.runs) {
       const workspaceDir = this.workspaceDir;
       const eventCommonData = {
-        instanceId,
+        instanceId: this.identity.instanceId,
         configDigest,
-        sandboxId: config.identity?.sandboxId,
+        sandboxId: this.identity.sandboxId,
       };
       const readOnlyToolRuntime = new SandboxToolRuntime(config, {
         workspaceDir,
@@ -164,9 +173,9 @@ export class SandboxDaemon {
           approval: this.approvalWaiter,
         },
         {
-          instanceId,
+          instanceId: this.identity.instanceId,
           configDigest,
-          sandboxId: config.identity?.sandboxId,
+          sandboxId: this.identity.sandboxId,
         },
         new ArtifactStore(state.stateDir),
         logger.child({ component: "harness-bridge" }),
@@ -215,8 +224,8 @@ export class SandboxDaemon {
         ...(this.approvalWaiter?.list() ?? []),
       ];
       return {
-        sandboxId: this.config.identity?.sandboxId,
-        instanceId: this.instanceId,
+        sandboxId: this.identity.sandboxId,
+        instanceId: this.identity.instanceId,
         status: this.status.status,
         connected: true,
         stale: false,
@@ -243,7 +252,8 @@ export class SandboxDaemon {
       return buildSandboxSnapshot({
         config: this.config,
         configDigest: this.configDigest,
-        instanceId: this.instanceId,
+        sandboxId: this.identity.sandboxId,
+        instanceId: this.identity.instanceId,
         status: this.status.status,
         connected: true,
         stale: false,
@@ -279,15 +289,16 @@ export class SandboxDaemon {
         };
         const snapshot = await buildConversationSnapshot({
           config: this.config,
-          instanceId: this.instanceId,
+          sandboxId: this.identity.sandboxId,
+          instanceId: this.identity.instanceId,
           runs: this.runs,
           bridge: this.bridge,
           cursorSeq: this.state?.events.all().at(-1)?.seq ?? 0,
           ...input,
         });
         return {
-          sandboxId: this.config.identity?.sandboxId,
-          instanceId: this.instanceId,
+          sandboxId: this.identity.sandboxId,
+          instanceId: this.identity.instanceId,
           status: this.status.status,
           connected: true,
           stale: false,

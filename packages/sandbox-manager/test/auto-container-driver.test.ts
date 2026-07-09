@@ -16,6 +16,7 @@ import type {
 } from "../src/drivers/container-runtime-driver.js";
 
 const createSpec: ManagedContainerCreateSpec = {
+  backend: "auto",
   sandboxId: "sbx_1",
   instanceId: "inst_1",
   image: "nerve-sandbox-agent:dev",

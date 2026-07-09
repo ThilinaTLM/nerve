@@ -48,15 +48,26 @@ security:
 
 ## 2. Full YAML config
 
-```yaml
-version: 1
+Launch metadata is supplied to the manager separately:
 
-identity:
+```yaml
+launch:
   sandboxId: sbx_01KWFTEST00000000000000001
   name: platform-repo-worker
+  backend: docker
+  image: nerve-sandbox-agent:dev
   labels:
     team: platform
     tier: dev
+  resources:
+    memoryMb: 4096
+    vcpu: 2
+```
+
+The mounted sandbox-agent YAML starts with runtime behavior only:
+
+```yaml
+version: 1
 
 secretStores:
   defaultStore: manager

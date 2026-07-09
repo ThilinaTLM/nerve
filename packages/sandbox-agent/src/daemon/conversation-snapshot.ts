@@ -19,6 +19,7 @@ import { sandboxSha256Digest } from "../state/hash.js";
 
 export async function buildConversationSnapshot(input: {
   config: SandboxConfigV1;
+  sandboxId?: string;
   instanceId: string;
   runs?: RunManager;
   bridge?: HarnessEventBridge;
@@ -61,7 +62,7 @@ export async function buildConversationSnapshot(input: {
   return conversationSnapshotSchema.parse({
     conversation: {
       id: selected.conversationId,
-      projectId: projectId(input.config, input.instanceId),
+      projectId: projectId(input.sandboxId ?? input.instanceId),
       title: titleFor(entries, selected),
       mode: modeFor(selected, input.config),
       permissionLevel: input.config.agent.permissionLevel ?? "autonomous",
@@ -149,6 +150,7 @@ async function readToolCalls(
   conversationRuns: RunState[],
   input: {
     config: SandboxConfigV1;
+    sandboxId?: string;
     instanceId: string;
     bridge?: HarnessEventBridge;
   },
@@ -168,6 +170,7 @@ function toToolCallTranscriptRecord(
   record: SandboxToolCallRecord,
   input: {
     config: SandboxConfigV1;
+    sandboxId?: string;
     instanceId: string;
     bridge?: HarnessEventBridge;
   },
@@ -187,7 +190,7 @@ function toToolCallTranscriptRecord(
     providerToolCallId: record.toolCallId,
     conversationId: record.conversationId,
     agentId: record.agentId,
-    projectId: projectId(input.config, input.instanceId),
+    projectId: projectId(input.sandboxId ?? input.instanceId),
     runId: record.runId,
     turnId: record.turnId ?? anchor?.turnId,
     liveMessageId: record.liveMessageId ?? anchor?.liveMessageId,
@@ -236,8 +239,7 @@ function modeFor(
   return config.agent.mode === "planning" ? "planning" : "coding";
 }
 
-function projectId(config: SandboxConfigV1, instanceId: string): string {
-  const source = config.identity?.sandboxId ?? instanceId;
+function projectId(source: string): string {
   return `proj_sandbox_${sandboxSha256Digest(source).slice(7, 23)}`;
 }
 

@@ -23,6 +23,7 @@ import type {
   ManagedContainerStatus,
   RemoveOptions,
   RuntimeDriverCapabilities,
+  RuntimeResourceSpec,
   StopOptions,
   VolumeRef,
 } from "@nervekit/shared";
@@ -130,6 +131,7 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
         supportsMemoryLimit: true,
         supportsTmpfs: false,
         supportsLogs: !!this.config.ecsLogGroup,
+        resourceOptions: fargateResourceOptions(),
         limitations: available
           ? limitations
           : [
@@ -148,6 +150,7 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
         supportsMemoryLimit: true,
         supportsTmpfs: false,
         supportsLogs: !!this.config.ecsLogGroup,
+        resourceOptions: fargateResourceOptions(),
         limitations: [errorMessage(error), ...limitations],
       };
     }
@@ -345,8 +348,9 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
     spec: ManagedContainerCreateSpec,
     tags: EcsTag[],
   ): RegisterTaskDefinitionCommandInput {
-    const taskCpu = ecsTaskCpu(spec.resources?.cpu);
+    const taskCpu = ecsTaskCpu(spec.resources);
     const taskMemory = String(spec.resources?.memoryMb ?? 4096);
+    assertValidFargateResources(Number(taskCpu), Number(taskMemory));
     const volumes = spec.mounts.map((mount, index) => ({
       name: ecsVolumeName(mount, index),
       efsVolumeConfiguration: {
@@ -544,12 +548,52 @@ function ecsTags(spec: ManagedContainerCreateSpec): EcsTag[] {
   return Array.from(base.entries()).map(([key, value]) => ({ key, value }));
 }
 
-function ecsTaskCpu(value: string | undefined): string {
-  if (!value) return "1024";
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return value;
-  if (Number.isInteger(parsed) && parsed >= 128) return String(parsed);
-  return String(Math.max(256, Math.round(parsed * 1024)));
+const FARGATE_RESOURCE_PRESETS = [
+  { cpuUnits: 256, vcpu: 0.25, memoryMb: [512, 1024, 2048] },
+  { cpuUnits: 512, vcpu: 0.5, memoryMb: range(1024, 4096, 1024) },
+  { cpuUnits: 1024, vcpu: 1, memoryMb: range(2048, 8192, 1024) },
+  { cpuUnits: 2048, vcpu: 2, memoryMb: range(4096, 16384, 1024) },
+  { cpuUnits: 4096, vcpu: 4, memoryMb: range(8192, 30720, 1024) },
+  { cpuUnits: 8192, vcpu: 8, memoryMb: range(16384, 61440, 4096) },
+  { cpuUnits: 16384, vcpu: 16, memoryMb: range(32768, 122880, 8192) },
+];
+
+function fargateResourceOptions(): RuntimeDriverCapabilities["resourceOptions"] {
+  return {
+    memoryMb: { min: 512, max: 122880, step: 512, default: 4096 },
+    vcpu: { min: 0.25, max: 16, step: 0.25, default: 1 },
+    cpuUnits: { min: 256, max: 16384, step: 256, default: 1024 },
+    fargate: { presets: FARGATE_RESOURCE_PRESETS },
+  };
+}
+
+function ecsTaskCpu(resources: RuntimeResourceSpec | undefined): string {
+  if (resources?.cpuUnits) return String(resources.cpuUnits);
+  if (resources?.vcpu)
+    return String(Math.max(256, Math.round(resources.vcpu * 1024)));
+  return "1024";
+}
+
+function assertValidFargateResources(cpuUnits: number, memoryMb: number): void {
+  const preset = FARGATE_RESOURCE_PRESETS.find(
+    (entry) => entry.cpuUnits === cpuUnits,
+  );
+  if (!preset) {
+    throw new Error(
+      `Invalid ECS/Fargate CPU units ${cpuUnits}; choose one of ${FARGATE_RESOURCE_PRESETS.map((entry) => entry.cpuUnits).join(", ")}`,
+    );
+  }
+  if (!preset.memoryMb.includes(memoryMb)) {
+    throw new Error(
+      `Invalid ECS/Fargate memory ${memoryMb} MB for CPU ${cpuUnits}; valid values are ${preset.memoryMb.join(", ")}`,
+    );
+  }
+}
+
+function range(min: number, max: number, step: number): number[] {
+  const values: number[] = [];
+  for (let value = min; value <= max; value += step) values.push(value);
+  return values;
 }
 
 function linuxParameters(

@@ -564,13 +564,6 @@ export const sandboxStorageConfigSchema = z.object({
     .optional(),
 });
 
-export const sandboxResourceConfigSchema = z.object({
-  cpu: z.string().min(1).optional(),
-  memoryMb: z.number().int().positive().safe().optional(),
-  diskMb: z.number().int().positive().safe().optional(),
-  maxOpenFiles: z.number().int().positive().safe().optional(),
-});
-
 export const sandboxObservabilityConfigSchema = z.object({
   logLevel: z.enum(["debug", "info", "warn", "error"]).optional(),
   redact: z.array(z.string().min(1)).optional(),
@@ -579,14 +572,6 @@ export const sandboxObservabilityConfigSchema = z.object({
 
 export const sandboxConfigV1BaseSchema = z.strictObject({
   version: z.literal(1),
-  identity: z
-    .object({
-      sandboxId: z.string().min(1).optional(),
-      name: z.string().min(1).optional(),
-      labels: stringRecordSchema.optional(),
-      annotations: stringRecordSchema.optional(),
-    })
-    .optional(),
   secretStores: sandboxSecretStoresConfigSchema.optional(),
   modelCatalog: sandboxModelCatalogConfigSchema.optional(),
   agent: sandboxAgentConfigSchema,
@@ -598,7 +583,6 @@ export const sandboxConfigV1BaseSchema = z.strictObject({
   boot: sandboxBootConfigSchema.optional(),
   security: sandboxSecurityConfigSchema.optional(),
   storage: sandboxStorageConfigSchema.optional(),
-  resources: sandboxResourceConfigSchema.optional(),
   observability: sandboxObservabilityConfigSchema.optional(),
 });
 

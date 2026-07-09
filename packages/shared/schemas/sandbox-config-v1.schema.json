@@ -9,38 +9,6 @@
       "type": "number",
       "const": 1
     },
-    "identity": {
-      "type": "object",
-      "properties": {
-        "sandboxId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "labels": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "annotations": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": false
-    },
     "secretStores": {
       "type": "object",
       "properties": {
@@ -8396,31 +8364,6 @@
             }
           },
           "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    "resources": {
-      "type": "object",
-      "properties": {
-        "cpu": {
-          "type": "string",
-          "minLength": 1
-        },
-        "memoryMb": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
-        },
-        "diskMb": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
-        },
-        "maxOpenFiles": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
         }
       },
       "additionalProperties": false

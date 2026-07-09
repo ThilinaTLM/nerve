@@ -3,6 +3,7 @@ import { Redactor } from "../security/redaction.js";
 export function buildSandboxSnapshot(input: {
   config?: SandboxConfigV1;
   configDigest?: string;
+  sandboxId?: string;
   instanceId: string;
   status: string;
   connected?: boolean;
@@ -29,7 +30,6 @@ export function buildSandboxSnapshot(input: {
     config: input.config
       ? {
           version: input.config.version,
-          identity: input.config.identity,
           agent: input.config.agent,
         }
       : undefined,

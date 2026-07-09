@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { type ExecFileOptions, execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import type {
   LogReadOptions,
@@ -17,15 +17,17 @@ import type {
 import { assertValidManagedContainerCreateSpec } from "./validation.js";
 
 const execFileAsync = promisify(execFile);
+type CliDriverKind = "docker" | "podman" | "podman-wsl";
+type CliCommand = string | string[];
+
 export class CliContainerDriver implements ContainerRuntimeDriver {
   constructor(
-    readonly kind: "docker" | "podman",
-    private readonly bin = kind,
+    readonly kind: CliDriverKind,
+    private readonly command: CliCommand = kind,
   ) {}
   async capabilities(): Promise<RuntimeDriverCapabilities> {
     try {
-      const { stdout } = await execFileAsync(
-        this.bin,
+      const { stdout } = await this.exec(
         [
           "version",
           "--format",
@@ -37,7 +39,10 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
         kind: this.kind,
         available: true,
         version: stdout.trim() || undefined,
-        rootless: this.kind === "podman" ? true : undefined,
+        rootless:
+          this.kind === "podman" || this.kind === "podman-wsl"
+            ? true
+            : undefined,
         supportsReadOnlyRootFilesystem: true,
         supportsNoNewPrivileges: true,
         supportsPidsLimit: true,
@@ -45,6 +50,10 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
         supportsMemoryLimit: true,
         supportsTmpfs: true,
         supportsLogs: true,
+        resourceOptions: {
+          memoryMb: { min: 128, step: 128, default: 4096 },
+          vcpu: { min: 0.25, step: 0.25 },
+        },
         limitations: [],
       };
     } catch {
@@ -58,26 +67,23 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
         supportsMemoryLimit: false,
         supportsTmpfs: false,
         supportsLogs: false,
-        limitations: [`${this.bin} CLI is not available`],
+        limitations: [`${this.commandDescription()} CLI is not available`],
       };
     }
   }
   async create(spec: ManagedContainerCreateSpec): Promise<ManagedContainerRef> {
     assertValidManagedContainerCreateSpec(spec, { production: true });
-    const { stdout } = await execFileAsync(
-      this.bin,
-      containerCreateArgs(spec),
-      { timeout: 30_000 },
-    );
+    const { stdout } = await this.exec(containerCreateArgs(spec), {
+      timeout: 30_000,
+    });
     return { kind: this.kind, id: stdout.trim(), name: containerName(spec) };
   }
   async start(ref: ManagedContainerRef): Promise<void> {
-    await execFileAsync(this.bin, ["start", ref.id], { timeout: 30_000 });
+    await this.exec(["start", ref.id], { timeout: 30_000 });
   }
   async inspect(ref: ManagedContainerRef): Promise<ManagedContainerStatus> {
     try {
-      const { stdout } = await execFileAsync(
-        this.bin,
+      const { stdout } = await this.exec(
         ["inspect", ref.id, "--format", "{{json .}}"],
         { timeout: 10_000 },
       );
@@ -111,7 +117,7 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
     ref: ManagedContainerRef,
     options: LogReadOptions = {},
   ): AsyncIterable<LogChunk> {
-    const bin = this.bin;
+    const [bin, ...prefix] = this.commandParts();
     return {
       async *[Symbol.asyncIterator]() {
         const args = [
@@ -122,7 +128,9 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
           ...(options.since ? ["--since", options.since] : []),
           ref.id,
         ];
-        const child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
+        const child = spawn(bin, [...prefix, ...args], {
+          stdio: ["ignore", "pipe", "pipe"],
+        });
         for await (const chunk of child.stdout)
           yield { stream: "stdout", chunk: String(chunk) };
         for await (const chunk of child.stderr)
@@ -134,8 +142,7 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
     ref: ManagedContainerRef,
     options: StopOptions = {},
   ): Promise<void> {
-    await execFileAsync(
-      this.bin,
+    await this.exec(
       [
         "stop",
         ...(options.timeoutMs !== undefined
@@ -147,7 +154,7 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
     );
   }
   async kill(ref: ManagedContainerRef, signal = "SIGKILL"): Promise<void> {
-    await execFileAsync(this.bin, ["kill", "--signal", signal, ref.id], {
+    await this.exec(["kill", "--signal", signal, ref.id], {
       timeout: 10_000,
     });
   }
@@ -155,8 +162,7 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
     ref: ManagedContainerRef,
     options: RemoveOptions = {},
   ): Promise<void> {
-    await execFileAsync(
-      this.bin,
+    await this.exec(
       [
         "rm",
         ...(options.force ? ["--force"] : []),
@@ -165,6 +171,25 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
       ],
       { timeout: 30_000 },
     );
+  }
+
+  private commandParts(): string[] {
+    return Array.isArray(this.command) ? this.command : [this.command];
+  }
+
+  private commandDescription(): string {
+    return this.commandParts().join(" ");
+  }
+
+  private exec(
+    args: string[],
+    options: ExecFileOptions,
+  ): Promise<{ stdout: string; stderr: string }> {
+    const [file, ...prefix] = this.commandParts();
+    return execFileAsync(file, [...prefix, ...args], options) as Promise<{
+      stdout: string;
+      stderr: string;
+    }>;
   }
 }
 function mapState(status: string | undefined): ManagedContainerStatus["state"] {

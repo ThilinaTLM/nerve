@@ -15,6 +15,7 @@ import { EventStore } from "../src/state/event-store.js";
 
 function spec(): ManagedContainerCreateSpec {
   return {
+    backend: "docker",
     sandboxId: "sbx_1",
     instanceId: "inst_1",
     image: "nerve-sandbox-agent:dev",

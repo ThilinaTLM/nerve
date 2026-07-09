@@ -31,8 +31,7 @@ class MemoryStorage {
 function validSandboxConfigYaml(sandboxId: string): string {
   return [
     "version: 1",
-    "identity:",
-    `  sandboxId: ${sandboxId}`,
+
     "agent:",
     "  mainModel:",
     "    provider: anthropic",
@@ -64,17 +63,24 @@ describe("create sandbox draft", () => {
     const draft = createDefaultDraft();
     draft.name = "demo";
     draft.labels = "team=core, env=dev";
+    draft.backend = "docker";
+    draft.memoryMb = "8192";
+    draft.vcpu = "2";
     const result = buildCreateRequest(draft);
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.request.name, undefined);
-    assert.equal(result.request.config.identity?.name, "demo");
+    assert.equal(result.request.launch?.name, "demo");
     assert.equal(result.request.start, true);
     assert.equal(result.request.config.agent.mainModel.provider, "anthropic");
     assert.equal(result.request.config.agent.mainModel.thinkingLevel, "off");
-    assert.deepEqual(result.request.config.identity?.labels, {
+    assert.equal(result.request.launch?.backend, "docker");
+    assert.deepEqual(result.request.launch?.labels, {
       team: "core",
       env: "dev",
+    });
+    assert.deepEqual(result.request.launch?.resources, {
+      memoryMb: 8192,
+      vcpu: 2,
     });
     // Transport and auth are manager-owned; the form only supplies shutdown policy.
     assert.deepEqual(result.request.config.controller, {
@@ -131,7 +137,7 @@ describe("create sandbox draft", () => {
     });
     assert.equal(parsed.tools?.groups?.shell?.enabled, true);
     assert.equal(parsed.tools?.groups?.python?.enabled, false);
-    assert.equal(parsed.identity?.labels?.team, "core");
+    assert.equal("identity" in parsed, false);
   });
 
   it("omits boot config by default", () => {
@@ -324,10 +330,10 @@ describe("create sandbox draft", () => {
     const result = buildCreateRequest(draft);
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.request.image, "custom-agent:latest");
+    assert.equal(result.request.launch?.image, "custom-agent:latest");
     assert.equal(result.request.start, false);
     assert.equal(result.request.auth, undefined);
-    assert.equal(result.request.config.identity?.sandboxId, "sbx_yaml");
+    assert.equal(result.request.launch?.sandboxId, draft.sandboxId);
     assert.equal(result.request.config.agent.mainModel.provider, "anthropic");
     assert.equal(
       result.request.config.agent.mainModel.model,
@@ -340,7 +346,7 @@ describe("create sandbox draft", () => {
       parseSandboxConfigYaml(validSandboxConfigYaml("sbx_yaml")),
     );
     const parsed = parseSandboxConfigYaml(yaml);
-    assert.equal(parsed.identity?.sandboxId, "sbx_yaml");
+    assert.equal("identity" in parsed, false);
     assert.equal(parsed.agent.mainModel.provider, "anthropic");
     assert.equal(parsed.agent.mainModel.model, "claude-sonnet-4-5");
     assert.deepEqual(parsed.controller.auth.apiKey, {
@@ -372,6 +378,9 @@ describe("create sandbox draft", () => {
     draft.sandboxId = "custom-id";
     draft.image = "custom-image:latest";
     draft.labels = "team=ops";
+    draft.backend = "podman";
+    draft.memoryMb = "6144";
+    draft.vcpu = "1.5";
     draft.startAfterCreate = false;
     draft.mainProvider = "openai";
     draft.mainModel = "gpt-5.1-codex-max";
@@ -412,7 +421,10 @@ describe("create sandbox draft", () => {
     assert.notEqual(restored.sandboxId, "custom-id");
     assert.match(restored.name, /^[a-z]+-[a-z]+-[a-z]+$/);
     assert.equal(restored.image, "custom-image:latest");
+    assert.equal(restored.backend, "podman");
     assert.equal(restored.labels, "team=ops");
+    assert.equal(restored.memoryMb, "6144");
+    assert.equal(restored.vcpu, "1.5");
     assert.equal(restored.startAfterCreate, false);
     assert.equal(restored.mainProvider, "openai");
     assert.equal(restored.mainModel, "gpt-5.1-codex-max");

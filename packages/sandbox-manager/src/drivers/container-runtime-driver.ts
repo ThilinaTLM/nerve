@@ -5,6 +5,7 @@ import type {
   ManagedContainerStatus,
   RemoveOptions,
   RuntimeDriverCapabilities,
+  SandboxManagerBackendOption,
   StopOptions,
 } from "@nervekit/shared";
 
@@ -30,6 +31,7 @@ export interface ContainerRuntimeDriver {
   kill(ref: ManagedContainerRef, signal?: string): Promise<void>;
   remove(ref: ManagedContainerRef, options?: RemoveOptions): Promise<void>;
   listManaged?(): Promise<ManagedContainerRef[]>;
+  backendOptions?(): Promise<SandboxManagerBackendOption[]>;
 }
 
 export function unavailableRuntimeCapabilities(

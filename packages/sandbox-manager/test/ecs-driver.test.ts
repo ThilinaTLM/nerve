@@ -42,7 +42,6 @@ function managerConfig(
 function sandboxConfig(): SandboxConfigV1 {
   return {
     version: 1,
-    identity: { sandboxId: "sbx_1" },
     agent: {
       mainModel: { provider: "openai-codex", model: "gpt-5.4-mini" },
     },

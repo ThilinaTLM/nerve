@@ -3,28 +3,38 @@ import { promisify } from "node:util";
 import type { ManagedContainerRef } from "@nervekit/shared";
 
 const execFileAsync = promisify(execFile);
-export type OrphanDiscoveryBackend = "auto" | "docker" | "podman";
+export type OrphanDiscoveryBackend =
+  | "auto"
+  | "docker"
+  | "podman"
+  | "podman-wsl";
 
 export async function discoverOrphanContainers(
   backend: OrphanDiscoveryBackend = "docker",
 ): Promise<ManagedContainerRef[]> {
   if (backend === "auto") {
-    const [docker, podman] = await Promise.all([
-      discoverOrphanContainersForBin("docker"),
-      discoverOrphanContainersForBin("podman"),
+    const [docker, podman, podmanWsl] = await Promise.all([
+      discoverOrphanContainersForBin("docker", ["docker"]),
+      discoverOrphanContainersForBin("podman", ["podman"]),
+      discoverOrphanContainersForBin("podman-wsl", ["wsl.exe", "--", "podman"]),
     ]);
-    return [...docker, ...podman];
+    return [...docker, ...podman, ...podmanWsl];
   }
-  return discoverOrphanContainersForBin(backend);
+  if (backend === "podman-wsl")
+    return discoverOrphanContainersForBin(backend, ["wsl.exe", "--", "podman"]);
+  return discoverOrphanContainersForBin(backend, [backend]);
 }
 
 async function discoverOrphanContainersForBin(
-  bin: "docker" | "podman",
+  kind: Exclude<OrphanDiscoveryBackend, "auto">,
+  command: string[],
 ): Promise<ManagedContainerRef[]> {
+  const [bin, ...prefix] = command;
   try {
     const { stdout } = await execFileAsync(
       bin,
       [
+        ...prefix,
         "ps",
         "-a",
         "--filter",
@@ -39,7 +49,7 @@ async function discoverOrphanContainersForBin(
       .filter(Boolean)
       .map((line) => {
         const [id, name] = line.split(/\s+/, 2);
-        return { kind: bin, id, name };
+        return { kind, id, name };
       });
   } catch {
     return [];

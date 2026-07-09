@@ -6,6 +6,7 @@ import type {
   SandboxConfigYamlResult,
   SandboxCreateAuthRefs,
   SandboxCreateConfigInput,
+  SandboxLaunchConfig,
 } from "@nervekit/shared";
 import {
   sandboxConfigDigestStable,
@@ -17,7 +18,11 @@ import {
   applyCredentialProfiles,
   selectProfiles,
 } from "../config/apply-credential-profiles.js";
-import { materializeSandboxConfig } from "../config/materialize-sandbox-config.js";
+import {
+  materializeSandboxConfig,
+  parseSandboxConfigInput,
+} from "../config/materialize-sandbox-config.js";
+import { normalizeSandboxLaunchConfig } from "../config/sandbox-launch-config.js";
 import { dbTables } from "../db/tables.js";
 import { HttpError } from "../http/errors.js";
 import { buildSecretPolicy } from "../secrets/secret-policy.js";
@@ -33,11 +38,15 @@ type MaterializedSandboxConfig = {
 export async function previewSandboxConfigYaml(
   state: ManagerState,
   config: SandboxCreateConfigInput,
+  launch?: SandboxLaunchConfig,
   auth?: SandboxCreateAuthRefs,
 ): Promise<SandboxConfigYamlResult> {
+  const normalizedLaunch = normalizeSandboxLaunchConfig(state.config, launch, {
+    preview: true,
+  });
   const materialized = await materializeManagedSandboxConfig(state, config, {
     auth,
-    sandboxId: config.identity?.sandboxId ?? "sbx_preview",
+    sandboxId: normalizedLaunch.sandboxId,
   });
   return {
     sandboxId: materialized.sandboxId,
@@ -57,7 +66,7 @@ export async function getSandboxConfigYaml(
   if (record.configRef?.source) {
     try {
       const yaml = await readFile(record.configRef.source, "utf8");
-      const parsed = sandboxConfigV1Schema.parse(parseYaml(yaml));
+      const parsed = parseSandboxConfigInput(parseYaml(yaml));
       return {
         sandboxId: record.sandboxId,
         yaml,
@@ -77,7 +86,7 @@ export async function getSandboxConfigYaml(
   const config = result.rows[0]?.materialized_config;
   if (!config)
     throw new HttpError(409, "Sandbox config is unavailable", "INVALID_STATE");
-  const parsed = sandboxConfigV1Schema.parse(config);
+  const parsed = parseSandboxConfigInput(config);
   return {
     sandboxId: record.sandboxId,
     yaml: materializeSandboxConfig(parsed),
@@ -89,12 +98,12 @@ export async function getSandboxConfigYaml(
 export async function createSandboxRecord(
   state: ManagerState,
   config: SandboxCreateConfigInput,
-  image = "nerve-sandbox-agent:dev",
-  name?: string,
+  launch?: SandboxLaunchConfig,
   auth?: SandboxCreateAuthRefs,
 ): Promise<ManagedSandboxRecord> {
   const now = new Date().toISOString();
-  const sandboxId = config.identity?.sandboxId ?? `sbx_${randomUUID()}`;
+  const normalizedLaunch = normalizeSandboxLaunchConfig(state.config, launch);
+  const sandboxId = normalizedLaunch.sandboxId;
   const instanceId = `inst_${randomUUID()}`;
   const token = `ntok_${randomBytes(32).toString("base64url")}`;
   const materialized = await materializeManagedSandboxConfig(state, config, {
@@ -118,10 +127,11 @@ export async function createSandboxRecord(
   const record: ManagedSandboxRecord = {
     sandboxId,
     instanceId,
-    name: name ?? materialized.config.identity?.name,
-    labels: materialized.config.identity?.labels,
-    backend: state.config.backend,
-    image: { reference: image, sandboxSpec: "v1" },
+    name: normalizedLaunch.name,
+    labels: normalizedLaunch.labels,
+    backend: normalizedLaunch.backend,
+    resources: normalizedLaunch.resources,
+    image: { reference: normalizedLaunch.image, sandboxSpec: "v1" },
     desiredState: "created",
     observedState: "unknown",
     configDigest: materialized.configDigest,
@@ -156,17 +166,10 @@ async function materializeManagedSandboxConfig(
   const controllerUrl = `${managerWsBaseUrl(state)}/api/sandboxes/${encodeURIComponent(
     options.sandboxId,
   )}/ws`;
-  const withProfiles = applyCredentialProfiles(
-    {
-      ...config,
-      identity: { ...config.identity, sandboxId: options.sandboxId },
-    },
-    requestedProfiles,
-    {
-      sandboxId: options.sandboxId,
-      managerHttpBaseUrl: managerHttpBaseUrl(state),
-    },
-  );
+  const withProfiles = applyCredentialProfiles(config, requestedProfiles, {
+    sandboxId: options.sandboxId,
+    managerHttpBaseUrl: managerHttpBaseUrl(state),
+  });
   const materializedConfig: SandboxConfigV1 = sandboxConfigV1Schema.parse({
     ...withProfiles,
     controller: {

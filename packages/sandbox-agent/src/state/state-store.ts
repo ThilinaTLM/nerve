@@ -3,6 +3,7 @@ import path from "node:path";
 import type { SandboxConfigV1 } from "@nervekit/shared";
 import { stringify as stringifyYaml } from "yaml";
 import { canonicalJson } from "../config/digest.js";
+import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
 import { StateLock, StateLockConflictError } from "./file-lock.js";
 import { atomicWriteFile } from "./json-store.js";
 import {
@@ -35,6 +36,9 @@ export async function initializeSandboxState(
   configDigest: string,
   configPath: string,
   paths: SandboxRuntimePaths = resolveSandboxRuntimePaths(),
+  identity: Pick<SandboxRuntimeIdentity, "sandboxId"> = {
+    sandboxId: "unknown",
+  },
 ): Promise<PersistedConfigState> {
   try {
     await mkdir(paths.stateDir, { recursive: true });
@@ -68,7 +72,7 @@ export async function initializeSandboxState(
     );
     await atomicWriteFile(
       path.join(paths.configDir, "effective.json"),
-      `${JSON.stringify(effectiveConfigSummary(config, paths), null, 2)}\n`,
+      `${JSON.stringify(effectiveConfigSummary(config, paths, identity), null, 2)}\n`,
     );
     await atomicWriteFile(
       path.join(paths.stateDir, "status.json"),
@@ -196,10 +200,11 @@ async function exists(filePath: string): Promise<boolean> {
 function effectiveConfigSummary(
   config: SandboxConfigV1,
   paths: SandboxRuntimePaths,
+  identity: Pick<SandboxRuntimeIdentity, "sandboxId">,
 ): Record<string, unknown> {
   return {
     version: config.version,
-    sandboxId: config.identity?.sandboxId,
+    sandboxId: identity.sandboxId,
     workspaceDir: paths.workspaceDir,
     stateDir: paths.stateDir,
     mainModel: config.agent.mainModel,

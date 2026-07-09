@@ -66,7 +66,8 @@ type ManagedSandboxRecord = {
   instanceId?: string;
   name?: string;
   labels?: Record<string, string>;
-  backend: "docker" | "podman" | "ecs" | string;
+  backend: "auto" | "docker" | "podman" | "podman-wsl" | "ecs" | string;
+  resources?: RuntimeResourceSpec;
   image: {
     reference: string;
     digest?: string;
@@ -88,8 +89,22 @@ type ManagedSandboxRecord = {
   containerRef?: ManagedContainerRef;
 };
 
+type SandboxLaunchConfig = {
+  sandboxId?: string;
+  name?: string;
+  image?: string;
+  backend?: "auto" | "docker" | "podman" | "podman-wsl" | "ecs";
+  labels?: Record<string, string>;
+  resources?: RuntimeResourceSpec;
+};
+
+// SandboxConfigV1 YAML is mounted inside the container. SandboxLaunchConfig is
+// manager-owned launch state decided before the container is created. The
+// manager injects NERVE_SANDBOX_AGENT_SANDBOX_ID and
+// NERVE_SANDBOX_AGENT_INSTANCE_ID so the daemon knows its runtime identity.
+
 type ManagedContainerRef = {
-  kind: "docker" | "podman" | "ecs" | string;
+  kind: "docker" | "podman" | "podman-wsl" | "ecs" | string;
   id: string;
   name?: string;
   /** Backend-neutral, non-secret runtime metadata such as ECS task/log ARNs. */
@@ -154,7 +169,7 @@ The manager SHOULD implement runtime backends through a driver abstraction equiv
 
 ```ts
 type ContainerRuntimeDriver = {
-  kind: "docker" | "podman" | "ecs" | string;
+  kind: "docker" | "podman" | "podman-wsl" | "ecs" | string;
   capabilities(): RuntimeDriverCapabilities;
   create(spec: ManagedContainerCreateSpec): Promise<ManagedContainerRef>;
   start(ref: ManagedContainerRef): Promise<void>;
@@ -172,6 +187,7 @@ A driver MUST report limitations rather than claiming support for controls it ca
 
 ```ts
 type ManagedContainerCreateSpec = {
+  backend: "auto" | "docker" | "podman" | "podman-wsl" | "ecs" | string;
   sandboxId: string;
   instanceId: string;
   image: string;
@@ -206,8 +222,9 @@ type RuntimeSecuritySpec = {
 };
 
 type RuntimeResourceSpec = {
-  cpu?: string;
   memoryMb?: number;
+  vcpu?: number;
+  cpuUnits?: number; // ECS/Fargate advanced override
   diskMb?: number;
   maxOpenFiles?: number;
 };

@@ -14,8 +14,9 @@ import {
 } from "./container-runtime-driver.js";
 import { DockerDriver } from "./docker-driver.js";
 import { PodmanDriver } from "./podman-driver.js";
+import { PodmanWslDriver } from "./podman-wsl-driver.js";
 
-const LOCAL_DRIVER_KINDS = new Set(["docker", "podman"]);
+const LOCAL_DRIVER_KINDS = new Set(["docker", "podman", "podman-wsl"]);
 
 export class AutoContainerDriver implements ContainerRuntimeDriver {
   readonly kind = "auto";
@@ -25,6 +26,7 @@ export class AutoContainerDriver implements ContainerRuntimeDriver {
     private readonly drivers: ContainerRuntimeDriver[] = [
       new DockerDriver(),
       new PodmanDriver(),
+      new PodmanWslDriver(),
     ],
   ) {}
 

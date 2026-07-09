@@ -9,7 +9,7 @@ It is not the current local workbench with minor changes. It should reuse the sa
 The UI should let users:
 
 - connect to a sandbox manager;
-- view sandbox fleet status across Docker/Podman and ECS/Fargate backends;
+- view sandbox fleet status across Docker, Podman, Podman-on-WSL, and ECS/Fargate backends;
 - create/start/stop/remove sandboxes according to manager policy;
 - inspect sanitized configs, image/runtime metadata, workspace/state volume refs, and backend limitations;
 - view setup and boot timelines;
@@ -85,7 +85,7 @@ Shows all known sandboxes:
 
 - name/ID;
 - desired and observed state;
-- runtime backend (`docker`, `podman`, `ecs`);
+- runtime backend (`docker`, `podman`, `podman-wsl`, `ecs`);
 - image reference/digest;
 - daemon status (`ready`, `running`, `degraded`, `failed`, `reconnecting`);
 - active run count;
@@ -165,9 +165,9 @@ The UI MUST never display raw secret values.
 
 Shows manager-level runtime backend configuration:
 
-- Docker/Podman availability;
+- Docker/Podman/Podman-on-WSL/ECS availability;
 - default image references;
-- default resource/security profiles;
+- backend-specific resource/security profiles;
 - retention defaults;
 - ECS cluster/network/EFS profile summaries and backend limitations.
 
@@ -175,7 +175,7 @@ Shows manager-level runtime backend configuration:
 
 The UI can issue commands only through the manager. Examples:
 
-- create sandbox from template/config;
+- create sandbox from template/config with separate manager launch options for identity, image, labels, backend, memory, vCPU/CPU units, and start behavior;
 - start sandbox;
 - stop sandbox;
 - remove sandbox/container;

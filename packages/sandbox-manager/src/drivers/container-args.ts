@@ -32,7 +32,7 @@ export function containerCreateArgs(
     args.push("--pids-limit", String(spec.security.pidsLimit));
   if (spec.resources?.memoryMb)
     args.push("--memory", `${spec.resources.memoryMb}m`);
-  if (spec.resources?.cpu) args.push("--cpus", spec.resources.cpu);
+  if (spec.resources?.vcpu) args.push("--cpus", String(spec.resources.vcpu));
   if (spec.healthcheck?.command)
     args.push("--health-cmd", spec.healthcheck.command.join(" "));
   if (spec.healthcheck?.intervalMs)

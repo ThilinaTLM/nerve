@@ -367,7 +367,8 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
         method: "POST",
         headers: { "Idempotency-Key": "create-1" },
         body: JSON.stringify({
-          config: { ...config, identity: { sandboxId: "sbx_other" } },
+          config,
+          launch: { sandboxId: "sbx_other" },
         }),
       });
       assert.equal(conflict.status, 409);

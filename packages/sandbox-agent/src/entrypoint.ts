@@ -10,6 +10,7 @@ import { SecretResolver } from "./credentials/secret-resolver.js";
 import { SandboxDaemon } from "./daemon/sandbox-daemon.js";
 import { resolveModelRuntime } from "./models/model-runtime.js";
 import { ProtocolSession } from "./protocol/session.js";
+import { resolveSandboxRuntimeIdentity } from "./runtime/identity.js";
 import { HttpKvSecretStoreClient } from "./secret-stores/http-kv-client.js";
 import { SecretStoreRegistry } from "./secret-stores/secret-store-registry.js";
 import {
@@ -54,8 +55,7 @@ export async function runSandboxEntrypoint(
   const configPath = resolveSandboxConfigPath(env);
   const config = await loadSandboxConfig(configPath);
   const configDigest = sandboxConfigDigest(config);
-  const instanceId =
-    env.NERVE_SANDBOX_AGENT_INSTANCE_ID ?? `inst_${Date.now()}`;
+  const identity = resolveSandboxRuntimeIdentity(env);
   const logger = createLogger({
     level: resolveLogLevel(
       env.NERVE_SANDBOX_AGENT_LOG_LEVEL,
@@ -64,8 +64,8 @@ export async function runSandboxEntrypoint(
     base: {
       source: "sandbox-agent",
       component: "sandbox-agent",
-      sandboxId: config.identity?.sandboxId,
-      instanceId,
+      sandboxId: identity.sandboxId,
+      instanceId: identity.instanceId,
       configDigest,
     },
     redactKeys: config.observability?.redact,
@@ -84,6 +84,7 @@ export async function runSandboxEntrypoint(
     configDigest,
     configPath,
     paths,
+    identity,
   );
   const stores = new SandboxStateStores(paths.stateDir);
   await stores.load();
@@ -96,7 +97,7 @@ export async function runSandboxEntrypoint(
     await stores.events.append({
       type,
       durability,
-      data: { instanceId, configDigest, ...data },
+      data: { ...identity, configDigest, ...data },
     });
   };
 
@@ -204,13 +205,13 @@ export async function runSandboxEntrypoint(
       resolver,
       redactor,
       eventSink: stores.events,
-      instanceId,
+      instanceId: identity.instanceId,
       env: setupEnv,
     }),
   );
 
   // 14. durable state is already loaded; create daemon after recovery.
-  const daemon = new SandboxDaemon(config, configDigest, instanceId, stores, {
+  const daemon = new SandboxDaemon(config, configDigest, identity, stores, {
     setup: { git, github },
     skills,
     contextFiles,
@@ -224,7 +225,7 @@ export async function runSandboxEntrypoint(
     config,
     daemon,
     stores,
-    instanceId,
+    identity,
     configDigest,
     env,
     logger.child({ component: "controller-session" }),

@@ -8,13 +8,13 @@ import {
 import {
   type ManagedSandboxRecord,
   type SandboxConfigV1,
-  sandboxConfigV1Schema,
+  sandboxConfigDigestStable,
   sandboxContainerLogsResultSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
   sandboxWorkspaceFileQuerySchema,
 } from "@nervekit/shared";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { parse as parseYaml } from "yaml";
 import {
   commandRequestSchema,
   createSandboxRequestSchema,
@@ -24,6 +24,10 @@ import {
   secretWriteSchema,
 } from "../api/request-schemas.js";
 import { ok } from "../api/responses.js";
+import {
+  materializeSandboxConfig,
+  parseSandboxConfigInput,
+} from "../config/materialize-sandbox-config.js";
 import { buildSandboxLaunchSpec } from "../config/sandbox-launch-spec.js";
 import { listSandboxManagerModels } from "../credentials/model-catalog.js";
 import { dbTables } from "../db/tables.js";
@@ -247,7 +251,14 @@ async function handle(
     return json(
       res,
       200,
-      ok(await previewSandboxConfigYaml(state, body.config, body.auth)),
+      ok(
+        await previewSandboxConfigYaml(
+          state,
+          body.config,
+          body.launch,
+          body.auth,
+        ),
+      ),
     );
   }
   if (req.method === "GET" && path === "/api/sandboxes") {
@@ -286,8 +297,7 @@ async function handle(
         const record = await createSandboxRecord(
           state,
           body.config,
-          body.image ?? state.config.defaultSandboxImage,
-          body.name,
+          body.launch,
           body.auth,
         );
         await recordManagerLifecycleEvent(state, {
@@ -486,7 +496,7 @@ async function loadSandboxConfigForStart(
 ): Promise<SandboxConfigV1> {
   if (record.configRef?.source) {
     try {
-      return sandboxConfigV1Schema.parse(
+      return parseSandboxConfigInput(
         parseYaml(await readFile(record.configRef.source, "utf8")),
       );
     } catch {
@@ -497,13 +507,15 @@ async function loadSandboxConfigForStart(
     `select materialized_config from ${dbTables.sandboxes} where sandbox_id = $1`,
     [record.sandboxId],
   );
-  const config = sandboxConfigV1Schema.parse(
-    result.rows[0]?.materialized_config,
+  const config = parseSandboxConfigInput(result.rows[0]?.materialized_config);
+  await state.pool.query(
+    `update ${dbTables.sandboxes} set materialized_config = $2::jsonb where sandbox_id = $1`,
+    [record.sandboxId, JSON.stringify(config)],
   );
   const materialized = await state.volumeProvider.materialize?.(
     record.sandboxId,
     {
-      configYaml: materializeConfigYaml(config),
+      configYaml: materializeSandboxConfig(config),
       controllerToken: record.controller?.token ?? "",
     },
   );
@@ -513,6 +525,7 @@ async function loadSandboxConfigForStart(
       workspaceRef: materialized.workspace,
       stateRef: materialized.state,
       secretMountRefs: [materialized.secrets],
+      configDigest: sandboxConfigDigestStable(config),
       configRef: materialized.config,
     };
     await state.volumeStore.put(
@@ -523,10 +536,6 @@ async function loadSandboxConfigForStart(
     await state.sandboxes.put(next);
   }
   return config;
-}
-
-function materializeConfigYaml(config: SandboxConfigV1): string {
-  return stringifyYaml(config, { sortMapEntries: true });
 }
 
 async function startSandbox(
@@ -561,7 +570,9 @@ async function startSandbox(
       secrets: runtimeVolumes.secrets,
       tmp: runtimeVolumes.tmp,
     },
-    backend: state.config.backend,
+    backend: refreshed.backend,
+    labels: refreshed.labels,
+    resources: refreshed.resources,
     logLevel: state.config.logLevel,
   });
   const stableInstanceId = record.instanceId ?? spec.instanceId;

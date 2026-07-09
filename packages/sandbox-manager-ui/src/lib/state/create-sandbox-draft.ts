@@ -96,7 +96,11 @@ type PersistedCreateSandboxBootPhasePreference = {
 type PersistedCreateSandboxPreferences = {
   version: 1;
   image?: string;
+  backend?: string;
   labels?: string;
+  memoryMb?: string;
+  vcpu?: string;
+  cpuUnits?: string;
   startAfterCreate?: boolean;
   mainProvider?: string;
   mainModel?: string;
@@ -201,7 +205,11 @@ export type CreateSandboxDraft = {
   name: string;
   sandboxId: string;
   image: string;
+  backend: string;
   labels: string;
+  memoryMb: string;
+  vcpu: string;
+  cpuUnits: string;
   startAfterCreate: boolean;
   mainProvider: string;
   mainModel: string;
@@ -295,7 +303,11 @@ export function createDefaultDraft(): CreateSandboxDraft {
     name: identity.name,
     sandboxId: identity.sandboxId,
     image: "",
+    backend: "",
     labels: "",
+    memoryMb: "4096",
+    vcpu: "",
+    cpuUnits: "",
     startAfterCreate: true,
     mainProvider: "anthropic",
     mainModel: "claude-sonnet-4-5",
@@ -489,7 +501,11 @@ export function createDraftFromStoredPreferences(
   if (!stored) return draft;
 
   draft.image = stringValue(stored.image) ?? draft.image;
+  draft.backend = stringValue(stored.backend) ?? draft.backend;
   draft.labels = stringValue(stored.labels) ?? draft.labels;
+  draft.memoryMb = stringValue(stored.memoryMb) ?? draft.memoryMb;
+  draft.vcpu = stringValue(stored.vcpu) ?? draft.vcpu;
+  draft.cpuUnits = stringValue(stored.cpuUnits) ?? draft.cpuUnits;
   draft.startAfterCreate =
     booleanValue(stored.startAfterCreate) ?? draft.startAfterCreate;
   draft.mainProvider = stringValue(stored.mainProvider) ?? draft.mainProvider;
@@ -559,7 +575,11 @@ function preferencesFromDraft(
   return {
     version: 1,
     image: draft.image,
+    backend: draft.backend,
     labels: draft.labels,
+    memoryMb: draft.memoryMb,
+    vcpu: draft.vcpu,
+    cpuUnits: draft.cpuUnits,
     startAfterCreate: draft.startAfterCreate,
     mainProvider: draft.mainProvider,
     mainModel: draft.mainModel,
@@ -619,6 +639,26 @@ export function saveCreateSandboxPreferences(
   } catch {
     // Browser storage may be unavailable or full. Creation should still work.
   }
+}
+
+function parsePositiveNumber(
+  value: string,
+  fieldName: string,
+  integer = false,
+): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0 ||
+    (integer && !Number.isInteger(parsed))
+  ) {
+    throw new Error(
+      `${fieldName} must be a positive ${integer ? "whole " : ""}number.`,
+    );
+  }
+  return parsed;
 }
 
 function parseLabels(input: string): Record<string, string> | undefined {
@@ -815,6 +855,31 @@ export function buildBootConfigFromDraft(
   return boot;
 }
 
+function buildLaunchConfigFromDraft(
+  draft: CreateSandboxDraft,
+): NonNullable<SandboxCreateRequest["launch"]> | undefined {
+  const labels = parseLabels(draft.labels);
+  const resources: NonNullable<
+    NonNullable<SandboxCreateRequest["launch"]>["resources"]
+  > = {};
+  const memoryMb = parsePositiveNumber(draft.memoryMb, "Memory", true);
+  const vcpu = parsePositiveNumber(draft.vcpu, "vCPU");
+  const cpuUnits = parsePositiveNumber(draft.cpuUnits, "CPU units", true);
+  if (memoryMb !== undefined) resources.memoryMb = memoryMb;
+  if (vcpu !== undefined) resources.vcpu = vcpu;
+  if (cpuUnits !== undefined) resources.cpuUnits = cpuUnits;
+
+  const launch: NonNullable<SandboxCreateRequest["launch"]> = {};
+  if (draft.sandboxId.trim()) launch.sandboxId = draft.sandboxId.trim();
+  if (draft.name.trim()) launch.name = draft.name.trim();
+  if (draft.image.trim()) launch.image = draft.image.trim();
+  if (draft.backend.trim())
+    launch.backend = draft.backend.trim() as NonNullable<typeof launch.backend>;
+  if (labels) launch.labels = labels;
+  if (Object.keys(resources).length > 0) launch.resources = resources;
+  return Object.keys(launch).length > 0 ? launch : undefined;
+}
+
 export function buildConfigFromDraft(
   draft: CreateSandboxDraft,
 ): SandboxCreateConfigInput {
@@ -843,13 +908,6 @@ export function buildConfigFromDraft(
     },
   };
 
-  const labels = parseLabels(draft.labels);
-  const identity: Record<string, unknown> = {};
-  if (draft.sandboxId.trim()) identity.sandboxId = draft.sandboxId.trim();
-  if (draft.name.trim()) identity.name = draft.name.trim();
-  if (labels) identity.labels = labels;
-  if (Object.keys(identity).length > 0) config.identity = identity;
-
   config.controller = buildControllerConfigFromDraft(draft);
 
   const groups: Record<string, { enabled: boolean }> = {};
@@ -865,7 +923,6 @@ export function buildConfigFromDraft(
 
 const configKeyOrder = [
   "version",
-  "identity",
   "secretStores",
   "modelCatalog",
   "agent",
@@ -877,7 +934,6 @@ const configKeyOrder = [
   "boot",
   "security",
   "storage",
-  "resources",
   "observability",
 ];
 
@@ -937,7 +993,7 @@ export function buildCreateRequestFromForm(
     };
     const request = sandboxCreateRequestSchema.parse({
       config: buildConfigFromDraft(draft),
-      image: draft.image.trim() || undefined,
+      launch: buildLaunchConfigFromDraft(draft),
       start: draft.startAfterCreate,
       auth: Object.values(auth).some(Boolean) ? auth : undefined,
     });
@@ -953,7 +1009,7 @@ export function buildCreateRequestFromYaml(
   try {
     const request = sandboxCreateRequestSchema.parse({
       config: parseSandboxConfigYaml(draft.yamlSource),
-      image: draft.image.trim() || undefined,
+      launch: buildLaunchConfigFromDraft(draft),
       start: draft.startAfterCreate,
     });
     return { ok: true, request };

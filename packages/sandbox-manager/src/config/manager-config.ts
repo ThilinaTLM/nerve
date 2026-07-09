@@ -1,8 +1,12 @@
 import os from "node:os";
 import path from "node:path";
-import { resolveLogLevel, type StructuredLogLevel } from "@nervekit/shared";
+import {
+  resolveLogLevel,
+  type SandboxContainerBackend,
+  type StructuredLogLevel,
+} from "@nervekit/shared";
 
-export type ContainerBackend = "auto" | "docker" | "podman" | "ecs";
+export type ContainerBackend = SandboxContainerBackend;
 export type LocalContainerBackend = Exclude<ContainerBackend, "ecs">;
 export type UiAuthCookieMode = "loopback" | "trusted_proxy" | "disabled";
 
@@ -54,6 +58,8 @@ export type ManagerConfig = {
   ecsLogGroup?: string;
   ecsLogStreamPrefix: string;
   ecsEnableExecuteCommand: boolean;
+  podmanWslExe?: string;
+  podmanWslDistribution?: string;
   efsFileSystemId?: string;
   efsMountRoot?: string;
   efsRootDirectory: string;
@@ -168,6 +174,9 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
       env.NERVE_SANDBOX_MANAGER_ECS_ENABLE_EXECUTE_COMMAND,
       false,
     ),
+    podmanWslExe: env.NERVE_SANDBOX_MANAGER_PODMAN_WSL_EXE?.trim() || undefined,
+    podmanWslDistribution:
+      env.NERVE_SANDBOX_MANAGER_PODMAN_WSL_DISTRIBUTION?.trim() || undefined,
     efsFileSystemId:
       env.NERVE_SANDBOX_MANAGER_EFS_FILE_SYSTEM_ID?.trim() || undefined,
     efsMountRoot: env.NERVE_SANDBOX_MANAGER_EFS_MOUNT_ROOT?.trim() || undefined,
@@ -266,6 +275,7 @@ function parseContainerBackend(value: string | undefined): ContainerBackend {
     normalized === "auto" ||
     normalized === "docker" ||
     normalized === "podman" ||
+    normalized === "podman-wsl" ||
     normalized === "ecs"
   ) {
     return normalized;

@@ -5,6 +5,7 @@ import { sandboxManagerVersion } from "../app/version.js";
 
 export async function managerStatus(state: ManagerState): Promise<unknown> {
   const runtime = await state.driver.capabilities();
+  const backends = await state.driver.backendOptions?.();
   const mode = state.config.mode ?? "development";
   const encryptionAtRest = state.config.encryptionKey
     ? "enabled"
@@ -18,6 +19,7 @@ export async function managerStatus(state: ManagerState): Promise<unknown> {
     version: sandboxManagerVersion,
     backend: runtime.available ? runtime.kind : state.config.backend,
     runtime,
+    backends,
     hardening: {
       mode,
       apiAuth: state.config.apiKey ? "configured" : "disabled",

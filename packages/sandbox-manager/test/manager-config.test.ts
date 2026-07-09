@@ -39,6 +39,13 @@ describe("sandbox manager config", () => {
       }).backend,
       "podman",
     );
+    assert.equal(
+      loadManagerConfig({
+        ...baseEnv(),
+        NERVE_SANDBOX_MANAGER_BACKEND: "podman-wsl",
+      }).backend,
+      "podman-wsl",
+    );
   });
 
   it("treats unknown backend values as auto", () => {

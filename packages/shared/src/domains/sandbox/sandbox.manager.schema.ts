@@ -40,6 +40,38 @@ export type ManagedSandboxDesiredState = z.infer<
   typeof managedSandboxDesiredStateSchema
 >;
 
+export const sandboxContainerBackendSchema = z.enum([
+  "auto",
+  "docker",
+  "podman",
+  "podman-wsl",
+  "ecs",
+]);
+export type SandboxContainerBackend = z.infer<
+  typeof sandboxContainerBackendSchema
+>;
+
+export const sandboxLaunchResourceSpecSchema = z
+  .object({
+    memoryMb: z.number().int().positive().safe().optional(),
+    vcpu: z.number().positive().safe().optional(),
+    cpuUnits: z.number().int().positive().safe().optional(),
+    diskMb: z.number().int().positive().safe().optional(),
+    maxOpenFiles: z.number().int().positive().safe().optional(),
+  })
+  .superRefine((resources, ctx) => {
+    if (resources.vcpu !== undefined && resources.cpuUnits !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["cpuUnits"],
+        message: "resources.vcpu and resources.cpuUnits are mutually exclusive",
+      });
+    }
+  });
+export type SandboxLaunchResourceSpec = z.infer<
+  typeof sandboxLaunchResourceSpecSchema
+>;
+
 export const volumeRefSchema = z.object({
   kind: z.string().min(1),
   name: z.string().min(1).optional(),
@@ -85,6 +117,30 @@ export type ManagedContainerMetadata = z.infer<
   typeof managedContainerMetadataSchema
 >;
 
+export const sandboxLaunchLabelsSchema =
+  managedContainerMetadataSchema.superRefine((labels, ctx) => {
+    for (const key of Object.keys(labels)) {
+      if (key.toLowerCase().startsWith("org.nerve.")) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: "launch labels must not use the reserved org.nerve. prefix",
+        });
+      }
+    }
+  });
+export type SandboxLaunchLabels = z.infer<typeof sandboxLaunchLabelsSchema>;
+
+export const sandboxLaunchConfigSchema = z.strictObject({
+  sandboxId: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  image: z.string().min(1).optional(),
+  backend: sandboxContainerBackendSchema.optional(),
+  labels: sandboxLaunchLabelsSchema.optional(),
+  resources: sandboxLaunchResourceSpecSchema.optional(),
+});
+export type SandboxLaunchConfig = z.infer<typeof sandboxLaunchConfigSchema>;
+
 export const managedContainerRefSchema = z.object({
   kind: z.string().min(1),
   id: z.string().min(1),
@@ -97,8 +153,9 @@ export const managedSandboxRecordSchema = z.object({
   sandboxId: z.string().min(1),
   instanceId: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
-  labels: z.record(z.string(), z.string()).optional(),
-  backend: z.string().min(1),
+  labels: sandboxLaunchLabelsSchema.optional(),
+  backend: sandboxContainerBackendSchema.or(z.string().min(1)),
+  resources: sandboxLaunchResourceSpecSchema.optional(),
   image: z.object({
     reference: z.string().min(1),
     digest: z.string().min(1).optional(),
@@ -294,12 +351,7 @@ export const runtimeSecuritySpecSchema = z.object({
 });
 export type RuntimeSecuritySpec = z.infer<typeof runtimeSecuritySpecSchema>;
 
-export const runtimeResourceSpecSchema = z.object({
-  cpu: z.string().min(1).optional(),
-  memoryMb: z.number().int().positive().safe().optional(),
-  diskMb: z.number().int().positive().safe().optional(),
-  maxOpenFiles: z.number().int().positive().safe().optional(),
-});
+export const runtimeResourceSpecSchema = sandboxLaunchResourceSpecSchema;
 export type RuntimeResourceSpec = z.infer<typeof runtimeResourceSpecSchema>;
 
 export const runtimeHealthcheckSpecSchema = z.object({
@@ -314,6 +366,7 @@ export type RuntimeHealthcheckSpec = z.infer<
 >;
 
 export const managedContainerCreateSpecSchema = z.object({
+  backend: sandboxContainerBackendSchema.or(z.string().min(1)),
   sandboxId: z.string().min(1),
   instanceId: z.string().min(1),
   image: z.string().min(1),
@@ -361,6 +414,31 @@ export type SandboxRuntimeContainerStatus = z.infer<
   typeof sandboxRuntimeContainerStatusSchema
 >;
 
+const runtimeResourceRangeSchema = z.object({
+  min: z.number().positive().safe().optional(),
+  max: z.number().positive().safe().optional(),
+  step: z.number().positive().safe().optional(),
+  default: z.number().positive().safe().optional(),
+});
+
+const ecsFargateResourcePresetSchema = z.object({
+  vcpu: z.number().positive().safe(),
+  cpuUnits: z.number().int().positive().safe(),
+  memoryMb: z.array(z.number().int().positive().safe()),
+});
+
+export const runtimeDriverResourceOptionsSchema = z.object({
+  memoryMb: runtimeResourceRangeSchema.optional(),
+  vcpu: runtimeResourceRangeSchema.optional(),
+  cpuUnits: runtimeResourceRangeSchema.optional(),
+  fargate: z
+    .object({ presets: z.array(ecsFargateResourcePresetSchema) })
+    .optional(),
+});
+export type RuntimeDriverResourceOptions = z.infer<
+  typeof runtimeDriverResourceOptionsSchema
+>;
+
 export const runtimeDriverCapabilitiesSchema = z.object({
   kind: z.string().min(1),
   available: z.boolean(),
@@ -373,6 +451,7 @@ export const runtimeDriverCapabilitiesSchema = z.object({
   supportsMemoryLimit: z.boolean(),
   supportsTmpfs: z.boolean(),
   supportsLogs: z.boolean().optional(),
+  resourceOptions: runtimeDriverResourceOptionsSchema.optional(),
   limitations: z.array(z.string().min(1)),
 });
 export type RuntimeDriverCapabilities = z.infer<
@@ -410,11 +489,23 @@ export type SandboxManagerHardeningStatus = z.infer<
   typeof sandboxManagerHardeningStatusSchema
 >;
 
+export const sandboxManagerBackendOptionSchema = z.object({
+  kind: sandboxContainerBackendSchema.or(z.string().min(1)),
+  label: z.string().min(1),
+  available: z.boolean(),
+  default: z.boolean().optional(),
+  runtime: runtimeDriverCapabilitiesSchema,
+});
+export type SandboxManagerBackendOption = z.infer<
+  typeof sandboxManagerBackendOptionSchema
+>;
+
 export const sandboxManagerStatusSchema = z.object({
   managerId: z.string().min(1),
   version: z.string().min(1),
   backend: z.string().min(1),
   runtime: runtimeDriverCapabilitiesSchema,
+  backends: z.array(sandboxManagerBackendOptionSchema).optional(),
   hardening: sandboxManagerHardeningStatusSchema,
   lifecycle: sandboxManagerLifecycleSettingsSchema,
   updatedAt: isoDateTimeSchema,
@@ -569,10 +660,9 @@ export const sandboxCreateAuthRefsSchema = z.object({
 });
 export type SandboxCreateAuthRefs = z.infer<typeof sandboxCreateAuthRefsSchema>;
 
-export const sandboxCreateRequestSchema = z.object({
+export const sandboxCreateRequestSchema = z.strictObject({
   config: sandboxCreateConfigInputSchema,
-  image: z.string().min(1).optional(),
-  name: z.string().min(1).optional(),
+  launch: sandboxLaunchConfigSchema.optional(),
   start: z.boolean().optional(),
   auth: sandboxCreateAuthRefsSchema.optional(),
 });

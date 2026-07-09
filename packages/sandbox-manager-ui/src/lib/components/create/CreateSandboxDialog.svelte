@@ -138,6 +138,56 @@
     confluence: "Confluence",
   };
 
+  const backendItems = $derived([
+    {
+      value: "",
+      label: "Manager default",
+      detail: store.managerStatus?.backend
+        ? `Uses ${store.managerStatus.backend}`
+        : "Use manager default backend",
+    },
+    ...(store.managerStatus?.backends ?? []).map((backend) => ({
+      value: backend.kind,
+      label: backend.label,
+      detail: backend.available
+        ? backend.runtime.version
+        : backend.runtime.limitations[0] ?? "Unavailable",
+      disabled: !backend.available,
+    })),
+  ]);
+  const effectiveBackend = $derived(
+    draft.backend || store.managerStatus?.backend || "auto",
+  );
+  const selectedBackendOption = $derived(
+    store.managerStatus?.backends?.find((backend) => backend.kind === effectiveBackend),
+  );
+  const selectedRuntime = $derived(
+    selectedBackendOption?.runtime ?? store.managerStatus?.runtime,
+  );
+  const ecsResourcePresets = $derived(
+    selectedRuntime?.resourceOptions?.fargate?.presets ?? [],
+  );
+  const selectedEcsResourcePreset = $derived(
+    ecsResourcePresets.find((preset) => String(preset.vcpu) === draft.vcpu) ??
+      ecsResourcePresets.find((preset) => String(preset.cpuUnits) === draft.cpuUnits) ??
+      ecsResourcePresets[0],
+  );
+  const ecsVcpuItems = $derived(
+    ecsResourcePresets.map((preset) => ({
+      value: String(preset.vcpu),
+      label: `${preset.vcpu} vCPU`,
+      detail: `${preset.cpuUnits} CPU units`,
+    })),
+  );
+  const ecsMemoryItems = $derived(
+    (selectedEcsResourcePreset?.memoryMb ?? []).map((memoryMb) => ({
+      value: String(memoryMb),
+      label: `${memoryMb} MB`,
+    })),
+  );
+  const selectedBackendIsEcs = $derived(effectiveBackend === "ecs");
+  const resourceHint = $derived(containerResourceHint());
+
   const authenticatedModelProfiles = $derived(
     store.credentialProfiles.filter(
       (profile) =>
@@ -246,6 +296,32 @@
       syncLocalYamlFromForm(false, formYamlSyncKey);
     void syncYamlFromForm(false, formYamlSyncKey);
   });
+
+  function setEcsVcpu(value: string): void {
+    draft.vcpu = value;
+    draft.cpuUnits = "";
+    const preset = ecsResourcePresets.find(
+      (candidate) => String(candidate.vcpu) === value,
+    );
+    const memory = Number(draft.memoryMb);
+    if (preset && !preset.memoryMb.includes(memory)) {
+      draft.memoryMb = String(preset.memoryMb[0] ?? "");
+    }
+  }
+
+  function containerResourceHint(): string {
+    const limitations = selectedRuntime?.limitations ?? [];
+    if (!selectedRuntime) return "Backend capabilities load from manager status.";
+    if (!selectedRuntime.available)
+      return limitations[0] ?? "Selected backend is unavailable.";
+    const supported = [
+      selectedRuntime.supportsMemoryLimit ? "memory" : undefined,
+      selectedRuntime.supportsCpuLimit ? "CPU" : undefined,
+    ].filter(Boolean);
+    return supported.length
+      ? `Supports ${supported.join(" and ")} limits.`
+      : "This backend does not report resource limit support.";
+  }
 
   function profileDetail(profile: SandboxManagerCredentialProfile): string {
     const parts = [profile.displayName, profile.authType, profile.status];
@@ -477,7 +553,7 @@
 <DialogShell
   bind:open
   title="Create sandbox"
-  description="Choose launch settings, then define the sandbox-agent config with a guided form or schema-native YAML."
+  description="Choose launch/container settings, then define the sandbox-agent config with a guided form or schema-native YAML."
   size="wide"
   onOpenChange={(next) => {
     if (next) return;
@@ -487,16 +563,33 @@
   <div class="flex flex-col gap-4 p-5">
     <section class="flex flex-col gap-3 rounded-md border bg-card p-3">
       <div>
-        <h3 class="text-xs font-semibold text-muted-foreground uppercase">Launch</h3>
+        <h3 class="text-xs font-semibold text-muted-foreground uppercase">Launch & container</h3>
         <p class="text-xs text-muted-foreground">
-          Container image and lifecycle settings. These are manager launch inputs,
+          Identity, labels, image, backend, and resources are manager launch inputs,
           not sandbox-agent config YAML.
         </p>
       </div>
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="flex flex-col gap-1">
+          <Label>Display name</Label>
+          <Input bind:value={draft.name} placeholder="my-sandbox" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <Label>Sandbox ID</Label>
+          <Input bind:value={draft.sandboxId} placeholder="auto-generated" />
+        </div>
+        <div class="flex flex-col gap-1 sm:col-span-2">
           <Label>Image</Label>
           <Input bind:value={draft.image} placeholder="Leave blank to use the manager default image" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <Label>Container backend</Label>
+          <SelectField
+            items={backendItems}
+            value={draft.backend}
+            placeholder="Manager default"
+            onValueChange={(value) => (draft.backend = value)}
+          />
         </div>
         <div class="rounded-md border bg-background px-3 py-2.5">
           <SwitchField
@@ -506,6 +599,54 @@
             onCheckedChange={(value) => (draft.startAfterCreate = value)}
           />
         </div>
+        <div class="flex flex-col gap-1 sm:col-span-2">
+          <Label>Labels</Label>
+          <Input bind:value={draft.labels} placeholder="team=core, env=dev" />
+          <p class="text-xs text-muted-foreground">User labels are stored on the manager record and container.</p>
+        </div>
+        {#if selectedBackendIsEcs && ecsResourcePresets.length > 0}
+          <div class="flex flex-col gap-1">
+            <Label>vCPU</Label>
+            <SelectField
+              items={ecsVcpuItems}
+              value={draft.vcpu}
+              placeholder="1 vCPU"
+              onValueChange={setEcsVcpu}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>Memory</Label>
+            <SelectField
+              items={ecsMemoryItems}
+              value={draft.memoryMb}
+              placeholder="4096 MB"
+              onValueChange={(value) => (draft.memoryMb = value)}
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>CPU units</Label>
+            <Input
+              value={draft.cpuUnits}
+              inputmode="numeric"
+              placeholder="1024"
+              oninput={(event) => {
+                draft.cpuUnits = event.currentTarget.value;
+                if (draft.cpuUnits.trim()) draft.vcpu = "";
+              }}
+            />
+            <p class="text-xs text-muted-foreground">Advanced ECS override; leave blank when vCPU is set.</p>
+          </div>
+        {:else}
+          <div class="flex flex-col gap-1">
+            <Label>Memory (MB)</Label>
+            <Input bind:value={draft.memoryMb} inputmode="numeric" placeholder="4096" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <Label>CPU quota</Label>
+            <Input bind:value={draft.vcpu} inputmode="decimal" placeholder="2" />
+          </div>
+        {/if}
+        <p class="text-xs text-muted-foreground sm:col-span-2">{resourceHint}</p>
       </div>
     </section>
 
@@ -627,27 +768,6 @@
         </TabsList>
 
         <TabsContent value="form" class="flex flex-col gap-4 pt-2">
-          <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
-            <div>
-              <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.identity</h3>
-              <p class="text-xs text-muted-foreground">Human-readable identity and optional labels.</p>
-            </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div class="flex flex-col gap-1">
-                <Label>Display name</Label>
-                <Input bind:value={draft.name} placeholder="my-sandbox" />
-              </div>
-              <div class="flex flex-col gap-1">
-                <Label>Sandbox ID</Label>
-                <Input bind:value={draft.sandboxId} placeholder="auto-generated" />
-              </div>
-              <div class="flex flex-col gap-1 sm:col-span-2">
-                <Label>Labels</Label>
-                <Input bind:value={draft.labels} placeholder="team=core, env=dev" />
-              </div>
-            </div>
-          </div>
-
           <div class="flex flex-col gap-3 rounded-md border bg-background p-3">
             <div>
               <h3 class="text-xs font-semibold text-muted-foreground uppercase">config.agent</h3>
@@ -1066,9 +1186,9 @@
             oninput={() => (draft.yamlDirty = true)}
           />
           <p class="text-xs text-muted-foreground">
-            YAML contains only the sandbox-agent config. Image, start behavior,
-            and manager profile selectors live outside this YAML. The created
-            sandbox page shows the exact mounted YAML.
+            YAML contains only the sandbox-agent config. Identity, labels, image,
+            backend, resources, start behavior, and manager profile selectors live
+            outside this YAML. The created sandbox page shows the exact mounted YAML.
           </p>
         </TabsContent>
       </Tabs>

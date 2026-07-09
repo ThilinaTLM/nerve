@@ -7,6 +7,7 @@ import {
 import { SecretResolver } from "../credentials/secret-resolver.js";
 import { SandboxCommandError } from "../daemon/errors.js";
 import type { SandboxDaemon } from "../daemon/sandbox-daemon.js";
+import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
 import { SandboxWebSocketClient } from "./websocket-client.js";
 
@@ -63,16 +64,21 @@ export class ProtocolSession {
   private lastHeartbeatAt?: string;
   private stopping = false;
   private readonly logger: StructuredLogger;
+  private readonly identity: SandboxRuntimeIdentity;
 
   constructor(
     private readonly config: SandboxConfigV1,
     private readonly daemon: SandboxDaemon,
     private readonly stores: SandboxStateStores,
-    private readonly instanceId: string,
+    identity: SandboxRuntimeIdentity | string,
     private readonly configDigest: string,
     private readonly env: NodeJS.ProcessEnv = process.env,
     logger?: StructuredLogger,
   ) {
+    this.identity =
+      typeof identity === "string"
+        ? { sandboxId: "unknown", instanceId: identity }
+        : identity;
     this.logger =
       logger ??
       createLogger({
@@ -80,8 +86,8 @@ export class ProtocolSession {
         base: {
           source: "sandbox-agent",
           component: "controller-session",
-          sandboxId: config.identity?.sandboxId,
-          instanceId,
+          sandboxId: this.identity.sandboxId,
+          instanceId: this.identity.instanceId,
         },
       });
   }
@@ -147,8 +153,8 @@ export class ProtocolSession {
       type: "hello",
       version: 1,
       role: "agent",
-      sandboxId: this.config.identity?.sandboxId ?? "unknown",
-      instanceId: this.instanceId,
+      sandboxId: this.identity.sandboxId,
+      instanceId: this.identity.instanceId,
       capabilities: sandboxDaemonCapabilities(this.config),
       resume: { cursors: ack.streams, lastAckedSeq: processedSeq },
     });
@@ -185,8 +191,8 @@ export class ProtocolSession {
       this.daemon.start();
       this.client?.send({
         type: "ready",
-        sandboxId: this.config.identity?.sandboxId,
-        instanceId: this.instanceId,
+        sandboxId: this.identity.sandboxId,
+        instanceId: this.identity.instanceId,
         status: this.daemon.status.status === "degraded" ? "degraded" : "ready",
         cursors: (await this.stores.events.ackState()).streams,
       });
@@ -264,8 +270,8 @@ export class ProtocolSession {
       type: "sandbox.ready",
       durability: "durable",
       data: {
-        sandboxId: this.config.identity?.sandboxId,
-        instanceId: this.instanceId,
+        sandboxId: this.identity.sandboxId,
+        instanceId: this.identity.instanceId,
         configDigest: this.configDigest,
         status: "ready",
         readyAt: new Date().toISOString(),

@@ -84,6 +84,8 @@ Provider/tool/controller/secret-store secrets MAY also be supplied through envir
 
 ## Container runtime defaults
 
+Managed images receive identity from the manager via environment: `NERVE_SANDBOX_AGENT_SANDBOX_ID` identifies the sandbox, and `NERVE_SANDBOX_AGENT_INSTANCE_ID` identifies the specific container/task instance. These values are not read from sandbox-agent YAML.
+
 A production sandbox SHOULD be launched with equivalent protections:
 
 ```text

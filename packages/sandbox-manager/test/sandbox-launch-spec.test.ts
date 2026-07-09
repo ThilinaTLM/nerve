@@ -8,7 +8,6 @@ function baseConfig(
 ): SandboxConfigV1 {
   return {
     version: 1,
-    identity: { sandboxId: "sbx_1" },
     agent: {
       mainModel: { provider: "openai-codex", model: "gpt-5.4-mini" },
       mode: "normal",
@@ -53,6 +52,19 @@ describe("buildSandboxLaunchSpec log level propagation", () => {
     assert.equal(spec.env?.NERVE_SANDBOX_AGENT_LOG_LEVEL, undefined);
   });
 
+  it("uses manager launch labels and resources outside sandbox YAML", () => {
+    const spec = buildSandboxLaunchSpec(baseConfig(), {
+      ...options,
+      backend: "docker",
+      labels: { team: "core" },
+      resources: { memoryMb: 8192, vcpu: 2 },
+    });
+    assert.equal(spec.backend, "docker");
+    assert.equal(spec.labels.team, "core");
+    assert.equal(spec.labels["org.nerve.sandbox.id"], "sbx_1");
+    assert.deepEqual(spec.resources, { memoryMb: 8192, vcpu: 2 });
+  });
+
   it("propagates instance id and builds ECS/EFS mounts", () => {
     const spec = buildSandboxLaunchSpec(baseConfig(), {
       image: "123456789012.dkr.ecr.us-east-1.amazonaws.com/agent:dev",
@@ -95,6 +107,7 @@ describe("buildSandboxLaunchSpec log level propagation", () => {
       },
     });
     assert.equal(spec.network?.mode, "ecs-awsvpc");
+    assert.equal(spec.env.NERVE_SANDBOX_AGENT_SANDBOX_ID, "sbx_1");
     assert.equal(spec.env.NERVE_SANDBOX_AGENT_INSTANCE_ID, spec.instanceId);
     assert.equal(
       spec.mounts.find((mount) => mount.target === "/etc/nerve")?.kind,
