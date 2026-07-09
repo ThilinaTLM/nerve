@@ -18,7 +18,7 @@
     getStorageUsage,
     runStorageCleanup,
   } from "$lib/features/settings/api/storage.api";
-  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
 
   type StorageCategoryKey = StorageCategoryUsage["key"];
 

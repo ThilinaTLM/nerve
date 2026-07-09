@@ -3,7 +3,7 @@
   import { Badge } from "@nervekit/shared-ui/components/ui/badge";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import { selection } from "$lib/features/workspace/state/selection.svelte";
-  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
   import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
   import {
     refreshPromptSuggestionStatuses,

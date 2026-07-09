@@ -18,7 +18,7 @@
   import { Switch as ToggleSwitch } from "@nervekit/shared-ui/components/ui/switch";
   import { encryptApiKey } from "$lib/core/utils/credential-crypto";
   import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
   import ConfluenceToolsSettingsCard from "./ConfluenceToolsSettingsCard.svelte";
   import JiraToolsSettingsCard from "./JiraToolsSettingsCard.svelte";
 

@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { Component } from "svelte";
-  import { tick } from "svelte";
   import Bot from "@lucide/svelte/icons/bot";
   import Lightbulb from "@lucide/svelte/icons/lightbulb";
   import Monitor from "@lucide/svelte/icons/monitor";
@@ -16,7 +15,11 @@
     UpdateSettingsRequest,
   } from "$lib/api";
   import type { ThemePreference } from "$lib/app/layout/layout-state.svelte";
-  import { ScrollArea } from "@nervekit/shared-ui/components/ui/scroll-area";
+  import {
+    SettingsShell,
+    SettingsSidebarStatus,
+    type SettingsShellGroup,
+  } from "@nervekit/shared-ui/components/settings";
   import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
   import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";
   import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";
@@ -42,7 +45,7 @@
     | "runtime";
   type GroupId = "workbench" | "agents" | "suggestions" | "models" | "tools" | "system";
   type GroupSection = { id: SectionId; label: string };
-  type SettingsGroup = {
+  type SettingsGroup = SettingsShellGroup & {
     id: GroupId;
     label: string;
     icon: Component;
@@ -124,68 +127,6 @@
     onThemeChange,
   }: Props = $props();
 
-  let activeGroup = $state<SettingsGroup>(groups[0]);
-  let activeSubsection = $state<SectionId>(groups[0].sections[0].id);
-
-  function selectGroup(id: GroupId) {
-    if (id === activeGroup.id) return;
-    const next = groups.find((group) => group.id === id) ?? groups[0];
-    activeGroup = next;
-    activeSubsection = next.sections[0].id;
-    void scrollPanelToTop();
-  }
-
-  async function scrollPanelToTop() {
-    await tick();
-    document.querySelector(".settings-viewport")?.scrollTo({ top: 0 });
-  }
-
-  function scrollToSubsection(id: SectionId) {
-    activeSubsection = id;
-    document
-      .getElementById(`settings-${id}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  // Scroll-spy: highlight the sub-nav chip matching the section in view.
-  $effect(() => {
-    const sections = activeGroup.sections;
-    const ready = !!settingsDraft;
-    if (!ready) return;
-
-    let observer: IntersectionObserver | undefined;
-    let cancelled = false;
-
-    void (async () => {
-      await tick();
-      if (cancelled) return;
-      const root = document.querySelector<HTMLElement>(".settings-viewport");
-      const elements = sections
-        .map((section) => document.getElementById(`settings-${section.id}`))
-        .filter((element): element is HTMLElement => element !== null);
-      if (elements.length === 0) return;
-
-      observer = new IntersectionObserver(
-        (entries) => {
-          const visible = entries
-            .filter((entry) => entry.isIntersecting)
-            .sort(
-              (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
-            );
-          const id = visible[0]?.target.getAttribute("data-section");
-          if (id) activeSubsection = id as SectionId;
-        },
-        { root, rootMargin: "0px 0px -65% 0px", threshold: 0 },
-      );
-      for (const element of elements) observer.observe(element);
-    })();
-
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-    };
-  });
-
   function statusText() {
     if (settingsMessage) return settingsMessage;
     if (settingsSaveStatus === "saving") return "Saving…";
@@ -196,79 +137,36 @@
   }
 </script>
 
-<section class="settings-page">
-  <aside class="settings-sidebar" aria-label="Settings sections">
-    <div class="settings-sidebar-title">
-      <strong>Settings</strong>
-    </div>
-    <nav class="settings-nav">
-      {#each groups as group}
-        {@const Icon = group.icon}
-        <button
-          type="button"
-          class:active={activeGroup.id === group.id}
-          aria-current={activeGroup.id === group.id ? "page" : undefined}
-          onclick={() => selectGroup(group.id)}
-        >
-          <Icon size={16} strokeWidth={2} />
-          <span>{group.label}</span>
-        </button>
-      {/each}
-    </nav>
-    <div class="settings-save-state" data-status={settingsSaveStatus}>
-      <span></span>
-      <p>{statusText()}</p>
-    </div>
-  </aside>
+<SettingsShell {groups} title="Settings" ariaLabel="Settings sections" showPanelHeader={!!settingsDraft}>
+  {#snippet sidebarFooter()}
+    <SettingsSidebarStatus status={settingsSaveStatus} text={statusText()} />
+  {/snippet}
 
-  <ScrollArea class="settings-scroll" viewportClass="settings-viewport" type="auto">
-    <div class="settings-main">
-      {#if settingsDraft}
-        {#key activeGroup.id}
-          <header class="settings-panel-header">
-            <h2>{activeGroup.label}</h2>
-            {#if activeGroup.sections.length > 1}
-              <div class="settings-subnav" role="tablist" aria-label="{activeGroup.label} sections">
-                {#each activeGroup.sections as section}
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeSubsection === section.id}
-                    class:active={activeSubsection === section.id}
-                    onclick={() => scrollToSubsection(section.id)}
-                  >
-                    {section.label}
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </header>
-
-          {#if activeGroup.id === "workbench"}
-            <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
-            <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
-          {:else if activeGroup.id === "agents"}
-            <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-            <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-          {:else if activeGroup.id === "suggestions"}
-            <PromptSuggestionsSettingsSection />
-          {:else if activeGroup.id === "models"}
-            <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
-          {:else if activeGroup.id === "tools"}
-            <ToolsSettingsSection {settingsDraft} {status} {authProviders} {onSettingsChange} />
-          {:else if activeGroup.id === "system"}
-            <ServerSettingsSection {settingsDraft} {onSettingsChange} />
-            <StorageSettingsSection />
-            <GeneralSettingsSection {status} />
-          {/if}
-        {/key}
-      {:else}
-        <section class="app-empty-state settings-loading">
-          <Sparkles size={28} strokeWidth={1.8} />
-          <strong>Settings are loading</strong>
-          <p>Use the tab refresh action if this takes longer than expected.</p>
-        </section>
+  {#snippet children(activeGroup)}
+    {#if settingsDraft}
+      {#if activeGroup.id === "workbench"}
+        <AppearanceSettingsSection {settingsDraft} {onThemeChange} {onSettingsChange} />
+        <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
+      {:else if activeGroup.id === "agents"}
+        <AgentsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+        <ExploreAgentSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+      {:else if activeGroup.id === "suggestions"}
+        <PromptSuggestionsSettingsSection />
+      {:else if activeGroup.id === "models"}
+        <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
+      {:else if activeGroup.id === "tools"}
+        <ToolsSettingsSection {settingsDraft} {status} {authProviders} {onSettingsChange} />
+      {:else if activeGroup.id === "system"}
+        <ServerSettingsSection {settingsDraft} {onSettingsChange} />
+        <StorageSettingsSection />
+        <GeneralSettingsSection {status} />
       {/if}
-    </div>
-  </ScrollArea>
-</section>
+    {:else}
+      <section class="app-empty-state settings-loading">
+        <Sparkles size={28} strokeWidth={1.8} />
+        <strong>Settings are loading</strong>
+        <p>Use the tab refresh action if this takes longer than expected.</p>
+      </section>
+    {/if}
+  {/snippet}
+</SettingsShell>

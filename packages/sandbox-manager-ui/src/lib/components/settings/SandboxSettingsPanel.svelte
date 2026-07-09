@@ -8,14 +8,9 @@
     RefreshCw,
     TriangleAlert,
   } from "@lucide/svelte";
+  import { SettingsSectionCard, SettingsShell, type SettingsShellGroup } from "@nervekit/shared-ui/components/settings";
   import { Badge } from "@nervekit/shared-ui/components/ui/badge";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
-  import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-  } from "@nervekit/shared-ui/components/ui/card";
   import DialogShell from "@nervekit/shared-ui/components/ui/dialog-shell";
   import { Input } from "@nervekit/shared-ui/components/ui/input";
   import { Label } from "@nervekit/shared-ui/components/ui/label";
@@ -28,7 +23,6 @@
   } from "@nervekit/shared";
   import { SandboxManagerOAuthFlow } from "../credentials/sandbox-manager-oauth-flow.svelte";
   import AppearanceSettings from "./AppearanceSettings.svelte";
-  import SettingsSectionNav from "./SettingsSectionNav.svelte";
   import RuntimeBackendBadge from "../RuntimeBackendBadge.svelte";
   import { buildCredentialProfileWrite } from "../../settings/profile-form";
   import {
@@ -65,6 +59,18 @@
     domains.find((domain) => domain.id === activeDomainId) ?? domains[0],
   );
   const domainSections = $derived(sectionsForDomain(activeDomain));
+  const shellGroups = $derived<SettingsShellGroup[]>(
+    domains.map((domain) => ({
+      id: domain.id,
+      label: domain.label,
+      description: domain.description,
+      icon: domain.icon,
+      sections: sectionsForDomain(domain).map((section) => ({
+        id: section.id,
+        label: section.tabLabel ?? section.label,
+      })),
+    })),
+  );
 
   // Keep the active sub-section valid for the current domain.
   $effect(() => {
@@ -234,6 +240,14 @@
       if (first.options[0]) providerKind = first.options[0].providerKind;
       applyOptionDefaults(first.options[0]);
     }
+  }
+
+  function selectShellGroup(groupId: string): void {
+    selectDomain(groupId as SettingsDomainId);
+  }
+
+  function selectShellSection(sectionId: string): void {
+    activeSectionId = sectionId as SettingsSectionId;
   }
 
   function selectProvider(value: string): void {
@@ -463,157 +477,148 @@
   }
 </script>
 
-<div class="flex h-full min-h-0 flex-col bg-background">
-  <header class="flex flex-none flex-wrap items-center gap-3 border-b bg-background px-4 py-2.5 md:px-6">
-    <div class="flex min-w-0 flex-col">
-      <h1 class="truncate text-base font-semibold">Settings</h1>
-      <p class="truncate text-xs text-muted-foreground">Appearance, providers, and credentials.</p>
-    </div>
-    <div class="ml-auto flex flex-wrap items-center gap-2">
-      {#if store.managerStatus}
-        <RuntimeBackendBadge
-          backend={store.managerStatus.backend}
-          runtime={store.managerStatus.runtime}
-        />
-        {#if store.managerStatus.hardening.apiAuth === "disabled"}
-          <Badge tone="warn" size="xs">auth disabled</Badge>
-        {/if}
+<SettingsShell
+  groups={shellGroups}
+  activeGroupId={activeDomainId}
+  activeSectionId={activeSectionId}
+  title="Settings"
+  ariaLabel="Settings sections"
+  onGroupChange={selectShellGroup}
+  onSectionChange={selectShellSection}
+>
+  {#snippet navMeta(group)}
+    {@const domain = domains.find((item) => item.id === group.id)}
+    {#if domain}
+      {@const count = countForDomain(domain)}
+      {#if count !== undefined}
+        <Badge tone={count > 0 ? "accent" : "neutral"} size="xs">
+          {count}
+        </Badge>
       {/if}
-      <Badge tone="accent" size="sm">{configuredCount} profiles</Badge>
-      <Button variant="outline" size="sm" onclick={() => void store.refreshCredentials()}>
-        <RefreshCw class="size-4" /> Refresh
-      </Button>
-    </div>
-  </header>
+    {/if}
+  {/snippet}
 
-  <div class="min-h-0 flex-1 overflow-y-auto">
-    <div class="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
-      <div class="flex flex-col gap-4 lg:flex-row">
-    <aside class="flex flex-col gap-2 lg:sticky lg:top-6 lg:w-72 lg:flex-none lg:self-start">
-      <SettingsSectionNav
-        {domains}
-        {activeDomainId}
-        {countForDomain}
-        onselect={selectDomain}
+  {#snippet panelActions(_group)}
+    {#if store.managerStatus}
+      <RuntimeBackendBadge
+        backend={store.managerStatus.backend}
+        runtime={store.managerStatus.runtime}
       />
-    </aside>
+      {#if store.managerStatus.hardening.apiAuth === "disabled"}
+        <Badge tone="warn" size="xs">auth disabled</Badge>
+      {/if}
+    {/if}
+    <Badge tone="accent" size="sm">{configuredCount} profiles</Badge>
+    <Button variant="outline" size="sm" onclick={() => void store.refreshCredentials()}>
+      <RefreshCw class="size-4" /> Refresh
+    </Button>
+  {/snippet}
 
-    <main class="min-w-0 flex-1 space-y-4">
-      {#if appearanceActive}
-        <AppearanceSettings />
-      {:else}
-        <Card class="rounded-md border shadow-sm">
-          <CardHeader class="border-b p-4">
-            <CardTitle class="text-base">{activeDomain.label}</CardTitle>
-            <p class="text-sm text-muted-foreground">{activeDomain.description}</p>
-          </CardHeader>
-          <CardContent class="p-0">
-            {#if saved || (error && !addDialogOpen)}
-              <div class="space-y-2 border-b p-4">
-                {#if saved}
-                  <p class="flex items-center gap-2 rounded-md bg-success/10 p-2 text-xs text-success">
-                    <CheckCircle2 class="size-4" /> {saved}
-                  </p>
-                {/if}
-                {#if error && !addDialogOpen}
-                  <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-                    <TriangleAlert class="mt-0.5 size-4 flex-none" /> {error}
-                  </p>
-                {/if}
+  {#snippet children(_group)}
+    {#if appearanceActive}
+      <AppearanceSettings />
+    {:else}
+      {#if saved || (error && !addDialogOpen)}
+        <div class="settings-section-card settings-section-card-muted" role="status" aria-live="polite">
+          <div class="settings-section-body">
+            {#if saved}
+              <p class="flex items-center gap-2 rounded-md bg-success/10 p-2 text-xs text-success">
+                <CheckCircle2 class="size-4" /> {saved}
+              </p>
+            {/if}
+            {#if error && !addDialogOpen}
+              <p class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                <TriangleAlert class="mt-0.5 size-4 flex-none" /> {error}
+              </p>
+            {/if}
+          </div>
+        </div>
+      {/if}
+
+      {#each domainSections as section (section.id)}
+        {@const sectionProfiles = profilesForSection(section)}
+        <SettingsSectionCard
+          section={section.id}
+          title={section.label}
+          description={section.description}
+        >
+          {#snippet actions()}
+            <Badge tone="neutral" size="xs">
+              {sectionProfiles.length} configured
+            </Badge>
+            {#if section.options.length > 0}
+              <Button size="sm" onclick={() => openAddDialog(section.id)}>
+                <Plus class="size-4" /> Add configuration
+              </Button>
+            {/if}
+          {/snippet}
+
+          {#if section.options.length === 0}
+            <div class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+              {section.emptyHint}
+            </div>
+          {/if}
+
+          {#if sectionProfiles.length === 0}
+            {#if section.options.length > 0}
+              <div class="rounded-md border bg-muted/30 px-3 py-2">
+                <p class="text-sm font-medium">No profiles configured.</p>
               </div>
             {/if}
-
-            {#each domainSections as section, index (section.id)}
-              {@const sectionProfiles = profilesForSection(section)}
-              <section class="space-y-3 p-4" class:border-t={index > 0}>
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                  <div class="min-w-0 space-y-1">
-                    <div class="flex min-w-0 flex-wrap items-center gap-2">
-                      <h3 class="text-sm font-semibold">{section.label}</h3>
-                      <Badge tone="neutral" size="xs">
-                        {sectionProfiles.length} configured
-                      </Badge>
+          {:else}
+            <div class="grid gap-3 xl:grid-cols-2">
+              {#each sectionProfiles as profile (profile.profileId)}
+                {@const fields = configuredFields(profile)}
+                <article class="rounded-md border bg-card p-4">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 space-y-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <h3 class="truncate text-sm font-semibold">
+                          {profile.displayName}
+                        </h3>
+                        <Badge tone={statusTone(profile.status)} size="xs">
+                          {profile.status}
+                        </Badge>
+                      </div>
+                      <p class="truncate text-xs text-muted-foreground">
+                        {profileSubtitle(profile)}
+                      </p>
                     </div>
-                    <p class="text-xs text-muted-foreground">{section.description}</p>
-                  </div>
-                  {#if section.options.length > 0}
-                    <Button size="sm" onclick={() => openAddDialog(section.id)}>
-                      <Plus class="size-4" /> Add configuration
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      disabled={refreshingProfileId === profile.profileId}
+                      onclick={() => void refreshProfile(profile.profileId)}
+                    >
+                      <RefreshCw class="size-3" /> Refresh
                     </Button>
-                  {/if}
-                </div>
-
-                {#if section.options.length === 0}
-                  <div class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
-                    {section.emptyHint}
                   </div>
-                {/if}
 
-                {#if sectionProfiles.length === 0}
-                  {#if section.options.length > 0}
-                    <div class="rounded-md border bg-muted/30 px-3 py-2">
-                      <p class="text-sm font-medium">No profiles configured.</p>
+                  {#if fields.length > 0}
+                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                      {#each fields as field}
+                        <div class="min-w-0 rounded-md border bg-muted/30 px-2 py-1.5">
+                          <p class="text-xs text-muted-foreground">{field.label}</p>
+                          <p class="truncate text-xs font-medium">{field.value}</p>
+                        </div>
+                      {/each}
                     </div>
                   {/if}
-                {:else}
-                  <div class="grid gap-3 xl:grid-cols-2">
-                    {#each sectionProfiles as profile (profile.profileId)}
-                      {@const fields = configuredFields(profile)}
-                      <article class="rounded-md border bg-card p-4">
-                        <div class="flex items-start justify-between gap-3">
-                          <div class="min-w-0 space-y-1">
-                            <div class="flex flex-wrap items-center gap-2">
-                              <h2 class="truncate text-sm font-semibold">
-                                {profile.displayName}
-                              </h2>
-                              <Badge tone={statusTone(profile.status)} size="xs">
-                                {profile.status}
-                              </Badge>
-                            </div>
-                            <p class="truncate text-xs text-muted-foreground">
-                              {profileSubtitle(profile)}
-                            </p>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            disabled={refreshingProfileId === profile.profileId}
-                            onclick={() => void refreshProfile(profile.profileId)}
-                          >
-                            <RefreshCw class="size-3" /> Refresh
-                          </Button>
-                        </div>
 
-                        {#if fields.length > 0}
-                          <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                            {#each fields as field}
-                              <div class="min-w-0 rounded-md border bg-muted/30 px-2 py-1.5">
-                                <p class="text-xs text-muted-foreground">{field.label}</p>
-                                <p class="truncate text-xs font-medium">{field.value}</p>
-                              </div>
-                            {/each}
-                          </div>
-                        {/if}
-
-                        {#if profile.lastError}
-                          <p class="mt-3 flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-                            <TriangleAlert class="mt-0.5 size-4 flex-none" /> {profile.lastError.message}
-                          </p>
-                        {/if}
-                      </article>
-                    {/each}
-                  </div>
-                {/if}
-              </section>
-            {/each}
-          </CardContent>
-        </Card>
-      {/if}
-    </main>
-      </div>
-    </div>
-  </div>
-</div>
+                  {#if profile.lastError}
+                    <p class="mt-3 flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                      <TriangleAlert class="mt-0.5 size-4 flex-none" /> {profile.lastError.message}
+                    </p>
+                  {/if}
+                </article>
+              {/each}
+            </div>
+          {/if}
+        </SettingsSectionCard>
+      {/each}
+    {/if}
+  {/snippet}
+</SettingsShell>
 
 <DialogShell
   bind:open={addDialogOpen}

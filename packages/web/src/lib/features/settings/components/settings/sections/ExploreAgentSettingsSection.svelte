@@ -9,7 +9,7 @@
   } from "$lib/api";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
-  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
   import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
   import {
     modelDisplayName,

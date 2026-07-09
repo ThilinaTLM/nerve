@@ -1,13 +1,6 @@
 <script lang="ts">
-  import { Monitor, Moon, Sun } from "@lucide/svelte";
-  import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-  } from "@nervekit/shared-ui/components/ui/card";
-  import { cn } from "@nervekit/shared-ui/core/utils";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
+  import RadioGroup from "@nervekit/shared-ui/components/ui/radio-group-field";
   import {
     useAppearance,
     type ThemePreference,
@@ -15,39 +8,32 @@
 
   const appearance = useAppearance();
 
-  const options: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
-    { value: "system", label: "System", icon: Monitor },
-    { value: "light", label: "Light", icon: Sun },
-    { value: "dark", label: "Dark", icon: Moon },
+  const options: { value: ThemePreference; label: string; detail: string }[] = [
+    { value: "system", label: "System", detail: "Follow the operating system" },
+    { value: "dark", label: "Dark", detail: "Dark sandbox surfaces" },
+    { value: "light", label: "Light", detail: "Light sandbox surfaces" },
   ];
+
+  function setThemePreference(value: string): void {
+    appearance.setPreference(value as ThemePreference);
+  }
 </script>
 
-<Card class="rounded-md border">
-  <CardHeader class="border-b p-4">
-    <CardTitle class="text-base">Appearance</CardTitle>
-    <CardDescription>Choose how the sandbox manager looks on this device.</CardDescription>
-  </CardHeader>
-  <CardContent class="p-4">
-    <div role="radiogroup" aria-label="Theme" class="grid gap-3 sm:grid-cols-3">
-      {#each options as option (option.value)}
-        {@const Icon = option.icon}
-        {@const selected = appearance.preference === option.value}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={selected}
-          class={cn(
-            "flex flex-col items-center gap-2 rounded-md border bg-card p-4 text-sm transition-colors",
-            selected
-              ? "border-primary ring-1 ring-primary"
-              : "hover:border-primary/40 hover:bg-accent/40",
-          )}
-          onclick={() => appearance.setPreference(option.value)}
-        >
-          <Icon class="size-5 text-muted-foreground" />
-          <span class="font-medium">{option.label}</span>
-        </button>
-      {/each}
+<SettingsSectionCard
+  section="appearance"
+  title="Appearance"
+  description="Choose how the sandbox manager looks on this device."
+>
+  <div class="settings-row settings-row-stacked">
+    <div class="settings-copy">
+      <strong>Color theme</strong>
     </div>
-  </CardContent>
-</Card>
+    <RadioGroup
+      items={options}
+      value={appearance.preference}
+      orientation="horizontal"
+      ariaLabel="Theme preference"
+      onValueChange={setThemePreference}
+    />
+  </div>
+</SettingsSectionCard>

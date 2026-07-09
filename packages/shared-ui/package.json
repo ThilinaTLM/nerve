@@ -26,6 +26,7 @@
     "./core/notify": "./src/lib/core/notify.ts",
     "./core/utils/*": "./src/lib/core/utils/*.ts",
     "./components/ui/*": "./src/lib/components/ui/*/index.ts",
+    "./components/settings": "./src/lib/components/settings/index.ts",
     "./components/workbench": "./src/lib/components/workbench/index.ts",
     "./components/navigator": "./src/lib/components/navigator/index.ts",
     "./git/*": "./src/lib/git/*",

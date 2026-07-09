@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { StatusResponse } from "$lib/api";
-  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
 
   type Props = {
     status?: StatusResponse;

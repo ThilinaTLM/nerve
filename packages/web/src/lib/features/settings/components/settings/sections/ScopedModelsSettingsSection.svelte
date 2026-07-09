@@ -10,7 +10,7 @@
     UpdateSettingsRequest,
   } from "$lib/api";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
-  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
   import {
     authenticatedRealModelOptions,
     modelDisplayName,

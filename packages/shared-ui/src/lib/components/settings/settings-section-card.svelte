@@ -7,6 +7,7 @@
     title: string;
     description?: string;
     muted?: boolean;
+    idPrefix?: string;
     class?: string;
     bodyClass?: string;
     actions?: Snippet;
@@ -18,6 +19,7 @@
     title,
     description,
     muted = false,
+    idPrefix = "settings",
     class: className,
     bodyClass,
     actions,
@@ -26,7 +28,7 @@
 </script>
 
 <section
-  id={`settings-${section}`}
+  id={`${idPrefix}-${section}`}
   class={cn("settings-section-card", muted && "settings-section-card-muted", className)}
   data-section={section}
 >

@@ -13,7 +13,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
   import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import { clampThinkingLevelForModel } from "$lib/features/conversations/state/agent-selection-defaults";
-  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
   import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
   import {
     modelDisplayName,
