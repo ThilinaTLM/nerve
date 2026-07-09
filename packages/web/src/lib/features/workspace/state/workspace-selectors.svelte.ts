@@ -1,3 +1,4 @@
+import { agentRunningTone } from "@nervekit/shared-ui/core/utils/status";
 import {
   conversationViewKey,
   fileViewKey,
@@ -8,7 +9,6 @@ import {
   defaultFileDisplayMode,
   isMarkdownPath,
 } from "$lib/core/utils/file-display";
-import { agentRunningTone } from "$lib/core/utils/status";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import {
   buildConversationActivityById,

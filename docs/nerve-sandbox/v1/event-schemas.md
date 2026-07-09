@@ -91,6 +91,7 @@ type SandboxEventPayloadMap = {
   "tool.call.started": ToolCallStartedEvent;
   "tool.call.completed": ToolCallCompletedEvent;
   "tool.call.failed": ToolCallFailedEvent;
+  "tool.call.cancelled": ToolCallCancelledEvent;
 };
 ```
 
@@ -232,6 +233,7 @@ type RunDeltaEvent = SandboxEventCommon & RunScope & {
   deltaId: string;
   role: "assistant" | "tool" | "system";
   text?: string;
+  artifactRefs?: ArtifactRef[];
   finishReason?: string;
 };
 
@@ -283,7 +285,7 @@ type RunFailedEvent = SandboxEventCommon & RunScope & {
 };
 ```
 
-`run.delta` is transient. All other run events listed here are durable.
+`run.delta` is transient by default and is not required for replay recovery. `run.transcript.appended`, wait events, checkpoints, and terminal run events are durable and are written only after the referenced state/transcript/checkpoint data is durable. Retryable provider failures use `run.failed` with `error.retryable = true`; the run snapshot/status may be `recoverable_failed` to show continue eligibility.
 
 ## Tool events
 
@@ -291,26 +293,26 @@ type RunFailedEvent = SandboxEventCommon & RunScope & {
 type ToolCallRequestedEvent = SandboxEventCommon & RunScope & {
   toolCallId: string;
   toolName: string;
+  status: "requested" | "waiting_for_approval" | "started" | "completed" | "failed" | "cancelled";
   group?: string;
-  risk: string[];
-  decision: "allow" | "approval" | "deny";
+  risk?: string[];
+  decision?: "allow" | "approval" | "deny";
   approvalId?: string;
-  normalizedArgs: unknown;
-  requestedAt: string;
+  displayArgs?: unknown;
+  normalizedArgs?: unknown;
+  artifactRefs?: ArtifactRef[];
+  lifecycleSeq?: number;
+  requestedAt?: string;
 };
 
-type ToolCallStartedEvent = SandboxEventCommon & RunScope & {
-  toolCallId: string;
-  toolName: string;
-  group?: string;
+type ToolCallStartedEvent = ToolCallRequestedEvent & {
+  status: "started";
   startedAt: string;
   timeoutMs?: number;
 };
 
-type ToolCallCompletedEvent = SandboxEventCommon & RunScope & {
-  toolCallId: string;
-  toolName: string;
-  group?: string;
+type ToolCallCompletedEvent = ToolCallRequestedEvent & {
+  status: "completed";
   completedAt: string;
   durationMs?: number;
   result?: unknown;
@@ -319,13 +321,18 @@ type ToolCallCompletedEvent = SandboxEventCommon & RunScope & {
   artifacts?: ArtifactRef[];
 };
 
-type ToolCallFailedEvent = SandboxEventCommon & RunScope & {
-  toolCallId: string;
-  toolName: string;
-  group?: string;
-  failedAt: string;
+type ToolCallFailedEvent = ToolCallRequestedEvent & {
+  status: "failed";
+  failedAt?: string;
+  completedAt?: string;
   durationMs?: number;
   error: RedactedError;
+};
+
+type ToolCallCancelledEvent = ToolCallRequestedEvent & {
+  status: "cancelled";
+  cancelledAt: string;
+  error?: RedactedError;
 };
 
 type SandboxSecurityDeniedEvent = SandboxEventCommon & Partial<RunScope> & {
@@ -340,7 +347,7 @@ type SandboxSecurityDeniedEvent = SandboxEventCommon & Partial<RunScope> & {
 };
 ```
 
-Tool results MUST be bounded and redacted. Large outputs SHOULD be represented as artifact references.
+Tool lifecycle events are durable. Tool results MUST be bounded and redacted. Large outputs SHOULD be represented as artifact references. Approval waits update the tool-call status to `waiting_for_approval` before emitting `run.waiting_for_approval`.
 
 ## Status support types
 

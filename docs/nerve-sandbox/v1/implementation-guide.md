@@ -19,7 +19,7 @@ packages/shared/src/domains/sandbox/
   skills.schema.ts
   setup.schema.ts
 
-packages/sandbox-image/
+packages/sandbox-agent/
   src/entrypoint.ts
   src/config/load-config.ts
   src/config/digest.ts
@@ -60,14 +60,18 @@ packages/sandbox-manager/
   src/config/materialize-sandbox-config.ts
   src/events/manager-event-bus.ts
 
-packages/web/src/lib/sandbox-manager/
-  api/
-  state/
-  routes-or-views/
-  components/
+packages/sandbox-manager-ui/
+  src/lib/api/
+  src/lib/state/
+  src/lib/routes/
+  src/lib/components/
+
+packages/shared-ui/
+  src/lib/components/ui/
+  src/styles/
 ```
 
-This layout is illustrative. Protocol, config, command, event, state, credential, and manager schemas that are shared by controllers, sandboxes, and the web UI should live in `packages/shared`.
+This layout is illustrative. Protocol, config, command, event, state, credential, and manager schemas that are shared by controllers, sandboxes, and the web UI should live in `packages/shared`. Svelte components, CSS, and browser display helpers belong in `packages/shared-ui`, not `packages/shared`.
 
 ## Reuse candidates
 
@@ -92,7 +96,7 @@ Current Nerve components that may be reused or adapted:
 | Git/GitHub service ideas | `packages/orchestrator/src/domains/git/*` |
 | Agent/tool orchestration glue | `packages/orchestrator/src/domains/agents/run/*` and `domains/tools/*` |
 
-The sandbox image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/web` surface, not the current local workbench reused unchanged.
+The sandbox agent image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/sandbox-manager-ui` app using shared primitives from `packages/shared-ui`, not the current local workbench reused unchanged.
 
 ## Phase 1: shared schemas
 
@@ -140,7 +144,7 @@ Validation:
 
 ## Phase 3: image and entrypoint
 
-Create a minimal sandbox image with:
+Create a minimal sandbox agent image with:
 
 - `/agent` runtime;
 - optional `/agent/skills` built-in skills directory;
@@ -148,7 +152,7 @@ Create a minimal sandbox image with:
 - `/workspace`, `/state`, `/tmp` paths;
 - protected `/state/credentials` and `/state/cache/secrets` paths;
 - dependency cache path under `/state/cache/dependencies`;
-- config loading from `NERVE_SANDBOX_CONFIG`;
+- config loading from `NERVE_SANDBOX_AGENT_CONFIG`;
 - healthcheck command;
 - no current orchestrator/UI dependency.
 
@@ -321,8 +325,8 @@ Validation:
 
 Run the agent harness inside the sandbox:
 
-- create/run a main agent from `agent.mainModel` selector;
-- configure explore agent from `agent.exploreModel` or main model;
+- create/run a main agent from `agent.defaultModel` selector;
+- configure explore agent from `agent.defaultExploreModel` or main model;
 - load `AGENTS.md`, project `.agents/skills`, manager-mounted skills, and built-in skills according to sandbox policy;
 - map controller commands to run/steer/follow-up behavior;
 - persist transcript and run state under conversation/agent scope;
@@ -406,7 +410,7 @@ Validation:
 
 ## Phase 16: sandbox-manager web UI
 
-Implement the new `packages/web` sandbox-manager UI surface described in [Web UI](./web-ui.md).
+Implement the dedicated `packages/sandbox-manager-ui` app described in [Web UI](./web-ui.md).
 
 Validation:
 
@@ -417,7 +421,7 @@ Validation:
 - run view supports transcript/tool lifecycle, approvals, and input waits;
 - lifecycle actions use idempotent manager commands;
 - no raw secrets are requested or rendered;
-- styling follows `packages/web/AGENTS.md` and shadcn-svelte conventions.
+- styling follows `packages/shared-ui`/`packages/sandbox-manager-ui` AGENTS guidance and shadcn-svelte conventions.
 
 ## Phase 17: future ECS driver
 

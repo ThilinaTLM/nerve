@@ -94,7 +94,7 @@ import type {
 export type ToolCallDisplayRecord =
   | ToolCallRecordType
   | ToolCallTranscriptRecordType;
-export * from "./core/api/client";
+export * from "@nervekit/shared-ui/core/api/client";
 export * from "./features/agents/api/agents.api";
 export * from "./features/audio/api/transcription.api";
 export * from "./features/auth/api/auth.api";

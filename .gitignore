@@ -17,6 +17,14 @@ release/
 .nerve
 .pi
 
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.auto.tfvars
+crash.log
+
 # Python
 __pycache__/
 *.pyc

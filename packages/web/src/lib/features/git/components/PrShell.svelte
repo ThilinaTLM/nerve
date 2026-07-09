@@ -2,7 +2,7 @@
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 
   import { checkoutGithubPr } from "$lib/api";
-  import PrPane from "$lib/features/git/components/PrPane.svelte";
+  import PrPane from "@nervekit/shared-ui/git/GithubPrPane.svelte";
   import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
   import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
   import { refreshPrPane } from "$lib/features/git/state/pr-tabs.svelte";

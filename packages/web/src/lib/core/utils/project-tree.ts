@@ -1,5 +1,5 @@
+import { shortModelLabel } from "@nervekit/shared-ui/core/utils/model";
 import type { AgentRecord, ConversationRecord, ProjectRecord } from "$lib/api";
-import { shortModelLabel } from "./model";
 
 export type ConversationRow = {
   conversation: ConversationRecord;

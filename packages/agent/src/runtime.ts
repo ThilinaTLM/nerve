@@ -3,6 +3,7 @@ import {
   type Context,
   clampThinkingLevel,
   fauxAssistantMessage,
+  fauxToolCall,
   getSupportedThinkingLevels,
   type Message,
   type Model,
@@ -14,6 +15,8 @@ import {
   getRegisteredModel,
   getRegisteredModels,
   isBuiltinProvider,
+  type ManagedFauxProviderHandle,
+  registerManagedFauxProvider,
   streamSimpleWithModel,
 } from "./pi-ai-models.js";
 import { normalizeImagesForModel } from "./runtime/image-normalization.js";
@@ -153,6 +156,62 @@ export interface AgentPromptInput {
   signal?: AbortSignal;
 }
 
+export type AgentScriptedProviderStep =
+  | { type: "assistantText"; text?: string; chunks?: string[] }
+  | { type: "toolCall"; id: string; name: string; args: unknown }
+  | { type: "providerError"; message: string; retryable?: boolean }
+  | { type: "waitForAbort" };
+
+const scriptedProviders = new Map<string, ManagedFauxProviderHandle>();
+
+export function registerAgentScriptedProvider(options: {
+  provider?: string;
+  model?: string;
+  steps: AgentScriptedProviderStep[];
+}): ManagedFauxProviderHandle {
+  const provider = options.provider ?? "nerve-scripted";
+  const model = options.model ?? "scripted-fast";
+  const registration = registerManagedFauxProvider({
+    provider,
+    models: [{ id: model, name: "Nerve Scripted Test Model" }],
+    tokensPerSecond: 10_000,
+    tokenSize: { min: 64, max: 256 },
+  });
+  registration.setResponses(
+    options.steps.map((step) => async (_context, streamOptions) => {
+      if (step.type === "assistantText") {
+        return fauxAssistantMessage(step.text ?? step.chunks?.join("") ?? "");
+      }
+      if (step.type === "toolCall") {
+        return fauxAssistantMessage([
+          fauxToolCall(step.name, step.args as never, { id: step.id }),
+        ]);
+      }
+      if (step.type === "waitForAbort") {
+        await new Promise<void>((resolve) => {
+          if (streamOptions?.signal?.aborted) return resolve();
+          streamOptions?.signal?.addEventListener("abort", () => resolve(), {
+            once: true,
+          });
+        });
+        return fauxAssistantMessage("aborted");
+      }
+      return fauxAssistantMessage("", {
+        errorMessage: `${step.retryable === false ? "NON_RETRYABLE" : "RETRYABLE"}: ${step.message}`,
+      });
+    }),
+  );
+  scriptedProviders.set(provider, registration);
+  const unregister = registration.unregister;
+  return {
+    ...registration,
+    unregister: () => {
+      scriptedProviders.delete(provider);
+      unregister();
+    },
+  };
+}
+
 const fauxResponseFactory: Parameters<
   ReturnType<typeof getNerveFauxProvider>["appendResponses"]
 >[0][number] = (context) => {
@@ -193,6 +252,11 @@ function resolveAgentModelInternal(
   const custom = findCustomModel(activeCustomModels(customModels), selection);
   const customResolved = custom ? toPiModel(custom) : undefined;
   if (customResolved) return customResolved;
+  const scripted = selection
+    ? scriptedProviders.get(selection.provider)
+    : undefined;
+  const scriptedModel = scripted?.getModel(selection?.modelId ?? "");
+  if (scriptedModel) return scriptedModel;
   if (selection && isKnownProvider(selection.provider)) {
     const builtinModel = getRegisteredModel(
       selection.provider,

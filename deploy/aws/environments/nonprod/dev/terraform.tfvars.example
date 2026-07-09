@@ -1,0 +1,77 @@
+aws_region  = "us-east-1"
+owner       = "your-name-or-team"
+name_prefix = "nerve-sandbox-nonprod-dev"
+
+vpc_id = "vpc-xxxxxxxxxxxxxxxxx"
+
+# Public subnets for the public HTTP ALB. Use at least two subnets in different AZs.
+alb_subnet_ids = ["subnet-public-a", "subnet-public-b"]
+
+# Lowest-cost demo path: use public subnets and keep manager_assign_public_ip
+# and sandbox_assign_public_ip=true to avoid NAT Gateway cost. For a more
+# prod-like layout, use private subnets here and provide NAT or VPC endpoints.
+task_subnet_ids = ["subnet-public-a", "subnet-public-b"]
+
+# Optional. Defaults to task_subnet_ids. RDS DB subnet groups normally require
+# at least two subnets in different AZs.
+rds_subnet_ids = ["subnet-public-a", "subnet-public-b"]
+
+# Required for public HTTP demos. Restrict to your current public IP/CIDR.
+alb_ingress_cidrs = ["203.0.113.10/32"]
+
+# Terraform creates ECR repositories by default and points ECS at these image
+# tags. Build and push these images before the manager service can become
+# healthy, or set manager_image/agent_image to pre-existing image URIs.
+image_tag = "dev"
+# manager_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/nerve-sandbox-manager:dev"
+# agent_image   = "123456789012.dkr.ecr.us-east-1.amazonaws.com/nerve-sandbox-agent:dev"
+
+# HTTP-only testing. Keep null unless you also front the manager with HTTPS or
+# are only testing APIs with an Authorization header. The browser auth cookie
+# flow requires HTTPS in trusted-proxy mode.
+api_key_parameter_arn = null
+
+# Optional production-hardening secret; can be an SSM SecureString parameter ARN.
+secret_encryption_key_parameter_arn = null
+
+# Minimal nonprod/dev RDS defaults.
+create_rds                  = true
+rds_instance_class          = "db.t4g.micro"
+rds_allocated_storage_gb    = 20
+rds_backup_retention_period = 0
+rds_deletion_protection     = false
+rds_skip_final_snapshot     = true
+
+# Disposable nonprod/dev ECR cleanup.
+create_ecr_repositories = true
+ecr_force_delete        = true
+
+# Public HTTP ALB for the demo.
+alb_internal        = false
+alb_certificate_arn = null
+
+# Low-cost Fargate task sizing and public-IP no-NAT posture.
+manager_cpu              = 512
+manager_memory_mb        = 1024
+manager_desired_count    = 1
+manager_assign_public_ip = true
+sandbox_assign_public_ip = true
+
+# Module-created EFS access point creates this root with writable dev permissions.
+efs_root_directory = "/nerve"
+
+# Short log retention for cost control.
+log_retention_days = 7
+
+# Private Cloud Map is enabled by default so sandbox tasks call the manager
+# privately instead of through the public HTTP ALB allowlist.
+create_cloud_map_namespace          = true
+cloud_map_private_dns_namespace_name = "nerve-sandbox-dev.local"
+enable_cloud_map                    = false
+cloud_map_namespace_id              = null
+cloud_map_namespace_name            = null
+cloud_map_service_name              = "sandbox-manager"
+
+tags = {
+  Purpose = "sandbox-manager-demo"
+}

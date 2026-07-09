@@ -3,7 +3,11 @@ import type {
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
 } from "@nervekit/shared";
-import { apiGet, apiPost, fileToBase64 } from "../../../core/api/client";
+import {
+  apiGet,
+  apiPost,
+  fileToBase64,
+} from "@nervekit/shared-ui/core/api/client";
 import { protocolRequest } from "../../../core/protocol/http-client";
 
 export async function uploadClipboardImage(file: File): Promise<string> {

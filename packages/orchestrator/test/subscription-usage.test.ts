@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { SubscriptionUsage } from "@nervekit/shared";
+import {
+  type SubscriptionUsage,
+  subscriptionUsageSchema,
+} from "@nervekit/shared";
 import type { AuthManager } from "../src/domains/auth/index.js";
 import { parseAnthropicUsageResponse } from "../src/domains/usage/anthropic-client.js";
 import {
@@ -67,9 +70,29 @@ describe("subscription usage parsing", () => {
 
     assert.equal(usage?.provider, "anthropic");
     assert.equal(usage?.session?.usedPercent, 42.4);
-    assert.equal(usage?.session?.resetsAt, "2026-01-01T05:00:00Z");
+    assert.equal(usage?.session?.resetsAt, "2026-01-01T05:00:00.000Z");
     assert.equal(usage?.weekly?.usedPercent, 17);
-    assert.equal(usage?.weekly?.resetsAt, "2026-01-08T00:00:00Z");
+    assert.equal(usage?.weekly?.resetsAt, "2026-01-08T00:00:00.000Z");
+  });
+
+  it("normalizes Anthropic offset reset timestamps to protocol ISO datetimes", () => {
+    const usage = parseAnthropicUsageResponse(
+      JSON.stringify({
+        five_hour: {
+          utilization: "70",
+          resets_at: "2026-07-06T14:49:59.715670+00:00",
+        },
+        seven_day: {
+          utilization: 38,
+          resets_at: "2026-07-07T00:59:59.715693+00:00",
+        },
+      }),
+    );
+
+    assert.equal(usage?.session?.usedPercent, 70);
+    assert.equal(usage?.session?.resetsAt, "2026-07-06T14:49:59.715Z");
+    assert.equal(usage?.weekly?.resetsAt, "2026-07-07T00:59:59.715Z");
+    assert.equal(subscriptionUsageSchema.safeParse(usage).success, true);
   });
 
   it("maps Codex primary and secondary API windows", () => {

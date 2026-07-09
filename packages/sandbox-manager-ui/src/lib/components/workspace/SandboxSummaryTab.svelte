@@ -1,0 +1,296 @@
+<script lang="ts">
+  import Activity from "@lucide/svelte/icons/activity";
+  import Bot from "@lucide/svelte/icons/bot";
+  import Clock from "@lucide/svelte/icons/clock";
+  import FileCog from "@lucide/svelte/icons/file-cog";
+  import FileText from "@lucide/svelte/icons/file-text";
+  import Gauge from "@lucide/svelte/icons/gauge";
+  import Info from "@lucide/svelte/icons/info";
+  import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
+  import Play from "@lucide/svelte/icons/play";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import ScrollText from "@lucide/svelte/icons/scroll-text";
+  import Square from "@lucide/svelte/icons/square";
+  import Terminal from "@lucide/svelte/icons/terminal";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+  import Wrench from "@lucide/svelte/icons/wrench";
+  import type { ManagedSandboxRecord } from "@nervekit/shared";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { Separator } from "@nervekit/shared-ui/components/ui/separator";
+  import SandboxBootProgress from "../SandboxBootProgress.svelte";
+  import SandboxStatStrip from "../SandboxStatStrip.svelte";
+  import SandboxRemoveDialog from "../SandboxRemoveDialog.svelte";
+  import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
+  import {
+    sandboxCanCreateConversation,
+    sandboxIsReadOnly,
+    sandboxLifecycleBadgeLabel,
+    sandboxLifecycleMessage,
+  } from "../../state/sandbox-lifecycle";
+  import { activityFor } from "../../state/sandbox-manager-selectors.svelte";
+  import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
+  import { canRestart, canStart, canStop } from "../../state/sandbox-status";
+
+  let { record }: { record: ManagedSandboxRecord } = $props();
+
+  const store = useSandboxManagerStore();
+  let removeOpen = $state(false);
+  let bootExpanded = $state<boolean | null>(null);
+
+  const detail = $derived(store.details[record.sandboxId]);
+  const activity = $derived(activityFor(store, record.sandboxId));
+  const progress = $derived(computeSandboxBootProgress(record, detail));
+  const snapshot = $derived(detail?.snapshot);
+  const runs = $derived(snapshot?.runs ?? detail?.status?.runs ?? []);
+  const conversations = $derived(snapshot?.conversations ?? detail?.status?.conversations ?? []);
+  const agents = $derived(snapshot?.agents ?? detail?.status?.agents ?? []);
+  const waits = $derived([
+    ...Object.values(detail?.waitsById ?? {}),
+    ...runs.flatMap((run) => run.waits ?? []),
+  ]);
+  const pendingWaits = $derived(waits.filter((wait) => wait.status === "waiting").length);
+  const toolCalls = $derived([
+    ...Object.values(detail?.toolCallsById ?? {}),
+    ...runs.flatMap((run) => run.toolCalls ?? []),
+  ]);
+  const activeRuns = $derived(
+    runs.filter((run) =>
+      ["queued", "running", "streaming", "waiting"].includes(run.status),
+    ).length,
+  );
+  const connectionLabel = $derived(sandboxLifecycleBadgeLabel(record, detail));
+  const readOnly = $derived(sandboxIsReadOnly(record, detail));
+  const lastError = $derived(record.lastError);
+  const failedPhase = $derived(
+    progress.phases.find((phase) => phase.status === "failed" && phase.error),
+  );
+  const summaryError = $derived(
+    failedPhase?.error ? parseErrorText(failedPhase.error) : lastError,
+  );
+  const errorTitle = $derived(
+    failedPhase
+      ? `${failedPhase.label} failed`
+      : progress.state === "failed"
+        ? progress.headline
+        : "Sandbox warning",
+  );
+  const canCreateConversation = $derived(sandboxCanCreateConversation(record, detail));
+  const lifecycleMessage = $derived(sandboxLifecycleMessage(record, detail));
+  const session = $derived(detail?.latestSession ?? detail?.status?.lastSession ?? snapshot?.lastSession);
+  const contextUsage = $derived(
+    typeof activity?.contextUsagePct === "number"
+      ? `${Math.round(activity.contextUsagePct)}%`
+      : "—",
+  );
+  const modelActivity = $derived(
+    [activity?.provider, activity?.model].filter(Boolean).join(" / ") || "—",
+  );
+
+  const metrics = $derived([
+    { label: "Conversations", value: conversations.length, icon: MessageSquarePlus },
+    { label: "Runs", value: `${activeRuns}/${runs.length}`, icon: Activity },
+    { label: "Agents", value: agents.length, icon: Bot },
+    { label: "Pending waits", value: pendingWaits, icon: Clock },
+    { label: "Tool calls", value: toolCalls.length, icon: Wrench },
+    { label: "Context", value: contextUsage, icon: Gauge },
+  ]);
+
+  function parseErrorText(error: string): { code?: string; message: string } {
+    const match = /^([A-Z][A-Z0-9_]+):\s*(.+)$/s.exec(error);
+    if (!match) return { message: error };
+    return { code: match[1], message: match[2] };
+  }
+
+  function formatDate(value: string | undefined): string {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString();
+  }
+
+  const runtimeRows = $derived([
+    { label: "Backend", value: record.backend },
+    { label: "Image", value: record.image.reference, mono: true },
+    { label: "Model", value: modelActivity },
+    { label: "Created", value: formatDate(record.createdAt) },
+    { label: "Updated", value: formatDate(record.updatedAt) },
+  ]);
+  const sessionRows = $derived([
+    { label: "Controller", value: connectionLabel },
+    { label: "Session", value: session?.sessionId ?? "—", mono: true },
+    { label: "Connected", value: formatDate(session?.connectedAt) },
+    { label: "Last event", value: formatDate(detail?.status?.lastEventAt ?? snapshot?.lastEventAt) },
+    { label: "Activity", value: activity?.title ?? "—" },
+  ]);
+
+  function guard(action: Promise<void>): void {
+    action.catch(() => undefined);
+  }
+
+  function refresh(): void {
+    void Promise.all([store.refreshFleet(), store.loadDetail(record.sandboxId)]);
+  }
+</script>
+
+<div class="h-full overflow-auto bg-background p-4">
+  <div class="mx-auto flex max-w-5xl flex-col gap-3">
+    <section class="flex flex-wrap items-start justify-between gap-3 rounded-md border bg-card px-3 py-2.5">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="truncate text-sm font-semibold">{record.name ?? record.sandboxId}</h2>
+          <Badge tone={progress.state === "failed" ? "warn" : progress.ready ? "good" : "accent"} size="xs">
+            {connectionLabel}
+          </Badge>
+        </div>
+        <div class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+          <span class="truncate font-mono">{record.sandboxId}</span>
+          <span aria-hidden="true">·</span>
+          <span class="truncate">{progress.headline}</span>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="default"
+          disabled={!canCreateConversation}
+          onclick={() => store.startNewConversation(record.sandboxId)}
+        >
+          <MessageSquarePlus class="size-4" /> New conversation
+        </Button>
+
+        <Separator orientation="vertical" class="mx-0.5 h-6" />
+
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!canStart(record)}
+          onclick={() => guard(store.startSandbox(record.sandboxId))}
+        >
+          <Play class="size-4" /> Start
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!canStop(record)}
+          onclick={() => guard(store.stopSandbox(record.sandboxId))}
+        >
+          <Square class="size-4" /> Stop
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!canRestart(record)}
+          onclick={() => guard(store.restartSandbox(record.sandboxId))}
+        >
+          <RefreshCw class="size-4" /> Restart
+        </Button>
+
+        <Separator orientation="vertical" class="mx-0.5 h-6" />
+
+        <Button size="sm" variant="outline" onclick={refresh}>
+          <RefreshCw class="size-4" /> Refresh
+        </Button>
+
+        <Separator orientation="vertical" class="mx-0.5 h-6" />
+
+        <Button size="sm" variant="destructive" onclick={() => (removeOpen = true)}>
+          <Trash2 class="size-4" /> Delete
+        </Button>
+      </div>
+
+      {#if summaryError}
+        <section class="basis-full rounded-md border bg-muted/30 px-3 py-2.5">
+          <div class="flex items-start gap-2.5">
+            <TriangleAlert class="mt-0.5 size-4 flex-none text-destructive" />
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="text-sm font-medium text-foreground">{errorTitle}</p>
+                {#if summaryError.code}
+                  <Badge tone="danger" size="xs">{summaryError.code}</Badge>
+                {/if}
+              </div>
+              <p class="mt-0.5 break-words text-xs leading-relaxed text-muted-foreground">
+                {summaryError.message}
+              </p>
+            </div>
+          </div>
+        </section>
+      {:else if readOnly}
+        <section class="flex basis-full gap-2 rounded-md border bg-muted/40 p-3 text-sm">
+          <Info class="mt-0.5 size-4 flex-none text-info" />
+          <div class="min-w-0">
+            <p class="font-medium">Read-only snapshot</p>
+            <p class="text-muted-foreground">{lifecycleMessage}</p>
+          </div>
+        </section>
+      {/if}
+    </section>
+
+    <SandboxStatStrip items={metrics} />
+
+    <SandboxBootProgress
+      {record}
+      variant="banner"
+      expanded={bootExpanded ?? progress.showPhaseStepper}
+      onToggle={() => (bootExpanded = !(bootExpanded ?? progress.showPhaseStepper))}
+    />
+
+    <div class="grid gap-3 lg:grid-cols-2">
+      <div class="rounded-md border bg-card p-3">
+        <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Runtime</h3>
+        <dl class="grid gap-1.5 text-sm">
+          {#each runtimeRows as row (row.label)}
+            <div class="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3">
+              <dt class="text-muted-foreground">{row.label}</dt>
+              <dd
+                class={`truncate ${row.mono ? "font-mono" : ""} ${row.value === "—" ? "text-muted-foreground/60" : "text-foreground"}`}
+                title={row.value === "—" ? undefined : String(row.value)}
+              >{row.value}</dd>
+            </div>
+          {/each}
+        </dl>
+      </div>
+
+      <div class="rounded-md border bg-card p-3">
+        <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Session</h3>
+        <dl class="grid gap-1.5 text-sm">
+          {#each sessionRows as row (row.label)}
+            <div class="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3">
+              <dt class="text-muted-foreground">{row.label}</dt>
+              <dd
+                class={`truncate ${row.mono ? "font-mono" : ""} ${row.value === "—" ? "text-muted-foreground/60" : "text-foreground"}`}
+                title={row.value === "—" ? undefined : String(row.value)}
+              >{row.value}</dd>
+            </div>
+          {/each}
+        </dl>
+      </div>
+    </div>
+
+    <section class="flex flex-wrap items-center gap-1 rounded-md border bg-card px-2 py-1.5">
+      <span class="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Diagnostics</span>
+
+      <Separator orientation="vertical" class="mx-0.5 h-5" />
+
+      <Button size="sm" variant="ghost" onclick={() => store.openWorkspaceDiagnosticTab(record.sandboxId, "logs")}>
+        <Terminal class="size-4" /> Open logs
+      </Button>
+      <Button size="sm" variant="ghost" onclick={() => store.openWorkspaceDiagnosticTab(record.sandboxId, "config")}>
+        <FileCog class="size-4" /> Open config
+      </Button>
+      <Button size="sm" variant="ghost" onclick={() => store.openWorkspaceDiagnosticTab(record.sandboxId, "events")}>
+        <ScrollText class="size-4" /> Open events
+      </Button>
+
+      <Separator orientation="vertical" class="mx-0.5 h-5" />
+
+      <Button size="sm" variant="ghost" onclick={() => store.loadLogs(record.sandboxId)}>
+        <FileText class="size-4" /> Refresh logs
+      </Button>
+    </section>
+  </div>
+</div>
+
+<SandboxRemoveDialog bind:open={removeOpen} {record} />

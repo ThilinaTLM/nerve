@@ -2,7 +2,7 @@
   import { QueryClientProvider } from "@tanstack/svelte-query";
   import { ModeWatcher } from "mode-watcher";
   import App from "./App.svelte";
-  import { Toaster } from "$lib/components/ui/sonner";
+  import { Toaster } from "@nervekit/shared-ui/components/ui/sonner";
   import { desktopRuntime } from "$lib/features/desktop/state/desktop-bridge.svelte";
   import { queryClient } from "$lib/core/query";
 </script>

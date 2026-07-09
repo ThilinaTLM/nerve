@@ -1,5 +1,8 @@
 import type { AudioTranscriptionResponse } from "@nervekit/shared";
-import { ApiRequestError, parseApiErrorBody } from "../../../core/api/client";
+import {
+  ApiRequestError,
+  parseApiErrorBody,
+} from "@nervekit/shared-ui/core/api/client";
 
 function extensionForAudioType(type: string): string {
   const normalized = type.split(";")[0]?.trim().toLowerCase();

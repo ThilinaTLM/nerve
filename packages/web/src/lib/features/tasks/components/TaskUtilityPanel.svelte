@@ -16,16 +16,15 @@
     type TaskRecord,
     type ProjectRecord,
   } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
-
-  import * as Tooltip from "$lib/components/ui/tooltip";
-  import PanelSection from "$lib/app/layout/utility/PanelSection.svelte";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import ConfirmDialog from "@nervekit/shared-ui/components/ui/confirm-dialog";
+  import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
+  import { PanelSection } from "@nervekit/shared-ui/components/workbench";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
-  import PinnedCommandDialog from "./PinnedCommandDialog.svelte";
-  import PinnedCommandItem from "./PinnedCommandItem.svelte";
-  import TaskListItem from "./TaskListItem.svelte";
+  import PinnedCommandDialog from "@nervekit/shared-ui/tasks/PinnedCommandDialog.svelte";
+  import PinnedCommandItem from "@nervekit/shared-ui/tasks/PinnedCommandItem.svelte";
+  import TaskListItem from "@nervekit/shared-ui/tasks/TaskListItem.svelte";
 
   type Props = {
     activeProject?: ProjectRecord;
@@ -229,9 +228,9 @@
                 command={command}
                 cwd={activeProject.dir}
                 running={runningPinId === command.id}
-                onRun={runPin}
-                onEdit={editPin}
-                onRemove={(item) => (pinToDelete = item)}
+                onRun={(item) => runPin(item as PinnedCommand)}
+                onEdit={(item) => editPin(item as PinnedCommand)}
+                onRemove={(item) => (pinToDelete = item as PinnedCommand)}
               />
             {/each}
           {/if}

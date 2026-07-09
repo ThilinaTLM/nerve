@@ -20,12 +20,15 @@ The intended package is `packages/sandbox-manager`.
 
 The manager MUST NOT rely on prompt instructions, `AGENTS.md`, or skills for authorization. The manager MAY impose stricter policy than the sandbox YAML requests.
 
+The manager may serve the dedicated sandbox-manager web UI when `NERVE_SANDBOX_MANAGER_SERVE_WEB_UI` is enabled. Static assets are resolved from an explicit `NERVE_SANDBOX_MANAGER_WEB_DIST`, bundled `dist/web`, or workspace `packages/sandbox-manager-ui/dist`. Remote deployments should place an authenticated reverse proxy in front of the manager; the built-in browser cookie flow is loopback-oriented.
+
+
 ## Topology
 
 ```text
 +-------------------------------+
 | Frontend / CLI / API clients   |
-| packages/web sandbox UI        |
+| packages/sandbox-manager-ui    |
 +---------------+---------------+
                 | Nerve Protocol v1 / HTTP
                 v
@@ -40,13 +43,13 @@ The manager MUST NOT rely on prompt instructions, `AGENTS.md`, or skills for aut
                 | container runtime API
                 v
 +---------------+---------------+
-| Docker / Podman / future ECS   |
+| Docker / Podman / ECS/Fargate  |
 +---------------+---------------+
                 |
                 v
 +---------------+---------------+
 | Sandbox container              |
-| packages/sandbox-image         |
+| packages/sandbox-agent         |
 | - sandbox daemon               |
 | - agent runtime + tools        |
 | - /workspace + /state          |
@@ -63,7 +66,8 @@ type ManagedSandboxRecord = {
   instanceId?: string;
   name?: string;
   labels?: Record<string, string>;
-  backend: "docker" | "podman" | "ecs" | string;
+  backend: "auto" | "docker" | "podman" | "podman-wsl" | "ecs" | string;
+  resources?: RuntimeResourceSpec;
   image: {
     reference: string;
     digest?: string;
@@ -71,7 +75,24 @@ type ManagedSandboxRecord = {
     runtimeVersion?: string;
   };
   desiredState: "created" | "running" | "stopped" | "removed";
-  observedState: ManagedSandboxObservedState;
+  observedState: ManagedSandboxObservedState; // low-level container/runtime state
+  lifecycleState:
+    | "record_created"
+    | "container_creating"
+    | "container_created"
+    | "container_starting"
+    | "container_started"
+    | "daemon_connected"
+    | "booting"
+    | "ready"
+    | "degraded"
+    | "reconnecting"
+    | "stopping"
+    | "stopped"
+    | "failed"
+    | "removed";
+  lifecycleUpdatedAt?: string;
+  daemon?: { connectedAt?: string; readyAt?: string; sessionId?: string; lastHeartbeatAt?: string };
   configDigest?: string;
   workspaceRef: VolumeRef;
   stateRef: VolumeRef;
@@ -82,6 +103,29 @@ type ManagedSandboxRecord = {
   stoppedAt?: string;
   gcAfter?: string;
   retention?: ManagedSandboxRetention;
+  containerRef?: ManagedContainerRef;
+};
+
+type SandboxLaunchConfig = {
+  sandboxId?: string;
+  name?: string;
+  image?: string;
+  backend?: "auto" | "docker" | "podman" | "podman-wsl" | "ecs";
+  labels?: Record<string, string>;
+  resources?: RuntimeResourceSpec;
+};
+
+// SandboxConfigV1 YAML is mounted inside the container. SandboxLaunchConfig is
+// manager-owned launch state decided before the container is created. The
+// manager injects NERVE_SANDBOX_AGENT_SANDBOX_ID and
+// NERVE_SANDBOX_AGENT_INSTANCE_ID so the daemon knows its runtime identity.
+
+type ManagedContainerRef = {
+  kind: "docker" | "podman" | "podman-wsl" | "ecs" | string;
+  id: string;
+  name?: string;
+  /** Backend-neutral, non-secret runtime metadata such as ECS task/log ARNs. */
+  metadata?: Record<string, string>;
 };
 
 type ManagedSandboxObservedState =
@@ -113,13 +157,36 @@ type ManagedSandboxRetention = {
 
 Manager records MUST NOT contain raw secret values.
 
+## Primary manager storage
+
+`packages/sandbox-manager` uses PostgreSQL as its required primary storage backend for manager-owned state. The local filesystem is not authoritative manager storage; in local Docker/Podman deployments it is used only as a runtime materialization root for bind-mounted workspace/state/config/secrets artifacts.
+
+Required production settings:
+
+```sh
+NERVE_SANDBOX_MANAGER_DATABASE_URL=postgres://...
+NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY=<32-byte/base64/hex-or-passphrase>
+```
+
+PostgreSQL stores sandbox records, materialized config JSON, event intake, session snapshots, idempotency records, secret policies, encrypted secret envelopes, credential profiles, runtime volume refs, and manager audit records. Schema management is SQL-first through `node-pg-migrate`; pending migrations run during manager startup before HTTP/WebSocket listeners start. Migration history is stored in `manager.schema_migrations`.
+
+Manager-owned tables are split by use case: `sandbox` contains sandbox records, event/session state, and runtime volume refs; `identity` contains encrypted secret envelopes, secret policies, credential profiles, profile-owned secret mappings, OAuth flows, and credential refresh records; `manager` contains cross-cutting idempotency and audit records. Secret values are encrypted by the manager before being written to PostgreSQL and are never returned by public APIs. Credential profiles are manager-owned records for model providers, GitHub, Jira, Confluence, and web providers. Profile-owned secrets are exposed to sandboxes only as manager KV refs; when a profile is OAuth-backed, the manager refreshes the underlying credential before returning current access material to the sandbox and includes `expiresAt`/`refreshAfter` cache metadata in the resolve response.
+
+
+Runtime filesystems remain container-backend specific:
+
+- Docker/Podman use local bind directories or named volumes for `/workspace`, `/state`, config, and protected controller-token materialization.
+- ECS/Fargate uses EFS mounts for live writable `/workspace`, `/state`, and `/tmp` filesystem semantics; the manager must mount the same EFS filesystem to materialize config/token files and serve workspace previews.
+- S3-backed file storage may be used only through an explicit mount/sync adapter or for seed/snapshot file flows; plain object storage is not a direct POSIX replacement for live agent state.
+
+
 ## Container runtime driver contract
 
 The manager SHOULD implement runtime backends through a driver abstraction equivalent to:
 
 ```ts
 type ContainerRuntimeDriver = {
-  kind: "docker" | "podman" | "ecs" | string;
+  kind: "docker" | "podman" | "podman-wsl" | "ecs" | string;
   capabilities(): RuntimeDriverCapabilities;
   create(spec: ManagedContainerCreateSpec): Promise<ManagedContainerRef>;
   start(ref: ManagedContainerRef): Promise<void>;
@@ -137,6 +204,7 @@ A driver MUST report limitations rather than claiming support for controls it ca
 
 ```ts
 type ManagedContainerCreateSpec = {
+  backend: "auto" | "docker" | "podman" | "podman-wsl" | "ecs" | string;
   sandboxId: string;
   instanceId: string;
   image: string;
@@ -171,8 +239,9 @@ type RuntimeSecuritySpec = {
 };
 
 type RuntimeResourceSpec = {
-  cpu?: string;
   memoryMb?: number;
+  vcpu?: number;
+  cpuUnits?: number; // ECS/Fargate advanced override
   diskMb?: number;
   maxOpenFiles?: number;
 };
@@ -191,6 +260,8 @@ org.nerve.sandbox.manager=<manager-id>
 
 Docker and Podman are baseline v1 manager backends.
 
+Local deployments may use `NERVE_SANDBOX_MANAGER_BACKEND=auto` to select a reachable backend at runtime. Auto mode tries Docker first and falls back to Podman when Docker is unavailable; explicit `docker` or `podman` values remain deterministic overrides.
+
 Requirements:
 
 - The manager MUST support image references by tag and digest. Production SHOULD use immutable digests.
@@ -201,9 +272,9 @@ Requirements:
 - If the local runtime cannot enforce an option, the manager MUST record a limitation in sandbox status and SHOULD reject production launches that require strict enforcement.
 - Podman rootless mode is acceptable and SHOULD be preferred where available, but rootless limitations MUST be reported.
 
-## Future ECS backend
+## ECS/Fargate backend
 
-AWS ECS support is an extension driver, not required for baseline local v1. An ECS driver MUST preserve the same sandbox contract:
+`packages/sandbox-manager` includes an ECS/Fargate driver selected with `NERVE_SANDBOX_MANAGER_BACKEND=ecs`. It is intended for AWS deployments where Terraform or another IaC layer provisions the cluster, networking, EFS, IAM roles, and manager service. The driver preserves the same sandbox contract:
 
 - one sandbox daemon per task/container;
 - `/agent`, `/workspace`, `/state`, `/tmp`, `/secrets`, and `/credentials` equivalents;
@@ -214,7 +285,11 @@ AWS ECS support is an extension driver, not required for baseline local v1. An E
 - task logs collected with redaction expectations;
 - task stop/removal and retention behavior equivalent to local GC semantics.
 
-ECS IAM roles MUST be scoped to manager/runtime operations and MUST NOT grant broad cloud metadata credentials to the sandbox container unless an explicit tool/provider integration requires narrowly scoped credentials.
+ECS launches are one sandbox per task. `create()` registers a per-sandbox task definition and calls `RunTask`; `start()` is a no-op because ECS has no Docker-style created-but-not-started task state. The task definition mounts EFS root directories from `VolumeRef.name` and keeps manager-local preview paths in `VolumeRef.source`.
+
+Required manager settings include `NERVE_SANDBOX_MANAGER_VOLUME_BACKEND=efs`, `NERVE_SANDBOX_MANAGER_AWS_REGION`, ECS cluster/subnet/security-group variables, task execution role, EFS filesystem ID, and manager EFS mount root. Unsupported Docker controls such as tmpfs, arbitrary POSIX signals, and pids limits are reported as runtime limitations.
+
+ECS IAM roles MUST be scoped to manager/runtime operations and MUST NOT grant broad cloud metadata credentials to the sandbox container unless an explicit tool/provider integration requires narrowly scoped credentials. A reference deployment lives in `deploy/aws`, with reusable Terraform in `deploy/aws/modules/sandbox-manager` and environment roots such as `deploy/aws/environments/nonprod/dev`.
 
 ## Built-in key-value secret API
 
@@ -284,7 +359,13 @@ Frontend clients MUST NOT connect directly to sandbox containers for control, se
 
 ## Lifecycle and garbage collection
 
-The manager owns desired lifecycle. The sandbox owns self-preservation and self-exit if disconnected too long.
+The manager owns desired lifecycle and a user-facing `lifecycleState`. `observedState` remains the low-level container/runtime inspection state. Normal startup progresses:
+
+`record_created → container_creating → container_created → container_starting → container_started → daemon_connected → booting → ready/degraded`.
+
+For ECS, `container_created` means `RunTask` returned a task ARN; `container_started` is only reached after inspection reports the task/container is `RUNNING`.
+
+The sandbox owns self-preservation and self-exit if disconnected too long.
 
 Requirements:
 

@@ -1,3 +1,7 @@
+import {
+  modelKey,
+  scopedUsableModelOptions,
+} from "@nervekit/shared-ui/core/utils/model";
 import type { AgentRecord, ModelInfo } from "$lib/api";
 import {
   getAuthProviders,
@@ -14,7 +18,6 @@ import {
   applyZoomLevel,
   clampZoomLevel,
 } from "$lib/app/layout/layout-state.svelte";
-import { modelKey, scopedUsableModelOptions } from "$lib/core/utils/model";
 import {
   clampThinkingLevelForModel,
   resolveNewAgentComposerSelection,

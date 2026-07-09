@@ -1,3 +1,7 @@
+import {
+  agentRunningTone,
+  type StatusTone,
+} from "@nervekit/shared-ui/core/utils/status";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -7,7 +11,6 @@ import type {
 } from "$lib/api";
 import { conversationViewKey } from "$lib/core/state/state-keys";
 import type { ConversationViewState } from "$lib/core/types/state-types";
-import { agentRunningTone, type StatusTone } from "$lib/core/utils/status";
 
 export type ConversationActivitySource =
   | "pending-input"

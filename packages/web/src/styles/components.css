@@ -1,18 +1,6 @@
-/* Shared semantic component classes.
- * Single source of truth for cross-component classes; never define these inside
- * a component <style> block. Tokens only (no hard-coded colors/sizes).
- *
- * app-helpers is layered (@layer components) so Tailwind utilities win.
- * The remaining partials are intentionally UNLAYERED to preserve the cascade
- * behaviour they had as Svelte :global / plain global stylesheets (they must be
- * able to override shadcn utility classes via [data-slot] selectors etc.). */
+/* Workbench-specific semantic component classes. Shared primitives/helpers live
+ * in @nervekit/shared-ui/styles/components.css. */
 
-@import "./components/app-helpers.css";
 @import "./components/composer.css";
-@import "./components/tooltips.css";
-@import "./components/terminal-output.css";
-@import "./components/layout-shell.css";
 @import "./components/settings.css";
-@import "./components/center-tab.css";
-@import "./components/utility-panel.css";
 @import "./components/directory-picker.css";

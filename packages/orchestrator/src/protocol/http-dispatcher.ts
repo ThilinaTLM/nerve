@@ -6,6 +6,7 @@ import {
   protocolMethodNameSchema,
   protocolRequestMessageSchema,
 } from "@nervekit/shared";
+import { GitWorkflowError } from "@nervekit/tools";
 import { ZodError } from "zod";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { HttpError } from "../http/errors.js";
@@ -168,6 +169,10 @@ export class ProtocolHttpDispatcher {
     error: unknown,
   ): Response {
     if (error instanceof HttpError) {
+      const code = mapHttpCode(error.code);
+      return this.error(replyTo, code, error.message, error.status);
+    }
+    if (error instanceof GitWorkflowError) {
       const code = mapHttpCode(error.code);
       return this.error(replyTo, code, error.message, error.status);
     }

@@ -1,0 +1,56 @@
+{
+  "name": "@nervekit/sandbox-manager",
+  "version": "0.6.0",
+  "private": true,
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "dist/**",
+    "migrations/**",
+    "LICENSE",
+    "NOTICE",
+    "Dockerfile"
+  ],
+  "bin": {
+    "nerve-sandbox-manager": "./dist/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./main": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check": "tsc -b --pretty false",
+    "dev": "node --env-file-if-exists=dev.defaults.env --env-file-if-exists=.env --import tsx src/main.ts",
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "bundle:web": "node ../../scripts/copy-sandbox-manager-ui-dist-to-manager.mjs",
+    "migrate": "node dist/db/migrations.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.1081.0",
+    "@aws-sdk/client-ecs": "^3.1081.0",
+    "@earendil-works/pi-ai": "0.80.3",
+    "@nervekit/shared": "workspace:*",
+    "node-pg-migrate": "8.0.4",
+    "pg": "8.13.1",
+    "ws": "8.18.3",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/pg": "8.11.11",
+    "@types/ws": "8.18.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

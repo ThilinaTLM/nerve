@@ -1,6 +1,6 @@
 # Configuration
 
-A sandbox is configured by one YAML document. The document describes identity, model catalog, agent model selection, controller WebSocket settings, controller disconnect behavior, secret references and key-value secret stores, top-level Git/GitHub setup, model-callable tool groups, skills/context resources, boot behavior, storage, resources, and security policy.
+A sandbox-agent is configured by one YAML document mounted inside an already-created container. The document describes model catalog, agent model selection, controller WebSocket settings, controller disconnect behavior, secret references and key-value secret stores, top-level Git/GitHub setup, model-callable tool groups, skills/context resources, boot behavior, storage, observability, and security policy. Manager/container launch choices such as identity, image, backend, labels, and CPU/memory resources live outside this YAML.
 
 Manager-only settings such as container runtime driver selection, host volume source paths, manager database retention, and frontend auth are not part of the sandbox YAML unless explicitly documented. The manager materializes those concerns into mounts, environment variables, secret refs, and controller endpoints before launching the sandbox.
 
@@ -15,6 +15,21 @@ The configuration is an input contract for the sandbox daemon. It is not an auth
 - Unknown fields under `labels`, `annotations`, `compat`, `providerOptions`, `toolOptions`, and explicitly documented extension objects MAY be accepted when the owning schema allows extension.
 - Raw secrets MUST NOT be embedded in the YAML document.
 - The sandbox SHOULD write a sanitized copy of the loaded config and its digest to `/state/config`.
+
+## Config file location and schema
+
+The sandbox-agent loads its YAML config from `NERVE_SANDBOX_AGENT_CONFIG` when set, otherwise from `/etc/nerve/sandbox.yaml`. The sandbox manager normally materializes and mounts that file read-only at `/etc/nerve/sandbox.yaml`.
+
+The authoritative runtime schema is the Zod schema in `packages/shared/src/domains/sandbox/sandbox.config.schema.ts` (`sandboxConfigV1Schema`). A generated Draft 7 JSON Schema for editor and YAML language-server tooling is committed at `packages/shared/schemas/sandbox-config-v1.schema.json` and exported from `@nervekit/shared/schemas/sandbox-config-v1.schema.json`.
+
+YAML files can use JSON Schema because YAML maps to the JSON data model used by schema tooling. For local authoring, associate the schema explicitly:
+
+```yaml
+# yaml-language-server: $schema=./packages/shared/schemas/sandbox-config-v1.schema.json
+version: 1
+```
+
+The generated JSON Schema is an authoring aid, not the final security boundary. Runtime Zod validation remains authoritative, including cross-field hardening rules that JSON Schema tooling may not fully express, such as secret-store reference consistency, OAuth refresh persistence requirements, disconnect-policy consistency, selected model references, credential-backed tool group requirements, and raw-secret rejection.
 
 ## Manager-owned authentication model
 
@@ -173,7 +188,6 @@ OAuth requirements:
 ```ts
 type SandboxConfigV1 = {
   version: 1;
-  identity?: SandboxIdentity;
   secretStores?: SecretStoresConfig;
   modelCatalog?: ModelCatalogConfig;
   agent: AgentConfig;
@@ -185,24 +199,17 @@ type SandboxConfigV1 = {
   boot?: BootConfig;
   security?: SecurityConfig;
   storage?: StorageConfig;
-  resources?: ResourceConfig;
   observability?: ObservabilityConfig;
 };
 
-type SandboxIdentity = {
-  sandboxId?: string;
-  name?: string;
-  labels?: Record<string, string>;
-  annotations?: Record<string, string>;
-};
+Sandbox identity, display name, container labels, image, backend, and CPU/memory resources are manager launch config, not sandbox-agent YAML. Managed sandboxes receive `NERVE_SANDBOX_AGENT_SANDBOX_ID` and `NERVE_SANDBOX_AGENT_INSTANCE_ID` from the manager at container start.
 
 type AgentConfig = {
-  mainModel: AgentModelSelection;
-  exploreModel?: AgentModelSelection;
-  initialPrompt?: string;
+  defaultModel: AgentModelSelection;
+  defaultExploreModel?: AgentModelSelection;
   systemPromptAmendment?: string;
-  mode?: "normal" | "planning";
-  permissionLevel?: "read_only" | "supervised" | "autonomous";
+  defaultMode?: "normal" | "planning";
+  defaultPermissionLevel?: "read_only" | "supervised" | "autonomous";
   workspaceRoot?: string; // default: /workspace
   maxRuns?: number;
   maxExploreDepth?: number;
@@ -215,7 +222,7 @@ type AgentModelSelection = {
 };
 ```
 
-`agent.mainModel` and `agent.exploreModel` are selectors only. Provider connection details, credentials, API compatibility, and model metadata live in `modelCatalog` or the runtime's bundled pi-ai catalog.
+`agent.defaultModel` and `agent.defaultExploreModel` are selectors only. Provider connection details, credentials, API compatibility, and model metadata live in `modelCatalog` or the runtime's bundled pi-ai catalog. First user prompts are conversation-level input and MUST be sent later with `sandbox.run.start.prompt`; they are not mounted in sandbox YAML.
 
 ## pi-ai model catalog
 
@@ -296,7 +303,7 @@ Requirements:
 - `compat` is intentionally provider-specific and is validated by the runtime/provider integration.
 - `providerOptions` is an extension object for implementation-specific safe options. It MUST NOT carry raw secrets.
 - The sandbox MUST report unsupported providers, API types, model IDs, thinking levels, or credential modes before advertising the model as active.
-- `agent.mainModel.provider`/`model` and `agent.exploreModel.provider`/`model` MUST resolve through either `modelCatalog` or the bundled catalog.
+- `agent.defaultModel.provider`/`model` and `agent.defaultExploreModel.provider`/`model` MUST resolve through either `modelCatalog` or the bundled catalog.
 
 ### Built-in OAuth model provider examples
 
@@ -317,7 +324,7 @@ modelCatalog:
           persist: state
 
 agent:
-  mainModel:
+  defaultModel:
     provider: openai-codex
     model: gpt-5-codex
     thinkingLevel: medium
@@ -340,7 +347,7 @@ modelCatalog:
           minTtlMs: 600000
 
 agent:
-  mainModel:
+  defaultModel:
     provider: anthropic
     model: claude-sonnet-4-5
     thinkingLevel: high
@@ -514,7 +521,7 @@ type ExploreToolGroupConfig = ToolGroupConfig & {
 };
 ```
 
-Shell commands run as the sandbox user by default and MUST NOT receive all environment variables automatically. The explore group SHOULD default to read-oriented tools and inherit parent security policy; it uses `agent.exploreModel` when configured, otherwise `agent.mainModel`.
+Shell commands run as the sandbox user by default and MUST NOT receive all environment variables automatically. The explore group SHOULD default to read-oriented tools and inherit parent security policy; it uses `agent.defaultExploreModel` when configured, otherwise `agent.defaultModel`.
 
 ## Git configuration
 
@@ -524,6 +531,7 @@ Git configuration is first-class because repository cloning, identity, signing, 
 type GitConfig = {
   enabled?: boolean;
   identity?: GitIdentityConfig;
+  credentials?: Record<string, GitCredentialProfileConfig>;
   clone?: GitCloneConfig;
   remotes?: GitRemoteConfig[];
   safeDirectory?: "workspace" | "none" | string[];
@@ -542,20 +550,33 @@ type GitIdentityConfig = {
   sshSigningKey?: SecretRef;
 };
 
+type GitCredentialProfileConfig = {
+  match?: {
+    protocol?: "https" | "ssh";
+    host?: string;
+    user?: string;
+    pathPrefix?: string;
+  };
+  credential: CredentialConfig;
+};
+
+type GitCredentialRef = string | CredentialConfig;
+
 type GitCloneConfig = {
   url?: string;
   ref?: string;
   targetDir?: string; // default: /workspace
   depth?: number;
   submodules?: boolean;
-  credential?: CredentialConfig;
+  credential?: GitCredentialRef; // prefer named entries from git.credentials
   ifWorkspaceNotEmpty?: "skip" | "fail" | "replace"; // default: skip
 };
 
 type GitRemoteConfig = {
   name: string;
   url: string;
-  credential?: CredentialConfig;
+  pushUrl?: string;
+  credential?: GitCredentialRef;
 };
 ```
 
@@ -563,14 +584,14 @@ Requirements:
 
 - `git.enabled: true` prepares Git identity, signing state, credentials, safe-directory config, configured remotes, and optional clone before boot phases.
 - Git credentials MUST be injected narrowly, for example through `GIT_ASKPASS`, `GIT_SSH_COMMAND`, an isolated SSH config, or credential helpers scoped to protected state.
-- Git identity MUST be written to repo-local config when a repository exists, or sandbox-user config under protected state. It MUST NOT write to `/agent` or host-global config.
+- Git identity MUST be written to sandbox-global config under protected state before clone or boot (`GIT_CONFIG_GLOBAL=/state/git/config` in the reference image). It MUST NOT write to `/agent`, the immutable image home, or host-global config.
 - GPG material MUST use an isolated `GNUPGHOME` under protected state and MUST NOT be copied to `/workspace`.
 - Startup clone/fetch network access MUST comply with `security.network` and any firewall profile.
 - Top-level Git config does not by itself grant model-callable Git operations. Git commands invoked later through shell or dedicated tools MUST still pass tool policy, risk classification, and approval requirements.
 
 ## GitHub configuration
 
-GitHub configuration covers GitHub API/CLI setup. It is first-class startup configuration, not a tool group. Git transport credentials may live in either `git` or `github` depending on manager policy.
+GitHub configuration covers GitHub API/CLI setup. It is first-class startup configuration, not a tool group. Git transport credentials for GitHub-hosted clone/fetch/push SHOULD live in `git.credentials`; the same manager secret may also back `github.auth` for GitHub API/CLI calls.
 
 ```ts
 type GithubConfig = {
@@ -679,7 +700,7 @@ Boot requirements:
 - Package-manager caches SHOULD live under `/state/cache/dependencies` or an implementation-documented protected cache path.
 - Private registry tokens MUST be injected only into the package manager invocation or temporary config under protected state.
 
-## Security, storage, resources, and observability
+## Security, storage, and observability
 
 ```ts
 type SecurityConfig = {
@@ -755,13 +776,6 @@ type StorageConfig = {
   };
 };
 
-type ResourceConfig = {
-  cpu?: string;
-  memoryMb?: number;
-  diskMb?: number;
-  maxOpenFiles?: number;
-};
-
 type ObservabilityConfig = {
   logLevel?: "debug" | "info" | "warn" | "error";
   redact?: string[];
@@ -775,8 +789,8 @@ If omitted, implementations SHOULD use these defaults:
 
 | Field | Default |
 | --- | --- |
-| `agent.mode` | `normal` |
-| `agent.permissionLevel` | `supervised` |
+| `agent.defaultMode` | `normal` |
+| `agent.defaultPermissionLevel` | `supervised` |
 | `agent.workspaceRoot` | `/workspace` |
 | `agent.maxRuns` | `8` |
 | `agent.maxExploreDepth` | `3` |
@@ -830,12 +844,6 @@ An implementation MAY choose a stricter default. It MUST NOT silently choose a w
 
 ```yaml
 version: 1
-
-identity:
-  name: repo-fixer
-  labels:
-    team: platform
-    environment: dev
 
 secretStores:
   defaultStore: manager
@@ -893,19 +901,18 @@ modelCatalog:
       supportedThinkingLevels: [off]
 
 agent:
-  mainModel:
+  defaultModel:
     provider: anthropic
     model: claude-sonnet-4-5
     thinkingLevel: medium
-  exploreModel:
+  defaultExploreModel:
     provider: openai-codex
     model: gpt-5-codex
     thinkingLevel: low
-  initialPrompt: |
-    Inspect the workspace and wait for controller instructions.
+  # First user prompts are sent later with sandbox.run.start.prompt.
   systemPromptAmendment: |
     Prefer small, reviewable changes and explain tradeoffs before risky edits.
-  permissionLevel: supervised
+  defaultPermissionLevel: supervised
 
 controller:
   websocket:
@@ -919,7 +926,7 @@ controller:
   auth:
     type: api_key
     apiKey:
-      env: NERVE_SANDBOX_API_KEY
+      env: NERVE_SANDBOX_AGENT_API_KEY
 
 git:
   enabled: true
@@ -931,19 +938,30 @@ git:
     sshSigningKey:
       kv:
         key: git/signing-key
+  credentials:
+    github-ssh:
+      match:
+        protocol: ssh
+        host: github.com
+        user: git
+      credential:
+        type: ssh
+        privateKey:
+          kv:
+            key: git/id_ed25519
+        knownHosts:
+          kv:
+            key: git/known_hosts
   clone:
     url: git@github.com:example/repo.git
     ref: main
     targetDir: /workspace
     depth: 50
-    credential:
-      type: ssh
-      privateKey:
-        kv:
-          key: git/id_ed25519
-      knownHosts:
-        kv:
-          key: git/known_hosts
+    credential: github-ssh
+  remotes:
+    - name: origin
+      url: git@github.com:example/repo.git
+      credential: github-ssh
   safeDirectory: workspace
   lfs: false
 

@@ -6,8 +6,8 @@
     GitFileChange,
     ProjectRecord,
   } from "$lib/api";
-  import { Card } from "$lib/components/ui/card";
-  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
+  import { Card } from "@nervekit/shared-ui/components/ui/card";
+  import ConfirmDialog from "@nervekit/shared-ui/components/ui/confirm-dialog";
   import { hasPendingPrChecks } from "$lib/features/git/checks";
   import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
   import {
@@ -31,9 +31,9 @@
     gitProjectStateKey,
     gitRepoStateKey,
   } from "$lib/core/state/state-keys";
-  import GitChangesSection from "./GitChangesSection.svelte";
-  import GitPrSection from "./GitPrSection.svelte";
-  import GitRepoBranchSection from "./GitRepoBranchSection.svelte";
+  import GitChangesSection from "@nervekit/shared-ui/git/GitChangesSection.svelte";
+  import GitPrSection from "@nervekit/shared-ui/git/GitPrSection.svelte";
+  import GitRepoBranchSection from "@nervekit/shared-ui/git/GitRepoBranchSection.svelte";
 
   type Props = {
     activeProject?: ProjectRecord;

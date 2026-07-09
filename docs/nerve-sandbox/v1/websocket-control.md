@@ -130,7 +130,7 @@ type SandboxRunStartResult = {
 };
 ```
 
-If `prompt` is omitted, the sandbox MAY use `agent.initialPrompt` from configuration. If neither is present, the sandbox MUST reject the command with `VALIDATION_FAILED`.
+`prompt` is required for `sandbox.run.start`. First prompts are conversation-level input sent after the sandbox reaches `ready`/`degraded`; they are not mounted in sandbox YAML.
 
 ### `sandbox.run.continue`
 
@@ -296,7 +296,7 @@ Sandbox events are carried in Nerve Protocol v1 `event.batch` messages. [Event S
 | `sandbox.shutdown.scheduled` | durable | Shutdown was scheduled, including disconnect self-exit. |
 | `sandbox.shutdown.started` | durable | Shutdown began. |
 | `run.started` | durable | Run started for a conversation/agent. |
-| `run.delta` | transient | Streaming assistant progress. |
+| `run.delta` | transient | Bounded streaming assistant/tool/system progress; not required for replay recovery. |
 | `run.transcript.appended` | durable | Durable transcript entry appended. |
 | `run.waiting_for_input` | durable | Agent waits for user/controller input. |
 | `run.waiting_for_approval` | durable | Tool call waits for approval. |
@@ -308,6 +308,7 @@ Sandbox events are carried in Nerve Protocol v1 `event.batch` messages. [Event S
 | `tool.call.started` | durable | Tool call execution began. |
 | `tool.call.completed` | durable | Tool call completed with bounded result. |
 | `tool.call.failed` | durable | Tool call failed with redacted error. |
+| `tool.call.cancelled` | durable | Tool call was cancelled after state was updated. |
 | `sandbox.security.denied` | durable | Policy denied an action. |
 
 Events associated with a run SHOULD include `conversationId`, `agentId`, and `runId`. Event producers MUST use the payload shapes in [Event Schemas](./event-schemas.md) for baseline event types.
@@ -328,7 +329,7 @@ Requirements:
 
 - The sandbox MUST persist durable events before sending.
 - The controller MUST acknowledge processed event sequence numbers.
-- The sandbox MUST replay unacknowledged durable events after reconnect.
+- The sandbox MUST replay unacknowledged durable events after reconnect; transient deltas are best-effort and may be dropped.
 - Receivers MUST deduplicate by event ID/sequence.
 - Transient events MAY be dropped during reconnect and MUST NOT be required for recovery.
 

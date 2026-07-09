@@ -1,5 +1,5 @@
 import type { TodoItem, ToolCallTranscriptRecord } from "@nervekit/shared";
-import { todoItemsField } from "$lib/features/tools/views/tool-view-helpers";
+import { todoItemsField } from "@nervekit/shared-ui/tools/views/tool-view-helpers";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"

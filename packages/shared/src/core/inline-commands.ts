@@ -23,6 +23,36 @@ export type ExecutableCommandBlockReplacement = {
   text: string;
 };
 
+export type InlineCommandResultTextInput = {
+  command: string;
+  output: string;
+  status: string;
+  exitCode?: number;
+};
+
+export function formatInlineCommandResultText(
+  input: InlineCommandResultTextInput,
+): string {
+  const statusLine = [
+    typeof input.exitCode === "number"
+      ? `exit code: ${input.exitCode}`
+      : undefined,
+    `status: ${input.status}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return fenced(
+    [
+      formatCommandTranscript(input.command),
+      "",
+      `> ${statusLine}`,
+      input.output || "(no output)",
+    ].join("\n"),
+    "",
+  );
+}
+
 export function parseInlineCommandPrompt(
   text: string,
 ): InlineCommandPrompt | undefined {
@@ -155,6 +185,28 @@ function isClosingFence(
     `^ {0,3}${escapeRegex(fenceChar)}{${fenceLength},}\\s*$`,
   );
   return pattern.test(raw);
+}
+
+function formatCommandTranscript(command: string): string {
+  const lines = (command || "(empty command)").split(/\r?\n/);
+  return lines
+    .map((line, index) => (index === 0 ? `$ ${line}` : line))
+    .join("\n");
+}
+
+function fenced(text: string, info: string): string {
+  const fence =
+    longestBacktickRun(text) >= 3
+      ? "`".repeat(longestBacktickRun(text) + 1)
+      : "```";
+  return `${fence}${info}\n${text}\n${fence}`;
+}
+
+function longestBacktickRun(text: string): number {
+  return Math.max(
+    0,
+    ...Array.from(text.matchAll(/`+/g), (match) => match[0].length),
+  );
 }
 
 function escapeRegex(value: string): string {

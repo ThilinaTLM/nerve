@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: central harness implementation; provider env forwarding is a small extension pending broader split.
 import type { AssistantMessage, ImageContent } from "@earendil-works/pi-ai";
 import { runAgentLoop } from "../agent-loop.js";
 import { streamSimpleWithModel } from "../pi-ai-models.js";
@@ -232,7 +233,13 @@ export class AgentHarness<
       const snapshotOptions: AgentHarnessStreamOptions = {
         ...turnState.streamOptions,
         headers: mergeHeaders(turnState.streamOptions.headers, auth?.headers),
+        env: {
+          ...(turnState.streamOptions.env ?? {}),
+          ...(auth?.env ?? {}),
+        },
       };
+      if (Object.keys(snapshotOptions.env ?? {}).length === 0)
+        snapshotOptions.env = undefined;
       const requestOptions = await this.emitBeforeProviderRequest(
         model,
         turnState.conversationId,
@@ -244,6 +251,7 @@ export class AgentHarness<
         maxRetries: requestOptions.maxRetries,
         maxRetryDelayMs: requestOptions.maxRetryDelayMs,
         metadata: requestOptions.metadata,
+        env: requestOptions.env,
         onPayload: async (payload) =>
           await this.emitBeforeProviderPayload(model, payload),
         onResponse: async (response) => {

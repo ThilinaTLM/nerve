@@ -1,0 +1,20 @@
+{
+  "$schema": "https://shadcn-svelte.com/schema.json",
+  "tailwind": {
+    "css": "src/styles/app.css",
+    "baseColor": "neutral"
+  },
+  "aliases": {
+    "components": "@nervekit/shared-ui/components",
+    "utils": "@nervekit/shared-ui/core/utils",
+    "ui": "@nervekit/shared-ui/components/ui",
+    "hooks": "@nervekit/shared-ui/hooks",
+    "lib": "@nervekit/shared-ui"
+  },
+  "typescript": true,
+  "registry": "https://shadcn-svelte.com/registry",
+  "style": "vega",
+  "iconLibrary": "lucide",
+  "menuColor": "default",
+  "menuAccent": "subtle"
+}

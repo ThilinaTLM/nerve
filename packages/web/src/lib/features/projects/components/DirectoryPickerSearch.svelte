@@ -4,9 +4,9 @@
   import MoveUp from "@lucide/svelte/icons/move-up";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import Search from "@lucide/svelte/icons/search";
-  import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
-  import Switch from "$lib/components/ui/switch-field";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import Switch from "@nervekit/shared-ui/components/ui/switch-field";
   import type { PathCrumb } from "$lib/core/utils/path";
 
   type Props = {

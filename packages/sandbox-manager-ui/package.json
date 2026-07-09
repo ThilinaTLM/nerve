@@ -1,0 +1,32 @@
+{
+  "name": "@nervekit/sandbox-manager-ui",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "dev": "vite --host 127.0.0.1",
+    "test": "tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@lucide/svelte": "^1.17.0",
+    "@nervekit/shared": "workspace:*",
+    "@nervekit/shared-ui": "workspace:*",
+    "mode-watcher": "^1.1.0",
+    "svelte": "5.56.3",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.1.2",
+    "@tailwindcss/vite": "4.3.1",
+    "svelte-check": "4.3.3",
+    "tailwindcss": "4.3.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3",
+    "vite": "8.0.16"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

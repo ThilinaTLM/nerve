@@ -2,8 +2,8 @@
   import FolderSearch from "@lucide/svelte/icons/folder-search";
   import { writeClipboardText } from "$lib/core/clipboard";
   import { notify } from "$lib/features/notifications/notify.svelte";
-  import { Button } from "$lib/components/ui/button";
-  import Dialog from "$lib/components/ui/dialog-shell";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
   import {
     listDirectories,
     type FilesystemDirectoryResponse,

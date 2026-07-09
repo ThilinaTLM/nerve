@@ -1,8 +1,6 @@
 <script lang="ts">
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mic from "@lucide/svelte/icons/mic";
-  import Send from "@lucide/svelte/icons/send";
-  import Square from "@lucide/svelte/icons/square";
   import {
     hasExecutableCommandBlocks,
     isInlineCommandPrompt,
@@ -13,14 +11,15 @@
     voiceInputSession,
     type VoiceInputTarget,
   } from "$lib/core/audio/voice-input-session.svelte";
-  import CodeMirrorComposer from "./CodeMirrorComposer.svelte";
-  import { Button } from "$lib/components/ui/button";
+  import ComposerEditor from "@nervekit/shared-ui/components/composer/ComposerEditor.svelte";
+  import ComposerShell from "@nervekit/shared-ui/components/composer/ComposerShell.svelte";
+  import ComposerToolbar from "@nervekit/shared-ui/components/composer/ComposerToolbar.svelte";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import {
     AudioInputAuthRequiredDialog,
     chatGptAudioAuth,
   } from "$lib/features/audio";
   import PromptSuggestionChips from "./PromptSuggestionChips.svelte";
-  import ComposerToolbar from "./ComposerToolbar.svelte";
   import {
     getShortcutAriaLabel,
     getShortcutLabel,
@@ -212,6 +211,11 @@
   );
 
   const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
+  const modePlanning = $derived(mode === "planning");
+
+  function toggleMode() {
+    onModeChange?.(mode === "coding" ? "planning" : "coding");
+  }
 
   function toggleRecording() {
     if (!interactive || micDisabled || compacting || !voiceTarget) return;
@@ -265,196 +269,104 @@
   }
 </script>
 
-<form class="composer" data-pending-approval={pendingApproval ? "true" : undefined} data-pending-question={pendingQuestion ? "true" : undefined} data-pending-plan={pendingPlan ? "true" : undefined} onsubmit={(event) => { event.preventDefault(); submitComposer(); }}>
-  {#if composerSuggestions.length > 0 && !blockedForReview && !sending && !compacting && canPrompt}
-    <PromptSuggestionChips
-      suggestions={composerSuggestions}
-      onSend={onSendSuggestion}
-      onDraft={onDraftSuggestion}
+<ComposerShell
+  {mode}
+  {commandMode}
+  {executableBlocks}
+  {pendingApproval}
+  {pendingQuestion}
+  {pendingPlan}
+  showStop={sending && !pendingQuestion && !compacting}
+  stopShortcutAria={stopShortcutAria}
+  stopTitle={stopShortcut ? `Stop generation (${stopShortcut})` : "Stop generation"}
+  {submitDisabled}
+  {sendAriaLabel}
+  {sendTitle}
+  {onAbort}
+  onSubmit={submitComposer}
+>
+  {#snippet header()}
+    {#if composerSuggestions.length > 0 && !blockedForReview && !sending && !compacting && canPrompt}
+      <PromptSuggestionChips
+        suggestions={composerSuggestions}
+        onSend={onSendSuggestion}
+        onDraft={onDraftSuggestion}
+      />
+    {/if}
+  {/snippet}
+
+  {#snippet toolbar()}
+    <ComposerToolbar
+      {controlsDisabled}
+      {modeDisabled}
+      {modelDisabled}
+      {permissionLevel}
+      {approvalPolicy}
+      {modeLabel}
+      {modePlanning}
+      onToggleMode={toggleMode}
+      {permissionShortcut}
+      {permissionShortcutAria}
+      {modeShortcut}
+      {modeShortcutAria}
+      {thinkingShortcut}
+      {contextUsage}
+      {contextWindow}
+      {todos}
+      {models}
+      {selectedModelKey}
+      {thinkingLevel}
+      runtimeChangeHint={modelRuntimeChangeHint}
+      {onModelChange}
+      {onThinkingLevelChange}
+      {onPermissionChange}
+      {onApprovalPolicyChange}
     />
-  {/if}
+  {/snippet}
 
-  <div class="composer-surface" data-mode={mode} data-command-mode={commandMode ? "true" : undefined} data-executable-blocks={executableBlocks ? "true" : undefined}>
-    <div class="editor-shell">
-      <ComposerToolbar
-        {controlsDisabled}
-        {modeDisabled}
-        {modelDisabled}
-        {mode}
-        {permissionLevel}
-        {approvalPolicy}
-        {modeLabel}
-        {permissionShortcut}
-        {permissionShortcutAria}
-        {modeShortcut}
-        {modeShortcutAria}
-        {thinkingShortcut}
-        {contextUsage}
-        {contextWindow}
-        {todos}
-        {models}
-        {selectedModelKey}
-        {thinkingLevel}
-        {onModeChange}
-        runtimeChangeHint={modelRuntimeChangeHint}
-        {onModelChange}
-        {onThinkingLevelChange}
-        {onPermissionChange}
-        {onApprovalPolicyChange}
-      />
+  {#snippet editor()}
+    <ComposerEditor
+      value={text}
+      disabled={editorDisabled}
+      placeholder={pendingApproval ? "Approval required before the agent can continue" : pendingPlan ? "Review the plan in the transcript before the agent can continue" : pendingQuestion ? "Reply in the transcript before the agent can continue" : compacting ? "Compacting context…" : sending ? "Queue a prompt for the next agent turn" : "Ask the local Nerve agent"}
+      {slashCompletions}
+      {fileCompletions}
+      focusToken={editorFocusToken}
+      onChange={onChange}
+      onSubmit={submitComposer}
+      onPasteImage={pasteImage}
+    />
+  {/snippet}
 
-      <CodeMirrorComposer
-        value={text}
-        disabled={editorDisabled}
-        placeholder={pendingApproval ? "Approval required before the agent can continue" : pendingPlan ? "Review the plan in the transcript before the agent can continue" : pendingQuestion ? "Reply in the transcript before the agent can continue" : compacting ? "Compacting context…" : sending ? "Queue a prompt for the next agent turn" : "Ask the local Nerve agent"}
-        {slashCompletions}
-        {fileCompletions}
-        focusToken={editorFocusToken}
-        onChange={onChange}
-        onSubmit={submitComposer}
-        onPasteImage={pasteImage}
-      />
-
-      <div class="composer-send">
-        <TranscriptionActivity
-          {recording}
-          {transcribing}
-          elapsedMs={voiceInputSession.elapsedMs}
-          maxDurationMs={voiceInputSession.maxDurationMs}
-          retryAttempt={voiceTarget && voiceInputSession.isTargetActive(voiceTarget) ? voiceInputSession.retryAttempt : 0}
-          maxRetries={voiceInputSession.maxRetries}
-          class="composer-transcription-status"
-        />
-        <Button
-          variant={recording ? "destructive" : "secondary"}
-          size="icon-sm"
-          class={`mic-button${recording ? " recording" : ""}`}
-          type="button"
-          disabled={micDisabled}
-          onclick={toggleRecording}
-          oncontextmenu={handleMicContextMenu}
-          aria-label={recording ? "Stop recording; right-click to cancel" : chatGptAudioConfigured ? "Record voice prompt" : "Connect ChatGPT to use voice input"}
-          aria-keyshortcuts={micShortcutAria}
-          title={micTitle}
-        >
-          {#if transcribing}
-            <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
-          {:else}
-            <Mic size={14} strokeWidth={2.4} />
-          {/if}
-        </Button>
-        {#if sending && !pendingQuestion && !compacting}
-          <Button variant="destructive" size="icon-sm" class="stop-button" onclick={onAbort} aria-label="Stop generation" aria-keyshortcuts={stopShortcutAria} title={stopShortcut ? `Stop generation (${stopShortcut})` : "Stop generation"}>
-            <Square size={13} strokeWidth={2.5} />
-          </Button>
-        {/if}
-        <Button size="icon-sm" class="send-button" type="submit" disabled={submitDisabled} aria-label={sendAriaLabel} title={sendTitle}>
-          <Send size={14} strokeWidth={2.4} />
-        </Button>
-      </div>
-    </div>
-  </div>
-
-</form>
+  {#snippet sendLeading()}
+    <TranscriptionActivity
+      {recording}
+      {transcribing}
+      elapsedMs={voiceInputSession.elapsedMs}
+      maxDurationMs={voiceInputSession.maxDurationMs}
+      retryAttempt={voiceTarget && voiceInputSession.isTargetActive(voiceTarget) ? voiceInputSession.retryAttempt : 0}
+      maxRetries={voiceInputSession.maxRetries}
+      class="composer-transcription-status"
+    />
+    <Button
+      variant={recording ? "destructive" : "secondary"}
+      size="icon-sm"
+      class={`mic-button${recording ? " recording" : ""}`}
+      type="button"
+      disabled={micDisabled}
+      onclick={toggleRecording}
+      oncontextmenu={handleMicContextMenu}
+      aria-label={recording ? "Stop recording; right-click to cancel" : chatGptAudioConfigured ? "Record voice prompt" : "Connect ChatGPT to use voice input"}
+      aria-keyshortcuts={micShortcutAria}
+      title={micTitle}
+    >
+      {#if transcribing}
+        <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
+      {:else}
+        <Mic size={14} strokeWidth={2.4} />
+      {/if}
+    </Button>
+  {/snippet}
+</ComposerShell>
 
 <AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
-
-<style>
-  .composer {
-    display: grid;
-    gap: 0.55rem;
-    background: transparent;
-    padding: 0.65rem;
-  }
-
-  .composer-surface {
-    position: relative;
-    margin-top: 0.55rem;
-    overflow: visible;
-    border: 1px solid var(--input);
-    border-radius: var(--radius-md);
-    background: var(--background);
-    box-shadow:
-      0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent) inset,
-      var(--shadow-sm);
-    transition:
-      border-color 120ms ease,
-      box-shadow 120ms ease;
-  }
-
-  .composer-surface:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
-  }
-
-  .composer-surface[data-mode="planning"] {
-    border-color: var(--success);
-  }
-
-  .composer-surface[data-mode="planning"]:focus-within {
-    border-color: var(--success);
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--success) 35%, transparent);
-  }
-
-  .composer-surface[data-command-mode="true"] {
-    border-color: var(--info);
-  }
-
-  .composer-surface[data-command-mode="true"]:focus-within {
-    border-color: var(--info);
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--info) 40%, transparent);
-  }
-
-  .composer[data-pending-approval="true"] .composer-surface,
-  .composer[data-pending-question="true"] .composer-surface,
-  .composer[data-pending-plan="true"] .composer-surface {
-    border-color: var(--warning);
-  }
-
-  .composer[data-pending-approval="true"] .composer-surface:focus-within,
-  .composer[data-pending-question="true"] .composer-surface:focus-within,
-  .composer[data-pending-plan="true"] .composer-surface:focus-within {
-    border-color: var(--warning);
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--warning) 45%, transparent);
-  }
-
-  .editor-shell {
-    position: relative;
-    min-width: 0;
-  }
-
-
-  .editor-shell :global(.composer-editor) {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .editor-shell :global(.composer-editor:focus-within) {
-    box-shadow: none;
-  }
-
-  .composer-send {
-    position: absolute;
-    right: 0.5rem;
-    bottom: 0.5rem;
-    z-index: 4;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  :global(.send-button),
-  :global(.stop-button),
-  :global(.mic-button) {
-    border-radius: 999px;
-  }
-
-  :global(.send-button) {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary-foreground) 18%, transparent) inset;
-  }
-
-  :global(.mic-button.recording) {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent) inset;
-  }
-</style>

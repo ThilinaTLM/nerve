@@ -2,6 +2,7 @@
   import GitBranch from "@lucide/svelte/icons/git-branch";
   import Info from "@lucide/svelte/icons/info";
   import Terminal from "@lucide/svelte/icons/terminal";
+  import { WorkbenchUtilityPanel } from "@nervekit/shared-ui/components/workbench";
   import type {
     AgentRecord,
     ConversationRecord,
@@ -9,8 +10,7 @@
     ProjectRecord,
     StatusResponse,
   } from "$lib/api";
-  import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import Tabs, { type TabItem } from "$lib/components/ui/tabs-bar";
+  import type { TabItem } from "@nervekit/shared-ui/components/ui/tabs-bar";
   import ContextTab from "$lib/features/conversations/components/ContextUtilityPanel.svelte";
   import GitTab from "$lib/features/git/components/GitUtilityPanel.svelte";
   import TasksTab from "$lib/features/tasks/components/TaskUtilityPanel.svelte";
@@ -76,20 +76,11 @@
     { value: "tasks", label: "Tasks", icon: Terminal, count: runningTaskCount },
     { value: "info", label: "Context", icon: Info },
   ]);
-
-  function setTab(tab: string) {
-    activeTab = tab as UtilityTab;
-    onTabChange?.(activeTab);
-  }
 </script>
 
-<aside class="utility-panel">
-  <div class="utility-tabs">
-    <Tabs tabs={tabs} bind:value={activeTab} ariaLabel="Utility panel tabs" onValueChange={setTab} />
-  </div>
-
-  <ScrollArea class="utility-scroll" viewportClass="utility-content" type="auto">
-    {#if activeTab === "info"}
+<WorkbenchUtilityPanel tabs={tabs} bind:activeTab ariaLabel="Utility panel tabs" onTabChange={onTabChange}>
+  {#snippet children(tab)}
+    {#if tab === "info"}
       <ContextTab
         {status}
         {activeProject}
@@ -100,9 +91,9 @@
         {systemPromptUrl}
         {onSelectAgent}
       />
-    {:else if activeTab === "git"}
+    {:else if tab === "git"}
       <GitTab {activeProject} {activeAgent} />
-    {:else if activeTab === "tasks"}
+    {:else if tab === "tasks"}
       <TasksTab
         {activeProject}
         {tasks}
@@ -116,5 +107,5 @@
         {onRunCommand}
       />
     {/if}
-  </ScrollArea>
-</aside>
+  {/snippet}
+</WorkbenchUtilityPanel>

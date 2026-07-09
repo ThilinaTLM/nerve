@@ -2,6 +2,7 @@ import {
   deriveConversationTitle,
   isInlineCommandPrompt,
 } from "@nervekit/shared";
+import { scopedUsableModelOptions } from "@nervekit/shared-ui/core/utils/model";
 import {
   type AgentRecord,
   type ConversationRecord,
@@ -15,7 +16,6 @@ import type {
   ConversationViewState,
   PendingConversationState,
 } from "$lib/core/types/state-types";
-import { scopedUsableModelOptions } from "$lib/core/utils/model";
 import {
   agentNeedsComposerUpdate,
   currentActiveAgent,

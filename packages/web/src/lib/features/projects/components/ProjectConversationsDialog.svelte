@@ -1,12 +1,12 @@
 <script lang="ts">
   import Search from "@lucide/svelte/icons/search";
   import type { AgentRecord, ConversationRecord, ProjectRecord } from "$lib/api";
-  import type { ContextMenuItem } from "$lib/components/ui/context-menu-list";
-  import Dialog from "$lib/components/ui/dialog-shell";
-  import { Input } from "$lib/components/ui/input";
+  import type { ContextMenuItem } from "@nervekit/shared-ui/components/ui/context-menu-list";
+  import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
   import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
-  import * as Tooltip from "$lib/components/ui/tooltip";
-  import { VirtualScroller } from "$lib/components/ui/virtual-list";
+  import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
+  import { VirtualScroller } from "@nervekit/shared-ui/components/ui/virtual-list";
   import { buildConversationRows } from "$lib/core/utils/project-tree";
   import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 

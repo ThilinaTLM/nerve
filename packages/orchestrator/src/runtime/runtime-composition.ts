@@ -3,6 +3,7 @@ import {
   generateSummary,
   resolveAgentModel,
 } from "@nervekit/agent";
+import { GitService } from "@nervekit/tools";
 import { AgentSuspensionService } from "../domains/agents/agent-suspension.service.js";
 import {
   AgentLifecycleService,
@@ -28,7 +29,6 @@ import {
   ImportService,
   NavigationService,
 } from "../domains/conversations/operations/index.js";
-import { GitService } from "../domains/git/git-service.js";
 import { HumanInputResolutionService } from "../domains/human-input/index.js";
 import {
   PinnedCommandRepository,

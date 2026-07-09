@@ -1,0 +1,83 @@
+{
+  "sandboxId": "sbx_1",
+  "instanceId": "inst_1",
+  "status": "ready",
+  "connected": true,
+  "stale": false,
+  "lastEventSeq": 5,
+  "lastEventAt": "2026-06-26T12:00:00.000Z",
+  "lastSession": {
+    "sessionId": "sess_1",
+    "instanceId": "inst_1",
+    "status": "connected",
+    "connectedAt": "2026-06-26T11:59:00.000Z",
+    "acceptedCapabilities": ["status", "snapshot", "command.forward"]
+  },
+  "updatedAt": "2026-06-26T12:00:00.000Z",
+  "setup": {
+    "git": { "configured": true, "status": "completed" }
+  },
+  "models": [
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5",
+      "active": true,
+      "status": "available"
+    }
+  ],
+  "toolGroups": [
+    {
+      "group": "fileInspection",
+      "configured": true,
+      "active": true,
+      "tools": ["read", "grep"]
+    }
+  ],
+  "secretStores": [{ "id": "default", "status": "available" }],
+  "credentials": [
+    {
+      "provider": "anthropic",
+      "credentialType": "api_key",
+      "status": "available",
+      "persisted": "none"
+    }
+  ],
+  "network": {
+    "requestedDefault": "deny",
+    "enforcedDefault": "deny",
+    "allowedHosts": ["api.anthropic.com"],
+    "deniedHosts": [],
+    "backend": "container"
+  },
+  "cursors": { "streams": [{ "stream": "sandbox", "processedSeq": 5 }] },
+  "conversations": [
+    {
+      "conversationId": "conv_1",
+      "agentIds": ["agent_1"],
+      "updatedAt": "2026-06-26T12:00:00.000Z"
+    }
+  ],
+  "agents": [
+    {
+      "conversationId": "conv_1",
+      "agentId": "agent_1",
+      "model": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-5",
+        "active": true,
+        "status": "available"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "conversationId": "conv_1",
+      "agentId": "agent_1",
+      "runId": "run_1",
+      "status": "completed",
+      "updatedAt": "2026-06-26T12:00:00.000Z",
+      "transcriptRefs": ["transcript://conv_1/agent_1/run_1"],
+      "toolCallRefs": ["tool://tool_1"]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["svelte", "vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@nervekit/shared-ui/core/utils": ["./src/lib/core/utils.ts"],
+      "@nervekit/shared-ui/core/api/client": ["./src/lib/core/api/client.ts"],
+      "@nervekit/shared-ui/core/clipboard": ["./src/lib/core/clipboard.ts"],
+      "@nervekit/shared-ui/core/protocol/ids": [
+        "./src/lib/core/protocol/ids.ts"
+      ],
+      "@nervekit/shared-ui/core/protocol/messages": [
+        "./src/lib/core/protocol/messages.ts"
+      ],
+      "@nervekit/shared-ui/core/protocol/http-client": [
+        "./src/lib/core/protocol/http-client.ts"
+      ],
+      "@nervekit/shared-ui/core/protocol/event-stream": [
+        "./src/lib/core/protocol/event-stream.ts"
+      ],
+      "@nervekit/shared-ui/core/components/Markdown.svelte": [
+        "./src/lib/core/components/Markdown.svelte"
+      ],
+      "@nervekit/shared-ui/core/components/PlainText.svelte": [
+        "./src/lib/core/components/PlainText.svelte"
+      ],
+      "@nervekit/shared-ui/core/components/markdown-render": [
+        "./src/lib/core/components/markdown-render.ts"
+      ],
+      "@nervekit/shared-ui/core/highlight/highlight": [
+        "./src/lib/core/highlight/highlight.ts"
+      ],
+      "@nervekit/shared-ui/core/utils/*": ["./src/lib/core/utils/*.ts"],
+      "@nervekit/shared-ui/components/ui/*": [
+        "./src/lib/components/ui/*/index.ts"
+      ]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.svelte", "svelte.config.js"]
+}

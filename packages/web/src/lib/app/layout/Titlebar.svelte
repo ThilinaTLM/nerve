@@ -9,8 +9,9 @@
   import Square from "@lucide/svelte/icons/square";
   import X from "@lucide/svelte/icons/x";
   import { Toolbar } from "bits-ui";
+  import { WorkbenchTitlebar } from "@nervekit/shared-ui/components/workbench";
   import type { ProjectRecord } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import nerveMark from "$lib/assets/nerve-mark.svg?raw";
 
   type Props = {
@@ -50,8 +51,8 @@
   }: Props = $props();
 </script>
 
-<header class="titlebar" class:desktop>
-  <div class="title-left">
+<WorkbenchTitlebar {desktop}>
+  {#snippet left()}
     <span class="brand">
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
       <span class="brand-mark" aria-hidden="true">{@html nerveMark}</span>
@@ -68,184 +69,87 @@
       <Folder size={14} strokeWidth={2.1} aria-hidden="true" />
       <span class="project-button-label">Open Project</span>
     </Button>
-  </div>
+  {/snippet}
 
-  <Toolbar.Root class="title-actions" aria-label="Application actions">
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      ariaLabel="Open Nerve logs"
-      title="Open Nerve logs"
-      active={logsActive}
-      pressed={logsActive}
-      onclick={() => onOpenLogs?.()}
-    >
-      <Logs size={16} strokeWidth={2.1} />
-    </Button>
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      ariaLabel="Open authentication"
-      title="Providers & authentication"
-      active={authActive}
-      pressed={authActive}
-      onclick={() => onOpenAuth?.()}
-    >
-      <KeyRound size={16} strokeWidth={2.1} />
-    </Button>
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      ariaLabel="Open settings"
-      title="Open settings"
-      active={settingsActive}
-      pressed={settingsActive}
-      onclick={() => onOpenSettings?.()}
-    >
-      <Settings size={16} strokeWidth={2.1} />
-    </Button>
-    {#if desktop}
-      <span class="window-divider" aria-hidden="true"></span>
+  {#snippet actions()}
+    <Toolbar.Root class="title-actions" aria-label="Application actions">
       <Button
         variant="ghost"
         size="icon-sm"
-        class="window-control"
-        ariaLabel="Minimize window"
-        title="Minimize"
-        disabled={quitting}
-        onclick={() => onMinimize?.()}
+        ariaLabel="Open Nerve logs"
+        title="Open Nerve logs"
+        active={logsActive}
+        pressed={logsActive}
+        onclick={() => onOpenLogs?.()}
       >
-        <Minus size={16} strokeWidth={2.1} />
+        <Logs size={16} strokeWidth={2.1} />
       </Button>
       <Button
         variant="ghost"
         size="icon-sm"
-        class="window-control"
-        ariaLabel={maximized ? "Restore window" : "Maximize window"}
-        title={maximized ? "Restore" : "Maximize"}
-        disabled={quitting}
-        onclick={() => onToggleMaximize?.()}
+        ariaLabel="Open authentication"
+        title="Providers & authentication"
+        active={authActive}
+        pressed={authActive}
+        onclick={() => onOpenAuth?.()}
       >
-        {#if maximized}
-          <Copy size={15} strokeWidth={2.1} />
-        {:else}
-          <Square size={14} strokeWidth={2.1} />
-        {/if}
+        <KeyRound size={16} strokeWidth={2.1} />
       </Button>
       <Button
         variant="ghost"
         size="icon-sm"
-        class="window-control close-control"
-        ariaLabel={quitting ? "Closing Nerve" : closeToTray ? "Close window to tray" : "Close Nerve"}
-        title={quitting ? "Closing Nerve…" : closeToTray ? "Close to tray" : "Close Nerve"}
-        disabled={quitting}
-        onclick={() => onClose?.()}
+        ariaLabel="Open settings"
+        title="Open settings"
+        active={settingsActive}
+        pressed={settingsActive}
+        onclick={() => onOpenSettings?.()}
       >
-        {#if quitting}
-          <LoaderCircle class="animate-spin" size={16} strokeWidth={2.1} />
-        {:else}
-          <X size={16} strokeWidth={2.1} />
-        {/if}
+        <Settings size={16} strokeWidth={2.1} />
       </Button>
-    {/if}
-  </Toolbar.Root>
-</header>
-
-<style>
-  .titlebar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    height: 100%;
-    border-bottom: 1px solid var(--border);
-    background: var(--card);
-    padding: 0 0.75rem;
-    padding-top: env(safe-area-inset-top);
-    user-select: none;
-  }
-
-  .titlebar.desktop {
-    -webkit-app-region: drag;
-  }
-
-  .title-left,
-  :global(.title-actions) {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: 0.625rem;
-  }
-
-  :global(.title-actions) {
-    flex: none;
-    gap: 0.375rem;
-    -webkit-app-region: no-drag;
-  }
-
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    color: var(--foreground);
-  }
-
-  .brand-mark {
-    display: inline-flex;
-    flex: none;
-    color: var(--foreground);
-  }
-
-  .brand-mark :global(svg) {
-    width: 1.2rem;
-    height: 1.2rem;
-  }
-
-  .divider,
-  .window-divider {
-    width: 1px;
-    height: 1.25rem;
-    background: var(--border);
-  }
-
-  .window-divider {
-    margin: 0 0.125rem;
-  }
-
-  :global(.project-button) {
-    min-width: 0;
-    gap: 0.4rem;
-    -webkit-app-region: no-drag;
-  }
-
-  :global(.project-button) :global(svg) {
-    flex: none;
-    color: color-mix(in oklab, var(--muted-foreground) 85%, transparent);
-  }
-
-  .project-button-label {
-    overflow: hidden;
-    max-width: 18rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--text-sm);
-    font-weight: 500;
-  }
-
-  /* Phone: reclaim width — keep the folder icon, drop the "Open Project" label. */
-  @media (max-width: 639px) {
-    .project-button-label {
-      display: none;
-    }
-  }
-
-  :global(.window-control) {
-    -webkit-app-region: no-drag;
-  }
-
-  :global(.close-control:hover),
-  :global(.close-control:focus-visible) {
-    background: var(--destructive);
-    color: var(--destructive-foreground, var(--primary-foreground));
-  }
-</style>
+      {#if desktop}
+        <span class="window-divider" aria-hidden="true"></span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="window-control"
+          ariaLabel="Minimize window"
+          title="Minimize"
+          disabled={quitting}
+          onclick={() => onMinimize?.()}
+        >
+          <Minus size={16} strokeWidth={2.1} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="window-control"
+          ariaLabel={maximized ? "Restore window" : "Maximize window"}
+          title={maximized ? "Restore" : "Maximize"}
+          disabled={quitting}
+          onclick={() => onToggleMaximize?.()}
+        >
+          {#if maximized}
+            <Copy size={15} strokeWidth={2.1} />
+          {:else}
+            <Square size={14} strokeWidth={2.1} />
+          {/if}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="window-control close-control"
+          ariaLabel={quitting ? "Closing Nerve" : closeToTray ? "Close window to tray" : "Close Nerve"}
+          title={quitting ? "Closing Nerve…" : closeToTray ? "Close to tray" : "Close Nerve"}
+          disabled={quitting}
+          onclick={() => onClose?.()}
+        >
+          {#if quitting}
+            <LoaderCircle class="animate-spin" size={16} strokeWidth={2.1} />
+          {:else}
+            <X size={16} strokeWidth={2.1} />
+          {/if}
+        </Button>
+      {/if}
+    </Toolbar.Root>
+  {/snippet}
+</WorkbenchTitlebar>

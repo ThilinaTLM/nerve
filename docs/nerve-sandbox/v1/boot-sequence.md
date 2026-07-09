@@ -2,7 +2,13 @@
 
 Sandbox v1 startup is a deterministic sequence. A sandbox MUST complete required startup phases, or enter an explicitly configured degraded state, before it accepts run commands.
 
-This document is normative for the sandbox image and daemon.
+This document is normative for the sandbox agent image and daemon.
+
+Manager-visible startup lifecycle normally progresses as:
+
+`record_created → container_creating → container_created → container_starting → container_started → daemon_connected → booting → ready/degraded`.
+
+For ECS, `container_created` only means a task ARN exists; `container_started` requires a later `RUNNING` inspection.
 
 ## Phase order
 
@@ -13,7 +19,7 @@ The sandbox entrypoint MUST perform phases in this order:
    - Initialize logging with redaction.
 
 2. **Locate config**
-   - Load `NERVE_SANDBOX_CONFIG` or the default config path.
+   - Load `NERVE_SANDBOX_AGENT_CONFIG` or the default config path.
 
 3. **Parse and validate config**
    - Validate the full YAML document, including conditional requirements.
@@ -28,33 +34,36 @@ The sandbox entrypoint MUST perform phases in this order:
 6. **Recover state**
    - Load previous config digest, local journals, checkpoints, credentials status, secret-store status, setup status, skills metadata, run state, and ack cursors.
 
-7. **Initialize secret resolution**
+7. **Connect to controller**
+   - Create a booting daemon and protocol session.
+   - Open the WebSocket, authenticate, negotiate protocol capabilities, recover cursors, and wait for `welcome` before long setup work.
+   - The manager lifecycle advances to `daemon_connected`.
+
+8. **Initialize secret resolution**
    - Build the `SecretResolver` for `env`, `file`, and `kv` refs.
    - Initialize secret-store clients.
-   - Resolve only startup-critical secret-store auth and controller auth.
+   - Resolve only startup-critical secret-store auth.
 
-8. **Resolve model catalog metadata**
+9. **Resolve model catalog metadata**
    - Resolve built-in/custom provider and model metadata.
-   - Validate `agent.mainModel` and `agent.exploreModel` selectors.
+   - Validate `agent.defaultModel` and `agent.defaultExploreModel` selectors.
    - Do not call model providers unless readiness policy requires credential validation.
 
-9. **Apply Git setup**
-   - Configure identity, signing, credentials, safe directory, remotes, LFS, and optional clone.
+10. **Apply Git setup**
+    - Configure identity, signing, credentials, safe directory, remotes, LFS, and optional clone.
 
-10. **Apply GitHub setup**
+11. **Apply GitHub setup**
     - Configure GitHub API/CLI authentication and default repo metadata without interactive login.
 
-11. **Load context and skills**
+12. **Load context and skills**
     - Load `AGENTS.md` and `SKILL.md` resources after any configured clone.
 
-12. **Run custom boot phases**
+13. **Run custom boot phases**
     - Run `boot.script` and/or `boot.phases` in config order.
 
-13. **Connect to controller**
-    - Open the WebSocket, authenticate, negotiate protocol capabilities, and recover cursors.
-
 14. **Announce state**
-    - Emit `sandbox.config.loaded`, setup/boot/skills status events, and `sandbox.ready` or degraded/failed status.
+    - Stream `sandbox.config.loaded`, setup/boot/skills status events as they happen.
+    - Emit one `sandbox.ready` event and send protocol `ready` only after runtime initialization and boot complete.
 
 The sandbox MUST NOT start the agent harness before required setup, resource loading, and boot phases complete or enter a configured degraded state.
 

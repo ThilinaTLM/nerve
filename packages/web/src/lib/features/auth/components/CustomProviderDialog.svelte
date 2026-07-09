@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  import type { SelectItem } from "$lib/components/ui/select-field";
+  import type { SelectItem } from "@nervekit/shared-ui/components/ui/select-field";
 
   export const PI_API_ITEMS: SelectItem[] = [
     { value: "openai-completions", label: "OpenAI Chat Completions", detail: "OpenAI-compatible (Ollama, vLLM, Together, Groq…)" },
@@ -22,12 +22,12 @@
     setProviderApiKey,
     upsertCustomProvider,
   } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import Dialog from "$lib/components/ui/dialog-shell";
-  import { Input } from "$lib/components/ui/input";
-  import { Label } from "$lib/components/ui/label";
-  import SelectField from "$lib/components/ui/select-field";
-  import { Textarea } from "$lib/components/ui/textarea";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import { Label } from "@nervekit/shared-ui/components/ui/label";
+  import SelectField from "@nervekit/shared-ui/components/ui/select-field";
+  import { Textarea } from "@nervekit/shared-ui/components/ui/textarea";
   import { encryptApiKey } from "$lib/core/utils/credential-crypto";
   import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
 

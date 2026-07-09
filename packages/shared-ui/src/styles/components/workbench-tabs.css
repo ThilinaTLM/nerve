@@ -1,0 +1,185 @@
+.center-tab-strip {
+  display: grid;
+  min-width: 0;
+  min-height: 2rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.tab-scroller {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.center-tab-menu-trigger {
+  flex: 0 1 12.5rem;
+  min-width: 7.5rem;
+  max-width: 15rem;
+  height: 2rem;
+}
+
+.center-tab-menu-trigger.wide-tab {
+  flex-basis: 13.5rem;
+}
+
+.center-tab {
+  position: relative;
+  display: inline-grid;
+  width: 100%;
+  height: 2rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  border-right: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+  background: var(--card);
+  color: var(--muted-foreground);
+}
+
+.center-tab::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: transparent;
+}
+
+.center-tab:hover {
+  background: color-mix(in oklab, var(--accent) 60%, transparent);
+  color: var(--foreground);
+}
+
+.center-tab.active {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.center-tab.active::before {
+  background: var(--primary);
+}
+
+.tab-select,
+.tab-close,
+.tab-file-toggle {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab-leading {
+  display: inline-grid;
+  width: 1.42rem;
+  height: 2rem;
+  place-items: center;
+  padding-left: 0.38rem;
+}
+
+.tab-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.3rem;
+  font-size: var(--text-xs);
+  text-align: left;
+}
+
+.tab-select:focus-visible,
+.tab-close:focus-visible,
+.tab-file-toggle:focus-visible {
+  outline: 1px solid var(--ring);
+  outline-offset: -1px;
+  z-index: 1;
+}
+
+.tab-status {
+  flex: none;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+}
+
+.tab-file-toggle {
+  display: inline-grid;
+  width: 1.15rem;
+  height: 1.15rem;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: color-mix(in oklab, var(--muted-foreground) 82%, transparent);
+}
+
+.center-tab.active .tab-file-toggle,
+.center-tab:hover .tab-file-toggle {
+  color: currentColor;
+}
+
+.tab-file-toggle:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.tab-file-toggle:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.center-tab.running .tab-status {
+  background: var(--info);
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 45%, transparent);
+  animation: tab-pulse 1.3s ease-out infinite;
+}
+
+.center-tab.errored .tab-status {
+  background: var(--destructive);
+}
+
+.tab-kind-icon {
+  flex: none;
+  color: color-mix(in oklab, var(--muted-foreground) 82%, transparent);
+}
+
+.center-tab.active .tab-kind-icon,
+.center-tab:hover .tab-kind-icon {
+  color: currentColor;
+}
+
+.tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-dot {
+  flex: none;
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.tab-close {
+  display: inline-grid;
+  width: 1.45rem;
+  place-items: center;
+  opacity: 0.62;
+}
+
+.tab-close:hover {
+  background: color-mix(in oklab, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  opacity: 1;
+}
+
+.tab-actions {
+  display: flex;
+  align-items: center;
+  border-left: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+  padding: 0 0.28rem;
+}

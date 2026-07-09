@@ -9,7 +9,7 @@
     conversationViewKey,
     pendingConversationKey,
   } from "$lib/core/state/state-keys";
-  import { modelKey, scopedUsableModelOptions } from "$lib/core/utils/model";
+  import { modelKey, scopedUsableModelOptions } from "@nervekit/shared-ui/core/utils/model";
   import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
   import ConversationPane from "$lib/features/conversations/components/ConversationPane.svelte";
   import {

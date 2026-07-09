@@ -40,6 +40,7 @@ export const nerveErrorCodeSchema = z.enum([
   "OPERATION_TIMEOUT",
   "INTERNAL_ERROR",
   "SERVICE_UNAVAILABLE",
+  "BOOTING",
 ]);
 export type NerveErrorCode = z.infer<typeof nerveErrorCodeSchema>;
 

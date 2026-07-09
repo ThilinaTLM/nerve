@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   findExecutableCommandBlocks,
+  formatInlineCommandResultText,
   hasExecutableCommandBlocks,
   isInlineCommandPrompt,
   parseInlineCommandPrompt,
@@ -20,6 +21,31 @@ describe("inline command prompts", () => {
     });
     assert.equal(isInlineCommandPrompt("hello ! pwd"), false);
     assert.equal(isInlineCommandPrompt("!   \n"), false);
+  });
+});
+
+describe("inline command result formatting", () => {
+  it("formats command output for transcript display", () => {
+    assert.equal(
+      formatInlineCommandResultText({
+        command: "printf hi",
+        output: "hi",
+        status: "completed",
+        exitCode: 0,
+      }),
+      "```\n$ printf hi\n\n> exit code: 0, status: completed\nhi\n```",
+    );
+  });
+
+  it("uses a longer fence when output contains backticks", () => {
+    assert.match(
+      formatInlineCommandResultText({
+        command: "echo ticks",
+        output: "```",
+        status: "completed",
+      }),
+      /^````\n\$ echo ticks/,
+    );
   });
 });
 

@@ -1,0 +1,38 @@
+{
+  "sandboxId": "sbx_stale",
+  "instanceId": "inst_stale",
+  "status": "reconnecting",
+  "connected": false,
+  "stale": true,
+  "staleness": {
+    "stale": true,
+    "reason": "controller_disconnected",
+    "asOf": "2026-06-26T12:05:00.000Z",
+    "lastConnectedAt": "2026-06-26T12:00:00.000Z",
+    "disconnectedAt": "2026-06-26T12:01:00.000Z",
+    "ageMs": 240000
+  },
+  "lastEventSeq": 12,
+  "lastEventAt": "2026-06-26T12:00:30.000Z",
+  "lastSession": {
+    "sessionId": "sess_stale",
+    "instanceId": "inst_stale",
+    "status": "disconnected",
+    "connectedAt": "2026-06-26T12:00:00.000Z",
+    "disconnectedAt": "2026-06-26T12:01:00.000Z",
+    "closeCode": 1006,
+    "closeReason": "heartbeat timeout"
+  },
+  "limitations": [
+    "Status is manager-derived while the sandbox is disconnected"
+  ],
+  "updatedAt": "2026-06-26T12:05:00.000Z",
+  "connectivity": {
+    "state": "disconnected",
+    "connectedAt": "2026-06-26T12:00:00.000Z",
+    "disconnectedAt": "2026-06-26T12:01:00.000Z",
+    "lastErrorCode": "HEARTBEAT_TIMEOUT"
+  },
+  "conversations": [],
+  "runs": []
+}

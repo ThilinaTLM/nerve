@@ -1,6 +1,6 @@
 # Runtime Image
 
-The sandbox image packages the Nerve agent runtime and sandbox daemon. It must be usable by generic container platforms while preserving a strict separation between runtime code, built-in skills, workspace files, durable state, refreshed credentials, secret-store cache/status, scratch files, package caches, and secrets.
+The sandbox agent image packages the Nerve agent runtime and sandbox daemon. It must be usable by generic container platforms while preserving a strict separation between runtime code, built-in skills, workspace files, durable state, refreshed credentials, secret-store cache/status, scratch files, package caches, and secrets.
 
 ## Required filesystem layout
 
@@ -43,7 +43,7 @@ The image MUST provide an entrypoint that performs this sequence:
 6. Initialize protected state directories such as `/state/credentials`, `/state/cache/secrets`, and dependency caches.
 7. Apply container-visible security setup that can be enforced from inside the container.
 8. Initialize secret resolvers and secret-store clients without logging values; resolve only startup-critical secret-store/controller auth at this point.
-9. Resolve model catalog provider/model metadata and verify selected `agent.mainModel`/`agent.exploreModel` selectors.
+9. Resolve model catalog provider/model metadata and verify selected `agent.defaultModel`/`agent.defaultExploreModel` selectors.
 10. Apply top-level Git setup, including identity, signing state, remotes, credentials, safe-directory config, and optional clone.
 11. Apply top-level GitHub setup, including CLI/API auth and default repo metadata.
 12. Load `AGENTS.md` context files and configured `SKILL.md` resources. If Git clone populated `/workspace`, loading MUST occur after clone.
@@ -60,11 +60,11 @@ The entrypoint MUST NOT start the agent before config validation, startup setup,
 
 The container SHOULD support one of these config inputs:
 
-- `NERVE_SANDBOX_CONFIG=/path/to/config.yaml` environment variable;
+- `NERVE_SANDBOX_AGENT_CONFIG=/path/to/config.yaml` environment variable;
 - default file `/etc/nerve/sandbox.yaml`;
 - controller-provided config mounted into a read-only path.
 
-If multiple locations are provided, `NERVE_SANDBOX_CONFIG` SHOULD take precedence.
+If multiple locations are provided, `NERVE_SANDBOX_AGENT_CONFIG` SHOULD take precedence.
 
 ## Environment variables
 
@@ -72,17 +72,19 @@ Reserved environment variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `NERVE_SANDBOX_CONFIG` | Path to YAML config. |
-| `NERVE_SANDBOX_ID` | Optional controller-assigned sandbox ID. |
-| `NERVE_SANDBOX_INSTANCE_ID` | Optional unique process/container instance ID. |
-| `NERVE_SANDBOX_STATE_DIR` | Optional override for `/state`. |
-| `NERVE_SANDBOX_WORKSPACE_DIR` | Optional override for `/workspace`. |
-| `NERVE_SANDBOX_LOG_LEVEL` | Optional log-level override. |
-| `NERVE_SANDBOX_CONTROLLER_EXIT_AFTER_MS` | Optional manager-provided override for controller disconnect self-exit, subject to YAML validation. |
+| `NERVE_SANDBOX_AGENT_CONFIG` | Path to YAML config. |
+| `NERVE_SANDBOX_AGENT_ID` | Optional controller-assigned sandbox ID. |
+| `NERVE_SANDBOX_AGENT_INSTANCE_ID` | Optional unique process/container instance ID. |
+| `NERVE_SANDBOX_AGENT_STATE_DIR` | Optional override for `/state`. |
+| `NERVE_SANDBOX_AGENT_WORKSPACE_DIR` | Optional override for `/workspace`. |
+| `NERVE_SANDBOX_AGENT_LOG_LEVEL` | Optional log-level override. |
+| `NERVE_SANDBOX_AGENT_CONTROLLER_EXIT_AFTER_MS` | Optional manager-provided override for controller disconnect self-exit, subject to YAML validation. |
 
 Provider/tool/controller/secret-store secrets MAY also be supplied through environment variables named by the config's `SecretRef` values. The sandbox MUST NOT enumerate and forward all environment variables to model providers or tool processes; secrets must be injected only where explicitly configured.
 
 ## Container runtime defaults
+
+Managed images receive identity from the manager via environment: `NERVE_SANDBOX_AGENT_SANDBOX_ID` identifies the sandbox, and `NERVE_SANDBOX_AGENT_INSTANCE_ID` identifies the specific container/task instance. These values are not read from sandbox-agent YAML.
 
 A production sandbox SHOULD be launched with equivalent protections:
 
@@ -233,7 +235,7 @@ Requirements:
 The image SHOULD expose a local healthcheck command, for example:
 
 ```sh
-nerve-sandbox healthcheck
+nerve-sandbox-agent healthcheck
 ```
 
 A healthy sandbox means:

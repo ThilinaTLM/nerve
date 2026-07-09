@@ -1,12 +1,12 @@
 import type { Message } from "@earendil-works/pi-ai";
-import type {
-  AgentRecord,
-  ConversationEntry,
-  ConversationRecord,
-  ProjectRecord,
+import {
+  type AgentRecord,
+  type ConversationEntry,
+  type ConversationRecord,
+  ConversationRuntime,
+  type ProjectRecord,
 } from "@nervekit/shared";
 import type { AgentRunState } from "../domains/agents/run/index.js";
-import { ConversationRuntime } from "../domains/conversations/conversation-runtime.js";
 import { HttpError } from "../http/errors.js";
 
 export class RuntimeState {

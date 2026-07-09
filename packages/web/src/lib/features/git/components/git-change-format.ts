@@ -1,9 +1,9 @@
+import type { BadgeTone } from "@nervekit/shared-ui/components/ui/badge";
 import type {
   GitFileChange,
   GithubChecksSummary,
   GitRepoSummary,
 } from "$lib/api";
-import type { BadgeTone } from "$lib/components/ui/badge";
 
 const MAX_CHANGE_PATH_LENGTH = 48;
 const REPO_LABEL_SHORTENING = [

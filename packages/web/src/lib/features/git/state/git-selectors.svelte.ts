@@ -1,10 +1,10 @@
+import { modelKey } from "@nervekit/shared-ui/core/utils/model";
 import {
   conversationViewKey,
   gitProjectStateKey,
   gitRepoStateKey,
   prViewKey,
 } from "$lib/core/state/state-keys";
-import { modelKey } from "$lib/core/utils/model";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";

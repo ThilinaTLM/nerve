@@ -8,12 +8,12 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
     UpdateSettingsRequest,
   } from "$lib/api";
   import Info from "@lucide/svelte/icons/info";
-  import RadioGroup from "$lib/components/ui/radio-group-field";
-  import Switch from "$lib/components/ui/switch-field";
-  import * as Tooltip from "$lib/components/ui/tooltip";
-  import { Button } from "$lib/components/ui/button";
+  import RadioGroup from "@nervekit/shared-ui/components/ui/radio-group-field";
+  import Switch from "@nervekit/shared-ui/components/ui/switch-field";
+  import * as Tooltip from "@nervekit/shared-ui/components/ui/tooltip";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
   import { clampThinkingLevelForModel } from "$lib/features/conversations/state/agent-selection-defaults";
-  import SettingsSectionCard from "../SettingsSectionCard.svelte";
+  import { SettingsSectionCard } from "@nervekit/shared-ui/components/settings";
   import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
   import {
     modelDisplayName,
@@ -21,7 +21,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
     parseModelKey,
     providerDisplayName,
     scopedUsableModelOptions,
-  } from "$lib/core/utils/model";
+  } from "@nervekit/shared-ui/core/utils/model";
   import { modeItems, permissionItems } from "../options";
 
   type SettingsChange = (

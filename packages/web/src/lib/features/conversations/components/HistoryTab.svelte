@@ -7,7 +7,7 @@
     ConversationTreeNode,
     ToolCallTranscriptRecord,
   } from "$lib/api";
-  import { buttonVariants } from "$lib/components/ui/button";
+  import { buttonVariants } from "@nervekit/shared-ui/components/ui/button";
   import { buildHistoryGraph } from "./history-graph";
   import HistoryBranchRail from "./HistoryBranchRail.svelte";
   import HistoryDetailPane from "./HistoryDetailPane.svelte";

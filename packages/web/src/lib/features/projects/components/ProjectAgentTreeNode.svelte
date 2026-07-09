@@ -1,9 +1,6 @@
 <script lang="ts">
-  import ContextMenu, {
-    type ContextMenuItem,
-  } from "$lib/components/ui/context-menu-list";
-  import { StatusDot } from "$lib/components/ui/status-dot";
-  import * as Tooltip from "$lib/components/ui/tooltip";
+  import { type ContextMenuItem } from "@nervekit/shared-ui/components/ui/context-menu-list";
+  import { NavigatorItem } from "@nervekit/shared-ui/components/navigator";
   import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
   import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
   import type { ConversationRow } from "$lib/core/utils/project-tree";
@@ -43,83 +40,23 @@
   );
 </script>
 
-<ContextMenu items={menuItems} triggerClass="conversation-context-trigger">
-  <Tooltip.Root>
-    <Tooltip.Trigger>
-      {#snippet child({ props: tip })}
-        <button
-          {...tip}
-          type="button"
-          class="conversation-row"
-          data-active={isActive}
-          title={row.conversation.title}
-          onclick={() => onOpenConversation?.(row.conversation.id)}
-        >
-          <StatusDot
-            class="conversation-status"
-            tone={dotActivity.tone}
-            pulse={dotActivity.pulse}
-            label={dotActivity.label}
-            variant={isOpen ? "solid" : "outline"}
-            size="sm"
-          />
-          <span class="conversation-label">{row.conversation.title}</span>
-        </button>
-      {/snippet}
-    </Tooltip.Trigger>
-    <Tooltip.Content side="right" sideOffset={6} class="nav-tooltip conversation-tooltip">
-      <span class="tt-title">{row.conversation.title}</span>
-      <span class="tt-row"><span class="tt-key">status</span>{status}</span>
-      <span class="tt-row"><span class="tt-key">mode</span>{mode} · {permission}</span>
-      <span class="tt-row"><span class="tt-key">model</span>{shortAgentModel(row.agent)}</span>
-      <span class="tt-row"><span class="tt-key">updated</span>{dateTimeLabel(row.conversation.updatedAt)}</span>
-      <span class="tt-id">{row.conversation.id}</span>
-    </Tooltip.Content>
-  </Tooltip.Root>
-</ContextMenu>
-
-<style>
-  .conversation-row {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    align-items: center;
-    gap: 0.5rem;
-    border-radius: var(--radius-sm);
-    padding: 0.2rem 0.55rem;
-    color: var(--muted-foreground);
-    font-size: var(--text-sm);
-    text-align: start;
-    cursor: pointer;
-    transition:
-      color 120ms ease,
-      background-color 120ms ease;
-  }
-
-  .conversation-row:hover {
-    background: color-mix(in oklab, var(--muted) 60%, transparent);
-    color: var(--foreground);
-  }
-
-  .conversation-row[data-active="true"] {
-    background: var(--accent);
-    color: var(--accent-foreground);
-  }
-
-  .conversation-row:focus-visible {
-    outline: none;
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ring) 60%, transparent);
-  }
-
-  .conversation-label {
-    display: block;
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    font-weight: 400;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-</style>
+<NavigatorItem
+  title={row.conversation.title}
+  active={isActive}
+  {isOpen}
+  statusTone={dotActivity.tone}
+  statusPulse={dotActivity.pulse}
+  statusLabel={dotActivity.label}
+  {menuItems}
+  tooltipClass="conversation-tooltip"
+  onSelect={() => onOpenConversation?.(row.conversation.id)}
+>
+  {#snippet tooltip()}
+    <span class="tt-title">{row.conversation.title}</span>
+    <span class="tt-row"><span class="tt-key">status</span>{status}</span>
+    <span class="tt-row"><span class="tt-key">mode</span>{mode} · {permission}</span>
+    <span class="tt-row"><span class="tt-key">model</span>{shortAgentModel(row.agent)}</span>
+    <span class="tt-row"><span class="tt-key">updated</span>{dateTimeLabel(row.conversation.updatedAt)}</span>
+    <span class="tt-id">{row.conversation.id}</span>
+  {/snippet}
+</NavigatorItem>

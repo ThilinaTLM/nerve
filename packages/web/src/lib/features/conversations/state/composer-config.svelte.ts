@@ -1,3 +1,4 @@
+import { modelKey, parseModelKey } from "@nervekit/shared-ui/core/utils/model";
 import type {
   AgentRecord,
   ModelInfo,
@@ -9,7 +10,6 @@ import {
   conversationViewKey,
   pendingConversationKey,
 } from "$lib/core/state/state-keys";
-import { modelKey, parseModelKey } from "$lib/core/utils/model";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { queueSettingsSave } from "$lib/features/settings/state/settings-actions.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";

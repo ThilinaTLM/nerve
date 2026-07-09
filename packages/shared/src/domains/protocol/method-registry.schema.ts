@@ -74,6 +74,27 @@ import {
   upsertModelDefinitionRequestSchema,
 } from "../providers/index.js";
 import {
+  sandboxAgentConfigureParamsSchema,
+  sandboxAgentConfigureResultSchema,
+  sandboxConversationSnapshotGetParamsSchema,
+  sandboxConversationViewSnapshotSchema,
+  sandboxPinnedCommandCreateParamsSchema,
+  sandboxPinnedCommandDeleteParamsSchema,
+  sandboxPinnedCommandListParamsSchema,
+  sandboxPinnedCommandSchema,
+  sandboxPinnedCommandUpdateParamsSchema,
+  sandboxRunCancelParamsSchema,
+  sandboxRunCancelResultSchema,
+  sandboxRunContinueParamsSchema,
+  sandboxRunContinueResultSchema,
+  sandboxRunStartParamsSchema,
+  sandboxRunStartResultSchema,
+  sandboxSnapshotGetParamsSchema,
+  sandboxSnapshotResultSchema,
+  sandboxToolCallGetParamsSchema,
+  sandboxToolCallGetResultSchema,
+} from "../sandbox/index.js";
+import {
   settingsSchema,
   updateSettingsRequestSchema,
 } from "../settings/index.js";
@@ -83,7 +104,12 @@ import {
   storageCleanupResponseSchema,
   storageUsageResponseSchema,
 } from "../storage/index.js";
-import { startTaskRequestSchema, taskRecordSchema } from "../tasks/index.js";
+import {
+  startTaskRequestSchema,
+  taskLogQueryResponseSchema,
+  taskLogQuerySchema,
+  taskRecordSchema,
+} from "../tasks/index.js";
 import {
   answerUserQuestionRequestSchema,
   approvalRecordSchema,
@@ -200,6 +226,42 @@ export const protocolMethodNameSchema = z.enum([
   "worker.list",
   "worker.get",
   "applicationLog.prune",
+  "sandbox.snapshot.get",
+  "sandbox.conversation.snapshot.get",
+  "sandbox.agent.prompt",
+  "sandbox.agent.abort",
+  "sandbox.agent.continue",
+  "sandbox.agent.configure",
+  "sandbox.toolCall.get",
+  "sandbox.git.repos.discover",
+  "sandbox.git.overview.get",
+  "sandbox.git.branches.list",
+  "sandbox.git.branch.create",
+  "sandbox.git.branch.switch",
+  "sandbox.git.file.stage",
+  "sandbox.git.file.unstage",
+  "sandbox.git.file.discard",
+  "sandbox.git.sync",
+  "sandbox.git.push",
+  "sandbox.git.pull",
+  "sandbox.git.fetch",
+  "sandbox.git.switchBaseAndPull",
+  "sandbox.github.status.get",
+  "sandbox.github.pr.list",
+  "sandbox.github.pr.get",
+  "sandbox.github.pr.checkout",
+  "sandbox.task.list",
+  "sandbox.task.start",
+  "sandbox.task.get",
+  "sandbox.task.cancel",
+  "sandbox.task.restart",
+  "sandbox.task.prune",
+  "sandbox.task.delete",
+  "sandbox.task.logs",
+  "sandbox.pinnedCommand.list",
+  "sandbox.pinnedCommand.create",
+  "sandbox.pinnedCommand.update",
+  "sandbox.pinnedCommand.delete",
 ]);
 export type ProtocolMethodName = z.infer<typeof protocolMethodNameSchema>;
 
@@ -247,6 +309,63 @@ const conversationIdParamsSchema = z.object({
 const agentIdParamsSchema = z.object({ agentId: agentIdSchema });
 const taskIdParamsSchema = z.object({ taskId: taskIdSchema });
 const workerIdParamsSchema = z.object({ workerId: workerIdSchema });
+
+const sandboxIdParamsSchema = z.object({ sandboxId: z.string().min(1) });
+const sandboxSnapshotProtocolParamsSchema = sandboxIdParamsSchema.merge(
+  sandboxSnapshotGetParamsSchema,
+);
+const sandboxConversationSnapshotProtocolParamsSchema =
+  sandboxIdParamsSchema.merge(
+    sandboxConversationSnapshotGetParamsSchema.omit({ sandboxId: true }),
+  );
+const sandboxRunStartProtocolParamsSchema = sandboxIdParamsSchema.merge(
+  sandboxRunStartParamsSchema,
+);
+const sandboxRunCancelProtocolParamsSchema = sandboxIdParamsSchema.merge(
+  sandboxRunCancelParamsSchema,
+);
+const sandboxRunContinueProtocolParamsSchema = sandboxIdParamsSchema.merge(
+  sandboxRunContinueParamsSchema,
+);
+const sandboxAgentConfigureProtocolParamsSchema = sandboxIdParamsSchema.merge(
+  sandboxAgentConfigureParamsSchema.omit({ sandboxId: true }),
+);
+const sandboxToolCallGetProtocolParamsSchema = sandboxIdParamsSchema.merge(
+  sandboxToolCallGetParamsSchema.omit({ sandboxId: true }),
+);
+const sandboxGitRepoParamsSchema = sandboxIdParamsSchema.extend({
+  repo: z.string().min(1).default("."),
+});
+const sandboxGitCreateBranchParamsSchema = sandboxIdParamsSchema.merge(
+  createBranchRequestSchema,
+);
+const sandboxGitSwitchBranchParamsSchema = sandboxIdParamsSchema.merge(
+  switchBranchRequestSchema,
+);
+const sandboxGitFileActionParamsSchema = sandboxIdParamsSchema.merge(
+  gitFileActionRequestSchema,
+);
+const sandboxGitRemoteOpParamsSchema = sandboxIdParamsSchema.merge(
+  gitRemoteOpRequestSchema,
+);
+const sandboxGithubPrParamsSchema = sandboxGitRepoParamsSchema.extend({
+  number: z.number().int().positive(),
+});
+const sandboxStartTaskRequestSchema = startTaskRequestSchema
+  .omit({ cwd: true })
+  .extend({ cwd: z.string().min(1).optional() });
+const sandboxTaskStartParamsSchema = sandboxIdParamsSchema.merge(
+  sandboxStartTaskRequestSchema,
+);
+const sandboxTaskIdParamsSchema =
+  sandboxIdParamsSchema.merge(taskIdParamsSchema);
+const sandboxTaskCancelParamsSchema = sandboxTaskIdParamsSchema.extend({
+  signal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
+  timeoutMs: z.number().int().positive().max(30_000).optional(),
+  reason: z.string().min(1).optional(),
+});
+const sandboxTaskLogsParamsSchema =
+  sandboxTaskIdParamsSchema.merge(taskLogQuerySchema);
 
 const conversationSnapshotParamsSchema = conversationIdParamsSchema;
 const approvalParamsSchema = z
@@ -1019,6 +1138,258 @@ const methodDefinitions = {
     applicationLogPruneResponseSchema,
     "mutation",
     "recommended",
+  ),
+  "sandbox.snapshot.get": def(
+    "sandbox.snapshot.get",
+    sandboxSnapshotProtocolParamsSchema,
+    sandboxSnapshotResultSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.conversation.snapshot.get": def(
+    "sandbox.conversation.snapshot.get",
+    sandboxConversationSnapshotProtocolParamsSchema,
+    sandboxConversationViewSnapshotSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.agent.prompt": def(
+    "sandbox.agent.prompt",
+    sandboxRunStartProtocolParamsSchema,
+    sandboxRunStartResultSchema,
+    "accepted_async",
+    "required",
+  ),
+  "sandbox.agent.abort": def(
+    "sandbox.agent.abort",
+    sandboxRunCancelProtocolParamsSchema,
+    sandboxRunCancelResultSchema,
+    "mutation",
+    "required",
+  ),
+  "sandbox.agent.continue": def(
+    "sandbox.agent.continue",
+    sandboxRunContinueProtocolParamsSchema,
+    sandboxRunContinueResultSchema,
+    "accepted_async",
+    "required",
+  ),
+  "sandbox.agent.configure": def(
+    "sandbox.agent.configure",
+    sandboxAgentConfigureProtocolParamsSchema,
+    sandboxAgentConfigureResultSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.repos.discover": def(
+    "sandbox.git.repos.discover",
+    sandboxIdParamsSchema,
+    gitDiscoveryResponseSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.git.overview.get": def(
+    "sandbox.git.overview.get",
+    sandboxGitRepoParamsSchema,
+    gitOverviewResponseSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.git.branches.list": def(
+    "sandbox.git.branches.list",
+    sandboxGitRepoParamsSchema,
+    gitBranchListResponseSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.git.branch.create": def(
+    "sandbox.git.branch.create",
+    sandboxGitCreateBranchParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.branch.switch": def(
+    "sandbox.git.branch.switch",
+    sandboxGitSwitchBranchParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.file.stage": def(
+    "sandbox.git.file.stage",
+    sandboxGitFileActionParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.file.unstage": def(
+    "sandbox.git.file.unstage",
+    sandboxGitFileActionParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.file.discard": def(
+    "sandbox.git.file.discard",
+    sandboxGitFileActionParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.sync": def(
+    "sandbox.git.sync",
+    sandboxGitRemoteOpParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.push": def(
+    "sandbox.git.push",
+    sandboxGitRemoteOpParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.pull": def(
+    "sandbox.git.pull",
+    sandboxGitRemoteOpParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.fetch": def(
+    "sandbox.git.fetch",
+    sandboxGitRemoteOpParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.git.switchBaseAndPull": def(
+    "sandbox.git.switchBaseAndPull",
+    sandboxGitRemoteOpParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.github.status.get": def(
+    "sandbox.github.status.get",
+    sandboxGitRepoParamsSchema,
+    githubStatusResponseSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.github.pr.list": def(
+    "sandbox.github.pr.list",
+    sandboxGitRepoParamsSchema,
+    githubPrListResponseSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.github.pr.get": def(
+    "sandbox.github.pr.get",
+    sandboxGithubPrParamsSchema,
+    githubPrDetailSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.github.pr.checkout": def(
+    "sandbox.github.pr.checkout",
+    sandboxGithubPrParamsSchema,
+    githubPrCheckoutResponseSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.task.list": def(
+    "sandbox.task.list",
+    sandboxIdParamsSchema,
+    z.object({ tasks: z.array(taskRecordSchema) }),
+    "read",
+    "none",
+  ),
+  "sandbox.task.start": def(
+    "sandbox.task.start",
+    sandboxTaskStartParamsSchema,
+    z.object({ task: taskRecordSchema }),
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.task.get": def(
+    "sandbox.task.get",
+    sandboxTaskIdParamsSchema,
+    z.object({ task: taskRecordSchema }),
+    "read",
+    "none",
+  ),
+  "sandbox.task.cancel": def(
+    "sandbox.task.cancel",
+    sandboxTaskCancelParamsSchema,
+    z.object({ task: taskRecordSchema }),
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.task.restart": def(
+    "sandbox.task.restart",
+    sandboxTaskIdParamsSchema,
+    z.object({ task: taskRecordSchema }),
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.task.prune": def(
+    "sandbox.task.prune",
+    sandboxIdParamsSchema,
+    z.object({ removed: z.array(taskIdSchema) }),
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.task.delete": def(
+    "sandbox.task.delete",
+    sandboxTaskIdParamsSchema,
+    z.object({ removed: z.literal(true) }),
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.task.logs": def(
+    "sandbox.task.logs",
+    sandboxTaskLogsParamsSchema,
+    taskLogQueryResponseSchema,
+    "read",
+    "none",
+  ),
+  "sandbox.pinnedCommand.list": def(
+    "sandbox.pinnedCommand.list",
+    sandboxPinnedCommandListParamsSchema,
+    z.object({ commands: z.array(sandboxPinnedCommandSchema) }),
+    "read",
+    "none",
+  ),
+  "sandbox.pinnedCommand.create": def(
+    "sandbox.pinnedCommand.create",
+    sandboxPinnedCommandCreateParamsSchema,
+    z.object({ command: sandboxPinnedCommandSchema }),
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.pinnedCommand.update": def(
+    "sandbox.pinnedCommand.update",
+    sandboxPinnedCommandUpdateParamsSchema,
+    z.object({ command: sandboxPinnedCommandSchema }),
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.pinnedCommand.delete": def(
+    "sandbox.pinnedCommand.delete",
+    sandboxPinnedCommandDeleteParamsSchema,
+    okResultSchema,
+    "mutation",
+    "recommended",
+  ),
+  "sandbox.toolCall.get": def(
+    "sandbox.toolCall.get",
+    sandboxToolCallGetProtocolParamsSchema,
+    sandboxToolCallGetResultSchema,
+    "read",
+    "none",
   ),
 } as const satisfies Record<ProtocolMethodName, ProtocolMethodDefinition>;
 

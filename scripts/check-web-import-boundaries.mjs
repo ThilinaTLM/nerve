@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = process.cwd().endsWith("packages/web")
-  ? process.cwd()
-  : join(process.cwd(), "packages/web");
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const root = join(repoRoot, "packages", "web");
 const libRoot = join(root, "src/lib");
 const bannedTopLevel = [
   "stores",

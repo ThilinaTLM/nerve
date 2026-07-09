@@ -1,26 +1,24 @@
 import { resolve } from "node:path";
-import type {
-  AgentRecord,
-  ApprovalRecord,
-  Mode,
-  StartTaskRequest,
-  TaskRecord,
-  ThinkingLevel,
-  ToolCallRecord,
-  ToolName,
-  UserQuestionRecord,
-  UserQuestionStatus,
+import {
+  type AgentRecord,
+  type ApprovalRecord,
+  type ConversationRuntime,
+  createId,
+  type Mode,
+  type StartTaskRequest,
+  type TaskRecord,
+  type ThinkingLevel,
+  type ToolAnchor,
+  type ToolCallRecord,
+  type ToolName,
+  type UserQuestionRecord,
+  type UserQuestionStatus,
 } from "@nervekit/shared";
-import { createId } from "@nervekit/shared";
 import { allToolDescriptors, toolRiskForName } from "@nervekit/tools";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import type {
-  ConversationRuntime,
-  ToolAnchor,
-} from "../conversations/conversation-runtime.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
 import type { TaskManager } from "../tasks/task-manager.js";

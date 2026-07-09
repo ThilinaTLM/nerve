@@ -7,7 +7,7 @@ Nerve Sandbox v1 packages the Nerve agent runtime as a durable, isolated contain
 ```text
 +-------------------------------------------------------------+
 | Frontend / CLI / scheduler / external automation             |
-| - packages/web sandbox-manager UI                            |
+| - packages/sandbox-manager-ui web app                        |
 | - other protocol-compatible clients                          |
 +-----------------------------+-------------------------------+
                               | Nerve Protocol v1 / HTTP
@@ -78,7 +78,7 @@ Sandbox v1 aims to provide:
 3. **pi-ai model/provider parity with simple agent selectors**
    - Built-in providers and models resolve through the bundled pi-ai catalog.
    - Custom providers, known pi-ai API types, compatible APIs, custom headers, compat options, thinking levels, and model metadata can be represented in `modelCatalog`.
-   - `agent.mainModel` and `agent.exploreModel` select only provider, model, and thinking level.
+   - `agent.defaultModel` and `agent.defaultExploreModel` select only provider, model, and thinking level.
    - The sandbox can refresh `openai-codex` and Anthropic subscription credentials when the manager provides refresh material and the runtime supports the provider.
 
 4. **First-class Git/GitHub startup configuration**
@@ -119,8 +119,9 @@ Sandbox v1 aims to provide:
     - The sandbox self-exits after the configured controller disconnect grace period, 5 minutes by default, so detached containers do not run indefinitely.
 
 12. **Separate sandbox-manager web UI**
-    - `packages/web` may provide a new UI surface for the sandbox manager.
-    - The UI connects to manager APIs and reuses the existing design language without reusing the local workbench as-is.
+    - `packages/sandbox-manager-ui` provides a dedicated UI app for the sandbox manager.
+    - `packages/shared-ui` provides shared Svelte primitives/theme used by both UI apps.
+    - The UI connects to manager APIs without reusing the local workbench as-is.
 
 ## Non-goals
 
@@ -160,8 +161,8 @@ Sandbox v1 does not define:
 | Sandbox | One configured agent runtime instance, usually one container. |
 | Sandbox daemon | The process inside the container that loads config, applies Git/GitHub setup, runs boot, manages the agent harness and tools, journals state, refreshes configured credentials, and connects to the controller. |
 | Manager/controller | The external API/service peer that authenticates users/services, starts sandboxes, provides config/credentials, sends commands, receives events, exposes frontend APIs, and owns product-specific persistence/UI integration. Baseline package: `packages/sandbox-manager`. |
-| Sandbox image | The container image/runtime package that contains `/agent`, the sandbox daemon, agent runtime, tools, and built-in skills. Baseline package: `packages/sandbox-image`. |
-| Sandbox-manager UI | A separate `packages/web` UI surface that connects to the manager to observe and operate sandboxes. |
+| Sandbox agent image | The container image/runtime package that contains `/agent`, the sandbox daemon, agent runtime, tools, and built-in skills. Baseline package: `packages/sandbox-agent`. |
+| Sandbox-manager UI | A dedicated `packages/sandbox-manager-ui` app that connects to the manager to observe and operate sandboxes. |
 | Workspace | The writable project directory mounted at `/workspace`. Agent file tools operate here by default. |
 | State store | Durable directory mounted at `/state`; contains journals, checkpoints, refreshed credentials, run/conversation/agent state, skills metadata, and transcripts. |
 | Conversation | A durable thread of agent/user/tool interaction. A sandbox commonly starts with one conversation but the state model allows more. |
@@ -188,7 +189,7 @@ Sandbox implementations SHOULD keep these layers separate:
 
 ```text
 +--------------------------------------------------------------+
-| Frontend/UI product logic (`packages/web` sandbox-manager UI) |
+| Frontend/UI product logic (`packages/sandbox-manager-ui`)      |
 +--------------------------------------------------------------+
 | Sandbox manager API, KV secrets, lifecycle, and GC             |
 +--------------------------------------------------------------+

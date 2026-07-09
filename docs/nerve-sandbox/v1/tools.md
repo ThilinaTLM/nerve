@@ -209,10 +209,10 @@ A sandbox without managed task support MUST not advertise task tools.
 
 Interaction tools bridge the agent to the controller/user.
 
-- `ask_user` MUST emit a durable waiting event and checkpoint before the run waits.
-- Controller answers MUST arrive through `sandbox.input.submit`.
+- `ask_user` MUST use the provider tool-call ID as the request/wait anchor, persist the wait/checkpoint, emit a durable waiting event, and suspend the harness with `AgentToolSuspension` before the run waits.
+- Controller answers MUST arrive through `sandbox.input.submit`; the answer is written durably before `sandbox.run.continue` re-enters the same pending harness tool call.
 - Pending questions MUST survive restart.
-- The sandbox MUST reject answers for unknown, dismissed, or already-answered request IDs.
+- The sandbox MUST reject answers for unknown, dismissed, mismatched, or already-answered request IDs.
 
 ## Explore agent
 
@@ -220,7 +220,7 @@ The explore agent is a read-oriented subagent used for codebase investigation.
 
 Requirements:
 
-- It SHOULD use `agent.exploreModel` when configured; otherwise it MAY use `agent.mainModel`. Both selections resolve through the model catalog.
+- It SHOULD use `agent.defaultExploreModel` when configured; otherwise it MAY use `agent.defaultModel`. Both selections resolve through the model catalog.
 - Its default tool set SHOULD be read-only: `read`, `grep`, `find`, `ls`, and bounded status/log tools if supported.
 - It MUST inherit filesystem and network policy from the parent sandbox.
 - It MUST not exceed configured explore depth/run budgets.
@@ -249,5 +249,8 @@ Tool calls SHOULD produce durable lifecycle events:
 2. `tool.call.started` when execution begins.
 3. `tool.call.completed` with bounded/redacted result and artifact references.
 4. `tool.call.failed` with redacted error details.
+5. `tool.call.cancelled` when a pending or running tool is cancelled.
+
+Approval-required tools MUST persist `waiting_for_approval` before side effects. Granting an approval resumes the exact provider tool-call ID and normalized args; denying returns a redacted `POLICY_DENIED` tool error to the model without executing the side effect.
 
 The sandbox MUST journal enough tool-call state to recover or explain the latest stable run state after restart.

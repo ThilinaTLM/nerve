@@ -3,7 +3,7 @@
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import Folder from "@lucide/svelte/icons/folder";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
-  import { Badge } from "$lib/components/ui/badge";
+  import { Badge } from "@nervekit/shared-ui/components/ui/badge";
   import type { FilesystemEntry, NavItem, SignalMetaByKind } from "./directory-picker-types";
 
   type Props = {

@@ -5,6 +5,7 @@ These examples are illustrative. IDs, timestamps, URLs, image names, model names
 ## 1. Minimal YAML config
 
 ```yaml
+# yaml-language-server: $schema=../../../packages/shared/schemas/sandbox-config-v1.schema.json
 version: 1
 
 modelCatalog:
@@ -17,7 +18,7 @@ modelCatalog:
           env: ANTHROPIC_API_KEY
 
 agent:
-  mainModel:
+  defaultModel:
     provider: anthropic
     model: claude-sonnet-4-5
     thinkingLevel: medium
@@ -28,7 +29,7 @@ controller:
   auth:
     type: api_key
     apiKey:
-      env: NERVE_SANDBOX_API_KEY
+      env: NERVE_SANDBOX_AGENT_API_KEY
 
 tools:
   groups:
@@ -47,15 +48,26 @@ security:
 
 ## 2. Full YAML config
 
-```yaml
-version: 1
+Launch metadata is supplied to the manager separately:
 
-identity:
+```yaml
+launch:
   sandboxId: sbx_01KWFTEST00000000000000001
   name: platform-repo-worker
+  backend: docker
+  image: nerve-sandbox-agent:dev
   labels:
     team: platform
     tier: dev
+  resources:
+    memoryMb: 4096
+    vcpu: 2
+```
+
+The mounted sandbox-agent YAML starts with runtime behavior only:
+
+```yaml
+version: 1
 
 secretStores:
   defaultStore: manager
@@ -115,19 +127,18 @@ modelCatalog:
       supportedThinkingLevels: [off]
 
 agent:
-  mainModel:
+  defaultModel:
     provider: anthropic
     model: claude-sonnet-4-5
     thinkingLevel: medium
-  exploreModel:
+  defaultExploreModel:
     provider: openai-codex
     model: gpt-5-codex
     thinkingLevel: low
-  initialPrompt: |
-    Wait for controller instructions and keep changes small.
+  # First user prompts are sent later with sandbox.run.start.prompt.
   systemPromptAmendment: |
     Do not modify files outside /workspace. Ask before risky operations.
-  permissionLevel: supervised
+  defaultPermissionLevel: supervised
 
 controller:
   websocket:
@@ -153,20 +164,31 @@ git:
     sshSigningKey:
       kv:
         key: git/signing-key
+  credentials:
+    github-ssh:
+      match:
+        protocol: ssh
+        host: github.com
+        user: git
+      credential:
+        type: ssh
+        privateKey:
+          kv:
+            key: git/id_ed25519
+        knownHosts:
+          kv:
+            key: git/known_hosts
   clone:
     url: git@github.com:example/repo.git
     ref: main
     targetDir: /workspace
     depth: 50
     submodules: false
-    credential:
-      type: ssh
-      privateKey:
-        kv:
-          key: git/id_ed25519
-      knownHosts:
-        kv:
-          key: git/known_hosts
+    credential: github-ssh
+  remotes:
+    - name: origin
+      url: git@github.com:example/repo.git
+      credential: github-ssh
   safeDirectory: workspace
   lfs: false
 
@@ -404,7 +426,7 @@ modelCatalog:
           persist: state
 
 agent:
-  mainModel:
+  defaultModel:
     provider: openai-codex
     model: gpt-5-codex
     thinkingLevel: medium
@@ -435,7 +457,7 @@ modelCatalog:
       supportedThinkingLevels: [off]
 
 agent:
-  mainModel:
+  defaultModel:
     provider: corp-openai
     model: gpt-4.1-corp
     thinkingLevel: off
@@ -482,17 +504,24 @@ git:
     signingFormat: ssh
     sshSigningKey:
       file: /secrets/git/signing-key
+  credentials:
+    github-ssh:
+      match:
+        protocol: ssh
+        host: github.com
+        user: git
+      credential:
+        type: ssh
+        privateKey:
+          file: /secrets/git/id_ed25519
+        knownHosts:
+          file: /secrets/git/known_hosts
   clone:
     url: git@github.com:example/repo.git
     ref: main
     targetDir: /workspace
     depth: 50
-    credential:
-      type: ssh
-      privateKey:
-        file: /secrets/git/id_ed25519
-      knownHosts:
-        file: /secrets/git/known_hosts
+    credential: github-ssh
 
 github:
   enabled: true
@@ -583,14 +612,14 @@ docker run --rm \
   --memory 4g \
   --cpus 2 \
   --network bridge \
-  -e NERVE_SANDBOX_CONFIG=/etc/nerve/sandbox.yaml \
-  -e NERVE_SANDBOX_API_KEY \
+  -e NERVE_SANDBOX_AGENT_CONFIG=/etc/nerve/sandbox.yaml \
+  -e NERVE_SANDBOX_AGENT_API_KEY \
   --mount type=bind,src="$PWD/sandbox.yaml",target=/etc/nerve/sandbox.yaml,readonly \
   --mount type=bind,src="$PWD/.sandbox/secrets",target=/secrets,readonly \
   --mount type=volume,src=nerve-workspace,target=/workspace \
   --mount type=volume,src=nerve-state,target=/state \
   --tmpfs /tmp \
-  ghcr.io/example/nerve-sandbox:latest
+  ghcr.io/example/nerve-sandbox-agent:latest
 ```
 
 Use `/credentials` only when the config uses `refresh.persist: file`. Production deployments should prefer immutable image digests and platform-native secret mounts or manager key-value stores.
@@ -708,8 +737,8 @@ Because v1 is still proposed, these are spec cleanup notes rather than compatibi
 
 - Move Git config from `tools.groups.*` into top-level `git`.
 - Move GitHub config from `tools.groups.*` into top-level `github`.
-- Move provider credentials/API/base URL/model metadata from `agent.mainModel` and `agent.exploreModel` into `modelCatalog`.
-- Keep `agent.mainModel` and `agent.exploreModel` as `{ provider, model, thinkingLevel }` selectors.
+- Move provider credentials/API/base URL/model metadata from `agent.defaultModel` and `agent.defaultExploreModel` into `modelCatalog`.
+- Keep `agent.defaultModel` and `agent.defaultExploreModel` as `{ provider, model, thinkingLevel }` selectors.
 - Replace raw env/file-only secret refs with env/file/kv `SecretRef` values as needed.
 - Replace package dependency config blocks with `boot.phases`, `security.network`, firewall policy, cache paths, and scoped package-manager credential refs.
 - Prefer `/workspace/AGENTS.md` and `/workspace/.agents/skills`; legacy project resource paths require explicit compatibility support.
@@ -771,15 +800,19 @@ controller:
 
 git:
   enabled: true
+  credentials:
+    github-ssh:
+      match: { protocol: ssh, host: github.com, user: git }
+      credential:
+        type: ssh
+        privateKey:
+          kv: { key: git/id_ed25519 }
+        knownHosts:
+          kv: { key: git/known_hosts }
   clone:
     url: git@github.com:example/repo.git
     ref: main
-    credential:
-      type: ssh
-      privateKey:
-        kv: { key: git/id_ed25519 }
-      knownHosts:
-        kv: { key: git/known_hosts }
+    credential: github-ssh
 
 github:
   enabled: true
@@ -831,7 +864,7 @@ If reconnect succeeds before the deadline, the sandbox emits `sandbox.controller
 
 ## 18. Sandbox-manager web UI flow
 
-A frontend in `packages/web` connects to the sandbox manager, not directly to sandbox containers.
+The dedicated frontend in `packages/sandbox-manager-ui` connects to the sandbox manager, not directly to sandbox containers.
 
 ```text
 1. UI authenticates to sandbox manager.

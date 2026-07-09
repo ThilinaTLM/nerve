@@ -16,12 +16,12 @@
     ApplicationLogSource,
   } from "$lib/api";
   import { getApplicationLogs, pruneApplicationLogs } from "$lib/api";
-  import { Button } from "$lib/components/ui/button";
-  import ConfirmDialog from "$lib/components/ui/confirm-dialog";
-  import { Input } from "$lib/components/ui/input";
-  import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import { StatusDot } from "$lib/components/ui/status-dot";
-  import { logLevelTone } from "$lib/core/utils/status";
+  import { Button } from "@nervekit/shared-ui/components/ui/button";
+  import ConfirmDialog from "@nervekit/shared-ui/components/ui/confirm-dialog";
+  import { Input } from "@nervekit/shared-ui/components/ui/input";
+  import { ScrollArea } from "@nervekit/shared-ui/components/ui/scroll-area";
+  import { StatusDot } from "@nervekit/shared-ui/components/ui/status-dot";
+  import { logLevelTone } from "@nervekit/shared-ui/core/utils/status";
   import { timeLabel } from "$lib/core/utils/time";
 
   const levels: Array<ApplicationLogLevel | "all"> = ["all", "debug", "info", "warn", "error"];

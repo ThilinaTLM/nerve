@@ -96,14 +96,34 @@ describe("prepareElectronDownloadEnv", () => {
     };
     const result = prepareElectronDownloadEnv(env);
     const log = formatProxyPreparationForLog(result, env);
-    const serialized = JSON.stringify(log);
 
-    assert.equal(log.envPresent.HTTPS_PROXY, true);
-    assert.equal(log.envPresent.NODE_USE_ENV_PROXY, true);
-    assert.equal(log.envPresent.NODE_USE_SYSTEM_CA, true);
-    assert.equal(log.noProxyContainsLoopback.localhost, true);
-    assert.equal(serialized.includes("secret"), false);
-    assert.equal(serialized.includes("proxy.example.com"), false);
+    assert.deepEqual(log, {
+      proxyConfigured: true,
+      enabledElectronGetProxy: true,
+      enabledNodeEnvProxy: true,
+      enabledNodeSystemCa: true,
+      copiedFromPackageManagerConfig: ["HTTPS_PROXY", "HTTP_PROXY"],
+      noProxyUpdated: true,
+      nodeExtraCaCertsFromPackageManagerCafile: false,
+      envPresent: {
+        HTTPS_PROXY: true,
+        https_proxy: false,
+        HTTP_PROXY: true,
+        http_proxy: false,
+        NO_PROXY: true,
+        no_proxy: true,
+        NODE_EXTRA_CA_CERTS: false,
+        NODE_USE_ENV_PROXY: true,
+        NODE_USE_SYSTEM_CA: true,
+        ELECTRON_GET_USE_PROXY: true,
+        ELECTRON_MIRROR: false,
+      },
+      noProxyContainsLoopback: {
+        localhost: true,
+        "127.0.0.1": true,
+        "::1": true,
+      },
+    });
   });
 });
 
