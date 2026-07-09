@@ -1,7 +1,10 @@
 import os from "node:os";
 import path from "node:path";
 import { resolveLogLevel, type StructuredLogLevel } from "@nervekit/shared";
-export type LocalContainerBackend = "auto" | "docker" | "podman";
+
+export type ContainerBackend = "auto" | "docker" | "podman" | "ecs";
+export type LocalContainerBackend = Exclude<ContainerBackend, "ecs">;
+export type UiAuthCookieMode = "loopback" | "trusted_proxy" | "disabled";
 
 export type ManagerConfig = {
   host: string;
@@ -14,8 +17,9 @@ export type ManagerConfig = {
   databaseUrl?: string;
   databaseSsl: boolean;
   volumeBackend: "local" | "efs" | "s3-files";
+  defaultSandboxImage: string;
   apiKey?: string;
-  backend: LocalContainerBackend;
+  backend: ContainerBackend;
   mode: "production" | "development";
   encryptionKey?: string;
   encryptionKeyRef?: string;
@@ -29,7 +33,29 @@ export type ManagerConfig = {
   maxCommandBytes: number;
   serveWebUi: boolean;
   webDist?: string;
+  awsRegion?: string;
+  ecsClusterArn?: string;
+  ecsSubnets: string[];
+  ecsSecurityGroups: string[];
+  ecsAssignPublicIp: "ENABLED" | "DISABLED";
+  ecsLaunchType: "FARGATE";
+  ecsPlatformVersion?: string;
+  ecsTaskExecutionRoleArn?: string;
+  ecsSandboxTaskRoleArn?: string;
+  ecsTaskDefinitionFamilyPrefix: string;
+  ecsContainerName: string;
+  ecsLogGroup?: string;
+  ecsLogStreamPrefix: string;
+  ecsEnableExecuteCommand: boolean;
+  efsFileSystemId?: string;
+  efsMountRoot?: string;
+  efsRootDirectory: string;
+  efsTransitEncryption: "ENABLED" | "DISABLED";
+  uiAuthCookieMode: UiAuthCookieMode;
+  trustedProxyCidrs: string[];
+  trustedProxyAuthHeader?: string;
 };
+
 export function loadManagerConfig(env = process.env): ManagerConfig {
   const host = env.NERVE_SANDBOX_MANAGER_HOST?.trim() || "127.0.0.1";
   const allowRemoteBind =
@@ -43,7 +69,7 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
     env.NERVE_SANDBOX_MANAGER_MODE === "development"
       ? "development"
       : "production";
-  return {
+  const config: ManagerConfig = {
     host,
     port: Number(env.NERVE_SANDBOX_MANAGER_PORT ?? 7869),
     logLevel: resolveLogLevel(
@@ -61,8 +87,12 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
       env.NERVE_SANDBOX_MANAGER_DATABASE_SSL === "true" ||
       env.NERVE_SANDBOX_MANAGER_DATABASE_SSL === "require",
     volumeBackend: parseVolumeBackend(env.NERVE_SANDBOX_MANAGER_VOLUME_BACKEND),
+    defaultSandboxImage:
+      env.NERVE_SANDBOX_MANAGER_DEFAULT_SANDBOX_IMAGE?.trim() ||
+      env.NERVE_SANDBOX_AGENT_IMAGE?.trim() ||
+      "nerve-sandbox-agent:dev",
     apiKey: env.NERVE_SANDBOX_MANAGER_API_KEY,
-    backend: parseLocalContainerBackend(env.NERVE_SANDBOX_MANAGER_BACKEND),
+    backend: parseContainerBackend(env.NERVE_SANDBOX_MANAGER_BACKEND),
     mode,
     encryptionKey: env.NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY,
     encryptionKeyRef: env.NERVE_SANDBOX_MANAGER_SECRET_ENCRYPTION_KEY_REF,
@@ -94,7 +124,120 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
       env.NERVE_SANDBOX_MANAGER_WEB_DIST?.trim() ||
       env.NERVE_WEB_DIST?.trim() ||
       undefined,
+    awsRegion:
+      env.NERVE_SANDBOX_MANAGER_AWS_REGION?.trim() ||
+      env.AWS_REGION?.trim() ||
+      env.AWS_DEFAULT_REGION?.trim() ||
+      undefined,
+    ecsClusterArn: env.NERVE_SANDBOX_MANAGER_ECS_CLUSTER_ARN?.trim(),
+    ecsSubnets: parseList(env.NERVE_SANDBOX_MANAGER_ECS_SUBNETS),
+    ecsSecurityGroups: parseList(env.NERVE_SANDBOX_MANAGER_ECS_SECURITY_GROUPS),
+    ecsAssignPublicIp: parseEnabledDisabled(
+      env.NERVE_SANDBOX_MANAGER_ECS_ASSIGN_PUBLIC_IP,
+      "DISABLED",
+    ),
+    ecsLaunchType: parseEcsLaunchType(
+      env.NERVE_SANDBOX_MANAGER_ECS_LAUNCH_TYPE,
+    ),
+    ecsPlatformVersion:
+      env.NERVE_SANDBOX_MANAGER_ECS_PLATFORM_VERSION?.trim() || undefined,
+    ecsTaskExecutionRoleArn:
+      env.NERVE_SANDBOX_MANAGER_ECS_TASK_EXECUTION_ROLE_ARN?.trim() ||
+      undefined,
+    ecsSandboxTaskRoleArn:
+      env.NERVE_SANDBOX_MANAGER_ECS_SANDBOX_TASK_ROLE_ARN?.trim() || undefined,
+    ecsTaskDefinitionFamilyPrefix:
+      env.NERVE_SANDBOX_MANAGER_ECS_TASK_DEFINITION_FAMILY_PREFIX?.trim() ||
+      "nerve-sandbox",
+    ecsContainerName:
+      env.NERVE_SANDBOX_MANAGER_ECS_CONTAINER_NAME?.trim() || "sandbox-agent",
+    ecsLogGroup: env.NERVE_SANDBOX_MANAGER_ECS_LOG_GROUP?.trim() || undefined,
+    ecsLogStreamPrefix:
+      env.NERVE_SANDBOX_MANAGER_ECS_LOG_STREAM_PREFIX?.trim() || "sandbox",
+    ecsEnableExecuteCommand: parseBoolean(
+      env.NERVE_SANDBOX_MANAGER_ECS_ENABLE_EXECUTE_COMMAND,
+      false,
+    ),
+    efsFileSystemId:
+      env.NERVE_SANDBOX_MANAGER_EFS_FILE_SYSTEM_ID?.trim() || undefined,
+    efsMountRoot: env.NERVE_SANDBOX_MANAGER_EFS_MOUNT_ROOT?.trim() || undefined,
+    efsRootDirectory: normalizeEfsRootDirectory(
+      env.NERVE_SANDBOX_MANAGER_EFS_ROOT_DIRECTORY,
+    ),
+    efsTransitEncryption: parseEnabledDisabled(
+      env.NERVE_SANDBOX_MANAGER_EFS_TRANSIT_ENCRYPTION,
+      "ENABLED",
+    ),
+    uiAuthCookieMode: parseUiAuthCookieMode(
+      env.NERVE_SANDBOX_MANAGER_UI_AUTH_COOKIE_MODE,
+    ),
+    trustedProxyCidrs: parseList(
+      env.NERVE_SANDBOX_MANAGER_TRUSTED_PROXY_CIDRS ??
+        env.NERVE_SANDBOX_MANAGER_UI_TRUSTED_PROXY_CIDRS,
+    ),
+    trustedProxyAuthHeader:
+      normalizeHeaderName(
+        env.NERVE_SANDBOX_MANAGER_TRUSTED_PROXY_AUTH_HEADER ??
+          env.NERVE_SANDBOX_MANAGER_UI_TRUSTED_PROXY_AUTH_HEADER,
+      ) ?? undefined,
   };
+  validateManagerConfig(config);
+  return config;
+}
+
+function validateManagerConfig(config: ManagerConfig): void {
+  const errors: string[] = [];
+  if (config.backend === "ecs") {
+    if (config.volumeBackend !== "efs") {
+      errors.push(
+        "NERVE_SANDBOX_MANAGER_VOLUME_BACKEND=efs is required when NERVE_SANDBOX_MANAGER_BACKEND=ecs",
+      );
+    }
+    if (!config.awsRegion) {
+      errors.push(
+        "NERVE_SANDBOX_MANAGER_AWS_REGION or AWS_REGION is required when NERVE_SANDBOX_MANAGER_BACKEND=ecs",
+      );
+    }
+    if (!config.ecsClusterArn) {
+      errors.push(
+        "NERVE_SANDBOX_MANAGER_ECS_CLUSTER_ARN is required when NERVE_SANDBOX_MANAGER_BACKEND=ecs",
+      );
+    }
+    if (config.ecsSubnets.length === 0) {
+      errors.push(
+        "NERVE_SANDBOX_MANAGER_ECS_SUBNETS must list at least one subnet when NERVE_SANDBOX_MANAGER_BACKEND=ecs",
+      );
+    }
+    if (config.ecsSecurityGroups.length === 0) {
+      errors.push(
+        "NERVE_SANDBOX_MANAGER_ECS_SECURITY_GROUPS must list at least one security group when NERVE_SANDBOX_MANAGER_BACKEND=ecs",
+      );
+    }
+    if (!config.ecsTaskExecutionRoleArn) {
+      errors.push(
+        "NERVE_SANDBOX_MANAGER_ECS_TASK_EXECUTION_ROLE_ARN is required for ECS/Fargate sandbox task definitions",
+      );
+    }
+    if (!config.efsFileSystemId) {
+      errors.push(
+        "NERVE_SANDBOX_MANAGER_EFS_FILE_SYSTEM_ID is required when NERVE_SANDBOX_MANAGER_BACKEND=ecs",
+      );
+    }
+  }
+  if (config.volumeBackend === "efs" && !config.efsMountRoot) {
+    errors.push(
+      "NERVE_SANDBOX_MANAGER_EFS_MOUNT_ROOT is required when NERVE_SANDBOX_MANAGER_VOLUME_BACKEND=efs",
+    );
+  }
+  if (
+    config.uiAuthCookieMode === "trusted_proxy" &&
+    config.trustedProxyCidrs.length === 0
+  ) {
+    errors.push(
+      "NERVE_SANDBOX_MANAGER_TRUSTED_PROXY_CIDRS is required when NERVE_SANDBOX_MANAGER_UI_AUTH_COOKIE_MODE=trusted_proxy",
+    );
+  }
+  if (errors.length > 0) throw new Error(errors.join("; "));
 }
 
 function requiredDatabaseUrl(env: NodeJS.ProcessEnv): string {
@@ -107,11 +250,16 @@ function requiredDatabaseUrl(env: NodeJS.ProcessEnv): string {
   return value;
 }
 
-function parseLocalContainerBackend(
-  value: string | undefined,
-): LocalContainerBackend {
-  const normalized = value?.trim();
-  if (normalized === "docker" || normalized === "podman") return normalized;
+function parseContainerBackend(value: string | undefined): ContainerBackend {
+  const normalized = value?.trim().toLowerCase();
+  if (
+    normalized === "auto" ||
+    normalized === "docker" ||
+    normalized === "podman" ||
+    normalized === "ecs"
+  ) {
+    return normalized;
+  }
   return "auto";
 }
 
@@ -120,6 +268,56 @@ function parseVolumeBackend(
 ): ManagerConfig["volumeBackend"] {
   if (value === "efs" || value === "s3-files") return value;
   return "local";
+}
+
+function parseList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (!value?.trim()) return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "1" || normalized === "true" || normalized === "yes")
+    return true;
+  if (normalized === "0" || normalized === "false" || normalized === "no")
+    return false;
+  return fallback;
+}
+
+function parseEnabledDisabled(
+  value: string | undefined,
+  fallback: "ENABLED" | "DISABLED",
+): "ENABLED" | "DISABLED" {
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === "ENABLED" || normalized === "DISABLED") return normalized;
+  return fallback;
+}
+
+function parseEcsLaunchType(value: string | undefined): "FARGATE" {
+  const normalized = value?.trim().toUpperCase();
+  if (!normalized || normalized === "FARGATE") return "FARGATE";
+  throw new Error(
+    "Only NERVE_SANDBOX_MANAGER_ECS_LAUNCH_TYPE=FARGATE is supported",
+  );
+}
+
+function normalizeEfsRootDirectory(value: string | undefined): string {
+  const trimmed = value?.trim() || "/";
+  const withSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return path.posix.normalize(withSlash).replace(/\/$/, "") || "/";
+}
+
+function parseUiAuthCookieMode(value: string | undefined): UiAuthCookieMode {
+  if (value === "trusted_proxy" || value === "disabled") return value;
+  return "loopback";
+}
+
+function normalizeHeaderName(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toLowerCase() : undefined;
 }
 
 function positiveIntOr(value: string | undefined, fallback: number): number {

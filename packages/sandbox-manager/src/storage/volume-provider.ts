@@ -1,4 +1,8 @@
-import type { SandboxConfigV1, VolumeRef } from "@nervekit/shared";
+import type {
+  RemoveOptions,
+  SandboxConfigV1,
+  VolumeRef,
+} from "@nervekit/shared";
 
 export type RuntimeMaterialization = {
   configYaml: string;
@@ -10,6 +14,7 @@ export type PreparedRuntimeVolumes = {
   state: VolumeRef;
   secrets: VolumeRef;
   config?: VolumeRef;
+  tmp?: VolumeRef;
 };
 
 export interface RuntimeVolumeProvider {
@@ -22,4 +27,5 @@ export interface RuntimeVolumeProvider {
     sandboxId: string,
     files: RuntimeMaterialization,
   ): Promise<PreparedRuntimeVolumes | undefined>;
+  remove?(sandboxId: string, options?: RemoveOptions): Promise<void>;
 }

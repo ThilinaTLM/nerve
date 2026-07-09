@@ -58,5 +58,7 @@ export class OrphanReconciler {
 }
 
 function sandboxIdFromRef(ref: ManagedContainerRef): string | undefined {
-  return ref.name?.match(/nerve-([^-]+)/)?.[1];
+  const metadataSandboxId = ref.metadata?.sandboxId;
+  if (metadataSandboxId) return metadataSandboxId;
+  return ref.name?.match(/^nerve-([^-]+)/)?.[1];
 }

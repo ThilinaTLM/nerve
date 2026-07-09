@@ -15,12 +15,16 @@ RUN pnpm --filter @nervekit/sandbox-manager deploy --prod --legacy /manager
 RUN rm -rf /manager/dist/web && mkdir -p /manager/dist/web && cp -R packages/sandbox-manager-ui/dist/. /manager/dist/web/
 
 FROM node:24-bookworm-slim
+ARG INSTALL_LOCAL_RUNTIMES=true
 LABEL org.nerve.sandbox-manager.version="0.6.0"
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates docker.io podman \
-  && rm -rf /var/lib/apt/lists/* \
-  && groupadd --system sandbox-manager \
+RUN set -eux; \
+  apt-get update; \
+  packages="ca-certificates"; \
+  if [ "${INSTALL_LOCAL_RUNTIMES}" = "true" ]; then packages="${packages} docker.io podman"; fi; \
+  apt-get install -y --no-install-recommends ${packages}; \
+  rm -rf /var/lib/apt/lists/*; \
+  groupadd --system sandbox-manager \
   && useradd --system --gid sandbox-manager --home-dir /home/sandbox-manager --create-home --shell /usr/sbin/nologin sandbox-manager \
   && mkdir -p /home/sandbox-manager/.nerve/sandbox-manager
 

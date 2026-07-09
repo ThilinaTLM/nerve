@@ -120,19 +120,23 @@ function staticCacheControl(pathname: string, contentType: string): string {
 }
 
 /**
- * Build the loopback-only HttpOnly auth cookie so the browser never stores the
- * manager API key in JavaScript. Returns `undefined` when auth is disabled or
- * the request is not from a loopback client.
+ * Build the HttpOnly auth cookie so the browser never stores the manager API
+ * key in JavaScript. Loopback is the default; trusted-proxy mode is an explicit
+ * remote deployment opt-in.
  */
 function uiAuthCookieHeader(
   state: ManagerState,
   req: IncomingMessage,
 ): string | undefined {
   const apiKey = state.config.apiKey;
-  if (!apiKey) return undefined;
-  const clientAddress = req.socket.remoteAddress ?? "";
-  if (!isLoopbackHost(state.config.host) && !isLoopbackHost(clientAddress))
-    return undefined;
+  if (!apiKey || state.config.uiAuthCookieMode === "disabled") return undefined;
+  if (state.config.uiAuthCookieMode === "trusted_proxy") {
+    if (!isTrustedProxyUiRequest(state, req)) return undefined;
+  } else {
+    const clientAddress = req.socket.remoteAddress ?? "";
+    if (!isLoopbackHost(state.config.host) && !isLoopbackHost(clientAddress))
+      return undefined;
+  }
   const parts = [
     `${AUTH_COOKIE_NAME}=${encodeURIComponent(apiKey)}`,
     "HttpOnly",
@@ -156,9 +160,33 @@ export function readUiAuthCookie(req: IncomingMessage): string | undefined {
   return undefined;
 }
 
+function isTrustedProxyUiRequest(
+  state: ManagerState,
+  req: IncomingMessage,
+): boolean {
+  if (!isHttps(req)) return false;
+  const clientAddress = req.socket.remoteAddress ?? "";
+  if (
+    !state.config.trustedProxyCidrs.some((cidr) =>
+      isAddressInCidr(clientAddress, cidr),
+    )
+  )
+    return false;
+  const authHeader = state.config.trustedProxyAuthHeader;
+  if (!authHeader) return true;
+  const value = req.headers[authHeader];
+  return Array.isArray(value)
+    ? value.some((entry) => entry.trim().length > 0)
+    : typeof value === "string" && value.trim().length > 0;
+}
+
 function isHttps(req: IncomingMessage): boolean {
   const proto = req.headers["x-forwarded-proto"];
-  if (typeof proto === "string" && proto.split(",")[0]?.trim() === "https")
+  const firstProto = Array.isArray(proto) ? proto[0] : proto;
+  if (
+    typeof firstProto === "string" &&
+    firstProto.split(",")[0]?.trim() === "https"
+  )
     return true;
   const socket = req.socket as { encrypted?: boolean };
   return socket.encrypted === true;
@@ -173,6 +201,47 @@ function isLoopbackHost(host: string): boolean {
     normalized.startsWith("127.") ||
     normalized.startsWith("::ffff:127.")
   );
+}
+
+function isAddressInCidr(address: string, cidr: string): boolean {
+  const normalizedAddress = normalizeIpAddress(address);
+  const [range, prefixRaw] = cidr.split("/", 2);
+  const normalizedRange = normalizeIpAddress(range);
+  if (!prefixRaw) return normalizedAddress === normalizedRange;
+  const addressInt = ipv4ToInt(normalizedAddress);
+  const rangeInt = ipv4ToInt(normalizedRange);
+  const prefix = Number(prefixRaw);
+  if (
+    addressInt === undefined ||
+    rangeInt === undefined ||
+    !Number.isInteger(prefix) ||
+    prefix < 0 ||
+    prefix > 32
+  ) {
+    return false;
+  }
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  return (addressInt & mask) === (rangeInt & mask);
+}
+
+function normalizeIpAddress(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.startsWith("::ffff:")
+    ? trimmed.slice("::ffff:".length)
+    : trimmed;
+}
+
+function ipv4ToInt(value: string): number | undefined {
+  const parts = value.split(".");
+  if (parts.length !== 4) return undefined;
+  let result = 0;
+  for (const part of parts) {
+    if (!/^\d+$/.test(part)) return undefined;
+    const octet = Number(part);
+    if (!Number.isInteger(octet) || octet < 0 || octet > 255) return undefined;
+    result = (result << 8) + octet;
+  }
+  return result >>> 0;
 }
 
 function resolveManagerWebDist(state: ManagerState): string | undefined {

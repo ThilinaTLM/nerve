@@ -10,6 +10,21 @@ function mode(value: number): number {
 }
 
 describe("LocalVolumeProvider", () => {
+  it("removes local runtime directories when requested", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "nerve-volumes-rm-"));
+    try {
+      const provider = new LocalVolumeProvider(root);
+      await provider.materialize("sbx_remove", {
+        configYaml: "version: 1\n",
+        controllerToken: "ntok_test",
+      });
+      await provider.remove("sbx_remove", { removeVolumes: true });
+      await assert.rejects(() => stat(path.join(root, "sbx_remove")));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("materializes config and controller token readable by the sandbox container user", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "nerve-volumes-"));
     try {

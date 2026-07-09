@@ -139,6 +139,26 @@ describe("sandbox manager reconciliation gc and orphan handling", () => {
     }
   });
 
+  it("adopts ECS orphans using sandbox id metadata", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-orphan-ecs-"));
+    try {
+      const store = new FileManagerStore(dir);
+      await store.put(record("sbx_ecs"));
+      const driver = fakeDriver();
+      const decisions = await new OrphanReconciler(store, driver).reconcile([
+        {
+          kind: "ecs",
+          id: "task-arn",
+          metadata: { sandboxId: "sbx_ecs" },
+        },
+      ]);
+      assert.equal(decisions[0].action, "adopt");
+      assert.equal((await store.get("sbx_ecs"))?.containerRef?.kind, "ecs");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("adopts matching orphans and stops unmanaged containers by policy", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-orphan-"));
     try {

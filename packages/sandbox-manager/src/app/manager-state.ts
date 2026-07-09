@@ -8,8 +8,8 @@ import { CredentialResolver } from "../credentials/credential-resolver.js";
 import { SandboxManagerOAuthFlowManager } from "../credentials/oauth-flow-manager.js";
 import { runMigrations } from "../db/migrations.js";
 import { createPostgresPool, type PostgresPool } from "../db/postgres.js";
+import { createContainerDriver } from "../drivers/container-driver-factory.js";
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
-import { createLocalContainerDriver } from "../drivers/local-container-driver.js";
 import { ManagerEventBus } from "../events/manager-event-bus.js";
 import {
   MANAGER_EVENT_STREAM,
@@ -92,7 +92,7 @@ export class ManagerState {
     this.volumeStore = new PostgresRuntimeVolumeStore(this.pool);
     this.pinnedCommands = new SandboxPinnedCommandStore(this.pool);
     this.volumeProvider = createVolumeProvider(config);
-    this.driver = createLocalContainerDriver(config.backend);
+    this.driver = createContainerDriver(config);
     this.eventBus = new ManagerEventBus();
     // Activity summaries are best-effort and rebuildable: publish them live on
     // the manager stream as transient events (never journaled) so fleet tiles
@@ -123,7 +123,11 @@ export class ManagerState {
 }
 
 function createVolumeProvider(config: ManagerConfig): RuntimeVolumeProvider {
-  if (config.volumeBackend === "efs") return new EfsVolumeProvider();
+  if (config.volumeBackend === "efs")
+    return new EfsVolumeProvider({
+      mountRoot: config.efsMountRoot ?? "",
+      rootDirectory: config.efsRootDirectory,
+    });
   if (config.volumeBackend === "s3-files") return new S3FilesVolumeProvider();
   return new LocalVolumeProvider(path.join(config.storageDir, "volumes"));
 }

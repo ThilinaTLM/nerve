@@ -43,7 +43,7 @@ The manager may serve the dedicated sandbox-manager web UI when `NERVE_SANDBOX_M
                 | container runtime API
                 v
 +---------------+---------------+
-| Docker / Podman / future ECS   |
+| Docker / Podman / ECS/Fargate  |
 +---------------+---------------+
                 |
                 v
@@ -85,6 +85,15 @@ type ManagedSandboxRecord = {
   stoppedAt?: string;
   gcAfter?: string;
   retention?: ManagedSandboxRetention;
+  containerRef?: ManagedContainerRef;
+};
+
+type ManagedContainerRef = {
+  kind: "docker" | "podman" | "ecs" | string;
+  id: string;
+  name?: string;
+  /** Backend-neutral, non-secret runtime metadata such as ECS task/log ARNs. */
+  metadata?: Record<string, string>;
 };
 
 type ManagedSandboxObservedState =
@@ -135,7 +144,7 @@ Manager-owned tables are split by use case: `sandbox` contains sandbox records, 
 Runtime filesystems remain container-backend specific:
 
 - Docker/Podman use local bind directories or named volumes for `/workspace`, `/state`, config, and protected controller-token materialization.
-- ECS/Fargate should use EFS access points/mounts for live writable `/workspace` and `/state` filesystem semantics.
+- ECS/Fargate uses EFS mounts for live writable `/workspace`, `/state`, and `/tmp` filesystem semantics; the manager must mount the same EFS filesystem to materialize config/token files and serve workspace previews.
 - S3-backed file storage may be used only through an explicit mount/sync adapter or for seed/snapshot file flows; plain object storage is not a direct POSIX replacement for live agent state.
 
 
@@ -229,9 +238,9 @@ Requirements:
 - If the local runtime cannot enforce an option, the manager MUST record a limitation in sandbox status and SHOULD reject production launches that require strict enforcement.
 - Podman rootless mode is acceptable and SHOULD be preferred where available, but rootless limitations MUST be reported.
 
-## Future ECS backend
+## ECS/Fargate backend
 
-AWS ECS support is an extension driver, not required for baseline local v1. An ECS driver MUST preserve the same sandbox contract:
+`packages/sandbox-manager` includes an ECS/Fargate driver selected with `NERVE_SANDBOX_MANAGER_BACKEND=ecs`. It is intended for AWS deployments where Terraform or another IaC layer provisions the cluster, networking, EFS, IAM roles, and manager service. The driver preserves the same sandbox contract:
 
 - one sandbox daemon per task/container;
 - `/agent`, `/workspace`, `/state`, `/tmp`, `/secrets`, and `/credentials` equivalents;
@@ -242,7 +251,11 @@ AWS ECS support is an extension driver, not required for baseline local v1. An E
 - task logs collected with redaction expectations;
 - task stop/removal and retention behavior equivalent to local GC semantics.
 
-ECS IAM roles MUST be scoped to manager/runtime operations and MUST NOT grant broad cloud metadata credentials to the sandbox container unless an explicit tool/provider integration requires narrowly scoped credentials.
+ECS launches are one sandbox per task. `create()` registers a per-sandbox task definition and calls `RunTask`; `start()` is a no-op because ECS has no Docker-style created-but-not-started task state. The task definition mounts EFS root directories from `VolumeRef.name` and keeps manager-local preview paths in `VolumeRef.source`.
+
+Required manager settings include `NERVE_SANDBOX_MANAGER_VOLUME_BACKEND=efs`, `NERVE_SANDBOX_MANAGER_AWS_REGION`, ECS cluster/subnet/security-group variables, task execution role, EFS filesystem ID, and manager EFS mount root. Unsupported Docker controls such as tmpfs, arbitrary POSIX signals, and pids limits are reported as runtime limitations.
+
+ECS IAM roles MUST be scoped to manager/runtime operations and MUST NOT grant broad cloud metadata credentials to the sandbox container unless an explicit tool/provider integration requires narrowly scoped credentials. A reference deployment lives in `deploy/aws/terraform`.
 
 ## Built-in key-value secret API
 

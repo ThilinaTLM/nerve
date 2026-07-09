@@ -38,7 +38,11 @@ async function main(): Promise<void> {
     const orphans = new OrphanReconciler(state.sandboxes, state.driver);
     const runOnce = async () => {
       await reconciler.reconcile();
-      const refs = await discoverOrphanContainers(state.config.backend);
+      const refs =
+        (await state.driver.listManaged?.()) ??
+        (state.config.backend === "ecs"
+          ? []
+          : await discoverOrphanContainers(state.config.backend));
       await orphans.reconcile(refs, mapOrphanPolicy(state.config.orphanPolicy));
       await gc.collect();
     };

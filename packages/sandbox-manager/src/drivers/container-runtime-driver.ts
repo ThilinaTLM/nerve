@@ -29,6 +29,7 @@ export interface ContainerRuntimeDriver {
   stop(ref: ManagedContainerRef, options?: StopOptions): Promise<void>;
   kill(ref: ManagedContainerRef, signal?: string): Promise<void>;
   remove(ref: ManagedContainerRef, options?: RemoveOptions): Promise<void>;
+  listManaged?(): Promise<ManagedContainerRef[]>;
 }
 
 export function unavailableRuntimeCapabilities(

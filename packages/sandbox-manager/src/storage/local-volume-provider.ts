@@ -1,6 +1,6 @@
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { SandboxConfigV1 } from "@nervekit/shared";
+import type { RemoveOptions, SandboxConfigV1 } from "@nervekit/shared";
 import type {
   PreparedRuntimeVolumes,
   RuntimeMaterialization,
@@ -67,8 +67,13 @@ export class LocalVolumeProvider implements RuntimeVolumeProvider {
     return this.prepare(sandboxId, {} as SandboxConfigV1);
   }
 
+  async remove(sandboxId: string, options: RemoveOptions = {}): Promise<void> {
+    if (!("removeVolumes" in options) || !options.removeVolumes) return;
+    await rm(this.paths(sandboxId).base, { recursive: true, force: true });
+  }
+
   private paths(sandboxId: string) {
-    const base = path.join(this.rootDir, sandboxId);
+    const base = path.join(this.rootDir, safePathSegment(sandboxId));
     return {
       base,
       workspace: path.join(base, "workspace"),
@@ -79,6 +84,10 @@ export class LocalVolumeProvider implements RuntimeVolumeProvider {
       controllerTokenPath: path.join(base, "secrets", "controller-token"),
     };
   }
+}
+
+function safePathSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 128) || "sandbox";
 }
 
 async function ensureDir(dir: string, mode: number): Promise<void> {

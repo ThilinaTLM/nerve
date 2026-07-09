@@ -9,7 +9,7 @@ It is not the current local workbench with minor changes. It should reuse the sa
 The UI should let users:
 
 - connect to a sandbox manager;
-- view sandbox fleet status across Docker/Podman backends and future ECS backends;
+- view sandbox fleet status across Docker/Podman and ECS/Fargate backends;
 - create/start/stop/remove sandboxes according to manager policy;
 - inspect sanitized configs, image/runtime metadata, workspace/state volume refs, and backend limitations;
 - view setup and boot timelines;
@@ -85,7 +85,7 @@ Shows all known sandboxes:
 
 - name/ID;
 - desired and observed state;
-- runtime backend (`docker`, `podman`, future `ecs`);
+- runtime backend (`docker`, `podman`, `ecs`);
 - image reference/digest;
 - daemon status (`ready`, `running`, `degraded`, `failed`, `reconnecting`);
 - active run count;
@@ -138,7 +138,7 @@ Approval and input actions are sent through manager-mediated protocol commands.
 
 ### Runtime/backend
 
-Shows Docker/Podman driver status and future ECS status:
+Shows Docker/Podman driver status and ECS/Fargate status:
 
 - runtime availability and version;
 - enforcement capabilities/limitations;
@@ -169,7 +169,7 @@ Shows manager-level runtime backend configuration:
 - default image references;
 - default resource/security profiles;
 - retention defaults;
-- future ECS profile placeholders.
+- ECS cluster/network/EFS profile summaries and backend limitations.
 
 ## Frontend command model
 
@@ -267,7 +267,7 @@ Shared UI/display utilities come from `@nervekit/shared-ui`. Shared protocol sch
 6. **Backend/settings view**
    - Docker/Podman health;
    - runtime limitations;
-   - future ECS profile display.
+   - ECS profile display, including CloudWatch log and EFS limitations.
 
 ## Web UI conformance checklist
 
@@ -323,10 +323,13 @@ credential profiles.
 
 ### Auth model
 
-When the manager is configured with an API key, the loopback static handler
-issues an `HttpOnly` `nerve_sandbox_manager_auth` cookie so the browser never
-stores the key in JavaScript. Remote deployments must front the manager with an
-external authenticated proxy.
+When the manager is configured with an API key, the default loopback static
+handler issues an `HttpOnly` `nerve_sandbox_manager_auth` cookie so the browser
+never stores the key in JavaScript. Remote deployments must front the manager
+with an external authenticated proxy and may opt into
+`NERVE_SANDBOX_MANAGER_UI_AUTH_COOKIE_MODE=trusted_proxy`, which issues the
+cookie only for HTTPS requests from configured trusted proxy CIDRs and, when
+configured, only when the trusted auth header is present.
 
 ## Running the UI
 

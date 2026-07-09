@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import {
   managedContainerCreateSpecSchema,
+  managedContainerRefSchema,
   managedSandboxRecordSchema,
   managerOutboundCommandRecordSchema,
   protocolMethodDefinition,
@@ -663,6 +664,33 @@ describe("Sandbox shared schemas", () => {
     );
     assert.equal(
       sandboxStatusGetParamsSchema.safeParse({ includeConfig: "raw" }).success,
+      false,
+    );
+  });
+
+  it("validates non-secret managed container metadata", () => {
+    assert.equal(
+      managedContainerRefSchema.safeParse({
+        kind: "ecs",
+        id: "arn:aws:ecs:us-east-1:123456789012:task/cluster/task-id",
+        name: "nerve-sbx_1",
+        metadata: {
+          sandboxId: "sbx_1",
+          taskDefinitionArn:
+            "arn:aws:ecs:us-east-1:123456789012:task-definition/nerve-sandbox:1",
+          clusterArn: "arn:aws:ecs:us-east-1:123456789012:cluster/nerve",
+          logGroup: "/aws/ecs/nerve-sandbox",
+          logStream: "sandbox/sandbox-agent/task-id",
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      managedContainerRefSchema.safeParse({
+        kind: "ecs",
+        id: "task",
+        metadata: { controllerToken: "ntok_secret" },
+      }).success,
       false,
     );
   });

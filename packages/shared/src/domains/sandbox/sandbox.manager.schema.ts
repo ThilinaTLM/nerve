@@ -59,10 +59,37 @@ export type ManagedSandboxRetention = z.infer<
   typeof managedSandboxRetentionSchema
 >;
 
+const metadataSecretLikeKeyPattern =
+  /(api[_-]?key|token|secret|password|authorization|cookie|private[_-]?key)/i;
+const metadataSecretLikeValuePattern =
+  /((^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{12,}|(^|[^A-Za-z0-9])ghp_[A-Za-z0-9_]{12,}|bearer\s+[A-Za-z0-9_.-]+|password=|api[_-]?key=|token=|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i;
+
+export const managedContainerMetadataSchema = z
+  .record(z.string(), z.string())
+  .superRefine((metadata, ctx) => {
+    for (const [key, value] of Object.entries(metadata)) {
+      if (
+        metadataSecretLikeKeyPattern.test(key) ||
+        metadataSecretLikeValuePattern.test(value)
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message:
+            "container metadata must not contain secret-like keys or values",
+        });
+      }
+    }
+  });
+export type ManagedContainerMetadata = z.infer<
+  typeof managedContainerMetadataSchema
+>;
+
 export const managedContainerRefSchema = z.object({
   kind: z.string().min(1),
   id: z.string().min(1),
   name: z.string().min(1).optional(),
+  metadata: managedContainerMetadataSchema.optional(),
 });
 export type ManagedContainerRef = z.infer<typeof managedContainerRefSchema>;
 

@@ -20,6 +20,8 @@ ARG PNPM_VERSION=11.8.0
 ARG YARN_VERSION=1.22.22
 ARG UV_VERSION=0.11.27
 ARG NVM_VERSION=v0.40.5
+ARG SANDBOX_UID=10001
+ARG SANDBOX_GID=10001
 
 LABEL org.nerve.sandbox.spec="v1" \
   org.nerve.sandbox.agent.version="0.6.0"
@@ -77,8 +79,8 @@ RUN set -eux; \
     xz-utils \
     zip; \
   rm -rf /var/lib/apt/lists/*; \
-  groupadd --system sandbox; \
-  useradd --system --gid sandbox --home-dir /home/sandbox --create-home --shell /usr/sbin/nologin sandbox; \
+  groupadd --system --gid "${SANDBOX_GID}" sandbox; \
+  useradd --system --uid "${SANDBOX_UID}" --gid sandbox --home-dir /home/sandbox --create-home --shell /usr/sbin/nologin sandbox; \
   mkdir -p \
     /agent \
     /agent/skills \

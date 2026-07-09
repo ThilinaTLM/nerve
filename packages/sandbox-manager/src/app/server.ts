@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: HTTP route table intentionally centralizes the sandbox-manager API surface.
 import { readFile } from "node:fs/promises";
 import {
   createServer,
@@ -285,7 +286,7 @@ async function handle(
         const record = await createSandboxRecord(
           state,
           body.config,
-          body.image,
+          body.image ?? state.config.defaultSandboxImage,
           body.name,
           body.auth,
         );
@@ -338,6 +339,8 @@ async function handle(
     const result = await withIdempotency(state, req, path, body, async () => {
       const removed = await state.supervisor.remove(sandboxMatch[1], body);
       await state.sandboxes.delete(sandboxMatch[1]);
+      if (body.removeVolumes)
+        await state.volumeProvider.remove?.(sandboxMatch[1], body);
       await recordManagerLifecycleEvent(state, {
         type: "manager.sandbox.deleted",
         sandboxId: sandboxMatch[1],
@@ -534,25 +537,45 @@ async function startSandbox(
   if (!record) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
   const config = await loadSandboxConfigForStart(state, record);
   const refreshed = (await state.sandboxes.get(sandboxId)) ?? record;
-  if (!refreshed.configRef?.source)
+  const runtimeVolumes = (await state.volumeStore.get(sandboxId)) ?? {
+    workspace: refreshed.workspaceRef,
+    state: refreshed.stateRef,
+    secrets: refreshed.secretMountRefs?.[0],
+    config: refreshed.configRef,
+    tmp: undefined,
+  };
+  if (!runtimeVolumes.secrets || !runtimeVolumes.config)
     throw new HttpError(
       409,
-      "Sandbox config is not materialized for this container backend",
+      "Sandbox runtime volumes are not materialized for this container backend",
       "INVALID_STATE",
     );
   const spec = buildSandboxLaunchSpec(config, {
     image: refreshed.image.reference,
     sandboxId,
     managerBaseUrl: refreshed.controller?.url ?? "",
-    workspaceSource: refreshed.workspaceRef.source ?? "",
-    stateSource: refreshed.stateRef.source ?? "",
-    configSource: refreshed.configRef.source,
-    secretsSource: refreshed.secretMountRefs?.[0]?.source ?? "",
+    runtimeMounts: {
+      workspace: runtimeVolumes.workspace,
+      state: runtimeVolumes.state,
+      config: runtimeVolumes.config,
+      secrets: runtimeVolumes.secrets,
+      tmp: runtimeVolumes.tmp,
+    },
+    backend: state.config.backend,
     logLevel: state.config.logLevel,
   });
+  const stableInstanceId = record.instanceId ?? spec.instanceId;
   const stableSpec = {
     ...spec,
-    instanceId: record.instanceId ?? spec.instanceId,
+    instanceId: stableInstanceId,
+    env: {
+      ...spec.env,
+      NERVE_SANDBOX_AGENT_INSTANCE_ID: stableInstanceId,
+    },
+    labels: {
+      ...spec.labels,
+      "org.nerve.sandbox.instance": stableInstanceId,
+    },
   };
   return publicSandboxRecord(
     await state.supervisor.start(sandboxId, stableSpec),
