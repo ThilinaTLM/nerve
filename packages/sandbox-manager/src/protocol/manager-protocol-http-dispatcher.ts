@@ -3,11 +3,13 @@ import {
   createId,
   type NerveErrorCode,
   type NerveMessage,
+  nerveErrorCodeSchema,
   protocolRequestMessageSchema,
 } from "@nervekit/shared";
 import type { ManagerState } from "../app/manager-state.js";
 import { readJsonBody } from "../http/body.js";
 import { HttpError } from "../http/errors.js";
+import { ForwardedCommandError } from "./command-forwarder.js";
 import { handleManagerProtocolMethod } from "./manager-protocol-method-handlers.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
@@ -121,6 +123,13 @@ function normalizeProtocolError(error: unknown): {
       message: error.message,
     };
   }
+  if (error instanceof ForwardedCommandError) {
+    return {
+      status: error.status,
+      code: forwardedCommandProtocolCode(error),
+      message: error.message,
+    };
+  }
   if (error && typeof error === "object" && "issues" in error) {
     return {
       status: 400,
@@ -135,7 +144,20 @@ function normalizeProtocolError(error: unknown): {
   };
 }
 
+function forwardedCommandProtocolCode(
+  error: ForwardedCommandError,
+): NerveErrorCode {
+  if (error.code === "OPERATION_TIMEOUT") return "OPERATION_TIMEOUT";
+  if (error.status === 503) return "SERVICE_UNAVAILABLE";
+  if (error.status === 404) return "RESOURCE_NOT_FOUND";
+  if (error.status === 400) return "VALIDATION_FAILED";
+  if (error.status === 409) return "DOMAIN_VALIDATION_FAILED";
+  return httpCodeToProtocolCode(error.code);
+}
+
 function httpCodeToProtocolCode(code: string): NerveErrorCode {
+  const protocolCode = nerveErrorCodeSchema.safeParse(code);
+  if (protocolCode.success) return protocolCode.data;
   switch (code) {
     case "UNAUTHORIZED":
       return "AUTH_INVALID";
@@ -145,10 +167,6 @@ function httpCodeToProtocolCode(code: string): NerveErrorCode {
       return "RESOURCE_NOT_FOUND";
     case "UNAVAILABLE":
       return "SERVICE_UNAVAILABLE";
-    case "IDEMPOTENCY_CONFLICT":
-      return "IDEMPOTENCY_CONFLICT";
-    case "VALIDATION_FAILED":
-      return "VALIDATION_FAILED";
     default:
       return "INTERNAL_ERROR";
   }

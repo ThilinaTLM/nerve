@@ -28,16 +28,24 @@ export class SandboxCenterState {
   settingsSection = $state<string>("");
 
   private readonly onSelect?: (id: string | undefined) => void;
+  private readonly canSelect?: (id: string) => boolean;
 
-  constructor(options?: { onSelect?: (id: string | undefined) => void }) {
+  constructor(options?: {
+    onSelect?: (id: string | undefined) => void;
+    canSelect?: (id: string) => boolean;
+  }) {
     this.onSelect = options?.onSelect;
+    this.canSelect = options?.canSelect;
   }
 
   /** Restore the persisted selection on boot. */
   restore(): void {
     const stored = readStoredSandbox();
-    if (stored) this.openSandbox(stored);
-    else this.openDashboard();
+    if (stored && (this.canSelect?.(stored) ?? true)) this.openSandbox(stored);
+    else {
+      writeStoredSandbox(undefined);
+      this.openDashboard();
+    }
   }
 
   openDashboard(): void {

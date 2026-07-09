@@ -25,8 +25,11 @@ export function sandboxDaemonStatus(
 export function sandboxIsConnected(
   detail: SandboxDetailState | undefined,
 ): boolean {
+  if (typeof detail?.status?.connected === "boolean") {
+    return detail.status.connected;
+  }
   return (
-    detail?.status?.connected === true || detail?.controllerConnected === true
+    detail?.controllerConnected === true || detail?.snapshot?.connected === true
   );
 }
 

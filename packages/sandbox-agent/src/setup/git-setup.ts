@@ -140,8 +140,8 @@ async function configureSafeDirectory(
   workspaceDir: string,
   env: Record<string, string>,
 ): Promise<void> {
-  const safeDirectory = config.git?.safeDirectory;
-  if (!safeDirectory || safeDirectory === "none") return;
+  const safeDirectory = config.git?.safeDirectory ?? "workspace";
+  if (safeDirectory === "none") return;
   const directories =
     safeDirectory === "workspace" ? [workspaceDir] : safeDirectory;
   for (const directory of directories)

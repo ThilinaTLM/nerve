@@ -18,6 +18,7 @@
     onSelect: (id) => {
       void store.selectSandbox(id);
     },
+    canSelect: (id) => store.sandboxes.some((sandbox) => sandbox.sandboxId === id),
   });
   setSandboxCenter(center);
 

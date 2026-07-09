@@ -360,12 +360,20 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     detail.loading = true;
     try {
-      const [record, status] = await Promise.all([
-        api.getSandboxRecord(sandboxId),
-        api.getSandboxStatus(sandboxId).catch(() => undefined),
-      ]);
-      if (record) this.patchRecord(record);
-      else detail.record = record;
+      const record = await api.getSandboxRecord(sandboxId);
+      if (!record) {
+        detail.record = undefined;
+        detail.status = undefined;
+        detail.snapshot = undefined;
+        detail.controllerConnected = false;
+        detail.latestSession = undefined;
+        detail.error = "Sandbox not found";
+        return;
+      }
+      this.patchRecord(record);
+      const status = await api
+        .getSandboxStatus(sandboxId)
+        .catch(() => undefined);
       if (status) {
         detail.status = status;
         detail.controllerConnected = status.connected;

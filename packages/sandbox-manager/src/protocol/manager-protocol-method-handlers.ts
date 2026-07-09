@@ -335,7 +335,7 @@ async function forwardSandboxCommand(
     session.socket,
     internalMethod,
     params,
-    requestIdFromParams(params) ?? `req_${Date.now()}`,
+    requestIdFromParams(params),
   );
 }
 

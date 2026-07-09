@@ -52,7 +52,16 @@ export class SandboxSupervisor {
       observedState: "starting",
     });
     try {
-      const ref = record.containerRef ?? (await this.driver.create(spec));
+      let ref = record.containerRef;
+      if (ref) {
+        try {
+          const status = await this.driver.inspect(ref);
+          if (status.state === "unknown") ref = undefined;
+        } catch {
+          ref = undefined;
+        }
+      }
+      ref ??= await this.driver.create(spec);
       await this.driver.start(ref);
       const started: ManagedSandboxRecord = {
         ...record,

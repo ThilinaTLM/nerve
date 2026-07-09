@@ -7,6 +7,40 @@ import { encodeProtocolMessage } from "./messages.js";
 
 export type CommandSocket = { send(data: string): void };
 
+export class ForwardedCommandError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly status = forwardedCommandStatus(code),
+  ) {
+    super(message);
+    this.name = "ForwardedCommandError";
+  }
+}
+
+function forwardedCommandStatus(code: string): number {
+  switch (code) {
+    case "VALIDATION_FAILED":
+      return 400;
+    case "UNKNOWN_RUN":
+    case "RESOURCE_NOT_FOUND":
+      return 404;
+    case "IDEMPOTENCY_CONFLICT":
+    case "ALREADY_RESOLVED":
+    case "INVALID_RUN_STATE":
+    case "COMMAND_FAILED":
+      return 409;
+    case "OPERATION_TIMEOUT":
+      return 504;
+    case "UNAVAILABLE":
+    case "SERVICE_UNAVAILABLE":
+      return 503;
+    default:
+      if (code.startsWith("GIT_") || code.startsWith("GH_")) return 409;
+      return 500;
+  }
+}
+
 type Pending = {
   resolve(value: unknown): void;
   reject(error: Error): void;
@@ -43,7 +77,13 @@ export class CommandForwarder {
         requestId: id,
         pending: this.pending.size,
       });
-      return Promise.reject(new Error("Sandbox command queue is full"));
+      return Promise.reject(
+        new ForwardedCommandError(
+          "SERVICE_UNAVAILABLE",
+          "Sandbox command queue is full",
+          503,
+        ),
+      );
     }
     const startedAt = Date.now();
     this.logger?.debug("forwarding command to controller", {
@@ -58,7 +98,13 @@ export class CommandForwarder {
           requestId: id,
           timeoutMs,
         });
-        reject(new Error(`Sandbox command timed out: ${id}`));
+        reject(
+          new ForwardedCommandError(
+            "OPERATION_TIMEOUT",
+            `Sandbox command timed out: ${id}`,
+            504,
+          ),
+        );
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timeout, method, startedAt });
       socket.send(
@@ -89,7 +135,9 @@ export class CommandForwarder {
       code: parsed.error.code,
       durationMs: Date.now() - pending.startedAt,
     });
-    pending.reject(new Error(`${parsed.error.code}: ${parsed.error.message}`));
+    pending.reject(
+      new ForwardedCommandError(parsed.error.code, parsed.error.message),
+    );
   }
 
   failAll(error: Error): void {

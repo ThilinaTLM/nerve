@@ -90,6 +90,7 @@
   let prsOpen = $state(true);
   let setupOpen = $state(false);
   let loadedSandboxId = $state<string | undefined>(undefined);
+  let autoRefreshAttemptedSandboxId = $state<string | undefined>(undefined);
 
   const selectedRepoSummary = $derived(
     overview?.repo ?? repos.find((repo) => repo.relativePath === selectedRepo),
@@ -112,17 +113,27 @@
   $effect(() => {
     if (record.sandboxId === loadedSandboxId) return;
     loadedSandboxId = record.sandboxId;
+    autoRefreshAttemptedSandboxId = undefined;
     repos = [];
     overview = undefined;
     branches = [];
     github = undefined;
     prs = [];
-    if (connected) void refreshAll();
   });
 
   $effect(() => {
-    if (!connected) return;
-    if (repos.length === 0 && !loadingRepos) void refreshAll();
+    if (!connected) {
+      autoRefreshAttemptedSandboxId = undefined;
+      return;
+    }
+    if (
+      repos.length === 0 &&
+      !loadingRepos &&
+      autoRefreshAttemptedSandboxId !== record.sandboxId
+    ) {
+      autoRefreshAttemptedSandboxId = record.sandboxId;
+      void refreshAll();
+    }
   });
 
   function asRecord(value: unknown): PlainRecord {

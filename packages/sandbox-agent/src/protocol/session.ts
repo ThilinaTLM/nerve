@@ -5,6 +5,7 @@ import {
   type StructuredLogger,
 } from "@nervekit/shared";
 import { SecretResolver } from "../credentials/secret-resolver.js";
+import { SandboxCommandError } from "../daemon/errors.js";
 import type { SandboxDaemon } from "../daemon/sandbox-daemon.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
 import { SandboxWebSocketClient } from "./websocket-client.js";
@@ -244,11 +245,13 @@ export class ProtocolSession {
           durationMs: Date.now() - startedAt,
           err: error,
         });
+        const commandError =
+          error instanceof SandboxCommandError ? error : undefined;
         this.client?.send({
           type: "error",
           id: requestId,
           error: {
-            code: "COMMAND_FAILED",
+            code: commandError?.code ?? "COMMAND_FAILED",
             message: error instanceof Error ? error.message : String(error),
           },
         });

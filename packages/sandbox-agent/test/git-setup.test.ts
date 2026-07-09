@@ -100,6 +100,8 @@ describe("git setup", () => {
       assert.equal(result.status, "completed");
       const config = await readFile(path.join(state, "git", "config"), "utf8");
       assert.equal(config.includes("ghp_super_secret_token"), false);
+      assert.match(config, /\[safe\]/);
+      assert.match(config, /directory =/);
       const password = await readFile(
         path.join(credentials, "git", "github_password"),
         "utf8",
